@@ -1,8 +1,20 @@
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+compose.override.yaml
+docker-compose.override.yaml
 
 ### STS ###
 .apt_generated
@@ -31,3 +43,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Caches ###
+.cache/
+tmp/
