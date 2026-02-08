@@ -33,6 +33,13 @@ management:
       exposure:
         include: health,info
 
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
 shizuki:
   ai:
     quota:

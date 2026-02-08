@@ -42,3 +42,10 @@ shizuki:
   security:
     secret:
       enforce: ${SECRET_ENFORCE:true}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html

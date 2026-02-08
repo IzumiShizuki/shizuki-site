@@ -37,6 +37,13 @@ public class AuthGatewayFilter implements org.springframework.cloud.gateway.filt
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 网关统一鉴权流程：
+     * 1. 公共路径直接放行；
+     * 2. guest 路径注入 GUEST 上下文；
+     * 3. 其余路径通过 user-service introspect 校验 token；
+     * 4. 鉴权成功后把用户上下文透传给下游服务。
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange,
                              org.springframework.cloud.gateway.filter.GatewayFilterChain chain) {
@@ -52,11 +59,13 @@ public class AuthGatewayFilter implements org.springframework.cloud.gateway.filt
         String authorization = exchange.getRequest().getHeaders().getFirst(AUTHORIZATION);
         if (!StringUtils.hasText(authorization)) {
             if (isGuestPath(path)) {
+                // 游客可访问路径统一注入 GUEST 头，避免下游空上下文判定复杂化。
                 return chain.filter(withUserHeaders(exchange, 0L, Set.of("GUEST"), Set.of()));
             }
             return unauthorized(exchange, "Login required");
         }
 
+        // 调用 user-service 内部 introspect 接口校验 token 并拿到用户分组与权限。
         return webClient.get()
             .uri(properties.getUserServiceIntrospectUrl())
             .header(AUTHORIZATION, authorization)
@@ -86,6 +95,7 @@ public class AuthGatewayFilter implements org.springframework.cloud.gateway.filt
                                               Long userId,
                                               Set<String> groups,
                                               Set<String> permissions) {
+        // 透传头字段供下游 LoginUserContextFilter 读取，形成统一用户上下文。
         return exchange.mutate().request(exchange.getRequest().mutate()
             .header(USER_ID, String.valueOf(userId))
             .header(USER_GROUPS, String.join(",", groups))

@@ -20,6 +20,7 @@
         <mybatis-plus.version>3.5.8</mybatis-plus.version>
         <sa-token.version>1.39.0</sa-token.version>
         <owasp-sanitizer.version>20240325.1</owasp-sanitizer.version>
+        <springdoc.version>2.6.0</springdoc.version>
     </properties>
 
     <modules>

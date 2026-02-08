@@ -81,6 +81,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public MeResponse currentUser() {
+        // 从网关注入的上下文中读取当前用户，再回表补齐昵称等信息。
         return LoginUserContext.get()
             .map(loginUser -> {
                 UserAccountEntity account = userAccountMapper.selectById(loginUser.getUserId());
@@ -100,6 +101,7 @@ public class UserServiceImpl implements UserService {
         if (userId == null || userId <= 0) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required");
         }
+        // user_id 唯一，按“有则更新、无则插入”处理用户偏好。
         UserPreferenceEntity found = userPreferenceMapper.selectOne(
             new LambdaQueryWrapper<UserPreferenceEntity>().eq(UserPreferenceEntity::getUserId, userId)
         );
@@ -123,6 +125,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Only github provider is supported");
         }
 
+        // 每次登录申请生成独立事务 ID + state，防止回调串号和重放。
         String loginId = UUID.randomUUID().toString();
         String state = oAuthStateService.createState(loginId);
         String authorizeUrl = gitHubAuthorizeUrl(state, request.getRedirectUri());
@@ -142,6 +145,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public String exchangeOAuthToken(String oauthLoginId, String code, String state) {
+        // state 通过后立即消费，避免同一 state 重放。
         if (!oAuthStateService.validateAndConsume(oauthLoginId, state)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid oauth state");
         }
@@ -152,6 +156,7 @@ public class UserServiceImpl implements UserService {
         }
 
         try {
+            // 标准 OAuth 闭环：code -> token -> 第三方用户信息 -> 本地账号绑定。
             GitHubTokenResponse tokenResponse = gitHubOAuthClient.exchangeCode(code, oauthLogin.getRedirectUri());
             if (tokenResponse == null || !StringUtils.hasText(tokenResponse.getAccessToken())) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "OAuth token exchange failed");
@@ -173,6 +178,7 @@ public class UserServiceImpl implements UserService {
 
             return StpUtil.getTokenValue();
         } catch (Exception ex) {
+            // 无论业务异常还是系统异常，都把失败原因落到 oauth_login 便于审计追踪。
             oauthLogin.setStatus(OAUTH_STATUS_FAILED);
             oauthLogin.setErrorMessage(ex.getMessage());
             oauthLogin.setUpdatedAt(LocalDateTime.now());
@@ -263,6 +269,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private Long bindOrCreateUser(GitHubUserResponse userResponse) {
+        // provider + provider_user_id 唯一，已绑定时直接复用本地账号。
         OAuthBindingEntity binding = oAuthBindingMapper.selectOne(
             new LambdaQueryWrapper<OAuthBindingEntity>()
                 .eq(OAuthBindingEntity::getProvider, "github")
@@ -311,6 +318,7 @@ public class UserServiceImpl implements UserService {
             });
             return values == null ? Set.of() : values.stream().filter(StringUtils::hasText).collect(Collectors.toSet());
         } catch (Exception ex) {
+            // 容错处理：历史脏数据不应阻断登录态解析流程。
             return Set.of();
         }
     }

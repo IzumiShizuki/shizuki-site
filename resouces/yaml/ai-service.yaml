@@ -30,3 +30,10 @@ shizuki:
       default-total-rounds: 5
   user:
     service-uri: ${USER_SERVICE_URI:http://localhost:8081}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html

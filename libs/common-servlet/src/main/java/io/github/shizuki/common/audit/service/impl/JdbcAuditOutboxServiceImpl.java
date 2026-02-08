@@ -78,6 +78,9 @@ public class JdbcAuditOutboxServiceImpl implements AuditOutboxService {
         this.properties = properties;
     }
 
+    /**
+     * 调度入口：扫描待处理事件并逐条分发。
+     */
     @Override
     public void dispatchPendingEvents() {
         JdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
@@ -101,6 +104,7 @@ public class JdbcAuditOutboxServiceImpl implements AuditOutboxService {
     }
 
     private void processSingleEvent(JdbcTemplate jdbcTemplate, AuditOutboxEvent event) {
+        // 先抢占事件状态，避免多实例并发重复消费同一条 outbox 数据。
         int claimed = jdbcTemplate.update(CLAIM_SQL, event.id());
         if (claimed == 0) {
             return;
@@ -119,10 +123,12 @@ public class JdbcAuditOutboxServiceImpl implements AuditOutboxService {
         String message = abbreviate(ex.getMessage());
 
         if (nextRetryCount >= properties.getMaxRetries()) {
+            // 到达最大重试次数后保留 FAILED，等待人工排查。
             jdbcTemplate.update(FAIL_FINAL_SQL, nextRetryCount, message, event.id());
             return;
         }
 
+        // 指数退避，避免下游故障时高频重试放大压力。
         int delaySeconds = backoffSeconds(nextRetryCount);
         jdbcTemplate.update(FAIL_RETRY_SQL, nextRetryCount, delaySeconds, message, event.id());
     }
@@ -137,6 +143,7 @@ public class JdbcAuditOutboxServiceImpl implements AuditOutboxService {
         if (!StringUtils.hasText(message)) {
             return "unknown error";
         }
+        // DB 列长度受限，超长错误信息做截断防止写入失败。
         return message.length() > 1024 ? message.substring(0, 1024) : message;
     }
 

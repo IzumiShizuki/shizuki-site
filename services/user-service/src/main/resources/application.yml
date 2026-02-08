@@ -49,3 +49,10 @@ sa-token:
   token-prefix: Bearer
   timeout: 2592000
   active-timeout: -1
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html

@@ -56,6 +56,7 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public AiSessionSummary createSession(CreateSessionRequest request) {
+        // 会话 ID 使用业务前缀 + UUID，方便排查与后续扩展。
         Long userId = currentUserId();
         AiSessionEntity entity = new AiSessionEntity();
         entity.setSessionId("session-" + UUID.randomUUID());
@@ -70,6 +71,7 @@ public class AiServiceImpl implements AiService {
     @Override
     public List<AiSessionSummary> listSessions() {
         Long userId = currentUserId();
+        // 只返回当前用户会话，按创建时间倒序展示最近会话。
         return aiSessionMapper.selectList(
                 new LambdaQueryWrapper<AiSessionEntity>()
                     .eq(AiSessionEntity::getUserId, userId)
@@ -92,6 +94,7 @@ public class AiServiceImpl implements AiService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Session not found");
         }
 
+        // 发送消息前先计算本次可用总额度，并执行扣减。
         long total = resolveTotalQuota();
         AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
 
@@ -112,6 +115,7 @@ public class AiServiceImpl implements AiService {
         usage.setUpdatedAt(LocalDateTime.now());
         aiQuotaUsageMapper.updateById(usage);
 
+        // 当前阶段先返回 mock 回复，后续可替换为真实模型调用。
         insertMessage(sessionId, userId, "user", request.getMessage());
         String assistantMessage = "[Mock reply] Focus on one thing at a time.";
         insertMessage(sessionId, userId, "assistant", assistantMessage);
@@ -176,6 +180,7 @@ public class AiServiceImpl implements AiService {
                 .eq(AiQuotaUsageEntity::getQuotaCode, aiQuotaProperties.getCode())
         );
         if (usage != null) {
+            // 分组策略变化时，历史记录中的 total 需要同步刷新。
             if (!usage.getTotalRounds().equals(total)) {
                 usage.setTotalRounds(total);
                 usage.setUpdatedAt(LocalDateTime.now());
@@ -197,6 +202,7 @@ public class AiServiceImpl implements AiService {
 
     private long resolveTotalQuota() {
         Set<String> groups = LoginUserContext.get().map(loginUser -> loginUser.getGroups()).orElse(Set.of("USER"));
+        // 配额策略由 user-service 统一解析，ai-service 只消费结果。
         Long resolved = userQuotaClient.resolveQuota(
             aiQuotaProperties.getCode(),
             groups,
