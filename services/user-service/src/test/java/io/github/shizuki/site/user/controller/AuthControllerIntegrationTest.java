@@ -44,8 +44,8 @@ class AuthControllerIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value("OK"))
             .andExpect(jsonPath("$.data.token").value("token-123"))
-            .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
-            .andExpect(jsonPath("$.data.userId").value(1));
+            .andExpect(jsonPath("$.data.token_type").value("Bearer"))
+            .andExpect(jsonPath("$.data.user_id").value(1));
     }
 
     @Test
@@ -56,7 +56,7 @@ class AuthControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/auth/introspect"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value("OK"))
-            .andExpect(jsonPath("$.data.userId").value(1))
+            .andExpect(jsonPath("$.data.user_id").value(1))
             .andExpect(jsonPath("$.data.groups[0]").value("ADMIN"));
     }
 

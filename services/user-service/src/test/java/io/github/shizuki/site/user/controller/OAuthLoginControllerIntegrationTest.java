@@ -40,12 +40,12 @@ class OAuthLoginControllerIntegrationTest {
                 .content("""
                     {
                       "provider": "github",
-                      "redirectUri": "https://example.com/oauth/callback"
+                      "redirect_uri": "https://example.com/oauth/callback"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value("OK"))
-            .andExpect(jsonPath("$.data.oauthLoginId").value("oauth-login-001"))
+            .andExpect(jsonPath("$.data.oauth_login_id").value("oauth-login-001"))
             .andExpect(jsonPath("$.data.state").value("state-001"));
     }
 

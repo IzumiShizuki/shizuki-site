@@ -34,7 +34,7 @@ class InternalQuotaControllerIntegrationTest {
                 .param("default_value", "5"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value("OK"))
-            .andExpect(jsonPath("$.data.quotaCode").value("ai_round_total"))
+            .andExpect(jsonPath("$.data.quota_code").value("ai_round_total"))
             .andExpect(jsonPath("$.data.value").value(20));
     }
 }
