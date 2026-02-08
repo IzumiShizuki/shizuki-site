@@ -1,0 +1,38 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  timeout: 2592000
+  active-timeout: -1
+  is-concurrent: true
+  is-share: true
+
+shizuki:
+  audit:
+    outbox:
+      enabled: true
+      batch-size: 100
+      poll-interval: 5000
+      max-retries: 5
+    publisher:
+      type: noop
+  ai:
+    quota:
+      code: ai_round_total
+      default-total-rounds: 5
+  user:
+    service-uri: ${USER_SERVICE_URI:http://localhost:8081}

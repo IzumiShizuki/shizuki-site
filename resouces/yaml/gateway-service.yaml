@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 3000
+        response-timeout: 5s
+
+shizuki:
+  gateway:
+    auth:
+      enabled: true
+      user-service-introspect-url: ${USER_SERVICE_URI:http://localhost:8081}/api/v1/auth/introspect
+      public-paths:
+        - /api/v1/auth/login
+        - /api/v1/oauth-logins/**
+        - /actuator/**
+      guest-paths:
+        - /api/v1/posts/**
+        - /api/v1/apps/**

@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: media-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        enabled: ${NACOS_ENABLED:false}
+      config:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        enabled: ${NACOS_ENABLED:false}
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/shizuki_media?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+shizuki:
+  media:
+    storage:
+      private-bucket: ${OSS_PRIVATE_BUCKET:shizuki-private}
+      public-bucket: ${OSS_PUBLIC_BUCKET:shizuki-public}
+      sign-expire-seconds: 600
+      max-upload-size: 52428800
+      allowed-content-types:
+        - image/png
+        - image/jpeg
+        - image/webp
+        - audio/mpeg
+        - audio/wav
+        - audio/ogg
+  oss:
+    endpoint: ${OSS_ENDPOINT:https://oss-cn-hangzhou.aliyuncs.com}
+    access-key-id: ${OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+  security:
+    secret:
+      enforce: ${SECRET_ENFORCE:${NACOS_ENABLED:false}}
