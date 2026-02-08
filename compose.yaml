@@ -1,1 +1,163 @@
-services: {}
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: shizuki-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./resouces/sql/00_init_databases.sql:/docker-entrypoint-initdb.d/00_init_databases.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4
+    container_name: shizuki-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  nacos:
+    image: nacos/nacos-server:v2.4.3
+    container_name: shizuki-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+      JVM_XMN: 128m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+
+  gateway-service:
+    image: shizuki/gateway-service:latest
+    container_name: shizuki-gateway
+    profiles: [ "apps" ]
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_ADDR: nacos:8848
+      USER_SERVICE_URI: http://user-service:8081
+      CONTENT_SERVICE_URI: http://content-service:8082
+      MEDIA_SERVICE_URI: http://media-service:8083
+      AI_SERVICE_URI: http://ai-service:8084
+    depends_on:
+      nacos:
+        condition: service_started
+
+  user-service:
+    image: shizuki/user-service:latest
+    container_name: shizuki-user
+    profiles: [ "apps" ]
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_ADDR: nacos:8848
+      DB_URL: jdbc:mysql://mysql:3306/shizuki_user?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  content-service:
+    image: shizuki/content-service:latest
+    container_name: shizuki-content
+    profiles: [ "apps" ]
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_ADDR: nacos:8848
+      DB_URL: jdbc:mysql://mysql:3306/shizuki_content?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  media-service:
+    image: shizuki/media-service:latest
+    container_name: shizuki-media
+    profiles: [ "apps" ]
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_ADDR: nacos:8848
+      DB_URL: jdbc:mysql://mysql:3306/shizuki_media?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  ai-service:
+    image: shizuki/ai-service:latest
+    container_name: shizuki-ai
+    profiles: [ "apps" ]
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_ADDR: nacos:8848
+      DB_URL: jdbc:mysql://mysql:3306/shizuki_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      USER_SERVICE_URI: http://user-service:8081
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+volumes:
+  mysql-data:
+  redis-data:
