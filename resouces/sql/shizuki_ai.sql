@@ -82,10 +82,50 @@ CREATE TABLE IF NOT EXISTS audit_event_outbox (
 
 -- modified_at: 2026-02-08 18:03:04
 -- change: add retry metadata columns for audit outbox dispatch and retry scheduler
-ALTER TABLE audit_event_outbox
-    ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0 COMMENT '重试次数',
-    ADD COLUMN IF NOT EXISTS next_retry_at DATETIME(3) NULL COMMENT '下次重试时间',
-    ADD COLUMN IF NOT EXISTS last_error VARCHAR(1024) NULL COMMENT '最近一次错误信息';
+SET @shizuki_ai_retry_count_exists := (
+    SELECT COUNT(1) FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'audit_event_outbox'
+      AND column_name = 'retry_count'
+);
+SET @shizuki_ai_retry_count_sql := IF(
+    @shizuki_ai_retry_count_exists = 0,
+    'ALTER TABLE audit_event_outbox ADD COLUMN retry_count INT NOT NULL DEFAULT 0 COMMENT ''重试次数''',
+    'SELECT 1'
+);
+PREPARE shizuki_ai_retry_count_stmt FROM @shizuki_ai_retry_count_sql;
+EXECUTE shizuki_ai_retry_count_stmt;
+DEALLOCATE PREPARE shizuki_ai_retry_count_stmt;
+
+SET @shizuki_ai_next_retry_at_exists := (
+    SELECT COUNT(1) FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'audit_event_outbox'
+      AND column_name = 'next_retry_at'
+);
+SET @shizuki_ai_next_retry_at_sql := IF(
+    @shizuki_ai_next_retry_at_exists = 0,
+    'ALTER TABLE audit_event_outbox ADD COLUMN next_retry_at DATETIME(3) NULL COMMENT ''下次重试时间''',
+    'SELECT 1'
+);
+PREPARE shizuki_ai_next_retry_at_stmt FROM @shizuki_ai_next_retry_at_sql;
+EXECUTE shizuki_ai_next_retry_at_stmt;
+DEALLOCATE PREPARE shizuki_ai_next_retry_at_stmt;
+
+SET @shizuki_ai_last_error_exists := (
+    SELECT COUNT(1) FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'audit_event_outbox'
+      AND column_name = 'last_error'
+);
+SET @shizuki_ai_last_error_sql := IF(
+    @shizuki_ai_last_error_exists = 0,
+    'ALTER TABLE audit_event_outbox ADD COLUMN last_error VARCHAR(1024) NULL COMMENT ''最近一次错误信息''',
+    'SELECT 1'
+);
+PREPARE shizuki_ai_last_error_stmt FROM @shizuki_ai_last_error_sql;
+EXECUTE shizuki_ai_last_error_stmt;
+DEALLOCATE PREPARE shizuki_ai_last_error_stmt;
 
 SET @shizuki_ai_idx_exists := (
     SELECT COUNT(1) FROM information_schema.statistics
