@@ -185,6 +185,7 @@ git commit -m "📝 docs : 更新 API 文档"
 
 - [总体设计文档](resouces/md/总体设计文档_f.md) - 产品定位、架构设计、安全基线
 - [代码开发文档](resouces/md/02_代码开发文档_v0.1.md) - 技术栈、工程结构、开发规范
+- [AI协作开发规范](resouces/md/05_AI协作开发规范_v0.1.md) - AI 必遵守规则、可复用工具类、提交流程
 - [CLAUDE.md](CLAUDE.md) - Claude Code 工作指南
 
 ## 部署说明
