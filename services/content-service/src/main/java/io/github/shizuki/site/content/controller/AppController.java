@@ -16,16 +16,16 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "App", description = "应用中心查询接口")
 public class AppController {
 
-    private final ContentService contentFacade;
+    private final ContentService contentService;
 
-    public AppController(ContentService contentFacade) {
-        this.contentFacade = contentFacade;
+    public AppController(ContentService contentService) {
+        this.contentService = contentService;
     }
 
     @GetMapping
     @Operation(summary = "分页查询应用", description = "按 pageNo/pageSize 分页返回应用卡片列表")
     public ApiResponse<PageResponse<AppSummary>> list(@RequestParam(name = "page_no", defaultValue = "1") long pageNo,
                                                       @RequestParam(name = "page_size", defaultValue = "10") long pageSize) {
-        return ApiResponse.success(contentFacade.listApps(pageNo, pageSize));
+        return ApiResponse.success(contentService.listApps(pageNo, pageSize));
     }
 }

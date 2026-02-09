@@ -19,30 +19,30 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Interaction", description = "点赞与举报交互接口")
 public class InteractionController {
 
-    private final ContentService contentFacade;
+    private final ContentService contentService;
 
-    public InteractionController(ContentService contentFacade) {
-        this.contentFacade = contentFacade;
+    public InteractionController(ContentService contentService) {
+        this.contentService = contentService;
     }
 
     @PostMapping("/posts/{post_id}/likes")
     @AuditLog(action = "post.like", resource = "post")
     @Operation(summary = "点赞帖子")
     public ApiResponse<Map<String, Object>> likePost(@PathVariable("post_id") Long postId) {
-        return ApiResponse.success(contentFacade.likePost(postId));
+        return ApiResponse.success(contentService.likePost(postId));
     }
 
     @PostMapping("/apps/{app_id}/likes")
     @AuditLog(action = "app.like", resource = "app")
     @Operation(summary = "点赞应用")
     public ApiResponse<Map<String, Object>> likeApp(@PathVariable("app_id") Long appId) {
-        return ApiResponse.success(contentFacade.likeApp(appId));
+        return ApiResponse.success(contentService.likeApp(appId));
     }
 
     @PostMapping("/reports")
     @AuditLog(action = "report.create", resource = "report")
     @Operation(summary = "提交举报", description = "支持举报帖子或应用")
     public ApiResponse<Map<String, Object>> report(@Valid @RequestBody ReportRequest request) {
-        return ApiResponse.success(contentFacade.report(request));
+        return ApiResponse.success(contentService.report(request));
     }
 }

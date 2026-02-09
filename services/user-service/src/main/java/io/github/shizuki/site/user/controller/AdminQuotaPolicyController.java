@@ -22,16 +22,16 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Admin Quota", description = "管理员分组配额策略管理接口")
 public class AdminQuotaPolicyController {
 
-    private final UserService userFacade;
+    private final UserService userService;
 
-    public AdminQuotaPolicyController(UserService userFacade) {
-        this.userFacade = userFacade;
+    public AdminQuotaPolicyController(UserService userService) {
+        this.userService = userService;
     }
 
     @GetMapping
     @Operation(summary = "查询配额策略列表", description = "按策略 ID 排序返回所有分组配额规则")
     public ApiResponse<List<QuotaPolicyDto>> list() {
-        return ApiResponse.success(userFacade.listQuotaPolicies());
+        return ApiResponse.success(userService.listQuotaPolicies());
     }
 
     @PutMapping("/{policy_id}")
@@ -39,6 +39,6 @@ public class AdminQuotaPolicyController {
     @Operation(summary = "更新配额策略", description = "按 policy_id 更新分组配额值")
     public ApiResponse<QuotaPolicyDto> update(@PathVariable("policy_id") String policyId,
                                               @Valid @RequestBody QuotaPolicyDto request) {
-        return ApiResponse.success(userFacade.updateQuotaPolicy(policyId, request));
+        return ApiResponse.success(userService.updateQuotaPolicy(policyId, request));
     }
 }

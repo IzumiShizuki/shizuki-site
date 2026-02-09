@@ -18,10 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Post", description = "帖子查询与内部诊断接口")
 public class PostController {
 
-    private final ContentService contentFacade;
+    private final ContentService contentService;
 
-    public PostController(ContentService contentFacade) {
-        this.contentFacade = contentFacade;
+    public PostController(ContentService contentService) {
+        this.contentService = contentService;
     }
 
     @GetMapping
@@ -29,7 +29,7 @@ public class PostController {
     @Operation(summary = "分页查询帖子", description = "按 pageNo/pageSize 分页返回帖子列表")
     public ApiResponse<PageResponse<PostSummary>> list(@RequestParam(name = "page_no", defaultValue = "1") long pageNo,
                                                        @RequestParam(name = "page_size", defaultValue = "10") long pageSize) {
-        return ApiResponse.success(contentFacade.listPosts(pageNo, pageSize));
+        return ApiResponse.success(contentService.listPosts(pageNo, pageSize));
     }
 
     @GetMapping("/internal/ping")

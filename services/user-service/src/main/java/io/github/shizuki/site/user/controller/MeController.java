@@ -20,16 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Me", description = "当前登录用户相关接口")
 public class MeController {
 
-    private final UserService userFacade;
+    private final UserService userService;
 
-    public MeController(UserService userFacade) {
-        this.userFacade = userFacade;
+    public MeController(UserService userService) {
+        this.userService = userService;
     }
 
     @GetMapping
     @Operation(summary = "获取当前用户信息", description = "返回 userId、昵称、分组和权限")
     public ApiResponse<MeResponse> me() {
-        return ApiResponse.success(userFacade.currentUser());
+        return ApiResponse.success(userService.currentUser());
     }
 
     @PutMapping("/preferences")
@@ -37,7 +37,7 @@ public class MeController {
     @Operation(summary = "更新用户偏好", description = "保存首页布局、主题、组件等偏好 JSON")
     public ApiResponse<Void> updatePreference(@Valid @RequestBody PreferenceUpdateRequest request) {
         Long userId = LoginUserContext.get().map(user -> user.getUserId()).orElse(0L);
-        userFacade.savePreference(userId, request.getPreferenceJson());
+        userService.savePreference(userId, request.getPreferenceJson());
         return ApiResponse.success(null);
     }
 }

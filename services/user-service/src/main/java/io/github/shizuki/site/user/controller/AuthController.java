@@ -20,28 +20,28 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Auth", description = "认证与登录态相关接口")
 public class AuthController {
 
-    private final UserService userFacade;
+    private final UserService userService;
 
-    public AuthController(UserService userFacade) {
-        this.userFacade = userFacade;
+    public AuthController(UserService userService) {
+        this.userService = userService;
     }
 
     @PostMapping("/login")
     @Operation(summary = "账号登录", description = "用户名密码登录并返回 Bearer Token")
     public ApiResponse<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request) {
-        return ApiResponse.success(userFacade.login(request.getUsername(), request.getPassword()));
+        return ApiResponse.success(userService.login(request.getUsername(), request.getPassword()));
     }
 
     @PostMapping("/logout")
     @Operation(summary = "退出登录", description = "使当前登录态失效")
     public ApiResponse<Map<String, String>> logout() {
-        userFacade.logout();
+        userService.logout();
         return ApiResponse.success(Map.of("status", "OK"));
     }
 
     @GetMapping("/introspect")
     @Operation(summary = "校验登录态", description = "网关调用该接口解析 token 对应用户信息")
     public ApiResponse<AuthIntrospectResponse> introspect() {
-        return ApiResponse.success(userFacade.introspect());
+        return ApiResponse.success(userService.introspect());
     }
 }

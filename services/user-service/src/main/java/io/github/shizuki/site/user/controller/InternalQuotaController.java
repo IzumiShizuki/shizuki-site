@@ -19,10 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Internal Quota", description = "服务间调用的配额解析接口")
 public class InternalQuotaController {
 
-    private final UserService userFacade;
+    private final UserService userService;
 
-    public InternalQuotaController(UserService userFacade) {
-        this.userFacade = userFacade;
+    public InternalQuotaController(UserService userService) {
+        this.userService = userService;
     }
 
     @GetMapping("/resolve")
@@ -31,7 +31,7 @@ public class InternalQuotaController {
                                                      @RequestParam(value = "group_codes", required = false) String groupCodes,
                                                      @RequestParam(value = "default_value", required = false, defaultValue = "5") Long defaultValue) {
         Set<String> groups = parseGroupCodes(groupCodes);
-        Long value = userFacade.resolveQuota(quotaCode, groups, defaultValue);
+        Long value = userService.resolveQuota(quotaCode, groups, defaultValue);
         return ApiResponse.success(new QuotaResolveResponse(quotaCode, value));
     }
 

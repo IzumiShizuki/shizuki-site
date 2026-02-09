@@ -19,10 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Admin Asset", description = "管理员资源审核接口")
 public class AdminAssetController {
 
-    private final MediaService mediaFacade;
+    private final MediaService mediaService;
 
-    public AdminAssetController(MediaService mediaFacade) {
-        this.mediaFacade = mediaFacade;
+    public AdminAssetController(MediaService mediaService) {
+        this.mediaService = mediaService;
     }
 
     @PutMapping("/{asset_id}/audit-status")
@@ -30,6 +30,6 @@ public class AdminAssetController {
     @Operation(summary = "审核资源状态", description = "将资源状态更新为通过/拒绝等审核态")
     public ApiResponse<Map<String, Object>> audit(@PathVariable("asset_id") Long assetId,
                                                   @RequestParam("audit_status") String auditStatus) {
-        return ApiResponse.success(mediaFacade.auditAsset(assetId, auditStatus));
+        return ApiResponse.success(mediaService.auditAsset(assetId, auditStatus));
     }
 }
