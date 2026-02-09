@@ -1,19 +1,15 @@
 package io.github.shizuki.common.audit.controller;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.core.response.PageResponse;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,9 +32,16 @@ class AuditLogQueryControllerTest {
 
     @Test
     void shouldReturnPagedResultWhenJdbcTemplateAvailable() {
-        when(jdbcTemplateProvider.getIfAvailable()).thenReturn(jdbcTemplate);
-        when(jdbcTemplate.queryForObject(any(String.class), any(Object[].class), eq(Long.class))).thenReturn(1L);
-        when(jdbcTemplate.queryForList(any(String.class), any(Object[].class)))
+        Mockito.when(jdbcTemplateProvider.getIfAvailable()).thenReturn(jdbcTemplate);
+        Mockito.when(jdbcTemplate.queryForObject(
+            ArgumentMatchers.any(String.class),
+            ArgumentMatchers.any(Object[].class),
+            ArgumentMatchers.eq(Long.class)
+        )).thenReturn(1L);
+        Mockito.when(jdbcTemplate.queryForList(
+            ArgumentMatchers.any(String.class),
+            ArgumentMatchers.any(Object[].class)
+        ))
             .thenReturn(List.of(Map.of("id", 1L, "trace_id", "trace-001")));
 
         ApiResponse<PageResponse<Map<String, Object>>> response = controller.list(
@@ -51,10 +54,17 @@ class AuditLogQueryControllerTest {
             20L
         );
 
-        assertEquals("OK", response.code());
-        assertEquals(1L, response.data().total());
-        assertFalse(response.data().items().isEmpty());
-        verify(jdbcTemplate).queryForObject(any(String.class), any(Object[].class), eq(Long.class));
-        verify(jdbcTemplate).queryForList(any(String.class), any(Object[].class));
+        Assertions.assertEquals("OK", response.code());
+        Assertions.assertEquals(1L, response.data().total());
+        Assertions.assertFalse(response.data().items().isEmpty());
+        Mockito.verify(jdbcTemplate).queryForObject(
+            ArgumentMatchers.any(String.class),
+            ArgumentMatchers.any(Object[].class),
+            ArgumentMatchers.eq(Long.class)
+        );
+        Mockito.verify(jdbcTemplate).queryForList(
+            ArgumentMatchers.any(String.class),
+            ArgumentMatchers.any(Object[].class)
+        );
     }
 }
