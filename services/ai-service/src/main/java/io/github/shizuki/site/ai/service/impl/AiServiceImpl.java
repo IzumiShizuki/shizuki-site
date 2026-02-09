@@ -116,9 +116,9 @@ public class AiServiceImpl implements AiService {
         aiQuotaUsageMapper.updateById(usage);
 
         // 当前阶段先返回 mock 回复，后续可替换为真实模型调用。
-        insertMessage(sessionId, userId, "user", request.getMessage());
+        insertMessage(session.getId(), userId, "user", request.getMessage());
         String assistantMessage = "[Mock reply] Focus on one thing at a time.";
-        insertMessage(sessionId, userId, "assistant", assistantMessage);
+        insertMessage(session.getId(), userId, "assistant", assistantMessage);
 
         return Map.of(
             "session_id", sessionId,
@@ -163,7 +163,7 @@ public class AiServiceImpl implements AiService {
         return Map.of("status", "CREATED", "type", type, "id", entity.getId(), "payload", request);
     }
 
-    private void insertMessage(String sessionId, Long userId, String role, String content) {
+    private void insertMessage(Long sessionId, Long userId, String role, String content) {
         AiMessageEntity entity = new AiMessageEntity();
         entity.setSessionId(sessionId);
         entity.setUserId(userId);

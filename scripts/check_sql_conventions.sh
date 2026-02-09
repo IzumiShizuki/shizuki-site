@@ -24,24 +24,120 @@ check_sql_block_headers() {
   fi
 }
 
-check_column_comments() {
+check_column_comments_and_required_columns() {
   local file="$1"
   if ! awk '
-    BEGIN { in_create = 0; bad = 0; }
-    /^[[:space:]]*CREATE TABLE/ { in_create = 1; next; }
-    in_create && /^[[:space:]]*\)/ { in_create = 0; next; }
+    BEGIN {
+      in_create = 0;
+      bad = 0;
+      table = "";
+      has_id = 0;
+      has_create = 0;
+      has_update = 0;
+    }
+
+    function finish_table() {
+      if (in_create == 1) {
+        if (!has_id || !has_create || !has_update) {
+          printf("[sql-check][error] table missing required columns (id/create_time/update_time): %s -> %s\n", FILENAME, table);
+          bad = 1;
+        }
+      }
+    }
+
+    /^[[:space:]]*CREATE TABLE/ {
+      finish_table();
+      in_create = 1;
+      table = $0;
+      gsub(/^.*CREATE TABLE IF NOT EXISTS[[:space:]]+/, "", table);
+      gsub(/\(.*/, "", table);
+      gsub(/`/, "", table);
+      gsub(/[[:space:]]+/, "", table);
+      has_id = 0;
+      has_create = 0;
+      has_update = 0;
+      if (table !~ /^[A-Z]{2,3}_[A-Z0-9_]+$/) {
+        printf("[sql-check][error] invalid table name: %s -> %s\n", FILENAME, table);
+        bad = 1;
+      }
+      next;
+    }
+
+    /^[[:space:]]*CREATE( OR REPLACE)? VIEW/ {
+      view = $0;
+      gsub(/^.*VIEW[[:space:]]+/, "", view);
+      gsub(/[[:space:]]+AS.*/, "", view);
+      gsub(/`/, "", view);
+      gsub(/[[:space:]]+/, "", view);
+      if (view !~ /^VW_[A-Z0-9_]+$/) {
+        printf("[sql-check][error] invalid view name: %s -> %s\n", FILENAME, view);
+        bad = 1;
+      }
+      next;
+    }
+
+    in_create && /^[[:space:]]*\)/ {
+      finish_table();
+      in_create = 0;
+      table = "";
+      next;
+    }
+
     in_create {
       line = $0;
       gsub(/^[[:space:]]+/, "", line);
       gsub(/[[:space:]]+$/, "", line);
+
       if (line == "" || line ~ /^--/) next;
-      if (line ~ /^(PRIMARY KEY|UNIQUE KEY|KEY|INDEX|CONSTRAINT|FOREIGN KEY)/) next;
-      if (line !~ / COMMENT /) {
+
+      if (line ~ /^CONSTRAINT[[:space:]]+/) {
+        split(line, arr, /[[:space:]]+/);
+        cname = arr[2];
+        gsub(/`/, "", cname);
+
+        if (line ~ /PRIMARY KEY/ && cname !~ /^PK_[A-Z0-9_]+$/) {
+          printf("[sql-check][error] invalid PK name: %s:%d -> %s\n", FILENAME, NR, line);
+          bad = 1;
+        }
+        if (line ~ /UNIQUE/ && cname !~ /^AK_[A-Z0-9_]+_[0-9]+$/) {
+          printf("[sql-check][error] invalid AK name: %s:%d -> %s\n", FILENAME, NR, line);
+          bad = 1;
+        }
+        if (line ~ /FOREIGN KEY/ && cname !~ /^FK_[A-Z0-9_]+_[0-9]+$/) {
+          printf("[sql-check][error] invalid FK name: %s:%d -> %s\n", FILENAME, NR, line);
+          bad = 1;
+        }
+        next;
+      }
+
+      if (line ~ /^KEY[[:space:]]+/ || line ~ /^INDEX[[:space:]]+/) {
+        split(line, arr, /[[:space:]]+/);
+        iname = arr[2];
+        gsub(/`/, "", iname);
+        if (iname !~ /^IX_[A-Z0-9_]+_[0-9]+$/) {
+          printf("[sql-check][error] invalid IX name: %s:%d -> %s\n", FILENAME, NR, line);
+          bad = 1;
+        }
+        next;
+      }
+
+      if (line ~ / COMMENT /) {
+        split(line, arr, /[[:space:]]+/);
+        col = arr[1];
+        gsub(/`/, "", col);
+        if (col == "id") has_id = 1;
+        if (col == "create_time") has_create = 1;
+        if (col == "update_time") has_update = 1;
+      } else {
         printf("[sql-check][error] missing column COMMENT: %s:%d -> %s\n", FILENAME, NR, line);
         bad = 1;
       }
     }
-    END { exit bad; }
+
+    END {
+      finish_table();
+      exit bad;
+    }
   ' "$file"; then
     FAILED=1
   fi
@@ -57,15 +153,28 @@ check_flyway_file_name() {
   fi
 }
 
+check_sensitive_plaintext() {
+  local file="$1"
+  if rg -n "admin123|replace_me|password[[:space:]]*=[[:space:]]*'[^']+'" "$file" >/dev/null 2>&1; then
+    echo "[sql-check][error] possible plaintext sensitive data: ${file}"
+    FAILED=1
+  fi
+}
+
 for sql_file in "${PROJECT_ROOT}"/resouces/sql/*.sql; do
   [[ -f "$sql_file" ]] || continue
   check_sql_block_headers "$sql_file"
-  check_column_comments "$sql_file"
+  check_column_comments_and_required_columns "$sql_file"
+  check_sensitive_plaintext "$sql_file"
 done
 
 for migration_file in "${PROJECT_ROOT}"/services/*/src/main/resources/db/migration/*.sql; do
   [[ -f "$migration_file" ]] || continue
   check_flyway_file_name "$migration_file"
+  base="$(basename "$migration_file")"
+  if [[ "$base" =~ ^V([5-9]|[1-9][0-9]+)__ ]]; then
+    check_sensitive_plaintext "$migration_file"
+  fi
 done
 
 if [[ "$FAILED" -ne 0 ]]; then

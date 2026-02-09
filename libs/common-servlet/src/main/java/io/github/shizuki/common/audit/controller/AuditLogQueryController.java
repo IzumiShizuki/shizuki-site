@@ -46,7 +46,7 @@ public class AuditLogQueryController {
         List<Object> args = new ArrayList<>();
 
         if (StringUtils.hasText(traceId)) {
-            where.append(" AND trace_id = ? ");
+            where.append(" AND trace_code = ? ");
             args.add(traceId);
         }
         if (userId != null) {
@@ -54,24 +54,26 @@ public class AuditLogQueryController {
             args.add(userId);
         }
         if (StringUtils.hasText(action)) {
-            where.append(" AND action_name = ? ");
+            where.append(" AND action_code = ? ");
             args.add(action);
         }
         if (startAt != null) {
-            where.append(" AND created_at >= ? ");
+            where.append(" AND create_time >= ? ");
             args.add(Timestamp.valueOf(startAt));
         }
         if (endAt != null) {
-            where.append(" AND created_at <= ? ");
+            where.append(" AND create_time <= ? ");
             args.add(Timestamp.valueOf(endAt));
         }
 
-        String countSql = "SELECT COUNT(1) FROM audit_log" + where;
+        String countSql = "SELECT COUNT(1) FROM AUD_LOG" + where;
         Long total = jdbcTemplate.queryForObject(countSql, args.toArray(), Long.class);
 
         long offset = (pageNo - 1) * pageSize;
-        String dataSql = "SELECT id, trace_id, user_id, action_name, resource_name, result, error_code, cost_ms, created_at "
-            + "FROM audit_log" + where + " ORDER BY id DESC LIMIT ? OFFSET ?";
+        String dataSql = "SELECT id, trace_code AS trace_id, user_id, action_code AS action_name, "
+            + "resource_code AS resource_name, result_status AS result, error_code, cost_value AS cost_ms, "
+            + "create_time AS created_at "
+            + "FROM AUD_LOG" + where + " ORDER BY id DESC LIMIT ? OFFSET ?";
 
         List<Object> dataArgs = new ArrayList<>(args);
         dataArgs.add(pageSize);

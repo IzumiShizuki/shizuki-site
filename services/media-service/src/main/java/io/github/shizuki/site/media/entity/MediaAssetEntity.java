@@ -1,21 +1,39 @@
 package io.github.shizuki.site.media.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("media_asset")
+@TableName("MDA_ASSET")
 public class MediaAssetEntity {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long assetId;
+
+    @TableField("asset_num")
+    private Long assetNum;
+
+    @TableField("user_id")
     private Long userId;
+
+    @TableField("bucket_code")
     private String bucketName;
+
+    @TableField("object_code")
     private String objectKey;
+
+    @TableField("asset_type")
     private String assetType;
+
+    @TableField("audit_status")
     private String auditStatus;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
+
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getAssetId() {
@@ -24,6 +42,14 @@ public class MediaAssetEntity {
 
     public void setAssetId(Long assetId) {
         this.assetId = assetId;
+    }
+
+    public Long getAssetNum() {
+        return assetNum;
+    }
+
+    public void setAssetNum(Long assetNum) {
+        this.assetNum = assetNum;
     }
 
     public Long getUserId() {

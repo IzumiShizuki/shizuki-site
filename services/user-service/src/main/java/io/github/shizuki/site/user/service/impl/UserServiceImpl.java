@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -150,7 +151,10 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid oauth state");
         }
 
-        OAuthLoginEntity oauthLogin = oAuthLoginMapper.selectById(oauthLoginId);
+        OAuthLoginEntity oauthLogin = oAuthLoginMapper.selectOne(
+            new LambdaQueryWrapper<OAuthLoginEntity>()
+                .eq(OAuthLoginEntity::getOauthLoginId, oauthLoginId)
+        );
         if (oauthLogin == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "OAuth login not found");
         }
@@ -200,7 +204,9 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public QuotaPolicyDto updateQuotaPolicy(String policyId, QuotaPolicyDto request) {
-        GroupQuotaPolicyEntity entity = groupQuotaPolicyMapper.selectById(policyId);
+        GroupQuotaPolicyEntity entity = groupQuotaPolicyMapper.selectOne(
+            new LambdaQueryWrapper<GroupQuotaPolicyEntity>().eq(GroupQuotaPolicyEntity::getPolicyId, policyId)
+        );
         if (entity == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Policy not found");
         }
@@ -219,7 +225,7 @@ public class UserServiceImpl implements UserService {
         UserAccountEntity account = userAccountMapper.selectOne(
             new LambdaQueryWrapper<UserAccountEntity>().eq(UserAccountEntity::getUsername, username)
         );
-        if (account == null || !StringUtils.hasText(account.getPassword()) || !account.getPassword().equals(password)) {
+        if (account == null || !matchesPassword(password, account)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid username or password");
         }
 
@@ -307,6 +313,33 @@ public class UserServiceImpl implements UserService {
         dto.setQuotaCode(entity.getQuotaCode());
         dto.setValue(entity.getQuotaValue());
         return dto;
+    }
+
+    /**
+     * 兼容历史明文数据：首次登录成功后自动升级为 BCrypt 哈希，避免长期明文留存。
+     */
+    private boolean matchesPassword(String rawPassword, UserAccountEntity account) {
+        String stored = account.getPassword();
+        if (!StringUtils.hasText(stored)) {
+            return false;
+        }
+
+        if (isBcryptHash(stored)) {
+            return BCrypt.checkpw(rawPassword, stored);
+        }
+
+        if (!stored.equals(rawPassword)) {
+            return false;
+        }
+
+        account.setPassword(BCrypt.hashpw(rawPassword, BCrypt.gensalt(10)));
+        account.setUpdatedAt(LocalDateTime.now());
+        userAccountMapper.updateById(account);
+        return true;
+    }
+
+    private boolean isBcryptHash(String value) {
+        return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
     }
 
     private Set<String> parseStringSet(String json) {

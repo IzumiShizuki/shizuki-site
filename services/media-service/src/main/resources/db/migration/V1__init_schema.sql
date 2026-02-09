@@ -1,47 +1,63 @@
-CREATE TABLE IF NOT EXISTS media_asset (
-    asset_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '资源ID',
-    user_id BIGINT NOT NULL COMMENT '上传用户ID',
-    bucket_name VARCHAR(128) NOT NULL COMMENT '对象存储Bucket',
-    object_key VARCHAR(512) NOT NULL COMMENT '对象存储Key',
+CREATE TABLE IF NOT EXISTS MDA_ASSET (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    asset_num BIGINT NULL COMMENT '资源业务编号',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    bucket_code VARCHAR(128) NOT NULL COMMENT '存储桶编号',
+    object_code VARCHAR(512) NOT NULL COMMENT '对象编号',
     asset_type VARCHAR(64) NOT NULL COMMENT '资源类型',
     audit_status VARCHAR(32) NOT NULL DEFAULT 'PENDING_AUDIT' COMMENT '审核状态',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
-    INDEX idx_media_asset_user_id (user_id),
-    INDEX idx_media_asset_audit_status (audit_status)
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_MDA_ASSET PRIMARY KEY (id),
+    CONSTRAINT AK_MDA_ASSET_1 UNIQUE (asset_num),
+    KEY IX_MDA_ASSET_1 (user_id),
+    KEY IX_MDA_ASSET_2 (audit_status)
 ) COMMENT='媒体资源表';
 
-CREATE TABLE IF NOT EXISTS media_asset_report (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+CREATE TABLE IF NOT EXISTS MDA_REPORT (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    report_num BIGINT NULL COMMENT '举报业务编号',
     asset_id BIGINT NOT NULL COMMENT '资源ID',
-    status VARCHAR(32) NOT NULL DEFAULT 'CREATED' COMMENT '举报状态',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    INDEX idx_media_asset_report_asset_id (asset_id),
-    INDEX idx_media_asset_report_created_at (created_at)
-) COMMENT='媒体资源举报表';
+    report_status VARCHAR(32) NOT NULL DEFAULT 'CREATED' COMMENT '举报状态',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_MDA_REPORT PRIMARY KEY (id),
+    CONSTRAINT AK_MDA_REPORT_1 UNIQUE (report_num),
+    KEY IX_MDA_REPORT_1 (asset_id),
+    KEY IX_MDA_REPORT_2 (create_time),
+    CONSTRAINT FK_MDA_REPORT_1 FOREIGN KEY (asset_id) REFERENCES MDA_ASSET(id)
+) COMMENT='媒体举报表';
 
-CREATE TABLE IF NOT EXISTS audit_log (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    trace_id VARCHAR(64) NULL COMMENT '链路追踪ID',
-    user_id BIGINT NULL COMMENT '操作用户ID',
-    action_name VARCHAR(128) NOT NULL COMMENT '操作动作',
-    resource_name VARCHAR(128) NULL COMMENT '资源名称',
-    result VARCHAR(32) NOT NULL COMMENT '执行结果',
-    error_code VARCHAR(64) NULL COMMENT '错误码',
-    cost_ms BIGINT NOT NULL COMMENT '耗时毫秒',
-    created_at DATETIME(3) NOT NULL COMMENT '创建时间',
-    INDEX idx_audit_trace_id (trace_id),
-    INDEX idx_audit_user_id (user_id),
-    INDEX idx_audit_action_name (action_name),
-    INDEX idx_audit_created_at (created_at)
+CREATE TABLE IF NOT EXISTS AUD_LOG (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    trace_code VARCHAR(64) NULL COMMENT '链路编号',
+    user_id BIGINT NULL COMMENT '用户ID',
+    action_code VARCHAR(128) NOT NULL COMMENT '动作编号',
+    resource_code VARCHAR(128) NULL COMMENT '资源编号',
+    result_status VARCHAR(32) NOT NULL COMMENT '执行状态',
+    error_code VARCHAR(64) NULL COMMENT '错误编号',
+    cost_value BIGINT NOT NULL COMMENT '耗时值',
+    create_time DATETIME NOT NULL COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_AUD_LOG PRIMARY KEY (id),
+    KEY IX_AUD_LOG_1 (trace_code),
+    KEY IX_AUD_LOG_2 (user_id),
+    KEY IX_AUD_LOG_3 (action_code),
+    KEY IX_AUD_LOG_4 (create_time)
 ) COMMENT='审计日志表';
 
-CREATE TABLE IF NOT EXISTS audit_event_outbox (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+CREATE TABLE IF NOT EXISTS AUD_EVENT_OUTBOX (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
     event_type VARCHAR(64) NOT NULL COMMENT '事件类型',
     payload_json JSON NOT NULL COMMENT '事件载荷JSON',
-    status VARCHAR(32) NOT NULL DEFAULT 'NEW' COMMENT '事件状态',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    processed_at DATETIME(3) NULL COMMENT '处理时间',
-    INDEX idx_audit_outbox_status_created (status, created_at)
-) COMMENT='审计事件Outbox表';
+    event_status VARCHAR(32) NOT NULL DEFAULT 'NEW' COMMENT '事件状态',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    processed_datetime DATETIME NULL COMMENT '处理时间',
+    retry_count INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+    next_retry_datetime DATETIME NULL COMMENT '下次重试时间',
+    last_error_memo VARCHAR(1024) NULL COMMENT '最近一次错误备注',
+    CONSTRAINT PK_AUD_EVENT_OUTBOX PRIMARY KEY (id),
+    KEY IX_AUD_EVENT_OUTBOX_1 (event_status, create_time),
+    KEY IX_AUD_EVENT_OUTBOX_2 (event_status, next_retry_datetime, create_time)
+) COMMENT='审计事件发件箱表';

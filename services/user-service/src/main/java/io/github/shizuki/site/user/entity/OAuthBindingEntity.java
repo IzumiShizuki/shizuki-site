@@ -1,21 +1,36 @@
 package io.github.shizuki.site.user.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("oauth_binding")
+@TableName("OAU_BINDING")
 public class OAuthBindingEntity {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("user_id")
     private Long userId;
+
+    @TableField("provider_type")
     private String provider;
+
+    @TableField("provider_user_code")
     private String providerUserId;
+
+    @TableField("provider_login_code")
     private String providerLogin;
+
+    @TableField("provider_email_text")
     private String providerEmail;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
+
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getId() {

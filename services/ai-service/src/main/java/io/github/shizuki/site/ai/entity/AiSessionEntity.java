@@ -1,19 +1,30 @@
 package io.github.shizuki.site.ai.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("ai_session")
+@TableName("AI_SESSION")
 public class AiSessionEntity {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("session_code")
     private String sessionId;
+
+    @TableField("user_id")
     private Long userId;
+
+    @TableField("title_text")
     private String title;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
+
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getId() {

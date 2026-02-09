@@ -1,18 +1,27 @@
 package io.github.shizuki.site.user.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("user_preference")
+@TableName("USR_PREFERENCE")
 public class UserPreferenceEntity {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("user_id")
     private Long userId;
+
+    @TableField("preference_json")
     private String preferenceJson;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
+
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getId() {

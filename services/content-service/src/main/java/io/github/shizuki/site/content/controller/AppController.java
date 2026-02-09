@@ -24,8 +24,8 @@ public class AppController {
 
     @GetMapping
     @Operation(summary = "分页查询应用", description = "按 pageNo/pageSize 分页返回应用卡片列表")
-    public ApiResponse<PageResponse<AppSummary>> list(@RequestParam(defaultValue = "1") long pageNo,
-                                                      @RequestParam(defaultValue = "10") long pageSize) {
+    public ApiResponse<PageResponse<AppSummary>> list(@RequestParam(name = "page_no", defaultValue = "1") long pageNo,
+                                                      @RequestParam(name = "page_size", defaultValue = "10") long pageSize) {
         return ApiResponse.success(contentFacade.listApps(pageNo, pageSize));
     }
 }

@@ -1,22 +1,39 @@
 package io.github.shizuki.site.user.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("user_account")
+@TableName("USR_ACCOUNT")
 public class UserAccountEntity {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("username_code")
     private String username;
+
+    @TableField("password_hash")
     private String password;
+
+    @TableField("nickname_text")
     private String nickname;
+
+    @TableField("email_text")
     private String email;
+
+    @TableField("groups_json")
     private String groupsJson;
+
+    @TableField("permissions_json")
     private String permissionsJson;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
+
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getId() {

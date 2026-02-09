@@ -37,7 +37,7 @@ public class JdbcAuditLogService implements AuditLogService {
 
         try {
             jdbcTemplate.update(
-                "INSERT INTO audit_log(trace_id, user_id, action_name, resource_name, result, error_code, cost_ms, created_at) "
+                "INSERT INTO AUD_LOG(trace_code, user_id, action_code, resource_code, result_status, error_code, cost_value, create_time) "
                     + "VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
                 entry.getTraceId(),
                 entry.getUserId(),
@@ -50,7 +50,7 @@ public class JdbcAuditLogService implements AuditLogService {
             );
 
             jdbcTemplate.update(
-                "INSERT INTO audit_event_outbox(event_type, payload_json, status, created_at) VALUES(?, CAST(? AS JSON), ?, ?)",
+                "INSERT INTO AUD_EVENT_OUTBOX(event_type, payload_json, event_status, create_time) VALUES(?, CAST(? AS JSON), ?, ?)",
                 "AUDIT_LOG",
                 toPayloadJson(entry),
                 "NEW",

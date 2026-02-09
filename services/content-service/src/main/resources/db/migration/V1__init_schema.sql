@@ -1,56 +1,76 @@
-CREATE TABLE IF NOT EXISTS post (
-    post_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '帖子ID',
-    title VARCHAR(255) NOT NULL COMMENT '帖子标题',
-    summary VARCHAR(500) NOT NULL COMMENT '帖子摘要',
-    visibility VARCHAR(32) NOT NULL DEFAULT 'PUBLIC' COMMENT '可见性',
-    like_count BIGINT NOT NULL DEFAULT 0 COMMENT '点赞数',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间'
-) COMMENT='帖子表';
+CREATE TABLE IF NOT EXISTS CTN_POST (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    post_num BIGINT NULL COMMENT '帖子业务编号',
+    title_text VARCHAR(255) NOT NULL COMMENT '标题描述',
+    summary_text VARCHAR(500) NOT NULL COMMENT '摘要描述',
+    visibility_status VARCHAR(32) NOT NULL DEFAULT 'PUBLIC' COMMENT '可见状态',
+    like_value BIGINT NOT NULL DEFAULT 0 COMMENT '点赞值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_CTN_POST PRIMARY KEY (id),
+    CONSTRAINT AK_CTN_POST_1 UNIQUE (post_num),
+    KEY IX_CTN_POST_1 (visibility_status)
+) COMMENT='内容帖子表';
 
-CREATE TABLE IF NOT EXISTS app (
-    app_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '应用ID',
-    name VARCHAR(255) NOT NULL COMMENT '应用名称',
-    category VARCHAR(64) NOT NULL COMMENT '应用分类',
-    pin_able TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否可置顶',
-    like_count BIGINT NOT NULL DEFAULT 0 COMMENT '点赞数',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间'
-) COMMENT='应用表';
+CREATE TABLE IF NOT EXISTS CTN_APP (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    app_num BIGINT NULL COMMENT '应用业务编号',
+    name_text VARCHAR(255) NOT NULL COMMENT '名称描述',
+    category_type VARCHAR(64) NOT NULL COMMENT '分类类型',
+    pin_flag TINYINT(1) NOT NULL DEFAULT 1 COMMENT '置顶标记',
+    like_value BIGINT NOT NULL DEFAULT 0 COMMENT '点赞值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_CTN_APP PRIMARY KEY (id),
+    CONSTRAINT AK_CTN_APP_1 UNIQUE (app_num),
+    KEY IX_CTN_APP_1 (category_type)
+) COMMENT='内容应用表';
 
-CREATE TABLE IF NOT EXISTS content_report (
-    report_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '举报ID',
-    target_type VARCHAR(64) NOT NULL COMMENT '目标类型（POST/APP）',
+CREATE TABLE IF NOT EXISTS CTN_REPORT (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    report_num BIGINT NULL COMMENT '举报业务编号',
+    target_type VARCHAR(64) NOT NULL COMMENT '目标类型',
     target_id BIGINT NOT NULL COMMENT '目标ID',
-    reason VARCHAR(255) NOT NULL COMMENT '举报原因',
-    status VARCHAR(32) NOT NULL DEFAULT 'CREATED' COMMENT '举报状态',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    INDEX idx_content_report_target (target_type, target_id),
-    INDEX idx_content_report_created_at (created_at)
+    reason_memo VARCHAR(255) NOT NULL COMMENT '举报备注',
+    report_status VARCHAR(32) NOT NULL DEFAULT 'CREATED' COMMENT '举报状态',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_CTN_REPORT PRIMARY KEY (id),
+    CONSTRAINT AK_CTN_REPORT_1 UNIQUE (report_num),
+    KEY IX_CTN_REPORT_1 (target_type, target_id),
+    KEY IX_CTN_REPORT_2 (create_time)
 ) COMMENT='内容举报表';
 
-CREATE TABLE IF NOT EXISTS audit_log (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    trace_id VARCHAR(64) NULL COMMENT '链路追踪ID',
-    user_id BIGINT NULL COMMENT '操作用户ID',
-    action_name VARCHAR(128) NOT NULL COMMENT '操作动作',
-    resource_name VARCHAR(128) NULL COMMENT '资源名称',
-    result VARCHAR(32) NOT NULL COMMENT '执行结果',
-    error_code VARCHAR(64) NULL COMMENT '错误码',
-    cost_ms BIGINT NOT NULL COMMENT '耗时毫秒',
-    created_at DATETIME(3) NOT NULL COMMENT '创建时间',
-    INDEX idx_audit_trace_id (trace_id),
-    INDEX idx_audit_user_id (user_id),
-    INDEX idx_audit_action_name (action_name),
-    INDEX idx_audit_created_at (created_at)
+CREATE TABLE IF NOT EXISTS AUD_LOG (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    trace_code VARCHAR(64) NULL COMMENT '链路编号',
+    user_id BIGINT NULL COMMENT '用户ID',
+    action_code VARCHAR(128) NOT NULL COMMENT '动作编号',
+    resource_code VARCHAR(128) NULL COMMENT '资源编号',
+    result_status VARCHAR(32) NOT NULL COMMENT '执行状态',
+    error_code VARCHAR(64) NULL COMMENT '错误编号',
+    cost_value BIGINT NOT NULL COMMENT '耗时值',
+    create_time DATETIME NOT NULL COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_AUD_LOG PRIMARY KEY (id),
+    KEY IX_AUD_LOG_1 (trace_code),
+    KEY IX_AUD_LOG_2 (user_id),
+    KEY IX_AUD_LOG_3 (action_code),
+    KEY IX_AUD_LOG_4 (create_time)
 ) COMMENT='审计日志表';
 
-CREATE TABLE IF NOT EXISTS audit_event_outbox (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+CREATE TABLE IF NOT EXISTS AUD_EVENT_OUTBOX (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
     event_type VARCHAR(64) NOT NULL COMMENT '事件类型',
     payload_json JSON NOT NULL COMMENT '事件载荷JSON',
-    status VARCHAR(32) NOT NULL DEFAULT 'NEW' COMMENT '事件状态',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    processed_at DATETIME(3) NULL COMMENT '处理时间',
-    INDEX idx_audit_outbox_status_created (status, created_at)
-) COMMENT='审计事件Outbox表';
+    event_status VARCHAR(32) NOT NULL DEFAULT 'NEW' COMMENT '事件状态',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    processed_datetime DATETIME NULL COMMENT '处理时间',
+    retry_count INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+    next_retry_datetime DATETIME NULL COMMENT '下次重试时间',
+    last_error_memo VARCHAR(1024) NULL COMMENT '最近一次错误备注',
+    CONSTRAINT PK_AUD_EVENT_OUTBOX PRIMARY KEY (id),
+    KEY IX_AUD_EVENT_OUTBOX_1 (event_status, create_time),
+    KEY IX_AUD_EVENT_OUTBOX_2 (event_status, next_retry_datetime, create_time)
+) COMMENT='审计事件发件箱表';

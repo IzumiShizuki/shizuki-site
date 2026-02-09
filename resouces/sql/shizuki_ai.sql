@@ -1,143 +1,100 @@
 -- database: shizuki_ai
--- last_modified_at: 2026-02-08 18:03:04
+-- last_modified_at: 2026-02-09 23:09:32
 
--- modified_at: 2026-02-08 18:03:04
--- change: init ai domain tables and audit/outbox tables
+-- modified_at: 2026-02-09 23:09:32
+-- change: rebuild tables for empty database (drop + create) with v1.1 standard schema
 CREATE DATABASE IF NOT EXISTS shizuki_ai DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE shizuki_ai;
 
--- 会话表：记录用户会话元信息。
-CREATE TABLE IF NOT EXISTS ai_session (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    session_id VARCHAR(64) NOT NULL UNIQUE COMMENT '会话业务ID',
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS AI_MESSAGE;
+DROP TABLE IF EXISTS AI_SESSION;
+DROP TABLE IF EXISTS AI_QUOTA_USAGE;
+DROP TABLE IF EXISTS AI_CHARACTER;
+DROP TABLE IF EXISTS AUD_EVENT_OUTBOX;
+DROP TABLE IF EXISTS AUD_LOG;
+SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE IF NOT EXISTS AI_SESSION (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    session_code VARCHAR(64) NOT NULL COMMENT '会话业务编号',
     user_id BIGINT NOT NULL COMMENT '用户ID',
-    title VARCHAR(255) NOT NULL COMMENT '会话标题',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
-    INDEX idx_ai_session_user_id (user_id)
+    title_text VARCHAR(255) NOT NULL COMMENT '标题描述',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_AI_SESSION PRIMARY KEY (id),
+    CONSTRAINT AK_AI_SESSION_1 UNIQUE (session_code),
+    KEY IX_AI_SESSION_1 (user_id)
 ) COMMENT='AI会话表';
 
--- 消息表：记录会话内 user/assistant 消息。
-CREATE TABLE IF NOT EXISTS ai_message (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    session_id VARCHAR(64) NOT NULL COMMENT '会话业务ID',
+CREATE TABLE IF NOT EXISTS AI_MESSAGE (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    session_id BIGINT NOT NULL COMMENT '会话ID',
     user_id BIGINT NOT NULL COMMENT '用户ID',
-    role_name VARCHAR(32) NOT NULL COMMENT '角色（user/assistant）',
-    content TEXT NOT NULL COMMENT '消息内容',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    INDEX idx_ai_message_session_id (session_id),
-    INDEX idx_ai_message_user_id (user_id)
+    role_type VARCHAR(32) NOT NULL COMMENT '角色类型',
+    content_text TEXT NOT NULL COMMENT '消息描述',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_AI_MESSAGE PRIMARY KEY (id),
+    KEY IX_AI_MESSAGE_1 (session_id),
+    KEY IX_AI_MESSAGE_2 (user_id),
+    CONSTRAINT FK_AI_MESSAGE_1 FOREIGN KEY (session_id) REFERENCES AI_SESSION(id)
 ) COMMENT='AI消息表';
 
--- 配额使用表：按用户与 quota_code 追踪配额消耗。
-CREATE TABLE IF NOT EXISTS ai_quota_usage (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+CREATE TABLE IF NOT EXISTS AI_QUOTA_USAGE (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
     user_id BIGINT NOT NULL COMMENT '用户ID',
-    quota_code VARCHAR(64) NOT NULL COMMENT '配额编码',
-    total_rounds BIGINT NOT NULL COMMENT '总配额',
-    used_rounds BIGINT NOT NULL DEFAULT 0 COMMENT '已使用配额',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
-    UNIQUE KEY uk_ai_quota_user_code (user_id, quota_code)
+    quota_code VARCHAR(64) NOT NULL COMMENT '配额编号',
+    total_value BIGINT NOT NULL COMMENT '总额度值',
+    used_value BIGINT NOT NULL DEFAULT 0 COMMENT '已用额度值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_AI_QUOTA_USAGE PRIMARY KEY (id),
+    CONSTRAINT AK_AI_QUOTA_USAGE_1 UNIQUE (user_id, quota_code)
 ) COMMENT='AI配额使用表';
 
--- 角色配置表：保存角色与角色卡 JSON。
-CREATE TABLE IF NOT EXISTS ai_character (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+CREATE TABLE IF NOT EXISTS AI_CHARACTER (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
     user_id BIGINT NOT NULL COMMENT '用户ID',
-    type_name VARCHAR(64) NOT NULL COMMENT '配置类型',
-    payload_json JSON NOT NULL COMMENT '配置载荷JSON',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    INDEX idx_ai_character_user_id (user_id),
-    INDEX idx_ai_character_type_name (type_name)
+    character_type VARCHAR(64) NOT NULL COMMENT '角色类型',
+    payload_json JSON NOT NULL COMMENT '角色配置JSON',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_AI_CHARACTER PRIMARY KEY (id),
+    KEY IX_AI_CHARACTER_1 (user_id),
+    KEY IX_AI_CHARACTER_2 (character_type)
 ) COMMENT='AI角色配置表';
 
--- 审计日志表：AI 域关键操作追踪。
-CREATE TABLE IF NOT EXISTS audit_log (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    trace_id VARCHAR(64) NULL COMMENT '链路追踪ID',
-    user_id BIGINT NULL COMMENT '操作用户ID',
-    action_name VARCHAR(128) NOT NULL COMMENT '操作动作',
-    resource_name VARCHAR(128) NULL COMMENT '资源名称',
-    result VARCHAR(32) NOT NULL COMMENT '执行结果',
-    error_code VARCHAR(64) NULL COMMENT '错误码',
-    cost_ms BIGINT NOT NULL COMMENT '耗时毫秒',
-    created_at DATETIME(3) NOT NULL COMMENT '创建时间',
-    INDEX idx_audit_trace_id (trace_id),
-    INDEX idx_audit_user_id (user_id),
-    INDEX idx_audit_action_name (action_name),
-    INDEX idx_audit_created_at (created_at)
+CREATE TABLE IF NOT EXISTS AUD_LOG (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
+    trace_code VARCHAR(64) NULL COMMENT '链路编号',
+    user_id BIGINT NULL COMMENT '用户ID',
+    action_code VARCHAR(128) NOT NULL COMMENT '动作编号',
+    resource_code VARCHAR(128) NULL COMMENT '资源编号',
+    result_status VARCHAR(32) NOT NULL COMMENT '执行状态',
+    error_code VARCHAR(64) NULL COMMENT '错误编号',
+    cost_value BIGINT NOT NULL COMMENT '耗时值',
+    create_time DATETIME NOT NULL COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT PK_AUD_LOG PRIMARY KEY (id),
+    KEY IX_AUD_LOG_1 (trace_code),
+    KEY IX_AUD_LOG_2 (user_id),
+    KEY IX_AUD_LOG_3 (action_code),
+    KEY IX_AUD_LOG_4 (create_time)
 ) COMMENT='审计日志表';
 
--- 审计 outbox 表：后续统一平台消费入口。
-CREATE TABLE IF NOT EXISTS audit_event_outbox (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+CREATE TABLE IF NOT EXISTS AUD_EVENT_OUTBOX (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增长ID',
     event_type VARCHAR(64) NOT NULL COMMENT '事件类型',
     payload_json JSON NOT NULL COMMENT '事件载荷JSON',
-    status VARCHAR(32) NOT NULL DEFAULT 'NEW' COMMENT '事件状态',
-    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    processed_at DATETIME(3) NULL COMMENT '处理时间',
-    INDEX idx_audit_outbox_status_created (status, created_at)
-) COMMENT='审计事件Outbox表';
-
--- modified_at: 2026-02-08 18:03:04
--- change: add retry metadata columns for audit outbox dispatch and retry scheduler
-SET @shizuki_ai_retry_count_exists := (
-    SELECT COUNT(1) FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = 'audit_event_outbox'
-      AND column_name = 'retry_count'
-);
-SET @shizuki_ai_retry_count_sql := IF(
-    @shizuki_ai_retry_count_exists = 0,
-    'ALTER TABLE audit_event_outbox ADD COLUMN retry_count INT NOT NULL DEFAULT 0 COMMENT ''重试次数''',
-    'SELECT 1'
-);
-PREPARE shizuki_ai_retry_count_stmt FROM @shizuki_ai_retry_count_sql;
-EXECUTE shizuki_ai_retry_count_stmt;
-DEALLOCATE PREPARE shizuki_ai_retry_count_stmt;
-
-SET @shizuki_ai_next_retry_at_exists := (
-    SELECT COUNT(1) FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = 'audit_event_outbox'
-      AND column_name = 'next_retry_at'
-);
-SET @shizuki_ai_next_retry_at_sql := IF(
-    @shizuki_ai_next_retry_at_exists = 0,
-    'ALTER TABLE audit_event_outbox ADD COLUMN next_retry_at DATETIME(3) NULL COMMENT ''下次重试时间''',
-    'SELECT 1'
-);
-PREPARE shizuki_ai_next_retry_at_stmt FROM @shizuki_ai_next_retry_at_sql;
-EXECUTE shizuki_ai_next_retry_at_stmt;
-DEALLOCATE PREPARE shizuki_ai_next_retry_at_stmt;
-
-SET @shizuki_ai_last_error_exists := (
-    SELECT COUNT(1) FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = 'audit_event_outbox'
-      AND column_name = 'last_error'
-);
-SET @shizuki_ai_last_error_sql := IF(
-    @shizuki_ai_last_error_exists = 0,
-    'ALTER TABLE audit_event_outbox ADD COLUMN last_error VARCHAR(1024) NULL COMMENT ''最近一次错误信息''',
-    'SELECT 1'
-);
-PREPARE shizuki_ai_last_error_stmt FROM @shizuki_ai_last_error_sql;
-EXECUTE shizuki_ai_last_error_stmt;
-DEALLOCATE PREPARE shizuki_ai_last_error_stmt;
-
-SET @shizuki_ai_idx_exists := (
-    SELECT COUNT(1) FROM information_schema.statistics
-    WHERE table_schema = DATABASE()
-      AND table_name = 'audit_event_outbox'
-      AND index_name = 'idx_audit_outbox_retry'
-);
-SET @shizuki_ai_idx_sql := IF(
-    @shizuki_ai_idx_exists = 0,
-    'CREATE INDEX idx_audit_outbox_retry ON audit_event_outbox (status, next_retry_at, created_at)',
-    'SELECT 1'
-);
-PREPARE shizuki_ai_idx_stmt FROM @shizuki_ai_idx_sql;
-EXECUTE shizuki_ai_idx_stmt;
-DEALLOCATE PREPARE shizuki_ai_idx_stmt;
+    event_status VARCHAR(32) NOT NULL DEFAULT 'NEW' COMMENT '事件状态',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    processed_datetime DATETIME NULL COMMENT '处理时间',
+    retry_count INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+    next_retry_datetime DATETIME NULL COMMENT '下次重试时间',
+    last_error_memo VARCHAR(1024) NULL COMMENT '最近一次错误备注',
+    CONSTRAINT PK_AUD_EVENT_OUTBOX PRIMARY KEY (id),
+    KEY IX_AUD_EVENT_OUTBOX_1 (event_status, create_time),
+    KEY IX_AUD_EVENT_OUTBOX_2 (event_status, next_retry_datetime, create_time)
+) COMMENT='审计事件发件箱表';

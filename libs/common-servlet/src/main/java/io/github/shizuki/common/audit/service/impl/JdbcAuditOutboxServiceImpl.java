@@ -22,45 +22,45 @@ public class JdbcAuditOutboxServiceImpl implements AuditOutboxService {
     private static final Logger LOGGER = LoggerFactory.getLogger(JdbcAuditOutboxServiceImpl.class);
 
     private static final String SELECT_PENDING_SQL = """
-        SELECT id, event_type, CAST(payload_json AS CHAR) AS payload_json, status,
-               COALESCE(retry_count, 0) AS retry_count, created_at
-        FROM audit_event_outbox
-        WHERE status IN ('NEW', 'FAILED')
-          AND (next_retry_at IS NULL OR next_retry_at <= NOW(3))
+        SELECT id, event_type, CAST(payload_json AS CHAR) AS payload_json, event_status,
+               COALESCE(retry_count, 0) AS retry_count, create_time
+        FROM AUD_EVENT_OUTBOX
+        WHERE event_status IN ('NEW', 'FAILED')
+          AND (next_retry_datetime IS NULL OR next_retry_datetime <= NOW())
           AND COALESCE(retry_count, 0) < ?
         ORDER BY id ASC
         LIMIT ?
         """;
 
     private static final String CLAIM_SQL = """
-        UPDATE audit_event_outbox
-        SET status = 'PROCESSING', last_error = NULL
-        WHERE id = ? AND status IN ('NEW', 'FAILED')
+        UPDATE AUD_EVENT_OUTBOX
+        SET event_status = 'PROCESSING', last_error_memo = NULL
+        WHERE id = ? AND event_status IN ('NEW', 'FAILED')
         """;
 
     private static final String SUCCESS_SQL = """
-        UPDATE audit_event_outbox
-        SET status = 'SUCCESS', processed_at = NOW(3), last_error = NULL
+        UPDATE AUD_EVENT_OUTBOX
+        SET event_status = 'SUCCESS', processed_datetime = NOW(), last_error_memo = NULL
         WHERE id = ?
         """;
 
     private static final String FAIL_RETRY_SQL = """
-        UPDATE audit_event_outbox
-        SET status = 'FAILED',
+        UPDATE AUD_EVENT_OUTBOX
+        SET event_status = 'FAILED',
             retry_count = ?,
-            next_retry_at = DATE_ADD(NOW(3), INTERVAL ? SECOND),
-            last_error = ?,
-            processed_at = NOW(3)
+            next_retry_datetime = DATE_ADD(NOW(), INTERVAL ? SECOND),
+            last_error_memo = ?,
+            processed_datetime = NOW()
         WHERE id = ?
         """;
 
     private static final String FAIL_FINAL_SQL = """
-        UPDATE audit_event_outbox
-        SET status = 'FAILED',
+        UPDATE AUD_EVENT_OUTBOX
+        SET event_status = 'FAILED',
             retry_count = ?,
-            next_retry_at = NULL,
-            last_error = ?,
-            processed_at = NOW(3)
+            next_retry_datetime = NULL,
+            last_error_memo = ?,
+            processed_datetime = NOW()
         WHERE id = ?
         """;
 
@@ -148,12 +148,12 @@ public class JdbcAuditOutboxServiceImpl implements AuditOutboxService {
     }
 
     private static AuditOutboxEvent mapEvent(ResultSet rs, int rowNum) throws SQLException {
-        Timestamp createdAt = rs.getTimestamp("created_at");
+        Timestamp createdAt = rs.getTimestamp("create_time");
         return new AuditOutboxEvent(
             rs.getLong("id"),
             rs.getString("event_type"),
             rs.getString("payload_json"),
-            rs.getString("status"),
+            rs.getString("event_status"),
             rs.getInt("retry_count"),
             createdAt == null ? Instant.now() : createdAt.toInstant()
         );

@@ -1,17 +1,27 @@
 package io.github.shizuki.site.media.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("media_asset_report")
+@TableName("MDA_REPORT")
 public class MediaAssetReportEntity {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("report_num")
+    private Long reportNum;
+
+    @TableField("asset_id")
     private Long assetId;
+
+    @TableField("report_status")
     private String status;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -20,6 +30,14 @@ public class MediaAssetReportEntity {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getReportNum() {
+        return reportNum;
+    }
+
+    public void setReportNum(Long reportNum) {
+        this.reportNum = reportNum;
     }
 
     public Long getAssetId() {
