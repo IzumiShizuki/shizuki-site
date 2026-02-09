@@ -1,0 +1,69 @@
+module_abbr:
+  user: USR
+  content: CTN
+  media: MDA
+  ai: AI
+  audit: AUD
+  oauth: OAU
+  system: SYS
+
+table_rename_map:
+  shizuki_user:
+    user_account: USR_ACCOUNT
+    user_preference: USR_PREFERENCE
+    oauth_login: OAU_LOGIN
+    oauth_binding: OAU_BINDING
+    group_quota_policy: USR_QUOTA_POLICY
+    audit_log: AUD_LOG
+    audit_event_outbox: AUD_EVENT_OUTBOX
+  shizuki_content:
+    post: CTN_POST
+    app: CTN_APP
+    content_report: CTN_REPORT
+    audit_log: AUD_LOG
+    audit_event_outbox: AUD_EVENT_OUTBOX
+  shizuki_media:
+    media_asset: MDA_ASSET
+    media_asset_report: MDA_REPORT
+    audit_log: AUD_LOG
+    audit_event_outbox: AUD_EVENT_OUTBOX
+  shizuki_ai:
+    ai_session: AI_SESSION
+    ai_message: AI_MESSAGE
+    ai_quota_usage: AI_QUOTA_USAGE
+    ai_character: AI_CHARACTER
+    audit_log: AUD_LOG
+    audit_event_outbox: AUD_EVENT_OUTBOX
+
+logical_sequence_map:
+  shizuki_user:
+    SQ_USR_ACCOUNT: USR_ACCOUNT.id
+    SQ_USR_PREFERENCE: USR_PREFERENCE.id
+    SQ_OAU_LOGIN: OAU_LOGIN.id
+    SQ_OAU_BINDING: OAU_BINDING.id
+    SQ_USR_QUOTA_POLICY: USR_QUOTA_POLICY.id
+    SQ_AUD_LOG: AUD_LOG.id
+    SQ_AUD_EVENT_OUTBOX: AUD_EVENT_OUTBOX.id
+  shizuki_content:
+    SQ_CTN_POST: CTN_POST.id
+    SQ_CTN_APP: CTN_APP.id
+    SQ_CTN_REPORT: CTN_REPORT.id
+    SQ_AUD_LOG: AUD_LOG.id
+    SQ_AUD_EVENT_OUTBOX: AUD_EVENT_OUTBOX.id
+  shizuki_media:
+    SQ_MDA_ASSET: MDA_ASSET.id
+    SQ_MDA_REPORT: MDA_REPORT.id
+    SQ_AUD_LOG: AUD_LOG.id
+    SQ_AUD_EVENT_OUTBOX: AUD_EVENT_OUTBOX.id
+  shizuki_ai:
+    SQ_AI_SESSION: AI_SESSION.id
+    SQ_AI_MESSAGE: AI_MESSAGE.id
+    SQ_AI_QUOTA_USAGE: AI_QUOTA_USAGE.id
+    SQ_AI_CHARACTER: AI_CHARACTER.id
+    SQ_AUD_LOG: AUD_LOG.id
+    SQ_AUD_EVENT_OUTBOX: AUD_EVENT_OUTBOX.id
+
+mysql_constraints:
+  notes:
+    - "MySQL primary key index physical name is always PRIMARY."
+    - "Logical PK alias follows PK_<TABLE> in DDL/docs/check script."
