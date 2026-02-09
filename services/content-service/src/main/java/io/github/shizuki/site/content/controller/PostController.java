@@ -27,8 +27,8 @@ public class PostController {
     @GetMapping
     @RateLimit(key = "posts.list", limit = 60, windowSeconds = 60)
     @Operation(summary = "分页查询帖子", description = "按 pageNo/pageSize 分页返回帖子列表")
-    public ApiResponse<PageResponse<PostSummary>> list(@RequestParam(defaultValue = "1") long pageNo,
-                                                       @RequestParam(defaultValue = "10") long pageSize) {
+    public ApiResponse<PageResponse<PostSummary>> list(@RequestParam(name = "page_no", defaultValue = "1") long pageNo,
+                                                       @RequestParam(name = "page_size", defaultValue = "10") long pageSize) {
         return ApiResponse.success(contentFacade.listPosts(pageNo, pageSize));
     }
 

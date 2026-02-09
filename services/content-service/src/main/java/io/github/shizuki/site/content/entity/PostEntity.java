@@ -1,20 +1,36 @@
 package io.github.shizuki.site.content.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("post")
+@TableName("CTN_POST")
 public class PostEntity {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long postId;
+
+    @TableField("post_num")
+    private Long postNum;
+
+    @TableField("title_text")
     private String title;
+
+    @TableField("summary_text")
     private String summary;
+
+    @TableField("visibility_status")
     private String visibility;
+
+    @TableField("like_value")
     private Long likeCount;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
+
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getPostId() {
@@ -23,6 +39,14 @@ public class PostEntity {
 
     public void setPostId(Long postId) {
         this.postId = postId;
+    }
+
+    public Long getPostNum() {
+        return postNum;
+    }
+
+    public void setPostNum(Long postNum) {
+        this.postNum = postNum;
     }
 
     public String getTitle() {
