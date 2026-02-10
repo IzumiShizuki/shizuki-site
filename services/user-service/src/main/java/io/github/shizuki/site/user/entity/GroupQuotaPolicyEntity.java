@@ -1,16 +1,11 @@
 package io.github.shizuki.site.user.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
+import io.github.shizuki.common.core.model.BaseEntity;
 
 @TableName("USR_QUOTA_POLICY")
-public class GroupQuotaPolicyEntity {
-
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long id;
+public class GroupQuotaPolicyEntity extends BaseEntity {
 
     @TableField("policy_code")
     private String policyId;
@@ -23,20 +18,6 @@ public class GroupQuotaPolicyEntity {
 
     @TableField("quota_value")
     private Long quotaValue;
-
-    @TableField("create_time")
-    private LocalDateTime createdAt;
-
-    @TableField("update_time")
-    private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     public String getPolicyId() {
         return policyId;
@@ -70,19 +51,4 @@ public class GroupQuotaPolicyEntity {
         this.quotaValue = quotaValue;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

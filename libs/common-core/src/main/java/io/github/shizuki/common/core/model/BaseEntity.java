@@ -1,14 +1,28 @@
 package io.github.shizuki.common.core.model;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 public class BaseEntity implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("create_time")
     private LocalDateTime createdAt;
+
+    @TableField("update_time")
     private LocalDateTime updatedAt;
+
+    @TableField("deleted_flag")
     private Integer deleted;
+
+    @TableField("version_num")
     private Integer version;
 
     public Long getId() {

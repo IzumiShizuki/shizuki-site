@@ -1,16 +1,11 @@
 package io.github.shizuki.site.user.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
+import io.github.shizuki.common.core.model.BaseEntity;
 
 @TableName("USR_ACCOUNT")
-public class UserAccountEntity {
-
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long id;
+public class UserAccountEntity extends BaseEntity {
 
     @TableField("username_code")
     private String username;
@@ -29,20 +24,6 @@ public class UserAccountEntity {
 
     @TableField("permissions_json")
     private String permissionsJson;
-
-    @TableField("create_time")
-    private LocalDateTime createdAt;
-
-    @TableField("update_time")
-    private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     public String getUsername() {
         return username;
@@ -92,19 +73,4 @@ public class UserAccountEntity {
         this.permissionsJson = permissionsJson;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

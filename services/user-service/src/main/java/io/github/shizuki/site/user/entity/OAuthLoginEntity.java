@@ -1,16 +1,11 @@
 package io.github.shizuki.site.user.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
+import io.github.shizuki.common.core.model.BaseEntity;
 
 @TableName("OAU_LOGIN")
-public class OAuthLoginEntity {
-
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long id;
+public class OAuthLoginEntity extends BaseEntity {
 
     @TableField("oauth_login_code")
     private String oauthLoginId;
@@ -35,20 +30,6 @@ public class OAuthLoginEntity {
 
     @TableField("error_memo")
     private String errorMessage;
-
-    @TableField("create_time")
-    private LocalDateTime createdAt;
-
-    @TableField("update_time")
-    private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     public String getOauthLoginId() {
         return oauthLoginId;
@@ -114,19 +95,4 @@ public class OAuthLoginEntity {
         this.errorMessage = errorMessage;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

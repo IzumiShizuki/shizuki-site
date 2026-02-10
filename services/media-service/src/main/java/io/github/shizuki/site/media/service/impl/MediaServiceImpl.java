@@ -79,7 +79,7 @@ public class MediaServiceImpl implements MediaService {
         mediaAssetMapper.insert(asset);
 
         return Map.of(
-            "asset_id", asset.getAssetId(),
+            "asset_id", asset.getId(),
             "bucket", asset.getBucketName(),
             "key", asset.getObjectKey(),
             "asset_type", asset.getAssetType(),

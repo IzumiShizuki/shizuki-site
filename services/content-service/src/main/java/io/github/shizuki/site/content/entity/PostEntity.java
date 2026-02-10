@@ -1,16 +1,11 @@
 package io.github.shizuki.site.content.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
+import io.github.shizuki.common.core.model.BaseEntity;
 
 @TableName("CTN_POST")
-public class PostEntity {
-
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long postId;
+public class PostEntity extends BaseEntity {
 
     @TableField("post_num")
     private Long postNum;
@@ -26,20 +21,6 @@ public class PostEntity {
 
     @TableField("like_value")
     private Long likeCount;
-
-    @TableField("create_time")
-    private LocalDateTime createdAt;
-
-    @TableField("update_time")
-    private LocalDateTime updatedAt;
-
-    public Long getPostId() {
-        return postId;
-    }
-
-    public void setPostId(Long postId) {
-        this.postId = postId;
-    }
 
     public Long getPostNum() {
         return postNum;
@@ -81,19 +62,4 @@ public class PostEntity {
         this.likeCount = likeCount;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

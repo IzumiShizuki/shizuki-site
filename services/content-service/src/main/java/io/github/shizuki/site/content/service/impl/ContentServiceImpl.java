@@ -37,10 +37,10 @@ public class ContentServiceImpl implements ContentService {
     public PageResponse<PostSummary> listPosts(long pageNo, long pageSize) {
         Page<PostEntity> page = postMapper.selectPage(
             new Page<>(pageNo, pageSize),
-            new LambdaQueryWrapper<PostEntity>().orderByDesc(PostEntity::getPostId)
+            new LambdaQueryWrapper<PostEntity>().orderByDesc(PostEntity::getId)
         );
         List<PostSummary> items = page.getRecords().stream()
-            .map(post -> new PostSummary(post.getPostId(), post.getTitle(), post.getSummary(), post.getVisibility()))
+            .map(post -> new PostSummary(post.getId(), post.getTitle(), post.getSummary(), post.getVisibility()))
             .toList();
         return PageResponse.of(items, page.getTotal(), pageNo, pageSize);
     }
@@ -49,10 +49,10 @@ public class ContentServiceImpl implements ContentService {
     public PageResponse<AppSummary> listApps(long pageNo, long pageSize) {
         Page<AppEntity> page = appMapper.selectPage(
             new Page<>(pageNo, pageSize),
-            new LambdaQueryWrapper<AppEntity>().orderByDesc(AppEntity::getAppId)
+            new LambdaQueryWrapper<AppEntity>().orderByDesc(AppEntity::getId)
         );
         List<AppSummary> items = page.getRecords().stream()
-            .map(app -> new AppSummary(app.getAppId(), app.getName(), app.getCategory(), Boolean.TRUE.equals(app.getPinAble())))
+            .map(app -> new AppSummary(app.getId(), app.getName(), app.getCategory(), Boolean.TRUE.equals(app.getPinAble())))
             .toList();
         return PageResponse.of(items, page.getTotal(), pageNo, pageSize);
     }
@@ -89,7 +89,7 @@ public class ContentServiceImpl implements ContentService {
         report.setCreatedAt(LocalDateTime.now());
         contentReportMapper.insert(report);
         return Map.of(
-            "report_id", report.getReportId(),
+            "report_id", report.getId(),
             "target_type", report.getTargetType(),
             "target_id", report.getTargetId(),
             "status", report.getStatus()

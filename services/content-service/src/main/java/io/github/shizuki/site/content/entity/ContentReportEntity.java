@@ -1,16 +1,11 @@
 package io.github.shizuki.site.content.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
+import io.github.shizuki.common.core.model.BaseEntity;
 
 @TableName("CTN_REPORT")
-public class ContentReportEntity {
-
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long reportId;
+public class ContentReportEntity extends BaseEntity {
 
     @TableField("report_num")
     private Long reportNum;
@@ -26,17 +21,6 @@ public class ContentReportEntity {
 
     @TableField("report_status")
     private String status;
-
-    @TableField("create_time")
-    private LocalDateTime createdAt;
-
-    public Long getReportId() {
-        return reportId;
-    }
-
-    public void setReportId(Long reportId) {
-        this.reportId = reportId;
-    }
 
     public Long getReportNum() {
         return reportNum;
@@ -78,11 +62,4 @@ public class ContentReportEntity {
         this.status = status;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

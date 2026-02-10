@@ -1,16 +1,11 @@
 package io.github.shizuki.site.user.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
+import io.github.shizuki.common.core.model.BaseEntity;
 
 @TableName("OAU_BINDING")
-public class OAuthBindingEntity {
-
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long id;
+public class OAuthBindingEntity extends BaseEntity {
 
     @TableField("user_id")
     private Long userId;
@@ -26,20 +21,6 @@ public class OAuthBindingEntity {
 
     @TableField("provider_email_text")
     private String providerEmail;
-
-    @TableField("create_time")
-    private LocalDateTime createdAt;
-
-    @TableField("update_time")
-    private LocalDateTime updatedAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     public Long getUserId() {
         return userId;
@@ -81,19 +62,4 @@ public class OAuthBindingEntity {
         this.providerEmail = providerEmail;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

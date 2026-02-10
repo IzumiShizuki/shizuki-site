@@ -1,16 +1,11 @@
 package io.github.shizuki.site.ai.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
+import io.github.shizuki.common.core.model.BaseEntity;
 
 @TableName("AI_MESSAGE")
-public class AiMessageEntity {
-
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long id;
+public class AiMessageEntity extends BaseEntity {
 
     @TableField("session_id")
     private Long sessionId;
@@ -23,17 +18,6 @@ public class AiMessageEntity {
 
     @TableField("content_text")
     private String content;
-
-    @TableField("create_time")
-    private LocalDateTime createdAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     public Long getSessionId() {
         return sessionId;
@@ -67,11 +51,4 @@ public class AiMessageEntity {
         this.content = content;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }
