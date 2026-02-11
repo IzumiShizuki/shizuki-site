@@ -22,6 +22,12 @@ public class OAuthLoginEntity extends BaseEntity {
     @TableField("login_status")
     private String status;
 
+    @TableField("login_scene")
+    private String loginScene;
+
+    @TableField("initiator_user_id")
+    private Long initiatorUserId;
+
     @TableField("provider_user_code")
     private String providerUserId;
 
@@ -69,6 +75,22 @@ public class OAuthLoginEntity extends BaseEntity {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getLoginScene() {
+        return loginScene;
+    }
+
+    public void setLoginScene(String loginScene) {
+        this.loginScene = loginScene;
+    }
+
+    public Long getInitiatorUserId() {
+        return initiatorUserId;
+    }
+
+    public void setInitiatorUserId(Long initiatorUserId) {
+        this.initiatorUserId = initiatorUserId;
     }
 
     public String getProviderUserId() {

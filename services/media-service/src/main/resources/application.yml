@@ -19,6 +19,17 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
     validate-on-migrate: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 0
+      properties:
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+        linger.ms: 5
 
 server:
   port: 8083
@@ -57,3 +68,15 @@ shizuki:
   security:
     secret:
       enforce: ${SECRET_ENFORCE:${NACOS_ENABLED:false}}
+  audit:
+    publisher:
+      type: ${AUDIT_PUBLISHER_TYPE:noop}
+      kafka-topic: ${AUDIT_KAFKA_TOPIC:shizuki.audit.log}
+      kafka-send-timeout-ms: ${AUDIT_KAFKA_SEND_TIMEOUT_MS:3000}
+    outbox:
+      enabled: true
+      batch-size: 100
+      poll-interval: 5000
+      max-retries: 8
+      retry-base-seconds: 2
+      retry-max-seconds: 300

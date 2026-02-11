@@ -23,6 +23,17 @@ spring:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 0
+      properties:
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+        linger.ms: 5
 
 server:
   port: 8084
@@ -47,3 +58,20 @@ shizuki:
       default-total-rounds: 5
   user:
     service-uri: ${USER_SERVICE_URI:http://localhost:8081}
+    quota-resolve-connect-timeout-ms: ${USER_QUOTA_RESOLVE_CONNECT_TIMEOUT_MS:500}
+    quota-resolve-timeout-ms: ${USER_QUOTA_RESOLVE_TIMEOUT_MS:1200}
+    quota-resolve-retry-count: ${USER_QUOTA_RESOLVE_RETRY_COUNT:1}
+    quota-resolve-retry-backoff-ms: ${USER_QUOTA_RESOLVE_RETRY_BACKOFF_MS:120}
+    quota-resolve-retry-max-backoff-ms: ${USER_QUOTA_RESOLVE_RETRY_MAX_BACKOFF_MS:1000}
+  audit:
+    publisher:
+      type: ${AUDIT_PUBLISHER_TYPE:noop}
+      kafka-topic: ${AUDIT_KAFKA_TOPIC:shizuki.audit.log}
+      kafka-send-timeout-ms: ${AUDIT_KAFKA_SEND_TIMEOUT_MS:3000}
+    outbox:
+      enabled: true
+      batch-size: 100
+      poll-interval: 5000
+      max-retries: 8
+      retry-base-seconds: 2
+      retry-max-seconds: 300

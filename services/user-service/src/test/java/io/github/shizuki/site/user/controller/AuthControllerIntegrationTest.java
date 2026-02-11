@@ -3,8 +3,8 @@ package io.github.shizuki.site.user.controller;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
-import io.github.shizuki.site.user.dto.auth.AuthLoginResponse;
-import io.github.shizuki.site.user.service.UserService;
+import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.support.ApiErrorAssertions;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -25,31 +25,43 @@ class AuthControllerIntegrationTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private UserService userService;
+    private AuthService authService;
 
     @Test
-    void shouldLoginSuccessfully() throws Exception {
-        Mockito.when(userService.login(ArgumentMatchers.eq("admin"), ArgumentMatchers.eq("admin123")))
-            .thenReturn(new AuthLoginResponse("token-123", "Bearer", 1L));
+    void shouldIssueTokenSuccessfully() throws Exception {
+        Mockito.when(authService.issueToken(ArgumentMatchers.any()))
+            .thenReturn(new AuthTokenResponse(
+                "TOKEN_ISSUED",
+                "token-123",
+                "Bearer",
+                7200L,
+                "refresh-123",
+                2592000L,
+                1L,
+                Set.of("USER"),
+                null
+            ));
 
-        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/login")
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/tokens")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "username": "admin",
+                      "grant_type": "email_password",
+                      "email": "admin@shizuki.dev",
                       "password": "admin123"
                     }
                     """))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.token").value("token-123"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.access_token").value("token-123"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.token_type").value("Bearer"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.refresh_token").value("refresh-123"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.user_id").value(1));
     }
 
     @Test
     void shouldIntrospectSuccessfully() throws Exception {
-        Mockito.when(userService.introspect())
+        Mockito.when(authService.introspect())
             .thenReturn(new AuthIntrospectResponse(1L, Set.of("ADMIN"), Set.of("blog.post.create")));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/auth/introspect"))
@@ -61,21 +73,28 @@ class AuthControllerIntegrationTest {
 
     @Test
     void shouldLogoutSuccessfully() throws Exception {
-        Mockito.doNothing().when(userService).logout();
+        Mockito.doNothing().when(authService).logout(ArgumentMatchers.any());
 
-        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/logout"))
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "logout_all": false
+                    }
+                    """))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("OK"));
     }
 
     @Test
-    void shouldReturnBadRequestWhenLoginUsernameBlank() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/login")
+    void shouldReturnBadRequestWhenGrantTypeBlank() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/tokens")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "username": "",
+                      "grant_type": "",
+                      "email": "admin@shizuki.dev",
                       "password": "admin123"
                     }
                     """))
@@ -83,15 +102,16 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void shouldReturnUnauthorizedWhenLoginCredentialInvalid() throws Exception {
-        Mockito.when(userService.login(ArgumentMatchers.eq("admin"), ArgumentMatchers.eq("wrong")))
+    void shouldReturnUnauthorizedWhenGrantCredentialInvalid() throws Exception {
+        Mockito.when(authService.issueToken(ArgumentMatchers.any()))
             .thenThrow(new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid username or password"));
 
-        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/login")
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/tokens")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "username": "admin",
+                      "grant_type": "email_password",
+                      "email": "admin@shizuki.dev",
                       "password": "wrong"
                     }
                     """))
@@ -100,7 +120,7 @@ class AuthControllerIntegrationTest {
 
     @Test
     void shouldReturnUnauthorizedWhenIntrospectTokenInvalid() throws Exception {
-        Mockito.when(userService.introspect())
+        Mockito.when(authService.introspect())
             .thenThrow(new BusinessException(ErrorCode.UNAUTHORIZED, "Token invalid"));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/auth/introspect"))

@@ -19,6 +19,9 @@ public class UserAccountEntity extends BaseEntity {
     @TableField("email_text")
     private String email;
 
+    @TableField("email_verified_flag")
+    private Integer emailVerified;
+
     @TableField("groups_json")
     private String groupsJson;
 
@@ -55,6 +58,14 @@ public class UserAccountEntity extends BaseEntity {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public Integer getEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Integer emailVerified) {
+        this.emailVerified = emailVerified;
     }
 
     public String getGroupsJson() {

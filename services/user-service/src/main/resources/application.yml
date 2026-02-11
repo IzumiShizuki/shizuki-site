@@ -23,17 +23,85 @@ spring:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 0
+      properties:
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+        linger.ms: 5
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+
 shizuki:
   oauth:
-    github:
-      client-id: ${GITHUB_CLIENT_ID:}
-      client-secret: ${GITHUB_CLIENT_SECRET:}
-      authorize-url: https://github.com/login/oauth/authorize
-      token-url: https://github.com/login/oauth/access_token
-      user-api-url: https://api.github.com/user
+    connect-timeout-ms: ${OAUTH_CONNECT_TIMEOUT_MS:500}
+    read-timeout-ms: ${OAUTH_READ_TIMEOUT_MS:1200}
+    retry-count: ${OAUTH_RETRY_COUNT:1}
+    retry-backoff-ms: ${OAUTH_RETRY_BACKOFF_MS:120}
+    retry-max-backoff-ms: ${OAUTH_RETRY_MAX_BACKOFF_MS:1000}
+    providers:
+      github:
+        client-id: ${GITHUB_CLIENT_ID:}
+        client-secret: ${GITHUB_CLIENT_SECRET:}
+        authorize-url: ${GITHUB_AUTHORIZE_URL:https://github.com/login/oauth/authorize}
+        token-url: ${GITHUB_TOKEN_URL:https://github.com/login/oauth/access_token}
+        user-api-url: ${GITHUB_USER_API_URL:https://api.github.com/user}
+        scope: ${GITHUB_SCOPE:read:user user:email}
+      linuxdo:
+        client-id: ${LINUXDO_CLIENT_ID:}
+        client-secret: ${LINUXDO_CLIENT_SECRET:}
+        authorize-url: ${LINUXDO_AUTHORIZE_URL:https://connect.linux.do/oauth2/authorize}
+        token-url: ${LINUXDO_TOKEN_URL:https://connect.linux.do/oauth2/token}
+        user-api-url: ${LINUXDO_USER_API_URL:https://connect.linux.do/api/user}
+        scope: ${LINUXDO_SCOPE:openid profile email}
+  auth:
+    jwt:
+      secret: ${AUTH_JWT_SECRET:PLEASE_CHANGE_ME}
+      access-ttl-seconds: ${AUTH_ACCESS_TTL_SECONDS:7200}
+      refresh-ttl-seconds: ${AUTH_REFRESH_TTL_SECONDS:2592000}
+      refresh-rotate: ${AUTH_REFRESH_ROTATE:true}
+    captcha:
+      image-ttl-seconds: ${AUTH_CAPTCHA_IMAGE_TTL_SECONDS:120}
+      image-length: ${AUTH_CAPTCHA_IMAGE_LENGTH:2}
+    verify:
+      email-ttl-seconds: ${AUTH_VERIFY_EMAIL_TTL_SECONDS:300}
+      email-cooldown-seconds: ${AUTH_VERIFY_EMAIL_COOLDOWN_SECONDS:60}
+      email-max-attempts: ${AUTH_VERIFY_EMAIL_MAX_ATTEMPTS:5}
+    bind:
+      ticket-ttl-seconds: ${AUTH_BIND_TICKET_TTL_SECONDS:600}
+    retry:
+      count: ${AUTH_RETRY_COUNT:1}
+      backoff-ms: ${AUTH_RETRY_BACKOFF_MS:120}
+      max-backoff-ms: ${AUTH_RETRY_MAX_BACKOFF_MS:1000}
   security:
     secret:
       enforce: ${SECRET_ENFORCE:${NACOS_ENABLED:false}}
+  audit:
+    publisher:
+      type: ${AUDIT_PUBLISHER_TYPE:noop}
+      kafka-topic: ${AUDIT_KAFKA_TOPIC:shizuki.audit.log}
+      kafka-send-timeout-ms: ${AUDIT_KAFKA_SEND_TIMEOUT_MS:3000}
+    outbox:
+      enabled: true
+      batch-size: 100
+      poll-interval: 5000
+      max-retries: 8
+      retry-base-seconds: 2
+      retry-max-seconds: 300
 
 server:
   port: 8081
@@ -47,8 +115,10 @@ management:
 sa-token:
   token-name: Authorization
   token-prefix: Bearer
-  timeout: 2592000
+  timeout: ${AUTH_ACCESS_TTL_SECONDS:7200}
   active-timeout: -1
+  token-style: jwt
+  jwt-secret-key: ${AUTH_JWT_SECRET:PLEASE_CHANGE_ME}
 
 springdoc:
   api-docs:

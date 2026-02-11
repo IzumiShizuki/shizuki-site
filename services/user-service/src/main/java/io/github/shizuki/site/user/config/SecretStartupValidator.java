@@ -1,9 +1,10 @@
 package io.github.shizuki.site.user.config;
 
 import io.github.shizuki.common.core.security.SecretValueValidator;
-import io.github.shizuki.common.oauth.config.OAuthProperties;
+import io.github.shizuki.common.oauth.config.OAuthProviderProperties;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -13,14 +14,17 @@ import org.springframework.stereotype.Component;
 public class SecretStartupValidator implements ApplicationRunner {
 
     private final SecretValueValidator secretValueValidator;
-    private final OAuthProperties oAuthProperties;
+    private final OAuthProviderProperties oAuthProviderProperties;
+    private final AuthProperties authProperties;
     private final boolean enforce;
 
     public SecretStartupValidator(SecretValueValidator secretValueValidator,
-                                  OAuthProperties oAuthProperties,
+                                  OAuthProviderProperties oAuthProviderProperties,
+                                  AuthProperties authProperties,
                                   @Value("${shizuki.security.secret.enforce:false}") boolean enforce) {
         this.secretValueValidator = secretValueValidator;
-        this.oAuthProperties = oAuthProperties;
+        this.oAuthProviderProperties = oAuthProviderProperties;
+        this.authProperties = authProperties;
         this.enforce = enforce;
     }
 
@@ -31,11 +35,19 @@ public class SecretStartupValidator implements ApplicationRunner {
         }
 
         List<String> invalidKeys = new ArrayList<>();
-        if (secretValueValidator.isInvalid(oAuthProperties.getClientId())) {
-            invalidKeys.add("shizuki.oauth.github.client-id");
+        if (secretValueValidator.isInvalid(authProperties.getJwt().getSecret())) {
+            invalidKeys.add("shizuki.auth.jwt.secret");
         }
-        if (secretValueValidator.isInvalid(oAuthProperties.getClientSecret())) {
-            invalidKeys.add("shizuki.oauth.github.client-secret");
+
+        for (Map.Entry<String, OAuthProviderProperties.ProviderProperties> entry : oAuthProviderProperties.getProviders().entrySet()) {
+            String provider = entry.getKey();
+            OAuthProviderProperties.ProviderProperties config = entry.getValue();
+            if (secretValueValidator.isInvalid(config.getClientId())) {
+                invalidKeys.add("shizuki.oauth.providers." + provider + ".client-id");
+            }
+            if (secretValueValidator.isInvalid(config.getClientSecret())) {
+                invalidKeys.add("shizuki.oauth.providers." + provider + ".client-secret");
+            }
         }
 
         if (!invalidKeys.isEmpty()) {

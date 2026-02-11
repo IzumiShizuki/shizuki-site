@@ -14,7 +14,7 @@ spring:
         - id: user-service
           uri: ${USER_SERVICE_URI:http://localhost:8081}
           predicates:
-            - Path=/api/v1/me/**,/api/v1/oauth-logins/**,/api/v1/admin/group-quota-policies/**,/api/v1/auth/**,/api/v1/internal/quotas/**
+            - Path=/api/v1/me/**,/api/v1/admin/group-quota-policies/**,/api/v1/auth/**,/api/v1/internal/quotas/**
         - id: content-service
           uri: ${CONTENT_SERVICE_URI:http://localhost:8082}
           predicates:
@@ -42,10 +42,20 @@ shizuki:
     auth:
       enabled: true
       user-service-introspect-url: ${USER_SERVICE_URI:http://localhost:8081}/api/v1/auth/introspect
+      introspect-timeout-ms: ${AUTH_INTROSPECT_TIMEOUT_MS:1200}
+      introspect-retry-count: ${AUTH_INTROSPECT_RETRY_COUNT:1}
+      introspect-retry-backoff-ms: ${AUTH_INTROSPECT_RETRY_BACKOFF_MS:120}
+      cache-ttl-seconds: ${AUTH_INTROSPECT_CACHE_TTL_SECONDS:30}
+      cache-max-entries: ${AUTH_INTROSPECT_CACHE_MAX_ENTRIES:10000}
+      guest-invalid-token-policy: ${AUTH_GUEST_INVALID_TOKEN_POLICY:downgrade}
       public-paths:
-        - /api/v1/auth/login
-        - /api/v1/oauth-logins/**
+        - /api/v1/auth/tokens
+        - /api/v1/auth/register/**
+        - /api/v1/auth/oauth/**
+        - /api/v1/auth/captchas/**
+        - /api/v1/auth/verifications/**
         - /actuator/**
       guest-paths:
         - /api/v1/posts/**
         - /api/v1/apps/**
+        - /api/v1/ai-sessions/**

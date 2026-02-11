@@ -51,6 +51,28 @@ services:
       - "9848:9848"
       - "9849:9849"
 
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: shizuki-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_ENABLE_KRAFT: "yes"
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_CFG_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_KRAFT_CLUSTER_ID: "abcdefghijklmnopqrstuv"
+    ports:
+      - "9092:9092"
+
   gateway-service:
     image: shizuki/gateway-service:latest
     container_name: shizuki-gateway
@@ -84,12 +106,17 @@ services:
       DB_PASSWORD: root
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_PUBLISHER_TYPE: kafka
+      AUDIT_KAFKA_TOPIC: shizuki.audit.log
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
       nacos:
+        condition: service_started
+      kafka:
         condition: service_started
 
   content-service:
@@ -105,10 +132,15 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/shizuki_content?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
       DB_USERNAME: root
       DB_PASSWORD: root
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_PUBLISHER_TYPE: kafka
+      AUDIT_KAFKA_TOPIC: shizuki.audit.log
     depends_on:
       mysql:
         condition: service_healthy
       nacos:
+        condition: service_started
+      kafka:
         condition: service_started
 
   media-service:
@@ -126,12 +158,17 @@ services:
       DB_PASSWORD: root
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_PUBLISHER_TYPE: kafka
+      AUDIT_KAFKA_TOPIC: shizuki.audit.log
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
       nacos:
+        condition: service_started
+      kafka:
         condition: service_started
 
   ai-service:
@@ -150,12 +187,17 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       USER_SERVICE_URI: http://user-service:8081
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_PUBLISHER_TYPE: kafka
+      AUDIT_KAFKA_TOPIC: shizuki.audit.log
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
       nacos:
+        condition: service_started
+      kafka:
         condition: service_started
 
 volumes:

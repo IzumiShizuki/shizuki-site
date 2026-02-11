@@ -12,16 +12,14 @@ import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
 import io.github.shizuki.site.ai.entity.AiCharacterEntity;
-import io.github.shizuki.site.ai.entity.AiMessageEntity;
 import io.github.shizuki.site.ai.entity.AiQuotaUsageEntity;
-import io.github.shizuki.site.ai.entity.AiSessionEntity;
 import io.github.shizuki.site.ai.mapper.AiCharacterMapper;
-import io.github.shizuki.site.ai.mapper.AiMessageMapper;
 import io.github.shizuki.site.ai.mapper.AiQuotaUsageMapper;
-import io.github.shizuki.site.ai.mapper.AiSessionMapper;
 import io.github.shizuki.site.ai.service.AiService;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -30,23 +28,17 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiServiceImpl implements AiService {
 
-    private final AiSessionMapper aiSessionMapper;
-    private final AiMessageMapper aiMessageMapper;
     private final AiQuotaUsageMapper aiQuotaUsageMapper;
     private final AiCharacterMapper aiCharacterMapper;
     private final AiQuotaProperties aiQuotaProperties;
     private final UserQuotaClient userQuotaClient;
     private final ObjectMapper objectMapper;
 
-    public AiServiceImpl(AiSessionMapper aiSessionMapper,
-                      AiMessageMapper aiMessageMapper,
-                      AiQuotaUsageMapper aiQuotaUsageMapper,
-                      AiCharacterMapper aiCharacterMapper,
-                      AiQuotaProperties aiQuotaProperties,
-                      UserQuotaClient userQuotaClient,
-                      ObjectMapper objectMapper) {
-        this.aiSessionMapper = aiSessionMapper;
-        this.aiMessageMapper = aiMessageMapper;
+    public AiServiceImpl(AiQuotaUsageMapper aiQuotaUsageMapper,
+                         AiCharacterMapper aiCharacterMapper,
+                         AiQuotaProperties aiQuotaProperties,
+                         UserQuotaClient userQuotaClient,
+                         ObjectMapper objectMapper) {
         this.aiQuotaUsageMapper = aiQuotaUsageMapper;
         this.aiCharacterMapper = aiCharacterMapper;
         this.aiQuotaProperties = aiQuotaProperties;
@@ -56,84 +48,79 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public AiSessionSummary createSession(CreateSessionRequest request) {
-        // 会话 ID 使用业务前缀 + UUID，方便排查与后续扩展。
-        Long userId = currentUserId();
-        AiSessionEntity entity = new AiSessionEntity();
-        entity.setSessionId("session-" + UUID.randomUUID());
-        entity.setUserId(userId);
-        entity.setTitle(request.getTitle());
-        entity.setCreatedAt(LocalDateTime.now());
-        entity.setUpdatedAt(LocalDateTime.now());
-        aiSessionMapper.insert(entity);
-        return new AiSessionSummary(entity.getSessionId(), entity.getTitle());
+        // 会话记忆保留在前端，本接口仅回传一个新的会话编号用于客户端分组。
+        return new AiSessionSummary("session-" + UUID.randomUUID(), request.getTitle());
     }
 
     @Override
     public List<AiSessionSummary> listSessions() {
-        Long userId = currentUserId();
-        // 只返回当前用户会话，按创建时间倒序展示最近会话。
-        return aiSessionMapper.selectList(
-                new LambdaQueryWrapper<AiSessionEntity>()
-                    .eq(AiSessionEntity::getUserId, userId)
-                    .orderByDesc(AiSessionEntity::getCreatedAt)
-            )
-            .stream()
-            .map(session -> new AiSessionSummary(session.getSessionId(), session.getTitle()))
-            .toList();
+        // 会话列表由前端本地维护，服务端不存储历史会话。
+        return List.of();
     }
 
     @Override
     public Map<String, Object> sendMessage(String sessionId, SendMessageRequest request) {
-        Long userId = currentUserId();
-        AiSessionEntity session = aiSessionMapper.selectOne(
-            new LambdaQueryWrapper<AiSessionEntity>()
-                .eq(AiSessionEntity::getSessionId, sessionId)
-                .eq(AiSessionEntity::getUserId, userId)
-        );
-        if (session == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "Session not found");
+        Long userId = currentUserIdOrNull();
+
+        Long usedRounds = null;
+        Long remainingRounds = null;
+        Long totalRounds = null;
+        String quotaCode = null;
+
+        if (isLoggedIn(userId)) {
+            long total = resolveTotalQuota();
+            AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
+
+            long next = usage.getUsedRounds() + 1;
+            if (next > usage.getTotalRounds()) {
+                throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "AI quota exhausted",
+                    Map.of(
+                        "quota_code", usage.getQuotaCode(),
+                        "total", usage.getTotalRounds(),
+                        "used", usage.getUsedRounds(),
+                        "remaining", 0
+                    )
+                );
+            }
+
+            usage.setUsedRounds(next);
+            usage.setUpdatedAt(LocalDateTime.now());
+            aiQuotaUsageMapper.updateById(usage);
+
+            usedRounds = next;
+            remainingRounds = Math.max(0, usage.getTotalRounds() - next);
+            totalRounds = usage.getTotalRounds();
+            quotaCode = usage.getQuotaCode();
         }
 
-        // 发送消息前先计算本次可用总额度，并执行扣减。
-        long total = resolveTotalQuota();
-        AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
+        String assistantMessage = buildAssistantReply(request);
+        int contextSize = request.getContext() == null ? 0 : request.getContext().size();
 
-        long next = usage.getUsedRounds() + 1;
-        if (next > usage.getTotalRounds()) {
-            throw new BusinessException(
-                ErrorCode.FORBIDDEN,
-                "AI quota exhausted",
-                Map.of(
-                    "quota_code", usage.getQuotaCode(),
-                    "total", usage.getTotalRounds(),
-                    "used", usage.getUsedRounds(),
-                    "remaining", 0
-                )
-            );
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("session_id", sessionId);
+        response.put("user_message", request.getMessage());
+        response.put("assistant_message", assistantMessage);
+        response.put("context_size", contextSize);
+        response.put("quota_applied", isLoggedIn(userId));
+
+        if (isLoggedIn(userId)) {
+            response.put("quota_code", quotaCode);
+            response.put("total_rounds", totalRounds);
+            response.put("used_rounds", usedRounds);
+            response.put("remaining_rounds", remainingRounds);
         }
-        usage.setUsedRounds(next);
-        usage.setUpdatedAt(LocalDateTime.now());
-        aiQuotaUsageMapper.updateById(usage);
 
-        // 当前阶段先返回 mock 回复，后续可替换为真实模型调用。
-        insertMessage(session.getId(), userId, "user", request.getMessage());
-        String assistantMessage = "[Mock reply] Focus on one thing at a time.";
-        insertMessage(session.getId(), userId, "assistant", assistantMessage);
-
-        return Map.of(
-            "session_id", sessionId,
-            "user_message", request.getMessage(),
-            "assistant_message", assistantMessage,
-            "used_rounds", next,
-            "remaining_rounds", Math.max(0, usage.getTotalRounds() - next)
-        );
+        return response;
     }
 
     @Override
     public Map<String, Object> myQuota() {
-        Long userId = currentUserId();
+        Long userId = requireLoginUserId();
         long total = resolveTotalQuota();
         AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
+
         return Map.of(
             "quota_code", usage.getQuotaCode(),
             "total", usage.getTotalRounds(),
@@ -153,24 +140,15 @@ public class AiServiceImpl implements AiService {
     }
 
     private Map<String, Object> saveCharacter(String type, Map<String, Object> request) {
-        Long userId = currentUserId();
+        Long userId = requireLoginUserId();
         AiCharacterEntity entity = new AiCharacterEntity();
         entity.setUserId(userId);
         entity.setTypeName(type);
         entity.setPayloadJson(toJson(request));
         entity.setCreatedAt(LocalDateTime.now());
         aiCharacterMapper.insert(entity);
-        return Map.of("status", "CREATED", "type", type, "id", entity.getId(), "payload", request);
-    }
 
-    private void insertMessage(Long sessionId, Long userId, String role, String content) {
-        AiMessageEntity entity = new AiMessageEntity();
-        entity.setSessionId(sessionId);
-        entity.setUserId(userId);
-        entity.setRoleName(role);
-        entity.setContent(content);
-        entity.setCreatedAt(LocalDateTime.now());
-        aiMessageMapper.insert(entity);
+        return Map.of("status", "CREATED", "type", type, "id", entity.getId(), "payload", request == null ? Map.of() : request);
     }
 
     private AiQuotaUsageEntity loadOrCreateUsage(Long userId, long total) {
@@ -180,7 +158,6 @@ public class AiServiceImpl implements AiService {
                 .eq(AiQuotaUsageEntity::getQuotaCode, aiQuotaProperties.getCode())
         );
         if (usage != null) {
-            // 分组策略变化时，历史记录中的 total 需要同步刷新。
             if (!usage.getTotalRounds().equals(total)) {
                 usage.setTotalRounds(total);
                 usage.setUpdatedAt(LocalDateTime.now());
@@ -201,8 +178,7 @@ public class AiServiceImpl implements AiService {
     }
 
     private long resolveTotalQuota() {
-        Set<String> groups = LoginUserContext.get().map(loginUser -> loginUser.getGroups()).orElse(Set.of("USER"));
-        // 配额策略由 user-service 统一解析，ai-service 只消费结果。
+        Set<String> groups = LoginUserContext.get().map(loginUser -> loginUser.getGroups()).orElse(Set.of());
         Long resolved = userQuotaClient.resolveQuota(
             aiQuotaProperties.getCode(),
             groups,
@@ -211,8 +187,29 @@ public class AiServiceImpl implements AiService {
         return resolved == null ? aiQuotaProperties.getDefaultTotalRounds() : resolved;
     }
 
-    private Long currentUserId() {
-        return LoginUserContext.get().map(loginUser -> loginUser.getUserId()).orElse(0L);
+    private String buildAssistantReply(SendMessageRequest request) {
+        int contextSize = request.getContext() == null ? 0 : request.getContext().size();
+        String normalized = request.getMessage().trim();
+        if (normalized.length() > 120) {
+            normalized = normalized.substring(0, 120);
+        }
+        return "[Mock reply] Context=" + contextSize + ", focus on: " + normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private Long currentUserIdOrNull() {
+        return LoginUserContext.get().map(loginUser -> loginUser.getUserId()).orElse(null);
+    }
+
+    private Long requireLoginUserId() {
+        Long userId = currentUserIdOrNull();
+        if (!isLoggedIn(userId)) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required");
+        }
+        return userId;
+    }
+
+    private boolean isLoggedIn(Long userId) {
+        return userId != null && userId > 0;
     }
 
     private String toJson(Map<String, Object> payload) {

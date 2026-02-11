@@ -3,6 +3,8 @@
 
 -- modified_at: 2026-02-09 23:09:32
 -- change: rebuild tables for empty database (drop + create) with v1.1 standard schema
+-- modified_at: 2026-02-11 14:25:00
+-- change: auth upgrade for email verification flag, oauth login scene and initiator user id
 CREATE DATABASE IF NOT EXISTS shizuki_user DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE shizuki_user;
 
@@ -22,6 +24,7 @@ CREATE TABLE IF NOT EXISTS USR_ACCOUNT (
     password_hash VARCHAR(255) NULL COMMENT '密码哈希值',
     nickname_text VARCHAR(128) NOT NULL COMMENT '昵称描述',
     email_text VARCHAR(128) NULL COMMENT '邮箱描述',
+    email_verified_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT '邮箱已验证标记',
     groups_json JSON NOT NULL COMMENT '分组集合JSON',
     permissions_json JSON NOT NULL COMMENT '权限集合JSON',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -30,6 +33,7 @@ CREATE TABLE IF NOT EXISTS USR_ACCOUNT (
     version_num INT NOT NULL DEFAULT 0 COMMENT '版本号',
     CONSTRAINT PK_USR_ACCOUNT PRIMARY KEY (id),
     CONSTRAINT AK_USR_ACCOUNT_1 UNIQUE (username_code),
+    CONSTRAINT AK_USR_ACCOUNT_2 UNIQUE (email_text),
     KEY IX_USR_ACCOUNT_1 (email_text)
 ) COMMENT='用户主数据表';
 
@@ -54,8 +58,10 @@ CREATE TABLE IF NOT EXISTS OAU_LOGIN (
     redirect_uri_text VARCHAR(512) NOT NULL COMMENT '回调地址描述',
     state_code VARCHAR(128) NOT NULL COMMENT '防重放状态码',
     login_status VARCHAR(32) NOT NULL COMMENT '登录状态',
+    login_scene VARCHAR(32) NOT NULL DEFAULT 'LOGIN' COMMENT '登录场景',
     provider_user_code VARCHAR(128) NULL COMMENT '第三方用户编号',
     user_id BIGINT NULL COMMENT '用户ID',
+    initiator_user_id BIGINT NULL COMMENT '发起绑定的用户ID',
     error_memo VARCHAR(512) NULL COMMENT '错误备注',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -64,6 +70,7 @@ CREATE TABLE IF NOT EXISTS OAU_LOGIN (
     CONSTRAINT PK_OAU_LOGIN PRIMARY KEY (id),
     CONSTRAINT AK_OAU_LOGIN_1 UNIQUE (oauth_login_code),
     KEY IX_OAU_LOGIN_1 (create_time),
+    KEY IX_OAU_LOGIN_2 (provider_type, login_scene, create_time),
     CONSTRAINT FK_OAU_LOGIN_1 FOREIGN KEY (user_id) REFERENCES USR_ACCOUNT(id)
 ) COMMENT='OAuth登录事务表';
 
