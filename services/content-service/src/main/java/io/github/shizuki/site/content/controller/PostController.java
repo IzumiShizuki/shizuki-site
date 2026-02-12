@@ -13,17 +13,37 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 帖子查询控制器。
+ *
+ * <p>提供帖子分页查询与内部连通性探测接口。
+ */
 @RestController
 @RequestMapping("/api/v1/posts")
 @Tag(name = "Post", description = "帖子查询与内部诊断接口")
 public class PostController {
 
+    /**
+     * 内容领域服务，承载帖子查询业务逻辑。
+     */
     private final ContentService contentService;
 
+    /**
+     * 构造帖子控制器。
+     *
+     * @param contentService 内容领域服务
+     */
     public PostController(ContentService contentService) {
         this.contentService = contentService;
     }
 
+    /**
+     * 分页查询帖子列表。
+     *
+     * @param pageNo 页码（从 1 开始）
+     * @param pageSize 分页大小
+     * @return 帖子分页结果
+     */
     @GetMapping
     @RateLimit(key = "posts.list", limit = 60, windowSeconds = 60)
     @Operation(summary = "分页查询帖子", description = "按 pageNo/pageSize 分页返回帖子列表")
@@ -32,6 +52,11 @@ public class PostController {
         return ApiResponse.success(contentService.listPosts(pageNo, pageSize));
     }
 
+    /**
+     * 内容服务存活探测。
+     *
+     * @return 固定字符串 {@code pong}
+     */
     @GetMapping("/internal/ping")
     @AuditLog(action = "content.ping", resource = "posts")
     @Operation(summary = "内容服务连通性探测", description = "用于快速确认服务链路可用")

@@ -52,6 +52,7 @@ shizuki:
         - /api/v1/auth/tokens
         - /api/v1/auth/register/**
         - /api/v1/auth/oauth/**
+        - /api/v1/auth/bindings/**
         - /api/v1/auth/captchas/**
         - /api/v1/auth/verifications/**
         - /actuator/**

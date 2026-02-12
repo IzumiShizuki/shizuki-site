@@ -11,11 +11,20 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
+/**
+ * Spring Retry 执行器。
+ */
 @Component
 public class SpringRetryExecutor {
 
     /**
-     * Execute action with exponential jitter retry policy.
+     * 使用指定重试策略执行动作。
+     *
+     * @param spec 重试策略
+     * @param retryOn 可重试异常类型集合
+     * @param action 待执行动作
+     * @param <T> 返回值类型
+     * @return 执行结果
      */
     public <T> T execute(RetrySpec spec,
                          Collection<Class<? extends Throwable>> retryOn,
@@ -26,6 +35,9 @@ public class SpringRetryExecutor {
         return retryTemplate.execute(context -> action.get());
     }
 
+    /**
+     * 构建 RetryTemplate。
+     */
     private RetryTemplate buildTemplate(RetrySpec spec, Set<Class<? extends Throwable>> retryOn) {
         RetryTemplate template = new RetryTemplate();
         template.setRetryPolicy(buildRetryPolicy(spec, retryOn));
@@ -33,8 +45,12 @@ public class SpringRetryExecutor {
         return template;
     }
 
+    /**
+     * 构建重试策略。
+     */
     private SimpleRetryPolicy buildRetryPolicy(RetrySpec spec, Set<Class<? extends Throwable>> retryOn) {
         if (retryOn.isEmpty()) {
+            // 未指定可重试异常时仅执行一次（不重试）。
             return new SimpleRetryPolicy(1);
         }
         Map<Class<? extends Throwable>, Boolean> retryableExceptions = new LinkedHashMap<>();
@@ -44,6 +60,9 @@ public class SpringRetryExecutor {
         return new SimpleRetryPolicy(spec.maxAttempts(), retryableExceptions, true, false);
     }
 
+    /**
+     * 构建指数随机退避策略。
+     */
     private ExponentialRandomBackOffPolicy buildBackOffPolicy(RetrySpec spec) {
         ExponentialRandomBackOffPolicy backOffPolicy = new ExponentialRandomBackOffPolicy();
         backOffPolicy.setInitialInterval(spec.initialBackoffMs());

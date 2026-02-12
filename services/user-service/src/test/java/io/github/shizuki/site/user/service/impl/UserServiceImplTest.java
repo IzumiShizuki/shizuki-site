@@ -114,6 +114,17 @@ class UserServiceImplTest {
     }
 
     @Test
+    void should_return_guest_quota_when_guest_policy_exists() {
+        GroupQuotaPolicyEntity guestPolicy = new GroupQuotaPolicyEntity();
+        guestPolicy.setQuotaValue(0L);
+        Mockito.when(groupQuotaPolicyMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of(guestPolicy));
+
+        Long quota = userService.resolveQuota("ai_round_total", Set.of("GUEST"), 9L);
+
+        Assertions.assertEquals(0L, quota);
+    }
+
+    @Test
     void should_throw_unauthorized_when_save_preference_user_id_invalid() {
         BusinessException exception = Assertions.assertThrows(
             BusinessException.class,

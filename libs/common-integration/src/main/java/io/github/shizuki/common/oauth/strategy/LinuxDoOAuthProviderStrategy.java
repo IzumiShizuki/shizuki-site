@@ -8,20 +8,36 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
+/**
+ * LinuxDo OAuth provider 策略实现。
+ */
 @Component
 public class LinuxDoOAuthProviderStrategy extends AbstractOAuthProviderStrategy {
 
+    /**
+     * 构造 LinuxDo provider 策略。
+     *
+     * @param properties OAuth 通用配置
+     * @param restClientBuilder RestClient 构造器
+     * @param retryExecutor 重试执行器
+     */
     public LinuxDoOAuthProviderStrategy(OAuthProviderProperties properties,
                                         RestClient.Builder restClientBuilder,
                                         SpringRetryExecutor retryExecutor) {
         super(properties, restClientBuilder, retryExecutor);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String providerCode() {
         return "linuxdo";
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected OAuthIdentity mapIdentity(Map<String, Object> userInfo) {
         String providerUserId = firstNonBlank(
@@ -52,4 +68,3 @@ public class LinuxDoOAuthProviderStrategy extends AbstractOAuthProviderStrategy 
         );
     }
 }
-

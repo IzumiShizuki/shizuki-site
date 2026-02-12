@@ -21,20 +21,45 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+/**
+ * OAuth provider 通用策略基类。
+ *
+ * <p>封装授权 URL 构建、授权码交换、重试策略、异常分类和基础字段读取逻辑。
+ */
 public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStrategy {
 
+    /**
+     * 可重试异常集合（仅瞬时故障）。
+     */
     private static final Set<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
         Set.of(TransientOAuthException.class);
 
+    /**
+     * OAuth 配置属性。
+     */
     private final OAuthProviderProperties properties;
+    /**
+     * HTTP 客户端。
+     */
     private final RestClient restClient;
+    /**
+     * 统一重试执行器。
+     */
     private final SpringRetryExecutor retryExecutor;
 
+    /**
+     * 构造 OAuth provider 通用基类。
+     *
+     * @param properties OAuth 通用配置
+     * @param restClientBuilder RestClient 构造器
+     * @param retryExecutor 统一重试执行器
+     */
     protected AbstractOAuthProviderStrategy(OAuthProviderProperties properties,
                                             RestClient.Builder restClientBuilder,
                                             SpringRetryExecutor retryExecutor) {
         this.properties = properties;
         this.retryExecutor = retryExecutor;
+        // 连接超时和读超时由统一配置驱动，避免 provider 调用长期阻塞。
         HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
             .build();
@@ -43,6 +68,9 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
         this.restClient = restClientBuilder.requestFactory(requestFactory).build();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String buildAuthorizeUrl(String state, String redirectUri) {
         OAuthProviderProperties.ProviderProperties provider = requireProvider();
@@ -69,6 +97,9 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
         return builder.toString();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public OAuthIdentity exchangeCode(String code, String redirectUri) {
         RetrySpec retrySpec = RetrySpec.exponentialJitter(
@@ -76,6 +107,7 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
             properties.getRetryBackoffMs(),
             properties.getRetryMaxBackoffMs()
         );
+        // 关键策略：仅对瞬时异常重试，业务/参数类错误直接失败。
         return retryExecutor.execute(
             retrySpec,
             RETRYABLE_EXCEPTIONS,
@@ -83,6 +115,13 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
         );
     }
 
+    /**
+     * 执行单次 OAuth code 交换。
+     *
+     * @param code 授权码
+     * @param redirectUri 回调地址
+     * @return 标准化身份
+     */
     private OAuthIdentity exchangeCodeOnce(String code, String redirectUri) {
         OAuthProviderProperties.ProviderProperties provider = requireProvider();
         MultiValueMap<String, String> tokenRequest = new LinkedMultiValueMap<>();
@@ -113,19 +152,34 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {
                 });
 
+            // provider 具体字段映射在子类实现。
             return mapIdentity(userInfo);
         } catch (RestClientResponseException ex) {
             if (ex.getStatusCode().is5xxServerError()) {
+                // 5xx 归类为瞬时错误，允许重试。
                 throw new TransientOAuthException("oauth_upstream_5xx", ex);
             }
+            // 4xx 通常为授权码无效或请求参数问题，不重试。
             throw new NonRetryableOAuthException("OAuth upstream rejected request", ex);
         } catch (ResourceAccessException ex) {
+            // 网络错误归类为瞬时错误，允许重试。
             throw new TransientOAuthException("oauth_network", ex);
         }
     }
 
+    /**
+     * 将 provider 用户信息映射为标准身份结构。
+     *
+     * @param userInfo provider 用户信息
+     * @return 标准化身份
+     */
     protected abstract OAuthIdentity mapIdentity(Map<String, Object> userInfo);
 
+    /**
+     * 读取并校验 provider 配置。
+     *
+     * @return provider 配置
+     */
     protected OAuthProviderProperties.ProviderProperties requireProvider() {
         OAuthProviderProperties.ProviderProperties provider = properties.requireProvider(providerCode());
         if (provider == null) {
@@ -141,6 +195,13 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
         return provider;
     }
 
+    /**
+     * 从 map 读取字符串字段。
+     *
+     * @param payload 原始 map
+     * @param key 字段名
+     * @return 文本值（空白视为 null）
+     */
     protected String readString(Map<String, Object> payload, String key) {
         if (payload == null) {
             return null;
@@ -153,6 +214,12 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
         return StringUtils.hasText(text) ? text : null;
     }
 
+    /**
+     * 返回首个非空白字符串。
+     *
+     * @param values 候选值
+     * @return 首个有效值，没有则返回 null
+     */
     protected String firstNonBlank(String... values) {
         if (values == null) {
             return null;
@@ -165,19 +232,42 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
         return null;
     }
 
+    /**
+     * 可重试 OAuth 异常（网络/超时/上游 5xx）。
+     */
     public static class TransientOAuthException extends RuntimeException {
 
+        /**
+         * 构造可重试异常。
+         *
+         * @param message 异常消息
+         * @param cause 根因异常
+         */
         public TransientOAuthException(String message, Throwable cause) {
             super(message, cause);
         }
     }
 
+    /**
+     * 不可重试 OAuth 异常（参数/配置/上游 4xx）。
+     */
     public static class NonRetryableOAuthException extends RuntimeException {
 
+        /**
+         * 构造不可重试异常。
+         *
+         * @param message 异常消息
+         */
         public NonRetryableOAuthException(String message) {
             super(message);
         }
 
+        /**
+         * 构造不可重试异常。
+         *
+         * @param message 异常消息
+         * @param cause 根因异常
+         */
         public NonRetryableOAuthException(String message, Throwable cause) {
             super(message, cause);
         }

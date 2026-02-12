@@ -24,6 +24,7 @@ import io.github.shizuki.site.user.dto.auth.ImageCaptchaResponse;
 import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
 import io.github.shizuki.site.user.dto.auth.OAuthBindRequest;
+import io.github.shizuki.site.user.dto.auth.OAuthConflictConfirmRequest;
 import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.mapper.UserAccountMapper;
 import io.github.shizuki.site.user.service.AuthService;
@@ -36,16 +37,55 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+/**
+ * {@link AuthService} 默认实现。
+ *
+ * <p>职责定位：
+ * <ul>
+ *     <li>承接 controller 输入，做参数归并与登录态门禁；</li>
+ *     <li>把授权请求转换为策略命令并分发；</li>
+ *     <li>调用认证流程服务处理注册/绑定/刷新等核心逻辑；</li>
+ *     <li>将领域结果转换为对外 DTO。</li>
+ * </ul>
+ */
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    /**
+     * 图形验证码服务。
+     */
     private final ImageCaptchaService imageCaptchaService;
+    /**
+     * 邮箱验证码服务。
+     */
     private final EmailVerificationService emailVerificationService;
+    /**
+     * 认证流程服务（注册、OAuth 绑定、refresh 轮换等核心流程）。
+     */
     private final AuthFlowService authFlowService;
+    /**
+     * grant 策略工厂。
+     */
     private final AuthGrantStrategyFactory authGrantStrategyFactory;
+    /**
+     * 用户账户数据访问组件。
+     */
     private final UserAccountMapper userAccountMapper;
+    /**
+     * JSON 序列化组件，用于 groups/permissions 解析。
+     */
     private final ObjectMapper objectMapper;
 
+    /**
+     * 构造认证应用服务实现。
+     *
+     * @param imageCaptchaService 图形验证码服务
+     * @param emailVerificationService 邮箱验证码服务
+     * @param authFlowService 认证核心流程服务
+     * @param authGrantStrategyFactory grant 策略工厂
+     * @param userAccountMapper 用户账户读写组件
+     * @param objectMapper JSON 序列化组件
+     */
     public AuthServiceImpl(ImageCaptchaService imageCaptchaService,
                            EmailVerificationService emailVerificationService,
                            AuthFlowService authFlowService,
@@ -60,13 +100,20 @@ public class AuthServiceImpl implements AuthService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public ImageCaptchaResponse createImageCaptcha() {
         return imageCaptchaService.createImageCaptcha();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public EmailVerificationSendResponse sendEmailVerification(EmailVerificationSendRequest request) {
+        // 关键逻辑：先消费图形验证码，再允许发送邮箱验证码，防止邮件接口被批量刷调用。
         imageCaptchaService.validateAndConsume(request.getCaptchaId(), request.getCaptchaAnswer());
         return emailVerificationService.sendCode(
             request.getEmail(),
@@ -74,16 +121,23 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public AuthTokenResponse registerByEmail(EmailRegisterRequest request) {
         return toTokenResponse(authFlowService.registerByEmail(request));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public OAuthAuthorizeResponse createOAuthAuthorization(OAuthAuthorizeRequest request) {
         OAuthLoginScene scene = OAuthLoginScene.from(request.getScene());
         Long initiatorUserId = null;
         if (scene == OAuthLoginScene.BIND) {
+            // BIND 场景必须有登录主体，避免匿名用户伪造绑定事务。
             StpUtil.checkLogin();
             initiatorUserId = StpUtil.getLoginIdAsLong();
         }
@@ -95,9 +149,13 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public AuthTokenResponse issueToken(AuthGrantRequest request) {
         AuthGrantType grantType = AuthGrantType.from(request.getGrantType());
+        // 统一把 controller 请求折叠成命令对象，避免策略层依赖 Web DTO。
         AuthGrantCommand command = new AuthGrantCommand();
         command.setGrantType(grantType);
         command.setEmail(request.getEmail());
@@ -111,6 +169,17 @@ public class AuthServiceImpl implements AuthService {
         return toTokenResponse(result);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public AuthTokenResponse confirmConflictBinding(OAuthConflictConfirmRequest request) {
+        return toTokenResponse(authFlowService.confirmConflictBinding(request));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void logout(AuthLogoutRequest request) {
         boolean hasLogin = StpUtil.isLogin();
@@ -122,6 +191,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (logoutAll) {
+            // logout_all=true：按用户维度失效所有 refresh 会话，再退出当前 access 会话。
             StpUtil.checkLogin();
             Long userId = StpUtil.getLoginIdAsLong();
             authFlowService.revokeAllRefreshTokens(userId);
@@ -130,6 +200,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (StringUtils.hasText(refreshToken)) {
+            // 指定 refresh_token 时，仅失效该 refresh 会话。
             authFlowService.revokeRefreshToken(refreshToken);
         }
         if (hasLogin) {
@@ -137,6 +208,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public AuthIntrospectResponse introspect() {
         StpUtil.checkLogin();
@@ -148,16 +222,28 @@ public class AuthServiceImpl implements AuthService {
         return new AuthIntrospectResponse(userId, parseStringSet(account.getGroupsJson()), parseStringSet(account.getPermissionsJson()));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void bindEmail(Long userId, EmailBindRequest request) {
         authFlowService.bindEmail(userId, request);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void bindOAuth(Long userId, OAuthBindRequest request) {
         authFlowService.bindOAuth(userId, request);
     }
 
+    /**
+     * 领域授权结果转对外 token DTO。
+     *
+     * @param result 授权结果
+     * @return token 响应
+     */
     private AuthTokenResponse toTokenResponse(AuthGrantResult result) {
         String resultType = result.getResultType() == null ? null : result.getResultType().name();
         return new AuthTokenResponse(
@@ -173,6 +259,12 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * 解析 JSON 字符串集合。
+     *
+     * @param json 原始 JSON（通常是 groups_json / permissions_json）
+     * @return 字符串集合；异常或空值时返回空集合
+     */
     private Set<String> parseStringSet(String json) {
         if (!StringUtils.hasText(json)) {
             return Set.of();
@@ -183,10 +275,11 @@ public class AuthServiceImpl implements AuthService {
             if (values == null || values.isEmpty()) {
                 return Set.of();
             }
+            // LinkedHashSet 保持 JSON 原有顺序，便于调试和稳定断言。
             return new LinkedHashSet<>(values);
         } catch (Exception ex) {
+            // introspect 不应因脏数据直接 500，先降级为空集合。
             return Set.of();
         }
     }
 }
-

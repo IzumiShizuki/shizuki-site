@@ -9,11 +9,24 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+/**
+ * OAuth provider 策略工厂。
+ *
+ * <p>按 provider code 分发到具体策略实现。
+ */
 @Component
 public class OAuthProviderStrategyFactory {
 
+    /**
+     * provider code 到策略实例映射。
+     */
     private final Map<String, OAuthProviderStrategy> strategyMap;
 
+    /**
+     * 初始化策略映射。
+     *
+     * @param strategies Spring 注入的策略实现列表
+     */
     public OAuthProviderStrategyFactory(List<OAuthProviderStrategy> strategies) {
         this.strategyMap = new LinkedHashMap<>();
         for (OAuthProviderStrategy strategy : strategies) {
@@ -21,6 +34,12 @@ public class OAuthProviderStrategyFactory {
         }
     }
 
+    /**
+     * 获取 provider 对应策略。
+     *
+     * @param providerCode provider code
+     * @return 策略实例
+     */
     public OAuthProviderStrategy get(String providerCode) {
         if (!StringUtils.hasText(providerCode)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "OAuth provider is required");
@@ -32,4 +51,3 @@ public class OAuthProviderStrategyFactory {
         return strategy;
     }
 }
-

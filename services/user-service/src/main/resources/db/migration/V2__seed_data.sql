@@ -1,3 +1,8 @@
+-- 基础种子数据（V2）
+-- 1) 初始化 admin 账号；
+-- 2) 初始化 USER/INTERVIEWER/ADMIN 三档 AI 配额策略。
+
+-- 初始化系统管理员账号（密码为 BCrypt 哈希）。
 INSERT INTO USR_ACCOUNT (
     id, username_code, password_hash, nickname_text, email_text, groups_json, permissions_json
 )
@@ -15,9 +20,11 @@ ON DUPLICATE KEY UPDATE
     email_text = VALUES(email_text),
     update_time = CURRENT_TIMESTAMP;
 
+-- 初始化分组配额策略（用于内部配额解析接口）。
 INSERT INTO USR_QUOTA_POLICY (policy_code, group_code, quota_code, quota_value)
 VALUES
     ('user-ai-rounds-user', 'USER', 'ai_round_total', 5),
+    ('user-ai-rounds-guest', 'GUEST', 'ai_round_total', 0),
     ('user-ai-rounds-interviewer', 'INTERVIEWER', 'ai_round_total', 20),
     ('user-ai-rounds-admin', 'ADMIN', 'ai_round_total', 999999)
 ON DUPLICATE KEY UPDATE

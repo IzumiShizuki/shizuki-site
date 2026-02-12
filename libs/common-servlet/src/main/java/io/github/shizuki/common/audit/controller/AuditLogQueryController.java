@@ -16,17 +16,42 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 管理端审计日志查询控制器。
+ *
+ * <p>提供按 trace/user/action/time 条件过滤的分页查询接口。
+ */
 @RestController
 @RequestMapping("/api/v1/admin/audit-logs")
 @RequireGroup("ADMIN")
 public class AuditLogQueryController {
 
+    /**
+     * JdbcTemplate 延迟提供者，用于可选启用 DB 查询能力。
+     */
     private final ObjectProvider<JdbcTemplate> jdbcTemplateProvider;
 
+    /**
+     * 构造审计日志查询控制器。
+     *
+     * @param jdbcTemplateProvider JdbcTemplate 延迟提供者
+     */
     public AuditLogQueryController(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
         this.jdbcTemplateProvider = jdbcTemplateProvider;
     }
 
+    /**
+     * 查询审计日志。
+     *
+     * @param traceId 链路 ID 过滤
+     * @param userId 用户 ID 过滤
+     * @param action 动作编码过滤
+     * @param startAt 起始时间
+     * @param endAt 结束时间
+     * @param pageNo 页码
+     * @param pageSize 每页大小
+     * @return 审计日志分页结果
+     */
     @GetMapping
     public ApiResponse<PageResponse<Map<String, Object>>> list(
         @RequestParam(value = "trace_id", required = false) String traceId,
@@ -42,6 +67,7 @@ public class AuditLogQueryController {
             return ApiResponse.success(PageResponse.of(List.of(), 0, pageNo, pageSize));
         }
 
+        // 动态拼接 where 条件，避免为可选查询参数写多套 SQL。
         StringBuilder where = new StringBuilder(" WHERE 1=1 ");
         List<Object> args = new ArrayList<>();
 
@@ -70,6 +96,7 @@ public class AuditLogQueryController {
         Long total = jdbcTemplate.queryForObject(countSql, args.toArray(), Long.class);
 
         long offset = (pageNo - 1) * pageSize;
+        // 字段别名统一成 API 返回约定的 snake_case 字段名。
         String dataSql = "SELECT id, trace_code AS trace_id, user_id, action_code AS action_name, "
             + "resource_code AS resource_name, result_status AS result, error_code, cost_value AS cost_ms, "
             + "create_time AS created_at "

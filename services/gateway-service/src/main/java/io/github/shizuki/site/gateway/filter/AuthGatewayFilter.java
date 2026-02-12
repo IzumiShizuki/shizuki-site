@@ -103,7 +103,7 @@ public class AuthGatewayFilter implements org.springframework.cloud.gateway.filt
             .onErrorResume(TransientIntrospectException.class,
                 ex -> onTransientError(ex, sanitizedExchange, path, guestPath))
             .onErrorResume(ex -> {
-                LOGGER.warn("Auth introspect unexpected failure. reason={} upstream_status={} path={} guest_path={} policy={}",
+                LOGGER.warn("网关鉴权 introspect 发生未知异常。reason={} upstream_status={} path={} guest_path={} policy={}",
                     "unexpected", -1, path, guestPath, currentGuestPolicy(), ex);
                 return serviceUnavailable(sanitizedExchange, "Auth service temporarily unavailable");
             });
@@ -157,9 +157,7 @@ public class AuthGatewayFilter implements org.springframework.cloud.gateway.filt
             throw new TransientIntrospectException("invalid_payload", -1, "invalid introspect payload");
         }
 
-        Set<String> groups = response.data.groups == null || response.data.groups.isEmpty()
-            ? Set.of("USER")
-            : response.data.groups;
+        Set<String> groups = response.data.groups == null ? Set.of() : response.data.groups;
         Set<String> permissions = response.data.permissions == null ? Set.of() : response.data.permissions;
         return new AuthContext(response.data.userId, groups, permissions);
     }
@@ -172,12 +170,12 @@ public class AuthGatewayFilter implements org.springframework.cloud.gateway.filt
                                        boolean guestPath) {
         tokenCache.remove(authorization);
         if (guestPath && shouldDowngradeGuestInvalidToken()) {
-            LOGGER.warn("Guest token rejected, downgrade to guest. reason={} upstream_status={} path={} guest_path={} policy={}",
+            LOGGER.warn("游客路径 token 被拒绝，降级为游客身份。reason={} upstream_status={} path={} guest_path={} policy={}",
                 exception.reason(), exception.upstreamStatus(), path, true, currentGuestPolicy());
             return chain.filter(withGuestHeaders(exchange));
         }
 
-        LOGGER.warn("Token rejected. reason={} upstream_status={} path={} guest_path={} policy={}",
+        LOGGER.warn("token 鉴权失败。reason={} upstream_status={} path={} guest_path={} policy={}",
             exception.reason(), exception.upstreamStatus(), path, guestPath, currentGuestPolicy());
         return unauthorized(exchange, "Invalid token");
     }
@@ -186,7 +184,7 @@ public class AuthGatewayFilter implements org.springframework.cloud.gateway.filt
                                         ServerWebExchange exchange,
                                         String path,
                                         boolean guestPath) {
-        LOGGER.warn("Auth introspect transient failure. reason={} upstream_status={} path={} guest_path={} policy={}",
+        LOGGER.warn("网关鉴权 introspect 瞬时失败。reason={} upstream_status={} path={} guest_path={} policy={}",
             exception.reason(), exception.upstreamStatus(), path, guestPath, currentGuestPolicy());
         return serviceUnavailable(exchange, "Auth service temporarily unavailable");
     }

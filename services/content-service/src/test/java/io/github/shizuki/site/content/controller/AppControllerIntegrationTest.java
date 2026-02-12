@@ -17,15 +17,30 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
+/**
+ * {@link AppController} 控制器层集成测试。
+ *
+ * <p>覆盖应用分页查询成功、业务异常映射和边界分页参数透传行为。
+ */
 @WebMvcTest(AppController.class)
 class AppControllerIntegrationTest {
 
+    /**
+     * MockMvc 请求入口，用于执行 controller 层 HTTP 断言。
+     */
     @Autowired
     private MockMvc mockMvc;
 
+    /**
+     * 内容服务 mock，用于隔离 controller 参数绑定与响应映射行为。
+     */
     @MockBean
     private ContentService contentService;
 
+    /**
+     * 接口：GET /api/v1/apps
+     * 目标：验证应用分页查询成功响应。
+     */
     @Test
     void shouldListAppsSuccessfully() throws Exception {
         Mockito.when(contentService.listApps(ArgumentMatchers.eq(1L), ArgumentMatchers.eq(10L)))
@@ -46,6 +61,10 @@ class AppControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].pin_able").value(true));
     }
 
+    /**
+     * 接口：GET /api/v1/apps
+     * 目标：验证 service 抛出 NOT_FOUND 时映射为 problem+json 的 404 响应。
+     */
     @Test
     void shouldReturnNotFoundWhenAppListQueryFailed() throws Exception {
         Mockito.when(contentService.listApps(ArgumentMatchers.eq(1L), ArgumentMatchers.eq(10L)))
@@ -57,6 +76,10 @@ class AppControllerIntegrationTest {
             .andExpect(ApiErrorAssertions.hasProblem(404, "NOT_FOUND"));
     }
 
+    /**
+     * 接口：GET /api/v1/apps
+     * 目标：验证边界分页参数会原样透传给 service 并返回对应分页元信息。
+     */
     @Test
     void shouldSupportBoundaryPagingWhenListingApps() throws Exception {
         Mockito.when(contentService.listApps(ArgumentMatchers.eq(0L), ArgumentMatchers.eq(100L)))

@@ -17,15 +17,30 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
+/**
+ * {@link InteractionController} 控制器层集成测试。
+ *
+ * <p>覆盖点赞与举报接口在成功路径、业务异常和参数校验上的行为。
+ */
 @WebMvcTest(InteractionController.class)
 class InteractionControllerIntegrationTest {
 
+    /**
+     * MockMvc 请求入口，用于执行 controller 层 HTTP 断言。
+     */
     @Autowired
     private MockMvc mockMvc;
 
+    /**
+     * 内容服务 mock，用于隔离 controller 参数映射与响应断言。
+     */
     @MockBean
     private ContentService contentService;
 
+    /**
+     * 接口：POST /api/v1/posts/{post_id}/likes
+     * 目标：验证帖子点赞成功响应。
+     */
     @Test
     void shouldLikePostSuccessfully() throws Exception {
         Mockito.when(contentService.likePost(ArgumentMatchers.eq(1L)))
@@ -38,6 +53,10 @@ class InteractionControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.liked").value(true));
     }
 
+    /**
+     * 接口：POST /api/v1/apps/{app_id}/likes
+     * 目标：验证应用点赞成功响应。
+     */
     @Test
     void shouldLikeAppSuccessfully() throws Exception {
         Mockito.when(contentService.likeApp(ArgumentMatchers.eq(2L)))
@@ -50,6 +69,10 @@ class InteractionControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.liked").value(true));
     }
 
+    /**
+     * 接口：POST /api/v1/reports
+     * 目标：验证举报提交成功响应。
+     */
     @Test
     void shouldReportSuccessfully() throws Exception {
         Mockito.when(contentService.report(ArgumentMatchers.any(ReportRequest.class)))
@@ -69,6 +92,10 @@ class InteractionControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("CREATED"));
     }
 
+    /**
+     * 接口：POST /api/v1/posts/{post_id}/likes
+     * 目标：验证目标不存在时返回 404。
+     */
     @Test
     void shouldReturnNotFoundWhenLikePostTargetMissing() throws Exception {
         Mockito.when(contentService.likePost(ArgumentMatchers.eq(404L)))
@@ -78,6 +105,10 @@ class InteractionControllerIntegrationTest {
             .andExpect(ApiErrorAssertions.hasProblem(404, "NOT_FOUND"));
     }
 
+    /**
+     * 接口：POST /api/v1/reports
+     * 目标：验证 reason 为空触发参数校验失败（400）。
+     */
     @Test
     void shouldReturnBadRequestWhenReportReasonBlank() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/reports")
@@ -92,6 +123,10 @@ class InteractionControllerIntegrationTest {
             .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
     }
 
+    /**
+     * 接口：POST /api/v1/reports
+     * 目标：验证 target_id 缺失触发参数校验失败（400）。
+     */
     @Test
     void shouldReturnBadRequestWhenReportTargetIdMissing() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/reports")

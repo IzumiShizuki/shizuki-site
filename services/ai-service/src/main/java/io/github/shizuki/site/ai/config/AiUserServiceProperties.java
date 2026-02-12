@@ -52,6 +52,9 @@ public class AiUserServiceProperties {
 
     public void setQuotaResolveRetryBackoffMs(long quotaResolveRetryBackoffMs) {
         this.quotaResolveRetryBackoffMs = Math.max(50L, quotaResolveRetryBackoffMs);
+        if (this.quotaResolveRetryMaxBackoffMs < this.quotaResolveRetryBackoffMs) {
+            this.quotaResolveRetryMaxBackoffMs = this.quotaResolveRetryBackoffMs;
+        }
     }
 
     public long getQuotaResolveRetryMaxBackoffMs() {
@@ -59,6 +62,6 @@ public class AiUserServiceProperties {
     }
 
     public void setQuotaResolveRetryMaxBackoffMs(long quotaResolveRetryMaxBackoffMs) {
-        this.quotaResolveRetryMaxBackoffMs = Math.max(100L, quotaResolveRetryMaxBackoffMs);
+        this.quotaResolveRetryMaxBackoffMs = Math.max(this.quotaResolveRetryBackoffMs, quotaResolveRetryMaxBackoffMs);
     }
 }

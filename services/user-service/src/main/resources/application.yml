@@ -70,13 +70,14 @@ shizuki:
         scope: ${LINUXDO_SCOPE:openid profile email}
   auth:
     jwt:
-      secret: ${AUTH_JWT_SECRET:PLEASE_CHANGE_ME}
+      secret: ${AUTH_JWT_SECRET:${random.uuid}}
       access-ttl-seconds: ${AUTH_ACCESS_TTL_SECONDS:7200}
       refresh-ttl-seconds: ${AUTH_REFRESH_TTL_SECONDS:2592000}
       refresh-rotate: ${AUTH_REFRESH_ROTATE:true}
     captcha:
       image-ttl-seconds: ${AUTH_CAPTCHA_IMAGE_TTL_SECONDS:120}
       image-length: ${AUTH_CAPTCHA_IMAGE_LENGTH:2}
+      image-max-attempts: ${AUTH_CAPTCHA_IMAGE_MAX_ATTEMPTS:5}
     verify:
       email-ttl-seconds: ${AUTH_VERIFY_EMAIL_TTL_SECONDS:300}
       email-cooldown-seconds: ${AUTH_VERIFY_EMAIL_COOLDOWN_SECONDS:60}
@@ -118,7 +119,7 @@ sa-token:
   timeout: ${AUTH_ACCESS_TTL_SECONDS:7200}
   active-timeout: -1
   token-style: jwt
-  jwt-secret-key: ${AUTH_JWT_SECRET:PLEASE_CHANGE_ME}
+  jwt-secret-key: ${shizuki.auth.jwt.secret}
 
 springdoc:
   api-docs:

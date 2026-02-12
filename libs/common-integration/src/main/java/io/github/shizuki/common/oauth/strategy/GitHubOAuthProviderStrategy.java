@@ -8,20 +8,36 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
+/**
+ * GitHub OAuth provider 策略实现。
+ */
 @Component
 public class GitHubOAuthProviderStrategy extends AbstractOAuthProviderStrategy {
 
+    /**
+     * 构造 GitHub provider 策略。
+     *
+     * @param properties OAuth 通用配置
+     * @param restClientBuilder RestClient 构造器
+     * @param retryExecutor 重试执行器
+     */
     public GitHubOAuthProviderStrategy(OAuthProviderProperties properties,
                                        RestClient.Builder restClientBuilder,
                                        SpringRetryExecutor retryExecutor) {
         super(properties, restClientBuilder, retryExecutor);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String providerCode() {
         return "github";
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected OAuthIdentity mapIdentity(Map<String, Object> userInfo) {
         String providerUserId = firstNonBlank(readString(userInfo, "id"), readString(userInfo, "node_id"));
@@ -40,4 +56,3 @@ public class GitHubOAuthProviderStrategy extends AbstractOAuthProviderStrategy {
         );
     }
 }
-

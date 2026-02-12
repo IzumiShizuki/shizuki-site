@@ -9,23 +9,44 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
+/**
+ * Kafka 审计发布器实现。
+ */
 @Component
 public class KafkaAuditOutboxPublisher implements AuditOutboxPublisher {
 
+    /**
+     * 发布器配置属性。
+     */
     private final AuditPublisherProperties properties;
+    /**
+     * KafkaTemplate 延迟提供者。
+     */
     private final ObjectProvider<KafkaTemplate<String, String>> kafkaTemplateProvider;
 
+    /**
+     * 构造 Kafka 审计发布器。
+     *
+     * @param properties 发布器配置
+     * @param kafkaTemplateProvider KafkaTemplate 延迟提供者
+     */
     public KafkaAuditOutboxPublisher(AuditPublisherProperties properties,
                                      ObjectProvider<KafkaTemplate<String, String>> kafkaTemplateProvider) {
         this.properties = properties;
         this.kafkaTemplateProvider = kafkaTemplateProvider;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String type() {
         return "kafka";
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void publish(AuditOutboxEvent event) {
         KafkaTemplate<String, String> kafkaTemplate = kafkaTemplateProvider.getIfAvailable();
@@ -44,6 +65,7 @@ public class KafkaAuditOutboxPublisher implements AuditOutboxPublisher {
                 throw new IllegalStateException("Kafka send result is empty");
             }
         } catch (InterruptedException ex) {
+            // 线程中断状态要保留给上层调用链处理。
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Kafka publish interrupted", ex);
         } catch (Exception ex) {
@@ -52,6 +74,12 @@ public class KafkaAuditOutboxPublisher implements AuditOutboxPublisher {
         }
     }
 
+    /**
+     * 生成 Kafka 消息键。
+     *
+     * @param event outbox 事件
+     * @return 消息键
+     */
     private String buildKey(AuditOutboxEvent event) {
         return event.eventType() + ":" + event.id();
     }

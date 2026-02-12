@@ -55,7 +55,7 @@ public class AuthProperties {
 
     public static class Jwt {
 
-        private String secret = "PLEASE_CHANGE_ME";
+        private String secret = "";
         private long accessTtlSeconds = 7200L;
         private long refreshTtlSeconds = 2592000L;
         private boolean refreshRotate = true;
@@ -97,6 +97,7 @@ public class AuthProperties {
 
         private long imageTtlSeconds = 120L;
         private int imageLength = 2;
+        private int imageMaxAttempts = 5;
 
         public long getImageTtlSeconds() {
             return imageTtlSeconds;
@@ -112,6 +113,14 @@ public class AuthProperties {
 
         public void setImageLength(int imageLength) {
             this.imageLength = Math.max(2, Math.min(3, imageLength));
+        }
+
+        public int getImageMaxAttempts() {
+            return imageMaxAttempts;
+        }
+
+        public void setImageMaxAttempts(int imageMaxAttempts) {
+            this.imageMaxAttempts = Math.max(1, imageMaxAttempts);
         }
     }
 
@@ -190,4 +199,3 @@ public class AuthProperties {
         }
     }
 }
-

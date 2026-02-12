@@ -50,21 +50,39 @@ public class ImageCaptchaService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Captcha id and answer are required");
         }
 
-        String key = buildCaptchaKey(captchaId);
-        String expectedHash = redisTemplate.opsForValue().get(key);
+        String captchaKey = buildCaptchaKey(captchaId);
+        String attemptKey = buildCaptchaAttemptKey(captchaId);
+        String expectedHash = redisTemplate.opsForValue().get(captchaKey);
         if (!StringUtils.hasText(expectedHash)) {
+            redisTemplate.delete(attemptKey);
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Captcha expired");
         }
 
+        long maxAttempts = authProperties.getCaptcha().getImageMaxAttempts();
         String actualHash = sha256(answer.trim());
         if (!expectedHash.equals(actualHash)) {
+            Long attempts = redisTemplate.opsForValue().increment(attemptKey);
+            redisTemplate.expire(
+                attemptKey,
+                Duration.ofSeconds(authProperties.getCaptcha().getImageTtlSeconds())
+            );
+            if (attempts != null && attempts >= maxAttempts) {
+                redisTemplate.delete(captchaKey);
+                redisTemplate.delete(attemptKey);
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Captcha expired");
+            }
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Captcha answer invalid");
         }
-        redisTemplate.delete(key);
+        redisTemplate.delete(captchaKey);
+        redisTemplate.delete(attemptKey);
     }
 
     private String buildCaptchaKey(String captchaId) {
         return "auth:captcha:image:" + captchaId;
+    }
+
+    private String buildCaptchaAttemptKey(String captchaId) {
+        return "auth:captcha:image:attempt:" + captchaId;
     }
 
     private String buildSvg(String expression) {
@@ -87,4 +105,3 @@ public class ImageCaptchaService {
         }
     }
 }
-

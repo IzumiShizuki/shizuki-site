@@ -16,24 +16,49 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 管理员分组配额策略控制器。
+ *
+ * <p>负责维护“用户分组 -> 配额策略”的后台配置能力，仅允许 ADMIN 组访问。
+ */
 @RestController
 @RequestMapping("/api/v1/admin/group-quota-policies")
 @RequireGroup("ADMIN")
 @Tag(name = "Admin Quota", description = "管理员分组配额策略管理接口")
 public class AdminQuotaPolicyController {
 
+    /**
+     * 用户域服务，承载配额策略查询与更新的业务逻辑。
+     */
     private final UserService userService;
 
+    /**
+     * 构造管理员配额策略控制器。
+     *
+     * @param userService 用户域服务
+     */
     public AdminQuotaPolicyController(UserService userService) {
         this.userService = userService;
     }
 
+    /**
+     * 查询当前系统全部分组配额策略。
+     *
+     * @return 配额策略列表，按策略 ID 升序返回
+     */
     @GetMapping
     @Operation(summary = "查询配额策略列表", description = "按策略 ID 排序返回所有分组配额规则")
     public ApiResponse<List<QuotaPolicyDto>> list() {
         return ApiResponse.success(userService.listQuotaPolicies());
     }
 
+    /**
+     * 更新单条分组配额策略。
+     *
+     * @param policyId 路径参数，策略唯一标识（如 {@code ai_round_total}）
+     * @param request 请求体，包含分组策略的新配额配置
+     * @return 更新后的配额策略
+     */
     @PutMapping("/{policy_id}")
     @AuditLog(action = "quota.policy.update", resource = "group_quota_policy")
     @Operation(summary = "更新配额策略", description = "按 policy_id 更新分组配额值")
