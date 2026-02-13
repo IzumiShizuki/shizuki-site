@@ -34,6 +34,9 @@ ON DUPLICATE KEY UPDATE
 -- 初始化分组权限策略（用于 introspect 聚合权限）。
 INSERT INTO USR_GROUP_PERMISSION (group_code, permission_code)
 VALUES
+    ('GUEST', 'basic.read'),
+    ('USER', 'basic.read'),
+    ('INTERVIEWER', 'basic.read'),
     ('ADMIN', 'quota.policy.read'),
     ('ADMIN', 'quota.policy.write'),
     ('ADMIN', 'user.group.read'),

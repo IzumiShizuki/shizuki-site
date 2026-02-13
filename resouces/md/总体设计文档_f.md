@@ -9,7 +9,7 @@
 
 - 默认进入「学习陪伴页」：动态角色 + 声音系统 + 可 Pin 的 Widgets + 侧边半透明按钮组。
 - 网站首页完全公开；消耗额度/需审核/高频内容登录可见；少量内容仅面试官分组可见（3 天自动降级）。
-- 权限模型：**分组（策略/配额/模块开关） + 角色（细粒度权限点）**，允许用户拥有多个分组（取最严格策略保护服务器）。
+- 权限模型：**分组（策略/配额/模块开关） + 角色（细粒度权限点）**，允许用户拥有多个分组（配额按高权限优先取最大值）。
 - 鉴权：Sa-Token（Token 走 Header），网关统一鉴权与限流。
 - 存储：MySQL + Redis + 阿里云 OSS（公开与私有前缀分层；私有资源通过预签名 URL 访问）。
 - AI：兼容 OpenAI 协议；无自带 API 的用户 **总共 5 轮**；有自带 API 则不限制“总轮数”，但仍统一 30/min 限流；聊天历史保存 30 天，可自行清理。
@@ -73,7 +73,7 @@
 > 规则：
 >
 > - 有效权限 = 所有分组角色的权限并集（默认）。
-> - 配额/限流 = 取最严格策略（默认，保护服务器），管理员例外。
+> - 配额 = 按分组策略取最大值（高权限优先）；管理员可覆盖。
 > - 模块开关 = 若任一分组禁用该模块，则对该用户禁用（同样默认更安全）；管理员可覆盖。
 >
 > 维护开关：管理员可“一键让除自己外所有分组禁用某模块”，前端显示“维护中”并弹出自定义原因。
@@ -371,60 +371,56 @@
 
 ## 12. 待办清单
 
-- [x] “总共 5 轮”的轮次口径已定稿：一问一答算 1 轮。
-- [ ] 邮箱域名白名单初始值：`qq.com`、`gmail.com` 等；后台可配置。
-- [ ] iframe 白名单初始值：仅 `github.com` 与 OSS 相关域名（后台可加）。
-- [ ] 私有资源签名 URL 默认有效期：建议 10 分钟（可配置）。
+> 截至 2026-02-13：核心主链路基本完成，当前以收尾项为主。
+
+- [x] 统一认证入口已收敛到 `/api/v1/auth/tokens`，冲突绑定确认 `/api/v1/auth/bindings/confirm` 已落地。
+- [x] 对外路由口径已统一为 `/api/v1/**`。
+- [x] 媒体公开角色池 `/api/v1/assets/public/home-roles` 与偏好接口 `/api/v1/me/preferences` 已落地。
+- [x] 管理接口已补齐：用户分组、分组权限、内容可见性管理。
+- [x] 私有资源签名 URL 默认有效期已配置为 600 秒（10 分钟，可配置）。
+- [ ] 邮箱域名白名单、外链白名单、iframe 白名单的数据模型与管理接口仍需闭环。
+- [ ] OpenAPI 变更门禁需接入 CI。
+- [ ] E2E 联调脚本与回归报告需沉淀。
 
 ---
 
 ## 13. 当前实现对齐（基于当前仓库）
 
-### 13.1 已完成（工程骨架与公共能力）
+> 状态口径：截至 2026-02-13 的完成态快照。
 
-- 工程结构：已落地 Maven 多模块父工程，含 3 个公共库与 5 个服务。
-  - 公共库：`common-core`、`common-servlet`、`common-integration`
-  - 服务：`gateway-service`、`user-service`、`content-service`、`media-service`、`ai-service`
-- 网关：已具备路由分发与 `X-Trace-Id` 透传。
-- 公共能力：已具备统一返回、统一异常、AOP 审计、AOP 限流、请求上下文、XSS 基础净化、OAuth state / bind_ticket / captcha / refresh（Redis）与对象存储抽象。
-- API 骨架：主要控制器路径已统一为 `/api/v1/**`。
-- 编排：`compose.yaml` 已包含 MySQL、Redis、Nacos 与 5 个应用服务模板。
+### 13.1 已完成主链路
 
-### 13.2 与原计划有出入但已明确的点
+- 网关鉴权与 guest 策略已落地：
+  - 支持 `guest-invalid-token-policy=downgrade/reject`。
+  - 管理路由已接入网关：`/api/v1/admin/users/**`、`/api/v1/admin/groups/**`、`/api/v1/admin/posts/**`、`/api/v1/admin/apps/**`。
+- user 认证闭环已完成：
+  - 统一入口 `POST /api/v1/auth/tokens`，支持 `email_password / oauth_code / refresh_token` 三种 grant。
+  - refresh 轮换、验证码、`bind_ticket` 冲突确认链路已打通。
+- content 三态可见性与 GROUP ACL 已落地：
+  - 可见性语义：`PUBLIC | PRIVATE | GROUP`。
+  - `GROUP` 场景要求 `allowed_group_codes`，并写入 ACL 表。
+  - 管理接口已提供帖子/应用可见性查询与更新。
+- media 三态可见性与 GROUP ACL 已落地：
+  - 上传/创建/审核流程支持 `visibility` 与 `allowed_group_codes`。
+  - 公开角色池 `GET /api/v1/assets/public/home-roles` 与下载授权链路可用。
+  - 私有下载签名默认有效期为 600 秒（配置化）。
+- admin 管理能力已具备：
+  - 用户分组：`/api/v1/admin/users/{user_id}/groups`
+  - 分组权限：`/api/v1/admin/groups/**`
+  - 内容可见性：`/api/v1/admin/posts/{post_id}/visibility`、`/api/v1/admin/apps/{app_id}/visibility`
 
-- `widgets-service` 当前未单独落地，相关后端能力先由 `content-service` 承接。
-- AI 免费额度口径已统一为“总生命周期 5 轮”，不再按“每日 5 轮”解释。
-- 媒体资源职责收敛到 `media-service`，避免内容服务和媒体服务职责重叠。
-- 路径规范已统一到 `/api/v1/**`，不再保留混用口径。
+### 13.2 与原计划差异（已明确）
 
-### 13.3 当前改造状态（本轮已完成 + 仍待收尾）
+- `widgets-service` 仍未单独拆分，相关能力当前由既有服务承接。
+- 前端项目尚未正式建仓，当前仍处于文档与交互稿阶段（含 `fronted/` 草稿文件）。
+- 白名单治理（邮箱域名、外链、iframe）仍是文档目标，尚未完成后端代码闭环。
 
-1. 数据层持久化改造
-- 现状：`user/content/media/ai` 四个服务已完成 `Service/ServiceImpl` 持久化替换，内存实现不再作为默认实现。
-- 影响：服务重启后不再丢失核心业务数据，支持分页检索与配额统计。
-- 下一步：补齐持久化相关集成测试与并发一致性验证。
+### 13.3 当前收尾项（可执行）
 
-2. 登录态与鉴权闭环
-- 现状：已切换为统一 `/api/v1/auth/tokens`（grant 分发），并在 `user-service + gateway-service` 形成 access JWT + refresh 轮换闭环；Header 上下文用于服务内透传兼容。
-- 影响：主链路具备 email_password / oauth_code / refresh_token 三种认证方式，网关按 `4xx->401`、`timeout/5xx/network->503` 统一鉴权语义。
-- 下一步：补充路由规则自动校验与鉴权回归测试。
-
-3. OSS 适配层落地
-- 现状：`AliyunOssClient` 已完成 SDK 适配实现，媒体上传签名与下载签名链路可用。
-- 影响：媒体资源链路从 mock 切换为真实对象存储调用。
-- 下一步：推进密钥托管与轮换治理。
-
-4. OAuth 真实登录链路
-- 现状：OAuth state + code 换 token + userinfo + 本地绑定/建号 + 登录态下发已打通，并支持 GitHub + LinuxDo 双 provider。
-- 影响：provider 扩展通过策略工厂统一管理，重复绑定由唯一键约束；邮箱冲突场景支持 `bind_ticket` 显式确认闭环。
-- 下一步：补充异常回调与重复登录的自动化测试。
-
-5. 审计日志入库
-- 现状：审计日志已支持 DB 落库与按 `trace_id/user_id/action/time` 检索，日志实现保留为降级兜底。
-- 影响：关键操作可追溯，可用于故障定位与审计追责。
-- 下一步：继续接入 outbox 实时消费链路（Kafka/ELK）；当前已补 `PROCESSING` 超时回收，避免事件卡死。
-
-> 详细改造项、涉及文件与验收标准见：`resouces/md/04_待改造计划文档_v0.1.md`
+1. 白名单治理收口：明确是否纳入本期，并补齐邮箱域名/外链/iframe 白名单模型与管理接口。
+2. 输出“前端联调用 API 冻结表”：锁定路径、请求字段、错误语义与鉴权要求。
+3. OpenAPI 变更门禁接入 CI：新增契约变更校验，避免文档与代码漂移。
+4. E2E 联调脚本与回归报告：覆盖登录、鉴权、可见性、下载授权与管理接口主链路。
 
 ---
 
@@ -489,24 +485,17 @@
 
 ## 16. 需要修改的地方（按优先级）
 
-### P0（先做，不做会影响主链路）
+### P0（影响联调起步）
 
-- [已完成] Sa-Token 登录态闭环（login/logout/token 校验 + 网关统一鉴权）。
-- [已完成] `InMemory*` 实现替换为 MyBatis-Plus 持久化 `Service/ServiceImpl`。
-- [已完成] 核心表（user、group/role、preference、asset、ai_session、ai_message、audit_log、quota_usage）落地。
-- [已完成] `AliyunOssClient` 真实上传与签名 URL。
-- [已完成] OAuth（GitHub/LinuxDo）真实换 token 与账号绑定（含 bind_ticket 冲突确认闭环）。
-- [待收尾] 端到端联调脚本与回归测试补齐。
+- 白名单策略闭环：先明确是否纳入本期，并锁定邮箱域名/外链/iframe 三类白名单实现范围。
+- API 冻结表：输出给前端开工的最终接口清单（路径、字段、鉴权、错误语义）。
 
-### P1（稳定性与可维护性）
+### P1（稳定性治理）
 
-- 审计日志入库并支持查询（按 user_id / trace_id / action 检索）。
-- 限流 key 从“方法级”升级为“用户/分组维度 + 方法维度”。
-- 输出 OpenAPI 文档并加 CI 校验。
-- 增加集成测试（网关路由、鉴权、配额、上传签名 URL）。
+- OpenAPI 变更门禁接入 CI（契约变更可追踪、可阻断）。
+- E2E 回归与压测基线：形成固定脚本、执行口径与报告模板。
 
 ### P2（体验与扩展）
 
-- widgets 细化（配置 schema、布局版本控制、多端同步冲突策略）。
-- 博客检索/推荐优化与应用中心运营字段增强。
-- AI 世界书触发策略与角色卡解析能力增强。
+- Widgets 冲突策略与多端合并策略细化，完善首页运行态与偏好同步边界。
+- AI 能力增强：世界书触发策略、角色卡解析与对话体验迭代。
