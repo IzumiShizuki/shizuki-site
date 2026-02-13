@@ -1,0 +1,7 @@
+import { createApp } from 'vue';
+import '@fortawesome/fontawesome-free/css/all.min.css';
+import './styles/global.css';
+import './styles/liquid-material.css';
+import App from './App.vue';
+
+createApp(App).mount('#app');
