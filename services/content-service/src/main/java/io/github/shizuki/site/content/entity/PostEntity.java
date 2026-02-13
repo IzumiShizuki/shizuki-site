@@ -10,6 +10,9 @@ public class PostEntity extends BaseEntity {
     @TableField("post_num")
     private Long postNum;
 
+    @TableField("user_id")
+    private Long userId;
+
     @TableField("title_text")
     private String title;
 
@@ -28,6 +31,14 @@ public class PostEntity extends BaseEntity {
 
     public void setPostNum(Long postNum) {
         this.postNum = postNum;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public String getTitle() {

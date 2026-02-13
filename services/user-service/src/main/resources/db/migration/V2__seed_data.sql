@@ -13,7 +13,7 @@ VALUES (
     'Administrator',
     'admin@shizuki.dev',
     JSON_ARRAY('ADMIN', 'USER'),
-    JSON_ARRAY('*')
+    JSON_ARRAY()
 )
 ON DUPLICATE KEY UPDATE
     nickname_text = VALUES(nickname_text),
@@ -29,4 +29,16 @@ VALUES
     ('user-ai-rounds-admin', 'ADMIN', 'ai_round_total', 999999)
 ON DUPLICATE KEY UPDATE
     quota_value = VALUES(quota_value),
+    update_time = CURRENT_TIMESTAMP;
+
+-- 初始化分组权限策略（用于 introspect 聚合权限）。
+INSERT INTO USR_GROUP_PERMISSION (group_code, permission_code)
+VALUES
+    ('ADMIN', 'quota.policy.read'),
+    ('ADMIN', 'quota.policy.write'),
+    ('ADMIN', 'user.group.read'),
+    ('ADMIN', 'user.group.write'),
+    ('ADMIN', 'group.permission.read'),
+    ('ADMIN', 'group.permission.write')
+ON DUPLICATE KEY UPDATE
     update_time = CURRENT_TIMESTAMP;

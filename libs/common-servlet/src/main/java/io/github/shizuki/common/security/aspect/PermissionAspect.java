@@ -29,6 +29,9 @@ public class PermissionAspect {
         if (loginUser == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required");
         }
+        if (loginUser.inGroup("ADMIN")) {
+            return;
+        }
 
         AclChecker aclChecker = aclCheckerProvider.getIfAvailable();
         boolean permitted = aclChecker == null

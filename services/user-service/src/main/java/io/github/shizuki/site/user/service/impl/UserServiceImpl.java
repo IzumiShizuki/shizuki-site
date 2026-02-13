@@ -13,17 +13,21 @@ import io.github.shizuki.common.oauth.model.GitHubTokenResponse;
 import io.github.shizuki.common.oauth.model.GitHubUserResponse;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.MeResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
 import io.github.shizuki.site.user.dto.QuotaPolicyDto;
+import io.github.shizuki.site.user.dto.UserGroupsResponse;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLoginResponse;
+import io.github.shizuki.site.user.entity.GroupPermissionEntity;
 import io.github.shizuki.site.user.entity.GroupQuotaPolicyEntity;
 import io.github.shizuki.site.user.entity.OAuthBindingEntity;
 import io.github.shizuki.site.user.entity.OAuthLoginEntity;
 import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.entity.UserPreferenceEntity;
+import io.github.shizuki.site.user.mapper.GroupPermissionMapper;
 import io.github.shizuki.site.user.mapper.GroupQuotaPolicyMapper;
 import io.github.shizuki.site.user.mapper.OAuthBindingMapper;
 import io.github.shizuki.site.user.mapper.OAuthLoginMapper;
@@ -33,7 +37,10 @@ import io.github.shizuki.site.user.service.UserService;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,6 +64,7 @@ public class UserServiceImpl implements UserService {
     private final UserPreferenceMapper userPreferenceMapper;
     private final OAuthLoginMapper oAuthLoginMapper;
     private final OAuthBindingMapper oAuthBindingMapper;
+    private final GroupPermissionMapper groupPermissionMapper;
     private final GroupQuotaPolicyMapper groupQuotaPolicyMapper;
     private final ObjectMapper objectMapper;
 
@@ -67,6 +75,7 @@ public class UserServiceImpl implements UserService {
                         UserPreferenceMapper userPreferenceMapper,
                         OAuthLoginMapper oAuthLoginMapper,
                         OAuthBindingMapper oAuthBindingMapper,
+                        GroupPermissionMapper groupPermissionMapper,
                         GroupQuotaPolicyMapper groupQuotaPolicyMapper,
                         ObjectMapper objectMapper) {
         this.oAuthStateService = oAuthStateService;
@@ -76,6 +85,7 @@ public class UserServiceImpl implements UserService {
         this.userPreferenceMapper = userPreferenceMapper;
         this.oAuthLoginMapper = oAuthLoginMapper;
         this.oAuthBindingMapper = oAuthBindingMapper;
+        this.groupPermissionMapper = groupPermissionMapper;
         this.groupQuotaPolicyMapper = groupQuotaPolicyMapper;
         this.objectMapper = objectMapper;
     }
@@ -118,6 +128,26 @@ public class UserServiceImpl implements UserService {
 
         found.setPreferenceJson(json);
         userPreferenceMapper.updateById(found);
+    }
+
+    @Override
+    public Map<String, Object> getPreference(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required");
+        }
+
+        UserPreferenceEntity found = userPreferenceMapper.selectOne(
+            new LambdaQueryWrapper<UserPreferenceEntity>().eq(UserPreferenceEntity::getUserId, userId)
+        );
+        if (found == null || !StringUtils.hasText(found.getPreferenceJson())) {
+            return Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(found.getPreferenceJson(), new TypeReference<Map<String, Object>>() {
+            });
+        } catch (JsonProcessingException exception) {
+            return Collections.emptyMap();
+        }
     }
 
     @Override
@@ -221,6 +251,81 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserGroupsResponse getUserGroups(Long userId) {
+        UserAccountEntity account = userAccountMapper.selectById(userId);
+        if (account == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "User not found");
+        }
+        return new UserGroupsResponse(userId, normalizeGroupCodes(parseStringSet(account.getGroupsJson())));
+    }
+
+    @Override
+    public UserGroupsResponse replaceUserGroups(Long userId, Set<String> groups) {
+        UserAccountEntity account = userAccountMapper.selectById(userId);
+        if (account == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "User not found");
+        }
+
+        Set<String> normalizedGroups = normalizeGroupCodes(groups);
+        account.setGroupsJson(writeJson(normalizedGroups));
+        account.setUpdatedAt(LocalDateTime.now());
+        userAccountMapper.updateById(account);
+        return new UserGroupsResponse(userId, normalizedGroups);
+    }
+
+    @Override
+    public GroupPermissionsResponse getGroupPermissions(String groupCode) {
+        String normalizedGroup = normalizeGroupCode(groupCode);
+        Set<String> permissions = groupPermissionMapper.selectList(
+                new LambdaQueryWrapper<GroupPermissionEntity>()
+                    .eq(GroupPermissionEntity::getGroupCode, normalizedGroup)
+                    .orderByAsc(GroupPermissionEntity::getPermissionCode)
+            ).stream()
+            .map(GroupPermissionEntity::getPermissionCode)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        return new GroupPermissionsResponse(normalizedGroup, permissions);
+    }
+
+    @Override
+    public GroupPermissionsResponse replaceGroupPermissions(String groupCode, Set<String> permissions) {
+        String normalizedGroup = normalizeGroupCode(groupCode);
+        Set<String> normalizedPermissions = normalizePermissionCodes(permissions);
+
+        List<GroupPermissionEntity> existing = groupPermissionMapper.selectList(
+            new LambdaQueryWrapper<GroupPermissionEntity>().eq(GroupPermissionEntity::getGroupCode, normalizedGroup)
+        );
+        existing.forEach(entity -> groupPermissionMapper.deleteById(entity.getId()));
+
+        LocalDateTime now = LocalDateTime.now();
+        for (String permission : normalizedPermissions) {
+            GroupPermissionEntity entity = new GroupPermissionEntity();
+            entity.setGroupCode(normalizedGroup);
+            entity.setPermissionCode(permission);
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            groupPermissionMapper.insert(entity);
+        }
+        return new GroupPermissionsResponse(normalizedGroup, normalizedPermissions);
+    }
+
+    @Override
+    public List<GroupPermissionsResponse> listGroupPermissions() {
+        List<GroupPermissionEntity> mappings = groupPermissionMapper.selectList(
+            new LambdaQueryWrapper<GroupPermissionEntity>()
+                .orderByAsc(GroupPermissionEntity::getGroupCode)
+                .orderByAsc(GroupPermissionEntity::getPermissionCode)
+        );
+        Map<String, Set<String>> grouped = new LinkedHashMap<>();
+        for (GroupPermissionEntity mapping : mappings) {
+            grouped.computeIfAbsent(mapping.getGroupCode(), key -> new LinkedHashSet<>())
+                .add(mapping.getPermissionCode());
+        }
+        return grouped.entrySet().stream()
+            .map(entry -> new GroupPermissionsResponse(entry.getKey(), entry.getValue()))
+            .toList();
+    }
+
+    @Override
     public AuthLoginResponse login(String username, String password) {
         UserAccountEntity account = userAccountMapper.selectOne(
             new LambdaQueryWrapper<UserAccountEntity>().eq(UserAccountEntity::getUsername, username)
@@ -248,30 +353,36 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Account not found");
         }
 
+        Set<String> groups = normalizeGroupCodes(parseStringSet(account.getGroupsJson()));
+        Set<String> userPermissions = normalizePermissionCodes(parseStringSet(account.getPermissionsJson()));
+        Set<String> effectivePermissions = new LinkedHashSet<>(userPermissions);
+        effectivePermissions.addAll(resolveGroupPermissions(groups));
+
         return new AuthIntrospectResponse(
             userId,
-            parseStringSet(account.getGroupsJson()),
-            parseStringSet(account.getPermissionsJson())
+            groups,
+            effectivePermissions
         );
     }
 
     @Override
     public Long resolveQuota(String quotaCode, Set<String> groupCodes, Long defaultValue) {
         long fallback = defaultValue == null ? 5L : defaultValue;
-        if (groupCodes == null || groupCodes.isEmpty()) {
+        Set<String> normalizedGroups = normalizeGroupCodes(groupCodes);
+        if (normalizedGroups.isEmpty()) {
             return fallback;
         }
 
         List<GroupQuotaPolicyEntity> policies = groupQuotaPolicyMapper.selectList(
             new LambdaQueryWrapper<GroupQuotaPolicyEntity>()
                 .eq(GroupQuotaPolicyEntity::getQuotaCode, quotaCode)
-                .in(GroupQuotaPolicyEntity::getGroupCode, groupCodes)
+                .in(GroupQuotaPolicyEntity::getGroupCode, normalizedGroups)
         );
         if (policies == null || policies.isEmpty()) {
             return fallback;
         }
 
-        return policies.stream().map(GroupQuotaPolicyEntity::getQuotaValue).min(Long::compareTo).orElse(fallback);
+        return policies.stream().map(GroupQuotaPolicyEntity::getQuotaValue).max(Long::compareTo).orElse(fallback);
     }
 
     private Long bindOrCreateUser(GitHubUserResponse userResponse) {
@@ -349,11 +460,67 @@ public class UserServiceImpl implements UserService {
         try {
             List<String> values = objectMapper.readValue(json, new TypeReference<List<String>>() {
             });
-            return values == null ? Set.of() : values.stream().filter(StringUtils::hasText).collect(Collectors.toSet());
+            if (values == null || values.isEmpty()) {
+                return Set.of();
+            }
+            return values.stream()
+                .map(value -> value == null ? null : value.trim())
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         } catch (Exception ex) {
             // 容错处理：历史脏数据不应阻断登录态解析流程。
             return Set.of();
         }
+    }
+
+    private Set<String> resolveGroupPermissions(Set<String> groups) {
+        if (groups == null || groups.isEmpty()) {
+            return Set.of();
+        }
+        return groupPermissionMapper.selectList(
+                new LambdaQueryWrapper<GroupPermissionEntity>().in(GroupPermissionEntity::getGroupCode, groups)
+            ).stream()
+            .map(GroupPermissionEntity::getPermissionCode)
+            .map(value -> value == null ? null : value.trim())
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Set<String> normalizeGroupCodes(Collection<String> groups) {
+        if (groups == null || groups.isEmpty()) {
+            return Set.of();
+        }
+        LinkedHashSet<String> normalized = groups.stream()
+            .map(this::normalizeGroupCodeNullable)
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        return normalized.isEmpty() ? Set.of() : normalized;
+    }
+
+    private String normalizeGroupCode(String groupCode) {
+        String normalized = normalizeGroupCodeNullable(groupCode);
+        if (!StringUtils.hasText(normalized)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Group code is required");
+        }
+        return normalized;
+    }
+
+    private String normalizeGroupCodeNullable(String groupCode) {
+        if (!StringUtils.hasText(groupCode)) {
+            return null;
+        }
+        return groupCode.trim().toUpperCase();
+    }
+
+    private Set<String> normalizePermissionCodes(Collection<String> permissions) {
+        if (permissions == null || permissions.isEmpty()) {
+            return Set.of();
+        }
+        LinkedHashSet<String> normalized = permissions.stream()
+            .map(value -> value == null ? null : value.trim())
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        return normalized.isEmpty() ? Set.of() : normalized;
     }
 
     private String writeJson(Object value) {

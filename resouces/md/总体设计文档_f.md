@@ -26,7 +26,8 @@
 
 ### 1.2 成功标准（可量化）
 - 访问者无需登录也能获得完整“学习陪伴”第一体验（至少：角色动起来 + 音频可播放）。
-- 登录后偏好可跨设备同步（dock 按钮/小部件布局/背景等）。
+- 登录后偏好可跨设备同步（dock 按钮/轻应用清单与参数/背景等）。
+- 轻应用（widgets）位置与尺寸属于前端运行时内存态，不做后端跨端同步。
 - 管理员能在 1 分钟内完成止损：关闭某模块、修改配额、调整白名单。
 - API 命名与返回结构统一，文档自动生成，能长期维护。
 
@@ -119,7 +120,7 @@
 
 数据保存：
 - 未登录：localStorage
-- 已登录：服务端 `me/preferences` 同步（支持多端一致）
+- 已登录：服务端 `me/preferences` 同步（仅同步轻应用清单与参数，位置/尺寸不入库）
 
 推荐实现：
 - 拖拽吸附：Interact.js（snap modifiers）
@@ -135,6 +136,7 @@
 要求：
 - 每个 Widget 可开关、可配置
 - Home 展示区支持网格拖拽布局（建议 Gridstack）
+- Widget 位置/尺寸仅保留在前端内存（刷新后按默认布局重建，不写入后端）
 - 每个 widget 必须具备：
   - `widget_code`（稳定 ID）
   - `title`、`icon`、`permission_required`
@@ -272,7 +274,7 @@
    - 统一入口、鉴权、限流、跨域、灰度/维护拦截、TraceId
 2. **user-service**
    - 用户/邮箱/分组/角色/权限/策略（配额、模块开关、白名单）
-   - 偏好同步（dock、widgets、背景等）
+   - 偏好同步（dock、widgets 清单/参数、背景等；widgets 位置/尺寸不落后端）
 3. **content-service**
    - 博客、评论、点赞、浏览、举报、时间线
    - 应用中心元数据（应用条目与统计）
@@ -384,7 +386,7 @@
   - 公共库：`common-core`、`common-servlet`、`common-integration`
   - 服务：`gateway-service`、`user-service`、`content-service`、`media-service`、`ai-service`
 - 网关：已具备路由分发与 `X-Trace-Id` 透传。
-- 公共能力：已具备统一返回、统一异常、AOP 审计、AOP 限流、请求上下文、XSS 基础净化、OAuth state（Redis）与对象存储抽象。
+- 公共能力：已具备统一返回、统一异常、AOP 审计、AOP 限流、请求上下文、XSS 基础净化、OAuth state / bind_ticket / captcha / refresh（Redis）与对象存储抽象。
 - API 骨架：主要控制器路径已统一为 `/api/v1/**`。
 - 编排：`compose.yaml` 已包含 MySQL、Redis、Nacos 与 5 个应用服务模板。
 
@@ -403,8 +405,8 @@
 - 下一步：补齐持久化相关集成测试与并发一致性验证。
 
 2. 登录态与鉴权闭环
-- 现状：Sa-Token 已在 `user-service + gateway-service` 形成闭环，Header 上下文用于服务内透传兼容。
-- 影响：主链路具备 login/logout/introspect 与网关统一鉴权能力。
+- 现状：已切换为统一 `/api/v1/auth/tokens`（grant 分发），并在 `user-service + gateway-service` 形成 access JWT + refresh 轮换闭环；Header 上下文用于服务内透传兼容。
+- 影响：主链路具备 email_password / oauth_code / refresh_token 三种认证方式，网关按 `4xx->401`、`timeout/5xx/network->503` 统一鉴权语义。
 - 下一步：补充路由规则自动校验与鉴权回归测试。
 
 3. OSS 适配层落地
@@ -413,14 +415,14 @@
 - 下一步：推进密钥托管与轮换治理。
 
 4. OAuth 真实登录链路
-- 现状：OAuth state + code 换 token + userinfo + 本地绑定/建号 + 登录态下发已打通。
-- 影响：GitHub OAuth 已具备可用闭环，重复绑定由唯一键约束。
+- 现状：OAuth state + code 换 token + userinfo + 本地绑定/建号 + 登录态下发已打通，并支持 GitHub + LinuxDo 双 provider。
+- 影响：provider 扩展通过策略工厂统一管理，重复绑定由唯一键约束；邮箱冲突场景支持 `bind_ticket` 显式确认闭环。
 - 下一步：补充异常回调与重复登录的自动化测试。
 
 5. 审计日志入库
 - 现状：审计日志已支持 DB 落库与按 `trace_id/user_id/action/time` 检索，日志实现保留为降级兜底。
 - 影响：关键操作可追溯，可用于故障定位与审计追责。
-- 下一步：接入 outbox 实时消费链路（Kafka/ELK）。
+- 下一步：继续接入 outbox 实时消费链路（Kafka/ELK）；当前已补 `PROCESSING` 超时回收，避免事件卡死。
 
 > 详细改造项、涉及文件与验收标准见：`resouces/md/04_待改造计划文档_v0.1.md`
 
@@ -456,7 +458,7 @@
 | 组件 | 作用 | 建议内存 |
 |---|---|---|
 | MySQL 8 | 主数据、审计数据 | 1.2 ~ 1.6 GB |
-| Redis 7 | 限流、缓存、OAuth state | 0.25 ~ 0.5 GB |
+| Redis 7 | 限流、缓存、OAuth state、bind_ticket、验证码与 refresh 会话 | 0.25 ~ 0.5 GB |
 | Nacos 2.x | 注册中心 + 配置中心 | 0.5 ~ 0.8 GB |
 
 中间件小计：约 **1.95 ~ 2.9 GB**
@@ -493,7 +495,7 @@
 - [已完成] `InMemory*` 实现替换为 MyBatis-Plus 持久化 `Service/ServiceImpl`。
 - [已完成] 核心表（user、group/role、preference、asset、ai_session、ai_message、audit_log、quota_usage）落地。
 - [已完成] `AliyunOssClient` 真实上传与签名 URL。
-- [已完成] OAuth 真实换 token 与账号绑定。
+- [已完成] OAuth（GitHub/LinuxDo）真实换 token 与账号绑定（含 bind_ticket 冲突确认闭环）。
 - [待收尾] 端到端联调脚本与回归测试补齐。
 
 ### P1（稳定性与可维护性）

@@ -8,6 +8,8 @@ import io.github.shizuki.common.oauth.config.OAuthProperties;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.entity.GroupQuotaPolicyEntity;
+import io.github.shizuki.site.user.entity.UserPreferenceEntity;
+import io.github.shizuki.site.user.mapper.GroupPermissionMapper;
 import io.github.shizuki.site.user.mapper.GroupQuotaPolicyMapper;
 import io.github.shizuki.site.user.mapper.OAuthBindingMapper;
 import io.github.shizuki.site.user.mapper.OAuthLoginMapper;
@@ -42,6 +44,8 @@ class UserServiceImplTest {
     @Mock
     private OAuthBindingMapper oAuthBindingMapper;
     @Mock
+    private GroupPermissionMapper groupPermissionMapper;
+    @Mock
     private GroupQuotaPolicyMapper groupQuotaPolicyMapper;
 
     private UserServiceImpl userService;
@@ -58,6 +62,7 @@ class UserServiceImplTest {
             userPreferenceMapper,
             oAuthLoginMapper,
             oAuthBindingMapper,
+            groupPermissionMapper,
             groupQuotaPolicyMapper,
             new ObjectMapper()
         );
@@ -102,7 +107,7 @@ class UserServiceImplTest {
     }
 
     @Test
-    void should_return_min_quota_when_multiple_group_policies_matched() {
+    void should_return_max_quota_when_multiple_group_policies_matched() {
         GroupQuotaPolicyEntity userPolicy = new GroupQuotaPolicyEntity();
         userPolicy.setQuotaValue(20L);
         GroupQuotaPolicyEntity interviewerPolicy = new GroupQuotaPolicyEntity();
@@ -110,7 +115,7 @@ class UserServiceImplTest {
         Mockito.when(groupQuotaPolicyMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of(userPolicy, interviewerPolicy));
 
         Long quota = userService.resolveQuota("ai_round_total", Set.of("USER", "INTERVIEWER"), 5L);
-        Assertions.assertEquals(10L, quota);
+        Assertions.assertEquals(20L, quota);
     }
 
     @Test
@@ -152,6 +157,7 @@ class UserServiceImplTest {
             userPreferenceMapper,
             oAuthLoginMapper,
             oAuthBindingMapper,
+            groupPermissionMapper,
             groupQuotaPolicyMapper,
             brokenObjectMapper
         );
@@ -161,5 +167,33 @@ class UserServiceImplTest {
             () -> failingService.savePreference(1L, new HashMap<>())
         );
         Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
+
+    @Test
+    void should_throw_unauthorized_when_get_preference_user_id_invalid() {
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> userService.getPreference(0L)
+        );
+        Assertions.assertEquals(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
+    }
+
+    @Test
+    void should_return_empty_map_when_preference_not_exists() {
+        Mockito.when(userPreferenceMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+
+        Map<String, Object> result = userService.getPreference(1L);
+        Assertions.assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void should_return_preference_map_when_preference_exists() {
+        UserPreferenceEntity entity = new UserPreferenceEntity();
+        entity.setPreferenceJson("{\"theme\":\"glass\",\"active_role\":101}");
+        Mockito.when(userPreferenceMapper.selectOne(ArgumentMatchers.any())).thenReturn(entity);
+
+        Map<String, Object> result = userService.getPreference(1L);
+        Assertions.assertEquals("glass", result.get("theme"));
+        Assertions.assertEquals(101, result.get("active_role"));
     }
 }

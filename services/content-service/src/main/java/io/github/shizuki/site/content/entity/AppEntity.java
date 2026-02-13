@@ -10,11 +10,17 @@ public class AppEntity extends BaseEntity {
     @TableField("app_num")
     private Long appNum;
 
+    @TableField("user_id")
+    private Long userId;
+
     @TableField("name_text")
     private String name;
 
     @TableField("category_type")
     private String category;
+
+    @TableField("visibility_status")
+    private String visibility;
 
     @TableField("pin_flag")
     private Boolean pinAble;
@@ -28,6 +34,14 @@ public class AppEntity extends BaseEntity {
 
     public void setAppNum(Long appNum) {
         this.appNum = appNum;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public String getName() {
@@ -44,6 +58,14 @@ public class AppEntity extends BaseEntity {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getVisibility() {
+        return visibility;
+    }
+
+    public void setVisibility(String visibility) {
+        this.visibility = visibility;
     }
 
     public Boolean getPinAble() {

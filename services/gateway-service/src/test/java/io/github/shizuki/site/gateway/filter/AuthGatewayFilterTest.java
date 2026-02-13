@@ -192,6 +192,54 @@ class AuthGatewayFilterTest {
     }
 
     /**
+     * 场景：公开角色池为 guest 路径且无 token。
+     * 期望：直接按游客上下文放行，不触发 introspect。
+     */
+    @Test
+    void shouldAllowGuestPathForPublicHomeRolesWithoutToken() {
+        GatewayAuthProperties properties = baseProperties();
+        AuthGatewayFilter filter = new AuthGatewayFilter(
+            properties,
+            new ObjectMapper(),
+            webClientWithStatus(503, "should not call", MediaType.TEXT_PLAIN_VALUE)
+        );
+        RecordingChain chain = new RecordingChain();
+        ServerWebExchange exchange = MockServerWebExchange.from(
+            MockServerHttpRequest.get("/api/v1/assets/public/home-roles").build()
+        );
+
+        filter.filter(exchange, chain).block(Duration.ofSeconds(3));
+
+        assertThat(chain.called).isTrue();
+        assertThat(chain.exchange.getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo("0");
+        assertThat(chain.exchange.getRequest().getHeaders().getFirst("X-User-Groups")).contains("GUEST");
+    }
+
+    /**
+     * 场景：下载地址接口为 guest 路径且无 token。
+     * 期望：注入游客上下文并放行，具体资源权限由下游服务判断。
+     */
+    @Test
+    void shouldAllowGuestPathForDownloadUrlWithoutToken() {
+        GatewayAuthProperties properties = baseProperties();
+        AuthGatewayFilter filter = new AuthGatewayFilter(
+            properties,
+            new ObjectMapper(),
+            webClientWithStatus(503, "should not call", MediaType.TEXT_PLAIN_VALUE)
+        );
+        RecordingChain chain = new RecordingChain();
+        ServerWebExchange exchange = MockServerWebExchange.from(
+            MockServerHttpRequest.get("/api/v1/assets/123/download-url").build()
+        );
+
+        filter.filter(exchange, chain).block(Duration.ofSeconds(3));
+
+        assertThat(chain.called).isTrue();
+        assertThat(chain.exchange.getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo("0");
+        assertThat(chain.exchange.getRequest().getHeaders().getFirst("X-User-Groups")).contains("GUEST");
+    }
+
+    /**
      * 测试辅助：构造一组默认网关鉴权配置。
      */
     private GatewayAuthProperties baseProperties() {
@@ -201,7 +249,7 @@ class AuthGatewayFilterTest {
         properties.setIntrospectTimeoutMs(2000L);
         properties.setIntrospectRetryCount(0);
         properties.setIntrospectRetryBackoffMs(50L);
-        properties.setGuestPaths(List.of("/api/v1/ai-sessions/**"));
+        properties.setGuestPaths(List.of("/api/v1/ai-sessions/**", "/api/v1/assets/public/**", "/api/v1/assets/*/download-url"));
         properties.setPublicPaths(List.of("/api/v1/auth/login"));
         properties.setGuestInvalidTokenPolicy("downgrade");
         return properties;

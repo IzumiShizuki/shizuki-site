@@ -4,7 +4,14 @@ CREATE TABLE IF NOT EXISTS MDA_ASSET (
     user_id BIGINT NOT NULL COMMENT 'MDA_ASSET.user_id 用户ID',
     bucket_code VARCHAR(128) NOT NULL COMMENT 'MDA_ASSET.bucket_code 存储桶编号',
     object_code VARCHAR(512) NOT NULL COMMENT 'MDA_ASSET.object_code 对象编号',
-    asset_type VARCHAR(64) NOT NULL COMMENT 'MDA_ASSET.asset_type 资源类型',
+    asset_type VARCHAR(64) NOT NULL COMMENT 'MDA_ASSET.asset_type 资源类型(兼容字段)',
+    asset_kind_code TINYINT NOT NULL DEFAULT 1 COMMENT 'MDA_ASSET.asset_kind_code 资源类别编码：1静态图 2动态图 3L2D包',
+    visibility_code TINYINT NOT NULL DEFAULT 1 COMMENT 'MDA_ASSET.visibility_code 可见性编码：1私有 2公开 3分组',
+    home_enabled_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'MDA_ASSET.home_enabled_flag 是否加入首页公开角色池',
+    home_sort_num INT NOT NULL DEFAULT 0 COMMENT 'MDA_ASSET.home_sort_num 首页角色排序号',
+    content_type_text VARCHAR(128) NOT NULL DEFAULT 'application/octet-stream' COMMENT 'MDA_ASSET.content_type_text 原始内容类型',
+    object_hash VARCHAR(128) NULL COMMENT 'MDA_ASSET.object_hash 对象内容指纹(ETag归一化)',
+    metadata_json JSON NULL COMMENT 'MDA_ASSET.metadata_json 扩展元数据',
     audit_status VARCHAR(32) NOT NULL DEFAULT 'PENDING_AUDIT' COMMENT 'MDA_ASSET.audit_status 审核状态',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'MDA_ASSET.create_time 创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'MDA_ASSET.update_time 更新时间',
@@ -12,9 +19,27 @@ CREATE TABLE IF NOT EXISTS MDA_ASSET (
     version_num INT NOT NULL DEFAULT 0 COMMENT 'MDA_ASSET.version_num 版本号',
     CONSTRAINT PK_MDA_ASSET PRIMARY KEY (id),
     CONSTRAINT AK_MDA_ASSET_1 UNIQUE (asset_num),
+    CONSTRAINT AK_MDA_ASSET_2 UNIQUE (bucket_code, object_code),
     KEY IX_MDA_ASSET_1 (user_id),
-    KEY IX_MDA_ASSET_2 (audit_status)
+    KEY IX_MDA_ASSET_2 (audit_status),
+    KEY IX_MDA_ASSET_3 (visibility_code, audit_status, home_enabled_flag, home_sort_num),
+    KEY IX_MDA_ASSET_4 (user_id, object_hash, deleted_flag)
 ) COMMENT='媒体资源表';
+
+CREATE TABLE IF NOT EXISTS MDA_ASSET_GROUP_ACL (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'MDA_ASSET_GROUP_ACL.id 自增长ID',
+    asset_id BIGINT NOT NULL COMMENT 'MDA_ASSET_GROUP_ACL.asset_id 资源ID',
+    group_code VARCHAR(32) NOT NULL COMMENT 'MDA_ASSET_GROUP_ACL.group_code 分组编码',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'MDA_ASSET_GROUP_ACL.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'MDA_ASSET_GROUP_ACL.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'MDA_ASSET_GROUP_ACL.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'MDA_ASSET_GROUP_ACL.version_num 版本号',
+    CONSTRAINT PK_MDA_ASSET_GROUP_ACL PRIMARY KEY (id),
+    CONSTRAINT AK_MDA_ASSET_GROUP_ACL_1 UNIQUE (asset_id, group_code),
+    KEY IX_MDA_ASSET_GROUP_ACL_1 (asset_id),
+    KEY IX_MDA_ASSET_GROUP_ACL_2 (group_code),
+    CONSTRAINT FK_MDA_ASSET_GROUP_ACL_1 FOREIGN KEY (asset_id) REFERENCES MDA_ASSET(id)
+) COMMENT='媒体资源分组可见性表';
 
 CREATE TABLE IF NOT EXISTS MDA_REPORT (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'MDA_REPORT.id 自增长ID',
@@ -31,6 +56,28 @@ CREATE TABLE IF NOT EXISTS MDA_REPORT (
     KEY IX_MDA_REPORT_2 (create_time),
     CONSTRAINT FK_MDA_REPORT_1 FOREIGN KEY (asset_id) REFERENCES MDA_ASSET(id)
 ) COMMENT='媒体举报表';
+
+CREATE TABLE IF NOT EXISTS MDA_L2D_PACKAGE (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'MDA_L2D_PACKAGE.id 自增长ID',
+    asset_id BIGINT NOT NULL COMMENT 'MDA_L2D_PACKAGE.asset_id 资源ID',
+    entry_model_json VARCHAR(512) NOT NULL COMMENT 'MDA_L2D_PACKAGE.entry_model_json model3.json 入口路径',
+    moc_path VARCHAR(512) NOT NULL COMMENT 'MDA_L2D_PACKAGE.moc_path moc3 文件路径',
+    texture_count INT NOT NULL COMMENT 'MDA_L2D_PACKAGE.texture_count 纹理数量',
+    motion_group_count INT NOT NULL DEFAULT 0 COMMENT 'MDA_L2D_PACKAGE.motion_group_count 动作组数量',
+    expression_count INT NOT NULL DEFAULT 0 COMMENT 'MDA_L2D_PACKAGE.expression_count 表情数量',
+    has_physics_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'MDA_L2D_PACKAGE.has_physics_flag 是否包含 physics',
+    has_pose_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'MDA_L2D_PACKAGE.has_pose_flag 是否包含 pose',
+    references_json JSON NOT NULL COMMENT 'MDA_L2D_PACKAGE.references_json 引用文件清单',
+    validation_code TINYINT NOT NULL COMMENT 'MDA_L2D_PACKAGE.validation_code 校验状态编码：1通过 2失败',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'MDA_L2D_PACKAGE.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'MDA_L2D_PACKAGE.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'MDA_L2D_PACKAGE.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'MDA_L2D_PACKAGE.version_num 版本号',
+    CONSTRAINT PK_MDA_L2D_PACKAGE PRIMARY KEY (id),
+    CONSTRAINT AK_MDA_L2D_PACKAGE_1 UNIQUE (asset_id),
+    KEY IX_MDA_L2D_PACKAGE_1 (create_time),
+    CONSTRAINT FK_MDA_L2D_PACKAGE_1 FOREIGN KEY (asset_id) REFERENCES MDA_ASSET(id)
+) COMMENT='L2D 包扩展信息表';
 
 CREATE TABLE IF NOT EXISTS AUD_LOG (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AUD_LOG.id 自增长ID',

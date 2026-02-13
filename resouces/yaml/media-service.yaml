@@ -24,12 +24,23 @@ shizuki:
     storage:
       private-bucket: ${OSS_PRIVATE_BUCKET:shizuki-private}
       public-bucket: ${OSS_PUBLIC_BUCKET:shizuki-public}
+      public-base-url: ${OSS_PUBLIC_BASE_URL:}
       sign-expire-seconds: 600
       max-upload-size: 52428800
+      max-l2d-zip-entry-count: 2048
+      max-l2d-zip-entry-name-length: 1024
+      max-l2d-zip-single-entry-size: 20971520
+      max-l2d-zip-total-size: 104857600
+      enable-object-hash-dedup: true
+      enable-security-scan-hook: false
       allowed-content-types:
         - image/png
         - image/jpeg
         - image/webp
+        - image/gif
+        - image/apng
+        - application/zip
+        - application/x-zip-compressed
         - audio/mpeg
         - audio/wav
         - audio/ogg

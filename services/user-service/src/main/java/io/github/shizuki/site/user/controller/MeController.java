@@ -9,6 +9,7 @@ import io.github.shizuki.site.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,6 +49,13 @@ public class MeController {
     @Operation(summary = "获取当前用户信息", description = "返回 userId、昵称、分组和权限")
     public ApiResponse<MeResponse> me() {
         return ApiResponse.success(userService.currentUser());
+    }
+
+    @GetMapping("/preferences")
+    @Operation(summary = "获取用户偏好", description = "读取当前用户首页与组件偏好 JSON")
+    public ApiResponse<Map<String, Object>> preferences() {
+        Long userId = LoginUserContext.get().map(user -> user.getUserId()).orElse(0L);
+        return ApiResponse.success(userService.getPreference(userId));
     }
 
     /**

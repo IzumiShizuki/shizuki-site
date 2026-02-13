@@ -25,7 +25,9 @@ import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
 import io.github.shizuki.site.user.dto.auth.OAuthBindRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthConflictConfirmRequest;
+import io.github.shizuki.site.user.entity.GroupPermissionEntity;
 import io.github.shizuki.site.user.entity.UserAccountEntity;
+import io.github.shizuki.site.user.mapper.GroupPermissionMapper;
 import io.github.shizuki.site.user.mapper.UserAccountMapper;
 import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.service.auth.AuthFlowService;
@@ -34,6 +36,7 @@ import io.github.shizuki.site.user.service.auth.ImageCaptchaService;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -72,6 +75,10 @@ public class AuthServiceImpl implements AuthService {
      */
     private final UserAccountMapper userAccountMapper;
     /**
+     * 分组权限映射访问组件。
+     */
+    private final GroupPermissionMapper groupPermissionMapper;
+    /**
      * JSON 序列化组件，用于 groups/permissions 解析。
      */
     private final ObjectMapper objectMapper;
@@ -84,6 +91,7 @@ public class AuthServiceImpl implements AuthService {
      * @param authFlowService 认证核心流程服务
      * @param authGrantStrategyFactory grant 策略工厂
      * @param userAccountMapper 用户账户读写组件
+     * @param groupPermissionMapper 分组权限映射读写组件
      * @param objectMapper JSON 序列化组件
      */
     public AuthServiceImpl(ImageCaptchaService imageCaptchaService,
@@ -91,12 +99,14 @@ public class AuthServiceImpl implements AuthService {
                            AuthFlowService authFlowService,
                            AuthGrantStrategyFactory authGrantStrategyFactory,
                            UserAccountMapper userAccountMapper,
+                           GroupPermissionMapper groupPermissionMapper,
                            ObjectMapper objectMapper) {
         this.imageCaptchaService = imageCaptchaService;
         this.emailVerificationService = emailVerificationService;
         this.authFlowService = authFlowService;
         this.authGrantStrategyFactory = authGrantStrategyFactory;
         this.userAccountMapper = userAccountMapper;
+        this.groupPermissionMapper = groupPermissionMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -219,7 +229,11 @@ public class AuthServiceImpl implements AuthService {
         if (account == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Account not found");
         }
-        return new AuthIntrospectResponse(userId, parseStringSet(account.getGroupsJson()), parseStringSet(account.getPermissionsJson()));
+        Set<String> groups = normalizeGroupCodes(parseStringSet(account.getGroupsJson()));
+        Set<String> userPermissions = parseStringSet(account.getPermissionsJson());
+        Set<String> effectivePermissions = new LinkedHashSet<>(userPermissions);
+        effectivePermissions.addAll(resolveGroupPermissions(groups));
+        return new AuthIntrospectResponse(userId, groups, effectivePermissions);
     }
 
     /**
@@ -275,11 +289,39 @@ public class AuthServiceImpl implements AuthService {
             if (values == null || values.isEmpty()) {
                 return Set.of();
             }
-            // LinkedHashSet 保持 JSON 原有顺序，便于调试和稳定断言。
-            return new LinkedHashSet<>(values);
+            return values.stream()
+                .map(value -> value == null ? null : value.trim())
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         } catch (Exception ex) {
             // introspect 不应因脏数据直接 500，先降级为空集合。
             return Set.of();
         }
+    }
+
+    private Set<String> normalizeGroupCodes(Set<String> groups) {
+        if (groups == null || groups.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> normalized = groups.stream()
+            .map(value -> value == null ? null : value.trim())
+            .filter(StringUtils::hasText)
+            .map(value -> value.toUpperCase())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        return normalized.isEmpty() ? Set.of() : normalized;
+    }
+
+    private Set<String> resolveGroupPermissions(Set<String> groups) {
+        if (groups == null || groups.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> resolved = groupPermissionMapper.selectList(
+                new LambdaQueryWrapper<GroupPermissionEntity>().in(GroupPermissionEntity::getGroupCode, groups)
+            ).stream()
+            .map(GroupPermissionEntity::getPermissionCode)
+            .map(value -> value == null ? null : value.trim())
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        return resolved.isEmpty() ? Set.of() : resolved;
     }
 }
