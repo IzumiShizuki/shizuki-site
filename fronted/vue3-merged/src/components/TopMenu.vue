@@ -2,20 +2,44 @@
   <nav class="fixed-nav-wrapper top-menu-root" :class="{ expanded: menuExpanded }">
     <div class="top-bar liquid-material">
       <div class="nav-section left">
-        <div class="left-pill-group liquid-material">
-          <div class="menu-item-stack">
+        <div class="left-pill-group liquid-material" :style="{ '--active-index': activeMainRouteIndex }">
+          <div
+            class="menu-item-stack left-main-btn ripple-trigger"
+            :class="{ active: activeMainRoute === 'home' }"
+            @click="selectMainRoute('home')"
+          >
             <div class="icon-minimal"><i class="fas fa-home"></i></div>
             <span class="item-label">主页</span>
           </div>
-          <div class="menu-item-stack">
+          <div
+            class="menu-item-stack left-main-btn ripple-trigger"
+            :class="{ active: activeMainRoute === 'blog' }"
+            @click="selectMainRoute('blog')"
+          >
             <div class="icon-minimal"><i class="far fa-file-alt"></i></div>
             <span class="item-label">博客</span>
           </div>
-          <div class="menu-item-stack">
+          <div
+            class="menu-item-stack left-main-btn ripple-trigger"
+            :class="{ active: activeMainRoute === 'music_library' }"
+            @click="selectMainRoute('music_library')"
+          >
+            <div class="icon-minimal"><i class="fas fa-music"></i></div>
+            <span class="item-label">音乐库</span>
+          </div>
+          <div
+            class="menu-item-stack left-main-btn ripple-trigger"
+            :class="{ active: activeMainRoute === 'apps' }"
+            @click="selectMainRoute('apps')"
+          >
             <div class="icon-minimal"><i class="fas fa-th-large"></i></div>
             <span class="item-label">轻应用</span>
           </div>
-          <div class="menu-item-stack">
+          <div
+            class="menu-item-stack left-main-btn ripple-trigger"
+            :class="{ active: activeMainRoute === 'ai_tavern' }"
+            @click="selectMainRoute('ai_tavern')"
+          >
             <div class="icon-minimal"><i class="far fa-comment-dots"></i></div>
             <span class="item-label">AI酒馆</span>
           </div>
@@ -23,29 +47,29 @@
       </div>
 
       <div class="nav-section center">
-        <div class="menu-item-stack">
+        <div class="menu-item-stack ripple-trigger">
           <div class="circle-icon-box liquid-material"><i class="fas fa-music"></i></div>
           <span class="item-label">音乐</span>
         </div>
 
-        <div class="menu-item-stack">
+        <div class="menu-item-stack ripple-trigger">
           <div class="circle-icon-box liquid-material"><i class="fas fa-sliders-h icon-rotated"></i></div>
           <span class="item-label">白噪音</span>
         </div>
 
-        <div class="menu-item-stack">
+        <div class="menu-item-stack ripple-trigger">
           <div class="circle-icon-box liquid-material"><i class="far fa-image"></i></div>
           <span class="item-label">变换图片</span>
         </div>
 
-        <div class="menu-item-stack">
+        <div class="menu-item-stack ripple-trigger">
           <div class="circle-icon-box liquid-material"><i class="fas fa-wand-magic-sparkles"></i></div>
           <span class="item-label">特效</span>
         </div>
       </div>
 
       <div class="nav-section right">
-        <div class="menu-item-stack ai-chat-item" @click.stop="toggleAiChat">
+        <div class="menu-item-stack ai-chat-item ripple-trigger" @click.stop="toggleAiChat">
           <div class="pill-btn-box liquid-material">
             <i class="fas fa-robot"></i>
             <span>AI Chat</span>
@@ -54,21 +78,26 @@
           <span class="item-label">唤起AI对话</span>
         </div>
 
-        <div class="menu-item-stack">
+        <div class="menu-item-stack ripple-trigger">
           <div class="github-style-box liquid-material">
             <i class="fab fa-github"></i>
           </div>
           <span class="item-label">项目github</span>
         </div>
 
-        <div class="menu-item-stack">
+        <div class="menu-item-stack author-info-item ripple-trigger" @click.stop="handleAuthorInfoClick">
+          <div class="author-avatar-box"></div>
+          <span class="item-label">作者信息</span>
+        </div>
+
+        <div class="menu-item-stack ripple-trigger">
           <div class="avatar-box"></div>
           <span class="item-label">用户登录</span>
         </div>
       </div>
     </div>
 
-    <div class="toggle-tab liquid-material" @click="toggleSwitch">
+    <div class="toggle-tab liquid-material ripple-trigger" @click="toggleSwitch">
       <div class="switch-content">
         <span class="bar-line top"></span>
         <div class="menu-label-text">MENU</div>
@@ -79,7 +108,7 @@
 </template>
 
 <script setup>
-import { toRefs } from 'vue';
+import { computed, ref, toRefs } from 'vue';
 
 const props = defineProps({
   menuExpanded: {
@@ -92,7 +121,13 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['toggle-menu', 'toggle-ai-chat']);
+const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'author-info-click']);
+const activeMainRoute = ref('home');
+const mainRouteOrder = ['home', 'blog', 'music_library', 'apps', 'ai_tavern'];
+const activeMainRouteIndex = computed(() => {
+  const idx = mainRouteOrder.indexOf(activeMainRoute.value);
+  return idx < 0 ? 0 : idx;
+});
 
 function toggleSwitch() {
   emit('toggle-menu');
@@ -102,12 +137,21 @@ function toggleAiChat() {
   emit('toggle-ai-chat');
 }
 
+function selectMainRoute(routeKey) {
+  activeMainRoute.value = routeKey;
+  emit('select-main-route', routeKey);
+}
+
+function handleAuthorInfoClick() {
+  emit('author-info-click');
+}
+
 const { menuExpanded, aiChatActive } = toRefs(props);
 </script>
 
 <style scoped>
 .top-menu-root {
-  --menu-alpha-scale: 0.65;
+  --menu-alpha-scale: 0.52;
   --menu-glass-bg: rgba(var(--glass-rgb), calc(var(--glass-bg-alpha) * var(--menu-alpha-scale)));
   --menu-glass-border: rgba(255, 255, 255, calc(var(--glass-border-alpha) * var(--menu-alpha-scale)));
   --menu-glass-shadow: 0 8px 32px rgba(0, 0, 0, calc(var(--glass-shadow-alpha) * var(--menu-alpha-scale)));
@@ -139,8 +183,8 @@ const { menuExpanded, aiChatActive } = toRefs(props);
 }
 
 .top-bar {
-  width: 95%;
-  max-width: 1200px;
+  width: 98%;
+  max-width: 1500px;
   height: 86px;
   border-radius: 20px;
   padding: 0 30px;
@@ -191,6 +235,16 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   animation: press-wobble 280ms ease;
 }
 
+.left-main-btn.active .icon-minimal {
+  color: #7358b2;
+  transform: scale(1.06);
+}
+
+.left-main-btn.active .item-label {
+  color: #7358b2;
+  font-weight: 600;
+}
+
 .item-label {
   font-size: 11px;
   color: #555;
@@ -200,15 +254,42 @@ const { menuExpanded, aiChatActive } = toRefs(props);
 }
 
 .left-pill-group {
+  --left-main-gap: 18px;
+  --left-main-item-width: 96px;
+  --left-main-padding-x: 20px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
   border-radius: 40px;
-  min-width: 430px;
-  padding: 8px 26px 4px;
+  min-width: 592px;
+  padding: 8px var(--left-main-padding-x) 4px;
   display: flex;
-  gap: 34px;
-  justify-content: space-between;
+  gap: var(--left-main-gap);
+  justify-content: flex-start;
   align-items: flex-start;
   height: 70px;
+  position: relative;
+}
+
+.left-pill-group::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: var(--left-main-padding-x);
+  width: var(--left-main-item-width);
+  border-radius: 24px;
+  background: rgba(183, 156, 255, 0.24);
+  box-shadow:
+    0 0 0 1px rgba(183, 156, 255, 0.42),
+    0 8px 16px rgba(115, 88, 178, 0.16);
+  transform: translateX(calc(var(--active-index, 0) * (var(--left-main-item-width) + var(--left-main-gap))));
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.left-main-btn {
+  width: var(--left-main-item-width);
+  z-index: 1;
 }
 
 .icon-minimal {
@@ -312,6 +393,24 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   color: var(--icon-hover-color);
 }
 
+.author-avatar-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-image: url('file:///C:/Users/29301/Pictures/katanegai.jpg'), url('/images/katanegai.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 2px solid rgba(255, 255, 255, 0.86);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.author-info-item:hover .author-avatar-box {
+  transform: scale(1.06);
+  border-color: rgba(183, 156, 255, 0.78);
+  box-shadow: 0 6px 14px rgba(115, 88, 178, 0.2);
+}
+
 .avatar-box {
   width: 44px;
   height: 44px;
@@ -356,6 +455,10 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   transition: all 0.4s 0.2s ease;
 }
 
+.fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(5) {
+  transition: all 0.4s 0.25s ease;
+}
+
 .fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(1) {
   transition: all 0.4s 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -382,6 +485,10 @@ const { menuExpanded, aiChatActive } = toRefs(props);
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(3) {
   transition: all 0.4s 0.55s ease;
+}
+
+.fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(4) {
+  transition: all 0.4s 0.6s ease;
 }
 
 .toggle-tab {

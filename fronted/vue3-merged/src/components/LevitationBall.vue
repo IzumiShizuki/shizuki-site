@@ -18,22 +18,22 @@
       </div>
 
       <div class="menu-list">
-        <div class="menu-item close-btn" title="Close" @click.stop="handleCloseClick">
+        <div class="menu-item close-btn ripple-trigger" title="Close" @click.stop="handleCloseClick">
           <svg viewBox="0 0 24 24">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>
         </div>
-        <div ref="chatButtonRef" class="menu-item chat-btn" title="Chat" @click.stop="handleChatClick">
+        <div ref="chatButtonRef" class="menu-item chat-btn ripple-trigger" title="Chat" @click.stop="handleChatClick">
           <svg viewBox="0 0 24 24">
             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
           </svg>
         </div>
-        <div class="menu-item" title="Record" @click.stop="handleMenuAction('record', $event)">
+        <div class="menu-item ripple-trigger" title="Record" @click.stop="handleMenuAction('record', $event)">
           <svg viewBox="0 0 24 24">
             <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
           </svg>
         </div>
-        <div class="menu-item" title="Settings" @click.stop="handleMenuAction('settings', $event)">
+        <div class="menu-item ripple-trigger" title="Settings" @click.stop="handleMenuAction('settings', $event)">
           <svg viewBox="0 0 24 24">
             <path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" />
           </svg>
@@ -44,15 +44,36 @@
         class="submenu-panel liquid-material"
         :class="{ 'is-open': state.isSubmenuOpen }"
         :aria-hidden="(!state.isSubmenuOpen).toString()"
-        :style="{ top: chatSubmenuTop }"
+        :style="{
+          top: chatSubmenuTop,
+          '--submenu-launch-x': submenuLaunchX,
+          '--submenu-launch-y': submenuLaunchY,
+          '--submenu-overshoot-x': submenuOvershootX,
+          '--submenu-overshoot-y': submenuOvershootY
+        }"
       >
-        <button class="submenu-item" style="--submenu-item-index: 0" type="button" @click.stop="handleSubmenuAction('a', $event)">
+        <button
+          class="submenu-item ripple-trigger"
+          style="--submenu-item-index: 0"
+          type="button"
+          @click.stop="handleSubmenuAction('a', $event)"
+        >
           a
         </button>
-        <button class="submenu-item" style="--submenu-item-index: 1" type="button" @click.stop="handleSubmenuAction('b', $event)">
+        <button
+          class="submenu-item ripple-trigger"
+          style="--submenu-item-index: 1"
+          type="button"
+          @click.stop="handleSubmenuAction('b', $event)"
+        >
           b
         </button>
-        <button class="submenu-item" style="--submenu-item-index: 2" type="button" @click.stop="handleSubmenuAction('c', $event)">
+        <button
+          class="submenu-item ripple-trigger"
+          style="--submenu-item-index: 2"
+          type="button"
+          @click.stop="handleSubmenuAction('c', $event)"
+        >
           c
         </button>
       </div>
@@ -67,6 +88,10 @@ const containerRef = ref(null);
 const visualRef = ref(null);
 const chatButtonRef = ref(null);
 const chatSubmenuTop = ref('58px');
+const submenuLaunchX = ref('0px');
+const submenuLaunchY = ref('0px');
+const submenuOvershootX = ref('0px');
+const submenuOvershootY = ref('0px');
 
 const EXPANDED_WIDTH = 70;
 const EXPANDED_HEIGHT = 260;
@@ -456,6 +481,8 @@ function positionSubmenuAtChat() {
 
   const chatRect = chatButton.getBoundingClientRect();
   const visualRect = visual.getBoundingClientRect();
+  const buttonCenterX = chatRect.left - visualRect.left + chatRect.width * 0.5;
+  const buttonCenterY = chatRect.top - visualRect.top + chatRect.height * 0.5;
 
   let top = chatRect.top - visualRect.top + chatRect.height * 0.5 - SUBMENU_HEIGHT * 0.5;
   const minTop = 8;
@@ -464,6 +491,16 @@ function positionSubmenuAtChat() {
   if (top > maxTop) top = maxTop;
 
   chatSubmenuTop.value = `${top}px`;
+
+  const submenuCenterX = EXPANDED_WIDTH + SUBMENU_GAP + SUBMENU_WIDTH * 0.5;
+  const submenuCenterY = top + SUBMENU_HEIGHT * 0.5;
+  const launchX = buttonCenterX - submenuCenterX;
+  const launchY = buttonCenterY - submenuCenterY;
+
+  submenuLaunchX.value = `${launchX.toFixed(2)}px`;
+  submenuLaunchY.value = `${launchY.toFixed(2)}px`;
+  submenuOvershootX.value = `${(-launchX * 0.12).toFixed(2)}px`;
+  submenuOvershootY.value = `${(-launchY * 0.12).toFixed(2)}px`;
 }
 
 function triggerRipple(element) {
@@ -607,6 +644,15 @@ onBeforeUnmount(() => {
   filter: blur(2px);
 }
 
+.drop-body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(148, 157, 192, 0.34);
+  pointer-events: none;
+}
+
 @keyframes breath {
   0%,
   100% {
@@ -639,18 +685,26 @@ onBeforeUnmount(() => {
 @keyframes submenu-panel-in {
   0% {
     opacity: 0;
-    transform: translateX(-14px) scale(0.9);
+    transform: translate3d(var(--submenu-launch-x), var(--submenu-launch-y), 0) scale(0.28);
+  }
+  72% {
+    opacity: 1;
+    transform: translate3d(var(--submenu-overshoot-x), var(--submenu-overshoot-y), 0) scale(1.07);
   }
   100% {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
 @keyframes submenu-item-in {
   0% {
     opacity: 0;
-    transform: translateX(-8px) scale(0.94);
+    transform: translateX(-9px) scale(0.92);
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(1px) scale(1.05);
   }
   100% {
     opacity: 1;
@@ -698,7 +752,7 @@ onBeforeUnmount(() => {
 }
 
 .drop-container.is-expanded .drop-body {
-  --liquid-bg: rgba(var(--glass-rgb), 0.45);
+  --liquid-bg: rgba(var(--glass-rgb), 0.34);
   width: var(--menu-width);
   height: var(--menu-height);
   border-radius: 35px;
@@ -758,16 +812,16 @@ onBeforeUnmount(() => {
   align-items: center;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-10px) scale(0.95);
-  transform-origin: left center;
+  transform: translate3d(var(--submenu-launch-x), var(--submenu-launch-y), 0) scale(0.28);
+  transform-origin: center center;
   transition: opacity 0.2s ease, transform 0.25s var(--ease-elastic);
 }
 
 .submenu-panel.is-open {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0) scale(1);
-  animation: submenu-panel-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate3d(0, 0, 0) scale(1);
+  animation: submenu-panel-in 320ms cubic-bezier(0.18, 0.92, 0.24, 1.2);
 }
 
 .submenu-item {
@@ -795,7 +849,7 @@ onBeforeUnmount(() => {
 }
 
 .submenu-panel.is-open .submenu-item {
-  animation: submenu-item-in 240ms ease forwards;
+  animation: submenu-item-in 250ms ease forwards;
   animation-delay: calc(var(--submenu-item-index) * 55ms + 35ms);
 }
 

@@ -17,3 +17,11 @@ body {
   user-select: none;
   -webkit-user-select: none;
 }
+
+.ripple-trigger {
+  transition: scale 0.18s ease;
+}
+
+.ripple-trigger:active {
+  scale: 0.965;
+}

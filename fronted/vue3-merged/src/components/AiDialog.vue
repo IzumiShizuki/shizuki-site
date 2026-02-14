@@ -10,11 +10,11 @@
   >
     <section class="ai-dialog liquid-material">
       <header class="ai-dialog-header">
-        <button class="icon-btn" type="button" title="设置">
+        <button class="icon-btn ripple-trigger" type="button" title="设置">
           <i class="fas fa-gear"></i>
         </button>
         <div class="dialog-title">AI 对话</div>
-        <button class="icon-btn close-btn" type="button" title="退出" @click="emit('close')">-</button>
+        <button class="icon-btn close-btn ripple-trigger" type="button" title="退出" @click="emit('close')">-</button>
       </header>
 
       <div class="chat-stream">
@@ -34,7 +34,7 @@
 
       <footer class="chat-input-wrap">
         <div class="chat-input"></div>
-        <button class="send-btn" type="button" title="发送">
+        <button class="send-btn ripple-trigger" type="button" title="发送">
           <i class="fas fa-paper-plane"></i>
         </button>
       </footer>
@@ -97,7 +97,9 @@ const emit = defineEmits(['close']);
 }
 
 .ai-dialog {
-  --liquid-bg: rgba(var(--glass-rgb), 0.35);
+  --liquid-bg: rgba(var(--glass-rgb), 0.28);
+  --liquid-border: rgba(255, 255, 255, 0.34);
+  --liquid-shadow: 0 10px 24px rgba(20, 24, 45, 0.07);
   width: 100%;
   height: 100%;
   border-radius: 20px;
