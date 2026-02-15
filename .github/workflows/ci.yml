@@ -29,13 +29,25 @@ jobs:
           cache: maven
 
       - name: Compile
-        run: mvn -B -ntp -DskipTests compile
+        run: |
+          set -o pipefail
+          mvn -B -ntp -DskipTests compile | tee backend-compile.log
 
       - name: SQL Convention Check
-        run: bash scripts/check_sql_conventions.sh
+        run: |
+          set -o pipefail
+          bash scripts/check_sql_conventions.sh | tee backend-sql-check.log
 
       - name: Unit Tests
-        run: mvn -B -ntp test -Dsurefire.printSummary=true -DtrimStackTrace=false
+        run: |
+          set -o pipefail
+          mvn -B -ntp test -Dsurefire.printSummary=true -DtrimStackTrace=false | tee backend-unit-tests.log
+
+      - name: Debug Report Paths
+        if: failure()
+        run: |
+          echo "Searching report directories under workspace..."
+          find . -type d \( -name surefire-reports -o -name failsafe-reports -o -name "*-reports" \) -print || true
 
       - name: Upload Backend Test Reports
         if: failure()
@@ -43,11 +55,14 @@ jobs:
         with:
           name: backend-test-reports-${{ github.run_number }}
           path: |
+            backend-compile.log
+            backend-sql-check.log
+            backend-unit-tests.log
             **/target/surefire-reports/**
             **/target/failsafe-reports/**
             **/target/*-reports/**
           retention-days: 7
-          if-no-files-found: warn
+          if-no-files-found: ignore
 
   frontend-build:
     name: Frontend Build
