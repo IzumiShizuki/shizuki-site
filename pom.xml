@@ -21,6 +21,9 @@
         <sa-token.version>1.39.0</sa-token.version>
         <owasp-sanitizer.version>20240325.1</owasp-sanitizer.version>
         <springdoc.version>2.6.0</springdoc.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
     </properties>
 
     <modules>
@@ -62,6 +65,21 @@
     </dependencyManagement>
 
     <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <encoding>${maven.compiler.encoding}</encoding>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <configuration>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+        </plugins>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -71,6 +89,11 @@
                     <configuration>
                         <release>${java.version}</release>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.3.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.springframework.boot</groupId>
