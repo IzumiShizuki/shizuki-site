@@ -155,9 +155,17 @@ check_flyway_file_name() {
 
 check_sensitive_plaintext() {
   local file="$1"
-  if rg -n "admin123|replace_me|password[[:space:]]*=[[:space:]]*'[^']+'" "$file" >/dev/null 2>&1; then
-    echo "[sql-check][error] possible plaintext sensitive data: ${file}"
-    FAILED=1
+  local pattern="admin123|replace_me|password[[:space:]]*=[[:space:]]*'[^']+'"
+  if command -v rg >/dev/null 2>&1; then
+    if rg -n "${pattern}" "$file" >/dev/null 2>&1; then
+      echo "[sql-check][error] possible plaintext sensitive data: ${file}"
+      FAILED=1
+    fi
+  else
+    if grep -En "${pattern}" "$file" >/dev/null 2>&1; then
+      echo "[sql-check][error] possible plaintext sensitive data: ${file}"
+      FAILED=1
+    fi
   fi
 }
 
