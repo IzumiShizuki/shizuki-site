@@ -87,11 +87,11 @@ public class AliyunOssClient implements ObjectStorageClient {
             result.setEtag(metadata.getETag());
             return result;
         } catch (OSSException exception) {
-            int statusCode = exception.getStatusCode();
-            if (statusCode == 404) {
+            String ossErrorCode = exception.getErrorCode();
+            if (isNotFoundError(ossErrorCode)) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "OSS object metadata not found");
             }
-            if (statusCode >= 500) {
+            if (isServiceUnavailableError(ossErrorCode)) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR, "OSS service unavailable");
             }
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Read OSS object metadata failed");
@@ -158,5 +158,18 @@ public class AliyunOssClient implements ObjectStorageClient {
         }
         return new OSSClientBuilder()
             .build(ossProperties.getEndpoint(), ossProperties.getAccessKeyId(), ossProperties.getAccessKeySecret());
+    }
+
+    private boolean isNotFoundError(String ossErrorCode) {
+        return "NoSuchKey".equals(ossErrorCode)
+            || "NoSuchBucket".equals(ossErrorCode)
+            || "NoSuchVersion".equals(ossErrorCode);
+    }
+
+    private boolean isServiceUnavailableError(String ossErrorCode) {
+        return "InternalError".equals(ossErrorCode)
+            || "ServiceUnavailable".equals(ossErrorCode)
+            || "RequestTimeout".equals(ossErrorCode)
+            || "OperationTimeout".equals(ossErrorCode);
     }
 }
