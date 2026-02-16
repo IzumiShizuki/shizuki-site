@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>灵动弹窗音乐播放器</title>
+    <style>
+        /* --- 基础设置 & 动态背景 --- */
+        :root {
+            /* 一个有弹性的贝塞尔曲线 */
+            --elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* 弄一个好看的动态渐变背景，突出毛玻璃效果 */
+            background: linear-gradient(-45dvg, #eb3b5a, #fa8231, #f7b731, #20bf6b, #0fb9b1, #2d98da, #3867d6, #8854d0);
+            background-size: 400% 400%;
+            animation: bgMove 15s ease infinite;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        @keyframes bgMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* --- 播放器主体容器 --- */
+        .player-card {
+            position: relative;
+            /* 初始状态：小圆尺寸 */
+            width: 80px;
+            height: 80px;
+            
+            /* 毛玻璃核心样式 */
+            background: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            
+            border-radius: 50%; /* 初始是一张圆的唱片 */
+            cursor: pointer;
+            transition: 
+                width 0.6s var(--elastic), 
+                height 0.6s var(--elastic), 
+                border-radius 0.4s ease, 
+                transform 0.05s linear; /* 点击时的轻微按压感 */
+            
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .player-card:active {
+            transform: scale(0.95); /* 点击手感 */
+        }
+
+        /* --- 激活（展开）状态 --- */
+        .player-card.active {
+            width: 320px;
+            height: 480px; /* 展开后的高度 */
+            border-radius: 30px; /* 变圆角矩形 */
+            cursor: default;
+        }
+
+        .player-card.active:active {
+            transform: scale(1);
+        }
+        
+        /* 关闭按钮 (初始隐藏) */
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 30px;
+            height: 30px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        .close-btn svg {
+            width: 14px;
+            height: 14px;
+            fill: #fff;
+        }
+
+        .player-card.active .close-btn {
+            opacity: 1;
+            transition-delay: 0.6s;
+            pointer-events: all;
+        }
+
+        /* --- 封面的逻辑 (重点) --- */
+        .cover-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.6s var(--elastic);
+        }
+
+        /* 这就是一个黑胶唱片的外圈 */
+        .cover-vinyl {
+            position: relative;
+            /* 初始状态：适应整个容器 */
+            width: 70px;
+            height: 70px;
+             /* 模拟黑胶质感 */
+            border-radius: 50%;
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* 转起来! */
+            animation: spin 6s linear infinite; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.6s var(--elastic);
+        }
+        
+        /* 封面的图片 */
+        .cover-img {
+            width: 96%;
+            height: 96%;
+            border-radius: 50%;
+            object-fit: cover;
+            /* 稍微透明模拟黑纹理? 或者是纯图片 */
+            opacity: 1;
+            transition: border-radius 0.3s ease 0.2s; /* 慢一点变形状 */
+        }
+        
+        /* 分镜第一阶段：黑色小圆心（黑胶的洞） */
+        .center-hole {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background-color: rgba(255,255,255, 0.4);
+            border: 2px solid white;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1);
+            z-index: 5;
+            transition: transform 0.3s ease;
+            backdrop-filter: blur(2xp);
+        }
+
+        /* --> 状态：展开后封面的变化 */
+        .player-card.active .cover-wrapper {
+            top: 130px; /* 移动到上部 */
+            padding-top: 20px;
+        }
+
+        .player-card.active .cover-vinyl {
+            /* 封面变大 */
+            width: 220px;
+            height: 220px;
+            background: transparent; /* 去掉黑胶黑色底 */
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+        }
+        
+        /* 播放时转动，暂停时保持角度不动 */
+        .playing-anim {
+            animation-play-state: running;
+        } 
+        .paused-anim {
+            animation-play-state: paused;
+        }
+
+        .player-card.active .center-hole {
+            /* 圆心缩小直到消失 */
+            transform: translate(-50%, -50%) scale(0);
+        }
+
+        /* --- 底部控制面板 --- */
+        .controls-panel {
+            position: absolute;
+            bottom: 0px; 
+            width: 100%;
+            height: 55%; /* 占用下方的空间 */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            padding: 80px 20px 20px;
+            box-sizing: border-box;
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.5s ease;
+            pointer-events: none; /* 未展示前不可点 */
+        }
+
+        .player-card.active .controls-panel {
+            opacity: 1;
+            transform: translateY(0);
+            /* 让内容在卡片弹开后再慢慢浮现 */
+            transition-delay: 0.3s; 
+            pointer-events: all;
+        }
+
+
+        /* 下面的全是装饰性UI: 标题 & 进度条 & 按钮 */
+        .song-info {
+            text-align: center;
+            color: white;
+            margin-bottom: 25px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .song-title { font-size: 20px; font-weight: 700; margin: 0 0 6px 0; letter-spacing: 0.5px;}
+        .artist-name { font-size: 14px; opacity: 0.8; margin: 0; }
+
+        .progress-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+        
+        .progress-bar {
+            flex-grow: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .progress-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 40%;
+            background: #fff;
+            border-radius: 2px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.7);
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 80%;
+        }
+
+        .btn-icon {
+            cursor: pointer;
+            fill: white;
+            opacity: 0.8;
+            transition: all 0.2s;
+        }
+        .btn-icon:hover { opacity: 1; transform: scale(1.1); }
+        .btn-play { 
+            width: 50px; 
+            height: 50px; 
+            background: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            color: #444; /* 图标颜色 */
+        }
+        .btn-play svg { fill: #333; width: 18px; margin-left: 2px;} 
+        /* Play图表本身就有点不居中需微调 */
+        
+        @keyframes spin {
+             from{ transform: rotate(0deg); }
+             to{ transform: rotate(360deg); }
+        }
+
+        /* 其它装饰 */
+        .btn-ext { width: 22px; }
+
+    </style>
+</head>
+<body>
+
+    <!-- 整个是一个可扩展的组件 -->
+    <div class="player-card" id="player">
+        
+        <!-- 关闭按钮 -->
+        <div class="close-btn" onclick="closePlayer(event)">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </div>
+
+        <!-- 封面区域 (+黑胶部分) -->
+        <div class="cover-wrapper" onclick="toggleExpand()">
+            <div class="cover-vinyl playing-anim" id="coverVinyl">
+                <img src="https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=600&auto=format&fit=crop" class="cover-img" alt="cover">
+                <!-- 黑胶中间的圈环，展开时会消失 -->
+                <div class="center-hole"></div>
+            </div>
+        </div>
+
+        <!-- 底部控制信息 (内容展开后才看到) -->
+        <div class="controls-panel">
+            <div class="song-info">
+                <!-- 你可以在这里替换你的歌名 -->
+                <div class="song-title">Bohemian Rhapsody</div>
+                <div class="artist-name">Queen</div>
+            </div>
+
+            <!-- 进度及时间 -->
+            <div class="progress-container">
+                <span>1:21</span>
+                <!-- 进度条 -->
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+                <span>5:55</span>
+            </div>
+
+            <div class="buttons">
+                <!-- 上一步 -->
+                <svg class="btn-icon btn-ext" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                
+                <!-- 播放/暂停 -->
+                <div class="btn-icon btn-play" id="playBtn">
+                   <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                
+                <!-- 下一步 -->
+                <svg class="btn-icon btn-ext" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> 
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const player = document.getElementById('player');
+        const coverVinyl = document.getElementById('coverVinyl');
+        const playBtn = document.getElementById('playBtn');
+        let isExpanded = false;
+        let isPlaying = true; // 默认转动
+
+        // 1. 点击展开的逻辑
+        function toggleExpand() {
+            if (isExpanded) return; // 如果已经展开了，点击封面就不重新触发了（或者你可以做成点击暂停）
+
+            isExpanded = true;
+            player.classList.add('active');
+            
+            // 为了防止点击穿透导致的逻辑立即触发，这里不反转
+        }
+
+        // 2. 点击关闭按钮的逻辑
+        function closePlayer(event) {
+            // 阻止冒泡，避免触发 wrapper 的点击事件（如果有的话）
+            event.stopPropagation();
+            
+            isExpanded = false;
+            player.classList.remove('active');
+        }
+
+        // 3. 简单的播放/暂停控制动画
+        playBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            isPlaying = !isPlaying;
+            
+            // 更新图片动画状态
+            if(isPlaying) {
+                coverVinyl.classList.remove('paused-anim');
+                coverVinyl.classList.add('playing-anim');
+                playBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:14px; margin:0;"><path fill="#333" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'; // 暂停图标
+            } else {
+                coverVinyl.classList.remove('playing-anim');
+                coverVinyl.classList.add('paused-anim');
+                playBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:18px; margin-left:2px;"><path fill="#333" d="M8 5v14l11-7z"/></svg>'; // 播放图标
+            }
+        });
+
+    </script>
+</body>
+</html>

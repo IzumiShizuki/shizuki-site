@@ -513,17 +513,17 @@ function triggerRipple(element) {
 }
 
 function handleCloseClick(e) {
-  triggerRipple(e.currentTarget);
+  if (e?.currentTarget) triggerRipple(e.currentTarget);
   collapseMenu();
 }
 
 function handleChatClick(e) {
-  triggerRipple(e.currentTarget);
+  if (e?.currentTarget) triggerRipple(e.currentTarget);
   toggleChatSubmenu();
 }
 
 function handleMenuAction(action, e) {
-  triggerRipple(e.currentTarget);
+  if (e?.currentTarget) triggerRipple(e.currentTarget);
   closeChatSubmenu();
   console.log(`Action ${action} clicked`);
 }
@@ -534,7 +534,32 @@ function handleSubmenuAction(label, e) {
 }
 
 defineExpose({
-  toggleExpanded
+  toggleExpanded,
+  triggerMenuByIndex(index) {
+    const n = Number(index);
+    if (!Number.isInteger(n) || n < 1 || n > 4) return;
+
+    if (n === 1) {
+      handleCloseClick();
+      return;
+    }
+
+    if (!state.isExpanded) {
+      expandMenu();
+    }
+
+    if (n === 2) {
+      toggleChatSubmenu();
+      return;
+    }
+
+    if (n === 3) {
+      handleMenuAction('record');
+      return;
+    }
+
+    handleMenuAction('settings');
+  }
 });
 
 onMounted(() => {

@@ -47,6 +47,12 @@ build/
 .cache/
 tmp/
 
+### Frontend Media / Build Artifacts ###
+/fronted/vue3-merged/node_modules/
+/fronted/vue3-merged/dist/
+/fronted/vue3-merged/public/media/
+/fronted/vue3-merged/public/media/**
+
 .mvn/*
 /fronted/vue3-merged/dist/assets/fa-brands-400-D1LuMI3I.ttf
 /fronted/vue3-merged/dist/assets/fa-brands-400-D_cYUPeE.woff2
@@ -2919,3 +2925,5 @@ tmp/
 /fronted/vue3-merged/node_modules/vue/package.json
 /fronted/vue3-merged/node_modules/vue/README.md
 /fronted/vue3-merged/node_modules/.package-lock.json
+/fronted/vue3-merged/public/media/**
+/fronted/vue3-merged/dist/media/bgm/2.mp3

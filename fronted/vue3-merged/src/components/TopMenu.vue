@@ -46,7 +46,7 @@
         </div>
       </div>
 
-      <div class="nav-section center">
+      <div class="nav-section center secondary-nav">
         <div class="menu-item-stack ripple-trigger">
           <div class="circle-icon-box liquid-material"><i class="fas fa-music"></i></div>
           <span class="item-label">音乐</span>
@@ -57,7 +57,7 @@
           <span class="item-label">白噪音</span>
         </div>
 
-        <div class="menu-item-stack ripple-trigger">
+        <div class="menu-item-stack ripple-trigger" @click="openBackgroundPicker">
           <div class="circle-icon-box liquid-material"><i class="far fa-image"></i></div>
           <span class="item-label">变换图片</span>
         </div>
@@ -68,7 +68,7 @@
         </div>
       </div>
 
-      <div class="nav-section right">
+      <div class="nav-section right secondary-nav">
         <div class="menu-item-stack ai-chat-item ripple-trigger" @click.stop="toggleAiChat">
           <div class="pill-btn-box liquid-material">
             <i class="fas fa-robot"></i>
@@ -121,7 +121,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'author-info-click']);
+const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'author-info-click', 'open-background-picker']);
 const activeMainRoute = ref('home');
 const mainRouteOrder = ['home', 'blog', 'music_library', 'apps', 'ai_tavern'];
 const activeMainRouteIndex = computed(() => {
@@ -144,6 +144,10 @@ function selectMainRoute(routeKey) {
 
 function handleAuthorInfoClick() {
   emit('author-info-click');
+}
+
+function openBackgroundPicker() {
+  emit('open-background-picker');
 }
 
 const { menuExpanded, aiChatActive } = toRefs(props);
@@ -397,7 +401,7 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background-image: url('file:///C:/Users/29301/Pictures/katanegai.jpg'), url('/images/katanegai.jpg');
+  background-image: url('/images/katanegai.jpg');
   background-size: cover;
   background-position: center;
   border: 2px solid rgba(255, 255, 255, 0.86);
@@ -581,6 +585,292 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   }
   100% {
     transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .fixed-nav-wrapper {
+    transform: translateY(-72px);
+  }
+
+  .fixed-nav-wrapper.expanded {
+    transform: translateY(8px);
+  }
+
+  .top-bar {
+    width: calc(100% - 12px);
+    height: 72px;
+    border-radius: 16px;
+    padding: 0 12px;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+
+  .top-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-section {
+    flex: 0 0 auto;
+    gap: 10px;
+  }
+
+  .nav-section.center,
+  .nav-section.left,
+  .nav-section.right {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .secondary-nav {
+    display: none;
+  }
+
+  .left-pill-group {
+    min-width: auto;
+    width: auto;
+    padding: 6px 8px;
+    gap: 8px;
+    height: auto;
+  }
+
+  .left-pill-group::before {
+    display: none;
+  }
+
+  .left-main-btn {
+    width: auto;
+    min-width: 56px;
+    padding: 0 6px;
+  }
+
+  .item-label {
+    font-size: 10px;
+  }
+
+  .icon-minimal,
+  .circle-icon-box,
+  .github-style-box,
+  .author-avatar-box,
+  .avatar-box {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pill-btn-box {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  .toggle-tab {
+    width: 112px;
+    height: 28px;
+    padding-bottom: 6px;
+  }
+}
+
+@media (max-width: 600px), (orientation: portrait) {
+  .top-menu-root {
+    --drawer-w: 92px;
+  }
+
+  .fixed-nav-wrapper {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    align-items: flex-start;
+    transform: none;
+    pointer-events: none;
+  }
+
+  .top-bar {
+    width: var(--drawer-w);
+    height: calc(100vh - 28px);
+    margin: 14px 0 14px 8px;
+    border-radius: 16px;
+    padding: 10px 4px;
+    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transform: translateX(calc(-100% + 26px));
+    transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: auto;
+  }
+
+  .fixed-nav-wrapper.expanded .top-bar {
+    transform: translateX(0);
+  }
+
+  .nav-section.left {
+    width: 100%;
+  }
+
+  .nav-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .nav-section.center,
+  .nav-section.right {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .left-pill-group {
+    width: 100%;
+    min-width: 0;
+    padding: 4px;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    box-shadow: none;
+  }
+
+  .left-pill-group::before {
+    display: none;
+  }
+
+  .left-main-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    gap: 0;
+    background: rgba(255, 255, 255, 0.22);
+  }
+
+  .menu-item-stack {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    min-height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: rgba(255, 255, 255, 0.22);
+  }
+
+  .menu-item-stack.active {
+    background: rgba(183, 156, 255, 0.24);
+    box-shadow: inset 0 0 0 1px rgba(183, 156, 255, 0.42);
+  }
+
+  .item-label {
+    display: none !important;
+  }
+
+  .icon-minimal {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+
+  .circle-icon-box,
+  .github-style-box,
+  .author-avatar-box,
+  .avatar-box {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+
+  .pill-btn-box {
+    height: 24px;
+    min-width: 24px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
+
+  .pill-btn-box span {
+    display: none;
+  }
+
+  .secondary-nav {
+    display: grid;
+  }
+
+  .toggle-tab {
+    position: fixed;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 122px;
+    border-radius: 12px;
+    margin-top: 0;
+    padding-bottom: 0;
+    align-items: center;
+    justify-content: center;
+    z-index: 1600;
+    pointer-events: auto !important;
+    touch-action: manipulation;
+  }
+
+  .fixed-nav-wrapper.expanded .toggle-tab {
+    left: calc(var(--drawer-w) + 8px);
+  }
+
+  .switch-content {
+    width: 18px;
+    height: 82px;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  .bar-line {
+    width: 2px;
+    height: 20px;
+  }
+
+  .bar-line.top {
+    transform: translateX(-6px);
+  }
+
+  .bar-line.bottom {
+    transform: translateX(6px);
+  }
+
+  .menu-label-text {
+    font-size: 9px;
+    letter-spacing: 0.8px;
+  }
+
+  .fixed-nav-wrapper.expanded .bar-line.top {
+    transform: translateX(0) rotate(135deg);
+    height: 18px;
+    width: 2px;
+  }
+
+  .fixed-nav-wrapper.expanded .bar-line.bottom {
+    transform: translateX(0) rotate(-135deg);
+    height: 18px;
+    width: 2px;
   }
 }
 </style>
