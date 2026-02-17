@@ -1,0 +1,847 @@
+{
+  "info": {
+    "name": "Shizuki Site APIs",
+    "description": "Shizuki Site 后端接口集合（按业务场景分组）。\n\n阅读方式：\n1) 先看“认证登录与注册”获取 token；\n2) 再根据角色进入“用户自助”“内容互动”“媒体上传”“AI会话”；\n3) 管理员能力集中在“管理员权限与策略”“管理员内容管理”“管理员资源审核”“管理员审计日志”。\n\n基础逻辑：\n1) 除公开接口外，大多需要 Bearer Token。\n2) /api/v1/admin/** 需要 ADMIN 权限组。\n3) 默认通过网关 {{gatewayBaseUrl}} 调用。\n\n状态/枚举速查：\nHTTP 状态码：200成功；400参数错误；401未登录/令牌无效；403无权限；404资源不存在；429请求过频；500服务器错误。\n业务错误码（ProblemDetail.code）：BAD_REQUEST / UNAUTHORIZED / FORBIDDEN / NOT_FOUND / TOO_MANY_REQUESTS / INTERNAL_ERROR。\n媒体数字状态（DB编码）：asset_kind_code 1=STATIC_IMAGE 2=ANIMATED_IMAGE 3=LIVE2D_PACKAGE；visibility_code 1=PRIVATE 2=PUBLIC 3=GROUP；validation_code 1=PASSED 2=FAILED；布尔标记类字段 0=否 1=是。\n媒体字符串状态（接口传值）：audit_status=PENDING_AUDIT|APPROVED|REJECTED；security_scan_status=BYPASSED|PENDING|PASSED|REJECTED。\n内容可见性：PUBLIC|PRIVATE|GROUP（GROUP时需 allowedGroupCodes）。\n认证枚举：grant_type=EMAIL_PASSWORD|OAUTH_CODE|REFRESH_TOKEN（大小写不敏感）；verification purpose=REGISTER|BIND|RESET_PASSWORD；oauth scene=LOGIN|BIND；provider=github|linuxdo。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "gatewayBaseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "userServiceBaseUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "contentServiceBaseUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "mediaServiceBaseUrl",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "aiServiceBaseUrl",
+      "value": "http://localhost:8084"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "用户服务 User Service",
+      "description": "用户认证、账号信息、管理员权限与配额相关接口。",
+      "item": [
+        {
+          "name": "认证模块",
+          "description": "验证码、OAuth授权事务、登录态解析与登出。",
+          "item": [
+            {
+              "name": "认证-获取图形验证码",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/captchas/image",
+                "description": "获取图形验证码（SVG）。通常作为发送邮箱验证码前置步骤。"
+              }
+            },
+            {
+              "name": "认证-发送邮箱验证码",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"demo@example.com\",\n  \"purpose\": \"REGISTER\",\n  \"captchaId\": \"captcha-id\",\n  \"captchaAnswer\": \"8\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/verifications/email/send",
+                "description": "发送邮箱验证码。先校验图形验证码，再发送邮件验证码。\n参数枚举：purpose 可用 REGISTER / BIND / RESET_PASSWORD。"
+              }
+            },
+            {
+              "name": "认证-OAuth授权事务创建",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider\": \"github\",\n  \"redirectUri\": \"http://localhost:5173/auth/callback\",\n  \"scene\": \"LOGIN\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/oauth/authorizations",
+                "description": "创建 OAuth 授权事务，返回 oauth_login_id、state 与 provider 跳转链接。\n参数枚举：provider=github|linuxdo；scene=LOGIN|BIND。"
+              }
+            },
+            {
+              "name": "登录-统一签发令牌",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"grantType\": \"EMAIL_PASSWORD\",\n  \"email\": \"demo@example.com\",\n  \"password\": \"123456\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/tokens",
+                "description": "统一登录入口。根据 grant_type 分发登录策略（邮箱密码/OAuth/刷新令牌），成功后返回 access_token 与 refresh_token。\n参数枚举：grant_type 可用 EMAIL_PASSWORD / OAUTH_CODE / REFRESH_TOKEN（大小写不敏感）。"
+              }
+            },
+            {
+              "name": "登录-OAuth冲突绑定确认",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bind_ticket\": \"ticket\",\n  \"email\": \"demo@example.com\",\n  \"password\": \"123456\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/bindings/confirm",
+                "description": "当 OAuth 登录出现邮箱冲突时，使用 bind_ticket + 邮箱凭据确认绑定并签发 token。"
+              }
+            },
+            {
+              "name": "认证-登录态解析",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/introspect",
+                "description": "登录态解析接口。网关调用该接口识别当前 token 对应用户、分组和权限。"
+              }
+            },
+            {
+              "name": "登录-退出登录",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refresh_token\": \"optional\",\n  \"logout_all\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/logout",
+                "description": "退出登录。可选传 refresh_token 定向失效，或通过 logout_all 执行全端登出。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "注册模块",
+          "description": "新用户注册流程接口。",
+          "item": [
+            {
+              "name": "注册-邮箱注册并登录",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"123456\",\n  \"nickname\": \"demo\",\n  \"verification_code\": \"123456\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/register/email",
+                "description": "邮箱注册并直接登录。校验邮箱验证码后创建账号并返回 token。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "账号自助模块",
+          "description": "登录用户的个人信息、偏好与账号绑定。",
+          "item": [
+            {
+              "name": "我的账号-查询当前用户信息",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/me",
+                "description": "查询当前登录用户信息（基础资料、分组、权限）。"
+              }
+            },
+            {
+              "name": "我的账号-查询偏好设置",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/me/preferences",
+                "description": "读取当前用户偏好配置（页面布局、组件配置等 JSON）。"
+              }
+            },
+            {
+              "name": "我的账号-更新偏好设置",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"preferenceJson\": {\n    \"theme\": \"light\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/me/preferences",
+                "description": "更新当前用户偏好配置。"
+              }
+            },
+            {
+              "name": "我的账号-绑定邮箱凭据",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"123456\",\n  \"verificationCode\": \"123456\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/me/bindings/email",
+                "description": "已登录用户绑定邮箱密码凭据，便于后续通过邮箱登录。\n建议先通过“认证-发送邮箱验证码”获取验证码再绑定。"
+              }
+            },
+            {
+              "name": "我的账号-绑定OAuth账号",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider\": \"github\",\n  \"oauthLoginId\": \"oauth-login-001\",\n  \"code\": \"oauth-code\",\n  \"state\": \"oauth-state\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/me/bindings/oauth",
+                "description": "已登录用户绑定第三方 OAuth 账号（如 GitHub/LinuxDo）。\n参数枚举：provider=github|linuxdo。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "管理员权限模块",
+          "description": "管理员维护用户分组和权限。",
+          "item": [
+            {
+              "name": "管理员权限-查询全部分组权限",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/groups/permissions",
+                "description": "管理员查询全部分组权限配置。"
+              }
+            },
+            {
+              "name": "管理员权限-查询单个分组权限",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/groups/ADMIN/permissions",
+                "description": "管理员查询指定分组权限。"
+              }
+            },
+            {
+              "name": "管理员权限-更新分组权限",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"permissions\": [\n    \"post.read\",\n    \"post.write\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/groups/ADMIN/permissions",
+                "description": "管理员全量覆盖指定分组权限集合。"
+              }
+            },
+            {
+              "name": "管理员用户-查询用户分组",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/users/1/groups",
+                "description": "管理员查询指定用户分组。"
+              }
+            },
+            {
+              "name": "管理员用户-更新用户分组",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"groups\": [\n    \"USER\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/users/1/groups",
+                "description": "管理员全量覆盖指定用户分组。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "管理员配额模块",
+          "description": "管理员维护配额策略。",
+          "item": [
+            {
+              "name": "管理员配额-查询配额策略列表",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/group-quota-policies",
+                "description": "管理员查询分组配额策略列表。"
+              }
+            },
+            {
+              "name": "管理员配额-更新配额策略",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"policyCode\": \"ai.round.total.user\",\n  \"groupCode\": \"USER\",\n  \"quotaCode\": \"ai_round_total\",\n  \"quotaValue\": 10\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/group-quota-policies/ai_round_total",
+                "description": "管理员更新指定配额策略（按 group_code 生效值）。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "内部接口模块",
+          "description": "服务间调用接口。",
+          "item": [
+            {
+              "name": "内部配额-解析最终额度",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/internal/quotas/resolve?quota_code=ai_round_total&group_codes=USER,VIP&default_value=5",
+                "description": "服务间内部接口。根据 quota_code + group_codes 解析最终可用额度。"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "内容服务 Content Service",
+      "description": "帖子/应用查询、互动、内容可见性管理。",
+      "item": [
+        {
+          "name": "内容查询模块",
+          "description": "前台内容分页和健康探测。",
+          "item": [
+            {
+              "name": "内容-分页查询帖子",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/posts?page_no=1&page_size=10",
+                "description": "分页查询帖子列表。支持 page_no/page_size。"
+              }
+            },
+            {
+              "name": "内容-分页查询应用",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/apps?page_no=1&page_size=10",
+                "description": "分页查询应用中心列表。支持 page_no/page_size。"
+              }
+            },
+            {
+              "name": "内容-服务连通性探测",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/posts/internal/ping",
+                "description": "内容服务存活探测接口，返回 pong。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "互动模块",
+          "description": "点赞与举报行为。",
+          "item": [
+            {
+              "name": "互动-点赞帖子",
+              "request": {
+                "method": "POST",
+                "url": "{{gatewayBaseUrl}}/api/v1/posts/1/likes",
+                "description": "点赞帖子。通常要求登录态。"
+              }
+            },
+            {
+              "name": "互动-点赞应用",
+              "request": {
+                "method": "POST",
+                "url": "{{gatewayBaseUrl}}/api/v1/apps/1/likes",
+                "description": "点赞应用。通常要求登录态。"
+              }
+            },
+            {
+              "name": "互动-提交举报",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"targetType\": \"POST\",\n  \"targetId\": 1,\n  \"reason\": \"spam\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/reports",
+                "description": "提交举报，支持帖子或应用目标。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "管理员内容模块",
+          "description": "帖子与应用可见性管理。",
+          "item": [
+            {
+              "name": "管理员内容-查询帖子可见性",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/posts/1/visibility",
+                "description": "管理员查询帖子可见性与授权组。"
+              }
+            },
+            {
+              "name": "管理员内容-更新帖子可见性",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"visibility\": \"GROUP\",\n  \"allowedGroupCodes\": [\n    \"USER\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/posts/1/visibility",
+                "description": "管理员更新帖子可见性（PUBLIC/GROUP_ONLY 等）及授权组。\n可见性枚举：PUBLIC / PRIVATE / GROUP；当 GROUP 时必须提供 allowedGroupCodes。"
+              }
+            },
+            {
+              "name": "管理员内容-查询应用可见性",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/apps/1/visibility",
+                "description": "管理员查询应用可见性与授权组。"
+              }
+            },
+            {
+              "name": "管理员内容-更新应用可见性",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"visibility\": \"PUBLIC\",\n  \"allowedGroupCodes\": []\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/apps/1/visibility",
+                "description": "管理员更新应用可见性及授权组。\n可见性枚举：PUBLIC / PRIVATE / GROUP；当 GROUP 时必须提供 allowedGroupCodes。"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "媒体服务 Media Service",
+      "description": "资源上传、下载、举报与审核。",
+      "item": [
+        {
+          "name": "资源模块",
+          "description": "资源上传策略、落库、下载和公开资源查询。",
+          "item": [
+            {
+              "name": "媒体-生成上传策略",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fileName\": \"avatar.png\",\n  \"contentType\": \"image/png\",\n  \"assetKind\": \"STATIC_IMAGE\",\n  \"visibility\": \"PRIVATE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/assets/upload-policies",
+                "description": "生成对象存储直传策略（bucket/key/签名/过期时间）。上传前先调用。\n资源类别：STATIC_IMAGE / ANIMATED_IMAGE / LIVE2D_PACKAGE（DB对应1/2/3）；可见性：PRIVATE / PUBLIC / GROUP（DB对应1/2/3）。"
+              }
+            },
+            {
+              "name": "媒体-创建资源记录",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bucket\": \"shizuki-private\",\n  \"key\": \"user/1/avatar/xxx.png\",\n  \"assetKind\": \"STATIC_IMAGE\",\n  \"contentType\": \"image/png\",\n  \"visibility\": \"PRIVATE\",\n  \"metadata\": {\n    \"source\": \"web\"\n  },\n  \"allowedGroupCodes\": []\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/assets",
+                "description": "上传完成后写入资源元数据记录，生成平台侧 asset_id。\nassetKind 与 visibility 取值同上；GROUP 可见时需 allowedGroupCodes。"
+              }
+            },
+            {
+              "name": "媒体-获取资源下载地址",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/assets/1/download-url",
+                "description": "根据资源 ID 生成下载链接（公开资源直链，私有资源签名 URL）。"
+              }
+            },
+            {
+              "name": "媒体-查询首页公开角色池",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/assets/public/home-roles",
+                "description": "公开首页角色池查询（游客可访问）。"
+              }
+            },
+            {
+              "name": "媒体-举报资源",
+              "request": {
+                "method": "POST",
+                "url": "{{gatewayBaseUrl}}/api/v1/assets/1/reports",
+                "description": "对资源发起举报，创建举报工单。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "管理员审核模块",
+          "description": "管理员审核与展示位配置。",
+          "item": [
+            {
+              "name": "管理员资源-更新审核状态",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"auditStatus\": \"APPROVED\",\n  \"homeEnabled\": true,\n  \"homeSortNum\": 10,\n  \"visibility\": \"PUBLIC\",\n  \"allowedGroupCodes\": []\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/assets/1/audit-status",
+                "description": "管理员审核资源，更新审核状态与首页展示配置。\nauditStatus 可用 PENDING_AUDIT / APPROVED / REJECTED；homeEnabled 布尔对应 DB 0/1。"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AI服务 AI Service",
+      "description": "AI 会话、消息、配额和角色管理。",
+      "item": [
+        {
+          "name": "会话模块",
+          "description": "会话创建与查询。",
+          "item": [
+            {
+              "name": "AI-创建会话",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"My Session\",\n  \"characterId\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/ai-sessions",
+                "description": "创建 AI 会话。通常会绑定角色或场景信息。"
+              }
+            },
+            {
+              "name": "AI-查询我的会话列表",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/ai-sessions",
+                "description": "查询当前用户的 AI 会话列表。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "消息与配额模块",
+          "description": "发送消息并查询配额。",
+          "item": [
+            {
+              "name": "AI-发送消息并获取回复",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"你好\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/ai-sessions/session-1/messages",
+                "description": "向指定会话发送消息，返回助手回复并扣减配额。"
+              }
+            },
+            {
+              "name": "AI-查询我的配额",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/ai-quotas/me",
+                "description": "查询当前用户 AI 可用配额。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "角色模块",
+          "description": "角色配置创建与角色卡导入。",
+          "item": [
+            {
+              "name": "AI-创建角色配置",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"角色名\",\n  \"profile\": {}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/ai-characters",
+                "description": "创建角色配置（结构化 JSON）。"
+              }
+            },
+            {
+              "name": "AI-导入角色卡",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"card\": {}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/ai-character-cards/import",
+                "description": "导入角色卡内容并落库。"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "共享组件 Shared",
+      "description": "公共组件提供的接口。",
+      "item": [
+        {
+          "name": "审计模块",
+          "description": "管理员审计日志查询（直连 user-service）。",
+          "item": [
+            {
+              "name": "管理员审计-分页查询审计日志（直连user-service）",
+              "request": {
+                "method": "GET",
+                "url": "{{userServiceBaseUrl}}/api/v1/admin/audit-logs?page_no=1&page_size=20",
+                "description": "管理员审计日志分页查询（trace/user/action/time 条件过滤）。该接口默认不经网关，直连 user-service。"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
