@@ -15,6 +15,8 @@ import io.github.shizuki.site.user.mapper.OAuthBindingMapper;
 import io.github.shizuki.site.user.mapper.OAuthLoginMapper;
 import io.github.shizuki.site.user.mapper.UserAccountMapper;
 import io.github.shizuki.site.user.mapper.UserPreferenceMapper;
+import io.github.shizuki.site.user.mapper.UserProviderSecretMapper;
+import io.github.shizuki.site.user.service.security.MusicApiKeyCryptoService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +49,10 @@ class UserServiceImplTest {
     private GroupPermissionMapper groupPermissionMapper;
     @Mock
     private GroupQuotaPolicyMapper groupQuotaPolicyMapper;
+    @Mock
+    private UserProviderSecretMapper userProviderSecretMapper;
+    @Mock
+    private MusicApiKeyCryptoService musicApiKeyCryptoService;
 
     private UserServiceImpl userService;
 
@@ -64,6 +70,8 @@ class UserServiceImplTest {
             oAuthBindingMapper,
             groupPermissionMapper,
             groupQuotaPolicyMapper,
+            userProviderSecretMapper,
+            musicApiKeyCryptoService,
             new ObjectMapper()
         );
     }
@@ -159,6 +167,8 @@ class UserServiceImplTest {
             oAuthBindingMapper,
             groupPermissionMapper,
             groupQuotaPolicyMapper,
+            userProviderSecretMapper,
+            musicApiKeyCryptoService,
             brokenObjectMapper
         );
 

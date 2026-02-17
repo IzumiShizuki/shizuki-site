@@ -1,6 +1,7 @@
 package io.github.shizuki.site.user.config;
 
 import io.github.shizuki.site.user.security.InternalMusicApiKeyAuthInterceptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -11,10 +12,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class InternalWebMvcConfig implements WebMvcConfigurer {
 
-    private final InternalMusicApiKeyAuthInterceptor internalMusicApiKeyAuthInterceptor;
+    private final ObjectProvider<InternalMusicApiKeyAuthInterceptor> internalMusicApiKeyAuthInterceptorProvider;
 
-    public InternalWebMvcConfig(InternalMusicApiKeyAuthInterceptor internalMusicApiKeyAuthInterceptor) {
-        this.internalMusicApiKeyAuthInterceptor = internalMusicApiKeyAuthInterceptor;
+    public InternalWebMvcConfig(ObjectProvider<InternalMusicApiKeyAuthInterceptor> internalMusicApiKeyAuthInterceptorProvider) {
+        this.internalMusicApiKeyAuthInterceptorProvider = internalMusicApiKeyAuthInterceptorProvider;
     }
 
     /**
@@ -22,7 +23,11 @@ public class InternalWebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(internalMusicApiKeyAuthInterceptor)
+        InternalMusicApiKeyAuthInterceptor interceptor = internalMusicApiKeyAuthInterceptorProvider.getIfAvailable();
+        if (interceptor == null) {
+            return;
+        }
+        registry.addInterceptor(interceptor)
             .addPathPatterns("/api/v1/internal/music/api-keys/**");
     }
 }
