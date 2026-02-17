@@ -3,6 +3,7 @@ import { parseLrc } from '../utils/lrc';
 
 const STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const MODE_ORDER = ['sequential', 'random', 'single'];
+const API_BASE = (import.meta.env.VITE_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 
 function loadPersistedState() {
   try {
@@ -353,10 +354,37 @@ export function usePlayerEngine() {
   async function loadManifest() {
     loading.value = true;
     try {
-      const resp = await fetch(`${import.meta.env.BASE_URL}media/manifest.json`, { cache: 'no-store' });
-      if (!resp.ok) throw new Error('manifest not found');
-      const data = await resp.json();
-      const normalized = Array.isArray(data?.tracks) ? data.tracks.map(normalizeTrack) : [];
+      let normalized = [];
+      const remoteUrl = `${API_BASE || ''}/api/v1/music/playlist/default`;
+      try {
+        const remoteResp = await fetch(remoteUrl, { cache: 'no-store' });
+        if (remoteResp.ok) {
+          const remoteData = await remoteResp.json();
+          const remoteTracks = Array.isArray(remoteData?.data) ? remoteData.data : [];
+          normalized = remoteTracks.map((item, idx) =>
+            normalizeTrack(
+              {
+                id: item.trackId || item.track_id || `remote-${idx + 1}`,
+                title: item.title,
+                artist: item.artist,
+                cover: item.cover || item.coverUrl || item.cover_url,
+                audio: item.audio || item.audioUrl || item.audio_url,
+                lyric: item.lyric || item.lyricUrl || item.lyric_url,
+                sort: item.sort
+              },
+              idx
+            )
+          );
+        }
+      } catch {
+        normalized = [];
+      }
+      if (!normalized.length) {
+        const resp = await fetch(`${import.meta.env.BASE_URL}media/manifest.json`, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('manifest not found');
+        const data = await resp.json();
+        normalized = Array.isArray(data?.tracks) ? data.tracks.map(normalizeTrack) : [];
+      }
       normalized.sort((a, b) => (a.sort || 0) - (b.sort || 0));
       tracks.value = normalized;
       hydrateTrackDurations();

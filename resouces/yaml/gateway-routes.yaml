@@ -5,7 +5,7 @@ spring:
         - id: user-service
           uri: ${USER_SERVICE_URI:http://localhost:8081}
           predicates:
-            - Path=/api/v1/me/**,/api/v1/oauth-logins/**,/api/v1/admin/group-quota-policies/**,/api/v1/auth/**,/api/v1/internal/quotas/**
+            - Path=/api/v1/me/**,/api/v1/oauth-logins/**,/api/v1/admin/group-quota-policies/**,/api/v1/auth/**,/api/v1/internal/quotas/**,/api/v1/internal/music/**,/api/v1/admin/groups/**,/api/v1/admin/users/**
         - id: content-service
           uri: ${CONTENT_SERVICE_URI:http://localhost:8082}
           predicates:
@@ -13,7 +13,7 @@ spring:
         - id: media-service
           uri: ${MEDIA_SERVICE_URI:http://localhost:8083}
           predicates:
-            - Path=/api/v1/assets/**,/api/v1/admin/assets/**
+            - Path=/api/v1/assets/**,/api/v1/admin/assets/**,/api/v1/music/**,/api/v1/admin/music/**
         - id: ai-service
           uri: ${AI_SERVICE_URI:http://localhost:8084}
           predicates:

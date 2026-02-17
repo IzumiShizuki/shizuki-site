@@ -37,6 +37,12 @@ public class DefaultAssetSecurityInspector implements AssetSecurityInspector {
      * Live2D 包允许的 MIME。
      */
     private static final Set<String> LIVE2D_TYPES = Set.of("application/zip", "application/x-zip-compressed");
+    /**
+     * 音频允许的 MIME。
+     */
+    private static final Set<String> AUDIO_TYPES = Set.of(
+        "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/flac", "audio/aac", "audio/mp4"
+    );
 
     private final ObjectStorageClient objectStorageClient;
     private final MediaAssetMapper mediaAssetMapper;
@@ -142,6 +148,7 @@ public class DefaultAssetSecurityInspector implements AssetSecurityInspector {
             case STATIC_IMAGE -> STATIC_IMAGE_TYPES.contains(contentType);
             case ANIMATED_IMAGE -> ANIMATED_IMAGE_TYPES.contains(contentType);
             case LIVE2D_PACKAGE -> LIVE2D_TYPES.contains(contentType) || "application/zip".equals(contentType);
+            case AUDIO -> AUDIO_TYPES.contains(contentType);
         };
     }
 }

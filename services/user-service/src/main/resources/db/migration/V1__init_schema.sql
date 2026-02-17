@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS USR_ACCOUNT (
     password_hash VARCHAR(255) NULL COMMENT 'USR_ACCOUNT.password_hash 密码哈希值',
     nickname_text VARCHAR(128) NOT NULL COMMENT 'USR_ACCOUNT.nickname_text 昵称描述',
     email_text VARCHAR(128) NULL COMMENT 'USR_ACCOUNT.email_text 邮箱描述',
+    email_verified_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'USR_ACCOUNT.email_verified_flag 邮箱已验证标记',
     groups_json JSON NOT NULL COMMENT 'USR_ACCOUNT.groups_json 分组集合JSON',
     permissions_json JSON NOT NULL COMMENT 'USR_ACCOUNT.permissions_json 权限集合JSON',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'USR_ACCOUNT.create_time 创建时间',
@@ -12,6 +13,7 @@ CREATE TABLE IF NOT EXISTS USR_ACCOUNT (
     version_num INT NOT NULL DEFAULT 0 COMMENT 'USR_ACCOUNT.version_num 版本号',
     CONSTRAINT PK_USR_ACCOUNT PRIMARY KEY (id),
     CONSTRAINT AK_USR_ACCOUNT_1 UNIQUE (username_code),
+    CONSTRAINT AK_USR_ACCOUNT_2 UNIQUE (email_text),
     KEY IX_USR_ACCOUNT_1 (email_text)
 ) COMMENT='用户主数据表';
 
@@ -36,8 +38,10 @@ CREATE TABLE IF NOT EXISTS OAU_LOGIN (
     redirect_uri_text VARCHAR(512) NOT NULL COMMENT 'OAU_LOGIN.redirect_uri_text 回调地址描述',
     state_code VARCHAR(128) NOT NULL COMMENT 'OAU_LOGIN.state_code 防重放状态码',
     login_status VARCHAR(32) NOT NULL COMMENT 'OAU_LOGIN.login_status 登录状态',
+    login_scene VARCHAR(32) NOT NULL DEFAULT 'LOGIN' COMMENT 'OAU_LOGIN.login_scene 登录场景',
     provider_user_code VARCHAR(128) NULL COMMENT 'OAU_LOGIN.provider_user_code 第三方用户编号',
     user_id BIGINT NULL COMMENT 'OAU_LOGIN.user_id 用户ID',
+    initiator_user_id BIGINT NULL COMMENT 'OAU_LOGIN.initiator_user_id 发起绑定的用户ID',
     error_memo VARCHAR(512) NULL COMMENT 'OAU_LOGIN.error_memo 错误备注',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'OAU_LOGIN.create_time 创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'OAU_LOGIN.update_time 更新时间',
@@ -46,6 +50,7 @@ CREATE TABLE IF NOT EXISTS OAU_LOGIN (
     CONSTRAINT PK_OAU_LOGIN PRIMARY KEY (id),
     CONSTRAINT AK_OAU_LOGIN_1 UNIQUE (oauth_login_code),
     KEY IX_OAU_LOGIN_1 (create_time),
+    KEY IX_OAU_LOGIN_2 (provider_type, login_scene, create_time),
     CONSTRAINT FK_OAU_LOGIN_1 FOREIGN KEY (user_id) REFERENCES USR_ACCOUNT(id)
 ) COMMENT='OAuth登录事务表';
 
@@ -94,6 +99,22 @@ CREATE TABLE IF NOT EXISTS USR_GROUP_PERMISSION (
     CONSTRAINT AK_USR_GROUP_PERMISSION_1 UNIQUE (group_code, permission_code),
     KEY IX_USR_GROUP_PERMISSION_1 (group_code)
 ) COMMENT='分组权限映射表';
+
+CREATE TABLE IF NOT EXISTS USR_PROVIDER_SECRET (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'USR_PROVIDER_SECRET.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'USR_PROVIDER_SECRET.user_id 用户ID',
+    provider_code VARCHAR(64) NOT NULL COMMENT 'USR_PROVIDER_SECRET.provider_code provider编码',
+    cipher_text TEXT NOT NULL COMMENT 'USR_PROVIDER_SECRET.cipher_text API Key 密文',
+    key_mask VARCHAR(64) NULL COMMENT 'USR_PROVIDER_SECRET.key_mask API Key 掩码',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'USR_PROVIDER_SECRET.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'USR_PROVIDER_SECRET.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'USR_PROVIDER_SECRET.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'USR_PROVIDER_SECRET.version_num 版本号',
+    CONSTRAINT PK_USR_PROVIDER_SECRET PRIMARY KEY (id),
+    CONSTRAINT AK_USR_PROVIDER_SECRET_1 UNIQUE (user_id, provider_code),
+    KEY IX_USR_PROVIDER_SECRET_1 (provider_code),
+    CONSTRAINT FK_USR_PROVIDER_SECRET_1 FOREIGN KEY (user_id) REFERENCES USR_ACCOUNT(id)
+) COMMENT='用户音乐 Provider 密钥表';
 
 CREATE TABLE IF NOT EXISTS AUD_LOG (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AUD_LOG.id 自增长ID',

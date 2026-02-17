@@ -20,15 +20,21 @@ public class SecretStartupValidator implements ApplicationRunner {
     private final SecretValueValidator secretValueValidator;
     private final OAuthProviderProperties oAuthProviderProperties;
     private final AuthProperties authProperties;
+    private final MusicSecurityProperties musicSecurityProperties;
+    private final InternalAuthProperties internalAuthProperties;
     private final boolean enforce;
 
     public SecretStartupValidator(SecretValueValidator secretValueValidator,
                                   OAuthProviderProperties oAuthProviderProperties,
                                   AuthProperties authProperties,
+                                  MusicSecurityProperties musicSecurityProperties,
+                                  InternalAuthProperties internalAuthProperties,
                                   @Value("${shizuki.security.secret.enforce:false}") boolean enforce) {
         this.secretValueValidator = secretValueValidator;
         this.oAuthProviderProperties = oAuthProviderProperties;
         this.authProperties = authProperties;
+        this.musicSecurityProperties = musicSecurityProperties;
+        this.internalAuthProperties = internalAuthProperties;
         this.enforce = enforce;
     }
 
@@ -37,6 +43,12 @@ public class SecretStartupValidator implements ApplicationRunner {
         List<String> invalidKeys = new ArrayList<>();
         if (secretValueValidator.isInvalid(authProperties.getJwt().getSecret())) {
             invalidKeys.add("shizuki.auth.jwt.secret");
+        }
+        if (secretValueValidator.isInvalid(musicSecurityProperties.getKeyEncryptionMasterKey())) {
+            invalidKeys.add("shizuki.music.security.key-encryption-master-key");
+        }
+        if (secretValueValidator.isInvalid(internalAuthProperties.getSharedSecret())) {
+            invalidKeys.add("shizuki.internal.auth.shared-secret");
         }
 
         for (Map.Entry<String, OAuthProviderProperties.ProviderProperties> entry : oAuthProviderProperties.getProviders().entrySet()) {

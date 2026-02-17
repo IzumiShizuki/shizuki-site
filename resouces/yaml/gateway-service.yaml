@@ -21,9 +21,12 @@ shizuki:
         - /api/v1/auth/captchas/**
         - /api/v1/auth/verifications/**
         - /actuator/**
-    guest-paths:
-      - /api/v1/posts/**
-      - /api/v1/apps/**
-      - /api/v1/ai-sessions/**
-      - /api/v1/assets/public/**
-      - /api/v1/assets/*/download-url
+      guest-paths:
+        - /api/v1/posts/**
+        - /api/v1/apps/**
+        - /api/v1/ai-sessions/**
+        - /api/v1/assets/public/**
+        - /api/v1/assets/*/download-url
+        - /api/v1/music/playlist/default
+        - /api/v1/music/providers
+        - /api/v1/music/key-guide

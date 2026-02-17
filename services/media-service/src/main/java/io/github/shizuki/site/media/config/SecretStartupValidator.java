@@ -14,13 +14,19 @@ public class SecretStartupValidator implements ApplicationRunner {
 
     private final SecretValueValidator secretValueValidator;
     private final OssProperties ossProperties;
+    private final SpotifyMusicProperties spotifyMusicProperties;
+    private final InternalAuthProperties internalAuthProperties;
     private final boolean enforce;
 
     public SecretStartupValidator(SecretValueValidator secretValueValidator,
                                   OssProperties ossProperties,
+                                  SpotifyMusicProperties spotifyMusicProperties,
+                                  InternalAuthProperties internalAuthProperties,
                                   @Value("${shizuki.security.secret.enforce:false}") boolean enforce) {
         this.secretValueValidator = secretValueValidator;
         this.ossProperties = ossProperties;
+        this.spotifyMusicProperties = spotifyMusicProperties;
+        this.internalAuthProperties = internalAuthProperties;
         this.enforce = enforce;
     }
 
@@ -36,6 +42,15 @@ public class SecretStartupValidator implements ApplicationRunner {
         }
         if (secretValueValidator.isInvalid(ossProperties.getAccessKeySecret())) {
             invalidKeys.add("shizuki.oss.access-key-secret");
+        }
+        if (secretValueValidator.isInvalid(spotifyMusicProperties.getClientId())) {
+            invalidKeys.add("shizuki.music.spotify.client-id");
+        }
+        if (secretValueValidator.isInvalid(spotifyMusicProperties.getClientSecret())) {
+            invalidKeys.add("shizuki.music.spotify.client-secret");
+        }
+        if (secretValueValidator.isInvalid(internalAuthProperties.getSharedSecret())) {
+            invalidKeys.add("shizuki.internal.auth.shared-secret");
         }
 
         if (!invalidKeys.isEmpty()) {

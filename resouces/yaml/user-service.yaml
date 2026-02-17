@@ -24,6 +24,19 @@ spring:
       port: ${REDIS_PORT:6379}
 
 shizuki:
+  internal:
+    auth:
+      # Use encrypted value from Nacos, e.g. ENC(...)
+      shared-secret: ${INTERNAL_AUTH_SHARED_SECRET:}
+      clock-skew-seconds: ${INTERNAL_AUTH_CLOCK_SKEW_SECONDS:300}
+      nonce-ttl-seconds: ${INTERNAL_AUTH_NONCE_TTL_SECONDS:300}
+  music:
+    security:
+      # Base64(32-byte key), 示例:
+      # python - <<'PY'
+      # import os,base64; print(base64.b64encode(os.urandom(32)).decode())
+      # PY
+      key-encryption-master-key: ${MUSIC_KEY_ENCRYPTION_MASTER_KEY:}
   oauth:
     github:
       # Use encrypted value from Nacos, e.g. ENC(...)

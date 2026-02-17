@@ -15,6 +15,7 @@ import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.MeResponse;
+import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
 import io.github.shizuki.site.user.dto.QuotaPolicyDto;
@@ -27,13 +28,16 @@ import io.github.shizuki.site.user.entity.OAuthBindingEntity;
 import io.github.shizuki.site.user.entity.OAuthLoginEntity;
 import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.entity.UserPreferenceEntity;
+import io.github.shizuki.site.user.entity.UserProviderSecretEntity;
 import io.github.shizuki.site.user.mapper.GroupPermissionMapper;
 import io.github.shizuki.site.user.mapper.GroupQuotaPolicyMapper;
 import io.github.shizuki.site.user.mapper.OAuthBindingMapper;
 import io.github.shizuki.site.user.mapper.OAuthLoginMapper;
 import io.github.shizuki.site.user.mapper.UserAccountMapper;
 import io.github.shizuki.site.user.mapper.UserPreferenceMapper;
+import io.github.shizuki.site.user.mapper.UserProviderSecretMapper;
 import io.github.shizuki.site.user.service.UserService;
+import io.github.shizuki.site.user.service.security.MusicApiKeyCryptoService;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -46,8 +50,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -56,6 +62,7 @@ public class UserServiceImpl implements UserService {
     private static final String OAUTH_STATUS_PENDING = "PENDING";
     private static final String OAUTH_STATUS_SUCCESS = "SUCCESS";
     private static final String OAUTH_STATUS_FAILED = "FAILED";
+    private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
 
     private final OAuthStateService oAuthStateService;
     private final GitHubOAuthClient gitHubOAuthClient;
@@ -66,6 +73,8 @@ public class UserServiceImpl implements UserService {
     private final OAuthBindingMapper oAuthBindingMapper;
     private final GroupPermissionMapper groupPermissionMapper;
     private final GroupQuotaPolicyMapper groupQuotaPolicyMapper;
+    private final UserProviderSecretMapper userProviderSecretMapper;
+    private final MusicApiKeyCryptoService musicApiKeyCryptoService;
     private final ObjectMapper objectMapper;
 
     public UserServiceImpl(OAuthStateService oAuthStateService,
@@ -77,6 +86,8 @@ public class UserServiceImpl implements UserService {
                         OAuthBindingMapper oAuthBindingMapper,
                         GroupPermissionMapper groupPermissionMapper,
                         GroupQuotaPolicyMapper groupQuotaPolicyMapper,
+                        UserProviderSecretMapper userProviderSecretMapper,
+                        MusicApiKeyCryptoService musicApiKeyCryptoService,
                         ObjectMapper objectMapper) {
         this.oAuthStateService = oAuthStateService;
         this.gitHubOAuthClient = gitHubOAuthClient;
@@ -87,6 +98,8 @@ public class UserServiceImpl implements UserService {
         this.oAuthBindingMapper = oAuthBindingMapper;
         this.groupPermissionMapper = groupPermissionMapper;
         this.groupQuotaPolicyMapper = groupQuotaPolicyMapper;
+        this.userProviderSecretMapper = userProviderSecretMapper;
+        this.musicApiKeyCryptoService = musicApiKeyCryptoService;
         this.objectMapper = objectMapper;
     }
 
@@ -248,6 +261,133 @@ public class UserServiceImpl implements UserService {
         entity.setUpdatedAt(LocalDateTime.now());
         groupQuotaPolicyMapper.updateById(entity);
         return toQuotaPolicyDto(entity);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<QuotaPolicyDto> batchUpsertQuotaPolicies(List<QuotaPolicyDto> requests) {
+        if (requests == null || requests.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Quota policy batch items are required");
+        }
+
+        Set<String> dedup = new LinkedHashSet<>();
+        List<QuotaPolicyDto> result = new java.util.ArrayList<>();
+        for (QuotaPolicyDto request : requests) {
+            validateQuotaPolicyRequest(request);
+            String groupCode = normalizeGroupCode(request.getGroupCode());
+            String quotaCode = normalizeQuotaCode(request.getQuotaCode());
+            String dedupKey = groupCode + "::" + quotaCode;
+            if (!dedup.add(dedupKey)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Duplicated group_code + quota_code in request");
+            }
+
+            GroupQuotaPolicyEntity entity = findPolicyForUpsert(request.getPolicyId(), groupCode, quotaCode);
+            LocalDateTime now = LocalDateTime.now();
+            if (entity == null) {
+                entity = new GroupQuotaPolicyEntity();
+                entity.setPolicyId(request.getPolicyId().trim());
+                entity.setGroupCode(groupCode);
+                entity.setQuotaCode(quotaCode);
+                entity.setQuotaValue(request.getValue());
+                entity.setCreatedAt(now);
+                entity.setUpdatedAt(now);
+                try {
+                    groupQuotaPolicyMapper.insert(entity);
+                } catch (DuplicateKeyException ex) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "Policy id or group/quota already exists");
+                }
+            } else {
+                entity.setPolicyId(request.getPolicyId().trim());
+                entity.setGroupCode(groupCode);
+                entity.setQuotaCode(quotaCode);
+                entity.setQuotaValue(request.getValue());
+                entity.setUpdatedAt(now);
+                groupQuotaPolicyMapper.updateById(entity);
+            }
+            result.add(toQuotaPolicyDto(entity));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicApiKeyStatusResponse upsertMusicApiKey(Long userId, String provider, String apiKey) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeProvider(provider);
+        if (!StringUtils.hasText(apiKey)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "API key is required");
+        }
+
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, checkedUserId)
+                .eq(UserProviderSecretEntity::getProviderCode, normalizedProvider)
+        );
+
+        String cipherText = musicApiKeyCryptoService.encrypt(apiKey.trim());
+        String keyMask = maskApiKey(apiKey.trim());
+        LocalDateTime now = LocalDateTime.now();
+        if (entity == null) {
+            entity = new UserProviderSecretEntity();
+            entity.setUserId(checkedUserId);
+            entity.setProviderCode(normalizedProvider);
+            entity.setCipherText(cipherText);
+            entity.setKeyMask(keyMask);
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            userProviderSecretMapper.insert(entity);
+        } else {
+            entity.setCipherText(cipherText);
+            entity.setKeyMask(keyMask);
+            entity.setUpdatedAt(now);
+            userProviderSecretMapper.updateById(entity);
+        }
+        return new MusicApiKeyStatusResponse(normalizedProvider, true, keyMask, entity.getUpdatedAt());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMusicApiKey(Long userId, String provider) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeProvider(provider);
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, checkedUserId)
+                .eq(UserProviderSecretEntity::getProviderCode, normalizedProvider)
+        );
+        if (entity != null) {
+            userProviderSecretMapper.deleteById(entity.getId());
+        }
+    }
+
+    @Override
+    public MusicApiKeyStatusResponse getMusicApiKeyStatus(Long userId, String provider) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeProvider(provider);
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, checkedUserId)
+                .eq(UserProviderSecretEntity::getProviderCode, normalizedProvider)
+        );
+        if (entity == null) {
+            return new MusicApiKeyStatusResponse(normalizedProvider, false, null, null);
+        }
+        return new MusicApiKeyStatusResponse(normalizedProvider, true, entity.getKeyMask(), entity.getUpdatedAt());
+    }
+
+    @Override
+    public String getMusicApiKeyPlaintext(Long userId, String provider) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeProvider(provider);
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, checkedUserId)
+                .eq(UserProviderSecretEntity::getProviderCode, normalizedProvider)
+        );
+        if (entity == null) {
+            return "";
+        }
+        return musicApiKeyCryptoService.decrypt(entity.getCipherText());
     }
 
     @Override
@@ -521,6 +661,69 @@ public class UserServiceImpl implements UserService {
             .filter(StringUtils::hasText)
             .collect(Collectors.toCollection(LinkedHashSet::new));
         return normalized.isEmpty() ? Set.of() : normalized;
+    }
+
+    private void validateQuotaPolicyRequest(QuotaPolicyDto request) {
+        if (request == null
+            || !StringUtils.hasText(request.getPolicyId())
+            || !StringUtils.hasText(request.getGroupCode())
+            || !StringUtils.hasText(request.getQuotaCode())
+            || request.getValue() == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "policy_id/group_code/quota_code/value are required");
+        }
+        if (request.getValue() < 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "quota value cannot be negative");
+        }
+    }
+
+    private GroupQuotaPolicyEntity findPolicyForUpsert(String policyId, String groupCode, String quotaCode) {
+        GroupQuotaPolicyEntity byPolicyId = groupQuotaPolicyMapper.selectOne(
+            new LambdaQueryWrapper<GroupQuotaPolicyEntity>().eq(GroupQuotaPolicyEntity::getPolicyId, policyId)
+        );
+        if (byPolicyId != null) {
+            return byPolicyId;
+        }
+        return groupQuotaPolicyMapper.selectOne(
+            new LambdaQueryWrapper<GroupQuotaPolicyEntity>()
+                .eq(GroupQuotaPolicyEntity::getGroupCode, groupCode)
+                .eq(GroupQuotaPolicyEntity::getQuotaCode, quotaCode)
+        );
+    }
+
+    private String normalizeQuotaCode(String quotaCode) {
+        if (!StringUtils.hasText(quotaCode)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Quota code is required");
+        }
+        return quotaCode.trim().toLowerCase();
+    }
+
+    private Long requireValidUserId(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required");
+        }
+        return userId;
+    }
+
+    private String normalizeProvider(String provider) {
+        if (!StringUtils.hasText(provider)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Provider is required");
+        }
+        String normalized = provider.trim().toLowerCase();
+        if (!SUPPORTED_MUSIC_PROVIDERS.contains(normalized)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported provider: " + provider);
+        }
+        return normalized;
+    }
+
+    private String maskApiKey(String apiKey) {
+        if (!StringUtils.hasText(apiKey)) {
+            return "****";
+        }
+        String raw = apiKey.trim();
+        if (raw.length() <= 8) {
+            return "****";
+        }
+        return raw.substring(0, 4) + "****" + raw.substring(raw.length() - 4);
     }
 
     private String writeJson(Object value) {

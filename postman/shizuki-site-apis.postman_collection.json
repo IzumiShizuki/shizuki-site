@@ -38,6 +38,30 @@
     {
       "key": "accessToken",
       "value": ""
+    },
+    {
+      "key": "musicProvider",
+      "value": "tunehub"
+    },
+    {
+      "key": "musicApiKey",
+      "value": ""
+    },
+    {
+      "key": "internalServiceName",
+      "value": "media-service"
+    },
+    {
+      "key": "internalTimestamp",
+      "value": ""
+    },
+    {
+      "key": "internalNonce",
+      "value": ""
+    },
+    {
+      "key": "internalSignature",
+      "value": ""
     }
   ],
   "item": [
@@ -299,6 +323,45 @@
                 "url": "{{gatewayBaseUrl}}/api/v1/me/bindings/oauth",
                 "description": "已登录用户绑定第三方 OAuth 账号（如 GitHub/LinuxDo）。\n参数枚举：provider=github|linuxdo。"
               }
+            },
+            {
+              "name": "我的账号-绑定或更新音乐 API Key",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"apiKey\": \"{{musicApiKey}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/me/music/api-keys/{{musicProvider}}",
+                "description": "登录用户绑定或更新音乐 provider API Key。服务端仅保存密文。"
+              }
+            },
+            {
+              "name": "我的账号-删除音乐 API Key",
+              "request": {
+                "method": "DELETE",
+                "url": "{{gatewayBaseUrl}}/api/v1/me/music/api-keys/{{musicProvider}}",
+                "description": "登录用户删除指定 provider 的 API Key 绑定。"
+              }
+            },
+            {
+              "name": "我的账号-查询音乐 API Key 状态",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/me/music/api-keys/{{musicProvider}}/status",
+                "description": "登录用户查询指定 provider 的 API Key 绑定状态（仅返回掩码与时间）。"
+              }
             }
           ]
         },
@@ -412,6 +475,29 @@
                 "url": "{{gatewayBaseUrl}}/api/v1/admin/group-quota-policies/ai_round_total",
                 "description": "管理员更新指定配额策略（按 group_code 生效值）。"
               }
+            },
+            {
+              "name": "管理员配额-批量创建或更新配额策略",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"items\": [\n    {\n      \"policyCode\": \"ai.round.total.user\",\n      \"groupCode\": \"USER\",\n      \"quotaCode\": \"ai_round_total\",\n      \"quotaValue\": 5\n    },\n    {\n      \"policyCode\": \"music.song.pick.total.user\",\n      \"groupCode\": \"USER\",\n      \"quotaCode\": \"music_song_pick_total\",\n      \"quotaValue\": 5\n    },\n    {\n      \"policyCode\": \"music.upload.bytes.total.user\",\n      \"groupCode\": \"USER\",\n      \"quotaCode\": \"music_upload_bytes_total\",\n      \"quotaValue\": 104857600\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/group-quota-policies/batch-upsert",
+                "description": "管理员批量 Upsert 分组配额策略。用于统一参数中心一次下发 AI 次数、音乐次数、上传容量。"
+              }
             }
           ]
         },
@@ -425,6 +511,58 @@
                 "method": "GET",
                 "url": "{{gatewayBaseUrl}}/api/v1/internal/quotas/resolve?quota_code=ai_round_total&group_codes=USER,VIP&default_value=5",
                 "description": "服务间内部接口。根据 quota_code + group_codes 解析最终可用额度。"
+              }
+            },
+            {
+              "name": "内部音乐-查询用户 API Key 状态",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Service",
+                    "value": "{{internalServiceName}}"
+                  },
+                  {
+                    "key": "X-Internal-Timestamp",
+                    "value": "{{internalTimestamp}}"
+                  },
+                  {
+                    "key": "X-Internal-Nonce",
+                    "value": "{{internalNonce}}"
+                  },
+                  {
+                    "key": "X-Internal-Signature",
+                    "value": "{{internalSignature}}"
+                  }
+                ],
+                "url": "{{userServiceBaseUrl}}/api/v1/internal/music/api-keys/1/status?provider={{musicProvider}}",
+                "description": "服务间接口。查询用户指定 provider 的 API Key 绑定状态（不返回明文）。必须携带内部签名头（HMAC-SHA256，canonical=method\\npath\\nquery\\ntimestamp\\nnonce）。"
+              }
+            },
+            {
+              "name": "内部音乐-查询用户 API Key 明文",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Service",
+                    "value": "{{internalServiceName}}"
+                  },
+                  {
+                    "key": "X-Internal-Timestamp",
+                    "value": "{{internalTimestamp}}"
+                  },
+                  {
+                    "key": "X-Internal-Nonce",
+                    "value": "{{internalNonce}}"
+                  },
+                  {
+                    "key": "X-Internal-Signature",
+                    "value": "{{internalSignature}}"
+                  }
+                ],
+                "url": "{{userServiceBaseUrl}}/api/v1/internal/music/api-keys/1/plaintext?provider={{musicProvider}}",
+                "description": "服务间接口。查询用户指定 provider 的 API Key 明文，仅允许内部服务调用。必须携带内部签名头。"
               }
             }
           ]
@@ -656,6 +794,176 @@
                 "method": "POST",
                 "url": "{{gatewayBaseUrl}}/api/v1/assets/1/reports",
                 "description": "对资源发起举报，创建举报工单。"
+              }
+            }
+          ]
+        },
+        {
+          "name": "音乐模块",
+          "description": "默认歌单、选歌配额、Provider 配置与 Spotify 预览能力。",
+          "item": [
+            {
+              "name": "音乐-查询默认歌单",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/music/playlist/default",
+                "description": "查询音乐默认歌单（游客可访问）。"
+              }
+            },
+            {
+              "name": "音乐-查询我的配额",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/music/quota/me",
+                "description": "查询当前用户音乐配额（选歌次数、上传容量、key 绑定状态）。"
+              }
+            },
+            {
+              "name": "音乐-执行选歌",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider\": \"{{musicProvider}}\",\n  \"query\": \"\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/music/picks",
+                "description": "执行一次选歌。超额且未绑定 key 时返回 MUSIC_API_KEY_REQUIRED。"
+              }
+            },
+            {
+              "name": "音乐-查询 Provider 列表",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/music/providers",
+                "description": "查询音乐 provider 列表（enabled/visible/sort）。"
+              }
+            },
+            {
+              "name": "音乐-查询 API Key 获取引导",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/music/key-guide?provider={{musicProvider}}",
+                "description": "查询指定 provider 的 API Key 获取引导。"
+              }
+            },
+            {
+              "name": "音乐-Spotify 搜索",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/music/spotify/search?q=hello&limit=10",
+                "description": "Spotify 搜索（首版为预览能力）。"
+              }
+            },
+            {
+              "name": "音乐-Spotify 预览链接",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/music/spotify/preview-url?track_id=track-1",
+                "description": "查询 Spotify 曲目预览链接（可能为空字符串）。"
+              }
+            },
+            {
+              "name": "管理员音乐-查询默认歌单",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/music/default-playlist",
+                "description": "管理员查询默认歌单配置。"
+              }
+            },
+            {
+              "name": "管理员音乐-替换默认歌单",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tracks\": [\n    {\n      \"trackId\": \"track-1\",\n      \"provider\": \"local\",\n      \"title\": \"Track 1\",\n      \"artist\": \"Shizuki\",\n      \"cover\": \"\",\n      \"audio\": \"https://cdn.example.com/music/track-1.mp3\",\n      \"lyric\": \"\",\n      \"sort\": 1,\n      \"enabled\": true,\n      \"metadata\": {\n        \"source\": \"seed\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/music/default-playlist",
+                "description": "管理员全量替换默认歌单。"
+              }
+            },
+            {
+              "name": "管理员音乐-查询 Provider 配置",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/music/providers",
+                "description": "管理员查询 Provider 开关与可见性。"
+              }
+            },
+            {
+              "name": "管理员音乐-更新 Provider 显隐",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enabled\": true,\n  \"visible\": true,\n  \"sort\": 10\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/music/providers/{{musicProvider}}/visibility",
+                "description": "管理员更新指定 Provider 的启用和显示状态。"
+              }
+            },
+            {
+              "name": "管理员音乐-查询 Provider 引导",
+              "request": {
+                "method": "GET",
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/music/provider-guides",
+                "description": "管理员查询所有 provider 的 API Key 引导配置。"
+              }
+            },
+            {
+              "name": "管理员音乐-更新 Provider 引导",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"TuneHub API Key 获取\",\n  \"content\": \"登录控制台生成 API Key 并复制到站点绑定。\",\n  \"link\": \"https://tunehub.sayqz.com/dashboard\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/admin/music/provider-guides/{{musicProvider}}",
+                "description": "管理员更新指定 Provider 的 API Key 获取引导。"
               }
             }
           ]

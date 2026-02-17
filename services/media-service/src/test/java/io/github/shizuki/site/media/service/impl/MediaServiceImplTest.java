@@ -6,6 +6,8 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
+import io.github.shizuki.site.media.client.SpotifyMusicClient;
+import io.github.shizuki.site.media.client.UserMusicClient;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.dto.AssetDownloadResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
@@ -14,6 +16,12 @@ import io.github.shizuki.site.media.mapper.MediaAssetGroupAclMapper;
 import io.github.shizuki.site.media.mapper.MediaAssetMapper;
 import io.github.shizuki.site.media.mapper.MediaAssetReportMapper;
 import io.github.shizuki.site.media.mapper.MediaL2dPackageMapper;
+import io.github.shizuki.site.media.mapper.MusicPickUsageMapper;
+import io.github.shizuki.site.media.mapper.MusicPlaylistMapper;
+import io.github.shizuki.site.media.mapper.MusicProviderConfigMapper;
+import io.github.shizuki.site.media.mapper.MusicProviderGuideMapper;
+import io.github.shizuki.site.media.mapper.MusicTrackCacheMapper;
+import io.github.shizuki.site.media.mapper.MusicUploadUsageMapper;
 import io.github.shizuki.site.media.model.AssetVisibilityEnum;
 import io.github.shizuki.site.media.service.l2d.L2dZipValidator;
 import io.github.shizuki.site.media.service.security.AssetInspectionResult;
@@ -38,8 +46,16 @@ class MediaServiceImplTest {
     private MediaAssetGroupAclMapper mediaAssetGroupAclMapper;
     private MediaAssetReportMapper mediaAssetReportMapper;
     private MediaL2dPackageMapper mediaL2dPackageMapper;
+    private MusicPlaylistMapper musicPlaylistMapper;
+    private MusicPickUsageMapper musicPickUsageMapper;
+    private MusicProviderConfigMapper musicProviderConfigMapper;
+    private MusicProviderGuideMapper musicProviderGuideMapper;
+    private MusicUploadUsageMapper musicUploadUsageMapper;
+    private MusicTrackCacheMapper musicTrackCacheMapper;
     private L2dZipValidator l2dZipValidator;
     private AssetSecurityInspector assetSecurityInspector;
+    private UserMusicClient userMusicClient;
+    private SpotifyMusicClient spotifyMusicClient;
     private MediaServiceImpl mediaService;
 
     @BeforeEach
@@ -49,8 +65,16 @@ class MediaServiceImplTest {
         mediaAssetGroupAclMapper = Mockito.mock(MediaAssetGroupAclMapper.class);
         mediaAssetReportMapper = Mockito.mock(MediaAssetReportMapper.class);
         mediaL2dPackageMapper = Mockito.mock(MediaL2dPackageMapper.class);
+        musicPlaylistMapper = Mockito.mock(MusicPlaylistMapper.class);
+        musicPickUsageMapper = Mockito.mock(MusicPickUsageMapper.class);
+        musicProviderConfigMapper = Mockito.mock(MusicProviderConfigMapper.class);
+        musicProviderGuideMapper = Mockito.mock(MusicProviderGuideMapper.class);
+        musicUploadUsageMapper = Mockito.mock(MusicUploadUsageMapper.class);
+        musicTrackCacheMapper = Mockito.mock(MusicTrackCacheMapper.class);
         l2dZipValidator = Mockito.mock(L2dZipValidator.class);
         assetSecurityInspector = Mockito.mock(AssetSecurityInspector.class);
+        userMusicClient = Mockito.mock(UserMusicClient.class);
+        spotifyMusicClient = Mockito.mock(SpotifyMusicClient.class);
         Mockito.when(assetSecurityInspector.inspect(
                 Mockito.anyLong(),
                 Mockito.anyString(),
@@ -83,8 +107,16 @@ class MediaServiceImplTest {
             mediaAssetGroupAclMapper,
             mediaAssetReportMapper,
             mediaL2dPackageMapper,
+            musicPlaylistMapper,
+            musicPickUsageMapper,
+            musicProviderConfigMapper,
+            musicProviderGuideMapper,
+            musicUploadUsageMapper,
+            musicTrackCacheMapper,
             l2dZipValidator,
             assetSecurityInspector,
+            userMusicClient,
+            spotifyMusicClient,
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager())
         );

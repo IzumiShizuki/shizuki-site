@@ -20,6 +20,26 @@ spring:
     validate-on-migrate: true
 
 shizuki:
+  internal:
+    auth:
+      # Use encrypted value from Nacos, e.g. ENC(...)
+      shared-secret: ${INTERNAL_AUTH_SHARED_SECRET:}
+      clock-skew-seconds: ${INTERNAL_AUTH_CLOCK_SKEW_SECONDS:300}
+      nonce-ttl-seconds: ${INTERNAL_AUTH_NONCE_TTL_SECONDS:300}
+  music:
+    spotify:
+      # Use encrypted value from Nacos, e.g. ENC(...)
+      client-id: ${SPOTIFY_CLIENT_ID:}
+      # Use encrypted value from Nacos, e.g. ENC(...)
+      client-secret: ${SPOTIFY_CLIENT_SECRET:}
+      token-url: ${SPOTIFY_TOKEN_URL:https://accounts.spotify.com/api/token}
+      search-url: ${SPOTIFY_SEARCH_URL:https://api.spotify.com/v1/search}
+      track-url: ${SPOTIFY_TRACK_URL:https://api.spotify.com/v1/tracks}
+      connect-timeout-ms: ${SPOTIFY_CONNECT_TIMEOUT_MS:800}
+      read-timeout-ms: ${SPOTIFY_READ_TIMEOUT_MS:1500}
+  user:
+    service-uri: ${USER_SERVICE_URI:http://localhost:8081}
+    timeout-ms: ${USER_SERVICE_TIMEOUT_MS:1200}
   media:
     storage:
       private-bucket: ${OSS_PRIVATE_BUCKET:shizuki-private}

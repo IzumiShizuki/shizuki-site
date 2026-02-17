@@ -1,6 +1,7 @@
 package io.github.shizuki.site.user.service;
 
 import io.github.shizuki.site.user.dto.MeResponse;
+import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
@@ -50,6 +51,11 @@ public interface UserService {
     QuotaPolicyDto updateQuotaPolicy(String policyId, QuotaPolicyDto request);
 
     /**
+     * 批量创建/更新分组配额策略。
+     */
+    List<QuotaPolicyDto> batchUpsertQuotaPolicies(List<QuotaPolicyDto> requests);
+
+    /**
      * 查询指定用户分组。
      */
     UserGroupsResponse getUserGroups(Long userId);
@@ -93,4 +99,24 @@ public interface UserService {
      * 根据分组解析生效配额。
      */
     Long resolveQuota(String quotaCode, Set<String> groupCodes, Long defaultValue);
+
+    /**
+     * 绑定或更新用户音乐 provider API Key。
+     */
+    MusicApiKeyStatusResponse upsertMusicApiKey(Long userId, String provider, String apiKey);
+
+    /**
+     * 删除用户音乐 provider API Key。
+     */
+    void deleteMusicApiKey(Long userId, String provider);
+
+    /**
+     * 查询用户音乐 provider API Key 状态（不返回明文）。
+     */
+    MusicApiKeyStatusResponse getMusicApiKeyStatus(Long userId, String provider);
+
+    /**
+     * 内部调用：读取用户音乐 provider API Key 明文。
+     */
+    String getMusicApiKeyPlaintext(Long userId, String provider);
 }

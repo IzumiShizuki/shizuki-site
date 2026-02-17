@@ -21,7 +21,11 @@ public enum AssetKindEnum {
     /**
      * Live2D ZIP 包。
      */
-    LIVE2D_PACKAGE(3);
+    LIVE2D_PACKAGE(3),
+    /**
+     * 音频文件。
+     */
+    AUDIO(4);
 
     private final int code;
 
