@@ -52,6 +52,10 @@
       "value": "media-service"
     },
     {
+      "key": "internalSharedSecret",
+      "value": ""
+    },
+    {
       "key": "internalTimestamp",
       "value": ""
     },
@@ -62,6 +66,56 @@
     {
       "key": "internalSignature",
       "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// 仅对 internal music api-keys 请求自动计算签名头。",
+          "const requestUrl = pm.variables.replaceIn(pm.request.url.toString());",
+          "const isInternalMusicRequest = requestUrl.includes('/api/v1/internal/music/api-keys/');",
+          "if (!isInternalMusicRequest) {",
+          "  return;",
+          "}",
+          "",
+          "const sharedSecret = pm.variables.get('internalSharedSecret') || '';",
+          "if (!sharedSecret) {",
+          "  console.warn('internalSharedSecret is empty, skip internal signature generation.');",
+          "  return;",
+          "}",
+          "",
+          "const service = pm.variables.get('internalServiceName') || 'media-service';",
+          "const timestamp = Math.floor(Date.now() / 1000).toString();",
+          "const nonce = pm.variables.replaceIn('{{$guid}}');",
+          "",
+          "let path = '';",
+          "let query = '';",
+          "try {",
+          "  const parsed = new URL(requestUrl);",
+          "  path = parsed.pathname || '';",
+          "  query = parsed.search ? parsed.search.substring(1) : '';",
+          "} catch (error) {",
+          "  console.warn('failed to parse request url for internal signature', error);",
+          "  return;",
+          "}",
+          "",
+          "const method = (pm.request.method || 'GET').toUpperCase();",
+          "const canonical = [method, path, query, timestamp, nonce].join('\\n');",
+          "const signature = CryptoJS.HmacSHA256(canonical, sharedSecret).toString(CryptoJS.enc.Hex);",
+          "",
+          "pm.collectionVariables.set('internalTimestamp', timestamp);",
+          "pm.collectionVariables.set('internalNonce', nonce);",
+          "pm.collectionVariables.set('internalSignature', signature);",
+          "",
+          "pm.request.headers.upsert({ key: 'X-Internal-Service', value: service });",
+          "pm.request.headers.upsert({ key: 'X-Internal-Timestamp', value: timestamp });",
+          "pm.request.headers.upsert({ key: 'X-Internal-Nonce', value: nonce });",
+          "pm.request.headers.upsert({ key: 'X-Internal-Signature', value: signature });"
+        ]
+      }
     }
   ],
   "item": [
@@ -536,7 +590,7 @@
                   }
                 ],
                 "url": "{{userServiceBaseUrl}}/api/v1/internal/music/api-keys/1/status?provider={{musicProvider}}",
-                "description": "服务间接口。查询用户指定 provider 的 API Key 绑定状态（不返回明文）。必须携带内部签名头（HMAC-SHA256，canonical=method\\npath\\nquery\\ntimestamp\\nnonce）。"
+                "description": "服务间接口。查询用户指定 provider 的 API Key 绑定状态（不返回明文）。已内置 pre-request 自动签名，调试前需设置 internalSharedSecret。"
               }
             },
             {
@@ -562,7 +616,7 @@
                   }
                 ],
                 "url": "{{userServiceBaseUrl}}/api/v1/internal/music/api-keys/1/plaintext?provider={{musicProvider}}",
-                "description": "服务间接口。查询用户指定 provider 的 API Key 明文，仅允许内部服务调用。必须携带内部签名头。"
+                "description": "服务间接口。查询用户指定 provider 的 API Key 明文，仅允许内部服务调用。已内置 pre-request 自动签名，调试前需设置 internalSharedSecret。"
               }
             }
           ]
