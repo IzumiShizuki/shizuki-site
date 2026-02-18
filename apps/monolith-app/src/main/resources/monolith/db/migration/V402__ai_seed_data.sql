@@ -1,0 +1,1 @@
+-- ai-service baseline: no seed data required.

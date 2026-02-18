@@ -15,7 +15,7 @@ Shizuki Site 是一个"长期生活系统"型个人站点，提供：
 
 ### 后端
 - **语言与框架**：Java 17 + Spring Boot 3.2.x
-- **微服务治理**：Spring Cloud Gateway + Nacos
+- **架构形态**：单体应用 + 业务模块化（Monolith Modular）
 - **数据访问**：MyBatis-Plus + MySQL 8
 - **缓存与会话**：Redis 7
 - **对象存储**：阿里云 OSS
@@ -23,7 +23,8 @@ Shizuki Site 是一个"长期生活系统"型个人站点，提供：
 - **构建工具**：Maven 多模块
 
 ### 架构设计
-- 微服务架构（Gateway + 4 个业务服务）
+- 单体入口 `apps/monolith-app` + 业务模块 `modules/*`
+- 数据结构模块 `model/{entity,request,response}`
 - 统一鉴权与限流
 - 审计日志与配额管理
 - OWASP ASVS L1 安全基线
@@ -40,7 +41,7 @@ Shizuki Site 是一个"长期生活系统"型个人站点，提供：
 1. **启动中间件**
 ```bash
 ./scripts/up-middleware.sh
-# 或手动：docker compose up -d mysql redis nacos
+# 或手动：docker compose up -d mysql redis
 ```
 
 2. **构建项目**
@@ -50,16 +51,15 @@ mvn clean install
 
 3. **运行服务**
 ```bash
-# 运行单个服务
-mvn -pl services/user-service spring-boot:run
+# 启动单体应用
+mvn -pl apps/monolith-app spring-boot:run
 
-# 或使用 Docker 启动所有服务
-docker compose --profile apps up -d
+# 或使用 Docker 启动单体应用
+docker compose --profile app up -d
 ```
 
 4. **访问服务**
-- Gateway: http://localhost:8080
-- Nacos 控制台: http://localhost:8848/nacos (默认账号密码: nacos/nacos)
+- Monolith API: http://localhost:8080
 
 ### 停止服务
 ```bash
@@ -75,12 +75,17 @@ shizuki-site/
 │   ├── common-core/          # 核心工具类
 │   ├── common-servlet/       # Web 层组件
 │   └── common-integration/   # 外部集成
-├── services/                  # 微服务
-│   ├── gateway-service/      # 网关服务 (8080)
-│   ├── user-service/         # 用户服务 (8081)
-│   ├── content-service/      # 内容服务 (8082)
-│   ├── media-service/        # 媒体服务 (8083)
-│   └── ai-service/           # AI 服务 (8084)
+├── model/                     # 数据结构模块
+│   ├── entity/               # 持久化实体
+│   ├── request/              # 请求 DTO
+│   └── response/             # 响应 DTO
+├── modules/                   # 业务模块
+│   ├── user-module/
+│   ├── content-module/
+│   ├── media-module/
+│   └── ai-module/
+├── apps/
+│   └── monolith-app/         # 单体启动入口 (8080)
 ├── resouces/
 │   ├── md/                   # 架构文档
 │   └── sql/                  # 数据库脚本
@@ -116,10 +121,10 @@ shizuki-site/
 mvn test
 
 # 单个模块测试
-mvn test -pl services/user-service
+mvn test -pl modules/user-module
 
 # 单个测试类
-mvn test -pl services/user-service -Dtest=AuthControllerTest
+mvn test -pl modules/user-module -Dtest=AuthControllerIntegrationTest
 ```
 
 ### SQL 规范检查
@@ -129,10 +134,7 @@ mvn test -pl services/user-service -Dtest=AuthControllerTest
 
 ### API 文档
 启动服务后访问 Swagger UI：
-- User Service: http://localhost:8081/swagger-ui.html
-- Content Service: http://localhost:8082/swagger-ui.html
-- Media Service: http://localhost:8083/swagger-ui.html
-- AI Service: http://localhost:8084/swagger-ui.html
+- Monolith: http://localhost:8080/swagger-ui/index.html
 
 ## Git 提交规范
 
@@ -192,17 +194,16 @@ git commit -m "📝 docs : 更新 API 文档"
 
 ### 资源要求
 - **最低配置**：单机 8GB 内存
-- **中间件**：MySQL (1.2-1.6GB) + Redis (0.25-0.5GB) + Nacos (0.5-0.8GB)
-- **应用服务**：约 2.65-3.7GB
+- **中间件**：MySQL (1.2-1.6GB) + Redis (0.25-0.5GB)
+- **应用服务**：单体应用约 1.2-2.0GB（视 profile 与流量而定）
 - **系统预留**：1.0-1.4GB
 
 ### 环境变量
 
 关键环境变量（参考 `compose.yaml`）：
-- `NACOS_ENABLED`: 是否启用 Nacos 服务发现
-- `NACOS_ADDR`: Nacos 服务地址
 - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`: 数据库连接
 - `REDIS_HOST`, `REDIS_PORT`: Redis 连接
+- `AUDIT_PUBLISHER_TYPE`: 审计发布器类型（默认 `noop`，可切 `kafka`）
 - `INTERVIEWER_SECRET`: 面试官注册密钥（必需）
 
 ## 许可证

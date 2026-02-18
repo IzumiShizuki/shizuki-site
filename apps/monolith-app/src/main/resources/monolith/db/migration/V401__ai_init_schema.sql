@@ -1,0 +1,95 @@
+CREATE TABLE IF NOT EXISTS AI_SESSION (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_SESSION.id 自增长ID',
+    session_code VARCHAR(64) NOT NULL COMMENT 'AI_SESSION.session_code 会话业务编号',
+    user_id BIGINT NOT NULL COMMENT 'AI_SESSION.user_id 用户ID',
+    title_text VARCHAR(255) NOT NULL COMMENT 'AI_SESSION.title_text 标题描述',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_SESSION.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_SESSION.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_SESSION.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_SESSION.version_num 版本号',
+    CONSTRAINT PK_AI_SESSION PRIMARY KEY (id),
+    CONSTRAINT AK_AI_SESSION_1 UNIQUE (session_code),
+    KEY IX_AI_SESSION_1 (user_id)
+) COMMENT='AI会话表';
+
+CREATE TABLE IF NOT EXISTS AI_MESSAGE (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_MESSAGE.id 自增长ID',
+    session_id BIGINT NOT NULL COMMENT 'AI_MESSAGE.session_id 会话ID',
+    user_id BIGINT NOT NULL COMMENT 'AI_MESSAGE.user_id 用户ID',
+    role_type VARCHAR(32) NOT NULL COMMENT 'AI_MESSAGE.role_type 角色类型',
+    content_text TEXT NOT NULL COMMENT 'AI_MESSAGE.content_text 消息描述',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_MESSAGE.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_MESSAGE.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_MESSAGE.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_MESSAGE.version_num 版本号',
+    CONSTRAINT PK_AI_MESSAGE PRIMARY KEY (id),
+    KEY IX_AI_MESSAGE_1 (session_id),
+    KEY IX_AI_MESSAGE_2 (user_id),
+    CONSTRAINT FK_AI_MESSAGE_1 FOREIGN KEY (session_id) REFERENCES AI_SESSION(id)
+) COMMENT='AI消息表';
+
+CREATE TABLE IF NOT EXISTS AI_QUOTA_USAGE (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_QUOTA_USAGE.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'AI_QUOTA_USAGE.user_id 用户ID',
+    quota_code VARCHAR(64) NOT NULL COMMENT 'AI_QUOTA_USAGE.quota_code 配额编号',
+    total_value BIGINT NOT NULL COMMENT 'AI_QUOTA_USAGE.total_value 总额度值',
+    used_value BIGINT NOT NULL DEFAULT 0 COMMENT 'AI_QUOTA_USAGE.used_value 已用额度值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_QUOTA_USAGE.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_QUOTA_USAGE.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_QUOTA_USAGE.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_QUOTA_USAGE.version_num 版本号',
+    CONSTRAINT PK_AI_QUOTA_USAGE PRIMARY KEY (id),
+    CONSTRAINT AK_AI_QUOTA_USAGE_1 UNIQUE (user_id, quota_code)
+) COMMENT='AI配额使用表';
+
+CREATE TABLE IF NOT EXISTS AI_CHARACTER (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_CHARACTER.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'AI_CHARACTER.user_id 用户ID',
+    character_type VARCHAR(64) NOT NULL COMMENT 'AI_CHARACTER.character_type 角色类型',
+    payload_json JSON NOT NULL COMMENT 'AI_CHARACTER.payload_json 角色配置JSON',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_CHARACTER.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_CHARACTER.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_CHARACTER.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_CHARACTER.version_num 版本号',
+    CONSTRAINT PK_AI_CHARACTER PRIMARY KEY (id),
+    KEY IX_AI_CHARACTER_1 (user_id),
+    KEY IX_AI_CHARACTER_2 (character_type)
+) COMMENT='AI角色配置表';
+
+CREATE TABLE IF NOT EXISTS AUD_LOG (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AUD_LOG.id 自增长ID',
+    trace_code VARCHAR(64) NULL COMMENT 'AUD_LOG.trace_code 链路编号',
+    user_id BIGINT NULL COMMENT 'AUD_LOG.user_id 用户ID',
+    action_code VARCHAR(128) NOT NULL COMMENT 'AUD_LOG.action_code 动作编号',
+    resource_code VARCHAR(128) NULL COMMENT 'AUD_LOG.resource_code 资源编号',
+    result_status VARCHAR(32) NOT NULL COMMENT 'AUD_LOG.result_status 执行状态',
+    error_code VARCHAR(64) NULL COMMENT 'AUD_LOG.error_code 错误编号',
+    cost_value BIGINT NOT NULL COMMENT 'AUD_LOG.cost_value 耗时值',
+    create_time DATETIME NOT NULL COMMENT 'AUD_LOG.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AUD_LOG.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AUD_LOG.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AUD_LOG.version_num 版本号',
+    CONSTRAINT PK_AUD_LOG PRIMARY KEY (id),
+    KEY IX_AUD_LOG_1 (trace_code),
+    KEY IX_AUD_LOG_2 (user_id),
+    KEY IX_AUD_LOG_3 (action_code),
+    KEY IX_AUD_LOG_4 (create_time)
+) COMMENT='审计日志表';
+
+CREATE TABLE IF NOT EXISTS AUD_EVENT_OUTBOX (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AUD_EVENT_OUTBOX.id 自增长ID',
+    event_type VARCHAR(64) NOT NULL COMMENT 'AUD_EVENT_OUTBOX.event_type 事件类型',
+    payload_json JSON NOT NULL COMMENT 'AUD_EVENT_OUTBOX.payload_json 事件载荷JSON',
+    event_status VARCHAR(32) NOT NULL DEFAULT 'NEW' COMMENT 'AUD_EVENT_OUTBOX.event_status 事件状态',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AUD_EVENT_OUTBOX.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AUD_EVENT_OUTBOX.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AUD_EVENT_OUTBOX.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AUD_EVENT_OUTBOX.version_num 版本号',
+    processed_datetime DATETIME NULL COMMENT 'AUD_EVENT_OUTBOX.processed_datetime 处理时间',
+    retry_count INT NOT NULL DEFAULT 0 COMMENT 'AUD_EVENT_OUTBOX.retry_count 重试次数',
+    next_retry_datetime DATETIME NULL COMMENT 'AUD_EVENT_OUTBOX.next_retry_datetime 下次重试时间',
+    last_error_memo VARCHAR(1024) NULL COMMENT 'AUD_EVENT_OUTBOX.last_error_memo 最近一次错误备注',
+    CONSTRAINT PK_AUD_EVENT_OUTBOX PRIMARY KEY (id),
+    KEY IX_AUD_EVENT_OUTBOX_1 (event_status, create_time),
+    KEY IX_AUD_EVENT_OUTBOX_2 (event_status, next_retry_datetime, create_time)
+) COMMENT='审计事件发件箱表';

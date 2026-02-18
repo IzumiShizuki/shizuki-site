@@ -1,0 +1,184 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  timeout: ${AUTH_ACCESS_TTL_SECONDS:7200}
+  active-timeout: -1
+  is-concurrent: true
+  is-share: true
+  token-style: jwt
+  jwt-secret-key: ${shizuki.auth.jwt.secret}
+shizuki:
+  audit:
+    outbox:
+      enabled: true
+      batch-size: 100
+      poll-interval: 5000
+      max-retries: 8
+      retry-base-seconds: 2
+      retry-max-seconds: 300
+    publisher:
+      type: ${AUDIT_PUBLISHER_TYPE:noop}
+      kafka-topic: ${AUDIT_KAFKA_TOPIC:shizuki.audit.log}
+      kafka-send-timeout-ms: ${AUDIT_KAFKA_SEND_TIMEOUT_MS:3000}
+  ai:
+    quota:
+      code: ai_round_total
+      default-total-rounds: 5
+  user:
+    quota-resolve-connect-timeout-ms: ${USER_QUOTA_RESOLVE_CONNECT_TIMEOUT_MS:500}
+    quota-resolve-timeout-ms: ${USER_QUOTA_RESOLVE_TIMEOUT_MS:1200}
+    quota-resolve-retry-count: ${USER_QUOTA_RESOLVE_RETRY_COUNT:1}
+    quota-resolve-retry-backoff-ms: ${USER_QUOTA_RESOLVE_RETRY_BACKOFF_MS:120}
+    quota-resolve-retry-max-backoff-ms: ${USER_QUOTA_RESOLVE_RETRY_MAX_BACKOFF_MS:1000}
+  oauth:
+    connect-timeout-ms: ${OAUTH_CONNECT_TIMEOUT_MS:500}
+    read-timeout-ms: ${OAUTH_READ_TIMEOUT_MS:1200}
+    retry-count: ${OAUTH_RETRY_COUNT:1}
+    retry-backoff-ms: ${OAUTH_RETRY_BACKOFF_MS:120}
+    retry-max-backoff-ms: ${OAUTH_RETRY_MAX_BACKOFF_MS:1000}
+    providers:
+      github:
+        client-id: ${GITHUB_CLIENT_ID:}
+        client-secret: ${GITHUB_CLIENT_SECRET:}
+        authorize-url: ${GITHUB_AUTHORIZE_URL:https://github.com/login/oauth/authorize}
+        token-url: ${GITHUB_TOKEN_URL:https://github.com/login/oauth/access_token}
+        user-api-url: ${GITHUB_USER_API_URL:https://api.github.com/user}
+        scope: ${GITHUB_SCOPE:read:user user:email}
+      linuxdo:
+        client-id: ${LINUXDO_CLIENT_ID:}
+        client-secret: ${LINUXDO_CLIENT_SECRET:}
+        authorize-url: ${LINUXDO_AUTHORIZE_URL:https://connect.linux.do/oauth2/authorize}
+        token-url: ${LINUXDO_TOKEN_URL:https://connect.linux.do/oauth2/token}
+        user-api-url: ${LINUXDO_USER_API_URL:https://connect.linux.do/api/user}
+        scope: ${LINUXDO_SCOPE:openid profile email}
+  auth:
+    jwt:
+      secret: ${AUTH_JWT_SECRET:${random.uuid}}
+      access-ttl-seconds: ${AUTH_ACCESS_TTL_SECONDS:7200}
+      refresh-ttl-seconds: ${AUTH_REFRESH_TTL_SECONDS:2592000}
+      refresh-rotate: ${AUTH_REFRESH_ROTATE:true}
+    captcha:
+      image-ttl-seconds: ${AUTH_CAPTCHA_IMAGE_TTL_SECONDS:120}
+      image-length: ${AUTH_CAPTCHA_IMAGE_LENGTH:2}
+      image-max-attempts: ${AUTH_CAPTCHA_IMAGE_MAX_ATTEMPTS:5}
+    verify:
+      email-ttl-seconds: ${AUTH_VERIFY_EMAIL_TTL_SECONDS:300}
+      email-cooldown-seconds: ${AUTH_VERIFY_EMAIL_COOLDOWN_SECONDS:60}
+      email-max-attempts: ${AUTH_VERIFY_EMAIL_MAX_ATTEMPTS:5}
+    bind:
+      ticket-ttl-seconds: ${AUTH_BIND_TICKET_TTL_SECONDS:600}
+    retry:
+      count: ${AUTH_RETRY_COUNT:1}
+      backoff-ms: ${AUTH_RETRY_BACKOFF_MS:120}
+      max-backoff-ms: ${AUTH_RETRY_MAX_BACKOFF_MS:1000}
+  security:
+    secret:
+      enforce: ${SECRET_ENFORCE:false}
+  media:
+    storage:
+      private-bucket: ${OSS_PRIVATE_BUCKET:shizuki-private}
+      public-bucket: ${OSS_PUBLIC_BUCKET:shizuki-public}
+      public-base-url: ${OSS_PUBLIC_BASE_URL:}
+      sign-expire-seconds: 600
+      max-upload-size: 52428800
+      max-l2d-zip-entry-count: 2048
+      max-l2d-zip-entry-name-length: 1024
+      max-l2d-zip-single-entry-size: 20971520
+      max-l2d-zip-total-size: 104857600
+      enable-object-hash-dedup: true
+      enable-security-scan-hook: false
+      allowed-content-types:
+      - image/png
+      - image/jpeg
+      - image/webp
+      - image/gif
+      - image/apng
+      - application/zip
+      - application/x-zip-compressed
+      - audio/mpeg
+      - audio/wav
+      - audio/ogg
+  oss:
+    endpoint: ${OSS_ENDPOINT:https://oss-cn-hangzhou.aliyuncs.com}
+    access-key-id: ${OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+  gateway:
+    auth:
+      enabled: true
+      cache-ttl-seconds: ${AUTH_INTROSPECT_CACHE_TTL_SECONDS:30}
+      cache-max-entries: ${AUTH_INTROSPECT_CACHE_MAX_ENTRIES:10000}
+      guest-invalid-token-policy: ${AUTH_GUEST_INVALID_TOKEN_POLICY:downgrade}
+      public-paths:
+      - /api/v1/auth/tokens
+      - /api/v1/auth/register/**
+      - /api/v1/auth/oauth/**
+      - /api/v1/auth/bindings/**
+      - /api/v1/auth/captchas/**
+      - /api/v1/auth/verifications/**
+      - /actuator/**
+      guest-paths:
+      - /api/v1/posts/**
+      - /api/v1/apps/**
+      - /api/v1/ai-sessions/**
+      - /api/v1/assets/public/**
+      - /api/v1/assets/*/download-url
+spring:
+  application:
+    name: monolith-app
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/shizuki_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  flyway:
+    enabled: true
+    locations: classpath:monolith/db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 0
+      properties:
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+        linger.ms: 5
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+server:
+  port: 8080
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html

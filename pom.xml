@@ -15,8 +15,6 @@
         <java.version>17</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <spring-boot.version>3.2.12</spring-boot.version>
-        <spring-cloud.version>2023.0.5</spring-cloud.version>
-        <spring-cloud-alibaba.version>2023.0.3.2</spring-cloud-alibaba.version>
         <mybatis-plus.version>3.5.8</mybatis-plus.version>
         <sa-token.version>1.39.0</sa-token.version>
         <owasp-sanitizer.version>20240325.1</owasp-sanitizer.version>
@@ -31,11 +29,14 @@
         <module>libs/common-servlet</module>
         <module>libs/common-integration</module>
 
-        <module>services/gateway-service</module>
-        <module>services/user-service</module>
-        <module>services/content-service</module>
-        <module>services/media-service</module>
-        <module>services/ai-service</module>
+        <module>model</module>
+
+        <module>modules/user-module</module>
+        <module>modules/content-module</module>
+        <module>modules/media-module</module>
+        <module>modules/ai-module</module>
+
+        <module>apps/monolith-app</module>
     </modules>
 
     <dependencyManagement>
@@ -44,20 +45,6 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>${spring-boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba.cloud</groupId>
-                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-                <version>${spring-cloud-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

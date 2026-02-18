@@ -1,0 +1,15 @@
+INSERT INTO CTN_POST (id, post_num, user_id, title_text, summary_text, visibility_status)
+VALUES
+    (1, 1001, 1, 'Shizuki v0.1', 'Project kickoff post', 'PUBLIC'),
+    (2, 1002, 1, 'Architecture Notes', 'Microservice baseline', 'PUBLIC')
+ON DUPLICATE KEY UPDATE
+    summary_text = VALUES(summary_text),
+    update_time = CURRENT_TIMESTAMP;
+
+INSERT INTO CTN_APP (id, app_num, user_id, name_text, category_type, visibility_status, pin_flag)
+VALUES
+    (1, 2001, 1, 'Focus Timer', 'study', 'PUBLIC', 1),
+    (2, 2002, 1, 'Ambient Mixer', 'tool', 'PUBLIC', 1)
+ON DUPLICATE KEY UPDATE
+    category_type = VALUES(category_type),
+    update_time = CURRENT_TIMESTAMP;

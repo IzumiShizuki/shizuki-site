@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "beads": {
+      "command": "C:\\Users\\29301\\.local\\bin\\beads-mcp.exe",
+      "args": [],
+      "env": {
+        "BEADS_WORKING_DIR": "D:\\github\\beads",
+        "BEADS_PATH": "C:\\Users\\29301\\.local\\bin\\bd.exe",
+        "BEADS_USE_DAEMON": "1"
+      }
+    },
+    "remotion-documentation": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "cd /d D:\\github\\remotion && npx -y @remotion/mcp@latest"
+      ]
+    }
+  }
+}
