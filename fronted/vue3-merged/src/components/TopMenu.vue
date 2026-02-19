@@ -1,8 +1,12 @@
 <template>
-  <nav ref="menuScope" class="fixed-nav-wrapper top-menu-root motion-managed" :class="{ expanded: menuExpanded }">
+  <nav ref="menuRootRef" class="fixed-nav-wrapper top-menu-root motion-managed" :class="{ expanded: menuExpanded }">
     <div class="top-bar liquid-material">
       <div class="nav-section left">
-        <div class="left-pill-group liquid-material" :style="{ '--active-index': activeMainRouteIndex }">
+        <div
+          class="left-pill-group liquid-material"
+          :class="{ 'no-main-active': !hasMainRouteActive }"
+          :style="{ '--active-index': activeMainRouteIndex }"
+        >
           <div
             class="menu-item-stack left-main-btn ripple-trigger"
             :class="{ active: activeMainRoute === 'home' }"
@@ -85,14 +89,40 @@
           <span class="item-label">项目github</span>
         </div>
 
-        <div class="menu-item-stack author-info-item ripple-trigger" @click.stop="handleAuthorInfoClick">
+        <div
+          class="menu-item-stack author-info-item ripple-trigger"
+          :class="{ 'route-active': isAuthorRoute, open: authorMenuOpen }"
+          @click.stop="toggleAuthorMenu"
+        >
           <div class="author-avatar-box"></div>
           <span class="item-label">作者信息</span>
+
+          <transition name="profile-popover">
+            <section v-if="authorMenuOpen" class="profile-popover liquid-material" @click.stop>
+              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('overview')">作者主页</button>
+              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('journey')">建站经历</button>
+              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('posts')">作者文章</button>
+              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('about')">关于本站</button>
+            </section>
+          </transition>
         </div>
 
-        <div class="menu-item-stack ripple-trigger user-profile-item" @click.stop="openProfile">
+        <div
+          class="menu-item-stack ripple-trigger user-profile-item"
+          :class="{ 'route-active': isProfileRoute, open: profileMenuOpen }"
+          @click.stop="toggleProfileMenu"
+        >
           <div class="avatar-box"></div>
           <span class="item-label">个人页面</span>
+
+          <transition name="profile-popover">
+            <section v-if="profileMenuOpen" class="profile-popover liquid-material" @click.stop>
+              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('profile')">个人</button>
+              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('account')">账号</button>
+              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('articles')">文章</button>
+              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('settings')">设置</button>
+            </section>
+          </transition>
         </div>
       </div>
     </div>
@@ -108,8 +138,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, toRefs, watch } from 'vue';
-import { useAnimate, useReducedMotion } from 'motion-v';
+import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 const props = defineProps({
@@ -123,19 +152,33 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'author-info-click', 'open-background-picker', 'open-profile']);
+const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'open-background-picker', 'open-profile', 'open-author']);
 const route = useRoute();
 const mainRouteOrder = ['home', 'blog', 'music-library', 'apps', 'ai-tavern'];
-const [menuScope, animate] = useAnimate();
-const prefersReducedMotion = useReducedMotion();
 const { menuExpanded, aiChatActive } = toRefs(props);
+const menuRootRef = ref(null);
+const authorMenuOpen = ref(false);
+const profileMenuOpen = ref(false);
 
 const activeMainRoute = computed(() => {
-  const name = typeof route.name === 'string' ? route.name : 'home';
-  return mainRouteOrder.includes(name) ? name : 'home';
+  const name = typeof route.name === 'string' ? route.name : '';
+  return mainRouteOrder.includes(name) ? name : '';
+});
+
+const hasMainRouteActive = computed(() => activeMainRoute.value !== '');
+
+const isProfileRoute = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : '';
+  return name === 'profile';
+});
+
+const isAuthorRoute = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : '';
+  return name === 'author';
 });
 
 const activeMainRouteIndex = computed(() => {
+  if (!hasMainRouteActive.value) return 0;
   const idx = mainRouteOrder.indexOf(activeMainRoute.value);
   return idx < 0 ? 0 : idx;
 });
@@ -149,69 +192,66 @@ function toggleAiChat() {
 }
 
 function selectMainRoute(routeKey) {
+  closeProfileMenus();
   emit('select-main-route', routeKey);
-}
-
-function handleAuthorInfoClick() {
-  emit('author-info-click');
 }
 
 function openBackgroundPicker() {
   emit('open-background-picker');
 }
 
-function openProfile() {
-  emit('open-profile');
+function closeProfileMenus() {
+  authorMenuOpen.value = false;
+  profileMenuOpen.value = false;
 }
 
-function getMenuItems() {
-  if (!menuScope.value) return [];
-  return Array.from(menuScope.value.querySelectorAll('.menu-item-stack'));
+function toggleAuthorMenu() {
+  authorMenuOpen.value = !authorMenuOpen.value;
+  if (authorMenuOpen.value) profileMenuOpen.value = false;
 }
 
-function applyMenuState(expanded) {
-  const items = getMenuItems();
-  items.forEach((item) => {
-    item.style.opacity = expanded ? '1' : '0';
-    item.style.transform = expanded ? 'translateY(0px)' : 'translateY(-20px)';
-  });
+function toggleProfileMenu() {
+  profileMenuOpen.value = !profileMenuOpen.value;
+  if (profileMenuOpen.value) authorMenuOpen.value = false;
 }
 
-function runMenuAnimation(expanded, immediate = false) {
-  const items = getMenuItems();
-  if (!items.length) return;
-
-  if (immediate || prefersReducedMotion.value) {
-    applyMenuState(expanded);
-    return;
-  }
-
-  const ordered = expanded ? items : [...items].reverse();
-  ordered.forEach((item, index) => {
-    animate(
-      item,
-      expanded
-        ? { opacity: [0, 1], y: [-18, 0], scale: [0.96, 1] }
-        : { opacity: [1, 0], y: [0, -14], scale: [1, 0.985] },
-      {
-        duration: expanded ? 0.32 : 0.18,
-        delay: index * 0.03,
-        ease: expanded ? 'cubic-bezier(0.22, 1, 0.36, 1)' : 'ease-out'
-      }
-    );
-  });
+function openAuthorTab(tabKey) {
+  closeProfileMenus();
+  emit('open-author', tabKey);
 }
+
+function openProfileTab(tabKey) {
+  closeProfileMenus();
+  emit('open-profile', tabKey);
+}
+
+function onGlobalPointerDown(event) {
+  const root = menuRootRef.value;
+  if (!root) return;
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  if (root.contains(target)) return;
+  closeProfileMenus();
+}
+
+watch(
+  () => route.fullPath,
+  () => closeProfileMenus()
+);
 
 watch(
   menuExpanded,
   (expanded) => {
-    nextTick(() => runMenuAnimation(expanded));
-  },
-  { immediate: true }
+    if (!expanded) closeProfileMenus();
+  }
 );
 
 onMounted(() => {
-  nextTick(() => runMenuAnimation(menuExpanded.value, true));
+  window.addEventListener('pointerdown', onGlobalPointerDown, true);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', onGlobalPointerDown, true);
 });
 </script>
 
@@ -224,6 +264,8 @@ onMounted(() => {
   --menu-hover-bg: rgba(var(--accent-soft-rgb), 0.44);
   --menu-active-bg: rgba(var(--accent-rgb), 0.22);
   --icon-hover-color: rgb(var(--accent-strong-rgb));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .top-menu-root .liquid-material {
@@ -287,8 +329,8 @@ onMounted(() => {
   justify-content: center;
   gap: 6px;
   cursor: pointer;
-  opacity: 0;
-  transform: translateY(-20px);
+  opacity: 1;
+  transform: translateY(0);
   transition: all 0.3s ease;
   position: relative;
 }
@@ -308,19 +350,33 @@ onMounted(() => {
 .left-main-btn.active .icon-minimal {
   color: rgb(var(--accent-strong-rgb));
   transform: scale(1.06);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.64),
+    1px 0 rgba(0, 0, 0, 0.34),
+    -1px 0 rgba(0, 0, 0, 0.34),
+    0 0 6px rgba(var(--accent-rgb), 0.24);
 }
 
 .left-main-btn.active .item-label {
   color: rgb(var(--accent-strong-rgb));
   font-weight: 600;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.64),
+    1px 0 rgba(0, 0, 0, 0.38),
+    -1px 0 rgba(0, 0, 0, 0.38),
+    0 0 6px rgba(var(--accent-rgb), 0.24);
 }
 
 .item-label {
   font-size: 11px;
-  color: #555;
+  color: rgba(235, 241, 255, 0.9);
   font-weight: 500;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.72),
+    1px 0 rgba(0, 0, 0, 0.4),
+    -1px 0 rgba(0, 0, 0, 0.4);
 }
 
 .left-pill-group {
@@ -357,6 +413,10 @@ onMounted(() => {
   z-index: 0;
 }
 
+.left-pill-group.no-main-active::before {
+  opacity: 0;
+}
+
 .left-main-btn {
   width: var(--left-main-item-width);
   z-index: 1;
@@ -364,7 +424,7 @@ onMounted(() => {
 
 .icon-minimal {
   font-size: 20px;
-  color: #333;
+  color: rgba(236, 242, 255, 0.92);
   height: 32px;
   width: 32px;
   display: flex;
@@ -372,6 +432,10 @@ onMounted(() => {
   justify-content: center;
   transition: transform 0.2s, color 0.2s, background-color 0.2s;
   border-radius: 50%;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.72),
+    1px 0 rgba(0, 0, 0, 0.36),
+    -1px 0 rgba(0, 0, 0, 0.36);
 }
 
 .icon-minimal:hover {
@@ -388,8 +452,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: #444;
+  color: rgba(236, 242, 255, 0.92);
   transition: all 0.3s ease;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.72),
+    1px 0 rgba(0, 0, 0, 0.34),
+    -1px 0 rgba(0, 0, 0, 0.34);
 }
 
 .circle-icon-box:hover {
@@ -413,8 +481,12 @@ onMounted(() => {
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: rgba(236, 242, 255, 0.92);
   transition: all 0.3s;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.74),
+    1px 0 rgba(0, 0, 0, 0.34),
+    -1px 0 rgba(0, 0, 0, 0.34);
 }
 
 .menu-item-stack:hover .pill-btn-box {
@@ -452,9 +524,19 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: #2b3137;
+  color: rgba(236, 242, 255, 0.92);
   border-radius: 50%;
   transition: transform 0.2s, color 0.2s;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.74),
+    1px 0 rgba(0, 0, 0, 0.36),
+    -1px 0 rgba(0, 0, 0, 0.36);
+}
+
+.author-info-item,
+.user-profile-item {
+  border-radius: 12px;
+  padding: 2px 6px 4px;
 }
 
 .github-style-box:hover {
@@ -481,6 +563,14 @@ onMounted(() => {
   box-shadow: 0 6px 14px rgba(var(--accent-rgb), 0.24);
 }
 
+.author-info-item.route-active .author-avatar-box {
+  transform: scale(1.06);
+  border-color: rgba(var(--accent-rgb), 0.9);
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.36),
+    0 8px 18px rgba(var(--accent-rgb), 0.32);
+}
+
 .avatar-box {
   width: 44px;
   height: 44px;
@@ -504,9 +594,96 @@ onMounted(() => {
   border-radius: 50%;
 }
 
+.user-profile-item.route-active .avatar-box {
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.36),
+    0 8px 18px rgba(var(--accent-rgb), 0.32);
+  border-color: rgba(var(--accent-rgb), 0.9);
+}
+
+.author-info-item.route-active,
+.user-profile-item.route-active {
+  background: rgba(var(--accent-rgb), 0.18);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.34);
+}
+
+.author-info-item.route-active .item-label,
+.user-profile-item.route-active .item-label {
+  color: rgb(var(--accent-strong-rgb));
+  font-weight: 600;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.62),
+    1px 0 rgba(0, 0, 0, 0.36),
+    -1px 0 rgba(0, 0, 0, 0.36),
+    0 0 6px rgba(var(--accent-rgb), 0.2);
+}
+
+.author-info-item.open .author-avatar-box,
+.user-profile-item.open .avatar-box {
+  border-color: rgba(var(--accent-rgb), 0.9);
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.34),
+    0 8px 18px rgba(var(--accent-rgb), 0.32);
+}
+
+.author-info-item.open,
+.user-profile-item.open {
+  background: rgba(var(--accent-rgb), 0.14);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
+}
+
+.profile-popover {
+  --liquid-bg: rgba(var(--glass-rgb), 0.58);
+  --liquid-border: rgba(255, 255, 255, 0.52);
+  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.3);
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -8px;
+  min-width: 136px;
+  border-radius: 12px;
+  padding: 6px;
+  display: grid;
+  gap: 6px;
+  z-index: 1200;
+}
+
+.popover-item {
+  border: 0;
+  border-radius: 9px;
+  min-height: 30px;
+  padding: 0 10px;
+  text-align: left;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(236, 242, 255, 0.95);
+}
+
+.popover-item:hover {
+  background: rgba(var(--accent-rgb), 0.24);
+  color: rgb(var(--accent-strong-rgb));
+}
+
+.profile-popover-enter-active,
+.profile-popover-leave-active {
+  transition: opacity 160ms ease, transform 180ms ease;
+}
+
+.profile-popover-enter-from,
+.profile-popover-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+}
+
+.fixed-nav-wrapper:not(.expanded) .menu-item-stack {
+  opacity: 0;
+  transform: translateY(-20px);
+  pointer-events: none;
+}
+
 .fixed-nav-wrapper.expanded .menu-item-stack {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(1) {
@@ -598,11 +775,12 @@ onMounted(() => {
 
 .bar-line {
   position: absolute;
-  background: #3e4452;
+  background: rgba(236, 242, 255, 0.9);
   height: 2px;
   width: 24px;
   border-radius: 2px;
   transition: all 0.5s cubic-bezier(0.68, -0.6, 0.32, 1.6);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.52);
 }
 
 .bar-line.top {
@@ -616,20 +794,24 @@ onMounted(() => {
 .menu-label-text {
   font-size: 10px;
   font-weight: 800;
-  color: #3e4452;
+  color: rgba(236, 242, 255, 0.9);
   letter-spacing: 1px;
   transition: 0.3s;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.8),
+    0 0 8px rgba(0, 0, 0, 0.34);
+  -webkit-text-stroke: 0.3px rgba(0, 0, 0, 0.44);
 }
 
 .fixed-nav-wrapper.expanded .bar-line.top {
   transform: translateY(0) rotate(135deg);
-  background-color: #555;
+  background-color: rgba(236, 242, 255, 0.92);
   width: 20px;
 }
 
 .fixed-nav-wrapper.expanded .bar-line.bottom {
   transform: translateY(0) rotate(-135deg);
-  background-color: #555;
+  background-color: rgba(236, 242, 255, 0.92);
   width: 20px;
 }
 
@@ -738,6 +920,12 @@ onMounted(() => {
     height: 28px;
     padding-bottom: 6px;
   }
+
+  .profile-popover {
+    top: calc(100% + 6px);
+    right: -2px;
+    min-width: 124px;
+  }
 }
 
 @media (max-width: 600px), (orientation: portrait) {
@@ -825,7 +1013,8 @@ onMounted(() => {
     justify-content: center;
     padding: 0;
     gap: 0;
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(10, 16, 26, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   }
 
   .menu-item-stack {
@@ -838,7 +1027,15 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     gap: 0;
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(10, 16, 26, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  }
+
+  .profile-popover {
+    top: 0;
+    left: calc(100% + 8px);
+    right: auto;
+    min-width: 128px;
   }
 
   .menu-item-stack.active {

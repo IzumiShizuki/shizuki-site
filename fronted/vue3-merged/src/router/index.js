@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import AiTavernPage from '../pages/AiTavernPage.vue';
+import AuthorPage from '../pages/AuthorPage.vue';
 import AppsPage from '../pages/AppsPage.vue';
 import BlogPage from '../pages/BlogPage.vue';
 import HomePage from '../pages/HomePage.vue';
@@ -12,7 +13,8 @@ export const routePathByKey = {
   'music-library': '/music-library',
   apps: '/apps',
   'ai-tavern': '/ai-tavern',
-  profile: '/profile'
+  profile: '/profile',
+  author: '/author'
 };
 
 const routes = [
@@ -21,7 +23,8 @@ const routes = [
   { path: '/music-library', name: 'music-library', component: MusicLibraryPage },
   { path: '/apps', name: 'apps', component: AppsPage },
   { path: '/ai-tavern', name: 'ai-tavern', component: AiTavernPage },
-  { path: '/profile', name: 'profile', component: ProfilePage }
+  { path: '/profile', name: 'profile', component: ProfilePage },
+  { path: '/author', name: 'author', component: AuthorPage }
 ];
 
 const router = createRouter({

@@ -91,12 +91,40 @@
             <span>可视化</span>
           </button>
           <div v-if="vizMenuOpen" class="viz-menu liquid-material">
-            <button class="viz-opt ripple-trigger" :class="{ active: visualizerMode === 'bars' }" type="button" @click.stop="selectVisualizerMode('bars')">
-              线型
-            </button>
-            <button class="viz-opt ripple-trigger" :class="{ active: visualizerMode === 'ring' }" type="button" @click.stop="selectVisualizerMode('ring')">
-              圆形
-            </button>
+            <div class="viz-mode-row">
+              <button class="viz-opt ripple-trigger" :class="{ active: visualizerMode === 'bars' }" type="button" @click.stop="selectVisualizerMode('bars')">
+                线型
+              </button>
+              <button class="viz-opt ripple-trigger" :class="{ active: visualizerMode === 'ring' }" type="button" @click.stop="selectVisualizerMode('ring')">
+                圆形
+              </button>
+            </div>
+
+            <div class="viz-style-grid">
+              <button
+                v-for="style in styleOptionsForMode"
+                :key="style.key"
+                class="viz-style-btn ripple-trigger"
+                :class="{ active: visualizerStyle === style.key }"
+                type="button"
+                @click.stop="selectVisualizerStyle(style.key)"
+              >
+                <span class="viz-preview" :class="style.key">
+                  <template v-if="style.mode === 'bars'">
+                    <i class="p-bar"></i>
+                    <i class="p-bar"></i>
+                    <i class="p-bar"></i>
+                    <i class="p-bar"></i>
+                    <i class="p-bar"></i>
+                  </template>
+                  <template v-else>
+                    <i class="p-ring"></i>
+                    <i class="p-dot"></i>
+                  </template>
+                </span>
+                <span class="viz-style-label">{{ style.label }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -157,6 +185,7 @@ const props = defineProps({
   playMode: { type: String, default: 'sequential' },
   listOpen: { type: Boolean, default: false },
   visualizerMode: { type: String, default: 'bars' },
+  visualizerStyle: { type: String, default: 'bars-neon' },
   showVisualizerControls: { type: Boolean, default: false }
 });
 
@@ -172,6 +201,7 @@ const emit = defineEmits([
   'select-track',
   'toggle-subtitle',
   'set-visualizer-mode',
+  'set-visualizer-style',
   'reorder-tracks',
   'open-settings'
 ]);
@@ -204,6 +234,20 @@ const modeLabel = computed(() => {
   if (props.playMode === 'random') return '随机';
   if (props.playMode === 'single') return '单曲循环';
   return '顺序播放';
+});
+
+const visualizerStyleOptions = [
+  { key: 'bars-neon', label: '霓虹脉冲', mode: 'bars' },
+  { key: 'bars-crystal', label: '晶体频谱', mode: 'bars' },
+  { key: 'bars-firefly', label: '萤火流光', mode: 'bars' },
+  { key: 'ring-halo', label: '光环矩阵', mode: 'ring' },
+  { key: 'ring-orbit', label: '轨道星环', mode: 'ring' },
+  { key: 'ring-pulse', label: '脉冲漩涡', mode: 'ring' }
+];
+
+const styleOptionsForMode = computed(() => {
+  const mode = props.visualizerMode === 'ring' ? 'ring' : 'bars';
+  return visualizerStyleOptions.filter((item) => item.mode === mode);
 });
 
 const progressPercent = computed(() => {
@@ -290,7 +334,10 @@ function onDrop(idx) {
 function selectVisualizerMode(mode) {
   if (mode !== 'bars' && mode !== 'ring') return;
   emit('set-visualizer-mode', mode);
-  vizMenuOpen.value = false;
+}
+
+function selectVisualizerStyle(styleKey) {
+  emit('set-visualizer-style', styleKey);
 }
 
 function onDocumentPointerDown(e) {
@@ -722,17 +769,23 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 50px;
   border-radius: 12px;
-  padding: 6px;
+  padding: 8px;
   display: grid;
-  gap: 6px;
-  min-width: 88px;
+  gap: 8px;
+  min-width: 236px;
   z-index: 20;
+}
+
+.viz-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
 }
 
 .viz-opt {
   border: 0;
   border-radius: 9px;
-  height: 30px;
+  height: 28px;
   background: rgba(255, 255, 255, 0.36);
   color: rgba(24, 28, 36, 0.82);
   font-size: 12px;
@@ -742,6 +795,117 @@ onBeforeUnmount(() => {
   background: rgba(var(--accent-rgb), 0.34);
   color: rgb(var(--accent-strong-rgb));
   box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.54);
+}
+
+.viz-style-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.viz-style-btn {
+  border: 0;
+  border-radius: 10px;
+  min-height: 36px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.34);
+  color: rgba(24, 28, 36, 0.86);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.viz-style-btn.active {
+  background: rgba(var(--accent-rgb), 0.24);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.54);
+}
+
+.viz-style-label {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.viz-preview {
+  width: 54px;
+  height: 22px;
+  border-radius: 999px;
+  position: relative;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 3px;
+  background: rgba(20, 25, 36, 0.18);
+  overflow: hidden;
+}
+
+.viz-preview .p-bar {
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(var(--accent-soft-rgb), 0.9);
+  box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.34);
+  animation: viz-preview-bars 1.3s ease-in-out infinite;
+}
+
+.viz-preview .p-bar:nth-child(1) { height: 7px; animation-delay: 0s; }
+.viz-preview .p-bar:nth-child(2) { height: 12px; animation-delay: 0.08s; }
+.viz-preview .p-bar:nth-child(3) { height: 16px; animation-delay: 0.16s; }
+.viz-preview .p-bar:nth-child(4) { height: 10px; animation-delay: 0.24s; }
+.viz-preview .p-bar:nth-child(5) { height: 6px; animation-delay: 0.32s; }
+
+.viz-preview .p-ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--accent-soft-rgb), 0.9);
+  box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.3);
+  animation: viz-preview-ring 1.5s ease-in-out infinite;
+}
+
+.viz-preview .p-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--accent-strong-rgb), 0.92);
+  box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.42);
+  animation: viz-preview-dot 1.6s linear infinite;
+}
+
+.viz-preview.bars-crystal .p-bar {
+  background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.96), rgba(255, 255, 255, 0.92));
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.28);
+}
+
+.viz-preview.bars-firefly .p-bar {
+  background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.65), rgba(var(--accent-strong-rgb), 0.92));
+  filter: saturate(1.25);
+}
+
+.viz-preview.ring-orbit .p-ring {
+  border-style: dashed;
+}
+
+.viz-preview.ring-pulse .p-ring {
+  border-width: 3px;
+}
+
+@keyframes viz-preview-bars {
+  0%, 100% { transform: scaleY(0.72); opacity: 0.74; }
+  50% { transform: scaleY(1.08); opacity: 1; }
+}
+
+@keyframes viz-preview-ring {
+  0%, 100% { transform: scale(0.88); opacity: 0.78; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes viz-preview-dot {
+  0% { transform: translate(-10px, 0); }
+  25% { transform: translate(0, -7px); }
+  50% { transform: translate(10px, 0); }
+  75% { transform: translate(0, 7px); }
+  100% { transform: translate(-10px, 0); }
 }
 
 .side-list {

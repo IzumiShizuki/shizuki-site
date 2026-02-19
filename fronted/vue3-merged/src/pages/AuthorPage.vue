@@ -1,9 +1,9 @@
 <template>
   <section class="route-page">
     <header class="page-header">
-      <p class="eyebrow">User Center</p>
-      <h1>个人中心</h1>
-      <p>这里是用户自己的资料、账号、文章和设置入口。</p>
+      <p class="eyebrow">Author Space</p>
+      <h1>作者介绍</h1>
+      <p>这里用于展示建站者信息、建站经历与作者内容。</p>
     </header>
 
     <div class="dashboard-layout">
@@ -21,55 +21,49 @@
       </aside>
 
       <section class="content-panel liquid-material">
-        <div v-if="activeTab === 'profile'" class="content-block">
-          <h2>个人</h2>
-          <p>昵称：Shizuki User（占位）</p>
-          <p>签名：在这里展示个性签名、简介与公开资料。</p>
-          <button class="logout-btn ripple-trigger" type="button" @click="handleLogout">登出</button>
+        <div v-if="activeTab === 'overview'" class="content-block">
+          <h2>作者主页</h2>
+          <p>站点作者：Shizuki（占位）</p>
+          <p>这里放你的公开简介、擅长方向、社交链接与项目入口。</p>
         </div>
 
-        <div v-else-if="activeTab === 'account'" class="content-block">
-          <h2>账号</h2>
-          <p>这里用于管理邮箱、密码、绑定信息和安全状态（占位）。</p>
-          <p>后续可接入真实登录态与安全策略。</p>
+        <div v-else-if="activeTab === 'journey'" class="content-block">
+          <h2>建站经历</h2>
+          <p>记录建站时间线、技术选型和关键里程碑（占位）。</p>
+          <p>可扩展成按时间排序的日志、版本更新和截图对比。</p>
         </div>
 
-        <div v-else-if="activeTab === 'articles'" class="content-block">
-          <h2>文章</h2>
-          <p>这里显示当前用户发布或收藏的文章列表（占位）。</p>
-          <p>后续可接入分页、筛选、草稿状态等功能。</p>
+        <div v-else-if="activeTab === 'posts'" class="content-block">
+          <h2>作者文章</h2>
+          <p>这里展示作者发布的专栏文章、教程与随笔（占位）。</p>
+          <p>后续可接入标签筛选、分类聚合和阅读统计。</p>
         </div>
 
         <div v-else class="content-block">
-          <h2>设置</h2>
-          <p>外观设置在这里统一管理，包含交互主色与主题扩展。</p>
-          <button class="settings-btn ripple-trigger" type="button" @click="settingsVisible = true">打开外观设置</button>
+          <h2>关于本站</h2>
+          <p>用于说明网站定位、内容结构、更新计划和版权信息。</p>
         </div>
       </section>
     </div>
-
-    <SettingsPanel :visible="settingsVisible" @close="settingsVisible = false" />
   </section>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import SettingsPanel from '../components/SettingsPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
-const settingsVisible = ref(false);
 
 const tabs = [
-  { key: 'profile', label: '个人' },
-  { key: 'account', label: '账号' },
-  { key: 'articles', label: '文章' },
-  { key: 'settings', label: '设置' }
+  { key: 'overview', label: '作者主页' },
+  { key: 'journey', label: '建站经历' },
+  { key: 'posts', label: '作者文章' },
+  { key: 'about', label: '关于本站' }
 ];
 
 function normalizeTab(raw) {
-  return tabs.some((item) => item.key === raw) ? raw : 'profile';
+  return tabs.some((item) => item.key === raw) ? raw : 'overview';
 }
 
 const activeTab = computed(() => {
@@ -80,20 +74,7 @@ const activeTab = computed(() => {
 function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
-  router.replace({ path: '/profile', query: { tab: normalized } });
-}
-
-function handleLogout() {
-  if (typeof window !== 'undefined') {
-    const confirmed = window.confirm('确认登出当前账号？');
-    if (!confirmed) return;
-
-    const keys = ['shizuki.auth.v1', 'shizuki.session.v1', 'shizuki.user.v1', 'shizuki.userProfile.v1'];
-    keys.forEach((key) => window.localStorage.removeItem(key));
-  }
-
-  settingsVisible.value = false;
-  router.push('/');
+  router.replace({ path: '/author', query: { tab: normalized } });
 }
 
 watch(
@@ -102,7 +83,7 @@ watch(
     const raw = typeof nextTab === 'string' ? nextTab : '';
     const normalized = normalizeTab(raw);
     if (raw === normalized) return;
-    router.replace({ path: '/profile', query: { tab: normalized } });
+    router.replace({ path: '/author', query: { tab: normalized } });
   },
   { immediate: true }
 );
@@ -194,33 +175,6 @@ h1 {
 .content-block p {
   color: rgba(223, 230, 249, 0.88);
   line-height: 1.65;
-}
-
-.settings-btn {
-  justify-self: start;
-  border: 0;
-  border-radius: 10px;
-  min-width: 132px;
-  height: 36px;
-  padding: 0 12px;
-  background: rgba(var(--accent-rgb), 0.28);
-  color: rgba(247, 242, 255, 0.95);
-}
-
-.logout-btn {
-  justify-self: start;
-  border: 0;
-  border-radius: 10px;
-  min-width: 116px;
-  height: 36px;
-  padding: 0 12px;
-  background: rgba(235, 94, 124, 0.24);
-  color: rgba(255, 230, 238, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(255, 166, 190, 0.34);
-}
-
-.logout-btn:hover {
-  background: rgba(235, 94, 124, 0.32);
 }
 
 @media (max-width: 900px) {

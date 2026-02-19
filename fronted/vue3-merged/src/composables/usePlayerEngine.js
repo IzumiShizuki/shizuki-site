@@ -4,6 +4,7 @@ import { parseLrc } from '../utils/lrc';
 const STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const MODE_ORDER = ['sequential', 'random', 'single'];
 const API_BASE = (import.meta.env.VITE_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
+const VISUALIZER_STYLES = ['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];
 
 function loadPersistedState() {
   try {
@@ -70,6 +71,17 @@ function pickNextIndex({ mode, currentIndex, tracksLen }) {
   return (currentIndex + 1) % tracksLen;
 }
 
+function styleBelongsToMode(style, mode) {
+  if (mode === 'bars') return style.startsWith('bars-');
+  if (mode === 'ring') return style.startsWith('ring-');
+  return true;
+}
+
+function getDefaultStyleByMode(mode) {
+  if (mode === 'ring') return 'ring-halo';
+  return 'bars-neon';
+}
+
 export function usePlayerEngine() {
   const persisted = loadPersistedState();
   const tracks = ref([]);
@@ -77,6 +89,7 @@ export function usePlayerEngine() {
 
   const playMode = ref(MODE_ORDER.includes(persisted.playMode) ? persisted.playMode : 'sequential');
   const visualizerMode = ref(['ring', 'bars', 'none'].includes(persisted.visualizerMode) ? persisted.visualizerMode : 'none');
+  const visualizerStyle = ref(VISUALIZER_STYLES.includes(persisted.visualizerStyle) ? persisted.visualizerStyle : 'bars-neon');
   const isPlayerExpanded = ref(Boolean(persisted.isPlayerExpanded));
   const isPinned = ref(Boolean(persisted.isPinned));
   const listOpen = ref(Boolean(persisted.listOpen));
@@ -94,6 +107,10 @@ export function usePlayerEngine() {
   const audioElement = new Audio();
   audioElement.preload = 'metadata';
   audioElement.volume = volume.value;
+
+  if (!styleBelongsToMode(visualizerStyle.value, visualizerMode.value) && visualizerMode.value !== 'none') {
+    visualizerStyle.value = getDefaultStyleByMode(visualizerMode.value);
+  }
 
   const currentIndex = computed(() => {
     if (!tracks.value.length) return -1;
@@ -267,6 +284,16 @@ export function usePlayerEngine() {
   function setVisualizerMode(mode) {
     if (!['ring', 'bars', 'none'].includes(mode)) return;
     visualizerMode.value = mode;
+    if (mode !== 'none' && !styleBelongsToMode(visualizerStyle.value, mode)) {
+      visualizerStyle.value = getDefaultStyleByMode(mode);
+    }
+  }
+
+  function setVisualizerStyle(style) {
+    if (!VISUALIZER_STYLES.includes(style)) return;
+    visualizerStyle.value = style;
+    if (style.startsWith('bars-')) visualizerMode.value = 'bars';
+    if (style.startsWith('ring-')) visualizerMode.value = 'ring';
   }
 
   function setPlayerExpanded(next) {
@@ -428,7 +455,7 @@ export function usePlayerEngine() {
   });
 
   watch(
-    [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode],
+    [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle],
     () => {
       savePersistedState({
         playMode: playMode.value,
@@ -437,7 +464,8 @@ export function usePlayerEngine() {
         isPlayerExpanded: isPlayerExpanded.value,
         isPinned: isPinned.value,
         listOpen: listOpen.value,
-        visualizerMode: visualizerMode.value
+        visualizerMode: visualizerMode.value,
+        visualizerStyle: visualizerStyle.value
       });
     }
   );
@@ -462,6 +490,7 @@ export function usePlayerEngine() {
     playMode,
     volume,
     visualizerMode,
+    visualizerStyle,
     listOpen,
     isPlayerExpanded,
     isPinned,
@@ -474,6 +503,7 @@ export function usePlayerEngine() {
     seekToPercent,
     cyclePlayMode,
     setVisualizerMode,
+    setVisualizerStyle,
     setPlayerExpanded,
     setPinned,
     setListOpen,
