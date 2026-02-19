@@ -5,6 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 ERRORS=0
+AWK_BIN="${AWK_BIN:-awk}"
+RG_BIN="${RG_BIN:-}"
+if [[ -z "${RG_BIN}" ]]; then
+  if command -v rg >/dev/null 2>&1; then
+    RG_BIN="rg"
+  else
+    RG_BIN=""
+  fi
+fi
 
 print_error() {
   local msg="$1"
@@ -22,10 +31,19 @@ check_required_headers_in_resource_sql() {
   if [[ "${file}" != resouces/sql/* ]]; then
     return 0
   fi
-  if ! rg -q '^-- modified_at:' "${file}"; then
+  local has_modified=1
+  local has_change=1
+  if [[ -n "${RG_BIN}" ]]; then
+    "${RG_BIN}" -q '^-- modified_at:' "${file}" && has_modified=0 || true
+    "${RG_BIN}" -q '^-- change:' "${file}" && has_change=0 || true
+  else
+    grep -Eq '^-- modified_at:' "${file}" && has_modified=0 || true
+    grep -Eq '^-- change:' "${file}" && has_change=0 || true
+  fi
+  if [[ "${has_modified}" -ne 0 ]]; then
     print_error "${file}: missing header '-- modified_at:'"
   fi
-  if ! rg -q '^-- change:' "${file}"; then
+  if [[ "${has_change}" -ne 0 ]]; then
     print_error "${file}: missing header '-- change:'"
   fi
 }
@@ -33,7 +51,11 @@ check_required_headers_in_resource_sql() {
 check_no_select_star() {
   local file="$1"
   local hit
-  hit="$(rg -n -i '\bselect\s+\*\b' "${file}" || true)"
+  if [[ -n "${RG_BIN}" ]]; then
+    hit="$("${RG_BIN}" -n -i '\bselect\s+\*\b' "${file}" || true)"
+  else
+    hit="$(grep -Eni 'select[[:space:]]+\*' "${file}" || true)"
+  fi
   if [[ -n "${hit}" ]]; then
     print_error "${file}: found SELECT * usage"
     echo "${hit}"
@@ -56,14 +78,25 @@ check_column_comment_for_create_table() {
   local file="$1"
   local violations
   violations="$(
-    awk '
+    "${AWK_BIN}" '
       BEGIN { in_create = 0 }
-      /^[[:space:]]*CREATE[[:space:]]+TABLE/i { in_create = 1; next }
+      {
+        line_lower = tolower($0)
+      }
+      line_lower ~ /^[[:space:]]*create[[:space:]]+table/ {
+        in_create = 1
+        next
+      }
       in_create == 1 {
-        if ($0 ~ /^[[:space:]]*\)[[:space:]]*([^;]*;)?[[:space:]]*$/) { in_create = 0; next }
-        if ($0 ~ /^[[:space:]]*(CONSTRAINT|PRIMARY[[:space:]]+KEY|UNIQUE|KEY|INDEX|FOREIGN[[:space:]]+KEY)\b/i) { next }
+        if (line_lower ~ /^[[:space:]]*\)[[:space:]]*[^;]*;?[[:space:]]*$/) {
+          in_create = 0
+          next
+        }
+        if (line_lower ~ /^[[:space:]]*(constraint|primary[[:space:]]+key|unique|key|index|foreign[[:space:]]+key)[[:space:]]/) {
+          next
+        }
         if ($0 ~ /^[[:space:]]*[`A-Za-z_][`A-Za-z0-9_]*[[:space:]]+/) {
-          if ($0 !~ /COMMENT[[:space:]]+'\''/i) {
+          if (line_lower !~ /comment[[:space:]]+'\''/) {
             printf "%s:%d:%s\n", FILENAME, NR, $0
           }
         }
