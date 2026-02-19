@@ -76,7 +76,7 @@
         </button>
       </div>
 
-      <div class="bottom-row">
+      <div class="bottom-row" :class="{ 'with-viz-control': showVisualizerControls }">
         <button class="mini-action ripple-trigger" type="button" title="字幕" @click="emit('toggle-subtitle')">
           <i class="fas fa-closed-captioning"></i>
           <span>字幕</span>
@@ -85,6 +85,20 @@
           <i class="fas fa-list"></i>
           <span>列表</span>
         </button>
+        <div v-if="showVisualizerControls" class="viz-ctrl">
+          <button class="mini-action ripple-trigger viz-btn" type="button" title="可视化" @click.stop="vizMenuOpen = !vizMenuOpen">
+            <i class="fas fa-wave-square"></i>
+            <span>可视化</span>
+          </button>
+          <div v-if="vizMenuOpen" class="viz-menu liquid-material">
+            <button class="viz-opt ripple-trigger" :class="{ active: visualizerMode === 'bars' }" type="button" @click.stop="selectVisualizerMode('bars')">
+              线型
+            </button>
+            <button class="viz-opt ripple-trigger" :class="{ active: visualizerMode === 'ring' }" type="button" @click.stop="selectVisualizerMode('ring')">
+              圆形
+            </button>
+          </div>
+        </div>
       </div>
     </article>
 
@@ -141,7 +155,9 @@ const props = defineProps({
   isExpanded: { type: Boolean, default: false },
   isPinned: { type: Boolean, default: false },
   playMode: { type: String, default: 'sequential' },
-  listOpen: { type: Boolean, default: false }
+  listOpen: { type: Boolean, default: false },
+  visualizerMode: { type: String, default: 'bars' },
+  showVisualizerControls: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -155,6 +171,7 @@ const emit = defineEmits([
   'toggle-list',
   'select-track',
   'toggle-subtitle',
+  'set-visualizer-mode',
   'reorder-tracks',
   'open-settings'
 ]);
@@ -164,6 +181,7 @@ const dragIndex = ref(-1);
 const progressRef = ref(null);
 const previewVisible = ref(false);
 const previewPercent = ref(0);
+const vizMenuOpen = ref(false);
 
 const gesture = {
   pointerId: null,
@@ -269,6 +287,12 @@ function onDrop(idx) {
   dragIndex.value = -1;
 }
 
+function selectVisualizerMode(mode) {
+  if (mode !== 'bars' && mode !== 'ring') return;
+  emit('set-visualizer-mode', mode);
+  vizMenuOpen.value = false;
+}
+
 function onDocumentPointerDown(e) {
   if (!props.isExpanded || props.isPinned) return;
   const root = rootRef.value;
@@ -276,8 +300,9 @@ function onDocumentPointerDown(e) {
   const target = e.target;
   if (!(target instanceof Element)) return;
   if (root.contains(target)) return;
-  if (target.closest('.global-lyric-bar')) return;
+  if (target.closest('.global-bars') || target.closest('.global-ring') || target.closest('.global-lyric-bar')) return;
   if (target.closest('.top-menu-root') || target.closest('.ai-dialog-shell')) return;
+  vizMenuOpen.value = false;
   emit('set-expanded', false);
 }
 
@@ -657,8 +682,18 @@ onBeforeUnmount(() => {
   transition: opacity 260ms ease;
 }
 
+.bottom-row.with-viz-control {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .player-card.active .bottom-row {
   opacity: 1;
+}
+
+.viz-ctrl {
+  position: relative;
+  min-width: 0;
+  z-index: 12;
 }
 
 .mini-action {
@@ -673,6 +708,40 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 6px;
   font-size: var(--mini-font-size);
+}
+
+.viz-btn {
+  min-width: 0;
+}
+
+.viz-menu {
+  --liquid-bg: rgba(var(--glass-rgb), 0.48);
+  --liquid-border: rgba(255, 255, 255, 0.5);
+  --liquid-shadow: 0 10px 22px rgba(10, 12, 20, 0.24);
+  position: absolute;
+  right: 0;
+  bottom: 50px;
+  border-radius: 12px;
+  padding: 6px;
+  display: grid;
+  gap: 6px;
+  min-width: 88px;
+  z-index: 20;
+}
+
+.viz-opt {
+  border: 0;
+  border-radius: 9px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.36);
+  color: rgba(24, 28, 36, 0.82);
+  font-size: 12px;
+}
+
+.viz-opt.active {
+  background: rgba(var(--accent-rgb), 0.34);
+  color: rgb(var(--accent-strong-rgb));
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.54);
 }
 
 .side-list {
