@@ -1,20 +1,20 @@
 <template>
-  <aside
+  <motion.aside
     class="ai-dialog-shell"
-    :class="{
-      visible,
-      hidden: !visible,
-      expanded: menuExpanded,
-      collapsed: !menuExpanded
-    }"
+    :class="[`mode-${mode}`, { visible, hidden: !visible }]"
+    :initial="false"
+    :animate="shellMotion"
+    :transition="shellTransition"
   >
-    <section class="ai-dialog liquid-material">
+    <button v-if="mode === 'sheet'" class="sheet-backdrop" type="button" aria-label="关闭AI面板" @click="emitClose"></button>
+
+    <section class="ai-dialog liquid-material" @click.stop>
       <header class="ai-dialog-header">
         <button class="icon-btn ripple-trigger" type="button" title="设置">
           <i class="fas fa-gear"></i>
         </button>
         <div class="dialog-title">AI 对话</div>
-        <button class="icon-btn close-btn ripple-trigger" type="button" title="退出" @click="emit('close')">-</button>
+        <button class="icon-btn close-btn ripple-trigger" type="button" title="收起" @click="emitClose">-</button>
       </header>
 
       <div class="chat-stream">
@@ -39,56 +39,61 @@
         </button>
       </footer>
     </section>
-  </aside>
+  </motion.aside>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue';
+import { motion, useReducedMotion } from 'motion-v';
+
+const props = defineProps({
   visible: {
     type: Boolean,
     default: false
   },
-  menuExpanded: {
-    type: Boolean,
-    default: false
+  mode: {
+    type: String,
+    default: 'sidebar',
+    validator: (value) => value === 'sidebar' || value === 'sheet'
   }
 });
 
 const emit = defineEmits(['close']);
+const prefersReducedMotion = useReducedMotion();
+
+const shellMotion = computed(() => {
+  if (prefersReducedMotion.value) {
+    return { opacity: props.visible ? 1 : 0, x: 0, y: 0, scale: 1 };
+  }
+
+  if (props.mode === 'sheet') {
+    return props.visible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 26, scale: 0.995 };
+  }
+
+  return props.visible ? { opacity: 1, x: 0, scale: 1 } : { opacity: 0, x: 22, scale: 0.992 };
+});
+
+const shellTransition = computed(() =>
+  prefersReducedMotion.value
+    ? { duration: 0.14, ease: 'linear' }
+    : { duration: 0.26, ease: [0.22, 1, 0.36, 1] }
+);
+
+function emitClose() {
+  emit('close');
+}
 </script>
 
 <style scoped>
 .ai-dialog-shell {
-  --panel-width: 260px;
-  --dialog-top-expanded: 138px;
-  --dialog-top-collapsed: 34px;
-  --dialog-bottom-gap: 10px;
-  position: fixed;
-  right: 18px;
-  top: var(--dialog-top-collapsed);
-  bottom: var(--dialog-bottom-gap);
-  width: var(--panel-width);
-  z-index: 900;
+  position: relative;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  opacity: 0;
-  transform: translateY(6px) scale(0.985);
-  transition:
-    top 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.28s ease,
-    transform 0.28s ease;
-}
-
-.ai-dialog-shell.expanded {
-  top: var(--dialog-top-expanded);
-}
-
-.ai-dialog-shell.collapsed {
-  top: var(--dialog-top-collapsed);
+  z-index: 1;
 }
 
 .ai-dialog-shell.visible {
-  opacity: 1;
-  transform: translateY(0) scale(1);
   pointer-events: auto;
 }
 
@@ -96,10 +101,33 @@ const emit = defineEmits(['close']);
   pointer-events: none;
 }
 
+.ai-dialog-shell.mode-sidebar {
+  display: block;
+}
+
+.ai-dialog-shell.mode-sheet {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+  z-index: 1750;
+}
+
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(8, 12, 18, 0.42);
+  backdrop-filter: blur(5px) saturate(120%);
+  -webkit-backdrop-filter: blur(5px) saturate(120%);
+}
+
 .ai-dialog {
   --liquid-bg: rgba(var(--glass-rgb), 0.28);
   --liquid-border: rgba(255, 255, 255, 0.34);
   --liquid-shadow: 0 10px 24px rgba(20, 24, 45, 0.07);
+  position: relative;
   width: 100%;
   height: 100%;
   border-radius: 20px;
@@ -114,6 +142,13 @@ const emit = defineEmits(['close']);
   -webkit-backdrop-filter: var(--glass-blur);
   will-change: transform, opacity;
   transition: background-color 0.28s ease, border-color 0.28s ease;
+}
+
+.mode-sheet .ai-dialog {
+  border-radius: 22px 22px 0 0;
+  max-height: min(86vh, 720px);
+  height: min(86vh, 720px);
+  box-shadow: 0 -12px 36px rgba(8, 10, 16, 0.42);
 }
 
 .ai-dialog-header {
@@ -150,8 +185,8 @@ const emit = defineEmits(['close']);
 }
 
 .icon-btn:hover {
-  background: rgba(184, 160, 236, 0.22);
-  color: #b79cff;
+  background: rgba(var(--accent-rgb), 0.22);
+  color: rgb(var(--accent-strong-rgb));
 }
 
 .chat-stream {
@@ -176,7 +211,7 @@ const emit = defineEmits(['close']);
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(var(--accent-rgb), 0.46);
 }
 
 .chat-bubble {
@@ -188,7 +223,7 @@ const emit = defineEmits(['close']);
 
 .chat-row.right .chat-bubble {
   width: 98px;
-  background: rgba(192, 171, 235, 0.45);
+  background: rgba(var(--accent-rgb), 0.38);
 }
 
 .chat-bubble.short {
@@ -216,14 +251,22 @@ const emit = defineEmits(['close']);
   height: 28px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.38);
-  color: rgba(75, 76, 84, 0.85);
+  background: rgba(var(--accent-rgb), 0.28);
+  color: rgba(247, 241, 255, 0.95);
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .send-btn:hover {
-  background: rgba(184, 160, 236, 0.26);
-  color: #b79cff;
+  background: rgba(var(--accent-rgb), 0.38);
+  color: rgb(var(--accent-strong-rgb));
+}
+
+@media (max-width: 900px) {
+  .mode-sheet .ai-dialog {
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+  }
 }
 </style>

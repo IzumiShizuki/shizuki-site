@@ -1,5 +1,5 @@
 <template>
-  <nav class="fixed-nav-wrapper top-menu-root" :class="{ expanded: menuExpanded }">
+  <nav ref="menuScope" class="fixed-nav-wrapper top-menu-root motion-managed" :class="{ expanded: menuExpanded }">
     <div class="top-bar liquid-material">
       <div class="nav-section left">
         <div class="left-pill-group liquid-material" :style="{ '--active-index': activeMainRouteIndex }">
@@ -21,8 +21,8 @@
           </div>
           <div
             class="menu-item-stack left-main-btn ripple-trigger"
-            :class="{ active: activeMainRoute === 'music_library' }"
-            @click="selectMainRoute('music_library')"
+            :class="{ active: activeMainRoute === 'music-library' }"
+            @click="selectMainRoute('music-library')"
           >
             <div class="icon-minimal"><i class="fas fa-music"></i></div>
             <span class="item-label">音乐库</span>
@@ -37,8 +37,8 @@
           </div>
           <div
             class="menu-item-stack left-main-btn ripple-trigger"
-            :class="{ active: activeMainRoute === 'ai_tavern' }"
-            @click="selectMainRoute('ai_tavern')"
+            :class="{ active: activeMainRoute === 'ai-tavern' }"
+            @click="selectMainRoute('ai-tavern')"
           >
             <div class="icon-minimal"><i class="far fa-comment-dots"></i></div>
             <span class="item-label">AI酒馆</span>
@@ -90,9 +90,9 @@
           <span class="item-label">作者信息</span>
         </div>
 
-        <div class="menu-item-stack ripple-trigger">
+        <div class="menu-item-stack ripple-trigger user-profile-item" @click.stop="openProfile">
           <div class="avatar-box"></div>
-          <span class="item-label">用户登录</span>
+          <span class="item-label">个人页面</span>
         </div>
       </div>
     </div>
@@ -108,7 +108,9 @@
 </template>
 
 <script setup>
-import { computed, ref, toRefs } from 'vue';
+import { computed, nextTick, onMounted, ref, toRefs, watch } from 'vue';
+import { useAnimate, useReducedMotion } from 'motion-v';
+import { useRoute } from 'vue-router';
 
 const props = defineProps({
   menuExpanded: {
@@ -121,9 +123,18 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'author-info-click', 'open-background-picker']);
-const activeMainRoute = ref('home');
-const mainRouteOrder = ['home', 'blog', 'music_library', 'apps', 'ai_tavern'];
+const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'author-info-click', 'open-background-picker', 'open-profile']);
+const route = useRoute();
+const mainRouteOrder = ['home', 'blog', 'music-library', 'apps', 'ai-tavern'];
+const [menuScope, animate] = useAnimate();
+const prefersReducedMotion = useReducedMotion();
+const { menuExpanded, aiChatActive } = toRefs(props);
+
+const activeMainRoute = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : 'home';
+  return mainRouteOrder.includes(name) ? name : 'home';
+});
+
 const activeMainRouteIndex = computed(() => {
   const idx = mainRouteOrder.indexOf(activeMainRoute.value);
   return idx < 0 ? 0 : idx;
@@ -138,7 +149,6 @@ function toggleAiChat() {
 }
 
 function selectMainRoute(routeKey) {
-  activeMainRoute.value = routeKey;
   emit('select-main-route', routeKey);
 }
 
@@ -150,7 +160,59 @@ function openBackgroundPicker() {
   emit('open-background-picker');
 }
 
-const { menuExpanded, aiChatActive } = toRefs(props);
+function openProfile() {
+  emit('open-profile');
+}
+
+function getMenuItems() {
+  if (!menuScope.value) return [];
+  return Array.from(menuScope.value.querySelectorAll('.menu-item-stack'));
+}
+
+function applyMenuState(expanded) {
+  const items = getMenuItems();
+  items.forEach((item) => {
+    item.style.opacity = expanded ? '1' : '0';
+    item.style.transform = expanded ? 'translateY(0px)' : 'translateY(-20px)';
+  });
+}
+
+function runMenuAnimation(expanded, immediate = false) {
+  const items = getMenuItems();
+  if (!items.length) return;
+
+  if (immediate || prefersReducedMotion.value) {
+    applyMenuState(expanded);
+    return;
+  }
+
+  const ordered = expanded ? items : [...items].reverse();
+  ordered.forEach((item, index) => {
+    animate(
+      item,
+      expanded
+        ? { opacity: [0, 1], y: [-18, 0], scale: [0.96, 1] }
+        : { opacity: [1, 0], y: [0, -14], scale: [1, 0.985] },
+      {
+        duration: expanded ? 0.32 : 0.18,
+        delay: index * 0.03,
+        ease: expanded ? 'cubic-bezier(0.22, 1, 0.36, 1)' : 'ease-out'
+      }
+    );
+  });
+}
+
+watch(
+  menuExpanded,
+  (expanded) => {
+    nextTick(() => runMenuAnimation(expanded));
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
+  nextTick(() => runMenuAnimation(menuExpanded.value, true));
+});
 </script>
 
 <style scoped>
@@ -159,9 +221,9 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   --menu-glass-bg: rgba(var(--glass-rgb), calc(var(--glass-bg-alpha) * var(--menu-alpha-scale)));
   --menu-glass-border: rgba(255, 255, 255, calc(var(--glass-border-alpha) * var(--menu-alpha-scale)));
   --menu-glass-shadow: 0 8px 32px rgba(0, 0, 0, calc(var(--glass-shadow-alpha) * var(--menu-alpha-scale)));
-  --menu-hover-bg: rgba(208, 218, 238, 0.44);
-  --menu-active-bg: rgba(192, 204, 228, 0.52);
-  --icon-hover-color: #b79cff;
+  --menu-hover-bg: rgba(var(--accent-soft-rgb), 0.44);
+  --menu-active-bg: rgba(var(--accent-rgb), 0.22);
+  --icon-hover-color: rgb(var(--accent-strong-rgb));
 }
 
 .top-menu-root .liquid-material {
@@ -231,6 +293,10 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   position: relative;
 }
 
+.top-menu-root.motion-managed .menu-item-stack {
+  transition: none !important;
+}
+
 .menu-item-stack:active .icon-minimal,
 .menu-item-stack:active .circle-icon-box,
 .menu-item-stack:active .github-style-box,
@@ -240,12 +306,12 @@ const { menuExpanded, aiChatActive } = toRefs(props);
 }
 
 .left-main-btn.active .icon-minimal {
-  color: #7358b2;
+  color: rgb(var(--accent-strong-rgb));
   transform: scale(1.06);
 }
 
 .left-main-btn.active .item-label {
-  color: #7358b2;
+  color: rgb(var(--accent-strong-rgb));
   font-weight: 600;
 }
 
@@ -281,10 +347,10 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   left: var(--left-main-padding-x);
   width: var(--left-main-item-width);
   border-radius: 24px;
-  background: rgba(183, 156, 255, 0.24);
+  background: rgba(var(--accent-rgb), 0.24);
   box-shadow:
-    0 0 0 1px rgba(183, 156, 255, 0.42),
-    0 8px 16px rgba(115, 88, 178, 0.16);
+    0 0 0 1px rgba(var(--accent-rgb), 0.42),
+    0 8px 16px rgba(var(--accent-rgb), 0.2);
   transform: translateX(calc(var(--active-index, 0) * (var(--left-main-item-width) + var(--left-main-gap))));
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
@@ -311,7 +377,7 @@ const { menuExpanded, aiChatActive } = toRefs(props);
 .icon-minimal:hover {
   transform: scale(1.15);
   color: var(--icon-hover-color);
-  background: rgba(208, 218, 238, 0.32);
+  background: rgba(var(--accent-soft-rgb), 0.36);
 }
 
 .circle-icon-box {
@@ -374,9 +440,9 @@ const { menuExpanded, aiChatActive } = toRefs(props);
 }
 
 .ai-chat-dot.active {
-  background: #35d36a;
-  border-color: #35d36a;
-  box-shadow: 0 0 0 2px rgba(53, 211, 106, 0.2);
+  background: rgb(var(--accent-strong-rgb));
+  border-color: rgb(var(--accent-strong-rgb));
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.22);
 }
 
 .github-style-box {
@@ -411,8 +477,8 @@ const { menuExpanded, aiChatActive } = toRefs(props);
 
 .author-info-item:hover .author-avatar-box {
   transform: scale(1.06);
-  border-color: rgba(183, 156, 255, 0.78);
-  box-shadow: 0 6px 14px rgba(115, 88, 178, 0.2);
+  border-color: rgba(var(--accent-rgb), 0.78);
+  box-shadow: 0 6px 14px rgba(var(--accent-rgb), 0.24);
 }
 
 .avatar-box {
@@ -433,7 +499,7 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   right: 0;
   width: 10px;
   height: 10px;
-  background: #7c8fff;
+  background: rgb(var(--accent-strong-rgb));
   border: 1px solid #fff;
   border-radius: 50%;
 }
@@ -776,8 +842,8 @@ const { menuExpanded, aiChatActive } = toRefs(props);
   }
 
   .menu-item-stack.active {
-    background: rgba(183, 156, 255, 0.24);
-    box-shadow: inset 0 0 0 1px rgba(183, 156, 255, 0.42);
+    background: rgba(var(--accent-rgb), 0.24);
+    box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.42);
   }
 
   .item-label {

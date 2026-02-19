@@ -799,7 +799,7 @@ onBeforeUnmount(() => {
 }
 
 .menu-item:hover {
-  background: rgba(205, 220, 242, 0.62);
+  background: rgba(var(--accent-rgb), 0.46);
 }
 
 .menu-item:active {
@@ -865,7 +865,7 @@ onBeforeUnmount(() => {
 }
 
 .submenu-item:hover {
-  background: rgba(205, 220, 242, 0.62);
+  background: rgba(var(--accent-rgb), 0.46);
   color: #ffffff;
 }
 

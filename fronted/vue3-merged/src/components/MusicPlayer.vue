@@ -85,16 +85,6 @@
           <i class="fas fa-list"></i>
           <span>列表</span>
         </button>
-        <div class="viz-ctrl">
-          <button class="mini-action ripple-trigger viz-btn" type="button" title="可视化" @click="vizMenuOpen = !vizMenuOpen">
-            <i class="fas fa-wave-square"></i>
-            <span>可视化</span>
-          </button>
-          <div v-if="vizMenuOpen" class="viz-menu liquid-material">
-            <button class="viz-opt" :class="{ active: visualizerOptions?.bars }" @click="emit('toggle-visualizer-option', 'bars')">线型</button>
-            <button class="viz-opt" :class="{ active: visualizerOptions?.ring }" @click="emit('toggle-visualizer-option', 'ring')">圆形</button>
-          </div>
-        </div>
       </div>
     </article>
 
@@ -151,11 +141,7 @@ const props = defineProps({
   isExpanded: { type: Boolean, default: false },
   isPinned: { type: Boolean, default: false },
   playMode: { type: String, default: 'sequential' },
-  listOpen: { type: Boolean, default: false },
-  visualizerOptions: {
-    type: Object,
-    default: () => ({ bars: true, ring: false })
-  }
+  listOpen: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -169,7 +155,6 @@ const emit = defineEmits([
   'toggle-list',
   'select-track',
   'toggle-subtitle',
-  'toggle-visualizer-option',
   'reorder-tracks',
   'open-settings'
 ]);
@@ -179,7 +164,6 @@ const dragIndex = ref(-1);
 const progressRef = ref(null);
 const previewVisible = ref(false);
 const previewPercent = ref(0);
-const vizMenuOpen = ref(false);
 
 const gesture = {
   pointerId: null,
@@ -292,9 +276,8 @@ function onDocumentPointerDown(e) {
   const target = e.target;
   if (!(target instanceof Element)) return;
   if (root.contains(target)) return;
-  if (target.closest('.global-bars') || target.closest('.global-ring') || target.closest('.global-lyric-bar')) return;
+  if (target.closest('.global-lyric-bar')) return;
   if (target.closest('.top-menu-root') || target.closest('.ai-dialog-shell')) return;
-  vizMenuOpen.value = false;
   emit('set-expanded', false);
 }
 
@@ -394,7 +377,7 @@ onBeforeUnmount(() => {
 }
 
 .player-card.pinned .top-pin {
-  background: rgba(120, 84, 178, 0.88);
+  background: rgba(var(--accent-strong-rgb), 0.88);
   color: rgba(242, 228, 255, 0.94);
 }
 
@@ -610,7 +593,7 @@ onBeforeUnmount(() => {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, rgba(176, 215, 255, 0.88), rgba(142, 186, 255, 0.9));
+  background: linear-gradient(90deg, rgba(var(--accent-soft-rgb), 0.9), rgba(var(--accent-rgb), 0.92));
 }
 
 .progress-preview {
@@ -667,7 +650,7 @@ onBeforeUnmount(() => {
   right: 0;
   top: var(--bottom-top);
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 0 28px;
   gap: var(--main-gap);
   opacity: 0;
@@ -676,12 +659,6 @@ onBeforeUnmount(() => {
 
 .player-card.active .bottom-row {
   opacity: 1;
-}
-
-.viz-ctrl {
-  position: relative;
-  min-width: 0;
-  z-index: 12;
 }
 
 .mini-action {
@@ -696,40 +673,6 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 6px;
   font-size: var(--mini-font-size);
-}
-
-.viz-btn {
-  min-width: 104px;
-  width: 100%;
-}
-
-.viz-menu {
-  --liquid-bg: rgba(var(--glass-rgb), 0.46);
-  --liquid-border: rgba(255, 255, 255, 0.48);
-  --liquid-shadow: 0 10px 22px rgba(10, 12, 20, 0.24);
-  position: absolute;
-  right: 0;
-  bottom: 48px;
-  border-radius: 12px;
-  padding: 6px;
-  display: grid;
-  gap: 6px;
-  min-width: 86px;
-  z-index: 20;
-}
-
-.viz-opt {
-  border: 0;
-  border-radius: 9px;
-  height: 30px;
-  background: rgba(255, 255, 255, 0.36);
-  color: rgba(24, 28, 36, 0.82);
-  font-size: 12px;
-}
-
-.viz-opt.active {
-  background: rgba(120, 84, 178, 0.82);
-  color: rgba(248, 239, 255, 0.95);
 }
 
 .side-list {
@@ -806,7 +749,8 @@ onBeforeUnmount(() => {
 }
 
 .track-item.active {
-  background: rgba(168, 202, 240, 0.62);
+  background: rgba(var(--accent-rgb), 0.34);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.52);
 }
 
 .item-main {

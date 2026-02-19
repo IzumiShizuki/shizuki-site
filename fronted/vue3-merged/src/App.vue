@@ -1,176 +1,193 @@
 <template>
-  <div class="app-shell">
-    <div class="bg-layer" aria-hidden="true">
-      <img class="bg-image" :src="activeImageBackground" alt="background" />
-      <video
-        v-if="activeVideoBackground && !videoFailed"
-        class="bg-video"
-        :src="activeVideoBackground"
-        autoplay
-        muted
-        loop
-        playsinline
-        preload="auto"
-        @error="videoFailed = true"
-      ></video>
-    </div>
-
-    <TopMenu
-      :menu-expanded="menuExpanded"
-      :ai-chat-active="aiChatActive"
-      @toggle-menu="toggleMenu"
-      @toggle-ai-chat="toggleAiChat"
-      @select-main-route="handleMainRouteSelect"
-      @author-info-click="handleAuthorInfoClick"
-      @open-background-picker="backgroundPickerVisible = true"
-    />
-
-    <AiDialog :visible="aiChatActive" :menu-expanded="menuExpanded" @close="closeAiChat" />
-
-    <MusicPlayer
-      :track="player.currentTrack.value"
-      :tracks="player.tracks.value"
-      :lyric-line="player.currentLyricLine.value"
-      :lyric-context="player.lyricContext.value"
-      :current-time="player.currentTime.value"
-      :duration="player.duration.value"
-      :is-playing="player.isPlaying.value"
-      :is-expanded="player.isPlayerExpanded.value"
-      :is-pinned="player.isPinned.value"
-      :play-mode="player.playMode.value"
-      :list-open="player.listOpen.value"
-      :visualizer-options="visualizerOptions"
-      @set-expanded="player.setPlayerExpanded"
-      @set-pinned="player.setPinned"
-      @toggle-play="player.togglePlay"
-      @prev="player.playPrev"
-      @next="player.playNext"
-      @cycle-mode="player.cyclePlayMode"
-      @seek="player.seekToPercent"
-      @toggle-list="player.setListOpen(!player.listOpen.value)"
-      @select-track="handleSelectTrack"
-      @toggle-subtitle="subtitleVisible = !subtitleVisible"
-      @toggle-visualizer-option="toggleVisualizerOption"
-      @reorder-tracks="handleReorderTracks"
-      @open-settings="openPlayerSettings"
-    />
-
-    <transition name="lyric-fade">
-      <div
-        v-if="subtitleVisible"
-        class="global-lyric-bar liquid-material"
-        :style="bottomFloatingStyle(lyricOffset)"
-        @pointerdown="startDrag('lyric', $event)"
-      >
-        <span>{{ player.currentLyricLine.value || '纯音乐，无歌词' }}</span>
+  <MotionConfig reduced-motion="user">
+    <div class="app-shell">
+      <div class="bg-layer" aria-hidden="true">
+        <img class="bg-image" :src="activeImageBackground" alt="background" />
+        <video
+          v-if="activeVideoBackground && !videoFailed"
+          class="bg-video"
+          :src="activeVideoBackground"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="auto"
+          @error="videoFailed = true"
+        ></video>
+        <div class="bg-fx"></div>
       </div>
-    </transition>
 
-    <div
-      v-if="visualizerOptions.bars"
-      class="global-bars"
-      :style="bottomFloatingStyle(vizOffset)"
-      @pointerdown="startDrag('viz', $event)"
-      aria-hidden="true"
-    >
-      <span v-for="(v, i) in barLevels" :key="`bar-${i}`" class="bar" :style="{ height: `${8 + v * 46}px` }"></span>
-    </div>
+      <TopMenu
+        :menu-expanded="menuExpanded"
+        :ai-chat-active="aiChatActive"
+        @toggle-menu="toggleMenu"
+        @toggle-ai-chat="toggleAiChat"
+        @select-main-route="handleMainRouteSelect"
+        @author-info-click="handleAuthorInfoClick"
+        @open-profile="openProfile"
+        @open-background-picker="backgroundPickerVisible = true"
+      />
 
-    <div
-      v-if="visualizerOptions.ring"
-      class="global-ring"
-      :style="centerFloatingStyle(vizOffset)"
-      @pointerdown="startDrag('viz', $event)"
-      aria-hidden="true"
-    >
-      <div class="ring-core">
-        <span v-for="(v, i) in ringLevels" :key="`ring-${i}`" class="ring-seg" :style="ringSegStyle(v, i)"></span>
+      <section class="workspace-shell" :class="{ expanded: menuExpanded, 'with-ai-panel': showSidebarAiPanel }">
+        <main class="route-content">
+          <RouterView />
+        </main>
+
+        <aside v-if="showSidebarAiPanel" class="ai-side-column">
+          <AiDialog :visible="true" mode="sidebar" @close="closeAiChat" />
+        </aside>
+      </section>
+
+      <AiDialog v-if="showMobileAiPanel" :visible="true" mode="sheet" @close="closeAiChat" />
+
+      <MusicPlayer
+        :track="player.currentTrack.value"
+        :tracks="player.tracks.value"
+        :lyric-line="player.currentLyricLine.value"
+        :lyric-context="player.lyricContext.value"
+        :current-time="player.currentTime.value"
+        :duration="player.duration.value"
+        :is-playing="player.isPlaying.value"
+        :is-expanded="player.isPlayerExpanded.value"
+        :is-pinned="player.isPinned.value"
+        :play-mode="player.playMode.value"
+        :list-open="player.listOpen.value"
+        @set-expanded="player.setPlayerExpanded"
+        @set-pinned="player.setPinned"
+        @toggle-play="player.togglePlay"
+        @prev="player.playPrev"
+        @next="player.playNext"
+        @cycle-mode="player.cyclePlayMode"
+        @seek="player.seekToPercent"
+        @toggle-list="player.setListOpen(!player.listOpen.value)"
+        @select-track="handleSelectTrack"
+        @toggle-subtitle="subtitleVisible = !subtitleVisible"
+        @reorder-tracks="handleReorderTracks"
+        @open-settings="openPlayerSettings"
+      />
+
+      <transition name="lyric-fade">
+        <div
+          v-if="subtitleVisible"
+          class="global-lyric-bar liquid-material"
+          :style="bottomFloatingStyle(lyricOffset)"
+          @pointerdown="startDrag($event)"
+        >
+          <span>{{ player.currentLyricLine.value || '纯音乐，无歌词' }}</span>
+        </div>
+      </transition>
+
+      <transition name="picker-fade">
+        <div v-if="backgroundPickerVisible" class="bg-picker-mask" @click.self="backgroundPickerVisible = false">
+          <section class="bg-picker liquid-material">
+            <header class="picker-head">
+              <div class="picker-title">背景设置</div>
+              <button class="picker-close ripple-trigger" @click="backgroundPickerVisible = false">关闭</button>
+            </header>
+
+            <div class="picker-tabs">
+              <button
+                v-for="tab in bgTabs"
+                :key="tab.key"
+                class="tab-btn ripple-trigger"
+                :class="{ active: bgTab === tab.key }"
+                @click="setBgTab(tab.key)"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+
+            <div class="picker-apply-mode">
+              <button
+                class="scope-btn ripple-trigger"
+                :class="{ active: backgroundApplyTarget === 'route' }"
+                @click="backgroundApplyTarget = 'route'"
+              >
+                应用到当前路由
+              </button>
+              <button
+                class="scope-btn ripple-trigger"
+                :class="{ active: backgroundApplyTarget === 'global' }"
+                @click="backgroundApplyTarget = 'global'"
+              >
+                应用到全局默认
+              </button>
+              <button
+                v-if="backgroundApplyTarget === 'route'"
+                class="scope-btn danger ripple-trigger"
+                @click="clearCurrentRouteBackground"
+              >
+                清空当前路由背景
+              </button>
+            </div>
+
+            <p class="route-bg-note">
+              当前路由：{{ currentRouteLabel }}
+              <span v-if="currentRouteBackgroundId">（已单独设置）</span>
+              <span v-else>（未设置，沿用全局）</span>
+            </p>
+
+            <div class="picker-grid">
+              <button
+                v-for="item in filteredBackgroundItems"
+                :key="item.id"
+                class="picker-item ripple-trigger"
+                :class="{ active: item.id === activeBackgroundId }"
+                @click="selectBackground(item.id)"
+              >
+                <img class="picker-preview" :src="item.preview" :alt="item.name" />
+                <span class="picker-name">{{ item.name }}</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </transition>
+
+      <LevitationBall ref="levitationRef" />
+
+      <div class="click-ripple-layer" aria-hidden="true">
+        <span
+          v-for="ripple in clickRipples"
+          :key="ripple.id"
+          class="click-ripple"
+          :style="{
+            left: `${ripple.x}px`,
+            top: `${ripple.y}px`,
+            width: `${ripple.size}px`,
+            height: `${ripple.size}px`
+          }"
+        ></span>
       </div>
     </div>
-
-    <transition name="picker-fade">
-      <div v-if="backgroundPickerVisible" class="bg-picker-mask" @click.self="backgroundPickerVisible = false">
-        <section class="bg-picker liquid-material">
-          <header class="picker-head">
-            <div class="picker-title">变换图片</div>
-            <button class="picker-close" @click="backgroundPickerVisible = false">关闭</button>
-          </header>
-          <div class="picker-tabs">
-            <button
-              v-for="tab in bgTabs"
-              :key="tab.key"
-              class="tab-btn"
-              :class="{ active: bgTab === tab.key }"
-              @click="setBgTab(tab.key)"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
-          <div class="picker-grid">
-            <button
-              v-for="item in filteredBackgroundItems"
-              :key="item.id"
-              class="picker-item ripple-trigger"
-              :class="{ active: item.id === selectedBackgroundId }"
-              @click="selectBackground(item.id)"
-            >
-              <img class="picker-preview" :src="item.preview" :alt="item.name" />
-              <span class="picker-name">{{ item.name }}</span>
-            </button>
-          </div>
-        </section>
-      </div>
-    </transition>
-
-    <LevitationBall ref="levitationRef" />
-
-    <div class="click-ripple-layer" aria-hidden="true">
-      <span
-        v-for="ripple in clickRipples"
-        :key="ripple.id"
-        class="click-ripple"
-        :style="{
-          left: `${ripple.x}px`,
-          top: `${ripple.y}px`,
-          width: `${ripple.size}px`,
-          height: `${ripple.size}px`,
-          borderColor: ripple.borderColor,
-          backgroundImage: ripple.backgroundImage,
-          boxShadow: ripple.boxShadow
-        }"
-      ></span>
-    </div>
-  </div>
+  </MotionConfig>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { MotionConfig } from 'motion-v';
+import { RouterView, useRoute, useRouter } from 'vue-router';
 import AiDialog from './components/AiDialog.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
 import TopMenu from './components/TopMenu.vue';
 import { usePlayerEngine } from './composables/usePlayerEngine';
+import { useUiPreferences } from './composables/useUiPreferences';
+import { routePathByKey } from './router';
 
-const STORAGE_KEY = 'shizuki.musicPlayer.v1';
+const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const menuExpanded = ref(false);
-const aiChatActive = ref(false);
 const levitationRef = ref(null);
-const currentMainRoute = ref('home');
 const clickRipples = ref([]);
 const videoFailed = ref(false);
-const selectedBackgroundId = ref('video-954');
 const backgroundPickerVisible = ref(false);
 const backgroundItems = ref([]);
 const bgTab = ref('all');
+const backgroundApplyTarget = ref('route');
 const subtitleVisible = ref(true);
 const lyricOffset = ref({ x: 0, y: 0 });
-const vizOffset = ref({ x: 0, y: 0 });
-const barLevels = ref(Array.from({ length: 44 }, () => 0));
-const ringLevels = ref(Array.from({ length: 72 }, () => 0));
-const visualizerOptions = ref({ bars: true, ring: false });
+const isMobileViewport = ref(false);
 
 const dragState = {
-  kind: null,
   pointerId: null,
   startX: 0,
   startY: 0,
@@ -178,117 +195,125 @@ const dragState = {
   originY: 0
 };
 
-let audioCtx = null;
-let analyser = null;
-let freqData = null;
-let rafId = 0;
 let rippleSeq = 0;
 
+const route = useRoute();
+const router = useRouter();
 const player = usePlayerEngine();
+const ui = useUiPreferences();
 
-const activeBackground = computed(() => backgroundItems.value.find((item) => item.id === selectedBackgroundId.value) || null);
+const routeLabelMap = {
+  home: '主页',
+  blog: '博客',
+  'music-library': '音乐库',
+  apps: '轻应用',
+  'ai-tavern': 'AI酒馆',
+  profile: '个人页面'
+};
+
+const currentRouteKey = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : 'home';
+  return Object.prototype.hasOwnProperty.call(routeLabelMap, name) ? name : 'home';
+});
+
+const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] || '主页');
+const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
+
+const aiChatActive = computed({
+  get: () => ui.state.aiPanelOpen,
+  set: (nextValue) => ui.setAiPanelOpen(nextValue)
+});
+
+const showSidebarAiPanel = computed(() => aiChatActive.value && !isAiTavernRoute.value && !isMobileViewport.value);
+const showMobileAiPanel = computed(() => aiChatActive.value && !isAiTavernRoute.value && isMobileViewport.value);
+
 const bgTabs = [
   { key: 'all', label: '全部' },
   { key: 'static', label: '静态图片' },
   { key: 'dynamic', label: '动态图片' },
   { key: 'l2d', label: 'L2D' }
 ];
+
 const filteredBackgroundItems = computed(() => {
   if (bgTab.value === 'all') return backgroundItems.value;
   return backgroundItems.value.filter((item) => item.type === bgTab.value);
 });
+
+const currentRouteBackgroundId = computed(() => ui.state.routeBackgroundByKey?.[currentRouteKey.value] || '');
+
+const defaultBackgroundId = computed(() => {
+  const first = backgroundItems.value.find((item) => !!item.src);
+  return first?.id || '';
+});
+
+const activeBackgroundId = computed(() => {
+  return ui.getEffectiveBackgroundId(currentRouteKey.value) || defaultBackgroundId.value;
+});
+
+const activeBackground = computed(() => {
+  return backgroundItems.value.find((item) => item.id === activeBackgroundId.value) || null;
+});
+
 const activeVideoBackground = computed(() => {
-  const src = activeBackground.value?.src || `${import.meta.env.BASE_URL}media/background/954.webm`;
+  const src = activeBackground.value?.src || '';
   const ext = src.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase();
   if (['webm', 'mp4', 'mov', 'ogg'].includes(ext)) return src;
   return '';
 });
-const activeImageBackground = computed(() => activeBackground.value?.preview || `${import.meta.env.BASE_URL}images/original-bg.png`);
 
-const ripplePalette = [
-  {
-    borderColor: 'rgba(186, 170, 255, 0.24)',
-    boxShadow: '0 0 0 1px rgba(186, 170, 255, 0.2)',
-    backgroundImage: 'radial-gradient(circle, rgba(186, 170, 255, 0.24) 0%, rgba(186, 170, 255, 0.12) 38%, rgba(186, 170, 255, 0) 74%)'
-  },
-  {
-    borderColor: 'rgba(220, 190, 255, 0.22)',
-    boxShadow: '0 0 0 1px rgba(220, 190, 255, 0.18)',
-    backgroundImage: 'radial-gradient(circle, rgba(220, 190, 255, 0.22) 0%, rgba(220, 190, 255, 0.12) 38%, rgba(220, 190, 255, 0) 74%)'
-  },
-  {
-    borderColor: 'rgba(176, 210, 255, 0.22)',
-    boxShadow: '0 0 0 1px rgba(176, 210, 255, 0.18)',
-    backgroundImage: 'radial-gradient(circle, rgba(176, 210, 255, 0.22) 0%, rgba(176, 210, 255, 0.12) 38%, rgba(176, 210, 255, 0) 74%)'
-  }
-];
+const activeImageBackground = computed(() => {
+  return activeBackground.value?.preview || `${import.meta.env.BASE_URL}images/original-bg.png`;
+});
 
-function bottomFloatingStyle(offset) {
-  return {
-    transform: `translate(calc(-50% + ${offset.x}px), ${offset.y}px)`
-  };
+function normalizeAssetPath(path) {
+  if (!path) return `${import.meta.env.BASE_URL}images/original-bg.png`;
+  if (path.startsWith('http') || path.startsWith('/')) return path;
+  return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
 }
 
-function centerFloatingStyle(offset) {
-  return {
-    transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`
-  };
+function inferBgType(item) {
+  if (item?.type === 'l2d') return 'l2d';
+  const src = String(item?.src || item?.preview || '').toLowerCase();
+  if (/\.(webm|mp4|mov|ogg|gif|webp)$/.test(src)) return 'dynamic';
+  return 'static';
 }
 
-function loadPersisted() {
+function loadPersistedExtra() {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(PLAYER_STORAGE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
     subtitleVisible.value = data?.subtitleVisible !== false;
-    if (data?.visualizerOptions && typeof data.visualizerOptions === 'object') {
-      visualizerOptions.value = {
-        bars: data.visualizerOptions.bars !== false,
-        ring: Boolean(data.visualizerOptions.ring)
-      };
-    } else {
-      const mode = ['bars', 'ring', 'none'].includes(data?.visualizerMode) ? data.visualizerMode : 'bars';
-      visualizerOptions.value = { bars: mode === 'bars', ring: mode === 'ring' };
-    }
-    if (typeof data?.backgroundSelectedId === 'string') selectedBackgroundId.value = data.backgroundSelectedId;
+
     if (data?.lyricOffset && Number.isFinite(data.lyricOffset.x) && Number.isFinite(data.lyricOffset.y)) {
       lyricOffset.value = { x: data.lyricOffset.x, y: data.lyricOffset.y };
     } else if (data?.lyricBar && Number.isFinite(data.lyricBar.offsetX) && Number.isFinite(data.lyricBar.offsetY)) {
       lyricOffset.value = { x: data.lyricBar.offsetX, y: data.lyricBar.offsetY };
     }
-    if (data?.vizOffset && Number.isFinite(data.vizOffset.x) && Number.isFinite(data.vizOffset.y)) {
-      vizOffset.value = { x: data.vizOffset.x, y: data.vizOffset.y };
-    }
   } catch {
-    // ignore
+    // ignore malformed persisted data
   }
 }
 
 function persistExtra() {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(PLAYER_STORAGE_KEY);
     const prev = raw ? JSON.parse(raw) : {};
     window.localStorage.setItem(
-      STORAGE_KEY,
+      PLAYER_STORAGE_KEY,
       JSON.stringify({
         ...prev,
         subtitleVisible: subtitleVisible.value,
-        visualizerMode: visualizerOptions.value.ring ? 'ring' : visualizerOptions.value.bars ? 'bars' : 'none',
-        visualizerOptions: visualizerOptions.value,
-        globalBarsVisible: visualizerOptions.value.bars,
-        globalRingVisible: visualizerOptions.value.ring,
-        backgroundSelectedId: selectedBackgroundId.value,
         lyricOffset: lyricOffset.value,
         lyricBar: {
           offsetX: lyricOffset.value.x,
           offsetY: lyricOffset.value.y,
           visible: subtitleVisible.value
-        },
-        vizOffset: vizOffset.value
+        }
       })
     );
   } catch {
-    // ignore
+    // ignore persistence errors
   }
 }
 
@@ -299,14 +324,14 @@ async function loadBackgroundManifest() {
     const data = await resp.json();
     const list = Array.isArray(data?.backgrounds) ? data.backgrounds : [];
     backgroundItems.value = list
-      .filter((x) => x?.available !== false)
-      .slice(0, 120)
-      .map((x, i) => ({
-        id: x.id || `bg-${i}`,
-        name: x.name || x.id || `背景 ${i + 1}`,
-        src: x.src ? normalizeAssetPath(x.src) : '',
-        preview: normalizeAssetPath(x.preview || x.src || 'images/katanegai.jpg'),
-        type: inferBgType(x)
+      .filter((item) => item?.available !== false)
+      .slice(0, 140)
+      .map((item, index) => ({
+        id: item.id || `bg-${index}`,
+        name: item.name || item.id || `背景 ${index + 1}`,
+        src: item.src ? normalizeAssetPath(item.src) : '',
+        preview: normalizeAssetPath(item.preview || item.src || 'images/original-bg.png'),
+        type: inferBgType(item)
       }));
   } catch {
     backgroundItems.value = [
@@ -334,115 +359,77 @@ async function loadBackgroundManifest() {
     ];
   }
 
-  if (!backgroundItems.value.length) return;
-  const exists = backgroundItems.value.some((x) => x.id === selectedBackgroundId.value);
-  if (!exists) selectedBackgroundId.value = backgroundItems.value[0].id;
-}
+  const validIds = new Set(backgroundItems.value.map((item) => item.id));
 
-function inferBgType(item) {
-  if (item?.type === 'l2d') return 'l2d';
-  const src = String(item?.src || item?.preview || '').toLowerCase();
-  if (/\.(webm|mp4|mov|ogg|gif|webp)$/.test(src)) return 'dynamic';
-  return 'static';
-}
+  if (ui.state.globalBackgroundId && !validIds.has(ui.state.globalBackgroundId)) {
+    ui.setGlobalBackgroundId('');
+  }
 
-function normalizeAssetPath(path) {
-  if (!path) return `${import.meta.env.BASE_URL}images/original-bg.png`;
-  if (path.startsWith('http') || path.startsWith('/')) return path;
-  return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
-}
+  Object.entries(ui.state.routeBackgroundByKey || {}).forEach(([key, value]) => {
+    if (!validIds.has(value)) {
+      ui.clearRouteBackground(key);
+    }
+  });
 
-function selectBackground(id) {
-  const item = backgroundItems.value.find((x) => x.id === id);
-  if (!item || !item.src) return;
-  selectedBackgroundId.value = id;
-  videoFailed.value = false;
+  if (!ui.state.globalBackgroundId && !Object.keys(ui.state.routeBackgroundByKey || {}).length && defaultBackgroundId.value) {
+    ui.setGlobalBackgroundId(defaultBackgroundId.value);
+  }
 }
 
 function setBgTab(tabKey) {
   bgTab.value = tabKey;
-  const first = filteredBackgroundItems.value.find((item) => !!item.src);
-  if (first) selectBackground(first.id);
 }
 
-function ensureAudioAnalyser() {
-  if (audioCtx || !player.audioElement || !window.AudioContext) return;
-  audioCtx = new window.AudioContext();
-  const source = audioCtx.createMediaElementSource(player.audioElement);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 512;
-  analyser.smoothingTimeConstant = 0.88;
-  source.connect(analyser);
-  analyser.connect(audioCtx.destination);
-  freqData = new Uint8Array(analyser.frequencyBinCount);
-}
+function selectBackground(id) {
+  const item = backgroundItems.value.find((target) => target.id === id);
+  if (!item || !item.src) return;
 
-function pumpVisualizer() {
-  if (analyser && freqData) {
-    analyser.getByteFrequencyData(freqData);
-    barLevels.value = barLevels.value.map((_, i) => {
-      const idx = Math.floor((i / barLevels.value.length) * freqData.length);
-      return Math.pow((freqData[idx] || 0) / 255, 1.4);
-    });
-
-    ringLevels.value = ringLevels.value.map((_, i) => {
-      const idx = Math.floor((i / ringLevels.value.length) * freqData.length);
-      return Math.pow((freqData[idx] || 0) / 255, 1.6);
-    });
+  if (backgroundApplyTarget.value === 'route') {
+    ui.setRouteBackground(currentRouteKey.value, id);
+  } else {
+    ui.setGlobalBackgroundId(id);
   }
-  rafId = window.requestAnimationFrame(pumpVisualizer);
+
+  videoFailed.value = false;
 }
 
-function ringSegStyle(level, index) {
-  const total = ringLevels.value.length;
-  const angle = (360 / total) * index;
-  const len = 12 + level * 34;
+function clearCurrentRouteBackground() {
+  ui.clearRouteBackground(currentRouteKey.value);
+  videoFailed.value = false;
+}
+
+function bottomFloatingStyle(offset) {
   return {
-    transform: `rotate(${angle}deg) translateY(-176px)`,
-    height: `${len}px`,
-    opacity: 0.16 + level * 0.42
+    transform: `translate(calc(-50% + ${offset.x}px), ${offset.y}px)`
   };
 }
 
-function toggleVisualizerOption(type) {
-  if (type !== 'bars' && type !== 'ring') return;
-  visualizerOptions.value = {
-    ...visualizerOptions.value,
-    [type]: !visualizerOptions.value[type]
-  };
+function startDrag(event) {
+  if (event.button !== 0) return;
+  dragState.pointerId = event.pointerId;
+  dragState.startX = event.clientX;
+  dragState.startY = event.clientY;
+  dragState.originX = lyricOffset.value.x;
+  dragState.originY = lyricOffset.value.y;
 }
 
-function startDrag(kind, e) {
-  if (e.button !== 0) return;
-  if (kind === 'viz') {
-    const topElement = document.elementFromPoint(e.clientX, e.clientY);
-    if (topElement instanceof Element && topElement.closest('.music-player-shell')) return;
-  }
-  dragState.kind = kind;
-  dragState.pointerId = e.pointerId;
-  dragState.startX = e.clientX;
-  dragState.startY = e.clientY;
-  const current = kind === 'lyric' ? lyricOffset.value : vizOffset.value;
-  dragState.originX = current.x;
-  dragState.originY = current.y;
-}
-
-function onGlobalPointerMove(e) {
-  if (dragState.pointerId === null || e.pointerId !== dragState.pointerId) return;
-  const dx = e.clientX - dragState.startX;
-  const dy = e.clientY - dragState.startY;
-  const next = {
+function onGlobalPointerMove(event) {
+  if (dragState.pointerId === null || event.pointerId !== dragState.pointerId) return;
+  const dx = event.clientX - dragState.startX;
+  const dy = event.clientY - dragState.startY;
+  lyricOffset.value = {
     x: Math.max(-520, Math.min(520, dragState.originX + dx)),
     y: Math.max(-340, Math.min(340, dragState.originY + dy))
   };
-  if (dragState.kind === 'lyric') lyricOffset.value = next;
-  else vizOffset.value = next;
 }
 
-function onGlobalPointerUp(e) {
-  if (dragState.pointerId === null || e.pointerId !== dragState.pointerId) return;
+function onGlobalPointerUp(event) {
+  if (dragState.pointerId === null || event.pointerId !== dragState.pointerId) return;
   dragState.pointerId = null;
-  dragState.kind = null;
+}
+
+function updateViewportMode() {
+  isMobileViewport.value = window.matchMedia('(max-width: 900px), (orientation: portrait)').matches;
 }
 
 function toggleMenu() {
@@ -450,6 +437,7 @@ function toggleMenu() {
 }
 
 function toggleAiChat() {
+  if (isAiTavernRoute.value) return;
   aiChatActive.value = !aiChatActive.value;
 }
 
@@ -458,11 +446,18 @@ function closeAiChat() {
 }
 
 function handleMainRouteSelect(routeKey) {
-  currentMainRoute.value = routeKey;
+  const nextPath = routePathByKey[routeKey] || '/';
+  if (route.path === nextPath) return;
+  router.push(nextPath);
+}
+
+function openProfile() {
+  if (route.path === '/profile') return;
+  router.push('/profile');
 }
 
 function handleAuthorInfoClick() {
-  console.log('Author info clicked');
+  openProfile();
 }
 
 function handleSelectTrack(index) {
@@ -474,12 +469,12 @@ function handleReorderTracks(payload) {
 }
 
 function openPlayerSettings() {
-  console.log('Player settings placeholder');
+  openProfile();
 }
 
-function onGlobalPointerDown(e) {
-  if (e.button !== 0) return;
-  const target = e.target;
+function onGlobalPointerDown(event) {
+  if (event.button !== 0) return;
+  const target = event.target;
   if (!(target instanceof Element)) return;
 
   const trigger = target.closest('.ripple-trigger');
@@ -490,116 +485,111 @@ function onGlobalPointerDown(e) {
   const size = Math.max(72, Math.min(148, baseSize * 1.6));
   const x = rect.left + rect.width * 0.5 - size * 0.5;
   const y = rect.top + rect.height * 0.5 - size * 0.5;
-  const colorDef = ripplePalette[Math.floor(Math.random() * ripplePalette.length)];
   const id = rippleSeq++;
 
-  clickRipples.value.push({
-    id,
-    size,
-    x,
-    y,
-    borderColor: colorDef.borderColor,
-    boxShadow: colorDef.boxShadow,
-    backgroundImage: colorDef.backgroundImage
-  });
+  clickRipples.value.push({ id, size, x, y });
 
   window.setTimeout(() => {
     clickRipples.value = clickRipples.value.filter((ripple) => ripple.id !== id);
-  }, 580);
+  }, 560);
 }
 
-function onGlobalHotkey(e) {
-  if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return;
+function onGlobalHotkey(event) {
+  if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
 
-  const target = e.target;
+  const target = event.target;
   if (target instanceof HTMLElement) {
     const tag = target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
   }
 
-  if (e.code === 'Backquote') {
-    e.preventDefault();
+  if (event.code === 'Backquote') {
+    event.preventDefault();
     levitationRef.value?.toggleExpanded?.();
     return;
   }
 
-  if (e.code === 'Minus') {
-    e.preventDefault();
+  if (event.code === 'Minus') {
+    event.preventDefault();
     toggleAiChat();
     return;
   }
 
-  if (e.code === 'Equal') {
-    e.preventDefault();
+  if (event.code === 'Equal') {
+    event.preventDefault();
     toggleMenu();
     return;
   }
 
-  if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4') {
-    e.preventDefault();
-    const index = Number(e.code.replace('Digit', ''));
+  if (event.code === 'Digit1' || event.code === 'Digit2' || event.code === 'Digit3' || event.code === 'Digit4') {
+    event.preventDefault();
+    const index = Number(event.code.replace('Digit', ''));
     levitationRef.value?.triggerMenuByIndex?.(index);
     return;
   }
 
-  if (e.code === 'KeyM') {
-    e.preventDefault();
+  if (event.code === 'KeyM') {
+    event.preventDefault();
     player.setPlayerExpanded(!player.isPlayerExpanded.value);
     return;
   }
 
-  if (e.code === 'ArrowLeft') {
-    e.preventDefault();
+  if (event.code === 'ArrowLeft') {
+    event.preventDefault();
     player.playPrev();
     return;
   }
 
-  if (e.code === 'ArrowRight') {
-    e.preventDefault();
+  if (event.code === 'ArrowRight') {
+    event.preventDefault();
     player.playNext();
     return;
   }
 
-  if (e.code === 'KeyP') {
-    e.preventDefault();
+  if (event.code === 'KeyP') {
+    event.preventDefault();
     player.togglePlay();
     return;
   }
 
-  if (e.code === 'ArrowUp') {
-    e.preventDefault();
+  if (event.code === 'ArrowUp') {
+    event.preventDefault();
     player.adjustVolume(0.05);
     return;
   }
 
-  if (e.code === 'ArrowDown') {
-    e.preventDefault();
+  if (event.code === 'ArrowDown') {
+    event.preventDefault();
     player.adjustVolume(-0.05);
   }
 }
 
-watch([subtitleVisible, visualizerOptions, selectedBackgroundId, lyricOffset, vizOffset], persistExtra, { deep: true });
+watch([subtitleVisible, lyricOffset], persistExtra, { deep: true });
+watch(activeBackgroundId, () => {
+  videoFailed.value = false;
+});
 
 onMounted(async () => {
-  loadPersisted();
+  ui.initializeUiPreferences();
+  loadPersistedExtra();
   await loadBackgroundManifest();
+  updateViewportMode();
+
+  window.addEventListener('resize', updateViewportMode);
   window.addEventListener('keydown', onGlobalHotkey);
   window.addEventListener('pointerdown', onGlobalPointerDown, true);
   window.addEventListener('pointermove', onGlobalPointerMove, true);
   window.addEventListener('pointerup', onGlobalPointerUp, true);
   window.addEventListener('pointercancel', onGlobalPointerUp, true);
-  ensureAudioAnalyser();
-  pumpVisualizer();
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewportMode);
   window.removeEventListener('keydown', onGlobalHotkey);
   window.removeEventListener('pointerdown', onGlobalPointerDown, true);
   window.removeEventListener('pointermove', onGlobalPointerMove, true);
   window.removeEventListener('pointerup', onGlobalPointerUp, true);
   window.removeEventListener('pointercancel', onGlobalPointerUp, true);
-  if (rafId) window.cancelAnimationFrame(rafId);
-  if (audioCtx) audioCtx.close();
 });
 </script>
 
@@ -610,7 +600,7 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: hidden;
   isolation: isolate;
-  background: linear-gradient(120deg, #d3dceb, #e6dff0, #dccedf);
+  background: linear-gradient(120deg, #1d2230, #211e34, #1b2538);
 }
 
 .bg-layer {
@@ -629,10 +619,53 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: cover;
   object-position: center;
+  filter: brightness(0.64) saturate(118%);
 }
 
 .bg-video {
   z-index: 1;
+}
+
+.bg-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(8, 11, 18, 0.34), rgba(8, 11, 18, 0.52));
+  backdrop-filter: blur(7px) saturate(120%);
+  -webkit-backdrop-filter: blur(7px) saturate(120%);
+}
+
+.workspace-shell {
+  position: relative;
+  z-index: 40;
+  height: 100%;
+  padding: 58px 14px 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  transition: padding-top 260ms ease;
+}
+
+.workspace-shell.expanded {
+  padding-top: 134px;
+}
+
+.workspace-shell.with-ai-panel {
+  grid-template-columns: minmax(0, 3fr) minmax(300px, 1fr);
+}
+
+.route-content {
+  min-height: 0;
+  overflow: auto;
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(10, 14, 22, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 14px 32px rgba(6, 10, 18, 0.22);
+}
+
+.ai-side-column {
+  min-height: 0;
 }
 
 .global-lyric-bar {
@@ -655,67 +688,11 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-.global-bars {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
-  width: min(94vw, 1080px);
-  height: 76px;
-  display: flex;
-  align-items: end;
-  justify-content: center;
-  gap: 5px;
-  z-index: 1020;
-  cursor: grab;
-  user-select: none;
-}
-
-.bar {
-  width: 5px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, rgba(152, 220, 255, 0.78), rgba(129, 176, 255, 0.68));
-  box-shadow: 0 0 10px rgba(102, 148, 246, 0.26);
-}
-
-.global-ring {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  z-index: 1018;
-  cursor: grab;
-  user-select: none;
-}
-
-.ring-core {
-  width: 360px;
-  height: 360px;
-  position: relative;
-  display: grid;
-  place-items: center;
-}
-
-.ring-core::before {
-  content: '';
-  position: absolute;
-  inset: 84px;
-  border-radius: 50%;
-  border: 1px solid rgba(200, 224, 255, 0.18);
-  box-shadow: inset 0 0 24px rgba(146, 180, 255, 0.06);
-}
-
-.ring-seg {
-  position: absolute;
-  width: 4px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, rgba(181, 231, 255, 0.66), rgba(129, 176, 255, 0.6));
-  transform-origin: center 176px;
-}
-
 .bg-picker-mask {
   position: fixed;
   inset: 0;
-  z-index: 1300;
-  background: rgba(10, 12, 18, 0.34);
+  z-index: 1500;
+  background: rgba(10, 12, 18, 0.42);
   display: grid;
   place-items: center;
 }
@@ -724,8 +701,8 @@ onBeforeUnmount(() => {
   --liquid-bg: rgba(var(--glass-rgb), 0.38);
   --liquid-border: rgba(255, 255, 255, 0.46);
   --liquid-shadow: 0 16px 44px rgba(8, 12, 20, 0.32);
-  width: min(90vw, 980px);
-  max-height: min(86vh, 760px);
+  width: min(94vw, 980px);
+  max-height: min(88vh, 760px);
   border-radius: 22px;
   padding: 14px;
   overflow: hidden;
@@ -755,17 +732,6 @@ onBeforeUnmount(() => {
   color: rgba(30, 34, 42, 0.8);
 }
 
-.picker-grid {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 10px;
-}
-
 .picker-tabs {
   display: flex;
   align-items: center;
@@ -782,8 +748,50 @@ onBeforeUnmount(() => {
 }
 
 .tab-btn.active {
-  background: rgba(120, 84, 178, 0.84);
+  background: rgba(var(--accent-strong-rgb), 0.86);
   color: rgba(248, 238, 255, 0.94);
+}
+
+.picker-apply-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.scope-btn {
+  border: 0;
+  border-radius: 10px;
+  min-height: 32px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.34);
+  color: rgba(27, 31, 40, 0.78);
+}
+
+.scope-btn.active {
+  background: rgba(var(--accent-rgb), 0.3);
+  color: rgba(248, 238, 255, 0.94);
+}
+
+.scope-btn.danger {
+  background: rgba(235, 94, 124, 0.2);
+  color: rgba(135, 27, 50, 0.9);
+}
+
+.route-bg-note {
+  color: rgba(28, 32, 40, 0.82);
+  font-size: 12px;
+}
+
+.picker-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
 }
 
 .picker-item {
@@ -796,7 +804,7 @@ onBeforeUnmount(() => {
 }
 
 .picker-item.active {
-  box-shadow: inset 0 0 0 2px rgba(104, 218, 149, 0.92);
+  box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0.82);
 }
 
 .picker-preview {
@@ -825,11 +833,12 @@ onBeforeUnmount(() => {
 .click-ripple {
   position: absolute;
   border-radius: 50%;
-  border: 1.2px solid transparent;
-  background: radial-gradient(circle, rgba(186, 170, 255, 0.24) 0%, rgba(186, 170, 255, 0.12) 38%, rgba(186, 170, 255, 0) 74%);
+  border: 1.2px solid rgba(var(--accent-rgb), 0.28);
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.24) 0%, rgba(var(--accent-rgb), 0.12) 38%, rgba(var(--accent-rgb), 0) 74%);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2);
   transform: scale(0.2);
-  opacity: 0.7;
-  animation: click-ripple 580ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0.72;
+  animation: click-ripple 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .lyric-fade-enter-active,
@@ -849,7 +858,7 @@ onBeforeUnmount(() => {
 @keyframes click-ripple {
   0% {
     transform: scale(0.2);
-    opacity: 0.75;
+    opacity: 0.74;
   }
   100% {
     transform: scale(1.85);
@@ -858,58 +867,58 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
-  .global-bars {
-    width: min(96vw, 760px);
-    height: 62px;
-    gap: 4px;
+  .workspace-shell {
+    padding: 50px 10px 10px 48px;
   }
 
-  .bar {
-    width: 4px;
+  .workspace-shell.expanded {
+    padding-top: 70px;
   }
 
-  .ring-core {
-    width: 300px;
-    height: 300px;
+  .workspace-shell.with-ai-panel {
+    grid-template-columns: 1fr;
   }
 
-  .ring-core::before {
-    inset: 72px;
+  .route-content {
+    border-radius: 14px;
+    padding: 12px;
+    padding-bottom: 154px;
   }
 
-  .ring-seg {
-    transform-origin: center 148px;
+  .global-lyric-bar {
+    bottom: 114px;
+    min-width: min(92vw, 640px);
   }
 }
 
 @media (max-width: 600px), (orientation: portrait) {
+  .workspace-shell {
+    padding: 10px 8px 8px 44px;
+  }
+
+  .workspace-shell.expanded {
+    padding-top: 16px;
+  }
+
+  .route-content {
+    padding: 10px;
+    padding-bottom: 150px;
+  }
+
   .global-lyric-bar {
     bottom: 112px;
     min-width: min(92vw, 640px);
   }
 
-  .global-bars {
-    bottom: 26px;
-    width: min(96vw, 560px);
-    height: 56px;
-    gap: 3px;
+  .bg-picker {
+    width: calc(100vw - 12px);
+    max-height: 90vh;
+    border-radius: 16px;
+    padding: 10px;
   }
 
-  .bar {
-    width: 3px;
-  }
-
-  .ring-core {
-    width: min(72vw, 260px);
-    height: min(72vw, 260px);
-  }
-
-  .ring-core::before {
-    inset: 60px;
-  }
-
-  .ring-seg {
-    transform-origin: center 130px;
+  .picker-grid {
+    grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
   }
 }
 </style>
