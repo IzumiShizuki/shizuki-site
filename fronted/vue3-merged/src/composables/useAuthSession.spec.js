@@ -1,0 +1,481 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { __resetAuthSessionForTest, useAuthSession } from './useAuthSession';
+
+const AUTH_STORAGE_KEY = 'shizuki.auth.v1';
+const USER_STORAGE_KEY = 'shizuki.user.v1';
+const OAUTH_PENDING_KEY = 'shizuki.oauth.pending.v1';
+
+function jsonResponse(status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+}
+
+function delayedJsonResponse(delayMs, status, payload) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(jsonResponse(status, payload)), delayMs);
+  });
+}
+
+describe('useAuthSession', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    __resetAuthSessionForTest();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.location.hash = '#/';
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('logs in by email and persists refresh token + user snapshot', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'access-token-1',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'refresh-token-1',
+            refresh_expires_in_sec: 2592000,
+            user_id: 7,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 7,
+            nickname: 'Shizuki',
+            groups: ['USER'],
+            permissions: ['music.read']
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'demo@example.com',
+      password: 'password-123'
+    });
+
+    expect(auth.isAuthenticated.value).toBe(true);
+    expect(auth.user.value?.nickname).toBe('Shizuki');
+
+    const savedAuth = JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) || '{}');
+    expect(savedAuth.refreshToken).toBe('refresh-token-1');
+
+    const savedUser = JSON.parse(window.localStorage.getItem(USER_STORAGE_KEY) || '{}');
+    expect(savedUser.nickname).toBe('Shizuki');
+
+    const firstRequestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(firstRequestBody.grant_type).toBe('EMAIL_PASSWORD');
+    expect(firstRequestBody.email).toBe('demo@example.com');
+    expect(firstRequestBody.password).toBe('password-123');
+  });
+
+  it('starts OAuth login with root callback redirect_uri and stores pending state', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(200, {
+        data: {
+          oauth_login_id: 'oauth-login-001',
+          authorize_url: 'https://github.com/login/oauth/authorize?client_id=demo',
+          state: 'state-001'
+        }
+      })
+    );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    try {
+      await auth.startOAuthLogin('github', '/profile');
+    } catch {
+      // jsdom may throw on window.location.assign navigation.
+    }
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body || '{}');
+    expect(requestBody.redirect_uri).toBe(`${window.location.origin}${window.location.pathname}`);
+    expect(requestBody.redirect_uri.includes('#')).toBe(false);
+
+    const pendingAll = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || '{}');
+    expect(pendingAll.states?.['state-001']?.oauthLoginId).toBe('oauth-login-001');
+  });
+
+  it('consumes OAuth pending state after callback token exchange', async () => {
+    window.sessionStorage.setItem(
+      OAUTH_PENDING_KEY,
+      JSON.stringify({
+        states: {
+          'state-xyz': {
+            provider: 'github',
+            oauthLoginId: 'oauth-login-xyz',
+            redirect: '/profile',
+            createdAt: Date.now()
+          }
+        }
+      })
+    );
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'oauth-access-token',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'oauth-refresh-token',
+            refresh_expires_in_sec: 2592000,
+            user_id: 11,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 11,
+            nickname: 'OAuth User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    const result = await auth.handleOAuthCallback({
+      code: 'oauth-code-1',
+      state: 'state-xyz'
+    });
+
+    expect(result.resultType).toBe('TOKEN_ISSUED');
+    expect(result.redirect).toBe('/profile');
+
+    const tokenExchangeBody = JSON.parse(fetchMock.mock.calls[0][1].body || '{}');
+    expect(tokenExchangeBody.oauth_login_id).toBe('oauth-login-xyz');
+    expect(tokenExchangeBody.state).toBe('state-xyz');
+    expect(tokenExchangeBody.code).toBe('oauth-code-1');
+
+    const pendingAllAfter = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || '{}');
+    expect(pendingAllAfter.states?.['state-xyz']).toBeUndefined();
+  });
+
+  it('removes OAuth pending state when callback result is BIND_REQUIRED', async () => {
+    window.sessionStorage.setItem(
+      OAUTH_PENDING_KEY,
+      JSON.stringify({
+        states: {
+          'state-bind': {
+            provider: 'linuxdo',
+            oauthLoginId: 'oauth-login-bind',
+            redirect: '/profile',
+            createdAt: Date.now()
+          }
+        }
+      })
+    );
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(200, {
+        data: {
+          result_type: 'BIND_REQUIRED',
+          bind_ticket: 'bind-ticket-001'
+        }
+      })
+    );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    const result = await auth.handleOAuthCallback({
+      code: 'oauth-code-bind',
+      state: 'state-bind'
+    });
+
+    expect(result).toEqual({
+      resultType: 'BIND_REQUIRED',
+      bindTicket: 'bind-ticket-001',
+      redirect: '/profile'
+    });
+
+    const pendingAllAfter = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || '{}');
+    expect(pendingAllAfter.states?.['state-bind']).toBeUndefined();
+  });
+
+  it('keeps OAuth pending state when callback token exchange fails', async () => {
+    window.sessionStorage.setItem(
+      OAUTH_PENDING_KEY,
+      JSON.stringify({
+        states: {
+          'state-failed': {
+            provider: 'github',
+            oauthLoginId: 'oauth-login-failed',
+            redirect: '/profile',
+            createdAt: Date.now()
+          }
+        }
+      })
+    );
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(400, {
+        code: 'BAD_REQUEST',
+        detail:
+          'OAuth provider configuration or request invalid: OAuth token endpoint error: bad_verification_code'
+      })
+    );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await expect(
+      auth.handleOAuthCallback({
+        code: 'oauth-code-failed',
+        state: 'state-failed'
+      })
+    ).rejects.toBeTruthy();
+
+    const pendingAllAfter = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || '{}');
+    expect(pendingAllAfter.states?.['state-failed']?.oauthLoginId).toBe('oauth-login-failed');
+  });
+
+  it('simulates full frontend OAuth login flow from authorization to session ready', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            oauth_login_id: 'oauth-login-flow',
+            authorize_url: 'https://github.com/login/oauth/authorize?client_id=demo&state=state-flow',
+            state: 'state-flow'
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'flow-access-token',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'flow-refresh-token',
+            refresh_expires_in_sec: 2592000,
+            user_id: 42,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 42,
+            nickname: 'Flow User',
+            groups: ['USER'],
+            permissions: ['music.read']
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    try {
+      await auth.startOAuthLogin('github', '/profile');
+    } catch {
+      // jsdom may throw on window.location.assign navigation.
+    }
+    const callbackResult = await auth.handleOAuthCallback({
+      code: 'oauth-code-flow',
+      state: 'state-flow'
+    });
+
+    expect(callbackResult).toEqual({
+      resultType: 'TOKEN_ISSUED',
+      redirect: '/profile'
+    });
+    expect(auth.isAuthenticated.value).toBe(true);
+    expect(auth.user.value?.nickname).toBe('Flow User');
+
+    const savedAuth = JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) || '{}');
+    expect(savedAuth.refreshToken).toBe('flow-refresh-token');
+
+    const authorizeBody = JSON.parse(fetchMock.mock.calls[0][1].body || '{}');
+    expect(authorizeBody.provider).toBe('github');
+    expect(authorizeBody.scene).toBe('LOGIN');
+
+    const tokenBody = JSON.parse(fetchMock.mock.calls[1][1].body || '{}');
+    expect(tokenBody.grant_type).toBe('OAUTH_CODE');
+    expect(tokenBody.oauth_login_id).toBe('oauth-login-flow');
+    expect(tokenBody.code).toBe('oauth-code-flow');
+  });
+
+  it('refreshes token and retries once when protected request returns 401 UNAUTHORIZED', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'access-token-1',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'refresh-token-1',
+            refresh_expires_in_sec: 2592000,
+            user_id: 9,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 9,
+            nickname: 'Initial User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(401, {
+          code: 'UNAUTHORIZED',
+          detail: 'Access token expired'
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'access-token-2',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'refresh-token-2',
+            refresh_expires_in_sec: 2592000,
+            user_id: 9,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 9,
+            nickname: 'Refreshed User',
+            groups: ['USER'],
+            permissions: ['music.read']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            ok: true
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'demo@example.com',
+      password: 'password-123'
+    });
+
+    const response = await auth.authorizedFetch('/api/v1/protected/resource', {
+      method: 'GET'
+    });
+
+    expect(response?.data?.ok).toBe(true);
+    expect(auth.user.value?.nickname).toBe('Refreshed User');
+
+    const firstProtectedHeaders = fetchMock.mock.calls[2][1].headers;
+    const retryProtectedHeaders = fetchMock.mock.calls[5][1].headers;
+    expect(firstProtectedHeaders.Authorization).toBe('Bearer access-token-1');
+    expect(retryProtectedHeaders.Authorization).toBe('Bearer access-token-2');
+
+    const refreshBody = JSON.parse(fetchMock.mock.calls[3][1].body);
+    expect(refreshBody.grant_type).toBe('REFRESH_TOKEN');
+    expect(refreshBody.refresh_token).toBe('refresh-token-1');
+  });
+
+  it('uses single-flight promise for concurrent refresh requests', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'access-token-1',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'refresh-token-1',
+            refresh_expires_in_sec: 2592000,
+            user_id: 3,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 3,
+            nickname: 'User3',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockImplementationOnce(() =>
+        delayedJsonResponse(30, 200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'access-token-2',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'refresh-token-2',
+            refresh_expires_in_sec: 2592000,
+            user_id: 3,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 3,
+            nickname: 'User3 refreshed',
+            groups: ['USER'],
+            permissions: ['music.read']
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'demo@example.com',
+      password: 'password-123'
+    });
+
+    await Promise.all([auth.refreshAccessToken(), auth.refreshAccessToken()]);
+
+    const refreshCalls = fetchMock.mock.calls.filter(([url, options]) => {
+      if (!String(url).endsWith('/api/v1/auth/tokens')) return false;
+      const body = JSON.parse(options.body || '{}');
+      return body.grant_type === 'REFRESH_TOKEN';
+    });
+
+    expect(refreshCalls).toHaveLength(1);
+    expect(auth.user.value?.nickname).toBe('User3 refreshed');
+  });
+});

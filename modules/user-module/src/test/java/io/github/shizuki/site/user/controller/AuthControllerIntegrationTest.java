@@ -81,6 +81,44 @@ class AuthControllerIntegrationTest {
     }
 
     /**
+     * 场景：OAuth 授权码登录成功签发 token。
+     * 前置条件：AuthService.issueToken 返回 TOKEN_ISSUED 响应。
+     * 执行动作：POST /api/v1/auth/tokens，grant_type=oauth_code。
+     * 断言结果：HTTP 200，返回 access_token 与 user_id。
+     */
+    @Test
+    void shouldIssueTokenForOauthCodeSuccessfully() throws Exception {
+        Mockito.when(authService.issueToken(ArgumentMatchers.any()))
+            .thenReturn(new AuthTokenResponse(
+                "TOKEN_ISSUED",
+                "oauth-token-123",
+                "Bearer",
+                7200L,
+                "oauth-refresh-123",
+                2592000L,
+                42L,
+                Set.of("USER"),
+                null
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/tokens")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "grant_type": "oauth_code",
+                      "provider": "github",
+                      "oauth_login_id": "oauth-login-123",
+                      "code": "oauth-code-123",
+                      "state": "oauth-state-123"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.access_token").value("oauth-token-123"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.user_id").value(42));
+    }
+
+    /**
      * 场景：冲突绑定确认成功。
      * 前置条件：AuthService.confirmConflictBinding 返回 TOKEN_ISSUED。
      * 执行动作：POST /api/v1/auth/bindings/confirm。

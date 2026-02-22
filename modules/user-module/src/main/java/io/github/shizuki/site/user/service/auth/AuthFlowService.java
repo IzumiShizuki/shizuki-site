@@ -7,6 +7,8 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.oauth.model.OAuthIdentity;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
+import io.github.shizuki.common.oauth.strategy.AbstractOAuthProviderStrategy.NonRetryableOAuthException;
+import io.github.shizuki.common.oauth.strategy.AbstractOAuthProviderStrategy.TransientOAuthException;
 import io.github.shizuki.common.oauth.strategy.OAuthProviderStrategy;
 import io.github.shizuki.common.oauth.strategy.OAuthProviderStrategyFactory;
 import io.github.shizuki.site.user.auth.AuthGrantCommand;
@@ -25,11 +27,20 @@ import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.mapper.OAuthBindingMapper;
 import io.github.shizuki.site.user.mapper.OAuthLoginMapper;
 import io.github.shizuki.site.user.mapper.UserAccountMapper;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCrypt;
@@ -44,6 +55,8 @@ import org.springframework.util.StringUtils;
  */
 @Component
 public class AuthFlowService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthFlowService.class);
 
     /**
      * OAuth 登录事务状态：待处理。
@@ -171,7 +184,7 @@ public class AuthFlowService {
      * OAuth 授权码授权。
      *
      * @param command 授权命令
-     * @return 授权结果（可能为 TOKEN_ISSUED 或 BIND_REQUIRED）
+     * @return 授权结果
      */
     public AuthGrantResult grantByOAuthCode(AuthGrantCommand command) {
         requireOauthExchangePayload(command.getOauthLoginId(), command.getCode(), command.getState());
@@ -186,21 +199,85 @@ public class AuthFlowService {
 
         String provider = chooseProvider(command.getProvider(), oauthLogin.getProvider());
         OAuthProviderStrategy providerStrategy = oAuthProviderStrategyFactory.get(provider);
+        LOGGER.info(
+            "OAUTH_EXCHANGE_START provider={} oauth_login_id={} redirect_uri={} code_len={} state_len={} code_hash8={} state_hash8={}",
+            provider,
+            command.getOauthLoginId(),
+            oauthLogin.getRedirectUri(),
+            textLength(command.getCode()),
+            textLength(command.getState()),
+            shortHash(command.getCode()),
+            shortHash(command.getState())
+        );
         try {
             OAuthIdentity identity = providerStrategy.exchangeCode(command.getCode(), oauthLogin.getRedirectUri());
-            // 关键流程：优先查现有绑定，其次按邮箱冲突策略决定“显式绑定”还是“自动创建”。
-            AuthGrantResult result = bindOrCreateForOAuthLogin(provider, identity, oauthLogin);
+            // 登录只按 provider_user_id 聚合，不再依赖邮箱冲突分支。
+            AuthGrantResult result = bindOrCreateForOAuthLogin(provider, identity);
             if (result.getResultType() == AuthGrantResult.ResultType.TOKEN_ISSUED) {
                 markOauthLoginSuccess(oauthLogin, identity.providerUserId(), result.getUserId());
+                LOGGER.info(
+                    "OAUTH_EXCHANGE_SUCCESS provider={} oauth_login_id={} user_id={}",
+                    provider,
+                    command.getOauthLoginId(),
+                    result.getUserId()
+                );
             } else {
                 markOauthLoginFailure(oauthLogin, "BIND_REQUIRED");
+                LOGGER.info(
+                    "OAUTH_EXCHANGE_RESULT provider={} oauth_login_id={} result_type={}",
+                    provider,
+                    command.getOauthLoginId(),
+                    result.getResultType()
+                );
             }
             return result;
+        } catch (NonRetryableOAuthException ex) {
+            markOauthLoginFailure(oauthLogin, ex.getMessage());
+            LOGGER.warn(
+                "OAUTH_EXCHANGE_PROVIDER_INVALID provider={} oauth_login_id={} provider_error={}",
+                provider,
+                command.getOauthLoginId(),
+                valueOrDash(ex.getMessage())
+            );
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "OAuth provider configuration or request invalid: " + ex.getMessage(),
+                Map.of(
+                    "reason", "OAUTH_PROVIDER_INVALID",
+                    "provider", provider,
+                    "provider_error", ex.getMessage()
+                )
+            );
+        } catch (TransientOAuthException ex) {
+            markOauthLoginFailure(oauthLogin, ex.getMessage());
+            LOGGER.warn(
+                "OAUTH_EXCHANGE_PROVIDER_TRANSIENT provider={} oauth_login_id={} provider_error={}",
+                provider,
+                command.getOauthLoginId(),
+                valueOrDash(ex.getMessage())
+            );
+            throw new BusinessException(
+                ErrorCode.INTERNAL_ERROR,
+                "OAuth provider temporarily unavailable",
+                Map.of("reason", "OAUTH_PROVIDER_TRANSIENT", "provider", provider)
+            );
         } catch (BusinessException ex) {
             markOauthLoginFailure(oauthLogin, ex.getMessage());
+            LOGGER.warn(
+                "OAUTH_EXCHANGE_BUSINESS_FAIL provider={} oauth_login_id={} error_msg={}",
+                provider,
+                command.getOauthLoginId(),
+                valueOrDash(ex.getMessage())
+            );
             throw ex;
         } catch (Exception ex) {
             markOauthLoginFailure(oauthLogin, ex.getMessage());
+            LOGGER.warn(
+                "OAUTH_EXCHANGE_FAIL provider={} oauth_login_id={} error_msg={}",
+                provider,
+                command.getOauthLoginId(),
+                valueOrDash(ex.getMessage())
+            );
             throw new BusinessException(ErrorCode.BAD_REQUEST, "OAuth exchange failed");
         }
     }
@@ -288,6 +365,7 @@ public class AuthFlowService {
                                                            String redirectUri,
                                                            OAuthLoginScene scene,
                                                            Long initiatorUserId) {
+        String normalizedRedirectUri = normalizeAndValidateRedirectUri(provider, redirectUri);
         OAuthProviderStrategy strategy = oAuthProviderStrategyFactory.get(provider);
         if (scene == OAuthLoginScene.BIND && (initiatorUserId == null || initiatorUserId <= 0)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required for oauth bind");
@@ -295,13 +373,32 @@ public class AuthFlowService {
 
         String loginId = UUID.randomUUID().toString();
         String state = oAuthStateService.createState(loginId);
-        String authorizeUrl = strategy.buildAuthorizeUrl(state, redirectUri);
+        String authorizeUrl;
+        try {
+            authorizeUrl = strategy.buildAuthorizeUrl(state, normalizedRedirectUri);
+        } catch (NonRetryableOAuthException ex) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "OAuth provider configuration incomplete: " + ex.getMessage(),
+                Map.of(
+                    "reason", "OAUTH_PROVIDER_CONFIG_INVALID",
+                    "provider", provider,
+                    "provider_error", ex.getMessage()
+                )
+            );
+        } catch (TransientOAuthException ex) {
+            throw new BusinessException(
+                ErrorCode.INTERNAL_ERROR,
+                "OAuth provider temporarily unavailable",
+                Map.of("reason", "OAUTH_PROVIDER_TRANSIENT", "provider", provider)
+            );
+        }
 
         // 落库存档用于后续 code 换取、scene 校验和审计追踪。
         OAuthLoginEntity oauthLogin = new OAuthLoginEntity();
         oauthLogin.setOauthLoginId(loginId);
         oauthLogin.setProvider(provider.toLowerCase(Locale.ROOT));
-        oauthLogin.setRedirectUri(redirectUri);
+        oauthLogin.setRedirectUri(normalizedRedirectUri);
         oauthLogin.setState(state);
         oauthLogin.setStatus(OAUTH_STATUS_PENDING);
         oauthLogin.setLoginScene(scene.name());
@@ -378,7 +475,7 @@ public class AuthFlowService {
                 newBinding.setProvider(provider);
                 newBinding.setProviderUserId(identity.providerUserId());
                 newBinding.setProviderLogin(identity.login());
-                newBinding.setProviderEmail(identity.email());
+                newBinding.setProviderEmail(null);
                 newBinding.setCreatedAt(LocalDateTime.now());
                 newBinding.setUpdatedAt(LocalDateTime.now());
                 try {
@@ -488,42 +585,21 @@ public class AuthFlowService {
      *
      * @param provider provider 编码
      * @param identity 第三方身份信息
-     * @param oauthLogin OAuth 登录事务
      * @return 授权结果
      */
     private AuthGrantResult bindOrCreateForOAuthLogin(String provider,
-                                                      OAuthIdentity identity,
-                                                      OAuthLoginEntity oauthLogin) {
+                                                      OAuthIdentity identity) {
         OAuthBindingEntity binding = queryBinding(provider, identity.providerUserId());
         if (binding != null) {
             return authTokenIssuer.issueTokenPair(binding.getUserId());
         }
 
-        String normalizedEmail = StringUtils.hasText(identity.email()) ? normalizeEmail(identity.email()) : null;
-        if (StringUtils.hasText(normalizedEmail)) {
-            UserAccountEntity existingEmailUser = userAccountMapper.selectOne(
-                new LambdaQueryWrapper<UserAccountEntity>().eq(UserAccountEntity::getEmail, normalizedEmail)
-            );
-            if (existingEmailUser != null) {
-                String ticket = createBindTicket(
-                    provider,
-                    oauthLogin.getOauthLoginId(),
-                    existingEmailUser.getId(),
-                    identity.providerUserId(),
-                    identity.login(),
-                    normalizedEmail
-                );
-                // 邮箱冲突：不做隐式合并，返回一次性票据要求用户显式确认。
-                return AuthGrantResult.bindRequired(ticket);
-            }
-        }
-
-        UserAccountEntity account = createOAuthAccount(provider, identity, normalizedEmail, false);
+        UserAccountEntity account = createOAuthAccount(provider, identity, false);
         try {
             userAccountMapper.insert(account);
         } catch (DuplicateKeyException ex) {
             // 高频并发下用户名可能瞬时冲突，仅再试一次短后缀版本，避免复杂锁。
-            UserAccountEntity fallbackAccount = createOAuthAccount(provider, identity, normalizedEmail, true);
+            UserAccountEntity fallbackAccount = createOAuthAccount(provider, identity, true);
             try {
                 userAccountMapper.insert(fallbackAccount);
                 account = fallbackAccount;
@@ -537,7 +613,7 @@ public class AuthFlowService {
         newBinding.setProvider(provider);
         newBinding.setProviderUserId(identity.providerUserId());
         newBinding.setProviderLogin(identity.login());
-        newBinding.setProviderEmail(normalizedEmail);
+        newBinding.setProviderEmail(null);
         newBinding.setCreatedAt(LocalDateTime.now());
         newBinding.setUpdatedAt(LocalDateTime.now());
         try {
@@ -755,6 +831,53 @@ public class AuthFlowService {
     }
 
     /**
+     * 规范化并校验 OAuth 回调地址。
+     *
+     * <p>约束：必须是绝对 http/https URL，且不允许携带 query/fragment。
+     *
+     * @param provider provider 编码
+     * @param redirectUri 原始回调地址
+     * @return 规范化后的回调地址
+     */
+    private String normalizeAndValidateRedirectUri(String provider, String redirectUri) {
+        if (!StringUtils.hasText(redirectUri)) {
+            throw invalidRedirectUri(provider, redirectUri);
+        }
+
+        String raw = redirectUri.trim();
+        URI parsed;
+        try {
+            parsed = URI.create(raw);
+        } catch (IllegalArgumentException ex) {
+            throw invalidRedirectUri(provider, redirectUri);
+        }
+
+        String scheme = parsed.getScheme();
+        boolean isHttp = "http".equalsIgnoreCase(scheme);
+        boolean isHttps = "https".equalsIgnoreCase(scheme);
+        if (!parsed.isAbsolute()
+            || (!isHttp && !isHttps)
+            || !StringUtils.hasText(parsed.getHost())
+            || StringUtils.hasText(parsed.getRawFragment())
+            || StringUtils.hasText(parsed.getRawQuery())) {
+            throw invalidRedirectUri(provider, redirectUri);
+        }
+
+        return parsed.toASCIIString();
+    }
+
+    private BusinessException invalidRedirectUri(String provider, String redirectUri) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("reason", "OAUTH_REDIRECT_URI_INVALID");
+        details.put(
+            "provider",
+            StringUtils.hasText(provider) ? provider.trim().toLowerCase(Locale.ROOT) : ""
+        );
+        details.put("redirect_uri", redirectUri == null ? "" : redirectUri);
+        return new BusinessException(ErrorCode.BAD_REQUEST, "OAuth redirect_uri invalid", details);
+    }
+
+    /**
      * 邮箱规范化。
      *
      * @param rawEmail 原始邮箱
@@ -793,7 +916,6 @@ public class AuthFlowService {
 
     private UserAccountEntity createOAuthAccount(String provider,
                                                  OAuthIdentity identity,
-                                                 String normalizedEmail,
                                                  boolean withRandomSuffix) {
         UserAccountEntity account = new UserAccountEntity();
         String username = buildOAuthUsername(provider, identity);
@@ -804,8 +926,8 @@ public class AuthFlowService {
         account.setUsername(username);
         account.setPassword(null);
         account.setNickname(resolveOAuthNickname(identity));
-        account.setEmail(normalizedEmail);
-        account.setEmailVerified(StringUtils.hasText(normalizedEmail) ? 1 : 0);
+        account.setEmail(null);
+        account.setEmailVerified(0);
         account.setGroupsJson(writeJson(List.of("USER")));
         account.setPermissionsJson(writeJson(List.of()));
         account.setCreatedAt(LocalDateTime.now());
@@ -859,6 +981,27 @@ public class AuthFlowService {
         } catch (JsonProcessingException ex) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "JSON serialization failed");
         }
+    }
+
+    private String shortHash(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "-";
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashed = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hashed, 0, 4);
+        } catch (NoSuchAlgorithmException ex) {
+            return "na";
+        }
+    }
+
+    private int textLength(String raw) {
+        return raw == null ? 0 : raw.length();
+    }
+
+    private String valueOrDash(String raw) {
+        return raw == null || raw.isBlank() ? "-" : raw;
     }
 
     /**

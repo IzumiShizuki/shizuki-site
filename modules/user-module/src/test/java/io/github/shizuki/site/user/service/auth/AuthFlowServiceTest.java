@@ -11,9 +11,12 @@ import io.github.shizuki.common.oauth.model.OAuthIdentity;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.common.oauth.strategy.OAuthProviderStrategy;
 import io.github.shizuki.common.oauth.strategy.OAuthProviderStrategyFactory;
+import io.github.shizuki.site.user.auth.AuthGrantCommand;
 import io.github.shizuki.site.user.auth.AuthGrantResult;
+import io.github.shizuki.site.user.auth.OAuthLoginScene;
 import io.github.shizuki.site.user.config.AuthProperties;
 import io.github.shizuki.site.user.dto.auth.EmailRegisterRequest;
+import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
 import io.github.shizuki.site.user.dto.auth.OAuthBindRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthConflictConfirmRequest;
 import io.github.shizuki.site.user.entity.OAuthBindingEntity;
@@ -26,6 +29,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -243,6 +247,127 @@ class AuthFlowServiceTest {
             .isInstanceOf(BusinessException.class)
             .matches(ex -> ((BusinessException) ex).getErrorCode() == ErrorCode.BAD_REQUEST)
             .hasMessageContaining("already bound by another user");
+    }
+
+    /**
+     * 场景：OAuth 登录时 provider 返回邮箱且本地已有同邮箱账号。
+     * 期望：不再进入邮箱冲突票据分支，直接创建 OAuth 账号并签发 token。
+     */
+    @Test
+    void shouldIssueTokenDirectlyWhenOauthIdentityEmailAlreadyExists() {
+        AuthGrantCommand command = new AuthGrantCommand();
+        command.setProvider("github");
+        command.setOauthLoginId("oauth-login-login");
+        command.setCode("oauth-code-1");
+        command.setState("state-1");
+
+        OAuthLoginEntity oauthLogin = buildLoginSceneOauthLogin();
+        OAuthIdentity identity = new OAuthIdentity("github", "provider-user-1", "demo", "demo@example.com", "demo", null);
+        AuthGrantResult tokenResult = new AuthGrantResult();
+        tokenResult.setResultType(AuthGrantResult.ResultType.TOKEN_ISSUED);
+        tokenResult.setUserId(200L);
+
+        Mockito.when(oAuthStateService.validateAndConsume("oauth-login-login", "state-1")).thenReturn(true);
+        Mockito.when(oAuthLoginMapper.selectOne(ArgumentMatchers.any())).thenReturn(oauthLogin);
+        Mockito.when(oAuthProviderStrategyFactory.get("github")).thenReturn(oAuthProviderStrategy);
+        Mockito.when(oAuthProviderStrategy.exchangeCode("oauth-code-1", "https://example.com/callback")).thenReturn(identity);
+        Mockito.when(oAuthBindingMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.doAnswer(invocation -> {
+            UserAccountEntity account = invocation.getArgument(0);
+            account.setId(200L);
+            return 1;
+        }).when(userAccountMapper).insert(ArgumentMatchers.any(UserAccountEntity.class));
+        Mockito.when(authTokenIssuer.issueTokenPair(200L)).thenReturn(tokenResult);
+
+        AuthGrantResult result = authFlowService.grantByOAuthCode(command);
+
+        assertThat(result.getResultType()).isEqualTo(AuthGrantResult.ResultType.TOKEN_ISSUED);
+        assertThat(result.getUserId()).isEqualTo(200L);
+
+        ArgumentCaptor<UserAccountEntity> accountCaptor = ArgumentCaptor.forClass(UserAccountEntity.class);
+        Mockito.verify(userAccountMapper).insert(accountCaptor.capture());
+        assertThat(accountCaptor.getValue().getEmail()).isNull();
+        assertThat(accountCaptor.getValue().getEmailVerified()).isEqualTo(0);
+
+        ArgumentCaptor<OAuthBindingEntity> bindingCaptor = ArgumentCaptor.forClass(OAuthBindingEntity.class);
+        Mockito.verify(oAuthBindingMapper).insert(bindingCaptor.capture());
+        assertThat(bindingCaptor.getValue().getProviderEmail()).isNull();
+
+        Mockito.verify(redisTemplate, Mockito.never()).opsForValue();
+        Mockito.verify(authTokenIssuer).issueTokenPair(200L);
+    }
+
+    /**
+     * 场景：OAuth 授权创建携带 fragment 回调地址。
+     * 期望：拒绝请求并返回 OAUTH_REDIRECT_URI_INVALID。
+     */
+    @Test
+    void shouldRejectOauthAuthorizationWhenRedirectUriContainsFragment() {
+        assertThatThrownBy(() -> authFlowService.createOAuthAuthorization(
+            "github",
+            "https://example.com/#/auth/callback",
+            OAuthLoginScene.LOGIN,
+            null
+        ))
+            .isInstanceOf(BusinessException.class)
+            .satisfies(ex -> {
+                BusinessException businessException = (BusinessException) ex;
+                assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
+                assertThat(businessException.getDetails())
+                    .containsEntry("reason", "OAUTH_REDIRECT_URI_INVALID")
+                    .containsEntry("provider", "github")
+                    .containsEntry("redirect_uri", "https://example.com/#/auth/callback");
+            });
+    }
+
+    /**
+     * 场景：OAuth 授权创建携带 query 回调地址。
+     * 期望：拒绝请求并返回 OAUTH_REDIRECT_URI_INVALID。
+     */
+    @Test
+    void shouldRejectOauthAuthorizationWhenRedirectUriContainsQuery() {
+        assertThatThrownBy(() -> authFlowService.createOAuthAuthorization(
+            "github",
+            "https://example.com/oauth/callback?foo=bar",
+            OAuthLoginScene.LOGIN,
+            null
+        ))
+            .isInstanceOf(BusinessException.class)
+            .satisfies(ex -> {
+                BusinessException businessException = (BusinessException) ex;
+                assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
+                assertThat(businessException.getDetails())
+                    .containsEntry("reason", "OAUTH_REDIRECT_URI_INVALID")
+                    .containsEntry("provider", "github")
+                    .containsEntry("redirect_uri", "https://example.com/oauth/callback?foo=bar");
+            });
+    }
+
+    /**
+     * 场景：OAuth 授权创建使用合法回调地址。
+     * 期望：正常创建授权事务并持久化规范化 redirect_uri。
+     */
+    @Test
+    void shouldCreateOauthAuthorizationWithNormalizedRedirectUri() {
+        Mockito.when(oAuthProviderStrategyFactory.get("github")).thenReturn(oAuthProviderStrategy);
+        Mockito.when(oAuthStateService.createState(ArgumentMatchers.anyString())).thenReturn("state-1");
+        Mockito.when(oAuthProviderStrategy.buildAuthorizeUrl("state-1", "https://example.com/oauth/callback"))
+            .thenReturn("https://github.com/login/oauth/authorize?state=state-1");
+
+        OAuthAuthorizeResponse response = authFlowService.createOAuthAuthorization(
+            "github",
+            " https://example.com/oauth/callback ",
+            OAuthLoginScene.LOGIN,
+            null
+        );
+
+        assertThat(response.state()).isEqualTo("state-1");
+        assertThat(response.authorizeUrl()).contains("state-1");
+
+        ArgumentCaptor<OAuthLoginEntity> oauthLoginCaptor = ArgumentCaptor.forClass(OAuthLoginEntity.class);
+        Mockito.verify(oAuthLoginMapper).insert(oauthLoginCaptor.capture());
+        assertThat(oauthLoginCaptor.getValue().getRedirectUri()).isEqualTo("https://example.com/oauth/callback");
+        assertThat(oauthLoginCaptor.getValue().getProvider()).isEqualTo("github");
     }
 
     /**
