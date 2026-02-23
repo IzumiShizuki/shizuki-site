@@ -5,47 +5,17 @@
         <div
           class="left-pill-group liquid-material"
           :class="{ 'no-main-active': !hasMainRouteActive }"
-          :style="{ '--active-index': activeMainRouteIndex }"
+          :style="{ '--active-index': activeMainRouteIndex, '--left-main-count': mainNavItems.length }"
         >
           <div
+            v-for="item in mainNavItems"
+            :key="item.key"
             class="menu-item-stack left-main-btn ripple-trigger"
-            :class="{ active: activeMainRoute === 'home' }"
-            @click="selectMainRoute('home')"
+            :class="{ active: activeMainRoute === item.key }"
+            @click="selectMainRoute(item.key)"
           >
-            <div class="icon-minimal"><i class="fas fa-home"></i></div>
-            <span class="item-label">主页</span>
-          </div>
-          <div
-            class="menu-item-stack left-main-btn ripple-trigger"
-            :class="{ active: activeMainRoute === 'blog' }"
-            @click="selectMainRoute('blog')"
-          >
-            <div class="icon-minimal"><i class="far fa-file-alt"></i></div>
-            <span class="item-label">博客</span>
-          </div>
-          <div
-            class="menu-item-stack left-main-btn ripple-trigger"
-            :class="{ active: activeMainRoute === 'music-library' }"
-            @click="selectMainRoute('music-library')"
-          >
-            <div class="icon-minimal"><i class="fas fa-music"></i></div>
-            <span class="item-label">音乐库</span>
-          </div>
-          <div
-            class="menu-item-stack left-main-btn ripple-trigger"
-            :class="{ active: activeMainRoute === 'apps' }"
-            @click="selectMainRoute('apps')"
-          >
-            <div class="icon-minimal"><i class="fas fa-th-large"></i></div>
-            <span class="item-label">轻应用</span>
-          </div>
-          <div
-            class="menu-item-stack left-main-btn ripple-trigger"
-            :class="{ active: activeMainRoute === 'ai-tavern' }"
-            @click="selectMainRoute('ai-tavern')"
-          >
-            <div class="icon-minimal"><i class="far fa-comment-dots"></i></div>
-            <span class="item-label">AI酒馆</span>
+            <div class="icon-minimal"><i :class="item.icon"></i></div>
+            <span class="item-label">{{ item.label }}</span>
           </div>
         </div>
       </div>
@@ -103,17 +73,31 @@
               <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('journey')">建站经历</button>
               <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('posts')">作者文章</button>
               <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('about')">关于本站</button>
+              <button v-if="isAdmin" class="popover-item ripple-trigger" type="button" @click="openAuthorTab('edit')">
+                编辑作者简介
+              </button>
             </section>
           </transition>
         </div>
 
         <div
+          v-if="!isAuthenticated"
+          class="menu-item-stack ripple-trigger user-profile-item login-entry"
+          :class="{ 'route-active': isAuthRoute }"
+          @click.stop="openAuth"
+        >
+          <div class="avatar-box anonymous"></div>
+          <span class="item-label">用户登录</span>
+        </div>
+
+        <div
+          v-else
           class="menu-item-stack ripple-trigger user-profile-item"
           :class="{ 'route-active': isProfileRoute, open: profileMenuOpen }"
           @click.stop="toggleProfileMenu"
         >
           <div class="avatar-box"></div>
-          <span class="item-label">个人页面</span>
+          <span class="item-label">{{ displayName || '个人页面' }}</span>
 
           <transition name="profile-popover">
             <section v-if="profileMenuOpen" class="profile-popover liquid-material" @click.stop>
@@ -121,6 +105,8 @@
               <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('account')">账号</button>
               <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('articles')">文章</button>
               <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('settings')">设置</button>
+              <button v-if="isAdmin" class="popover-item ripple-trigger" type="button" @click="openAdminTab('overview')">管理后台</button>
+              <button class="popover-item ripple-trigger danger" type="button" @click="requestLogout">登出</button>
             </section>
           </transition>
         </div>
@@ -149,27 +135,64 @@ const props = defineProps({
   aiChatActive: {
     type: Boolean,
     default: false
+  },
+  isAuthenticated: {
+    type: Boolean,
+    default: false
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
+  },
+  displayName: {
+    type: String,
+    default: ''
   }
 });
 
-const emit = defineEmits(['toggle-menu', 'toggle-ai-chat', 'select-main-route', 'open-background-picker', 'open-profile', 'open-author']);
+const emit = defineEmits([
+  'toggle-menu',
+  'toggle-ai-chat',
+  'select-main-route',
+  'open-background-picker',
+  'open-profile',
+  'open-admin',
+  'open-author',
+  'open-auth',
+  'logout'
+]);
 const route = useRoute();
-const mainRouteOrder = ['home', 'blog', 'music-library', 'apps', 'ai-tavern'];
-const { menuExpanded, aiChatActive } = toRefs(props);
+const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName } = toRefs(props);
 const menuRootRef = ref(null);
 const authorMenuOpen = ref(false);
 const profileMenuOpen = ref(false);
 
+const mainNavItems = computed(() => {
+  const base = [
+    { key: 'home', label: '主页', icon: 'fas fa-home' },
+    { key: 'blog', label: '博客', icon: 'far fa-file-alt' },
+    { key: 'music-library', label: '音乐库', icon: 'fas fa-music' },
+    { key: 'apps', label: '轻应用', icon: 'fas fa-th-large' },
+    { key: 'ai-tavern', label: 'AI酒馆', icon: 'far fa-comment-dots' }
+  ];
+
+  if (isAdmin.value) {
+    base.push({ key: 'admin', label: '管理后台', icon: 'fas fa-user-shield' });
+  }
+  return base;
+});
+
 const activeMainRoute = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
-  return mainRouteOrder.includes(name) ? name : '';
+  const keys = mainNavItems.value.map((item) => item.key);
+  return keys.includes(name) ? name : '';
 });
 
 const hasMainRouteActive = computed(() => activeMainRoute.value !== '');
 
 const isProfileRoute = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
-  return name === 'profile';
+  return name === 'profile' || name === 'admin';
 });
 
 const isAuthorRoute = computed(() => {
@@ -177,9 +200,14 @@ const isAuthorRoute = computed(() => {
   return name === 'author';
 });
 
+const isAuthRoute = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : '';
+  return name === 'auth' || name === 'auth-callback';
+});
+
 const activeMainRouteIndex = computed(() => {
   if (!hasMainRouteActive.value) return 0;
-  const idx = mainRouteOrder.indexOf(activeMainRoute.value);
+  const idx = mainNavItems.value.findIndex((item) => item.key === activeMainRoute.value);
   return idx < 0 ? 0 : idx;
 });
 
@@ -211,6 +239,10 @@ function toggleAuthorMenu() {
 }
 
 function toggleProfileMenu() {
+  if (!isAuthenticated.value) {
+    openAuth();
+    return;
+  }
   profileMenuOpen.value = !profileMenuOpen.value;
   if (profileMenuOpen.value) authorMenuOpen.value = false;
 }
@@ -223,6 +255,21 @@ function openAuthorTab(tabKey) {
 function openProfileTab(tabKey) {
   closeProfileMenus();
   emit('open-profile', tabKey);
+}
+
+function openAdminTab(tabKey) {
+  closeProfileMenus();
+  emit('open-admin', tabKey);
+}
+
+function openAuth() {
+  closeProfileMenus();
+  emit('open-auth');
+}
+
+function requestLogout() {
+  closeProfileMenus();
+  emit('logout');
 }
 
 function onGlobalPointerDown(event) {
@@ -385,7 +432,11 @@ onBeforeUnmount(() => {
   --left-main-padding-x: 20px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
   border-radius: 40px;
-  min-width: 592px;
+  min-width: calc(
+    (var(--left-main-item-width) * var(--left-main-count, 5)) +
+      (var(--left-main-gap) * (var(--left-main-count, 5) - 1)) +
+      (var(--left-main-padding-x) * 2)
+  );
   padding: 8px var(--left-main-padding-x) 4px;
   display: flex;
   gap: var(--left-main-gap);
@@ -582,6 +633,15 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+.avatar-box.anonymous {
+  filter: saturate(0.72);
+  border-color: rgba(255, 255, 255, 0.82);
+}
+
+.avatar-box.anonymous::after {
+  display: none;
+}
+
 .avatar-box::after {
   content: '';
   position: absolute;
@@ -661,6 +721,16 @@ onBeforeUnmount(() => {
 .popover-item:hover {
   background: rgba(var(--accent-rgb), 0.24);
   color: rgb(var(--accent-strong-rgb));
+}
+
+.popover-item.danger {
+  background: rgba(235, 94, 124, 0.2);
+  color: rgba(255, 230, 238, 0.95);
+}
+
+.popover-item.danger:hover {
+  background: rgba(235, 94, 124, 0.3);
+  color: rgba(255, 240, 244, 0.98);
 }
 
 .profile-popover-enter-active,

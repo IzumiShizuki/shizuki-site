@@ -156,4 +156,36 @@ class AuthVerificationControllerIntegrationTest {
                     """))
             .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
     }
+
+    /**
+     * 场景：创建 OAuth 授权事务时 redirect_uri 非法（含 fragment/query）。
+     * 前置条件：AuthService.createOAuthAuthorization 抛 BAD_REQUEST。
+     * 执行动作：POST /api/v1/auth/oauth/authorizations。
+     * 断言结果：HTTP 400，reason=OAUTH_REDIRECT_URI_INVALID。
+     */
+    @Test
+    void shouldReturnBadRequestWhenCreateOauthAuthorizationRedirectUriInvalid() throws Exception {
+        Mockito.when(authService.createOAuthAuthorization(ArgumentMatchers.any()))
+            .thenThrow(new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "OAuth redirect_uri invalid",
+                java.util.Map.of(
+                    "reason", "OAUTH_REDIRECT_URI_INVALID",
+                    "provider", "github",
+                    "redirect_uri", "https://example.com/#/auth/callback"
+                )
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/oauth/authorizations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "provider": "github",
+                      "redirect_uri": "https://example.com/#/auth/callback",
+                      "scene": "login"
+                    }
+                    """))
+            .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.reason").value("OAUTH_REDIRECT_URI_INVALID"));
+    }
 }

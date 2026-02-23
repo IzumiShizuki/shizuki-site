@@ -4,6 +4,7 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "FRONTEND_DIR=%SCRIPT_DIR%fronted\vue3-merged"
 set "VITE_CMD=node_modules\.bin\vite.cmd"
+set "ROLLUP_NATIVE_DIR=node_modules\@rollup\rollup-win32-x64-msvc"
 
 if not exist "%FRONTEND_DIR%\package.json" (
   echo [ERROR] Frontend project not found: "%FRONTEND_DIR%"
@@ -55,6 +56,29 @@ if not exist "%VITE_CMD%" (
 
 if not exist "%VITE_CMD%" (
   echo [ERROR] vite.cmd is still missing. Please check Node.js/npm installation.
+  pause
+  exit /b 1
+)
+
+if not exist "%ROLLUP_NATIVE_DIR%\package.json" (
+  echo [WARN] Missing optional dependency "@rollup/rollup-win32-x64-msvc".
+  echo [INFO] Installing Rollup native package for Windows...
+  call npm install --no-save @rollup/rollup-win32-x64-msvc
+  if errorlevel 1 (
+    echo [WARN] Optional package install failed. Running clean reinstall...
+    if exist "node_modules" rmdir /s /q "node_modules"
+    call npm install
+    if errorlevel 1 (
+      echo [ERROR] npm install failed after clean reinstall.
+      pause
+      exit /b 1
+    )
+  )
+)
+
+if not exist "%ROLLUP_NATIVE_DIR%\package.json" (
+  echo [ERROR] Rollup Windows native package is still missing.
+  echo [ERROR] Please run: npm install --no-save @rollup/rollup-win32-x64-msvc
   pause
   exit /b 1
 )

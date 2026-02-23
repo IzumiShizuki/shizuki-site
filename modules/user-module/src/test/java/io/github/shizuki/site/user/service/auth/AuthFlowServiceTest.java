@@ -16,6 +16,7 @@ import io.github.shizuki.site.user.auth.AuthGrantResult;
 import io.github.shizuki.site.user.auth.OAuthLoginScene;
 import io.github.shizuki.site.user.config.AuthProperties;
 import io.github.shizuki.site.user.dto.auth.EmailRegisterRequest;
+import io.github.shizuki.site.user.dto.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
 import io.github.shizuki.site.user.dto.auth.OAuthBindRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthConflictConfirmRequest;
@@ -368,6 +369,54 @@ class AuthFlowServiceTest {
         Mockito.verify(oAuthLoginMapper).insert(oauthLoginCaptor.capture());
         assertThat(oauthLoginCaptor.getValue().getRedirectUri()).isEqualTo("https://example.com/oauth/callback");
         assertThat(oauthLoginCaptor.getValue().getProvider()).isEqualTo("github");
+    }
+
+    /**
+     * 场景：未登录用户通过邮箱验证码重置密码成功。
+     * 期望：消费 RESET_PASSWORD 验证码并更新密码哈希。
+     */
+    @Test
+    void shouldResetPasswordByEmailSuccessfully() {
+        EmailCodePasswordUpdateRequest request = new EmailCodePasswordUpdateRequest();
+        request.setEmail("demo@example.com");
+        request.setEmailCode("123456");
+        request.setNewPassword("new-password-123");
+        request.setConfirmPassword("new-password-123");
+
+        UserAccountEntity account = buildAccount(77L, "demo@example.com");
+        account.setPassword(BCrypt.hashpw("old-password-1", BCrypt.gensalt(10)));
+        Mockito.when(userAccountMapper.selectOne(ArgumentMatchers.any())).thenReturn(account);
+
+        authFlowService.resetPasswordByEmail(request);
+
+        ArgumentCaptor<UserAccountEntity> captor = ArgumentCaptor.forClass(UserAccountEntity.class);
+        Mockito.verify(userAccountMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getPassword()).isNotEqualTo("new-password-123");
+        assertThat(BCrypt.checkpw("new-password-123", captor.getValue().getPassword())).isTrue();
+    }
+
+    /**
+     * 场景：登录态修改密码时请求邮箱不属于当前账号。
+     * 期望：返回 BAD_REQUEST 并拒绝修改。
+     */
+    @Test
+    void shouldRejectChangePasswordWhenEmailDoesNotBelongToCurrentAccount() {
+        EmailCodePasswordUpdateRequest request = new EmailCodePasswordUpdateRequest();
+        request.setEmail("another@example.com");
+        request.setEmailCode("123456");
+        request.setNewPassword("new-password-123");
+        request.setConfirmPassword("new-password-123");
+
+        UserAccountEntity current = buildAccount(88L, "owner@example.com");
+        current.setPassword(BCrypt.hashpw("old-password-1", BCrypt.gensalt(10)));
+        Mockito.when(userAccountMapper.selectById(88L)).thenReturn(current);
+
+        assertThatThrownBy(() -> authFlowService.changePasswordByEmail(88L, request))
+            .isInstanceOf(BusinessException.class)
+            .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.BAD_REQUEST))
+            .hasMessageContaining("does not belong to current account");
+
+        Mockito.verify(userAccountMapper, Mockito.never()).updateById(ArgumentMatchers.any(UserAccountEntity.class));
     }
 
     /**

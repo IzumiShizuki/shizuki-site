@@ -2,6 +2,7 @@ package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
+import io.github.shizuki.common.security.annotation.RequireAdminPrivilege;
 import io.github.shizuki.common.security.annotation.RequireGroup;
 import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.GroupPermissionsUpdateRequest;
@@ -45,6 +46,7 @@ public class AdminGroupPermissionController {
     }
 
     @PutMapping("/{group_code}/permissions")
+    @RequireAdminPrivilege
     @AuditLog(action = "group.permission.update", resource = "group_permission")
     @Operation(summary = "更新分组权限", description = "按 group_code 全量覆盖权限集合")
     public ApiResponse<GroupPermissionsResponse> replaceGroupPermissions(@PathVariable("group_code") String groupCode,

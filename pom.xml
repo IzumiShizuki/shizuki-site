@@ -15,6 +15,7 @@
         <java.version>17</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <spring-boot.version>3.2.12</spring-boot.version>
+        <flyway.version>11.20.1</flyway.version>
         <mybatis-plus.version>3.5.8</mybatis-plus.version>
         <sa-token.version>1.39.0</sa-token.version>
         <owasp-sanitizer.version>20240325.1</owasp-sanitizer.version>
@@ -47,6 +48,16 @@
                 <version>${spring-boot.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-mysql</artifactId>
+                <version>${flyway.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

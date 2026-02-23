@@ -1,10 +1,16 @@
 package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.audit.annotation.AuditLog;
+import io.github.shizuki.common.core.error.BusinessException;
+import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MeResponse;
+import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
 import io.github.shizuki.site.user.dto.PreferenceUpdateRequest;
+import io.github.shizuki.site.user.dto.auth.EmailCodePasswordUpdateRequest;
+import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,14 +36,16 @@ public class MeController {
      * 用户域服务，封装用户信息查询与偏好配置持久化。
      */
     private final UserService userService;
+    private final AuthService authService;
 
     /**
      * 构造当前用户控制器。
      *
      * @param userService 用户域服务
      */
-    public MeController(UserService userService) {
+    public MeController(UserService userService, AuthService authService) {
         this.userService = userService;
+        this.authService = authService;
     }
 
     /**
@@ -49,6 +57,12 @@ public class MeController {
     @Operation(summary = "获取当前用户信息", description = "返回 userId、昵称、分组和权限")
     public ApiResponse<MeResponse> me() {
         return ApiResponse.success(userService.currentUser());
+    }
+
+    @GetMapping("/account")
+    @Operation(summary = "获取账号详情", description = "返回邮箱、头像、绑定 OAuth 等账号信息")
+    public ApiResponse<MeAccountResponse> account() {
+        return ApiResponse.success(userService.getAccountProfile(requireLoginUserId()));
     }
 
     @GetMapping("/preferences")
@@ -72,5 +86,27 @@ public class MeController {
         Long userId = LoginUserContext.get().map(user -> user.getUserId()).orElse(0L);
         userService.savePreference(userId, request.getPreferenceJson());
         return ApiResponse.success(null);
+    }
+
+    @PutMapping("/profile")
+    @AuditLog(action = "user.profile.update", resource = "usr_account")
+    @Operation(summary = "更新个人资料", description = "更新昵称与头像 URL")
+    public ApiResponse<MeAccountResponse> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) {
+        return ApiResponse.success(userService.updateProfile(requireLoginUserId(), request));
+    }
+
+    @PutMapping("/password")
+    @AuditLog(action = "auth.password.change", resource = "usr_account")
+    @Operation(summary = "修改密码", description = "登录态下通过邮箱验证码修改密码")
+    public ApiResponse<Map<String, String>> updatePassword(@Valid @RequestBody EmailCodePasswordUpdateRequest request) {
+        authService.changePasswordByEmail(requireLoginUserId(), request);
+        return ApiResponse.success(Map.of("status", "OK"));
+    }
+
+    private Long requireLoginUserId() {
+        return LoginUserContext.get()
+            .map(user -> user.getUserId())
+            .filter(userId -> userId > 0)
+            .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "Login required"));
     }
 }

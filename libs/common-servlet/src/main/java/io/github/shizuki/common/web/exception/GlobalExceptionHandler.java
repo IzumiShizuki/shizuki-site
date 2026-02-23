@@ -41,7 +41,7 @@ public class GlobalExceptionHandler {
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case TOO_MANY_REQUESTS -> HttpStatus.TOO_MANY_REQUESTS;
-            default -> HttpStatus.BAD_REQUEST;
+            case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
 
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(status, exception.getMessage());

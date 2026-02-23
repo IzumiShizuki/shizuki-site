@@ -1,10 +1,13 @@
 package io.github.shizuki.site.user.service;
 
 import io.github.shizuki.site.user.dto.MeResponse;
+import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
+import io.github.shizuki.site.user.dto.AdminUserPageResponse;
 import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
+import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
 import io.github.shizuki.site.user.dto.QuotaPolicyDto;
 import io.github.shizuki.site.user.dto.UserGroupsResponse;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
@@ -19,6 +22,16 @@ public interface UserService {
      * 获取当前登录用户信息。
      */
     MeResponse currentUser();
+
+    /**
+     * 获取当前登录用户账号详情。
+     */
+    MeAccountResponse getAccountProfile(Long userId);
+
+    /**
+     * 更新当前登录用户昵称与头像。
+     */
+    MeAccountResponse updateProfile(Long userId, ProfileUpdateRequest request);
 
     /**
      * 保存当前用户偏好配置。
@@ -79,6 +92,11 @@ public interface UserService {
      * 查询全部分组权限映射。
      */
     List<GroupPermissionsResponse> listGroupPermissions();
+
+    /**
+     * 管理员查询用户列表（分页 + 关键字）。
+     */
+    AdminUserPageResponse listAdminUsers(Integer page, Integer pageSize, String keyword);
 
     /**
      * 用户名密码登录。

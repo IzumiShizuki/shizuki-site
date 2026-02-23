@@ -29,6 +29,11 @@ import org.springframework.web.client.RestClientResponseException;
 public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStrategy {
 
     /**
+     * GitHub 等 OAuth 上游要求携带 User-Agent，否则会拒绝请求。
+     */
+    private static final String OAUTH_USER_AGENT = "shizuki-site-oauth-client/1.0";
+
+    /**
      * 可重试异常集合（仅瞬时故障）。
      */
     private static final Set<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
@@ -133,6 +138,7 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
         try {
             Map<String, Object> tokenResponse = restClient.post()
                 .uri(provider.getTokenUrl())
+                .header("User-Agent", OAUTH_USER_AGENT)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(tokenRequest)
@@ -141,12 +147,21 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
                 });
             String accessToken = readString(tokenResponse, "access_token");
             if (!StringUtils.hasText(accessToken)) {
+                String providerError = readString(tokenResponse, "error");
+                String providerErrorDescription = readString(tokenResponse, "error_description");
+                if (StringUtils.hasText(providerError)) {
+                    throw new NonRetryableOAuthException(
+                        "OAuth token endpoint error: " + providerError
+                            + (StringUtils.hasText(providerErrorDescription) ? " (" + providerErrorDescription + ")" : "")
+                    );
+                }
                 throw new NonRetryableOAuthException("OAuth token response missing access_token");
             }
 
             Map<String, Object> userInfo = restClient.get()
                 .uri(provider.getUserApiUrl())
                 .header("Authorization", "Bearer " + accessToken)
+                .header("User-Agent", OAUTH_USER_AGENT)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {
@@ -160,7 +175,16 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
                 throw new TransientOAuthException("oauth_upstream_5xx", ex);
             }
             // 4xx 通常为授权码无效或请求参数问题，不重试。
-            throw new NonRetryableOAuthException("OAuth upstream rejected request", ex);
+            String statusText = "status=" + ex.getRawStatusCode();
+            String body = ex.getResponseBodyAsString();
+            if (StringUtils.hasText(body)) {
+                body = body.replace('\n', ' ').replace('\r', ' ').trim();
+                if (body.length() > 240) {
+                    body = body.substring(0, 240) + "...";
+                }
+                throw new NonRetryableOAuthException("OAuth upstream rejected request (" + statusText + "): " + body, ex);
+            }
+            throw new NonRetryableOAuthException("OAuth upstream rejected request (" + statusText + ")", ex);
         } catch (ResourceAccessException ex) {
             // 网络错误归类为瞬时错误，允许重试。
             throw new TransientOAuthException("oauth_network", ex);

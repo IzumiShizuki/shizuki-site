@@ -2,6 +2,7 @@ package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
+import io.github.shizuki.common.security.annotation.RequireAdminPrivilege;
 import io.github.shizuki.common.security.annotation.RequireGroup;
 import io.github.shizuki.site.user.dto.QuotaPolicyBatchUpsertRequest;
 import io.github.shizuki.site.user.dto.QuotaPolicyDto;
@@ -61,6 +62,7 @@ public class AdminQuotaPolicyController {
      * @return 更新后的配额策略
      */
     @PutMapping("/{policy_id}")
+    @RequireAdminPrivilege
     @AuditLog(action = "quota.policy.update", resource = "group_quota_policy")
     @Operation(summary = "更新配额策略", description = "按 policy_id 更新分组配额值")
     public ApiResponse<QuotaPolicyDto> update(@PathVariable("policy_id") String policyId,
@@ -74,6 +76,7 @@ public class AdminQuotaPolicyController {
      * <p>用于后台“参数中心”一次提交 AI 次数、音乐次数、上传容量等多类指标。
      */
     @PutMapping("/batch-upsert")
+    @RequireAdminPrivilege
     @AuditLog(action = "quota.policy.batch_upsert", resource = "group_quota_policy")
     @Operation(summary = "批量创建或更新配额策略", description = "按 policy_id 或 group_code+quota_code upsert")
     public ApiResponse<List<QuotaPolicyDto>> batchUpsert(@Valid @RequestBody QuotaPolicyBatchUpsertRequest request) {

@@ -39,6 +39,12 @@
           <p>后续可接入标签筛选、分类聚合和阅读统计。</p>
         </div>
 
+        <div v-else-if="activeTab === 'edit'" class="content-block">
+          <h2>编辑作者简介</h2>
+          <p>该入口仅管理员可见，当前为占位实现。</p>
+          <p>后续可在这里接入简介文本编辑、封面图管理和发布流程。</p>
+        </div>
+
         <div v-else class="content-block">
           <h2>关于本站</h2>
           <p>用于说明网站定位、内容结构、更新计划和版权信息。</p>
@@ -51,19 +57,36 @@
 <script setup>
 import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useAuthSession } from '../composables/useAuthSession';
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthSession();
 
-const tabs = [
+const baseTabs = [
   { key: 'overview', label: '作者主页' },
   { key: 'journey', label: '建站经历' },
   { key: 'posts', label: '作者文章' },
   { key: 'about', label: '关于本站' }
 ];
 
+const isAdminUser = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
+});
+
+const tabs = computed(() => {
+  const list = [...baseTabs];
+  if (isAdminUser.value) {
+    list.push({ key: 'edit', label: '编辑简介' });
+  }
+  return list;
+});
+
 function normalizeTab(raw) {
-  return tabs.some((item) => item.key === raw) ? raw : 'overview';
+  const key = String(raw || '');
+  const matched = tabs.value.some((item) => item.key === key);
+  return matched ? key : 'overview';
 }
 
 const activeTab = computed(() => {

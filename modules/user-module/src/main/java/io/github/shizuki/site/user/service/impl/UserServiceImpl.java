@@ -13,11 +13,16 @@ import io.github.shizuki.common.oauth.model.GitHubTokenResponse;
 import io.github.shizuki.common.oauth.model.GitHubUserResponse;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.site.user.dto.AdminUserItemResponse;
+import io.github.shizuki.site.user.dto.AdminUserPageResponse;
 import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
+import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MeResponse;
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
+import io.github.shizuki.site.user.dto.OAuthBindingView;
+import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
 import io.github.shizuki.site.user.dto.QuotaPolicyDto;
 import io.github.shizuki.site.user.dto.UserGroupsResponse;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
@@ -41,8 +46,10 @@ import io.github.shizuki.site.user.service.security.MusicApiKeyCryptoService;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -113,11 +120,83 @@ public class UserServiceImpl implements UserService {
                 return new MeResponse(
                     loginUser.getUserId(),
                     nickname,
+                    account == null ? null : account.getAvatarUrl(),
                     loginUser.getGroups(),
                     loginUser.getPermissions()
                 );
             })
-            .orElse(new MeResponse(0L, "guest", Set.of("GUEST"), Set.of()));
+            .orElse(new MeResponse(0L, "guest", null, Set.of("GUEST"), Set.of()));
+    }
+
+    @Override
+    public MeAccountResponse getAccountProfile(Long userId) {
+        Long checkedUserId = requireValidUserId(userId);
+        UserAccountEntity account = userAccountMapper.selectById(checkedUserId);
+        if (account == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Account not found");
+        }
+
+        List<OAuthBindingView> oauthBindings = oAuthBindingMapper.selectList(
+                new LambdaQueryWrapper<OAuthBindingEntity>()
+                    .eq(OAuthBindingEntity::getUserId, checkedUserId)
+                    .orderByDesc(OAuthBindingEntity::getCreatedAt)
+            ).stream()
+            .map(item -> new OAuthBindingView(item.getProvider(), item.getProviderLogin(), item.getCreatedAt()))
+            .toList();
+
+        return new MeAccountResponse(
+            account.getId(),
+            account.getUsername(),
+            account.getNickname(),
+            account.getEmail(),
+            account.getEmailVerified(),
+            account.getAvatarUrl(),
+            StringUtils.hasText(account.getPassword()),
+            oauthBindings
+        );
+    }
+
+    @Override
+    public MeAccountResponse updateProfile(Long userId, ProfileUpdateRequest request) {
+        Long checkedUserId = requireValidUserId(userId);
+        UserAccountEntity account = userAccountMapper.selectById(checkedUserId);
+        if (account == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Account not found");
+        }
+        if (request == null) {
+            return getAccountProfile(checkedUserId);
+        }
+
+        if (request.getNickname() != null) {
+            String nickname = request.getNickname().trim();
+            if (nickname.isEmpty()) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Nickname cannot be empty");
+            }
+            if (nickname.length() > 128) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Nickname is too long");
+            }
+            account.setNickname(nickname);
+        }
+
+        if (request.getAvatarUrl() != null) {
+            String avatarUrl = request.getAvatarUrl().trim();
+            if (!avatarUrl.isEmpty()) {
+                if (avatarUrl.length() > 512) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "Avatar url is too long");
+                }
+                String normalized = avatarUrl.toLowerCase();
+                if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "Avatar url must be http/https");
+                }
+                account.setAvatarUrl(avatarUrl);
+            } else {
+                account.setAvatarUrl(null);
+            }
+        }
+
+        account.setUpdatedAt(LocalDateTime.now());
+        userAccountMapper.updateById(account);
+        return getAccountProfile(checkedUserId);
     }
 
     @Override
@@ -466,6 +545,45 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public AdminUserPageResponse listAdminUsers(Integer page, Integer pageSize, String keyword) {
+        int resolvedPage = page == null || page < 1 ? 1 : page;
+        int resolvedPageSize = pageSize == null ? 20 : Math.min(Math.max(pageSize, 1), 100);
+        int offset = (resolvedPage - 1) * resolvedPageSize;
+        String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : "";
+
+        LambdaQueryWrapper<UserAccountEntity> countWrapper = buildAdminUserSearchWrapper(normalizedKeyword);
+        long total = userAccountMapper.selectCount(countWrapper);
+        if (total <= 0) {
+            return new AdminUserPageResponse(resolvedPage, resolvedPageSize, 0L, List.of());
+        }
+
+        LambdaQueryWrapper<UserAccountEntity> listWrapper = buildAdminUserSearchWrapper(normalizedKeyword)
+            .orderByDesc(UserAccountEntity::getId)
+            .last("LIMIT " + offset + "," + resolvedPageSize);
+        List<UserAccountEntity> users = userAccountMapper.selectList(listWrapper);
+
+        List<AdminUserItemResponse> items = new ArrayList<>(users.size());
+        for (UserAccountEntity account : users) {
+            Set<String> groups = normalizeGroupCodes(parseStringSet(account.getGroupsJson()));
+            Set<String> permissions = normalizePermissionCodes(parseStringSet(account.getPermissionsJson()));
+            items.add(new AdminUserItemResponse(
+                account.getId(),
+                account.getUsername(),
+                account.getNickname(),
+                account.getEmail(),
+                account.getEmailVerified(),
+                account.getAvatarUrl(),
+                groups,
+                permissions,
+                account.getCreatedAt(),
+                account.getUpdatedAt()
+            ));
+        }
+        items.sort(Comparator.comparing(AdminUserItemResponse::userId).reversed());
+        return new AdminUserPageResponse(resolvedPage, resolvedPageSize, total, items);
+    }
+
+    @Override
     public AuthLoginResponse login(String username, String password) {
         UserAccountEntity account = userAccountMapper.selectOne(
             new LambdaQueryWrapper<UserAccountEntity>().eq(UserAccountEntity::getUsername, username)
@@ -523,6 +641,38 @@ public class UserServiceImpl implements UserService {
         }
 
         return policies.stream().map(GroupQuotaPolicyEntity::getQuotaValue).max(Long::compareTo).orElse(fallback);
+    }
+
+    private LambdaQueryWrapper<UserAccountEntity> buildAdminUserSearchWrapper(String normalizedKeyword) {
+        LambdaQueryWrapper<UserAccountEntity> wrapper = new LambdaQueryWrapper<>();
+        if (!StringUtils.hasText(normalizedKeyword)) {
+            return wrapper;
+        }
+
+        wrapper.and(q -> {
+            q.like(UserAccountEntity::getUsername, normalizedKeyword)
+                .or()
+                .like(UserAccountEntity::getNickname, normalizedKeyword)
+                .or()
+                .like(UserAccountEntity::getEmail, normalizedKeyword);
+            Long maybeUserId = parsePositiveLong(normalizedKeyword);
+            if (maybeUserId != null) {
+                q.or().eq(UserAccountEntity::getId, maybeUserId);
+            }
+        });
+        return wrapper;
+    }
+
+    private Long parsePositiveLong(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        try {
+            long value = Long.parseLong(raw.trim());
+            return value > 0 ? value : null;
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private Long bindOrCreateUser(GitHubUserResponse userResponse) {

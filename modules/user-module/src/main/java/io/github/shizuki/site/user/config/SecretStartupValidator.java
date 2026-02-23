@@ -12,7 +12,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("userSecretStartupValidator")
 public class SecretStartupValidator implements ApplicationRunner {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SecretStartupValidator.class);

@@ -7,7 +7,9 @@ import io.github.shizuki.common.oauth.client.GitHubOAuthClient;
 import io.github.shizuki.common.oauth.config.OAuthProperties;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
+import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
 import io.github.shizuki.site.user.entity.GroupQuotaPolicyEntity;
+import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.entity.UserPreferenceEntity;
 import io.github.shizuki.site.user.mapper.GroupPermissionMapper;
 import io.github.shizuki.site.user.mapper.GroupQuotaPolicyMapper;
@@ -205,5 +207,23 @@ class UserServiceImplTest {
         Map<String, Object> result = userService.getPreference(1L);
         Assertions.assertEquals("glass", result.get("theme"));
         Assertions.assertEquals(101, result.get("active_role"));
+    }
+
+    @Test
+    void should_throw_bad_request_when_update_profile_avatar_url_not_http() {
+        UserAccountEntity account = new UserAccountEntity();
+        account.setId(1L);
+        account.setNickname("demo");
+        Mockito.when(userAccountMapper.selectById(1L)).thenReturn(account);
+
+        ProfileUpdateRequest request = new ProfileUpdateRequest();
+        request.setAvatarUrl("javascript:alert(1)");
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> userService.updateProfile(1L, request)
+        );
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+        Assertions.assertTrue(exception.getMessage().contains("Avatar url"));
     }
 }

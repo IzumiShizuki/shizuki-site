@@ -1,19 +1,28 @@
 package io.github.shizuki.site.user.service.auth;
 
+import io.github.shizuki.common.core.error.BusinessException;
+import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.resilience.RetrySpec;
 import io.github.shizuki.common.core.resilience.SpringRetryExecutor;
 import io.github.shizuki.site.user.auth.EmailVerificationPurpose;
 import io.github.shizuki.site.user.config.AuthProperties;
+import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 public class MailSenderService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MailSenderService.class);
 
     private static final Set<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
         Set.of(TransientMailException.class);
@@ -21,13 +30,16 @@ public class MailSenderService {
     private final JavaMailSender mailSender;
     private final SpringRetryExecutor retryExecutor;
     private final AuthProperties authProperties;
+    private final String mailFrom;
 
     public MailSenderService(JavaMailSender mailSender,
                              SpringRetryExecutor retryExecutor,
-                             AuthProperties authProperties) {
+                             AuthProperties authProperties,
+                             @Value("${spring.mail.username:}") String mailFrom) {
         this.mailSender = mailSender;
         this.retryExecutor = retryExecutor;
         this.authProperties = authProperties;
+        this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
     }
 
     public void sendVerificationCode(String email, EmailVerificationPurpose purpose, String code) {
@@ -36,15 +48,34 @@ public class MailSenderService {
             authProperties.getRetry().getBackoffMs(),
             authProperties.getRetry().getMaxBackoffMs()
         );
-        retryExecutor.execute(retrySpec, RETRYABLE_EXCEPTIONS, () -> {
-            sendOnce(email, purpose, code);
-            return null;
-        });
+        try {
+            retryExecutor.execute(retrySpec, RETRYABLE_EXCEPTIONS, () -> {
+                sendOnce(email, purpose, code);
+                return null;
+            });
+        } catch (MailAuthenticationException ex) {
+            LOGGER.error("mail authentication failed. check spring.mail.username/password and SMTP authorization settings.", ex);
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Mail service authentication failed",
+                Map.of("reason", "MAIL_AUTH_FAILED")
+            );
+        } catch (TransientMailException ex) {
+            LOGGER.warn("mail transient send failure. cause={}", ex.getMessage(), ex);
+            throw new BusinessException(
+                ErrorCode.INTERNAL_ERROR,
+                "Mail service temporarily unavailable",
+                Map.of("reason", "MAIL_SEND_TRANSIENT")
+            );
+        }
     }
 
     private void sendOnce(String email, EmailVerificationPurpose purpose, String code) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
+            if (StringUtils.hasText(mailFrom)) {
+                message.setFrom(mailFrom);
+            }
             message.setTo(email);
             message.setSubject("[Shizuki] Email Verification Code");
             message.setText(buildBody(purpose, code));
@@ -71,4 +102,3 @@ public class MailSenderService {
         }
     }
 }
-

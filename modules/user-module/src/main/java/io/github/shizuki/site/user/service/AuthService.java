@@ -4,6 +4,7 @@ import io.github.shizuki.site.user.dto.auth.AuthGrantRequest;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLogoutRequest;
 import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.dto.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.dto.auth.EmailBindRequest;
 import io.github.shizuki.site.user.dto.auth.EmailRegisterRequest;
 import io.github.shizuki.site.user.dto.auth.EmailVerificationSendRequest;
@@ -83,6 +84,14 @@ public interface AuthService {
     AuthIntrospectResponse introspect();
 
     /**
+     * 基于指定 access token 解析身份（不依赖 Web 上下文）。
+     *
+     * @param accessToken 纯 token（不含 Bearer 前缀）
+     * @return userId/groups/permissions
+     */
+    AuthIntrospectResponse introspectByAccessToken(String accessToken);
+
+    /**
      * 给当前登录用户绑定邮箱凭据。
      *
      * @param userId 当前登录用户 ID
@@ -97,4 +106,19 @@ public interface AuthService {
      * @param request OAuth 绑定请求
      */
     void bindOAuth(Long userId, OAuthBindRequest request);
+
+    /**
+     * 通过邮箱验证码重置密码（未登录场景）。
+     *
+     * @param request 修改密码请求
+     */
+    void resetPasswordByEmail(EmailCodePasswordUpdateRequest request);
+
+    /**
+     * 登录态下通过邮箱验证码修改密码。
+     *
+     * @param userId 当前登录用户 ID
+     * @param request 修改密码请求
+     */
+    void changePasswordByEmail(Long userId, EmailCodePasswordUpdateRequest request);
 }

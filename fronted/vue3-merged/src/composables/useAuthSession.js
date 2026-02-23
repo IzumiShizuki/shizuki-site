@@ -57,6 +57,7 @@ function toMePayload(raw = {}) {
   return {
     userId: toNumber(raw.userId ?? raw.user_id),
     nickname: raw.nickname || '',
+    avatarUrl: raw.avatarUrl || raw.avatar_url || '',
     groups: Array.isArray(raw.groups) ? raw.groups : [],
     permissions: Array.isArray(raw.permissions) ? raw.permissions : []
   };
@@ -83,6 +84,11 @@ function toOAuthAuthorizePayload(raw = {}) {
     authorizeUrl: raw.authorizeUrl || raw.authorize_url || '',
     state: raw.state || ''
   };
+}
+
+function normalizeOAuthScene(raw) {
+  const normalized = String(raw || '').trim().toUpperCase();
+  return normalized === 'BIND' ? 'BIND' : 'LOGIN';
 }
 
 function readRefreshToken() {
@@ -113,6 +119,12 @@ function readUserSnapshot() {
   return {
     userId: toNumber(payload.userId),
     nickname: typeof payload.nickname === 'string' ? payload.nickname : '',
+    avatarUrl:
+      typeof payload.avatarUrl === 'string'
+        ? payload.avatarUrl
+        : typeof payload.avatar_url === 'string'
+          ? payload.avatar_url
+          : '',
     groups: Array.isArray(payload.groups) ? payload.groups : [],
     permissions: Array.isArray(payload.permissions) ? payload.permissions : []
   };
@@ -305,6 +317,23 @@ function createAuthSession() {
     }
   }
 
+  async function requireAccessTokenForCall(redirectPath = currentRouteFromHash()) {
+    if (!accessToken.value && refreshToken.value) {
+      try {
+        await refreshAccessToken();
+      } catch {
+        clearSession();
+        redirectToAuth('session_expired', redirectPath);
+        throw new Error('Session expired');
+      }
+    }
+    if (!accessToken.value) {
+      redirectToAuth('session_expired', redirectPath);
+      throw new Error('Login required');
+    }
+    return accessToken.value;
+  }
+
   async function loginByEmail(payload) {
     await ensureReady();
     const tokenPayload = toTokenPayload(
@@ -343,30 +372,61 @@ function createAuthSession() {
     return toCaptchaPayload(await authApi.createImageCaptcha());
   }
 
-  async function sendRegisterVerification(payload) {
+  async function sendEmailVerification(payload) {
     await ensureReady();
     return toEmailVerifyPayload(
       await authApi.sendEmailVerification({
         email: payload.email,
-        purpose: 'REGISTER',
+        purpose: payload.purpose,
         captchaId: payload.captchaId,
         captchaAnswer: payload.captchaAnswer
       })
     );
   }
 
-  async function startOAuthLogin(provider, redirectPath) {
+  async function sendRegisterVerification(payload) {
+    return sendEmailVerification({
+      ...payload,
+      purpose: 'REGISTER'
+    });
+  }
+
+  async function sendResetPasswordVerification(payload) {
+    return sendEmailVerification({
+      ...payload,
+      purpose: 'RESET_PASSWORD'
+    });
+  }
+
+  async function resetPasswordByEmail(payload) {
+    await ensureReady();
+    return authApi.resetPasswordByEmail({
+      email: payload.email,
+      emailCode: payload.emailCode,
+      newPassword: payload.newPassword,
+      confirmPassword: payload.confirmPassword
+    });
+  }
+
+  async function startOAuthAuthorization(payload) {
     await ensureReady();
 
-    const normalizedProvider = String(provider || '').toLowerCase();
-    const redirect = normalizeRoutePath(redirectPath || '/profile');
+    const normalizedScene = normalizeOAuthScene(payload?.scene);
+    const normalizedProvider = String(payload?.provider || '').trim().toLowerCase();
+    if (!normalizedProvider) {
+      throw new Error('OAuth provider is required');
+    }
+    const redirect = normalizeRoutePath(payload?.redirect || '/profile');
+    if (normalizedScene === 'BIND') {
+      await requireAccessTokenForCall('/profile?tab=account');
+    }
     const redirectUri = `${window.location.origin}${window.location.pathname}`;
 
     const oauthPayload = toOAuthAuthorizePayload(
       await authApi.createOAuthAuthorization({
         provider: normalizedProvider,
         redirectUri,
-        scene: 'LOGIN'
+        scene: normalizedScene
       })
     );
 
@@ -377,10 +437,27 @@ function createAuthSession() {
     saveOAuthPending(oauthPayload.state, {
       provider: normalizedProvider,
       oauthLoginId: oauthPayload.oauthLoginId,
-      redirect
+      redirect,
+      scene: normalizedScene
     });
 
     window.location.assign(oauthPayload.authorizeUrl);
+  }
+
+  async function startOAuthLogin(provider, redirectPath) {
+    return startOAuthAuthorization({
+      provider,
+      scene: 'LOGIN',
+      redirect: redirectPath || '/profile'
+    });
+  }
+
+  async function startOAuthBind(provider, redirectPath = '/profile?tab=account') {
+    return startOAuthAuthorization({
+      provider,
+      scene: 'BIND',
+      redirect: redirectPath
+    });
   }
 
   async function handleOAuthCallback(payload) {
@@ -395,6 +472,25 @@ function createAuthSession() {
     if (!pending?.oauthLoginId) {
       throw new Error('OAuth state not found or expired');
     }
+    const scene = normalizeOAuthScene(pending.scene);
+    if (scene === 'BIND') {
+      const token = await requireAccessTokenForCall('/profile?tab=account');
+      await authApi.bindOAuthCredential(
+        {
+          provider: pending.provider,
+          oauthLoginId: pending.oauthLoginId,
+          code,
+          state
+        },
+        token
+      );
+      removeOAuthPending(state);
+      await refreshUserProfile();
+      return {
+        resultType: 'BIND_SUCCESS',
+        redirect: pending.redirect || '/profile?tab=account'
+      };
+    }
 
     const tokenPayload = toTokenPayload(
       await authApi.issueToken({
@@ -405,7 +501,6 @@ function createAuthSession() {
         state
       })
     );
-
     if (tokenPayload.resultType === 'BIND_REQUIRED') {
       removeOAuthPending(state);
       return {
@@ -414,11 +509,9 @@ function createAuthSession() {
         redirect: pending.redirect
       };
     }
-
     if (tokenPayload.resultType !== 'TOKEN_ISSUED') {
       throw new Error('Unsupported OAuth result type');
     }
-
     removeOAuthPending(state);
     await completeTokenIssued(tokenPayload);
     return {
@@ -461,6 +554,119 @@ function createAuthSession() {
     } finally {
       clearSession();
     }
+  }
+
+  async function getAccountProfile() {
+    await ensureReady();
+    const token = await requireAccessTokenForCall('/profile?tab=account');
+    return authApi.getMeAccount(token);
+  }
+
+  async function updateProfile(payload) {
+    await ensureReady();
+    const token = await requireAccessTokenForCall('/profile?tab=account');
+    const result = await authApi.updateMeProfile(payload || {}, token);
+    await refreshUserProfile();
+    return result;
+  }
+
+  async function changePasswordByEmail(payload) {
+    await ensureReady();
+    const token = await requireAccessTokenForCall('/profile?tab=account');
+    return authApi.changeMePassword(
+      {
+        email: payload.email,
+        emailCode: payload.emailCode,
+        newPassword: payload.newPassword,
+        confirmPassword: payload.confirmPassword
+      },
+      token
+    );
+  }
+
+  async function bindEmailCredential(payload) {
+    await ensureReady();
+    const token = await requireAccessTokenForCall('/profile?tab=account');
+    return authApi.bindEmailCredential(
+      {
+        email: payload.email,
+        password: payload.password,
+        emailCode: payload.emailCode
+      },
+      token
+    );
+  }
+
+  async function uploadAvatar(file) {
+    await ensureReady();
+    const token = await requireAccessTokenForCall('/profile?tab=account');
+    if (!file) {
+      throw new Error('Please select image file');
+    }
+    const name = String(file.name || 'avatar.png');
+    const contentType = String(file.type || '').toLowerCase();
+    const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    if (!allowedTypes.has(contentType)) {
+      throw new Error('Avatar must be png/jpeg/webp');
+    }
+    if (Number(file.size || 0) > 2 * 1024 * 1024) {
+      throw new Error('Avatar image must be <= 2MB');
+    }
+
+    const policy = await authApi.createUploadPolicy(
+      {
+        fileName: name,
+        contentType,
+        assetKind: 'STATIC_IMAGE',
+        visibility: 'PUBLIC'
+      },
+      token
+    );
+    if (!policy?.uploadUrl || !policy?.bucket || !policy?.key) {
+      throw new Error('Upload policy is invalid');
+    }
+
+    const uploadResponse = await fetch(policy.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType
+      },
+      body: file
+    });
+    if (!uploadResponse.ok) {
+      throw new Error(`Avatar upload failed (${uploadResponse.status})`);
+    }
+
+    const created = await authApi.createAsset(
+      {
+        bucket: policy.bucket,
+        key: policy.key,
+        assetType: 'image',
+        assetKind: 'STATIC_IMAGE',
+        contentType,
+        visibility: 'PUBLIC',
+        metadata: {
+          usage: 'avatar'
+        }
+      },
+      token
+    );
+    const assetId = toNumber(created?.assetId ?? created?.asset_id);
+    if (!assetId) {
+      throw new Error('Create avatar asset failed');
+    }
+
+    const downloadInfo = await authApi.getAssetDownloadUrl(assetId, token);
+    const avatarUrl = String(
+      downloadInfo?.publicUrl || downloadInfo?.public_url || downloadInfo?.downloadUrl || downloadInfo?.download_url || ''
+    ).trim();
+    if (!avatarUrl) {
+      throw new Error('Resolve avatar url failed');
+    }
+
+    await authApi.updateMeProfile({ avatarUrl }, token);
+    await refreshUserProfile();
+    return avatarUrl;
   }
 
   async function authorizedFetch(path, options = {}) {
@@ -515,8 +721,18 @@ function createAuthSession() {
     loginByEmail,
     registerByEmail,
     createImageCaptcha,
+    sendEmailVerification,
     sendRegisterVerification,
+    sendResetPasswordVerification,
+    resetPasswordByEmail,
+    getAccountProfile,
+    updateProfile,
+    changePasswordByEmail,
+    bindEmailCredential,
+    uploadAvatar,
+    startOAuthAuthorization,
     startOAuthLogin,
+    startOAuthBind,
     handleOAuthCallback,
     confirmConflictBinding,
     logout,

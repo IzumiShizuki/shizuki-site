@@ -16,6 +16,7 @@ import io.github.shizuki.site.user.auth.AuthGrantResult;
 import io.github.shizuki.site.user.auth.EmailVerificationPurpose;
 import io.github.shizuki.site.user.auth.OAuthLoginScene;
 import io.github.shizuki.site.user.config.AuthProperties;
+import io.github.shizuki.site.user.dto.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.dto.auth.EmailBindRequest;
 import io.github.shizuki.site.user.dto.auth.EmailRegisterRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
@@ -432,8 +433,64 @@ public class AuthFlowService {
 
         current.setEmail(normalizedEmail);
         // 绑定邮箱时同步设置本地密码，后续支持邮箱密码登录。
+        validatePasswordPresent(request.getPassword());
         current.setPassword(BCrypt.hashpw(request.getPassword(), BCrypt.gensalt(10)));
         current.setEmailVerified(1);
+        current.setUpdatedAt(LocalDateTime.now());
+        userAccountMapper.updateById(current);
+    }
+
+    /**
+     * 未登录场景：通过邮箱验证码重置密码。
+     *
+     * @param request 修改密码请求
+     */
+    public void resetPasswordByEmail(EmailCodePasswordUpdateRequest request) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        validateNewPasswordPair(request.getNewPassword(), request.getConfirmPassword());
+        emailVerificationService.validateAndConsume(
+            normalizedEmail,
+            EmailVerificationPurpose.RESET_PASSWORD,
+            request.getEmailCode()
+        );
+
+        UserAccountEntity account = userAccountMapper.selectOne(
+            new LambdaQueryWrapper<UserAccountEntity>().eq(UserAccountEntity::getEmail, normalizedEmail)
+        );
+        if (account == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is not registered");
+        }
+
+        account.setPassword(BCrypt.hashpw(request.getNewPassword().trim(), BCrypt.gensalt(10)));
+        account.setUpdatedAt(LocalDateTime.now());
+        userAccountMapper.updateById(account);
+    }
+
+    /**
+     * 登录场景：通过邮箱验证码修改当前账号密码。
+     *
+     * @param userId 当前登录用户 ID
+     * @param request 修改密码请求
+     */
+    public void changePasswordByEmail(Long userId, EmailCodePasswordUpdateRequest request) {
+        UserAccountEntity current = requireAccount(userId);
+        if (!StringUtils.hasText(current.getEmail())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Current account has no bound email");
+        }
+
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        if (!normalizedEmail.equalsIgnoreCase(current.getEmail())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Email does not belong to current account");
+        }
+
+        validateNewPasswordPair(request.getNewPassword(), request.getConfirmPassword());
+        emailVerificationService.validateAndConsume(
+            normalizedEmail,
+            EmailVerificationPurpose.RESET_PASSWORD,
+            request.getEmailCode()
+        );
+
+        current.setPassword(BCrypt.hashpw(request.getNewPassword().trim(), BCrypt.gensalt(10)));
         current.setUpdatedAt(LocalDateTime.now());
         userAccountMapper.updateById(current);
     }
@@ -888,6 +945,25 @@ public class AuthFlowService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Email is required");
         }
         return rawEmail.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void validatePasswordPresent(String rawPassword) {
+        if (!StringUtils.hasText(rawPassword)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Password is required");
+        }
+    }
+
+    private void validateNewPasswordPair(String newPassword, String confirmPassword) {
+        validatePasswordPresent(newPassword);
+        if (newPassword.trim().length() < 8) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Password must be at least 8 characters");
+        }
+        if (!StringUtils.hasText(confirmPassword)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "confirm_password is required");
+        }
+        if (!newPassword.equals(confirmPassword)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Passwords do not match");
+        }
     }
 
     /**

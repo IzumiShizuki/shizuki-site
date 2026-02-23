@@ -40,6 +40,7 @@ public class AuthEntryFilter extends OncePerRequestFilter {
     private static final Logger LOGGER = LoggerFactory.getLogger(AuthEntryFilter.class);
 
     private static final String AUTHORIZATION = "Authorization";
+    private static final String BEARER_PREFIX = "Bearer ";
     private static final String USER_ID = "X-User-Id";
     private static final String USER_GROUPS = "X-User-Groups";
     private static final String USER_PERMISSIONS = "X-User-Permissions";
@@ -93,7 +94,12 @@ public class AuthEntryFilter extends OncePerRequestFilter {
         }
 
         try {
-            AuthIntrospectResponse introspectResponse = authService.introspect();
+            String accessToken = extractAccessToken(authorization);
+            if (!StringUtils.hasText(accessToken)) {
+                unauthorized(response, "Invalid token");
+                return;
+            }
+            AuthIntrospectResponse introspectResponse = authService.introspectByAccessToken(accessToken);
             AuthContext context = parseAuthContext(introspectResponse);
             cacheContext(authorization, context);
             filterChain.doFilter(withUserHeaders(sanitizedRequest, context.userId(), context.groups(), context.permissions()), response);
@@ -133,6 +139,16 @@ public class AuthEntryFilter extends OncePerRequestFilter {
 
     private boolean isTokenRejected(BusinessException ex) {
         return ex.getErrorCode() == ErrorCode.UNAUTHORIZED || ex.getErrorCode() == ErrorCode.FORBIDDEN;
+    }
+
+    private String extractAccessToken(String authorizationHeader) {
+        if (!StringUtils.hasText(authorizationHeader)) {
+            return "";
+        }
+        if (authorizationHeader.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+            return authorizationHeader.substring(BEARER_PREFIX.length()).trim();
+        }
+        return authorizationHeader.trim();
     }
 
     private boolean shouldDowngradeGuestInvalidToken() {

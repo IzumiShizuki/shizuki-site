@@ -20,11 +20,17 @@
       <TopMenu
         :menu-expanded="menuExpanded"
         :ai-chat-active="aiChatActive"
+        :is-authenticated="auth.isAuthenticated.value"
+        :is-admin="isAdminUser"
+        :display-name="authDisplayName"
         @toggle-menu="toggleMenu"
         @toggle-ai-chat="toggleAiChat"
         @select-main-route="handleMainRouteSelect"
         @open-profile="openProfile"
+        @open-admin="openAdmin"
         @open-author="openAuthor"
+        @open-auth="openAuth"
+        @logout="handleLogout"
         @open-background-picker="backgroundPickerVisible = true"
       />
 
@@ -189,6 +195,7 @@ import AiDialog from './components/AiDialog.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
 import TopMenu from './components/TopMenu.vue';
+import { useAuthSession } from './composables/useAuthSession';
 import { usePlayerEngine } from './composables/usePlayerEngine';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
@@ -227,6 +234,7 @@ const AI_SIDEBAR_EXIT_MS = 260;
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthSession();
 const player = usePlayerEngine();
 const ui = useUiPreferences();
 
@@ -236,7 +244,10 @@ const routeLabelMap = {
   'music-library': '音乐库',
   apps: '轻应用',
   'ai-tavern': 'AI酒馆',
+  auth: '登录',
+  'auth-callback': '登录回调',
   profile: '个人页面',
+  admin: '管理后台',
   author: '作者介绍'
 };
 
@@ -248,6 +259,11 @@ const currentRouteKey = computed(() => {
 const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] || '主页');
 const isHomeRoute = computed(() => currentRouteKey.value === 'home');
 const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
+const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
+const isAdminUser = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
+});
 
 const aiChatActive = computed({
   get: () => ui.state.aiPanelOpen,
@@ -585,14 +601,54 @@ function handleMainRouteSelect(routeKey) {
   router.push(nextPath);
 }
 
+function normalizeRedirectPath(path) {
+  if (!path || typeof path !== 'string') return '/profile';
+  if (!path.startsWith('/')) return '/profile';
+  if (path.startsWith('/auth')) return '/profile';
+  return path;
+}
+
+function openAuth(redirectPath) {
+  const redirect = normalizeRedirectPath(redirectPath || route.fullPath || '/profile');
+  router.push({
+    path: '/auth',
+    query: { redirect }
+  });
+}
+
 function openProfile(tabKey = 'profile') {
+  if (!auth.isAuthenticated.value) {
+    const redirect = tabKey ? `/profile?tab=${encodeURIComponent(tabKey)}` : '/profile';
+    openAuth(redirect);
+    return;
+  }
   const nextQuery = tabKey ? { tab: tabKey } : {};
   const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';
   if (route.path === '/profile' && currentTab === (tabKey || '')) return;
   router.push({ path: '/profile', query: nextQuery });
 }
 
+function openAdmin(tabKey = 'overview') {
+  if (!auth.isAuthenticated.value) {
+    const redirect = tabKey ? `/admin?tab=${encodeURIComponent(tabKey)}` : '/admin';
+    openAuth(redirect);
+    return;
+  }
+  if (!isAdminUser.value) {
+    openProfile('profile');
+    return;
+  }
+
+  const nextQuery = tabKey ? { tab: tabKey } : {};
+  const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';
+  if (route.path === '/admin' && currentTab === (tabKey || '')) return;
+  router.push({ path: '/admin', query: nextQuery });
+}
+
 function openAuthor(tabKey = 'overview') {
+  if (tabKey === 'edit' && !isAdminUser.value) {
+    tabKey = 'overview';
+  }
   const nextQuery = tabKey ? { tab: tabKey } : {};
   const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';
   if (route.path === '/author' && currentTab === (tabKey || '')) return;
@@ -609,6 +665,19 @@ function handleReorderTracks(payload) {
 
 function openPlayerSettings() {
   openProfile('settings');
+}
+
+async function handleLogout() {
+  await auth.logout();
+  if (route.meta?.requiresAuth || route.path === '/profile' || route.path === '/admin') {
+    router.replace({
+      path: '/auth',
+      query: {
+        reason: 'signed_out',
+        redirect: route.path === '/admin' ? '/admin' : '/profile'
+      }
+    });
+  }
 }
 
 function onGlobalPointerDown(event) {
@@ -762,6 +831,7 @@ watch(
 );
 
 onMounted(async () => {
+  await auth.ensureReady();
   ui.initializeUiPreferences();
   loadPersistedExtra();
   await loadBackgroundManifest();

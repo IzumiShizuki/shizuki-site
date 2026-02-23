@@ -220,6 +220,31 @@ class AuthControllerIntegrationTest {
     }
 
     /**
+     * 场景：邮箱验证码重置密码成功。
+     * 前置条件：AuthService.resetPasswordByEmail 正常执行。
+     * 执行动作：POST /api/v1/auth/password/reset。
+     * 断言结果：HTTP 200，返回 status=OK。
+     */
+    @Test
+    void shouldResetPasswordSuccessfully() throws Exception {
+        Mockito.doNothing().when(authService).resetPasswordByEmail(ArgumentMatchers.any());
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/password/reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "user@example.com",
+                      "email_code": "123456",
+                      "new_password": "new-password-123",
+                      "confirm_password": "new-password-123"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("OK"));
+    }
+
+    /**
      * 场景：token 签发请求缺少 grant_type。
      * 前置条件：无。
      * 执行动作：POST /api/v1/auth/tokens，grant_type 为空字符串。

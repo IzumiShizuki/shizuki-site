@@ -135,13 +135,33 @@ shizuki:
       - /api/v1/ai-sessions/**
       - /api/v1/assets/public/**
       - /api/v1/assets/*/download-url
+middleware:
+  host: ${MIDDLEWARE_HOST:127.0.0.1}
+  ports:
+    mysql: ${MIDDLEWARE_MYSQL_PORT:3306}
+    redis: ${MIDDLEWARE_REDIS_PORT:6379}
+    kafka: ${MIDDLEWARE_KAFKA_PORT:9092}
 spring:
+  config:
+    import:
+      - optional:file:./resouces/yaml/middleware-config.yaml
   application:
     name: monolith-app
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/shizuki_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.zaxxer.hikari.HikariDataSource
+    url: ${DB_URL:jdbc:mysql://${middleware.host}:${middleware.ports.mysql}/shizuki_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
+    hikari:
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      auto-commit: true
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT_MS:600000}
+      pool-name: ${DB_POOL_NAME:HikariPool}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME_MS:1800000}
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:30000}
+      connection-test-query: SELECT 1
   flyway:
     enabled: true
     locations: classpath:monolith/db/migration
@@ -150,19 +170,42 @@ spring:
     validate-on-migrate: true
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
+      host: ${REDIS_HOST:${middleware.host}}
+      port: ${REDIS_PORT:${middleware.ports.redis}}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:3000ms}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:20}
+          max-wait: ${REDIS_POOL_MAX_WAIT:-1ms}
+          max-idle: ${REDIS_POOL_MAX_IDLE:10}
+          min-idle: ${REDIS_POOL_MIN_IDLE:5}
+        shutdown-timeout: ${REDIS_SHUTDOWN_TIMEOUT:100ms}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:${middleware.host}:${middleware.ports.kafka}}
     producer:
+      retries: ${KAFKA_PRODUCER_RETRIES:3}
+      batch-size: ${KAFKA_PRODUCER_BATCH_SIZE:16384}
+      buffer-memory: ${KAFKA_PRODUCER_BUFFER_MEMORY:33554432}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
-      retries: 0
+      compression-type: ${KAFKA_PRODUCER_COMPRESSION:gzip}
       properties:
         request.timeout.ms: 5000
         delivery.timeout.ms: 10000
         linger.ms: 5
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:shizuki-consumer-group}
+      auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:500}
+    listener:
+      ack-mode: manual_immediate
+      concurrency: ${KAFKA_LISTENER_CONCURRENCY:3}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:25}

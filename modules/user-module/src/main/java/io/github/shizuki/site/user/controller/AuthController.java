@@ -5,6 +5,7 @@ import io.github.shizuki.site.user.dto.auth.AuthGrantRequest;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLogoutRequest;
 import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.dto.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthConflictConfirmRequest;
 import io.github.shizuki.site.user.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,6 +64,19 @@ public class AuthController {
     @Operation(summary = "确认 OAuth 冲突绑定", description = "使用 bind_ticket 与邮箱凭据确认绑定并签发 token")
     public ApiResponse<AuthTokenResponse> confirmConflictBinding(@Valid @RequestBody OAuthConflictConfirmRequest request) {
         return ApiResponse.success(authService.confirmConflictBinding(request));
+    }
+
+    /**
+     * 邮箱验证码重置密码。
+     *
+     * @param request 重置密码请求
+     * @return 统一成功响应
+     */
+    @PostMapping("/password/reset")
+    @Operation(summary = "重置密码", description = "通过邮箱验证码重置密码")
+    public ApiResponse<Map<String, String>> resetPassword(@Valid @RequestBody EmailCodePasswordUpdateRequest request) {
+        authService.resetPasswordByEmail(request);
+        return ApiResponse.success(Map.of("status", "OK"));
     }
 
     /**

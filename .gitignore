@@ -2927,3 +2927,9 @@ tmp/
 /fronted/vue3-merged/node_modules/.package-lock.json
 /fronted/vue3-merged/public/media/**
 /fronted/vue3-merged/dist/media/bgm/2.mp3
+
+# Local middleware secrets (do not commit)
+/resouces/yaml/middleware-config.yaml
+/resouces/yaml/common-config.yaml
+/apps/monolith-app/.mvn/
+/resouces/md/etc01_开发软件的心路历程.md

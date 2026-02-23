@@ -1,7 +1,9 @@
 package io.github.shizuki.site.user.controller;
 
+import io.github.shizuki.site.user.dto.AdminUserPageResponse;
 import io.github.shizuki.site.user.dto.UserGroupsResponse;
 import io.github.shizuki.site.user.service.UserService;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -22,6 +24,22 @@ class AdminUserGroupControllerIntegrationTest {
 
     @MockBean
     private UserService userService;
+
+    @Test
+    void shouldListAdminUsersSuccessfully() throws Exception {
+        Mockito.when(userService.listAdminUsers(ArgumentMatchers.eq(1), ArgumentMatchers.eq(20), ArgumentMatchers.eq("alice")))
+            .thenReturn(new AdminUserPageResponse(1, 20, 0L, List.of()));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/admin/users")
+                .queryParam("page", "1")
+                .queryParam("page_size", "20")
+                .queryParam("keyword", "alice"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.page").value(1))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.page_size").value(20))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.total").value(0));
+    }
 
     @Test
     void shouldGetUserGroupsSuccessfully() throws Exception {

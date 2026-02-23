@@ -16,6 +16,7 @@ import io.github.shizuki.site.user.dto.auth.AuthGrantRequest;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLogoutRequest;
 import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.dto.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.dto.auth.EmailBindRequest;
 import io.github.shizuki.site.user.dto.auth.EmailRegisterRequest;
 import io.github.shizuki.site.user.dto.auth.EmailVerificationSendRequest;
@@ -225,6 +226,35 @@ public class AuthServiceImpl implements AuthService {
     public AuthIntrospectResponse introspect() {
         StpUtil.checkLogin();
         Long userId = StpUtil.getLoginIdAsLong();
+        return buildIntrospectResponse(userId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public AuthIntrospectResponse introspectByAccessToken(String accessToken) {
+        if (!StringUtils.hasText(accessToken)) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Access token is required");
+        }
+
+        Long userId;
+        try {
+            Object loginId = StpUtil.getLoginIdByToken(accessToken);
+            if (loginId == null || !StringUtils.hasText(String.valueOf(loginId))) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid token");
+            }
+            userId = Long.parseLong(String.valueOf(loginId));
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid token");
+        }
+
+        return buildIntrospectResponse(userId);
+    }
+
+    private AuthIntrospectResponse buildIntrospectResponse(Long userId) {
         UserAccountEntity account = userAccountMapper.selectById(userId);
         if (account == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Account not found");
@@ -250,6 +280,22 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void bindOAuth(Long userId, OAuthBindRequest request) {
         authFlowService.bindOAuth(userId, request);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resetPasswordByEmail(EmailCodePasswordUpdateRequest request) {
+        authFlowService.resetPasswordByEmail(request);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void changePasswordByEmail(Long userId, EmailCodePasswordUpdateRequest request) {
+        authFlowService.changePasswordByEmail(userId, request);
     }
 
     /**

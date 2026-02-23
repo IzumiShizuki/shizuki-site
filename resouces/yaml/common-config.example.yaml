@@ -1,0 +1,83 @@
+# Copy this file to:
+#   resouces/yaml/common-config.yaml
+# and then fill all placeholders before running the service.
+#
+# This file is safe to publish. Do NOT commit the real common-config.yaml.
+
+middleware:
+  host: "<MIDDLEWARE_HOST>"
+  ports:
+    mysql: 3306
+    redis: 6379
+    kafka: 9092
+
+spring:
+  datasource:
+    # Example: jdbc:mysql://<host>:3306/shizuki_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: "<DB_URL>"
+    username: "<DB_USERNAME>"
+    password: "<DB_PASSWORD>"
+
+  data:
+    redis:
+      host: "<REDIS_HOST>"
+      port: 6379
+      password: "<REDIS_PASSWORD>"
+      database: 0
+
+  kafka:
+    # Example: "<host>:9092"
+    bootstrap-servers: "<KAFKA_BOOTSTRAP_SERVERS>"
+
+  mail:
+    # QQ SMTP:
+    # Option A (recommended): port=465 + ssl.enable=true + starttls.enable=false
+    # Option B: port=587 + starttls.enable=true + ssl.enable=false
+    protocol: "smtp"
+    host: "<MAIL_HOST>"
+    port: 465
+    username: "<MAIL_USERNAME>"
+    password: "<MAIL_PASSWORD>"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+          starttls:
+            enable: false
+          ssl:
+            enable: true
+
+shizuki:
+  admin:
+    privilege:
+      code-plain: "<ADMIN_PRIVILEGE_CODE>"
+  oauth:
+    providers:
+      github:
+        client-id: "<GITHUB_CLIENT_ID>"
+        client-secret: "<GITHUB_CLIENT_SECRET>"
+        authorize-url: "https://github.com/login/oauth/authorize"
+        token-url: "https://github.com/login/oauth/access_token"
+        user-api-url: "https://api.github.com/user"
+        scope: "read:user user:email"
+      linuxdo:
+        client-id: "<LINUXDO_CLIENT_ID>"
+        client-secret: "<LINUXDO_CLIENT_SECRET>"
+        authorize-url: "https://connect.linux.do/oauth2/authorize"
+        token-url: "https://connect.linux.do/oauth2/token"
+        user-api-url: "https://connect.linux.do/api/user"
+        scope: "openid profile email"
+  music:
+    security:
+      # Generate once: openssl rand -base64 32
+      key-encryption-master-key: "<MUSIC_KEY_ENCRYPTION_MASTER_KEY_BASE64_32_BYTES>"
+  oss:
+    endpoint: "<OSS_ENDPOINT>"
+    access-key-id: "<OSS_ACCESS_KEY_ID>"
+    access-key-secret: "<OSS_ACCESS_KEY_SECRET>"
+  auth:
+    jwt:
+      secret: "<AUTH_JWT_SECRET>"

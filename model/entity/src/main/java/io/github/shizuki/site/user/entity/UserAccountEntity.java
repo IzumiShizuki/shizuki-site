@@ -22,6 +22,9 @@ public class UserAccountEntity extends BaseEntity {
     @TableField("email_verified_flag")
     private Integer emailVerified;
 
+    @TableField("avatar_url_text")
+    private String avatarUrl;
+
     @TableField("groups_json")
     private String groupsJson;
 
@@ -66,6 +69,14 @@ public class UserAccountEntity extends BaseEntity {
 
     public void setEmailVerified(Integer emailVerified) {
         this.emailVerified = emailVerified;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public String getGroupsJson() {

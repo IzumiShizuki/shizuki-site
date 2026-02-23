@@ -214,6 +214,104 @@ describe('useAuthSession', () => {
     expect(pendingAllAfter.states?.['state-bind']).toBeUndefined();
   });
 
+  it('handles OAuth bind scene callback and calls /api/v1/me/bindings/oauth', async () => {
+    window.localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        refreshToken: 'refresh-token-bind',
+        updatedAt: Date.now()
+      })
+    );
+    window.localStorage.setItem(
+      USER_STORAGE_KEY,
+      JSON.stringify({
+        userId: 12,
+        nickname: 'Bind User',
+        groups: ['USER'],
+        permissions: []
+      })
+    );
+    window.sessionStorage.setItem(
+      OAUTH_PENDING_KEY,
+      JSON.stringify({
+        states: {
+          'state-bind-ok': {
+            provider: 'github',
+            oauthLoginId: 'oauth-login-bind-ok',
+            redirect: '/profile?tab=account',
+            scene: 'BIND',
+            createdAt: Date.now()
+          }
+        }
+      })
+    );
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'bind-access-token',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'bind-refresh-token',
+            refresh_expires_in_sec: 2592000,
+            user_id: 12,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 12,
+            nickname: 'Bind User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            status: 'OK'
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 12,
+            nickname: 'Bind User Updated',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    const result = await auth.handleOAuthCallback({
+      code: 'oauth-code-bind-ok',
+      state: 'state-bind-ok'
+    });
+
+    expect(result).toEqual({
+      resultType: 'BIND_SUCCESS',
+      redirect: '/profile?tab=account'
+    });
+
+    const bindRequestBody = JSON.parse(fetchMock.mock.calls[2][1].body || '{}');
+    expect(bindRequestBody.provider).toBe('github');
+    expect(bindRequestBody.oauth_login_id).toBe('oauth-login-bind-ok');
+    expect(bindRequestBody.code).toBe('oauth-code-bind-ok');
+    expect(bindRequestBody.state).toBe('state-bind-ok');
+
+    const pendingAllAfter = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || '{}');
+    expect(pendingAllAfter.states?.['state-bind-ok']).toBeUndefined();
+  });
+
   it('keeps OAuth pending state when callback token exchange fails', async () => {
     window.sessionStorage.setItem(
       OAUTH_PENDING_KEY,

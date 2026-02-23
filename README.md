@@ -206,6 +206,31 @@ git commit -m "📝 docs : 更新 API 文档"
 - `AUDIT_PUBLISHER_TYPE`: 审计发布器类型（默认 `noop`，可切 `kafka`）
 - `INTERVIEWER_SECRET`: 面试官注册密钥（必需）
 
+### 远程中间件配置（公开仓库安全模式）
+
+仓库不提交真实中间件地址与密钥。请使用公开模板生成本地私有配置：
+
+```bash
+cp resouces/yaml/middleware-config.example.yaml resouces/yaml/middleware-config.yaml
+```
+
+然后在 `resouces/yaml/middleware-config.yaml` 中填写你的真实值（该文件已被 `.gitignore` 忽略）。
+
+常见必填项：
+
+- `middleware.host`
+- `spring.datasource.url` / `spring.datasource.username` / `spring.datasource.password`
+- `spring.data.redis.password`
+- `spring.kafka.bootstrap-servers`
+- `shizuki.oss.endpoint` / `shizuki.oss.access-key-id` / `shizuki.oss.access-key-secret`
+- `shizuki.auth.jwt.secret`
+
+数据库初始化建议：
+
+1. 先执行 `resouces/sql/00_init_databases.sql`（创建 `shizuki_app` 库）。
+2. 启动应用，让 Flyway 自动执行 `apps/monolith-app/src/main/resources/monolith/db/migration/*.sql`。
+3. 若你不走 Flyway（不推荐），可手工执行 `resouces/sql/shizuki_app.sql` 直接初始化整库结构和种子数据。
+
 ## 许可证
 
 

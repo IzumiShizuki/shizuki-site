@@ -85,12 +85,6 @@ onMounted(async () => {
 
   await auth.ensureReady();
 
-  if (auth.isAuthenticated.value) {
-    const redirect = normalizeRedirectPath(typeof route.query.redirect === 'string' ? route.query.redirect : '/profile');
-    await router.replace(redirect);
-    return;
-  }
-
   // Hash 路由下 OAuth 平台通常会把 code/state 放在 location.search，而不是 hash query。
   const code =
     (typeof route.query.code === 'string' ? route.query.code : '') ||
@@ -113,6 +107,11 @@ onMounted(async () => {
     return;
   }
   if (!code || !state) {
+    if (auth.isAuthenticated.value) {
+      const redirect = normalizeRedirectPath(typeof route.query.redirect === 'string' ? route.query.redirect : '/profile');
+      await router.replace(redirect);
+      return;
+    }
     statusText.value = '回调参数不完整';
     errorText.value = '缺少 code 或 state，无法完成 OAuth 登录';
     return;
@@ -122,15 +121,14 @@ onMounted(async () => {
   try {
     statusText.value = '正在向后端换取登录凭据...';
     const result = await auth.handleOAuthCallback({ code, state });
+    if (result.resultType === 'BIND_SUCCESS') {
+      statusText.value = '绑定成功，正在跳转账号中心...';
+      await router.replace(normalizeRedirectPath(result.redirect || '/profile?tab=account'));
+      return;
+    }
     if (result.resultType === 'BIND_REQUIRED') {
-      await router.replace({
-        path: '/auth',
-        query: {
-          mode: 'bind-confirm',
-          bind_ticket: result.bindTicket || '',
-          redirect: normalizeRedirectPath(result.redirect || '/profile')
-        }
-      });
+      statusText.value = 'OAuth 账号冲突';
+      errorText.value = '当前流程不支持登录页冲突绑定，请联系管理员处理。';
       return;
     }
 
