@@ -13,6 +13,12 @@ import io.github.shizuki.common.oauth.model.GitHubTokenResponse;
 import io.github.shizuki.common.oauth.model.GitHubUserResponse;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.site.user.dto.AdminGroupCreateRequest;
+import io.github.shizuki.site.user.dto.AdminGroupItemResponse;
+import io.github.shizuki.site.user.dto.AdminGroupOptionResponse;
+import io.github.shizuki.site.user.dto.AdminGroupPageResponse;
+import io.github.shizuki.site.user.dto.AdminGroupUpdateRequest;
+import io.github.shizuki.site.user.dto.AdminOptionsResponse;
 import io.github.shizuki.site.user.dto.AdminUserItemResponse;
 import io.github.shizuki.site.user.dto.AdminUserPageResponse;
 import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
@@ -27,6 +33,7 @@ import io.github.shizuki.site.user.dto.QuotaPolicyDto;
 import io.github.shizuki.site.user.dto.UserGroupsResponse;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLoginResponse;
+import io.github.shizuki.site.user.entity.GroupCatalogEntity;
 import io.github.shizuki.site.user.entity.GroupPermissionEntity;
 import io.github.shizuki.site.user.entity.GroupQuotaPolicyEntity;
 import io.github.shizuki.site.user.entity.OAuthBindingEntity;
@@ -34,6 +41,7 @@ import io.github.shizuki.site.user.entity.OAuthLoginEntity;
 import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.entity.UserPreferenceEntity;
 import io.github.shizuki.site.user.entity.UserProviderSecretEntity;
+import io.github.shizuki.site.user.mapper.GroupCatalogMapper;
 import io.github.shizuki.site.user.mapper.GroupPermissionMapper;
 import io.github.shizuki.site.user.mapper.GroupQuotaPolicyMapper;
 import io.github.shizuki.site.user.mapper.OAuthBindingMapper;
@@ -54,10 +62,12 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +79,9 @@ public class UserServiceImpl implements UserService {
     private static final String OAUTH_STATUS_PENDING = "PENDING";
     private static final String OAUTH_STATUS_SUCCESS = "SUCCESS";
     private static final String OAUTH_STATUS_FAILED = "FAILED";
+    private static final String GROUP_STATUS_ACTIVE = "ACTIVE";
+    private static final String GROUP_STATUS_DISABLED = "DISABLED";
+    private static final int DEFAULT_GROUP_PAGE_SIZE = 20;
     private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
 
     private final OAuthStateService oAuthStateService;
@@ -78,10 +91,12 @@ public class UserServiceImpl implements UserService {
     private final UserPreferenceMapper userPreferenceMapper;
     private final OAuthLoginMapper oAuthLoginMapper;
     private final OAuthBindingMapper oAuthBindingMapper;
+    private final GroupCatalogMapper groupCatalogMapper;
     private final GroupPermissionMapper groupPermissionMapper;
     private final GroupQuotaPolicyMapper groupQuotaPolicyMapper;
     private final UserProviderSecretMapper userProviderSecretMapper;
     private final MusicApiKeyCryptoService musicApiKeyCryptoService;
+    private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
     public UserServiceImpl(OAuthStateService oAuthStateService,
@@ -91,10 +106,12 @@ public class UserServiceImpl implements UserService {
                         UserPreferenceMapper userPreferenceMapper,
                         OAuthLoginMapper oAuthLoginMapper,
                         OAuthBindingMapper oAuthBindingMapper,
+                        GroupCatalogMapper groupCatalogMapper,
                         GroupPermissionMapper groupPermissionMapper,
                         GroupQuotaPolicyMapper groupQuotaPolicyMapper,
                         UserProviderSecretMapper userProviderSecretMapper,
                         MusicApiKeyCryptoService musicApiKeyCryptoService,
+                        JdbcTemplate jdbcTemplate,
                         ObjectMapper objectMapper) {
         this.oAuthStateService = oAuthStateService;
         this.gitHubOAuthClient = gitHubOAuthClient;
@@ -103,10 +120,12 @@ public class UserServiceImpl implements UserService {
         this.userPreferenceMapper = userPreferenceMapper;
         this.oAuthLoginMapper = oAuthLoginMapper;
         this.oAuthBindingMapper = oAuthBindingMapper;
+        this.groupCatalogMapper = groupCatalogMapper;
         this.groupPermissionMapper = groupPermissionMapper;
         this.groupQuotaPolicyMapper = groupQuotaPolicyMapper;
         this.userProviderSecretMapper = userProviderSecretMapper;
         this.musicApiKeyCryptoService = musicApiKeyCryptoService;
+        this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
     }
 
@@ -584,6 +603,165 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public AdminGroupPageResponse listAdminGroups(Integer page, Integer pageSize, String keyword, String status) {
+        int resolvedPage = page == null || page < 1 ? 1 : page;
+        int resolvedPageSize = pageSize == null ? DEFAULT_GROUP_PAGE_SIZE : Math.min(Math.max(pageSize, 1), 100);
+        int offset = (resolvedPage - 1) * resolvedPageSize;
+        String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : "";
+        String normalizedStatus = normalizeGroupStatusNullable(status);
+
+        LambdaQueryWrapper<GroupCatalogEntity> countWrapper = buildAdminGroupSearchWrapper(normalizedKeyword, normalizedStatus);
+        long total = groupCatalogMapper.selectCount(countWrapper);
+        if (total <= 0) {
+            return new AdminGroupPageResponse(resolvedPage, resolvedPageSize, 0L, List.of());
+        }
+
+        LambdaQueryWrapper<GroupCatalogEntity> listWrapper = buildAdminGroupSearchWrapper(normalizedKeyword, normalizedStatus)
+            .orderByAsc(GroupCatalogEntity::getSortNum)
+            .orderByAsc(GroupCatalogEntity::getGroupCode)
+            .last("LIMIT " + offset + "," + resolvedPageSize);
+        List<GroupCatalogEntity> groups = groupCatalogMapper.selectList(listWrapper);
+        List<AdminGroupItemResponse> items = groups.stream()
+            .map(this::toAdminGroupItemResponse)
+            .toList();
+        return new AdminGroupPageResponse(resolvedPage, resolvedPageSize, total, items);
+    }
+
+    @Override
+    @Transactional
+    public AdminGroupItemResponse createAdminGroup(AdminGroupCreateRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Request body is required");
+        }
+        String displayName = normalizeDisplayName(request.getDisplayName());
+        String description = normalizeGroupDescription(request.getDescription());
+        String baseCode = generateGroupCodeBase(displayName);
+
+        GroupCatalogEntity entity = null;
+        for (int attempt = 1; attempt <= 50; attempt++) {
+            String candidate = attempt == 1 ? baseCode : appendGroupCodeSuffix(baseCode, attempt);
+            entity = new GroupCatalogEntity();
+            entity.setGroupCode(candidate);
+            entity.setDisplayName(displayName);
+            entity.setDescriptionText(description);
+            entity.setStatusCode(GROUP_STATUS_ACTIVE);
+            entity.setBuiltInFlag(0);
+            entity.setSortNum(1000);
+            entity.setCreatedAt(LocalDateTime.now());
+            entity.setUpdatedAt(LocalDateTime.now());
+            try {
+                groupCatalogMapper.insert(entity);
+                return toAdminGroupItemResponse(entity);
+            } catch (DuplicateKeyException ex) {
+                // 保持重试，直到拿到未占用分组编码。
+            }
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Failed to create group: too many naming conflicts");
+    }
+
+    @Override
+    @Transactional
+    public AdminGroupItemResponse updateAdminGroup(String groupCode, AdminGroupUpdateRequest request) {
+        String normalizedGroupCode = normalizeGroupCode(groupCode);
+        GroupCatalogEntity entity = groupCatalogMapper.selectOne(
+            new LambdaQueryWrapper<GroupCatalogEntity>().eq(GroupCatalogEntity::getGroupCode, normalizedGroupCode)
+        );
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Group not found");
+        }
+        if (request == null) {
+            return toAdminGroupItemResponse(entity);
+        }
+
+        if (request.getDisplayName() != null) {
+            entity.setDisplayName(normalizeDisplayName(request.getDisplayName()));
+        }
+        if (request.getDescription() != null) {
+            entity.setDescriptionText(normalizeGroupDescription(request.getDescription()));
+        }
+        if (request.getStatus() != null) {
+            String normalizedStatus = normalizeGroupStatus(request.getStatus());
+            if ("ADMIN".equals(normalizedGroupCode) && !GROUP_STATUS_ACTIVE.equals(normalizedStatus)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "ADMIN group status must stay ACTIVE");
+            }
+            entity.setStatusCode(normalizedStatus);
+        }
+        entity.setUpdatedAt(LocalDateTime.now());
+        groupCatalogMapper.updateById(entity);
+        return toAdminGroupItemResponse(entity);
+    }
+
+    @Override
+    @Transactional
+    public void deleteAdminGroup(String groupCode) {
+        String normalizedGroupCode = normalizeGroupCode(groupCode);
+        if ("ADMIN".equals(normalizedGroupCode)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "ADMIN group cannot be deleted");
+        }
+        GroupCatalogEntity entity = groupCatalogMapper.selectOne(
+            new LambdaQueryWrapper<GroupCatalogEntity>().eq(GroupCatalogEntity::getGroupCode, normalizedGroupCode)
+        );
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Group not found");
+        }
+
+        groupPermissionMapper.delete(new LambdaQueryWrapper<GroupPermissionEntity>()
+            .eq(GroupPermissionEntity::getGroupCode, normalizedGroupCode));
+        groupQuotaPolicyMapper.delete(new LambdaQueryWrapper<GroupQuotaPolicyEntity>()
+            .eq(GroupQuotaPolicyEntity::getGroupCode, normalizedGroupCode));
+
+        jdbcTemplate.update("DELETE FROM CTN_POST_GROUP_ACL WHERE group_code = ?", normalizedGroupCode);
+        jdbcTemplate.update("DELETE FROM CTN_APP_GROUP_ACL WHERE group_code = ?", normalizedGroupCode);
+        jdbcTemplate.update("DELETE FROM MDA_ASSET_GROUP_ACL WHERE group_code = ?", normalizedGroupCode);
+        jdbcTemplate.update(
+            "UPDATE USR_ACCOUNT "
+                + "SET groups_json = JSON_REMOVE(groups_json, JSON_UNQUOTE(JSON_SEARCH(groups_json, 'one', ?))) "
+                + "WHERE JSON_SEARCH(groups_json, 'one', ?) IS NOT NULL",
+            normalizedGroupCode,
+            normalizedGroupCode
+        );
+
+        groupCatalogMapper.deleteById(entity.getId());
+    }
+
+    @Override
+    public AdminOptionsResponse getAdminOptions() {
+        List<GroupCatalogEntity> groups = groupCatalogMapper.selectList(
+            new LambdaQueryWrapper<GroupCatalogEntity>()
+                .orderByAsc(GroupCatalogEntity::getSortNum)
+                .orderByAsc(GroupCatalogEntity::getGroupCode)
+        );
+        List<AdminGroupOptionResponse> groupOptions = groups.stream()
+            .map(entity -> new AdminGroupOptionResponse(
+                entity.getGroupCode(),
+                entity.getDisplayName(),
+                entity.getStatusCode(),
+                entity.getBuiltInFlag()
+            ))
+            .toList();
+
+        List<String> permissionCatalog = groupPermissionMapper.selectList(
+            new LambdaQueryWrapper<GroupPermissionEntity>().orderByAsc(GroupPermissionEntity::getPermissionCode)
+        ).stream()
+            .map(GroupPermissionEntity::getPermissionCode)
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
+
+        List<String> quotaCatalog = groupQuotaPolicyMapper.selectList(
+            new LambdaQueryWrapper<GroupQuotaPolicyEntity>().orderByAsc(GroupQuotaPolicyEntity::getQuotaCode)
+        ).stream()
+            .map(GroupQuotaPolicyEntity::getQuotaCode)
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
+
+        return new AdminOptionsResponse(groupOptions, permissionCatalog, quotaCatalog);
+    }
+
+    @Override
     public AuthLoginResponse login(String username, String password) {
         UserAccountEntity account = userAccountMapper.selectOne(
             new LambdaQueryWrapper<UserAccountEntity>().eq(UserAccountEntity::getUsername, username)
@@ -661,6 +839,134 @@ public class UserServiceImpl implements UserService {
             }
         });
         return wrapper;
+    }
+
+    private LambdaQueryWrapper<GroupCatalogEntity> buildAdminGroupSearchWrapper(String normalizedKeyword, String normalizedStatus) {
+        LambdaQueryWrapper<GroupCatalogEntity> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(normalizedStatus)) {
+            wrapper.eq(GroupCatalogEntity::getStatusCode, normalizedStatus);
+        }
+        if (StringUtils.hasText(normalizedKeyword)) {
+            wrapper.and(q -> q.like(GroupCatalogEntity::getGroupCode, normalizedKeyword)
+                .or()
+                .like(GroupCatalogEntity::getDisplayName, normalizedKeyword)
+                .or()
+                .like(GroupCatalogEntity::getDescriptionText, normalizedKeyword));
+        }
+        return wrapper;
+    }
+
+    private AdminGroupItemResponse toAdminGroupItemResponse(GroupCatalogEntity entity) {
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Group not found");
+        }
+        String groupCode = normalizeGroupCode(entity.getGroupCode());
+        long userCount = queryUserCountByGroup(groupCode);
+        long permissionCount = groupPermissionMapper.selectCount(
+            new LambdaQueryWrapper<GroupPermissionEntity>().eq(GroupPermissionEntity::getGroupCode, groupCode)
+        );
+        long quotaCount = groupQuotaPolicyMapper.selectCount(
+            new LambdaQueryWrapper<GroupQuotaPolicyEntity>().eq(GroupQuotaPolicyEntity::getGroupCode, groupCode)
+        );
+        return new AdminGroupItemResponse(
+            groupCode,
+            entity.getDisplayName(),
+            entity.getDescriptionText(),
+            normalizeGroupStatus(entity.getStatusCode()),
+            entity.getBuiltInFlag() == null ? 0 : entity.getBuiltInFlag(),
+            entity.getSortNum() == null ? 0 : entity.getSortNum(),
+            userCount,
+            permissionCount,
+            quotaCount,
+            entity.getCreatedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private long queryUserCountByGroup(String groupCode) {
+        Long count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(1) FROM USR_ACCOUNT WHERE deleted_flag = 0 AND JSON_SEARCH(groups_json, 'one', ?) IS NOT NULL",
+            Long.class,
+            groupCode
+        );
+        return count == null ? 0L : count;
+    }
+
+    private String normalizeDisplayName(String displayName) {
+        if (!StringUtils.hasText(displayName)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Display name is required");
+        }
+        String normalized = displayName.trim();
+        if (normalized.length() > 64) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Display name is too long");
+        }
+        return normalized;
+    }
+
+    private String normalizeGroupDescription(String description) {
+        if (description == null) {
+            return null;
+        }
+        String normalized = description.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (normalized.length() > 255) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Description is too long");
+        }
+        return normalized;
+    }
+
+    private String normalizeGroupStatus(String status) {
+        String normalized = normalizeGroupStatusNullable(status);
+        if (!StringUtils.hasText(normalized)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Status is required");
+        }
+        return normalized;
+    }
+
+    private String normalizeGroupStatusNullable(String status) {
+        if (!StringUtils.hasText(status)) {
+            return null;
+        }
+        String normalized = status.trim().toUpperCase();
+        if (Objects.equals(normalized, GROUP_STATUS_ACTIVE) || Objects.equals(normalized, GROUP_STATUS_DISABLED)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported status value");
+    }
+
+    private String generateGroupCodeBase(String displayName) {
+        String normalized = displayName.toUpperCase()
+            .replaceAll("[^A-Z0-9]+", "_")
+            .replaceAll("_+", "_")
+            .replaceAll("^_+", "")
+            .replaceAll("_+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            normalized = "GROUP";
+        }
+        if (Character.isDigit(normalized.charAt(0))) {
+            normalized = "G_" + normalized;
+        }
+        if (normalized.length() > 32) {
+            normalized = normalized.substring(0, 32);
+        }
+        normalized = normalized.replaceAll("_+$", "");
+        return StringUtils.hasText(normalized) ? normalized : "GROUP";
+    }
+
+    private String appendGroupCodeSuffix(String baseCode, int attempt) {
+        String suffix = "_" + attempt;
+        int maxBaseLen = Math.max(1, 32 - suffix.length());
+        String normalizedBase = baseCode;
+        if (normalizedBase.length() > maxBaseLen) {
+            normalizedBase = normalizedBase.substring(0, maxBaseLen);
+        }
+        normalizedBase = normalizedBase.replaceAll("_+$", "");
+        if (!StringUtils.hasText(normalizedBase)) {
+            normalizedBase = "G";
+        }
+        return normalizedBase + suffix;
     }
 
     private Long parsePositiveLong(String raw) {

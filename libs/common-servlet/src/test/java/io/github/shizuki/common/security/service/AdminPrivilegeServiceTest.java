@@ -88,6 +88,21 @@ class AdminPrivilegeServiceTest {
     }
 
     @Test
+    void shouldVerifyCodeWithoutUnlockState() {
+        service.verifyCode("Izumi2486");
+        Mockito.verifyNoInteractions(valueOperations);
+    }
+
+    @Test
+    void shouldRejectVerifyCodeWhenCodeMismatch() {
+        BusinessException ex = Assertions.assertThrows(
+            BusinessException.class,
+            () -> service.verifyCode("wrong")
+        );
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, ex.getErrorCode());
+    }
+
+    @Test
     void shouldReportUnlockedByRedisKey() {
         LoginUser loginUser = new LoginUser(7L, Set.of("ADMIN"), Set.of());
         Mockito.when(redisTemplate.hasKey(ArgumentMatchers.anyString())).thenReturn(true);

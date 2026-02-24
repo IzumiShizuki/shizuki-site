@@ -8,9 +8,13 @@ import io.github.shizuki.common.oauth.config.OAuthProperties;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
+import io.github.shizuki.site.user.dto.AdminGroupCreateRequest;
+import io.github.shizuki.site.user.dto.AdminGroupUpdateRequest;
+import io.github.shizuki.site.user.entity.GroupCatalogEntity;
 import io.github.shizuki.site.user.entity.GroupQuotaPolicyEntity;
 import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.entity.UserPreferenceEntity;
+import io.github.shizuki.site.user.mapper.GroupCatalogMapper;
 import io.github.shizuki.site.user.mapper.GroupPermissionMapper;
 import io.github.shizuki.site.user.mapper.GroupQuotaPolicyMapper;
 import io.github.shizuki.site.user.mapper.OAuthBindingMapper;
@@ -19,6 +23,7 @@ import io.github.shizuki.site.user.mapper.UserAccountMapper;
 import io.github.shizuki.site.user.mapper.UserPreferenceMapper;
 import io.github.shizuki.site.user.mapper.UserProviderSecretMapper;
 import io.github.shizuki.site.user.service.security.MusicApiKeyCryptoService;
+import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +53,8 @@ class UserServiceImplTest {
     @Mock
     private OAuthBindingMapper oAuthBindingMapper;
     @Mock
+    private GroupCatalogMapper groupCatalogMapper;
+    @Mock
     private GroupPermissionMapper groupPermissionMapper;
     @Mock
     private GroupQuotaPolicyMapper groupQuotaPolicyMapper;
@@ -55,6 +62,8 @@ class UserServiceImplTest {
     private UserProviderSecretMapper userProviderSecretMapper;
     @Mock
     private MusicApiKeyCryptoService musicApiKeyCryptoService;
+    @Mock
+    private JdbcTemplate jdbcTemplate;
 
     private UserServiceImpl userService;
 
@@ -70,10 +79,12 @@ class UserServiceImplTest {
             userPreferenceMapper,
             oAuthLoginMapper,
             oAuthBindingMapper,
+            groupCatalogMapper,
             groupPermissionMapper,
             groupQuotaPolicyMapper,
             userProviderSecretMapper,
             musicApiKeyCryptoService,
+            jdbcTemplate,
             new ObjectMapper()
         );
     }
@@ -167,10 +178,12 @@ class UserServiceImplTest {
             userPreferenceMapper,
             oAuthLoginMapper,
             oAuthBindingMapper,
+            groupCatalogMapper,
             groupPermissionMapper,
             groupQuotaPolicyMapper,
             userProviderSecretMapper,
             musicApiKeyCryptoService,
+            jdbcTemplate,
             brokenObjectMapper
         );
 
@@ -225,5 +238,58 @@ class UserServiceImplTest {
         );
         Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
         Assertions.assertTrue(exception.getMessage().contains("Avatar url"));
+    }
+
+    @Test
+    void should_generate_unique_group_code_when_base_group_code_conflicts() {
+        Mockito.doThrow(new org.springframework.dao.DuplicateKeyException("duplicated"))
+            .doAnswer(invocation -> {
+                GroupCatalogEntity entity = invocation.getArgument(0);
+                entity.setId(101L);
+                return 1;
+            })
+            .when(groupCatalogMapper)
+            .insert(ArgumentMatchers.any(GroupCatalogEntity.class));
+
+        Mockito.when(jdbcTemplate.queryForObject(ArgumentMatchers.anyString(), ArgumentMatchers.eq(Long.class), ArgumentMatchers.any()))
+            .thenReturn(0L);
+        Mockito.when(groupPermissionMapper.selectCount(ArgumentMatchers.any())).thenReturn(0L);
+        Mockito.when(groupQuotaPolicyMapper.selectCount(ArgumentMatchers.any())).thenReturn(0L);
+
+        AdminGroupCreateRequest request = new AdminGroupCreateRequest();
+        request.setDisplayName("Content Ops");
+        request.setDescription("group for content ops");
+
+        var response = userService.createAdminGroup(request);
+
+        Assertions.assertEquals("CONTENT_OPS_2", response.groupCode());
+    }
+
+    @Test
+    void should_reject_delete_admin_group() {
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> userService.deleteAdminGroup("ADMIN")
+        );
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
+
+    @Test
+    void should_reject_set_admin_group_to_disabled() {
+        GroupCatalogEntity admin = new GroupCatalogEntity();
+        admin.setId(1L);
+        admin.setGroupCode("ADMIN");
+        admin.setDisplayName("管理员");
+        admin.setStatusCode("ACTIVE");
+        Mockito.when(groupCatalogMapper.selectOne(ArgumentMatchers.any())).thenReturn(admin);
+
+        AdminGroupUpdateRequest request = new AdminGroupUpdateRequest();
+        request.setStatus("DISABLED");
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> userService.updateAdminGroup("ADMIN", request)
+        );
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
     }
 }

@@ -3,6 +3,11 @@ package io.github.shizuki.site.user.service;
 import io.github.shizuki.site.user.dto.MeResponse;
 import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
+import io.github.shizuki.site.user.dto.AdminGroupCreateRequest;
+import io.github.shizuki.site.user.dto.AdminGroupItemResponse;
+import io.github.shizuki.site.user.dto.AdminGroupPageResponse;
+import io.github.shizuki.site.user.dto.AdminGroupUpdateRequest;
+import io.github.shizuki.site.user.dto.AdminOptionsResponse;
 import io.github.shizuki.site.user.dto.AdminUserPageResponse;
 import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
@@ -97,6 +102,31 @@ public interface UserService {
      * 管理员查询用户列表（分页 + 关键字）。
      */
     AdminUserPageResponse listAdminUsers(Integer page, Integer pageSize, String keyword);
+
+    /**
+     * 管理员查询分组目录（分页 + 关键字 + 状态）。
+     */
+    AdminGroupPageResponse listAdminGroups(Integer page, Integer pageSize, String keyword, String status);
+
+    /**
+     * 管理员创建分组目录项。
+     */
+    AdminGroupItemResponse createAdminGroup(AdminGroupCreateRequest request);
+
+    /**
+     * 管理员更新分组目录项（仅名称/描述/状态）。
+     */
+    AdminGroupItemResponse updateAdminGroup(String groupCode, AdminGroupUpdateRequest request);
+
+    /**
+     * 管理员删除分组目录项并级联清理关联配置。
+     */
+    void deleteAdminGroup(String groupCode);
+
+    /**
+     * 管理员获取后台配置选项目录。
+     */
+    AdminOptionsResponse getAdminOptions();
 
     /**
      * 用户名密码登录。

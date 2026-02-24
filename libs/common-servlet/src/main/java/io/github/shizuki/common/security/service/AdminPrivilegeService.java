@@ -35,20 +35,26 @@ public class AdminPrivilegeService {
      */
     public void verifyAndUnlock(LoginUser loginUser, String authorizationHeader, String rawCode) {
         requireAdmin(loginUser);
-        if (!StringUtils.hasText(rawCode)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Privilege code is required");
-        }
-
-        String input = rawCode.trim();
-        if (!matchesConfiguredCode(input)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Invalid admin privilege code");
-        }
+        verifyCode(rawCode);
 
         redisTemplate.opsForValue().set(
             unlockKey(loginUser, authorizationHeader),
             "1",
             Duration.ofSeconds(properties.getUnlockTtlSeconds())
         );
+    }
+
+    /**
+     * 仅校验管理员权限码，不写入解锁态。
+     */
+    public void verifyCode(String rawCode) {
+        if (!StringUtils.hasText(rawCode)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Privilege code is required");
+        }
+        String input = rawCode.trim();
+        if (!matchesConfiguredCode(input)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Invalid admin privilege code");
+        }
     }
 
     /**

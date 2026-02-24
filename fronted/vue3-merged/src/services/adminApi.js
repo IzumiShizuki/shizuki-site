@@ -40,6 +40,53 @@ export async function listAdminUsers(params, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function listAdminGroups(params, authorizedFetch) {
+  const query = {
+    page: params?.page,
+    page_size: params?.pageSize,
+    keyword: params?.keyword,
+    status: params?.status
+  };
+  const response = await authorizedFetch('/api/v1/admin/groups', {
+    method: 'GET',
+    query
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function createAdminGroup(payload, authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/groups', {
+    method: 'POST',
+    body: payload
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function updateAdminGroup(groupCode, payload, authorizedFetch) {
+  const response = await authorizedFetch(`/api/v1/admin/groups/${encodeURIComponent(groupCode)}`, {
+    method: 'PUT',
+    body: payload
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function deleteAdminGroup(groupCode, privilegeCode, authorizedFetch) {
+  const response = await authorizedFetch(`/api/v1/admin/groups/${encodeURIComponent(groupCode)}/delete`, {
+    method: 'POST',
+    body: {
+      privilegeCode
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAdminOptions(authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/options', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function getUserGroups(userId, authorizedFetch) {
   const response = await authorizedFetch(`/api/v1/admin/users/${encodeURIComponent(userId)}/groups`, {
     method: 'GET'

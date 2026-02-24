@@ -3,216 +3,132 @@
     <header class="page-header">
       <p class="eyebrow">Admin Console</p>
       <h1>管理后台</h1>
-      <p>用户、分组权限、用户分组与配额策略统一管理。</p>
+      <p>以表格和选择器为主完成用户、分组、权限、配额配置，减少手工输入。</p>
       <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
     </header>
 
     <div v-if="booting" class="state-tip">正在加载管理数据...</div>
 
-    <div v-else class="dashboard-layout">
-      <aside class="sidebar liquid-material">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          class="side-item ripple-trigger"
-          :class="{ active: activeTab === tab.key }"
-          type="button"
-          @click="openTab(tab.key)"
-        >
-          {{ tab.label }}
-        </button>
-      </aside>
-
-      <section class="content-panel liquid-material">
-        <div v-if="activeTab === 'users'" class="content-block">
-          <h2>用户列表</h2>
-          <div class="inline-actions">
-            <input v-model.trim="usersQuery.keyword" class="field-input grow" type="text" placeholder="搜索用户ID/用户名/昵称/邮箱" />
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="usersLoading" @click="reloadUsers(1)">
-              {{ usersLoading ? '查询中...' : '搜索' }}
-            </button>
-          </div>
-
-          <div class="table-wrap">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>用户名</th>
-                  <th>昵称</th>
-                  <th>邮箱</th>
-                  <th>邮箱验证</th>
-                  <th>分组</th>
-                  <th>权限</th>
-                  <th>创建时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in usersPage.items" :key="item.userId" :class="{ active: selectedUserId === item.userId }" @click="selectUser(item)">
-                  <td>{{ item.userId }}</td>
-                  <td>{{ item.username || '-' }}</td>
-                  <td>{{ item.nickname || '-' }}</td>
-                  <td>{{ item.email || '-' }}</td>
-                  <td>{{ item.emailVerified ? '是' : '否' }}</td>
-                  <td>{{ item.groups.join(', ') || '-' }}</td>
-                  <td>{{ item.permissions.join(', ') || '-' }}</td>
-                  <td>{{ item.createdAt || '-' }}</td>
-                </tr>
-                <tr v-if="!usersPage.items.length">
-                  <td colspan="8">暂无数据</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="pager">
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="usersLoading || usersPage.page <= 1" @click="reloadUsers(usersPage.page - 1)">
-              上一页
-            </button>
-            <span>第 {{ usersPage.page }} 页 / 共 {{ totalPages }} 页（总计 {{ usersPage.total }}）</span>
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="usersLoading || usersPage.page >= totalPages" @click="reloadUsers(usersPage.page + 1)">
-              下一页
-            </button>
-          </div>
-          <p v-if="usersError" class="error-text">{{ usersError }}</p>
-        </div>
-
-        <div v-else-if="activeTab === 'permissions'" class="content-block">
-          <h2>分组权限</h2>
-          <div class="table-wrap">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>分组</th>
-                  <th>权限列表</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="item in groupPermissions"
-                  :key="item.groupCode"
-                  :class="{ active: selectedGroupCode === item.groupCode }"
-                  @click="selectPermissionGroup(item.groupCode)"
-                >
-                  <td>{{ item.groupCode }}</td>
-                  <td>{{ item.permissions.join(', ') || '-' }}</td>
-                </tr>
-                <tr v-if="!groupPermissions.length">
-                  <td colspan="2">暂无分组权限</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <label class="field-label" for="group-permissions-editor">权限编辑（逗号/空格/换行分隔）</label>
-          <textarea
-            id="group-permissions-editor"
-            v-model.trim="groupPermissionsDraft"
-            class="field-textarea"
-            rows="6"
-            placeholder="group.permission.read&#10;group.permission.write"
-          ></textarea>
-
-          <div class="inline-actions">
-            <button class="primary-btn ripple-trigger" type="button" :disabled="permissionsSubmitting" @click="submitGroupPermissions">
-              {{ permissionsSubmitting ? '保存中...' : '保存分组权限' }}
-            </button>
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="permissionsLoading" @click="reloadPermissions">
-              {{ permissionsLoading ? '刷新中...' : '刷新' }}
-            </button>
-          </div>
-          <p v-if="permissionsError" class="error-text">{{ permissionsError }}</p>
-        </div>
-
-        <div v-else-if="activeTab === 'groups'" class="content-block">
-          <h2>用户分组</h2>
-          <p class="helper-text">先在“用户列表”里选中用户，再编辑分组提交。</p>
-
-          <div class="inline-actions">
-            <input v-model.trim="groupEditor.userId" class="field-input grow" type="text" inputmode="numeric" placeholder="用户 ID" />
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="groupLoading" @click="loadSelectedUserGroups">
-              {{ groupLoading ? '读取中...' : '读取当前分组' }}
-            </button>
-          </div>
-
-          <label class="field-label" for="user-groups-editor">用户分组（逗号/空格/换行分隔）</label>
-          <textarea
-            id="user-groups-editor"
-            v-model.trim="groupEditor.groupsDraft"
-            class="field-textarea"
-            rows="6"
-            placeholder="USER&#10;ADMIN"
-          ></textarea>
-
-          <div class="inline-actions">
-            <button class="primary-btn ripple-trigger" type="button" :disabled="groupSubmitting" @click="submitUserGroups">
-              {{ groupSubmitting ? '保存中...' : '保存用户分组' }}
-            </button>
-          </div>
-          <p v-if="groupError" class="error-text">{{ groupError }}</p>
-        </div>
-
-        <div v-else class="content-block">
-          <h2>配额策略</h2>
-          <div class="table-wrap">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>策略ID</th>
-                  <th>分组</th>
-                  <th>配额编码</th>
-                  <th>值</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in quotaPolicies" :key="item.policyId" :class="{ active: selectedPolicyId === item.policyId }" @click="selectPolicy(item.policyId)">
-                  <td>{{ item.policyId }}</td>
-                  <td>{{ item.groupCode }}</td>
-                  <td>{{ item.quotaCode }}</td>
-                  <td>{{ item.value }}</td>
-                </tr>
-                <tr v-if="!quotaPolicies.length">
-                  <td colspan="4">暂无配额策略</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <form class="quota-editor" @submit.prevent="submitSinglePolicy">
-            <label class="field-label" for="policy-id">策略 ID</label>
-            <input id="policy-id" v-model.trim="policyDraft.policyId" class="field-input" type="text" required />
-
-            <label class="field-label" for="policy-group-code">分组编码</label>
-            <input id="policy-group-code" v-model.trim="policyDraft.groupCode" class="field-input" type="text" required />
-
-            <label class="field-label" for="policy-quota-code">配额编码</label>
-            <input id="policy-quota-code" v-model.trim="policyDraft.quotaCode" class="field-input" type="text" required />
-
-            <label class="field-label" for="policy-value">配额值</label>
-            <input id="policy-value" v-model.trim="policyDraft.value" class="field-input" type="number" required />
-
-            <div class="inline-actions">
-              <button class="primary-btn ripple-trigger" type="submit" :disabled="quotaSubmitting">
-                {{ quotaSubmitting ? '保存中...' : '保存当前策略' }}
-              </button>
-              <button class="ghost-btn ripple-trigger" type="button" :disabled="quotaSubmitting" @click="submitBatchPolicies">
-                批量提交全部策略
-              </button>
-              <button class="ghost-btn ripple-trigger" type="button" :disabled="quotaLoading" @click="reloadQuota">
-                {{ quotaLoading ? '刷新中...' : '刷新列表' }}
-              </button>
-            </div>
-          </form>
-          <p v-if="quotaError" class="error-text">{{ quotaError }}</p>
-        </div>
+    <template v-else>
+      <section class="kpi-grid">
+        <article class="kpi-card liquid-material">
+          <span>用户总量</span>
+          <strong>{{ usersPage.total }}</strong>
+        </article>
+        <article class="kpi-card liquid-material">
+          <span>分组数量</span>
+          <strong>{{ groupOptions.length }}</strong>
+        </article>
+        <article class="kpi-card liquid-material">
+          <span>权限目录</span>
+          <strong>{{ permissionCatalog.length }}</strong>
+        </article>
+        <article class="kpi-card liquid-material">
+          <span>配额项</span>
+          <strong>{{ quotaMatrixCodes.length }}</strong>
+        </article>
       </section>
-    </div>
+
+      <div class="dashboard-layout">
+        <aside class="sidebar liquid-material">
+          <button
+            v-for="tab in tabs"
+            :key="tab.key"
+            class="side-item ripple-trigger"
+            :class="{ active: activeTab === tab.key }"
+            type="button"
+            @click="openTab(tab.key)"
+          >
+            {{ tab.label }}
+          </button>
+        </aside>
+
+        <section class="content-panel liquid-material">
+          <AdminUsersPanel
+            v-if="activeTab === AdminTabKey.USERS"
+            v-model:queryKeyword="usersQuery.keyword"
+            :loading="usersLoading"
+            :saving="usersSaving"
+            :error="usersError"
+            :usersPage="usersPage"
+            :totalPages="usersTotalPages"
+            :selectedUserId="selectedUserId"
+            :selectedUser="selectedUser"
+            :selectedUserGroups="selectedUserGroups"
+            :groupOptions="groupOptions"
+            @search="reloadUsers"
+            @selectUser="selectUser"
+            @toggleUserGroup="toggleSelectedUserGroup"
+            @saveUserGroups="saveSelectedUserGroups"
+          />
+
+          <AdminGroupsPanel
+            v-else-if="activeTab === AdminTabKey.GROUPS"
+            v-model:queryKeyword="groupsQuery.keyword"
+            v-model:queryStatus="groupsQuery.status"
+            :loading="groupsLoading"
+            :submitting="groupsSubmitting"
+            :error="groupsError"
+            :groupsPage="groupsPage"
+            :totalPages="groupsTotalPages"
+            :selectedGroupCode="selectedCatalogGroupCode"
+            :selectedGroup="selectedCatalogGroup"
+            @search="reloadGroups"
+            @selectGroup="selectCatalogGroup"
+            @createGroup="createGroup"
+            @updateGroup="updateGroup"
+            @requestDelete="openDeleteGroupDialog"
+          />
+
+          <AdminPermissionsPanel
+            v-else-if="activeTab === AdminTabKey.PERMISSIONS"
+            :loading="permissionsLoading"
+            :saving="permissionsSaving"
+            :error="permissionsError"
+            :groupOptions="groupOptions"
+            :permissionsByGroup="permissionsByGroup"
+            :selectedGroupCode="selectedPermissionGroupCode"
+            :selectedPermissions="selectedPermissionCodes"
+            :permissionCatalog="permissionCatalog"
+            :advanced="uiState.permissionsAdvanced"
+            :customPermission="customPermissionCode"
+            @selectGroup="selectPermissionGroup"
+            @togglePermission="togglePermissionSelection"
+            @save="saveGroupPermissions"
+            @update:advanced="(value) => (uiState.permissionsAdvanced = value)"
+            @update:customPermission="setCustomPermissionCode"
+            @appendCustomPermission="appendCustomPermission"
+          />
+
+          <AdminQuotaPanel
+            v-else
+            :loading="quotaLoading"
+            :rows="quotaMatrixRows"
+            :quotaCodes="quotaMatrixCodes"
+            :quotaCatalog="quotaCatalog"
+            :selectedGroupCode="selectedQuotaGroupCode"
+            :saving="quotaSaving"
+            :error="quotaError"
+            :advanced="uiState.quotaAdvanced"
+            :customQuotaCode="customQuotaCode"
+            @selectGroup="selectQuotaGroup"
+            @updateCell="updateQuotaCell"
+            @saveSelected="saveSelectedQuotaGroup"
+            @saveAll="saveAllQuotaGroups"
+            @addCatalogQuota="addCatalogQuota"
+            @update:advanced="(value) => (uiState.quotaAdvanced = value)"
+            @update:customQuotaCode="setCustomQuotaCode"
+            @appendCustomQuota="appendCustomQuota"
+          />
+        </section>
+      </div>
+    </template>
 
     <transition name="dialog-fade">
       <div v-if="unlockDialog.visible" class="dialog-mask" @click.self="cancelUnlockDialog">
         <section class="dialog-shell liquid-material" @click.stop>
           <h3>管理员权限码验证</h3>
-          <p>本次写操作需要先验证权限码，验证成功后自动重试本次请求。</p>
+          <p>当前写操作需要先验证管理员权限码，验证成功后自动重试。</p>
           <label class="field-label" for="unlock-code-input">权限码</label>
           <input
             id="unlock-code-input"
@@ -225,9 +141,7 @@
           />
           <p v-if="unlockDialog.error" class="error-text">{{ unlockDialog.error }}</p>
           <div class="inline-actions">
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="unlockDialog.submitting" @click="cancelUnlockDialog">
-              取消
-            </button>
+            <button class="ghost-btn ripple-trigger" type="button" :disabled="unlockDialog.submitting" @click="cancelUnlockDialog">取消</button>
             <button class="primary-btn ripple-trigger" type="button" :disabled="unlockDialog.submitting" @click="submitUnlockDialog">
               {{ unlockDialog.submitting ? '验证中...' : '确认验证' }}
             </button>
@@ -235,6 +149,20 @@
         </section>
       </div>
     </transition>
+
+    <AdminDangerDeleteDialog
+      :visible="dangerDelete.visible"
+      :groupCode="dangerDelete.groupCode"
+      :groupName="dangerDelete.groupName"
+      :privilegeCode="dangerDelete.privilegeCode"
+      :confirmText="dangerDelete.confirmText"
+      :submitting="dangerDelete.submitting"
+      :error="dangerDelete.error"
+      @close="closeDeleteGroupDialog"
+      @confirm="confirmDeleteGroup"
+      @update:privilegeCode="(value) => (dangerDelete.privilegeCode = value)"
+      @update:confirmText="(value) => (dangerDelete.confirmText = value)"
+    />
   </section>
 </template>
 
@@ -243,22 +171,42 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import * as adminApi from '../services/adminApi';
+import AdminDangerDeleteDialog from '../components/admin/AdminDangerDeleteDialog.vue';
+import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
+import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue';
+import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
+import AdminUsersPanel from '../components/admin/AdminUsersPanel.vue';
+import {
+  AdminTabKey,
+  buildQuotaMatrix,
+  buildQuotaPayloadForGroup,
+  createAdminUiState,
+  mergeCatalogCodes,
+  normalizeCodeList,
+  toggleCodeSelection,
+  upsertQuotaCell
+} from './adminUiState';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
 
 const tabs = [
-  { key: 'users', label: '用户列表' },
-  { key: 'permissions', label: '分组权限' },
-  { key: 'groups', label: '用户分组' },
-  { key: 'quota', label: '配额策略' }
+  { key: AdminTabKey.USERS, label: '用户管理' },
+  { key: AdminTabKey.GROUPS, label: '分组目录' },
+  { key: AdminTabKey.PERMISSIONS, label: '分组权限' },
+  { key: AdminTabKey.QUOTA, label: '配额策略' }
 ];
 
 const booting = ref(true);
 const globalHint = ref('');
 
+const groupOptions = ref([]);
+const permissionCatalog = ref([]);
+const quotaCatalog = ref([]);
+
 const usersLoading = ref(false);
+const usersSaving = ref(false);
 const usersError = ref('');
 const usersQuery = reactive({
   keyword: '',
@@ -271,32 +219,50 @@ const usersPage = reactive({
   items: []
 });
 const selectedUserId = ref(0);
+const selectedUserGroups = ref([]);
+
+const groupsLoading = ref(false);
+const groupsSubmitting = ref(false);
+const groupsError = ref('');
+const groupsQuery = reactive({
+  keyword: '',
+  status: '',
+  pageSize: 20
+});
+const groupsPage = reactive({
+  page: 1,
+  pageSize: 20,
+  total: 0,
+  items: []
+});
+const selectedCatalogGroupCode = ref('');
 
 const permissionsLoading = ref(false);
-const permissionsSubmitting = ref(false);
+const permissionsSaving = ref(false);
 const permissionsError = ref('');
-const groupPermissions = ref([]);
-const selectedGroupCode = ref('');
-const groupPermissionsDraft = ref('');
-
-const groupLoading = ref(false);
-const groupSubmitting = ref(false);
-const groupError = ref('');
-const groupEditor = reactive({
-  userId: '',
-  groupsDraft: ''
-});
+const permissionsByGroup = ref({});
+const selectedPermissionGroupCode = ref('');
+const selectedPermissionCodes = ref([]);
+const customPermissionCode = ref('');
 
 const quotaLoading = ref(false);
-const quotaSubmitting = ref(false);
+const quotaSaving = ref(false);
 const quotaError = ref('');
-const quotaPolicies = ref([]);
-const selectedPolicyId = ref('');
-const policyDraft = reactive({
-  policyId: '',
+const quotaMatrixRows = ref([]);
+const quotaMatrixCodes = ref([]);
+const selectedQuotaGroupCode = ref('');
+const customQuotaCode = ref('');
+
+const uiState = reactive(createAdminUiState());
+
+const dangerDelete = reactive({
+  visible: false,
   groupCode: '',
-  quotaCode: '',
-  value: ''
+  groupName: '',
+  privilegeCode: '',
+  confirmText: '',
+  submitting: false,
+  error: ''
 });
 
 const unlockDialog = reactive({
@@ -307,34 +273,59 @@ const unlockDialog = reactive({
 });
 let unlockResolver = null;
 
-function normalizeTab(raw) {
-  const key = String(raw || '');
-  return tabs.some((item) => item.key === key) ? key : 'users';
-}
-
 const activeTab = computed(() => {
   const raw = typeof route.query.tab === 'string' ? route.query.tab : '';
   return normalizeTab(raw);
 });
 
-const totalPages = computed(() => {
+const isAdminUser = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((item) => String(item || '').toUpperCase() === 'ADMIN');
+});
+
+const usersTotalPages = computed(() => {
   if (!usersPage.total || !usersPage.pageSize) return 1;
   return Math.max(1, Math.ceil(usersPage.total / usersPage.pageSize));
 });
 
-const isAdminUser = computed(() => {
-  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
-  return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
+const groupsTotalPages = computed(() => {
+  if (!groupsPage.total || !groupsPage.pageSize) return 1;
+  return Math.max(1, Math.ceil(groupsPage.total / groupsPage.pageSize));
 });
+
+const selectedUser = computed(() => usersPage.items.find((item) => item.userId === selectedUserId.value) || null);
+
+const selectedCatalogGroup = computed(() => {
+  return groupsPage.items.find((item) => item.groupCode === selectedCatalogGroupCode.value) || null;
+});
+
+function normalizeTab(raw) {
+  const normalized = String(raw || '');
+  return tabs.some((item) => item.key === normalized) ? normalized : AdminTabKey.USERS;
+}
+
+function setGlobalHint(message) {
+  globalHint.value = String(message || '').trim();
+}
+
+function setCustomPermissionCode(value) {
+  customPermissionCode.value = String(value || '');
+}
+
+function setCustomQuotaCode(value) {
+  customQuotaCode.value = String(value || '');
+}
 
 function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
-  router.replace({ path: '/admin', query: { tab: normalized } });
-}
-
-function setGlobalHint(message) {
-  globalHint.value = message;
+  router.replace({
+    path: '/admin',
+    query: {
+      ...route.query,
+      tab: normalized
+    }
+  });
 }
 
 function readField(raw, camel, snake, fallback = '') {
@@ -347,57 +338,6 @@ function readField(raw, camel, snake, fallback = '') {
 function toPositiveInt(input, fallback = 0) {
   const value = Number.parseInt(String(input || ''), 10);
   return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function normalizeCodeList(input, upperCase = false) {
-  let items = [];
-  if (Array.isArray(input)) {
-    items = input.map((item) => String(item || '').trim()).filter(Boolean);
-  } else {
-    items = String(input || '')
-      .split(/[\s,，;；]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  const normalized = upperCase ? items.map((item) => item.toUpperCase()) : items;
-  return Array.from(new Set(normalized));
-}
-
-function toAdminUserItem(raw) {
-  return {
-    userId: toPositiveInt(readField(raw, 'userId', 'user_id', 0), 0),
-    username: String(readField(raw, 'username', 'username', '') || ''),
-    nickname: String(readField(raw, 'nickname', 'nickname', '') || ''),
-    email: String(readField(raw, 'email', 'email', '') || ''),
-    emailVerified: Number(readField(raw, 'emailVerified', 'email_verified', 0)) > 0,
-    avatarUrl: String(readField(raw, 'avatarUrl', 'avatar_url', '') || ''),
-    groups: normalizeCodeList(readField(raw, 'groups', 'groups', []), true),
-    permissions: normalizeCodeList(readField(raw, 'permissions', 'permissions', []), false),
-    createdAt: String(readField(raw, 'createdAt', 'created_at', '') || '')
-  };
-}
-
-function toGroupPermissionView(raw) {
-  return {
-    groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
-    permissions: normalizeCodeList(readField(raw, 'permissions', 'permissions', []), false)
-  };
-}
-
-function toUserGroupsView(raw) {
-  return {
-    userId: toPositiveInt(readField(raw, 'userId', 'user_id', 0), 0),
-    groups: normalizeCodeList(readField(raw, 'groups', 'groups', []), true)
-  };
-}
-
-function toQuotaView(raw) {
-  return {
-    policyId: String(readField(raw, 'policyId', 'policy_id', '') || ''),
-    groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
-    quotaCode: String(readField(raw, 'quotaCode', 'quota_code', '') || ''),
-    value: Number(readField(raw, 'value', 'value', 0)) || 0
-  };
 }
 
 function readErrorMessage(error) {
@@ -429,8 +369,525 @@ function isPrivilegeRequiredError(error) {
   if (code === 'FORBIDDEN' && reason === 'ADMIN_PRIVILEGE_REQUIRED') {
     return true;
   }
-  const text = String(error?.detail || error?.message || '').toLowerCase();
-  return text.includes('admin privilege verification required');
+  const detail = String(error?.detail || error?.message || '').toLowerCase();
+  return detail.includes('admin privilege verification required');
+}
+
+function toAdminUserItem(raw) {
+  return {
+    userId: toPositiveInt(readField(raw, 'userId', 'user_id', 0), 0),
+    username: String(readField(raw, 'username', 'username', '') || ''),
+    nickname: String(readField(raw, 'nickname', 'nickname', '') || ''),
+    email: String(readField(raw, 'email', 'email', '') || ''),
+    emailVerified: Number(readField(raw, 'emailVerified', 'email_verified', 0)) > 0,
+    avatarUrl: String(readField(raw, 'avatarUrl', 'avatar_url', '') || ''),
+    groups: normalizeCodeList(readField(raw, 'groups', 'groups', []), true),
+    permissions: normalizeCodeList(readField(raw, 'permissions', 'permissions', []), false),
+    createdAt: String(readField(raw, 'createdAt', 'created_at', '') || ''),
+    updatedAt: String(readField(raw, 'updatedAt', 'updated_at', '') || '')
+  };
+}
+
+function toGroupOption(raw) {
+  return {
+    groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
+    displayName: String(readField(raw, 'displayName', 'display_name', '') || ''),
+    status: String(readField(raw, 'status', 'status', 'ACTIVE') || '').toUpperCase(),
+    builtIn: Number(readField(raw, 'builtIn', 'built_in', 0)) > 0 ? 1 : 0
+  };
+}
+
+function toGroupCatalogItem(raw) {
+  return {
+    groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
+    displayName: String(readField(raw, 'displayName', 'display_name', '') || ''),
+    description: String(readField(raw, 'description', 'description', '') || ''),
+    status: String(readField(raw, 'status', 'status', 'ACTIVE') || '').toUpperCase(),
+    builtIn: Number(readField(raw, 'builtIn', 'built_in', 0)) > 0 ? 1 : 0,
+    userCount: Number(readField(raw, 'userCount', 'user_count', 0)) || 0,
+    permissionCount: Number(readField(raw, 'permissionCount', 'permission_count', 0)) || 0,
+    quotaCount: Number(readField(raw, 'quotaCount', 'quota_count', 0)) || 0
+  };
+}
+
+function toGroupPermissionView(raw) {
+  return {
+    groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
+    permissions: normalizeCodeList(readField(raw, 'permissions', 'permissions', []), false)
+  };
+}
+
+function toQuotaPolicyView(raw) {
+  return {
+    policyId: String(readField(raw, 'policyId', 'policy_id', '') || ''),
+    groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
+    quotaCode: String(readField(raw, 'quotaCode', 'quota_code', '') || '').trim(),
+    value: Number(readField(raw, 'value', 'value', 0)) || 0
+  };
+}
+
+function syncSelectedPermissionCodes() {
+  const groupCode = String(selectedPermissionGroupCode.value || '').toUpperCase();
+  if (!groupCode) {
+    selectedPermissionCodes.value = [];
+    return;
+  }
+  const selected = permissionsByGroup.value[groupCode] || [];
+  selectedPermissionCodes.value = normalizeCodeList(selected, false);
+}
+
+function ensureSelectedPermissionGroup() {
+  const groupCodes = groupOptions.value.map((item) => item.groupCode).filter(Boolean);
+  if (!groupCodes.length) {
+    selectedPermissionGroupCode.value = '';
+    selectedPermissionCodes.value = [];
+    return;
+  }
+  if (!groupCodes.includes(selectedPermissionGroupCode.value)) {
+    selectedPermissionGroupCode.value = groupCodes[0];
+  }
+  syncSelectedPermissionCodes();
+}
+
+function ensureSelectedQuotaGroup() {
+  const groupCodes = quotaMatrixRows.value.map((item) => item.groupCode).filter(Boolean);
+  if (!groupCodes.length) {
+    selectedQuotaGroupCode.value = '';
+    return;
+  }
+  if (!groupCodes.includes(selectedQuotaGroupCode.value)) {
+    selectedQuotaGroupCode.value = groupCodes[0];
+  }
+}
+
+async function reloadOptions() {
+  try {
+    const payload = await adminApi.getAdminOptions(auth.authorizedFetch);
+    const groupsRaw = Array.isArray(readField(payload, 'groups', 'groups', [])) ? readField(payload, 'groups', 'groups', []) : [];
+    const permissionsRaw = Array.isArray(readField(payload, 'permissionCatalog', 'permission_catalog', []))
+      ? readField(payload, 'permissionCatalog', 'permission_catalog', [])
+      : [];
+    const quotaRaw = Array.isArray(readField(payload, 'quotaCatalog', 'quota_catalog', []))
+      ? readField(payload, 'quotaCatalog', 'quota_catalog', [])
+      : [];
+
+    groupOptions.value = groupsRaw.map(toGroupOption).filter((item) => item.groupCode);
+    permissionCatalog.value = normalizeCodeList(permissionsRaw, false);
+    quotaCatalog.value = normalizeCodeList(quotaRaw, false);
+    ensureSelectedPermissionGroup();
+  } catch (error) {
+    const message = readErrorMessage(error);
+    permissionsError.value = permissionsError.value || message;
+    quotaError.value = quotaError.value || message;
+    groupsError.value = groupsError.value || message;
+  }
+}
+
+async function reloadUsers(page = 1) {
+  usersError.value = '';
+  usersLoading.value = true;
+  try {
+    const payload = await adminApi.listAdminUsers(
+      {
+        page,
+        pageSize: usersQuery.pageSize,
+        keyword: usersQuery.keyword
+      },
+      auth.authorizedFetch
+    );
+    const itemsRaw = Array.isArray(readField(payload, 'items', 'items', [])) ? readField(payload, 'items', 'items', []) : [];
+    usersPage.items = itemsRaw.map(toAdminUserItem);
+    usersPage.page = toPositiveInt(readField(payload, 'page', 'page', page), page);
+    usersPage.pageSize = toPositiveInt(readField(payload, 'pageSize', 'page_size', usersQuery.pageSize), usersQuery.pageSize);
+    usersPage.total = Number(readField(payload, 'total', 'total', usersPage.items.length)) || 0;
+
+    if (!usersPage.items.some((item) => item.userId === selectedUserId.value)) {
+      selectedUserId.value = 0;
+      selectedUserGroups.value = [];
+    }
+  } catch (error) {
+    usersError.value = readErrorMessage(error);
+  } finally {
+    usersLoading.value = false;
+  }
+}
+
+function selectUser(user) {
+  selectedUserId.value = Number(user?.userId || 0);
+  selectedUserGroups.value = normalizeCodeList(user?.groups || [], true);
+  setGlobalHint(`已选中用户 #${selectedUserId.value}`);
+}
+
+function toggleSelectedUserGroup(groupCode) {
+  selectedUserGroups.value = toggleCodeSelection(selectedUserGroups.value, groupCode, true);
+}
+
+async function saveSelectedUserGroups() {
+  usersError.value = '';
+  if (!selectedUserId.value) {
+    usersError.value = '请先选择用户';
+    return;
+  }
+  usersSaving.value = true;
+  try {
+    const response = await withPrivilegeRetry(() =>
+      adminApi.replaceUserGroups(selectedUserId.value, selectedUserGroups.value, auth.authorizedFetch)
+    );
+    const groups = normalizeCodeList(readField(response, 'groups', 'groups', []), true);
+    selectedUserGroups.value = groups;
+    const index = usersPage.items.findIndex((item) => item.userId === selectedUserId.value);
+    if (index >= 0) {
+      usersPage.items[index].groups = groups;
+    }
+    setGlobalHint(`用户 #${selectedUserId.value} 分组已更新`);
+  } catch (error) {
+    usersError.value = readErrorMessage(error);
+  } finally {
+    usersSaving.value = false;
+  }
+}
+
+async function reloadGroups(page = 1) {
+  groupsError.value = '';
+  groupsLoading.value = true;
+  try {
+    const payload = await adminApi.listAdminGroups(
+      {
+        page,
+        pageSize: groupsQuery.pageSize,
+        keyword: groupsQuery.keyword,
+        status: groupsQuery.status
+      },
+      auth.authorizedFetch
+    );
+    const itemsRaw = Array.isArray(readField(payload, 'items', 'items', [])) ? readField(payload, 'items', 'items', []) : [];
+    groupsPage.items = itemsRaw.map(toGroupCatalogItem).filter((item) => item.groupCode);
+    groupsPage.page = toPositiveInt(readField(payload, 'page', 'page', page), page);
+    groupsPage.pageSize = toPositiveInt(readField(payload, 'pageSize', 'page_size', groupsQuery.pageSize), groupsQuery.pageSize);
+    groupsPage.total = Number(readField(payload, 'total', 'total', groupsPage.items.length)) || 0;
+
+    if (!groupsPage.items.some((item) => item.groupCode === selectedCatalogGroupCode.value)) {
+      selectedCatalogGroupCode.value = groupsPage.items[0]?.groupCode || '';
+    }
+  } catch (error) {
+    groupsError.value = readErrorMessage(error);
+  } finally {
+    groupsLoading.value = false;
+  }
+}
+
+function selectCatalogGroup(group) {
+  selectedCatalogGroupCode.value = String(group?.groupCode || '').toUpperCase();
+}
+
+async function refreshGroupRelatedData(page = 1) {
+  await reloadOptions();
+  await Promise.all([reloadGroups(page), reloadPermissions(), reloadQuota()]);
+}
+
+async function createGroup(payload) {
+  groupsError.value = '';
+  const displayName = String(payload?.displayName || '').trim();
+  const description = String(payload?.description || '').trim();
+  if (!displayName) {
+    groupsError.value = '组名不能为空';
+    return;
+  }
+
+  groupsSubmitting.value = true;
+  try {
+    const created = await withPrivilegeRetry(() =>
+      adminApi.createAdminGroup(
+        {
+          displayName,
+          description: description || undefined
+        },
+        auth.authorizedFetch
+      )
+    );
+    const groupCode = String(readField(created, 'groupCode', 'group_code', '') || '').toUpperCase();
+    setGlobalHint(`分组 ${groupCode || displayName} 创建成功`);
+    await refreshGroupRelatedData(1);
+    if (groupCode) {
+      selectedCatalogGroupCode.value = groupCode;
+      selectedPermissionGroupCode.value = groupCode;
+      selectedQuotaGroupCode.value = groupCode;
+      syncSelectedPermissionCodes();
+      ensureSelectedQuotaGroup();
+    }
+  } catch (error) {
+    groupsError.value = readErrorMessage(error);
+  } finally {
+    groupsSubmitting.value = false;
+  }
+}
+
+async function updateGroup(payload) {
+  groupsError.value = '';
+  const groupCode = String(payload?.groupCode || '').trim().toUpperCase();
+  if (!groupCode) {
+    groupsError.value = '分组编码不能为空';
+    return;
+  }
+
+  groupsSubmitting.value = true;
+  try {
+    await withPrivilegeRetry(() =>
+      adminApi.updateAdminGroup(
+        groupCode,
+        {
+          displayName: String(payload?.displayName || '').trim() || undefined,
+          description: String(payload?.description || '').trim() || undefined,
+          status: String(payload?.status || '').trim() || undefined
+        },
+        auth.authorizedFetch
+      )
+    );
+    setGlobalHint(`分组 ${groupCode} 更新成功`);
+    await refreshGroupRelatedData(groupsPage.page || 1);
+    selectedCatalogGroupCode.value = groupCode;
+    ensureSelectedPermissionGroup();
+    ensureSelectedQuotaGroup();
+  } catch (error) {
+    groupsError.value = readErrorMessage(error);
+  } finally {
+    groupsSubmitting.value = false;
+  }
+}
+
+function openDeleteGroupDialog(group) {
+  dangerDelete.visible = true;
+  dangerDelete.groupCode = String(group?.groupCode || '').toUpperCase();
+  dangerDelete.groupName = String(group?.displayName || group?.groupCode || '');
+  dangerDelete.privilegeCode = '';
+  dangerDelete.confirmText = '';
+  dangerDelete.error = '';
+  dangerDelete.submitting = false;
+}
+
+function closeDeleteGroupDialog() {
+  if (dangerDelete.submitting) return;
+  dangerDelete.visible = false;
+  dangerDelete.groupCode = '';
+  dangerDelete.groupName = '';
+  dangerDelete.privilegeCode = '';
+  dangerDelete.confirmText = '';
+  dangerDelete.error = '';
+}
+
+async function confirmDeleteGroup() {
+  dangerDelete.error = '';
+  if (dangerDelete.confirmText !== 'DELETE') {
+    dangerDelete.error = '请输入 DELETE 以确认删除';
+    return;
+  }
+  if (!String(dangerDelete.privilegeCode || '').trim()) {
+    dangerDelete.error = '请输入管理员秘钥';
+    return;
+  }
+
+  dangerDelete.submitting = true;
+  try {
+    await adminApi.deleteAdminGroup(dangerDelete.groupCode, dangerDelete.privilegeCode, auth.authorizedFetch);
+    const deletedCode = dangerDelete.groupCode;
+    closeDeleteGroupDialog();
+    setGlobalHint(`分组 ${deletedCode} 已删除并完成级联清理`);
+    await Promise.all([reloadUsers(1), refreshGroupRelatedData(1)]);
+  } catch (error) {
+    dangerDelete.error = readErrorMessage(error);
+  } finally {
+    dangerDelete.submitting = false;
+  }
+}
+
+async function reloadPermissions() {
+  permissionsError.value = '';
+  permissionsLoading.value = true;
+  try {
+    const payload = await adminApi.listGroupPermissions(auth.authorizedFetch);
+    const rows = Array.isArray(payload) ? payload.map(toGroupPermissionView).filter((item) => item.groupCode) : [];
+    const map = {};
+    groupOptions.value.forEach((group) => {
+      map[group.groupCode] = [];
+    });
+    rows.forEach((item) => {
+      map[item.groupCode] = item.permissions;
+    });
+    permissionsByGroup.value = map;
+
+    const discoveredPermissions = rows.flatMap((item) => item.permissions || []);
+    permissionCatalog.value = mergeCatalogCodes(permissionCatalog.value, discoveredPermissions, false);
+    ensureSelectedPermissionGroup();
+  } catch (error) {
+    permissionsError.value = readErrorMessage(error);
+  } finally {
+    permissionsLoading.value = false;
+  }
+}
+
+function selectPermissionGroup(groupCode) {
+  selectedPermissionGroupCode.value = String(groupCode || '').trim().toUpperCase();
+  syncSelectedPermissionCodes();
+}
+
+function togglePermissionSelection(permissionCode) {
+  selectedPermissionCodes.value = toggleCodeSelection(selectedPermissionCodes.value, permissionCode, false);
+}
+
+function appendCustomPermission() {
+  const normalized = String(customPermissionCode.value || '').trim();
+  if (!normalized) {
+    permissionsError.value = '请输入自定义权限码';
+    return;
+  }
+  selectedPermissionCodes.value = mergeCatalogCodes(selectedPermissionCodes.value, [normalized], false);
+  permissionCatalog.value = mergeCatalogCodes(permissionCatalog.value, [normalized], false);
+  customPermissionCode.value = '';
+}
+
+async function saveGroupPermissions() {
+  permissionsError.value = '';
+  const groupCode = String(selectedPermissionGroupCode.value || '').trim().toUpperCase();
+  if (!groupCode) {
+    permissionsError.value = '请先选择分组';
+    return;
+  }
+
+  permissionsSaving.value = true;
+  try {
+    const response = await withPrivilegeRetry(() =>
+      adminApi.replaceGroupPermissions(groupCode, selectedPermissionCodes.value, auth.authorizedFetch)
+    );
+    const normalized = toGroupPermissionView(response);
+    permissionsByGroup.value = {
+      ...permissionsByGroup.value,
+      [normalized.groupCode]: normalized.permissions
+    };
+    selectedPermissionGroupCode.value = normalized.groupCode;
+    selectedPermissionCodes.value = normalized.permissions;
+    permissionCatalog.value = mergeCatalogCodes(permissionCatalog.value, normalized.permissions, false);
+    setGlobalHint(`分组 ${normalized.groupCode} 权限已保存`);
+  } catch (error) {
+    permissionsError.value = readErrorMessage(error);
+  } finally {
+    permissionsSaving.value = false;
+  }
+}
+
+async function reloadQuota() {
+  quotaError.value = '';
+  quotaLoading.value = true;
+  try {
+    const payload = await adminApi.listQuotaPolicies(auth.authorizedFetch);
+    const policies = Array.isArray(payload) ? payload.map(toQuotaPolicyView).filter((item) => item.groupCode && item.quotaCode) : [];
+    const discoveredQuotaCodes = policies.map((item) => item.quotaCode);
+    const mergedQuotaCatalog = mergeCatalogCodes(mergeCatalogCodes(quotaCatalog.value, quotaMatrixCodes.value, false), discoveredQuotaCodes, false);
+    quotaCatalog.value = mergedQuotaCatalog;
+
+    const matrix = buildQuotaMatrix(groupOptions.value, mergedQuotaCatalog, policies);
+    quotaMatrixRows.value = matrix.rows;
+    quotaMatrixCodes.value = matrix.quotaCodes;
+    ensureSelectedQuotaGroup();
+  } catch (error) {
+    quotaError.value = readErrorMessage(error);
+  } finally {
+    quotaLoading.value = false;
+  }
+}
+
+function selectQuotaGroup(groupCode) {
+  selectedQuotaGroupCode.value = String(groupCode || '').trim().toUpperCase();
+}
+
+function updateQuotaCell(payload) {
+  const groupCode = String(payload?.groupCode || '').trim().toUpperCase();
+  const quotaCode = String(payload?.quotaCode || '').trim();
+  if (!groupCode || !quotaCode) return;
+  quotaMatrixRows.value = upsertQuotaCell(quotaMatrixRows.value, groupCode, quotaCode, payload?.value);
+}
+
+function addCatalogQuota(quotaCode) {
+  const normalized = String(quotaCode || '').trim().toLowerCase();
+  if (!normalized) return;
+  quotaMatrixCodes.value = mergeCatalogCodes(quotaMatrixCodes.value, [normalized], false);
+  quotaCatalog.value = mergeCatalogCodes(quotaCatalog.value, [normalized], false);
+  quotaMatrixRows.value = quotaMatrixRows.value.map((row) => ({
+    ...row,
+    values: {
+      ...row.values,
+      [normalized]: Number.isFinite(Number(row.values?.[normalized])) ? Number(row.values[normalized]) : 0
+    },
+    policyIds: {
+      ...row.policyIds
+    }
+  }));
+}
+
+function appendCustomQuota() {
+  const normalized = String(customQuotaCode.value || '').trim().toLowerCase();
+  if (!normalized) {
+    quotaError.value = '请输入自定义配额编码';
+    return;
+  }
+  addCatalogQuota(normalized);
+  customQuotaCode.value = '';
+}
+
+async function saveSelectedQuotaGroup() {
+  quotaError.value = '';
+  const groupCode = String(selectedQuotaGroupCode.value || '').trim().toUpperCase();
+  if (!groupCode) {
+    quotaError.value = '请先选择分组';
+    return;
+  }
+
+  const row = quotaMatrixRows.value.find((item) => item.groupCode === groupCode);
+  if (!row) {
+    quotaError.value = '未找到分组配额行';
+    return;
+  }
+
+  const payload = buildQuotaPayloadForGroup(row, quotaMatrixCodes.value);
+  if (!payload.length) {
+    quotaError.value = '没有可提交的配额项';
+    return;
+  }
+
+  quotaSaving.value = true;
+  try {
+    await withPrivilegeRetry(() => adminApi.batchUpsertQuotaPolicies(payload, auth.authorizedFetch));
+    await reloadQuota();
+    setGlobalHint(`分组 ${groupCode} 配额已保存`);
+  } catch (error) {
+    quotaError.value = readErrorMessage(error);
+  } finally {
+    quotaSaving.value = false;
+  }
+}
+
+async function saveAllQuotaGroups() {
+  quotaError.value = '';
+  if (!quotaMatrixRows.value.length) {
+    quotaError.value = '暂无配额数据';
+    return;
+  }
+
+  const payload = quotaMatrixRows.value.flatMap((row) => buildQuotaPayloadForGroup(row, quotaMatrixCodes.value));
+  if (!payload.length) {
+    quotaError.value = '没有可提交的配额项';
+    return;
+  }
+
+  quotaSaving.value = true;
+  try {
+    await withPrivilegeRetry(() => adminApi.batchUpsertQuotaPolicies(payload, auth.authorizedFetch));
+    await reloadQuota();
+    setGlobalHint('全部分组配额已批量保存');
+  } catch (error) {
+    quotaError.value = readErrorMessage(error);
+  } finally {
+    quotaSaving.value = false;
+  }
 }
 
 function openUnlockDialog() {
@@ -449,9 +906,9 @@ function closeUnlockDialog(result) {
   unlockDialog.error = '';
   unlockDialog.submitting = false;
   if (unlockResolver) {
-    const resolve = unlockResolver;
+    const resolver = unlockResolver;
     unlockResolver = null;
-    resolve(result);
+    resolver(result);
   }
 }
 
@@ -466,6 +923,7 @@ async function submitUnlockDialog() {
     unlockDialog.error = '请输入权限码';
     return;
   }
+
   unlockDialog.submitting = true;
   try {
     await adminApi.unlockAdminPrivilege(unlockDialog.code, auth.authorizedFetch);
@@ -493,282 +951,19 @@ async function withPrivilegeRetry(action) {
   }
 }
 
-async function reloadUsers(page = 1) {
-  usersError.value = '';
-  usersLoading.value = true;
-  try {
-    const payload = await adminApi.listAdminUsers(
-      {
-        page,
-        pageSize: usersQuery.pageSize,
-        keyword: usersQuery.keyword
-      },
-      auth.authorizedFetch
-    );
-    const itemsRaw = Array.isArray(payload?.items || payload?.Items) ? payload.items || payload.Items : [];
-    usersPage.items = itemsRaw.map(toAdminUserItem);
-    usersPage.page = toPositiveInt(readField(payload, 'page', 'page', page), page);
-    usersPage.pageSize = toPositiveInt(readField(payload, 'pageSize', 'page_size', usersQuery.pageSize), usersQuery.pageSize);
-    usersPage.total = Number(readField(payload, 'total', 'total', usersPage.items.length)) || 0;
-  } catch (error) {
-    usersError.value = readErrorMessage(error);
-  } finally {
-    usersLoading.value = false;
-  }
-}
-
-function selectUser(user) {
-  selectedUserId.value = user.userId;
-  groupEditor.userId = String(user.userId);
-  groupEditor.groupsDraft = user.groups.join('\n');
-  setGlobalHint(`已选中用户 ${user.userId}`);
-}
-
-async function reloadPermissions() {
-  permissionsError.value = '';
-  permissionsLoading.value = true;
-  try {
-    const payload = await adminApi.listGroupPermissions(auth.authorizedFetch);
-    groupPermissions.value = Array.isArray(payload) ? payload.map(toGroupPermissionView).filter((item) => item.groupCode) : [];
-    if (!groupPermissions.value.length) {
-      selectedGroupCode.value = '';
-      groupPermissionsDraft.value = '';
-      return;
-    }
-    if (!groupPermissions.value.some((item) => item.groupCode === selectedGroupCode.value)) {
-      selectedGroupCode.value = groupPermissions.value[0].groupCode;
-    }
-    syncSelectedGroupDraft();
-  } catch (error) {
-    permissionsError.value = readErrorMessage(error);
-  } finally {
-    permissionsLoading.value = false;
-  }
-}
-
-function selectPermissionGroup(groupCode) {
-  selectedGroupCode.value = String(groupCode || '').toUpperCase();
-  syncSelectedGroupDraft();
-}
-
-function syncSelectedGroupDraft() {
-  const selected = groupPermissions.value.find((item) => item.groupCode === selectedGroupCode.value);
-  groupPermissionsDraft.value = selected ? selected.permissions.join('\n') : '';
-}
-
-async function submitGroupPermissions() {
-  permissionsError.value = '';
-  const groupCode = String(selectedGroupCode.value || '').trim().toUpperCase();
-  if (!groupCode) {
-    permissionsError.value = '请先选择分组';
-    return;
-  }
-  const permissions = normalizeCodeList(groupPermissionsDraft.value, false);
-  permissionsSubmitting.value = true;
-  try {
-    const result = await withPrivilegeRetry(() =>
-      adminApi.replaceGroupPermissions(groupCode, permissions, auth.authorizedFetch)
-    );
-    const normalized = toGroupPermissionView(result);
-    const idx = groupPermissions.value.findIndex((item) => item.groupCode === normalized.groupCode);
-    if (idx >= 0) {
-      groupPermissions.value[idx] = normalized;
-    } else {
-      groupPermissions.value.push(normalized);
-    }
-    groupPermissions.value.sort((l, r) => l.groupCode.localeCompare(r.groupCode));
-    selectedGroupCode.value = normalized.groupCode;
-    syncSelectedGroupDraft();
-    setGlobalHint(`分组 ${normalized.groupCode} 权限已保存`);
-  } catch (error) {
-    permissionsError.value = readErrorMessage(error);
-  } finally {
-    permissionsSubmitting.value = false;
-  }
-}
-
-async function loadSelectedUserGroups() {
-  groupError.value = '';
-  const userId = toPositiveInt(groupEditor.userId, 0);
-  if (!userId) {
-    groupError.value = '请输入有效用户 ID';
-    return;
-  }
-  groupLoading.value = true;
-  try {
-    const payload = await adminApi.getUserGroups(userId, auth.authorizedFetch);
-    const normalized = toUserGroupsView(payload);
-    groupEditor.userId = String(normalized.userId || userId);
-    groupEditor.groupsDraft = normalized.groups.join('\n');
-  } catch (error) {
-    groupError.value = readErrorMessage(error);
-  } finally {
-    groupLoading.value = false;
-  }
-}
-
-async function submitUserGroups() {
-  groupError.value = '';
-  const userId = toPositiveInt(groupEditor.userId, 0);
-  if (!userId) {
-    groupError.value = '请输入有效用户 ID';
-    return;
-  }
-  const groups = normalizeCodeList(groupEditor.groupsDraft, true);
-  groupSubmitting.value = true;
-  try {
-    const payload = await withPrivilegeRetry(() =>
-      adminApi.replaceUserGroups(userId, groups, auth.authorizedFetch)
-    );
-    const normalized = toUserGroupsView(payload);
-    groupEditor.userId = String(normalized.userId || userId);
-    groupEditor.groupsDraft = normalized.groups.join('\n');
-
-    const targetIndex = usersPage.items.findIndex((item) => item.userId === userId);
-    if (targetIndex >= 0) {
-      usersPage.items[targetIndex].groups = normalized.groups;
-    }
-    setGlobalHint(`用户 ${groupEditor.userId} 分组已更新`);
-  } catch (error) {
-    groupError.value = readErrorMessage(error);
-  } finally {
-    groupSubmitting.value = false;
-  }
-}
-
-async function reloadQuota() {
-  quotaError.value = '';
-  quotaLoading.value = true;
-  try {
-    const payload = await adminApi.listQuotaPolicies(auth.authorizedFetch);
-    quotaPolicies.value = Array.isArray(payload) ? payload.map(toQuotaView).filter((item) => item.policyId) : [];
-    if (!quotaPolicies.value.length) {
-      selectedPolicyId.value = '';
-      syncPolicyDraftFromSelected();
-      return;
-    }
-    if (!quotaPolicies.value.some((item) => item.policyId === selectedPolicyId.value)) {
-      selectedPolicyId.value = quotaPolicies.value[0].policyId;
-    }
-    syncPolicyDraftFromSelected();
-  } catch (error) {
-    quotaError.value = readErrorMessage(error);
-  } finally {
-    quotaLoading.value = false;
-  }
-}
-
-function selectPolicy(policyId) {
-  selectedPolicyId.value = String(policyId || '');
-  syncPolicyDraftFromSelected();
-}
-
-function syncPolicyDraftFromSelected() {
-  const selected = quotaPolicies.value.find((item) => item.policyId === selectedPolicyId.value);
-  if (!selected) {
-    policyDraft.policyId = '';
-    policyDraft.groupCode = '';
-    policyDraft.quotaCode = '';
-    policyDraft.value = '';
-    return;
-  }
-  policyDraft.policyId = selected.policyId;
-  policyDraft.groupCode = selected.groupCode;
-  policyDraft.quotaCode = selected.quotaCode;
-  policyDraft.value = String(selected.value);
-}
-
-function toQuotaPayloadFromDraft() {
-  const value = Number.parseInt(String(policyDraft.value || ''), 10);
-  return {
-    policyId: String(policyDraft.policyId || '').trim(),
-    groupCode: String(policyDraft.groupCode || '').trim().toUpperCase(),
-    quotaCode: String(policyDraft.quotaCode || '').trim(),
-    value: Number.isFinite(value) ? value : NaN
-  };
-}
-
-function applyQuotaResult(raw) {
-  const item = toQuotaView(raw);
-  const idx = quotaPolicies.value.findIndex((target) => target.policyId === item.policyId);
-  if (idx >= 0) {
-    quotaPolicies.value[idx] = item;
-  } else {
-    quotaPolicies.value.push(item);
-    quotaPolicies.value.sort((l, r) => l.policyId.localeCompare(r.policyId));
-  }
-  selectedPolicyId.value = item.policyId;
-  syncPolicyDraftFromSelected();
-}
-
-async function submitSinglePolicy() {
-  quotaError.value = '';
-  const payload = toQuotaPayloadFromDraft();
-  if (!payload.policyId || !payload.groupCode || !payload.quotaCode || !Number.isFinite(payload.value)) {
-    quotaError.value = '策略 ID / 分组 / 配额编码 / 配额值 必填';
-    return;
-  }
-  quotaSubmitting.value = true;
-  try {
-    const result = await withPrivilegeRetry(() =>
-      adminApi.updateQuotaPolicy(payload.policyId, payload, auth.authorizedFetch)
-    );
-    applyQuotaResult(result);
-    setGlobalHint(`策略 ${payload.policyId} 已保存`);
-  } catch (error) {
-    quotaError.value = readErrorMessage(error);
-  } finally {
-    quotaSubmitting.value = false;
-  }
-}
-
-async function submitBatchPolicies() {
-  quotaError.value = '';
-  if (!quotaPolicies.value.length) {
-    quotaError.value = '当前没有可提交的策略';
-    return;
-  }
-  const payloadItems = quotaPolicies.value.map((item) => ({
-    policyId: String(item.policyId || '').trim(),
-    groupCode: String(item.groupCode || '').trim().toUpperCase(),
-    quotaCode: String(item.quotaCode || '').trim(),
-    value: Number(item.value)
-  }));
-  const hasInvalid = payloadItems.some(
-    (item) => !item.policyId || !item.groupCode || !item.quotaCode || !Number.isFinite(item.value)
-  );
-  if (hasInvalid) {
-    quotaError.value = '检测到非法策略数据，请先修复后再提交';
-    return;
-  }
-  quotaSubmitting.value = true;
-  try {
-    const result = await withPrivilegeRetry(() =>
-      adminApi.batchUpsertQuotaPolicies(payloadItems, auth.authorizedFetch)
-    );
-    const normalizedList = Array.isArray(result) ? result.map(toQuotaView) : [];
-    if (normalizedList.length) {
-      quotaPolicies.value = normalizedList;
-      if (!selectedPolicyId.value && normalizedList[0]) {
-        selectedPolicyId.value = normalizedList[0].policyId;
-      }
-      syncPolicyDraftFromSelected();
-    }
-    setGlobalHint('配额策略批量提交成功');
-  } catch (error) {
-    quotaError.value = readErrorMessage(error);
-  } finally {
-    quotaSubmitting.value = false;
-  }
-}
-
 watch(
   () => route.query.tab,
   (nextTab) => {
     const raw = typeof nextTab === 'string' ? nextTab : '';
     const normalized = normalizeTab(raw);
     if (raw === normalized) return;
-    router.replace({ path: '/admin', query: { tab: normalized } });
+    router.replace({
+      path: '/admin',
+      query: {
+        ...route.query,
+        tab: normalized
+      }
+    });
   },
   { immediate: true }
 );
@@ -794,15 +989,19 @@ onMounted(async () => {
     return;
   }
 
-  await Promise.all([reloadUsers(1), reloadPermissions(), reloadQuota()]);
-  booting.value = false;
+  try {
+    await reloadOptions();
+    await Promise.all([reloadUsers(1), reloadGroups(1), reloadPermissions(), reloadQuota()]);
+  } finally {
+    booting.value = false;
+  }
 });
 
 onBeforeUnmount(() => {
   if (unlockResolver) {
-    const resolve = unlockResolver;
+    const resolver = unlockResolver;
     unlockResolver = null;
-    resolve(false);
+    resolver(false);
   }
 });
 </script>
@@ -812,12 +1011,12 @@ onBeforeUnmount(() => {
   min-height: 100%;
   color: rgba(239, 244, 255, 0.96);
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   gap: 12px;
 }
 
 .page-header {
-  padding: 8px 4px 4px;
+  padding: 8px 4px 0;
 }
 
 .eyebrow {
@@ -836,6 +1035,33 @@ h1 {
   margin-top: 10px;
   max-width: 760px;
   color: rgba(223, 230, 249, 0.86);
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  animation: fade-in-up 0.25s ease;
+}
+
+.kpi-card {
+  --liquid-bg: rgba(20, 27, 42, 0.36);
+  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.22);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.kpi-card span {
+  color: rgba(201, 219, 243, 0.9);
+  font-size: 12px;
+}
+
+.kpi-card strong {
+  font-size: 22px;
+  color: rgba(236, 245, 255, 0.96);
 }
 
 .dashboard-layout {
@@ -859,7 +1085,7 @@ h1 {
 .side-item {
   border: 0;
   border-radius: 10px;
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 12px;
   text-align: left;
   background: rgba(255, 255, 255, 0.2);
@@ -879,60 +1105,11 @@ h1 {
   border-radius: 14px;
   padding: 14px 16px;
   overflow: auto;
+  animation: fade-in-up 0.25s ease;
 }
 
-.content-block {
-  display: grid;
-  gap: 10px;
-}
-
-.content-block h2 {
-  font-size: 20px;
-}
-
-.helper-text {
-  color: rgba(223, 230, 249, 0.88);
-}
-
-.table-wrap {
-  border-radius: 12px;
-  overflow: auto;
-  box-shadow: inset 0 0 0 1px rgba(175, 198, 228, 0.18);
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 720px;
-  font-size: 13px;
-}
-
-.admin-table th,
-.admin-table td {
-  text-align: left;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(180, 203, 232, 0.14);
-  color: rgba(232, 241, 253, 0.92);
-  vertical-align: top;
-}
-
-.admin-table th {
-  color: rgba(194, 218, 245, 0.92);
-  font-weight: 600;
-  background: rgba(11, 18, 29, 0.36);
-}
-
-.admin-table tbody tr {
-  cursor: pointer;
-  transition: background-color 0.18s ease;
-}
-
-.admin-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.admin-table tbody tr.active {
-  background: rgba(var(--accent-rgb), 0.18);
+.state-tip {
+  color: rgba(204, 223, 252, 0.92);
 }
 
 .field-label {
@@ -940,8 +1117,7 @@ h1 {
   color: rgba(218, 229, 247, 0.88);
 }
 
-.field-input,
-.field-textarea {
+.field-input {
   border: 0;
   border-radius: 10px;
   min-height: 38px;
@@ -951,21 +1127,11 @@ h1 {
   box-shadow: inset 0 0 0 1px rgba(165, 186, 223, 0.22);
 }
 
-.field-textarea {
-  min-height: 120px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-
 .inline-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
-}
-
-.grow {
-  flex: 1;
 }
 
 .primary-btn,
@@ -985,31 +1151,8 @@ h1 {
   background: rgba(255, 255, 255, 0.18);
 }
 
-.primary-btn:disabled,
-.ghost-btn:disabled {
-  opacity: 0.56;
-  cursor: not-allowed;
-}
-
-.pager {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  color: rgba(216, 232, 250, 0.92);
-}
-
-.state-tip {
-  color: rgba(204, 223, 252, 0.92);
-}
-
 .error-text {
   color: rgba(255, 188, 206, 0.96);
-}
-
-.quota-editor {
-  display: grid;
-  gap: 8px;
 }
 
 .dialog-mask {
@@ -1052,7 +1195,23 @@ h1 {
   opacity: 0;
 }
 
-@media (max-width: 980px) {
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1080px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dashboard-layout {
     grid-template-columns: 1fr;
   }
@@ -1066,6 +1225,12 @@ h1 {
     padding: 0 8px;
     text-align: center;
     font-size: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
