@@ -10,7 +10,7 @@
 - 默认进入「学习陪伴页」：动态角色 + 声音系统 + 可 Pin 的 Widgets + 侧边半透明按钮组。
 - 网站首页完全公开；消耗额度/需审核/高频内容登录可见；少量内容仅面试官分组可见（3 天自动降级）。
 - 权限模型：**分组（策略/配额/模块开关） + 角色（细粒度权限点）**，允许用户拥有多个分组（配额按高权限优先取最大值）。
-- 鉴权：Sa-Token（Token 走 Header），网关统一鉴权与限流。
+- 鉴权：Sa-Token（Token 走 Header），入口层统一鉴权与限流（单体内实现）。
 - 存储：MySQL + Redis + 阿里云 OSS（公开与私有前缀分层；私有资源通过预签名 URL 访问）。
 - AI：兼容 OpenAI 协议；无自带 API 的用户 **总共 5 轮**；有自带 API 则不限制“总轮数”，但仍统一 30/min 限流；聊天历史保存 30 天，可自行清理。
 - UI 约束：少纯色，多毛玻璃与圆角；背景图由后端下发并可分区配置；公告可轮播；图标使用 IconPark（禁止 Emoji）。
@@ -91,15 +91,15 @@
 ### 2.4 认证与鉴权
 - 使用 Sa-Token：轻量，适合你说的“个人做着玩”。
 - Token 走 Header（你要求 A1 header）。
-- 网关统一鉴权：auth 逻辑放在 user + gateway；网关做路由鉴权与限流，业务服务只做二次校验与资源级鉴权（防绕过）。
+- 入口层统一鉴权：auth 逻辑放在 user-module + monolith-app；入口做路由鉴权与限流，业务模块做二次校验与资源级鉴权（防绕过）。
 
 ### 2.5 其他
-- 全局限流：非管理员统一 30/min（网关级），避免服务器被打爆。
+- 全局限流：非管理员统一 30/min（入口级），避免服务器被打爆。
 - 免费/预览模式：
   - 未提交自己的 API：总生命周期 5 轮（一问一答算 1 轮），口径已固定。
   - 预览模式仅允许“便宜模型”，并受剩余轮次与限流双重约束（你 A5 要求）。
 - 面试官：走独立分组策略（可配置高于 USER 的额度，不在代码里硬编码固定值）。
-- 提交自己的 API：取消“总轮数限制”，但仍保留 30/min 网关限流（你 A4 要求）。
+- 提交自己的 API：取消“总轮数限制”，但仍保留 30/min 入口限流（你 A4 要求）。
 - 对话历史：仅保存对话历史，保留 30 天；用户可自行清理。
 
 ---
@@ -234,7 +234,7 @@
 - 兼容 OpenAI 协议（可支持多家兼容服务）。
 - 非管理员限流：30/min（保护服务器）。
 - 无自带 API：**总共 5 轮**（用完后仅可预览或提示绑定自己的 API）。
-- 有自带 API：不限制总轮数，但仍受 30/min 网关限流与服务端保护。
+- 有自带 API：不限制总轮数，但仍受 30/min 入口限流与服务端保护。
 
 ### 6.2 数据保留
 - 仅保存对话历史：30 天；用户可手动清理。
@@ -268,24 +268,24 @@
 
 ---
 
-## 7. 架构与服务拆分
+## 7. 架构与模块拆分
 
-1. **gateway-service**
+1. **monolith-app**
    - 统一入口、鉴权、限流、跨域、灰度/维护拦截、TraceId
-2. **user-service**
+2. **user-module**
    - 用户/邮箱/分组/角色/权限/策略（配额、模块开关、白名单）
    - 偏好同步（dock、widgets 清单/参数、背景等；widgets 位置/尺寸不落后端）
-3. **content-service**
+3. **content-module**
    - 博客、评论、点赞、浏览、举报、时间线
    - 应用中心元数据（应用条目与统计）
    - widgets 元数据与展示编排（当前阶段）
-4. **media-service**
+4. **media-module**
    - OSS 资源管理（上传策略、签名 URL、审核、资源统计）
    - 音乐/背景/CG/角色图片等媒体资产
-5. **ai-service**
+5. **ai-module**
    - 会话/消息/世界书/角色卡/配额扣减/OpenAI 兼容调用
 
-> 说明：`widgets-service` 作为后续可选拆分，当前先收敛在 `content-service`，避免早拆服务增加维护成本。
+> 说明：`widgets` 能力当前先收敛在 `content-module`，避免早拆独立模块增加维护成本。
 
 ---
 
@@ -340,7 +340,7 @@
 
 ### 10.1 日志
 
-- 访问日志：网关记录（路径、状态码、耗时、userId、traceId）
+- 访问日志：入口层记录（路径、状态码、耗时、userId、traceId）
 - 审计日志：AOP 记录关键业务动作（改策略、禁模块、删资源、审核、导出等）
 - Trace：建议使用 Micrometer Tracing（Spring Boot 3 生态）贯穿链路。
 
@@ -348,7 +348,7 @@
 
 - `@Audit(action="post.create", resource="posts")` 注解 + AOP 切面
 - 记录字段建议：
-  - `trace_id`（贯穿网关到服务）
+  - `trace_id`（贯穿入口到模块）
   - `user_id`、`group_ids`
   - `http_method`、`path`
   - `resource_type`、`resource_id`
@@ -390,9 +390,9 @@
 
 ### 13.1 已完成主链路
 
-- 网关鉴权与 guest 策略已落地：
+- 入口鉴权与 guest 策略已落地：
   - 支持 `guest-invalid-token-policy=downgrade/reject`。
-  - 管理路由已接入网关：`/api/v1/admin/users/**`、`/api/v1/admin/groups/**`、`/api/v1/admin/posts/**`、`/api/v1/admin/apps/**`。
+  - 管理路由已接入入口鉴权层：`/api/v1/admin/users/**`、`/api/v1/admin/groups/**`、`/api/v1/admin/posts/**`、`/api/v1/admin/apps/**`。
 - user 认证闭环已完成：
   - 统一入口 `POST /api/v1/auth/tokens`，支持 `email_password / oauth_code / refresh_token` 三种 grant。
   - refresh 轮换、验证码、`bind_ticket` 冲突确认链路已打通。
@@ -429,15 +429,15 @@
 ### 14.1 当前代码已使用
 
 - 语言与框架：Java 17、Spring Boot 3.2.x
-- 网关与服务治理：Spring Cloud Gateway、Spring Cloud Alibaba Nacos（discovery + config）
-- 数据访问：MyBatis-Plus 依赖已引入（各服务）
+- 入口与模块治理：monolith-app 入口鉴权 + modules 模块编排
+- 数据访问：MyBatis-Plus 依赖已引入（各模块）
 - 存储与缓存：MySQL 8、Redis 7、阿里云 OSS（抽象层已落地）
 - 安全与策略：AOP 权限注解、AOP 限流、AOP 审计、全局异常处理
 - 构建与部署：Maven 多模块、Docker Compose
 
 ### 14.2 目标定稿（后续继续完善）
 
-- 鉴权：Sa-Token 已接入网关与服务，后续完善自动化回归与规则治理
+- 鉴权：Sa-Token 已接入入口与模块，后续完善自动化回归与规则治理
 - 数据层：MyBatis-Plus + MySQL DDL + 索引 + 初始化脚本已落地，后续推进迁移版本化
 - 对象存储：阿里云 OSS SDK 已落地，后续推进密钥治理与安全加固
 - API 协议：OpenAPI 文档自动生成与联调校验
@@ -455,31 +455,27 @@
 |---|---|---|
 | MySQL 8 | 主数据、审计数据 | 1.2 ~ 1.6 GB |
 | Redis 7 | 限流、缓存、OAuth state、bind_ticket、验证码与 refresh 会话 | 0.25 ~ 0.5 GB |
-| Nacos 2.x | 注册中心 + 配置中心 | 0.5 ~ 0.8 GB |
+| Kafka | 异步消息链路 | 0.4 ~ 0.7 GB |
 
-中间件小计：约 **1.95 ~ 2.9 GB**
+中间件小计：约 **1.85 ~ 2.8 GB**
 
-### 15.2 应用服务预算
+### 15.2 单体应用预算
 
 | 服务 | 建议 JVM (`-Xms/-Xmx`) | 预计内存占用 |
 |---|---|---|
-| gateway-service | 256m / 256m | 0.30 ~ 0.40 GB |
-| user-service | 384m / 384m | 0.45 ~ 0.60 GB |
-| content-service | 384m / 512m | 0.50 ~ 0.70 GB |
-| media-service | 384m / 512m | 0.50 ~ 0.70 GB |
-| ai-service | 768m / 1024m | 0.90 ~ 1.30 GB |
+| monolith-app | 1536m / 1536m | 1.80 ~ 2.20 GB |
 
-应用小计：约 **2.65 ~ 3.7 GB**
+应用小计：约 **1.80 ~ 2.20 GB**
 
 ### 15.3 总体预算（含中间件）
 
-- 中间件 + 应用：约 **4.6 ~ 6.6 GB**
+- 中间件 + 应用：约 **3.65 ~ 5.00 GB**
 - 系统与 Docker 预留：建议 **1.0 ~ 1.4 GB**
-- 总占用：约 **5.6 ~ 8.0 GB**
+- 总占用：约 **4.65 ~ 6.40 GB**
 
 建议：
 - 单机 8GB 可以跑，但应保留监控告警并限制日志膨胀。
-- 若 AI 请求增多，优先扩容 `ai-service` 与 MySQL；其次再扩容 content/media。
+- 若 AI 请求增多，优先扩容 `monolith-app` 与 MySQL。
 
 ---
 
