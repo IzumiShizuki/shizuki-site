@@ -1,5 +1,5 @@
 <template>
-  <section class="music-player-shell" ref="rootRef">
+  <section class="music-player-shell" :class="shellClass" ref="rootRef">
     <article class="player-card liquid-material" :class="{ active: isExpanded, pinned: isPinned }">
       <div class="head-row">
         <button class="top-btn top-gear ripple-trigger" type="button" title="设置" @click.stop="emit('open-settings')">
@@ -167,7 +167,15 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import {
+  MUSIC_PLAYER_PEEK_MODE,
+  MUSIC_PLAYER_PEEK_STATE,
+  isMusicPlayerPeekEligible,
+  nextMusicPlayerPeekStateOnDiscClick,
+  resolveMusicPlayerPeekMode,
+  resolveMusicPlayerPeekState
+} from '../utils/musicPlayerPeekState';
 
 const props = defineProps({
   track: { type: Object, default: null },
@@ -186,7 +194,10 @@ const props = defineProps({
   listOpen: { type: Boolean, default: false },
   visualizerMode: { type: String, default: 'bars' },
   visualizerStyle: { type: String, default: 'bars-neon' },
-  showVisualizerControls: { type: Boolean, default: false }
+  showVisualizerControls: { type: Boolean, default: false },
+  isHomeRoute: { type: Boolean, default: true },
+  isMobileViewport: { type: Boolean, default: false },
+  suppressedByRoute: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -212,6 +223,14 @@ const progressRef = ref(null);
 const previewVisible = ref(false);
 const previewPercent = ref(0);
 const vizMenuOpen = ref(false);
+const peekState = ref(
+  resolveMusicPlayerPeekState({
+    isHomeRoute: props.isHomeRoute,
+    isExpanded: props.isExpanded,
+    isPinned: props.isPinned
+  })
+);
+const peekRevealAnimating = ref(false);
 
 const gesture = {
   pointerId: null,
@@ -219,6 +238,8 @@ const gesture = {
   startY: 0,
   moved: false
 };
+
+let peekRevealTimer = 0;
 
 const coverStyle = computed(() => ({
   backgroundImage: `url('${props.track?.cover || `${import.meta.env.BASE_URL}images/katanegai.jpg`}')`
@@ -235,6 +256,25 @@ const modeLabel = computed(() => {
   if (props.playMode === 'single') return '单曲循环';
   return '顺序播放';
 });
+
+const isPeekEligible = computed(() =>
+  isMusicPlayerPeekEligible({
+    isHomeRoute: props.isHomeRoute,
+    isExpanded: props.isExpanded,
+    isPinned: props.isPinned
+  })
+);
+
+const peekMode = computed(() => resolveMusicPlayerPeekMode({ isMobileViewport: props.isMobileViewport }));
+
+const shellClass = computed(() => ({
+  'peek-hidden': isPeekEligible.value && peekState.value === MUSIC_PLAYER_PEEK_STATE.HIDDEN,
+  'peek-revealed': isPeekEligible.value && peekState.value === MUSIC_PLAYER_PEEK_STATE.REVEALED,
+  'peek-corner-quarter': isPeekEligible.value && peekMode.value === MUSIC_PLAYER_PEEK_MODE.CORNER_QUARTER,
+  'peek-bottom-half': isPeekEligible.value && peekMode.value === MUSIC_PLAYER_PEEK_MODE.BOTTOM_HALF,
+  'peek-reveal-accel': peekRevealAnimating.value,
+  'is-route-suppressed': props.suppressedByRoute
+}));
 
 const visualizerStyleOptions = [
   { key: 'bars-neon', label: '霓虹脉冲', mode: 'bars' },
@@ -272,8 +312,55 @@ function formatTime(sec) {
   return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }
 
+function stopPeekRevealAnimation() {
+  if (peekRevealTimer) {
+    window.clearTimeout(peekRevealTimer);
+    peekRevealTimer = 0;
+  }
+  peekRevealAnimating.value = false;
+}
+
+function triggerPeekRevealAnimation() {
+  stopPeekRevealAnimation();
+  peekRevealAnimating.value = true;
+  peekRevealTimer = window.setTimeout(() => {
+    peekRevealAnimating.value = false;
+    peekRevealTimer = 0;
+  }, 560);
+}
+
+function syncPeekStateFromProps() {
+  const nextState = resolveMusicPlayerPeekState({
+    isHomeRoute: props.isHomeRoute,
+    isExpanded: props.isExpanded,
+    isPinned: props.isPinned
+  });
+
+  if (nextState === MUSIC_PLAYER_PEEK_STATE.HIDDEN) {
+    peekState.value = MUSIC_PLAYER_PEEK_STATE.HIDDEN;
+    return;
+  }
+
+  peekState.value = MUSIC_PLAYER_PEEK_STATE.REVEALED;
+  stopPeekRevealAnimation();
+}
+
 function onDiscClick() {
-  if (!props.isExpanded) emit('set-expanded', true);
+  if (props.isExpanded) return;
+
+  const transition = nextMusicPlayerPeekStateOnDiscClick({
+    currentState: peekState.value,
+    isPeekEligible: isPeekEligible.value
+  });
+
+  peekState.value = transition.nextState;
+  if (transition.action === 'reveal') {
+    triggerPeekRevealAnimation();
+    return;
+  }
+
+  stopPeekRevealAnimation();
+  emit('set-expanded', true);
 }
 
 function pointToPercent(clientX) {
@@ -341,7 +428,10 @@ function selectVisualizerStyle(styleKey) {
 }
 
 function onDocumentPointerDown(e) {
-  if (!props.isExpanded || props.isPinned) return;
+  const canDismissExpanded = props.isExpanded && !props.isPinned;
+  const canDismissPeek = !props.isExpanded && isPeekEligible.value && peekState.value === MUSIC_PLAYER_PEEK_STATE.REVEALED;
+  if (!canDismissExpanded && !canDismissPeek) return;
+
   const root = rootRef.value;
   if (!root) return;
   const target = e.target;
@@ -349,13 +439,28 @@ function onDocumentPointerDown(e) {
   if (root.contains(target)) return;
   if (target.closest('.global-bars') || target.closest('.global-ring') || target.closest('.global-lyric-bar')) return;
   if (target.closest('.top-menu-root') || target.closest('.ai-dialog-shell')) return;
+
   vizMenuOpen.value = false;
-  emit('set-expanded', false);
+  if (canDismissExpanded) {
+    emit('set-expanded', false);
+    return;
+  }
+  stopPeekRevealAnimation();
+  peekState.value = MUSIC_PLAYER_PEEK_STATE.HIDDEN;
 }
+
+watch(
+  () => [props.isHomeRoute, props.isExpanded, props.isPinned],
+  () => {
+    syncPeekStateFromProps();
+  },
+  { immediate: true }
+);
 
 document.addEventListener('pointerdown', onDocumentPointerDown, true);
 
 onBeforeUnmount(() => {
+  stopPeekRevealAnimation();
   document.removeEventListener('pointerdown', onDocumentPointerDown, true);
 });
 </script>
@@ -363,6 +468,17 @@ onBeforeUnmount(() => {
 <style scoped>
 .music-player-shell {
   --elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --shell-base-x: 0px;
+  --shell-base-y: 0px;
+  --peek-offset-x: 0px;
+  --peek-offset-y: 0px;
+  --suppress-offset-x: 0px;
+  --suppress-offset-y: 0px;
+  --suppress-scale: 1;
+  --suppress-opacity: 1;
+  --peek-corner-hidden-x: -62px;
+  --peek-corner-hidden-y: 62px;
+  --peek-bottom-hidden-y: 44px;
   --panel-w: min(92vw, 360px);
   --panel-h: 600px;
   --disc-size: 86px;
@@ -386,6 +502,45 @@ onBeforeUnmount(() => {
   bottom: 24px;
   z-index: 1120;
   pointer-events: auto;
+  transform: translate3d(
+    calc(var(--shell-base-x) + var(--peek-offset-x) + var(--suppress-offset-x)),
+    calc(var(--shell-base-y) + var(--peek-offset-y) + var(--suppress-offset-y)),
+    0
+  ) scale(var(--suppress-scale));
+  opacity: var(--suppress-opacity);
+  transition: transform 420ms var(--elastic), opacity 260ms ease;
+  will-change: transform;
+}
+
+.music-player-shell.is-route-suppressed {
+  --suppress-offset-x: -18px;
+  --suppress-offset-y: 18px;
+  --suppress-scale: 0.42;
+  --suppress-opacity: 0;
+  pointer-events: none;
+}
+
+.music-player-shell.peek-hidden.peek-corner-quarter {
+  --peek-offset-x: var(--peek-corner-hidden-x);
+  --peek-offset-y: var(--peek-corner-hidden-y);
+}
+
+.music-player-shell.peek-hidden.peek-bottom-half {
+  --peek-offset-x: 0px;
+  --peek-offset-y: var(--peek-bottom-hidden-y);
+}
+
+.music-player-shell.peek-revealed {
+  --peek-offset-x: 0px;
+  --peek-offset-y: 0px;
+}
+
+.music-player-shell.peek-reveal-accel.peek-corner-quarter {
+  animation: music-player-peek-reveal-corner 560ms cubic-bezier(0.2, 0.88, 0.18, 1.18);
+}
+
+.music-player-shell.peek-reveal-accel.peek-bottom-half {
+  animation: music-player-peek-reveal-bottom 560ms cubic-bezier(0.2, 0.88, 0.18, 1.18);
 }
 
 .player-card {
@@ -908,6 +1063,46 @@ onBeforeUnmount(() => {
   100% { transform: translate(-10px, 0); }
 }
 
+@keyframes music-player-peek-reveal-corner {
+  0% {
+    transform: translate3d(
+      calc(var(--shell-base-x) + var(--peek-corner-hidden-x)),
+      calc(var(--shell-base-y) + var(--peek-corner-hidden-y)),
+      0
+    );
+  }
+  58% {
+    transform: translate3d(
+      calc(var(--shell-base-x) + 10px),
+      calc(var(--shell-base-y) - 10px),
+      0
+    );
+  }
+  100% {
+    transform: translate3d(var(--shell-base-x), var(--shell-base-y), 0);
+  }
+}
+
+@keyframes music-player-peek-reveal-bottom {
+  0% {
+    transform: translate3d(
+      var(--shell-base-x),
+      calc(var(--shell-base-y) + var(--peek-bottom-hidden-y)),
+      0
+    );
+  }
+  58% {
+    transform: translate3d(
+      var(--shell-base-x),
+      calc(var(--shell-base-y) - 10px),
+      0
+    );
+  }
+  100% {
+    transform: translate3d(var(--shell-base-x), var(--shell-base-y), 0);
+  }
+}
+
 .side-list {
   --liquid-bg: rgba(var(--glass-rgb), 0.34);
   --liquid-border: rgba(255, 255, 255, 0.42);
@@ -1028,6 +1223,9 @@ onBeforeUnmount(() => {
 
 @media (max-width: 900px) {
   .music-player-shell {
+    --peek-corner-hidden-x: -54px;
+    --peek-corner-hidden-y: 54px;
+    --peek-bottom-hidden-y: 38px;
     --panel-w: min(94vw, 350px);
     --panel-h: min(80vh, 590px);
     --title-size: 22px;
@@ -1089,6 +1287,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 600px), (orientation: portrait) {
   .music-player-shell {
+    --shell-base-x: -50%;
+    --peek-bottom-hidden-y: 34px;
     --panel-w: min(96vw, 390px);
     --panel-h: min(74vh, 560px);
     --title-size: clamp(16px, 4.8vw, 20px);
@@ -1108,7 +1308,6 @@ onBeforeUnmount(() => {
     --bottom-top: 434px;
     left: 50%;
     bottom: 14px;
-    transform: translateX(-50%);
   }
 
   .player-card.active {

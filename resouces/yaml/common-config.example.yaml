@@ -70,6 +70,13 @@ shizuki:
         token-url: "https://connect.linux.do/oauth2/token"
         user-api-url: "https://connect.linux.do/api/user"
         scope: "openid profile email"
+      spotify:
+        client-id: "<SPOTIFY_CLIENT_ID>"
+        client-secret: "<SPOTIFY_CLIENT_SECRET>"
+        authorize-url: "https://accounts.spotify.com/authorize"
+        token-url: "https://accounts.spotify.com/api/token"
+        user-api-url: "https://api.spotify.com/v1/me"
+        scope: "user-read-email user-read-private"
   music:
     security:
       # Generate once: openssl rand -base64 32
@@ -78,6 +85,12 @@ shizuki:
     endpoint: "<OSS_ENDPOINT>"
     access-key-id: "<OSS_ACCESS_KEY_ID>"
     access-key-secret: "<OSS_ACCESS_KEY_SECRET>"
+  media:
+    storage:
+      private-bucket: "<OSS_PRIVATE_BUCKET>"
+      public-bucket: "<OSS_PUBLIC_BUCKET>"
+      public-base-url: "<OSS_PUBLIC_BASE_URL>"
+      validate-buckets-on-startup: true
   auth:
     jwt:
       secret: "<AUTH_JWT_SECRET>"

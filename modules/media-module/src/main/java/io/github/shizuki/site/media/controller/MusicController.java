@@ -4,8 +4,11 @@ import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.media.dto.MusicKeyGuideResponse;
+import io.github.shizuki.site.media.dto.MusicDefaultPlaylistBundleResponse;
+import io.github.shizuki.site.media.dto.MusicLibraryHomeResponse;
 import io.github.shizuki.site.media.dto.MusicPickRequest;
 import io.github.shizuki.site.media.dto.MusicPickResponse;
+import io.github.shizuki.site.media.dto.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.dto.MusicProviderResponse;
 import io.github.shizuki.site.media.dto.MusicQuotaResponse;
 import io.github.shizuki.site.media.dto.MusicTrackResponse;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -50,6 +54,32 @@ public class MusicController {
     })
     public ApiResponse<List<MusicTrackResponse>> defaultPlaylist() {
         return ApiResponse.success(mediaService.listDefaultMusicPlaylist());
+    }
+
+    @GetMapping("/playlist/default/bundle")
+    @RateLimit(key = "music.playlist.default.bundle", limit = 60, windowSeconds = 60)
+    @Operation(summary = "查询默认歌单聚合", description = "游客和登录用户均可访问，返回歌单资料与曲目")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "请求频率超限",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    public ApiResponse<MusicDefaultPlaylistBundleResponse> defaultPlaylistBundle() {
+        return ApiResponse.success(mediaService.getDefaultPlaylistBundle());
+    }
+
+    @GetMapping("/library/home")
+    @RateLimit(key = "music.library.home", limit = 60, windowSeconds = 60)
+    @Operation(summary = "查询音乐库主列表聚合", description = "游客和登录用户均可访问")
+    public ApiResponse<MusicLibraryHomeResponse> libraryHome() {
+        return ApiResponse.success(mediaService.getMusicLibraryHome());
+    }
+
+    @GetMapping("/playlists/{playlistCode}/bundle")
+    @RateLimit(key = "music.playlist.bundle", limit = 60, windowSeconds = 60)
+    @Operation(summary = "按歌单编码查询歌单聚合", description = "公开歌单可游客访问，私有歌单仅所有者可访问")
+    public ApiResponse<MusicPlaylistBundleResponse> playlistBundle(@PathVariable("playlistCode") String playlistCode) {
+        return ApiResponse.success(mediaService.getMusicPlaylistBundle(playlistCode));
     }
 
     @GetMapping("/quota/me")
@@ -91,10 +121,12 @@ public class MusicController {
     }
 
     @GetMapping("/spotify/search")
-    @Operation(summary = "Spotify 搜索", description = "调用 Spotify 搜索 API")
+    @Operation(summary = "Spotify 搜索", description = "需先登录并完成 Spotify OAuth 绑定")
     @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "未登录",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "用户级 Spotify token 无效",
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Spotify OAuth 未绑定或用户级 token 无效",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Spotify 上游异常",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
@@ -105,10 +137,12 @@ public class MusicController {
     }
 
     @GetMapping("/spotify/preview-url")
-    @Operation(summary = "Spotify 预览链接", description = "返回曲目预览 URL，可能为空")
+    @Operation(summary = "Spotify 预览链接", description = "需先登录并完成 Spotify OAuth 绑定，返回曲目预览 URL，可能为空")
     @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "未登录",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "用户级 Spotify token 无效",
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Spotify OAuth 未绑定或用户级 token 无效",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Spotify 上游异常",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))

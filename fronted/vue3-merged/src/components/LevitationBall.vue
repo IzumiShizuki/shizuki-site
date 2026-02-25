@@ -83,6 +83,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { recordWindowDiag } from '../utils/windowLifecycleDiag';
 
 const containerRef = ref(null);
 const visualRef = ref(null);
@@ -131,8 +132,113 @@ let rafId = null;
 let destroyed = false;
 
 const touchStartOptions = { passive: true };
+let pageVisible = typeof document === 'undefined' ? true : !document.hidden;
+let windowFocused = typeof document === 'undefined' ? true : document.hasFocus();
+
+function interactionBlocked() {
+  return !pageVisible || !windowFocused;
+}
+
+function releasePointerCaptureIfNeeded() {
+  const container = containerRef.value;
+  if (container && pointerId !== null) {
+    try {
+      if (container.hasPointerCapture(pointerId)) {
+        container.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // ignore release failures
+    }
+  }
+  pointerId = null;
+  state.isDragging = false;
+}
+
+function stopAnimationLoop() {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
+function startAnimationLoop() {
+  if (destroyed || rafId !== null) return;
+  rafId = requestAnimationFrame(animate);
+}
+
+function pauseFloatingRuntime(reason) {
+  releasePointerCaptureIfNeeded();
+  clearTimeout(idleTimer);
+  idleTimer = null;
+  stopAnimationLoop();
+  recordWindowDiag('levitation.pause', {
+    reason,
+    x: Number(state.x.toFixed(2)),
+    y: Number(state.y.toFixed(2)),
+    expanded: state.isExpanded
+  });
+}
+
+function resumeFloatingRuntime(reason) {
+  if (destroyed || interactionBlocked()) return;
+  startAnimationLoop();
+  if (!state.isExpanded) {
+    resetIdleTimer();
+  }
+  recordWindowDiag('levitation.resume', {
+    reason,
+    x: Number(state.x.toFixed(2)),
+    y: Number(state.y.toFixed(2)),
+    expanded: state.isExpanded
+  });
+}
+
+function onVisibilityChange() {
+  pageVisible = typeof document === 'undefined' ? true : !document.hidden;
+  recordWindowDiag('levitation.visibilitychange', {
+    hidden: !pageVisible,
+    visibilityState: typeof document === 'undefined' ? 'unknown' : document.visibilityState
+  });
+  if (!pageVisible) {
+    pauseFloatingRuntime('visibility_hidden');
+    return;
+  }
+  if (windowFocused) {
+    resumeFloatingRuntime('visibility_visible');
+  }
+}
+
+function onWindowBlur(event) {
+  if (typeof window !== 'undefined' && event?.target && event.target !== window) return;
+  windowFocused = false;
+  pauseFloatingRuntime('window_blur');
+}
+
+function onWindowFocus(event) {
+  if (typeof window !== 'undefined' && event?.target && event.target !== window) return;
+  windowFocused = true;
+  resumeFloatingRuntime('window_focus');
+}
+
+function onPageHide(event) {
+  pageVisible = false;
+  windowFocused = false;
+  pauseFloatingRuntime(`page_hide:${Boolean(event?.persisted)}`);
+}
+
+function onPageShow(event) {
+  pageVisible = typeof document === 'undefined' ? true : !document.hidden;
+  windowFocused = typeof document === 'undefined' ? true : document.hasFocus();
+  recordWindowDiag('levitation.pageshow', {
+    persisted: Boolean(event?.persisted),
+    hidden: !pageVisible,
+    hasFocus: windowFocused
+  });
+  resumeFloatingRuntime('page_show');
+}
 
 function onPointerDown(e) {
+  if (interactionBlocked()) return;
   const target = e.target;
   if (target.closest('.menu-item, .submenu-item')) return;
 
@@ -165,6 +271,7 @@ function onPointerDown(e) {
 }
 
 function onPointerMove(e) {
+  if (interactionBlocked()) return;
   resetIdleTimer();
   if (!state.isDragging) return;
   if (pointerId !== null && e.pointerId !== pointerId) return;
@@ -183,6 +290,7 @@ function onPointerMove(e) {
 }
 
 function onPointerUp(e) {
+  if (interactionBlocked()) return;
   if (!state.isDragging) return;
   if (pointerId !== null && e.pointerId !== pointerId) return;
 
@@ -190,8 +298,14 @@ function onPointerUp(e) {
 
   state.isDragging = false;
 
-  if (container && pointerId !== null && container.hasPointerCapture(pointerId)) {
-    container.releasePointerCapture(pointerId);
+  if (container && pointerId !== null) {
+    try {
+      if (container.hasPointerCapture(pointerId)) {
+        container.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // ignore release failures
+    }
   }
   pointerId = null;
 
@@ -354,6 +468,7 @@ function wakeUp() {
 }
 
 function onDocumentPointerDown(e) {
+  if (interactionBlocked()) return;
   if (!state.isExpanded) return;
 
   const container = containerRef.value;
@@ -366,6 +481,7 @@ function onDocumentPointerDown(e) {
 }
 
 function onClickContainer(e) {
+  if (interactionBlocked()) return;
   if (state.isIdle) return;
 
   const dx = e.clientX - startClickPos.x;
@@ -380,6 +496,7 @@ function onClickContainer(e) {
 }
 
 function expandMenu() {
+  if (interactionBlocked()) return;
   closeChatSubmenu();
 
   let newX = state.x;
@@ -399,6 +516,10 @@ function expandMenu() {
 
   targetSnap = { x: newX, y: newY };
   state.isExpanded = true;
+  recordWindowDiag('levitation.expand', {
+    x: Number(newX.toFixed(2)),
+    y: Number(newY.toFixed(2))
+  });
 
   clearTimeout(idleTimer);
 
@@ -418,6 +539,10 @@ function expandMenu() {
 function collapseMenu() {
   closeChatSubmenu();
   state.isExpanded = false;
+  recordWindowDiag('levitation.collapse', {
+    x: Number(state.x.toFixed(2)),
+    y: Number(state.y.toFixed(2))
+  });
   resetIdleTimer();
   setTimeout(handleSnap, 400);
 }
@@ -444,10 +569,15 @@ function openChatSubmenu() {
   ensureSubmenuVisible();
   positionSubmenuAtChat();
   state.isSubmenuOpen = true;
+  recordWindowDiag('levitation.submenu.open', {
+    x: Number(state.x.toFixed(2)),
+    y: Number(state.y.toFixed(2))
+  });
 }
 
 function closeChatSubmenu() {
   state.isSubmenuOpen = false;
+  recordWindowDiag('levitation.submenu.close');
 }
 
 function ensureSubmenuVisible() {
@@ -580,9 +710,21 @@ onMounted(() => {
   document.addEventListener('mousemove', resetIdleTimer);
   document.addEventListener('touchstart', resetIdleTimer, touchStartOptions);
   document.addEventListener('pointerdown', onDocumentPointerDown);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('blur', onWindowBlur);
+  window.addEventListener('focus', onWindowFocus);
+  window.addEventListener('pagehide', onPageHide);
+  window.addEventListener('pageshow', onPageShow);
 
-  rafId = requestAnimationFrame(animate);
-  resetIdleTimer();
+  if (!interactionBlocked()) {
+    startAnimationLoop();
+    resetIdleTimer();
+  } else {
+    recordWindowDiag('levitation.init.blocked', {
+      hidden: !pageVisible,
+      hasFocus: windowFocused
+    });
+  }
 });
 
 onBeforeUnmount(() => {
@@ -601,12 +743,15 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousemove', resetIdleTimer);
   document.removeEventListener('touchstart', resetIdleTimer, touchStartOptions);
   document.removeEventListener('pointerdown', onDocumentPointerDown);
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+  window.removeEventListener('blur', onWindowBlur);
+  window.removeEventListener('focus', onWindowFocus);
+  window.removeEventListener('pagehide', onPageHide);
+  window.removeEventListener('pageshow', onPageShow);
 
   clearTimeout(idleTimer);
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
+  idleTimer = null;
+  stopAnimationLoop();
 });
 </script>
 

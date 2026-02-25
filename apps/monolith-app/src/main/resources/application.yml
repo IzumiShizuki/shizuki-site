@@ -64,6 +64,13 @@ shizuki:
         token-url: ${LINUXDO_TOKEN_URL:https://connect.linux.do/oauth2/token}
         user-api-url: ${LINUXDO_USER_API_URL:https://connect.linux.do/api/user}
         scope: ${LINUXDO_SCOPE:openid profile email}
+      spotify:
+        client-id: ${SPOTIFY_CLIENT_ID:}
+        client-secret: ${SPOTIFY_CLIENT_SECRET:}
+        authorize-url: ${SPOTIFY_AUTHORIZE_URL:https://accounts.spotify.com/authorize}
+        token-url: ${SPOTIFY_TOKEN_URL:https://accounts.spotify.com/api/token}
+        user-api-url: ${SPOTIFY_USER_API_URL:https://api.spotify.com/v1/me}
+        scope: ${SPOTIFY_SCOPE:user-read-email user-read-private}
   auth:
     jwt:
       secret: ${AUTH_JWT_SECRET:${random.uuid}}
@@ -94,8 +101,8 @@ shizuki:
       code-plain: ${ADMIN_PRIVILEGE_CODE:}
   media:
     storage:
-      private-bucket: ${OSS_PRIVATE_BUCKET:shizuki-private}
-      public-bucket: ${OSS_PUBLIC_BUCKET:shizuki-public}
+      private-bucket: ${OSS_PRIVATE_BUCKET:zhuowang-files}
+      public-bucket: ${OSS_PUBLIC_BUCKET:izumi-test-01}
       public-base-url: ${OSS_PUBLIC_BASE_URL:}
       sign-expire-seconds: 600
       max-upload-size: 52428800
@@ -141,6 +148,11 @@ shizuki:
       - /api/v1/ai-sessions/**
       - /api/v1/assets/public/**
       - /api/v1/assets/*/download-url
+      - /api/v1/music/playlist/default/**
+      - /api/v1/music/playlists/**
+      - /api/v1/music/library/home
+      - /api/v1/music/providers
+      - /api/v1/music/key-guide
 middleware:
   host: ${MIDDLEWARE_HOST:127.0.0.1}
   ports:

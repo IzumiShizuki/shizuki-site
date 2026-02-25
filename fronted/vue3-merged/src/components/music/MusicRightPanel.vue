@@ -1,0 +1,530 @@
+<template>
+  <aside class="music-right-panel liquid-material" :class="{ mobile: isMobile, 'drawer-open': drawerOpen }">
+    <header class="right-head">
+      <div class="head-text">
+        <p>Now Playing</p>
+        <h3>歌词与播放信息</h3>
+      </div>
+      <button v-if="isMobile" class="drawer-close ripple-trigger" type="button" @click="emit('close-drawer')">
+        <i class="fas fa-xmark"></i>
+      </button>
+    </header>
+
+    <article class="track-card">
+      <div class="cover" :style="coverStyle"></div>
+      <div class="meta">
+        <p class="title">{{ track?.title || '暂无歌曲' }}</p>
+        <p class="artist">{{ track?.artist || '未知歌手' }}</p>
+      </div>
+    </article>
+
+    <article class="lyric-card">
+      <p class="label">实时歌词</p>
+      <p class="line">{{ lyricLine || '纯音乐，无歌词' }}</p>
+    </article>
+
+    <section class="control-panel">
+      <div class="volume-column">
+        <p class="control-title">VOL</p>
+        <input
+          class="vertical-range"
+          type="range"
+          min="0"
+          max="100"
+          :value="Math.round(volume * 100)"
+          @input="onVolumeInput"
+        />
+        <p class="control-value">{{ Math.round(volume * 100) }}%</p>
+      </div>
+
+      <div class="eq-columns">
+        <div v-for="(item, idx) in eqItems" :key="item.label" class="eq-col">
+          <p class="control-title">{{ item.label }}</p>
+          <input
+            class="vertical-range eq"
+            type="range"
+            min="0"
+            max="100"
+            :value="Math.round(item.value * 100)"
+            @input="onEqInput($event, idx)"
+          />
+          <p class="control-value">{{ Math.round(item.value * 100) }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="integration-panel">
+      <article class="integration-card">
+        <header class="integration-head">
+          <h4>TuneHub Key</h4>
+          <button class="mini-btn ripple-trigger" type="button" @click="emit('refresh-tunehub-status')" :disabled="tunehubBusy">
+            <i class="fas fa-rotate-right"></i>
+          </button>
+        </header>
+
+        <label class="field-block">
+          <span>API Key</span>
+          <input
+            :value="tunehubKeyInput"
+            type="password"
+            placeholder="输入 TuneHub API Key"
+            @input="emit('update:tunehubKeyInput', $event.target.value)"
+          />
+        </label>
+
+        <p class="status-text">{{ tunehubStatusText }}</p>
+
+        <div class="row-actions">
+          <button class="mini-btn primary ripple-trigger" type="button" @click="emit('save-tunehub-key')" :disabled="tunehubBusy">
+            {{ tunehubBusy ? '保存中...' : '保存' }}
+          </button>
+          <button class="mini-btn ripple-trigger" type="button" @click="emit('delete-tunehub-key')" :disabled="tunehubBusy">
+            删除
+          </button>
+        </div>
+      </article>
+
+      <article class="integration-card">
+        <header class="integration-head">
+          <h4>Spotify</h4>
+          <span class="bind-tag" :class="{ ok: spotifyBound }">{{ spotifyBound ? '已绑定' : '未绑定' }}</span>
+        </header>
+
+        <div class="row-actions">
+          <button class="mini-btn primary ripple-trigger" type="button" @click="emit('bind-spotify')" :disabled="spotifyBusy">
+            {{ spotifyBusy ? '跳转中...' : (spotifyBound ? '重新绑定' : '连接 Spotify') }}
+          </button>
+        </div>
+
+        <div class="spotify-search-row">
+          <input
+            :value="spotifyQuery"
+            type="text"
+            placeholder="搜索 Spotify 曲目"
+            :disabled="!spotifyBound"
+            @input="emit('update:spotifyQuery', $event.target.value)"
+            @keydown.enter.prevent="emit('search-spotify')"
+          />
+          <button class="mini-btn ripple-trigger" type="button" :disabled="spotifySearching || !spotifyBound" @click="emit('search-spotify')">
+            {{ spotifySearching ? '搜索中...' : '搜索' }}
+          </button>
+        </div>
+
+        <p v-if="!spotifyBound" class="status-text">先连接 Spotify 后可搜索与入队</p>
+
+        <p v-if="spotifyError" class="status-text error">{{ spotifyError }}</p>
+
+        <div class="spotify-results">
+          <article v-for="item in spotifyResults" :key="item.trackId || item.id" class="spotify-item">
+            <div class="spotify-meta">
+              <p class="song">{{ item.title || '未知歌曲' }}</p>
+              <p class="artist">{{ item.artist || '未知歌手' }}</p>
+            </div>
+            <div class="spotify-actions">
+              <button
+                class="mini-btn ripple-trigger"
+                type="button"
+                :disabled="!spotifyBound || (!item.previewUrl && !item.preview_url)"
+                @click="emit('preview-spotify', item)"
+              >
+                试听
+              </button>
+              <button class="mini-btn ripple-trigger" type="button" :disabled="!spotifyBound" @click="emit('enqueue-spotify', item)">
+                入队
+              </button>
+            </div>
+          </article>
+
+          <p v-if="!spotifyResults.length" class="empty-tip">暂无 Spotify 搜索结果</p>
+        </div>
+      </article>
+    </section>
+  </aside>
+</template>
+
+<script setup>
+import { computed } from 'vue';
+
+const props = defineProps({
+  track: { type: Object, default: null },
+  lyricLine: { type: String, default: '' },
+  volume: { type: Number, default: 0.8 },
+  eqLevels: { type: Array, default: () => [0.66, 0.52, 0.74] },
+  isMobile: { type: Boolean, default: false },
+  drawerOpen: { type: Boolean, default: false },
+  isAuthenticated: { type: Boolean, default: false },
+  tunehubKeyInput: { type: String, default: '' },
+  tunehubStatus: { type: Object, default: () => ({ keyBound: false, keyMask: '', updatedAt: '' }) },
+  tunehubBusy: { type: Boolean, default: false },
+  spotifyBound: { type: Boolean, default: false },
+  spotifyBusy: { type: Boolean, default: false },
+  spotifyQuery: { type: String, default: '' },
+  spotifySearching: { type: Boolean, default: false },
+  spotifyResults: { type: Array, default: () => [] },
+  spotifyError: { type: String, default: '' }
+});
+
+const emit = defineEmits([
+  'set-volume',
+  'set-eq-level',
+  'close-drawer',
+  'update:tunehubKeyInput',
+  'save-tunehub-key',
+  'delete-tunehub-key',
+  'refresh-tunehub-status',
+  'bind-spotify',
+  'update:spotifyQuery',
+  'search-spotify',
+  'preview-spotify',
+  'enqueue-spotify'
+]);
+
+const coverStyle = computed(() => ({
+  backgroundImage: `url('${props.track?.cover || `${import.meta.env.BASE_URL}images/katanegai.jpg`}')`
+}));
+
+const eqItems = computed(() => {
+  const source = Array.isArray(props.eqLevels) ? props.eqLevels : [0.66, 0.52, 0.74];
+  return [
+    { label: 'LOW', value: Number(source[0] ?? 0.66) },
+    { label: 'MID', value: Number(source[1] ?? 0.52) },
+    { label: 'HIGH', value: Number(source[2] ?? 0.74) }
+  ];
+});
+
+const tunehubStatusText = computed(() => {
+  if (!props.isAuthenticated) return '登录后可保存 TuneHub Key';
+  if (props.tunehubStatus?.keyBound) {
+    const mask = String(props.tunehubStatus?.keyMask || '').trim();
+    return mask ? `已绑定：${mask}` : '已绑定 Key';
+  }
+  return '未绑定 TuneHub Key';
+});
+
+function onVolumeInput(event) {
+  const value = Number(event?.target?.value);
+  emit('set-volume', Math.max(0, Math.min(1, value / 100)));
+}
+
+function onEqInput(event, index) {
+  const value = Number(event?.target?.value);
+  emit('set-eq-level', { index, value: Math.max(0, Math.min(1, value / 100)) });
+}
+</script>
+
+<style scoped>
+.music-right-panel {
+  --liquid-bg: linear-gradient(170deg, rgba(21, 24, 34, 0.78), rgba(17, 20, 29, 0.62));
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 16px 30px rgba(8, 10, 18, 0.32);
+  border-radius: 18px;
+  padding: 14px 12px;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.right-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.head-text p {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(184, 194, 217, 0.72);
+  text-transform: uppercase;
+}
+
+.head-text h3 {
+  margin: 4px 0 0;
+  font-size: 17px;
+  color: rgba(238, 243, 255, 0.96);
+}
+
+.drawer-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(243, 247, 255, 0.92);
+}
+
+.track-card {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px;
+}
+
+.cover {
+  width: 58px;
+  height: 58px;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+}
+
+.meta .title {
+  margin: 3px 0 0;
+  font-size: 14px;
+  color: rgba(240, 245, 255, 0.96);
+}
+
+.meta .artist {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: rgba(174, 186, 214, 0.86);
+}
+
+.lyric-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(255, 105, 180, 0.16), rgba(95, 255, 140, 0.14));
+  padding: 10px;
+}
+
+.lyric-card .label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: rgba(188, 201, 227, 0.78);
+  text-transform: uppercase;
+}
+
+.lyric-card .line {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(242, 247, 255, 0.95);
+}
+
+.control-panel {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 10px 8px;
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 6px;
+}
+
+.volume-column,
+.eq-col {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.eq-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.control-title {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(178, 189, 214, 0.74);
+}
+
+.control-value {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(238, 244, 255, 0.94);
+}
+
+.vertical-range {
+  -webkit-appearance: slider-vertical;
+  appearance: none;
+  width: 22px;
+  height: 128px;
+  writing-mode: bt-lr;
+  cursor: pointer;
+  accent-color: #60ff8e;
+}
+
+.vertical-range.eq {
+  accent-color: #ff73c2;
+}
+
+.integration-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.integration-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.integration-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.integration-head h4 {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(238, 244, 255, 0.95);
+}
+
+.bind-tag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: rgba(255, 181, 198, 0.92);
+  background: rgba(255, 102, 153, 0.2);
+}
+
+.bind-tag.ok {
+  color: rgba(178, 255, 197, 0.94);
+  background: rgba(96, 255, 142, 0.2);
+}
+
+.field-block {
+  display: grid;
+  gap: 6px;
+}
+
+.field-block span {
+  font-size: 11px;
+  color: rgba(188, 198, 220, 0.84);
+}
+
+.field-block input {
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(240, 246, 255, 0.95);
+  padding: 8px;
+  outline: none;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mini-btn {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(236, 243, 255, 0.94);
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.mini-btn.primary {
+  border-color: rgba(102, 255, 176, 0.6);
+  background: rgba(102, 255, 176, 0.2);
+}
+
+.status-text {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(194, 206, 228, 0.88);
+}
+
+.status-text.error {
+  color: #ff9cb8;
+}
+
+.spotify-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.spotify-search-row input {
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(240, 246, 255, 0.95);
+  padding: 8px;
+  outline: none;
+}
+
+.spotify-results {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.spotify-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.spotify-meta {
+  min-width: 0;
+}
+
+.spotify-meta .song,
+.spotify-meta .artist {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotify-meta .song {
+  font-size: 12px;
+  color: rgba(242, 247, 255, 0.96);
+}
+
+.spotify-meta .artist {
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(178, 191, 218, 0.86);
+}
+
+.spotify-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.empty-tip {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(178, 191, 218, 0.8);
+}
+
+@media (max-width: 900px) {
+  .music-right-panel.mobile {
+    position: fixed;
+    right: 10px;
+    top: 68px;
+    bottom: 96px;
+    width: min(78vw, 320px);
+    z-index: 1220;
+    transform: translateX(112%);
+    transition: transform 260ms ease;
+  }
+
+  .music-right-panel.mobile.drawer-open {
+    transform: translateX(0);
+  }
+}
+</style>

@@ -9,6 +9,9 @@ import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
+import io.github.shizuki.site.media.dto.AdminMusicDefaultPlaylistBundleReplaceRequest;
+import io.github.shizuki.site.media.dto.AdminMusicPlaylistProfileUpsertRequest;
+import io.github.shizuki.site.media.dto.AdminMusicTrackUpsertRequest;
 import io.github.shizuki.site.media.dto.AssetDownloadResponse;
 import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
@@ -19,14 +22,19 @@ import io.github.shizuki.site.media.mapper.MediaAssetReportMapper;
 import io.github.shizuki.site.media.mapper.MediaL2dPackageMapper;
 import io.github.shizuki.site.media.mapper.MusicPickUsageMapper;
 import io.github.shizuki.site.media.mapper.MusicPlaylistMapper;
+import io.github.shizuki.site.media.mapper.MusicPlaylistProfileMapper;
 import io.github.shizuki.site.media.mapper.MusicProviderConfigMapper;
 import io.github.shizuki.site.media.mapper.MusicProviderGuideMapper;
 import io.github.shizuki.site.media.mapper.MusicTrackCacheMapper;
 import io.github.shizuki.site.media.mapper.MusicUploadUsageMapper;
+import io.github.shizuki.site.media.mapper.UserMusicPlaylistCollectMapper;
+import io.github.shizuki.site.media.mapper.UserMusicPlaylistMapper;
+import io.github.shizuki.site.media.mapper.UserMusicPlaylistTrackMapper;
 import io.github.shizuki.site.media.model.AssetVisibilityEnum;
 import io.github.shizuki.site.media.service.l2d.L2dZipValidator;
 import io.github.shizuki.site.media.service.security.AssetInspectionResult;
 import io.github.shizuki.site.media.service.security.AssetSecurityInspector;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
@@ -49,11 +57,15 @@ class MediaServiceImplTest {
     private MediaAssetReportMapper mediaAssetReportMapper;
     private MediaL2dPackageMapper mediaL2dPackageMapper;
     private MusicPlaylistMapper musicPlaylistMapper;
+    private MusicPlaylistProfileMapper musicPlaylistProfileMapper;
     private MusicPickUsageMapper musicPickUsageMapper;
     private MusicProviderConfigMapper musicProviderConfigMapper;
     private MusicProviderGuideMapper musicProviderGuideMapper;
     private MusicUploadUsageMapper musicUploadUsageMapper;
     private MusicTrackCacheMapper musicTrackCacheMapper;
+    private UserMusicPlaylistMapper userMusicPlaylistMapper;
+    private UserMusicPlaylistTrackMapper userMusicPlaylistTrackMapper;
+    private UserMusicPlaylistCollectMapper userMusicPlaylistCollectMapper;
     private L2dZipValidator l2dZipValidator;
     private AssetSecurityInspector assetSecurityInspector;
     private UserMusicGateway userMusicClient;
@@ -68,11 +80,15 @@ class MediaServiceImplTest {
         mediaAssetReportMapper = Mockito.mock(MediaAssetReportMapper.class);
         mediaL2dPackageMapper = Mockito.mock(MediaL2dPackageMapper.class);
         musicPlaylistMapper = Mockito.mock(MusicPlaylistMapper.class);
+        musicPlaylistProfileMapper = Mockito.mock(MusicPlaylistProfileMapper.class);
         musicPickUsageMapper = Mockito.mock(MusicPickUsageMapper.class);
         musicProviderConfigMapper = Mockito.mock(MusicProviderConfigMapper.class);
         musicProviderGuideMapper = Mockito.mock(MusicProviderGuideMapper.class);
         musicUploadUsageMapper = Mockito.mock(MusicUploadUsageMapper.class);
         musicTrackCacheMapper = Mockito.mock(MusicTrackCacheMapper.class);
+        userMusicPlaylistMapper = Mockito.mock(UserMusicPlaylistMapper.class);
+        userMusicPlaylistTrackMapper = Mockito.mock(UserMusicPlaylistTrackMapper.class);
+        userMusicPlaylistCollectMapper = Mockito.mock(UserMusicPlaylistCollectMapper.class);
         l2dZipValidator = Mockito.mock(L2dZipValidator.class);
         assetSecurityInspector = Mockito.mock(AssetSecurityInspector.class);
         userMusicClient = Mockito.mock(UserMusicGateway.class);
@@ -122,11 +138,15 @@ class MediaServiceImplTest {
             mediaAssetReportMapper,
             mediaL2dPackageMapper,
             musicPlaylistMapper,
+            musicPlaylistProfileMapper,
             musicPickUsageMapper,
             musicProviderConfigMapper,
             musicProviderGuideMapper,
             musicUploadUsageMapper,
             musicTrackCacheMapper,
+            userMusicPlaylistMapper,
+            userMusicPlaylistTrackMapper,
+            userMusicPlaylistCollectMapper,
             l2dZipValidator,
             assetSecurityInspector,
             userMusicClient,
@@ -286,11 +306,15 @@ class MediaServiceImplTest {
             mediaAssetReportMapper,
             mediaL2dPackageMapper,
             musicPlaylistMapper,
+            musicPlaylistProfileMapper,
             musicPickUsageMapper,
             musicProviderConfigMapper,
             musicProviderGuideMapper,
             musicUploadUsageMapper,
             musicTrackCacheMapper,
+            userMusicPlaylistMapper,
+            userMusicPlaylistTrackMapper,
+            userMusicPlaylistCollectMapper,
             l2dZipValidator,
             assetSecurityInspector,
             userMusicClient,
@@ -302,6 +326,52 @@ class MediaServiceImplTest {
         BusinessException exception = Assertions.assertThrows(
             BusinessException.class,
             () -> tinyLimitService.uploadRelay(file, "STATIC_IMAGE", "PUBLIC")
+        );
+
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
+
+    @Test
+    void shouldRejectBundleReplaceWhenProfileCoverUrlNotHttp() {
+        AdminMusicPlaylistProfileUpsertRequest profile = new AdminMusicPlaylistProfileUpsertRequest();
+        profile.setPlaylistCode("default_public");
+        profile.setName("默认歌单");
+        profile.setDescription("简介");
+        profile.setCover("ftp://invalid-cover.example.com/a.png");
+
+        AdminMusicDefaultPlaylistBundleReplaceRequest request = new AdminMusicDefaultPlaylistBundleReplaceRequest();
+        request.setProfile(profile);
+        request.setTracks(new ArrayList<>());
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> mediaService.replaceAdminDefaultPlaylistBundle(request)
+        );
+
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
+
+    @Test
+    void shouldRejectBundleReplaceWhenTrackAudioUrlNotHttp() {
+        AdminMusicTrackUpsertRequest track = new AdminMusicTrackUpsertRequest();
+        track.setTrackId("track-1");
+        track.setProvider("local");
+        track.setTitle("Rain");
+        track.setArtist("Shizuki");
+        track.setCover("https://cdn.example.com/cover.png");
+        track.setAudio("ftp://invalid-audio.example.com/rain.mp3");
+        track.setLyric("https://cdn.example.com/rain.lrc");
+        track.setSort(1);
+        track.setEnabled(true);
+
+        AdminMusicDefaultPlaylistBundleReplaceRequest request = new AdminMusicDefaultPlaylistBundleReplaceRequest();
+        request.setTracks(List.of(track));
+
+        Mockito.when(musicPlaylistMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> mediaService.replaceAdminDefaultPlaylistBundle(request)
         );
 
         Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());

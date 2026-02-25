@@ -1,9 +1,10 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { getPlaylistBundleByCode } from '../services/musicApi';
 import { parseLrc } from '../utils/lrc';
 
 const STORAGE_KEY = 'shizuki.musicPlayer.v1';
+const DEFAULT_PLAYLIST_CODE = 'default_public';
 const MODE_ORDER = ['sequential', 'random', 'single'];
-const API_BASE = (import.meta.env.VITE_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
 const VISUALIZER_STYLES = ['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];
 
 function loadPersistedState() {
@@ -28,7 +29,8 @@ function savePersistedState(nextPartial) {
 }
 
 function normalizeTrack(track, index) {
-  const id = track?.id != null ? String(track.id) : `track-${index}`;
+  const idRaw = track?.id ?? track?.trackId ?? track?.track_id;
+  const id = idRaw != null ? String(idRaw) : `track-${index}`;
   const cover = track?.cover
     ? track.cover.startsWith('http') || track.cover.startsWith('/')
       ? track.cover
@@ -49,12 +51,41 @@ function normalizeTrack(track, index) {
     id,
     title: track?.title || id,
     artist: track?.artist || '未知歌手',
+    provider: track?.provider || track?.providerCode || track?.provider_code || 'local',
     sort: Number.isFinite(track?.sort) ? Number(track.sort) : index + 1,
     audio,
     lyric,
     cover,
     durationLabel: track?.duration || '--:--'
   };
+}
+
+function normalizePlaylistProfile(profile) {
+  return {
+    playlistCode: String(profile?.playlistCode || profile?.playlist_code || DEFAULT_PLAYLIST_CODE).trim() || DEFAULT_PLAYLIST_CODE,
+    name: String(profile?.name || '默认歌单').trim() || '默认歌单',
+    description: String(profile?.description || '').trim(),
+    cover: String(profile?.cover || '').trim()
+  };
+}
+
+function normalizePlaylistBundleProfile(rawProfile, fallbackCode = DEFAULT_PLAYLIST_CODE) {
+  if (!rawProfile || typeof rawProfile !== 'object') {
+    return normalizePlaylistProfile({ playlistCode: fallbackCode });
+  }
+
+  return normalizePlaylistProfile({
+    playlistCode: rawProfile.playlistCode ?? rawProfile.playlist_code ?? fallbackCode,
+    name: rawProfile.name,
+    description: rawProfile.description,
+    cover: rawProfile.cover
+  });
+}
+
+function extractErrorMessage(error, fallback = '默认歌单加载失败') {
+  if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
+  return fallback;
 }
 
 function pickNextIndex({ mode, currentIndex, tracksLen }) {
@@ -85,7 +116,17 @@ function getDefaultStyleByMode(mode) {
 export function usePlayerEngine() {
   const persisted = loadPersistedState();
   const tracks = ref([]);
-  const loading = ref(false);
+  const playlistLoading = ref(false);
+  const playlistError = ref('');
+  const playlistProfile = ref(
+    normalizePlaylistProfile({
+      playlistCode: DEFAULT_PLAYLIST_CODE,
+      name: '默认歌单',
+      description: '全站共通默认歌单',
+      cover: ''
+    })
+  );
+  const loading = playlistLoading;
 
   const playMode = ref(MODE_ORDER.includes(persisted.playMode) ? persisted.playMode : 'sequential');
   const visualizerMode = ref(['ring', 'bars', 'none'].includes(persisted.visualizerMode) ? persisted.visualizerMode : 'none');
@@ -378,55 +419,114 @@ export function usePlayerEngine() {
     if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
   }
 
-  async function loadManifest() {
-    loading.value = true;
+  function normalizeRemoteTracks(remoteTracks) {
+    const source = Array.isArray(remoteTracks) ? remoteTracks : [];
+    const normalized = source.map((item, idx) =>
+      normalizeTrack(
+        {
+          id: item?.trackId || item?.track_id || item?.id || `remote-${idx + 1}`,
+          provider: item?.provider || item?.providerCode || item?.provider_code,
+          title: item?.title,
+          artist: item?.artist,
+          cover: item?.cover || item?.coverUrl || item?.cover_url,
+          audio: item?.audio || item?.audioUrl || item?.audio_url,
+          lyric: item?.lyric || item?.lyricUrl || item?.lyric_url,
+          sort: item?.sort
+        },
+        idx
+      )
+    );
+    normalized.sort((a, b) => (a.sort || 0) - (b.sort || 0));
+    return normalized;
+  }
+
+  async function loadPlaylistByCode(playlistCode = DEFAULT_PLAYLIST_CODE, options = {}) {
+    const normalizedCode = String(playlistCode || '').trim() || DEFAULT_PLAYLIST_CODE;
+    const previousCode = playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE;
+    const authorizedFetch = typeof options?.authorizedFetch === 'function' ? options.authorizedFetch : null;
+
+    playlistLoading.value = true;
+    playlistError.value = '';
     try {
-      let normalized = [];
-      const remoteUrl = `${API_BASE || ''}/api/v1/music/playlist/default`;
-      try {
-        const remoteResp = await fetch(remoteUrl, { cache: 'no-store' });
-        if (remoteResp.ok) {
-          const remoteData = await remoteResp.json();
-          const remoteTracks = Array.isArray(remoteData?.data) ? remoteData.data : [];
-          normalized = remoteTracks.map((item, idx) =>
-            normalizeTrack(
-              {
-                id: item.trackId || item.track_id || `remote-${idx + 1}`,
-                title: item.title,
-                artist: item.artist,
-                cover: item.cover || item.coverUrl || item.cover_url,
-                audio: item.audio || item.audioUrl || item.audio_url,
-                lyric: item.lyric || item.lyricUrl || item.lyric_url,
-                sort: item.sort
-              },
-              idx
-            )
-          );
-        }
-      } catch {
-        normalized = [];
-      }
-      if (!normalized.length) {
-        const resp = await fetch(`${import.meta.env.BASE_URL}media/manifest.json`, { cache: 'no-store' });
-        if (!resp.ok) throw new Error('manifest not found');
-        const data = await resp.json();
-        normalized = Array.isArray(data?.tracks) ? data.tracks.map(normalizeTrack) : [];
-      }
-      normalized.sort((a, b) => (a.sort || 0) - (b.sort || 0));
-      tracks.value = normalized;
+      const payload = await getPlaylistBundleByCode(normalizedCode, authorizedFetch);
+      const profile = normalizePlaylistBundleProfile(payload?.profile || payload?.playlist || {}, normalizedCode);
+      const normalizedTracks = normalizeRemoteTracks(payload?.tracks);
+      playlistProfile.value = profile;
+      tracks.value = normalizedTracks;
       hydrateTrackDurations();
-    } catch {
+    } catch (error) {
       tracks.value = [];
+      playlistProfile.value = normalizePlaylistProfile({
+        playlistCode: normalizedCode,
+        name: '默认歌单',
+        description: '',
+        cover: ''
+      });
+      playlistError.value = extractErrorMessage(error);
     } finally {
-      loading.value = false;
+      playlistLoading.value = false;
     }
 
-    if (!tracks.value.length) return;
+    if (!tracks.value.length) {
+      audioElement.pause();
+      audioElement.src = '';
+      currentTrackId.value = '';
+      currentTime.value = 0;
+      duration.value = 0;
+      isPlaying.value = false;
+      lyricEntries.value = [];
+      currentLyricIndex.value = -1;
+      currentLyricLine.value = '';
+      randomQueue.value = [];
+      return;
+    }
 
-    const persistedIndex = tracks.value.findIndex((item) => item.id === currentTrackId.value);
+    const canReuseCurrentTrack = normalizedCode === previousCode;
+    const persistedIndex = canReuseCurrentTrack ? tracks.value.findIndex((item) => item.id === currentTrackId.value) : -1;
     const initialIndex = persistedIndex >= 0 ? persistedIndex : 0;
     await selectTrackByIndex(initialIndex, false);
     resetRandomQueue(tracks.value[initialIndex]?.id || '');
+  }
+
+  async function enqueueExternalTrack(rawTrack, autoPlay = false) {
+    const normalized = normalizeTrack(
+      {
+        id: rawTrack?.trackId || rawTrack?.track_id || rawTrack?.id || `pick-${Date.now()}`,
+        title: rawTrack?.title,
+        artist: rawTrack?.artist,
+        cover: rawTrack?.cover || rawTrack?.coverUrl || rawTrack?.cover_url,
+        audio: rawTrack?.audio || rawTrack?.audioUrl || rawTrack?.audio_url,
+        lyric: rawTrack?.lyric || rawTrack?.lyricUrl || rawTrack?.lyric_url,
+        sort: rawTrack?.sort || 0
+      },
+      0
+    );
+    if (!normalized.audio) return false;
+
+    const existingIndex = tracks.value.findIndex((item) => item.id === normalized.id);
+    if (existingIndex >= 0) {
+      const next = tracks.value.slice();
+      next[existingIndex] = { ...next[existingIndex], ...normalized };
+      tracks.value = next;
+      if (autoPlay) {
+        await selectTrackByIndex(existingIndex, true);
+      }
+    } else {
+      tracks.value = [...tracks.value, normalized].map((item, idx) => ({
+        ...item,
+        sort: idx + 1
+      }));
+      if (autoPlay) {
+        await selectTrackByIndex(tracks.value.length - 1, true);
+      }
+    }
+
+    if (playMode.value === 'random') resetRandomQueue(normalized.id);
+    return true;
+  }
+
+  async function playExternalTrack(rawTrack) {
+    return enqueueExternalTrack(rawTrack, true);
   }
 
   audioElement.addEventListener('loadedmetadata', () => {
@@ -475,7 +575,7 @@ export function usePlayerEngine() {
     audioElement.src = '';
   });
 
-  loadManifest();
+  loadPlaylistByCode(DEFAULT_PLAYLIST_CODE);
 
   return {
     tracks,
@@ -509,6 +609,13 @@ export function usePlayerEngine() {
     setListOpen,
     reorderTracks,
     setVolume,
-    adjustVolume
+    adjustVolume,
+    playlistLoading,
+    playlistError,
+    playlistProfile,
+    loadPlaylistByCode,
+    reloadPlaylist: () => loadPlaylistByCode(playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE),
+    enqueueExternalTrack,
+    playExternalTrack
   };
 }

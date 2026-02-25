@@ -1,6 +1,8 @@
 package io.github.shizuki.site.media.integration;
 
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
+import io.github.shizuki.site.user.dto.MeAccountResponse;
+import io.github.shizuki.site.user.dto.OAuthBindingView;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -52,6 +54,23 @@ public class UserMusicGateway {
             LOGGER.warn("Get API key plaintext fallback in monolith mode, userId={}, provider={}",
                 userId, normalizedProvider, ex);
             return "";
+        }
+    }
+
+    public boolean hasOAuthBinding(Long userId, String provider) {
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase();
+        if (userId == null || userId <= 0 || normalizedProvider.isEmpty()) {
+            return false;
+        }
+        try {
+            MeAccountResponse account = userService.getAccountProfile(userId);
+            return account.oauthBindings().stream()
+                .map(OAuthBindingView::provider)
+                .anyMatch(code -> normalizedProvider.equals(String.valueOf(code).trim().toLowerCase()));
+        } catch (Exception ex) {
+            LOGGER.warn("Get oauth binding fallback in monolith mode, userId={}, provider={}",
+                userId, normalizedProvider, ex);
+            return false;
         }
     }
 

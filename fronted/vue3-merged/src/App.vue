@@ -36,10 +36,13 @@
       />
 
       <section class="workspace-shell" :class="{ expanded: menuExpanded, 'with-ai-panel': sidebarAiColumnMounted }">
-        <main class="route-content" :class="{ 'route-content-home': isHomeRoute }">
+        <main
+          class="route-content"
+          :class="{ 'route-content-home': isHomeRoute, 'route-content-music-player': isMusicPlayerDetailRoute }"
+        >
           <RouterView v-slot="{ Component, route: viewRoute }">
             <transition name="route-switch" mode="out-in">
-              <component :is="Component" :key="viewRoute.fullPath" class="route-page-view" />
+              <component :is="Component" :key="resolveRouteViewKey(viewRoute)" class="route-page-view" />
             </transition>
           </RouterView>
         </main>
@@ -65,6 +68,9 @@
         :list-open="player.listOpen.value"
         :visualizer-mode="player.visualizerMode.value"
         :visualizer-style="activeVisualizerStyle"
+        :is-home-route="isHomeRoute"
+        :is-mobile-viewport="isMobileViewport"
+        :suppressed-by-route="isMusicLibraryRoute"
         :show-visualizer-controls="isHomeRoute"
         @set-expanded="player.setPlayerExpanded"
         @set-pinned="player.setPinned"
@@ -84,7 +90,7 @@
 
       <transition name="lyric-fade">
         <div
-          v-if="subtitleVisible"
+          v-if="subtitleVisible && !isMusicLibraryRoute"
           class="global-lyric-bar liquid-material"
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
@@ -169,7 +175,7 @@
         </div>
       </transition>
 
-      <LevitationBall ref="levitationRef" />
+      <LevitationBall v-if="!runtimeGuards.disableLevitationBall" ref="levitationRef" />
 
       <div class="click-ripple-layer" aria-hidden="true">
         <span
@@ -189,7 +195,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import AiDialog from './components/AiDialog.vue';
@@ -197,9 +203,12 @@ import LevitationBall from './components/LevitationBall.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
 import TopMenu from './components/TopMenu.vue';
 import { useAuthSession } from './composables/useAuthSession';
+import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { usePlayerEngine } from './composables/usePlayerEngine';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
+import { runtimeGuards } from './utils/runtimeGuards';
+import { recordWindowDiag } from './utils/windowLifecycleDiag';
 
 const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const menuExpanded = ref(false);
@@ -213,6 +222,8 @@ const backgroundApplyTarget = ref('route');
 const subtitleVisible = ref(true);
 const lyricOffset = ref({ x: 0, y: 0 });
 const isMobileViewport = ref(false);
+const pageVisible = ref(typeof document === 'undefined' ? true : !document.hidden);
+const windowFocused = ref(typeof document === 'undefined' ? true : document.hasFocus());
 const barLevels = ref(Array.from({ length: 44 }, () => 0));
 const ringLevels = ref(Array.from({ length: 72 }, () => 0));
 const sidebarAiColumnVisible = ref(false);
@@ -243,6 +254,8 @@ const routeLabelMap = {
   home: '主页',
   blog: '博客',
   'music-library': '音乐库',
+  'music-library-playlist': '音乐歌单',
+  'music-library-player': '播放详情',
   apps: '轻应用',
   'ai-tavern': 'AI酒馆',
   auth: '登录',
@@ -259,6 +272,8 @@ const currentRouteKey = computed(() => {
 
 const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] || '主页');
 const isHomeRoute = computed(() => currentRouteKey.value === 'home');
+const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
+const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
 const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
 const authAvatarUrl = computed(() => String(auth.user.value?.avatarUrl || '').trim());
@@ -286,6 +301,10 @@ const activeVisualizerStyle = computed(() => {
 });
 const barsVisualizerClass = computed(() => (activeVisualizerStyle.value.startsWith('bars-') ? activeVisualizerStyle.value : 'bars-neon'));
 const ringVisualizerClass = computed(() => (activeVisualizerStyle.value.startsWith('ring-') ? activeVisualizerStyle.value : 'ring-halo'));
+const interactionAllowed = computed(
+  () => !runtimeGuards.disableGlobalPointerHooks && pageVisible.value && windowFocused.value
+);
+const visualizerPaused = computed(() => runtimeGuards.disableVisualizerLoop || !pageVisible.value);
 
 const bgTabs = [
   { key: 'all', label: '全部' },
@@ -324,6 +343,34 @@ const activeVideoBackground = computed(() => {
 const activeImageBackground = computed(() => {
   return activeBackground.value?.preview || `${import.meta.env.BASE_URL}images/original-bg.png`;
 });
+
+const playerBridge = Object.freeze({
+  tracks: player.tracks,
+  playlistProfile: player.playlistProfile,
+  playlistLoading: player.playlistLoading,
+  playlistError: player.playlistError,
+  currentTrack: player.currentTrack,
+  isPlaying: player.isPlaying,
+  currentTime: player.currentTime,
+  duration: player.duration,
+  currentLyricLine: player.currentLyricLine,
+  lyricContext: player.lyricContext,
+  volume: player.volume,
+  playMode: player.playMode,
+  togglePlay: player.togglePlay,
+  playPrev: player.playPrev,
+  playNext: player.playNext,
+  selectTrackByIndex: player.selectTrackByIndex,
+  enqueueExternalTrack: player.enqueueExternalTrack,
+  playExternalTrack: player.playExternalTrack,
+  seekToPercent: player.seekToPercent,
+  setVolume: player.setVolume,
+  cyclePlayMode: player.cyclePlayMode,
+  loadPlaylistByCode: player.loadPlaylistByCode,
+  reloadPlaylist: player.reloadPlaylist
+});
+
+provide(PLAYER_BRIDGE_KEY, playerBridge);
 
 function normalizeAssetPath(path) {
   if (!path) return `${import.meta.env.BASE_URL}images/original-bg.png`;
@@ -557,7 +604,7 @@ function bottomFloatingStyle(offset) {
 }
 
 function startDrag(event) {
-  if (event.button !== 0) return;
+  if (!interactionAllowed.value || event.button !== 0) return;
   dragState.pointerId = event.pointerId;
   dragState.startX = event.clientX;
   dragState.startY = event.clientY;
@@ -566,6 +613,7 @@ function startDrag(event) {
 }
 
 function onGlobalPointerMove(event) {
+  if (!interactionAllowed.value) return;
   if (dragState.pointerId === null || event.pointerId !== dragState.pointerId) return;
   const dx = event.clientX - dragState.startX;
   const dy = event.clientY - dragState.startY;
@@ -576,8 +624,54 @@ function onGlobalPointerMove(event) {
 }
 
 function onGlobalPointerUp(event) {
+  if (!interactionAllowed.value) return;
   if (dragState.pointerId === null || event.pointerId !== dragState.pointerId) return;
   dragState.pointerId = null;
+}
+
+function releaseLyricPointer() {
+  dragState.pointerId = null;
+}
+
+function onVisibilityChange() {
+  pageVisible.value = typeof document === 'undefined' ? true : !document.hidden;
+  if (!pageVisible.value) {
+    releaseLyricPointer();
+  }
+  recordWindowDiag('app.visibilitychange', {
+    hidden: !pageVisible.value,
+    visibilityState: typeof document === 'undefined' ? 'unknown' : document.visibilityState
+  });
+}
+
+function onWindowBlur(event) {
+  if (typeof window !== 'undefined' && event?.target && event.target !== window) return;
+  windowFocused.value = false;
+  releaseLyricPointer();
+  recordWindowDiag('app.blur', { hasFocus: false });
+}
+
+function onWindowFocus(event) {
+  if (typeof window !== 'undefined' && event?.target && event.target !== window) return;
+  windowFocused.value = true;
+  recordWindowDiag('app.focus', { hasFocus: true });
+}
+
+function onPageHide(event) {
+  pageVisible.value = false;
+  windowFocused.value = false;
+  releaseLyricPointer();
+  recordWindowDiag('app.pagehide', { persisted: Boolean(event?.persisted) });
+}
+
+function onPageShow(event) {
+  pageVisible.value = typeof document === 'undefined' ? true : !document.hidden;
+  windowFocused.value = typeof document === 'undefined' ? true : document.hasFocus();
+  recordWindowDiag('app.pageshow', {
+    persisted: Boolean(event?.persisted),
+    hidden: !pageVisible.value,
+    hasFocus: windowFocused.value
+  });
 }
 
 function updateViewportMode() {
@@ -601,6 +695,14 @@ function handleMainRouteSelect(routeKey) {
   const nextPath = routePathByKey[routeKey] || '/';
   if (route.path === nextPath) return;
   router.push(nextPath);
+}
+
+function resolveRouteViewKey(viewRoute) {
+  const path = String(viewRoute?.path || '');
+  if (path.startsWith('/music-library')) {
+    return 'music-library-shell';
+  }
+  return String(viewRoute?.fullPath || path || 'route');
 }
 
 function normalizeRedirectPath(path) {
@@ -683,6 +785,7 @@ async function handleLogout() {
 }
 
 function onGlobalPointerDown(event) {
+  if (!interactionAllowed.value) return;
   if (event.button !== 0) return;
   const target = event.target;
   if (!(target instanceof Element)) return;
@@ -709,6 +812,7 @@ function onGlobalPointerDown(event) {
 }
 
 function onGlobalHotkey(event) {
+  if (!interactionAllowed.value) return;
   if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
 
   const target = event.target;
@@ -818,16 +922,18 @@ watch(
 );
 
 watch(
-  shouldRunVisualizer,
-  (enabled) => {
+  [shouldRunVisualizer, visualizerPaused],
+  ([enabled, paused]) => {
     if (typeof window === 'undefined') return;
-    if (enabled) {
+    if (enabled && !paused) {
       startVisualizerLoop();
       return;
     }
     stopVisualizerLoop();
-    barLevels.value = barLevels.value.map(() => 0);
-    ringLevels.value = ringLevels.value.map(() => 0);
+    if (!enabled || runtimeGuards.disableVisualizerLoop) {
+      barLevels.value = barLevels.value.map(() => 0);
+      ringLevels.value = ringLevels.value.map(() => 0);
+    }
   },
   { immediate: true }
 );
@@ -841,13 +947,24 @@ onMounted(async () => {
     player.setVisualizerMode('bars');
   }
   updateViewportMode();
+  recordWindowDiag('app.guard.state', runtimeGuards);
 
   window.addEventListener('resize', updateViewportMode);
-  window.addEventListener('keydown', onGlobalHotkey);
-  window.addEventListener('pointerdown', onGlobalPointerDown, true);
-  window.addEventListener('pointermove', onGlobalPointerMove, true);
-  window.addEventListener('pointerup', onGlobalPointerUp, true);
-  window.addEventListener('pointercancel', onGlobalPointerUp, true);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('blur', onWindowBlur);
+  window.addEventListener('focus', onWindowFocus);
+  window.addEventListener('pagehide', onPageHide);
+  window.addEventListener('pageshow', onPageShow);
+
+  if (!runtimeGuards.disableGlobalPointerHooks) {
+    window.addEventListener('keydown', onGlobalHotkey);
+    window.addEventListener('pointerdown', onGlobalPointerDown, true);
+    window.addEventListener('pointermove', onGlobalPointerMove, true);
+    window.addEventListener('pointerup', onGlobalPointerUp, true);
+    window.addEventListener('pointercancel', onGlobalPointerUp, true);
+  } else {
+    recordWindowDiag('app.guard.pointer.disabled');
+  }
 });
 
 onBeforeUnmount(() => {
@@ -857,6 +974,11 @@ onBeforeUnmount(() => {
   }
 
   window.removeEventListener('resize', updateViewportMode);
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+  window.removeEventListener('blur', onWindowBlur);
+  window.removeEventListener('focus', onWindowFocus);
+  window.removeEventListener('pagehide', onPageHide);
+  window.removeEventListener('pageshow', onPageShow);
   window.removeEventListener('keydown', onGlobalHotkey);
   window.removeEventListener('pointerdown', onGlobalPointerDown, true);
   window.removeEventListener('pointermove', onGlobalPointerMove, true);
@@ -964,6 +1086,13 @@ onBeforeUnmount(() => {
 }
 
 .route-content.route-content-home {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.route-content.route-content-music-player {
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -1396,6 +1525,14 @@ onBeforeUnmount(() => {
     padding-bottom: 154px;
   }
 
+  .route-content.route-content-music-player {
+    border-radius: 14px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
   .global-lyric-bar {
     bottom: 114px;
     min-width: min(92vw, 640px);
@@ -1425,6 +1562,13 @@ onBeforeUnmount(() => {
   .route-content {
     padding: 10px;
     padding-bottom: 150px;
+  }
+
+  .route-content.route-content-music-player {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .global-lyric-bar {

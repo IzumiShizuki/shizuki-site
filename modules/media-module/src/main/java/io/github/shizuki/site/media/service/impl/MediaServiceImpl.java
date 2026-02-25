@@ -17,7 +17,9 @@ import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.dto.AdminAssetUpdateRequest;
 import io.github.shizuki.site.media.dto.AdminAssetAuditResponse;
+import io.github.shizuki.site.media.dto.AdminMusicDefaultPlaylistBundleReplaceRequest;
 import io.github.shizuki.site.media.dto.AdminMusicPlaylistReplaceRequest;
+import io.github.shizuki.site.media.dto.AdminMusicPlaylistProfileUpsertRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderGuideUpsertRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderVisibilityUpdateRequest;
 import io.github.shizuki.site.media.dto.AdminMusicTrackUpsertRequest;
@@ -27,12 +29,21 @@ import io.github.shizuki.site.media.dto.AssetDownloadResponse;
 import io.github.shizuki.site.media.dto.AssetReportResponse;
 import io.github.shizuki.site.media.dto.L2dValidationResponse;
 import io.github.shizuki.site.media.dto.MusicKeyGuideResponse;
+import io.github.shizuki.site.media.dto.MeMusicLibrarySidebarResponse;
+import io.github.shizuki.site.media.dto.MeMusicPlaylistCreateRequest;
+import io.github.shizuki.site.media.dto.MeMusicPlaylistTrackUpsertRequest;
+import io.github.shizuki.site.media.dto.MeMusicPlaylistUpdateRequest;
 import io.github.shizuki.site.media.dto.MusicPickQuotaResponse;
 import io.github.shizuki.site.media.dto.MusicPickRequest;
 import io.github.shizuki.site.media.dto.MusicPickResponse;
 import io.github.shizuki.site.media.dto.MusicProviderResponse;
 import io.github.shizuki.site.media.dto.MusicQuotaResponse;
 import io.github.shizuki.site.media.dto.MusicTrackResponse;
+import io.github.shizuki.site.media.dto.MusicDefaultPlaylistBundleResponse;
+import io.github.shizuki.site.media.dto.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.dto.MusicPlaylistBundleResponse;
+import io.github.shizuki.site.media.dto.MusicPlaylistSummaryResponse;
+import io.github.shizuki.site.media.dto.MusicPlaylistProfileResponse;
 import io.github.shizuki.site.media.dto.PublicHomeRoleResponse;
 import io.github.shizuki.site.media.dto.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.dto.SpotifyTrackResponse;
@@ -45,20 +56,28 @@ import io.github.shizuki.site.media.entity.MediaAssetReportEntity;
 import io.github.shizuki.site.media.entity.MediaL2dPackageEntity;
 import io.github.shizuki.site.media.entity.MusicPickUsageEntity;
 import io.github.shizuki.site.media.entity.MusicPlaylistEntity;
+import io.github.shizuki.site.media.entity.MusicPlaylistProfileEntity;
 import io.github.shizuki.site.media.entity.MusicProviderConfigEntity;
 import io.github.shizuki.site.media.entity.MusicProviderGuideEntity;
 import io.github.shizuki.site.media.entity.MusicTrackCacheEntity;
 import io.github.shizuki.site.media.entity.MusicUploadUsageEntity;
+import io.github.shizuki.site.media.entity.UserMusicPlaylistCollectEntity;
+import io.github.shizuki.site.media.entity.UserMusicPlaylistEntity;
+import io.github.shizuki.site.media.entity.UserMusicPlaylistTrackEntity;
 import io.github.shizuki.site.media.mapper.MediaAssetGroupAclMapper;
 import io.github.shizuki.site.media.mapper.MediaAssetMapper;
 import io.github.shizuki.site.media.mapper.MediaAssetReportMapper;
 import io.github.shizuki.site.media.mapper.MediaL2dPackageMapper;
 import io.github.shizuki.site.media.mapper.MusicPickUsageMapper;
 import io.github.shizuki.site.media.mapper.MusicPlaylistMapper;
+import io.github.shizuki.site.media.mapper.MusicPlaylistProfileMapper;
 import io.github.shizuki.site.media.mapper.MusicProviderConfigMapper;
 import io.github.shizuki.site.media.mapper.MusicProviderGuideMapper;
 import io.github.shizuki.site.media.mapper.MusicTrackCacheMapper;
 import io.github.shizuki.site.media.mapper.MusicUploadUsageMapper;
+import io.github.shizuki.site.media.mapper.UserMusicPlaylistCollectMapper;
+import io.github.shizuki.site.media.mapper.UserMusicPlaylistMapper;
+import io.github.shizuki.site.media.mapper.UserMusicPlaylistTrackMapper;
 import io.github.shizuki.site.media.model.AssetAuditStatusEnum;
 import io.github.shizuki.site.media.model.AssetKindEnum;
 import io.github.shizuki.site.media.model.AssetVisibilityEnum;
@@ -80,6 +99,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
@@ -116,6 +136,10 @@ public class MediaServiceImpl implements MediaService {
     );
     private static final String MUSIC_PICK_QUOTA_CODE = "music_song_pick_total";
     private static final String MUSIC_UPLOAD_QUOTA_CODE = "music_upload_bytes_total";
+    private static final String DEFAULT_PLAYLIST_CODE = "default_public";
+    private static final String PLAYLIST_TYPE_DEFAULT = "DEFAULT";
+    private static final String PLAYLIST_TYPE_LIKED = "LIKED";
+    private static final String PLAYLIST_TYPE_CUSTOM = "CUSTOM";
     private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
 
     private final ObjectStorageClient objectStorageClient;
@@ -126,11 +150,15 @@ public class MediaServiceImpl implements MediaService {
     private final MediaAssetReportMapper mediaAssetReportMapper;
     private final MediaL2dPackageMapper mediaL2dPackageMapper;
     private final MusicPlaylistMapper musicPlaylistMapper;
+    private final MusicPlaylistProfileMapper musicPlaylistProfileMapper;
     private final MusicPickUsageMapper musicPickUsageMapper;
     private final MusicProviderConfigMapper musicProviderConfigMapper;
     private final MusicProviderGuideMapper musicProviderGuideMapper;
     private final MusicUploadUsageMapper musicUploadUsageMapper;
     private final MusicTrackCacheMapper musicTrackCacheMapper;
+    private final UserMusicPlaylistMapper userMusicPlaylistMapper;
+    private final UserMusicPlaylistTrackMapper userMusicPlaylistTrackMapper;
+    private final UserMusicPlaylistCollectMapper userMusicPlaylistCollectMapper;
     private final L2dZipValidator l2dZipValidator;
     private final AssetSecurityInspector assetSecurityInspector;
     private final UserMusicGateway userMusicClient;
@@ -160,11 +188,15 @@ public class MediaServiceImpl implements MediaService {
                             MediaAssetReportMapper mediaAssetReportMapper,
                             MediaL2dPackageMapper mediaL2dPackageMapper,
                             MusicPlaylistMapper musicPlaylistMapper,
+                            MusicPlaylistProfileMapper musicPlaylistProfileMapper,
                             MusicPickUsageMapper musicPickUsageMapper,
                             MusicProviderConfigMapper musicProviderConfigMapper,
                             MusicProviderGuideMapper musicProviderGuideMapper,
                             MusicUploadUsageMapper musicUploadUsageMapper,
                             MusicTrackCacheMapper musicTrackCacheMapper,
+                            UserMusicPlaylistMapper userMusicPlaylistMapper,
+                            UserMusicPlaylistTrackMapper userMusicPlaylistTrackMapper,
+                            UserMusicPlaylistCollectMapper userMusicPlaylistCollectMapper,
                             L2dZipValidator l2dZipValidator,
                             AssetSecurityInspector assetSecurityInspector,
                             UserMusicGateway userMusicClient,
@@ -179,11 +211,15 @@ public class MediaServiceImpl implements MediaService {
         this.mediaAssetReportMapper = mediaAssetReportMapper;
         this.mediaL2dPackageMapper = mediaL2dPackageMapper;
         this.musicPlaylistMapper = musicPlaylistMapper;
+        this.musicPlaylistProfileMapper = musicPlaylistProfileMapper;
         this.musicPickUsageMapper = musicPickUsageMapper;
         this.musicProviderConfigMapper = musicProviderConfigMapper;
         this.musicProviderGuideMapper = musicProviderGuideMapper;
         this.musicUploadUsageMapper = musicUploadUsageMapper;
         this.musicTrackCacheMapper = musicTrackCacheMapper;
+        this.userMusicPlaylistMapper = userMusicPlaylistMapper;
+        this.userMusicPlaylistTrackMapper = userMusicPlaylistTrackMapper;
+        this.userMusicPlaylistCollectMapper = userMusicPlaylistCollectMapper;
         this.l2dZipValidator = l2dZipValidator;
         this.assetSecurityInspector = assetSecurityInspector;
         this.userMusicClient = userMusicClient;
@@ -623,6 +659,73 @@ public class MediaServiceImpl implements MediaService {
      * {@inheritDoc}
      */
     @Override
+    public MusicDefaultPlaylistBundleResponse getDefaultPlaylistBundle() {
+        return new MusicDefaultPlaylistBundleResponse(
+            loadDefaultPlaylistProfile(),
+            listDefaultMusicPlaylist()
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public MusicLibraryHomeResponse getMusicLibraryHome() {
+        List<MusicPlaylistSummaryResponse> featuredPlaylists = new ArrayList<>();
+        List<MusicTrackResponse> defaultTracks = listDefaultMusicPlaylist();
+        featuredPlaylists.add(buildDefaultPlaylistSummary(defaultTracks.size()));
+
+        List<UserMusicPlaylistEntity> publicPlaylists = userMusicPlaylistMapper.selectList(
+            new LambdaQueryWrapper<UserMusicPlaylistEntity>()
+                .eq(UserMusicPlaylistEntity::getPublicFlag, true)
+                .orderByAsc(UserMusicPlaylistEntity::getSortNum)
+                .orderByDesc(UserMusicPlaylistEntity::getId)
+                .last("LIMIT 32")
+        );
+        for (UserMusicPlaylistEntity item : publicPlaylists) {
+            if (PLAYLIST_TYPE_LIKED.equalsIgnoreCase(item.getPlaylistType())) {
+                continue;
+            }
+            int count = countPlaylistTracks(item.getPlaylistCode(), false);
+            featuredPlaylists.add(toPlaylistSummary(item, count));
+        }
+
+        List<MusicTrackResponse> featuredTracks = defaultTracks.size() > 30
+            ? defaultTracks.subList(0, 30)
+            : defaultTracks;
+        return new MusicLibraryHomeResponse(featuredPlaylists, featuredTracks);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public MusicPlaylistBundleResponse getMusicPlaylistBundle(String playlistCode) {
+        String normalizedCode = normalizePlaylistCode(playlistCode);
+        if (DEFAULT_PLAYLIST_CODE.equals(normalizedCode)) {
+            List<MusicTrackResponse> tracks = listDefaultMusicPlaylist();
+            return new MusicPlaylistBundleResponse(
+                buildDefaultPlaylistSummary(tracks.size()),
+                tracks
+            );
+        }
+
+        UserMusicPlaylistEntity playlist = loadUserPlaylistByCode(normalizedCode);
+        if (playlist == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Playlist not found");
+        }
+        Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
+        boolean ownerView = userId > 0 && userId.equals(playlist.getUserId());
+        if (!ownerView && !Boolean.TRUE.equals(playlist.getPublicFlag())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this playlist");
+        }
+        return buildUserPlaylistBundle(playlist, ownerView);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public MusicQuotaResponse myMusicQuota() {
         Long userId = requireLoginUserId();
         Set<String> groups = currentLoginUserGroups();
@@ -827,7 +930,7 @@ public class MediaServiceImpl implements MediaService {
         int max = limit == null ? 10 : Math.max(1, Math.min(50, limit));
         String normalizedQuery = query == null ? "" : query.trim();
         validateMusicQuery(normalizedQuery);
-        Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
+        Long userId = requireSpotifyBoundUserId();
         String userToken = resolveUserSpotifyToken(userId);
         return spotifyMusicClient.searchTracks(normalizedQuery, max, userToken);
     }
@@ -841,7 +944,7 @@ public class MediaServiceImpl implements MediaService {
         if (!StringUtils.hasText(normalizedTrackId)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
         }
-        Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
+        Long userId = requireSpotifyBoundUserId();
         String userToken = resolveUserSpotifyToken(userId);
         SpotifyPreviewResponse preview = spotifyMusicClient.getTrackPreview(normalizedTrackId, userToken);
         if (!StringUtils.hasText(preview.previewUrl())) {
@@ -865,6 +968,17 @@ public class MediaServiceImpl implements MediaService {
             result.add(toPlaylistResponse(entity));
         }
         return result;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public MusicDefaultPlaylistBundleResponse getAdminDefaultPlaylistBundle() {
+        return new MusicDefaultPlaylistBundleResponse(
+            loadDefaultPlaylistProfile(),
+            listAdminDefaultPlaylist()
+        );
     }
 
     /**
@@ -902,6 +1016,21 @@ public class MediaServiceImpl implements MediaService {
             musicPlaylistMapper.insert(entity);
         }
         return listAdminDefaultPlaylist();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicDefaultPlaylistBundleResponse replaceAdminDefaultPlaylistBundle(AdminMusicDefaultPlaylistBundleReplaceRequest request) {
+        upsertDefaultPlaylistProfile(request == null ? null : request.getProfile());
+
+        AdminMusicPlaylistReplaceRequest tracksRequest = new AdminMusicPlaylistReplaceRequest();
+        tracksRequest.setTracks(request == null ? null : request.getTracks());
+        replaceAdminDefaultPlaylist(tracksRequest);
+
+        return getAdminDefaultPlaylistBundle();
     }
 
     /**
@@ -1009,6 +1138,284 @@ public class MediaServiceImpl implements MediaService {
             entity.getGuideTitle() == null ? "" : entity.getGuideTitle(),
             entity.getGuideText() == null ? "" : entity.getGuideText(),
             entity.getGuideLink() == null ? "" : entity.getGuideLink()
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public MeMusicLibrarySidebarResponse getMyMusicLibrarySidebar() {
+        Long userId = requireLoginUserId();
+        UserMusicPlaylistEntity likedPlaylist = ensureLikedPlaylist(userId);
+        MusicPlaylistSummaryResponse likedSummary = toPlaylistSummary(
+            likedPlaylist,
+            countPlaylistTracks(likedPlaylist.getPlaylistCode(), true)
+        );
+
+        List<UserMusicPlaylistEntity> createdEntities = userMusicPlaylistMapper.selectList(
+            new LambdaQueryWrapper<UserMusicPlaylistEntity>()
+                .eq(UserMusicPlaylistEntity::getUserId, userId)
+                .eq(UserMusicPlaylistEntity::getPlaylistType, PLAYLIST_TYPE_CUSTOM)
+                .orderByAsc(UserMusicPlaylistEntity::getSortNum)
+                .orderByDesc(UserMusicPlaylistEntity::getId)
+        );
+        List<MusicPlaylistSummaryResponse> createdPlaylists = new ArrayList<>();
+        for (UserMusicPlaylistEntity item : createdEntities) {
+            createdPlaylists.add(toPlaylistSummary(item, countPlaylistTracks(item.getPlaylistCode(), true)));
+        }
+
+        List<UserMusicPlaylistCollectEntity> collectEntities = userMusicPlaylistCollectMapper.selectList(
+            new LambdaQueryWrapper<UserMusicPlaylistCollectEntity>()
+                .eq(UserMusicPlaylistCollectEntity::getUserId, userId)
+                .orderByDesc(UserMusicPlaylistCollectEntity::getId)
+        );
+        List<MusicPlaylistSummaryResponse> collectedPlaylists = new ArrayList<>();
+        Set<String> collectedCodes = new LinkedHashSet<>();
+        for (UserMusicPlaylistCollectEntity item : collectEntities) {
+            String code = normalizePlaylistCode(item.getPlaylistCode());
+            if (!collectedCodes.add(code)) {
+                continue;
+            }
+            if (DEFAULT_PLAYLIST_CODE.equals(code)) {
+                collectedPlaylists.add(buildDefaultPlaylistSummary(listDefaultMusicPlaylist().size()));
+                continue;
+            }
+            UserMusicPlaylistEntity playlist = loadUserPlaylistByCode(code);
+            if (playlist == null) {
+                continue;
+            }
+            boolean owner = userId.equals(playlist.getUserId());
+            if (!owner && !Boolean.TRUE.equals(playlist.getPublicFlag())) {
+                continue;
+            }
+            collectedPlaylists.add(toPlaylistSummary(playlist, countPlaylistTracks(code, owner)));
+        }
+
+        return new MeMusicLibrarySidebarResponse(
+            buildDefaultPlaylistSummary(listDefaultMusicPlaylist().size()),
+            likedSummary,
+            createdPlaylists,
+            collectedPlaylists
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicPlaylistSummaryResponse createMyMusicPlaylist(MeMusicPlaylistCreateRequest request) {
+        Long userId = requireLoginUserId();
+        String playlistCode = generateCustomPlaylistCode(userId);
+        String name = readString(request == null ? null : request.getName(), "我的歌单");
+        String description = readString(request == null ? null : request.getDescription(), "");
+        String cover = readString(request == null ? null : request.getCover(), "");
+        validateHttpUrlIfPresent(cover, "cover");
+        boolean isPublic = request != null && Boolean.TRUE.equals(request.getIsPublic());
+
+        UserMusicPlaylistEntity entity = new UserMusicPlaylistEntity();
+        entity.setPlaylistCode(playlistCode);
+        entity.setUserId(userId);
+        entity.setPlaylistType(PLAYLIST_TYPE_CUSTOM);
+        entity.setName(name);
+        entity.setDescription(description);
+        entity.setCoverUrl(cover);
+        entity.setPublicFlag(isPublic);
+        entity.setSystemReservedFlag(false);
+        entity.setSortNum(resolveNextUserPlaylistSort(userId));
+        entity.setMetadataJson(writeJson(Map.of()));
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        userMusicPlaylistMapper.insert(entity);
+        return toPlaylistSummary(entity, 0);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicPlaylistSummaryResponse updateMyMusicPlaylist(String playlistCode, MeMusicPlaylistUpdateRequest request) {
+        Long userId = requireLoginUserId();
+        UserMusicPlaylistEntity playlist = requireOwnedUserPlaylist(userId, playlistCode);
+        if (request == null) {
+            return toPlaylistSummary(playlist, countPlaylistTracks(playlist.getPlaylistCode(), true));
+        }
+
+        if (request.getName() != null) {
+            playlist.setName(readString(request.getName(), playlist.getName()));
+        }
+        if (request.getDescription() != null) {
+            playlist.setDescription(request.getDescription().trim());
+        }
+        if (request.getCover() != null) {
+            String cover = request.getCover().trim();
+            validateHttpUrlIfPresent(cover, "cover");
+            playlist.setCoverUrl(cover);
+        }
+        if (request.getIsPublic() != null) {
+            if (Boolean.TRUE.equals(playlist.getSystemReservedFlag()) && Boolean.TRUE.equals(request.getIsPublic())) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "System playlist cannot be public");
+            }
+            playlist.setPublicFlag(request.getIsPublic());
+        }
+        playlist.setUpdatedAt(LocalDateTime.now());
+        userMusicPlaylistMapper.updateById(playlist);
+        return toPlaylistSummary(playlist, countPlaylistTracks(playlist.getPlaylistCode(), true));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMyMusicPlaylist(String playlistCode) {
+        Long userId = requireLoginUserId();
+        UserMusicPlaylistEntity playlist = requireOwnedUserPlaylist(userId, playlistCode);
+        if (Boolean.TRUE.equals(playlist.getSystemReservedFlag()) || PLAYLIST_TYPE_LIKED.equalsIgnoreCase(playlist.getPlaylistType())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "System playlist cannot be deleted");
+        }
+        userMusicPlaylistTrackMapper.delete(
+            new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>().eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlist.getPlaylistCode())
+        );
+        userMusicPlaylistCollectMapper.delete(
+            new LambdaQueryWrapper<UserMusicPlaylistCollectEntity>().eq(UserMusicPlaylistCollectEntity::getPlaylistCode, playlist.getPlaylistCode())
+        );
+        userMusicPlaylistMapper.deleteById(playlist.getId());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicPlaylistBundleResponse upsertMyMusicPlaylistTrack(String playlistCode, MeMusicPlaylistTrackUpsertRequest request) {
+        Long userId = requireLoginUserId();
+        UserMusicPlaylistEntity playlist = requireOwnedUserPlaylist(userId, playlistCode);
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Track request is required");
+        }
+        String provider = normalizeTrackProvider(request.getProvider());
+        String trackId = readString(request.getTrackId(), "");
+        if (!StringUtils.hasText(trackId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
+        }
+        String title = readString(request.getTitle(), trackId);
+        String artist = readString(request.getArtist(), "");
+        String cover = readString(request.getCover(), "");
+        String audio = readString(request.getAudio(), "");
+        String lyric = readString(request.getLyric(), "");
+        validateHttpUrlIfPresent(cover, "cover");
+        validateHttpUrlIfPresent(audio, "audio");
+        validateHttpUrlIfPresent(lyric, "lyric");
+
+        UserMusicPlaylistTrackEntity entity = userMusicPlaylistTrackMapper.selectOne(
+            new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+                .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlist.getPlaylistCode())
+                .eq(UserMusicPlaylistTrackEntity::getProviderCode, provider)
+                .eq(UserMusicPlaylistTrackEntity::getTrackId, trackId)
+                .last("LIMIT 1")
+        );
+        boolean created = false;
+        if (entity == null) {
+            entity = new UserMusicPlaylistTrackEntity();
+            entity.setPlaylistCode(playlist.getPlaylistCode());
+            entity.setProviderCode(provider);
+            entity.setTrackId(trackId);
+            entity.setCreatedAt(LocalDateTime.now());
+            created = true;
+        }
+        entity.setTitle(title);
+        entity.setArtist(artist);
+        entity.setCoverUrl(cover);
+        entity.setAudioUrl(audio);
+        entity.setLyricUrl(lyric);
+        entity.setSortNum(request.getSort() == null ? (created ? resolveNextPlaylistTrackSort(playlist.getPlaylistCode()) : entity.getSortNum()) : Math.max(0, request.getSort()));
+        entity.setEnabledFlag(request.getEnabled() == null ? true : request.getEnabled());
+        entity.setMetadataJson(writeJson(request.getMetadata() == null ? Map.of() : request.getMetadata()));
+        entity.setUpdatedAt(LocalDateTime.now());
+        if (created) {
+            userMusicPlaylistTrackMapper.insert(entity);
+        } else {
+            userMusicPlaylistTrackMapper.updateById(entity);
+        }
+        return buildUserPlaylistBundle(playlist, true);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicPlaylistBundleResponse removeMyMusicPlaylistTrack(String playlistCode, String provider, String trackId) {
+        Long userId = requireLoginUserId();
+        UserMusicPlaylistEntity playlist = requireOwnedUserPlaylist(userId, playlistCode);
+        String normalizedProvider = normalizeTrackProvider(provider);
+        String normalizedTrackId = readString(trackId, "");
+        if (!StringUtils.hasText(normalizedTrackId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
+        }
+        userMusicPlaylistTrackMapper.delete(
+            new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+                .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlist.getPlaylistCode())
+                .eq(UserMusicPlaylistTrackEntity::getProviderCode, normalizedProvider)
+                .eq(UserMusicPlaylistTrackEntity::getTrackId, normalizedTrackId)
+        );
+        return buildUserPlaylistBundle(playlist, true);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void collectPlaylist(String playlistCode) {
+        Long userId = requireLoginUserId();
+        String normalizedCode = normalizePlaylistCode(playlistCode);
+        if (!DEFAULT_PLAYLIST_CODE.equals(normalizedCode)) {
+            UserMusicPlaylistEntity playlist = loadUserPlaylistByCode(normalizedCode);
+            if (playlist == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "Playlist not found");
+            }
+            boolean owner = userId.equals(playlist.getUserId());
+            if (!owner && !Boolean.TRUE.equals(playlist.getPublicFlag())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to collect this playlist");
+            }
+            if (Boolean.TRUE.equals(playlist.getSystemReservedFlag()) && PLAYLIST_TYPE_LIKED.equalsIgnoreCase(playlist.getPlaylistType()) && !owner) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to collect this playlist");
+            }
+        }
+
+        UserMusicPlaylistCollectEntity existing = userMusicPlaylistCollectMapper.selectOne(
+            new LambdaQueryWrapper<UserMusicPlaylistCollectEntity>()
+                .eq(UserMusicPlaylistCollectEntity::getUserId, userId)
+                .eq(UserMusicPlaylistCollectEntity::getPlaylistCode, normalizedCode)
+                .last("LIMIT 1")
+        );
+        if (existing != null) {
+            return;
+        }
+        UserMusicPlaylistCollectEntity entity = new UserMusicPlaylistCollectEntity();
+        entity.setUserId(userId);
+        entity.setPlaylistCode(normalizedCode);
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        userMusicPlaylistCollectMapper.insert(entity);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void uncollectPlaylist(String playlistCode) {
+        Long userId = requireLoginUserId();
+        String normalizedCode = normalizePlaylistCode(playlistCode);
+        userMusicPlaylistCollectMapper.delete(
+            new LambdaQueryWrapper<UserMusicPlaylistCollectEntity>()
+                .eq(UserMusicPlaylistCollectEntity::getUserId, userId)
+                .eq(UserMusicPlaylistCollectEntity::getPlaylistCode, normalizedCode)
         );
     }
 
@@ -1357,6 +1764,18 @@ public class MediaServiceImpl implements MediaService {
         return userMusicClient.getApiKeyPlaintext(userId, "spotify");
     }
 
+    private Long requireSpotifyBoundUserId() {
+        Long userId = requireLoginUserId();
+        if (!userMusicClient.hasOAuthBinding(userId, "spotify")) {
+            throw new BusinessException(
+                ErrorCode.FORBIDDEN,
+                "Spotify OAuth binding required",
+                Map.of("music_error_code", "MUSIC_SPOTIFY_OAUTH_REQUIRED", "provider", "spotify")
+            );
+        }
+        return userId;
+    }
+
     private String normalizeProviderCode(String provider) {
         String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
         if (!StringUtils.hasText(normalized) || !SUPPORTED_MUSIC_PROVIDERS.contains(normalized)) {
@@ -1415,6 +1834,272 @@ public class MediaServiceImpl implements MediaService {
             case "m4a" -> "audio/mp4";
             default -> "audio/mpeg";
         };
+    }
+
+    private String normalizePlaylistCode(String playlistCode) {
+        String normalized = readString(playlistCode, "").toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "playlist_code is required");
+        }
+        if (normalized.length() > 64) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "playlist_code is too long");
+        }
+        return normalized;
+    }
+
+    private String normalizeTrackProvider(String provider) {
+        String normalized = readString(provider, "local").toLowerCase(Locale.ROOT);
+        if (normalized.length() > 64) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "provider is too long");
+        }
+        return normalized;
+    }
+
+    private MusicPlaylistSummaryResponse buildDefaultPlaylistSummary(int trackCount) {
+        MusicPlaylistProfileResponse profile = loadDefaultPlaylistProfile();
+        return new MusicPlaylistSummaryResponse(
+            DEFAULT_PLAYLIST_CODE,
+            readString(profile.name(), "默认歌单"),
+            readString(profile.description(), ""),
+            readString(profile.cover(), ""),
+            PLAYLIST_TYPE_DEFAULT,
+            0L,
+            true,
+            Math.max(0, trackCount)
+        );
+    }
+
+    private MusicPlaylistSummaryResponse toPlaylistSummary(UserMusicPlaylistEntity entity, int trackCount) {
+        if (entity == null) {
+            return new MusicPlaylistSummaryResponse("", "", "", "", PLAYLIST_TYPE_CUSTOM, 0L, false, 0);
+        }
+        String playlistType = readString(entity.getPlaylistType(), PLAYLIST_TYPE_CUSTOM).toUpperCase(Locale.ROOT);
+        return new MusicPlaylistSummaryResponse(
+            readString(entity.getPlaylistCode(), ""),
+            readString(entity.getName(), "我的歌单"),
+            readString(entity.getDescription(), ""),
+            readString(entity.getCoverUrl(), ""),
+            playlistType,
+            entity.getUserId() == null ? 0L : entity.getUserId(),
+            Boolean.TRUE.equals(entity.getPublicFlag()),
+            Math.max(0, trackCount)
+        );
+    }
+
+    private MusicPlaylistBundleResponse buildUserPlaylistBundle(UserMusicPlaylistEntity playlist, boolean ownerView) {
+        List<MusicTrackResponse> tracks = listUserPlaylistTracks(playlist.getPlaylistCode(), ownerView);
+        return new MusicPlaylistBundleResponse(
+            toPlaylistSummary(playlist, tracks.size()),
+            tracks
+        );
+    }
+
+    private List<MusicTrackResponse> listUserPlaylistTracks(String playlistCode, boolean includeDisabled) {
+        LambdaQueryWrapper<UserMusicPlaylistTrackEntity> wrapper = new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+            .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlistCode)
+            .orderByAsc(UserMusicPlaylistTrackEntity::getSortNum)
+            .orderByAsc(UserMusicPlaylistTrackEntity::getId);
+        if (!includeDisabled) {
+            wrapper.eq(UserMusicPlaylistTrackEntity::getEnabledFlag, true);
+        }
+        List<UserMusicPlaylistTrackEntity> rows = userMusicPlaylistTrackMapper.selectList(wrapper);
+        List<MusicTrackResponse> result = new ArrayList<>();
+        for (UserMusicPlaylistTrackEntity row : rows) {
+            result.add(toPlaylistTrackResponse(row));
+        }
+        return result;
+    }
+
+    private int countPlaylistTracks(String playlistCode, boolean includeDisabled) {
+        LambdaQueryWrapper<UserMusicPlaylistTrackEntity> wrapper = new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+            .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlistCode);
+        if (!includeDisabled) {
+            wrapper.eq(UserMusicPlaylistTrackEntity::getEnabledFlag, true);
+        }
+        Long count = userMusicPlaylistTrackMapper.selectCount(wrapper);
+        return count == null ? 0 : Math.max(0, count.intValue());
+    }
+
+    private MusicTrackResponse toPlaylistTrackResponse(UserMusicPlaylistTrackEntity entity) {
+        return new MusicTrackResponse(
+            readString(entity.getTrackId(), ""),
+            readString(entity.getProviderCode(), "local"),
+            readString(entity.getTitle(), "Unknown"),
+            readString(entity.getArtist(), ""),
+            readString(entity.getCoverUrl(), ""),
+            readString(entity.getAudioUrl(), ""),
+            readString(entity.getLyricUrl(), ""),
+            entity.getSortNum() == null ? 0 : entity.getSortNum(),
+            Boolean.TRUE.equals(entity.getEnabledFlag())
+        );
+    }
+
+    private UserMusicPlaylistEntity loadUserPlaylistByCode(String playlistCode) {
+        return userMusicPlaylistMapper.selectOne(
+            new LambdaQueryWrapper<UserMusicPlaylistEntity>()
+                .eq(UserMusicPlaylistEntity::getPlaylistCode, playlistCode)
+                .last("LIMIT 1")
+        );
+    }
+
+    private UserMusicPlaylistEntity requireOwnedUserPlaylist(Long userId, String playlistCode) {
+        String normalized = normalizePlaylistCode(playlistCode);
+        UserMusicPlaylistEntity playlist = loadUserPlaylistByCode(normalized);
+        if (playlist == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Playlist not found");
+        }
+        if (!userId.equals(playlist.getUserId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to modify this playlist");
+        }
+        return playlist;
+    }
+
+    private UserMusicPlaylistEntity ensureLikedPlaylist(Long userId) {
+        UserMusicPlaylistEntity existing = userMusicPlaylistMapper.selectOne(
+            new LambdaQueryWrapper<UserMusicPlaylistEntity>()
+                .eq(UserMusicPlaylistEntity::getUserId, userId)
+                .eq(UserMusicPlaylistEntity::getPlaylistType, PLAYLIST_TYPE_LIKED)
+                .orderByAsc(UserMusicPlaylistEntity::getId)
+                .last("LIMIT 1")
+        );
+        if (existing != null) {
+            return existing;
+        }
+
+        UserMusicPlaylistEntity entity = new UserMusicPlaylistEntity();
+        entity.setPlaylistCode("liked_u_" + userId);
+        entity.setUserId(userId);
+        entity.setPlaylistType(PLAYLIST_TYPE_LIKED);
+        entity.setName("我喜欢的音乐");
+        entity.setDescription("系统保留歌单");
+        entity.setCoverUrl("");
+        entity.setPublicFlag(false);
+        entity.setSystemReservedFlag(true);
+        entity.setSortNum(0);
+        entity.setMetadataJson(writeJson(Map.of()));
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        try {
+            userMusicPlaylistMapper.insert(entity);
+            return entity;
+        } catch (DuplicateKeyException duplicateKeyException) {
+            UserMusicPlaylistEntity reloaded = userMusicPlaylistMapper.selectOne(
+                new LambdaQueryWrapper<UserMusicPlaylistEntity>()
+                    .eq(UserMusicPlaylistEntity::getUserId, userId)
+                    .eq(UserMusicPlaylistEntity::getPlaylistType, PLAYLIST_TYPE_LIKED)
+                    .orderByAsc(UserMusicPlaylistEntity::getId)
+                    .last("LIMIT 1")
+            );
+            if (reloaded != null) {
+                return reloaded;
+            }
+            throw duplicateKeyException;
+        }
+    }
+
+    private int resolveNextUserPlaylistSort(Long userId) {
+        UserMusicPlaylistEntity maxSort = userMusicPlaylistMapper.selectOne(
+            new LambdaQueryWrapper<UserMusicPlaylistEntity>()
+                .eq(UserMusicPlaylistEntity::getUserId, userId)
+                .orderByDesc(UserMusicPlaylistEntity::getSortNum)
+                .orderByDesc(UserMusicPlaylistEntity::getId)
+                .last("LIMIT 1")
+        );
+        if (maxSort == null || maxSort.getSortNum() == null) {
+            return 1;
+        }
+        return Math.max(0, maxSort.getSortNum()) + 1;
+    }
+
+    private int resolveNextPlaylistTrackSort(String playlistCode) {
+        UserMusicPlaylistTrackEntity maxSort = userMusicPlaylistTrackMapper.selectOne(
+            new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+                .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlistCode)
+                .orderByDesc(UserMusicPlaylistTrackEntity::getSortNum)
+                .orderByDesc(UserMusicPlaylistTrackEntity::getId)
+                .last("LIMIT 1")
+        );
+        if (maxSort == null || maxSort.getSortNum() == null) {
+            return 1;
+        }
+        return Math.max(0, maxSort.getSortNum()) + 1;
+    }
+
+    private boolean playlistCodeExists(String playlistCode) {
+        if (DEFAULT_PLAYLIST_CODE.equals(playlistCode)) {
+            return true;
+        }
+        Long count = userMusicPlaylistMapper.selectCount(
+            new LambdaQueryWrapper<UserMusicPlaylistEntity>().eq(UserMusicPlaylistEntity::getPlaylistCode, playlistCode)
+        );
+        return count != null && count > 0;
+    }
+
+    private String generateCustomPlaylistCode(Long userId) {
+        for (int i = 0; i < 6; i += 1) {
+            String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+            String code = ("upl_" + userId + "_" + suffix).toLowerCase(Locale.ROOT);
+            if (!playlistCodeExists(code)) {
+                return code;
+            }
+        }
+        return ("upl_" + userId + "_" + System.currentTimeMillis()).toLowerCase(Locale.ROOT);
+    }
+
+    private MusicPlaylistProfileResponse loadDefaultPlaylistProfile() {
+        MusicPlaylistProfileEntity entity = musicPlaylistProfileMapper.selectOne(
+            new LambdaQueryWrapper<MusicPlaylistProfileEntity>()
+                .eq(MusicPlaylistProfileEntity::getPlaylistCode, DEFAULT_PLAYLIST_CODE)
+                .last("LIMIT 1")
+        );
+        if (entity == null) {
+            return new MusicPlaylistProfileResponse(
+                DEFAULT_PLAYLIST_CODE,
+                "默认歌单",
+                "全站共通默认歌单",
+                ""
+            );
+        }
+        return new MusicPlaylistProfileResponse(
+            readString(entity.getPlaylistCode(), DEFAULT_PLAYLIST_CODE),
+            readString(entity.getName(), "默认歌单"),
+            readString(entity.getDescription(), ""),
+            readString(entity.getCoverUrl(), "")
+        );
+    }
+
+    private void upsertDefaultPlaylistProfile(AdminMusicPlaylistProfileUpsertRequest request) {
+        String playlistCode = readString(request == null ? null : request.getPlaylistCode(), DEFAULT_PLAYLIST_CODE);
+        if (!DEFAULT_PLAYLIST_CODE.equals(playlistCode)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "playlist_code must be default_public");
+        }
+        String name = readString(request == null ? null : request.getName(), "默认歌单");
+        String description = readString(request == null ? null : request.getDescription(), "全站共通默认歌单");
+        String cover = readString(request == null ? null : request.getCover(), "");
+        validateHttpUrlIfPresent(cover, "cover");
+
+        MusicPlaylistProfileEntity entity = musicPlaylistProfileMapper.selectOne(
+            new LambdaQueryWrapper<MusicPlaylistProfileEntity>()
+                .eq(MusicPlaylistProfileEntity::getPlaylistCode, playlistCode)
+                .last("LIMIT 1")
+        );
+
+        if (entity == null) {
+            entity = new MusicPlaylistProfileEntity();
+            entity.setPlaylistCode(playlistCode);
+            entity.setCreatedAt(LocalDateTime.now());
+        }
+        entity.setName(name);
+        entity.setDescription(description);
+        entity.setCoverUrl(cover);
+        entity.setMetadataJson(writeJson(Map.of()));
+        entity.setUpdatedAt(LocalDateTime.now());
+
+        if (entity.getId() == null) {
+            musicPlaylistProfileMapper.insert(entity);
+        } else {
+            musicPlaylistProfileMapper.updateById(entity);
+        }
     }
 
     /**

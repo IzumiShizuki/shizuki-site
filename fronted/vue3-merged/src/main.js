@@ -3,7 +3,12 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './styles/global.css';
 import './styles/liquid-material.css';
 import './styles/theme.css';
+import './styles/music-replica.css';
 import App from './App.vue';
 import router from './router';
+import { initWindowLifecycleDiag } from './utils/windowLifecycleDiag';
 
-createApp(App).use(router).mount('#app');
+const app = createApp(App);
+app.use(router);
+initWindowLifecycleDiag({ router });
+app.mount('#app');

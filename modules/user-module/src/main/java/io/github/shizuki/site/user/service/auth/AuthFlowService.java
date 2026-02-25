@@ -978,7 +978,12 @@ public class AuthFlowService {
         String login = StringUtils.hasText(identity.login())
             ? identity.login().trim().toLowerCase(Locale.ROOT)
             : provider + "_" + identity.providerUserId();
-        String prefix = "github".equalsIgnoreCase(provider) ? "gh_" : "ld_";
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
+        String prefix = switch (normalizedProvider) {
+            case "github" -> "gh_";
+            case "spotify" -> "sp_";
+            default -> "ld_";
+        };
         String base = prefix + login;
         if (!existsUsername(base)) {
             return base;

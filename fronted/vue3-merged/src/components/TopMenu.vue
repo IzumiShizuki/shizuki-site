@@ -193,6 +193,9 @@ const mainNavItems = computed(() => {
 
 const activeMainRoute = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
+  if (name.startsWith('music-library')) {
+    return 'music-library';
+  }
   const keys = mainNavItems.value.map((item) => item.key);
   return keys.includes(name) ? name : '';
 });

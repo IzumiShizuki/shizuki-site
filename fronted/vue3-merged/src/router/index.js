@@ -8,6 +8,9 @@ import AppsPage from '../pages/AppsPage.vue';
 import BlogPage from '../pages/BlogPage.vue';
 import HomePage from '../pages/HomePage.vue';
 import MusicLibraryPage from '../pages/MusicLibraryPage.vue';
+import MusicLibraryHomeView from '../pages/music/MusicLibraryHomeView.vue';
+import MusicPlaylistDetailView from '../pages/music/MusicPlaylistDetailView.vue';
+import MusicPlayerDetailView from '../pages/music/MusicPlayerDetailView.vue';
 import ProfilePage from '../pages/ProfilePage.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { resolveOAuthCallbackRedirect } from './oauthCallbackGuard';
@@ -34,7 +37,15 @@ function normalizeRedirectPath(path) {
 const routes = [
   { path: '/', name: 'home', component: HomePage },
   { path: '/blog', name: 'blog', component: BlogPage },
-  { path: '/music-library', name: 'music-library', component: MusicLibraryPage },
+  {
+    path: '/music-library',
+    component: MusicLibraryPage,
+    children: [
+      { path: '', name: 'music-library', component: MusicLibraryHomeView },
+      { path: 'playlist/:playlistCode', name: 'music-library-playlist', component: MusicPlaylistDetailView },
+      { path: 'player', name: 'music-library-player', component: MusicPlayerDetailView }
+    ]
+  },
   { path: '/apps', name: 'apps', component: AppsPage },
   { path: '/ai-tavern', name: 'ai-tavern', component: AiTavernPage },
   { path: '/auth', name: 'auth', component: AuthPage },

@@ -3,9 +3,11 @@ package io.github.shizuki.site.media.controller;
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.annotation.RequireGroup;
+import io.github.shizuki.site.media.dto.AdminMusicDefaultPlaylistBundleReplaceRequest;
 import io.github.shizuki.site.media.dto.AdminMusicPlaylistReplaceRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderGuideUpsertRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderVisibilityUpdateRequest;
+import io.github.shizuki.site.media.dto.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.dto.MusicKeyGuideResponse;
 import io.github.shizuki.site.media.dto.MusicProviderResponse;
 import io.github.shizuki.site.media.dto.MusicTrackResponse;
@@ -45,6 +47,12 @@ public class AdminMusicController {
         return ApiResponse.success(mediaService.listAdminDefaultPlaylist());
     }
 
+    @GetMapping("/default-playlist/bundle")
+    @Operation(summary = "查询默认歌单聚合", description = "管理员查看歌单资料与全量曲目")
+    public ApiResponse<MusicDefaultPlaylistBundleResponse> getDefaultPlaylistBundle() {
+        return ApiResponse.success(mediaService.getAdminDefaultPlaylistBundle());
+    }
+
     @PutMapping("/default-playlist")
     @AuditLog(action = "music.admin.default-playlist.replace", resource = "music_playlist")
     @Operation(summary = "替换默认歌单", description = "管理员一次性覆盖默认歌单")
@@ -56,6 +64,22 @@ public class AdminMusicController {
     public ApiResponse<List<MusicTrackResponse>> replaceDefaultPlaylist(@RequestBody(required = false) AdminMusicPlaylistReplaceRequest request) {
         return ApiResponse.success(mediaService.replaceAdminDefaultPlaylist(
             request == null ? new AdminMusicPlaylistReplaceRequest() : request
+        ));
+    }
+
+    @PutMapping("/default-playlist/bundle")
+    @AuditLog(action = "music.admin.default-playlist.bundle.replace", resource = "music_playlist")
+    @Operation(summary = "替换默认歌单聚合", description = "管理员一次性覆盖歌单资料与默认歌单曲目")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "替换成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "参数错误",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    public ApiResponse<MusicDefaultPlaylistBundleResponse> replaceDefaultPlaylistBundle(
+        @RequestBody(required = false) AdminMusicDefaultPlaylistBundleReplaceRequest request
+    ) {
+        return ApiResponse.success(mediaService.replaceAdminDefaultPlaylistBundle(
+            request == null ? new AdminMusicDefaultPlaylistBundleReplaceRequest() : request
         ));
     }
 
