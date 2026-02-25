@@ -38,6 +38,7 @@ import io.github.shizuki.site.media.dto.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.dto.SpotifyTrackResponse;
 import io.github.shizuki.site.media.dto.UploadPolicyRequest;
 import io.github.shizuki.site.media.dto.UploadPolicyResponse;
+import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaAssetGroupAclEntity;
 import io.github.shizuki.site.media.entity.MediaAssetReportEntity;
@@ -67,6 +68,7 @@ import io.github.shizuki.site.media.service.l2d.L2dValidationResult;
 import io.github.shizuki.site.media.service.l2d.L2dZipValidator;
 import io.github.shizuki.site.media.service.security.AssetInspectionResult;
 import io.github.shizuki.site.media.service.security.AssetSecurityInspector;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
@@ -85,6 +87,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 媒体域核心服务实现，负责上传策略、资产落库、公开角色池与下载链接等主流程。
@@ -233,6 +236,66 @@ public class MediaServiceImpl implements MediaService {
             assetKind.getCode(),
             "DIRECT_OSS"
         );
+    }
+
+    /**
+     * 服务端中转上传：校验文件后直接写入 OSS，返回对象定位信息。
+     */
+    @Override
+    public UploadRelayResponse uploadRelay(MultipartFile file, String assetKindRaw, String visibilityRaw) {
+        Long userId = requireLoginUserId();
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Upload file is required");
+        }
+
+        AssetKindEnum assetKind = AssetKindEnum.fromName(assetKindRaw);
+        AssetVisibilityEnum visibility = AssetVisibilityEnum.fromName(visibilityRaw, AssetVisibilityEnum.PRIVATE);
+        String contentType = readString(file.getContentType(), "");
+        validateContentTypeByKind(assetKind, contentType);
+        if (assetKind == AssetKindEnum.AUDIO) {
+            long total = resolveQuotaValue(MUSIC_UPLOAD_QUOTA_CODE, currentLoginUserGroups(), 104857600L);
+            long used = loadUploadUsedBytes(userId);
+            if (used >= total) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "Music upload quota exhausted",
+                    Map.of("music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED", "total", total, "used", used, "remaining", 0));
+            }
+            long next = used + Math.max(0L, file.getSize());
+            if (next > total) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "Music upload quota exhausted",
+                    Map.of("music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED", "total", total, "used", used, "remaining", Math.max(0L, total - used)));
+            }
+        }
+
+        String fileName = resolveRelayFileName(file, assetKind, contentType);
+        UploadValidator.validate(
+            fileName,
+            contentType,
+            Math.max(1L, file.getSize()),
+            mediaStorageProperties.getMaxUploadSize(),
+            mediaStorageProperties.getAllowedContentTypes()
+        );
+
+        String extension = getExtension(fileName);
+        String bucket = bucketByVisibility(visibility);
+        String key = OssKeyBuilder.build("assets", "user-" + userId, userId, extension);
+        try (InputStream inputStream = file.getInputStream()) {
+            StorageObjectMetadata metadata = new StorageObjectMetadata();
+            metadata.setContentType(contentType);
+            metadata.setContentLength(Math.max(0L, file.getSize()));
+            objectStorageClient.putObject(bucket, key, inputStream, metadata);
+            if (assetKind == AssetKindEnum.AUDIO) {
+                increaseUploadUsedBytes(userId, Math.max(0L, file.getSize()));
+            }
+            return new UploadRelayResponse(
+                bucket,
+                key,
+                contentType,
+                assetKind.name(),
+                "RELAY_OSS"
+            );
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Relay upload failed");
+        }
     }
 
     /**
@@ -1486,5 +1549,31 @@ public class MediaServiceImpl implements MediaService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "File extension is required");
         }
         return fileName.substring(index + 1);
+    }
+
+    private String resolveRelayFileName(MultipartFile file, AssetKindEnum assetKind, String contentType) {
+        String original = readString(file.getOriginalFilename(), "");
+        if (StringUtils.hasText(original) && original.contains(".")) {
+            return original;
+        }
+        String extension = inferExtensionByContentType(contentType, assetKind);
+        return "upload." + extension;
+    }
+
+    private String inferExtensionByContentType(String contentType, AssetKindEnum assetKind) {
+        String normalized = readString(contentType, "").toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "image/jpeg" -> "jpg";
+            case "image/webp" -> "webp";
+            case "image/gif" -> "gif";
+            case "image/apng" -> "apng";
+            case "application/zip", "application/x-zip-compressed" -> "zip";
+            case "audio/wav", "audio/x-wav" -> "wav";
+            case "audio/ogg" -> "ogg";
+            case "audio/flac" -> "flac";
+            case "audio/aac" -> "aac";
+            case "audio/mp4" -> "m4a";
+            default -> assetKind == AssetKindEnum.AUDIO ? "mp3" : "png";
+        };
     }
 }

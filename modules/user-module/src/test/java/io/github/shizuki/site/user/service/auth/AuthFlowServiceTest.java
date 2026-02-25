@@ -9,6 +9,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.oauth.model.OAuthIdentity;
 import io.github.shizuki.common.oauth.service.OAuthStateService;
+import io.github.shizuki.common.oauth.strategy.AbstractOAuthProviderStrategy.TransientOAuthException;
 import io.github.shizuki.common.oauth.strategy.OAuthProviderStrategy;
 import io.github.shizuki.common.oauth.strategy.OAuthProviderStrategyFactory;
 import io.github.shizuki.site.user.auth.AuthGrantCommand;
@@ -296,6 +297,39 @@ class AuthFlowServiceTest {
 
         Mockito.verify(redisTemplate, Mockito.never()).opsForValue();
         Mockito.verify(authTokenIssuer).issueTokenPair(200L);
+    }
+
+    /**
+     * 场景：OAuth code 交换遇到上游瞬时网络错误。
+     * 期望：返回 OAUTH_PROVIDER_TRANSIENT 且 details 包含 provider_error/cause_type。
+     */
+    @Test
+    void shouldExposeTransientOauthErrorDetailsWhenExchangeFailsByNetwork() {
+        AuthGrantCommand command = new AuthGrantCommand();
+        command.setProvider("github");
+        command.setOauthLoginId("oauth-login-login");
+        command.setCode("oauth-code-1");
+        command.setState("state-1");
+
+        OAuthLoginEntity oauthLogin = buildLoginSceneOauthLogin();
+
+        Mockito.when(oAuthStateService.validateAndConsume("oauth-login-login", "state-1")).thenReturn(true);
+        Mockito.when(oAuthLoginMapper.selectOne(ArgumentMatchers.any())).thenReturn(oauthLogin);
+        Mockito.when(oAuthProviderStrategyFactory.get("github")).thenReturn(oAuthProviderStrategy);
+        Mockito.when(oAuthProviderStrategy.exchangeCode("oauth-code-1", "https://example.com/callback"))
+            .thenThrow(new TransientOAuthException("oauth_network", new RuntimeException("connect timeout")));
+
+        assertThatThrownBy(() -> authFlowService.grantByOAuthCode(command))
+            .isInstanceOf(BusinessException.class)
+            .satisfies(ex -> {
+                BusinessException businessException = (BusinessException) ex;
+                assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_ERROR);
+                assertThat(businessException.getDetails())
+                    .containsEntry("reason", "OAUTH_PROVIDER_TRANSIENT")
+                    .containsEntry("provider", "github")
+                    .containsEntry("provider_error", "oauth_network")
+                    .containsEntry("cause_type", "RuntimeException");
+            });
     }
 
     /**

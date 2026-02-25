@@ -6,8 +6,11 @@
       :title="section.title"
       :summary="section.summary"
       :status-text="section.statusText || ''"
+      :avatar-url="section.avatarUrl || avatarUrl || ''"
+      :avatar-action-label="avatarActionLabel"
       :open="openKey === section.key"
       @toggle="$emit('toggle', section.key)"
+      @avatar-click="$emit('avatar-click', section.key)"
     >
       <slot :name="`section-${section.key}`" :section="section" />
     </ProfileSectionItem>
@@ -25,15 +28,35 @@ defineProps({
   openKey: {
     type: String,
     default: null
+  },
+  avatarUrl: {
+    type: String,
+    default: ''
+  },
+  avatarActionLabel: {
+    type: String,
+    default: '头像操作'
   }
 });
 
-defineEmits(['toggle']);
+defineEmits(['toggle', 'avatar-click']);
 </script>
 
 <style scoped>
 .section-accordion {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  align-items: start;
+}
+
+.section-accordion :deep(.section-item.open) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1060px) {
+  .section-accordion {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

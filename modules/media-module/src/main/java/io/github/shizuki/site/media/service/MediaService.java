@@ -20,7 +20,9 @@ import io.github.shizuki.site.media.dto.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.dto.SpotifyTrackResponse;
 import io.github.shizuki.site.media.dto.UploadPolicyRequest;
 import io.github.shizuki.site.media.dto.UploadPolicyResponse;
+import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface MediaService {
 
@@ -31,6 +33,16 @@ public interface MediaService {
      * @return 直传策略（bucket/key/签名 URL 等）
      */
     UploadPolicyResponse createUploadPolicy(UploadPolicyRequest request);
+
+    /**
+     * 服务端中转上传文件到 OSS。
+     *
+     * @param file 客户端上传文件
+     * @param assetKind 资源类型（STATIC_IMAGE/ANIMATED_IMAGE/LIVE2D_PACKAGE/AUDIO）
+     * @param visibility 可见性（PUBLIC/PRIVATE/GROUP），为空时默认 PRIVATE
+     * @return 中转上传后的对象定位信息
+     */
+    UploadRelayResponse uploadRelay(MultipartFile file, String assetKind, String visibility);
 
     /**
      * 创建资源元数据记录。

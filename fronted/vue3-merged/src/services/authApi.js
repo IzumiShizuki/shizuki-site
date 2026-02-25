@@ -146,6 +146,22 @@ export async function createUploadPolicy(payload, accessToken) {
   return unwrapApiResponse(response);
 }
 
+export async function uploadRelay(file, payload, accessToken) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('asset_kind', String(payload?.assetKind || 'STATIC_IMAGE'));
+  if (payload?.visibility) {
+    formData.append('visibility', String(payload.visibility));
+  }
+  const response = await backendRequest('/api/v1/assets/upload-relay', {
+    method: 'POST',
+    body: formData,
+    auth: true,
+    accessToken
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function createAsset(payload, accessToken) {
   const response = await backendRequest('/api/v1/assets', {
     method: 'POST',

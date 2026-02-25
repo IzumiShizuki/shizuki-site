@@ -29,12 +29,12 @@ describe('profileUiState', () => {
 
   it('keeps state isolated across tabs', () => {
     const state = createProfileAccordionState({
-      [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.NICKNAME,
+      [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.OVERVIEW,
       [ProfileTabKey.ARTICLES]: ProfileSectionKey.ARTICLES.WORKSPACE
     });
     const next = toggleProfileAccordion(state, ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.OAUTH_BIND);
 
-    expect(getTabOpenSection(next, ProfileTabKey.PROFILE)).toBe(ProfileSectionKey.PROFILE.NICKNAME);
+    expect(getTabOpenSection(next, ProfileTabKey.PROFILE)).toBe(ProfileSectionKey.PROFILE.OVERVIEW);
     expect(getTabOpenSection(next, ProfileTabKey.ARTICLES)).toBe(ProfileSectionKey.ARTICLES.WORKSPACE);
     expect(getTabOpenSection(next, ProfileTabKey.ACCOUNT)).toBe(ProfileSectionKey.ACCOUNT.OAUTH_BIND);
   });
@@ -53,7 +53,7 @@ describe('profileUiState', () => {
     ).toBe('邮箱：demo@example.com');
 
     expect(
-      buildSectionSummary(ProfileSectionKey.PROFILE.NICKNAME, {
+      buildSectionSummary(ProfileSectionKey.PROFILE.OVERVIEW, {
         nickname: 'Izumi'
       })
     ).toBe('当前昵称：Izumi');

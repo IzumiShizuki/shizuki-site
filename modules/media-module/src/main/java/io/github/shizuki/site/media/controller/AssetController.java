@@ -10,6 +10,7 @@ import io.github.shizuki.site.media.dto.AssetReportResponse;
 import io.github.shizuki.site.media.dto.PublicHomeRoleResponse;
 import io.github.shizuki.site.media.dto.UploadPolicyRequest;
 import io.github.shizuki.site.media.dto.UploadPolicyResponse;
+import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import io.github.shizuki.site.media.service.MediaService;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -18,13 +19,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/assets")
@@ -66,6 +71,33 @@ public class AssetController {
     })
     public ApiResponse<UploadPolicyResponse> createUploadPolicy(@Valid @RequestBody UploadPolicyRequest request) {
         return ApiResponse.success(mediaService.createUploadPolicy(request));
+    }
+
+    /**
+     * 通过后端中转上传文件到 OSS（用于直传失败兜底）。
+     *
+     * @param file 上传文件
+     * @param assetKind 资源类别枚举字符串
+     * @param visibility 可见性枚举字符串，默认 PRIVATE
+     * @return 中转上传后的对象定位信息
+     */
+    @PostMapping(value = "/upload-relay", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RateLimit(key = "assets.upload-relay", limit = 20, windowSeconds = 60)
+    @AuditLog(action = "asset.upload.relay", resource = "asset")
+    @Operation(summary = "中转上传文件", description = "服务端接收 multipart 文件并写入 OSS，作为直传失败兜底")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "中转上传成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "请求参数错误",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "未登录",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "请求频率超限",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    public ApiResponse<UploadRelayResponse> uploadRelay(@RequestPart("file") MultipartFile file,
+                                                        @RequestParam("asset_kind") String assetKind,
+                                                        @RequestParam(value = "visibility", required = false) String visibility) {
+        return ApiResponse.success(mediaService.uploadRelay(file, assetKind, visibility));
     }
 
     /**

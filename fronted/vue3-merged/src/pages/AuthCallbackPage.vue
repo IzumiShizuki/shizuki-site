@@ -5,13 +5,22 @@
       <h1>授权回调处理中</h1>
       <p>{{ statusText }}</p>
       <p v-if="errorText" class="error-text">{{ errorText }}</p>
+      <button
+        v-if="retryOauthAvailable"
+        class="retry-btn ripple-trigger"
+        type="button"
+        :disabled="retrySubmitting"
+        @click="restartAuthorization"
+      >
+        {{ retrySubmitting ? '处理中...' : retryActionText }}
+      </button>
       <button v-if="errorText" class="back-btn ripple-trigger" type="button" @click="goAuthPage">返回登录页</button>
     </header>
   </section>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 
@@ -21,6 +30,14 @@ const auth = useAuthSession();
 const statusText = ref('正在校验授权信息...');
 const errorText = ref('');
 const hasHandledCallback = ref(false);
+const callbackState = ref('');
+const retryOauthAvailable = ref(false);
+const retrySubmitting = ref(false);
+
+const retryActionText = computed(() => {
+  const pending = auth.peekOAuthPending(callbackState.value);
+  return pending?.scene === 'BIND' ? '重新发起绑定授权' : '重新授权';
+});
 
 function normalizeRedirectPath(path) {
   if (!path || typeof path !== 'string') return '/profile';
@@ -45,6 +62,32 @@ function readErrorMessage(error) {
   return 'OAuth 回调处理失败';
 }
 
+function readErrorField(error, key) {
+  if (!error || typeof error !== 'object') return '';
+  const body = error.body;
+  if (body && typeof body === 'object' && typeof body[key] === 'string') {
+    return body[key];
+  }
+  if (typeof error[key] === 'string') {
+    return error[key];
+  }
+  return '';
+}
+
+function isTransientOAuthError(error) {
+  const problemCode = String(error?.problemCode || '').trim().toUpperCase();
+  if (problemCode === 'TIMEOUT') return true;
+
+  const reason = readErrorField(error, 'reason').trim().toUpperCase();
+  if (reason === 'OAUTH_PROVIDER_TRANSIENT') return true;
+
+  const providerError = readErrorField(error, 'provider_error').trim().toLowerCase();
+  if (providerError === 'oauth_network' || providerError === 'oauth_upstream_5xx') return true;
+
+  const detail = String(error?.detail || error?.message || '').toLowerCase();
+  return detail.includes('temporarily unavailable');
+}
+
 function goAuthPage() {
   const redirect = normalizeRedirectPath(typeof route.query.redirect === 'string' ? route.query.redirect : '/profile');
   router.replace({
@@ -54,6 +97,34 @@ function goAuthPage() {
       redirect
     }
   });
+}
+
+async function restartAuthorization() {
+  if (retrySubmitting.value) return;
+
+  const pending = auth.peekOAuthPending(callbackState.value);
+  if (!pending?.provider) {
+    goAuthPage();
+    return;
+  }
+
+  retrySubmitting.value = true;
+  statusText.value = '正在重新发起 OAuth 授权...';
+  errorText.value = '';
+
+  try {
+    if (pending.scene === 'BIND') {
+      await auth.startOAuthBind(pending.provider, pending.redirect || '/profile?tab=account');
+      return;
+    }
+    await auth.startOAuthLogin(pending.provider, pending.redirect || '/profile');
+  } catch (error) {
+    statusText.value = '重新发起授权失败';
+    errorText.value = readErrorMessage(error);
+    retryOauthAvailable.value = true;
+  } finally {
+    retrySubmitting.value = false;
+  }
 }
 
 function readQueryParamFromLocation(key) {
@@ -92,6 +163,7 @@ onMounted(async () => {
   const state =
     (typeof route.query.state === 'string' ? route.query.state : '') ||
     readQueryParamFromLocation('state');
+  callbackState.value = state;
   const oauthError =
     (typeof route.query.error === 'string' ? route.query.error : '') ||
     readQueryParamFromLocation('error');
@@ -100,6 +172,7 @@ onMounted(async () => {
     readQueryParamFromLocation('error_description');
   if (oauthError && !code) {
     clearOAuthSearchParams();
+    retryOauthAvailable.value = false;
     statusText.value = 'OAuth 提供方拒绝授权';
     errorText.value = oauthErrorDescription
       ? `${oauthError} (${oauthErrorDescription})`
@@ -107,6 +180,7 @@ onMounted(async () => {
     return;
   }
   if (!code || !state) {
+    retryOauthAvailable.value = false;
     if (auth.isAuthenticated.value) {
       const redirect = normalizeRedirectPath(typeof route.query.redirect === 'string' ? route.query.redirect : '/profile');
       await router.replace(redirect);
@@ -119,6 +193,7 @@ onMounted(async () => {
   clearOAuthSearchParams();
 
   try {
+    retryOauthAvailable.value = false;
     statusText.value = '正在向后端换取登录凭据...';
     const result = await auth.handleOAuthCallback({ code, state });
     if (result.resultType === 'BIND_SUCCESS') {
@@ -136,6 +211,15 @@ onMounted(async () => {
     await router.replace(normalizeRedirectPath(result.redirect || '/profile'));
   } catch (error) {
     statusText.value = 'OAuth 登录失败';
+    if (isTransientOAuthError(error)) {
+      retryOauthAvailable.value = Boolean(auth.peekOAuthPending(state)?.oauthLoginId);
+      errorText.value =
+        String(error?.problemCode || '').toUpperCase() === 'TIMEOUT'
+          ? 'OAuth 请求超时，请点击“重新授权”再次发起授权。'
+          : 'OAuth 上游网络波动，请点击“重新授权”再次发起授权。';
+      return;
+    }
+    retryOauthAvailable.value = false;
     errorText.value = readErrorMessage(error);
   }
 });
@@ -185,5 +269,21 @@ h1 {
   padding: 0 12px;
   background: rgba(var(--accent-rgb), 0.28);
   color: rgba(247, 242, 255, 0.95);
+}
+
+.retry-btn {
+  justify-self: start;
+  border: 0;
+  border-radius: 10px;
+  min-width: 160px;
+  height: 36px;
+  padding: 0 12px;
+  background: rgba(122, 250, 210, 0.24);
+  color: rgba(229, 255, 248, 0.95);
+}
+
+.retry-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>

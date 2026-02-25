@@ -23,7 +23,7 @@
               :class="{ active: selectedGroupCode === item.groupCode }"
               @click="$emit('selectGroup', item.groupCode)"
             >
-              <td>{{ item.groupCode }}</td>
+              <td><GroupBadge :group-code="item.groupCode" /></td>
               <td>{{ item.displayName || item.groupCode }}</td>
               <td>{{ item.status || '-' }}</td>
               <td>{{ item.permissions.length }}</td>
@@ -39,7 +39,11 @@
         <h3>权限选择器</h3>
         <p class="helper-text" v-if="!selectedGroupCode">请先在左侧选择一个分组。</p>
         <template v-else>
-          <p class="helper-text">当前分组：{{ selectedGroupCode }}，已选 {{ selectedPermissions.length }} 项</p>
+          <div class="inline-actions">
+            <p class="helper-text">当前分组：</p>
+            <GroupBadge :group-code="selectedGroupCode" />
+            <p class="helper-text">已选 {{ selectedPermissions.length }} 项</p>
+          </div>
 
           <div class="chip-grid">
             <label v-for="code in permissionCatalog" :key="code" class="chip-option">
@@ -82,6 +86,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import GroupBadge from './GroupBadge.vue';
 
 const props = defineProps({
   loading: { type: Boolean, default: false },

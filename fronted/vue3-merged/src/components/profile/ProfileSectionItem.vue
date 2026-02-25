@@ -1,20 +1,32 @@
 <template>
   <article class="section-item liquid-material" :class="{ open }">
-    <button
-      class="section-head ripple-trigger"
-      type="button"
-      :aria-expanded="open ? 'true' : 'false'"
-      @click="$emit('toggle')"
-    >
-      <div class="head-main">
-        <p class="section-title">{{ title }}</p>
-        <p class="section-summary">{{ summary }}</p>
-      </div>
-      <div class="head-meta">
-        <span v-if="statusText" class="status-chip">{{ statusText }}</span>
-        <span class="chevron" :class="{ open }">⌄</span>
-      </div>
-    </button>
+    <div class="section-head">
+      <button
+        v-if="avatarUrl"
+        class="section-avatar-btn ripple-trigger"
+        type="button"
+        :aria-label="avatarActionLabel"
+        @click.stop="$emit('avatar-click')"
+      >
+        <img class="section-avatar" :src="avatarUrl" alt="section-avatar" />
+      </button>
+
+      <button
+        class="head-toggle ripple-trigger"
+        type="button"
+        :aria-expanded="open ? 'true' : 'false'"
+        @click="$emit('toggle')"
+      >
+        <div class="head-main">
+          <p class="section-title">{{ title }}</p>
+          <p class="section-summary">{{ summary }}</p>
+        </div>
+        <div class="head-meta">
+          <span v-if="statusText" class="status-chip">{{ statusText }}</span>
+          <span class="chevron" :class="{ open }">⌄</span>
+        </div>
+      </button>
+    </div>
 
     <transition name="section-body">
       <div v-if="open" class="section-body">
@@ -34,6 +46,14 @@ defineProps({
     type: String,
     default: ''
   },
+  avatarUrl: {
+    type: String,
+    default: ''
+  },
+  avatarActionLabel: {
+    type: String,
+    default: '头像操作'
+  },
   statusText: {
     type: String,
     default: ''
@@ -44,7 +64,7 @@ defineProps({
   }
 });
 
-defineEmits(['toggle']);
+defineEmits(['toggle', 'avatar-click']);
 </script>
 
 <style scoped>
@@ -57,16 +77,51 @@ defineEmits(['toggle']);
 }
 
 .section-head {
-  width: 100%;
-  border: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 14px 16px;
+}
+
+.head-toggle {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
   background: transparent;
+  color: rgba(236, 244, 255, 0.95);
+  text-align: left;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  color: rgba(236, 244, 255, 0.95);
-  text-align: left;
+}
+
+.head-toggle:focus-visible,
+.section-avatar-btn:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.64);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.section-avatar-btn {
+  border: 1px solid rgba(217, 231, 248, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.section-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow:
+    0 8px 16px rgba(5, 8, 15, 0.24),
+    inset 0 0 0 1px rgba(218, 231, 248, 0.3);
 }
 
 .head-main {

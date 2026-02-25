@@ -665,14 +665,16 @@ function openDeleteGroupDialog(group) {
   dangerDelete.submitting = false;
 }
 
-function closeDeleteGroupDialog() {
-  if (dangerDelete.submitting) return;
+function closeDeleteGroupDialog(options = {}) {
+  const force = Boolean(options?.force);
+  if (dangerDelete.submitting && !force) return;
   dangerDelete.visible = false;
   dangerDelete.groupCode = '';
   dangerDelete.groupName = '';
   dangerDelete.privilegeCode = '';
   dangerDelete.confirmText = '';
   dangerDelete.error = '';
+  dangerDelete.submitting = false;
 }
 
 async function confirmDeleteGroup() {
@@ -690,7 +692,7 @@ async function confirmDeleteGroup() {
   try {
     await adminApi.deleteAdminGroup(dangerDelete.groupCode, dangerDelete.privilegeCode, auth.authorizedFetch);
     const deletedCode = dangerDelete.groupCode;
-    closeDeleteGroupDialog();
+    closeDeleteGroupDialog({ force: true });
     setGlobalHint(`分组 ${deletedCode} 已删除并完成级联清理`);
     await Promise.all([reloadUsers(1), refreshGroupRelatedData(1)]);
   } catch (error) {

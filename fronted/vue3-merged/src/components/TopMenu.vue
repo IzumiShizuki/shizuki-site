@@ -86,7 +86,9 @@
           :class="{ 'route-active': isAuthRoute }"
           @click.stop="openAuth"
         >
-          <div class="avatar-box anonymous"></div>
+          <div class="avatar-box anonymous">
+            <i class="fas fa-user"></i>
+          </div>
           <span class="item-label">用户登录</span>
         </div>
 
@@ -96,7 +98,9 @@
           :class="{ 'route-active': isProfileRoute, open: profileMenuOpen }"
           @click.stop="toggleProfileMenu"
         >
-          <div class="avatar-box"></div>
+          <div class="avatar-box">
+            <img class="avatar-image" :src="resolvedAvatarUrl" alt="user-avatar" @error="onAvatarError" />
+          </div>
           <span class="item-label">{{ displayName || '个人页面' }}</span>
 
           <transition name="profile-popover">
@@ -147,6 +151,10 @@ const props = defineProps({
   displayName: {
     type: String,
     default: ''
+  },
+  avatarUrl: {
+    type: String,
+    default: ''
   }
 });
 
@@ -162,10 +170,11 @@ const emit = defineEmits([
   'logout'
 ]);
 const route = useRoute();
-const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName } = toRefs(props);
+const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl } = toRefs(props);
 const menuRootRef = ref(null);
 const authorMenuOpen = ref(false);
 const profileMenuOpen = ref(false);
+const avatarLoadFailed = ref(false);
 
 const mainNavItems = computed(() => {
   const base = [
@@ -211,8 +220,20 @@ const activeMainRouteIndex = computed(() => {
   return idx < 0 ? 0 : idx;
 });
 
+const resolvedAvatarUrl = computed(() => {
+  const source = String(avatarUrl.value || '').trim();
+  if (!source || avatarLoadFailed.value) {
+    return '/images/katanegai.jpg';
+  }
+  return source;
+});
+
 function toggleSwitch() {
   emit('toggle-menu');
+}
+
+function onAvatarError() {
+  avatarLoadFailed.value = true;
 }
 
 function toggleAiChat() {
@@ -280,6 +301,13 @@ function onGlobalPointerDown(event) {
   if (root.contains(target)) return;
   closeProfileMenus();
 }
+
+watch(
+  () => avatarUrl.value,
+  () => {
+    avatarLoadFailed.value = false;
+  }
+);
 
 watch(
   () => route.fullPath,
@@ -626,16 +654,27 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background-image: url('https://picsum.photos/id/64/200/200');
-  background-size: cover;
-  background-position: center;
-  border: 2px solid #fff;
+  border: 2px solid rgba(255, 255, 255, 0.92);
   position: relative;
+  overflow: hidden;
+  background: rgba(10, 16, 25, 0.64);
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .avatar-box.anonymous {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   filter: saturate(0.72);
   border-color: rgba(255, 255, 255, 0.82);
+  color: rgba(234, 242, 255, 0.9);
+  font-size: 16px;
 }
 
 .avatar-box.anonymous::after {

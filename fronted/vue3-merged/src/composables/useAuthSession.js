@@ -200,6 +200,17 @@ function removeOAuthPending(state) {
   writeOAuthPendingAll({ states: cleaned });
 }
 
+function peekOAuthPending(state) {
+  const normalizedState = String(state || '');
+  if (!normalizedState) return null;
+  const pending = readOAuthPending(normalizedState);
+  if (!pending || typeof pending !== 'object') return null;
+  return {
+    ...pending,
+    scene: normalizeOAuthScene(pending.scene)
+  };
+}
+
 function redirectToAuth(reason, redirectPath) {
   if (typeof window === 'undefined') return;
   const current = currentRouteFromHash();
@@ -622,28 +633,59 @@ function createAuthSession() {
       },
       token
     );
-    if (!policy?.uploadUrl || !policy?.bucket || !policy?.key) {
+    const uploadUrl = String(policy?.uploadUrl || policy?.upload_url || '').trim();
+    const policyBucket = String(policy?.bucket || '').trim();
+    const policyKey = String(policy?.key || '').trim();
+    if (!uploadUrl || !policyBucket || !policyKey) {
       throw new Error('Upload policy is invalid');
     }
+    let relayUsed = false;
+    let bucket = policyBucket;
+    let key = policyKey;
+    let uploadContentType = contentType;
 
-    const uploadResponse = await fetch(policy.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': contentType
-      },
-      body: file
-    });
-    if (!uploadResponse.ok) {
-      throw new Error(`Avatar upload failed (${uploadResponse.status})`);
+    try {
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': contentType
+        },
+        body: file
+      });
+      if (!uploadResponse.ok) {
+        throw new Error(`Avatar direct upload failed (${uploadResponse.status})`);
+      }
+    } catch (directError) {
+      try {
+        const relayPayload = await authApi.uploadRelay(
+          file,
+          {
+            assetKind: 'STATIC_IMAGE',
+            visibility: 'PUBLIC'
+          },
+          token
+        );
+        bucket = String(relayPayload?.bucket || '').trim();
+        key = String(relayPayload?.key || '').trim();
+        uploadContentType = String(relayPayload?.contentType || relayPayload?.content_type || contentType).trim() || contentType;
+        if (!bucket || !key) {
+          throw new Error('Avatar relay upload result invalid');
+        }
+        relayUsed = true;
+      } catch (relayError) {
+        const directMessage = directError instanceof Error ? directError.message : 'direct upload failed';
+        const relayMessage = relayError instanceof Error ? relayError.message : 'relay upload failed';
+        throw new Error(`Avatar upload failed: ${directMessage}; relay failed: ${relayMessage}`);
+      }
     }
 
     const created = await authApi.createAsset(
       {
-        bucket: policy.bucket,
-        key: policy.key,
+        bucket,
+        key,
         assetType: 'image',
         assetKind: 'STATIC_IMAGE',
-        contentType,
+        contentType: uploadContentType,
         visibility: 'PUBLIC',
         metadata: {
           usage: 'avatar'
@@ -666,7 +708,10 @@ function createAuthSession() {
 
     await authApi.updateMeProfile({ avatarUrl }, token);
     await refreshUserProfile();
-    return avatarUrl;
+    return {
+      avatarUrl,
+      relayUsed
+    };
   }
 
   async function authorizedFetch(path, options = {}) {
@@ -733,6 +778,7 @@ function createAuthSession() {
     startOAuthAuthorization,
     startOAuthLogin,
     startOAuthBind,
+    peekOAuthPending,
     handleOAuthCallback,
     confirmConflictBinding,
     logout,

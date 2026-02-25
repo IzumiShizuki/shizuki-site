@@ -4,6 +4,10 @@ function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]';
 }
 
+function isFormData(value) {
+  return typeof FormData !== 'undefined' && value instanceof FormData;
+}
+
 function toSnakeKey(key) {
   if (typeof key !== 'string') return key;
   return key
@@ -119,11 +123,15 @@ export async function httpRequest(path, options = {}) {
   };
 
   if (options.body !== undefined) {
-    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-    const normalizedBody = headers['Content-Type'].includes('application/json')
-      ? JSON.stringify(toSnakeCaseDeep(options.body))
-      : options.body;
-    fetchOptions.body = normalizedBody;
+    if (isFormData(options.body)) {
+      fetchOptions.body = options.body;
+    } else {
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      const normalizedBody = headers['Content-Type'].includes('application/json')
+        ? JSON.stringify(toSnakeCaseDeep(options.body))
+        : options.body;
+      fetchOptions.body = normalizedBody;
+    }
   }
 
   let response;

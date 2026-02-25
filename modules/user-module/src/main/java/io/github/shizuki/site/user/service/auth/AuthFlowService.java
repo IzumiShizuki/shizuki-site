@@ -252,15 +252,16 @@ public class AuthFlowService {
         } catch (TransientOAuthException ex) {
             markOauthLoginFailure(oauthLogin, ex.getMessage());
             LOGGER.warn(
-                "OAUTH_EXCHANGE_PROVIDER_TRANSIENT provider={} oauth_login_id={} provider_error={}",
+                "OAUTH_EXCHANGE_PROVIDER_TRANSIENT provider={} oauth_login_id={} provider_error={} cause_type={}",
                 provider,
                 command.getOauthLoginId(),
-                valueOrDash(ex.getMessage())
+                valueOrDash(ex.getMessage()),
+                resolveCauseType(ex)
             );
             throw new BusinessException(
                 ErrorCode.INTERNAL_ERROR,
                 "OAuth provider temporarily unavailable",
-                Map.of("reason", "OAUTH_PROVIDER_TRANSIENT", "provider", provider)
+                buildTransientOauthDetails(provider, ex)
             );
         } catch (BusinessException ex) {
             markOauthLoginFailure(oauthLogin, ex.getMessage());
@@ -391,7 +392,7 @@ public class AuthFlowService {
             throw new BusinessException(
                 ErrorCode.INTERNAL_ERROR,
                 "OAuth provider temporarily unavailable",
-                Map.of("reason", "OAUTH_PROVIDER_TRANSIENT", "provider", provider)
+                buildTransientOauthDetails(provider, ex)
             );
         }
 
@@ -1078,6 +1079,26 @@ public class AuthFlowService {
 
     private String valueOrDash(String raw) {
         return raw == null || raw.isBlank() ? "-" : raw;
+    }
+
+    private String resolveCauseType(Throwable throwable) {
+        if (throwable == null) {
+            return "-";
+        }
+        Throwable cause = throwable.getCause();
+        if (cause != null) {
+            return cause.getClass().getSimpleName();
+        }
+        return throwable.getClass().getSimpleName();
+    }
+
+    private Map<String, Object> buildTransientOauthDetails(String provider, TransientOAuthException ex) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("reason", "OAUTH_PROVIDER_TRANSIENT");
+        details.put("provider", valueOrDash(provider));
+        details.put("provider_error", valueOrDash(ex.getMessage()));
+        details.put("cause_type", resolveCauseType(ex));
+        return details;
     }
 
     /**

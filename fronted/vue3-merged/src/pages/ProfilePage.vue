@@ -18,36 +18,70 @@
       <section class="profile-main liquid-material">
         <ProfileHeroCard
           :avatar-url="avatarPreview"
-          :avatar-action-label="activeTab === ProfileTabKey.ACCOUNT ? '打开头像操作' : '查看头像'"
+          avatar-action-label="查看或修改头像"
           :eyebrow="heroEyebrow"
           :title="heroTitle"
           :subtitle="heroSubtitle"
           :user-id-text="userIdText"
           :groups-text="groupsText"
           :chips="heroChips"
-          @avatar-click="handleHeroAvatarClick"
+          @avatar-click="openAvatarActions"
         />
 
         <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
         <p v-if="activeTab === ProfileTabKey.ACCOUNT && accountLoading" class="state-tip">正在同步账号数据...</p>
 
-        <ProfileSectionAccordion :sections="activeSections" :open-key="openSectionKey" @toggle="toggleActiveSection">
-          <template #section-nickname>
-            <form class="stack-form" @submit.prevent="saveNickname">
-              <label class="field-label" for="nickname-input">昵称</label>
-              <div class="inline-actions">
-                <input id="nickname-input" v-model.trim="profileForm.nickname" class="field-input grow" type="text" maxlength="128" required />
-                <button class="primary-btn ripple-trigger" type="submit" :disabled="profileSubmitting">
-                  {{ profileSubmitting ? '保存中...' : '保存昵称' }}
-                </button>
-              </div>
-            </form>
-            <p v-if="profileError" class="error-text">{{ profileError }}</p>
+        <ProfileSectionAccordion
+          :sections="activeSections"
+          :open-key="openSectionKey"
+          :avatar-url="avatarPreview"
+          avatar-action-label="查看或修改头像"
+          @toggle="toggleActiveSection"
+          @avatar-click="handleSectionAvatarClick"
+        >
+          <template #section-overview>
+            <div class="overview-grid">
+              <article v-for="card in profileOverviewCards" :key="card.key" class="overview-card">
+                <p class="overview-label">{{ card.label }}</p>
+                <p class="overview-value">{{ card.value }}</p>
+                <p class="overview-hint">{{ card.hint }}</p>
+              </article>
+            </div>
           </template>
 
-          <template #section-session>
-            <p class="helper-text">你可以在这里快速退出当前会话。</p>
-            <button class="danger-btn ripple-trigger" type="button" @click="handleLogout">安全退出</button>
+          <template #section-quick-actions>
+            <div class="quick-grid">
+              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.AVATAR)">
+                修改头像
+              </button>
+              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.ACCOUNT_INFO)">
+                查看账号信息
+              </button>
+              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.EMAIL_BIND)">
+                绑定邮箱
+              </button>
+              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.OAUTH_BIND)">
+                绑定 GitHub / LinuxDo
+              </button>
+              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
+                修改密码
+              </button>
+              <button class="quick-btn ripple-trigger" type="button" @click="openSettingsAppearance">
+                外观设置
+              </button>
+            </div>
+          </template>
+
+          <template #section-recent>
+            <div class="recent-grid">
+              <div v-for="row in profileRecentRows" :key="row.key" class="recent-item">
+                <span class="recent-label">{{ row.label }}</span>
+                <span class="recent-value">{{ row.value }}</span>
+              </div>
+            </div>
+            <div class="inline-actions compact">
+              <button class="danger-btn ripple-trigger" type="button" @click="handleLogout">安全退出</button>
+            </div>
           </template>
 
           <template #section-avatar>
@@ -56,10 +90,10 @@
               <div class="avatar-controls">
                 <div class="inline-actions">
                   <button class="ghost-btn ripple-trigger" type="button" @click="openAvatarActions">头像操作</button>
-                  <button class="ghost-btn ripple-trigger" type="button" @click="triggerAvatarFilePicker">重新选择图片</button>
+                  <button class="ghost-btn ripple-trigger" type="button" @click="triggerAvatarFilePicker">选择新图片</button>
                 </div>
                 <p v-if="selectedAvatarFile" class="helper-text">
-                  已选择：{{ selectedAvatarFile.name }}（{{ selectedAvatarFile.type || 'unknown' }}）
+                  已裁剪待上传：{{ selectedAvatarFile.name }}（{{ selectedAvatarFile.type || 'unknown' }}）
                 </p>
                 <button
                   class="primary-btn ripple-trigger"
@@ -69,7 +103,7 @@
                 >
                   {{ avatarUploading ? '上传中...' : '上传到 OSS' }}
                 </button>
-                <p class="helper-text">支持 png/jpeg/webp，最大 2MB。</p>
+                <p class="helper-text">支持 png/jpeg/webp。选择后先裁剪为圆形预览，最终上传 512x512 PNG。</p>
               </div>
             </div>
             <p v-if="avatarError" class="error-text">{{ avatarError }}</p>
@@ -81,6 +115,10 @@
                 <tr>
                   <th>用户名</th>
                   <td>{{ account.username || '-' }}</td>
+                </tr>
+                <tr>
+                  <th>昵称</th>
+                  <td>{{ account.nickname || '-' }}</td>
                 </tr>
                 <tr>
                   <th>邮箱</th>
@@ -264,6 +302,15 @@
       @close="avatarPreviewVisible = false"
     />
 
+    <ProfileAvatarCropDialog
+      :visible="avatarCropVisible"
+      :source-url="avatarCropSourceUrl"
+      :source-name="avatarCropSourceName"
+      :submitting="avatarUploading"
+      @close="closeAvatarCropDialog"
+      @confirm="handleAvatarCropConfirm"
+    />
+
     <input
       ref="avatarFileInput"
       class="hidden-file-input"
@@ -280,6 +327,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ProfileAvatarActionSheet from '../components/profile/ProfileAvatarActionSheet.vue';
+import ProfileAvatarCropDialog from '../components/profile/ProfileAvatarCropDialog.vue';
 import ProfileAvatarPreviewDialog from '../components/profile/ProfileAvatarPreviewDialog.vue';
 import ProfileHeroCard from '../components/profile/ProfileHeroCard.vue';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
@@ -302,14 +350,13 @@ const settingsVisible = ref(false);
 const avatarFileInput = ref(null);
 
 const tabs = [
-  { key: ProfileTabKey.PROFILE, label: '个人', caption: '资料与会话' },
+  { key: ProfileTabKey.PROFILE, label: '个人', caption: '概览与快捷入口' },
   { key: ProfileTabKey.ACCOUNT, label: '账号', caption: '绑定与安全' },
   { key: ProfileTabKey.ARTICLES, label: '文章', caption: '创作工作台' },
   { key: ProfileTabKey.SETTINGS, label: '设置', caption: '外观与偏好' }
 ];
 
 const accountLoading = ref(false);
-const profileSubmitting = ref(false);
 const bindEmailSubmitting = ref(false);
 const changePasswordSubmitting = ref(false);
 const oauthBindingSubmitting = ref(false);
@@ -321,11 +368,15 @@ const changePwdCodeSubmitting = ref(false);
 const bindCodeCooldownSec = ref(0);
 const changePwdCodeCooldownSec = ref(0);
 const selectedAvatarFile = ref(null);
+const selectedAvatarPreviewUrl = ref('');
+
 const avatarActionVisible = ref(false);
 const avatarPreviewVisible = ref(false);
+const avatarCropVisible = ref(false);
+const avatarCropSourceUrl = ref('');
+const avatarCropSourceName = ref('avatar.png');
 
 const globalHint = ref('');
-const profileError = ref('');
 const bindEmailError = ref('');
 const changePasswordError = ref('');
 const oauthBindingError = ref('');
@@ -402,7 +453,6 @@ function readErrorMessage(error) {
 }
 
 function clearErrors() {
-  profileError.value = '';
   bindEmailError.value = '';
   changePasswordError.value = '';
   oauthBindingError.value = '';
@@ -519,6 +569,7 @@ async function refreshCaptcha() {
 }
 
 async function loadAccountProfile() {
+  if (!auth.isAuthenticated.value) return;
   accountLoading.value = true;
   clearErrors();
   try {
@@ -539,24 +590,6 @@ async function loadAccountProfile() {
     setGlobalHint(readErrorMessage(error));
   } finally {
     accountLoading.value = false;
-  }
-}
-
-async function saveNickname() {
-  profileError.value = '';
-  profileSubmitting.value = true;
-  try {
-    const payload = normalizeAccountView(
-      await auth.updateProfile({
-        nickname: profileForm.nickname
-      })
-    );
-    account.nickname = payload.nickname;
-    setGlobalHint('昵称已更新');
-  } catch (error) {
-    profileError.value = readErrorMessage(error);
-  } finally {
-    profileSubmitting.value = false;
   }
 }
 
@@ -673,12 +706,67 @@ async function submitChangePassword() {
   }
 }
 
+function resetAvatarCropSource() {
+  if (avatarCropSourceUrl.value && avatarCropSourceUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(avatarCropSourceUrl.value);
+  }
+  avatarCropSourceUrl.value = '';
+  avatarCropSourceName.value = 'avatar.png';
+}
+
+function closeAvatarCropDialog() {
+  avatarCropVisible.value = false;
+  resetAvatarCropSource();
+}
+
 function onAvatarFileChange(event) {
+  avatarError.value = '';
   const file = event?.target?.files?.[0];
-  selectedAvatarFile.value = file || null;
-  if (file) {
-    forceOpenSection(ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.AVATAR);
-    router.replace({ path: '/profile', query: { tab: ProfileTabKey.ACCOUNT } });
+  if (avatarFileInput.value) {
+    avatarFileInput.value.value = '';
+  }
+  if (!file) return;
+
+  const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+  const contentType = String(file.type || '').toLowerCase();
+  if (!allowedTypes.has(contentType)) {
+    avatarError.value = '头像文件仅支持 png/jpeg/webp';
+    return;
+  }
+
+  if (Number(file.size || 0) > 8 * 1024 * 1024) {
+    avatarError.value = '原始图片不能超过 8MB';
+    return;
+  }
+
+  resetAvatarCropSource();
+  avatarCropSourceUrl.value = URL.createObjectURL(file);
+  avatarCropSourceName.value = String(file.name || 'avatar.png');
+  avatarCropVisible.value = true;
+}
+
+async function handleAvatarCropConfirm(payload) {
+  avatarError.value = '';
+  try {
+    const blob = payload?.blob;
+    if (!blob) {
+      throw new Error('裁剪结果不可用');
+    }
+
+    const file = new File([blob], `avatar-${Date.now()}.png`, {
+      type: 'image/png'
+    });
+    if (file.size > 2 * 1024 * 1024) {
+      throw new Error('裁剪后图片超过 2MB，请缩小裁剪区域后重试');
+    }
+
+    selectedAvatarFile.value = file;
+    selectedAvatarPreviewUrl.value = String(payload?.previewUrl || '').trim();
+    closeAvatarCropDialog();
+    await openAccountSection(ProfileSectionKey.ACCOUNT.AVATAR);
+    setGlobalHint('头像已裁剪，点击“上传到 OSS”即可生效');
+  } catch (error) {
+    avatarError.value = readErrorMessage(error);
   }
 }
 
@@ -690,13 +778,16 @@ async function submitAvatarUpload() {
   }
   avatarUploading.value = true;
   try {
-    const avatarUrl = await auth.uploadAvatar(selectedAvatarFile.value);
+    const uploadResult = await auth.uploadAvatar(selectedAvatarFile.value);
+    const avatarUrl = String(uploadResult?.avatarUrl || uploadResult || '').trim();
     account.avatarUrl = avatarUrl;
     selectedAvatarFile.value = null;
-    if (avatarFileInput.value) {
-      avatarFileInput.value.value = '';
+    selectedAvatarPreviewUrl.value = '';
+    if (uploadResult?.relayUsed) {
+      setGlobalHint('直传失败，已自动切换中转上传并更新头像');
+    } else {
+      setGlobalHint('头像上传成功');
     }
-    setGlobalHint('头像上传成功');
   } catch (error) {
     avatarError.value = readErrorMessage(error);
   } finally {
@@ -721,19 +812,34 @@ function openAvatarPreview() {
 
 async function handleAvatarEdit() {
   avatarActionVisible.value = false;
-  if (activeTab.value !== ProfileTabKey.ACCOUNT) {
-    await router.replace({ path: '/profile', query: { tab: ProfileTabKey.ACCOUNT } });
-  }
-  forceOpenSection(ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.AVATAR);
+  await openAccountSection(ProfileSectionKey.ACCOUNT.AVATAR);
   triggerAvatarFilePicker();
 }
 
-function handleHeroAvatarClick() {
-  if (activeTab.value === ProfileTabKey.ACCOUNT) {
-    openAvatarActions();
-    return;
+function handleSectionAvatarClick() {
+  openAvatarActions();
+}
+
+async function openAccountSection(sectionKey) {
+  if (activeTab.value !== ProfileTabKey.ACCOUNT) {
+    await router.replace({ path: '/profile', query: { tab: ProfileTabKey.ACCOUNT } });
   }
-  avatarPreviewVisible.value = true;
+  forceOpenSection(ProfileTabKey.ACCOUNT, sectionKey);
+  if (
+    sectionKey === ProfileSectionKey.ACCOUNT.EMAIL_BIND ||
+    sectionKey === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD
+  ) {
+    if (!captcha.captchaId) {
+      await refreshCaptcha();
+    }
+  }
+}
+
+async function openSettingsAppearance() {
+  if (activeTab.value !== ProfileTabKey.SETTINGS) {
+    await router.replace({ path: '/profile', query: { tab: ProfileTabKey.SETTINGS } });
+  }
+  forceOpenSection(ProfileTabKey.SETTINGS, ProfileSectionKey.SETTINGS.APPEARANCE);
 }
 
 async function handleLogout() {
@@ -770,8 +876,20 @@ const groupsText = computed(() => {
   return groups.length ? groups.join(' / ') : '未分组';
 });
 const avatarPreview = computed(() => {
+  if (selectedAvatarPreviewUrl.value) return selectedAvatarPreviewUrl.value;
   return account.avatarUrl || auth.user.value?.avatarUrl || '/images/katanegai.jpg';
 });
+
+const groupCount = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.length;
+});
+
+const permissionCount = computed(() => {
+  const permissions = Array.isArray(auth.user.value?.permissions) ? auth.user.value.permissions : [];
+  return permissions.length;
+});
+
 const oauthBindingCount = computed(() => account.oauthBindings.length);
 
 const bindCodeLocked = computed(() => bindCodeSubmitting.value || bindCodeCooldownSec.value > 0);
@@ -791,7 +909,7 @@ const heroEyebrow = computed(() => {
   if (activeTab.value === ProfileTabKey.ACCOUNT) return 'Account Security';
   if (activeTab.value === ProfileTabKey.ARTICLES) return 'Content Workspace';
   if (activeTab.value === ProfileTabKey.SETTINGS) return 'Appearance';
-  return 'User Center';
+  return 'Profile Overview';
 });
 
 const heroTitle = computed(() => {
@@ -802,10 +920,10 @@ const heroTitle = computed(() => {
 });
 
 const heroSubtitle = computed(() => {
-  if (activeTab.value === ProfileTabKey.ACCOUNT) return '绑定方式、邮箱验证与密码变更都集中在这里。';
-  if (activeTab.value === ProfileTabKey.ARTICLES) return '先保留高质量结构入口，后续接入实际文章数据。';
-  if (activeTab.value === ProfileTabKey.SETTINGS) return '把高频设置放前面，减少无关信息干扰。';
-  return '个人信息默认保持简洁，按需展开查看细节。';
+  if (activeTab.value === ProfileTabKey.ACCOUNT) return '账号与绑定集中管理，默认折叠，按需展开。';
+  if (activeTab.value === ProfileTabKey.ARTICLES) return '先保留高质量结构入口，后续接入真实文章数据。';
+  if (activeTab.value === ProfileTabKey.SETTINGS) return '保持轻量设置层次，把常用操作放前面。';
+  return '个人页展示核心状态与常用入口，减少无关信息占屏。';
 });
 
 const heroChips = computed(() => {
@@ -823,22 +941,78 @@ const heroChips = computed(() => {
   if (activeTab.value === ProfileTabKey.SETTINGS) {
     return ['主题面板', '实验偏好'];
   }
-  return [groupsText.value, `权限 ${Array.isArray(auth.user.value?.permissions) ? auth.user.value.permissions.length : 0}`];
+  return [groupsText.value, `权限 ${permissionCount.value}`];
 });
+
+const profileOverviewCards = computed(() => [
+  {
+    key: 'blog-count',
+    label: '博客数量',
+    value: '0',
+    hint: '统计接口预留中'
+  },
+  {
+    key: 'draft-count',
+    label: '草稿箱',
+    value: '0',
+    hint: '内容模块接入后同步'
+  },
+  {
+    key: 'group-count',
+    label: '分组数量',
+    value: String(groupCount.value),
+    hint: '实时读取当前登录态'
+  },
+  {
+    key: 'oauth-count',
+    label: 'OAuth 绑定',
+    value: String(oauthBindingCount.value),
+    hint: 'GitHub / LinuxDo'
+  }
+]);
+
+const profileRecentRows = computed(() => [
+  {
+    key: 'email',
+    label: '邮箱状态',
+    value: account.email ? (account.emailVerified ? '已绑定且已验证' : '已绑定未验证') : '未绑定'
+  },
+  {
+    key: 'password',
+    label: '密码状态',
+    value: account.hasPassword ? '已设置' : '未设置'
+  },
+  {
+    key: 'oauth',
+    label: 'OAuth 绑定',
+    value: `${oauthBindingCount.value} 个平台`
+  },
+  {
+    key: 'permissions',
+    label: '权限数量',
+    value: `${permissionCount.value}`
+  }
+]);
 
 const profileSections = computed(() => [
   {
-    key: ProfileSectionKey.PROFILE.NICKNAME,
-    title: '昵称资料',
-    summary: buildSectionSummary(ProfileSectionKey.PROFILE.NICKNAME, {
+    key: ProfileSectionKey.PROFILE.OVERVIEW,
+    title: '概览面板',
+    summary: buildSectionSummary(ProfileSectionKey.PROFILE.OVERVIEW, {
       nickname: profileForm.nickname || displayName.value
     }),
-    statusText: profileForm.nickname ? '已填写' : '待设置'
+    statusText: '概览'
   },
   {
-    key: ProfileSectionKey.PROFILE.SESSION,
-    title: '会话管理',
-    summary: buildSectionSummary(ProfileSectionKey.PROFILE.SESSION),
+    key: ProfileSectionKey.PROFILE.QUICK_ACTIONS,
+    title: '快捷入口',
+    summary: buildSectionSummary(ProfileSectionKey.PROFILE.QUICK_ACTIONS),
+    statusText: '常用'
+  },
+  {
+    key: ProfileSectionKey.PROFILE.RECENT,
+    title: '最近状态',
+    summary: buildSectionSummary(ProfileSectionKey.PROFILE.RECENT),
     statusText: '在线'
   }
 ]);
@@ -943,8 +1117,7 @@ watch(
         await refreshCaptcha();
       }
     }
-  },
-  { immediate: true }
+  }
 );
 
 onMounted(async () => {
@@ -957,6 +1130,14 @@ onMounted(async () => {
         redirect: normalizeRedirectPath('/profile')
       }
     });
+    return;
+  }
+
+  if (activeTab.value === ProfileTabKey.ACCOUNT) {
+    await loadAccountProfile();
+    if (!captcha.captchaId) {
+      await refreshCaptcha();
+    }
   }
 });
 
@@ -969,6 +1150,7 @@ onBeforeUnmount(() => {
     window.clearInterval(changePwdCooldownTimer);
     changePwdCooldownTimer = 0;
   }
+  resetAvatarCropSource();
 });
 </script>
 
@@ -996,8 +1178,8 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
 }
 
 .profile-tabs {
@@ -1014,7 +1196,7 @@ onBeforeUnmount(() => {
 .tab-btn {
   border: 0;
   border-radius: 12px;
-  min-height: 54px;
+  min-height: 56px;
   padding: 8px 12px;
   display: grid;
   gap: 2px;
@@ -1057,6 +1239,85 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-card {
+  border-radius: 12px;
+  background: rgba(9, 16, 25, 0.44);
+  box-shadow: inset 0 0 0 1px rgba(176, 198, 228, 0.22);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.overview-label {
+  font-size: 12px;
+  color: rgba(200, 217, 241, 0.88);
+}
+
+.overview-value {
+  font-size: 22px;
+  font-weight: 650;
+  color: rgba(242, 247, 255, 0.95);
+}
+
+.overview-hint {
+  font-size: 11px;
+  color: rgba(193, 214, 242, 0.86);
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quick-btn {
+  border: 0;
+  border-radius: 12px;
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: rgba(240, 246, 255, 0.95);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(201, 220, 246, 0.2);
+}
+
+.quick-btn:hover {
+  background: rgba(var(--accent-rgb), 0.26);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.36);
+}
+
+.recent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recent-item {
+  border-radius: 10px;
+  background: rgba(10, 16, 25, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(176, 198, 228, 0.2);
+  padding: 8px 10px;
+  display: grid;
+  gap: 3px;
+}
+
+.recent-label {
+  font-size: 11px;
+  color: rgba(198, 216, 240, 0.86);
+}
+
+.recent-value {
+  font-size: 13px;
+  color: rgba(237, 245, 255, 0.95);
+  font-weight: 600;
+}
+
 .stack-form {
   display: grid;
   gap: 8px;
@@ -1086,6 +1347,7 @@ select.field-input {
 }
 
 .inline-actions.compact {
+  margin-top: 8px;
   gap: 6px;
 }
 
@@ -1165,17 +1427,19 @@ select.field-input {
 
 .avatar-workbench {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
+  grid-template-columns: 128px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
 
 .avatar-image {
-  width: 108px;
-  height: 108px;
-  border-radius: 18px;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
   object-fit: cover;
-  box-shadow: inset 0 0 0 1px rgba(171, 194, 226, 0.3);
+  box-shadow:
+    0 10px 20px rgba(4, 7, 12, 0.24),
+    inset 0 0 0 1px rgba(171, 194, 226, 0.3);
   background: rgba(9, 14, 21, 0.55);
 }
 
@@ -1228,7 +1492,7 @@ select.field-input {
   pointer-events: none;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1060px) {
   .profile-shell {
     grid-template-columns: 1fr;
   }
@@ -1246,11 +1510,21 @@ select.field-input {
   .tab-caption {
     display: none;
   }
+
+  .quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
   .profile-main {
     padding: 10px;
+  }
+
+  .overview-grid,
+  .recent-grid,
+  .quick-grid {
+    grid-template-columns: 1fr;
   }
 
   .avatar-workbench {

@@ -23,6 +23,7 @@
         :is-authenticated="auth.isAuthenticated.value"
         :is-admin="isAdminUser"
         :display-name="authDisplayName"
+        :avatar-url="authAvatarUrl"
         @toggle-menu="toggleMenu"
         @toggle-ai-chat="toggleAiChat"
         @select-main-route="handleMainRouteSelect"
@@ -260,6 +261,7 @@ const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] ||
 const isHomeRoute = computed(() => currentRouteKey.value === 'home');
 const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
 const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
+const authAvatarUrl = computed(() => String(auth.user.value?.avatarUrl || '').trim());
 const isAdminUser = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
   return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');

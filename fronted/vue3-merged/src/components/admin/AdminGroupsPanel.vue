@@ -45,7 +45,9 @@
               :class="{ active: selectedGroupCode === item.groupCode }"
               @click="$emit('selectGroup', item)"
             >
-              <td>{{ item.groupCode }}</td>
+              <td>
+                <GroupBadge :group-code="item.groupCode" />
+              </td>
               <td>{{ item.displayName || item.groupCode }}</td>
               <td>{{ item.status }}</td>
               <td>{{ item.builtIn ? '是' : '否' }}</td>
@@ -64,6 +66,9 @@
         <h3>分组编辑</h3>
         <p class="helper-text" v-if="!selectedGroup">请先在左侧选择一个分组。</p>
         <template v-else>
+          <div class="selected-group-line">
+            <GroupBadge :group-code="selectedGroup.groupCode" :label="selectedGroup.displayName || selectedGroup.groupCode" />
+          </div>
           <label class="field-label" for="edit-display-name">组名</label>
           <input id="edit-display-name" v-model.trim="editForm.displayName" class="field-input" type="text" maxlength="64" />
 
@@ -128,6 +133,7 @@
 
 <script setup>
 import { reactive, ref, watch } from 'vue';
+import GroupBadge from './GroupBadge.vue';
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
@@ -311,6 +317,11 @@ function submitUpdate() {
   display: grid;
   gap: 8px;
   align-content: start;
+}
+
+.selected-group-line {
+  display: flex;
+  align-items: center;
 }
 
 .primary-btn,

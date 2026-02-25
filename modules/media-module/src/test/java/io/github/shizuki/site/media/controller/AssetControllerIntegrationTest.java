@@ -9,6 +9,7 @@ import io.github.shizuki.site.media.dto.AssetReportResponse;
 import io.github.shizuki.site.media.dto.PublicHomeRoleResponse;
 import io.github.shizuki.site.media.dto.UploadPolicyRequest;
 import io.github.shizuki.site.media.dto.UploadPolicyResponse;
+import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import io.github.shizuki.site.media.service.MediaService;
 import io.github.shizuki.site.media.support.ApiErrorAssertions;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
@@ -97,6 +99,55 @@ class AssetControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.asset_id").value(1001))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("CREATED"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.asset_kind").value("STATIC_IMAGE"));
+    }
+
+    @Test
+    void shouldUploadRelaySuccessfully() throws Exception {
+        Mockito.when(mediaService.uploadRelay(
+                ArgumentMatchers.any(),
+                ArgumentMatchers.eq("STATIC_IMAGE"),
+                ArgumentMatchers.eq("PUBLIC")
+            ))
+            .thenReturn(new UploadRelayResponse(
+                "shizuki-public",
+                "assets/user-3/avatar.png",
+                "image/png",
+                "STATIC_IMAGE",
+                "RELAY_OSS"
+            ));
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "avatar.png",
+            "image/png",
+            new byte[] {1, 2, 3}
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/assets/upload-relay")
+                .file(file)
+                .param("asset_kind", "STATIC_IMAGE")
+                .param("visibility", "PUBLIC")
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.bucket").value("shizuki-public"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.asset_kind").value("STATIC_IMAGE"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.upload_strategy").value("RELAY_OSS"));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenRelayAssetKindMissing() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "avatar.png",
+            "image/png",
+            new byte[] {1, 2, 3}
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/assets/upload-relay")
+                .file(file)
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+            .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
     }
 
     @Test

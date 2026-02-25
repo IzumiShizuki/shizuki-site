@@ -59,6 +59,10 @@ public class MediaStorageProperties {
      */
     private boolean enableSecurityScanHook = false;
     /**
+     * 是否在启动时校验 OSS bucket 存在性。
+     */
+    private boolean validateBucketsOnStartup = true;
+    /**
      * 上传 MIME 白名单。
      */
     private Set<String> allowedContentTypes = new HashSet<>();
@@ -157,5 +161,13 @@ public class MediaStorageProperties {
 
     public void setEnableSecurityScanHook(boolean enableSecurityScanHook) {
         this.enableSecurityScanHook = enableSecurityScanHook;
+    }
+
+    public boolean isValidateBucketsOnStartup() {
+        return validateBucketsOnStartup;
+    }
+
+    public void setValidateBucketsOnStartup(boolean validateBucketsOnStartup) {
+        this.validateBucketsOnStartup = validateBucketsOnStartup;
     }
 }

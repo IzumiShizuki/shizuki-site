@@ -10,6 +10,7 @@ import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.dto.AssetDownloadResponse;
+import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaAssetGroupAclEntity;
 import io.github.shizuki.site.media.mapper.MediaAssetGroupAclMapper;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
@@ -95,6 +97,18 @@ class MediaServiceImplTest {
         mediaStorageProperties.setPrivateBucket("shizuki-private");
         mediaStorageProperties.setPublicBaseUrl("https://cdn.example.com");
         mediaStorageProperties.setSignExpireSeconds(600L);
+        mediaStorageProperties.setAllowedContentTypes(Set.of(
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif",
+            "image/apng",
+            "application/zip",
+            "application/x-zip-compressed",
+            "audio/mpeg",
+            "audio/wav",
+            "audio/ogg"
+        ));
 
         OssProperties ossProperties = new OssProperties();
         ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
@@ -216,6 +230,81 @@ class MediaServiceImplTest {
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class, () -> mediaService.createDownloadUrl(106L));
         Assertions.assertEquals(ErrorCode.FORBIDDEN, exception.getErrorCode());
+    }
+
+    @Test
+    void shouldUploadRelayImageSuccessfully() {
+        LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[] {1, 2, 3, 4});
+
+        UploadRelayResponse response = mediaService.uploadRelay(file, "STATIC_IMAGE", "PUBLIC");
+
+        Assertions.assertEquals("shizuki-public", response.bucket());
+        Assertions.assertEquals("image/png", response.contentType());
+        Assertions.assertEquals("STATIC_IMAGE", response.assetKind());
+        Assertions.assertEquals("RELAY_OSS", response.uploadStrategy());
+        Mockito.verify(objectStorageClient, Mockito.times(1))
+            .putObject(Mockito.eq("shizuki-public"), Mockito.anyString(), Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void shouldRejectRelayUploadWhenContentTypeInvalid() {
+        LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.bmp", "image/bmp", new byte[] {1, 2, 3, 4});
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> mediaService.uploadRelay(file, "STATIC_IMAGE", "PUBLIC")
+        );
+
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
+
+    @Test
+    void shouldRejectRelayUploadWhenFileTooLarge() {
+        LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
+        byte[] oversized = new byte[2048];
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", oversized);
+
+        MediaStorageProperties tinyLimitProperties = new MediaStorageProperties();
+        tinyLimitProperties.setPublicBucket("shizuki-public");
+        tinyLimitProperties.setPrivateBucket("shizuki-private");
+        tinyLimitProperties.setPublicBaseUrl("https://cdn.example.com");
+        tinyLimitProperties.setSignExpireSeconds(600L);
+        tinyLimitProperties.setMaxUploadSize(10L);
+        tinyLimitProperties.setAllowedContentTypes(Set.of("image/png"));
+
+        OssProperties tinyLimitOss = new OssProperties();
+        tinyLimitOss.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
+
+        MediaServiceImpl tinyLimitService = new MediaServiceImpl(
+            objectStorageClient,
+            tinyLimitProperties,
+            tinyLimitOss,
+            mediaAssetMapper,
+            mediaAssetGroupAclMapper,
+            mediaAssetReportMapper,
+            mediaL2dPackageMapper,
+            musicPlaylistMapper,
+            musicPickUsageMapper,
+            musicProviderConfigMapper,
+            musicProviderGuideMapper,
+            musicUploadUsageMapper,
+            musicTrackCacheMapper,
+            l2dZipValidator,
+            assetSecurityInspector,
+            userMusicClient,
+            spotifyMusicClient,
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            new TransactionTemplate(new NoOpTransactionManager())
+        );
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> tinyLimitService.uploadRelay(file, "STATIC_IMAGE", "PUBLIC")
+        );
+
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
     }
 
     private MediaAssetEntity buildAsset(Long id, Long userId, Integer visibilityCode, String auditStatus) {

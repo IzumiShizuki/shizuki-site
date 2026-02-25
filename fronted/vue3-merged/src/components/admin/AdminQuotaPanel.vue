@@ -51,7 +51,7 @@
             :class="{ active: selectedGroupCode === row.groupCode }"
             @click="$emit('selectGroup', row.groupCode)"
           >
-            <td>{{ row.groupCode }}</td>
+            <td><GroupBadge :group-code="row.groupCode" /></td>
             <td>{{ row.displayName || row.groupCode }}</td>
             <td>{{ row.status || '-' }}</td>
             <td v-for="code in quotaCodes" :key="`${row.groupCode}-${code}`" @click.stop>
@@ -77,6 +77,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import GroupBadge from './GroupBadge.vue';
 
 const props = defineProps({
   loading: { type: Boolean, default: false },

@@ -14,8 +14,9 @@ const TAB_VALUES = Object.freeze([
 
 export const ProfileSectionKey = Object.freeze({
   PROFILE: Object.freeze({
-    NICKNAME: 'nickname',
-    SESSION: 'session'
+    OVERVIEW: 'overview',
+    QUICK_ACTIONS: 'quick-actions',
+    RECENT: 'recent'
   }),
   ACCOUNT: Object.freeze({
     AVATAR: 'avatar',
@@ -80,12 +81,14 @@ export function toggleProfileAccordion(state, tabKey, sectionKey) {
 
 export function buildSectionSummary(sectionKey, payload = {}) {
   switch (sectionKey) {
-    case ProfileSectionKey.PROFILE.NICKNAME: {
+    case ProfileSectionKey.PROFILE.OVERVIEW: {
       const nickname = String(payload.nickname || '').trim();
-      return nickname ? `当前昵称：${nickname}` : '点击展开修改昵称';
+      return nickname ? `当前昵称：${nickname}` : '查看概览与账号状态';
     }
-    case ProfileSectionKey.PROFILE.SESSION:
-      return '管理当前会话与安全退出';
+    case ProfileSectionKey.PROFILE.QUICK_ACTIONS:
+      return '快速跳转到常用账号操作';
+    case ProfileSectionKey.PROFILE.RECENT:
+      return '最近状态与会话操作';
     case ProfileSectionKey.ACCOUNT.AVATAR:
       return payload.avatarUrl ? '查看或更换头像' : '尚未设置头像';
     case ProfileSectionKey.ACCOUNT.ACCOUNT_INFO:

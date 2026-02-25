@@ -348,6 +348,34 @@ describe('useAuthSession', () => {
     expect(pendingAllAfter.states?.['state-failed']?.oauthLoginId).toBe('oauth-login-failed');
   });
 
+  it('exposes OAuth pending snapshot for callback retry actions', () => {
+    window.sessionStorage.setItem(
+      OAUTH_PENDING_KEY,
+      JSON.stringify({
+        states: {
+          'state-retry': {
+            provider: 'github',
+            oauthLoginId: 'oauth-login-retry',
+            redirect: '/profile',
+            createdAt: Date.now()
+          }
+        }
+      })
+    );
+
+    const auth = useAuthSession();
+    const pending = auth.peekOAuthPending('state-retry');
+
+    expect(pending).toEqual(
+      expect.objectContaining({
+        provider: 'github',
+        oauthLoginId: 'oauth-login-retry',
+        redirect: '/profile',
+        scene: 'LOGIN'
+      })
+    );
+  });
+
   it('simulates full frontend OAuth login flow from authorization to session ready', async () => {
     const fetchMock = vi
       .fn()
@@ -415,6 +443,260 @@ describe('useAuthSession', () => {
     expect(tokenBody.grant_type).toBe('OAUTH_CODE');
     expect(tokenBody.oauth_login_id).toBe('oauth-login-flow');
     expect(tokenBody.code).toBe('oauth-code-flow');
+  });
+
+  it('uploads avatar through direct OSS path when direct upload succeeds', async () => {
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'avatar.png', { type: 'image/png' });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'avatar-access-1',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'avatar-refresh-1',
+            refresh_expires_in_sec: 2592000,
+            user_id: 21,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 21,
+            nickname: 'Avatar User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            bucket: 'shizuki-public',
+            key: 'assets/user-21/avatar.png',
+            upload_url: 'https://oss.example.com/upload-avatar',
+            expire_seconds: 300,
+            asset_kind: 'STATIC_IMAGE'
+          }
+        })
+      )
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            asset_id: 301
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            public_url: 'https://cdn.example.com/avatar-301.png'
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 21,
+            nickname: 'Avatar User',
+            avatar_url: 'https://cdn.example.com/avatar-301.png',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 21,
+            nickname: 'Avatar User',
+            avatar_url: 'https://cdn.example.com/avatar-301.png',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'avatar@example.com',
+      password: 'password-123'
+    });
+
+    const result = await auth.uploadAvatar(file);
+
+    expect(result).toEqual({
+      avatarUrl: 'https://cdn.example.com/avatar-301.png',
+      relayUsed: false
+    });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/v1/assets/upload-relay'))).toBe(false);
+  });
+
+  it('falls back to relay upload when direct OSS upload fails', async () => {
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'avatar.png', { type: 'image/png' });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'avatar-access-2',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'avatar-refresh-2',
+            refresh_expires_in_sec: 2592000,
+            user_id: 22,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 22,
+            nickname: 'Relay User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            bucket: 'shizuki-public',
+            key: 'assets/user-22/avatar.png',
+            upload_url: 'https://oss.example.com/upload-avatar',
+            expire_seconds: 300,
+            asset_kind: 'STATIC_IMAGE'
+          }
+        })
+      )
+      .mockResolvedValueOnce(new Response('', { status: 500 }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            bucket: 'shizuki-public',
+            key: 'assets/user-22/avatar-relay.png',
+            content_type: 'image/png',
+            asset_kind: 'STATIC_IMAGE',
+            upload_strategy: 'RELAY_OSS'
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            asset_id: 401
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            public_url: 'https://cdn.example.com/avatar-401.png'
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 22,
+            nickname: 'Relay User',
+            avatar_url: 'https://cdn.example.com/avatar-401.png',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 22,
+            nickname: 'Relay User',
+            avatar_url: 'https://cdn.example.com/avatar-401.png',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'relay@example.com',
+      password: 'password-123'
+    });
+
+    const result = await auth.uploadAvatar(file);
+
+    expect(result).toEqual({
+      avatarUrl: 'https://cdn.example.com/avatar-401.png',
+      relayUsed: true
+    });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/v1/assets/upload-relay'))).toBe(true);
+  });
+
+  it('throws detailed error when direct and relay upload both fail', async () => {
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'avatar.png', { type: 'image/png' });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'avatar-access-3',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'avatar-refresh-3',
+            refresh_expires_in_sec: 2592000,
+            user_id: 23,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 23,
+            nickname: 'Relay Failed User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            bucket: 'shizuki-public',
+            key: 'assets/user-23/avatar.png',
+            upload_url: 'https://oss.example.com/upload-avatar',
+            expire_seconds: 300,
+            asset_kind: 'STATIC_IMAGE'
+          }
+        })
+      )
+      .mockResolvedValueOnce(new Response('', { status: 500 }))
+      .mockResolvedValueOnce(
+        jsonResponse(500, {
+          code: 'INTERNAL_ERROR',
+          detail: 'Relay upload failed'
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'relay-failed@example.com',
+      password: 'password-123'
+    });
+
+    await expect(auth.uploadAvatar(file)).rejects.toThrow(/Avatar upload failed/);
   });
 
   it('refreshes token and retries once when protected request returns 401 UNAUTHORIZED', async () => {

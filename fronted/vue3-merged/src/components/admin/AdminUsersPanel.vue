@@ -23,6 +23,7 @@
         <table class="admin-table">
           <thead>
             <tr>
+              <th>头像</th>
               <th>ID</th>
               <th>用户名</th>
               <th>昵称</th>
@@ -39,16 +40,26 @@
               :class="{ active: selectedUserId === item.userId }"
               @click="$emit('selectUser', item)"
             >
+              <td>
+                <div class="avatar-cell">
+                  <img class="avatar-thumb" :src="item.avatarUrl || '/images/katanegai.jpg'" alt="user-avatar" />
+                </div>
+              </td>
               <td>{{ item.userId }}</td>
               <td>{{ item.username || '-' }}</td>
               <td>{{ item.nickname || '-' }}</td>
               <td>{{ item.email || '-' }}</td>
               <td>{{ item.emailVerified ? '是' : '否' }}</td>
-              <td>{{ (item.groups || []).join(', ') || '-' }}</td>
+              <td>
+                <div class="group-badges" v-if="(item.groups || []).length">
+                  <GroupBadge v-for="group in item.groups" :key="`${item.userId}-${group}`" :group-code="group" />
+                </div>
+                <span v-else>-</span>
+              </td>
               <td>{{ (item.permissions || []).join(', ') || '-' }}</td>
             </tr>
             <tr v-if="!usersPage.items.length">
-              <td colspan="7">暂无用户数据</td>
+              <td colspan="8">暂无用户数据</td>
             </tr>
           </tbody>
         </table>
@@ -66,8 +77,10 @@
                 :checked="selectedUserGroups.includes(group.groupCode)"
                 @change="$emit('toggleUserGroup', group.groupCode)"
               />
-              <span>{{ group.displayName || group.groupCode }}</span>
-              <small>{{ group.groupCode }}</small>
+              <div class="chip-main">
+                <GroupBadge :group-code="group.groupCode" :label="group.displayName || group.groupCode" />
+                <small>{{ group.groupCode }}</small>
+              </div>
             </label>
           </div>
           <div class="inline-actions">
@@ -95,6 +108,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import GroupBadge from './GroupBadge.vue';
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
@@ -174,7 +188,7 @@ const activeGroupOptions = computed(() =>
 .admin-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 780px;
   font-size: 13px;
 }
 
@@ -185,6 +199,34 @@ const activeGroupOptions = computed(() =>
   border-bottom: 1px solid rgba(180, 203, 232, 0.14);
   color: rgba(232, 241, 253, 0.92);
   vertical-align: top;
+}
+
+.avatar-cell {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(7, 12, 20, 0.6);
+  box-shadow:
+    0 6px 14px rgba(4, 7, 12, 0.26),
+    inset 0 0 0 1px rgba(200, 219, 244, 0.26);
+}
+
+.avatar-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.admin-table tbody tr:hover .avatar-thumb {
+  transform: scale(1.08);
+}
+
+.group-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .admin-table th {
@@ -235,14 +277,14 @@ const activeGroupOptions = computed(() =>
   margin: 0;
 }
 
-.chip-option span {
-  color: rgba(236, 245, 255, 0.96);
-  font-size: 13px;
+.chip-main {
+  display: grid;
+  gap: 4px;
 }
 
-.chip-option small {
-  grid-column: 2;
+.chip-main small {
   color: rgba(188, 211, 241, 0.86);
+  font-size: 11px;
 }
 
 .pager {
