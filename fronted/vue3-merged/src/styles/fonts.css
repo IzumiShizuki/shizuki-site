@@ -1,0 +1,47 @@
+@font-face {
+  font-family: 'Roboto';
+  src: url('/fonts/Roboto-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans JP Var';
+  src: url('/fonts/NotoSansJP-VF.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans SC Var';
+  src: url('/fonts/NotoSansSC-VF.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-ui: 'Roboto', 'Noto Sans SC Var', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-display: 'Zen Maru Gothic', 'Noto Sans JP Var', 'Noto Sans SC Var', 'PingFang SC', sans-serif;
+  --font-cute: 'Zen Maru Gothic', 'Noto Sans SC Var', 'Noto Sans JP Var', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+html,
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--font-ui);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+}

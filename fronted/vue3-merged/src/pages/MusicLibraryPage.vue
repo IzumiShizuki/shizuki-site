@@ -1,17 +1,31 @@
 <template>
-  <section class="route-page">
-    <header class="page-header">
-      <p class="eyebrow">Music Library</p>
-      <h1>音乐库</h1>
-      <p>这里是音乐库占位页面。底部播放器仍全局保留并可用。</p>
+  <section class="route-page music-cozy-library">
+    <header class="music-cozy-hero liquid-material">
+      <div class="hero-copy">
+        <p class="eyebrow">Cozy Music Room</p>
+        <h1>今天想听点什么呀</h1>
+        <p>保留现在的毛玻璃质感，做一版更生活化、温柔可爱的音乐空间。</p>
+        <div class="mood-chip-row">
+          <button v-for="mood in moods" :key="mood" class="mood-chip ripple-trigger" type="button">
+            {{ mood }}
+          </button>
+        </div>
+      </div>
+      <article class="hero-now-card liquid-material">
+        <p class="now-label">正在推荐</p>
+        <h2 class="now-title">{{ nowPlaying.title }}</h2>
+        <p class="now-meta">{{ nowPlaying.artist }} · {{ nowPlaying.duration }}</p>
+        <p class="now-note">{{ nowPlaying.note }}</p>
+      </article>
     </header>
 
-    <div class="library-grid">
+    <div class="music-cozy-grid">
       <article v-for="item in albums" :key="item.name" class="album-card liquid-material ripple-trigger">
-        <div class="cover"></div>
+        <div class="album-cover"></div>
         <div class="meta">
           <h2>{{ item.name }}</h2>
           <p>{{ item.artist }}</p>
+          <span class="album-tag">{{ item.tag }}</span>
         </div>
       </article>
     </div>
@@ -19,79 +33,18 @@
 </template>
 
 <script setup>
+const moods = ['学习专注', '轻松放空', '通勤节奏', '睡前治愈'];
+const nowPlaying = {
+  title: 'Sunset Cocoa',
+  artist: 'Shizuki Session',
+  duration: '03:27',
+  note: '把紧绷的一天，慢慢放回柔软的节奏里。'
+};
+
 const albums = [
-  { name: 'Shizuki Selection', artist: 'Various Artists' },
-  { name: 'Night Drift', artist: 'Ambient Collective' },
-  { name: 'Digital Garden', artist: 'Lo-fi Unit' },
-  { name: 'Moonlight Loop', artist: 'Indie Session' }
+  { name: 'Shizuki Selection', artist: 'Various Artists', tag: '日常精选' },
+  { name: 'Night Drift', artist: 'Ambient Collective', tag: '夜晚漫游' },
+  { name: 'Digital Garden', artist: 'Lo-fi Unit', tag: '书桌陪伴' },
+  { name: 'Moonlight Loop', artist: 'Indie Session', tag: '晚安循环' }
 ];
 </script>
-
-<style scoped>
-.route-page {
-  min-height: 100%;
-  color: rgba(239, 244, 255, 0.96);
-}
-
-.page-header {
-  padding: 8px 4px 14px;
-}
-
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(var(--accent-soft-rgb), 0.95);
-}
-
-h1 {
-  margin-top: 4px;
-  font-size: clamp(28px, 4vw, 42px);
-}
-
-.page-header p {
-  margin-top: 10px;
-  max-width: 680px;
-  color: rgba(223, 230, 249, 0.86);
-}
-
-.library-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.album-card {
-  --liquid-bg: rgba(20, 27, 42, 0.34);
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.22);
-  border-radius: 14px;
-  padding: 10px;
-  display: grid;
-  grid-template-columns: 64px 1fr;
-  align-items: center;
-  gap: 10px;
-}
-
-.cover {
-  width: 64px;
-  height: 64px;
-  border-radius: 10px;
-  background: linear-gradient(140deg, rgba(var(--accent-rgb), 0.45), rgba(40, 52, 78, 0.84));
-}
-
-.meta h2 {
-  font-size: 16px;
-}
-
-.meta p {
-  margin-top: 4px;
-  color: rgba(223, 230, 249, 0.84);
-}
-
-@media (max-width: 900px) {
-  .library-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
