@@ -18,7 +18,7 @@
       </div>
     </article>
 
-    <article class="lyric-card">
+    <article class="lyric-card" :class="{ 'lyric-card--expanded': !expandedProviderKey }">
       <p class="label">实时歌词</p>
       <p class="line">{{ lyricLine || '纯音乐，无歌词' }}</p>
     </article>
@@ -54,89 +54,135 @@
     </section>
 
     <section class="integration-panel">
-      <article class="integration-card">
-        <header class="integration-head">
-          <h4>TuneHub Key</h4>
-          <button class="mini-btn ripple-trigger" type="button" @click="emit('refresh-tunehub-status')" :disabled="tunehubBusy">
-            <i class="fas fa-rotate-right"></i>
-          </button>
-        </header>
+      <article class="integration-card accordion-card" :class="{ expanded: isTunehubExpanded }">
+        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider('tunehub')">
+          <div class="summary-main">
+            <h4>TuneHub</h4>
+            <p>{{ tunehubSummary }}</p>
+          </div>
+          <span class="bind-tag" :class="{ ok: tunehubBound }">{{ tunehubBound ? '已绑定' : '未绑定' }}</span>
+          <i class="fas" :class="isTunehubExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
 
-        <label class="field-block">
-          <span>API Key</span>
-          <input
-            :value="tunehubKeyInput"
-            type="password"
-            placeholder="输入 TuneHub API Key"
-            @input="emit('update:tunehubKeyInput', $event.target.value)"
-          />
-        </label>
+        <transition name="provider-expand">
+          <div v-if="isTunehubExpanded" class="provider-detail">
+            <header class="integration-head">
+              <h4>TuneHub Key</h4>
+              <div class="head-actions">
+                <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization')">
+                  用户中心
+                </button>
+                <button
+                  class="mini-btn ripple-trigger"
+                  type="button"
+                  @click="emit('refresh-tunehub-status')"
+                  :disabled="tunehubBusy || !isAuthenticated"
+                >
+                  <i class="fas fa-rotate-right"></i>
+                </button>
+              </div>
+            </header>
 
-        <p class="status-text">{{ tunehubStatusText }}</p>
+            <label class="field-block">
+              <span>API Key</span>
+              <input
+                :value="tunehubKeyInput"
+                type="password"
+                placeholder="输入 TuneHub API Key"
+                :disabled="!isAuthenticated"
+                @input="emit('update:tunehubKeyInput', $event.target.value)"
+              />
+            </label>
 
-        <div class="row-actions">
-          <button class="mini-btn primary ripple-trigger" type="button" @click="emit('save-tunehub-key')" :disabled="tunehubBusy">
-            {{ tunehubBusy ? '保存中...' : '保存' }}
-          </button>
-          <button class="mini-btn ripple-trigger" type="button" @click="emit('delete-tunehub-key')" :disabled="tunehubBusy">
-            删除
-          </button>
-        </div>
-      </article>
+            <p class="status-text">{{ tunehubStatusText }}</p>
 
-      <article class="integration-card">
-        <header class="integration-head">
-          <h4>Spotify</h4>
-          <span class="bind-tag" :class="{ ok: spotifyBound }">{{ spotifyBound ? '已绑定' : '未绑定' }}</span>
-        </header>
-
-        <div class="row-actions">
-          <button class="mini-btn primary ripple-trigger" type="button" @click="emit('bind-spotify')" :disabled="spotifyBusy">
-            {{ spotifyBusy ? '跳转中...' : (spotifyBound ? '重新绑定' : '连接 Spotify') }}
-          </button>
-        </div>
-
-        <div class="spotify-search-row">
-          <input
-            :value="spotifyQuery"
-            type="text"
-            placeholder="搜索 Spotify 曲目"
-            :disabled="!spotifyBound"
-            @input="emit('update:spotifyQuery', $event.target.value)"
-            @keydown.enter.prevent="emit('search-spotify')"
-          />
-          <button class="mini-btn ripple-trigger" type="button" :disabled="spotifySearching || !spotifyBound" @click="emit('search-spotify')">
-            {{ spotifySearching ? '搜索中...' : '搜索' }}
-          </button>
-        </div>
-
-        <p v-if="!spotifyBound" class="status-text">先连接 Spotify 后可搜索与入队</p>
-
-        <p v-if="spotifyError" class="status-text error">{{ spotifyError }}</p>
-
-        <div class="spotify-results">
-          <article v-for="item in spotifyResults" :key="item.trackId || item.id" class="spotify-item">
-            <div class="spotify-meta">
-              <p class="song">{{ item.title || '未知歌曲' }}</p>
-              <p class="artist">{{ item.artist || '未知歌手' }}</p>
-            </div>
-            <div class="spotify-actions">
+            <div class="row-actions">
+              <button
+                class="mini-btn primary ripple-trigger"
+                type="button"
+                @click="emit('save-tunehub-key')"
+                :disabled="tunehubBusy || !isAuthenticated"
+              >
+                {{ tunehubBusy ? '保存中...' : '保存' }}
+              </button>
               <button
                 class="mini-btn ripple-trigger"
                 type="button"
-                :disabled="!spotifyBound || (!item.previewUrl && !item.preview_url)"
-                @click="emit('preview-spotify', item)"
+                @click="emit('delete-tunehub-key')"
+                :disabled="tunehubBusy || !isAuthenticated"
               >
-                试听
-              </button>
-              <button class="mini-btn ripple-trigger" type="button" :disabled="!spotifyBound" @click="emit('enqueue-spotify', item)">
-                入队
+                删除
               </button>
             </div>
-          </article>
+          </div>
+        </transition>
+      </article>
 
-          <p v-if="!spotifyResults.length" class="empty-tip">暂无 Spotify 搜索结果</p>
-        </div>
+      <article class="integration-card accordion-card" :class="{ expanded: isSpotifyExpanded }">
+        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider('spotify')">
+          <div class="summary-main">
+            <h4>Spotify</h4>
+            <p>{{ spotifySummary }}</p>
+          </div>
+          <span class="bind-tag" :class="{ ok: spotifyBound }">{{ spotifyBound ? '已绑定' : '未绑定' }}</span>
+          <i class="fas" :class="isSpotifyExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
+
+        <transition name="provider-expand">
+          <div v-if="isSpotifyExpanded" class="provider-detail">
+            <div class="row-actions">
+              <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization')">
+                用户中心
+              </button>
+              <button class="mini-btn primary ripple-trigger" type="button" @click="emit('bind-spotify')" :disabled="spotifyBusy || !isAuthenticated">
+                {{ spotifyBusy ? '跳转中...' : spotifyBound ? '重新绑定' : '连接 Spotify（可选）' }}
+              </button>
+            </div>
+
+            <div class="spotify-search-row">
+              <input
+                :value="spotifyQuery"
+                type="text"
+                placeholder="搜索 Spotify 曲目"
+                :disabled="!spotifySearchReady"
+                @input="emit('update:spotifyQuery', $event.target.value)"
+                @keydown.enter.prevent="emit('search-spotify')"
+              />
+              <button class="mini-btn ripple-trigger" type="button" :disabled="spotifySearching || !spotifySearchReady" @click="emit('search-spotify')">
+                {{ spotifySearching ? '搜索中...' : '搜索' }}
+              </button>
+            </div>
+
+            <p v-if="spotifyPreviewMode && !spotifyBound" class="status-text">预览模式：未绑定也可搜索、试听与入队</p>
+            <p v-else-if="spotifyPreviewMode && spotifyBound" class="status-text">已绑定账号：优先使用你的 Spotify 授权能力</p>
+            <p v-else-if="!spotifyBound" class="status-text">先连接 Spotify 后可搜索与入队</p>
+            <p v-if="spotifyError" class="status-text error">{{ spotifyError }}</p>
+
+            <div class="spotify-results">
+              <article v-for="item in spotifyResults" :key="item.trackId || item.id" class="spotify-item">
+                <div class="spotify-meta">
+                  <p class="song">{{ item.title || '未知歌曲' }}</p>
+                  <p class="artist">{{ item.artist || '未知歌手' }}</p>
+                </div>
+                <div class="spotify-actions">
+                  <button
+                    class="mini-btn ripple-trigger"
+                    type="button"
+                    :disabled="!spotifySearchReady || (!item.previewUrl && !item.preview_url)"
+                    @click="emit('preview-spotify', item)"
+                  >
+                    试听
+                  </button>
+                  <button class="mini-btn ripple-trigger" type="button" :disabled="!spotifySearchReady" @click="emit('enqueue-spotify', item)">
+                    入队
+                  </button>
+                </div>
+              </article>
+
+              <p v-if="!spotifyResults.length" class="empty-tip">暂无 Spotify 搜索结果</p>
+            </div>
+          </div>
+        </transition>
       </article>
     </section>
   </aside>
@@ -153,10 +199,12 @@ const props = defineProps({
   isMobile: { type: Boolean, default: false },
   drawerOpen: { type: Boolean, default: false },
   isAuthenticated: { type: Boolean, default: false },
+  expandedProvider: { type: String, default: '' },
   tunehubKeyInput: { type: String, default: '' },
   tunehubStatus: { type: Object, default: () => ({ keyBound: false, keyMask: '', updatedAt: '' }) },
   tunehubBusy: { type: Boolean, default: false },
   spotifyBound: { type: Boolean, default: false },
+  spotifyPreviewMode: { type: Boolean, default: true },
   spotifyBusy: { type: Boolean, default: false },
   spotifyQuery: { type: String, default: '' },
   spotifySearching: { type: Boolean, default: false },
@@ -168,10 +216,12 @@ const emit = defineEmits([
   'set-volume',
   'set-eq-level',
   'close-drawer',
+  'update:expandedProvider',
   'update:tunehubKeyInput',
   'save-tunehub-key',
   'delete-tunehub-key',
   'refresh-tunehub-status',
+  'open-music-authorization',
   'bind-spotify',
   'update:spotifyQuery',
   'search-spotify',
@@ -192,14 +242,44 @@ const eqItems = computed(() => {
   ];
 });
 
+const expandedProviderKey = computed(() => String(props.expandedProvider || '').trim().toLowerCase());
+const isTunehubExpanded = computed(() => expandedProviderKey.value === 'tunehub');
+const isSpotifyExpanded = computed(() => expandedProviderKey.value === 'spotify');
+const tunehubBound = computed(() => Boolean(props.tunehubStatus?.keyBound));
+
+const tunehubSummary = computed(() => {
+  if (!props.isAuthenticated) return '未登录';
+  if (!tunehubBound.value) return '未绑定';
+  const mask = String(props.tunehubStatus?.keyMask || '').trim();
+  return mask || '已绑定';
+});
+
+const spotifySummary = computed(() => {
+  if (props.spotifyPreviewMode && !props.spotifyBound) return '预览模式';
+  if (!props.isAuthenticated) return '未登录';
+  return props.spotifyBound ? '已绑定' : '未绑定';
+});
+
+const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spotifyBound);
+
 const tunehubStatusText = computed(() => {
   if (!props.isAuthenticated) return '登录后可保存 TuneHub Key';
-  if (props.tunehubStatus?.keyBound) {
+  if (tunehubBound.value) {
     const mask = String(props.tunehubStatus?.keyMask || '').trim();
     return mask ? `已绑定：${mask}` : '已绑定 Key';
   }
   return '未绑定 TuneHub Key';
 });
+
+function toggleProvider(provider) {
+  const key = String(provider || '').trim().toLowerCase();
+  if (!key) return;
+  if (expandedProviderKey.value === key) {
+    emit('update:expandedProvider', '');
+    return;
+  }
+  emit('update:expandedProvider', key);
+}
 
 function onVolumeInput(event) {
   const value = Number(event?.target?.value);
@@ -221,7 +301,7 @@ function onEqInput(event, index) {
   padding: 14px 12px;
   height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -289,8 +369,13 @@ function onEqInput(event, index) {
 .lyric-card {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  background: linear-gradient(145deg, rgba(255, 105, 180, 0.16), rgba(95, 255, 140, 0.14));
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-soft-rgb), 0.14));
   padding: 10px;
+  min-height: 86px;
+}
+
+.lyric-card.lyric-card--expanded {
+  min-height: 146px;
 }
 
 .lyric-card .label {
@@ -350,25 +435,100 @@ function onEqInput(event, index) {
   height: 128px;
   writing-mode: bt-lr;
   cursor: pointer;
-  accent-color: #60ff8e;
+  accent-color: rgb(var(--accent-strong-rgb));
 }
 
 .vertical-range.eq {
-  accent-color: #ff73c2;
+  accent-color: rgb(var(--accent-rgb));
 }
 
 .integration-panel {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .integration-card {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.06);
-  padding: 10px;
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.provider-summary {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(var(--accent-rgb), 0.08);
+  color: rgba(236, 243, 255, 0.94);
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.summary-main {
+  min-width: 0;
+}
+
+.summary-main h4 {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(238, 244, 255, 0.95);
+}
+
+.summary-main p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: rgba(194, 206, 228, 0.88);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bind-tag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: rgba(var(--accent-soft-rgb), 0.94);
+  background: rgba(var(--accent-rgb), 0.2);
+}
+
+.bind-tag.ok {
+  color: rgba(var(--accent-soft-rgb), 0.96);
+  background: rgba(var(--accent-rgb), 0.3);
+}
+
+.provider-detail {
   display: grid;
   gap: 10px;
+  padding: 2px 2px 4px;
+}
+
+.provider-expand-enter-active,
+.provider-expand-leave-active {
+  overflow: hidden;
+  transition:
+    max-height 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    transform 220ms ease;
+}
+
+.provider-expand-enter-from,
+.provider-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.provider-expand-enter-to,
+.provider-expand-leave-from {
+  max-height: 420px;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .integration-head {
@@ -384,17 +544,10 @@ function onEqInput(event, index) {
   color: rgba(238, 244, 255, 0.95);
 }
 
-.bind-tag {
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-  color: rgba(255, 181, 198, 0.92);
-  background: rgba(255, 102, 153, 0.2);
-}
-
-.bind-tag.ok {
-  color: rgba(178, 255, 197, 0.94);
-  background: rgba(96, 255, 142, 0.2);
+.head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .field-block {
@@ -431,8 +584,9 @@ function onEqInput(event, index) {
 }
 
 .mini-btn.primary {
-  border-color: rgba(102, 255, 176, 0.6);
-  background: rgba(102, 255, 176, 0.2);
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.24);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
 }
 
 .status-text {
@@ -442,7 +596,7 @@ function onEqInput(event, index) {
 }
 
 .status-text.error {
-  color: #ff9cb8;
+  color: rgba(var(--accent-soft-rgb), 0.98);
 }
 
 .spotify-search-row {

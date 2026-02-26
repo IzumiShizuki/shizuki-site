@@ -11,6 +11,8 @@ import io.github.shizuki.site.media.dto.MusicPickResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.dto.MusicProviderResponse;
 import io.github.shizuki.site.media.dto.MusicQuotaResponse;
+import io.github.shizuki.site.media.dto.MusicResolvePlaybackRequest;
+import io.github.shizuki.site.media.dto.MusicSearchResponse;
 import io.github.shizuki.site.media.dto.MusicTrackResponse;
 import io.github.shizuki.site.media.dto.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.dto.SpotifyTrackResponse;
@@ -82,6 +84,24 @@ public class MusicController {
         return ApiResponse.success(mediaService.getMusicPlaylistBundle(playlistCode));
     }
 
+    @GetMapping("/search")
+    @RateLimit(key = "music.search", limit = 80, windowSeconds = 60)
+    @Operation(summary = "音乐聚合搜索", description = "支持全库检索歌单/歌曲/歌手，按 provider 过滤")
+    public ApiResponse<MusicSearchResponse> search(@RequestParam("q") String query,
+                                                   @RequestParam(value = "type", required = false) String type,
+                                                   @RequestParam(value = "providers", required = false) String providers,
+                                                   @RequestParam(value = "page", required = false) Integer page,
+                                                   @RequestParam(value = "limit", required = false) Integer limit) {
+        return ApiResponse.success(mediaService.searchMusic(query, type, providers, page, limit));
+    }
+
+    @PostMapping("/tracks/resolve-playback")
+    @RateLimit(key = "music.track.resolve", limit = 120, windowSeconds = 60)
+    @Operation(summary = "按需解析播放曲目", description = "仅在真实播放时触发解析，返回可播放链接与歌词信息")
+    public ApiResponse<MusicTrackResponse> resolvePlayback(@RequestBody(required = false) MusicResolvePlaybackRequest request) {
+        return ApiResponse.success(mediaService.resolvePlaybackTrack(request == null ? new MusicResolvePlaybackRequest() : request));
+    }
+
     @GetMapping("/quota/me")
     @Operation(summary = "查询我的音乐配额", description = "返回选歌次数与上传容量剩余")
     @ApiResponses({
@@ -121,13 +141,9 @@ public class MusicController {
     }
 
     @GetMapping("/spotify/search")
-    @Operation(summary = "Spotify 搜索", description = "需先登录并完成 Spotify OAuth 绑定")
+    @Operation(summary = "Spotify 搜索", description = "最小授权模式：游客可搜索；已绑定用户自动使用个人 token 提升可用性")
     @ApiResponses({
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "未登录",
-            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Spotify OAuth 未绑定或用户级 token 无效",
-            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Spotify 上游异常",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
@@ -137,13 +153,9 @@ public class MusicController {
     }
 
     @GetMapping("/spotify/preview-url")
-    @Operation(summary = "Spotify 预览链接", description = "需先登录并完成 Spotify OAuth 绑定，返回曲目预览 URL，可能为空")
+    @Operation(summary = "Spotify 预览链接", description = "最小授权模式：游客可查询预览链接；已绑定用户自动使用个人 token")
     @ApiResponses({
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "未登录",
-            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Spotify OAuth 未绑定或用户级 token 无效",
-            content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Spotify 上游异常",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })

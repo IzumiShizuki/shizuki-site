@@ -573,6 +573,18 @@ function createAuthSession() {
     return authApi.getMeAccount(token);
   }
 
+  async function getPreference() {
+    await ensureReady();
+    const token = await requireAccessTokenForCall('/profile?tab=account');
+    return authApi.getMePreferences(token);
+  }
+
+  async function updatePreference(preferenceJson) {
+    await ensureReady();
+    const token = await requireAccessTokenForCall('/profile?tab=account');
+    return authApi.updateMePreferences(preferenceJson || {}, token);
+  }
+
   async function updateProfile(payload) {
     await ensureReady();
     const token = await requireAccessTokenForCall('/profile?tab=account');
@@ -771,6 +783,8 @@ function createAuthSession() {
     sendResetPasswordVerification,
     resetPasswordByEmail,
     getAccountProfile,
+    getPreference,
+    updatePreference,
     updateProfile,
     changePasswordByEmail,
     bindEmailCredential,

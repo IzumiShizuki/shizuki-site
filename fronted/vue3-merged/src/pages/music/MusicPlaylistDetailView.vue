@@ -35,16 +35,35 @@
       </div>
     </header>
 
-    <header class="table-toolbar liquid-material">
-      <label class="search-box">
-        <i class="fas fa-search"></i>
-        <input v-model.trim="searchKeyword" type="search" placeholder="搜索标题 / 歌手" />
-      </label>
-      <p v-if="music.currentPlaylistError.value" class="state-text error">{{ music.currentPlaylistError.value }}</p>
-      <p v-else-if="music.currentPlaylistLoading.value" class="state-text">正在加载歌单...</p>
-    </header>
+    <p v-if="displayErrorText" class="state-text error">{{ displayErrorText }}</p>
 
-    <section class="playlist-table liquid-material">
+    <section v-if="music.hasActiveSearch.value" class="playlist-table liquid-material">
+      <header class="table-head search-head">
+        <span>#</span>
+        <span>标题</span>
+        <span>歌手</span>
+        <span>平台</span>
+        <span>时长</span>
+      </header>
+
+      <div v-if="!searchTracks.length && !music.searchLoading.value" class="empty-state">暂无匹配搜索结果</div>
+
+      <button
+        v-for="(item, index) in searchTracks"
+        :key="`search-track-${item.trackId || item.id || index}`"
+        class="track-row search-row ripple-trigger"
+        type="button"
+        @click="music.playSearchTrack(item, index)"
+      >
+        <span>{{ String(index + 1).padStart(2, '0') }}</span>
+        <span class="title-col">{{ item.title || '未知标题' }}</span>
+        <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
+        <span>{{ item.provider || '-' }}</span>
+        <span>{{ item.durationLabel || '--:--' }}</span>
+      </button>
+    </section>
+
+    <section v-else class="playlist-table liquid-material">
       <header class="table-head">
         <span>#</span>
         <span>标题</span>
@@ -79,30 +98,19 @@
 
 <script setup>
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 
-const route = useRoute();
 const music = useMusicLibraryContext();
-
-const playlistCode = computed(() => String(route.params.playlistCode || '').trim());
 
 const profile = computed(() => music.currentPlaylistProfile.value || { name: '', description: '', cover: '' });
 const allTracks = computed(() => (Array.isArray(music.currentPlaylistTracks.value) ? music.currentPlaylistTracks.value : []));
-
-const searchKeyword = computed({
-  get: () => music.ui.getDetailSearchKeyword(playlistCode.value),
-  set: (value) => music.ui.setDetailSearchKeyword(playlistCode.value, value)
-});
-
-const filteredTracks = computed(() => {
-  const keyword = String(searchKeyword.value || '').trim().toLowerCase();
-  if (!keyword) return allTracks.value;
-  return allTracks.value.filter((item) => {
-    const title = String(item?.title || '').toLowerCase();
-    const artist = String(item?.artist || '').toLowerCase();
-    return title.includes(keyword) || artist.includes(keyword);
-  });
+const filteredTracks = computed(() => allTracks.value);
+const searchTracks = computed(() => (Array.isArray(music.searchResult.value?.tracks) ? music.searchResult.value.tracks : []));
+const displayErrorText = computed(() => {
+  if (music.hasActiveSearch.value) {
+    return String(music.searchError.value || '').trim();
+  }
+  return String(music.currentPlaylistError.value || '').trim();
 });
 
 const coverStyle = computed(() => {
@@ -133,7 +141,9 @@ function playAll() {
 <style scoped>
 .music-center-view {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  align-content: start;
+  grid-auto-rows: max-content;
 }
 
 .playlist-hero {
@@ -210,31 +220,44 @@ function playAll() {
 }
 
 .hero-btn.primary {
-  border-color: rgba(255, 120, 140, 0.48);
-  background: linear-gradient(132deg, rgba(255, 77, 112, 0.94), rgba(255, 122, 86, 0.9));
-  color: #fff;
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.92), rgba(var(--accent-soft-rgb), 0.88));
+  color: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.3),
+    0 8px 16px rgba(var(--accent-rgb), 0.2);
 }
 
 .table-toolbar {
-  --liquid-bg: linear-gradient(145deg, rgba(20, 24, 36, 0.82), rgba(15, 19, 30, 0.78));
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 14px 26px rgba(6, 10, 18, 0.3);
-  border-radius: 12px;
-  padding: 10px;
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  align-items: start;
+  gap: 6px;
+  margin: 2px 0 0;
 }
 
 .search-box {
-  min-height: 36px;
-  display: inline-flex;
+  --liquid-bg: linear-gradient(145deg, rgba(20, 24, 36, 0.82), rgba(15, 19, 30, 0.78));
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 14px 26px rgba(6, 10, 18, 0.3);
+  min-height: 34px;
+  height: 34px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  padding: 0 12px;
+  gap: 6px;
+  border-radius: 14px;
+  padding: 0 10px;
   color: rgba(217, 228, 248, 0.88);
+  width: 100%;
+  max-width: none;
+  justify-self: stretch;
+}
+
+.search-box i {
+  font-size: 12px;
+  opacity: 0.84;
 }
 
 .search-box input {
@@ -243,16 +266,19 @@ function playAll() {
   outline: none;
   background: transparent;
   color: rgba(236, 243, 255, 0.95);
+  font-size: 12px;
+  line-height: 1;
 }
 
 .state-text {
   margin: 0;
   font-size: 12px;
   color: rgba(184, 196, 220, 0.86);
+  padding-left: 2px;
 }
 
 .state-text.error {
-  color: #ff9cb8;
+  color: rgba(var(--accent-soft-rgb), 0.98);
 }
 
 .playlist-table {
@@ -261,6 +287,7 @@ function playAll() {
   --liquid-shadow: 0 12px 24px rgba(6, 8, 14, 0.3);
   border-radius: 14px;
   padding: 10px;
+  margin-top: 0;
 }
 
 .table-head,
@@ -290,7 +317,13 @@ function playAll() {
 }
 
 .track-row.active {
-  background: rgba(255, 99, 138, 0.2);
+  background: rgba(var(--accent-rgb), 0.24);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.36);
+}
+
+.search-head,
+.search-row {
+  grid-template-columns: 44px minmax(0, 1.9fr) minmax(0, 1fr) 92px 72px;
 }
 
 .title-col,
@@ -309,7 +342,7 @@ function playAll() {
 }
 
 .like-col .liked {
-  color: #ff5d85;
+  color: rgb(var(--accent-strong-rgb));
 }
 
 .empty-state {
@@ -323,6 +356,15 @@ function playAll() {
 }
 
 @media (max-width: 960px) {
+  .table-toolbar {
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
   .playlist-hero {
     grid-template-columns: auto 1fr;
   }

@@ -3,4 +3,12 @@
   --accent-rgb: 200, 180, 255;
   --accent-strong-rgb: 173, 146, 243;
   --accent-soft-rgb: 228, 220, 255;
+  --accent-gradient-start-rgb: 233, 75, 197;
+  --accent-gradient-end-rgb: 157, 107, 255;
+  --accent-gradient: linear-gradient(
+    135deg,
+    rgba(var(--accent-gradient-start-rgb), 0.94),
+    rgba(var(--accent-gradient-end-rgb), 0.9)
+  );
+  --accent-mode-fill: rgba(var(--accent-rgb), 0.24);
 }

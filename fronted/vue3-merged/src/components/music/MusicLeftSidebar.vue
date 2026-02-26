@@ -112,7 +112,9 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   padding: 14px 12px;
   height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  position: relative;
+  z-index: 22;
 }
 
 .sidebar-head {
@@ -133,8 +135,8 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #ff84b7, #5fff8c);
-  box-shadow: 0 0 12px rgba(95, 255, 140, 0.6);
+  background: radial-gradient(circle at 30% 30%, rgba(var(--accent-soft-rgb), 0.96), rgba(var(--accent-strong-rgb), 0.94));
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.6);
 }
 
 .brand-text {
@@ -195,10 +197,10 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
 
 .nav-item.active,
 .list-item.selected {
-  border-color: rgba(95, 255, 140, 0.68);
-  background: linear-gradient(120deg, rgba(95, 255, 140, 0.22), rgba(255, 105, 180, 0.2));
+  border-color: rgba(var(--accent-rgb), 0.66);
+  background: linear-gradient(120deg, rgba(var(--accent-rgb), 0.28), rgba(var(--accent-soft-rgb), 0.22));
   color: rgba(242, 248, 255, 0.98);
-  box-shadow: 0 6px 18px rgba(92, 255, 171, 0.18);
+  box-shadow: 0 6px 18px rgba(var(--accent-rgb), 0.22);
 }
 
 .nav-item i,

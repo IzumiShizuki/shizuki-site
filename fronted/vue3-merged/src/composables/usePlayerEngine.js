@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { getPlaylistBundleByCode } from '../services/musicApi';
+import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 import { parseLrc } from '../utils/lrc';
 
 const STORAGE_KEY = 'shizuki.musicPlayer.v1';
@@ -46,15 +46,22 @@ function normalizeTrack(track, index) {
       ? track.lyric
       : `${import.meta.env.BASE_URL}${String(track.lyric).replace(/^\/+/, '')}`
     : null;
+  const lyricText = typeof track?.lyricText === 'string'
+    ? track.lyricText
+    : typeof track?.lyric_text === 'string'
+      ? track.lyric_text
+      : '';
 
   return {
     id,
+    trackId: String(track?.trackId || track?.track_id || id),
     title: track?.title || id,
     artist: track?.artist || '未知歌手',
     provider: track?.provider || track?.providerCode || track?.provider_code || 'local',
     sort: Number.isFinite(track?.sort) ? Number(track.sort) : index + 1,
     audio,
     lyric,
+    lyricText,
     cover,
     durationLabel: track?.duration || '--:--'
   };
@@ -113,7 +120,7 @@ function getDefaultStyleByMode(mode) {
   return 'bars-neon';
 }
 
-export function usePlayerEngine() {
+export function usePlayerEngine(options = {}) {
   const persisted = loadPersistedState();
   const tracks = ref([]);
   const playlistLoading = ref(false);
@@ -137,6 +144,7 @@ export function usePlayerEngine() {
   const volume = ref(Number.isFinite(persisted.volume) ? Math.max(0, Math.min(1, persisted.volume)) : 0.8);
   const currentTrackId = ref(typeof persisted.currentTrackId === 'string' ? persisted.currentTrackId : '');
   const randomQueue = ref([]);
+  const getAuthorizedFetch = typeof options?.getAuthorizedFetch === 'function' ? options.getAuthorizedFetch : () => undefined;
 
   const currentTime = ref(0);
   const duration = ref(0);
@@ -217,13 +225,27 @@ export function usePlayerEngine() {
     lyricEntries.value = [];
     currentLyricIndex.value = -1;
     currentLyricLine.value = '';
-    if (!track?.lyric) return;
+    if (!track?.lyric && !track?.lyricText) return;
 
     try {
-      const resp = await fetch(track.lyric);
-      if (!resp.ok) return;
-      const text = await resp.text();
-      lyricEntries.value = parseLrc(text);
+      if (track?.lyric) {
+        const resp = await fetch(track.lyric);
+        if (!resp.ok) return;
+        const text = await resp.text();
+        lyricEntries.value = parseLrc(text);
+      } else if (track?.lyricText) {
+        const parsed = parseLrc(track.lyricText);
+        if (parsed.length) {
+          lyricEntries.value = parsed;
+        } else {
+          lyricEntries.value = String(track.lyricText || '')
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .slice(0, 120)
+            .map((text, idx) => ({ time: idx * 4, text }));
+        }
+      }
       updateLyricState(currentTime.value);
     } catch {
       lyricEntries.value = [];
@@ -232,10 +254,66 @@ export function usePlayerEngine() {
     }
   }
 
-  async function selectTrackByIndex(index, autoPlay = false) {
-    if (index < 0 || index >= tracks.value.length) return;
+  async function resolveTrackPlayback(index) {
+    if (index < 0 || index >= tracks.value.length) return null;
     const track = tracks.value[index];
-    if (!track?.audio) return;
+    if (!track || track.audio) return track;
+
+    const provider = String(track.provider || '').trim().toLowerCase();
+    const supported = provider === 'netease' || provider === 'kuwo' || provider === 'qq';
+    if (!supported) return track;
+
+    const trackId = String(track.trackId || track.id || '').trim();
+    if (!trackId) return track;
+
+    try {
+      const payload = await resolvePlaybackTrack(
+        {
+          provider,
+          trackId,
+          title: String(track.title || '').trim(),
+          artist: String(track.artist || '').trim(),
+          cover: String(track.cover || '').trim(),
+          playlistCode: String(playlistProfile.value?.playlistCode || '')
+        },
+        getAuthorizedFetch()
+      );
+      const resolved = normalizeTrack(
+        {
+          ...track,
+          ...payload,
+          id: track.id,
+          trackId
+        },
+        index
+      );
+      const next = tracks.value.slice();
+      next[index] = resolved;
+      tracks.value = next;
+      return resolved;
+    } catch {
+      return track;
+    }
+  }
+
+  async function selectTrackByIndex(index, autoPlay = false, options = {}) {
+    if (index < 0 || index >= tracks.value.length) return;
+    const shouldResolve = options?.resolveIfMissing === true || (options?.resolveIfMissing !== false && autoPlay);
+    let track = tracks.value[index];
+    if (shouldResolve && !track?.audio) {
+      track = await resolveTrackPlayback(index);
+    }
+    if (!track) return;
+    if (!track.audio) {
+      currentTrackId.value = track.id;
+      audioElement.pause();
+      audioElement.src = '';
+      currentTime.value = 0;
+      duration.value = 0;
+      isPlaying.value = false;
+      await loadTrackLyric(track);
+      return;
+    }
 
     currentTrackId.value = track.id;
     currentTime.value = 0;
@@ -260,6 +338,11 @@ export function usePlayerEngine() {
       return;
     }
     if (!currentTrack.value) return;
+    if (!currentTrack.value.audio) {
+      const idx = currentIndex.value >= 0 ? currentIndex.value : 0;
+      await selectTrackByIndex(idx, true);
+      return;
+    }
 
     if (audioElement.paused) {
       try {
@@ -431,6 +514,7 @@ export function usePlayerEngine() {
           cover: item?.cover || item?.coverUrl || item?.cover_url,
           audio: item?.audio || item?.audioUrl || item?.audio_url,
           lyric: item?.lyric || item?.lyricUrl || item?.lyric_url,
+          lyricText: item?.lyricText || item?.lyric_text,
           sort: item?.sort
         },
         idx
@@ -497,11 +581,14 @@ export function usePlayerEngine() {
         cover: rawTrack?.cover || rawTrack?.coverUrl || rawTrack?.cover_url,
         audio: rawTrack?.audio || rawTrack?.audioUrl || rawTrack?.audio_url,
         lyric: rawTrack?.lyric || rawTrack?.lyricUrl || rawTrack?.lyric_url,
+        lyricText: rawTrack?.lyricText || rawTrack?.lyric_text,
         sort: rawTrack?.sort || 0
       },
       0
     );
-    if (!normalized.audio) return false;
+    const canLazyResolve = ['netease', 'kuwo', 'qq'].includes(String(normalized.provider || '').toLowerCase())
+      && String(normalized.trackId || normalized.id || '').trim() !== '';
+    if (!normalized.audio && !canLazyResolve) return false;
 
     const existingIndex = tracks.value.findIndex((item) => item.id === normalized.id);
     if (existingIndex >= 0) {
@@ -574,8 +661,6 @@ export function usePlayerEngine() {
     audioElement.pause();
     audioElement.src = '';
   });
-
-  loadPlaylistByCode(DEFAULT_PLAYLIST_CODE);
 
   return {
     tracks,

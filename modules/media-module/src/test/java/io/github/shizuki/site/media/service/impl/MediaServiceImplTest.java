@@ -6,7 +6,10 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
+import io.github.shizuki.site.media.config.MusicListenCacheProperties;
+import io.github.shizuki.site.media.config.TuneHubMusicProperties;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
+import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.dto.AdminMusicDefaultPlaylistBundleReplaceRequest;
@@ -70,6 +73,7 @@ class MediaServiceImplTest {
     private AssetSecurityInspector assetSecurityInspector;
     private UserMusicGateway userMusicClient;
     private SpotifyMusicProvider spotifyMusicClient;
+    private TuneHubMusicProvider tuneHubMusicProvider;
     private MediaServiceImpl mediaService;
 
     @BeforeEach
@@ -93,6 +97,7 @@ class MediaServiceImplTest {
         assetSecurityInspector = Mockito.mock(AssetSecurityInspector.class);
         userMusicClient = Mockito.mock(UserMusicGateway.class);
         spotifyMusicClient = Mockito.mock(SpotifyMusicProvider.class);
+        tuneHubMusicProvider = Mockito.mock(TuneHubMusicProvider.class);
         Mockito.when(assetSecurityInspector.inspect(
                 Mockito.anyLong(),
                 Mockito.anyString(),
@@ -128,6 +133,8 @@ class MediaServiceImplTest {
 
         OssProperties ossProperties = new OssProperties();
         ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
+        TuneHubMusicProperties tuneHubMusicProperties = new TuneHubMusicProperties();
+        MusicListenCacheProperties listenCacheProperties = new MusicListenCacheProperties();
 
         mediaService = new MediaServiceImpl(
             objectStorageClient,
@@ -151,6 +158,9 @@ class MediaServiceImplTest {
             assetSecurityInspector,
             userMusicClient,
             spotifyMusicClient,
+            tuneHubMusicProvider,
+            tuneHubMusicProperties,
+            listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager())
         );
@@ -296,6 +306,8 @@ class MediaServiceImplTest {
 
         OssProperties tinyLimitOss = new OssProperties();
         tinyLimitOss.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
+        TuneHubMusicProperties tuneHubMusicProperties = new TuneHubMusicProperties();
+        MusicListenCacheProperties listenCacheProperties = new MusicListenCacheProperties();
 
         MediaServiceImpl tinyLimitService = new MediaServiceImpl(
             objectStorageClient,
@@ -319,6 +331,9 @@ class MediaServiceImplTest {
             assetSecurityInspector,
             userMusicClient,
             spotifyMusicClient,
+            tuneHubMusicProvider,
+            tuneHubMusicProperties,
+            listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager())
         );

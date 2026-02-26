@@ -25,6 +25,23 @@ export async function getMusicLibraryHome() {
   return unwrapApiResponse(response);
 }
 
+export async function searchMusic(query, options = {}, authorizedFetch) {
+  const payload = {
+    method: 'GET',
+    query: {
+      q: String(query || '').trim(),
+      type: String(options?.type || 'all').trim(),
+      providers: Array.isArray(options?.providers) ? options.providers.join(',') : String(options?.providers || '').trim(),
+      page: Number.isFinite(Number(options?.page)) ? Number(options.page) : 1,
+      limit: Number.isFinite(Number(options?.limit)) ? Number(options.limit) : 24
+    }
+  };
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/search', payload)
+    : await httpRequest('/api/v1/music/search', payload);
+  return unwrapApiResponse(response);
+}
+
 export async function getPlaylistBundleByCode(playlistCode, authorizedFetch) {
   const code = String(playlistCode || '').trim();
   if (!code) {
@@ -34,6 +51,20 @@ export async function getPlaylistBundleByCode(playlistCode, authorizedFetch) {
   const response = typeof authorizedFetch === 'function'
     ? await authorizedFetch(path, { method: 'GET' })
     : await httpRequest(path, { method: 'GET' });
+  return unwrapApiResponse(response);
+}
+
+export async function resolvePlaybackTrack(payload, authorizedFetch) {
+  const requestPayload = payload && typeof payload === 'object' ? payload : {};
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/tracks/resolve-playback', {
+      method: 'POST',
+      body: requestPayload
+    })
+    : await httpRequest('/api/v1/music/tracks/resolve-playback', {
+      method: 'POST',
+      body: requestPayload
+    });
   return unwrapApiResponse(response);
 }
 

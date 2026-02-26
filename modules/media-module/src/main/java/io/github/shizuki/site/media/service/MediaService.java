@@ -23,7 +23,9 @@ import io.github.shizuki.site.media.dto.MeMusicPlaylistUpdateRequest;
 import io.github.shizuki.site.media.dto.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.dto.MusicLibraryHomeResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistBundleResponse;
+import io.github.shizuki.site.media.dto.MusicSearchResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistSummaryResponse;
+import io.github.shizuki.site.media.dto.MusicResolvePlaybackRequest;
 import io.github.shizuki.site.media.dto.PublicHomeRoleResponse;
 import io.github.shizuki.site.media.dto.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.dto.SpotifyTrackResponse;
@@ -121,6 +123,26 @@ public interface MediaService {
      * @return 歌单聚合
      */
     MusicPlaylistBundleResponse getMusicPlaylistBundle(String playlistCode);
+
+    /**
+     * 音乐聚合搜索（支持歌单/歌曲/歌手）。
+     *
+     * @param query 搜索词
+     * @param type 类型（all/playlist/track/artist）
+     * @param providers 平台列表（逗号分隔）
+     * @param page 页码
+     * @param limit 每页大小
+     * @return 搜索聚合结果
+     */
+    MusicSearchResponse searchMusic(String query, String type, String providers, Integer page, Integer limit);
+
+    /**
+     * 按需解析歌曲播放信息（仅在真实播放动作触发）。
+     *
+     * @param request 解析请求
+     * @return 可播放曲目信息
+     */
+    MusicTrackResponse resolvePlaybackTrack(MusicResolvePlaybackRequest request);
 
     /**
      * 查询当前用户音乐配额。

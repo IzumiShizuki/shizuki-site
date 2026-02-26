@@ -38,7 +38,11 @@
       <section class="workspace-shell" :class="{ expanded: menuExpanded, 'with-ai-panel': sidebarAiColumnMounted }">
         <main
           class="route-content"
-          :class="{ 'route-content-home': isHomeRoute, 'route-content-music-player': isMusicPlayerDetailRoute }"
+          :class="{
+            'route-content-home': isHomeRoute,
+            'route-content-music-player': isMusicPlayerDetailRoute,
+            'route-content-music-shell': isMusicLibraryRoute && !isMusicPlayerDetailRoute
+          }"
         >
           <RouterView v-slot="{ Component, route: viewRoute }">
             <transition name="route-switch" mode="out-in">
@@ -247,7 +251,9 @@ const AI_SIDEBAR_EXIT_MS = 260;
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
-const player = usePlayerEngine();
+const player = usePlayerEngine({
+  getAuthorizedFetch: () => (auth.isAuthenticated.value ? auth.authorizedFetch : undefined)
+});
 const ui = useUiPreferences();
 
 const routeLabelMap = {
@@ -1099,6 +1105,11 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
+.route-content.route-content-music-shell {
+  overflow: hidden;
+  padding: 8px;
+}
+
 .route-page-view {
   min-height: 100%;
 }
@@ -1533,6 +1544,10 @@ onBeforeUnmount(() => {
     box-shadow: none;
   }
 
+  .route-content.route-content-music-shell {
+    padding: 6px;
+  }
+
   .global-lyric-bar {
     bottom: 114px;
     min-width: min(92vw, 640px);
@@ -1569,6 +1584,10 @@ onBeforeUnmount(() => {
     border: 0;
     background: transparent;
     box-shadow: none;
+  }
+
+  .route-content.route-content-music-shell {
+    padding: 4px;
   }
 
   .global-lyric-bar {

@@ -3,6 +3,7 @@ package io.github.shizuki.site.media.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import java.time.LocalDateTime;
 
 /**
  * 音乐曲目 OSS 缓存索引实体。
@@ -27,6 +28,9 @@ public class MusicTrackCacheEntity extends BaseEntity {
 
     @TableField("source_url")
     private String sourceUrl;
+
+    @TableField("last_listen_time")
+    private LocalDateTime lastListenTime;
 
     public String getProviderCode() {
         return providerCode;
@@ -74,5 +78,13 @@ public class MusicTrackCacheEntity extends BaseEntity {
 
     public void setSourceUrl(String sourceUrl) {
         this.sourceUrl = sourceUrl;
+    }
+
+    public LocalDateTime getLastListenTime() {
+        return lastListenTime;
+    }
+
+    public void setLastListenTime(LocalDateTime lastListenTime) {
+        this.lastListenTime = lastListenTime;
     }
 }

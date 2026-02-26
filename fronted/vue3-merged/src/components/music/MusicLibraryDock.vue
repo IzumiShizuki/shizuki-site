@@ -91,10 +91,10 @@ function onSeek(event) {
   --liquid-bg: linear-gradient(145deg, rgba(15, 18, 26, 0.9), rgba(12, 14, 21, 0.92));
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 16px 36px rgba(7, 9, 15, 0.45);
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
   min-height: 84px;
   border-radius: 18px;
   display: grid;
@@ -102,7 +102,7 @@ function onSeek(event) {
   gap: 12px;
   align-items: center;
   padding: 12px 14px;
-  z-index: 18;
+  z-index: 1240;
   cursor: pointer;
 }
 
@@ -154,9 +154,12 @@ function onSeek(event) {
 }
 
 .ctrl-btn.primary {
-  background: linear-gradient(135deg, rgba(255, 115, 194, 0.92), rgba(96, 255, 142, 0.84));
-  color: #141927;
-  border-color: rgba(255, 255, 255, 0.56);
+  background: linear-gradient(135deg, rgba(var(--accent-soft-rgb), 0.96), rgba(var(--accent-rgb), 0.92));
+  color: rgba(20, 25, 39, 0.92);
+  border-color: rgba(var(--accent-rgb), 0.58);
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.32),
+    0 8px 16px rgba(var(--accent-rgb), 0.22);
 }
 
 .progress-line {
@@ -174,7 +177,7 @@ function onSeek(event) {
 
 .progress-input {
   width: 100%;
-  accent-color: #65ff9b;
+  accent-color: rgb(var(--accent-strong-rgb));
 }
 
 .dock-mode {
@@ -196,9 +199,9 @@ function onSeek(event) {
 
 @media (max-width: 900px) {
   .music-library-dock {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
     grid-template-columns: 1fr;
     gap: 8px;
     min-height: 116px;

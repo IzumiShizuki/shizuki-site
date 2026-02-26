@@ -177,7 +177,7 @@ function onVolume(event) {
 
 .progress-row input {
   width: 100%;
-  accent-color: #67ff9d;
+  accent-color: rgb(var(--accent-strong-rgb));
 }
 
 .ctrl-row {
@@ -197,8 +197,12 @@ function onVolume(event) {
 .ctrl-btn.primary {
   width: 54px;
   height: 54px;
-  background: linear-gradient(132deg, rgba(255, 77, 112, 0.94), rgba(255, 122, 86, 0.9));
-  color: #fff;
+  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.92), rgba(var(--accent-soft-rgb), 0.88));
+  color: rgba(255, 255, 255, 0.96);
+  border-color: rgba(var(--accent-rgb), 0.62);
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.3),
+    0 10px 18px rgba(var(--accent-rgb), 0.24);
 }
 
 .lyric-panel {
@@ -235,7 +239,7 @@ function onVolume(event) {
 
 .volume-row input {
   width: 100%;
-  accent-color: #67ff9d;
+  accent-color: rgb(var(--accent-strong-rgb));
 }
 
 @media (max-width: 980px) {

@@ -4,6 +4,8 @@ import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.OAuthBindingView;
 import io.github.shizuki.site.user.service.UserService;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +45,19 @@ public class UserMusicGateway {
             LOGGER.warn("Get API key status fallback in monolith mode, userId={}, provider={}",
                 userId, normalizedProvider, ex);
             return new ApiKeyStatus(normalizedProvider, false, null);
+        }
+    }
+
+    public Map<String, Object> getPreference(Long userId) {
+        if (userId == null || userId <= 0) {
+            return Collections.emptyMap();
+        }
+        try {
+            Map<String, Object> payload = userService.getPreference(userId);
+            return payload == null ? Collections.emptyMap() : payload;
+        } catch (Exception ex) {
+            LOGGER.warn("Get preference fallback in monolith mode, userId={}", userId, ex);
+            return Collections.emptyMap();
         }
     }
 

@@ -96,6 +96,27 @@ export async function getMeAccount(accessToken) {
   return unwrapApiResponse(response);
 }
 
+export async function getMePreferences(accessToken) {
+  const response = await backendRequest('/api/v1/me/preferences', {
+    method: 'GET',
+    auth: true,
+    accessToken
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function updateMePreferences(payload, accessToken) {
+  const response = await backendRequest('/api/v1/me/preferences', {
+    method: 'PUT',
+    auth: true,
+    accessToken,
+    body: {
+      preferenceJson: payload || {}
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function updateMeProfile(payload, accessToken) {
   const response = await backendRequest('/api/v1/me/profile', {
     method: 'PUT',

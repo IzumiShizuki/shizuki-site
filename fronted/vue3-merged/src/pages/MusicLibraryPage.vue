@@ -27,6 +27,22 @@
         />
 
         <main ref="centerPaneRef" class="music-center-pane" @scroll.passive="rememberCenterScroll">
+          <MusicSearchToolbar
+            class="music-toolbar-stick"
+            :keyword="ui.globalSearchKeyword.value"
+            :type="ui.globalSearchType.value"
+            :loading="searchLoading"
+            :error-text="searchError"
+            :type-options="SEARCH_TYPE_OPTIONS"
+            :provider-options="SEARCH_PROVIDER_OPTIONS"
+            :selected-providers="ui.globalSearchProviders.value"
+            @update:keyword="ui.setGlobalSearchKeyword($event)"
+            @set-type="ui.setGlobalSearchType($event)"
+            @toggle-provider="ui.toggleGlobalSearchProvider($event)"
+            @submit="triggerMusicSearch(true)"
+            @refresh="triggerMusicSearch(true)"
+          />
+
           <header v-if="isMobileViewport" class="mobile-switch-bar">
             <button class="switch-btn ripple-trigger" type="button" @click="ui.setLeftDrawerOpen(true)">
               <i class="fas fa-bars"></i>
@@ -38,7 +54,11 @@
             </button>
           </header>
 
-          <RouterView />
+          <RouterView v-slot="{ Component, route: centerRoute }">
+            <transition :name="centerTransitionName" mode="out-in">
+              <component :is="Component" :key="resolveCenterViewKey(centerRoute)" class="music-center-view-shell" />
+            </transition>
+          </RouterView>
         </main>
 
         <MusicRightPanel
@@ -49,6 +69,7 @@
           :is-mobile="isMobileViewport"
           :drawer-open="ui.rightDrawerOpen.value"
           :is-authenticated="auth.isAuthenticated.value"
+          :expanded-provider="ui.expandedProvider.value"
           :tunehub-key-input="tunehubKeyInput"
           :tunehub-status="tunehubStatus"
           :tunehub-busy="tunehubBusy"
@@ -61,10 +82,12 @@
           @set-volume="handleSetVolume"
           @set-eq-level="handleSetEqLevel"
           @close-drawer="ui.setRightDrawerOpen(false)"
+          @update:expanded-provider="ui.setExpandedProvider($event)"
           @update:tunehub-key-input="tunehubKeyInput = $event"
           @save-tunehub-key="handleSaveTunehubKey"
           @delete-tunehub-key="handleDeleteTunehubKey"
           @refresh-tunehub-status="loadTunehubStatus"
+          @open-music-authorization="openMusicAuthorization"
           @bind-spotify="handleBindSpotify"
           @update:spotify-query="spotifyQuery = $event"
           @search-spotify="handleSearchSpotify"
@@ -100,6 +123,7 @@ import { RouterView, useRoute, useRouter } from 'vue-router';
 import MusicLibraryDock from '../components/music/MusicLibraryDock.vue';
 import MusicLeftSidebar from '../components/music/MusicLeftSidebar.vue';
 import MusicRightPanel from '../components/music/MusicRightPanel.vue';
+import MusicSearchToolbar from '../components/music/MusicSearchToolbar.vue';
 import { MUSIC_LIBRARY_CONTEXT_KEY } from '../composables/musicLibraryContext';
 import { useAuthSession } from '../composables/useAuthSession';
 import { usePlayerBridge } from '../composables/playerBridge';
@@ -107,6 +131,19 @@ import { MUSIC_PRIMARY_NAV, useMusicLibraryUiState } from './musicLibraryUiState
 import * as musicApi from '../services/musicApi';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
+const SEARCH_DEBOUNCE_MS = 360;
+const SEARCH_TYPE_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'playlist', label: '歌单' },
+  { value: 'track', label: '歌曲' },
+  { value: 'artist', label: '歌手' }
+];
+const SEARCH_PROVIDER_OPTIONS = [
+  { value: 'netease', label: '网易云' },
+  { value: 'kuwo', label: '酷我' },
+  { value: 'qq', label: 'QQ' },
+  { value: 'spotify', label: 'Spotify' }
+];
 
 const route = useRoute();
 const router = useRouter();
@@ -144,6 +181,18 @@ const spotifyError = ref('');
 
 const collectingPlaylist = ref(false);
 const likedTrackIds = ref(new Set());
+const searchLoading = ref(false);
+const searchError = ref('');
+const searchResult = ref({
+  query: '',
+  type: 'all',
+  partial: false,
+  failedProviders: [],
+  playlists: [],
+  tracks: [],
+  artists: []
+});
+let searchDebounceTimer = 0;
 
 const isPlaylistRoute = computed(() => route.name === 'music-library-playlist');
 const isPlayerDetailRoute = computed(() => route.name === 'music-library-player');
@@ -162,6 +211,7 @@ const currentPlaylistProfile = computed(() => {
 const currentPlaylistTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
 const currentPlaylistLoading = computed(() => Boolean(player.playlistLoading?.value));
 const currentPlaylistError = computed(() => String(player.playlistError?.value || ''));
+const centerTransitionName = ref('music-center-fade');
 
 const authState = computed(() => ({
   isAuthenticated: Boolean(auth.isAuthenticated.value)
@@ -224,6 +274,10 @@ const likedPlaylistCode = computed(() => {
   return String(code || '').trim();
 });
 
+const normalizedGlobalSearchKeyword = computed(() => String(ui.globalSearchKeyword.value || '').trim());
+
+const hasActiveSearch = computed(() => normalizedGlobalSearchKeyword.value.length >= 2);
+
 function parseErrorMessage(error, fallback = '操作失败，请稍后重试') {
   if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
   if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
@@ -256,6 +310,19 @@ function normalizeApiTrack(raw, index = 0) {
     provider: String(raw?.provider || raw?.providerCode || raw?.provider_code || 'local'),
     duration: String(raw?.duration || raw?.durationLabel || '--:--')
   };
+}
+
+function isPlaylistPath(path) {
+  return String(path || '').startsWith('/music-library/playlist/');
+}
+
+function resolveCenterViewKey(viewRoute) {
+  const routeName = String(viewRoute?.name || '');
+  if (routeName === 'music-library-playlist') {
+    const code = String(viewRoute?.params?.playlistCode || '').trim();
+    return `playlist:${code}`;
+  }
+  return String(viewRoute?.fullPath || routeName || 'music-library');
 }
 
 function toPlaylistTrackUpsertPayload(track, fallbackSort = 0) {
@@ -291,6 +358,44 @@ function normalizeSpotifyResult(raw, index = 0) {
   };
 }
 
+function normalizeSearchPlaylist(raw) {
+  return normalizePlaylistSummary(raw, DEFAULT_PLAYLIST_CODE);
+}
+
+function normalizeSearchTrack(raw, index = 0) {
+  const trackId = String(raw?.trackId || raw?.track_id || raw?.id || `search-${index + 1}`).trim() || `search-${index + 1}`;
+  return {
+    id: trackId,
+    trackId,
+    provider: String(raw?.provider || 'local').trim() || 'local',
+    title: String(raw?.title || '').trim() || '未知标题',
+    artist: String(raw?.artist || '').trim() || '未知歌手',
+    album: String(raw?.album || '').trim(),
+    cover: String(raw?.cover || '').trim(),
+    durationSec: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec)) ? Number(raw.durationSec ?? raw.duration_sec) : null,
+    durationLabel: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec))
+      ? formatDurationBySec(Number(raw.durationSec ?? raw.duration_sec))
+      : '--:--',
+    audio: '',
+    lyric: ''
+  };
+}
+
+function normalizeSearchArtist(raw) {
+  return {
+    name: String(raw?.name || '').trim() || '未知歌手',
+    hitCount: Number.isFinite(Number(raw?.hitCount ?? raw?.hit_count)) ? Number(raw.hitCount ?? raw.hit_count) : 0,
+    providers: Array.isArray(raw?.providers) ? raw.providers.map((item) => String(item || '').trim()).filter(Boolean) : []
+  };
+}
+
+function formatDurationBySec(seconds) {
+  const safe = Math.max(0, Number(seconds || 0));
+  const minute = Math.floor(safe / 60);
+  const second = Math.floor(safe % 60);
+  return `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+}
+
 function goLogin() {
   auth.redirectToAuth('session_expired', route.fullPath || '/music-library');
 }
@@ -317,7 +422,19 @@ function restoreCenterScroll(path) {
 }
 
 function handleSelectNav(navKey) {
-  ui.setActiveNav(navKey);
+  const key = String(navKey || '').trim();
+  if (!key) return;
+
+  ui.setActiveNav(key);
+  if (isPlaylistRoute.value) {
+    ui.closeDrawers();
+    router.push({ name: 'music-library' });
+  }
+}
+
+function openMusicAuthorization() {
+  ui.closeDrawers();
+  router.push({ path: '/profile', query: { tab: 'account' } });
 }
 
 async function loadHomeData() {
@@ -338,6 +455,78 @@ async function loadHomeData() {
   } finally {
     homeLoading.value = false;
   }
+}
+
+async function runMusicSearch() {
+  const keyword = normalizedGlobalSearchKeyword.value;
+  if (keyword.length < 2) {
+    searchLoading.value = false;
+    searchError.value = '';
+    searchResult.value = {
+      query: '',
+      type: ui.globalSearchType.value,
+      partial: false,
+      failedProviders: [],
+      playlists: [],
+      tracks: [],
+      artists: []
+    };
+    return;
+  }
+
+  searchLoading.value = true;
+  searchError.value = '';
+  try {
+    const payload = await musicApi.searchMusic(
+      keyword,
+      {
+        type: ui.globalSearchType.value,
+        providers: ui.globalSearchProviders.value,
+        page: 1,
+        limit: 24
+      },
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
+    searchResult.value = {
+      query: String(payload?.query || keyword),
+      type: String(payload?.type || ui.globalSearchType.value || 'all'),
+      partial: Boolean(payload?.partial),
+      failedProviders: Array.isArray(payload?.failedProviders || payload?.failed_providers)
+        ? (payload.failedProviders || payload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
+        : [],
+      playlists: Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [],
+      tracks: Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [],
+      artists: Array.isArray(payload?.artists) ? payload.artists.map((item) => normalizeSearchArtist(item)) : []
+    };
+  } catch (error) {
+    searchError.value = parseErrorMessage(error, '搜索失败，请稍后重试');
+    searchResult.value = {
+      query: keyword,
+      type: ui.globalSearchType.value,
+      partial: false,
+      failedProviders: [],
+      playlists: [],
+      tracks: [],
+      artists: []
+    };
+  } finally {
+    searchLoading.value = false;
+  }
+}
+
+function triggerMusicSearch(force = false) {
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = 0;
+  }
+  if (force) {
+    runMusicSearch();
+    return;
+  }
+  searchDebounceTimer = window.setTimeout(() => {
+    searchDebounceTimer = 0;
+    runMusicSearch();
+  }, SEARCH_DEBOUNCE_MS);
 }
 
 async function loadSidebarData() {
@@ -486,14 +675,6 @@ async function handleBindSpotify() {
 }
 
 async function handleSearchSpotify() {
-  if (!auth.isAuthenticated.value) {
-    goLogin();
-    return;
-  }
-  if (!spotifyBound.value) {
-    window.alert('请先连接 Spotify 再执行搜索');
-    return;
-  }
   const keyword = String(spotifyQuery.value || '').trim();
   if (!keyword) {
     spotifyResults.value = [];
@@ -502,7 +683,11 @@ async function handleSearchSpotify() {
   spotifySearching.value = true;
   spotifyError.value = '';
   try {
-    const payload = await musicApi.searchSpotifyTracks(keyword, 12, auth.authorizedFetch);
+    const payload = await musicApi.searchSpotifyTracks(
+      keyword,
+      12,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
     const list = Array.isArray(payload) ? payload : [];
     spotifyResults.value = list.map((item, index) => normalizeSpotifyResult(item, index));
   } catch (error) {
@@ -521,7 +706,10 @@ async function resolveSpotifyPreviewUrl(item) {
   if (!trackId) return '';
 
   try {
-    const payload = await musicApi.getSpotifyPreview(trackId, auth.authorizedFetch);
+    const payload = await musicApi.getSpotifyPreview(
+      trackId,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
     return String(payload?.previewUrl || payload?.preview_url || '').trim();
   } catch {
     return '';
@@ -529,15 +717,6 @@ async function resolveSpotifyPreviewUrl(item) {
 }
 
 async function enqueueSpotifyTrack(item, autoPlay = false) {
-  if (!auth.isAuthenticated.value) {
-    goLogin();
-    return;
-  }
-  if (!spotifyBound.value) {
-    window.alert('请先连接 Spotify 再播放或入队');
-    return;
-  }
-
   const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
   if (!trackId) {
     window.alert('Spotify 曲目缺少 trackId');
@@ -593,10 +772,6 @@ async function ensureCurrentRoutePlaylistLoaded() {
 }
 
 async function playFeaturedTrack(item, index) {
-  if (currentPlaylistProfile.value.playlistCode !== DEFAULT_PLAYLIST_CODE) {
-    await player.loadPlaylistByCode?.(DEFAULT_PLAYLIST_CODE, playlistLoadOptions());
-  }
-
   const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
   const sourceIndex = currentPlaylistTracks.value.findIndex((track) => track.id === trackId);
   if (sourceIndex >= 0) {
@@ -605,6 +780,21 @@ async function playFeaturedTrack(item, index) {
   }
 
   await player.playExternalTrack?.(normalizeApiTrack(item, Number(index) || 0));
+}
+
+async function playSearchTrack(item, index) {
+  const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
+  const provider = String(item?.provider || '').trim().toLowerCase();
+  const existingIndex = currentPlaylistTracks.value.findIndex((track) => {
+    const rowId = String(track?.trackId || track?.id || '').trim();
+    const rowProvider = String(track?.provider || '').trim().toLowerCase();
+    return rowId === trackId && (!provider || provider === rowProvider);
+  });
+  if (existingIndex >= 0) {
+    await player.selectTrackByIndex(existingIndex, true);
+    return;
+  }
+  await player.playExternalTrack?.(normalizeSearchTrack(item, Number(index) || 0));
 }
 
 async function playTrackInCurrentPlaylist(index) {
@@ -657,6 +847,7 @@ async function toggleTrackLike(trackInput) {
 function openPlaylistDetail(playlistCode) {
   const code = String(playlistCode || '').trim();
   if (!code) return;
+  ui.setActiveNav('playlist');
   ui.setSelectedPlaylistCode(code);
   ui.closeDrawers();
   router.push({
@@ -750,6 +941,10 @@ const musicContext = Object.freeze({
   homeData,
   homeLoading,
   homeError,
+  searchLoading,
+  searchError,
+  searchResult,
+  hasActiveSearch,
   currentPlaylistProfile,
   currentPlaylistTracks,
   currentPlaylistLoading,
@@ -757,12 +952,14 @@ const musicContext = Object.freeze({
   collectingPlaylist,
   isCurrentPlaylistCollected,
   reloadHomeData: loadHomeData,
+  triggerMusicSearch,
   reloadCurrentPlaylist,
   openPlaylistDetail,
   backToMainList,
   enterPlayerDetail,
   exitPlayerDetail,
   playFeaturedTrack,
+  playSearchTrack,
   playTrackInCurrentPlaylist,
   toggleCollectCurrentPlaylist,
   toggleTrackLike,
@@ -784,6 +981,27 @@ watch(
 );
 
 watch(
+  () => route.fullPath,
+  (nextPath, prevPath) => {
+    if (!prevPath) {
+      centerTransitionName.value = 'music-center-fade';
+      return;
+    }
+    const fromPlaylist = isPlaylistPath(prevPath);
+    const toPlaylist = isPlaylistPath(nextPath);
+    if (toPlaylist && !fromPlaylist) {
+      centerTransitionName.value = 'music-center-forward';
+      return;
+    }
+    if (!toPlaylist && fromPlaylist) {
+      centerTransitionName.value = 'music-center-backward';
+      return;
+    }
+    centerTransitionName.value = 'music-center-fade';
+  }
+);
+
+watch(
   [() => route.name, currentPlaylistCodeFromRoute],
   async () => {
     await ensureCurrentRoutePlaylistLoaded();
@@ -796,11 +1014,22 @@ watch(
   async () => {
     await Promise.all([loadSidebarData(), loadTunehubStatus(), loadSpotifyBindingStatus()]);
     await ensureCurrentRoutePlaylistLoaded();
+    if (hasActiveSearch.value) {
+      triggerMusicSearch(true);
+    }
+  }
+);
+
+watch(
+  [() => ui.globalSearchKeyword.value, () => ui.globalSearchType.value, () => ui.globalSearchProviders.value.join(',')],
+  () => {
+    triggerMusicSearch(false);
   }
 );
 
 onMounted(async () => {
   await auth.ensureReady();
+  ui.setExpandedProvider('');
   updateViewportMode();
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', updateViewportMode, { passive: true });
@@ -821,6 +1050,10 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', updateViewportMode);
+  }
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = 0;
   }
 });
 </script>

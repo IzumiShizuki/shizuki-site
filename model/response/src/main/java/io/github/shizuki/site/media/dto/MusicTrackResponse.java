@@ -15,6 +15,19 @@ public record MusicTrackResponse(
     @Schema(description = "音频 URL") String audio,
     @Schema(description = "歌词 URL") String lyric,
     @Schema(description = "排序值") int sort,
-    @Schema(description = "是否启用") boolean enabled
+    @Schema(description = "是否启用") boolean enabled,
+    @Schema(description = "内联歌词文本（无歌词 URL 时使用）") String lyricText
 ) {
+
+    public MusicTrackResponse(String trackId,
+                              String provider,
+                              String title,
+                              String artist,
+                              String cover,
+                              String audio,
+                              String lyric,
+                              int sort,
+                              boolean enabled) {
+        this(trackId, provider, title, artist, cover, audio, lyric, sort, enabled, "");
+    }
 }

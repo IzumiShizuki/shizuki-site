@@ -63,6 +63,9 @@
               <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.OAUTH_BIND)">
                 绑定 GitHub / LinuxDo
               </button>
+              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.MUSIC_AUTH)">
+                音乐授权与排序
+              </button>
               <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
                 修改密码
               </button>
@@ -252,6 +255,83 @@
             <p v-if="changePasswordError" class="error-text">{{ changePasswordError }}</p>
           </template>
 
+          <template #section-music-auth>
+            <div class="music-auth-grid">
+              <article class="music-auth-card">
+                <p class="music-auth-title">TuneHub Key</p>
+                <p class="helper-text">用于 TuneHub 聚合能力，默认推荐会优先使用该 Key。</p>
+                <div class="stack-form">
+                  <input
+                    v-model.trim="musicTunehubKeyInput"
+                    class="field-input"
+                    type="password"
+                    placeholder="输入 TuneHub API Key"
+                    autocomplete="off"
+                  />
+                  <div class="inline-actions">
+                    <button class="primary-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="saveMusicTunehubKey">
+                      {{ musicTunehubBusy ? '保存中...' : '保存 Key' }}
+                    </button>
+                    <button class="ghost-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="deleteMusicTunehubKey">
+                      删除 Key
+                    </button>
+                    <button class="ghost-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="loadMusicTunehubStatus">
+                      刷新状态
+                    </button>
+                  </div>
+                </div>
+                <p class="helper-text">{{ musicTunehubStatusText }}</p>
+              </article>
+
+              <article class="music-auth-card">
+                <p class="music-auth-title">推荐顺序（拖拽调整）</p>
+                <p class="helper-text">按顺序推荐：网易云 / 酷我 / QQ。拖拽卡片即可调整优先级。</p>
+                <div class="provider-order-list">
+                  <button
+                    v-for="item in musicProviderOrderCards"
+                    :key="item.code"
+                    class="provider-order-item ripple-trigger"
+                    type="button"
+                    draggable="true"
+                    @dragstart="onProviderDragStart(item.code)"
+                    @dragover.prevent="onProviderDragOver(item.code)"
+                    @drop.prevent="onProviderDrop"
+                    @dragend="onProviderDragEnd"
+                  >
+                    <span class="provider-icon" :class="`provider-${item.code}`">{{ item.iconText }}</span>
+                    <span class="provider-name">{{ item.name }}</span>
+                    <label class="provider-toggle">
+                      <input
+                        :checked="musicProviderEnabled[item.code]"
+                        type="checkbox"
+                        @change="toggleMusicProvider(item.code, $event.target.checked)"
+                      />
+                      <span>启用</span>
+                    </label>
+                    <i class="fas fa-grip-vertical"></i>
+                  </button>
+                </div>
+                <div class="inline-actions compact">
+                  <button class="primary-btn ripple-trigger" type="button" :disabled="musicPreferenceBusy" @click="saveMusicPreferences">
+                    {{ musicPreferenceBusy ? '保存中...' : '保存排序' }}
+                  </button>
+                </div>
+                <p v-if="musicPreferenceError" class="error-text">{{ musicPreferenceError }}</p>
+              </article>
+
+              <article class="music-auth-card">
+                <p class="music-auth-title">平台状态</p>
+                <div class="provider-chip-row">
+                  <span class="provider-chip netease">网易云</span>
+                  <span class="provider-chip kuwo">酷我</span>
+                  <span class="provider-chip qq">QQ 音乐</span>
+                  <span class="provider-chip spotify">Spotify（预览模式）</span>
+                </div>
+                <p class="helper-text">Spotify 当前采用最小授权预览模式，不要求用户 OAuth 才能展示基础结果。</p>
+              </article>
+            </div>
+          </template>
+
           <template #section-workspace>
             <div class="placeholder-card">
               <p class="placeholder-title">创作工作台</p>
@@ -332,6 +412,7 @@ import ProfileAvatarPreviewDialog from '../components/profile/ProfileAvatarPrevi
 import ProfileHeroCard from '../components/profile/ProfileHeroCard.vue';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
 import SettingsPanel from '../components/SettingsPanel.vue';
+import * as musicApi from '../services/musicApi';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   ProfileSectionKey,
@@ -355,6 +436,13 @@ const tabs = [
   { key: ProfileTabKey.ARTICLES, label: '文章', caption: '创作工作台' },
   { key: ProfileTabKey.SETTINGS, label: '设置', caption: '外观与偏好' }
 ];
+
+const MUSIC_PROVIDER_ORDER_DEFAULT = ['netease', 'kuwo', 'qq'];
+const MUSIC_PROVIDER_CATALOG = Object.freeze({
+  netease: { code: 'netease', name: '网易云', iconText: '网' },
+  kuwo: { code: 'kuwo', name: '酷我', iconText: '酷' },
+  qq: { code: 'qq', name: 'QQ 音乐', iconText: 'Q' }
+});
 
 const accountLoading = ref(false);
 const bindEmailSubmitting = ref(false);
@@ -383,6 +471,25 @@ const oauthBindingError = ref('');
 const avatarError = ref('');
 const bindCodeError = ref('');
 const changePwdCodeError = ref('');
+const musicPreferenceError = ref('');
+
+const musicPreferenceSnapshot = ref({});
+const musicPreferenceBusy = ref(false);
+const musicProviderOrder = ref(MUSIC_PROVIDER_ORDER_DEFAULT.slice());
+const musicProviderEnabled = reactive({
+  netease: true,
+  kuwo: true,
+  qq: true
+});
+const musicDragProviderCode = ref('');
+
+const musicTunehubBusy = ref(false);
+const musicTunehubKeyInput = ref('');
+const musicTunehubStatus = ref({
+  keyBound: false,
+  keyMask: '',
+  updatedAt: ''
+});
 
 const account = reactive({
   userId: 0,
@@ -452,6 +559,61 @@ function readErrorMessage(error) {
   return '请求失败，请稍后重试';
 }
 
+function normalizeMusicPreferencePayload(payload) {
+  if (!payload || typeof payload !== 'object') return {};
+  if (Array.isArray(payload)) return {};
+  return { ...payload };
+}
+
+function normalizeMusicProviderOrder(rawOrder) {
+  const seen = new Set();
+  const normalized = [];
+  const source = Array.isArray(rawOrder) ? rawOrder : [];
+  source.forEach((item) => {
+    const code = String(item || '').trim().toLowerCase();
+    if (!MUSIC_PROVIDER_CATALOG[code] || seen.has(code)) return;
+    seen.add(code);
+    normalized.push(code);
+  });
+  MUSIC_PROVIDER_ORDER_DEFAULT.forEach((code) => {
+    if (seen.has(code)) return;
+    normalized.push(code);
+  });
+  return normalized;
+}
+
+function normalizeMusicProviderEnabled(rawEnabled) {
+  const source = rawEnabled && typeof rawEnabled === 'object' && !Array.isArray(rawEnabled) ? rawEnabled : {};
+  return {
+    netease: source.netease !== false,
+    kuwo: source.kuwo !== false,
+    qq: source.qq !== false
+  };
+}
+
+function normalizeApiKeyStatus(raw) {
+  return {
+    keyBound: Boolean(raw?.keyBound ?? raw?.key_bound),
+    keyMask: String(raw?.keyMask || raw?.key_mask || '').trim(),
+    updatedAt: String(raw?.updatedAt || raw?.updated_at || '').trim()
+  };
+}
+
+function applyMusicPreferences(payload) {
+  const normalizedPayload = normalizeMusicPreferencePayload(payload);
+  musicPreferenceSnapshot.value = normalizedPayload;
+
+  const nestedMusic = normalizedPayload.music && typeof normalizedPayload.music === 'object' ? normalizedPayload.music : {};
+  const orderRaw = normalizedPayload['music.provider_order'] || nestedMusic.provider_order;
+  const enabledRaw = normalizedPayload['music.provider_enabled'] || nestedMusic.provider_enabled;
+
+  musicProviderOrder.value = normalizeMusicProviderOrder(orderRaw);
+  const normalizedEnabled = normalizeMusicProviderEnabled(enabledRaw);
+  musicProviderEnabled.netease = normalizedEnabled.netease;
+  musicProviderEnabled.kuwo = normalizedEnabled.kuwo;
+  musicProviderEnabled.qq = normalizedEnabled.qq;
+}
+
 function clearErrors() {
   bindEmailError.value = '';
   changePasswordError.value = '';
@@ -459,6 +621,7 @@ function clearErrors() {
   avatarError.value = '';
   bindCodeError.value = '';
   changePwdCodeError.value = '';
+  musicPreferenceError.value = '';
 }
 
 function openTab(tabKey) {
@@ -586,11 +749,137 @@ async function loadAccountProfile() {
     profileForm.nickname = payload.nickname || auth.user.value?.nickname || '';
     bindEmailForm.email = payload.email || '';
     changePasswordForm.email = payload.email || '';
+    await loadMusicAuthorizationState();
   } catch (error) {
     setGlobalHint(readErrorMessage(error));
   } finally {
     accountLoading.value = false;
   }
+}
+
+async function loadMusicPreferences() {
+  musicPreferenceError.value = '';
+  try {
+    const payload = await auth.getPreference();
+    applyMusicPreferences(payload);
+  } catch (error) {
+    applyMusicPreferences({});
+    musicPreferenceError.value = readErrorMessage(error);
+  }
+}
+
+async function saveMusicPreferences() {
+  musicPreferenceBusy.value = true;
+  musicPreferenceError.value = '';
+  try {
+    const nextPreference = {
+      ...musicPreferenceSnapshot.value,
+      'music.provider_order': musicProviderOrder.value.slice(),
+      'music.provider_enabled': {
+        netease: Boolean(musicProviderEnabled.netease),
+        kuwo: Boolean(musicProviderEnabled.kuwo),
+        qq: Boolean(musicProviderEnabled.qq)
+      }
+    };
+    const mergedMusic = nextPreference.music && typeof nextPreference.music === 'object' && !Array.isArray(nextPreference.music)
+      ? { ...nextPreference.music }
+      : {};
+    mergedMusic.provider_order = nextPreference['music.provider_order'];
+    mergedMusic.provider_enabled = nextPreference['music.provider_enabled'];
+    nextPreference.music = mergedMusic;
+    await auth.updatePreference(nextPreference);
+    musicPreferenceSnapshot.value = nextPreference;
+    setGlobalHint('音乐推荐顺序已保存');
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    musicPreferenceBusy.value = false;
+  }
+}
+
+async function loadMusicTunehubStatus() {
+  try {
+    const payload = await musicApi.getMusicApiKeyStatus('tunehub', auth.authorizedFetch);
+    musicTunehubStatus.value = normalizeApiKeyStatus(payload);
+  } catch {
+    musicTunehubStatus.value = {
+      keyBound: false,
+      keyMask: '',
+      updatedAt: ''
+    };
+  }
+}
+
+async function saveMusicTunehubKey() {
+  if (!String(musicTunehubKeyInput.value || '').trim()) {
+    musicPreferenceError.value = '请输入 TuneHub API Key';
+    return;
+  }
+  musicTunehubBusy.value = true;
+  musicPreferenceError.value = '';
+  try {
+    const payload = await musicApi.upsertMusicApiKey('tunehub', musicTunehubKeyInput.value, auth.authorizedFetch);
+    musicTunehubStatus.value = normalizeApiKeyStatus(payload);
+    musicTunehubKeyInput.value = '';
+    setGlobalHint('TuneHub Key 已更新');
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    musicTunehubBusy.value = false;
+  }
+}
+
+async function deleteMusicTunehubKey() {
+  musicTunehubBusy.value = true;
+  musicPreferenceError.value = '';
+  try {
+    await musicApi.deleteMusicApiKey('tunehub', auth.authorizedFetch);
+    musicTunehubStatus.value = {
+      keyBound: false,
+      keyMask: '',
+      updatedAt: ''
+    };
+    setGlobalHint('TuneHub Key 已删除');
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    musicTunehubBusy.value = false;
+  }
+}
+
+async function loadMusicAuthorizationState() {
+  await Promise.all([loadMusicPreferences(), loadMusicTunehubStatus()]);
+}
+
+function onProviderDragStart(providerCode) {
+  musicDragProviderCode.value = String(providerCode || '').trim();
+}
+
+function onProviderDragOver(targetProviderCode) {
+  const sourceCode = String(musicDragProviderCode.value || '').trim();
+  const targetCode = String(targetProviderCode || '').trim();
+  if (!sourceCode || !targetCode || sourceCode === targetCode) return;
+  const current = musicProviderOrder.value.slice();
+  const fromIndex = current.indexOf(sourceCode);
+  const toIndex = current.indexOf(targetCode);
+  if (fromIndex < 0 || toIndex < 0) return;
+  current.splice(fromIndex, 1);
+  current.splice(toIndex, 0, sourceCode);
+  musicProviderOrder.value = current;
+}
+
+function onProviderDrop() {
+  musicDragProviderCode.value = '';
+}
+
+function onProviderDragEnd() {
+  musicDragProviderCode.value = '';
+}
+
+function toggleMusicProvider(providerCode, checked) {
+  const code = String(providerCode || '').trim().toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(musicProviderEnabled, code)) return;
+  musicProviderEnabled[code] = Boolean(checked);
 }
 
 async function sendBindEmailCode() {
@@ -891,6 +1180,16 @@ const permissionCount = computed(() => {
 });
 
 const oauthBindingCount = computed(() => account.oauthBindings.length);
+const musicProviderOrderCards = computed(() =>
+  musicProviderOrder.value.map((code) => MUSIC_PROVIDER_CATALOG[code]).filter(Boolean)
+);
+const musicTunehubStatusText = computed(() => {
+  if (!musicTunehubStatus.value.keyBound) return '状态：未绑定';
+  if (musicTunehubStatus.value.keyMask) {
+    return `状态：已绑定（${musicTunehubStatus.value.keyMask}）`;
+  }
+  return '状态：已绑定';
+});
 
 const bindCodeLocked = computed(() => bindCodeSubmitting.value || bindCodeCooldownSec.value > 0);
 const changePwdCodeLocked = computed(() => changePwdCodeSubmitting.value || changePwdCodeCooldownSec.value > 0);
@@ -1049,6 +1348,14 @@ const accountSections = computed(() => [
       oauthBindingCount: oauthBindingCount.value
     }),
     statusText: `${oauthBindingCount.value} 个`
+  },
+  {
+    key: ProfileSectionKey.ACCOUNT.MUSIC_AUTH,
+    title: '音乐授权与推荐顺序',
+    summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.MUSIC_AUTH, {
+      tunehubBound: musicTunehubStatus.value.keyBound
+    }),
+    statusText: musicTunehubStatus.value.keyBound ? '已配置' : '待配置'
   },
   {
     key: ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD,
@@ -1398,6 +1705,117 @@ select.field-input {
   font-size: 12px;
 }
 
+.music-auth-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.music-auth-card {
+  border-radius: 12px;
+  background: rgba(11, 18, 28, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(173, 196, 228, 0.16);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.music-auth-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.provider-order-list {
+  display: grid;
+  gap: 8px;
+}
+
+.provider-order-item {
+  border: 0;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(236, 244, 255, 0.95);
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+}
+
+.provider-order-item i {
+  opacity: 0.7;
+}
+
+.provider-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.provider-icon.provider-netease {
+  background: linear-gradient(135deg, rgba(237, 70, 80, 0.94), rgba(255, 120, 120, 0.88));
+}
+
+.provider-icon.provider-kuwo {
+  background: linear-gradient(135deg, rgba(66, 160, 255, 0.9), rgba(101, 126, 255, 0.86));
+}
+
+.provider-icon.provider-qq {
+  background: linear-gradient(135deg, rgba(53, 185, 98, 0.9), rgba(70, 210, 120, 0.88));
+}
+
+.provider-name {
+  font-size: 13px;
+}
+
+.provider-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(220, 234, 254, 0.92);
+}
+
+.provider-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.provider-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: rgba(238, 246, 255, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(201, 221, 248, 0.3);
+}
+
+.provider-chip.netease {
+  background: rgba(237, 70, 80, 0.22);
+}
+
+.provider-chip.kuwo {
+  background: rgba(66, 160, 255, 0.22);
+}
+
+.provider-chip.qq {
+  background: rgba(53, 185, 98, 0.22);
+}
+
+.provider-chip.spotify {
+  background: rgba(104, 84, 184, 0.28);
+}
+
 .error-text {
   color: rgba(255, 188, 206, 0.96);
   font-size: 12px;
@@ -1538,6 +1956,11 @@ select.field-input {
 
   .captcha-row {
     grid-template-columns: 1fr;
+  }
+
+  .provider-order-item {
+    grid-template-columns: auto 1fr auto;
+    row-gap: 4px;
   }
 }
 </style>
