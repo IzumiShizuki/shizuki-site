@@ -1,5 +1,5 @@
 <template>
-  <footer class="music-library-dock liquid-material" @click="emit('open-player-detail')">
+  <footer ref="rootRef" class="music-library-dock liquid-material" @click="emit('open-player-detail')">
     <div class="dock-track">
       <div class="cover" :style="coverStyle"></div>
       <div class="meta">
@@ -29,26 +29,57 @@
     </div>
 
     <div class="dock-mode" @click.stop>
+      <button class="mode-btn ripple-trigger" type="button" @click="toggleQueue">
+        <i class="fas fa-list"></i>
+      </button>
       <button class="mode-btn ripple-trigger" type="button" @click="emit('cycle-mode')">
         <i :class="modeIcon"></i>
       </button>
       <span>{{ modeLabel }}</span>
     </div>
+
+    <section v-if="queueOpen" class="dock-queue liquid-material" @click.stop>
+      <header class="queue-head">
+        <p>播放列表</p>
+        <button class="queue-close ripple-trigger" type="button" @click="queueOpen = false">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </header>
+
+      <div class="queue-body">
+        <button
+          v-for="(item, index) in tracks"
+          :key="`dock-track-${item.id || index}`"
+          class="queue-item ripple-trigger"
+          :class="{ active: (item.id || '') === currentTrackId }"
+          type="button"
+          @click="handleSelectTrack(index)"
+        >
+          <span class="queue-name">{{ item.title || '未知标题' }}</span>
+          <span class="queue-meta">{{ item.artist || '未知歌手' }} · {{ item.durationLabel || '--:--' }}</span>
+        </button>
+        <p v-if="!tracks.length" class="queue-empty">当前没有可播放歌曲</p>
+      </div>
+    </section>
   </footer>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 
 const props = defineProps({
   track: { type: Object, default: null },
+  tracks: { type: Array, default: () => [] },
+  currentTrackId: { type: String, default: '' },
   currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 },
   isPlaying: { type: Boolean, default: false },
   playMode: { type: String, default: 'sequential' }
 });
 
-const emit = defineEmits(['toggle-play', 'prev', 'next', 'seek', 'cycle-mode', 'open-player-detail']);
+const emit = defineEmits(['toggle-play', 'prev', 'next', 'seek', 'cycle-mode', 'select-track', 'open-player-detail']);
+const rootRef = ref(null);
+const queueOpen = ref(false);
 
 const coverStyle = computed(() => ({
   backgroundImage: `url('${props.track?.cover || `${import.meta.env.BASE_URL}images/katanegai.jpg`}')`
@@ -84,6 +115,34 @@ function onSeek(event) {
   const raw = Number(event?.target?.value);
   emit('seek', Math.max(0, Math.min(1, raw / 1000)));
 }
+
+function toggleQueue() {
+  queueOpen.value = !queueOpen.value;
+}
+
+function handleSelectTrack(index) {
+  emit('select-track', index);
+  queueOpen.value = false;
+}
+
+function onDocumentPointerDown(event) {
+  if (!queueOpen.value) return;
+  const root = rootRef.value;
+  const target = event?.target;
+  if (!root || !(target instanceof Element)) return;
+  if (root.contains(target)) return;
+  queueOpen.value = false;
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', onDocumentPointerDown, true);
+}
+
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('pointerdown', onDocumentPointerDown, true);
+  }
+});
 </script>
 
 <style scoped>
@@ -104,6 +163,7 @@ function onSeek(event) {
   padding: 12px 14px;
   z-index: 1240;
   cursor: pointer;
+  overflow: visible;
 }
 
 .dock-track {
@@ -186,6 +246,8 @@ function onSeek(event) {
   gap: 4px;
   color: rgba(178, 190, 216, 0.88);
   font-size: 11px;
+  grid-auto-flow: column;
+  align-items: center;
 }
 
 .mode-btn {
@@ -195,6 +257,86 @@ function onSeek(event) {
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.1);
   color: rgba(239, 245, 255, 0.96);
+}
+
+.dock-queue {
+  --liquid-bg: linear-gradient(160deg, rgba(13, 17, 26, 0.94), rgba(10, 14, 20, 0.94));
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 18px 30px rgba(4, 8, 14, 0.46);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: min(460px, 72vw);
+  border-radius: 14px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  z-index: 6;
+}
+
+.queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.queue-head p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(235, 242, 255, 0.94);
+}
+
+.queue-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(237, 243, 255, 0.94);
+}
+
+.queue-body {
+  max-height: 260px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.queue-item {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px 10px;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+}
+
+.queue-item.active {
+  border-color: rgba(var(--accent-rgb), 0.62);
+  background: rgba(var(--accent-rgb), 0.22);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.22);
+}
+
+.queue-name {
+  font-size: 13px;
+  color: rgba(241, 246, 255, 0.96);
+}
+
+.queue-meta {
+  font-size: 11px;
+  color: rgba(180, 193, 219, 0.86);
+}
+
+.queue-empty {
+  margin: 0;
+  min-height: 62px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  color: rgba(177, 190, 216, 0.84);
+  font-size: 12px;
 }
 
 @media (max-width: 900px) {
@@ -208,9 +350,15 @@ function onSeek(event) {
   }
 
   .dock-mode {
-    grid-auto-flow: column;
     gap: 10px;
     justify-content: center;
+  }
+
+  .dock-queue {
+    width: min(96vw, 520px);
+    right: 0;
+    left: 0;
+    margin: 0 auto;
   }
 }
 </style>

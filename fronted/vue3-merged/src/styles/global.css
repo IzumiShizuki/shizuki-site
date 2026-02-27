@@ -42,6 +42,42 @@ body {
   background-image: var(--accent-gradient);
 }
 
+:root[data-accent-mode='gradient'] :is(
+  .mode-btn.active,
+  .nav-item.active,
+  .list-item.selected,
+  .chip-btn.active,
+  .hero-btn.primary,
+  .ctrl-btn.primary,
+  .mini-btn.primary,
+  .bind-tag.ok,
+  .queue-item.active,
+  .track-row.active,
+  .playlist-card.opening,
+  .switch-btn
+) {
+  background-image: var(--accent-gradient);
+  color: rgba(255, 255, 255, 0.96);
+  border-color: rgba(var(--accent-rgb), 0.7);
+}
+
+:root[data-accent-mode='gradient'] :is(
+  .brand-text,
+  .panel-head h2,
+  .hero-main h1,
+  .song-title,
+  .list-title,
+  .dialog-head h3,
+  .music-auth-title,
+  .picker-title,
+  .detail-head p
+) {
+  background-image: var(--accent-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 ::selection {
   background: rgba(var(--accent-rgb), 0.38);
   color: rgba(21, 16, 35, 0.95);

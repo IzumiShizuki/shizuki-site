@@ -40,27 +40,47 @@
     <section v-if="music.hasActiveSearch.value" class="playlist-table liquid-material">
       <header class="table-head search-head">
         <span>#</span>
+        <span>封面</span>
         <span>标题</span>
         <span>歌手</span>
         <span>平台</span>
         <span>时长</span>
+        <span>操作</span>
       </header>
 
       <div v-if="!searchTracks.length && !music.searchLoading.value" class="empty-state">暂无匹配搜索结果</div>
 
-      <button
+      <article
         v-for="(item, index) in searchTracks"
         :key="`search-track-${item.trackId || item.id || index}`"
         class="track-row search-row ripple-trigger"
-        type="button"
         @click="music.playSearchTrack(item, index)"
       >
         <span>{{ String(index + 1).padStart(2, '0') }}</span>
+        <span class="track-cover" :class="{ empty: !item.cover }" :style="searchCoverStyle(item)"></span>
         <span class="title-col">{{ item.title || '未知标题' }}</span>
         <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
         <span>{{ item.provider || '-' }}</span>
         <span>{{ item.durationLabel || '--:--' }}</span>
-      </button>
+        <span class="row-actions">
+          <button
+            class="track-action-btn ripple-trigger"
+            type="button"
+            :title="music.isTrackLiked(item.trackId || item.id) ? '取消红心' : '加入红心'"
+            @click.stop="music.toggleTrackLike(item)"
+          >
+            <i class="fas" :class="music.isTrackLiked(item.trackId || item.id) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+          </button>
+          <button
+            class="track-action-btn ripple-trigger"
+            type="button"
+            title="下一首播放"
+            @click.stop="music.enqueueSearchTrackNext(item, index)"
+          >
+            <i class="fas fa-forward"></i>
+          </button>
+        </span>
+      </article>
     </section>
 
     <section v-else class="playlist-table liquid-material">
@@ -119,6 +139,13 @@ const coverStyle = computed(() => {
     backgroundImage: `url('${profile.value.cover || fallback}')`
   };
 });
+
+function searchCoverStyle(trackItem) {
+  const cover = String(trackItem?.cover || '').trim();
+  return {
+    backgroundImage: cover ? `url('${cover}')` : 'none'
+  };
+}
 
 function resolveRawIndexByTrackId(trackId) {
   return allTracks.value.findIndex((item) => item.id === trackId);
@@ -314,6 +341,7 @@ function playAll() {
   background: rgba(255, 255, 255, 0.04);
   text-align: left;
   color: rgba(234, 240, 255, 0.92);
+  cursor: pointer;
 }
 
 .track-row.active {
@@ -323,7 +351,36 @@ function playAll() {
 
 .search-head,
 .search-row {
-  grid-template-columns: 44px minmax(0, 1.9fr) minmax(0, 1fr) 92px 72px;
+  grid-template-columns: 44px 52px minmax(0, 1.7fr) minmax(0, 1fr) 86px 66px 96px;
+}
+
+.track-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 6px 14px rgba(5, 8, 16, 0.34);
+}
+
+.track-cover.empty {
+  background-image: linear-gradient(145deg, rgba(65, 74, 105, 0.54), rgba(33, 40, 64, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.track-action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(231, 238, 252, 0.9);
 }
 
 .title-col,
@@ -381,6 +438,12 @@ function playAll() {
   .table-head,
   .track-row {
     grid-template-columns: 36px minmax(0, 1.6fr) minmax(0, 1fr) 70px 46px 58px;
+    gap: 6px;
+  }
+
+  .search-head,
+  .search-row {
+    grid-template-columns: 34px 38px minmax(0, 1.5fr) minmax(0, 0.9fr) 64px 56px 78px;
     gap: 6px;
   }
 }

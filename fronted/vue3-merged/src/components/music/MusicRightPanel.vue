@@ -20,7 +20,13 @@
 
     <article class="lyric-card" :class="{ 'lyric-card--expanded': !expandedProviderKey }">
       <p class="label">实时歌词</p>
-      <p class="line">{{ lyricLine || '纯音乐，无歌词' }}</p>
+      <transition name="lyric-soft" mode="out-in">
+        <div :key="lyricTransitionKey" class="lyric-triplet">
+          <p class="line prev">{{ lyricDisplay.prev }}</p>
+          <p class="line current">{{ lyricDisplay.current }}</p>
+          <p class="line next">{{ lyricDisplay.next }}</p>
+        </div>
+      </transition>
     </article>
 
     <section class="control-panel">
@@ -194,6 +200,10 @@ import { computed } from 'vue';
 const props = defineProps({
   track: { type: Object, default: null },
   lyricLine: { type: String, default: '' },
+  lyricContext: {
+    type: Object,
+    default: () => ({ prev: '', current: '', next: '' })
+  },
   volume: { type: Number, default: 0.8 },
   eqLevels: { type: Array, default: () => [0.66, 0.52, 0.74] },
   isMobile: { type: Boolean, default: false },
@@ -261,6 +271,24 @@ const spotifySummary = computed(() => {
 });
 
 const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spotifyBound);
+
+const lyricDisplay = computed(() => {
+  const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
+  const current = String(raw.current || props.lyricLine || '').trim() || '纯音乐，无歌词';
+  return {
+    prev: String(raw.prev || '').trim(),
+    current,
+    next: String(raw.next || '').trim()
+  };
+});
+
+const lyricTransitionKey = computed(() => {
+  const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
+  if (typeof raw.key === 'string' && raw.key.trim()) {
+    return raw.key.trim();
+  }
+  return `${lyricDisplay.value.prev}|${lyricDisplay.value.current}|${lyricDisplay.value.next}`;
+});
 
 const tunehubStatusText = computed(() => {
   if (!props.isAuthenticated) return '登录后可保存 TuneHub Key';
@@ -386,17 +414,63 @@ function onEqInput(event, index) {
   text-transform: uppercase;
 }
 
+.lyric-triplet {
+  margin-top: 6px;
+  display: grid;
+  gap: 6px;
+}
+
 .lyric-card .line {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: rgba(242, 247, 255, 0.95);
+  margin: 0;
+  transition: opacity 280ms ease, transform 320ms ease, filter 300ms ease;
+}
+
+.lyric-card .line.prev,
+.lyric-card .line.next {
+  font-size: 12px;
+  color: rgba(183, 195, 220, 0.78);
+  opacity: 0.68;
+  transform: translateY(0);
+  filter: blur(0.2px);
+}
+
+.lyric-card .line.current {
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 700;
+  color: rgba(248, 251, 255, 0.98);
+  text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.2);
+  opacity: 1;
+}
+
+.lyric-soft-enter-active,
+.lyric-soft-leave-active {
+  transition: opacity 320ms ease, transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 320ms ease;
+}
+
+.lyric-soft-enter-from {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  filter: blur(4px);
+}
+
+.lyric-soft-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.99);
+  filter: blur(4px);
+}
+
+.lyric-soft-enter-to,
+.lyric-soft-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
 }
 
 .control-panel {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
   padding: 10px 8px;
   display: grid;
   grid-template-columns: 74px 1fr;
@@ -431,15 +505,51 @@ function onEqInput(event, index) {
 .vertical-range {
   -webkit-appearance: slider-vertical;
   appearance: none;
-  width: 22px;
-  height: 128px;
+  width: 18px;
+  height: 132px;
   writing-mode: bt-lr;
   cursor: pointer;
+  background: transparent;
   accent-color: rgb(var(--accent-strong-rgb));
 }
 
 .vertical-range.eq {
   accent-color: rgb(var(--accent-rgb));
+  filter: saturate(0.94);
+}
+
+.vertical-range::-webkit-slider-runnable-track {
+  width: 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(245, 248, 255, 0.56));
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.vertical-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -2px;
+  border-radius: 50%;
+  border: 2px solid rgba(236, 242, 255, 0.95);
+  background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.42);
+}
+
+.vertical-range::-moz-range-track {
+  width: 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(245, 248, 255, 0.56));
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.vertical-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(236, 242, 255, 0.95);
+  background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.42);
 }
 
 .integration-panel {
@@ -515,6 +625,15 @@ function onEqInput(event, index) {
     max-height 240ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 180ms ease,
     transform 220ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyric-soft-enter-active,
+  .lyric-soft-leave-active,
+  .lyric-card .line {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
 }
 
 .provider-expand-enter-from,

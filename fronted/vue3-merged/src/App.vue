@@ -368,6 +368,7 @@ const playerBridge = Object.freeze({
   playNext: player.playNext,
   selectTrackByIndex: player.selectTrackByIndex,
   enqueueExternalTrack: player.enqueueExternalTrack,
+  enqueueNextTrack: player.enqueueNextTrack,
   playExternalTrack: player.playExternalTrack,
   seekToPercent: player.seekToPercent,
   setVolume: player.setVolume,

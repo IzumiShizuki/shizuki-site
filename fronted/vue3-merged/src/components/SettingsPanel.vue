@@ -51,6 +51,13 @@
             </button>
           </div>
 
+          <div class="picker-row">
+            <label class="picker-field">
+              <span>可视化取色</span>
+              <input v-model="solidColorPicker" type="color" @input="applySolidColorPicker" />
+            </label>
+          </div>
+
           <div class="custom-row">
             <label for="hex-input">自定义 HEX</label>
             <div class="hex-wrap">
@@ -81,6 +88,14 @@
           </div>
 
           <div class="gradient-input-grid">
+            <label class="picker-field">
+              <span>起始取色</span>
+              <input v-model="gradientStartPicker" type="color" @input="applyGradientPicker" />
+            </label>
+            <label class="picker-field">
+              <span>结束取色</span>
+              <input v-model="gradientEndPicker" type="color" @input="applyGradientPicker" />
+            </label>
             <label>
               <span>起始色</span>
               <input v-model.trim="gradientStartInput" type="text" placeholder="#E94BC5" spellcheck="false" />
@@ -122,6 +137,9 @@ const ui = useUiPreferences();
 const hexInput = ref(ui.state.accentHex);
 const gradientStartInput = ref(ui.state.accentGradientStartHex);
 const gradientEndInput = ref(ui.state.accentGradientEndHex);
+const solidColorPicker = ref(ui.state.accentHex);
+const gradientStartPicker = ref(ui.state.accentGradientStartHex);
+const gradientEndPicker = ref(ui.state.accentGradientEndHex);
 const errorMessage = ref('');
 
 const currentHex = computed(() => ui.state.accentHex);
@@ -142,6 +160,9 @@ function syncInputs() {
   hexInput.value = ui.state.accentHex;
   gradientStartInput.value = ui.state.accentGradientStartHex;
   gradientEndInput.value = ui.state.accentGradientEndHex;
+  solidColorPicker.value = ui.state.accentHex;
+  gradientStartPicker.value = ui.state.accentGradientStartHex;
+  gradientEndPicker.value = ui.state.accentGradientEndHex;
 }
 
 function applyAccentMode(mode) {
@@ -168,6 +189,19 @@ function applyCustomHex() {
   }
   ui.setAccentMode('solid');
   hexInput.value = result.normalized;
+  solidColorPicker.value = result.normalized;
+  errorMessage.value = '';
+}
+
+function applySolidColorPicker() {
+  const result = ui.setAccentHex(solidColorPicker.value);
+  if (!result.ok) {
+    errorMessage.value = result.error;
+    return;
+  }
+  ui.setAccentMode('solid');
+  hexInput.value = result.normalized;
+  solidColorPicker.value = result.normalized;
   errorMessage.value = '';
 }
 
@@ -176,6 +210,8 @@ function applyGradientPreset(presetId) {
   ui.setAccentMode('gradient');
   gradientStartInput.value = preset.startHex;
   gradientEndInput.value = preset.endHex;
+  gradientStartPicker.value = preset.startHex;
+  gradientEndPicker.value = preset.endHex;
   errorMessage.value = '';
 }
 
@@ -188,6 +224,22 @@ function applyCustomGradient() {
   ui.setAccentMode('gradient');
   gradientStartInput.value = result.startHex;
   gradientEndInput.value = result.endHex;
+  gradientStartPicker.value = result.startHex;
+  gradientEndPicker.value = result.endHex;
+  errorMessage.value = '';
+}
+
+function applyGradientPicker() {
+  const result = ui.setAccentGradientCustom(gradientStartPicker.value, gradientEndPicker.value);
+  if (!result.ok) {
+    errorMessage.value = result.error;
+    return;
+  }
+  ui.setAccentMode('gradient');
+  gradientStartInput.value = result.startHex;
+  gradientEndInput.value = result.endHex;
+  gradientStartPicker.value = result.startHex;
+  gradientEndPicker.value = result.endHex;
   errorMessage.value = '';
 }
 
@@ -334,6 +386,26 @@ function resetDefault() {
   gap: 6px;
 }
 
+.picker-row {
+  margin-top: 12px;
+}
+
+.picker-field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(25, 29, 38, 0.86);
+}
+
+.picker-field input[type='color'] {
+  width: 100%;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.38);
+  padding: 4px;
+}
+
 .custom-row label {
   font-size: 13px;
   color: rgba(25, 29, 38, 0.86);
@@ -358,7 +430,7 @@ function resetDefault() {
 .gradient-input-grid {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1fr 1fr auto;
   gap: 8px;
   align-items: end;
 }

@@ -98,10 +98,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -158,6 +160,7 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_EVENT_BUILD_START = "MUSIC_TUNEHUB_DEFAULT_PLAYLIST_BUILD_START";
     private static final String LOG_EVENT_SEARCH_START = "MUSIC_SEARCH_START";
     private static final String LOG_EVENT_SEARCH_PROVIDER_FAIL = "MUSIC_SEARCH_PROVIDER_FAIL";
+    private static final String LOG_EVENT_SEARCH_PROVIDER_RESULT = "MUSIC_SEARCH_PROVIDER_RESULT";
     private static final String LOG_EVENT_SEARCH_DONE = "MUSIC_SEARCH_DONE";
 
     private final ObjectStorageClient objectStorageClient;
@@ -813,12 +816,15 @@ public class MediaServiceImpl implements MediaService {
         boolean tuneHubReady = StringUtils.hasText(apiContext.apiKey());
 
         for (String provider : selectedProviders) {
+            int providerTrackMapped = 0;
+            String providerTopCover = "";
             if ("spotify".equals(provider)) {
                 if (!includeTracks) {
                     continue;
                 }
                 try {
                     List<SpotifyTrackResponse> items = searchSpotify(normalizedQuery, Math.min(safeLimit, 20));
+                    int mappedCount = 0;
                     for (SpotifyTrackResponse item : items) {
                         String trackId = readString(item == null ? null : item.trackId(), "");
                         if (!StringUtils.hasText(trackId)) {
@@ -837,10 +843,20 @@ public class MediaServiceImpl implements MediaService {
                             "",
                             null
                         ));
+                        mappedCount += 1;
                         if (tracks.size() >= safeLimit) {
                             break;
                         }
                     }
+                    providerTrackMapped = mappedCount;
+                    LOGGER.info(
+                        "{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT,
+                        "spotify",
+                        items.size(),
+                        mappedCount,
+                        tracks.size()
+                    );
                 } catch (Exception ex) {
                     failedProviders.add("spotify");
                     LOGGER.warn(
@@ -870,6 +886,7 @@ public class MediaServiceImpl implements MediaService {
                         safePage,
                         safeLimit
                     );
+                    int mappedCount = 0;
                     for (TuneHubMusicProvider.SearchTrackResult item : searchItems) {
                         String trackId = readString(item.trackId(), "");
                         if (!StringUtils.hasText(trackId)) {
@@ -888,10 +905,23 @@ public class MediaServiceImpl implements MediaService {
                             readString(item.cover(), ""),
                             item.durationSec()
                         ));
+                        mappedCount += 1;
+                        if (!StringUtils.hasText(providerTopCover)) {
+                            providerTopCover = readString(item.cover(), "");
+                        }
                         if (tracks.size() >= safeLimit) {
                             break;
                         }
                     }
+                    providerTrackMapped = mappedCount;
+                    LOGGER.info(
+                        "{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT,
+                        provider,
+                        searchItems.size(),
+                        mappedCount,
+                        tracks.size()
+                    );
                 } catch (Exception ex) {
                     failedProviders.add(provider);
                     LOGGER.warn(
@@ -900,6 +930,23 @@ public class MediaServiceImpl implements MediaService {
                         provider,
                         sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
                     );
+                }
+            }
+
+            if (includePlaylists && providerTrackMapped > 0 && playlists.size() < safeLimit) {
+                String searchPlaylistCode = buildVirtualSearchPlaylistCode(provider, normalizedQuery);
+                if (playlistCodes.add(searchPlaylistCode)) {
+                    playlists.add(new MusicPlaylistSummaryResponse(
+                        searchPlaylistCode,
+                        resolveProviderDisplayName(provider) + " 搜索结果",
+                        "关键词：" + normalizedQuery + " · " + providerTrackMapped + " 首",
+                        providerTopCover,
+                        PLAYLIST_TYPE_CUSTOM,
+                        0L,
+                        true,
+                        providerTrackMapped,
+                        normalizeSourceProvider(provider)
+                    ));
                 }
             }
 
@@ -913,7 +960,11 @@ public class MediaServiceImpl implements MediaService {
                     for (TuneHubMusicProvider.VirtualPlaylistSummary item : summaries) {
                         String name = readString(item.name(), "");
                         String description = readString(item.description(), "");
-                        if (!containsKeyword(name, normalizedQuery) && !containsKeyword(description, normalizedQuery)) {
+                        boolean matched = containsKeyword(name, normalizedQuery) || containsKeyword(description, normalizedQuery);
+                        if (!matched) {
+                            matched = virtualPlaylistMatchesKeyword(apiContext.apiKey(), item, normalizedQuery);
+                        }
+                        if (!matched) {
                             continue;
                         }
                         String code = readString(item.playlistCode(), "");
@@ -1949,6 +2000,63 @@ public class MediaServiceImpl implements MediaService {
             return false;
         }
         return source.contains(key);
+    }
+
+    private String buildVirtualSearchPlaylistCode(String provider, String keyword) {
+        String normalizedProvider = normalizeSourceProvider(provider);
+        String normalizedKeyword = readString(keyword, "");
+        String encodedKeyword = Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(normalizedKeyword.getBytes(StandardCharsets.UTF_8));
+        return "vh_tunehub_" + normalizedProvider + "_search_" + encodedKeyword;
+    }
+
+    private String resolveProviderDisplayName(String provider) {
+        String normalized = normalizeSourceProvider(provider);
+        return switch (normalized) {
+            case "netease" -> "网易云";
+            case "kuwo" -> "酷我";
+            case "qq" -> "QQ 音乐";
+            default -> normalized.toUpperCase(Locale.ROOT);
+        };
+    }
+
+    private boolean virtualPlaylistMatchesKeyword(String apiKey,
+                                                  TuneHubMusicProvider.VirtualPlaylistSummary summary,
+                                                  String keyword) {
+        if (!StringUtils.hasText(apiKey) || summary == null || !StringUtils.hasText(keyword)) {
+            return false;
+        }
+        try {
+            List<MusicTrackResponse> tracks = tuneHubMusicProvider.loadVirtualPlaylistTracks(
+                apiKey,
+                readString(summary.platform(), ""),
+                readString(summary.sourceType(), ""),
+                readString(summary.sourceId(), "")
+            );
+            int inspected = 0;
+            for (MusicTrackResponse item : tracks) {
+                if (item == null) {
+                    continue;
+                }
+                if (containsKeyword(item.title(), keyword) || containsKeyword(item.artist(), keyword)) {
+                    return true;
+                }
+                inspected += 1;
+                if (inspected >= 12) {
+                    break;
+                }
+            }
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_SEARCH_PLAYLIST_MATCH_FAIL provider={} sourceType={} sourceId={} reason={}",
+                sanitizeLogMessage(readString(summary.platform(), "")),
+                sanitizeLogMessage(readString(summary.sourceType(), "")),
+                sanitizeLogMessage(readString(summary.sourceId(), "")),
+                sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
+            );
+        }
+        return false;
     }
 
     private List<MusicSearchArtistResponse> buildArtistSearchResults(List<MusicSearchTrackResponse> tracks, int limit) {

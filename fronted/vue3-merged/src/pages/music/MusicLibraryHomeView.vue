@@ -44,25 +44,45 @@
           </div>
           <div class="table-head search-track-head">
             <span>#</span>
+            <span>封面</span>
             <span>标题</span>
             <span>歌手</span>
             <span>平台</span>
             <span>时长</span>
+            <span>操作</span>
           </div>
           <div v-if="!searchTracks.length" class="empty-state compact">暂无匹配歌曲</div>
-          <button
+          <article
             v-for="(item, index) in searchTracks"
             :key="`search-track-${item.trackId || item.id || index}`"
             class="table-row search-track-row ripple-trigger"
-            type="button"
             @click="music.playSearchTrack(item, index)"
           >
             <span>{{ String(index + 1).padStart(2, '0') }}</span>
+            <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
             <span class="title-col">{{ item.title || '未知标题' }}</span>
             <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
             <span>{{ item.provider || '-' }}</span>
             <span>{{ item.durationLabel || '--:--' }}</span>
-          </button>
+            <span class="row-actions">
+              <button
+                class="track-action-btn ripple-trigger"
+                type="button"
+                :title="music.isTrackLiked(item.trackId || item.id) ? '取消红心' : '加入红心'"
+                @click.stop="music.toggleTrackLike(item)"
+              >
+                <i class="fas" :class="music.isTrackLiked(item.trackId || item.id) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+              </button>
+              <button
+                class="track-action-btn ripple-trigger"
+                type="button"
+                title="下一首播放"
+                @click.stop="music.enqueueSearchTrackNext(item, index)"
+              >
+                <i class="fas fa-forward"></i>
+              </button>
+            </span>
+          </article>
         </section>
 
         <section v-if="showArtistResults" class="provider-block">
@@ -292,10 +312,17 @@ const displayErrorText = computed(() => {
 
 function coverStyle(item) {
   const raw = String(item?.cover || '').trim();
-  const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
-  const url = raw || fallback;
+  const url = raw || '';
   return {
-    backgroundImage: `url('${url}')`
+    backgroundImage: url ? `url('${url}')` : 'none'
+  };
+}
+
+function trackCoverStyle(item) {
+  const raw = String(item?.cover || '').trim();
+  const url = raw || '';
+  return {
+    backgroundImage: url ? `url('${url}')` : 'none'
   };
 }
 
@@ -522,6 +549,7 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.04);
   color: rgba(234, 240, 255, 0.92);
   text-align: left;
+  cursor: pointer;
 }
 
 .table-row + .table-row {
@@ -530,7 +558,40 @@ onBeforeUnmount(() => {
 
 .search-track-head,
 .search-track-row {
-  grid-template-columns: 48px minmax(0, 2fr) minmax(0, 1fr) 84px 72px;
+  grid-template-columns: 48px 52px minmax(0, 1.9fr) minmax(0, 1fr) 84px 72px 96px;
+}
+
+.track-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 6px 14px rgba(5, 8, 16, 0.34);
+}
+
+.track-cover.empty {
+  background-image: linear-gradient(145deg, rgba(65, 74, 105, 0.54), rgba(33, 40, 64, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.track-action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(231, 238, 252, 0.9);
+}
+
+.track-action-btn .liked {
+  color: rgb(var(--accent-strong-rgb));
 }
 
 .title-col,
@@ -638,6 +699,12 @@ onBeforeUnmount(() => {
 
   .podcast-grid {
     grid-template-columns: 1fr;
+  }
+
+  .search-track-head,
+  .search-track-row {
+    grid-template-columns: 40px 44px minmax(0, 1.6fr) minmax(0, 0.9fr) 66px 58px 82px;
+    gap: 6px;
   }
 }
 </style>

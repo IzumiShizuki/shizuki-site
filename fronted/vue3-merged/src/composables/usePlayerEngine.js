@@ -297,13 +297,13 @@ export function usePlayerEngine(options = {}) {
   }
 
   async function selectTrackByIndex(index, autoPlay = false, options = {}) {
-    if (index < 0 || index >= tracks.value.length) return;
+    if (index < 0 || index >= tracks.value.length) return false;
     const shouldResolve = options?.resolveIfMissing === true || (options?.resolveIfMissing !== false && autoPlay);
     let track = tracks.value[index];
     if (shouldResolve && !track?.audio) {
       track = await resolveTrackPlayback(index);
     }
-    if (!track) return;
+    if (!track) return false;
     if (!track.audio) {
       currentTrackId.value = track.id;
       audioElement.pause();
@@ -312,7 +312,7 @@ export function usePlayerEngine(options = {}) {
       duration.value = 0;
       isPlaying.value = false;
       await loadTrackLyric(track);
-      return;
+      return false;
     }
 
     currentTrackId.value = track.id;
@@ -355,6 +355,7 @@ export function usePlayerEngine(options = {}) {
       audioElement.pause();
       isPlaying.value = false;
     }
+    return true;
   }
 
   async function playNext(forceSequential = false) {
@@ -576,6 +577,7 @@ export function usePlayerEngine(options = {}) {
     const normalized = normalizeTrack(
       {
         id: rawTrack?.trackId || rawTrack?.track_id || rawTrack?.id || `pick-${Date.now()}`,
+        provider: rawTrack?.provider || rawTrack?.providerCode || rawTrack?.provider_code,
         title: rawTrack?.title,
         artist: rawTrack?.artist,
         cover: rawTrack?.cover || rawTrack?.coverUrl || rawTrack?.cover_url,
@@ -609,6 +611,49 @@ export function usePlayerEngine(options = {}) {
     }
 
     if (playMode.value === 'random') resetRandomQueue(normalized.id);
+    return true;
+  }
+
+  async function enqueueNextTrack(rawTrack) {
+    const normalized = normalizeTrack(
+      {
+        id: rawTrack?.trackId || rawTrack?.track_id || rawTrack?.id || `next-${Date.now()}`,
+        provider: rawTrack?.provider || rawTrack?.providerCode || rawTrack?.provider_code,
+        title: rawTrack?.title,
+        artist: rawTrack?.artist,
+        cover: rawTrack?.cover || rawTrack?.coverUrl || rawTrack?.cover_url,
+        audio: rawTrack?.audio || rawTrack?.audioUrl || rawTrack?.audio_url,
+        lyric: rawTrack?.lyric || rawTrack?.lyricUrl || rawTrack?.lyric_url,
+        lyricText: rawTrack?.lyricText || rawTrack?.lyric_text,
+        sort: rawTrack?.sort || 0
+      },
+      0
+    );
+
+    const canLazyResolve = ['netease', 'kuwo', 'qq'].includes(String(normalized.provider || '').toLowerCase())
+      && String(normalized.trackId || normalized.id || '').trim() !== '';
+    if (!normalized.audio && !canLazyResolve) return false;
+
+    const targetBase = currentIndex.value >= 0 ? currentIndex.value + 1 : tracks.value.length;
+    const existingIndex = tracks.value.findIndex((item) => item.id === normalized.id);
+    const next = tracks.value.slice();
+
+    if (existingIndex >= 0) {
+      const [existing] = next.splice(existingIndex, 1);
+      const merged = { ...existing, ...normalized };
+      const targetIndex = Math.max(0, Math.min(next.length, existingIndex < targetBase ? targetBase - 1 : targetBase));
+      next.splice(targetIndex, 0, merged);
+    } else {
+      const targetIndex = Math.max(0, Math.min(next.length, targetBase));
+      next.splice(targetIndex, 0, normalized);
+    }
+
+    tracks.value = next.map((item, idx) => ({
+      ...item,
+      sort: idx + 1
+    }));
+
+    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value || normalized.id);
     return true;
   }
 
@@ -701,6 +746,7 @@ export function usePlayerEngine(options = {}) {
     loadPlaylistByCode,
     reloadPlaylist: () => loadPlaylistByCode(playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE),
     enqueueExternalTrack,
+    enqueueNextTrack,
     playExternalTrack
   };
 }

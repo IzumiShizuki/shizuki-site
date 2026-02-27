@@ -39,8 +39,8 @@
             @update:keyword="ui.setGlobalSearchKeyword($event)"
             @set-type="ui.setGlobalSearchType($event)"
             @toggle-provider="ui.toggleGlobalSearchProvider($event)"
-            @submit="triggerMusicSearch(true)"
-            @refresh="triggerMusicSearch(true)"
+            @search="triggerMusicSearch"
+            @refresh="refreshMusicSearch"
           />
 
           <header v-if="isMobileViewport" class="mobile-switch-bar">
@@ -64,6 +64,7 @@
         <MusicRightPanel
           :track="player.currentTrack.value"
           :lyric-line="player.currentLyricLine.value"
+          :lyric-context="player.lyricContext.value"
           :volume="player.volume.value"
           :eq-levels="ui.eqLevels.value"
           :is-mobile="isMobileViewport"
@@ -97,6 +98,8 @@
 
         <MusicLibraryDock
           :track="player.currentTrack.value"
+          :tracks="player.tracks.value"
+          :current-track-id="player.currentTrack.value?.id || ''"
           :is-playing="player.isPlaying.value"
           :current-time="player.currentTime.value"
           :duration="player.duration.value"
@@ -106,6 +109,7 @@
           @next="player.playNext"
           @seek="player.seekToPercent"
           @cycle-mode="player.cyclePlayMode"
+          @select-track="handleSelectTrackFromDock"
           @open-player-detail="enterPlayerDetail"
         />
       </template>
@@ -114,6 +118,14 @@
         <RouterView />
       </main>
     </div>
+
+    <MusicCreatePlaylistDialog
+      :visible="createDialogVisible"
+      :submitting="createDialogSubmitting"
+      :error-text="createDialogError"
+      @close="createDialogVisible = false"
+      @confirm="submitCreatePlaylist"
+    />
   </section>
 </template>
 
@@ -121,6 +133,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import MusicLibraryDock from '../components/music/MusicLibraryDock.vue';
+import MusicCreatePlaylistDialog from '../components/music/MusicCreatePlaylistDialog.vue';
 import MusicLeftSidebar from '../components/music/MusicLeftSidebar.vue';
 import MusicRightPanel from '../components/music/MusicRightPanel.vue';
 import MusicSearchToolbar from '../components/music/MusicSearchToolbar.vue';
@@ -131,7 +144,6 @@ import { MUSIC_PRIMARY_NAV, useMusicLibraryUiState } from './musicLibraryUiState
 import * as musicApi from '../services/musicApi';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
-const SEARCH_DEBOUNCE_MS = 360;
 const SEARCH_TYPE_OPTIONS = [
   { value: 'all', label: '全部' },
   { value: 'playlist', label: '歌单' },
@@ -144,6 +156,7 @@ const SEARCH_PROVIDER_OPTIONS = [
   { value: 'qq', label: 'QQ' },
   { value: 'spotify', label: 'Spotify' }
 ];
+const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
 
 const route = useRoute();
 const router = useRouter();
@@ -183,6 +196,14 @@ const collectingPlaylist = ref(false);
 const likedTrackIds = ref(new Set());
 const searchLoading = ref(false);
 const searchError = ref('');
+const committedSearch = ref({
+  keyword: '',
+  type: 'all',
+  providers: DEFAULT_SEARCH_PROVIDERS.slice()
+});
+const createDialogVisible = ref(false);
+const createDialogSubmitting = ref(false);
+const createDialogError = ref('');
 const searchResult = ref({
   query: '',
   type: 'all',
@@ -192,7 +213,6 @@ const searchResult = ref({
   tracks: [],
   artists: []
 });
-let searchDebounceTimer = 0;
 
 const isPlaylistRoute = computed(() => route.name === 'music-library-playlist');
 const isPlayerDetailRoute = computed(() => route.name === 'music-library-player');
@@ -276,7 +296,7 @@ const likedPlaylistCode = computed(() => {
 
 const normalizedGlobalSearchKeyword = computed(() => String(ui.globalSearchKeyword.value || '').trim());
 
-const hasActiveSearch = computed(() => normalizedGlobalSearchKeyword.value.length >= 2);
+const hasActiveSearch = computed(() => String(committedSearch.value.keyword || '').trim().length >= 2);
 
 function parseErrorMessage(error, fallback = '操作失败，请稍后重试') {
   if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
@@ -396,6 +416,33 @@ function formatDurationBySec(seconds) {
   return `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
 }
 
+function createEmptySearchResult(type = 'all', query = '') {
+  return {
+    query,
+    type,
+    partial: false,
+    failedProviders: [],
+    playlists: [],
+    tracks: [],
+    artists: []
+  };
+}
+
+function clearSearchState(options = {}) {
+  const resetDraft = options?.resetDraft !== false;
+  if (resetDraft) {
+    ui.resetGlobalSearch();
+  }
+  committedSearch.value = {
+    keyword: '',
+    type: 'all',
+    providers: DEFAULT_SEARCH_PROVIDERS.slice()
+  };
+  searchError.value = '';
+  searchLoading.value = false;
+  searchResult.value = createEmptySearchResult('all', '');
+}
+
 function goLogin() {
   auth.redirectToAuth('session_expired', route.fullPath || '/music-library');
 }
@@ -425,9 +472,10 @@ function handleSelectNav(navKey) {
   const key = String(navKey || '').trim();
   if (!key) return;
 
+  clearSearchState();
   ui.setActiveNav(key);
+  ui.closeDrawers();
   if (isPlaylistRoute.value) {
-    ui.closeDrawers();
     router.push({ name: 'music-library' });
   }
 }
@@ -457,39 +505,51 @@ async function loadHomeData() {
   }
 }
 
-async function runMusicSearch() {
+function normalizeSearchProviderList(input) {
+  if (!Array.isArray(input)) return DEFAULT_SEARCH_PROVIDERS.slice();
+  const providers = [...new Set(input.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean))];
+  return providers.length ? providers : DEFAULT_SEARCH_PROVIDERS.slice();
+}
+
+function commitSearchFromDraft() {
   const keyword = normalizedGlobalSearchKeyword.value;
+  const type = String(ui.globalSearchType.value || 'all').trim().toLowerCase() || 'all';
+  const providers = normalizeSearchProviderList(ui.globalSearchProviders.value);
   if (keyword.length < 2) {
-    searchLoading.value = false;
+    clearSearchState({ resetDraft: false });
+    return false;
+  }
+  committedSearch.value = {
+    keyword,
+    type,
+    providers
+  };
+  return true;
+}
+
+async function runMusicSearch(criteria = committedSearch.value) {
+  const keyword = String(criteria?.keyword || '').trim();
+  const type = String(criteria?.type || 'all').trim().toLowerCase() || 'all';
+  const providers = normalizeSearchProviderList(criteria?.providers);
+  if (keyword.length < 2) {
     searchError.value = '';
-    searchResult.value = {
-      query: '',
-      type: ui.globalSearchType.value,
-      partial: false,
-      failedProviders: [],
-      playlists: [],
-      tracks: [],
-      artists: []
-    };
+    searchLoading.value = false;
+    searchResult.value = createEmptySearchResult(type, '');
     return;
   }
 
   searchLoading.value = true;
   searchError.value = '';
   try {
-    const payload = await musicApi.searchMusic(
-      keyword,
-      {
-        type: ui.globalSearchType.value,
-        providers: ui.globalSearchProviders.value,
-        page: 1,
-        limit: 24
-      },
-      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
-    );
+    const payload = await musicApi.searchMusic(keyword, {
+      type,
+      providers,
+      page: 1,
+      limit: 24
+    });
     searchResult.value = {
       query: String(payload?.query || keyword),
-      type: String(payload?.type || ui.globalSearchType.value || 'all'),
+      type: String(payload?.type || type || 'all'),
       partial: Boolean(payload?.partial),
       failedProviders: Array.isArray(payload?.failedProviders || payload?.failed_providers)
         ? (payload.failedProviders || payload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
@@ -500,33 +560,21 @@ async function runMusicSearch() {
     };
   } catch (error) {
     searchError.value = parseErrorMessage(error, '搜索失败，请稍后重试');
-    searchResult.value = {
-      query: keyword,
-      type: ui.globalSearchType.value,
-      partial: false,
-      failedProviders: [],
-      playlists: [],
-      tracks: [],
-      artists: []
-    };
+    searchResult.value = createEmptySearchResult(type, keyword);
   } finally {
     searchLoading.value = false;
   }
 }
 
-function triggerMusicSearch(force = false) {
-  if (searchDebounceTimer) {
-    window.clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = 0;
-  }
-  if (force) {
-    runMusicSearch();
-    return;
-  }
-  searchDebounceTimer = window.setTimeout(() => {
-    searchDebounceTimer = 0;
-    runMusicSearch();
-  }, SEARCH_DEBOUNCE_MS);
+function triggerMusicSearch() {
+  if (!commitSearchFromDraft()) return;
+  runMusicSearch(committedSearch.value);
+}
+
+function refreshMusicSearch() {
+  const committedKeyword = String(committedSearch.value.keyword || '').trim();
+  if (committedKeyword.length < 2) return;
+  runMusicSearch(committedSearch.value);
 }
 
 async function loadSidebarData() {
@@ -775,11 +823,17 @@ async function playFeaturedTrack(item, index) {
   const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
   const sourceIndex = currentPlaylistTracks.value.findIndex((track) => track.id === trackId);
   if (sourceIndex >= 0) {
-    await player.selectTrackByIndex(sourceIndex, true);
+    const played = await player.selectTrackByIndex(sourceIndex, true);
+    if (!played) {
+      window.alert('该歌曲当前无法播放，请稍后重试');
+    }
     return;
   }
 
-  await player.playExternalTrack?.(normalizeApiTrack(item, Number(index) || 0));
+  const played = await player.playExternalTrack?.(normalizeApiTrack(item, Number(index) || 0));
+  if (!played) {
+    window.alert('该歌曲当前无法播放，请稍后重试');
+  }
 }
 
 async function playSearchTrack(item, index) {
@@ -791,14 +845,33 @@ async function playSearchTrack(item, index) {
     return rowId === trackId && (!provider || provider === rowProvider);
   });
   if (existingIndex >= 0) {
-    await player.selectTrackByIndex(existingIndex, true);
+    const played = await player.selectTrackByIndex(existingIndex, true);
+    if (!played) {
+      window.alert('该歌曲当前无法播放，请稍后重试');
+    }
     return;
   }
-  await player.playExternalTrack?.(normalizeSearchTrack(item, Number(index) || 0));
+  const played = await player.playExternalTrack?.(normalizeSearchTrack(item, Number(index) || 0));
+  if (!played) {
+    window.alert('该歌曲当前无法播放，请稍后重试');
+  }
+}
+
+async function enqueueSearchTrackNext(item, index) {
+  const success = await player.enqueueNextTrack?.(normalizeSearchTrack(item, Number(index) || 0));
+  if (!success) {
+    window.alert('当前曲目暂不可加入“下一首播放”');
+  }
 }
 
 async function playTrackInCurrentPlaylist(index) {
   await player.selectTrackByIndex(index, true);
+}
+
+async function handleSelectTrackFromDock(index) {
+  const safeIndex = Number(index);
+  if (!Number.isInteger(safeIndex) || safeIndex < 0) return;
+  await player.selectTrackByIndex(safeIndex, true);
 }
 
 function isTrackLiked(trackId) {
@@ -847,6 +920,7 @@ async function toggleTrackLike(trackInput) {
 function openPlaylistDetail(playlistCode) {
   const code = String(playlistCode || '').trim();
   if (!code) return;
+  clearSearchState();
   ui.setActiveNav('playlist');
   ui.setSelectedPlaylistCode(code);
   ui.closeDrawers();
@@ -887,19 +961,32 @@ async function handleCreatePlaylist() {
     goLogin();
     return;
   }
-  const input = window.prompt('请输入新歌单名称', '我的歌单');
-  if (input == null) return;
-  const name = input.trim();
-  if (!name) {
-    window.alert('歌单名称不能为空');
+  createDialogError.value = '';
+  createDialogVisible.value = true;
+}
+
+async function submitCreatePlaylist(rawName) {
+  if (!auth.isAuthenticated.value) {
+    createDialogVisible.value = false;
+    goLogin();
     return;
   }
+  const name = String(rawName || '').trim();
+  if (!name) {
+    createDialogError.value = '歌单名称不能为空';
+    return;
+  }
+  createDialogSubmitting.value = true;
+  createDialogError.value = '';
   try {
     const created = await musicApi.createMyMusicPlaylist({ name }, auth.authorizedFetch);
     await loadSidebarData();
+    createDialogVisible.value = false;
     openPlaylistDetail(created?.playlistCode || created?.playlist_code);
   } catch (error) {
-    window.alert(parseErrorMessage(error, '创建歌单失败'));
+    createDialogError.value = parseErrorMessage(error, '创建歌单失败');
+  } finally {
+    createDialogSubmitting.value = false;
   }
 }
 
@@ -960,6 +1047,7 @@ const musicContext = Object.freeze({
   exitPlayerDetail,
   playFeaturedTrack,
   playSearchTrack,
+  enqueueSearchTrackNext,
   playTrackInCurrentPlaylist,
   toggleCollectCurrentPlaylist,
   toggleTrackLike,
@@ -1014,16 +1102,6 @@ watch(
   async () => {
     await Promise.all([loadSidebarData(), loadTunehubStatus(), loadSpotifyBindingStatus()]);
     await ensureCurrentRoutePlaylistLoaded();
-    if (hasActiveSearch.value) {
-      triggerMusicSearch(true);
-    }
-  }
-);
-
-watch(
-  [() => ui.globalSearchKeyword.value, () => ui.globalSearchType.value, () => ui.globalSearchProviders.value.join(',')],
-  () => {
-    triggerMusicSearch(false);
   }
 );
 
@@ -1050,10 +1128,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', updateViewportMode);
-  }
-  if (searchDebounceTimer) {
-    window.clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = 0;
   }
 });
 </script>

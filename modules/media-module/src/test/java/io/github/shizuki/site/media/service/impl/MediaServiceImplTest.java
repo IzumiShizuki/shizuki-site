@@ -16,6 +16,7 @@ import io.github.shizuki.site.media.dto.AdminMusicDefaultPlaylistBundleReplaceRe
 import io.github.shizuki.site.media.dto.AdminMusicPlaylistProfileUpsertRequest;
 import io.github.shizuki.site.media.dto.AdminMusicTrackUpsertRequest;
 import io.github.shizuki.site.media.dto.AssetDownloadResponse;
+import io.github.shizuki.site.media.dto.MusicSearchResponse;
 import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaAssetGroupAclEntity;
@@ -134,6 +135,7 @@ class MediaServiceImplTest {
         OssProperties ossProperties = new OssProperties();
         ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
         TuneHubMusicProperties tuneHubMusicProperties = new TuneHubMusicProperties();
+        tuneHubMusicProperties.setDefaultApiKey("th_test_default_key");
         MusicListenCacheProperties listenCacheProperties = new MusicListenCacheProperties();
 
         mediaService = new MediaServiceImpl(
@@ -390,6 +392,72 @@ class MediaServiceImplTest {
         );
 
         Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
+
+    @Test
+    void shouldAggregateTuneHubSearchTracksSuccessfully() {
+        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "netease", "零之", 1, 24))
+            .thenReturn(
+                List.of(
+                    new TuneHubMusicProvider.SearchTrackResult(
+                        "1366570351",
+                        "Sweet",
+                        "Bren Joy",
+                        "Twenties",
+                        "https://cover.example/netease.png",
+                        226,
+                        "netease"
+                    )
+                )
+            );
+        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "kuwo", "零之", 1, 24))
+            .thenReturn(
+                List.of(
+                    new TuneHubMusicProvider.SearchTrackResult(
+                        "168060593",
+                        "Sweet",
+                        "Bren Joy",
+                        "Twenties",
+                        "https://cover.example/kuwo.png",
+                        226,
+                        "kuwo"
+                    )
+                )
+            );
+
+        MusicSearchResponse response = mediaService.searchMusic("零之", "track", "netease,kuwo", 1, 24);
+
+        Assertions.assertFalse(response.partial());
+        Assertions.assertEquals(2, response.tracks().size());
+        Assertions.assertEquals("netease", response.tracks().get(0).provider());
+        Assertions.assertEquals("kuwo", response.tracks().get(1).provider());
+    }
+
+    @Test
+    void shouldReturnPartialWhenOneProviderSearchFails() {
+        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "netease", "sweet", 1, 24))
+            .thenThrow(new RuntimeException("netease upstream error"));
+        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "kuwo", "sweet", 1, 24))
+            .thenReturn(
+                List.of(
+                    new TuneHubMusicProvider.SearchTrackResult(
+                        "168060593",
+                        "Sweet",
+                        "Bren Joy",
+                        "Twenties",
+                        "",
+                        226,
+                        "kuwo"
+                    )
+                )
+            );
+
+        MusicSearchResponse response = mediaService.searchMusic("sweet", "track", "netease,kuwo", 1, 24);
+
+        Assertions.assertTrue(response.partial());
+        Assertions.assertEquals(1, response.tracks().size());
+        Assertions.assertEquals(List.of("netease"), response.failedProviders());
+        Assertions.assertEquals("kuwo", response.tracks().get(0).provider());
     }
 
     private MediaAssetEntity buildAsset(Long id, Long userId, Integer visibilityCode, String auditStatus) {

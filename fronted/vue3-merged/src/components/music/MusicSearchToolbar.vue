@@ -8,9 +8,13 @@
           type="search"
           placeholder="搜索歌单 / 歌曲 / 歌手"
           @input="emit('update:keyword', $event.target.value)"
-          @keydown.enter.prevent="emit('submit')"
+          @keydown.enter.prevent="emit('search')"
         />
       </label>
+      <button class="search-btn ripple-trigger" type="button" :disabled="loading" @click="emit('search')">
+        <i class="fas fa-magnifying-glass"></i>
+        {{ loading ? '搜索中...' : '搜索' }}
+      </button>
       <button class="refresh-btn ripple-trigger" type="button" :disabled="loading" @click="emit('refresh')">
         <i class="fas fa-rotate-right"></i>
         {{ loading ? '刷新中...' : '刷新' }}
@@ -61,7 +65,7 @@ const props = defineProps({
   selectedProviders: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['update:keyword', 'set-type', 'toggle-provider', 'submit', 'refresh']);
+const emit = defineEmits(['update:keyword', 'set-type', 'toggle-provider', 'search', 'refresh']);
 
 const selectedProviderSet = computed(() => {
   const list = Array.isArray(props.selectedProviders) ? props.selectedProviders : [];
@@ -85,7 +89,7 @@ const selectedProviderSet = computed(() => {
 
 .search-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
 }
 
@@ -116,19 +120,30 @@ const selectedProviderSet = computed(() => {
   font-size: 13px;
 }
 
+.search-btn,
 .refresh-btn {
   min-height: var(--music-toolbar-height, 36px);
   height: var(--music-toolbar-height, 36px);
   border-radius: 12px;
-  border: 1px solid rgba(var(--accent-rgb), 0.56);
-  background: rgba(var(--accent-rgb), 0.22);
-  color: rgba(var(--accent-soft-rgb), 0.98);
   padding: 0 12px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
+.search-btn {
+  border: 1px solid rgba(var(--accent-rgb), 0.62);
+  background: rgba(var(--accent-rgb), 0.3);
+  color: rgba(246, 250, 255, 0.98);
+}
+
+.refresh-btn {
+  border: 1px solid rgba(var(--accent-rgb), 0.56);
+  background: rgba(var(--accent-rgb), 0.22);
+  color: rgba(var(--accent-soft-rgb), 0.98);
+}
+
+:global(:root[data-accent-mode='gradient']) .search-btn,
 :global(:root[data-accent-mode='gradient']) .refresh-btn {
   background: var(--accent-gradient, rgba(var(--accent-rgb), 0.24));
   color: rgba(255, 255, 255, 0.96);
@@ -136,7 +151,9 @@ const selectedProviderSet = computed(() => {
 
 .filters-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+  align-items: center;
 }
 
 .filter-group,
@@ -144,6 +161,10 @@ const selectedProviderSet = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.provider-group {
+  justify-content: flex-end;
 }
 
 .chip-btn {
@@ -177,6 +198,14 @@ const selectedProviderSet = computed(() => {
 @media (max-width: 900px) {
   .search-row {
     grid-template-columns: 1fr;
+  }
+
+  .filters-row {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-group {
+    justify-content: flex-start;
   }
 
   .refresh-btn {

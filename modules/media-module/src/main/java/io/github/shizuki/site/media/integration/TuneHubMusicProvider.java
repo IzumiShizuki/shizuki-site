@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -207,6 +208,38 @@ public class TuneHubMusicProvider {
         if (!StringUtils.hasText(sourceId)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "source_id is required");
         }
+        if ("search".equals(normalizedType)) {
+            String keyword = decodeVirtualSearchKeyword(sourceId);
+            if (!StringUtils.hasText(keyword)) {
+                return List.of();
+            }
+            List<SearchTrackResult> searchRows = searchTracks(apiKey, normalizedPlatform, keyword, 1, MAX_TRACKS);
+            List<MusicTrackResponse> result = new ArrayList<>();
+            int sort = 1;
+            for (SearchTrackResult item : searchRows) {
+                String trackId = readString(item.trackId(), "");
+                if (!StringUtils.hasText(trackId)) {
+                    continue;
+                }
+                result.add(new MusicTrackResponse(
+                    trackId,
+                    normalizedPlatform,
+                    readString(item.title(), "Unknown"),
+                    readString(item.artist(), "未知歌手"),
+                    readString(item.cover(), ""),
+                    "",
+                    "",
+                    sort,
+                    true,
+                    ""
+                ));
+                sort += 1;
+                if (result.size() >= MAX_TRACKS) {
+                    break;
+                }
+            }
+            return result;
+        }
         if (!"toplist".equals(normalizedType)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported virtual playlist type");
         }
@@ -237,6 +270,23 @@ public class TuneHubMusicProvider {
             }
         }
         return result;
+    }
+
+    private String decodeVirtualSearchKeyword(String sourceId) {
+        String raw = readString(sourceId, "").trim();
+        if (!StringUtils.hasText(raw)) {
+            return "";
+        }
+        try {
+            byte[] decoded = Base64.getUrlDecoder().decode(raw);
+            String keyword = new String(decoded, StandardCharsets.UTF_8).trim();
+            if (StringUtils.hasText(keyword)) {
+                return keyword;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // ignore invalid base64 and fallback to raw source id
+        }
+        return raw;
     }
 
     /**
@@ -294,6 +344,13 @@ public class TuneHubMusicProvider {
         }
         Map<String, ParseTrack> parsed = parseTracks(normalizedPlatform, List.of(normalizedTrackId), apiKey, quality);
         ParseTrack row = parsed.get(normalizedTrackId);
+        if (row == null && "kuwo".equals(normalizedPlatform)) {
+            String altTrackId = normalizedTrackId.startsWith("MUSIC_")
+                ? normalizedTrackId.substring("MUSIC_".length())
+                : "MUSIC_" + normalizedTrackId;
+            Map<String, ParseTrack> altParsed = parseTracks(normalizedPlatform, List.of(altTrackId), apiKey, quality);
+            row = altParsed.get(altTrackId);
+        }
         if (row == null || !StringUtils.hasText(row.audioUrl())) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Track parse failed");
         }
@@ -592,20 +649,7 @@ public class TuneHubMusicProvider {
     }
 
     private List<SearchTrackResult> parseSearchTracks(String platform, Map<String, Object> raw, int limit) {
-        List<Map<String, Object>> rows = toObjectMapList(raw.get("data"));
-        if (rows.isEmpty()) {
-            rows = toObjectMapList(raw.get("list"));
-        }
-        if (rows.isEmpty()) {
-            rows = toObjectMapList(raw.get("songs"));
-        }
-        if (rows.isEmpty() && "qq".equals(platform)) {
-            Map<String, Object> req = toStringObjectMap(raw.get("req"));
-            Map<String, Object> reqData = toStringObjectMap(req.get("data"));
-            Map<String, Object> body = toStringObjectMap(reqData.get("body"));
-            Map<String, Object> song = toStringObjectMap(body.get("song"));
-            rows = toObjectMapList(song.get("list"));
-        }
+        List<Map<String, Object>> rows = extractSearchRows(platform, raw);
 
         List<SearchTrackResult> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
@@ -615,7 +659,16 @@ public class TuneHubMusicProvider {
                 trackId = readString(row.get("mid"), "");
             }
             if (!StringUtils.hasText(trackId)) {
+                trackId = readString(row.get("songmid"), "");
+            }
+            if (!StringUtils.hasText(trackId)) {
+                trackId = readString(row.get("songMid"), "");
+            }
+            if (!StringUtils.hasText(trackId)) {
                 trackId = readString(row.get("rid"), "");
+            }
+            if (!StringUtils.hasText(trackId)) {
+                trackId = readString(row.get("RID"), "");
             }
             if (!StringUtils.hasText(trackId)) {
                 String musicRid = readString(row.get("MUSICRID"), "");
@@ -629,25 +682,10 @@ public class TuneHubMusicProvider {
                 continue;
             }
 
-            String title = readString(row.get("name"), "");
-            if (!StringUtils.hasText(title)) {
-                title = readString(row.get("SONGNAME"), "");
-            }
-            String artist = readString(row.get("artist"), "");
-            if (!StringUtils.hasText(artist)) {
-                artist = readString(row.get("ARTIST"), "");
-            }
-            String album = readString(row.get("album"), "");
-            if (!StringUtils.hasText(album)) {
-                album = readString(row.get("ALBUM"), "");
-            }
-            String cover = readString(row.get("cover"), "");
-            if (!StringUtils.hasText(cover)) {
-                cover = readString(row.get("pic"), "");
-            }
-            if (!StringUtils.hasText(cover)) {
-                cover = readString(row.get("picUrl"), "");
-            }
+            String title = readTrackTitle(row);
+            String artist = readTrackArtist(platform, row);
+            String album = readTrackAlbum(row);
+            String cover = readTrackCover(platform, row);
             Integer durationSec = readDurationSeconds(row);
 
             result.add(new SearchTrackResult(
@@ -666,21 +704,221 @@ public class TuneHubMusicProvider {
         return result;
     }
 
-    private Integer readDurationSeconds(Map<String, Object> row) {
-        int sec = readInt(row.get("duration"), -1);
-        if (sec < 0) {
-            sec = readInt(row.get("interval"), -1);
+    private List<Map<String, Object>> extractSearchRows(String platform, Map<String, Object> raw) {
+        List<Map<String, Object>> rows = toObjectMapList(raw.get("data"));
+        if (rows.isEmpty()) {
+            rows = toObjectMapList(raw.get("list"));
         }
-        if (sec < 0) {
-            sec = readInt(row.get("DURATION"), -1);
+        if (rows.isEmpty()) {
+            rows = toObjectMapList(raw.get("songs"));
         }
-        if (sec < 0) {
-            sec = readInt(row.get("dt"), -1);
-            if (sec > 1000) {
-                sec = sec / 1000;
+        if (rows.isEmpty() && "netease".equals(platform)) {
+            Map<String, Object> result = toStringObjectMap(raw.get("result"));
+            rows = toObjectMapList(result.get("songs"));
+        }
+        if (rows.isEmpty() && "kuwo".equals(platform)) {
+            rows = toObjectMapList(raw.get("abslist"));
+        }
+        if (rows.isEmpty() && "qq".equals(platform)) {
+            Map<String, Object> req = toStringObjectMap(raw.get("req"));
+            Map<String, Object> reqData = toStringObjectMap(req.get("data"));
+            Map<String, Object> body = toStringObjectMap(reqData.get("body"));
+            Map<String, Object> song = toStringObjectMap(body.get("song"));
+            rows = toObjectMapList(song.get("list"));
+        }
+        return rows;
+    }
+
+    private String readTrackTitle(Map<String, Object> row) {
+        String title = readString(row.get("name"), "");
+        if (!StringUtils.hasText(title)) {
+            title = readString(row.get("title"), "");
+        }
+        if (!StringUtils.hasText(title)) {
+            title = readString(row.get("songname"), "");
+        }
+        if (!StringUtils.hasText(title)) {
+            title = readString(row.get("SONGNAME"), "");
+        }
+        if (!StringUtils.hasText(title)) {
+            title = readString(row.get("NAME"), "");
+        }
+        return title;
+    }
+
+    private String readTrackArtist(String platform, Map<String, Object> row) {
+        String artist = readString(row.get("artist"), "");
+        if (!StringUtils.hasText(artist) && "netease".equals(platform)) {
+            artist = joinNames(toObjectMapList(row.get("artists")), "name");
+        }
+        if (!StringUtils.hasText(artist) && "qq".equals(platform)) {
+            List<Map<String, Object>> singers = toObjectMapList(row.get("singer"));
+            if (singers.isEmpty()) {
+                singers = toObjectMapList(row.get("singerList"));
+            }
+            artist = joinNames(singers, "name");
+        }
+        if (!StringUtils.hasText(artist)) {
+            artist = readString(row.get("ARTIST"), "");
+        }
+        if (!StringUtils.hasText(artist)) {
+            artist = readString(row.get("singername"), "");
+        }
+        if (StringUtils.hasText(artist) && artist.contains("&")) {
+            artist = artist.replace("&", ", ");
+        }
+        return artist;
+    }
+
+    private String readTrackAlbum(Map<String, Object> row) {
+        String album = readString(row.get("album"), "");
+        Map<String, Object> albumObj = toStringObjectMap(row.get("album"));
+        if (!albumObj.isEmpty()) {
+            album = readString(albumObj.get("name"), album);
+        }
+        if (!StringUtils.hasText(album)) {
+            album = readString(row.get("ALBUM"), "");
+        }
+        if (!StringUtils.hasText(album)) {
+            album = readString(row.get("albumname"), "");
+        }
+        return album;
+    }
+
+    private String readTrackCover(String platform, Map<String, Object> row) {
+        String cover = readString(row.get("cover"), "");
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("pic"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("picUrl"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("img"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("image"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("albumpic"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("albumPic"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("web_albumpic_short"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("pic120"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("pic300"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("album_pic"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("hts_MVPIC"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            Map<String, Object> albumObj = toStringObjectMap(row.get("album"));
+            cover = readString(albumObj.get("picUrl"), "");
+            if (!StringUtils.hasText(cover)) {
+                String albumMid = readString(albumObj.get("mid"), "");
+                if (!StringUtils.hasText(albumMid)) {
+                    albumMid = readString(row.get("albummid"), "");
+                }
+                if (StringUtils.hasText(albumMid)) {
+                    cover = "https://y.gtimg.cn/music/photo_new/T002R300x300M000" + albumMid + ".jpg";
+                }
             }
         }
+        if (!StringUtils.hasText(cover)) {
+            String albumMid = readString(row.get("albummid"), "");
+            if (StringUtils.hasText(albumMid)) {
+                cover = "https://y.gtimg.cn/music/photo_new/T002R300x300M000" + albumMid + ".jpg";
+            }
+        }
+        return normalizeCoverUrl(platform, cover);
+    }
+
+    private String normalizeCoverUrl(String platform, String rawCover) {
+        String cover = readString(rawCover, "");
+        if (!StringUtils.hasText(cover)) {
+            return "";
+        }
+        if (cover.startsWith("http://") || cover.startsWith("https://")) {
+            return cover;
+        }
+        if (cover.startsWith("//")) {
+            return "https:" + cover;
+        }
+        String normalizedPlatform = normalizePlatformCode(platform);
+        if ("kuwo".equals(normalizedPlatform)) {
+            String normalized = cover.startsWith("/") ? cover.substring(1) : cover;
+            if (normalized.startsWith("star/") || normalized.startsWith("starheads/")) {
+                return "https://img4.kuwo.cn/" + normalized;
+            }
+            if (normalized.contains("/") && !normalized.startsWith("http")) {
+                return "https://img4.kuwo.cn/star/albumcover/500/" + normalized;
+            }
+        }
+        if (cover.startsWith("/")) {
+            return "https://tunehub.sayqz.com" + cover;
+        }
+        return cover;
+    }
+
+    private Integer readDurationSeconds(Map<String, Object> row) {
+        int sec = normalizeDurationValue(row.get("duration"), true, -1);
+        if (sec < 0) {
+            sec = normalizeDurationValue(row.get("interval"), false, -1);
+        }
+        if (sec < 0) {
+            sec = normalizeDurationValue(row.get("DURATION"), false, -1);
+        }
+        if (sec < 0) {
+            sec = normalizeDurationValue(row.get("dt"), true, -1);
+        }
+        if (sec < 0) {
+            sec = parseMinuteSecondLabel(readString(row.get("songTimeMinutes"), ""));
+        }
         return sec > 0 ? sec : null;
+    }
+
+    private int normalizeDurationValue(Object raw, boolean millisecondLikely, int fallback) {
+        int value = readInt(raw, -1);
+        if (value <= 0) {
+            return fallback;
+        }
+        if (millisecondLikely && value > 1000) {
+            return value / 1000;
+        }
+        if (!millisecondLikely && value > 1000 && value % 1000 == 0) {
+            return value / 1000;
+        }
+        return value;
+    }
+
+    private int parseMinuteSecondLabel(String durationText) {
+        String normalized = readString(durationText, "");
+        if (!StringUtils.hasText(normalized) || !normalized.contains(":")) {
+            return -1;
+        }
+        String[] chunks = normalized.split(":");
+        if (chunks.length != 2) {
+            return -1;
+        }
+        try {
+            int minutes = Integer.parseInt(chunks[0].trim());
+            int seconds = Integer.parseInt(chunks[1].trim());
+            if (minutes < 0 || seconds < 0) {
+                return -1;
+            }
+            return minutes * 60 + seconds;
+        } catch (Exception ex) {
+            return -1;
+        }
     }
 
     private List<MusicTrackResponse> mergeTracks(String platform,
