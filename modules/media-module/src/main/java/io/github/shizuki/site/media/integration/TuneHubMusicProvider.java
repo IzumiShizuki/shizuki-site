@@ -532,7 +532,7 @@ public class TuneHubMusicProvider {
                 Map<String, Object> info = toStringObjectMap(row.get("info"));
                 String title = readString(info.get("name"), "");
                 String artist = readString(info.get("artist"), "");
-                String cover = readString(row.get("cover"), "");
+                String cover = readParseCover(platform, row, info);
                 String lyricText = readParseLyricText(row, info);
                 result.put(id, new ParseTrack(id, title, artist, cover, url, lyricText));
             }
@@ -540,41 +540,136 @@ public class TuneHubMusicProvider {
         return result;
     }
 
+    private String readParseCover(String platform, Map<String, Object> row, Map<String, Object> info) {
+        String cover = readTrackCover(platform, row);
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(info.get("cover"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(info.get("picUrl"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            Map<String, Object> album = toStringObjectMap(info.get("album"));
+            cover = readString(album.get("picUrl"), "");
+        }
+        return normalizeCoverUrl(platform, cover);
+    }
+
     private String readParseLyricText(Map<String, Object> row, Map<String, Object> info) {
-        String lyricText = readString(row.get("lyrics"), "");
+        String lyricText = resolveLyricTextCandidate(readString(row.get("lyrics"), ""));
         if (!StringUtils.hasText(lyricText)) {
-            lyricText = readString(row.get("lyric"), "");
+            lyricText = resolveLyricTextCandidate(readString(row.get("lyric"), ""));
         }
         if (!StringUtils.hasText(lyricText)) {
-            lyricText = readString(row.get("lrc"), "");
+            lyricText = resolveLyricTextCandidate(readString(row.get("lrc"), ""));
         }
         if (!StringUtils.hasText(lyricText)) {
-            lyricText = readString(row.get("lyricText"), "");
+            lyricText = resolveLyricTextCandidate(readString(row.get("lyricText"), ""));
         }
         if (!StringUtils.hasText(lyricText)) {
-            lyricText = readString(row.get("klyric"), "");
+            lyricText = resolveLyricTextCandidate(readString(row.get("klyric"), ""));
         }
         if (!StringUtils.hasText(lyricText)) {
             Map<String, Object> lyricObj = toStringObjectMap(row.get("lyric"));
-            lyricText = readString(lyricObj.get("lyric"), "");
+            lyricText = resolveLyricTextCandidate(readString(lyricObj.get("lyric"), ""));
             if (!StringUtils.hasText(lyricText)) {
-                lyricText = readString(lyricObj.get("lrc"), "");
+                lyricText = resolveLyricTextCandidate(readString(lyricObj.get("lrc"), ""));
+            }
+            if (!StringUtils.hasText(lyricText)) {
+                lyricText = resolveLyricTextCandidate(readString(lyricObj.get("url"), ""));
             }
         }
         if (!StringUtils.hasText(lyricText)) {
             Map<String, Object> lrcObj = toStringObjectMap(row.get("lrc"));
-            lyricText = readString(lrcObj.get("lyric"), "");
+            lyricText = resolveLyricTextCandidate(readString(lrcObj.get("lyric"), ""));
             if (!StringUtils.hasText(lyricText)) {
-                lyricText = readString(lrcObj.get("content"), "");
+                lyricText = resolveLyricTextCandidate(readString(lrcObj.get("content"), ""));
+            }
+            if (!StringUtils.hasText(lyricText)) {
+                lyricText = resolveLyricTextCandidate(readString(lrcObj.get("url"), ""));
             }
         }
         if (!StringUtils.hasText(lyricText)) {
-            lyricText = readString(info.get("lyric"), "");
+            lyricText = resolveLyricTextCandidate(readString(info.get("lyric"), ""));
             if (!StringUtils.hasText(lyricText)) {
-                lyricText = readString(info.get("lyrics"), "");
+                lyricText = resolveLyricTextCandidate(readString(info.get("lyrics"), ""));
             }
         }
-        return lyricText;
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = resolveLyricTextCandidate(readString(row.get("lyric_url"), ""));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = resolveLyricTextCandidate(readString(row.get("lyricUrl"), ""));
+        }
+        return normalizeLyricText(lyricText);
+    }
+
+    private String resolveLyricTextCandidate(String raw) {
+        String value = readString(raw, "");
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return fetchLyricByUrl(value);
+        }
+        String decoded = tryDecodeBase64(value);
+        if (StringUtils.hasText(decoded)) {
+            return decoded;
+        }
+        return value;
+    }
+
+    private String tryDecodeBase64(String raw) {
+        String text = readString(raw, "");
+        if (!StringUtils.hasText(text) || text.length() < 24) {
+            return "";
+        }
+        String normalized = text.replace('\n', ' ').replace('\r', ' ').trim();
+        if (!normalized.matches("^[A-Za-z0-9+/=_-]+$")) {
+            return "";
+        }
+        try {
+            byte[] decoded = Base64.getDecoder().decode(normalized);
+            String value = new String(decoded, StandardCharsets.UTF_8);
+            String lyric = normalizeLyricText(value);
+            if (StringUtils.hasText(lyric) && (lyric.contains("[") || lyric.contains("\n") || lyric.contains("："))) {
+                return lyric;
+            }
+        } catch (Exception ignored) {
+            // ignore invalid base64 content
+        }
+        return "";
+    }
+
+    private String fetchLyricByUrl(String lyricUrl) {
+        try {
+            String body = restClient.get()
+                .uri(URI.create(lyricUrl))
+                .accept(MediaType.TEXT_PLAIN, MediaType.ALL)
+                .retrieve()
+                .body(String.class);
+            return normalizeLyricText(readString(body, ""));
+        } catch (Exception ex) {
+            LOGGER.warn("MUSIC_TUNEHUB_LYRIC_URL_FETCH_FAIL reason={}", sanitizeLogMessage(ex.getMessage()));
+            return "";
+        }
+    }
+
+    private String normalizeLyricText(String raw) {
+        String lyric = readString(raw, "");
+        if (!StringUtils.hasText(lyric)) {
+            return "";
+        }
+        if (lyric.startsWith("\uFEFF")) {
+            lyric = lyric.substring(1);
+        }
+        lyric = lyric.replace("\\r\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\r", "\n")
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .trim();
+        return lyric;
     }
 
     private List<ToplistSeed> parseToplists(String platform, Map<String, Object> raw) {
@@ -999,8 +1094,10 @@ public class TuneHubMusicProvider {
                                             Map<String, Object> query,
                                             Map<String, String> headers,
                                             Map<String, Object> body) {
+        long startMs = System.currentTimeMillis();
+        String normalizedMethod = StringUtils.hasText(method) ? method.trim().toUpperCase(Locale.ROOT) : "GET";
+        String sanitizedUrl = sanitizeRequestUrl(url);
         try {
-            String normalizedMethod = StringUtils.hasText(method) ? method.trim().toUpperCase(Locale.ROOT) : "GET";
             if ("POST".equals(normalizedMethod)) {
                 Map<String, Object> payload = body == null ? Map.of() : body;
                 String responseBody = restClient.post()
@@ -1011,7 +1108,16 @@ public class TuneHubMusicProvider {
                     .body(payload)
                     .retrieve()
                     .body(String.class);
-                return parseResponseBody(responseBody, url);
+                Map<String, Object> parsed = parseResponseBody(responseBody, url);
+                LOGGER.info(
+                    "MUSIC_TUNEHUB_HTTP_DONE method={} url={} status={} bodySize={} durationMs={}",
+                    normalizedMethod,
+                    sanitizedUrl,
+                    200,
+                    responseBody == null ? 0 : responseBody.length(),
+                    Math.max(1L, System.currentTimeMillis() - startMs)
+                );
+                return parsed;
             }
             String requestUrl = appendQuery(url, query);
             String responseBody = restClient.get()
@@ -1020,8 +1126,25 @@ public class TuneHubMusicProvider {
                 .accept(MediaType.ALL)
                 .retrieve()
                 .body(String.class);
-            return parseResponseBody(responseBody, requestUrl);
+            Map<String, Object> parsed = parseResponseBody(responseBody, requestUrl);
+            LOGGER.info(
+                "MUSIC_TUNEHUB_HTTP_DONE method={} url={} status={} bodySize={} durationMs={}",
+                normalizedMethod,
+                sanitizeRequestUrl(requestUrl),
+                200,
+                responseBody == null ? 0 : responseBody.length(),
+                Math.max(1L, System.currentTimeMillis() - startMs)
+            );
+            return parsed;
         } catch (RestClientResponseException ex) {
+            LOGGER.warn(
+                "MUSIC_TUNEHUB_HTTP_FAIL method={} url={} status={} durationMs={} reason={}",
+                normalizedMethod,
+                sanitizedUrl,
+                ex.getRawStatusCode(),
+                Math.max(1L, System.currentTimeMillis() - startMs),
+                sanitizeLogMessage(ex.getMessage())
+            );
             throw new BusinessException(
                 ErrorCode.INTERNAL_ERROR,
                 "TuneHub upstream request failed",
@@ -1032,11 +1155,49 @@ public class TuneHubMusicProvider {
                 )
             );
         } catch (ResourceAccessException ex) {
+            LOGGER.warn(
+                "MUSIC_TUNEHUB_HTTP_FAIL method={} url={} status={} durationMs={} reason={}",
+                normalizedMethod,
+                sanitizedUrl,
+                "timeout",
+                Math.max(1L, System.currentTimeMillis() - startMs),
+                sanitizeLogMessage(ex.getMessage())
+            );
             throw new BusinessException(
                 ErrorCode.INTERNAL_ERROR,
                 "TuneHub upstream timeout",
                 Map.of("url", url)
             );
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_TUNEHUB_HTTP_FAIL method={} url={} status={} durationMs={} reason={}",
+                normalizedMethod,
+                sanitizedUrl,
+                "error",
+                Math.max(1L, System.currentTimeMillis() - startMs),
+                sanitizeLogMessage(ex.getMessage())
+            );
+            throw ex;
+        }
+    }
+
+    private String sanitizeRequestUrl(String rawUrl) {
+        String value = readString(rawUrl, "");
+        if (!StringUtils.hasText(value)) {
+            return "-";
+        }
+        try {
+            URI uri = URI.create(value);
+            String host = readString(uri.getHost(), "");
+            String path = readString(uri.getPath(), "");
+            if (!StringUtils.hasText(host) && !StringUtils.hasText(path)) {
+                return previewText(value);
+            }
+            return host + path;
+        } catch (Exception ex) {
+            int queryIndex = value.indexOf('?');
+            String fallback = queryIndex >= 0 ? value.substring(0, queryIndex) : value;
+            return previewText(fallback);
         }
     }
 

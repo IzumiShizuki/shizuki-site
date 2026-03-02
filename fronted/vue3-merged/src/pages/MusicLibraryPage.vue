@@ -145,7 +145,6 @@ import * as musicApi from '../services/musicApi';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
-const SEARCH_SCROLL_THRESHOLD_PX = 180;
 const SEARCH_TYPE_OPTIONS = [
   { value: 'all', label: '全部' },
   { value: 'playlist', label: '歌单' },
@@ -198,8 +197,24 @@ const collectingPlaylist = ref(false);
 const likedTrackIds = ref(new Set());
 const searchLoading = ref(false);
 const searchLoadingMore = ref(false);
+const searchLoadingMoreError = ref('');
 const searchError = ref('');
 const searchPage = ref(1);
+const searchSectionPage = ref({
+  playlists: 1,
+  tracks: 1,
+  artists: 1
+});
+const searchSectionLoading = ref({
+  playlists: false,
+  tracks: false,
+  artists: false
+});
+const searchSectionError = ref({
+  playlists: '',
+  tracks: '',
+  artists: ''
+});
 const searchHasMore = ref({
   playlists: false,
   tracks: false,
@@ -446,6 +461,19 @@ function parseSearchHasMore(payload = {}) {
   };
 }
 
+function normalizeSearchSection(type) {
+  const normalized = String(type || '').trim().toLowerCase();
+  if (normalized === 'playlist' || normalized === 'playlists') return 'playlists';
+  if (normalized === 'artist' || normalized === 'artists') return 'artists';
+  return 'tracks';
+}
+
+function resolveSearchTypeBySection(section) {
+  if (section === 'playlists') return 'playlist';
+  if (section === 'artists') return 'artist';
+  return 'track';
+}
+
 function mergeUniqueBy(items, incoming, keySelector) {
   const source = Array.isArray(items) ? items.slice() : [];
   const seen = new Set(source.map((item) => keySelector(item)).filter(Boolean));
@@ -465,14 +493,29 @@ function getCurrentSearchHasMore(type = committedSearch.value.type) {
   return Boolean(searchHasMore.value.tracks);
 }
 
+function getSearchLoadedCountByType(type = committedSearch.value.type) {
+  const normalizedType = String(type || 'all').trim().toLowerCase();
+  if (normalizedType === 'playlist') {
+    return Array.isArray(searchResult.value?.playlists) ? searchResult.value.playlists.length : 0;
+  }
+  if (normalizedType === 'artist') {
+    return Array.isArray(searchResult.value?.artists) ? searchResult.value.artists.length : 0;
+  }
+  return Array.isArray(searchResult.value?.tracks) ? searchResult.value.tracks.length : 0;
+}
+
 function clearSearchState(options = {}) {
   const resetDraft = options?.resetDraft !== false;
   if (resetDraft) {
     ui.resetGlobalSearch();
   }
   searchPage.value = 1;
+  searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
+  searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
+  searchSectionError.value = { playlists: '', tracks: '', artists: '' };
   searchHasMore.value = { playlists: false, tracks: false, artists: false };
   searchLoadingMore.value = false;
+  searchLoadingMoreError.value = '';
   searchAutoLoadLocked.value = false;
   committedSearch.value = {
     keyword: '',
@@ -583,18 +626,27 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
     searchError.value = '';
     searchLoading.value = false;
     searchLoadingMore.value = false;
+    searchLoadingMoreError.value = '';
     searchHasMore.value = { playlists: false, tracks: false, artists: false };
     searchPage.value = 1;
+    searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
+    searchSectionError.value = { playlists: '', tracks: '', artists: '' };
+    searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
     searchResult.value = createEmptySearchResult(type, '');
     return;
   }
 
   if (append) {
     searchLoadingMore.value = true;
+    searchLoadingMoreError.value = '';
   } else {
     searchLoading.value = true;
     searchPage.value = 1;
+    searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
+    searchSectionError.value = { playlists: '', tracks: '', artists: '' };
+    searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
     searchHasMore.value = { playlists: false, tracks: false, artists: false };
+    searchLoadingMoreError.value = '';
   }
   searchError.value = '';
   try {
@@ -649,6 +701,7 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
         )
       };
       searchPage.value = targetPage;
+      searchLoadingMoreError.value = '';
     } else {
       searchResult.value = normalized;
       searchPage.value = 1;
@@ -660,8 +713,11 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       artists: parsedHasMore.artists || fallbackHasMore.artists
     };
   } catch (error) {
-    searchError.value = parseErrorMessage(error, '搜索失败，请稍后重试');
-    if (!append) {
+    const message = parseErrorMessage(error, append ? '加载更多失败，请继续滑动或点击重试' : '搜索失败，请稍后重试');
+    if (append) {
+      searchLoadingMoreError.value = message;
+    } else {
+      searchError.value = message;
       searchResult.value = createEmptySearchResult(type, keyword);
       searchHasMore.value = { playlists: false, tracks: false, artists: false };
       searchPage.value = 1;
@@ -677,30 +733,136 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
 
 function triggerMusicSearch() {
   if (!commitSearchFromDraft()) return;
+  searchLoadingMoreError.value = '';
+  searchSectionError.value = { playlists: '', tracks: '', artists: '' };
   runMusicSearch(committedSearch.value, { append: false, page: 1 });
 }
 
 function refreshMusicSearch() {
   const committedKeyword = String(committedSearch.value.keyword || '').trim();
   if (committedKeyword.length < 2) return;
+  searchLoadingMoreError.value = '';
+  searchSectionError.value = { playlists: '', tracks: '', artists: '' };
   runMusicSearch(committedSearch.value, { append: false, page: 1 });
 }
 
 async function loadMoreMusicSearch() {
   if (!hasActiveSearch.value) return;
+  if (String(committedSearch.value.type || 'all').toLowerCase() === 'all') return;
   if (searchLoading.value || searchLoadingMore.value) return;
   if (!getCurrentSearchHasMore(committedSearch.value.type)) return;
   await runMusicSearch(committedSearch.value, { append: true, page: searchPage.value + 1 });
 }
 
+async function loadMoreMusicSearchSection(sectionType) {
+  if (!hasActiveSearch.value) return;
+  if (String(committedSearch.value.type || 'all').toLowerCase() !== 'all') return;
+  const section = normalizeSearchSection(sectionType);
+  if (!['playlists', 'tracks', 'artists'].includes(section)) return;
+  if (searchSectionLoading.value[section]) return;
+  if (!searchHasMore.value[section]) return;
+
+  const nextPage = Math.max(1, Number(searchSectionPage.value[section] || 1) + 1);
+  const queryType = resolveSearchTypeBySection(section);
+  const criteria = {
+    keyword: committedSearch.value.keyword,
+    type: queryType,
+    providers: committedSearch.value.providers
+  };
+
+  searchSectionLoading.value = { ...searchSectionLoading.value, [section]: true };
+  searchSectionError.value = { ...searchSectionError.value, [section]: '' };
+  try {
+    const payload = await musicApi.searchMusic(criteria.keyword, {
+      type: criteria.type,
+      providers: criteria.providers,
+      page: nextPage,
+      limit: SEARCH_PAGE_SIZE
+    });
+    const parsedHasMore = parseSearchHasMore(payload);
+    const playlists = Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [];
+    const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [];
+    const artists = Array.isArray(payload?.artists) ? payload.artists.map((item) => normalizeSearchArtist(item)) : [];
+
+    const nextSearchResult = {
+      ...searchResult.value,
+      query: String(payload?.query || committedSearch.value.keyword || ''),
+      type: 'all',
+      partial: Boolean(searchResult.value.partial || payload?.partial),
+      failedProviders: mergeUniqueBy(
+        searchResult.value.failedProviders || [],
+        Array.isArray(payload?.failedProviders || payload?.failed_providers)
+          ? (payload.failedProviders || payload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
+          : [],
+        (item) => String(item || '').trim().toLowerCase()
+      )
+    };
+    if (section === 'playlists') {
+      nextSearchResult.playlists = mergeUniqueBy(
+        searchResult.value.playlists || [],
+        playlists,
+        (item) => String(item?.playlistCode || '').trim()
+      );
+    } else if (section === 'artists') {
+      nextSearchResult.artists = mergeUniqueBy(
+        searchResult.value.artists || [],
+        artists,
+        (item) => `${String(item?.name || '').trim().toLowerCase()}::${(Array.isArray(item?.providers) ? item.providers : []).join(',')}`
+      );
+    } else {
+      nextSearchResult.tracks = mergeUniqueBy(
+        searchResult.value.tracks || [],
+        tracks,
+        (item) => `${String(item?.provider || '').trim().toLowerCase()}:${String(item?.trackId || item?.id || '').trim()}`
+      );
+    }
+    searchResult.value = nextSearchResult;
+
+    const nextHasMore = { ...searchHasMore.value };
+    if (section === 'playlists') {
+      nextHasMore.playlists = Boolean(parsedHasMore.playlists || playlists.length >= SEARCH_PAGE_SIZE);
+    } else if (section === 'artists') {
+      nextHasMore.artists = Boolean(parsedHasMore.artists || artists.length >= SEARCH_PAGE_SIZE);
+    } else {
+      nextHasMore.tracks = Boolean(parsedHasMore.tracks || tracks.length >= SEARCH_PAGE_SIZE);
+    }
+    searchHasMore.value = nextHasMore;
+    searchSectionPage.value = { ...searchSectionPage.value, [section]: nextPage };
+  } catch (error) {
+    searchSectionError.value = {
+      ...searchSectionError.value,
+      [section]: parseErrorMessage(error, '加载失败，继续滑动或点击重试')
+    };
+  } finally {
+    searchSectionLoading.value = { ...searchSectionLoading.value, [section]: false };
+  }
+}
+
+async function retryMusicSearchLoadMore(sectionType = '') {
+  const section = normalizeSearchSection(sectionType);
+  if (String(committedSearch.value.type || 'all').toLowerCase() === 'all') {
+    await loadMoreMusicSearchSection(section);
+    return;
+  }
+  await loadMoreMusicSearch();
+}
+
 function maybeAutoLoadNextSearchPage() {
   if (!hasActiveSearch.value) return;
+  const normalizedType = String(committedSearch.value.type || 'all').trim().toLowerCase();
+  if (normalizedType === 'all') return;
   if (searchLoading.value || searchLoadingMore.value) return;
-  if (!getCurrentSearchHasMore(committedSearch.value.type)) return;
+  if (!getCurrentSearchHasMore(normalizedType)) return;
   if (!centerPaneRef.value) return;
   if (searchAutoLoadLocked.value) return;
-  const distance = centerPaneRef.value.scrollHeight - (centerPaneRef.value.scrollTop + centerPaneRef.value.clientHeight);
-  if (distance > SEARCH_SCROLL_THRESHOLD_PX) return;
+  const loadedCount = getSearchLoadedCountByType(normalizedType);
+  if (loadedCount <= 0) return;
+  const triggerCount = Math.max(1, loadedCount - Math.floor(SEARCH_PAGE_SIZE * 0.4));
+  const scrollProgress = centerPaneRef.value.scrollTop + centerPaneRef.value.clientHeight;
+  const scrollRatio = scrollProgress / Math.max(1, centerPaneRef.value.scrollHeight);
+  const reachedCount = Math.ceil(scrollRatio * loadedCount);
+  if (reachedCount < triggerCount) return;
+
   searchAutoLoadLocked.value = true;
   loadMoreMusicSearch().finally(() => {
     searchAutoLoadLocked.value = false;
@@ -1160,6 +1322,9 @@ const musicContext = Object.freeze({
   homeError,
   searchLoading,
   searchLoadingMore,
+  searchLoadingMoreError,
+  searchSectionLoading,
+  searchSectionError,
   searchError,
   searchResult,
   searchHasMore,
@@ -1173,6 +1338,8 @@ const musicContext = Object.freeze({
   reloadHomeData: loadHomeData,
   triggerMusicSearch,
   loadMoreMusicSearch,
+  loadMoreMusicSearchSection,
+  retryMusicSearchLoadMore,
   reloadCurrentPlaylist,
   openPlaylistDetail,
   backToMainList,

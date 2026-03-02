@@ -33,15 +33,15 @@ public class MusicTrackCacheUploadPublisher {
     /**
      * 发布上传缓存事件（失败仅记录日志，不阻塞主流程）。
      */
-    public void publish(String provider, String trackId, String sourceAudioUrl) {
+    public boolean publish(String provider, String trackId, String sourceAudioUrl) {
         if (!properties.isEnabled()) {
-            return;
+            return false;
         }
         String normalizedProvider = readString(provider, "").toLowerCase(Locale.ROOT);
         String normalizedTrackId = readString(trackId, "");
         String normalizedAudioUrl = readString(sourceAudioUrl, "");
         if (!StringUtils.hasText(normalizedProvider) || !StringUtils.hasText(normalizedTrackId) || !StringUtils.hasText(normalizedAudioUrl)) {
-            return;
+            return false;
         }
 
         MusicTrackCacheUploadEvent event = new MusicTrackCacheUploadEvent(
@@ -54,16 +54,19 @@ public class MusicTrackCacheUploadPublisher {
             String key = normalizedProvider + ":" + normalizedTrackId;
             kafkaTemplate.send(properties.getTopic(), key, payload);
             LOGGER.info("MUSIC_CACHE_UPLOAD_ENQUEUE provider={} trackId={}", normalizedProvider, normalizedTrackId);
+            return true;
         } catch (JsonProcessingException ex) {
             LOGGER.warn("MUSIC_CACHE_UPLOAD_ENQUEUE_FAIL provider={} trackId={} reason={}",
                 normalizedProvider,
                 normalizedTrackId,
                 sanitizeLogMessage(ex.getMessage()));
+            return false;
         } catch (Exception ex) {
             LOGGER.warn("MUSIC_CACHE_UPLOAD_ENQUEUE_FAIL provider={} trackId={} reason={}",
                 normalizedProvider,
                 normalizedTrackId,
                 sanitizeLogMessage(ex.getMessage()));
+            return false;
         }
     }
 

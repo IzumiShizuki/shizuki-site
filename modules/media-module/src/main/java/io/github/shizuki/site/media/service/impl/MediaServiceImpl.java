@@ -100,6 +100,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -163,6 +164,12 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_EVENT_SEARCH_PROVIDER_FAIL = "MUSIC_SEARCH_PROVIDER_FAIL";
     private static final String LOG_EVENT_SEARCH_PROVIDER_RESULT = "MUSIC_SEARCH_PROVIDER_RESULT";
     private static final String LOG_EVENT_SEARCH_DONE = "MUSIC_SEARCH_DONE";
+    private static final String LOG_EVENT_SEARCH_STAGE_START = "MUSIC_SEARCH_STAGE_START";
+    private static final String LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE = "MUSIC_SEARCH_STAGE_PROVIDER_FETCH_DONE";
+    private static final String LOG_EVENT_SEARCH_STAGE_PLAYLIST_MATCH_DONE = "MUSIC_SEARCH_STAGE_PLAYLIST_MATCH_DONE";
+    private static final String LOG_EVENT_SEARCH_STAGE_DONE = "MUSIC_SEARCH_STAGE_DONE";
+    private static final String LOG_EVENT_RESOLVE_STAGE_START = "MUSIC_RESOLVE_PLAYBACK_STAGE_START";
+    private static final String LOG_EVENT_RESOLVE_STAGE_DONE = "MUSIC_RESOLVE_PLAYBACK_STAGE_DONE";
 
     private final ObjectStorageClient objectStorageClient;
     private final MediaStorageProperties mediaStorageProperties;
@@ -794,6 +801,8 @@ public class MediaServiceImpl implements MediaService {
         int playlistCollectLimit = Math.max(safeLimit + 1, safePage * safeLimit + 1);
         int trackCollectLimit = safeLimit + 1;
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
+        String queryDigest = hashQueryFingerprint(normalizedQuery);
+        boolean includeDeepPlaylistMatch = "playlist".equals(normalizedType);
 
         List<String> selectedProviders = resolveSearchProviders(providers, userId);
         boolean includePlaylists = "all".equals(normalizedType) || "playlist".equals(normalizedType);
@@ -801,6 +810,18 @@ public class MediaServiceImpl implements MediaService {
         boolean includeArtists = "all".equals(normalizedType) || "artist".equals(normalizedType);
         long startMs = System.currentTimeMillis();
 
+        LOGGER.info(
+            "{} userId={} queryLength={} queryHash={} type={} providers={} page={} limit={} playlistMatch={}",
+            LOG_EVENT_SEARCH_STAGE_START,
+            userId,
+            normalizedQuery.length(),
+            queryDigest,
+            normalizedType,
+            selectedProviders,
+            safePage,
+            safeLimit,
+            includeDeepPlaylistMatch ? "deep" : "light"
+        );
         LOGGER.info(
             "{} userId={} queryLength={} type={} providers={} page={} limit={}",
             LOG_EVENT_SEARCH_START,
@@ -822,6 +843,7 @@ public class MediaServiceImpl implements MediaService {
         boolean tuneHubReady = StringUtils.hasText(apiContext.apiKey());
 
         for (String provider : selectedProviders) {
+            long providerStartMs = System.currentTimeMillis();
             int providerTrackMapped = 0;
             String providerTopCover = "";
             if ("spotify".equals(provider)) {
@@ -865,6 +887,15 @@ public class MediaServiceImpl implements MediaService {
                         "spotify",
                         sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
                     );
+                } finally {
+                    LOGGER.info(
+                        "{} provider={} durationMs={} mappedTrackCount={} failed={}",
+                        LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                        "spotify",
+                        Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        providerTrackMapped,
+                        failedProviders.contains("spotify")
+                    );
                 }
                 continue;
             }
@@ -874,10 +905,18 @@ public class MediaServiceImpl implements MediaService {
             }
             if (!tuneHubReady) {
                 failedProviders.add(provider);
+                LOGGER.info(
+                    "{} provider={} durationMs={} mappedTrackCount={} failed=true reason=no_api_key",
+                    LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                    provider,
+                    Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                    providerTrackMapped
+                );
                 continue;
             }
 
             if (includeTracks && tracks.size() < trackCollectLimit) {
+                long trackFetchStartMs = System.currentTimeMillis();
                 try {
                     List<TuneHubMusicProvider.SearchTrackResult> searchItems = tuneHubMusicProvider.searchTracks(
                         apiContext.apiKey(),
@@ -924,6 +963,15 @@ public class MediaServiceImpl implements MediaService {
                         provider,
                         sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
                     );
+                } finally {
+                    LOGGER.info(
+                        "{} provider={} stage=track_fetch durationMs={} mappedCount={} failed={}",
+                        LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                        provider,
+                        Math.max(1L, System.currentTimeMillis() - trackFetchStartMs),
+                        providerTrackMapped,
+                        failedProviders.contains(provider)
+                    );
                 }
             }
 
@@ -945,17 +993,21 @@ public class MediaServiceImpl implements MediaService {
             }
 
             if (includePlaylists && playlists.size() < playlistCollectLimit) {
+                long playlistMatchStartMs = System.currentTimeMillis();
+                int playlistMatchedCount = 0;
                 try {
                     List<TuneHubMusicProvider.VirtualPlaylistSummary> summaries = tuneHubMusicProvider.listToplistPlaylists(
                         apiContext.apiKey(),
                         List.of(provider),
-                        Math.max(10, playlistCollectLimit)
+                        includeDeepPlaylistMatch
+                            ? Math.max(10, playlistCollectLimit)
+                            : Math.min(12, Math.max(4, safeLimit))
                     );
                     for (TuneHubMusicProvider.VirtualPlaylistSummary item : summaries) {
                         String name = readString(item.name(), "");
                         String description = readString(item.description(), "");
                         boolean matched = containsKeyword(name, normalizedQuery) || containsKeyword(description, normalizedQuery);
-                        if (!matched) {
+                        if (!matched && includeDeepPlaylistMatch) {
                             matched = virtualPlaylistMatchesKeyword(apiContext.apiKey(), item, normalizedQuery);
                         }
                         if (!matched) {
@@ -976,6 +1028,7 @@ public class MediaServiceImpl implements MediaService {
                             0,
                             normalizeSourceProvider(item.platform())
                         ));
+                        playlistMatchedCount += 1;
                         if (playlists.size() >= playlistCollectLimit) {
                             break;
                         }
@@ -988,8 +1041,26 @@ public class MediaServiceImpl implements MediaService {
                         provider,
                         sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
                     );
+                } finally {
+                    LOGGER.info(
+                        "{} provider={} strategy={} matchedCount={} durationMs={}",
+                        LOG_EVENT_SEARCH_STAGE_PLAYLIST_MATCH_DONE,
+                        provider,
+                        includeDeepPlaylistMatch ? "deep" : "light",
+                        playlistMatchedCount,
+                        Math.max(1L, System.currentTimeMillis() - playlistMatchStartMs)
+                    );
                 }
             }
+
+            LOGGER.info(
+                "{} provider={} durationMs={} mappedTrackCount={} failed={}",
+                LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                provider,
+                Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                providerTrackMapped,
+                failedProviders.contains(provider)
+            );
         }
 
         if (includePlaylists && playlists.size() < playlistCollectLimit) {
@@ -1086,6 +1157,18 @@ public class MediaServiceImpl implements MediaService {
             partial,
             costMs
         );
+        LOGGER.info(
+            "{} userId={} queryHash={} type={} partial={} costMs={} playlistCount={} trackCount={} artistCount={}",
+            LOG_EVENT_SEARCH_STAGE_DONE,
+            userId,
+            queryDigest,
+            normalizedType,
+            partial,
+            costMs,
+            playlists.size(),
+            tracks.size(),
+            artists.size()
+        );
 
         return new MusicSearchResponse(
             normalizedQuery,
@@ -1108,6 +1191,7 @@ public class MediaServiceImpl implements MediaService {
      */
     @Override
     public MusicTrackResponse resolvePlaybackTrack(MusicResolvePlaybackRequest request) {
+        long startMs = System.currentTimeMillis();
         String provider = normalizeSourceProvider(readString(request == null ? null : request.getProvider(), ""));
         if (!StringUtils.hasText(provider)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported playback provider");
@@ -1116,12 +1200,18 @@ public class MediaServiceImpl implements MediaService {
         if (!StringUtils.hasText(trackId)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
         }
+        LOGGER.info("{} provider={} trackId={} resolveLyric={}",
+            LOG_EVENT_RESOLVE_STAGE_START,
+            provider,
+            trackId,
+            request != null && Boolean.TRUE.equals(request.getResolveLyric()));
 
         boolean resolveLyric = request != null && Boolean.TRUE.equals(request.getResolveLyric());
         MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
         if (cache != null && objectStorageClient.objectExists(cache.getBucketCode(), cache.getObjectCode())) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
+            String resolvedCover = readString(request == null ? null : request.getCover(), "");
             if (resolveLyric) {
                 TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
                 if (StringUtils.hasText(lyricApiContext.apiKey())) {
@@ -1133,20 +1223,31 @@ public class MediaServiceImpl implements MediaService {
                             tuneHubMusicProperties.getDefaultQuality()
                         );
                         lyricText = readString(parsedLyric.lyricText(), "");
+                        resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover());
+                        LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
                     } catch (Exception ex) {
                         LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
                             provider,
                             trackId,
                             sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")));
+                        LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
                     }
                 }
             }
+            LOGGER.info(
+                "{} provider={} trackId={} source=cache lyricResolved={} durationMs={}",
+                LOG_EVENT_RESOLVE_STAGE_DONE,
+                provider,
+                trackId,
+                StringUtils.hasText(lyricText),
+                Math.max(1L, System.currentTimeMillis() - startMs)
+            );
             return new MusicTrackResponse(
                 trackId,
                 provider,
                 readString(request == null ? null : request.getTitle(), trackId),
                 readString(request == null ? null : request.getArtist(), ""),
-                readString(request == null ? null : request.getCover(), ""),
+                resolvedCover,
                 readString(cache.getPublicUrl(), ""),
                 "",
                 0,
@@ -1166,6 +1267,7 @@ public class MediaServiceImpl implements MediaService {
             trackId,
             tuneHubMusicProperties.getDefaultQuality()
         );
+        long parseDoneMs = System.currentTimeMillis();
 
         String resolvedAudio = readString(parsed.audioUrl(), "");
         if (!StringUtils.hasText(resolvedAudio)) {
@@ -1176,21 +1278,44 @@ public class MediaServiceImpl implements MediaService {
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
         boolean shouldCache = musicListenCacheProperties.isEnabled()
             && (!musicListenCacheProperties.isLoginOnly() || userId > 0);
+        boolean cacheEnqueued = false;
         if (shouldCache) {
-            musicTrackCacheUploadPublisher.publish(provider, trackId, resolvedAudio);
+            cacheEnqueued = musicTrackCacheUploadPublisher.publish(provider, trackId, resolvedAudio);
         }
+        String resolvedCover = resolvePlaybackCover(
+            readString(request == null ? null : request.getCover(), ""),
+            readString(parsed.cover(), "")
+        );
+        String lyricText = readString(parsed.lyricText(), "");
+        LOGGER.info("MUSIC_COVER_FALLBACK_RESOLVED provider={} trackId={} success={}",
+            provider,
+            trackId,
+            StringUtils.hasText(resolvedCover));
+        LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success={}",
+            provider,
+            trackId,
+            StringUtils.hasText(lyricText));
+        LOGGER.info(
+            "{} provider={} trackId={} source=parse parseMs={} cacheEnqueued={} durationMs={}",
+            LOG_EVENT_RESOLVE_STAGE_DONE,
+            provider,
+            trackId,
+            Math.max(1L, parseDoneMs - startMs),
+            cacheEnqueued,
+            Math.max(1L, System.currentTimeMillis() - startMs)
+        );
 
         return new MusicTrackResponse(
             trackId,
             provider,
             readString(request == null ? null : request.getTitle(), readString(parsed.title(), trackId)),
             readString(request == null ? null : request.getArtist(), readString(parsed.artist(), "")),
-            readString(request == null ? null : request.getCover(), readString(parsed.cover(), "")),
+            resolvedCover,
             resolvedAudio,
             "",
             0,
             true,
-            readString(parsed.lyricText(), "")
+            lyricText
         );
     }
 
@@ -1308,24 +1433,13 @@ public class MediaServiceImpl implements MediaService {
         }
 
         MusicTrackResponse returnedTrack = selected;
-        if (StringUtils.hasText(trackId) && shouldStoreProviderTrackToOss(currentLoginUserGroups())) {
-            String sourceAudioUrl = readString(selected.audio(), "");
-            if (StringUtils.hasText(sourceAudioUrl)) {
-                MusicTrackCacheEntity cached = cacheTrackToOss(provider, trackId, sourceAudioUrl);
-                if (cached != null) {
-                    returnedTrack = new MusicTrackResponse(
-                        selected.trackId(),
-                        selected.provider(),
-                        selected.title(),
-                        selected.artist(),
-                        selected.cover(),
-                        cached.getPublicUrl(),
-                        selected.lyric(),
-                        selected.sort(),
-                        selected.enabled()
-                    );
-                }
-            }
+        String sourceAudioUrl = readString(selected.audio(), "");
+        boolean shouldAsyncCache = musicListenCacheProperties.isEnabled()
+            && (!musicListenCacheProperties.isLoginOnly() || userId > 0)
+            && StringUtils.hasText(trackId)
+            && StringUtils.hasText(sourceAudioUrl);
+        if (shouldAsyncCache) {
+            musicTrackCacheUploadPublisher.publish(provider, trackId, sourceAudioUrl);
         }
         return new MusicPickResponse(
             provider,
@@ -2063,6 +2177,32 @@ public class MediaServiceImpl implements MediaService {
             case "qq" -> "QQ 音乐";
             default -> normalized.toUpperCase(Locale.ROOT);
         };
+    }
+
+    private String resolvePlaybackCover(String preferredCover, String fallbackCover) {
+        String preferred = readString(preferredCover, "");
+        if (StringUtils.hasText(preferred)) {
+            return preferred;
+        }
+        return readString(fallbackCover, "");
+    }
+
+    private String hashQueryFingerprint(String query) {
+        String value = readString(query, "");
+        if (!StringUtils.hasText(value)) {
+            return "-";
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < Math.min(8, bytes.length); i += 1) {
+                builder.append(String.format("%02x", bytes[i]));
+            }
+            return builder.toString();
+        } catch (Exception ex) {
+            return "hash_err";
+        }
     }
 
     private boolean virtualPlaylistMatchesKeyword(String apiKey,

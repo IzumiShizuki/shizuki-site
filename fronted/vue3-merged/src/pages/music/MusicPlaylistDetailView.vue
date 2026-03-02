@@ -135,16 +135,23 @@ const displayErrorText = computed(() => {
 
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
+  const safeCover = safeCssUrl(profile.value.cover || fallback);
   return {
-    backgroundImage: `url('${profile.value.cover || fallback}')`
+    backgroundImage: `url('${safeCover}')`
   };
 });
 
 function searchCoverStyle(trackItem) {
-  const cover = String(trackItem?.cover || '').trim();
+  const cover = safeCssUrl(trackItem?.cover);
   return {
     backgroundImage: cover ? `url('${cover}')` : 'none'
   };
+}
+
+function safeCssUrl(rawUrl) {
+  const raw = String(rawUrl || '').trim();
+  if (!raw) return '';
+  return encodeURI(raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 }
 
 function resolveRawIndexByTrackId(trackId) {

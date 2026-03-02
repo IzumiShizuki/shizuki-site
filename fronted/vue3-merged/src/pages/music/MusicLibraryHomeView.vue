@@ -35,6 +35,28 @@
               </div>
             </button>
           </div>
+          <footer v-if="searchType === 'all' && (music.searchHasMore.value?.playlists || music.searchSectionLoading.value?.playlists || music.searchSectionError.value?.playlists)" class="search-section-pager">
+            <p v-if="music.searchSectionLoading.value?.playlists" class="pager-text">
+              <i class="fas fa-spinner fa-spin"></i>
+              加载更多歌单中...
+            </p>
+            <button
+              v-else-if="music.searchHasMore.value?.playlists"
+              class="pager-load-btn ripple-trigger"
+              type="button"
+              @click="music.loadMoreMusicSearchSection('playlists')"
+            >
+              显示更多歌单
+            </button>
+            <button
+              v-if="music.searchSectionError.value?.playlists"
+              class="pager-retry-btn ripple-trigger"
+              type="button"
+              @click="music.retryMusicSearchLoadMore('playlists')"
+            >
+              {{ music.searchSectionError.value.playlists }}
+            </button>
+          </footer>
         </section>
 
         <section v-if="showTrackResults" class="provider-block">
@@ -83,6 +105,28 @@
               </button>
             </span>
           </article>
+          <footer v-if="searchType === 'all' && (music.searchHasMore.value?.tracks || music.searchSectionLoading.value?.tracks || music.searchSectionError.value?.tracks)" class="search-section-pager">
+            <p v-if="music.searchSectionLoading.value?.tracks" class="pager-text">
+              <i class="fas fa-spinner fa-spin"></i>
+              加载更多歌曲中...
+            </p>
+            <button
+              v-else-if="music.searchHasMore.value?.tracks"
+              class="pager-load-btn ripple-trigger"
+              type="button"
+              @click="music.loadMoreMusicSearchSection('tracks')"
+            >
+              显示更多歌曲
+            </button>
+            <button
+              v-if="music.searchSectionError.value?.tracks"
+              class="pager-retry-btn ripple-trigger"
+              type="button"
+              @click="music.retryMusicSearchLoadMore('tracks')"
+            >
+              {{ music.searchSectionError.value.tracks }}
+            </button>
+          </footer>
         </section>
 
         <section v-if="showArtistResults" class="provider-block">
@@ -97,10 +141,35 @@
               <p class="artist-meta">{{ item.hitCount }} 首 · {{ (item.providers || []).join(' / ') || '-' }}</p>
             </article>
           </div>
+          <footer v-if="searchType === 'all' && (music.searchHasMore.value?.artists || music.searchSectionLoading.value?.artists || music.searchSectionError.value?.artists)" class="search-section-pager">
+            <p v-if="music.searchSectionLoading.value?.artists" class="pager-text">
+              <i class="fas fa-spinner fa-spin"></i>
+              加载更多歌手中...
+            </p>
+            <button
+              v-else-if="music.searchHasMore.value?.artists"
+              class="pager-load-btn ripple-trigger"
+              type="button"
+              @click="music.loadMoreMusicSearchSection('artists')"
+            >
+              显示更多歌手
+            </button>
+            <button
+              v-if="music.searchSectionError.value?.artists"
+              class="pager-retry-btn ripple-trigger"
+              type="button"
+              @click="music.retryMusicSearchLoadMore('artists')"
+            >
+              {{ music.searchSectionError.value.artists }}
+            </button>
+          </footer>
         </section>
 
         <footer v-if="showSearchPager" class="search-pager">
-          <p v-if="music.searchLoadingMore.value" class="pager-text">加载更多中...</p>
+          <p v-if="music.searchLoadingMore.value" class="pager-text">
+            <i class="fas fa-spinner fa-spin"></i>
+            加载更多中...
+          </p>
           <button
             v-else
             class="pager-load-btn ripple-trigger"
@@ -108,6 +177,14 @@
             @click="music.loadMoreMusicSearch()"
           >
             加载更多
+          </button>
+          <button
+            v-if="music.searchLoadingMoreError.value"
+            class="pager-retry-btn ripple-trigger"
+            type="button"
+            @click="music.retryMusicSearchLoadMore()"
+          >
+            {{ music.searchLoadingMoreError.value }}
           </button>
         </footer>
       </section>
@@ -310,6 +387,7 @@ const showPlaylistResults = computed(() => searchType.value === 'all' || searchT
 const showTrackResults = computed(() => searchType.value === 'all' || searchType.value === 'track');
 const showArtistResults = computed(() => searchType.value === 'all' || searchType.value === 'artist');
 const showSearchPager = computed(() => {
+  if (searchType.value === 'all') return false;
   const hasMore = music.searchHasMore?.value || {};
   if (music.searchLoadingMore?.value) return true;
   if (searchType.value === 'playlist') return Boolean(hasMore.playlists);
@@ -330,19 +408,24 @@ const displayErrorText = computed(() => {
 });
 
 function coverStyle(item) {
-  const raw = String(item?.cover || '').trim();
-  const url = raw || '';
+  const url = safeCoverUrl(item?.cover);
   return {
     backgroundImage: url ? `url('${url}')` : 'none'
   };
 }
 
 function trackCoverStyle(item) {
-  const raw = String(item?.cover || '').trim();
-  const url = raw || '';
+  const url = safeCoverUrl(item?.cover);
   return {
     backgroundImage: url ? `url('${url}')` : 'none'
   };
+}
+
+function safeCoverUrl(rawUrl) {
+  const raw = String(rawUrl || '').trim();
+  if (!raw) return '';
+  const escaped = raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return encodeURI(escaped);
 }
 
 function prefersReducedMotion() {
@@ -617,13 +700,27 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   padding-top: 4px;
+}
+
+.search-section-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
 }
 
 .pager-text {
   margin: 0;
   font-size: 12px;
   color: rgba(189, 201, 227, 0.84);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .pager-load-btn {
@@ -632,6 +729,16 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(var(--accent-rgb), 0.58);
   background: rgba(var(--accent-rgb), 0.2);
   color: rgba(240, 246, 255, 0.96);
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.pager-retry-btn {
+  min-height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 164, 189, 0.62);
+  background: rgba(255, 132, 167, 0.2);
+  color: rgba(255, 223, 234, 0.98);
   padding: 0 14px;
   font-size: 12px;
 }

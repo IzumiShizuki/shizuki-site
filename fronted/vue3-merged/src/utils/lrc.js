@@ -1,9 +1,10 @@
 const TIME_TAG = /\[(\d{1,2}):(\d{1,2}(?:\.\d{1,3})?)\]/g;
 
 export function parseLrc(lrcText) {
-  if (!lrcText || typeof lrcText !== 'string') return [];
+  const normalized = normalizeLyricText(lrcText);
+  if (!normalized) return [];
 
-  const lines = lrcText.split(/\r?\n/);
+  const lines = normalized.split(/\r?\n/);
   const entries = [];
 
   for (const rawLine of lines) {
@@ -24,6 +25,21 @@ export function parseLrc(lrcText) {
 
   entries.sort((a, b) => a.time - b.time);
   return entries;
+}
+
+function normalizeLyricText(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let text = raw;
+  if (text.charCodeAt(0) === 0xfeff) {
+    text = text.slice(1);
+  }
+  text = text
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+  return text.trim();
 }
 
 export function getLyricLineAt(entries, currentTimeSec) {
