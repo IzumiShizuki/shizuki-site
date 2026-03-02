@@ -159,7 +159,7 @@ public class MediaServiceImpl implements MediaService {
     private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
     private static final Pattern VIRTUAL_TUNEHUB_PLAYLIST_CODE_PATTERN =
         Pattern.compile("^vh_tunehub_([a-z0-9_\\-]+)_([a-z0-9_\\-]+)_(.+)$");
-    private static final String LOG_EVENT_BUILD_START = "MUSIC_TUNEHUB_DEFAULT_PLAYLIST_BUILD_START";
+    private static final String LOG_EVENT_API_CONTEXT_START = "MUSIC_TUNEHUB_API_CONTEXT_RESOLVE";
     private static final String LOG_EVENT_SEARCH_START = "MUSIC_SEARCH_START";
     private static final String LOG_EVENT_SEARCH_PROVIDER_FAIL = "MUSIC_SEARCH_PROVIDER_FAIL";
     private static final String LOG_EVENT_SEARCH_PROVIDER_RESULT = "MUSIC_SEARCH_PROVIDER_RESULT";
@@ -808,6 +808,7 @@ public class MediaServiceImpl implements MediaService {
         boolean includePlaylists = "all".equals(normalizedType) || "playlist".equals(normalizedType);
         boolean includeTracks = "all".equals(normalizedType) || "track".equals(normalizedType) || "artist".equals(normalizedType);
         boolean includeArtists = "all".equals(normalizedType) || "artist".equals(normalizedType);
+        boolean includePlaylistTrackProbe = includePlaylists && !includeTracks;
         long startMs = System.currentTimeMillis();
 
         LOGGER.info(
@@ -845,6 +846,8 @@ public class MediaServiceImpl implements MediaService {
         for (String provider : selectedProviders) {
             long providerStartMs = System.currentTimeMillis();
             int providerTrackMapped = 0;
+            int providerRowCount = 0;
+            int providerDedupeDropped = 0;
             String providerTopCover = "";
             if ("spotify".equals(provider)) {
                 if (!includeTracks) {
@@ -877,8 +880,10 @@ public class MediaServiceImpl implements MediaService {
                         }
                     }
                     providerTrackMapped = mappedCount;
-                    LOGGER.info("{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
-                        LOG_EVENT_SEARCH_PROVIDER_RESULT, "spotify", items.size(), mappedCount, tracks.size());
+                    providerRowCount = items.size();
+                    providerDedupeDropped = Math.max(0, providerRowCount - mappedCount);
+                    LOGGER.info("{} provider={} rowCount={} mappedCount={} dedupeDropped={} totalTrackCount={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT, "spotify", providerRowCount, mappedCount, providerDedupeDropped, tracks.size());
                 } catch (Exception ex) {
                     failedProviders.add("spotify");
                     LOGGER.warn(
@@ -915,7 +920,9 @@ public class MediaServiceImpl implements MediaService {
                 continue;
             }
 
-            if (includeTracks && tracks.size() < trackCollectLimit) {
+            boolean shouldProbeTracks = (includeTracks && tracks.size() < trackCollectLimit)
+                || (includePlaylistTrackProbe && playlists.size() < playlistCollectLimit);
+            if (shouldProbeTracks) {
                 long trackFetchStartMs = System.currentTimeMillis();
                 try {
                     List<TuneHubMusicProvider.SearchTrackResult> searchItems = tuneHubMusicProvider.searchTracks(
@@ -925,36 +932,54 @@ public class MediaServiceImpl implements MediaService {
                         safePage,
                         safeLimit
                     );
+                    providerRowCount = searchItems.size();
                     int mappedCount = 0;
+                    Set<String> providerSeenTrackIds = includeTracks ? null : new LinkedHashSet<>();
                     for (TuneHubMusicProvider.SearchTrackResult item : searchItems) {
                         String trackId = readString(item.trackId(), "");
                         if (!StringUtils.hasText(trackId)) {
                             continue;
                         }
-                        String dedupeKey = provider + ":" + trackId;
-                        if (!trackKeys.add(dedupeKey)) {
+                        if (includeTracks && tracks.size() < trackCollectLimit) {
+                            String dedupeKey = provider + ":" + trackId;
+                            if (!trackKeys.add(dedupeKey)) {
+                                continue;
+                            }
+                            tracks.add(new MusicSearchTrackResponse(
+                                trackId,
+                                provider,
+                                readString(item.title(), ""),
+                                readString(item.artist(), ""),
+                                readString(item.album(), ""),
+                                readString(item.cover(), ""),
+                                item.durationSec()
+                            ));
+                            mappedCount += 1;
+                            if (!StringUtils.hasText(providerTopCover)) {
+                                providerTopCover = readString(item.cover(), "");
+                            }
+                            if (tracks.size() >= trackCollectLimit && !includePlaylistTrackProbe) {
+                                break;
+                            }
                             continue;
                         }
-                        tracks.add(new MusicSearchTrackResponse(
-                            trackId,
-                            provider,
-                            readString(item.title(), ""),
-                            readString(item.artist(), ""),
-                            readString(item.album(), ""),
-                            readString(item.cover(), ""),
-                            item.durationSec()
-                        ));
-                        mappedCount += 1;
-                        if (!StringUtils.hasText(providerTopCover)) {
-                            providerTopCover = readString(item.cover(), "");
-                        }
-                        if (tracks.size() >= trackCollectLimit) {
-                            break;
+                        if (includePlaylistTrackProbe && !includeTracks) {
+                            if (!providerSeenTrackIds.add(trackId)) {
+                                continue;
+                            }
+                            mappedCount += 1;
+                            if (!StringUtils.hasText(providerTopCover)) {
+                                providerTopCover = readString(item.cover(), "");
+                            }
+                            if (mappedCount >= safeLimit) {
+                                break;
+                            }
                         }
                     }
                     providerTrackMapped = mappedCount;
-                    LOGGER.info("{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
-                        LOG_EVENT_SEARCH_PROVIDER_RESULT, provider, searchItems.size(), mappedCount, tracks.size());
+                    providerDedupeDropped = Math.max(0, providerRowCount - mappedCount);
+                    LOGGER.info("{} provider={} rowCount={} mappedCount={} dedupeDropped={} totalTrackCount={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT, provider, providerRowCount, mappedCount, providerDedupeDropped, tracks.size());
                 } catch (Exception ex) {
                     failedProviders.add(provider);
                     LOGGER.warn(
@@ -965,9 +990,10 @@ public class MediaServiceImpl implements MediaService {
                     );
                 } finally {
                     LOGGER.info(
-                        "{} provider={} stage=track_fetch durationMs={} mappedCount={} failed={}",
+                        "{} provider={} stage={} durationMs={} mappedCount={} failed={}",
                         LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
                         provider,
+                        includeTracks ? "track_fetch" : "playlist_probe",
                         Math.max(1L, System.currentTimeMillis() - trackFetchStartMs),
                         providerTrackMapped,
                         failedProviders.contains(provider)
@@ -992,22 +1018,20 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
 
-            if (includePlaylists && playlists.size() < playlistCollectLimit) {
+            if (includePlaylists && includeDeepPlaylistMatch && playlists.size() < playlistCollectLimit) {
                 long playlistMatchStartMs = System.currentTimeMillis();
                 int playlistMatchedCount = 0;
                 try {
                     List<TuneHubMusicProvider.VirtualPlaylistSummary> summaries = tuneHubMusicProvider.listToplistPlaylists(
                         apiContext.apiKey(),
                         List.of(provider),
-                        includeDeepPlaylistMatch
-                            ? Math.max(10, playlistCollectLimit)
-                            : Math.min(12, Math.max(4, safeLimit))
+                        Math.max(10, playlistCollectLimit)
                     );
                     for (TuneHubMusicProvider.VirtualPlaylistSummary item : summaries) {
                         String name = readString(item.name(), "");
                         String description = readString(item.description(), "");
                         boolean matched = containsKeyword(name, normalizedQuery) || containsKeyword(description, normalizedQuery);
-                        if (!matched && includeDeepPlaylistMatch) {
+                        if (!matched) {
                             matched = virtualPlaylistMatchesKeyword(apiContext.apiKey(), item, normalizedQuery);
                         }
                         if (!matched) {
@@ -1046,7 +1070,7 @@ public class MediaServiceImpl implements MediaService {
                         "{} provider={} strategy={} matchedCount={} durationMs={}",
                         LOG_EVENT_SEARCH_STAGE_PLAYLIST_MATCH_DONE,
                         provider,
-                        includeDeepPlaylistMatch ? "deep" : "light",
+                        "deep",
                         playlistMatchedCount,
                         Math.max(1L, System.currentTimeMillis() - playlistMatchStartMs)
                     );
@@ -1054,11 +1078,13 @@ public class MediaServiceImpl implements MediaService {
             }
 
             LOGGER.info(
-                "{} provider={} durationMs={} mappedTrackCount={} failed={}",
+                "{} provider={} durationMs={} rowCount={} mappedTrackCount={} dedupeDropped={} failed={}",
                 LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
                 provider,
                 Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                providerRowCount,
                 providerTrackMapped,
+                providerDedupeDropped,
                 failedProviders.contains(provider)
             );
         }
@@ -1211,7 +1237,11 @@ public class MediaServiceImpl implements MediaService {
         if (cache != null && objectStorageClient.objectExists(cache.getBucketCode(), cache.getObjectCode())) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
-            String resolvedCover = readString(request == null ? null : request.getCover(), "");
+            String resolvedCover = resolvePlaybackCover(
+                readString(request == null ? null : request.getCover(), ""),
+                "",
+                ""
+            );
             if (resolveLyric) {
                 TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
                 if (StringUtils.hasText(lyricApiContext.apiKey())) {
@@ -1223,7 +1253,7 @@ public class MediaServiceImpl implements MediaService {
                             tuneHubMusicProperties.getDefaultQuality()
                         );
                         lyricText = readString(parsedLyric.lyricText(), "");
-                        resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover());
+                        resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
                     } catch (Exception ex) {
                         LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
@@ -1284,7 +1314,8 @@ public class MediaServiceImpl implements MediaService {
         }
         String resolvedCover = resolvePlaybackCover(
             readString(request == null ? null : request.getCover(), ""),
-            readString(parsed.cover(), "")
+            readString(parsed.cover(), ""),
+            ""
         );
         String lyricText = readString(parsed.lyricText(), "");
         LOGGER.info("MUSIC_COVER_FALLBACK_RESOLVED provider={} trackId={} success={}",
@@ -2080,7 +2111,7 @@ public class MediaServiceImpl implements MediaService {
         String keySource = StringUtils.hasText(userApiKey) ? "user" : "system";
         List<String> preferredOrder = resolveTuneHubPlatformOrder(userId);
         if (logBuildStart) {
-            LOGGER.info("{} userId={} keySource={} platformOrder={}", LOG_EVENT_BUILD_START, userId, keySource, preferredOrder);
+            LOGGER.info("{} userId={} keySource={} platformOrder={}", LOG_EVENT_API_CONTEXT_START, userId, keySource, preferredOrder);
         }
         return new TuneHubApiContext(apiKey, keySource, preferredOrder);
     }
@@ -2179,12 +2210,16 @@ public class MediaServiceImpl implements MediaService {
         };
     }
 
-    private String resolvePlaybackCover(String preferredCover, String fallbackCover) {
+    private String resolvePlaybackCover(String preferredCover, String fallbackCover, String cacheCover) {
         String preferred = readString(preferredCover, "");
         if (StringUtils.hasText(preferred)) {
             return preferred;
         }
-        return readString(fallbackCover, "");
+        String fallback = readString(fallbackCover, "");
+        if (StringUtils.hasText(fallback)) {
+            return fallback;
+        }
+        return readString(cacheCover, "");
     }
 
     private String hashQueryFingerprint(String query) {

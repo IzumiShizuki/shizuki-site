@@ -205,14 +205,26 @@ export function usePlayerEngine(options = {}) {
       else break;
     }
     currentLyricIndex.value = idx;
-    currentLyricLine.value = idx >= 0 ? lyricEntries.value[idx].text : '';
+    if (idx >= 0) {
+      currentLyricLine.value = lyricEntries.value[idx].text;
+      return;
+    }
+    currentLyricLine.value = lyricEntries.value[0]?.text || '';
   }
 
   const lyricContext = computed(() => {
     const idx = currentLyricIndex.value;
     const list = lyricEntries.value;
-    if (!list.length || idx < 0) {
+    if (!list.length) {
       return { prev: '', current: '', next: '', key: 'empty' };
+    }
+    if (idx < 0) {
+      return {
+        prev: '',
+        current: list[0]?.text || '',
+        next: list[1]?.text || '',
+        key: 'l-prelude'
+      };
     }
     return {
       prev: list[idx - 1]?.text || '',
@@ -222,6 +234,19 @@ export function usePlayerEngine(options = {}) {
     };
   });
 
+  function buildLyricEntriesFromText(rawText) {
+    const source = String(rawText || '');
+    if (!source.trim()) return [];
+    const parsed = parseLrc(source);
+    if (parsed.length) return parsed;
+    return source
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 120)
+      .map((text, idx) => ({ time: idx * 4, text }));
+  }
+
   async function loadTrackLyric(track) {
     lyricEntries.value = [];
     currentLyricIndex.value = -1;
@@ -229,23 +254,21 @@ export function usePlayerEngine(options = {}) {
     if (!track?.lyric && !track?.lyricText) return;
 
     try {
+      let loadedByUrl = false;
       if (track?.lyric) {
-        const resp = await fetch(track.lyric);
-        if (!resp.ok) return;
-        const text = await resp.text();
-        lyricEntries.value = parseLrc(text);
-      } else if (track?.lyricText) {
-        const parsed = parseLrc(track.lyricText);
-        if (parsed.length) {
-          lyricEntries.value = parsed;
-        } else {
-          lyricEntries.value = String(track.lyricText || '')
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .slice(0, 120)
-            .map((text, idx) => ({ time: idx * 4, text }));
+        try {
+          const resp = await fetch(track.lyric);
+          if (resp.ok) {
+            const text = await resp.text();
+            lyricEntries.value = buildLyricEntriesFromText(text);
+            loadedByUrl = lyricEntries.value.length > 0;
+          }
+        } catch {
+          loadedByUrl = false;
         }
+      }
+      if (!loadedByUrl && track?.lyricText) {
+        lyricEntries.value = buildLyricEntriesFromText(track.lyricText);
       }
       updateLyricState(currentTime.value);
     } catch {
@@ -314,6 +337,7 @@ export function usePlayerEngine(options = {}) {
 
     const trackId = String(track.trackId || track.id || '').trim();
     if (!trackId) return track;
+    const shouldResolveLyric = !String(track.lyric || '').trim() && !String(track.lyricText || '').trim();
 
     try {
       const payload = await resolvePlaybackTrack(
@@ -323,7 +347,8 @@ export function usePlayerEngine(options = {}) {
           title: String(track.title || '').trim(),
           artist: String(track.artist || '').trim(),
           cover: String(track.cover || '').trim(),
-          playlistCode: String(playlistProfile.value?.playlistCode || '')
+          playlistCode: String(playlistProfile.value?.playlistCode || ''),
+          resolveLyric: shouldResolveLyric
         },
         getAuthorizedFetch()
       );
@@ -410,10 +435,15 @@ export function usePlayerEngine(options = {}) {
     return true;
   }
 
-  async function playNext(forceSequential = false) {
+  async function playNext(forceSequential = false, options = {}) {
     if (!tracks.value.length) return;
     const idx = currentIndex.value < 0 ? 0 : currentIndex.value;
     const mode = forceSequential ? 'sequential' : playMode.value;
+    if (mode === 'sequential' && options?.stopAtTail === true && idx >= tracks.value.length - 1) {
+      audioElement.pause();
+      isPlaying.value = false;
+      return;
+    }
     if (mode === 'random') {
       if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
         resetRandomQueue(currentTrackId.value);
@@ -627,7 +657,7 @@ export function usePlayerEngine(options = {}) {
     resetRandomQueue(tracks.value[initialIndex]?.id || '');
   }
 
-  async function enqueueExternalTrack(rawTrack, autoPlay = false) {
+  async function enqueueExternalTrack(rawTrack, autoPlay = false, options = {}) {
     const normalized = normalizeTrack(
       {
         id: rawTrack?.trackId || rawTrack?.track_id || rawTrack?.id || `pick-${Date.now()}`,
@@ -645,6 +675,17 @@ export function usePlayerEngine(options = {}) {
     const canLazyResolve = ['netease', 'kuwo', 'qq'].includes(String(normalized.provider || '').toLowerCase())
       && String(normalized.trackId || normalized.id || '').trim() !== '';
     if (!normalized.audio && !canLazyResolve) return false;
+    const replaceQueue = options?.replaceQueue === true;
+
+    if (replaceQueue) {
+      tracks.value = [{ ...normalized, sort: 1 }];
+      lyricResolveAttempted.value = new Set();
+      randomQueue.value = [];
+      if (autoPlay) {
+        await selectTrackByIndex(0, true);
+      }
+      return true;
+    }
 
     const existingIndex = tracks.value.findIndex((item) => item.id === normalized.id);
     if (existingIndex >= 0) {
@@ -711,8 +752,8 @@ export function usePlayerEngine(options = {}) {
     return true;
   }
 
-  async function playExternalTrack(rawTrack) {
-    return enqueueExternalTrack(rawTrack, true);
+  async function playExternalTrack(rawTrack, options = {}) {
+    return enqueueExternalTrack(rawTrack, true, options);
   }
 
   audioElement.addEventListener('loadedmetadata', () => {
@@ -737,7 +778,7 @@ export function usePlayerEngine(options = {}) {
   });
 
   audioElement.addEventListener('ended', async () => {
-    await playNext(false);
+    await playNext(false, { stopAtTail: true });
   });
 
   watch(

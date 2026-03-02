@@ -786,30 +786,7 @@ public class TuneHubMusicProvider {
         List<SearchTrackResult> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (Map<String, Object> row : rows) {
-            String trackId = readString(row.get("id"), "");
-            if (!StringUtils.hasText(trackId)) {
-                trackId = readString(row.get("mid"), "");
-            }
-            if (!StringUtils.hasText(trackId)) {
-                trackId = readString(row.get("songmid"), "");
-            }
-            if (!StringUtils.hasText(trackId)) {
-                trackId = readString(row.get("songMid"), "");
-            }
-            if (!StringUtils.hasText(trackId)) {
-                trackId = readString(row.get("rid"), "");
-            }
-            if (!StringUtils.hasText(trackId)) {
-                trackId = readString(row.get("RID"), "");
-            }
-            if (!StringUtils.hasText(trackId)) {
-                String musicRid = readString(row.get("MUSICRID"), "");
-                if (musicRid.startsWith("MUSIC_")) {
-                    trackId = musicRid.substring("MUSIC_".length());
-                } else {
-                    trackId = musicRid;
-                }
-            }
+            String trackId = resolveSearchTrackId(platform, row);
             if (!StringUtils.hasText(trackId) || !seen.add(trackId)) {
                 continue;
             }
@@ -834,6 +811,75 @@ public class TuneHubMusicProvider {
             }
         }
         return result;
+    }
+
+    private String resolveSearchTrackId(String platform, Map<String, Object> row) {
+        String normalizedPlatform = normalizePlatformCode(platform);
+        if ("kuwo".equals(normalizedPlatform)) {
+            return firstValidTrackId(
+                normalizeMusicRid(readString(row.get("MUSICRID"), "")),
+                normalizeMusicRid(readString(row.get("musicrid"), "")),
+                readString(row.get("DC_TARGETID"), ""),
+                readString(row.get("dc_targetid"), ""),
+                readString(row.get("trackid"), ""),
+                readString(row.get("TRACKID"), ""),
+                readString(row.get("rid"), ""),
+                readString(row.get("RID"), ""),
+                readString(row.get("ID"), ""),
+                readString(row.get("id"), "")
+            );
+        }
+        if ("qq".equals(normalizedPlatform)) {
+            return firstValidTrackId(
+                readString(row.get("mid"), ""),
+                readString(row.get("songmid"), ""),
+                readString(row.get("songMid"), ""),
+                readString(row.get("id"), "")
+            );
+        }
+        return firstValidTrackId(
+            readString(row.get("id"), ""),
+            readString(row.get("mid"), ""),
+            readString(row.get("songmid"), ""),
+            readString(row.get("songMid"), ""),
+            readString(row.get("rid"), ""),
+            readString(row.get("RID"), ""),
+            normalizeMusicRid(readString(row.get("MUSICRID"), ""))
+        );
+    }
+
+    private String firstValidTrackId(String... candidates) {
+        for (String raw : candidates) {
+            String candidate = readString(raw, "");
+            if (isInvalidTrackId(candidate)) {
+                continue;
+            }
+            return candidate;
+        }
+        return "";
+    }
+
+    private String normalizeMusicRid(String rawMusicRid) {
+        String musicRid = readString(rawMusicRid, "");
+        if (!StringUtils.hasText(musicRid)) {
+            return "";
+        }
+        if (musicRid.startsWith("MUSIC_")) {
+            return musicRid.substring("MUSIC_".length());
+        }
+        return musicRid;
+    }
+
+    private boolean isInvalidTrackId(String rawTrackId) {
+        String value = readString(rawTrackId, "");
+        if (!StringUtils.hasText(value)) {
+            return true;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return "0".equals(normalized)
+            || "null".equals(normalized)
+            || "undefined".equals(normalized)
+            || "unknown".equals(normalized);
     }
 
     private List<Map<String, Object>> extractSearchRows(String platform, Map<String, Object> raw) {
@@ -932,10 +978,22 @@ public class TuneHubMusicProvider {
             cover = readString(row.get("image"), "");
         }
         if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("artwork"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
             cover = readString(row.get("albumpic"), "");
         }
         if (!StringUtils.hasText(cover)) {
             cover = readString(row.get("albumPic"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("album_cover"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("albumCover"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("photo"), "");
         }
         if (!StringUtils.hasText(cover)) {
             cover = readString(row.get("web_albumpic_short"), "");
@@ -979,7 +1037,16 @@ public class TuneHubMusicProvider {
         if (!StringUtils.hasText(cover)) {
             return "";
         }
-        if (cover.startsWith("http://") || cover.startsWith("https://")) {
+        if (cover.startsWith("http://")) {
+            String upgraded = "https://" + cover.substring("http://".length());
+            try {
+                URI.create(upgraded);
+                return upgraded;
+            } catch (Exception ignored) {
+                return cover;
+            }
+        }
+        if (cover.startsWith("https://")) {
             return cover;
         }
         if (cover.startsWith("//")) {

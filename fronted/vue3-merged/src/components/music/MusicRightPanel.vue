@@ -196,6 +196,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { safeCssUrl } from '../../utils/url';
 
 const props = defineProps({
   track: { type: Object, default: null },
@@ -239,9 +240,13 @@ const emit = defineEmits([
   'enqueue-spotify'
 ]);
 
-const coverStyle = computed(() => ({
-  backgroundImage: `url('${props.track?.cover || `${import.meta.env.BASE_URL}images/katanegai.jpg`}')`
-}));
+const coverStyle = computed(() => {
+  const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
+  const safeCover = safeCssUrl(props.track?.cover || fallback);
+  return {
+    backgroundImage: safeCover ? `url('${safeCover}')` : 'none'
+  };
+});
 
 const eqItems = computed(() => {
   const source = Array.isArray(props.eqLevels) ? props.eqLevels : [0.66, 0.52, 0.74];

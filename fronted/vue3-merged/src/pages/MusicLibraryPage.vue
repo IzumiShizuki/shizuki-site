@@ -1122,7 +1122,10 @@ async function playFeaturedTrack(item, index) {
     return;
   }
 
-  const played = await player.playExternalTrack?.(normalizeApiTrack(item, Number(index) || 0));
+  const played = await player.playExternalTrack?.(
+    normalizeApiTrack(item, Number(index) || 0),
+    { replaceQueue: true }
+  );
   if (!played) {
     window.alert('该歌曲当前无法播放，请稍后重试');
   }
@@ -1143,7 +1146,10 @@ async function playSearchTrack(item, index) {
     }
     return;
   }
-  const played = await player.playExternalTrack?.(normalizeSearchTrack(item, Number(index) || 0));
+  const played = await player.playExternalTrack?.(
+    normalizeSearchTrack(item, Number(index) || 0),
+    { replaceQueue: true }
+  );
   if (!played) {
     window.alert('该歌曲当前无法播放，请稍后重试');
   }

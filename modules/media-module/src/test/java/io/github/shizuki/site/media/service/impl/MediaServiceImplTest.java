@@ -465,6 +465,39 @@ class MediaServiceImplTest {
         Assertions.assertEquals("kuwo", response.tracks().get(0).provider());
     }
 
+    @Test
+    void shouldBuildVirtualSearchPlaylistWhenTypeIsPlaylist() {
+        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "netease", "白色相簿", 1, 24))
+            .thenReturn(
+                List.of(
+                    new TuneHubMusicProvider.SearchTrackResult(
+                        "28712251",
+                        "WHITE ALBUM",
+                        "平野綾",
+                        "WHITE ALBUM キャラクターソング(1)",
+                        "https://img4.kuwo.cn/star/albumcover/500/120/40/78/4180484296.jpg",
+                        279,
+                        "netease"
+                    )
+                )
+            );
+        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "kuwo", "白色相簿", 1, 24))
+            .thenReturn(List.of());
+        Mockito.when(tuneHubMusicProvider.listToplistPlaylists("th_test_default_key", List.of("netease"), 25))
+            .thenReturn(List.of());
+        Mockito.when(tuneHubMusicProvider.listToplistPlaylists("th_test_default_key", List.of("kuwo"), 25))
+            .thenReturn(List.of());
+        Mockito.when(userMusicPlaylistMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
+
+        MusicSearchResponse response = mediaService.searchMusic("白色相簿", "playlist", "netease,kuwo", 1, 24);
+
+        Assertions.assertFalse(response.partial());
+        Assertions.assertTrue(response.tracks().isEmpty());
+        Assertions.assertTrue(response.playlists().stream().anyMatch(item ->
+            String.valueOf(item.playlistCode()).startsWith("vh_tunehub_netease_search_")
+        ));
+    }
+
     private MediaAssetEntity buildAsset(Long id, Long userId, Integer visibilityCode, String auditStatus) {
         MediaAssetEntity entity = new MediaAssetEntity();
         entity.setId(id);

@@ -59,11 +59,13 @@ class TuneHubMusicProviderSearchParserTest {
             "abslist",
             List.of(
                 Map.of(
+                    "id", "0",
                     "MUSICRID", "MUSIC_168060593",
                     "SONGNAME", "Sweet",
                     "ARTIST", "Bren Joy&Landon Sears",
                     "ALBUM", "Twenties (Explicit)",
-                    "DURATION", "226"
+                    "DURATION", "226",
+                    "albumpic", "http://img4.kuwo.cn/star/albumcover/500/120/40/78/4180484296.jpg"
                 )
             )
         );
@@ -76,6 +78,7 @@ class TuneHubMusicProviderSearchParserTest {
         Assertions.assertEquals("Sweet", item.title());
         Assertions.assertEquals("Bren Joy, Landon Sears", item.artist());
         Assertions.assertEquals("Twenties (Explicit)", item.album());
+        Assertions.assertEquals("https://img4.kuwo.cn/star/albumcover/500/120/40/78/4180484296.jpg", item.cover());
         Assertions.assertEquals(226, item.durationSec());
     }
 

@@ -168,6 +168,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { safeCssUrl } from '../utils/url';
 import {
   MUSIC_PLAYER_PEEK_MODE,
   MUSIC_PLAYER_PEEK_STATE,
@@ -241,9 +242,13 @@ const gesture = {
 
 let peekRevealTimer = 0;
 
-const coverStyle = computed(() => ({
-  backgroundImage: `url('${props.track?.cover || `${import.meta.env.BASE_URL}images/katanegai.jpg`}')`
-}));
+const coverStyle = computed(() => {
+  const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
+  const safeCover = safeCssUrl(props.track?.cover || fallback);
+  return {
+    backgroundImage: safeCover ? `url('${safeCover}')` : 'none'
+  };
+});
 
 const modeIcon = computed(() => {
   if (props.playMode === 'random') return 'fas fa-shuffle';

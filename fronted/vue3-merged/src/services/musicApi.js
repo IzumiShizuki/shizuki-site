@@ -1,4 +1,4 @@
-import { httpRequest, normalizeApiData } from './httpClient';
+import { httpRequest, isUnauthorizedProblem, normalizeApiData } from './httpClient';
 
 function unwrapApiResponse(response) {
   return normalizeApiData(response);
@@ -56,15 +56,24 @@ export async function getPlaylistBundleByCode(playlistCode, authorizedFetch) {
 
 export async function resolvePlaybackTrack(payload, authorizedFetch) {
   const requestPayload = payload && typeof payload === 'object' ? payload : {};
-  const response = typeof authorizedFetch === 'function'
-    ? await authorizedFetch('/api/v1/music/tracks/resolve-playback', {
-      method: 'POST',
-      body: requestPayload
-    })
-    : await httpRequest('/api/v1/music/tracks/resolve-playback', {
-      method: 'POST',
-      body: requestPayload
-    });
+  if (typeof authorizedFetch === 'function') {
+    try {
+      const response = await authorizedFetch('/api/v1/music/tracks/resolve-playback', {
+        method: 'POST',
+        body: requestPayload
+      });
+      return unwrapApiResponse(response);
+    } catch (error) {
+      if (!isUnauthorizedProblem(error)) {
+        throw error;
+      }
+    }
+  }
+
+  const response = await httpRequest('/api/v1/music/tracks/resolve-playback', {
+    method: 'POST',
+    body: requestPayload
+  });
   return unwrapApiResponse(response);
 }
 

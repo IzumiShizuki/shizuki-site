@@ -84,6 +84,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
+import { safeCssUrl } from '../../utils/url';
 
 const music = useMusicLibraryContext();
 
@@ -110,8 +111,9 @@ const isLikedCurrent = computed(() => {
 
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
+  const safeCover = safeCssUrl(track.value?.cover || fallback);
   return {
-    backgroundImage: `url('${track.value?.cover || fallback}')`
+    backgroundImage: safeCover ? `url('${safeCover}')` : 'none'
   };
 });
 
