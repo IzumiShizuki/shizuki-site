@@ -153,6 +153,7 @@ export function usePlayerEngine(options = {}) {
   const lyricEntries = ref([]);
   const currentLyricIndex = ref(-1);
   const lyricResolveAttempted = ref(new Set());
+  const playbackResolveAttempted = ref(new Set());
 
   const audioElement = new Audio();
   audioElement.preload = 'metadata';
@@ -326,10 +327,18 @@ export function usePlayerEngine(options = {}) {
     }
   }
 
-  async function resolveTrackPlayback(index) {
+  function buildResolveKey(track) {
+    const provider = String(track?.provider || '').trim().toLowerCase();
+    const trackId = String(track?.trackId || track?.id || '').trim();
+    if (!provider || !trackId) return '';
+    return `${provider}:${trackId}`;
+  }
+
+  async function resolveTrackPlayback(index, options = {}) {
     if (index < 0 || index >= tracks.value.length) return null;
     const track = tracks.value[index];
-    if (!track || track.audio) return track;
+    const force = options?.force === true;
+    if (!track || (!force && track.audio)) return track;
 
     const provider = String(track.provider || '').trim().toLowerCase();
     const supported = provider === 'netease' || provider === 'kuwo' || provider === 'qq';
@@ -621,6 +630,7 @@ export function usePlayerEngine(options = {}) {
       playlistProfile.value = profile;
       tracks.value = normalizedTracks;
       lyricResolveAttempted.value = new Set();
+      playbackResolveAttempted.value = new Set();
       hydrateTrackDurations();
     } catch (error) {
       tracks.value = [];
@@ -646,6 +656,7 @@ export function usePlayerEngine(options = {}) {
       currentLyricIndex.value = -1;
       currentLyricLine.value = '';
       lyricResolveAttempted.value = new Set();
+      playbackResolveAttempted.value = new Set();
       randomQueue.value = [];
       return;
     }
@@ -775,6 +786,37 @@ export function usePlayerEngine(options = {}) {
 
   audioElement.addEventListener('play', () => {
     isPlaying.value = true;
+  });
+
+  audioElement.addEventListener('error', async () => {
+    const idx = currentIndex.value;
+    if (idx < 0 || idx >= tracks.value.length) {
+      isPlaying.value = false;
+      return;
+    }
+    const current = tracks.value[idx];
+    const resolveKey = buildResolveKey(current);
+    if (!resolveKey || playbackResolveAttempted.value.has(resolveKey)) {
+      isPlaying.value = false;
+      return;
+    }
+    playbackResolveAttempted.value.add(resolveKey);
+    const previousAudio = String(current?.audio || '').trim();
+    const resolved = await resolveTrackPlayback(idx, { force: true });
+    const nextAudio = String(resolved?.audio || '').trim();
+    if (!nextAudio || nextAudio === previousAudio) {
+      isPlaying.value = false;
+      return;
+    }
+    try {
+      audioElement.src = nextAudio;
+      audioElement.load();
+      await loadTrackLyric(resolved);
+      await audioElement.play();
+      isPlaying.value = true;
+    } catch {
+      isPlaying.value = false;
+    }
   });
 
   audioElement.addEventListener('ended', async () => {

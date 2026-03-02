@@ -142,6 +142,7 @@ import { useAuthSession } from '../composables/useAuthSession';
 import { usePlayerBridge } from '../composables/playerBridge';
 import { MUSIC_PRIMARY_NAV, useMusicLibraryUiState } from './musicLibraryUiState';
 import * as musicApi from '../services/musicApi';
+import { buildPlaylistTrackUpsertPayload } from '../utils/musicTrackPayload';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
@@ -371,17 +372,13 @@ function resolveCenterViewKey(viewRoute) {
 }
 
 function toPlaylistTrackUpsertPayload(track, fallbackSort = 0) {
-  return {
-    trackId: String(track?.trackId || track?.track_id || track?.id || '').trim(),
-    provider: String(track?.provider || track?.providerCode || track?.provider_code || 'local').trim() || 'local',
-    title: String(track?.title || '').trim(),
-    artist: String(track?.artist || '').trim(),
-    cover: String(track?.cover || track?.coverUrl || track?.cover_url || '').trim(),
-    audio: String(track?.audio || track?.audioUrl || track?.audio_url || '').trim(),
-    lyric: String(track?.lyric || track?.lyricUrl || track?.lyric_url || '').trim(),
-    sort: Number.isFinite(Number(track?.sort)) ? Number(track.sort) : Number(fallbackSort || 0),
-    enabled: track?.enabled !== false
-  };
+  return buildPlaylistTrackUpsertPayload(track, {
+    fallbackSort,
+    playlistCode: currentPlaylistProfile.value?.playlistCode,
+    activeNav: ui.activeNav.value,
+    hasActiveSearch: hasActiveSearch.value,
+    isPlaylistRoute: isPlaylistRoute.value
+  });
 }
 
 function normalizeApiKeyStatus(raw) {

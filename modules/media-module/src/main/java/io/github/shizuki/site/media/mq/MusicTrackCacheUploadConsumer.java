@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.common.storage.model.StorageObjectMetadata;
-import io.github.shizuki.common.storage.util.OssKeyBuilder;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.entity.MusicTrackCacheEntity;
 import io.github.shizuki.site.media.mapper.MusicTrackCacheMapper;
@@ -62,6 +61,8 @@ public class MusicTrackCacheUploadConsumer {
         String provider = readString(event.provider(), "").toLowerCase(Locale.ROOT);
         String trackId = readString(event.trackId(), "");
         String sourceAudioUrl = readString(event.sourceAudioUrl(), "");
+        String title = readString(event.title(), "");
+        String artist = readString(event.artist(), "");
         if (!StringUtils.hasText(provider) || !StringUtils.hasText(trackId) || !StringUtils.hasText(sourceAudioUrl)) {
             return;
         }
@@ -80,7 +81,7 @@ public class MusicTrackCacheUploadConsumer {
             try (InputStream in = new URL(sourceAudioUrl).openStream()) {
                 String bucket = mediaStorageProperties.getPublicBucket();
                 String extension = inferAudioExtension(sourceAudioUrl);
-                String key = OssKeyBuilder.build("music-cache", provider, 0L, extension);
+                String key = buildTrackObjectKey(provider, trackId, title, artist);
                 StorageObjectMetadata metadata = new StorageObjectMetadata();
                 metadata.setContentType(inferAudioContentType(extension));
                 objectStorageClient.putObject(bucket, key, in, metadata);
@@ -119,6 +120,28 @@ public class MusicTrackCacheUploadConsumer {
                 sanitizeLogMessage(ex.getMessage()));
             throw new IllegalStateException("music cache upload consume failed", ex);
         }
+    }
+
+    private String buildTrackObjectKey(String provider, String trackId, String title, String artist) {
+        String normalizedProvider = sanitizeObjectNamePart(provider, "source", 32);
+        String normalizedTrackId = sanitizeObjectNamePart(trackId, "track", 64);
+        String normalizedTitle = sanitizeObjectNamePart(title, "unknown-title", 80);
+        String normalizedArtist = sanitizeObjectNamePart(artist, "unknown-artist", 80);
+        String fileName = normalizedTitle + "-" + normalizedArtist + "-" + normalizedProvider + ".mp3";
+        return "music-cache/" + normalizedProvider + "/" + normalizedTrackId + "/" + fileName;
+    }
+
+    private String sanitizeObjectNamePart(String raw, String fallback, int maxLength) {
+        String value = readString(raw, fallback)
+            .replaceAll("[\\\\/:*?\"<>|\\s]+", "_")
+            .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}_\\-\\.]+", "");
+        if (!StringUtils.hasText(value)) {
+            value = fallback;
+        }
+        if (value.length() > maxLength) {
+            value = value.substring(0, maxLength);
+        }
+        return value;
     }
 
     private MusicTrackCacheUploadEvent parseEvent(String payload) {

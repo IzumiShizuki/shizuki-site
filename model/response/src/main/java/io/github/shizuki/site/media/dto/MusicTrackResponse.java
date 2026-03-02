@@ -1,6 +1,7 @@
 package io.github.shizuki.site.media.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.Map;
 
 /**
  * 音乐曲目响应。
@@ -16,7 +17,8 @@ public record MusicTrackResponse(
     @Schema(description = "歌词 URL") String lyric,
     @Schema(description = "排序值") int sort,
     @Schema(description = "是否启用") boolean enabled,
-    @Schema(description = "内联歌词文本（无歌词 URL 时使用）") String lyricText
+    @Schema(description = "内联歌词文本（无歌词 URL 时使用）") String lyricText,
+    @Schema(description = "扩展元数据（专辑、时长、来源等）") Map<String, Object> metadata
 ) {
 
     public MusicTrackResponse(String trackId,
@@ -28,6 +30,19 @@ public record MusicTrackResponse(
                               String lyric,
                               int sort,
                               boolean enabled) {
-        this(trackId, provider, title, artist, cover, audio, lyric, sort, enabled, "");
+        this(trackId, provider, title, artist, cover, audio, lyric, sort, enabled, "", Map.of());
+    }
+
+    public MusicTrackResponse(String trackId,
+                              String provider,
+                              String title,
+                              String artist,
+                              String cover,
+                              String audio,
+                              String lyric,
+                              int sort,
+                              boolean enabled,
+                              String lyricText) {
+        this(trackId, provider, title, artist, cover, audio, lyric, sort, enabled, lyricText, Map.of());
     }
 }

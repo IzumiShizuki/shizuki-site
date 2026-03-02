@@ -33,13 +33,15 @@ public class MusicTrackCacheUploadPublisher {
     /**
      * 发布上传缓存事件（失败仅记录日志，不阻塞主流程）。
      */
-    public boolean publish(String provider, String trackId, String sourceAudioUrl) {
+    public boolean publish(String provider, String trackId, String sourceAudioUrl, String title, String artist) {
         if (!properties.isEnabled()) {
             return false;
         }
         String normalizedProvider = readString(provider, "").toLowerCase(Locale.ROOT);
         String normalizedTrackId = readString(trackId, "");
         String normalizedAudioUrl = readString(sourceAudioUrl, "");
+        String normalizedTitle = readString(title, "");
+        String normalizedArtist = readString(artist, "");
         if (!StringUtils.hasText(normalizedProvider) || !StringUtils.hasText(normalizedTrackId) || !StringUtils.hasText(normalizedAudioUrl)) {
             return false;
         }
@@ -47,7 +49,9 @@ public class MusicTrackCacheUploadPublisher {
         MusicTrackCacheUploadEvent event = new MusicTrackCacheUploadEvent(
             normalizedProvider,
             normalizedTrackId,
-            normalizedAudioUrl
+            normalizedAudioUrl,
+            normalizedTitle,
+            normalizedArtist
         );
         try {
             String payload = objectMapper.writeValueAsString(event);

@@ -88,6 +88,8 @@ shizuki:
       retention-days: ${MUSIC_LISTEN_CACHE_RETENTION_DAYS:30}
       cleanup-interval-ms: ${MUSIC_LISTEN_CACHE_CLEANUP_INTERVAL_MS:3600000}
       login-only: ${MUSIC_LISTEN_CACHE_LOGIN_ONLY:true}
+      storage-mode: ${MUSIC_LISTEN_CACHE_STORAGE_MODE:smart}
+      url-ttl-threshold-seconds: ${MUSIC_LISTEN_CACHE_URL_TTL_THRESHOLD_SECONDS:86400}
     cache-upload:
       kafka:
         enabled: ${MUSIC_CACHE_UPLOAD_KAFKA_ENABLED:true}

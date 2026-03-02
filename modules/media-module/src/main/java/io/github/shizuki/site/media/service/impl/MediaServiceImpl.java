@@ -2,6 +2,7 @@ package io.github.shizuki.site.media.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
@@ -95,6 +96,7 @@ import io.github.shizuki.site.media.service.l2d.L2dValidationResult;
 import io.github.shizuki.site.media.service.l2d.L2dZipValidator;
 import io.github.shizuki.site.media.service.security.AssetInspectionResult;
 import io.github.shizuki.site.media.service.security.AssetSecurityInspector;
+import io.github.shizuki.site.media.util.TrackUrlExpiryPolicy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -170,6 +172,20 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_EVENT_SEARCH_STAGE_DONE = "MUSIC_SEARCH_STAGE_DONE";
     private static final String LOG_EVENT_RESOLVE_STAGE_START = "MUSIC_RESOLVE_PLAYBACK_STAGE_START";
     private static final String LOG_EVENT_RESOLVE_STAGE_DONE = "MUSIC_RESOLVE_PLAYBACK_STAGE_DONE";
+    private static final String SOURCE_ONLY_OBJECT_CODE = "__source_only__";
+    private static final int TRACK_METADATA_JSON_MAX_LENGTH = 4096;
+    private static final Set<String> TRACK_METADATA_ALLOWED_KEYS = Set.of(
+        "album",
+        "durationSec",
+        "durationLabel",
+        "provider",
+        "playlistCode",
+        "sourceScene",
+        "intro",
+        "description",
+        "lyricTextAvailable",
+        "coverSource"
+    );
 
     private final ObjectStorageClient objectStorageClient;
     private final MediaStorageProperties mediaStorageProperties;
@@ -1233,8 +1249,62 @@ public class MediaServiceImpl implements MediaService {
             request != null && Boolean.TRUE.equals(request.getResolveLyric()));
 
         boolean resolveLyric = request != null && Boolean.TRUE.equals(request.getResolveLyric());
+        MusicListenCacheProperties.StorageMode storageMode = musicListenCacheProperties.resolveStorageMode();
         MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
-        if (cache != null && objectStorageClient.objectExists(cache.getBucketCode(), cache.getObjectCode())) {
+        String cachedSourceAudio = readString(cache == null ? null : cache.getSourceUrl(), "");
+        if (cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
+            touchTrackCacheLastListen(cache);
+            String lyricText = "";
+            String resolvedCover = resolvePlaybackCover(
+                readString(request == null ? null : request.getCover(), ""),
+                "",
+                ""
+            );
+            if (resolveLyric) {
+                TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
+                if (StringUtils.hasText(lyricApiContext.apiKey())) {
+                    try {
+                        TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                            lyricApiContext.apiKey(),
+                            provider,
+                            trackId,
+                            tuneHubMusicProperties.getDefaultQuality()
+                        );
+                        lyricText = readString(parsedLyric.lyricText(), "");
+                        resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
+                        LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
+                    } catch (Exception ex) {
+                        LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
+                            provider,
+                            trackId,
+                            sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")));
+                        LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
+                    }
+                }
+            }
+            LOGGER.info(
+                "{} provider={} trackId={} source=cache_source lyricResolved={} durationMs={}",
+                LOG_EVENT_RESOLVE_STAGE_DONE,
+                provider,
+                trackId,
+                StringUtils.hasText(lyricText),
+                Math.max(1L, System.currentTimeMillis() - startMs)
+            );
+            return new MusicTrackResponse(
+                trackId,
+                provider,
+                readString(request == null ? null : request.getTitle(), trackId),
+                readString(request == null ? null : request.getArtist(), ""),
+                resolvedCover,
+                cachedSourceAudio,
+                "",
+                0,
+                true,
+                lyricText,
+                Map.of("cacheSource", "source_url")
+            );
+        }
+        if (hasOssObjectCache(cache)) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
             String resolvedCover = resolvePlaybackCover(
@@ -1282,7 +1352,8 @@ public class MediaServiceImpl implements MediaService {
                 "",
                 0,
                 true,
-                lyricText
+                lyricText,
+                Map.of("cacheSource", "oss")
             );
         }
 
@@ -1310,7 +1381,16 @@ public class MediaServiceImpl implements MediaService {
             && (!musicListenCacheProperties.isLoginOnly() || userId > 0);
         boolean cacheEnqueued = false;
         if (shouldCache) {
-            cacheEnqueued = musicTrackCacheUploadPublisher.publish(provider, trackId, resolvedAudio);
+            upsertTrackSourceCache(provider, trackId, resolvedAudio);
+            if (shouldEnqueueTrackToOss(storageMode, resolvedAudio)) {
+                cacheEnqueued = musicTrackCacheUploadPublisher.publish(
+                    provider,
+                    trackId,
+                    resolvedAudio,
+                    readString(request == null ? null : request.getTitle(), ""),
+                    readString(request == null ? null : request.getArtist(), "")
+                );
+            }
         }
         String resolvedCover = resolvePlaybackCover(
             readString(request == null ? null : request.getCover(), ""),
@@ -1346,7 +1426,8 @@ public class MediaServiceImpl implements MediaService {
             "",
             0,
             true,
-            lyricText
+            lyricText,
+            Map.of("cacheMode", storageMode.code())
         );
     }
 
@@ -1425,7 +1506,32 @@ public class MediaServiceImpl implements MediaService {
         String trackId = readString(selected.trackId(), "");
         if (StringUtils.hasText(trackId)) {
             MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
-            if (cache != null && objectStorageClient.objectExists(cache.getBucketCode(), cache.getObjectCode())) {
+            String cachedSourceAudio = readString(cache == null ? null : cache.getSourceUrl(), "");
+            if (cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
+                MusicTrackResponse cachedTrack = new MusicTrackResponse(
+                    selected.trackId(),
+                    selected.provider(),
+                    selected.title(),
+                    selected.artist(),
+                    selected.cover(),
+                    cachedSourceAudio,
+                    selected.lyric(),
+                    selected.sort(),
+                    selected.enabled(),
+                    selected.lyricText(),
+                    selected.metadata()
+                );
+                touchTrackCacheLastListen(cache);
+                long cachedUsed = loadPickUsedCount(userId);
+                long cachedTotal = resolveQuotaValue(MUSIC_PICK_QUOTA_CODE, currentLoginUserGroups(), 5L);
+                return new MusicPickResponse(
+                    provider,
+                    cachedTrack,
+                    true,
+                    new MusicPickQuotaResponse(cachedTotal, cachedUsed, Math.max(0L, cachedTotal - cachedUsed))
+                );
+            }
+            if (hasOssObjectCache(cache)) {
                 MusicTrackResponse cachedTrack = new MusicTrackResponse(
                     selected.trackId(),
                     selected.provider(),
@@ -1435,7 +1541,9 @@ public class MediaServiceImpl implements MediaService {
                     cache.getPublicUrl(),
                     selected.lyric(),
                     selected.sort(),
-                    selected.enabled()
+                    selected.enabled(),
+                    selected.lyricText(),
+                    selected.metadata()
                 );
                 long cachedUsed = loadPickUsedCount(userId);
                 long cachedTotal = resolveQuotaValue(MUSIC_PICK_QUOTA_CODE, currentLoginUserGroups(), 5L);
@@ -1469,8 +1577,18 @@ public class MediaServiceImpl implements MediaService {
             && (!musicListenCacheProperties.isLoginOnly() || userId > 0)
             && StringUtils.hasText(trackId)
             && StringUtils.hasText(sourceAudioUrl);
+        MusicListenCacheProperties.StorageMode storageMode = musicListenCacheProperties.resolveStorageMode();
         if (shouldAsyncCache) {
-            musicTrackCacheUploadPublisher.publish(provider, trackId, sourceAudioUrl);
+            upsertTrackSourceCache(provider, trackId, sourceAudioUrl);
+            if (shouldEnqueueTrackToOss(storageMode, sourceAudioUrl)) {
+                musicTrackCacheUploadPublisher.publish(
+                    provider,
+                    trackId,
+                    sourceAudioUrl,
+                    selected.title(),
+                    selected.artist()
+                );
+            }
         }
         return new MusicPickResponse(
             provider,
@@ -1627,7 +1745,7 @@ public class MediaServiceImpl implements MediaService {
             validateHttpUrlIfPresent(entity.getLyricUrl(), "lyric");
             entity.setSortNum(currentSort);
             entity.setEnabledFlag(track.getEnabled() == null ? true : track.getEnabled());
-            entity.setMetadataJson(writeJson(track.getMetadata() == null ? Map.of() : track.getMetadata()));
+            entity.setMetadataJson(writeJson(sanitizeTrackMetadata(track.getMetadata())));
             entity.setCreatedAt(LocalDateTime.now());
             entity.setUpdatedAt(LocalDateTime.now());
             musicPlaylistMapper.insert(entity);
@@ -1954,7 +2072,7 @@ public class MediaServiceImpl implements MediaService {
         entity.setLyricUrl(lyric);
         entity.setSortNum(request.getSort() == null ? (created ? resolveNextPlaylistTrackSort(playlist.getPlaylistCode()) : entity.getSortNum()) : Math.max(0, request.getSort()));
         entity.setEnabledFlag(request.getEnabled() == null ? true : request.getEnabled());
-        entity.setMetadataJson(writeJson(request.getMetadata() == null ? Map.of() : request.getMetadata()));
+        entity.setMetadataJson(writeJson(sanitizeTrackMetadata(request.getMetadata())));
         entity.setUpdatedAt(LocalDateTime.now());
         if (created) {
             userMusicPlaylistTrackMapper.insert(entity);
@@ -2540,6 +2658,73 @@ public class MediaServiceImpl implements MediaService {
         }
     }
 
+    private Map<String, Object> readTrackMetadata(String rawJson) {
+        String json = readString(rawJson, "");
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
+            });
+            return sanitizeTrackMetadata(parsed);
+        } catch (Exception ex) {
+            return Map.of();
+        }
+    }
+
+    private Map<String, Object> sanitizeTrackMetadata(Map<String, Object> rawMetadata) {
+        if (rawMetadata == null || rawMetadata.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        for (String key : TRACK_METADATA_ALLOWED_KEYS) {
+            if (!rawMetadata.containsKey(key)) {
+                continue;
+            }
+            Object normalized = normalizeTrackMetadataValue(key, rawMetadata.get(key));
+            if (normalized != null) {
+                sanitized.put(key, normalized);
+            }
+        }
+        if (sanitized.isEmpty()) {
+            return Map.of();
+        }
+        String encoded = writeJson(sanitized);
+        if (encoded.length() > TRACK_METADATA_JSON_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "track metadata is too large");
+        }
+        return sanitized;
+    }
+
+    private Object normalizeTrackMetadataValue(String key, Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        if ("lyricTextAvailable".equals(key)) {
+            if (rawValue instanceof Boolean bool) {
+                return bool;
+            }
+            String normalizedBool = readString(String.valueOf(rawValue), "").toLowerCase(Locale.ROOT);
+            return "true".equals(normalizedBool) || "1".equals(normalizedBool);
+        }
+        if ("durationSec".equals(key)) {
+            try {
+                long value = Long.parseLong(String.valueOf(rawValue).trim());
+                if (value <= 0) {
+                    return null;
+                }
+                return Math.min(value, Integer.MAX_VALUE);
+            } catch (Exception ex) {
+                return null;
+            }
+        }
+        String value = readString(String.valueOf(rawValue), "");
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.length() > 512 ? value.substring(0, 512) : value;
+    }
+
     /**
      * 读取当前登录用户 ID，不存在则抛未登录异常。
      */
@@ -2757,6 +2942,90 @@ public class MediaServiceImpl implements MediaService {
         );
     }
 
+    private boolean canReuseCachedSourceAudio(String sourceAudioUrl) {
+        String url = readString(sourceAudioUrl, "");
+        if (!StringUtils.hasText(url)) {
+            return false;
+        }
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return false;
+        }
+        return !TrackUrlExpiryPolicy.isExpired(url);
+    }
+
+    private boolean hasOssObjectCache(MusicTrackCacheEntity cache) {
+        if (cache == null) {
+            return false;
+        }
+        String bucketCode = readString(cache.getBucketCode(), "");
+        String objectCode = readString(cache.getObjectCode(), "");
+        if (!StringUtils.hasText(bucketCode) || !StringUtils.hasText(objectCode)) {
+            return false;
+        }
+        if (SOURCE_ONLY_OBJECT_CODE.equalsIgnoreCase(objectCode)) {
+            return false;
+        }
+        return objectStorageClient.objectExists(bucketCode, objectCode);
+    }
+
+    private boolean shouldEnqueueTrackToOss(MusicListenCacheProperties.StorageMode storageMode, String sourceAudioUrl) {
+        MusicListenCacheProperties.StorageMode mode = storageMode == null
+            ? MusicListenCacheProperties.StorageMode.SMART
+            : storageMode;
+        return switch (mode) {
+            case URL_ONLY -> false;
+            case HYBRID -> true;
+            case SMART -> TrackUrlExpiryPolicy.shouldFallbackToOss(
+                sourceAudioUrl,
+                musicListenCacheProperties.getUrlTtlThresholdSeconds()
+            );
+        };
+    }
+
+    private void upsertTrackSourceCache(String provider, String trackId, String sourceAudioUrl) {
+        if (!StringUtils.hasText(provider) || !StringUtils.hasText(trackId) || !StringUtils.hasText(sourceAudioUrl)) {
+            return;
+        }
+        MusicTrackCacheEntity existing = loadTrackCache(provider, trackId);
+        MusicTrackCacheEntity entity = existing == null ? new MusicTrackCacheEntity() : existing;
+        String bucketCode = readString(entity.getBucketCode(), "");
+        if (!StringUtils.hasText(bucketCode)) {
+            bucketCode = readString(mediaStorageProperties.getPublicBucket(), "music-cache");
+        }
+        String objectCode = readString(entity.getObjectCode(), "");
+        if (!StringUtils.hasText(objectCode)) {
+            objectCode = SOURCE_ONLY_OBJECT_CODE;
+        }
+        String publicUrl = readString(entity.getPublicUrl(), "");
+        if (!StringUtils.hasText(publicUrl)) {
+            publicUrl = sourceAudioUrl;
+        }
+        entity.setProviderCode(provider);
+        entity.setTrackId(trackId);
+        entity.setBucketCode(bucketCode);
+        entity.setObjectCode(objectCode);
+        entity.setPublicUrl(publicUrl);
+        entity.setSourceUrl(sourceAudioUrl);
+        entity.setLastListenTime(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        if (existing == null) {
+            entity.setCreatedAt(LocalDateTime.now());
+            try {
+                musicTrackCacheMapper.insert(entity);
+            } catch (DuplicateKeyException duplicateKeyException) {
+                MusicTrackCacheEntity concurrent = loadTrackCache(provider, trackId);
+                if (concurrent != null) {
+                    concurrent.setSourceUrl(sourceAudioUrl);
+                    concurrent.setLastListenTime(LocalDateTime.now());
+                    concurrent.setUpdatedAt(LocalDateTime.now());
+                    musicTrackCacheMapper.updateById(concurrent);
+                }
+            }
+        } else {
+            musicTrackCacheMapper.updateById(entity);
+        }
+    }
+
     private void touchTrackCacheLastListen(MusicTrackCacheEntity entity) {
         if (entity == null || entity.getId() == null) {
             return;
@@ -2777,16 +3046,24 @@ public class MediaServiceImpl implements MediaService {
      * <p>缓存失败不抛错，返回 null 让主流程继续，避免因缓存影响选歌主链路可用性。
      */
     private MusicTrackCacheEntity cacheTrackToOss(String provider, String trackId, String sourceAudioUrl) {
+        return cacheTrackToOss(provider, trackId, "", "", sourceAudioUrl);
+    }
+
+    private MusicTrackCacheEntity cacheTrackToOss(String provider,
+                                                  String trackId,
+                                                  String title,
+                                                  String artist,
+                                                  String sourceAudioUrl) {
         validateHttpUrlIfPresent(sourceAudioUrl, "audio");
         MusicTrackCacheEntity existing = loadTrackCache(provider, trackId);
-        if (existing != null && objectStorageClient.objectExists(existing.getBucketCode(), existing.getObjectCode())) {
+        if (hasOssObjectCache(existing)) {
             touchTrackCacheLastListen(existing);
             return existing;
         }
         try (InputStream in = new URL(sourceAudioUrl).openStream()) {
             String bucket = mediaStorageProperties.getPublicBucket();
             String extension = inferAudioExtension(sourceAudioUrl);
-            String key = OssKeyBuilder.build("music-cache", provider, 0L, extension);
+            String key = buildTrackCacheObjectKey(provider, trackId, title, artist);
             StorageObjectMetadata metadata = new StorageObjectMetadata();
             metadata.setContentType(inferAudioContentType(extension));
             objectStorageClient.putObject(bucket, key, in, metadata);
@@ -2812,6 +3089,28 @@ public class MediaServiceImpl implements MediaService {
             LOGGER.warn("Cache provider track to OSS failed, provider={}, trackId={}", provider, trackId, ex);
             return null;
         }
+    }
+
+    private String buildTrackCacheObjectKey(String provider, String trackId, String title, String artist) {
+        String normalizedProvider = sanitizeTrackCacheObjectNamePart(provider, "source", 32);
+        String normalizedTrackId = sanitizeTrackCacheObjectNamePart(trackId, "track", 64);
+        String normalizedTitle = sanitizeTrackCacheObjectNamePart(title, "unknown-title", 80);
+        String normalizedArtist = sanitizeTrackCacheObjectNamePart(artist, "unknown-artist", 80);
+        String filename = normalizedTitle + "-" + normalizedArtist + "-" + normalizedProvider + ".mp3";
+        return "music-cache/" + normalizedProvider + "/" + normalizedTrackId + "/" + filename;
+    }
+
+    private String sanitizeTrackCacheObjectNamePart(String raw, String fallback, int maxLength) {
+        String value = readString(raw, fallback)
+            .replaceAll("[\\\\/:*?\"<>|\\s]+", "_")
+            .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}_\\-\\.]+", "");
+        if (!StringUtils.hasText(value)) {
+            value = fallback;
+        }
+        if (value.length() > maxLength) {
+            value = value.substring(0, maxLength);
+        }
+        return value;
     }
 
     private String resolveOptionalSpotifyToken(Long userId) {
@@ -2971,6 +3270,7 @@ public class MediaServiceImpl implements MediaService {
     }
 
     private MusicTrackResponse toPlaylistTrackResponse(UserMusicPlaylistTrackEntity entity) {
+        Map<String, Object> metadata = readTrackMetadata(entity.getMetadataJson());
         return new MusicTrackResponse(
             readString(entity.getTrackId(), ""),
             readString(entity.getProviderCode(), "local"),
@@ -2980,7 +3280,9 @@ public class MediaServiceImpl implements MediaService {
             readString(entity.getAudioUrl(), ""),
             readString(entity.getLyricUrl(), ""),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
-            Boolean.TRUE.equals(entity.getEnabledFlag())
+            Boolean.TRUE.equals(entity.getEnabledFlag()),
+            "",
+            metadata
         );
     }
 
@@ -3156,6 +3458,7 @@ public class MediaServiceImpl implements MediaService {
      * 数据库歌单实体转前台响应 DTO。
      */
     private MusicTrackResponse toPlaylistResponse(MusicPlaylistEntity entity) {
+        Map<String, Object> metadata = readTrackMetadata(entity.getMetadataJson());
         return new MusicTrackResponse(
             entity.getTrackId(),
             entity.getProviderCode(),
@@ -3165,7 +3468,9 @@ public class MediaServiceImpl implements MediaService {
             entity.getAudioUrl(),
             entity.getLyricUrl(),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
-            Boolean.TRUE.equals(entity.getEnabledFlag())
+            Boolean.TRUE.equals(entity.getEnabledFlag()),
+            "",
+            metadata
         );
     }
 
