@@ -245,8 +245,11 @@ let audioCtx = null;
 let analyser = null;
 let freqData = null;
 let rafId = 0;
+let lastVisualizerFrameAt = 0;
 let sidebarAiCloseTimer = 0;
 const AI_SIDEBAR_EXIT_MS = 260;
+const VISUALIZER_TARGET_FPS = 30;
+const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
 
 const route = useRoute();
 const router = useRouter();
@@ -299,7 +302,9 @@ const sidebarAiColumnMounted = computed(() => canUseSidebarAi.value && (showSide
 const showMobileAiPanel = computed(() => aiChatActive.value && !isAiTavernRoute.value && isMobileViewport.value);
 const showBarsVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'bars');
 const showRingVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'ring');
-const shouldRunVisualizer = computed(() => isHomeRoute.value && ['bars', 'ring'].includes(player.visualizerMode.value));
+const shouldRunVisualizer = computed(
+  () => isHomeRoute.value && ['bars', 'ring'].includes(player.visualizerMode.value) && player.isPlaying.value
+);
 const activeVisualizerStyle = computed(() => {
   const style = player.visualizerStyle.value;
   if (style) return style;
@@ -529,13 +534,20 @@ function stopVisualizerLoop() {
     window.cancelAnimationFrame(rafId);
     rafId = 0;
   }
+  lastVisualizerFrameAt = 0;
 }
 
-function pumpVisualizer() {
+function pumpVisualizer(timestamp = 0) {
   if (!shouldRunVisualizer.value || !analyser || !freqData) {
     stopVisualizerLoop();
     return;
   }
+
+  if (timestamp - lastVisualizerFrameAt < VISUALIZER_FRAME_MS) {
+    rafId = window.requestAnimationFrame(pumpVisualizer);
+    return;
+  }
+  lastVisualizerFrameAt = timestamp;
 
   analyser.getByteFrequencyData(freqData);
 
@@ -559,7 +571,8 @@ function startVisualizerLoop() {
     audioCtx.resume().catch(() => {});
   }
   if (!analyser || !freqData) return;
-  pumpVisualizer();
+  lastVisualizerFrameAt = 0;
+  rafId = window.requestAnimationFrame(pumpVisualizer);
 }
 
 function barStyle(level, index) {
@@ -950,9 +963,6 @@ onMounted(async () => {
   ui.initializeUiPreferences();
   loadPersistedExtra();
   await loadBackgroundManifest();
-  if (player.visualizerMode.value === 'none') {
-    player.setVisualizerMode('bars');
-  }
   updateViewportMode();
   recordWindowDiag('app.guard.state', runtimeGuards);
 

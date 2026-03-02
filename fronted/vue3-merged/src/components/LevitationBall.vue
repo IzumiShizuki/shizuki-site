@@ -107,6 +107,7 @@ const SPRING = 0.1;
 const SNAP_THRESHOLD = 100;
 const STRETCH_FACTOR = 0.3;
 const MAX_STRETCH = 0.3;
+const VELOCITY_EPSILON = 0.08;
 const SCREEN_MARGIN_EXPANDED = 10;
 const HIDING_RATIO = 0.4;
 
@@ -164,6 +165,10 @@ function stopAnimationLoop() {
 function startAnimationLoop() {
   if (destroyed || rafId !== null) return;
   rafId = requestAnimationFrame(animate);
+}
+
+function shouldKeepAnimating() {
+  return state.isDragging || Boolean(targetSnap) || Math.abs(state.vx) > VELOCITY_EPSILON || Math.abs(state.vy) > VELOCITY_EPSILON;
 }
 
 function pauseFloatingRuntime(reason) {
@@ -241,6 +246,7 @@ function onPointerDown(e) {
   if (interactionBlocked()) return;
   const target = e.target;
   if (target.closest('.menu-item, .submenu-item')) return;
+  startAnimationLoop();
 
   if (state.isIdle) {
     wakeUp();
@@ -367,6 +373,7 @@ function handleSnap() {
   }
 
   targetSnap = { x: destX, y: destY };
+  startAnimationLoop();
 }
 
 function onResize() {
@@ -434,6 +441,12 @@ function animate() {
     visual.style.transform = `rotate(${angle}rad) scale(${scaleX}, ${scaleY})`;
   } else {
     visual.style.transform = 'none';
+  }
+  if (!shouldKeepAnimating()) {
+    state.vx = 0;
+    state.vy = 0;
+    rafId = null;
+    return;
   }
 
   rafId = requestAnimationFrame(animate);
@@ -515,6 +528,7 @@ function expandMenu() {
   }
 
   targetSnap = { x: newX, y: newY };
+  startAnimationLoop();
   state.isExpanded = true;
   recordWindowDiag('levitation.expand', {
     x: Number(newX.toFixed(2)),
