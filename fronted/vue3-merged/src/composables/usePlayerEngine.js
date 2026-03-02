@@ -152,6 +152,7 @@ export function usePlayerEngine(options = {}) {
   const currentLyricLine = ref('');
   const lyricEntries = ref([]);
   const currentLyricIndex = ref(-1);
+  const lyricResolveAttempted = ref(new Set());
 
   const audioElement = new Audio();
   audioElement.preload = 'metadata';
@@ -254,6 +255,54 @@ export function usePlayerEngine(options = {}) {
     }
   }
 
+  async function resolveTrackLyricFallback(index) {
+    if (index < 0 || index >= tracks.value.length) return;
+    const track = tracks.value[index];
+    if (!track) return;
+    const provider = String(track.provider || '').trim().toLowerCase();
+    if (!['netease', 'kuwo', 'qq'].includes(provider)) return;
+    const trackId = String(track.trackId || track.id || '').trim();
+    if (!trackId) return;
+    const resolveKey = `${provider}:${trackId}`;
+    if (lyricResolveAttempted.value.has(resolveKey)) return;
+    lyricResolveAttempted.value.add(resolveKey);
+
+    try {
+      const payload = await resolvePlaybackTrack(
+        {
+          provider,
+          trackId,
+          title: String(track.title || '').trim(),
+          artist: String(track.artist || '').trim(),
+          cover: String(track.cover || '').trim(),
+          playlistCode: String(playlistProfile.value?.playlistCode || ''),
+          resolveLyric: true
+        },
+        getAuthorizedFetch()
+      );
+      const merged = normalizeTrack(
+        {
+          ...track,
+          ...payload,
+          id: track.id,
+          trackId
+        },
+        index
+      );
+      if (!String(track.audio || '').trim() && String(merged.audio || '').trim()) {
+        // no-op, keep merged audio from payload
+      } else {
+        merged.audio = track.audio;
+      }
+      const next = tracks.value.slice();
+      next[index] = merged;
+      tracks.value = next;
+      await loadTrackLyric(merged);
+    } catch {
+      // ignore lyric fallback failures
+    }
+  }
+
   async function resolveTrackPlayback(index) {
     if (index < 0 || index >= tracks.value.length) return null;
     const track = tracks.value[index];
@@ -321,6 +370,9 @@ export function usePlayerEngine(options = {}) {
     audioElement.src = track.audio;
     audioElement.load();
     await loadTrackLyric(track);
+    if (!lyricEntries.value.length) {
+      await resolveTrackLyricFallback(index);
+    }
 
     if (autoPlay) {
       try {
@@ -538,6 +590,7 @@ export function usePlayerEngine(options = {}) {
       const normalizedTracks = normalizeRemoteTracks(payload?.tracks);
       playlistProfile.value = profile;
       tracks.value = normalizedTracks;
+      lyricResolveAttempted.value = new Set();
       hydrateTrackDurations();
     } catch (error) {
       tracks.value = [];
@@ -562,6 +615,7 @@ export function usePlayerEngine(options = {}) {
       lyricEntries.value = [];
       currentLyricIndex.value = -1;
       currentLyricLine.value = '';
+      lyricResolveAttempted.value = new Set();
       randomQueue.value = [];
       return;
     }

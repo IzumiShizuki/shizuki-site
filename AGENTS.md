@@ -38,3 +38,10 @@ bd sync               # Sync with git
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
+## Commit Rules
+
+- Commit identity must use:
+  - `user.name = Izumi`
+  - `user.email = 29301481@qq.com`
+- Commit message format must be:
+  - ``fix|feat : 具体内容（简要说明做了什么）``

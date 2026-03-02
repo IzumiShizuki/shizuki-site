@@ -98,6 +98,18 @@
             </article>
           </div>
         </section>
+
+        <footer v-if="showSearchPager" class="search-pager">
+          <p v-if="music.searchLoadingMore.value" class="pager-text">加载更多中...</p>
+          <button
+            v-else
+            class="pager-load-btn ripple-trigger"
+            type="button"
+            @click="music.loadMoreMusicSearch()"
+          >
+            加载更多
+          </button>
+        </footer>
       </section>
     </template>
 
@@ -297,6 +309,13 @@ const failedProvidersText = computed(() => {
 const showPlaylistResults = computed(() => searchType.value === 'all' || searchType.value === 'playlist');
 const showTrackResults = computed(() => searchType.value === 'all' || searchType.value === 'track');
 const showArtistResults = computed(() => searchType.value === 'all' || searchType.value === 'artist');
+const showSearchPager = computed(() => {
+  const hasMore = music.searchHasMore?.value || {};
+  if (music.searchLoadingMore?.value) return true;
+  if (searchType.value === 'playlist') return Boolean(hasMore.playlists);
+  if (searchType.value === 'artist') return Boolean(hasMore.artists);
+  return Boolean(hasMore.tracks);
+});
 const searchSummaryText = computed(() => {
   const playlistCount = searchPlaylists.value.length;
   const trackCount = searchTracks.value.length;
@@ -592,6 +611,29 @@ onBeforeUnmount(() => {
 
 .track-action-btn .liked {
   color: rgb(var(--accent-strong-rgb));
+}
+
+.search-pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.pager-text {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(189, 201, 227, 0.84);
+}
+
+.pager-load-btn {
+  min-height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.2);
+  color: rgba(240, 246, 255, 0.96);
+  padding: 0 14px;
+  font-size: 12px;
 }
 
 .title-col,

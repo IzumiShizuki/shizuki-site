@@ -85,6 +85,7 @@ import io.github.shizuki.site.media.mapper.MusicUploadUsageMapper;
 import io.github.shizuki.site.media.mapper.UserMusicPlaylistCollectMapper;
 import io.github.shizuki.site.media.mapper.UserMusicPlaylistMapper;
 import io.github.shizuki.site.media.mapper.UserMusicPlaylistTrackMapper;
+import io.github.shizuki.site.media.mq.MusicTrackCacheUploadPublisher;
 import io.github.shizuki.site.media.model.AssetAuditStatusEnum;
 import io.github.shizuki.site.media.model.AssetKindEnum;
 import io.github.shizuki.site.media.model.AssetVisibilityEnum;
@@ -185,6 +186,7 @@ public class MediaServiceImpl implements MediaService {
     private final UserMusicGateway userMusicClient;
     private final SpotifyMusicProvider spotifyMusicClient;
     private final TuneHubMusicProvider tuneHubMusicProvider;
+    private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private final TuneHubMusicProperties tuneHubMusicProperties;
     private final MusicListenCacheProperties musicListenCacheProperties;
     private final ObjectMapper objectMapper;
@@ -226,6 +228,7 @@ public class MediaServiceImpl implements MediaService {
                             UserMusicGateway userMusicClient,
                             SpotifyMusicProvider spotifyMusicClient,
                             TuneHubMusicProvider tuneHubMusicProvider,
+                            MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher,
                             TuneHubMusicProperties tuneHubMusicProperties,
                             MusicListenCacheProperties musicListenCacheProperties,
                             ObjectMapper objectMapper,
@@ -252,6 +255,7 @@ public class MediaServiceImpl implements MediaService {
         this.userMusicClient = userMusicClient;
         this.spotifyMusicClient = spotifyMusicClient;
         this.tuneHubMusicProvider = tuneHubMusicProvider;
+        this.musicTrackCacheUploadPublisher = musicTrackCacheUploadPublisher;
         this.tuneHubMusicProperties = tuneHubMusicProperties;
         this.musicListenCacheProperties = musicListenCacheProperties;
         this.objectMapper = objectMapper;
@@ -787,6 +791,8 @@ public class MediaServiceImpl implements MediaService {
         String normalizedType = normalizeMusicSearchType(type);
         int safePage = page == null ? 1 : Math.max(1, page);
         int safeLimit = limit == null ? 24 : Math.max(1, Math.min(60, limit));
+        int playlistCollectLimit = Math.max(safeLimit + 1, safePage * safeLimit + 1);
+        int trackCollectLimit = safeLimit + 1;
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
 
         List<String> selectedProviders = resolveSearchProviders(providers, userId);
@@ -844,19 +850,13 @@ public class MediaServiceImpl implements MediaService {
                             null
                         ));
                         mappedCount += 1;
-                        if (tracks.size() >= safeLimit) {
+                        if (tracks.size() >= trackCollectLimit) {
                             break;
                         }
                     }
                     providerTrackMapped = mappedCount;
-                    LOGGER.info(
-                        "{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
-                        LOG_EVENT_SEARCH_PROVIDER_RESULT,
-                        "spotify",
-                        items.size(),
-                        mappedCount,
-                        tracks.size()
-                    );
+                    LOGGER.info("{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT, "spotify", items.size(), mappedCount, tracks.size());
                 } catch (Exception ex) {
                     failedProviders.add("spotify");
                     LOGGER.warn(
@@ -877,7 +877,7 @@ public class MediaServiceImpl implements MediaService {
                 continue;
             }
 
-            if (includeTracks && tracks.size() < safeLimit) {
+            if (includeTracks && tracks.size() < trackCollectLimit) {
                 try {
                     List<TuneHubMusicProvider.SearchTrackResult> searchItems = tuneHubMusicProvider.searchTracks(
                         apiContext.apiKey(),
@@ -909,19 +909,13 @@ public class MediaServiceImpl implements MediaService {
                         if (!StringUtils.hasText(providerTopCover)) {
                             providerTopCover = readString(item.cover(), "");
                         }
-                        if (tracks.size() >= safeLimit) {
+                        if (tracks.size() >= trackCollectLimit) {
                             break;
                         }
                     }
                     providerTrackMapped = mappedCount;
-                    LOGGER.info(
-                        "{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
-                        LOG_EVENT_SEARCH_PROVIDER_RESULT,
-                        provider,
-                        searchItems.size(),
-                        mappedCount,
-                        tracks.size()
-                    );
+                    LOGGER.info("{} provider={} rowCount={} mappedCount={} totalTrackCount={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT, provider, searchItems.size(), mappedCount, tracks.size());
                 } catch (Exception ex) {
                     failedProviders.add(provider);
                     LOGGER.warn(
@@ -933,7 +927,7 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
 
-            if (includePlaylists && providerTrackMapped > 0 && playlists.size() < safeLimit) {
+            if (includePlaylists && providerTrackMapped > 0 && playlists.size() < playlistCollectLimit) {
                 String searchPlaylistCode = buildVirtualSearchPlaylistCode(provider, normalizedQuery);
                 if (playlistCodes.add(searchPlaylistCode)) {
                     playlists.add(new MusicPlaylistSummaryResponse(
@@ -950,12 +944,12 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
 
-            if (includePlaylists) {
+            if (includePlaylists && playlists.size() < playlistCollectLimit) {
                 try {
                     List<TuneHubMusicProvider.VirtualPlaylistSummary> summaries = tuneHubMusicProvider.listToplistPlaylists(
                         apiContext.apiKey(),
                         List.of(provider),
-                        10
+                        Math.max(10, playlistCollectLimit)
                     );
                     for (TuneHubMusicProvider.VirtualPlaylistSummary item : summaries) {
                         String name = readString(item.name(), "");
@@ -982,7 +976,7 @@ public class MediaServiceImpl implements MediaService {
                             0,
                             normalizeSourceProvider(item.platform())
                         ));
-                        if (playlists.size() >= safeLimit) {
+                        if (playlists.size() >= playlistCollectLimit) {
                             break;
                         }
                     }
@@ -998,7 +992,7 @@ public class MediaServiceImpl implements MediaService {
             }
         }
 
-        if (includePlaylists && playlists.size() < safeLimit) {
+        if (includePlaylists && playlists.size() < playlistCollectLimit) {
             List<UserMusicPlaylistEntity> publicPlaylists = userMusicPlaylistMapper.selectList(
                 new LambdaQueryWrapper<UserMusicPlaylistEntity>()
                     .eq(UserMusicPlaylistEntity::getPublicFlag, true)
@@ -1009,7 +1003,7 @@ public class MediaServiceImpl implements MediaService {
                     )
                     .orderByAsc(UserMusicPlaylistEntity::getSortNum)
                     .orderByDesc(UserMusicPlaylistEntity::getId)
-                    .last("LIMIT " + safeLimit)
+                    .last("LIMIT " + playlistCollectLimit)
             );
             for (UserMusicPlaylistEntity item : publicPlaylists) {
                 String code = readString(item.getPlaylistCode(), "");
@@ -1020,13 +1014,13 @@ public class MediaServiceImpl implements MediaService {
                     continue;
                 }
                 playlists.add(toPlaylistSummary(item, countPlaylistTracks(code, false)));
-                if (playlists.size() >= safeLimit) {
+                if (playlists.size() >= playlistCollectLimit) {
                     break;
                 }
             }
 
             MusicPlaylistProfileResponse defaultProfile = loadDefaultPlaylistProfile();
-            if (playlists.size() < safeLimit) {
+            if (playlists.size() < playlistCollectLimit) {
                 String defaultName = readString(defaultProfile.name(), "默认歌单");
                 String defaultDesc = readString(defaultProfile.description(), "");
                 if (containsKeyword(defaultName, normalizedQuery) || containsKeyword(defaultDesc, normalizedQuery)) {
@@ -1038,16 +1032,45 @@ public class MediaServiceImpl implements MediaService {
             }
         }
 
-        if (tracks.size() > safeLimit) {
+        boolean hasMoreTracks = includeTracks && tracks.size() > safeLimit;
+        if (hasMoreTracks) {
             tracks = new ArrayList<>(tracks.subList(0, safeLimit));
-        }
-        if (playlists.size() > safeLimit) {
-            playlists = new ArrayList<>(playlists.subList(0, safeLimit));
         }
 
         List<MusicSearchArtistResponse> artists = includeArtists
-            ? buildArtistSearchResults(tracks, safeLimit)
+            ? buildArtistSearchResults(tracks, Math.max(safeLimit + 1, safePage * safeLimit + 1))
             : List.of();
+        boolean hasMoreArtists = false;
+        if (includeArtists) {
+            hasMoreArtists = artists.size() > safeLimit;
+            if (hasMoreArtists) {
+                artists = new ArrayList<>(artists.subList(0, safeLimit));
+            }
+        }
+
+        boolean hasMorePlaylists = false;
+        if (includePlaylists) {
+            int start = Math.max(0, (safePage - 1) * safeLimit);
+            int end = Math.min(playlists.size(), start + safeLimit);
+            hasMorePlaylists = playlists.size() > end;
+            if (start >= playlists.size()) {
+                playlists = List.of();
+            } else {
+                playlists = new ArrayList<>(playlists.subList(start, end));
+            }
+        } else {
+            playlists = List.of();
+        }
+
+        if (!includeTracks) {
+            tracks = List.of();
+            hasMoreTracks = false;
+        }
+        if (!includeArtists) {
+            artists = List.of();
+            hasMoreArtists = false;
+        }
+
         boolean partial = !failedProviders.isEmpty();
         long costMs = Math.max(1L, System.currentTimeMillis() - startMs);
 
@@ -1071,6 +1094,9 @@ public class MediaServiceImpl implements MediaService {
             safeLimit,
             partial,
             new ArrayList<>(failedProviders),
+            hasMorePlaylists,
+            hasMoreTracks,
+            hasMoreArtists,
             playlists,
             tracks,
             artists
@@ -1091,9 +1117,30 @@ public class MediaServiceImpl implements MediaService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
         }
 
+        boolean resolveLyric = request != null && Boolean.TRUE.equals(request.getResolveLyric());
         MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
         if (cache != null && objectStorageClient.objectExists(cache.getBucketCode(), cache.getObjectCode())) {
             touchTrackCacheLastListen(cache);
+            String lyricText = "";
+            if (resolveLyric) {
+                TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
+                if (StringUtils.hasText(lyricApiContext.apiKey())) {
+                    try {
+                        TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                            lyricApiContext.apiKey(),
+                            provider,
+                            trackId,
+                            tuneHubMusicProperties.getDefaultQuality()
+                        );
+                        lyricText = readString(parsedLyric.lyricText(), "");
+                    } catch (Exception ex) {
+                        LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
+                            provider,
+                            trackId,
+                            sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")));
+                    }
+                }
+            }
             return new MusicTrackResponse(
                 trackId,
                 provider,
@@ -1104,7 +1151,7 @@ public class MediaServiceImpl implements MediaService {
                 "",
                 0,
                 true,
-                ""
+                lyricText
             );
         }
 
@@ -1130,10 +1177,7 @@ public class MediaServiceImpl implements MediaService {
         boolean shouldCache = musicListenCacheProperties.isEnabled()
             && (!musicListenCacheProperties.isLoginOnly() || userId > 0);
         if (shouldCache) {
-            MusicTrackCacheEntity cached = cacheTrackToOss(provider, trackId, resolvedAudio);
-            if (cached != null) {
-                resolvedAudio = readString(cached.getPublicUrl(), resolvedAudio);
-            }
+            musicTrackCacheUploadPublisher.publish(provider, trackId, resolvedAudio);
         }
 
         return new MusicTrackResponse(

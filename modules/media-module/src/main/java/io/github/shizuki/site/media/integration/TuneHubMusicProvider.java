@@ -533,11 +533,48 @@ public class TuneHubMusicProvider {
                 String title = readString(info.get("name"), "");
                 String artist = readString(info.get("artist"), "");
                 String cover = readString(row.get("cover"), "");
-                String lyricText = readString(row.get("lyrics"), "");
+                String lyricText = readParseLyricText(row, info);
                 result.put(id, new ParseTrack(id, title, artist, cover, url, lyricText));
             }
         }
         return result;
+    }
+
+    private String readParseLyricText(Map<String, Object> row, Map<String, Object> info) {
+        String lyricText = readString(row.get("lyrics"), "");
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readString(row.get("lyric"), "");
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readString(row.get("lrc"), "");
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readString(row.get("lyricText"), "");
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readString(row.get("klyric"), "");
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            Map<String, Object> lyricObj = toStringObjectMap(row.get("lyric"));
+            lyricText = readString(lyricObj.get("lyric"), "");
+            if (!StringUtils.hasText(lyricText)) {
+                lyricText = readString(lyricObj.get("lrc"), "");
+            }
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            Map<String, Object> lrcObj = toStringObjectMap(row.get("lrc"));
+            lyricText = readString(lrcObj.get("lyric"), "");
+            if (!StringUtils.hasText(lyricText)) {
+                lyricText = readString(lrcObj.get("content"), "");
+            }
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readString(info.get("lyric"), "");
+            if (!StringUtils.hasText(lyricText)) {
+                lyricText = readString(info.get("lyrics"), "");
+            }
+        }
+        return lyricText;
     }
 
     private List<ToplistSeed> parseToplists(String platform, Map<String, Object> raw) {

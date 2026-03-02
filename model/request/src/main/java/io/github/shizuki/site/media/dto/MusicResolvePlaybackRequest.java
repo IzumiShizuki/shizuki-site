@@ -26,6 +26,9 @@ public class MusicResolvePlaybackRequest {
     @Schema(description = "来源歌单编码（可选）", example = "vh_tunehub_netease_toplist_3778678")
     private String playlistCode;
 
+    @Schema(description = "是否仅补拉歌词（可选）", example = "true")
+    private Boolean resolveLyric;
+
     public String getProvider() {
         return provider;
     }
@@ -72,5 +75,13 @@ public class MusicResolvePlaybackRequest {
 
     public void setPlaylistCode(String playlistCode) {
         this.playlistCode = playlistCode;
+    }
+
+    public Boolean getResolveLyric() {
+        return resolveLyric;
+    }
+
+    public void setResolveLyric(Boolean resolveLyric) {
+        this.resolveLyric = resolveLyric;
     }
 }

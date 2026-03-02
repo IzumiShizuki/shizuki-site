@@ -35,6 +35,7 @@ import io.github.shizuki.site.media.mapper.UserMusicPlaylistCollectMapper;
 import io.github.shizuki.site.media.mapper.UserMusicPlaylistMapper;
 import io.github.shizuki.site.media.mapper.UserMusicPlaylistTrackMapper;
 import io.github.shizuki.site.media.model.AssetVisibilityEnum;
+import io.github.shizuki.site.media.mq.MusicTrackCacheUploadPublisher;
 import io.github.shizuki.site.media.service.l2d.L2dZipValidator;
 import io.github.shizuki.site.media.service.security.AssetInspectionResult;
 import io.github.shizuki.site.media.service.security.AssetSecurityInspector;
@@ -75,6 +76,7 @@ class MediaServiceImplTest {
     private UserMusicGateway userMusicClient;
     private SpotifyMusicProvider spotifyMusicClient;
     private TuneHubMusicProvider tuneHubMusicProvider;
+    private MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private MediaServiceImpl mediaService;
 
     @BeforeEach
@@ -99,6 +101,7 @@ class MediaServiceImplTest {
         userMusicClient = Mockito.mock(UserMusicGateway.class);
         spotifyMusicClient = Mockito.mock(SpotifyMusicProvider.class);
         tuneHubMusicProvider = Mockito.mock(TuneHubMusicProvider.class);
+        musicTrackCacheUploadPublisher = Mockito.mock(MusicTrackCacheUploadPublisher.class);
         Mockito.when(assetSecurityInspector.inspect(
                 Mockito.anyLong(),
                 Mockito.anyString(),
@@ -161,6 +164,7 @@ class MediaServiceImplTest {
             userMusicClient,
             spotifyMusicClient,
             tuneHubMusicProvider,
+            musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,
             listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
@@ -334,6 +338,7 @@ class MediaServiceImplTest {
             userMusicClient,
             spotifyMusicClient,
             tuneHubMusicProvider,
+            musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,
             listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),

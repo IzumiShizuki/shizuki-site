@@ -88,6 +88,11 @@ shizuki:
       retention-days: ${MUSIC_LISTEN_CACHE_RETENTION_DAYS:30}
       cleanup-interval-ms: ${MUSIC_LISTEN_CACHE_CLEANUP_INTERVAL_MS:3600000}
       login-only: ${MUSIC_LISTEN_CACHE_LOGIN_ONLY:true}
+    cache-upload:
+      kafka:
+        enabled: ${MUSIC_CACHE_UPLOAD_KAFKA_ENABLED:true}
+        topic: ${MUSIC_CACHE_UPLOAD_KAFKA_TOPIC:music.track.cache.upload}
+        group-id: ${MUSIC_CACHE_UPLOAD_KAFKA_GROUP_ID:music-track-cache-upload-consumer}
   auth:
     jwt:
       secret: ${AUTH_JWT_SECRET:${random.uuid}}

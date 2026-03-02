@@ -144,6 +144,8 @@ import { MUSIC_PRIMARY_NAV, useMusicLibraryUiState } from './musicLibraryUiState
 import * as musicApi from '../services/musicApi';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
+const SEARCH_PAGE_SIZE = 24;
+const SEARCH_SCROLL_THRESHOLD_PX = 180;
 const SEARCH_TYPE_OPTIONS = [
   { value: 'all', label: '全部' },
   { value: 'playlist', label: '歌单' },
@@ -195,7 +197,15 @@ const spotifyError = ref('');
 const collectingPlaylist = ref(false);
 const likedTrackIds = ref(new Set());
 const searchLoading = ref(false);
+const searchLoadingMore = ref(false);
 const searchError = ref('');
+const searchPage = ref(1);
+const searchHasMore = ref({
+  playlists: false,
+  tracks: false,
+  artists: false
+});
+const searchAutoLoadLocked = ref(false);
 const committedSearch = ref({
   keyword: '',
   type: 'all',
@@ -428,11 +438,42 @@ function createEmptySearchResult(type = 'all', query = '') {
   };
 }
 
+function parseSearchHasMore(payload = {}) {
+  return {
+    playlists: Boolean(payload?.hasMorePlaylists ?? payload?.has_more_playlists),
+    tracks: Boolean(payload?.hasMoreTracks ?? payload?.has_more_tracks),
+    artists: Boolean(payload?.hasMoreArtists ?? payload?.has_more_artists)
+  };
+}
+
+function mergeUniqueBy(items, incoming, keySelector) {
+  const source = Array.isArray(items) ? items.slice() : [];
+  const seen = new Set(source.map((item) => keySelector(item)).filter(Boolean));
+  (Array.isArray(incoming) ? incoming : []).forEach((item) => {
+    const key = keySelector(item);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    source.push(item);
+  });
+  return source;
+}
+
+function getCurrentSearchHasMore(type = committedSearch.value.type) {
+  const normalizedType = String(type || 'all').trim().toLowerCase();
+  if (normalizedType === 'playlist') return Boolean(searchHasMore.value.playlists);
+  if (normalizedType === 'artist') return Boolean(searchHasMore.value.artists);
+  return Boolean(searchHasMore.value.tracks);
+}
+
 function clearSearchState(options = {}) {
   const resetDraft = options?.resetDraft !== false;
   if (resetDraft) {
     ui.resetGlobalSearch();
   }
+  searchPage.value = 1;
+  searchHasMore.value = { playlists: false, tracks: false, artists: false };
+  searchLoadingMore.value = false;
+  searchAutoLoadLocked.value = false;
   committedSearch.value = {
     keyword: '',
     type: 'all',
@@ -459,6 +500,7 @@ function rememberCenterScroll() {
   if (isPlayerDetailRoute.value) return;
   if (!centerPaneRef.value) return;
   ui.rememberScroll(route.fullPath, centerPaneRef.value.scrollTop || 0);
+  maybeAutoLoadNextSearchPage();
 }
 
 function restoreCenterScroll(path) {
@@ -527,27 +569,42 @@ function commitSearchFromDraft() {
   return true;
 }
 
-async function runMusicSearch(criteria = committedSearch.value) {
+async function runMusicSearch(criteria = committedSearch.value, options = {}) {
+  const append = Boolean(options?.append);
+  const targetPage = Number.isFinite(Number(options?.page))
+    ? Math.max(1, Number(options.page))
+    : append
+      ? searchPage.value + 1
+      : 1;
   const keyword = String(criteria?.keyword || '').trim();
   const type = String(criteria?.type || 'all').trim().toLowerCase() || 'all';
   const providers = normalizeSearchProviderList(criteria?.providers);
   if (keyword.length < 2) {
     searchError.value = '';
     searchLoading.value = false;
+    searchLoadingMore.value = false;
+    searchHasMore.value = { playlists: false, tracks: false, artists: false };
+    searchPage.value = 1;
     searchResult.value = createEmptySearchResult(type, '');
     return;
   }
 
-  searchLoading.value = true;
+  if (append) {
+    searchLoadingMore.value = true;
+  } else {
+    searchLoading.value = true;
+    searchPage.value = 1;
+    searchHasMore.value = { playlists: false, tracks: false, artists: false };
+  }
   searchError.value = '';
   try {
     const payload = await musicApi.searchMusic(keyword, {
       type,
       providers,
-      page: 1,
-      limit: 24
+      page: targetPage,
+      limit: SEARCH_PAGE_SIZE
     });
-    searchResult.value = {
+    const normalized = {
       query: String(payload?.query || keyword),
       type: String(payload?.type || type || 'all'),
       partial: Boolean(payload?.partial),
@@ -558,23 +615,96 @@ async function runMusicSearch(criteria = committedSearch.value) {
       tracks: Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [],
       artists: Array.isArray(payload?.artists) ? payload.artists.map((item) => normalizeSearchArtist(item)) : []
     };
+    const parsedHasMore = parseSearchHasMore(payload);
+    const fallbackHasMore = {
+      playlists: normalized.playlists.length >= SEARCH_PAGE_SIZE,
+      tracks: normalized.tracks.length >= SEARCH_PAGE_SIZE,
+      artists: normalized.artists.length >= SEARCH_PAGE_SIZE
+    };
+
+    if (append) {
+      searchResult.value = {
+        query: normalized.query,
+        type: normalized.type,
+        partial: Boolean(searchResult.value.partial || normalized.partial),
+        failedProviders: mergeUniqueBy(
+          searchResult.value.failedProviders || [],
+          normalized.failedProviders || [],
+          (item) => String(item || '').trim().toLowerCase()
+        ),
+        playlists: mergeUniqueBy(
+          searchResult.value.playlists || [],
+          normalized.playlists || [],
+          (item) => String(item?.playlistCode || '').trim()
+        ),
+        tracks: mergeUniqueBy(
+          searchResult.value.tracks || [],
+          normalized.tracks || [],
+          (item) => `${String(item?.provider || '').trim().toLowerCase()}:${String(item?.trackId || item?.id || '').trim()}`
+        ),
+        artists: mergeUniqueBy(
+          searchResult.value.artists || [],
+          normalized.artists || [],
+          (item) => `${String(item?.name || '').trim().toLowerCase()}::${(Array.isArray(item?.providers) ? item.providers : []).join(',')}`
+        )
+      };
+      searchPage.value = targetPage;
+    } else {
+      searchResult.value = normalized;
+      searchPage.value = 1;
+    }
+
+    searchHasMore.value = {
+      playlists: parsedHasMore.playlists || fallbackHasMore.playlists,
+      tracks: parsedHasMore.tracks || fallbackHasMore.tracks,
+      artists: parsedHasMore.artists || fallbackHasMore.artists
+    };
   } catch (error) {
     searchError.value = parseErrorMessage(error, '搜索失败，请稍后重试');
-    searchResult.value = createEmptySearchResult(type, keyword);
+    if (!append) {
+      searchResult.value = createEmptySearchResult(type, keyword);
+      searchHasMore.value = { playlists: false, tracks: false, artists: false };
+      searchPage.value = 1;
+    }
   } finally {
-    searchLoading.value = false;
+    if (append) {
+      searchLoadingMore.value = false;
+    } else {
+      searchLoading.value = false;
+    }
   }
 }
 
 function triggerMusicSearch() {
   if (!commitSearchFromDraft()) return;
-  runMusicSearch(committedSearch.value);
+  runMusicSearch(committedSearch.value, { append: false, page: 1 });
 }
 
 function refreshMusicSearch() {
   const committedKeyword = String(committedSearch.value.keyword || '').trim();
   if (committedKeyword.length < 2) return;
-  runMusicSearch(committedSearch.value);
+  runMusicSearch(committedSearch.value, { append: false, page: 1 });
+}
+
+async function loadMoreMusicSearch() {
+  if (!hasActiveSearch.value) return;
+  if (searchLoading.value || searchLoadingMore.value) return;
+  if (!getCurrentSearchHasMore(committedSearch.value.type)) return;
+  await runMusicSearch(committedSearch.value, { append: true, page: searchPage.value + 1 });
+}
+
+function maybeAutoLoadNextSearchPage() {
+  if (!hasActiveSearch.value) return;
+  if (searchLoading.value || searchLoadingMore.value) return;
+  if (!getCurrentSearchHasMore(committedSearch.value.type)) return;
+  if (!centerPaneRef.value) return;
+  if (searchAutoLoadLocked.value) return;
+  const distance = centerPaneRef.value.scrollHeight - (centerPaneRef.value.scrollTop + centerPaneRef.value.clientHeight);
+  if (distance > SEARCH_SCROLL_THRESHOLD_PX) return;
+  searchAutoLoadLocked.value = true;
+  loadMoreMusicSearch().finally(() => {
+    searchAutoLoadLocked.value = false;
+  });
 }
 
 async function loadSidebarData() {
@@ -1029,8 +1159,10 @@ const musicContext = Object.freeze({
   homeLoading,
   homeError,
   searchLoading,
+  searchLoadingMore,
   searchError,
   searchResult,
+  searchHasMore,
   hasActiveSearch,
   currentPlaylistProfile,
   currentPlaylistTracks,
@@ -1040,6 +1172,7 @@ const musicContext = Object.freeze({
   isCurrentPlaylistCollected,
   reloadHomeData: loadHomeData,
   triggerMusicSearch,
+  loadMoreMusicSearch,
   reloadCurrentPlaylist,
   openPlaylistDetail,
   backToMainList,
