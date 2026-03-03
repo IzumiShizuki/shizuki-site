@@ -7,6 +7,7 @@ public record PostSummary(
     Long postId,
     String title,
     String summary,
+    String coverImageUrl,
     String visibility,
     String categoryCode,
     List<String> tags,

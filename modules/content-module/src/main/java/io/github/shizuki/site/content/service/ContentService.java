@@ -10,6 +10,7 @@ import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyUpdateRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.dto.ReportRequest;
 import java.util.List;
@@ -29,6 +30,19 @@ public interface ContentService {
     PageResponse<PostSummary> listPosts(long pageNo, long pageSize, String keyword, String categoryCode, String tagCode);
 
     /**
+     * 分页查询帖子（支持关键词、分类、标签和发布时间区间筛选）。
+     */
+    PageResponse<PostSummary> listPosts(
+        long pageNo,
+        long pageSize,
+        String keyword,
+        String categoryCode,
+        String tagCode,
+        String publishedFrom,
+        String publishedTo
+    );
+
+    /**
      * 查询公开帖子详情。
      */
     PostDetailResponse getPublishedPostDetail(Long postId);
@@ -37,6 +51,11 @@ public interface ContentService {
      * 下载公开帖子 markdown 内容。
      */
     String downloadPublishedPostMarkdown(Long postId);
+
+    /**
+     * 查询博客列表页右侧聚合信息。
+     */
+    PostSidebarResponse getPostSidebar();
 
     /**
      * 分页查询应用。

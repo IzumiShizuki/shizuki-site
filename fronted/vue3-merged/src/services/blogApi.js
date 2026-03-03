@@ -27,6 +27,7 @@ function normalizeUpsertPayload(payload = {}) {
     summary: String(payload.summary || '').trim(),
     categoryCode: String(payload.categoryCode || '').trim(),
     slugCode: payload.slugCode ? String(payload.slugCode).trim() : undefined,
+    coverImageUrl: payload.coverImageUrl ? String(payload.coverImageUrl).trim() : undefined,
     visibility: String(payload.visibility || 'PUBLIC').trim().toUpperCase(),
     allowedGroupCodes,
     tags,
@@ -36,14 +37,18 @@ function normalizeUpsertPayload(payload = {}) {
 }
 
 export async function listPosts(query = {}, authorizedFetch) {
+  const publishedFrom = String(query.publishedFrom || '').trim();
+  const publishedTo = String(query.publishedTo || '').trim();
   const requestPayload = {
     method: 'GET',
     query: {
       page_no: Number.isFinite(Number(query.pageNo)) ? Number(query.pageNo) : 1,
-      page_size: Number.isFinite(Number(query.pageSize)) ? Number(query.pageSize) : 12,
+      page_size: Number.isFinite(Number(query.pageSize)) ? Number(query.pageSize) : 10,
       keyword: String(query.keyword || '').trim(),
       category: String(query.category || '').trim(),
-      tag: String(query.tag || '').trim()
+      tag: String(query.tag || '').trim(),
+      published_from: publishedFrom,
+      published_to: publishedTo
     }
   };
 
@@ -51,6 +56,14 @@ export async function listPosts(query = {}, authorizedFetch) {
     typeof authorizedFetch === 'function'
       ? await authorizedFetch('/api/v1/posts', requestPayload)
       : await httpRequest('/api/v1/posts', requestPayload);
+  return unwrapApiResponse(response);
+}
+
+export async function getPostSidebar(authorizedFetch) {
+  const response =
+    typeof authorizedFetch === 'function'
+      ? await authorizedFetch('/api/v1/posts/sidebar', { method: 'GET' })
+      : await httpRequest('/api/v1/posts/sidebar', { method: 'GET' });
   return unwrapApiResponse(response);
 }
 

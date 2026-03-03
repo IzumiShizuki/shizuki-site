@@ -3,6 +3,7 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.PageResponse;
+import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
@@ -49,6 +50,8 @@ class PostControllerIntegrationTest {
                 ArgumentMatchers.eq(10L),
                 ArgumentMatchers.isNull(),
                 ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
                 ArgumentMatchers.isNull()
             ))
             .thenReturn(PageResponse.of(
@@ -56,6 +59,7 @@ class PostControllerIntegrationTest {
                     1L,
                     "Shizuki v0.1",
                     "Project kickoff post",
+                    "https://example.com/cover.png",
                     "PUBLIC",
                     "dev",
                     List.of("spring", "java"),
@@ -89,6 +93,8 @@ class PostControllerIntegrationTest {
                 ArgumentMatchers.eq(10L),
                 ArgumentMatchers.isNull(),
                 ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
                 ArgumentMatchers.isNull()
             ))
             .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "Post not found"));
@@ -110,6 +116,8 @@ class PostControllerIntegrationTest {
                 ArgumentMatchers.eq(200L),
                 ArgumentMatchers.isNull(),
                 ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
                 ArgumentMatchers.isNull()
             ))
             .thenReturn(PageResponse.of(List.of(), 0, 0, 200));
@@ -121,5 +129,24 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.page_no").value(0))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.page_size").value(200));
+    }
+
+    @Test
+    void shouldReturnSidebarAggregationSuccessfully() throws Exception {
+        Mockito.when(contentService.getPostSidebar())
+            .thenReturn(new PostSidebarResponse(
+                List.of(new PostSidebarResponse.LatestPostItem(1L, "latest", LocalDateTime.now(), "https://example.com/cover.png")),
+                List.of(new PostSidebarResponse.CategoryStatItem("game", 2L)),
+                List.of(new PostSidebarResponse.TagStatItem("ai", 3L)),
+                List.of(new PostSidebarResponse.ArchiveStatItem("2026-03", 4L))
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/posts/sidebar"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.latest_posts[0].post_id").value(1))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.categories[0].category_code").value("game"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.tags[0].tag_code").value("ai"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.archives[0].month").value("2026-03"));
     }
 }

@@ -32,6 +32,9 @@ public class PostEntity extends BaseEntity {
     @TableField("slug_code")
     private String slugCode;
 
+    @TableField("cover_image_url")
+    private String coverImageUrl;
+
     @TableField("md_bucket_name")
     private String markdownBucket;
 
@@ -115,6 +118,14 @@ public class PostEntity extends BaseEntity {
 
     public void setSlugCode(String slugCode) {
         this.slugCode = slugCode;
+    }
+
+    public String getCoverImageUrl() {
+        return coverImageUrl;
+    }
+
+    public void setCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
     }
 
     public String getMarkdownBucket() {

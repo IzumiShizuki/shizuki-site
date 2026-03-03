@@ -958,3 +958,22 @@ CREATE TABLE IF NOT EXISTS CTN_POST_CATEGORY_POLICY_GROUP (
     CONSTRAINT FK_CTN_POST_CATEGORY_POLICY_GROUP_1
         FOREIGN KEY (category_code) REFERENCES CTN_POST_CATEGORY_POLICY(category_code)
 ) COMMENT='帖子分类访问策略分组映射表';
+
+
+-- ===== module=content file=V409__blog_list_cover_sidebar.sql =====
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'cover_image_url'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN cover_image_url VARCHAR(512) NULL COMMENT ''CTN_POST.cover_image_url 封面图URL''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

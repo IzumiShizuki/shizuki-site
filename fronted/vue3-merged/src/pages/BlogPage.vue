@@ -156,13 +156,16 @@
                 <span v-for="tag in detailState.post.tags" :key="`detail-${tag}`" class="tag-chip">#{{ tag }}</span>
               </div>
               <div class="detail-actions">
-                <button type="button" class="mini-btn ripple-trigger" @click="switchViewMode('list')">返回列表</button>
+                <button type="button" class="mini-btn ripple-trigger" @click="goBackToBlogList">返回列表</button>
                 <button type="button" class="mini-btn ripple-trigger" @click="downloadCurrentMarkdown">下载 Markdown</button>
                 <button v-if="canWrite" type="button" class="mini-btn ripple-trigger" @click="openCurrentPostInEditor">在编辑器打开</button>
               </div>
             </header>
 
             <div ref="articleScrollRef" class="detail-scroll">
+              <figure v-if="detailState.post.coverImageUrl" class="detail-cover-wrap">
+                <img class="detail-cover" :src="detailState.post.coverImageUrl" alt="post-cover" loading="lazy" />
+              </figure>
               <article ref="markdownBodyRef" class="markdown-body" v-html="detailState.renderedHtml"></article>
             </div>
           </template>
@@ -188,6 +191,10 @@
               <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
             </label>
             <label class="field">
+              <span>封面 URL（可选）</span>
+              <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
+            </label>
+            <label class="field">
               <span>可见性</span>
               <select v-model="writerState.editor.visibility" class="field-input">
                 <option value="PUBLIC">PUBLIC</option>
@@ -210,6 +217,7 @@
           </div>
 
           <div class="editor-actions">
+            <button type="button" class="mini-btn ripple-trigger" @click="goBackToBlogList">返回列表</button>
             <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
             <button
               type="button"
@@ -331,6 +339,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createMyPost,
@@ -354,6 +363,8 @@ const DEFAULT_CATEGORY_OPTIONS = [
 ];
 
 const auth = useAuthSession();
+const route = useRoute();
+const router = useRouter();
 
 const filters = reactive({
   keyword: '',
@@ -392,6 +403,7 @@ const writerState = reactive({
     summary: '',
     categoryCode: 'life',
     slugCode: '',
+    coverImageUrl: '',
     visibility: 'PUBLIC',
     tagsText: '',
     allowedGroupCodesText: 'USER,FRIEND,ADMIN',
@@ -411,7 +423,14 @@ const pasteState = reactive({
   sessionDecision: ''
 });
 
-const viewMode = ref('list');
+const routeMode = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : '';
+  if (name === 'blog-detail') return 'detail';
+  if (name === 'blog-editor') return 'editor';
+  return 'list';
+});
+
+const viewMode = ref(routeMode.value);
 const tocMode = ref('all');
 const activeHeadingId = ref('');
 const readingProgress = ref(0);
@@ -513,6 +532,7 @@ function normalizePostSummary(raw) {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
     title: normalizeString(raw?.title),
     summary: normalizeString(raw?.summary),
+    coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     tags: normalizeTags(raw?.tags),
@@ -527,6 +547,7 @@ function normalizePostDetail(raw) {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
     title: normalizeString(raw?.title),
     summary: normalizeString(raw?.summary),
+    coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     slugCode: normalizeString(raw?.slugCode ?? raw?.slug_code),
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
@@ -548,6 +569,7 @@ function normalizeAuthorPost(raw) {
     summary: normalizeString(raw?.summary),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     slugCode: normalizeString(raw?.slugCode ?? raw?.slug_code),
+    coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
     statusCode: normalizeString(raw?.statusCode ?? raw?.status_code, 'DRAFT').toUpperCase(),
     tags: normalizeTags(raw?.tags),
@@ -706,6 +728,7 @@ function buildEditorPayload() {
     summary: writerState.editor.summary,
     categoryCode: writerState.editor.categoryCode,
     slugCode: writerState.editor.slugCode || undefined,
+    coverImageUrl: writerState.editor.coverImageUrl || undefined,
     visibility,
     allowedGroupCodes: visibility === 'GROUP' ? parseCodeList(writerState.editor.allowedGroupCodesText) : [],
     tags: parseTagList(writerState.editor.tagsText),
@@ -721,6 +744,7 @@ function applyPostDetailToEditor(postDetail) {
   writerState.editor.summary = normalized.summary;
   writerState.editor.categoryCode = normalized.categoryCode || 'life';
   writerState.editor.slugCode = normalized.slugCode;
+  writerState.editor.coverImageUrl = normalized.coverImageUrl;
   writerState.editor.visibility = normalized.visibility || 'PUBLIC';
   writerState.editor.tagsText = normalized.tags.map((item) => `#${item}`).join(', ');
   writerState.editor.markdown = normalized.markdown || '';
@@ -822,6 +846,7 @@ function resetEditorForm() {
   writerState.editor.summary = '';
   writerState.editor.categoryCode = 'life';
   writerState.editor.slugCode = '';
+  writerState.editor.coverImageUrl = '';
   writerState.editor.visibility = 'PUBLIC';
   writerState.editor.tagsText = '';
   writerState.editor.allowedGroupCodesText = 'USER,FRIEND,ADMIN';
@@ -840,6 +865,19 @@ function startNewDraft() {
 function switchViewMode(mode) {
   if (mode === 'editor' && !canWrite.value) return;
   if (mode === 'detail' && !detailState.post) return;
+  if (mode === 'list' && routeMode.value !== 'list') {
+    goBackToBlogList();
+    return;
+  }
+  if (mode === 'detail' && routeMode.value !== 'detail' && detailState.post?.postId) {
+    router.push({ name: 'blog-detail', params: { postId: detailState.post.postId } });
+    return;
+  }
+  if (mode === 'editor' && routeMode.value !== 'editor') {
+    const postId = writerState.editor.postId || detailState.post?.postId;
+    router.push({ name: 'blog-editor', params: postId ? { postId } : {} });
+    return;
+  }
   viewMode.value = mode;
   if (mode !== 'detail') {
     teardownReadingScroll();
@@ -875,17 +913,29 @@ function handleSearchSubmit() {
 }
 
 async function openPostDetail(postId) {
+  const normalizedPostId = toSafeInt(postId, 0);
+  if (normalizedPostId <= 0) return;
+  if (routeMode.value !== 'detail') {
+    await router.push({ name: 'blog-detail', params: { postId: normalizedPostId } });
+    return;
+  }
   viewMode.value = 'detail';
-  await loadPostDetail(postId);
+  await loadPostDetail(normalizedPostId);
 }
 
-async function openMinePost(postId) {
+async function openMinePost(postId, options = {}) {
   if (!canWrite.value) return;
+  const normalizedPostId = toSafeInt(postId, 0);
+  if (normalizedPostId <= 0) return;
   writerState.error = '';
   writerState.notice = '';
   try {
-    const payload = await getMyPostDetail(postId, auth.authorizedFetch);
+    const payload = await getMyPostDetail(normalizedPostId, auth.authorizedFetch);
     applyPostDetailToEditor(payload);
+    if (options.routeSync !== false && routeMode.value !== 'editor') {
+      await router.push({ name: 'blog-editor', params: { postId: normalizedPostId } });
+      return;
+    }
     switchViewMode('editor');
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, '读取我的文章失败');
@@ -894,7 +944,11 @@ async function openMinePost(postId) {
 
 async function openCurrentPostInEditor() {
   if (!canWrite.value || !detailState.post?.postId) return;
-  await openMinePost(detailState.post.postId);
+  await router.push({ name: 'blog-editor', params: { postId: detailState.post.postId } });
+}
+
+function goBackToBlogList() {
+  router.push({ name: 'blog' });
 }
 
 function sanitizeFileSegment(input, fallback = 'post') {
@@ -1081,6 +1135,37 @@ function handleEditorPaste(event) {
   pasteState.dialogVisible = true;
 }
 
+async function syncRouteDrivenView() {
+  const mode = routeMode.value;
+  if (mode === 'detail') {
+    const postId = toSafeInt(route.params.postId, 0);
+    viewMode.value = 'detail';
+    if (postId > 0 && detailState.post?.postId !== postId) {
+      await loadPostDetail(postId);
+    }
+    return;
+  }
+
+  if (mode === 'editor') {
+    viewMode.value = 'editor';
+    if (!canWrite.value) {
+      writerState.error = '当前账号没有博客编辑权限';
+      goBackToBlogList();
+      return;
+    }
+    const postId = toSafeInt(route.params.postId, 0);
+    if (postId > 0 && writerState.editor.postId !== postId) {
+      await openMinePost(postId, { routeSync: false });
+    }
+    if (postId <= 0 && !writerState.editor.postId) {
+      resetEditorForm();
+    }
+    return;
+  }
+
+  viewMode.value = 'list';
+}
+
 watch(
   () => canWrite.value,
   async (enabled) => {
@@ -1097,6 +1182,13 @@ watch(
 );
 
 watch(
+  () => [route.name, route.params.postId],
+  () => {
+    syncRouteDrivenView();
+  }
+);
+
+watch(
   () => viewMode.value,
   (mode) => {
     if (mode === 'detail') {
@@ -1110,10 +1202,13 @@ watch(
 
 onMounted(async () => {
   await auth.ensureReady();
-  await loadPostList();
+  if (routeMode.value === 'list') {
+    await loadPostList();
+  }
   if (canWrite.value) {
     await loadMyPosts();
   }
+  await syncRouteDrivenView();
 });
 
 onBeforeUnmount(() => {
@@ -1443,6 +1538,21 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(8, 12, 20, 0.36);
   padding: 14px;
+}
+
+.detail-cover-wrap {
+  margin-bottom: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(7, 11, 19, 0.52);
+}
+
+.detail-cover {
+  display: block;
+  width: 100%;
+  max-height: min(42vh, 420px);
+  object-fit: cover;
 }
 
 .editor-view {

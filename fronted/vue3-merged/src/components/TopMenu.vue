@@ -193,6 +193,9 @@ const mainNavItems = computed(() => {
 
 const activeMainRoute = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
+  if (name.startsWith('blog')) {
+    return 'blog';
+  }
   if (name.startsWith('music-library')) {
     return 'music-library';
   }

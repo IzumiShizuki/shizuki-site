@@ -5,6 +5,7 @@ import AuthorPage from '../pages/AuthorPage.vue';
 import AuthCallbackPage from '../pages/AuthCallbackPage.vue';
 import AuthPage from '../pages/AuthPage.vue';
 import AppsPage from '../pages/AppsPage.vue';
+import BlogListPage from '../pages/BlogListPage.vue';
 import BlogPage from '../pages/BlogPage.vue';
 import HomePage from '../pages/HomePage.vue';
 import MusicLibraryPage from '../pages/MusicLibraryPage.vue';
@@ -36,7 +37,9 @@ function normalizeRedirectPath(path) {
 
 const routes = [
   { path: '/', name: 'home', component: HomePage },
-  { path: '/blog', name: 'blog', component: BlogPage },
+  { path: '/blog', name: 'blog', component: BlogListPage },
+  { path: '/blog/editor/:postId?', name: 'blog-editor', component: BlogPage },
+  { path: '/blog/:postId', name: 'blog-detail', component: BlogPage },
   {
     path: '/music-library',
     component: MusicLibraryPage,

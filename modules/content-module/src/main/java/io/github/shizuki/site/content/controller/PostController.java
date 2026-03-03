@@ -5,6 +5,7 @@ import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,8 +58,17 @@ public class PostController {
                                                        @RequestParam(name = "page_size", defaultValue = "10") long pageSize,
                                                        @RequestParam(name = "keyword", required = false) String keyword,
                                                        @RequestParam(name = "category", required = false) String category,
-                                                       @RequestParam(name = "tag", required = false) String tag) {
-        return ApiResponse.success(contentService.listPosts(pageNo, pageSize, keyword, category, tag));
+                                                       @RequestParam(name = "tag", required = false) String tag,
+                                                       @RequestParam(name = "published_from", required = false) String publishedFrom,
+                                                       @RequestParam(name = "published_to", required = false) String publishedTo) {
+        return ApiResponse.success(contentService.listPosts(pageNo, pageSize, keyword, category, tag, publishedFrom, publishedTo));
+    }
+
+    @GetMapping("/sidebar")
+    @RateLimit(key = "posts.sidebar", limit = 60, windowSeconds = 60)
+    @Operation(summary = "查询博客侧栏聚合信息", description = "返回最新文章、分类统计、标签统计和归档统计")
+    public ApiResponse<PostSidebarResponse> sidebar() {
+        return ApiResponse.success(contentService.getPostSidebar());
     }
 
     /**

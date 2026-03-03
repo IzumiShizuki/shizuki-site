@@ -17,6 +17,7 @@ import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyUpdateRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.dto.ReportRequest;
 import io.github.shizuki.site.content.entity.AppEntity;
@@ -40,8 +41,10 @@ import io.github.shizuki.site.content.service.ContentService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,6 +53,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -66,6 +71,8 @@ public class ContentServiceImpl implements ContentService {
     private static final long DEFAULT_POST_NUM_BASE = 500_000L;
 
     private static final Pattern ASCII_WORD_PATTERN = Pattern.compile("[A-Za-z0-9_]+(?:'[A-Za-z0-9_]+)?");
+    private static final Pattern MARKDOWN_IMAGE_PATTERN = Pattern.compile("!\\[[^\\]]*]\\(([^)\\s]+)(?:\\s+\"[^\"]*\")?\\)");
+    private static final DateTimeFormatter ARCHIVE_MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
 
     private final PostMapper postMapper;
     private final AppMapper appMapper;
@@ -110,25 +117,29 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     public PageResponse<PostSummary> listPosts(long pageNo, long pageSize, String keyword, String categoryCode, String tagCode) {
+        return listPosts(pageNo, pageSize, keyword, categoryCode, tagCode, null, null);
+    }
+
+    @Override
+    public PageResponse<PostSummary> listPosts(
+        long pageNo,
+        long pageSize,
+        String keyword,
+        String categoryCode,
+        String tagCode,
+        String publishedFrom,
+        String publishedTo
+    ) {
         ViewerContext viewer = currentViewer();
         long normalizedPageNo = pageNo <= 0 ? 1 : pageNo;
         long normalizedPageSize = Math.max(1L, Math.min(pageSize <= 0 ? 10L : pageSize, 100L));
 
-        List<PostEntity> candidates;
-        if (viewer.admin()) {
-            candidates = postMapper.selectList(
-                new LambdaQueryWrapper<PostEntity>()
-                    .eq(PostEntity::getStatusCode, POST_STATUS_PUBLISHED)
-                    .orderByDesc(PostEntity::getPublishedAt)
-                    .orderByDesc(PostEntity::getId)
-            );
-        } else {
-            candidates = postMapper.selectVisiblePublishedPostsRaw(viewer.userId(), viewer.groups());
-        }
+        List<PostEntity> candidates = loadPublishedPostCandidates(viewer);
 
         String normalizedKeyword = normalizeKeyword(keyword);
         String normalizedCategory = normalizeCategoryCode(categoryCode, false);
         String normalizedTag = normalizeTagCode(tagCode);
+        PublishedRange range = resolvePublishedRange(publishedFrom, publishedTo);
         Map<Long, List<String>> tagCache = new HashMap<>();
 
         List<PostEntity> filtered = candidates.stream()
@@ -136,6 +147,7 @@ public class ContentServiceImpl implements ContentService {
             .filter(post -> matchesKeyword(post, normalizedKeyword, tagCache))
             .filter(post -> matchesCategory(post, normalizedCategory))
             .filter(post -> matchesTag(post.getId(), normalizedTag, tagCache))
+            .filter(post -> matchesPublishedRange(post, range))
             .toList();
 
         long total = filtered.size();
@@ -147,6 +159,7 @@ public class ContentServiceImpl implements ContentService {
                 post.getId(),
                 post.getTitle(),
                 post.getSummary(),
+                post.getCoverImageUrl(),
                 normalizeVisibility(post.getVisibility()).name(),
                 post.getCategoryCode(),
                 loadPostTags(post.getId(), tagCache),
@@ -157,6 +170,138 @@ public class ContentServiceImpl implements ContentService {
             .toList();
 
         return PageResponse.of(items, total, normalizedPageNo, normalizedPageSize);
+    }
+
+    @Override
+    public PostSidebarResponse getPostSidebar() {
+        ViewerContext viewer = currentViewer();
+        List<PostEntity> candidates = loadPublishedPostCandidates(viewer);
+
+        Map<Long, List<String>> tagCache = new HashMap<>();
+        List<PostEntity> visiblePosts = candidates.stream()
+            .filter(post -> canAccessPublishedPost(post, viewer))
+            .toList();
+
+        List<PostSidebarResponse.LatestPostItem> latestPosts = visiblePosts.stream()
+            .sorted(
+                Comparator.comparing(this::resolvePostPublishTime, Comparator.reverseOrder())
+                    .thenComparing(PostEntity::getId, Comparator.reverseOrder())
+            )
+            .limit(5)
+            .map(post -> new PostSidebarResponse.LatestPostItem(
+                post.getId(),
+                post.getTitle(),
+                resolvePostPublishTime(post),
+                post.getCoverImageUrl()
+            ))
+            .toList();
+
+        Map<String, Long> categoryCounter = new HashMap<>();
+        Map<String, Long> tagCounter = new HashMap<>();
+        Map<String, Long> archiveCounter = new HashMap<>();
+
+        for (PostEntity post : visiblePosts) {
+            String category = normalizeDisplayCategory(post.getCategoryCode());
+            categoryCounter.merge(category, 1L, Long::sum);
+
+            LocalDateTime publishTime = resolvePostPublishTime(post);
+            String month = ARCHIVE_MONTH_FORMATTER.format(publishTime);
+            archiveCounter.merge(month, 1L, Long::sum);
+
+            for (String tag : loadPostTags(post.getId(), tagCache)) {
+                if (!StringUtils.hasText(tag)) {
+                    continue;
+                }
+                tagCounter.merge(tag, 1L, Long::sum);
+            }
+        }
+
+        List<PostSidebarResponse.CategoryStatItem> categories = categoryCounter.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey))
+            .map(entry -> new PostSidebarResponse.CategoryStatItem(entry.getKey(), entry.getValue()))
+            .toList();
+
+        List<PostSidebarResponse.TagStatItem> tags = tagCounter.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey))
+            .limit(20)
+            .map(entry -> new PostSidebarResponse.TagStatItem(entry.getKey(), entry.getValue()))
+            .toList();
+
+        List<PostSidebarResponse.ArchiveStatItem> archives = archiveCounter.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByKey().reversed())
+            .map(entry -> new PostSidebarResponse.ArchiveStatItem(entry.getKey(), entry.getValue()))
+            .toList();
+
+        return new PostSidebarResponse(latestPosts, categories, tags, archives);
+    }
+
+    private List<PostEntity> loadPublishedPostCandidates(ViewerContext viewer) {
+        if (viewer.admin()) {
+            return postMapper.selectList(
+                new LambdaQueryWrapper<PostEntity>()
+                    .eq(PostEntity::getStatusCode, POST_STATUS_PUBLISHED)
+                    .orderByDesc(PostEntity::getPublishedAt)
+                    .orderByDesc(PostEntity::getId)
+            );
+        }
+        return postMapper.selectVisiblePublishedPostsRaw(viewer.userId(), viewer.groups());
+    }
+
+    private LocalDateTime resolvePostPublishTime(PostEntity post) {
+        if (post == null) {
+            return LocalDateTime.MIN;
+        }
+        if (post.getPublishedAt() != null) {
+            return post.getPublishedAt();
+        }
+        if (post.getCreatedAt() != null) {
+            return post.getCreatedAt();
+        }
+        return LocalDateTime.MIN;
+    }
+
+    private String normalizeDisplayCategory(String categoryCode) {
+        String normalized = readString(categoryCode, "").trim().toLowerCase(Locale.ROOT);
+        return StringUtils.hasText(normalized) ? normalized : "uncategorized";
+    }
+
+    private PublishedRange resolvePublishedRange(String publishedFrom, String publishedTo) {
+        LocalDateTime from = parseFilterDateTime(publishedFrom);
+        LocalDateTime to = parseFilterDateTime(publishedTo);
+        if (from != null && to != null && !from.isBefore(to)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "published_from must be before published_to");
+        }
+        return new PublishedRange(from, to);
+    }
+
+    private LocalDateTime parseFilterDateTime(String raw) {
+        String normalized = readString(raw, "").trim();
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(normalized, DateTimeFormatter.ISO_DATE_TIME);
+        } catch (DateTimeParseException ignored) {
+            try {
+                return OffsetDateTime.parse(normalized, DateTimeFormatter.ISO_DATE_TIME).toLocalDateTime();
+            } catch (DateTimeParseException exception) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid datetime format: " + normalized);
+            }
+        }
+    }
+
+    private boolean matchesPublishedRange(PostEntity post, PublishedRange range) {
+        if (range == null || range.isEmpty()) {
+            return true;
+        }
+        LocalDateTime publishedAt = resolvePostPublishTime(post);
+        if (range.from() != null && publishedAt.isBefore(range.from())) {
+            return false;
+        }
+        if (range.to() != null && !publishedAt.isBefore(range.to())) {
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -305,6 +450,7 @@ public class ContentServiceImpl implements ContentService {
         post.setSummary(payload.summary());
         post.setCategoryCode(payload.categoryCode());
         post.setSlugCode(payload.slugCode());
+        post.setCoverImageUrl(payload.coverImageUrl());
         post.setVisibility(payload.visibility().name());
         post.setStatusCode(POST_STATUS_DRAFT);
         post.setMarkdownBucket(payload.markdownBucket());
@@ -346,6 +492,7 @@ public class ContentServiceImpl implements ContentService {
         post.setSummary(payload.summary());
         post.setCategoryCode(payload.categoryCode());
         post.setSlugCode(payload.slugCode());
+        post.setCoverImageUrl(payload.coverImageUrl());
         post.setVisibility(payload.visibility().name());
         post.setMarkdownBucket(payload.markdownBucket());
         post.setMarkdownKey(payload.markdownKey());
@@ -856,12 +1003,14 @@ public class ContentServiceImpl implements ContentService {
 
         String markdown = readMarkdownObject(markdownBucket, markdownKey);
         MarkdownMetrics metrics = computeMarkdownMetrics(markdown);
+        String coverImageUrl = resolveCoverImageUrl(request.getCoverImageUrl(), markdown);
 
         return new PreparedPostPayload(
             title,
             summary,
             categoryCode,
             slugCode,
+            coverImageUrl,
             visibility,
             allowedGroups,
             normalizeTagCodes(request.getTags()),
@@ -969,6 +1118,7 @@ public class ContentServiceImpl implements ContentService {
             post.getId(),
             post.getTitle(),
             post.getSummary(),
+            post.getCoverImageUrl(),
             post.getCategoryCode(),
             post.getSlugCode(),
             readString(post.getVisibility(), ContentVisibilityEnum.PUBLIC.name()),
@@ -990,6 +1140,7 @@ public class ContentServiceImpl implements ContentService {
             post.getSummary(),
             post.getCategoryCode(),
             post.getSlugCode(),
+            post.getCoverImageUrl(),
             readString(post.getVisibility(), ContentVisibilityEnum.PUBLIC.name()),
             readString(post.getStatusCode(), POST_STATUS_DRAFT),
             loadPostTags(post.getId()),
@@ -1037,6 +1188,48 @@ public class ContentServiceImpl implements ContentService {
         long wordCount = cjkCharCount + asciiWordCount;
         int readingMinutes = (int) Math.max(1L, (long) Math.ceil(Math.max(1L, wordCount) / 300.0d));
         return new MarkdownMetrics(wordCount, lineCount, readingMinutes);
+    }
+
+    private String resolveCoverImageUrl(String requestedCoverImageUrl, String markdown) {
+        String normalizedCover = normalizeCoverImageUrl(requestedCoverImageUrl);
+        if (StringUtils.hasText(normalizedCover)) {
+            return normalizedCover;
+        }
+        return extractFirstMarkdownImage(markdown);
+    }
+
+    private String normalizeCoverImageUrl(String raw) {
+        String normalized = readString(raw, "").trim();
+        if (!StringUtils.hasText(normalized)) {
+            return "";
+        }
+        return isSupportedCoverUrl(normalized) ? normalized : "";
+    }
+
+    private String extractFirstMarkdownImage(String markdown) {
+        String safeMarkdown = readString(markdown, "");
+        if (!StringUtils.hasText(safeMarkdown)) {
+            return "";
+        }
+        Matcher matcher = MARKDOWN_IMAGE_PATTERN.matcher(safeMarkdown);
+        while (matcher.find()) {
+            String candidate = readString(matcher.group(1), "").trim();
+            if (!StringUtils.hasText(candidate)) {
+                continue;
+            }
+            if (candidate.startsWith("<") && candidate.endsWith(">") && candidate.length() > 2) {
+                candidate = candidate.substring(1, candidate.length() - 1).trim();
+            }
+            if (isSupportedCoverUrl(candidate)) {
+                return candidate;
+            }
+        }
+        return "";
+    }
+
+    private boolean isSupportedCoverUrl(String url) {
+        String normalized = readString(url, "").trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("http://") || normalized.startsWith("https://") || normalized.startsWith("/");
     }
 
     private boolean isCjkCodePoint(int codePoint) {
@@ -1140,11 +1333,18 @@ public class ContentServiceImpl implements ContentService {
     private record MarkdownMetrics(long wordCount, long lineCount, int readingMinutes) {
     }
 
+    private record PublishedRange(LocalDateTime from, LocalDateTime to) {
+        private boolean isEmpty() {
+            return from == null && to == null;
+        }
+    }
+
     private record PreparedPostPayload(
         String title,
         String summary,
         String categoryCode,
         String slugCode,
+        String coverImageUrl,
         ContentVisibilityEnum visibility,
         Set<String> allowedGroups,
         Set<String> tags,

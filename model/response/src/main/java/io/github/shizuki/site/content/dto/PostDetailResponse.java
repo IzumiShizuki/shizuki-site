@@ -7,6 +7,7 @@ public record PostDetailResponse(
     Long postId,
     String title,
     String summary,
+    String coverImageUrl,
     String categoryCode,
     String slugCode,
     String visibility,

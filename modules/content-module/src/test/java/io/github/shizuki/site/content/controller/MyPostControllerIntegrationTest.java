@@ -37,6 +37,7 @@ class MyPostControllerIntegrationTest {
                     "draft summary",
                     "game",
                     "draft-title",
+                    "https://example.com/draft-cover.png",
                     "PRIVATE",
                     "DRAFT",
                     List.of("tag1"),

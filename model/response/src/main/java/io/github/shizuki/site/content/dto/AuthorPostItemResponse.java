@@ -9,6 +9,7 @@ public record AuthorPostItemResponse(
     String summary,
     String categoryCode,
     String slugCode,
+    String coverImageUrl,
     String visibility,
     String statusCode,
     List<String> tags,

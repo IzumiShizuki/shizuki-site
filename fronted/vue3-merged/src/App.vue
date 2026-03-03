@@ -277,6 +277,8 @@ const routeLabelMap = {
 
 const currentRouteKey = computed(() => {
   const name = typeof route.name === 'string' ? route.name : 'home';
+  if (name.startsWith('blog')) return 'blog';
+  if (name.startsWith('music-library')) return 'music-library';
   return Object.prototype.hasOwnProperty.call(routeLabelMap, name) ? name : 'home';
 });
 

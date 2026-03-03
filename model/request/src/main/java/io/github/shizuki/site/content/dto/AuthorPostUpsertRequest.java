@@ -16,6 +16,8 @@ public class AuthorPostUpsertRequest {
 
     private String slugCode;
 
+    private String coverImageUrl;
+
     @NotBlank
     private String visibility;
 
@@ -59,6 +61,14 @@ public class AuthorPostUpsertRequest {
 
     public void setSlugCode(String slugCode) {
         this.slugCode = slugCode;
+    }
+
+    public String getCoverImageUrl() {
+        return coverImageUrl;
+    }
+
+    public void setCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
     }
 
     public String getVisibility() {
