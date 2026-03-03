@@ -3,6 +3,7 @@ package io.github.shizuki.site.content.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import java.time.LocalDateTime;
 
 @TableName("CTN_POST")
 public class PostEntity extends BaseEntity {
@@ -21,6 +22,33 @@ public class PostEntity extends BaseEntity {
 
     @TableField("visibility_status")
     private String visibility;
+
+    @TableField("status_code")
+    private String statusCode;
+
+    @TableField("category_code")
+    private String categoryCode;
+
+    @TableField("slug_code")
+    private String slugCode;
+
+    @TableField("md_bucket_name")
+    private String markdownBucket;
+
+    @TableField("md_object_key")
+    private String markdownKey;
+
+    @TableField("word_count")
+    private Long wordCount;
+
+    @TableField("line_count")
+    private Long lineCount;
+
+    @TableField("reading_minutes")
+    private Integer readingMinutes;
+
+    @TableField("published_time")
+    private LocalDateTime publishedAt;
 
     @TableField("like_value")
     private Long likeCount;
@@ -63,6 +91,78 @@ public class PostEntity extends BaseEntity {
 
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    public String getStatusCode() {
+        return statusCode;
+    }
+
+    public void setStatusCode(String statusCode) {
+        this.statusCode = statusCode;
+    }
+
+    public String getCategoryCode() {
+        return categoryCode;
+    }
+
+    public void setCategoryCode(String categoryCode) {
+        this.categoryCode = categoryCode;
+    }
+
+    public String getSlugCode() {
+        return slugCode;
+    }
+
+    public void setSlugCode(String slugCode) {
+        this.slugCode = slugCode;
+    }
+
+    public String getMarkdownBucket() {
+        return markdownBucket;
+    }
+
+    public void setMarkdownBucket(String markdownBucket) {
+        this.markdownBucket = markdownBucket;
+    }
+
+    public String getMarkdownKey() {
+        return markdownKey;
+    }
+
+    public void setMarkdownKey(String markdownKey) {
+        this.markdownKey = markdownKey;
+    }
+
+    public Long getWordCount() {
+        return wordCount;
+    }
+
+    public void setWordCount(Long wordCount) {
+        this.wordCount = wordCount;
+    }
+
+    public Long getLineCount() {
+        return lineCount;
+    }
+
+    public void setLineCount(Long lineCount) {
+        this.lineCount = lineCount;
+    }
+
+    public Integer getReadingMinutes() {
+        return readingMinutes;
+    }
+
+    public void setReadingMinutes(Integer readingMinutes) {
+        this.readingMinutes = readingMinutes;
+    }
+
+    public LocalDateTime getPublishedAt() {
+        return publishedAt;
+    }
+
+    public void setPublishedAt(LocalDateTime publishedAt) {
+        this.publishedAt = publishedAt;
     }
 
     public Long getLikeCount() {

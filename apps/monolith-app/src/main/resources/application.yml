@@ -148,6 +148,10 @@ shizuki:
       - audio/mpeg
       - audio/wav
       - audio/ogg
+  blog:
+    storage:
+      private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:zhuowang-files}}
+      max-upload-size: ${BLOG_MAX_UPLOAD_SIZE:1048576}
   oss:
     endpoint: ${OSS_ENDPOINT:https://oss-cn-hangzhou.aliyuncs.com}
     access-key-id: ${OSS_ACCESS_KEY_ID:}
@@ -191,6 +195,7 @@ spring:
   config:
     import:
       - optional:file:./resouces/yaml/common-config.yaml
+      - optional:file:../../resouces/yaml/common-config.yaml
   application:
     name: monolith-app
   servlet:

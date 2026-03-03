@@ -91,6 +91,10 @@ shizuki:
       public-bucket: "<OSS_PUBLIC_BUCKET>"
       public-base-url: "<OSS_PUBLIC_BASE_URL>"
       validate-buckets-on-startup: true
+  blog:
+    storage:
+      private-bucket: "<BLOG_PRIVATE_BUCKET>"
+      max-upload-size: 1048576
   auth:
     jwt:
       secret: "<AUTH_JWT_SECRET>"

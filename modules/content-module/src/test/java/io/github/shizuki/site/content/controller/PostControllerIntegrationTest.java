@@ -6,6 +6,7 @@ import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -43,9 +44,25 @@ class PostControllerIntegrationTest {
      */
     @Test
     void shouldListPostsSuccessfully() throws Exception {
-        Mockito.when(contentService.listPosts(ArgumentMatchers.eq(1L), ArgumentMatchers.eq(10L)))
+        Mockito.when(contentService.listPosts(
+                ArgumentMatchers.eq(1L),
+                ArgumentMatchers.eq(10L),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull()
+            ))
             .thenReturn(PageResponse.of(
-                List.of(new PostSummary(1L, "Shizuki v0.1", "Project kickoff post", "PUBLIC")),
+                List.of(new PostSummary(
+                    1L,
+                    "Shizuki v0.1",
+                    "Project kickoff post",
+                    "PUBLIC",
+                    "dev",
+                    List.of("spring", "java"),
+                    3,
+                    12L,
+                    LocalDateTime.now()
+                )),
                 1,
                 1,
                 10
@@ -67,7 +84,13 @@ class PostControllerIntegrationTest {
      */
     @Test
     void shouldReturnBusinessErrorWhenListPostsThrowsNotFound() throws Exception {
-        Mockito.when(contentService.listPosts(ArgumentMatchers.eq(1L), ArgumentMatchers.eq(10L)))
+        Mockito.when(contentService.listPosts(
+                ArgumentMatchers.eq(1L),
+                ArgumentMatchers.eq(10L),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull()
+            ))
             .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "Post not found"));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/posts")
@@ -82,7 +105,13 @@ class PostControllerIntegrationTest {
      */
     @Test
     void shouldPassBoundaryPagingParamsToService() throws Exception {
-        Mockito.when(contentService.listPosts(ArgumentMatchers.eq(0L), ArgumentMatchers.eq(200L)))
+        Mockito.when(contentService.listPosts(
+                ArgumentMatchers.eq(0L),
+                ArgumentMatchers.eq(200L),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull()
+            ))
             .thenReturn(PageResponse.of(List.of(), 0, 0, 200));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/posts")
