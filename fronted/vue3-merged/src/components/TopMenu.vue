@@ -339,8 +339,10 @@ onBeforeUnmount(() => {
   --menu-glass-bg: rgba(var(--glass-rgb), calc(var(--glass-bg-alpha) * var(--menu-alpha-scale)));
   --menu-glass-border: rgba(255, 255, 255, calc(var(--glass-border-alpha) * var(--menu-alpha-scale)));
   --menu-glass-shadow: 0 8px 32px rgba(0, 0, 0, calc(var(--glass-shadow-alpha) * var(--menu-alpha-scale)));
-  --menu-hover-bg: rgba(var(--accent-soft-rgb), 0.44);
-  --menu-active-bg: rgba(var(--accent-rgb), 0.22);
+  --menu-hover-bg: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+  --menu-active-bg: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
+  --menu-active-border: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  --menu-active-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
   --icon-hover-color: rgb(var(--accent-strong-rgb));
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
@@ -485,10 +487,10 @@ onBeforeUnmount(() => {
   left: var(--left-main-padding-x);
   width: var(--left-main-item-width);
   border-radius: 24px;
-  background: rgba(var(--accent-rgb), 0.24);
+  background: var(--menu-active-bg);
   box-shadow:
-    0 0 0 1px rgba(var(--accent-rgb), 0.42),
-    0 8px 16px rgba(var(--accent-rgb), 0.2);
+    0 0 0 1px var(--menu-active-border),
+    var(--menu-active-shadow);
   transform: translateX(calc(var(--active-index, 0) * (var(--left-main-item-width) + var(--left-main-gap))));
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
@@ -523,7 +525,7 @@ onBeforeUnmount(() => {
 .icon-minimal:hover {
   transform: scale(1.15);
   color: var(--icon-hover-color);
-  background: rgba(var(--accent-soft-rgb), 0.36);
+  background: var(--menu-hover-bg);
 }
 
 .circle-icon-box {
@@ -641,16 +643,16 @@ onBeforeUnmount(() => {
 
 .author-info-item:hover .author-avatar-box {
   transform: scale(1.06);
-  border-color: rgba(var(--accent-rgb), 0.78);
-  box-shadow: 0 6px 14px rgba(var(--accent-rgb), 0.24);
+  border-color: var(--menu-active-border);
+  box-shadow: var(--menu-active-shadow);
 }
 
 .author-info-item.route-active .author-avatar-box {
   transform: scale(1.06);
-  border-color: rgba(var(--accent-rgb), 0.9);
+  border-color: var(--menu-active-border);
   box-shadow:
-    0 0 0 1px rgba(var(--accent-rgb), 0.36),
-    0 8px 18px rgba(var(--accent-rgb), 0.32);
+    0 0 0 1px var(--menu-active-border),
+    var(--menu-active-shadow);
 }
 
 .avatar-box {
@@ -698,15 +700,15 @@ onBeforeUnmount(() => {
 
 .user-profile-item.route-active .avatar-box {
   box-shadow:
-    0 0 0 1px rgba(var(--accent-rgb), 0.36),
-    0 8px 18px rgba(var(--accent-rgb), 0.32);
-  border-color: rgba(var(--accent-rgb), 0.9);
+    0 0 0 1px var(--menu-active-border),
+    var(--menu-active-shadow);
+  border-color: var(--menu-active-border);
 }
 
 .author-info-item.route-active,
 .user-profile-item.route-active {
-  background: rgba(var(--accent-rgb), 0.18);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.34);
+  background: var(--menu-active-bg);
+  box-shadow: inset 0 0 0 1px var(--menu-active-border);
 }
 
 .author-info-item.route-active .item-label,
@@ -722,16 +724,16 @@ onBeforeUnmount(() => {
 
 .author-info-item.open .author-avatar-box,
 .user-profile-item.open .avatar-box {
-  border-color: rgba(var(--accent-rgb), 0.9);
+  border-color: var(--menu-active-border);
   box-shadow:
-    0 0 0 1px rgba(var(--accent-rgb), 0.34),
-    0 8px 18px rgba(var(--accent-rgb), 0.32);
+    0 0 0 1px var(--menu-active-border),
+    var(--menu-active-shadow);
 }
 
 .author-info-item.open,
 .user-profile-item.open {
-  background: rgba(var(--accent-rgb), 0.14);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
+  background: var(--menu-active-bg);
+  box-shadow: inset 0 0 0 1px var(--menu-active-border);
 }
 
 .profile-popover {
@@ -761,7 +763,7 @@ onBeforeUnmount(() => {
 }
 
 .popover-item:hover {
-  background: rgba(var(--accent-rgb), 0.24);
+  background: var(--menu-active-bg);
   color: rgb(var(--accent-strong-rgb));
 }
 
@@ -1151,8 +1153,8 @@ onBeforeUnmount(() => {
   }
 
   .menu-item-stack.active {
-    background: rgba(var(--accent-rgb), 0.24);
-    box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.42);
+    background: var(--menu-active-bg);
+    box-shadow: inset 0 0 0 1px var(--menu-active-border);
   }
 
   .item-label {

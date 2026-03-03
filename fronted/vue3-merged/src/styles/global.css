@@ -33,16 +33,12 @@ body {
 
 .ripple-trigger:active {
   scale: 0.965;
-  box-shadow: inset 0 0 0 999px rgba(var(--accent-rgb), 0.14);
+  box-shadow: inset 0 0 0 999px var(--accent-press-overlay, rgba(var(--accent-rgb), 0.14));
   filter: saturate(1.06);
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
 }
 
-:root[data-accent-mode='gradient'] .ripple-trigger:active {
-  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.08);
-  background-image: var(--accent-gradient);
-}
-
-:root[data-accent-mode='gradient'] :is(
+:is(
   .mode-btn.active,
   .nav-item.active,
   .list-item.selected,
@@ -54,11 +50,14 @@ body {
   .queue-item.active,
   .track-row.active,
   .playlist-card.opening,
-  .switch-btn
+  .switch-btn,
+  .search-btn,
+  .refresh-btn
 ) {
-  background-image: var(--accent-gradient);
-  color: rgba(255, 255, 255, 0.96);
-  border-color: rgba(var(--accent-rgb), 0.7);
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
+  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
 
 :root[data-accent-mode='gradient'] :is(

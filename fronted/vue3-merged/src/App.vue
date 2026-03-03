@@ -214,7 +214,8 @@ import { routePathByKey } from './router';
 import { runtimeGuards } from './utils/runtimeGuards';
 import { recordWindowDiag } from './utils/windowLifecycleDiag';
 
-const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
+const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
+const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const menuExpanded = ref(false);
 const levitationRef = ref(null);
 const clickRipples = ref([]);
@@ -369,6 +370,7 @@ const playerBridge = Object.freeze({
   lyricTimeline: player.lyricTimeline,
   currentLyricEntryIndex: player.currentLyricEntryIndex,
   lyricRenderMode: player.lyricRenderMode,
+  listOpen: player.listOpen,
   volume: player.volume,
   playMode: player.playMode,
   togglePlay: player.togglePlay,
@@ -382,6 +384,7 @@ const playerBridge = Object.freeze({
   seekToTime: player.seekToTime,
   setVolume: player.setVolume,
   setLyricRenderMode: player.setLyricRenderMode,
+  setListOpen: player.setListOpen,
   cyclePlayMode: player.cyclePlayMode,
   loadPlaylistByCode: player.loadPlaylistByCode,
   reloadPlaylist: player.reloadPlaylist,
@@ -406,14 +409,18 @@ function inferBgType(item) {
 function loadPersistedExtra() {
   try {
     const raw = window.localStorage.getItem(PLAYER_STORAGE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    subtitleVisible.value = data?.subtitleVisible !== false;
+    if (raw) {
+      const data = JSON.parse(raw);
+      subtitleVisible.value = data?.subtitleVisible !== false;
 
-    if (data?.lyricOffset && Number.isFinite(data.lyricOffset.x) && Number.isFinite(data.lyricOffset.y)) {
-      lyricOffset.value = { x: data.lyricOffset.x, y: data.lyricOffset.y };
-    } else if (data?.lyricBar && Number.isFinite(data.lyricBar.offsetX) && Number.isFinite(data.lyricBar.offsetY)) {
-      lyricOffset.value = { x: data.lyricBar.offsetX, y: data.lyricBar.offsetY };
+      if (data?.lyricOffset && Number.isFinite(data.lyricOffset.x) && Number.isFinite(data.lyricOffset.y)) {
+        lyricOffset.value = { x: data.lyricOffset.x, y: data.lyricOffset.y };
+      } else if (data?.lyricBar && Number.isFinite(data.lyricBar.offsetX) && Number.isFinite(data.lyricBar.offsetY)) {
+        lyricOffset.value = { x: data.lyricBar.offsetX, y: data.lyricBar.offsetY };
+      }
+    }
+    if (LEGACY_PLAYER_STORAGE_KEY !== PLAYER_STORAGE_KEY) {
+      window.localStorage.removeItem(LEGACY_PLAYER_STORAGE_KEY);
     }
   } catch {
     // ignore malformed persisted data

@@ -2,7 +2,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 import { parseLrc } from '../utils/lrc';
 
-const STORAGE_KEY = 'shizuki.musicPlayer.v1';
+const STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const MODE_ORDER = ['sequential', 'random', 'single'];
 const VISUALIZER_STYLES = ['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];

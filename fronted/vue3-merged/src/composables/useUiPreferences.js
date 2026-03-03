@@ -97,6 +97,27 @@ function applyAccentVariables() {
     '--accent-mode-fill',
     state.accentMode === 'gradient' ? 'var(--accent-gradient)' : `rgba(${r}, ${g}, ${b}, 0.24)`
   );
+  root.style.setProperty(
+    '--accent-mode-fill-strong',
+    state.accentMode === 'gradient' ? 'var(--accent-gradient)' : `rgba(${r}, ${g}, ${b}, 0.3)`
+  );
+  root.style.setProperty(
+    '--accent-mode-border',
+    state.accentMode === 'gradient'
+      ? `rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.66)`
+      : `rgba(${r}, ${g}, ${b}, 0.42)`
+  );
+  root.style.setProperty(
+    '--accent-mode-shadow',
+    state.accentMode === 'gradient'
+      ? `0 10px 22px rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.28)`
+      : `0 10px 22px rgba(${r}, ${g}, ${b}, 0.24)`
+  );
+  root.style.setProperty('--accent-mode-text', 'rgba(255, 255, 255, 0.96)');
+  root.style.setProperty(
+    '--accent-press-overlay',
+    state.accentMode === 'gradient' ? 'rgba(255, 255, 255, 0.1)' : `rgba(${r}, ${g}, ${b}, 0.14)`
+  );
   root.setAttribute('data-accent-mode', normalizeAccentMode(state.accentMode));
 }
 

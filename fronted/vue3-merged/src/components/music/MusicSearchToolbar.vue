@@ -133,21 +133,15 @@ const selectedProviderSet = computed(() => {
 }
 
 .search-btn {
-  border: 1px solid rgba(var(--accent-rgb), 0.62);
-  background: rgba(var(--accent-rgb), 0.3);
-  color: rgba(246, 250, 255, 0.98);
+  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
+  color: var(--accent-mode-text, rgba(246, 250, 255, 0.98));
 }
 
 .refresh-btn {
-  border: 1px solid rgba(var(--accent-rgb), 0.56);
-  background: rgba(var(--accent-rgb), 0.22);
-  color: rgba(var(--accent-soft-rgb), 0.98);
-}
-
-:global(:root[data-accent-mode='gradient']) .search-btn,
-:global(:root[data-accent-mode='gradient']) .refresh-btn {
-  background: var(--accent-gradient, rgba(var(--accent-rgb), 0.24));
-  color: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
 }
 
 .filters-row {
@@ -179,15 +173,10 @@ const selectedProviderSet = computed(() => {
 }
 
 .chip-btn.active {
-  border-color: rgba(var(--accent-rgb), 0.72);
-  background: rgba(var(--accent-rgb), 0.24);
-  color: rgba(245, 250, 255, 0.98);
-  box-shadow: 0 8px 16px rgba(var(--accent-rgb), 0.2);
-}
-
-:global(:root[data-accent-mode='gradient']) .chip-btn.active {
-  background: var(--accent-gradient, rgba(var(--accent-rgb), 0.24));
-  color: rgba(255, 255, 255, 0.96);
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
 
 .toolbar-error {

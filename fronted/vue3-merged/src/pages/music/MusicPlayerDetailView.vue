@@ -8,41 +8,21 @@
       <p>播放详情</p>
     </header>
 
-    <div class="detail-main">
-      <section class="vinyl-stage">
-        <div class="vinyl-arm" :class="{ playing: music.player.isPlaying.value }"></div>
-        <div class="vinyl-disc" :class="{ spinning: music.player.isPlaying.value }">
-          <div class="vinyl-cover" :style="coverStyle"></div>
+    <div class="detail-layout">
+      <aside class="vinyl-column">
+        <div class="vinyl-stage">
+          <div class="vinyl-arm" :class="{ playing: music.player.isPlaying.value }"></div>
+          <div class="vinyl-disc" :class="{ spinning: music.player.isPlaying.value }">
+            <div class="vinyl-cover" :style="coverStyle"></div>
+          </div>
         </div>
-      </section>
+      </aside>
 
-      <section class="detail-right">
+      <section class="content-column">
         <header class="track-meta">
           <h1>{{ track?.title || '暂无播放曲目' }}</h1>
           <p class="sub">{{ track?.artist || '未知歌手' }}</p>
         </header>
-
-        <div class="lyric-mode-row">
-          <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original' }" type="button" @click="setLyricMode('original')">
-            原文
-          </button>
-          <button
-            class="mode-btn ripple-trigger"
-            :class="{ active: lyricMode === 'original_translation' }"
-            type="button"
-            @click="setLyricMode('original_translation')"
-          >
-            原文+翻译
-          </button>
-          <button
-            class="mode-btn ripple-trigger"
-            :class="{ active: lyricMode === 'original_furigana' }"
-            type="button"
-            @click="setLyricMode('original_furigana')"
-          >
-            原文+注音
-          </button>
-        </div>
 
         <section class="lyric-scroll-shell">
           <div class="lyric-center-guide" aria-hidden="true"></div>
@@ -74,13 +54,68 @@
             </button>
           </transition>
         </section>
+      </section>
 
-        <div class="progress-row">
-          <span>{{ playedText }}</span>
-          <input type="range" min="0" max="1000" :value="Math.round(progress * 1000)" @input="onSeek" />
-          <span>{{ remainText }}</span>
-        </div>
+      <aside class="side-column">
+        <button class="side-toggle ripple-trigger" type="button" @click="toggleQueuePanel">
+          <i class="fas fa-bars"></i>
+        </button>
+        <p class="side-caption">歌曲列表，点击从右侧展开</p>
 
+        <transition name="side-pop">
+          <section v-if="queueOpen" class="queue-panel liquid-material">
+            <header>
+              <h4>当前队列</h4>
+              <button class="queue-close ripple-trigger" type="button" @click="queueOpen = false">
+                <i class="fas fa-xmark"></i>
+              </button>
+            </header>
+            <div class="queue-list">
+              <button
+                v-for="(item, index) in queueTracks"
+                :key="`queue-row-${item.id || index}`"
+                class="queue-row ripple-trigger"
+                :class="{ active: index === currentQueueIndex }"
+                type="button"
+                @click="selectQueueTrack(index)"
+              >
+                <span class="queue-index">{{ index + 1 }}</span>
+                <span class="queue-title">{{ item.title || '未知歌曲' }}</span>
+              </button>
+            </div>
+          </section>
+        </transition>
+
+        <button class="mode-pill ripple-trigger" type="button" @click="toggleModePanel">
+          {{ activeLyricModeLabel }}
+        </button>
+
+        <transition name="side-pop">
+          <div v-if="modePanelOpen" class="lyric-mode-stack liquid-material">
+            <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original_translation' }" type="button" @click="setLyricMode('original_translation')">
+              译
+            </button>
+            <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original_furigana' }" type="button" @click="setLyricMode('original_furigana')">
+              音
+            </button>
+            <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original' }" type="button" @click="setLyricMode('original')">
+              原
+            </button>
+          </div>
+        </transition>
+
+        <p class="side-order">播放顺序 · {{ playModeLabel }}</p>
+      </aside>
+    </div>
+
+    <footer class="detail-footer">
+      <div class="progress-row">
+        <span>{{ playedText }}</span>
+        <input type="range" min="0" max="1000" :value="Math.round(progress * 1000)" @input="onSeek" />
+        <span>{{ remainText }}</span>
+      </div>
+
+      <div class="footer-row">
         <div class="ctrl-row">
           <button class="ctrl-btn ripple-trigger" type="button" @click="music.player.playPrev">
             <i class="fas fa-backward-step"></i>
@@ -98,8 +133,8 @@
           <input type="range" min="0" max="100" :value="Math.round(volume * 100)" @input="onVolume" />
           <span>{{ Math.round(volume * 100) }}%</span>
         </div>
-      </section>
-    </div>
+      </div>
+    </footer>
   </section>
 </template>
 
@@ -115,12 +150,31 @@ const volume = computed(() => Number(music.player.volume.value || 0));
 const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
 const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
 const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
+const queueTracks = computed(() => (Array.isArray(music.player.tracks?.value) ? music.player.tracks.value : []));
+const currentQueueIndex = computed(() => {
+  const currentId = String(track.value?.id || '');
+  if (!currentId) return -1;
+  return queueTracks.value.findIndex((item) => String(item?.id || '') === currentId);
+});
+const playModeLabel = computed(() => {
+  const raw = String(music.player.playMode?.value || 'sequential');
+  if (raw === 'random') return '随机';
+  if (raw === 'single') return '单曲循环';
+  return '顺序';
+});
+const activeLyricModeLabel = computed(() => {
+  if (lyricMode.value === 'original') return '原文';
+  if (lyricMode.value === 'original_furigana') return '原文+注音';
+  return '原文+翻译';
+});
 
 const lyricListRef = ref(null);
 const lyricRowRefs = ref([]);
 const centerTimeVisible = ref(false);
 const centerTimeText = ref('00:00');
 const centerLyricTime = ref(0);
+const queueOpen = ref(false);
+const modePanelOpen = ref(false);
 
 let centerTimeHideTimer = 0;
 let autoFollowSuspendUntil = 0;
@@ -211,6 +265,7 @@ function onVolume(event) {
 
 function setLyricMode(mode) {
   music.player.setLyricRenderMode?.(mode);
+  modePanelOpen.value = false;
 }
 
 function setLyricRowRef(el, index) {
@@ -274,6 +329,37 @@ function scrollToLyricIndex(index, behavior = 'smooth') {
   container.scrollTo({ top: Math.max(0, targetTop), behavior });
 }
 
+function toggleQueuePanel() {
+  queueOpen.value = !queueOpen.value;
+}
+
+function toggleModePanel() {
+  modePanelOpen.value = !modePanelOpen.value;
+}
+
+function selectQueueTrack(index) {
+  const safeIndex = Number(index);
+  if (!Number.isFinite(safeIndex) || safeIndex < 0 || safeIndex >= queueTracks.value.length) return;
+  music.player.selectTrackByIndex?.(safeIndex, true);
+  queueOpen.value = false;
+}
+
+watch(
+  () => queueOpen.value,
+  (nextOpen) => {
+    music.player.setListOpen?.(nextOpen);
+  }
+);
+
+watch(
+  () => music.player.listOpen?.value,
+  (nextOpen) => {
+    if (typeof nextOpen !== 'boolean') return;
+    if (nextOpen === queueOpen.value) return;
+    queueOpen.value = nextOpen;
+  }
+);
+
 watch(
   () => renderedRows.value.length,
   async () => {
@@ -307,14 +393,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .music-player-detail-view {
-  --liquid-bg: linear-gradient(160deg, rgba(16, 20, 29, 0.92), rgba(9, 12, 21, 0.9));
-  --liquid-border: rgba(255, 255, 255, 0.18);
-  --liquid-shadow: 0 22px 44px rgba(6, 10, 18, 0.42);
+  --liquid-bg: linear-gradient(160deg, rgba(14, 20, 30, 0.94), rgba(7, 10, 20, 0.92));
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 24px 46px rgba(5, 8, 16, 0.46);
   min-height: 100%;
   border-radius: 18px;
   padding: 16px;
   display: grid;
-  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
 }
 
@@ -342,28 +428,33 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
-.detail-main {
+.detail-layout {
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
-  gap: 22px;
-  align-items: start;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr) 88px;
+  gap: 16px;
+}
+
+.vinyl-column {
+  display: grid;
 }
 
 .vinyl-stage {
   position: sticky;
-  top: 12px;
+  top: 8px;
   display: grid;
   place-items: center;
-  padding-top: 36px;
+  padding-top: 32px;
 }
 
 .vinyl-arm {
   position: absolute;
-  top: 2px;
-  width: 190px;
+  top: 0;
+  left: 52px;
+  width: 214px;
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(248, 249, 252, 0.92), rgba(229, 236, 248, 0.8));
+  background: linear-gradient(90deg, rgba(248, 249, 252, 0.95), rgba(229, 236, 248, 0.82));
   transform-origin: 8% 50%;
   transform: rotate(-22deg);
   transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -375,7 +466,7 @@ onBeforeUnmount(() => {
 }
 
 .vinyl-disc {
-  width: min(86vw, 420px);
+  width: min(82vw, 420px);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   display: grid;
@@ -403,43 +494,23 @@ onBeforeUnmount(() => {
     0 10px 20px rgba(7, 10, 18, 0.32);
 }
 
-.detail-right {
+.content-column {
   min-width: 0;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
 }
 
 .track-meta h1 {
   margin: 0;
-  font-size: clamp(30px, 3vw, 44px);
+  font-size: clamp(28px, 3vw, 52px);
   color: rgba(246, 249, 255, 0.97);
+  line-height: 1.08;
 }
 
 .track-meta .sub {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   color: rgba(189, 201, 226, 0.87);
-}
-
-.lyric-mode-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mode-btn {
-  min-height: 32px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(226, 235, 252, 0.9);
-  padding: 0 12px;
-  font-size: 12px;
-}
-
-.mode-btn.active {
-  border-color: rgba(var(--accent-rgb), 0.7);
-  background: rgba(var(--accent-rgb), 0.24);
-  color: rgba(250, 252, 255, 0.98);
 }
 
 .lyric-scroll-shell {
@@ -447,7 +518,7 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: linear-gradient(180deg, rgba(18, 24, 36, 0.74), rgba(14, 18, 28, 0.7));
-  min-height: 420px;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -467,10 +538,11 @@ onBeforeUnmount(() => {
 .lyric-scroll {
   position: relative;
   z-index: 2;
-  max-height: 500px;
-  min-height: 420px;
+  height: 100%;
+  max-height: 620px;
+  min-height: 440px;
   overflow-y: auto;
-  padding: 170px 24px;
+  padding: 180px 24px;
   display: grid;
   gap: 14px;
   scroll-behavior: smooth;
@@ -496,7 +568,7 @@ onBeforeUnmount(() => {
 }
 
 .lyric-row .line-main {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 600;
 }
 
@@ -539,15 +611,143 @@ onBeforeUnmount(() => {
   z-index: 4;
 }
 
-.lyric-time-fade-enter-active,
-.lyric-time-fade-leave-active {
-  transition: opacity 220ms ease, transform 260ms ease;
+.side-column {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 12px;
+  padding-top: 8px;
 }
 
-.lyric-time-fade-enter-from,
-.lyric-time-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-50%) scale(0.92);
+.side-toggle,
+.mode-pill {
+  min-height: 34px;
+  min-width: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(236, 243, 255, 0.94);
+  padding: 0 10px;
+}
+
+.mode-pill {
+  min-width: 76px;
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+}
+
+.side-caption,
+.side-order {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(186, 198, 224, 0.9);
+  text-align: center;
+}
+
+.lyric-mode-stack {
+  border-radius: 999px;
+  padding: 10px 8px;
+  display: grid;
+  gap: 8px;
+  background: rgba(18, 23, 35, 0.72);
+}
+
+.mode-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(230, 238, 255, 0.92);
+}
+
+.mode-btn.active {
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
+}
+
+.queue-panel {
+  --liquid-bg: rgba(18, 23, 35, 0.82);
+  --liquid-border: rgba(255, 255, 255, 0.18);
+  --liquid-shadow: 0 18px 30px rgba(5, 8, 16, 0.42);
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 0;
+  width: 280px;
+  max-height: 62vh;
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  z-index: 6;
+}
+
+.queue-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.queue-panel h4 {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(236, 243, 255, 0.94);
+}
+
+.queue-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(228, 236, 255, 0.9);
+}
+
+.queue-list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.queue-row {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(221, 230, 248, 0.9);
+  padding: 6px 8px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-row .queue-index {
+  opacity: 0.85;
+}
+
+.queue-row .queue-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.queue-row.active {
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+}
+
+.detail-footer {
+  padding-top: 2px;
+  display: grid;
+  gap: 10px;
 }
 
 .progress-row {
@@ -560,6 +760,13 @@ onBeforeUnmount(() => {
 .progress-row input {
   width: 100%;
   accent-color: rgb(var(--accent-strong-rgb));
+}
+
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
 }
 
 .ctrl-row {
@@ -579,15 +786,14 @@ onBeforeUnmount(() => {
 .ctrl-btn.primary {
   width: 54px;
   height: 54px;
-  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.92), rgba(var(--accent-soft-rgb), 0.88));
-  color: rgba(255, 255, 255, 0.96);
-  border-color: rgba(var(--accent-rgb), 0.62);
-  box-shadow:
-    0 0 0 1px rgba(var(--accent-rgb), 0.3),
-    0 10px 18px rgba(var(--accent-rgb), 0.24);
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
+  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
 
 .volume-row {
+  width: min(460px, 48vw);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
@@ -600,6 +806,21 @@ onBeforeUnmount(() => {
   accent-color: rgb(var(--accent-strong-rgb));
 }
 
+.side-pop-enter-active,
+.side-pop-leave-active,
+.lyric-time-fade-enter-active,
+.lyric-time-fade-leave-active {
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+.side-pop-enter-from,
+.side-pop-leave-to,
+.lyric-time-fade-enter-from,
+.lyric-time-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 @keyframes detail-vinyl-spin {
   from {
     transform: rotate(0deg);
@@ -609,17 +830,73 @@ onBeforeUnmount(() => {
   }
 }
 
+@media (max-width: 1220px) {
+  .detail-layout {
+    grid-template-columns: minmax(240px, 310px) minmax(0, 1fr) 74px;
+  }
+
+  .lyric-row .line-main {
+    font-size: 26px;
+  }
+
+  .lyric-row.active .line-main {
+    font-size: 30px;
+  }
+
+  .lyric-row .line-sub {
+    font-size: 21px;
+  }
+
+  .lyric-row.active .line-sub {
+    font-size: 24px;
+  }
+}
+
 @media (max-width: 980px) {
-  .detail-main {
+  .detail-layout {
     grid-template-columns: 1fr;
+  }
+
+  .vinyl-column,
+  .side-column {
+    order: 0;
+  }
+
+  .content-column {
+    order: 1;
   }
 
   .vinyl-stage {
     position: static;
+    padding-top: 20px;
+  }
+
+  .side-column {
+    grid-auto-flow: column;
+    justify-content: start;
+    justify-items: start;
+    gap: 10px;
+  }
+
+  .queue-panel {
+    left: 0;
+    right: auto;
+    top: calc(100% + 8px);
+    width: min(86vw, 360px);
   }
 
   .lyric-scroll {
     min-height: 360px;
+    max-height: 60vh;
+  }
+
+  .footer-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .volume-row {
+    width: 100%;
   }
 }
 
@@ -630,6 +907,8 @@ onBeforeUnmount(() => {
   }
 
   .lyric-row,
+  .side-pop-enter-active,
+  .side-pop-leave-active,
   .lyric-time-fade-enter-active,
   .lyric-time-fade-leave-active,
   .vinyl-arm {

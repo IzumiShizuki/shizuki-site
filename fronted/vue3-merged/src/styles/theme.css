@@ -21,4 +21,9 @@
     rgba(var(--accent-gradient-end-rgb), 1)
   );
   --accent-mode-fill: rgba(var(--accent-rgb), 0.24);
+  --accent-mode-fill-strong: rgba(var(--accent-rgb), 0.3);
+  --accent-mode-border: rgba(var(--accent-rgb), 0.42);
+  --accent-mode-shadow: 0 10px 22px rgba(var(--accent-rgb), 0.24);
+  --accent-mode-text: rgba(255, 255, 255, 0.96);
+  --accent-press-overlay: rgba(var(--accent-rgb), 0.14);
 }
