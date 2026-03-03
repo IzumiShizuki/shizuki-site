@@ -16,12 +16,12 @@
         <section v-if="showPlaylistResults" class="provider-block">
           <div class="provider-head">
             <h3>歌单</h3>
-            <span>{{ searchPlaylists.length }}</span>
+            <span>{{ visibleSearchPlaylists.length }}</span>
           </div>
-          <div v-if="!searchPlaylists.length" class="empty-state compact">暂无匹配歌单</div>
+          <div v-if="!visibleSearchPlaylists.length" class="empty-state compact">暂无匹配歌单</div>
           <div class="playlist-grid">
             <button
-              v-for="item in searchPlaylists"
+              v-for="item in visibleSearchPlaylists"
               :key="`search-playlist-${item.playlistCode}`"
               class="playlist-card ripple-trigger"
               :class="{ opening: openingPlaylistCode === item.playlistCode }"
@@ -35,13 +35,13 @@
               </div>
             </button>
           </div>
-          <footer v-if="searchType === 'all' && (music.searchHasMore.value?.playlists || music.searchSectionLoading.value?.playlists || music.searchSectionError.value?.playlists)" class="search-section-pager">
+          <footer v-if="showAllPlaylistPager" class="search-section-pager">
             <p v-if="music.searchSectionLoading.value?.playlists" class="pager-text">
               <i class="fas fa-spinner fa-spin"></i>
               加载更多歌单中...
             </p>
             <button
-              v-else-if="music.searchHasMore.value?.playlists"
+              v-else-if="playlistCanLoadMore"
               class="pager-load-btn ripple-trigger"
               type="button"
               @click="music.loadMoreMusicSearchSection('playlists')"
@@ -62,27 +62,28 @@
         <section v-if="showTrackResults" class="provider-block">
           <div class="provider-head">
             <h3>歌曲</h3>
-            <span>{{ searchTracks.length }}</span>
+            <span>{{ visibleSearchTracks.length }}</span>
           </div>
           <div class="table-head search-track-head">
             <span>#</span>
-            <span>封面</span>
             <span>标题</span>
             <span>歌手</span>
             <span>平台</span>
             <span>时长</span>
             <span>操作</span>
           </div>
-          <div v-if="!searchTracks.length" class="empty-state compact">暂无匹配歌曲</div>
+          <div v-if="!visibleSearchTracks.length" class="empty-state compact">暂无匹配歌曲</div>
           <article
-            v-for="(item, index) in searchTracks"
+            v-for="(item, index) in visibleSearchTracks"
             :key="`search-track-${item.trackId || item.id || index}`"
             class="table-row search-track-row ripple-trigger"
             @click="music.playSearchTrack(item, index)"
           >
             <span>{{ String(index + 1).padStart(2, '0') }}</span>
-            <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
-            <span class="title-col">{{ item.title || '未知标题' }}</span>
+            <span class="title-col track-title-col">
+              <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
+              <span class="track-title-text">{{ item.title || '未知标题' }}</span>
+            </span>
             <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
             <span>{{ item.provider || '-' }}</span>
             <span>{{ item.durationLabel || '--:--' }}</span>
@@ -105,13 +106,13 @@
               </button>
             </span>
           </article>
-          <footer v-if="searchType === 'all' && (music.searchHasMore.value?.tracks || music.searchSectionLoading.value?.tracks || music.searchSectionError.value?.tracks)" class="search-section-pager">
+          <footer v-if="showAllTrackPager" class="search-section-pager">
             <p v-if="music.searchSectionLoading.value?.tracks" class="pager-text">
               <i class="fas fa-spinner fa-spin"></i>
               加载更多歌曲中...
             </p>
             <button
-              v-else-if="music.searchHasMore.value?.tracks"
+              v-else-if="trackCanLoadMore"
               class="pager-load-btn ripple-trigger"
               type="button"
               @click="music.loadMoreMusicSearchSection('tracks')"
@@ -132,22 +133,22 @@
         <section v-if="showArtistResults" class="provider-block">
           <div class="provider-head">
             <h3>歌手</h3>
-            <span>{{ searchArtists.length }}</span>
+            <span>{{ visibleSearchArtists.length }}</span>
           </div>
-          <div v-if="!searchArtists.length" class="empty-state compact">暂无匹配歌手</div>
+          <div v-if="!visibleSearchArtists.length" class="empty-state compact">暂无匹配歌手</div>
           <div class="artist-grid">
-            <article v-for="item in searchArtists" :key="`search-artist-${item.name}`" class="artist-card">
+            <article v-for="item in visibleSearchArtists" :key="`search-artist-${item.name}`" class="artist-card">
               <p class="artist-name">{{ item.name }}</p>
               <p class="artist-meta">{{ item.hitCount }} 首 · {{ (item.providers || []).join(' / ') || '-' }}</p>
             </article>
           </div>
-          <footer v-if="searchType === 'all' && (music.searchHasMore.value?.artists || music.searchSectionLoading.value?.artists || music.searchSectionError.value?.artists)" class="search-section-pager">
+          <footer v-if="showAllArtistPager" class="search-section-pager">
             <p v-if="music.searchSectionLoading.value?.artists" class="pager-text">
               <i class="fas fa-spinner fa-spin"></i>
               加载更多歌手中...
             </p>
             <button
-              v-else-if="music.searchHasMore.value?.artists"
+              v-else-if="artistCanLoadMore"
               class="pager-load-btn ripple-trigger"
               type="button"
               @click="music.loadMoreMusicSearchSection('artists')"
@@ -379,6 +380,29 @@ const searchType = computed(() => String(music.ui.globalSearchType.value || 'all
 const searchPlaylists = computed(() => (Array.isArray(music.searchResult.value?.playlists) ? music.searchResult.value.playlists : []));
 const searchTracks = computed(() => (Array.isArray(music.searchResult.value?.tracks) ? music.searchResult.value.tracks : []));
 const searchArtists = computed(() => (Array.isArray(music.searchResult.value?.artists) ? music.searchResult.value.artists : []));
+const searchAllVisibleCount = computed(() => {
+  const raw = music.searchAllVisibleCount?.value || {};
+  return {
+    playlists: Number.isFinite(Number(raw.playlists)) ? Math.max(0, Number(raw.playlists)) : 4,
+    tracks: Number.isFinite(Number(raw.tracks)) ? Math.max(0, Number(raw.tracks)) : 10,
+    artists: Number.isFinite(Number(raw.artists)) ? Math.max(0, Number(raw.artists)) : 10
+  };
+});
+const visibleSearchPlaylists = computed(() => {
+  if (searchType.value !== 'all') return searchPlaylists.value;
+  return searchPlaylists.value.slice(0, searchAllVisibleCount.value.playlists);
+});
+const visibleSearchTracks = computed(() => {
+  if (searchType.value !== 'all') return searchTracks.value;
+  return searchTracks.value.slice(0, searchAllVisibleCount.value.tracks);
+});
+const visibleSearchArtists = computed(() => {
+  if (searchType.value !== 'all') return searchArtists.value;
+  return searchArtists.value.slice(0, searchAllVisibleCount.value.artists);
+});
+const hiddenPlaylistsCount = computed(() => Math.max(0, searchPlaylists.value.length - visibleSearchPlaylists.value.length));
+const hiddenTracksCount = computed(() => Math.max(0, searchTracks.value.length - visibleSearchTracks.value.length));
+const hiddenArtistsCount = computed(() => Math.max(0, searchArtists.value.length - visibleSearchArtists.value.length));
 const failedProvidersText = computed(() => {
   const list = Array.isArray(music.searchResult.value?.failedProviders) ? music.searchResult.value.failedProviders : [];
   return list.length ? list.join(' / ') : '-';
@@ -394,10 +418,28 @@ const showSearchPager = computed(() => {
   if (searchType.value === 'artist') return Boolean(hasMore.artists);
   return Boolean(hasMore.tracks);
 });
+const playlistCanLoadMore = computed(() => hiddenPlaylistsCount.value > 0 || Boolean(music.searchHasMore.value?.playlists));
+const trackCanLoadMore = computed(() => hiddenTracksCount.value > 0 || Boolean(music.searchHasMore.value?.tracks));
+const artistCanLoadMore = computed(() => hiddenArtistsCount.value > 0 || Boolean(music.searchHasMore.value?.artists));
+const showAllPlaylistPager = computed(
+  () =>
+    searchType.value === 'all' &&
+    (playlistCanLoadMore.value || Boolean(music.searchSectionLoading.value?.playlists) || Boolean(music.searchSectionError.value?.playlists))
+);
+const showAllTrackPager = computed(
+  () =>
+    searchType.value === 'all' &&
+    (trackCanLoadMore.value || Boolean(music.searchSectionLoading.value?.tracks) || Boolean(music.searchSectionError.value?.tracks))
+);
+const showAllArtistPager = computed(
+  () =>
+    searchType.value === 'all' &&
+    (artistCanLoadMore.value || Boolean(music.searchSectionLoading.value?.artists) || Boolean(music.searchSectionError.value?.artists))
+);
 const searchSummaryText = computed(() => {
-  const playlistCount = searchPlaylists.value.length;
-  const trackCount = searchTracks.value.length;
-  const artistCount = searchArtists.value.length;
+  const playlistCount = visibleSearchPlaylists.value.length;
+  const trackCount = visibleSearchTracks.value.length;
+  const artistCount = visibleSearchArtists.value.length;
   return `歌单 ${playlistCount} · 歌曲 ${trackCount} · 歌手 ${artistCount}`;
 });
 const displayErrorText = computed(() => {
@@ -660,7 +702,7 @@ onBeforeUnmount(() => {
 
 .search-track-head,
 .search-track-row {
-  grid-template-columns: 48px 52px minmax(0, 1.9fr) minmax(0, 1fr) 84px 72px 96px;
+  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 84px 72px 96px;
 }
 
 .track-cover {
@@ -675,6 +717,20 @@ onBeforeUnmount(() => {
 .track-cover.empty {
   background-image: linear-gradient(145deg, rgba(65, 74, 105, 0.54), rgba(33, 40, 64, 0.6));
   border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.track-title-col {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.track-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .row-actions {
@@ -852,7 +908,7 @@ onBeforeUnmount(() => {
 
   .search-track-head,
   .search-track-row {
-    grid-template-columns: 40px 44px minmax(0, 1.6fr) minmax(0, 0.9fr) 66px 58px 82px;
+    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) 66px 58px 82px;
     gap: 6px;
   }
 }

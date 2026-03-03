@@ -40,6 +40,7 @@ public class TuneHubMusicProvider {
     private static final Logger LOGGER = LoggerFactory.getLogger(TuneHubMusicProvider.class);
     private static final Set<String> SUPPORTED_PLATFORMS = Set.of("netease", "kuwo", "qq");
     private static final int MAX_TRACKS = 30;
+    private static final int MAX_VIRTUAL_PLAYLIST_TRACKS = 200;
     private static final int PARSE_BATCH_SIZE = 10;
 
     private final TuneHubMusicProperties properties;
@@ -213,7 +214,7 @@ public class TuneHubMusicProvider {
             if (!StringUtils.hasText(keyword)) {
                 return List.of();
             }
-            List<SearchTrackResult> searchRows = searchTracks(apiKey, normalizedPlatform, keyword, 1, MAX_TRACKS);
+            List<SearchTrackResult> searchRows = searchTracks(apiKey, normalizedPlatform, keyword, 1, MAX_VIRTUAL_PLAYLIST_TRACKS);
             List<MusicTrackResponse> result = new ArrayList<>();
             int sort = 1;
             for (SearchTrackResult item : searchRows) {
@@ -234,17 +235,20 @@ public class TuneHubMusicProvider {
                     ""
                 ));
                 sort += 1;
-                if (result.size() >= MAX_TRACKS) {
+                if (result.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
                     break;
                 }
             }
             return result;
         }
-        if (!"toplist".equals(normalizedType)) {
+        List<TrackSeed> seeds;
+        if ("toplist".equals(normalizedType)) {
+            seeds = loadToplistTracks(normalizedPlatform, sourceId, apiKey);
+        } else if ("playlist".equals(normalizedType)) {
+            seeds = loadPlaylistTracks(normalizedPlatform, sourceId, apiKey);
+        } else {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported virtual playlist type");
         }
-
-        List<TrackSeed> seeds = loadToplistTracks(normalizedPlatform, sourceId, apiKey);
         List<MusicTrackResponse> result = new ArrayList<>();
         int sort = 1;
         for (TrackSeed seed : seeds) {
@@ -265,7 +269,7 @@ public class TuneHubMusicProvider {
                 ""
             ));
             sort += 1;
-            if (result.size() >= MAX_TRACKS) {
+            if (result.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
                 break;
             }
         }
@@ -321,7 +325,117 @@ public class TuneHubMusicProvider {
                 "limit", safeLimit
             )
         );
-        return parseSearchTracks(normalizedPlatform, searchRaw, safeLimit);
+        List<SearchTrackResult> result = parseSearchTracks(normalizedPlatform, searchRaw, safeLimit);
+        if (!"netease".equals(normalizedPlatform)) {
+            return result;
+        }
+        return enrichNeteaseSearchCoverIfMissing(result);
+    }
+
+    /**
+     * 按平台执行真实歌单搜索（仅返回歌单摘要，不触发 parse）。
+     */
+    public List<VirtualPlaylistSummary> searchPlaylists(String apiKey,
+                                                        String platform,
+                                                        String keyword,
+                                                        int page,
+                                                        int limit) {
+        if (!StringUtils.hasText(apiKey)) {
+            return List.of();
+        }
+        String normalizedPlatform = normalizePlatformCode(platform);
+        if (!SUPPORTED_PLATFORMS.contains(normalizedPlatform)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported tunehub platform");
+        }
+        if ("qq".equals(normalizedPlatform)) {
+            return List.of();
+        }
+        String normalizedKeyword = readString(keyword, "");
+        if (!StringUtils.hasText(normalizedKeyword)) {
+            return List.of();
+        }
+        int safePage = Math.max(1, page);
+        int safeLimit = Math.max(1, Math.min(60, limit));
+        Map<String, Object> methodDefinition = readMethodDefinition(normalizedPlatform, "search", apiKey);
+        Map<String, Object> searchMethod = patchSearchMethodForPlaylist(normalizedPlatform, methodDefinition);
+        Map<String, Object> searchRaw = invokeMethod(
+            searchMethod,
+            Map.of(
+                "platform", normalizedPlatform,
+                "keyword", normalizedKeyword,
+                "page", safePage,
+                "limit", safeLimit
+            )
+        );
+        return parseSearchPlaylists(normalizedPlatform, searchRaw, safeLimit);
+    }
+
+    /**
+     * 读取虚拟歌单摘要，用于虚拟歌单详情页回填封面/描述。
+     */
+    public VirtualPlaylistSummary loadPlaylistSummary(String apiKey,
+                                                      String platform,
+                                                      String sourceType,
+                                                      String sourceId) {
+        if (!StringUtils.hasText(apiKey)) {
+            return null;
+        }
+        String normalizedPlatform = normalizePlatformCode(platform);
+        String normalizedType = readString(sourceType, "").toLowerCase(Locale.ROOT);
+        if (!SUPPORTED_PLATFORMS.contains(normalizedPlatform) || !StringUtils.hasText(sourceId)) {
+            return null;
+        }
+        if ("toplist".equals(normalizedType)) {
+            return listToplistPlaylists(apiKey, List.of(normalizedPlatform), 16).stream()
+                .filter(item ->
+                    normalizedPlatform.equals(item.platform())
+                        && normalizedType.equals(item.sourceType())
+                        && sourceId.equals(item.sourceId())
+                )
+                .findFirst()
+                .orElse(null);
+        }
+        if (!"playlist".equals(normalizedType)) {
+            return null;
+        }
+        try {
+            Map<String, Object> raw = loadPlaylistRaw(normalizedPlatform, sourceId, apiKey);
+            String name = "";
+            String description = "";
+            String cover = "";
+            if ("netease".equals(normalizedPlatform)) {
+                Map<String, Object> result = toStringObjectMap(raw.get("result"));
+                name = readString(result.get("name"), "");
+                description = readString(result.get("description"), "");
+                cover = readString(result.get("coverImgUrl"), "");
+            } else if ("kuwo".equals(normalizedPlatform)) {
+                name = readString(raw.get("title"), readString(raw.get("name"), ""));
+                description = readString(raw.get("info"), readString(raw.get("intro"), ""));
+                cover = readString(raw.get("pic"), readString(raw.get("hts_pic"), ""));
+            } else if ("qq".equals(normalizedPlatform)) {
+                Map<String, Object> cdlist = toObjectMapList(raw.get("cdlist")).stream().findFirst().orElse(Map.of());
+                name = readString(cdlist.get("dissname"), "");
+                description = readString(cdlist.get("desc"), "");
+                cover = readString(cdlist.get("logo"), "");
+            }
+            return new VirtualPlaylistSummary(
+                normalizedPlatform,
+                "playlist",
+                sourceId,
+                readString(name, normalizedPlatform.toUpperCase(Locale.ROOT) + " 歌单"),
+                description,
+                normalizeCoverUrl(normalizedPlatform, cover),
+                "vh_tunehub_" + normalizedPlatform + "_playlist_" + sourceId
+            );
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_TUNEHUB_LOAD_PLAYLIST_SUMMARY_FAIL platform={} sourceId={} reason={}",
+                normalizedPlatform,
+                sourceId,
+                sanitizeLogMessage(ex.getMessage())
+            );
+            return null;
+        }
     }
 
     /**
@@ -360,7 +474,9 @@ public class TuneHubMusicProvider {
             readString(row.artist(), ""),
             readString(row.cover(), ""),
             readString(row.audioUrl(), ""),
-            readString(row.lyricText(), "")
+            readString(row.lyricText(), ""),
+            readString(row.translationLyricText(), ""),
+            readString(row.furiganaLyricText(), "")
         );
     }
 
@@ -408,6 +524,19 @@ public class TuneHubMusicProvider {
         Map<String, Object> toplistMethod = readMethodDefinition(platform, "toplist", apiKey);
         Map<String, Object> toplistRaw = invokeMethod(toplistMethod, Map.of("platform", platform, "id", toplistId));
         return parseToplistTracks(platform, toplistRaw);
+    }
+
+    private List<TrackSeed> loadPlaylistTracks(String platform, String playlistId, String apiKey) {
+        Map<String, Object> raw = loadPlaylistRaw(platform, playlistId, apiKey);
+        if ("qq".equals(platform)) {
+            return parseQqPlaylistTracks(raw);
+        }
+        return parseToplistTracks(platform, raw);
+    }
+
+    private Map<String, Object> loadPlaylistRaw(String platform, String playlistId, String apiKey) {
+        Map<String, Object> playlistMethod = readMethodDefinition(platform, "playlist", apiKey);
+        return invokeMethod(playlistMethod, Map.of("platform", platform, "id", playlistId));
     }
 
     private Map<String, Object> readMethodDefinition(String platform, String method, String apiKey) {
@@ -534,7 +663,9 @@ public class TuneHubMusicProvider {
                 String artist = readString(info.get("artist"), "");
                 String cover = readParseCover(platform, row, info);
                 String lyricText = readParseLyricText(row, info);
-                result.put(id, new ParseTrack(id, title, artist, cover, url, lyricText));
+                String translationLyricText = readParseTranslationLyricText(row, info);
+                String furiganaLyricText = readParseFuriganaLyricText(row, info);
+                result.put(id, new ParseTrack(id, title, artist, cover, url, lyricText, translationLyricText, furiganaLyricText));
             }
         }
         return result;
@@ -556,21 +687,9 @@ public class TuneHubMusicProvider {
     }
 
     private String readParseLyricText(Map<String, Object> row, Map<String, Object> info) {
-        String lyricText = resolveLyricTextCandidate(readString(row.get("lyrics"), ""));
-        if (!StringUtils.hasText(lyricText)) {
-            lyricText = resolveLyricTextCandidate(readString(row.get("lyric"), ""));
-        }
-        if (!StringUtils.hasText(lyricText)) {
-            lyricText = resolveLyricTextCandidate(readString(row.get("lrc"), ""));
-        }
-        if (!StringUtils.hasText(lyricText)) {
-            lyricText = resolveLyricTextCandidate(readString(row.get("lyricText"), ""));
-        }
-        if (!StringUtils.hasText(lyricText)) {
-            lyricText = resolveLyricTextCandidate(readString(row.get("klyric"), ""));
-        }
-        if (!StringUtils.hasText(lyricText)) {
-            Map<String, Object> lyricObj = toStringObjectMap(row.get("lyric"));
+        String lyricText = "";
+        Map<String, Object> lyricObj = toStringObjectMap(row.get("lyric"));
+        if (!lyricObj.isEmpty()) {
             lyricText = resolveLyricTextCandidate(readString(lyricObj.get("lyric"), ""));
             if (!StringUtils.hasText(lyricText)) {
                 lyricText = resolveLyricTextCandidate(readString(lyricObj.get("lrc"), ""));
@@ -590,6 +709,21 @@ public class TuneHubMusicProvider {
             }
         }
         if (!StringUtils.hasText(lyricText)) {
+            lyricText = resolveLyricTextCandidate(readString(row.get("lyrics"), ""));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = resolveLyricTextCandidate(readString(row.get("lyric"), ""));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = resolveLyricTextCandidate(readString(row.get("lrc"), ""));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = resolveLyricTextCandidate(readString(row.get("lyricText"), ""));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = resolveLyricTextCandidate(readString(row.get("klyric"), ""));
+        }
+        if (!StringUtils.hasText(lyricText)) {
             lyricText = resolveLyricTextCandidate(readString(info.get("lyric"), ""));
             if (!StringUtils.hasText(lyricText)) {
                 lyricText = resolveLyricTextCandidate(readString(info.get("lyrics"), ""));
@@ -602,6 +736,78 @@ public class TuneHubMusicProvider {
             lyricText = resolveLyricTextCandidate(readString(row.get("lyricUrl"), ""));
         }
         return normalizeLyricText(lyricText);
+    }
+
+    private String readParseTranslationLyricText(Map<String, Object> row, Map<String, Object> info) {
+        String lyricText = "";
+        lyricText = readLyricCandidateFromObject(row.get("translation"));
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("trans"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("tlyric"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("lyric_translation"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("translationLyric"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(info.get("translation"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(info.get("tlyric"));
+        }
+        return normalizeLyricText(lyricText);
+    }
+
+    private String readParseFuriganaLyricText(Map<String, Object> row, Map<String, Object> info) {
+        String lyricText = "";
+        lyricText = readLyricCandidateFromObject(row.get("furigana"));
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("furiganaLyric"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("romaji"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("roma"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(row.get("klyric"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(info.get("furigana"));
+        }
+        if (!StringUtils.hasText(lyricText)) {
+            lyricText = readLyricCandidateFromObject(info.get("romaji"));
+        }
+        return normalizeLyricText(lyricText);
+    }
+
+    private String readLyricCandidateFromObject(Object raw) {
+        if (raw == null) {
+            return "";
+        }
+        if (raw instanceof Map<?, ?> mapRaw) {
+            Map<String, Object> map = toStringObjectMap(mapRaw);
+            String lyric = resolveLyricTextCandidate(readString(map.get("lyric"), ""));
+            if (!StringUtils.hasText(lyric)) {
+                lyric = resolveLyricTextCandidate(readString(map.get("lrc"), ""));
+            }
+            if (!StringUtils.hasText(lyric)) {
+                lyric = resolveLyricTextCandidate(readString(map.get("content"), ""));
+            }
+            if (!StringUtils.hasText(lyric)) {
+                lyric = resolveLyricTextCandidate(readString(map.get("url"), ""));
+            }
+            if (!StringUtils.hasText(lyric)) {
+                lyric = resolveLyricTextCandidate(readString(map.get("text"), ""));
+            }
+            return lyric;
+        }
+        return resolveLyricTextCandidate(String.valueOf(raw));
     }
 
     private String resolveLyricTextCandidate(String raw) {
@@ -813,6 +1019,128 @@ public class TuneHubMusicProvider {
         return result;
     }
 
+    private List<VirtualPlaylistSummary> parseSearchPlaylists(String platform, Map<String, Object> raw, int limit) {
+        List<Map<String, Object>> rows = extractSearchPlaylistRows(platform, raw);
+        List<VirtualPlaylistSummary> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+
+        for (Map<String, Object> row : rows) {
+            String sourceId = resolveSearchPlaylistId(platform, row);
+            if (!StringUtils.hasText(sourceId) || !seen.add(sourceId)) {
+                continue;
+            }
+            String name = readSearchPlaylistName(row);
+            String description = readSearchPlaylistDescription(row);
+            String cover = readSearchPlaylistCover(platform, row);
+            result.add(new VirtualPlaylistSummary(
+                platform,
+                "playlist",
+                sourceId,
+                readString(name, resolvePlatformDisplayName(platform) + " 歌单"),
+                description,
+                cover,
+                "vh_tunehub_" + platform + "_playlist_" + sourceId
+            ));
+            if (result.size() >= limit) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private List<SearchTrackResult> enrichNeteaseSearchCoverIfMissing(List<SearchTrackResult> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        List<String> missingTrackIds = new ArrayList<>();
+        for (SearchTrackResult item : rows) {
+            if (!StringUtils.hasText(readString(item.cover(), "")) && StringUtils.hasText(readString(item.trackId(), ""))) {
+                missingTrackIds.add(readString(item.trackId(), ""));
+            }
+        }
+        if (missingTrackIds.isEmpty()) {
+            return rows;
+        }
+        Map<String, String> coverMap;
+        try {
+            coverMap = fetchNeteaseTrackCovers(missingTrackIds);
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_TUNEHUB_SEARCH_COVER_ENRICH_FAIL provider=netease reason={}",
+                sanitizeLogMessage(ex.getMessage())
+            );
+            return rows;
+        }
+        if (coverMap.isEmpty()) {
+            return rows;
+        }
+        List<SearchTrackResult> result = new ArrayList<>(rows.size());
+        for (SearchTrackResult item : rows) {
+            String cover = readString(item.cover(), "");
+            if (!StringUtils.hasText(cover)) {
+                cover = readString(coverMap.get(item.trackId()), "");
+            }
+            result.add(new SearchTrackResult(
+                item.trackId(),
+                item.title(),
+                item.artist(),
+                item.album(),
+                cover,
+                item.durationSec(),
+                item.provider()
+            ));
+        }
+        return result;
+    }
+
+    private Map<String, String> fetchNeteaseTrackCovers(List<String> trackIds) {
+        if (trackIds == null || trackIds.isEmpty()) {
+            return Map.of();
+        }
+        List<String> normalizedIds = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (String trackId : trackIds) {
+            String normalized = readString(trackId, "");
+            if (!StringUtils.hasText(normalized) || !seen.add(normalized)) {
+                continue;
+            }
+            normalizedIds.add(normalized);
+            if (normalizedIds.size() >= 60) {
+                break;
+            }
+        }
+        if (normalizedIds.isEmpty()) {
+            return Map.of();
+        }
+        String idsParam = "["
+            + normalizedIds.stream().map(id -> "\"" + id + "\"").reduce((left, right) -> left + "," + right).orElse("")
+            + "]";
+        Map<String, Object> payload = requestJson(
+            "GET",
+            "https://music.163.com/api/song/detail",
+            Map.of("ids", idsParam),
+            Map.of(
+                "Referer", "https://music.163.com/",
+                "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            ),
+            null
+        );
+        List<Map<String, Object>> songs = toObjectMapList(payload.get("songs"));
+        Map<String, String> coverMap = new LinkedHashMap<>();
+        for (Map<String, Object> song : songs) {
+            String id = readString(song.get("id"), "");
+            if (!StringUtils.hasText(id)) {
+                continue;
+            }
+            Map<String, Object> album = toStringObjectMap(song.get("album"));
+            String cover = normalizeCoverUrl("netease", readString(album.get("picUrl"), ""));
+            if (StringUtils.hasText(cover)) {
+                coverMap.put(id, cover);
+            }
+        }
+        return coverMap;
+    }
+
     private String resolveSearchTrackId(String platform, Map<String, Object> row) {
         String normalizedPlatform = normalizePlatformCode(platform);
         if ("kuwo".equals(normalizedPlatform)) {
@@ -905,6 +1233,106 @@ public class TuneHubMusicProvider {
             rows = toObjectMapList(song.get("list"));
         }
         return rows;
+    }
+
+    private List<Map<String, Object>> extractSearchPlaylistRows(String platform, Map<String, Object> raw) {
+        if ("netease".equals(platform)) {
+            Map<String, Object> result = toStringObjectMap(raw.get("result"));
+            return toObjectMapList(result.get("playlists"));
+        }
+        if ("kuwo".equals(platform)) {
+            return toObjectMapList(raw.get("abslist"));
+        }
+        return List.of();
+    }
+
+    private String resolveSearchPlaylistId(String platform, Map<String, Object> row) {
+        if ("netease".equals(platform)) {
+            return firstValidTrackId(
+                readString(row.get("id"), ""),
+                readString(row.get("playlistId"), "")
+            );
+        }
+        if ("kuwo".equals(platform)) {
+            return firstValidTrackId(
+                readString(row.get("playlistid"), ""),
+                readString(row.get("DC_TARGETID"), ""),
+                readString(row.get("id"), "")
+            );
+        }
+        return "";
+    }
+
+    private String readSearchPlaylistName(Map<String, Object> row) {
+        return readString(row.get("name"), readString(row.get("title"), ""));
+    }
+
+    private String readSearchPlaylistDescription(Map<String, Object> row) {
+        String description = readString(row.get("description"), "");
+        if (!StringUtils.hasText(description)) {
+            description = readString(row.get("intro"), "");
+        }
+        if (!StringUtils.hasText(description)) {
+            description = readString(row.get("desc"), "");
+        }
+        return description;
+    }
+
+    private String readSearchPlaylistCover(String platform, Map<String, Object> row) {
+        String cover = readString(row.get("coverImgUrl"), "");
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("pic"), "");
+        }
+        if (!StringUtils.hasText(cover)) {
+            cover = readString(row.get("hts_pic"), "");
+        }
+        return normalizeCoverUrl(platform, cover);
+    }
+
+    private String resolvePlatformDisplayName(String platform) {
+        return switch (normalizePlatformCode(platform)) {
+            case "netease" -> "网易云";
+            case "kuwo" -> "酷我";
+            case "qq" -> "QQ音乐";
+            default -> readString(platform, "").toUpperCase(Locale.ROOT);
+        };
+    }
+
+    private List<TrackSeed> parseQqPlaylistTracks(Map<String, Object> raw) {
+        List<TrackSeed> result = new ArrayList<>();
+        Map<String, Object> cd = toObjectMapList(raw.get("cdlist")).stream().findFirst().orElse(Map.of());
+        List<Map<String, Object>> songList = toObjectMapList(cd.get("songlist"));
+        for (Map<String, Object> item : songList) {
+            String id = firstValidTrackId(
+                readString(item.get("songmid"), ""),
+                readString(item.get("mid"), ""),
+                readString(item.get("id"), "")
+            );
+            if (!StringUtils.hasText(id)) {
+                continue;
+            }
+            String title = readString(item.get("songname"), readString(item.get("name"), ""));
+            String artist = joinNames(toObjectMapList(item.get("singer")), "name");
+            String cover = "";
+            String albumMid = readString(item.get("albummid"), "");
+            if (StringUtils.hasText(albumMid)) {
+                cover = "https://y.gtimg.cn/music/photo_new/T002R300x300M000" + albumMid + ".jpg";
+            }
+            result.add(new TrackSeed(id, title, artist, cover));
+        }
+        return result;
+    }
+
+    private Map<String, Object> patchSearchMethodForPlaylist(String platform, Map<String, Object> methodDefinition) {
+        Map<String, Object> next = new LinkedHashMap<>(methodDefinition == null ? Map.of() : methodDefinition);
+        Map<String, Object> params = new LinkedHashMap<>(toStringObjectMap(next.get("params")));
+        if ("netease".equals(platform)) {
+            params.put("type", "1000");
+        } else if ("kuwo".equals(platform)) {
+            params.put("ft", "playlist");
+        }
+        next.put("params", params);
+        return next;
     }
 
     private String readTrackTitle(Map<String, Object> row) {
@@ -1058,8 +1486,11 @@ public class TuneHubMusicProvider {
             if (normalized.startsWith("star/") || normalized.startsWith("starheads/")) {
                 return "https://img4.kuwo.cn/" + normalized;
             }
+            if (normalized.startsWith("albumcover/")) {
+                return "https://img4.kuwo.cn/star/" + normalized;
+            }
             if (normalized.contains("/") && !normalized.startsWith("http")) {
-                return "https://img4.kuwo.cn/star/albumcover/500/" + normalized;
+                return "https://img4.kuwo.cn/star/albumcover/" + normalized;
             }
         }
         if (cover.startsWith("/")) {
@@ -1551,7 +1982,9 @@ public class TuneHubMusicProvider {
                                    String artist,
                                    String cover,
                                    String audioUrl,
-                                   String lyricText) {
+                                   String lyricText,
+                                   String translationLyricText,
+                                   String furiganaLyricText) {
     }
 
     public record SearchTrackResult(String trackId,
@@ -1569,6 +2002,13 @@ public class TuneHubMusicProvider {
     private record TrackSeed(String id, String title, String artist, String cover) {
     }
 
-    private record ParseTrack(String id, String title, String artist, String cover, String audioUrl, String lyricText) {
+    private record ParseTrack(String id,
+                              String title,
+                              String artist,
+                              String cover,
+                              String audioUrl,
+                              String lyricText,
+                              String translationLyricText,
+                              String furiganaLyricText) {
     }
 }

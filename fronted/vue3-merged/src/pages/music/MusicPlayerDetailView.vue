@@ -9,18 +9,71 @@
     </header>
 
     <div class="detail-main">
-      <div class="album-cover" :style="coverStyle"></div>
+      <section class="vinyl-stage">
+        <div class="vinyl-arm" :class="{ playing: music.player.isPlaying.value }"></div>
+        <div class="vinyl-disc" :class="{ spinning: music.player.isPlaying.value }">
+          <div class="vinyl-cover" :style="coverStyle"></div>
+        </div>
+      </section>
 
-      <section class="meta-block">
-        <h1>{{ track?.title || '暂无播放曲目' }}</h1>
-        <p>{{ track?.artist || '未知歌手' }}</p>
+      <section class="detail-right">
+        <header class="track-meta">
+          <h1>{{ track?.title || '暂无播放曲目' }}</h1>
+          <p class="sub">{{ track?.artist || '未知歌手' }}</p>
+        </header>
 
-        <div class="action-row">
-          <button class="action-btn ripple-trigger" type="button" @click="toggleLikeCurrent">
-            <i class="fas" :class="isLikedCurrent ? 'fa-heart liked' : 'fa-heart-crack'"></i>
-            {{ isLikedCurrent ? '已喜欢' : '加入我喜欢' }}
+        <div class="lyric-mode-row">
+          <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original' }" type="button" @click="setLyricMode('original')">
+            原文
+          </button>
+          <button
+            class="mode-btn ripple-trigger"
+            :class="{ active: lyricMode === 'original_translation' }"
+            type="button"
+            @click="setLyricMode('original_translation')"
+          >
+            原文+翻译
+          </button>
+          <button
+            class="mode-btn ripple-trigger"
+            :class="{ active: lyricMode === 'original_furigana' }"
+            type="button"
+            @click="setLyricMode('original_furigana')"
+          >
+            原文+注音
           </button>
         </div>
+
+        <section class="lyric-scroll-shell">
+          <div class="lyric-center-guide" aria-hidden="true"></div>
+
+          <div class="lyric-scroll" ref="lyricListRef" @scroll.passive="handleLyricScroll">
+            <button
+              v-for="(row, index) in renderedRows"
+              :key="`lyric-row-${index}-${row.time}`"
+              :ref="(el) => setLyricRowRef(el, index)"
+              class="lyric-row ripple-trigger"
+              :class="{ active: index === activeLyricIndex }"
+              type="button"
+              @click="seekToLyricRow(row.time)"
+            >
+              <p class="line-main">{{ row.main || '...' }}</p>
+              <p class="line-sub">{{ row.sub || '' }}</p>
+            </button>
+          </div>
+
+          <transition name="lyric-time-fade">
+            <button
+              v-if="centerTimeVisible"
+              class="center-time-pill ripple-trigger"
+              type="button"
+              @click="seekToCenterLyric"
+            >
+              <i class="fas fa-play"></i>
+              {{ centerTimeText }}
+            </button>
+          </transition>
+        </section>
 
         <div class="progress-row">
           <span>{{ playedText }}</span>
@@ -40,73 +93,81 @@
           </button>
         </div>
 
-        <div class="lyric-panel">
-          <transition name="lyric-detail-soft" mode="out-in">
-            <div :key="lyricTransitionKey" class="lyric-stack">
-              <p class="prev">{{ lyricDisplay.prev }}</p>
-              <p class="current">{{ lyricDisplay.current }}</p>
-              <p class="next">{{ lyricDisplay.next }}</p>
-            </div>
-          </transition>
-        </div>
-
         <div class="volume-row">
           <i class="fas fa-volume-low"></i>
           <input type="range" min="0" max="100" :value="Math.round(volume * 100)" @input="onVolume" />
           <span>{{ Math.round(volume * 100) }}%</span>
         </div>
-
-        <section class="queue-panel">
-          <header class="queue-head">
-            <h3>当前播放列表</h3>
-            <span>{{ tracks.length }} 首</span>
-          </header>
-          <div class="queue-list">
-            <button
-              v-for="(item, index) in tracks"
-              :key="`detail-queue-${item.id || index}`"
-              class="queue-row ripple-trigger"
-              :class="{ active: (item.id || '') === (track?.id || '') }"
-              type="button"
-              @click="music.player.selectTrackByIndex(index, true)"
-            >
-              <span class="queue-index">{{ String(index + 1).padStart(2, '0') }}</span>
-              <span class="queue-title">{{ item.title || '未知标题' }}</span>
-              <span class="queue-time">{{ item.durationLabel || '--:--' }}</span>
-            </button>
-          </div>
-        </section>
       </section>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import { safeCssUrl } from '../../utils/url';
 
 const music = useMusicLibraryContext();
 
 const track = computed(() => music.player.currentTrack.value);
-const lyricContext = computed(() => music.player.lyricContext.value || { prev: '', current: '', next: '' });
-const lyricLine = computed(() => music.player.currentLyricLine.value || '');
 const volume = computed(() => Number(music.player.volume.value || 0));
-const tracks = computed(() => (Array.isArray(music.player.tracks.value) ? music.player.tracks.value : []));
-const lyricDisplay = computed(() => {
-  const raw = lyricContext.value || {};
-  const current = String(raw.current || lyricLine.value || '').trim() || '纯音乐，无歌词';
-  return {
-    prev: String(raw.prev || '').trim(),
-    current,
-    next: String(raw.next || '').trim()
-  };
-});
-const lyricTransitionKey = computed(() => `${lyricDisplay.value.prev}|${lyricDisplay.value.current}|${lyricDisplay.value.next}`);
-const isLikedCurrent = computed(() => {
-  const id = String(track.value?.trackId || track.value?.id || '').trim();
-  if (!id) return false;
-  return Boolean(music.isTrackLiked(id));
+const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
+const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
+const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
+
+const lyricListRef = ref(null);
+const lyricRowRefs = ref([]);
+const centerTimeVisible = ref(false);
+const centerTimeText = ref('00:00');
+const centerLyricTime = ref(0);
+
+let centerTimeHideTimer = 0;
+let autoFollowSuspendUntil = 0;
+
+const renderedRows = computed(() => {
+  const rows = lyricTimeline.value;
+  if (!rows.length) {
+    const fallback = String(track.value?.lyricText || '').trim();
+    if (!fallback) {
+      return [{ time: 0, main: '纯音乐，无歌词', sub: '' }];
+    }
+    const lines = fallback
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 180);
+    if (!lines.length) {
+      return [{ time: 0, main: '纯音乐，无歌词', sub: '' }];
+    }
+    return lines.map((line, idx) => ({
+      time: idx * 4,
+      main: line,
+      sub: lines[idx + 1] || ''
+    }));
+  }
+
+  return rows.map((item, idx) => {
+    const main = String(item?.original || '').trim() || '...';
+    const nextOriginal = String(rows[idx + 1]?.original || '').trim();
+    const translation = String(item?.translation || '').trim();
+    const furigana = String(item?.furigana || '').trim();
+
+    let sub = '';
+    if (lyricMode.value === 'original_translation') {
+      sub = translation || nextOriginal;
+    } else if (lyricMode.value === 'original_furigana') {
+      sub = furigana || translation || nextOriginal;
+    } else {
+      sub = nextOriginal;
+    }
+
+    return {
+      time: Number(item?.time || 0),
+      main,
+      sub
+    };
+  });
 });
 
 const coverStyle = computed(() => {
@@ -118,17 +179,17 @@ const coverStyle = computed(() => {
 });
 
 const progress = computed(() => {
-  const duration = Number(music.player.duration.value || 0);
+  const total = Number(music.player.duration.value || 0);
   const current = Number(music.player.currentTime.value || 0);
-  if (!Number.isFinite(duration) || duration <= 0) return 0;
-  return Math.max(0, Math.min(1, current / duration));
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, Math.min(1, current / total));
 });
 
 const playedText = computed(() => formatTime(music.player.currentTime.value));
 const remainText = computed(() => {
-  const duration = Number(music.player.duration.value || 0);
+  const total = Number(music.player.duration.value || 0);
   const current = Number(music.player.currentTime.value || 0);
-  return formatTime(Math.max(0, duration - current));
+  return formatTime(Math.max(0, total - current));
 });
 
 function formatTime(sec) {
@@ -148,15 +209,105 @@ function onVolume(event) {
   music.player.setVolume(Math.max(0, Math.min(1, raw / 100)));
 }
 
-function toggleLikeCurrent() {
-  if (!track.value) return;
-  music.toggleTrackLike(track.value);
+function setLyricMode(mode) {
+  music.player.setLyricRenderMode?.(mode);
 }
+
+function setLyricRowRef(el, index) {
+  if (!el) return;
+  lyricRowRefs.value[index] = el;
+}
+
+function seekToLyricRow(time) {
+  const target = Number(time);
+  if (!Number.isFinite(target) || target < 0) return;
+  music.player.seekToTime?.(target);
+}
+
+function seekToCenterLyric() {
+  seekToLyricRow(centerLyricTime.value);
+}
+
+function revealCenterTime(time) {
+  centerLyricTime.value = Number.isFinite(Number(time)) ? Number(time) : 0;
+  centerTimeText.value = formatTime(centerLyricTime.value);
+  centerTimeVisible.value = true;
+  if (centerTimeHideTimer) {
+    window.clearTimeout(centerTimeHideTimer);
+  }
+  centerTimeHideTimer = window.setTimeout(() => {
+    centerTimeVisible.value = false;
+    centerTimeHideTimer = 0;
+  }, 1400);
+}
+
+function handleLyricScroll() {
+  const container = lyricListRef.value;
+  if (!container) return;
+  autoFollowSuspendUntil = Date.now() + 1800;
+
+  const centerY = container.scrollTop + container.clientHeight / 2;
+  let nearestIndex = -1;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < lyricRowRefs.value.length; i += 1) {
+    const rowEl = lyricRowRefs.value[i];
+    if (!rowEl) continue;
+    const rowCenter = rowEl.offsetTop + rowEl.offsetHeight / 2;
+    const distance = Math.abs(rowCenter - centerY);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = i;
+    }
+  }
+
+  if (nearestIndex >= 0) {
+    revealCenterTime(renderedRows.value[nearestIndex]?.time || 0);
+  }
+}
+
+function scrollToLyricIndex(index, behavior = 'smooth') {
+  const container = lyricListRef.value;
+  const rowEl = lyricRowRefs.value[index];
+  if (!container || !rowEl) return;
+  const targetTop = rowEl.offsetTop - container.clientHeight / 2 + rowEl.offsetHeight / 2;
+  container.scrollTo({ top: Math.max(0, targetTop), behavior });
+}
+
+watch(
+  () => renderedRows.value.length,
+  async () => {
+    lyricRowRefs.value = [];
+    await nextTick();
+    const idx = activeLyricIndex.value;
+    if (idx >= 0) {
+      scrollToLyricIndex(idx, 'auto');
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => activeLyricIndex.value,
+  async (nextIndex) => {
+    if (nextIndex < 0) return;
+    if (Date.now() < autoFollowSuspendUntil) return;
+    await nextTick();
+    scrollToLyricIndex(nextIndex, 'smooth');
+  }
+);
+
+onBeforeUnmount(() => {
+  if (centerTimeHideTimer) {
+    window.clearTimeout(centerTimeHideTimer);
+    centerTimeHideTimer = 0;
+  }
+});
 </script>
 
 <style scoped>
 .music-player-detail-view {
-  --liquid-bg: linear-gradient(160deg, rgba(16, 20, 29, 0.9), rgba(9, 12, 21, 0.86));
+  --liquid-bg: linear-gradient(160deg, rgba(16, 20, 29, 0.92), rgba(9, 12, 21, 0.9));
   --liquid-border: rgba(255, 255, 255, 0.18);
   --liquid-shadow: 0 22px 44px rgba(6, 10, 18, 0.42);
   min-height: 100%;
@@ -164,7 +315,7 @@ function toggleLikeCurrent() {
   padding: 16px;
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 14px;
 }
 
 .detail-head {
@@ -194,53 +345,209 @@ function toggleLikeCurrent() {
 .detail-main {
   display: grid;
   grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
-  gap: 20px;
+  gap: 22px;
   align-items: start;
 }
 
-.album-cover {
-  width: 100%;
+.vinyl-stage {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  place-items: center;
+  padding-top: 36px;
+}
+
+.vinyl-arm {
+  position: absolute;
+  top: 2px;
+  width: 190px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(248, 249, 252, 0.92), rgba(229, 236, 248, 0.8));
+  transform-origin: 8% 50%;
+  transform: rotate(-22deg);
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.vinyl-arm.playing {
+  transform: rotate(-8deg);
+}
+
+.vinyl-disc {
+  width: min(86vw, 420px);
   aspect-ratio: 1 / 1;
-  border-radius: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(34, 40, 58, 0.24) 0 38%, rgba(7, 10, 18, 0.95) 39% 62%, rgba(36, 43, 63, 0.38) 63% 100%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(236, 243, 255, 0.03) 0 2px, rgba(0, 0, 0, 0.03) 2px 4px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 22px 42px rgba(5, 8, 14, 0.48);
+}
+
+.vinyl-disc.spinning {
+  animation: detail-vinyl-spin 16s linear infinite;
+}
+
+.vinyl-cover {
+  width: 62%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
   background-size: cover;
   background-position: center;
-  box-shadow: 0 20px 42px rgba(4, 8, 14, 0.45);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 10px 20px rgba(7, 10, 18, 0.32);
 }
 
-.meta-block {
+.detail-right {
+  min-width: 0;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
-.meta-block h1 {
+.track-meta h1 {
   margin: 0;
-  font-size: clamp(28px, 3.2vw, 44px);
+  font-size: clamp(30px, 3vw, 44px);
   color: rgba(246, 249, 255, 0.97);
 }
 
-.meta-block p {
-  margin: 0;
+.track-meta .sub {
+  margin: 4px 0 0;
   color: rgba(189, 201, 226, 0.87);
 }
 
-.action-row {
-  display: flex;
+.lyric-mode-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.action-btn {
-  min-height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(236, 242, 255, 0.94);
+.mode-btn {
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(226, 235, 252, 0.9);
   padding: 0 12px;
+  font-size: 12px;
+}
+
+.mode-btn.active {
+  border-color: rgba(var(--accent-rgb), 0.7);
+  background: rgba(var(--accent-rgb), 0.24);
+  color: rgba(250, 252, 255, 0.98);
+}
+
+.lyric-scroll-shell {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(18, 24, 36, 0.74), rgba(14, 18, 28, 0.7));
+  min-height: 420px;
+  overflow: hidden;
+}
+
+.lyric-center-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 52px;
+  transform: translateY(-50%);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.lyric-scroll {
+  position: relative;
+  z-index: 2;
+  max-height: 500px;
+  min-height: 420px;
+  overflow-y: auto;
+  padding: 170px 24px;
+  display: grid;
+  gap: 14px;
+  scroll-behavior: smooth;
+}
+
+.lyric-row {
+  border: 0;
+  background: transparent;
+  color: rgba(188, 199, 220, 0.88);
+  text-align: left;
+  padding: 8px 2px;
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms ease,
+    color 300ms ease,
+    text-shadow 300ms ease;
+}
+
+.lyric-row .line-main,
+.lyric-row .line-sub {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.lyric-row .line-main {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.lyric-row .line-sub {
+  margin-top: 2px;
+  font-size: 24px;
+  color: rgba(168, 182, 208, 0.82);
+}
+
+.lyric-row.active {
+  transform: translateY(-8px);
+  color: rgba(248, 251, 255, 0.99);
+  text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.25);
+}
+
+.lyric-row.active .line-main {
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.lyric-row.active .line-sub {
+  font-size: 28px;
+  color: rgba(232, 240, 255, 0.95);
+}
+
+.center-time-pill {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(31, 37, 54, 0.92);
+  color: rgba(236, 243, 255, 0.94);
+  min-height: 30px;
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  z-index: 4;
 }
 
-.action-btn .liked {
-  color: rgb(var(--accent-strong-rgb));
+.lyric-time-fade-enter-active,
+.lyric-time-fade-leave-active {
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+.lyric-time-fade-enter-from,
+.lyric-time-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-50%) scale(0.92);
 }
 
 .progress-row {
@@ -280,63 +587,6 @@ function toggleLikeCurrent() {
     0 10px 18px rgba(var(--accent-rgb), 0.24);
 }
 
-.lyric-panel {
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 12px;
-  overflow: hidden;
-}
-
-.lyric-stack {
-  display: grid;
-  gap: 8px;
-}
-
-.lyric-panel p {
-  margin: 0;
-  text-align: center;
-  transition: opacity 300ms ease, transform 340ms ease, filter 300ms ease;
-}
-
-.lyric-panel .current {
-  font-size: 18px;
-  font-weight: 700;
-  color: rgba(245, 250, 255, 0.97);
-  text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.22);
-}
-
-.lyric-panel .prev,
-.lyric-panel .next {
-  color: rgba(177, 189, 214, 0.86);
-  opacity: 0.7;
-  filter: blur(0.25px);
-}
-
-.lyric-detail-soft-enter-active,
-.lyric-detail-soft-leave-active {
-  transition: opacity 320ms ease, transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 320ms ease;
-}
-
-.lyric-detail-soft-enter-from {
-  opacity: 0;
-  transform: translateY(12px) scale(0.985);
-  filter: blur(4px);
-}
-
-.lyric-detail-soft-leave-to {
-  opacity: 0;
-  transform: translateY(-10px) scale(0.99);
-  filter: blur(4px);
-}
-
-.lyric-detail-soft-enter-to,
-.lyric-detail-soft-leave-from {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  filter: blur(0);
-}
-
 .volume-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -350,75 +600,13 @@ function toggleLikeCurrent() {
   accent-color: rgb(var(--accent-strong-rgb));
 }
 
-.queue-panel {
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-}
-
-.queue-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.queue-head h3 {
-  margin: 0;
-  font-size: 14px;
-  color: rgba(241, 247, 255, 0.94);
-}
-
-.queue-head span {
-  font-size: 12px;
-  color: rgba(180, 193, 220, 0.84);
-}
-
-.queue-list {
-  max-height: 220px;
-  overflow: auto;
-  display: grid;
-  gap: 6px;
-}
-
-.queue-row {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(236, 242, 255, 0.94);
-  min-height: 34px;
-  padding: 0 8px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 54px;
-  align-items: center;
-  gap: 8px;
-  text-align: left;
-}
-
-.queue-row.active {
-  border-color: rgba(var(--accent-rgb), 0.64);
-  background: rgba(var(--accent-rgb), 0.24);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.24);
-}
-
-.queue-index {
-  color: rgba(184, 196, 223, 0.82);
-  font-size: 11px;
-}
-
-.queue-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-}
-
-.queue-time {
-  font-size: 11px;
-  color: rgba(183, 196, 222, 0.84);
-  text-align: right;
+@keyframes detail-vinyl-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 980px) {
@@ -426,17 +614,26 @@ function toggleLikeCurrent() {
     grid-template-columns: 1fr;
   }
 
-  .album-cover {
-    max-width: 360px;
+  .vinyl-stage {
+    position: static;
+  }
+
+  .lyric-scroll {
+    min-height: 360px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lyric-detail-soft-enter-active,
-  .lyric-detail-soft-leave-active,
-  .lyric-panel p {
-    transition-duration: 1ms !important;
-    transition-delay: 0ms !important;
+  .vinyl-disc.spinning {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+
+  .lyric-row,
+  .lyric-time-fade-enter-active,
+  .lyric-time-fade-leave-active,
+  .vinyl-arm {
+    transition: none !important;
   }
 }
 </style>

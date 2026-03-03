@@ -1,7 +1,7 @@
-const TIME_TAG = /\[(\d{1,2}):(\d{1,2}(?:\.\d{1,3})?)\]/g;
+const TIME_TAG = /(?:\[(\d{1,3}):(\d{1,2}(?:[.:,]\d{1,3})?)\])|(?:<(\d{1,3}):(\d{1,2}(?:[.:,]\d{1,3})?)>)/g;
 
 export function parseLrc(lrcText) {
-  const normalized = normalizeLyricText(lrcText);
+  const normalized = normalizeLyricText(extractLyricSource(lrcText));
   if (!normalized) return [];
 
   const lines = normalized.split(/\r?\n/);
@@ -14,8 +14,10 @@ export function parseLrc(lrcText) {
 
     let match = TIME_TAG.exec(rawLine);
     while (match) {
-      const min = Number.parseInt(match[1], 10);
-      const sec = Number.parseFloat(match[2]);
+      const minRaw = match[1] || match[3];
+      const secRaw = match[2] || match[4];
+      const min = Number.parseInt(minRaw, 10);
+      const sec = parseSecondToken(secRaw);
       if (Number.isFinite(min) && Number.isFinite(sec)) {
         entries.push({ time: min * 60 + sec, text });
       }
@@ -25,6 +27,65 @@ export function parseLrc(lrcText) {
 
   entries.sort((a, b) => a.time - b.time);
   return entries;
+}
+
+function parseSecondToken(token) {
+  const raw = String(token || '').trim();
+  if (!raw) return Number.NaN;
+  const normalized = raw.replace(',', '.').replace(':', '.');
+  return Number.parseFloat(normalized);
+}
+
+function extractLyricSource(input) {
+  if (input == null) return '';
+  if (typeof input === 'string') {
+    const text = input.trim();
+    if (!text) return '';
+    if ((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(text);
+        const nested = extractLyricSource(parsed);
+        if (nested) return nested;
+      } catch {
+        // keep raw text
+      }
+    }
+    if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+      try {
+        const normalizedQuote = text.startsWith("'") ? `"${text.slice(1, -1).replace(/"/g, '\\"')}"` : text;
+        const decoded = JSON.parse(normalizedQuote);
+        if (typeof decoded === 'string' && decoded.trim()) return decoded;
+      } catch {
+        // keep raw text
+      }
+    }
+    return input;
+  }
+
+  if (typeof input === 'object') {
+    const candidates = [
+      input?.lyricText,
+      input?.lyric_text,
+      input?.lyric,
+      input?.lrc,
+      input?.content,
+      input?.raw
+    ];
+    for (const candidate of candidates) {
+      const resolved = extractLyricSource(candidate);
+      if (resolved) return resolved;
+    }
+    if (input?.lrc && typeof input.lrc === 'object') {
+      const resolved = extractLyricSource(input.lrc);
+      if (resolved) return resolved;
+    }
+    if (input?.klyric && typeof input.klyric === 'object') {
+      const resolved = extractLyricSource(input.klyric);
+      if (resolved) return resolved;
+    }
+  }
+
+  return '';
 }
 
 function normalizeLyricText(raw) {

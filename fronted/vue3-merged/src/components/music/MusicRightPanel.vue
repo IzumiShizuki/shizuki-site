@@ -276,10 +276,61 @@ const spotifySummary = computed(() => {
 });
 
 const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spotifyBound);
+const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
+let lastLyricDebugMode = '';
+
+function lyricDebugEnabled() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const value = String(window.localStorage.getItem(LYRIC_DEBUG_KEY) || '').trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'on';
+  } catch {
+    return false;
+  }
+}
+
+function extractInlineLyricPreview(track) {
+  const metadata = track?.metadata && typeof track.metadata === 'object' ? track.metadata : {};
+  const raw = typeof track?.lyricText === 'string' && track.lyricText.trim()
+    ? track.lyricText
+    : typeof track?.lyric_text === 'string' && track.lyric_text.trim()
+      ? track.lyric_text
+      : typeof metadata?.lyricText === 'string' && metadata.lyricText.trim()
+        ? metadata.lyricText
+        : typeof metadata?.lyric_text === 'string' && metadata.lyric_text.trim()
+          ? metadata.lyric_text
+          : '';
+  if (!raw.trim()) return '';
+  const normalized = raw
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
+  if (!normalized) return '';
+  const first = normalized
+    .split('\n')
+    .map((line) => line.replace(/\[[^\]]+\]/g, '').trim())
+    .find(Boolean);
+  return String(first || '').trim();
+}
 
 const lyricDisplay = computed(() => {
   const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
-  const current = String(raw.current || props.lyricLine || '').trim() || '纯音乐，无歌词';
+  const inlinePreview = extractInlineLyricPreview(props.track);
+  const timelineLine = String(raw.current || props.lyricLine || '').trim();
+  const current = String(timelineLine || inlinePreview || '').trim() || '纯音乐，无歌词';
+  const renderMode = timelineLine ? 'timeline' : inlinePreview ? 'raw-fallback' : 'empty';
+  if (lyricDebugEnabled() && renderMode !== lastLyricDebugMode) {
+    lastLyricDebugMode = renderMode;
+    // eslint-disable-next-line no-console
+    console.info('[MUSIC_LYRIC_DEBUG] render_mode', {
+      mode: renderMode,
+      timelineLength: timelineLine.length,
+      fallbackLength: inlinePreview.length
+    });
+  }
   return {
     prev: String(raw.prev || '').trim(),
     current,

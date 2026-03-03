@@ -158,6 +158,7 @@ public class MediaServiceImpl implements MediaService {
     private static final String PLAYLIST_TYPE_LIKED = "LIKED";
     private static final String PLAYLIST_TYPE_CUSTOM = "CUSTOM";
     private static final Set<String> TUNEHUB_PLAYLIST_PLATFORMS = Set.of("netease", "kuwo", "qq");
+    private static final Set<String> TUNEHUB_REAL_PLAYLIST_SEARCH_PLATFORMS = Set.of("netease", "kuwo");
     private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
     private static final Pattern VIRTUAL_TUNEHUB_PLAYLIST_CODE_PATTERN =
         Pattern.compile("^vh_tunehub_([a-z0-9_\\-]+)_([a-z0-9_\\-]+)_(.+)$");
@@ -814,17 +815,15 @@ public class MediaServiceImpl implements MediaService {
         String normalizedType = normalizeMusicSearchType(type);
         int safePage = page == null ? 1 : Math.max(1, page);
         int safeLimit = limit == null ? 24 : Math.max(1, Math.min(60, limit));
-        int playlistCollectLimit = Math.max(safeLimit + 1, safePage * safeLimit + 1);
+        int playlistCollectLimit = safeLimit + 1;
         int trackCollectLimit = safeLimit + 1;
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
         String queryDigest = hashQueryFingerprint(normalizedQuery);
-        boolean includeDeepPlaylistMatch = "playlist".equals(normalizedType);
 
         List<String> selectedProviders = resolveSearchProviders(providers, userId);
         boolean includePlaylists = "all".equals(normalizedType) || "playlist".equals(normalizedType);
         boolean includeTracks = "all".equals(normalizedType) || "track".equals(normalizedType) || "artist".equals(normalizedType);
         boolean includeArtists = "all".equals(normalizedType) || "artist".equals(normalizedType);
-        boolean includePlaylistTrackProbe = includePlaylists && !includeTracks;
         long startMs = System.currentTimeMillis();
 
         LOGGER.info(
@@ -837,7 +836,7 @@ public class MediaServiceImpl implements MediaService {
             selectedProviders,
             safePage,
             safeLimit,
-            includeDeepPlaylistMatch ? "deep" : "light"
+            includePlaylists ? "real" : "off"
         );
         LOGGER.info(
             "{} userId={} queryLength={} type={} providers={} page={} limit={}",
@@ -864,7 +863,6 @@ public class MediaServiceImpl implements MediaService {
             int providerTrackMapped = 0;
             int providerRowCount = 0;
             int providerDedupeDropped = 0;
-            String providerTopCover = "";
             if ("spotify".equals(provider)) {
                 if (!includeTracks) {
                     continue;
@@ -936,8 +934,7 @@ public class MediaServiceImpl implements MediaService {
                 continue;
             }
 
-            boolean shouldProbeTracks = (includeTracks && tracks.size() < trackCollectLimit)
-                || (includePlaylistTrackProbe && playlists.size() < playlistCollectLimit);
+            boolean shouldProbeTracks = includeTracks && tracks.size() < trackCollectLimit;
             if (shouldProbeTracks) {
                 long trackFetchStartMs = System.currentTimeMillis();
                 try {
@@ -950,7 +947,6 @@ public class MediaServiceImpl implements MediaService {
                     );
                     providerRowCount = searchItems.size();
                     int mappedCount = 0;
-                    Set<String> providerSeenTrackIds = includeTracks ? null : new LinkedHashSet<>();
                     for (TuneHubMusicProvider.SearchTrackResult item : searchItems) {
                         String trackId = readString(item.trackId(), "");
                         if (!StringUtils.hasText(trackId)) {
@@ -971,25 +967,10 @@ public class MediaServiceImpl implements MediaService {
                                 item.durationSec()
                             ));
                             mappedCount += 1;
-                            if (!StringUtils.hasText(providerTopCover)) {
-                                providerTopCover = readString(item.cover(), "");
-                            }
-                            if (tracks.size() >= trackCollectLimit && !includePlaylistTrackProbe) {
+                            if (tracks.size() >= trackCollectLimit) {
                                 break;
                             }
                             continue;
-                        }
-                        if (includePlaylistTrackProbe && !includeTracks) {
-                            if (!providerSeenTrackIds.add(trackId)) {
-                                continue;
-                            }
-                            mappedCount += 1;
-                            if (!StringUtils.hasText(providerTopCover)) {
-                                providerTopCover = readString(item.cover(), "");
-                            }
-                            if (mappedCount >= safeLimit) {
-                                break;
-                            }
                         }
                     }
                     providerTrackMapped = mappedCount;
@@ -1009,7 +990,7 @@ public class MediaServiceImpl implements MediaService {
                         "{} provider={} stage={} durationMs={} mappedCount={} failed={}",
                         LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
                         provider,
-                        includeTracks ? "track_fetch" : "playlist_probe",
+                        "track_fetch",
                         Math.max(1L, System.currentTimeMillis() - trackFetchStartMs),
                         providerTrackMapped,
                         failedProviders.contains(provider)
@@ -1017,50 +998,26 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
 
-            if (includePlaylists && providerTrackMapped > 0 && playlists.size() < playlistCollectLimit) {
-                String searchPlaylistCode = buildVirtualSearchPlaylistCode(provider, normalizedQuery);
-                if (playlistCodes.add(searchPlaylistCode)) {
-                    playlists.add(new MusicPlaylistSummaryResponse(
-                        searchPlaylistCode,
-                        resolveProviderDisplayName(provider) + " 搜索结果",
-                        "关键词：" + normalizedQuery + " · " + providerTrackMapped + " 首",
-                        providerTopCover,
-                        PLAYLIST_TYPE_CUSTOM,
-                        0L,
-                        true,
-                        providerTrackMapped,
-                        normalizeSourceProvider(provider)
-                    ));
-                }
-            }
-
-            if (includePlaylists && includeDeepPlaylistMatch && playlists.size() < playlistCollectLimit) {
-                long playlistMatchStartMs = System.currentTimeMillis();
+            if (includePlaylists && TUNEHUB_REAL_PLAYLIST_SEARCH_PLATFORMS.contains(provider) && playlists.size() < playlistCollectLimit) {
+                long playlistSearchStartMs = System.currentTimeMillis();
                 int playlistMatchedCount = 0;
                 try {
-                    List<TuneHubMusicProvider.VirtualPlaylistSummary> summaries = tuneHubMusicProvider.listToplistPlaylists(
+                    List<TuneHubMusicProvider.VirtualPlaylistSummary> searchPlaylists = tuneHubMusicProvider.searchPlaylists(
                         apiContext.apiKey(),
-                        List.of(provider),
-                        Math.max(10, playlistCollectLimit)
+                        provider,
+                        normalizedQuery,
+                        safePage,
+                        safeLimit
                     );
-                    for (TuneHubMusicProvider.VirtualPlaylistSummary item : summaries) {
-                        String name = readString(item.name(), "");
-                        String description = readString(item.description(), "");
-                        boolean matched = containsKeyword(name, normalizedQuery) || containsKeyword(description, normalizedQuery);
-                        if (!matched) {
-                            matched = virtualPlaylistMatchesKeyword(apiContext.apiKey(), item, normalizedQuery);
-                        }
-                        if (!matched) {
-                            continue;
-                        }
+                    for (TuneHubMusicProvider.VirtualPlaylistSummary item : searchPlaylists) {
                         String code = readString(item.playlistCode(), "");
                         if (!StringUtils.hasText(code) || !playlistCodes.add(code)) {
                             continue;
                         }
                         playlists.add(new MusicPlaylistSummaryResponse(
                             code,
-                            readString(item.name(), "TuneHub 推荐歌单"),
-                            description,
+                            readString(item.name(), resolveProviderDisplayName(provider) + " 歌单"),
+                            readString(item.description(), ""),
                             readString(item.cover(), ""),
                             PLAYLIST_TYPE_CUSTOM,
                             0L,
@@ -1086,9 +1043,9 @@ public class MediaServiceImpl implements MediaService {
                         "{} provider={} strategy={} matchedCount={} durationMs={}",
                         LOG_EVENT_SEARCH_STAGE_PLAYLIST_MATCH_DONE,
                         provider,
-                        "deep",
+                        "real",
                         playlistMatchedCount,
-                        Math.max(1L, System.currentTimeMillis() - playlistMatchStartMs)
+                        Math.max(1L, System.currentTimeMillis() - playlistSearchStartMs)
                     );
                 }
             }
@@ -1163,13 +1120,9 @@ public class MediaServiceImpl implements MediaService {
 
         boolean hasMorePlaylists = false;
         if (includePlaylists) {
-            int start = Math.max(0, (safePage - 1) * safeLimit);
-            int end = Math.min(playlists.size(), start + safeLimit);
-            hasMorePlaylists = playlists.size() > end;
-            if (start >= playlists.size()) {
-                playlists = List.of();
-            } else {
-                playlists = new ArrayList<>(playlists.subList(start, end));
+            hasMorePlaylists = playlists.size() > safeLimit;
+            if (hasMorePlaylists) {
+                playlists = new ArrayList<>(playlists.subList(0, safeLimit));
             }
         } else {
             playlists = List.of();
@@ -1255,6 +1208,8 @@ public class MediaServiceImpl implements MediaService {
         if (cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
+            String translationLyricText = "";
+            String furiganaLyricText = "";
             String resolvedCover = resolvePlaybackCover(
                 readString(request == null ? null : request.getCover(), ""),
                 "",
@@ -1271,6 +1226,8 @@ public class MediaServiceImpl implements MediaService {
                             tuneHubMusicProperties.getDefaultQuality()
                         );
                         lyricText = readString(parsedLyric.lyricText(), "");
+                        translationLyricText = readString(parsedLyric.translationLyricText(), "");
+                        furiganaLyricText = readString(parsedLyric.furiganaLyricText(), "");
                         resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
                     } catch (Exception ex) {
@@ -1283,11 +1240,12 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
             LOGGER.info(
-                "{} provider={} trackId={} source=cache_source lyricResolved={} durationMs={}",
+                "{} provider={} trackId={} source=cache_source lyricSource=cache_source lyricResolved={} lyricTextLength={} durationMs={}",
                 LOG_EVENT_RESOLVE_STAGE_DONE,
                 provider,
                 trackId,
                 StringUtils.hasText(lyricText),
+                lyricText == null ? 0 : lyricText.length(),
                 Math.max(1L, System.currentTimeMillis() - startMs)
             );
             return new MusicTrackResponse(
@@ -1301,12 +1259,19 @@ public class MediaServiceImpl implements MediaService {
                 0,
                 true,
                 lyricText,
-                Map.of("cacheSource", "source_url")
+                buildPlaybackMetadata(
+                    Map.of("cacheSource", "source_url"),
+                    lyricText,
+                    translationLyricText,
+                    furiganaLyricText
+                )
             );
         }
         if (hasOssObjectCache(cache)) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
+            String translationLyricText = "";
+            String furiganaLyricText = "";
             String resolvedCover = resolvePlaybackCover(
                 readString(request == null ? null : request.getCover(), ""),
                 "",
@@ -1323,6 +1288,8 @@ public class MediaServiceImpl implements MediaService {
                             tuneHubMusicProperties.getDefaultQuality()
                         );
                         lyricText = readString(parsedLyric.lyricText(), "");
+                        translationLyricText = readString(parsedLyric.translationLyricText(), "");
+                        furiganaLyricText = readString(parsedLyric.furiganaLyricText(), "");
                         resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
                     } catch (Exception ex) {
@@ -1335,11 +1302,12 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
             LOGGER.info(
-                "{} provider={} trackId={} source=cache lyricResolved={} durationMs={}",
+                "{} provider={} trackId={} source=cache lyricSource=oss_cache lyricResolved={} lyricTextLength={} durationMs={}",
                 LOG_EVENT_RESOLVE_STAGE_DONE,
                 provider,
                 trackId,
                 StringUtils.hasText(lyricText),
+                lyricText == null ? 0 : lyricText.length(),
                 Math.max(1L, System.currentTimeMillis() - startMs)
             );
             return new MusicTrackResponse(
@@ -1353,7 +1321,12 @@ public class MediaServiceImpl implements MediaService {
                 0,
                 true,
                 lyricText,
-                Map.of("cacheSource", "oss")
+                buildPlaybackMetadata(
+                    Map.of("cacheSource", "oss"),
+                    lyricText,
+                    translationLyricText,
+                    furiganaLyricText
+                )
             );
         }
 
@@ -1398,6 +1371,8 @@ public class MediaServiceImpl implements MediaService {
             ""
         );
         String lyricText = readString(parsed.lyricText(), "");
+        String translationLyricText = readString(parsed.translationLyricText(), "");
+        String furiganaLyricText = readString(parsed.furiganaLyricText(), "");
         LOGGER.info("MUSIC_COVER_FALLBACK_RESOLVED provider={} trackId={} success={}",
             provider,
             trackId,
@@ -1407,12 +1382,13 @@ public class MediaServiceImpl implements MediaService {
             trackId,
             StringUtils.hasText(lyricText));
         LOGGER.info(
-            "{} provider={} trackId={} source=parse parseMs={} cacheEnqueued={} durationMs={}",
+            "{} provider={} trackId={} source=parse lyricSource=parse parseMs={} cacheEnqueued={} lyricTextLength={} durationMs={}",
             LOG_EVENT_RESOLVE_STAGE_DONE,
             provider,
             trackId,
             Math.max(1L, parseDoneMs - startMs),
             cacheEnqueued,
+            lyricText == null ? 0 : lyricText.length(),
             Math.max(1L, System.currentTimeMillis() - startMs)
         );
 
@@ -1427,7 +1403,12 @@ public class MediaServiceImpl implements MediaService {
             0,
             true,
             lyricText,
-            Map.of("cacheMode", storageMode.code())
+            buildPlaybackMetadata(
+                Map.of("cacheMode", storageMode.code()),
+                lyricText,
+                translationLyricText,
+                furiganaLyricText
+            )
         );
     }
 
@@ -2170,16 +2151,28 @@ public class MediaServiceImpl implements MediaService {
             ref.sourceId()
         );
 
-        TuneHubMusicProvider.VirtualPlaylistSummary summary = tuneHubMusicProvider
-            .listToplistPlaylists(apiContext.apiKey(), List.of(ref.provider()), 8)
-            .stream()
-            .filter(item ->
-                ref.provider().equals(item.platform())
-                    && ref.sourceType().equals(item.sourceType())
-                    && ref.sourceId().equals(item.sourceId())
-            )
-            .findFirst()
-            .orElseGet(() -> new TuneHubMusicProvider.VirtualPlaylistSummary(
+        TuneHubMusicProvider.VirtualPlaylistSummary summary = null;
+        if ("toplist".equals(ref.sourceType())) {
+            summary = tuneHubMusicProvider
+                .listToplistPlaylists(apiContext.apiKey(), List.of(ref.provider()), 8)
+                .stream()
+                .filter(item ->
+                    ref.provider().equals(item.platform())
+                        && ref.sourceType().equals(item.sourceType())
+                        && ref.sourceId().equals(item.sourceId())
+                )
+                .findFirst()
+                .orElse(null);
+        } else if ("playlist".equals(ref.sourceType())) {
+            summary = tuneHubMusicProvider.loadPlaylistSummary(
+                apiContext.apiKey(),
+                ref.provider(),
+                ref.sourceType(),
+                ref.sourceId()
+            );
+        }
+        if (summary == null) {
+            summary = new TuneHubMusicProvider.VirtualPlaylistSummary(
                 ref.provider(),
                 ref.sourceType(),
                 ref.sourceId(),
@@ -2187,7 +2180,8 @@ public class MediaServiceImpl implements MediaService {
                 "TuneHub 虚拟歌单",
                 "",
                 ref.playlistCode()
-            ));
+            );
+        }
 
         MusicPlaylistSummaryResponse profile = new MusicPlaylistSummaryResponse(
             ref.playlistCode(),
@@ -2338,6 +2332,28 @@ public class MediaServiceImpl implements MediaService {
             return fallback;
         }
         return readString(cacheCover, "");
+    }
+
+    private Map<String, Object> buildPlaybackMetadata(Map<String, Object> baseMetadata,
+                                                      String lyricText,
+                                                      String translationLyricText,
+                                                      String furiganaLyricText) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (baseMetadata != null && !baseMetadata.isEmpty()) {
+            result.putAll(baseMetadata);
+        }
+
+        String original = readString(lyricText, "");
+        String translation = readString(translationLyricText, "");
+        String furigana = readString(furiganaLyricText, "");
+        if (StringUtils.hasText(original) || StringUtils.hasText(translation) || StringUtils.hasText(furigana)) {
+            result.put("lyricTracks", Map.of(
+                "original", original,
+                "translation", translation,
+                "furigana", furigana
+            ));
+        }
+        return result;
     }
 
     private String hashQueryFingerprint(String query) {

@@ -16,7 +16,10 @@ import io.github.shizuki.site.media.dto.AdminMusicDefaultPlaylistBundleReplaceRe
 import io.github.shizuki.site.media.dto.AdminMusicPlaylistProfileUpsertRequest;
 import io.github.shizuki.site.media.dto.AdminMusicTrackUpsertRequest;
 import io.github.shizuki.site.media.dto.AssetDownloadResponse;
+import io.github.shizuki.site.media.dto.MusicPlaylistBundleResponse;
+import io.github.shizuki.site.media.dto.MusicResolvePlaybackRequest;
 import io.github.shizuki.site.media.dto.MusicSearchResponse;
+import io.github.shizuki.site.media.dto.MusicTrackResponse;
 import io.github.shizuki.site.media.dto.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaAssetGroupAclEntity;
@@ -466,26 +469,22 @@ class MediaServiceImplTest {
     }
 
     @Test
-    void shouldBuildVirtualSearchPlaylistWhenTypeIsPlaylist() {
-        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "netease", "白色相簿", 1, 24))
+    void shouldReturnRealPlaylistWhenTypeIsPlaylist() {
+        Mockito.when(tuneHubMusicProvider.searchPlaylists("th_test_default_key", "netease", "白色相簿", 1, 24))
             .thenReturn(
                 List.of(
-                    new TuneHubMusicProvider.SearchTrackResult(
-                        "28712251",
-                        "WHITE ALBUM",
-                        "平野綾",
-                        "WHITE ALBUM キャラクターソング(1)",
-                        "https://img4.kuwo.cn/star/albumcover/500/120/40/78/4180484296.jpg",
-                        279,
-                        "netease"
+                    new TuneHubMusicProvider.VirtualPlaylistSummary(
+                        "netease",
+                        "playlist",
+                        "2400142669",
+                        "白色相簿2全人声曲",
+                        "测试歌单",
+                        "https://p1.music.126.net/cover.jpg",
+                        "vh_tunehub_netease_playlist_2400142669"
                     )
                 )
             );
-        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "kuwo", "白色相簿", 1, 24))
-            .thenReturn(List.of());
-        Mockito.when(tuneHubMusicProvider.listToplistPlaylists("th_test_default_key", List.of("netease"), 25))
-            .thenReturn(List.of());
-        Mockito.when(tuneHubMusicProvider.listToplistPlaylists("th_test_default_key", List.of("kuwo"), 25))
+        Mockito.when(tuneHubMusicProvider.searchPlaylists("th_test_default_key", "kuwo", "白色相簿", 1, 24))
             .thenReturn(List.of());
         Mockito.when(userMusicPlaylistMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
 
@@ -493,9 +492,89 @@ class MediaServiceImplTest {
 
         Assertions.assertFalse(response.partial());
         Assertions.assertTrue(response.tracks().isEmpty());
-        Assertions.assertTrue(response.playlists().stream().anyMatch(item ->
-            String.valueOf(item.playlistCode()).startsWith("vh_tunehub_netease_search_")
+        Assertions.assertTrue(response.playlists().stream().anyMatch(item -> "vh_tunehub_netease_playlist_2400142669".equals(item.playlistCode())));
+        Assertions.assertTrue(response.playlists().stream().noneMatch(item ->
+            String.valueOf(item.playlistCode()).contains("_search_")
         ));
+        Mockito.verify(tuneHubMusicProvider, Mockito.never())
+            .searchTracks(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyInt(), Mockito.anyInt());
+    }
+
+    @Test
+    void shouldLoadVirtualPlaylistBundleWithPlaylistSourceSummary() {
+        Mockito.when(tuneHubMusicProvider.loadVirtualPlaylistTracks("th_test_default_key", "netease", "playlist", "2400142669"))
+            .thenReturn(
+                List.of(
+                    new MusicTrackResponse(
+                        "28712251",
+                        "netease",
+                        "WHITE ALBUM",
+                        "平野綾",
+                        "https://cover.example/track.png",
+                        "",
+                        "",
+                        1,
+                        true,
+                        ""
+                    )
+                )
+            );
+        Mockito.when(tuneHubMusicProvider.loadPlaylistSummary("th_test_default_key", "netease", "playlist", "2400142669"))
+            .thenReturn(
+                new TuneHubMusicProvider.VirtualPlaylistSummary(
+                    "netease",
+                    "playlist",
+                    "2400142669",
+                    "白色相簿2全人声曲",
+                    "测试歌单",
+                    "https://cover.example/playlist.png",
+                    "vh_tunehub_netease_playlist_2400142669"
+                )
+            );
+
+        MusicPlaylistBundleResponse bundle = mediaService.getMusicPlaylistBundle("vh_tunehub_netease_playlist_2400142669");
+
+        Assertions.assertNotNull(bundle);
+        Assertions.assertEquals("vh_tunehub_netease_playlist_2400142669", bundle.profile().playlistCode());
+        Assertions.assertEquals("白色相簿2全人声曲", bundle.profile().name());
+        Assertions.assertEquals("https://cover.example/playlist.png", bundle.profile().cover());
+        Assertions.assertEquals(1, bundle.tracks().size());
+    }
+
+    @Test
+    void shouldReturnCoverAndLyricTextWhenResolvePlaybackUsesParseResult() {
+        MusicResolvePlaybackRequest request = new MusicResolvePlaybackRequest();
+        request.setProvider("netease");
+        request.setTrackId("448316816");
+        request.setTitle("测试歌曲");
+        request.setArtist("测试歌手");
+        request.setResolveLyric(true);
+
+        Mockito.when(tuneHubMusicProvider.parseSingleTrack(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("448316816"),
+            Mockito.any()
+        ))
+            .thenReturn(
+                new TuneHubMusicProvider.ParseTrackResult(
+                    "448316816",
+                    "测试歌曲",
+                    "测试歌手",
+                    "https://cover.example.com/cover.jpg",
+                    "https://audio.example.com/track.mp3",
+                    "[00:01.00]line1\n[00:03.00]line2",
+                    "[00:01.00]翻译1\n[00:03.00]翻译2",
+                    "[00:01.00]furigana1\n[00:03.00]furigana2"
+                )
+            );
+
+        MusicTrackResponse response = mediaService.resolvePlaybackTrack(request);
+
+        Assertions.assertEquals("https://cover.example.com/cover.jpg", response.cover());
+        Assertions.assertEquals("[00:01.00]line1\n[00:03.00]line2", response.lyricText());
+        Assertions.assertEquals("https://audio.example.com/track.mp3", response.audio());
+        Assertions.assertTrue(response.metadata().containsKey("lyricTracks"));
     }
 
     private MediaAssetEntity buildAsset(Long id, Long userId, Integer visibilityCode, String auditStatus) {

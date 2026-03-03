@@ -6,6 +6,8 @@ const STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const MODE_ORDER = ['sequential', 'random', 'single'];
 const VISUALIZER_STYLES = ['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];
+const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
+const LYRIC_RENDER_MODES = ['original', 'original_translation', 'original_furigana'];
 
 function loadPersistedState() {
   try {
@@ -28,6 +30,46 @@ function savePersistedState(nextPartial) {
   }
 }
 
+function lyricDebugEnabled() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const value = String(window.localStorage.getItem(LYRIC_DEBUG_KEY) || '').trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'on';
+  } catch {
+    return false;
+  }
+}
+
+function logLyricDebug(event, payload = {}) {
+  if (!lyricDebugEnabled()) return;
+  try {
+    // eslint-disable-next-line no-console
+    console.info(`[MUSIC_LYRIC_DEBUG] ${event}`, payload);
+  } catch {
+    // ignore
+  }
+}
+
+function pickFirstNonBlankString(...candidates) {
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    if (!candidate.trim()) continue;
+    return candidate;
+  }
+  return '';
+}
+
+function coerceLyricTracks(rawTracks) {
+  if (!rawTracks || typeof rawTracks !== 'object') {
+    return { original: '', translation: '', furigana: '' };
+  }
+  return {
+    original: pickFirstNonBlankString(rawTracks.original, rawTracks.origin, rawTracks.main),
+    translation: pickFirstNonBlankString(rawTracks.translation, rawTracks.translated, rawTracks.tlyric),
+    furigana: pickFirstNonBlankString(rawTracks.furigana, rawTracks.romaji, rawTracks.pronunciation)
+  };
+}
+
 function normalizeTrack(track, index) {
   const idRaw = track?.id ?? track?.trackId ?? track?.track_id;
   const id = idRaw != null ? String(idRaw) : `track-${index}`;
@@ -46,11 +88,43 @@ function normalizeTrack(track, index) {
       ? track.lyric
       : `${import.meta.env.BASE_URL}${String(track.lyric).replace(/^\/+/, '')}`
     : null;
-  const lyricText = typeof track?.lyricText === 'string'
-    ? track.lyricText
-    : typeof track?.lyric_text === 'string'
-      ? track.lyric_text
-      : '';
+  const metadata = track?.metadata && typeof track.metadata === 'object' ? track.metadata : {};
+  const metadataLyricTracks = coerceLyricTracks(
+    metadata?.lyricTracks || metadata?.lyric_tracks || metadata?.lyrics || metadata?.lrcTracks
+  );
+  const lyricText = pickFirstNonBlankString(
+    track?.lyricText,
+    track?.lyric_text,
+    track?.originalLyricText,
+    track?.original_lyric_text,
+    metadata?.lyricText,
+    metadata?.lyric_text,
+    metadataLyricTracks.original
+  );
+  const translationLyricText = pickFirstNonBlankString(
+    track?.translationLyricText,
+    track?.translation_lyric_text,
+    track?.translatedLyricText,
+    track?.translated_lyric_text,
+    metadata?.translationLyricText,
+    metadata?.translation_lyric_text,
+    metadata?.translatedLyricText,
+    metadata?.translated_lyric_text,
+    metadata?.tlyric,
+    metadataLyricTracks.translation
+  );
+  const furiganaLyricText = pickFirstNonBlankString(
+    track?.furiganaLyricText,
+    track?.furigana_lyric_text,
+    track?.pronunciationLyricText,
+    track?.pronunciation_lyric_text,
+    metadata?.furiganaLyricText,
+    metadata?.furigana_lyric_text,
+    metadata?.pronunciationLyricText,
+    metadata?.pronunciation_lyric_text,
+    metadata?.romaji,
+    metadataLyricTracks.furigana
+  );
 
   return {
     id,
@@ -62,8 +136,18 @@ function normalizeTrack(track, index) {
     audio,
     lyric,
     lyricText,
+    translationLyricText,
+    furiganaLyricText,
     cover,
-    durationLabel: track?.duration || '--:--'
+    durationLabel: track?.duration || '--:--',
+    metadata: {
+      ...metadata,
+      lyricTracks: {
+        original: lyricText,
+        translation: translationLyricText,
+        furigana: furiganaLyricText
+      }
+    }
   };
 }
 
@@ -149,9 +233,16 @@ export function usePlayerEngine(options = {}) {
   const currentTime = ref(0);
   const duration = ref(0);
   const isPlaying = ref(false);
+  const lyricRenderMode = ref(
+    LYRIC_RENDER_MODES.includes(String(persisted.lyricRenderMode || ''))
+      ? String(persisted.lyricRenderMode)
+      : 'original_translation'
+  );
   const currentLyricLine = ref('');
   const lyricEntries = ref([]);
+  const lyricTimeline = ref([]);
   const currentLyricIndex = ref(-1);
+  const currentLyricEntryIndex = ref(-1);
   const lyricResolveAttempted = ref(new Set());
   const playbackResolveAttempted = ref(new Set());
 
@@ -194,43 +285,46 @@ export function usePlayerEngine(options = {}) {
   }
 
   function updateLyricState(timeSec) {
-    if (!lyricEntries.value.length) {
+    const list = lyricTimeline.value;
+    if (!list.length) {
       currentLyricIndex.value = -1;
+      currentLyricEntryIndex.value = -1;
       currentLyricLine.value = '';
       return;
     }
 
     let idx = -1;
-    for (let i = 0; i < lyricEntries.value.length; i += 1) {
-      if (lyricEntries.value[i].time <= timeSec) idx = i;
+    for (let i = 0; i < list.length; i += 1) {
+      if (list[i].time <= timeSec) idx = i;
       else break;
     }
     currentLyricIndex.value = idx;
+    currentLyricEntryIndex.value = idx;
     if (idx >= 0) {
-      currentLyricLine.value = lyricEntries.value[idx].text;
+      currentLyricLine.value = list[idx].original || '';
       return;
     }
-    currentLyricLine.value = lyricEntries.value[0]?.text || '';
+    currentLyricLine.value = list[0]?.original || '';
   }
 
   const lyricContext = computed(() => {
-    const idx = currentLyricIndex.value;
-    const list = lyricEntries.value;
+    const idx = currentLyricEntryIndex.value;
+    const list = lyricTimeline.value;
     if (!list.length) {
       return { prev: '', current: '', next: '', key: 'empty' };
     }
     if (idx < 0) {
       return {
         prev: '',
-        current: list[0]?.text || '',
-        next: list[1]?.text || '',
+        current: list[0]?.original || '',
+        next: list[1]?.original || '',
         key: 'l-prelude'
       };
     }
     return {
-      prev: list[idx - 1]?.text || '',
-      current: list[idx]?.text || '',
-      next: list[idx + 1]?.text || '',
+      prev: list[idx - 1]?.original || '',
+      current: list[idx]?.original || '',
+      next: list[idx + 1]?.original || '',
       key: `l-${idx}`
     };
   });
@@ -239,7 +333,11 @@ export function usePlayerEngine(options = {}) {
     const source = String(rawText || '');
     if (!source.trim()) return [];
     const parsed = parseLrc(source);
-    if (parsed.length) return parsed;
+    if (parsed.length) {
+      logLyricDebug('parse_timeline_ok', { textLength: source.length, entryCount: parsed.length });
+      return parsed;
+    }
+    logLyricDebug('parse_timeline_fallback_to_plain_lines', { textLength: source.length });
     return source
       .split(/\r?\n/)
       .map((line) => line.trim())
@@ -248,34 +346,96 @@ export function usePlayerEngine(options = {}) {
       .map((text, idx) => ({ time: idx * 4, text }));
   }
 
+  function buildLyricTimelineFromTracks(originalEntries, translationEntries, furiganaEntries) {
+    const base = Array.isArray(originalEntries) ? originalEntries : [];
+    if (!base.length) return [];
+    const trans = Array.isArray(translationEntries) ? translationEntries : [];
+    const furi = Array.isArray(furiganaEntries) ? furiganaEntries : [];
+    return base.map((item, idx) => {
+      const byIndexTranslation = trans[idx]?.text || '';
+      const byIndexFurigana = furi[idx]?.text || '';
+      return {
+        time: Number(item.time || 0),
+        original: String(item.text || '').trim(),
+        translation: String(byIndexTranslation || '').trim(),
+        furigana: String(byIndexFurigana || '').trim()
+      };
+    });
+  }
+
+  function readLyricTrackTexts(track) {
+    const metadata = track?.metadata && typeof track.metadata === 'object' ? track.metadata : {};
+    const metadataTracks = coerceLyricTracks(metadata?.lyricTracks || metadata?.lyric_tracks || metadata?.lyrics || metadata?.lrcTracks);
+    return {
+      original: pickFirstNonBlankString(track?.lyricText, metadataTracks.original),
+      translation: pickFirstNonBlankString(track?.translationLyricText, metadataTracks.translation),
+      furigana: pickFirstNonBlankString(track?.furiganaLyricText, metadataTracks.furigana)
+    };
+  }
+
+  function applyLyricTimeline(timeline) {
+    const nextTimeline = Array.isArray(timeline) ? timeline : [];
+    lyricTimeline.value = nextTimeline;
+    lyricEntries.value = nextTimeline.map((item) => ({ time: item.time, text: item.original || '' }));
+    updateLyricState(currentTime.value);
+  }
+
   async function loadTrackLyric(track) {
     lyricEntries.value = [];
+    lyricTimeline.value = [];
     currentLyricIndex.value = -1;
+    currentLyricEntryIndex.value = -1;
     currentLyricLine.value = '';
-    if (!track?.lyric && !track?.lyricText) return;
+    if (!track?.lyric && !track?.lyricText && !track?.translationLyricText && !track?.furiganaLyricText) return;
 
     try {
+      let originalText = '';
+      const lyricTracks = readLyricTrackTexts(track);
       let loadedByUrl = false;
       if (track?.lyric) {
         try {
           const resp = await fetch(track.lyric);
           if (resp.ok) {
             const text = await resp.text();
-            lyricEntries.value = buildLyricEntriesFromText(text);
-            loadedByUrl = lyricEntries.value.length > 0;
+            const normalized = String(text || '').trim();
+            if (normalized) {
+              originalText = normalized;
+            }
+            const parsed = buildLyricEntriesFromText(normalized);
+            loadedByUrl = parsed.length > 0;
+            logLyricDebug('load_by_lyric_url', {
+              ok: true,
+              lyricUrl: track.lyric,
+              textLength: String(text || '').length,
+              entryCount: parsed.length
+            });
           }
         } catch {
           loadedByUrl = false;
+          logLyricDebug('load_by_lyric_url', { ok: false, lyricUrl: track.lyric });
         }
       }
-      if (!loadedByUrl && track?.lyricText) {
-        lyricEntries.value = buildLyricEntriesFromText(track.lyricText);
+      if (!loadedByUrl) {
+        originalText = pickFirstNonBlankString(originalText, lyricTracks.original);
+        logLyricDebug('load_by_lyric_text_inline', {
+          textLength: String(originalText || '').length
+        });
       }
-      updateLyricState(currentTime.value);
+
+      const originalEntries = buildLyricEntriesFromText(originalText);
+      const translationEntries = buildLyricEntriesFromText(lyricTracks.translation);
+      const furiganaEntries = buildLyricEntriesFromText(lyricTracks.furigana);
+      applyLyricTimeline(buildLyricTimelineFromTracks(originalEntries, translationEntries, furiganaEntries));
     } catch {
       lyricEntries.value = [];
+      lyricTimeline.value = [];
       currentLyricIndex.value = -1;
+      currentLyricEntryIndex.value = -1;
       currentLyricLine.value = '';
+      logLyricDebug('load_track_lyric_failed', {
+        trackId: String(track?.trackId || track?.id || ''),
+        provider: String(track?.provider || '')
+      });
     }
   }
 
@@ -322,8 +482,11 @@ export function usePlayerEngine(options = {}) {
       next[index] = merged;
       tracks.value = next;
       await loadTrackLyric(merged);
+      if (!lyricEntries.value.length) {
+        lyricResolveAttempted.value.delete(resolveKey);
+      }
     } catch {
-      // ignore lyric fallback failures
+      lyricResolveAttempted.value.delete(resolveKey);
     }
   }
 
@@ -346,7 +509,7 @@ export function usePlayerEngine(options = {}) {
 
     const trackId = String(track.trackId || track.id || '').trim();
     if (!trackId) return track;
-    const shouldResolveLyric = !String(track.lyric || '').trim() && !String(track.lyricText || '').trim();
+    const shouldResolveLyric = true;
 
     try {
       const payload = await resolvePlaybackTrack(
@@ -373,6 +536,12 @@ export function usePlayerEngine(options = {}) {
       const next = tracks.value.slice();
       next[index] = resolved;
       tracks.value = next;
+      logLyricDebug('resolve_playback_response', {
+        provider,
+        trackId,
+        lyricTextLength: String(resolved?.lyricText || '').length,
+        lyricUrlPresent: Boolean(String(resolved?.lyric || '').trim())
+      });
       return resolved;
     } catch {
       return track;
@@ -490,6 +659,21 @@ export function usePlayerEngine(options = {}) {
     if (!Number.isFinite(duration.value) || duration.value <= 0) return;
     const safe = Math.max(0, Math.min(1, nextPercent));
     audioElement.currentTime = safe * duration.value;
+  }
+
+  function seekToTime(nextTimeSec) {
+    const target = Number(nextTimeSec);
+    if (!Number.isFinite(target) || target < 0) return;
+    if (Number.isFinite(duration.value) && duration.value > 0) {
+      audioElement.currentTime = Math.max(0, Math.min(duration.value, target));
+    } else {
+      audioElement.currentTime = Math.max(0, target);
+    }
+  }
+
+  function setLyricRenderMode(nextMode) {
+    if (!LYRIC_RENDER_MODES.includes(String(nextMode || ''))) return;
+    lyricRenderMode.value = String(nextMode);
   }
 
   function cyclePlayMode() {
@@ -653,7 +837,9 @@ export function usePlayerEngine(options = {}) {
       duration.value = 0;
       isPlaying.value = false;
       lyricEntries.value = [];
+      lyricTimeline.value = [];
       currentLyricIndex.value = -1;
+      currentLyricEntryIndex.value = -1;
       currentLyricLine.value = '';
       lyricResolveAttempted.value = new Set();
       playbackResolveAttempted.value = new Set();
@@ -666,6 +852,32 @@ export function usePlayerEngine(options = {}) {
     const initialIndex = persistedIndex >= 0 ? persistedIndex : 0;
     await selectTrackByIndex(initialIndex, false);
     resetRandomQueue(tracks.value[initialIndex]?.id || '');
+  }
+
+  async function replaceQueueWithTracks(rawTracks, startIndex = 0, autoPlay = true, source = {}) {
+    const input = Array.isArray(rawTracks) ? rawTracks : [];
+    if (!input.length) return false;
+    const normalized = input.map((item, idx) => normalizeTrack(item, idx));
+    if (!normalized.length) return false;
+
+    tracks.value = normalized.map((item, idx) => ({ ...item, sort: idx + 1 }));
+    lyricResolveAttempted.value = new Set();
+    playbackResolveAttempted.value = new Set();
+
+    const sourceCode = String(source?.sourceCode || source?.playlistCode || playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE).trim();
+    if (sourceCode) {
+      playlistProfile.value = normalizePlaylistProfile({
+        playlistCode: sourceCode,
+        name: String(source?.sourceName || playlistProfile.value?.name || '播放队列'),
+        description: String(source?.sourceType || playlistProfile.value?.description || ''),
+        cover: String(source?.cover || playlistProfile.value?.cover || '')
+      });
+    }
+
+    const safeIndex = Math.max(0, Math.min(tracks.value.length - 1, Number.isFinite(Number(startIndex)) ? Number(startIndex) : 0));
+    await selectTrackByIndex(safeIndex, autoPlay, { resolveIfMissing: true });
+    resetRandomQueue(tracks.value[safeIndex]?.id || '');
+    return true;
   }
 
   async function enqueueExternalTrack(rawTrack, autoPlay = false, options = {}) {
@@ -824,7 +1036,7 @@ export function usePlayerEngine(options = {}) {
   });
 
   watch(
-    [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle],
+    [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle, lyricRenderMode],
     () => {
       savePersistedState({
         playMode: playMode.value,
@@ -834,7 +1046,8 @@ export function usePlayerEngine(options = {}) {
         isPinned: isPinned.value,
         listOpen: listOpen.value,
         visualizerMode: visualizerMode.value,
-        visualizerStyle: visualizerStyle.value
+        visualizerStyle: visualizerStyle.value,
+        lyricRenderMode: lyricRenderMode.value
       });
     }
   );
@@ -863,11 +1076,16 @@ export function usePlayerEngine(options = {}) {
     isPinned,
     currentLyricLine,
     lyricContext,
+    lyricTimeline,
+    currentLyricEntryIndex,
+    lyricRenderMode,
     selectTrackByIndex,
     togglePlay,
     playNext,
     playPrev,
     seekToPercent,
+    seekToTime,
+    setLyricRenderMode,
     cyclePlayMode,
     setVisualizerMode,
     setVisualizerStyle,
@@ -882,6 +1100,7 @@ export function usePlayerEngine(options = {}) {
     playlistProfile,
     loadPlaylistByCode,
     reloadPlaylist: () => loadPlaylistByCode(playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE),
+    replaceQueueWithTracks,
     enqueueExternalTrack,
     enqueueNextTrack,
     playExternalTrack

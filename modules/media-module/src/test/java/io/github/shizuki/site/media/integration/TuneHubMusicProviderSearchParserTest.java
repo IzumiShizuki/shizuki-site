@@ -121,6 +121,33 @@ class TuneHubMusicProviderSearchParserTest {
         Assertions.assertEquals(355, item.durationSec());
     }
 
+    @Test
+    void shouldNormalizeKuwoRelativeCoverPathWithoutForced500Prefix() {
+        Object normalized = ReflectionTestUtils.invokeMethod(
+            provider,
+            "normalizeCoverUrl",
+            "kuwo",
+            "120/40/78/4180484296.jpg"
+        );
+
+        Assertions.assertEquals(
+            "https://img4.kuwo.cn/star/albumcover/120/40/78/4180484296.jpg",
+            String.valueOf(normalized)
+        );
+    }
+
+    @Test
+    void shouldParseLyricTextFromNestedLrcAndNormalizeEscapedNewlines() {
+        Object lyricText = ReflectionTestUtils.invokeMethod(
+            provider,
+            "readParseLyricText",
+            Map.of("lrc", Map.of("lyric", "[00:01.00]line1\\n[00:03.00]line2")),
+            Map.of()
+        );
+
+        Assertions.assertEquals("[00:01.00]line1\n[00:03.00]line2", String.valueOf(lyricText));
+    }
+
     @SuppressWarnings("unchecked")
     private List<TuneHubMusicProvider.SearchTrackResult> parseRows(String platform, Map<String, Object> raw) {
         Object result = ReflectionTestUtils.invokeMethod(provider, "parseSearchTracks", platform, raw, 24);

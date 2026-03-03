@@ -33,6 +33,7 @@
             :type="ui.globalSearchType.value"
             :loading="searchLoading"
             :error-text="searchError"
+            :show-filters="showSearchToolbarFilters"
             :type-options="SEARCH_TYPE_OPTIONS"
             :provider-options="SEARCH_PROVIDER_OPTIONS"
             :selected-providers="ui.globalSearchProviders.value"
@@ -146,6 +147,14 @@ import { buildPlaylistTrackUpsertPayload } from '../utils/musicTrackPayload';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
+const PLAYLIST_BROWSE_INITIAL_VISIBLE = 60;
+const PLAYLIST_BROWSE_STEP = 60;
+const PLAYLIST_BROWSE_MAX = 200;
+const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
+  playlists: 4,
+  tracks: 10,
+  artists: 10
+});
 const SEARCH_TYPE_OPTIONS = [
   { value: 'all', label: '全部' },
   { value: 'playlist', label: '歌单' },
@@ -221,6 +230,11 @@ const searchHasMore = ref({
   tracks: false,
   artists: false
 });
+const searchAllVisibleCount = ref({
+  playlists: SEARCH_ALL_INITIAL_VISIBLE.playlists,
+  tracks: SEARCH_ALL_INITIAL_VISIBLE.tracks,
+  artists: SEARCH_ALL_INITIAL_VISIBLE.artists
+});
 const searchAutoLoadLocked = ref(false);
 const committedSearch = ref({
   keyword: '',
@@ -230,6 +244,17 @@ const committedSearch = ref({
 const createDialogVisible = ref(false);
 const createDialogSubmitting = ref(false);
 const createDialogError = ref('');
+const playlistBrowseVisibleCount = ref(PLAYLIST_BROWSE_INITIAL_VISIBLE);
+const playlistBrowseAutoLoadLocked = ref(false);
+const playlistBrowseLoading = ref(false);
+const playlistBrowseError = ref('');
+const playlistBrowseProfile = ref({
+  playlistCode: DEFAULT_PLAYLIST_CODE,
+  name: '默认歌单',
+  description: '全站共通默认歌单',
+  cover: ''
+});
+const playlistBrowseTracks = ref([]);
 const searchResult = ref({
   query: '',
   type: 'all',
@@ -245,7 +270,7 @@ const isPlayerDetailRoute = computed(() => route.name === 'music-library-player'
 const currentPlaylistCodeFromRoute = computed(() => String(route.params.playlistCode || '').trim());
 
 const currentPlaylistProfile = computed(() => {
-  const raw = player.playlistProfile?.value || {};
+  const raw = playlistBrowseProfile.value || {};
   return {
     playlistCode: String(raw.playlistCode || raw.playlist_code || DEFAULT_PLAYLIST_CODE),
     name: String(raw.name || '默认歌单'),
@@ -254,9 +279,18 @@ const currentPlaylistProfile = computed(() => {
   };
 });
 
-const currentPlaylistTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
-const currentPlaylistLoading = computed(() => Boolean(player.playlistLoading?.value));
-const currentPlaylistError = computed(() => String(player.playlistError?.value || ''));
+const currentPlaylistAllTracks = computed(() => {
+  const list = Array.isArray(playlistBrowseTracks.value) ? playlistBrowseTracks.value : [];
+  return list.slice(0, PLAYLIST_BROWSE_MAX);
+});
+
+const currentPlaylistTracks = computed(() => {
+  return currentPlaylistAllTracks.value.slice(0, Math.max(0, Number(playlistBrowseVisibleCount.value || 0)));
+});
+const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length < currentPlaylistAllTracks.value.length);
+const currentPlaylistLoading = computed(() => Boolean(playlistBrowseLoading.value));
+const currentPlaylistError = computed(() => String(playlistBrowseError.value || ''));
+const playerQueueTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
 const centerTransitionName = ref('music-center-fade');
 
 const authState = computed(() => ({
@@ -323,6 +357,10 @@ const likedPlaylistCode = computed(() => {
 const normalizedGlobalSearchKeyword = computed(() => String(ui.globalSearchKeyword.value || '').trim());
 
 const hasActiveSearch = computed(() => String(committedSearch.value.keyword || '').trim().length >= 2);
+const showSearchToolbarFilters = computed(() => {
+  const nav = String(ui.activeNav.value || '').trim().toLowerCase();
+  return !(nav === 'recommend' && !hasActiveSearch.value);
+});
 
 function parseErrorMessage(error, fallback = '操作失败，请稍后重试') {
   if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
@@ -345,6 +383,21 @@ function normalizePlaylistSummary(raw, fallbackCode = DEFAULT_PLAYLIST_CODE) {
 
 function normalizeApiTrack(raw, index = 0) {
   const id = String(raw?.trackId || raw?.track_id || raw?.id || `track-${index + 1}`);
+  const metadata = raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
+  const durationSec = Number.isFinite(Number(
+    raw?.durationSec ?? raw?.duration_sec ?? metadata?.durationSec ?? metadata?.duration_sec
+  ))
+    ? Number(raw?.durationSec ?? raw?.duration_sec ?? metadata?.durationSec ?? metadata?.duration_sec)
+    : null;
+  const durationLabelRaw = String(
+    raw?.durationLabel
+    || raw?.duration_label
+    || raw?.duration
+    || metadata?.durationLabel
+    || metadata?.duration_label
+    || ''
+  ).trim();
+  const durationLabel = durationLabelRaw || (durationSec != null ? formatDurationBySec(durationSec) : '--:--');
   return {
     id,
     trackId: id,
@@ -353,8 +406,12 @@ function normalizeApiTrack(raw, index = 0) {
     cover: String(raw?.cover || raw?.coverUrl || raw?.cover_url || ''),
     audio: String(raw?.audio || raw?.audioUrl || raw?.audio_url || ''),
     lyric: String(raw?.lyric || raw?.lyricUrl || raw?.lyric_url || ''),
+    lyricText: String(raw?.lyricText || raw?.lyric_text || metadata?.lyricText || metadata?.lyric_text || ''),
     provider: String(raw?.provider || raw?.providerCode || raw?.provider_code || 'local'),
-    duration: String(raw?.duration || raw?.durationLabel || '--:--')
+    durationSec,
+    durationLabel,
+    duration: durationLabel,
+    metadata
   };
 }
 
@@ -501,6 +558,44 @@ function getSearchLoadedCountByType(type = committedSearch.value.type) {
   return Array.isArray(searchResult.value?.tracks) ? searchResult.value.tracks.length : 0;
 }
 
+function resetSearchAllVisibleCount() {
+  searchAllVisibleCount.value = {
+    playlists: SEARCH_ALL_INITIAL_VISIBLE.playlists,
+    tracks: SEARCH_ALL_INITIAL_VISIBLE.tracks,
+    artists: SEARCH_ALL_INITIAL_VISIBLE.artists
+  };
+}
+
+function resetPlaylistBrowseVisibleCount() {
+  playlistBrowseVisibleCount.value = PLAYLIST_BROWSE_INITIAL_VISIBLE;
+}
+
+function growPlaylistBrowseVisibleCount() {
+  const loaded = currentPlaylistAllTracks.value.length;
+  const current = Math.max(0, Number(playlistBrowseVisibleCount.value || 0));
+  if (loaded <= current) return false;
+  const next = Math.min(loaded, current + PLAYLIST_BROWSE_STEP);
+  if (next <= current) return false;
+  playlistBrowseVisibleCount.value = next;
+  return true;
+}
+
+function growSearchAllVisibleCount(section) {
+  const key = normalizeSearchSection(section);
+  if (!['playlists', 'tracks', 'artists'].includes(key)) return false;
+  const loaded = Array.isArray(searchResult.value?.[key]) ? searchResult.value[key].length : 0;
+  const current = Math.max(0, Number(searchAllVisibleCount.value[key] || 0));
+  if (loaded <= current) return false;
+  const step = Number(SEARCH_ALL_INITIAL_VISIBLE[key] || 0);
+  const next = Math.min(loaded, current + Math.max(1, step));
+  if (next <= current) return false;
+  searchAllVisibleCount.value = {
+    ...searchAllVisibleCount.value,
+    [key]: next
+  };
+  return true;
+}
+
 function clearSearchState(options = {}) {
   const resetDraft = options?.resetDraft !== false;
   if (resetDraft) {
@@ -514,6 +609,7 @@ function clearSearchState(options = {}) {
   searchLoadingMore.value = false;
   searchLoadingMoreError.value = '';
   searchAutoLoadLocked.value = false;
+  resetSearchAllVisibleCount();
   committedSearch.value = {
     keyword: '',
     type: 'all',
@@ -540,6 +636,7 @@ function rememberCenterScroll() {
   if (isPlayerDetailRoute.value) return;
   if (!centerPaneRef.value) return;
   ui.rememberScroll(route.fullPath, centerPaneRef.value.scrollTop || 0);
+  maybeAutoLoadCurrentPlaylist();
   maybeAutoLoadNextSearchPage();
 }
 
@@ -629,6 +726,7 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
     searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
     searchSectionError.value = { playlists: '', tracks: '', artists: '' };
     searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
+    resetSearchAllVisibleCount();
     searchResult.value = createEmptySearchResult(type, '');
     return;
   }
@@ -643,6 +741,7 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
     searchSectionError.value = { playlists: '', tracks: '', artists: '' };
     searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
     searchHasMore.value = { playlists: false, tracks: false, artists: false };
+    resetSearchAllVisibleCount();
     searchLoadingMoreError.value = '';
   }
   searchError.value = '';
@@ -751,12 +850,14 @@ async function loadMoreMusicSearch() {
   await runMusicSearch(committedSearch.value, { append: true, page: searchPage.value + 1 });
 }
 
-async function loadMoreMusicSearchSection(sectionType) {
+async function loadMoreMusicSearchSection(sectionType, options = {}) {
   if (!hasActiveSearch.value) return;
   if (String(committedSearch.value.type || 'all').toLowerCase() !== 'all') return;
+  const forceFetch = Boolean(options?.forceFetch);
   const section = normalizeSearchSection(sectionType);
   if (!['playlists', 'tracks', 'artists'].includes(section)) return;
   if (searchSectionLoading.value[section]) return;
+  if (!forceFetch && growSearchAllVisibleCount(section)) return;
   if (!searchHasMore.value[section]) return;
 
   const nextPage = Math.max(1, Number(searchSectionPage.value[section] || 1) + 1);
@@ -825,6 +926,7 @@ async function loadMoreMusicSearchSection(sectionType) {
     }
     searchHasMore.value = nextHasMore;
     searchSectionPage.value = { ...searchSectionPage.value, [section]: nextPage };
+    growSearchAllVisibleCount(section);
   } catch (error) {
     searchSectionError.value = {
       ...searchSectionError.value,
@@ -838,10 +940,32 @@ async function loadMoreMusicSearchSection(sectionType) {
 async function retryMusicSearchLoadMore(sectionType = '') {
   const section = normalizeSearchSection(sectionType);
   if (String(committedSearch.value.type || 'all').toLowerCase() === 'all') {
-    await loadMoreMusicSearchSection(section);
+    await loadMoreMusicSearchSection(section, { forceFetch: true });
     return;
   }
   await loadMoreMusicSearch();
+}
+
+function loadMoreCurrentPlaylistTracks() {
+  growPlaylistBrowseVisibleCount();
+}
+
+function maybeAutoLoadCurrentPlaylist() {
+  if (!isPlaylistRoute.value) return;
+  if (playlistBrowseLoading.value) return;
+  if (!currentPlaylistHasMore.value) return;
+  if (!centerPaneRef.value) return;
+  if (playlistBrowseAutoLoadLocked.value) return;
+
+  const container = centerPaneRef.value;
+  const distanceToBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
+  if (distanceToBottom > 420) return;
+
+  playlistBrowseAutoLoadLocked.value = true;
+  loadMoreCurrentPlaylistTracks();
+  window.setTimeout(() => {
+    playlistBrowseAutoLoadLocked.value = false;
+  }, 220);
 }
 
 function maybeAutoLoadNextSearchPage() {
@@ -1093,24 +1217,42 @@ async function handleEnqueueSpotify(item) {
   await enqueueSpotifyTrack(item, false);
 }
 
-function playlistLoadOptions() {
-  if (!auth.isAuthenticated.value) return {};
-  return { authorizedFetch: auth.authorizedFetch };
-}
-
-async function ensureCurrentRoutePlaylistLoaded() {
+async function ensureCurrentRoutePlaylistLoaded(options = {}) {
   if (!isPlaylistRoute.value) return;
   const playlistCode = currentPlaylistCodeFromRoute.value || DEFAULT_PLAYLIST_CODE;
   ui.setSelectedPlaylistCode(playlistCode);
-  if (currentPlaylistProfile.value.playlistCode === playlistCode && currentPlaylistTracks.value.length) {
+  const force = options?.force === true;
+  if (!force && currentPlaylistProfile.value.playlistCode === playlistCode && currentPlaylistAllTracks.value.length) {
     return;
   }
-  await player.loadPlaylistByCode?.(playlistCode, playlistLoadOptions());
+  playlistBrowseLoading.value = true;
+  playlistBrowseError.value = '';
+  try {
+    const payload = await musicApi.getPlaylistBundleByCode(
+      playlistCode,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
+    const profile = normalizePlaylistSummary(payload?.profile || payload?.playlist, playlistCode);
+    const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeApiTrack(item, index)) : [];
+    playlistBrowseProfile.value = profile;
+    playlistBrowseTracks.value = tracks;
+    resetPlaylistBrowseVisibleCount();
+  } catch (error) {
+    playlistBrowseProfile.value = normalizePlaylistSummary(
+      { playlistCode, name: '歌单加载失败', description: '', cover: '' },
+      playlistCode
+    );
+    playlistBrowseTracks.value = [];
+    playlistBrowseError.value = parseErrorMessage(error, '歌单加载失败，请稍后重试');
+    resetPlaylistBrowseVisibleCount();
+  } finally {
+    playlistBrowseLoading.value = false;
+  }
 }
 
 async function playFeaturedTrack(item, index) {
   const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
-  const sourceIndex = currentPlaylistTracks.value.findIndex((track) => track.id === trackId);
+  const sourceIndex = playerQueueTracks.value.findIndex((track) => track.id === trackId);
   if (sourceIndex >= 0) {
     const played = await player.selectTrackByIndex(sourceIndex, true);
     if (!played) {
@@ -1131,7 +1273,7 @@ async function playFeaturedTrack(item, index) {
 async function playSearchTrack(item, index) {
   const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
   const provider = String(item?.provider || '').trim().toLowerCase();
-  const existingIndex = currentPlaylistTracks.value.findIndex((track) => {
+  const existingIndex = playerQueueTracks.value.findIndex((track) => {
     const rowId = String(track?.trackId || track?.id || '').trim();
     const rowProvider = String(track?.provider || '').trim().toLowerCase();
     return rowId === trackId && (!provider || provider === rowProvider);
@@ -1160,7 +1302,22 @@ async function enqueueSearchTrackNext(item, index) {
 }
 
 async function playTrackInCurrentPlaylist(index) {
-  await player.selectTrackByIndex(index, true);
+  const safeIndex = Number(index);
+  if (!Number.isInteger(safeIndex) || safeIndex < 0 || safeIndex >= currentPlaylistAllTracks.value.length) return;
+  const success = await player.replaceQueueWithTracks?.(
+    currentPlaylistAllTracks.value,
+    safeIndex,
+    true,
+    {
+      sourceType: 'playlist',
+      sourceCode: currentPlaylistProfile.value?.playlistCode || ''
+    }
+  );
+  if (!success) {
+    window.alert('该歌曲当前无法播放，请稍后重试');
+    return;
+  }
+  growPlaylistBrowseVisibleCount();
 }
 
 async function handleSelectTrackFromDock(index) {
@@ -1248,7 +1405,7 @@ function exitPlayerDetail() {
 }
 
 async function reloadCurrentPlaylist() {
-  await player.loadPlaylistByCode?.(currentPlaylistProfile.value.playlistCode || DEFAULT_PLAYLIST_CODE, playlistLoadOptions());
+  await ensureCurrentRoutePlaylistLoaded({ force: true });
 }
 
 async function handleCreatePlaylist() {
@@ -1331,9 +1488,12 @@ const musicContext = Object.freeze({
   searchError,
   searchResult,
   searchHasMore,
+  searchAllVisibleCount,
   hasActiveSearch,
   currentPlaylistProfile,
+  currentPlaylistAllTracks,
   currentPlaylistTracks,
+  currentPlaylistHasMore,
   currentPlaylistLoading,
   currentPlaylistError,
   collectingPlaylist,
@@ -1344,6 +1504,7 @@ const musicContext = Object.freeze({
   loadMoreMusicSearchSection,
   retryMusicSearchLoadMore,
   reloadCurrentPlaylist,
+  loadMoreCurrentPlaylistTracks,
   openPlaylistDetail,
   backToMainList,
   enterPlayerDetail,

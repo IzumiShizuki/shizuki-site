@@ -21,7 +21,7 @@
       </button>
     </div>
 
-    <div class="filters-row">
+    <div v-if="showFilters" class="filters-row">
       <div class="filter-group">
         <button
           v-for="item in typeOptions"
@@ -60,6 +60,7 @@ const props = defineProps({
   type: { type: String, default: 'all' },
   loading: { type: Boolean, default: false },
   errorText: { type: String, default: '' },
+  showFilters: { type: Boolean, default: true },
   typeOptions: { type: Array, default: () => [] },
   providerOptions: { type: Array, default: () => [] },
   selectedProviders: { type: Array, default: () => [] }

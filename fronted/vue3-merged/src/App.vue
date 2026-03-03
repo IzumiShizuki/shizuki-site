@@ -366,6 +366,9 @@ const playerBridge = Object.freeze({
   duration: player.duration,
   currentLyricLine: player.currentLyricLine,
   lyricContext: player.lyricContext,
+  lyricTimeline: player.lyricTimeline,
+  currentLyricEntryIndex: player.currentLyricEntryIndex,
+  lyricRenderMode: player.lyricRenderMode,
   volume: player.volume,
   playMode: player.playMode,
   togglePlay: player.togglePlay,
@@ -376,10 +379,13 @@ const playerBridge = Object.freeze({
   enqueueNextTrack: player.enqueueNextTrack,
   playExternalTrack: player.playExternalTrack,
   seekToPercent: player.seekToPercent,
+  seekToTime: player.seekToTime,
   setVolume: player.setVolume,
+  setLyricRenderMode: player.setLyricRenderMode,
   cyclePlayMode: player.cyclePlayMode,
   loadPlaylistByCode: player.loadPlaylistByCode,
-  reloadPlaylist: player.reloadPlaylist
+  reloadPlaylist: player.reloadPlaylist,
+  replaceQueueWithTracks: player.replaceQueueWithTracks
 });
 
 provide(PLAYER_BRIDGE_KEY, playerBridge);
