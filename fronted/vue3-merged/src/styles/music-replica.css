@@ -1,15 +1,11 @@
 .music-library-page {
-  --music-dock-height: 94px;
+  --music-dock-height: 112px;
   --music-dock-gap: max(12px, env(safe-area-inset-bottom));
+  --music-bottom-dock-height: calc(var(--music-dock-height) + var(--music-dock-gap));
   --music-toolbar-height: 36px;
   min-height: 100%;
   height: 100%;
   color: rgba(235, 241, 255, 0.94);
-}
-
-.music-library-page.player-detail-route {
-  --music-dock-height: 0px;
-  --music-dock-gap: 0px;
 }
 
 .music-library-module {
@@ -25,7 +21,7 @@
 
 .music-library-module.player-detail-only {
   grid-template-columns: 1fr;
-  padding: 8px;
+  padding: 8px 8px calc(var(--music-bottom-dock-height) + 8px) 8px;
 }
 
 .music-center-pane {
@@ -91,8 +87,9 @@
 }
 
 .music-player-detail-pane {
-  min-height: 100%;
-  overflow: auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   border-radius: 18px;
 }
 
@@ -201,7 +198,7 @@
 
 @media (max-width: 900px) {
   .music-library-page {
-    --music-dock-height: 116px;
+    --music-dock-height: 136px;
     --music-dock-gap: max(8px, env(safe-area-inset-bottom));
   }
 

@@ -11,7 +11,6 @@
     <div class="detail-layout">
       <aside class="vinyl-column">
         <div class="vinyl-stage">
-          <div class="vinyl-arm" :class="{ playing: music.player.isPlaying.value }"></div>
           <div class="vinyl-disc" :class="{ spinning: music.player.isPlaying.value }">
             <div class="vinyl-cover" :style="coverStyle"></div>
           </div>
@@ -22,6 +21,7 @@
         <header class="track-meta">
           <h1>{{ track?.title || '暂无播放曲目' }}</h1>
           <p class="sub">{{ track?.artist || '未知歌手' }}</p>
+          <p v-if="albumText" class="album">{{ albumText }}</p>
         </header>
 
         <section class="lyric-scroll-shell">
@@ -38,7 +38,7 @@
               @click="seekToLyricRow(row.time)"
             >
               <p class="line-main">{{ row.main || '...' }}</p>
-              <p class="line-sub">{{ row.sub || '' }}</p>
+              <p v-if="row.sub" class="line-sub">{{ row.sub }}</p>
             </button>
           </div>
 
@@ -57,45 +57,33 @@
       </section>
 
       <aside class="side-column">
-        <button class="side-toggle ripple-trigger" type="button" @click="toggleQueuePanel">
-          <i class="fas fa-bars"></i>
+        <button class="mode-icon-btn ripple-trigger" type="button" :title="`播放顺序：${playModeLabel}`" @click="cyclePlayMode">
+          <i class="fas" :class="playModeIcon"></i>
         </button>
-        <p class="side-caption">歌曲列表，点击从右侧展开</p>
+        <p class="side-caption">{{ playModeLabel }}</p>
 
-        <transition name="side-pop">
-          <section v-if="queueOpen" class="queue-panel liquid-material">
-            <header>
-              <h4>当前队列</h4>
-              <button class="queue-close ripple-trigger" type="button" @click="queueOpen = false">
-                <i class="fas fa-xmark"></i>
-              </button>
-            </header>
-            <div class="queue-list">
-              <button
-                v-for="(item, index) in queueTracks"
-                :key="`queue-row-${item.id || index}`"
-                class="queue-row ripple-trigger"
-                :class="{ active: index === currentQueueIndex }"
-                type="button"
-                @click="selectQueueTrack(index)"
-              >
-                <span class="queue-index">{{ index + 1 }}</span>
-                <span class="queue-title">{{ item.title || '未知歌曲' }}</span>
-              </button>
-            </div>
-          </section>
-        </transition>
-
-        <button class="mode-pill ripple-trigger" type="button" @click="toggleModePanel">
+        <button v-if="showLyricModeControls" class="mode-pill ripple-trigger" type="button" @click="toggleModePanel">
           {{ activeLyricModeLabel }}
         </button>
 
         <transition name="side-pop">
-          <div v-if="modePanelOpen" class="lyric-mode-stack liquid-material">
-            <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original_translation' }" type="button" @click="setLyricMode('original_translation')">
+          <div v-if="showLyricModeControls && modePanelOpen" class="lyric-mode-stack liquid-material">
+            <button
+              v-if="availableLyricModes.includes('original_translation')"
+              class="mode-btn ripple-trigger"
+              :class="{ active: lyricMode === 'original_translation' }"
+              type="button"
+              @click="setLyricMode('original_translation')"
+            >
               译
             </button>
-            <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original_furigana' }" type="button" @click="setLyricMode('original_furigana')">
+            <button
+              v-if="availableLyricModes.includes('original_furigana')"
+              class="mode-btn ripple-trigger"
+              :class="{ active: lyricMode === 'original_furigana' }"
+              type="button"
+              @click="setLyricMode('original_furigana')"
+            >
               音
             </button>
             <button class="mode-btn ripple-trigger" :class="{ active: lyricMode === 'original' }" type="button" @click="setLyricMode('original')">
@@ -103,38 +91,8 @@
             </button>
           </div>
         </transition>
-
-        <p class="side-order">播放顺序 · {{ playModeLabel }}</p>
       </aside>
     </div>
-
-    <footer class="detail-footer">
-      <div class="progress-row">
-        <span>{{ playedText }}</span>
-        <input type="range" min="0" max="1000" :value="Math.round(progress * 1000)" @input="onSeek" />
-        <span>{{ remainText }}</span>
-      </div>
-
-      <div class="footer-row">
-        <div class="ctrl-row">
-          <button class="ctrl-btn ripple-trigger" type="button" @click="music.player.playPrev">
-            <i class="fas fa-backward-step"></i>
-          </button>
-          <button class="ctrl-btn primary ripple-trigger" type="button" @click="music.player.togglePlay">
-            <i class="fas" :class="music.player.isPlaying.value ? 'fa-pause' : 'fa-play'"></i>
-          </button>
-          <button class="ctrl-btn ripple-trigger" type="button" @click="music.player.playNext">
-            <i class="fas fa-forward-step"></i>
-          </button>
-        </div>
-
-        <div class="volume-row">
-          <i class="fas fa-volume-low"></i>
-          <input type="range" min="0" max="100" :value="Math.round(volume * 100)" @input="onVolume" />
-          <span>{{ Math.round(volume * 100) }}%</span>
-        </div>
-      </div>
-    </footer>
   </section>
 </template>
 
@@ -146,26 +104,35 @@ import { safeCssUrl } from '../../utils/url';
 const music = useMusicLibraryContext();
 
 const track = computed(() => music.player.currentTrack.value);
-const volume = computed(() => Number(music.player.volume.value || 0));
 const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
 const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
 const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
-const queueTracks = computed(() => (Array.isArray(music.player.tracks?.value) ? music.player.tracks.value : []));
-const currentQueueIndex = computed(() => {
-  const currentId = String(track.value?.id || '');
-  if (!currentId) return -1;
-  return queueTracks.value.findIndex((item) => String(item?.id || '') === currentId);
-});
+const availableLyricModes = computed(() =>
+  Array.isArray(music.player.availableLyricModes?.value) && music.player.availableLyricModes.value.length
+    ? music.player.availableLyricModes.value
+    : ['original']
+);
+const showLyricModeControls = computed(() => availableLyricModes.value.length > 1);
 const playModeLabel = computed(() => {
   const raw = String(music.player.playMode?.value || 'sequential');
   if (raw === 'random') return '随机';
   if (raw === 'single') return '单曲循环';
   return '顺序';
 });
+const playModeIcon = computed(() => {
+  const raw = String(music.player.playMode?.value || 'sequential');
+  if (raw === 'random') return 'fa-shuffle';
+  if (raw === 'single') return 'fa-repeat-1';
+  return 'fa-repeat';
+});
 const activeLyricModeLabel = computed(() => {
   if (lyricMode.value === 'original') return '原文';
   if (lyricMode.value === 'original_furigana') return '原文+注音';
   return '原文+翻译';
+});
+const albumText = computed(() => {
+  const metadata = track.value?.metadata && typeof track.value.metadata === 'object' ? track.value.metadata : {};
+  return String(track.value?.album || metadata?.album || metadata?.albumName || metadata?.album_name || '').trim();
 });
 
 const lyricListRef = ref(null);
@@ -173,7 +140,6 @@ const lyricRowRefs = ref([]);
 const centerTimeVisible = ref(false);
 const centerTimeText = ref('00:00');
 const centerLyricTime = ref(0);
-const queueOpen = ref(false);
 const modePanelOpen = ref(false);
 
 let centerTimeHideTimer = 0;
@@ -197,23 +163,20 @@ const renderedRows = computed(() => {
     return lines.map((line, idx) => ({
       time: idx * 4,
       main: line,
-      sub: lines[idx + 1] || ''
+      sub: ''
     }));
   }
 
-  return rows.map((item, idx) => {
+  return rows.map((item) => {
     const main = String(item?.original || '').trim() || '...';
-    const nextOriginal = String(rows[idx + 1]?.original || '').trim();
     const translation = String(item?.translation || '').trim();
     const furigana = String(item?.furigana || '').trim();
 
     let sub = '';
     if (lyricMode.value === 'original_translation') {
-      sub = translation || nextOriginal;
+      sub = translation;
     } else if (lyricMode.value === 'original_furigana') {
-      sub = furigana || translation || nextOriginal;
-    } else {
-      sub = nextOriginal;
+      sub = furigana || translation;
     }
 
     return {
@@ -232,20 +195,6 @@ const coverStyle = computed(() => {
   };
 });
 
-const progress = computed(() => {
-  const total = Number(music.player.duration.value || 0);
-  const current = Number(music.player.currentTime.value || 0);
-  if (!Number.isFinite(total) || total <= 0) return 0;
-  return Math.max(0, Math.min(1, current / total));
-});
-
-const playedText = computed(() => formatTime(music.player.currentTime.value));
-const remainText = computed(() => {
-  const total = Number(music.player.duration.value || 0);
-  const current = Number(music.player.currentTime.value || 0);
-  return formatTime(Math.max(0, total - current));
-});
-
 function formatTime(sec) {
   const value = Number(sec);
   if (!Number.isFinite(value) || value < 0) return '00:00';
@@ -253,19 +202,13 @@ function formatTime(sec) {
   return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`;
 }
 
-function onSeek(event) {
-  const raw = Number(event?.target?.value);
-  music.player.seekToPercent(Math.max(0, Math.min(1, raw / 1000)));
-}
-
-function onVolume(event) {
-  const raw = Number(event?.target?.value);
-  music.player.setVolume(Math.max(0, Math.min(1, raw / 100)));
-}
-
 function setLyricMode(mode) {
   music.player.setLyricRenderMode?.(mode);
   modePanelOpen.value = false;
+}
+
+function cyclePlayMode() {
+  music.player.cyclePlayMode?.();
 }
 
 function setLyricRowRef(el, index) {
@@ -329,36 +272,9 @@ function scrollToLyricIndex(index, behavior = 'smooth') {
   container.scrollTo({ top: Math.max(0, targetTop), behavior });
 }
 
-function toggleQueuePanel() {
-  queueOpen.value = !queueOpen.value;
-}
-
 function toggleModePanel() {
   modePanelOpen.value = !modePanelOpen.value;
 }
-
-function selectQueueTrack(index) {
-  const safeIndex = Number(index);
-  if (!Number.isFinite(safeIndex) || safeIndex < 0 || safeIndex >= queueTracks.value.length) return;
-  music.player.selectTrackByIndex?.(safeIndex, true);
-  queueOpen.value = false;
-}
-
-watch(
-  () => queueOpen.value,
-  (nextOpen) => {
-    music.player.setListOpen?.(nextOpen);
-  }
-);
-
-watch(
-  () => music.player.listOpen?.value,
-  (nextOpen) => {
-    if (typeof nextOpen !== 'boolean') return;
-    if (nextOpen === queueOpen.value) return;
-    queueOpen.value = nextOpen;
-  }
-);
 
 watch(
   () => renderedRows.value.length,
@@ -368,6 +284,16 @@ watch(
     const idx = activeLyricIndex.value;
     if (idx >= 0) {
       scrollToLyricIndex(idx, 'auto');
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => showLyricModeControls.value,
+  (nextVisible) => {
+    if (!nextVisible) {
+      modePanelOpen.value = false;
     }
   },
   { immediate: true }
@@ -396,12 +322,13 @@ onBeforeUnmount(() => {
   --liquid-bg: linear-gradient(160deg, rgba(14, 20, 30, 0.94), rgba(7, 10, 20, 0.92));
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 24px 46px rgba(5, 8, 16, 0.46);
-  min-height: 100%;
+  height: 100%;
   border-radius: 18px;
   padding: 16px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
+  overflow: hidden;
 }
 
 .detail-head {
@@ -430,9 +357,11 @@ onBeforeUnmount(() => {
 
 .detail-layout {
   min-height: 0;
+  height: 100%;
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr) 88px;
-  gap: 16px;
+  grid-template-columns: minmax(320px, 440px) minmax(0, 1fr) 82px;
+  gap: 22px;
+  overflow: hidden;
 }
 
 .vinyl-column {
@@ -440,33 +369,15 @@ onBeforeUnmount(() => {
 }
 
 .vinyl-stage {
-  position: sticky;
-  top: 8px;
+  position: relative;
   display: grid;
   place-items: center;
-  padding-top: 32px;
-}
-
-.vinyl-arm {
-  position: absolute;
-  top: 0;
-  left: 52px;
-  width: 214px;
-  height: 8px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(248, 249, 252, 0.95), rgba(229, 236, 248, 0.82));
-  transform-origin: 8% 50%;
-  transform: rotate(-22deg);
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-}
-
-.vinyl-arm.playing {
-  transform: rotate(-8deg);
+  padding-top: 8px;
+  padding-left: 6px;
 }
 
 .vinyl-disc {
-  width: min(82vw, 420px);
+  width: clamp(220px, 26vw, 360px);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   display: grid;
@@ -499,6 +410,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
+  padding-left: 14px;
 }
 
 .track-meta h1 {
@@ -511,6 +423,12 @@ onBeforeUnmount(() => {
 .track-meta .sub {
   margin: 6px 0 0;
   color: rgba(189, 201, 226, 0.87);
+}
+
+.track-meta .album {
+  margin: 4px 0 0;
+  color: rgba(160, 175, 205, 0.86);
+  font-size: 13px;
 }
 
 .lyric-scroll-shell {
@@ -539,13 +457,21 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 2;
   height: 100%;
-  max-height: 620px;
-  min-height: 440px;
+  max-height: none;
+  min-height: 0;
   overflow-y: auto;
-  padding: 180px 24px;
+  padding: 160px 24px;
   display: grid;
   gap: 14px;
   scroll-behavior: smooth;
+}
+
+.lyric-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.lyric-scroll {
+  scrollbar-width: none;
 }
 
 .lyric-row {
@@ -617,10 +543,10 @@ onBeforeUnmount(() => {
   align-content: start;
   justify-items: center;
   gap: 12px;
-  padding-top: 8px;
+  padding-top: 10px;
 }
 
-.side-toggle,
+.mode-icon-btn,
 .mode-pill {
   min-height: 34px;
   min-width: 34px;
@@ -631,14 +557,21 @@ onBeforeUnmount(() => {
   padding: 0 10px;
 }
 
+.mode-icon-btn {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 14px;
+}
+
 .mode-pill {
   min-width: 76px;
   background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
   border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
-.side-caption,
-.side-order {
+.side-caption {
   margin: 0;
   font-size: 12px;
   line-height: 1.4;
@@ -667,81 +600,6 @@ onBeforeUnmount(() => {
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
   border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
-}
-
-.queue-panel {
-  --liquid-bg: rgba(18, 23, 35, 0.82);
-  --liquid-border: rgba(255, 255, 255, 0.18);
-  --liquid-shadow: 0 18px 30px rgba(5, 8, 16, 0.42);
-  position: absolute;
-  right: calc(100% + 8px);
-  top: 0;
-  width: 280px;
-  max-height: 62vh;
-  border-radius: 12px;
-  padding: 10px;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 8px;
-  z-index: 6;
-}
-
-.queue-panel header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.queue-panel h4 {
-  margin: 0;
-  font-size: 13px;
-  color: rgba(236, 243, 255, 0.94);
-}
-
-.queue-close {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(228, 236, 255, 0.9);
-}
-
-.queue-list {
-  min-height: 0;
-  overflow: auto;
-  display: grid;
-  gap: 6px;
-}
-
-.queue-row {
-  width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(221, 230, 248, 0.9);
-  padding: 6px 8px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.queue-row .queue-index {
-  opacity: 0.85;
-}
-
-.queue-row .queue-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-}
-
-.queue-row.active {
-  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
 .detail-footer {
@@ -832,7 +690,12 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1220px) {
   .detail-layout {
-    grid-template-columns: minmax(240px, 310px) minmax(0, 1fr) 74px;
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr) 70px;
+    gap: 14px;
+  }
+
+  .content-column {
+    padding-left: 8px;
   }
 
   .lyric-row .line-main {
@@ -855,6 +718,8 @@ onBeforeUnmount(() => {
 @media (max-width: 980px) {
   .detail-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    overflow: hidden;
   }
 
   .vinyl-column,
@@ -878,16 +743,11 @@ onBeforeUnmount(() => {
     gap: 10px;
   }
 
-  .queue-panel {
-    left: 0;
-    right: auto;
-    top: calc(100% + 8px);
-    width: min(86vw, 360px);
-  }
-
   .lyric-scroll {
-    min-height: 360px;
-    max-height: 60vh;
+    min-height: 0;
+    max-height: none;
+    padding-top: 120px;
+    padding-bottom: 120px;
   }
 
   .footer-row {
@@ -910,8 +770,7 @@ onBeforeUnmount(() => {
   .side-pop-enter-active,
   .side-pop-leave-active,
   .lyric-time-fade-enter-active,
-  .lyric-time-fade-leave-active,
-  .vinyl-arm {
+  .lyric-time-fade-leave-active {
     transition: none !important;
   }
 }

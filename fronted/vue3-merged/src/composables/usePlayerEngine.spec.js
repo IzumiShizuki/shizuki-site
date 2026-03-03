@@ -167,4 +167,29 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.currentTrack.value?.lyricText).toContain('snake line 1');
     expect(engine.lyricContext.value.current).toBe('snake line 1');
   });
+
+  it('exposes only available lyric modes and rejects unavailable mode switch', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/single-line.mp3',
+      lyricText: '[00:01.00]only original'
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      {
+        provider: 'netease',
+        trackId: 'single-line',
+        title: 'Single',
+        artist: 'Singer'
+      },
+      true,
+      { replaceQueue: true }
+    );
+
+    expect(engine.availableLyricModes.value).toEqual(['original']);
+    expect(engine.lyricRenderMode.value).toBe('original');
+
+    engine.setLyricRenderMode('original_translation');
+    expect(engine.lyricRenderMode.value).toBe('original');
+  });
 });

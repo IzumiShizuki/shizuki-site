@@ -370,6 +370,7 @@ const playerBridge = Object.freeze({
   lyricTimeline: player.lyricTimeline,
   currentLyricEntryIndex: player.currentLyricEntryIndex,
   lyricRenderMode: player.lyricRenderMode,
+  availableLyricModes: player.availableLyricModes,
   listOpen: player.listOpen,
   volume: player.volume,
   playMode: player.playMode,
@@ -1082,6 +1083,10 @@ onBeforeUnmount(() => {
 }
 
 .workspace-shell {
+  --music-top-offset-collapsed: 58px;
+  --music-top-offset-expanded: 134px;
+  --music-bottom-offset: 14px;
+  --music-top-offset-current: var(--music-top-offset-collapsed);
   position: relative;
   z-index: 40;
   height: 100%;
@@ -1093,6 +1098,7 @@ onBeforeUnmount(() => {
 }
 
 .workspace-shell.expanded {
+  --music-top-offset-current: var(--music-top-offset-expanded);
   padding-top: 134px;
 }
 
@@ -1127,6 +1133,8 @@ onBeforeUnmount(() => {
   border: 0;
   box-shadow: none;
   padding: 0;
+  overflow: hidden;
+  height: calc(100dvh - var(--music-top-offset-current) - var(--music-bottom-offset));
 }
 
 .route-content.route-content-music-shell {
@@ -1543,10 +1551,14 @@ onBeforeUnmount(() => {
 
 @media (max-width: 900px) {
   .workspace-shell {
+    --music-top-offset-collapsed: 50px;
+    --music-top-offset-expanded: 70px;
+    --music-bottom-offset: 10px;
     padding: 50px 10px 10px 48px;
   }
 
   .workspace-shell.expanded {
+    --music-top-offset-current: var(--music-top-offset-expanded);
     padding-top: 70px;
   }
 
@@ -1591,10 +1603,14 @@ onBeforeUnmount(() => {
 
 @media (max-width: 600px), (orientation: portrait) {
   .workspace-shell {
+    --music-top-offset-collapsed: 10px;
+    --music-top-offset-expanded: 16px;
+    --music-bottom-offset: 8px;
     padding: 10px 8px 8px 44px;
   }
 
   .workspace-shell.expanded {
+    --music-top-offset-current: var(--music-top-offset-expanded);
     padding-top: 16px;
   }
 

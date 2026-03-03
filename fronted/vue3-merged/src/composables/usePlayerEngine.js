@@ -329,6 +329,20 @@ export function usePlayerEngine(options = {}) {
     };
   });
 
+  const availableLyricModes = computed(() => {
+    const baseModes = ['original'];
+    const track = currentTrack.value;
+    if (!track) return baseModes;
+    const trackTexts = readLyricTrackTexts(track);
+    const hasTranslation = Boolean(String(trackTexts.translation || '').trim())
+      || lyricTimeline.value.some((item) => Boolean(String(item?.translation || '').trim()));
+    const hasFurigana = Boolean(String(trackTexts.furigana || '').trim())
+      || lyricTimeline.value.some((item) => Boolean(String(item?.furigana || '').trim()));
+    if (hasTranslation) baseModes.push('original_translation');
+    if (hasFurigana) baseModes.push('original_furigana');
+    return baseModes;
+  });
+
   function buildLyricEntriesFromText(rawText) {
     const source = String(rawText || '');
     if (!source.trim()) return [];
@@ -672,8 +686,10 @@ export function usePlayerEngine(options = {}) {
   }
 
   function setLyricRenderMode(nextMode) {
-    if (!LYRIC_RENDER_MODES.includes(String(nextMode || ''))) return;
-    lyricRenderMode.value = String(nextMode);
+    const mode = String(nextMode || '');
+    if (!LYRIC_RENDER_MODES.includes(mode)) return;
+    if (!availableLyricModes.value.includes(mode)) return;
+    lyricRenderMode.value = mode;
   }
 
   function cyclePlayMode() {
@@ -1052,6 +1068,21 @@ export function usePlayerEngine(options = {}) {
     }
   );
 
+  watch(
+    () => availableLyricModes.value.join(','),
+    () => {
+      const modes = availableLyricModes.value;
+      if (!modes.length) {
+        lyricRenderMode.value = 'original';
+        return;
+      }
+      if (!modes.includes(lyricRenderMode.value)) {
+        lyricRenderMode.value = modes[0];
+      }
+    },
+    { immediate: true }
+  );
+
   onBeforeUnmount(() => {
     audioElement.pause();
     audioElement.src = '';
@@ -1079,6 +1110,7 @@ export function usePlayerEngine(options = {}) {
     lyricTimeline,
     currentLyricEntryIndex,
     lyricRenderMode,
+    availableLyricModes,
     selectTrackByIndex,
     togglePlay,
     playNext,

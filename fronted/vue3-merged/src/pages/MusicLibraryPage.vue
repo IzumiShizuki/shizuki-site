@@ -97,27 +97,34 @@
           @enqueue-spotify="handleEnqueueSpotify"
         />
 
-        <MusicLibraryDock
-          :track="player.currentTrack.value"
-          :tracks="player.tracks.value"
-          :current-track-id="player.currentTrack.value?.id || ''"
-          :is-playing="player.isPlaying.value"
-          :current-time="player.currentTime.value"
-          :duration="player.duration.value"
-          :play-mode="player.playMode.value"
-          @toggle-play="player.togglePlay"
-          @prev="player.playPrev"
-          @next="player.playNext"
-          @seek="player.seekToPercent"
-          @cycle-mode="player.cyclePlayMode"
-          @select-track="handleSelectTrackFromDock"
-          @open-player-detail="enterPlayerDetail"
-        />
       </template>
 
       <main v-else class="music-player-detail-pane">
         <RouterView />
       </main>
+
+      <MusicLibraryDock
+        :track="player.currentTrack.value"
+        :tracks="player.tracks.value"
+        :current-track-id="player.currentTrack.value?.id || ''"
+        :is-playing="player.isPlaying.value"
+        :current-time="player.currentTime.value"
+        :duration="player.duration.value"
+        :play-mode="player.playMode.value"
+        :volume="player.volume.value"
+        :detail-layout="isPlayerDetailRoute"
+        :playlist-options="createdPlaylists"
+        :can-collect="auth.isAuthenticated.value"
+        @toggle-play="player.togglePlay"
+        @prev="player.playPrev"
+        @next="player.playNext"
+        @seek="player.seekToPercent"
+        @cycle-mode="player.cyclePlayMode"
+        @set-volume="player.setVolume"
+        @select-track="handleSelectTrackFromDock"
+        @collect-track="handleCollectTrackToPlaylist"
+        @open-player-detail="enterPlayerDetail"
+      />
     </div>
 
     <MusicCreatePlaylistDialog
@@ -1324,6 +1331,38 @@ async function handleSelectTrackFromDock(index) {
   const safeIndex = Number(index);
   if (!Number.isInteger(safeIndex) || safeIndex < 0) return;
   await player.selectTrackByIndex(safeIndex, true);
+}
+
+async function handleCollectTrackToPlaylist(rawPlaylistCode) {
+  if (!auth.isAuthenticated.value) {
+    goLogin();
+    return;
+  }
+  const playlistCode = String(rawPlaylistCode || '').trim();
+  if (!playlistCode) {
+    window.alert('请选择一个目标歌单');
+    return;
+  }
+
+  const currentTrack = player.currentTrack.value;
+  if (!currentTrack) {
+    window.alert('当前没有可收藏的歌曲');
+    return;
+  }
+
+  try {
+    await musicApi.upsertMyMusicPlaylistTrack(
+      playlistCode,
+      toPlaylistTrackUpsertPayload(currentTrack, playerQueueTracks.value.length + 1),
+      auth.authorizedFetch
+    );
+    if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === playlistCode) {
+      await ensureCurrentRoutePlaylistLoaded({ force: true });
+    }
+    window.alert('已收藏到歌单');
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '收藏歌曲失败，请稍后重试'));
+  }
 }
 
 function isTrackLiked(trackId) {
