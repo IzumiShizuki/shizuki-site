@@ -1,13 +1,110 @@
-ALTER TABLE CTN_POST
-    ADD COLUMN IF NOT EXISTS status_code VARCHAR(32) NOT NULL DEFAULT 'PUBLISHED',
-    ADD COLUMN IF NOT EXISTS category_code VARCHAR(64) NOT NULL DEFAULT 'general',
-    ADD COLUMN IF NOT EXISTS slug_code VARCHAR(128) NULL,
-    ADD COLUMN IF NOT EXISTS md_bucket_name VARCHAR(128) NULL,
-    ADD COLUMN IF NOT EXISTS md_object_key VARCHAR(512) NULL,
-    ADD COLUMN IF NOT EXISTS word_count BIGINT NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS line_count BIGINT NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS reading_minutes INT NOT NULL DEFAULT 1,
-    ADD COLUMN IF NOT EXISTS published_time DATETIME NULL;
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'status_code'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN status_code VARCHAR(32) NOT NULL DEFAULT ''PUBLISHED''', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'category_code'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN category_code VARCHAR(64) NOT NULL DEFAULT ''general''', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'slug_code'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN slug_code VARCHAR(128) NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'md_bucket_name'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN md_bucket_name VARCHAR(128) NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'md_object_key'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN md_object_key VARCHAR(512) NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'word_count'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN word_count BIGINT NOT NULL DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'line_count'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN line_count BIGINT NOT NULL DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'reading_minutes'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN reading_minutes INT NOT NULL DEFAULT 1', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'published_time'
+);
+SET @ddl = IF(@col_exists = 0, 'ALTER TABLE CTN_POST ADD COLUMN published_time DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @idx_exists = (
     SELECT COUNT(1)

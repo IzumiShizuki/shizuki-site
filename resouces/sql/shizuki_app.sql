@@ -724,16 +724,149 @@ CREATE TABLE IF NOT EXISTS AUD_EVENT_OUTBOX (
 
 -- ===== module=content file=V408__blog_post_phase1.sql =====
 
-ALTER TABLE CTN_POST
-    ADD COLUMN IF NOT EXISTS status_code VARCHAR(32) NOT NULL DEFAULT 'PUBLISHED' COMMENT 'CTN_POST.status_code 文章状态',
-    ADD COLUMN IF NOT EXISTS category_code VARCHAR(64) NOT NULL DEFAULT 'general' COMMENT 'CTN_POST.category_code 分类编码',
-    ADD COLUMN IF NOT EXISTS slug_code VARCHAR(128) NULL COMMENT 'CTN_POST.slug_code 文章短链编码',
-    ADD COLUMN IF NOT EXISTS md_bucket_name VARCHAR(128) NULL COMMENT 'CTN_POST.md_bucket_name markdown存储bucket',
-    ADD COLUMN IF NOT EXISTS md_object_key VARCHAR(512) NULL COMMENT 'CTN_POST.md_object_key markdown存储key',
-    ADD COLUMN IF NOT EXISTS word_count BIGINT NOT NULL DEFAULT 0 COMMENT 'CTN_POST.word_count 字数',
-    ADD COLUMN IF NOT EXISTS line_count BIGINT NOT NULL DEFAULT 0 COMMENT 'CTN_POST.line_count 行数',
-    ADD COLUMN IF NOT EXISTS reading_minutes INT NOT NULL DEFAULT 1 COMMENT 'CTN_POST.reading_minutes 阅读分钟数',
-    ADD COLUMN IF NOT EXISTS published_time DATETIME NULL COMMENT 'CTN_POST.published_time 发布时间';
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'status_code'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN status_code VARCHAR(32) NOT NULL DEFAULT ''PUBLISHED'' COMMENT ''CTN_POST.status_code 文章状态''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'category_code'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN category_code VARCHAR(64) NOT NULL DEFAULT ''general'' COMMENT ''CTN_POST.category_code 分类编码''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'slug_code'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN slug_code VARCHAR(128) NULL COMMENT ''CTN_POST.slug_code 文章短链编码''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'md_bucket_name'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN md_bucket_name VARCHAR(128) NULL COMMENT ''CTN_POST.md_bucket_name markdown存储bucket''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'md_object_key'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN md_object_key VARCHAR(512) NULL COMMENT ''CTN_POST.md_object_key markdown存储key''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'word_count'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN word_count BIGINT NOT NULL DEFAULT 0 COMMENT ''CTN_POST.word_count 字数''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'line_count'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN line_count BIGINT NOT NULL DEFAULT 0 COMMENT ''CTN_POST.line_count 行数''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'reading_minutes'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN reading_minutes INT NOT NULL DEFAULT 1 COMMENT ''CTN_POST.reading_minutes 阅读分钟数''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND column_name = 'published_time'
+);
+SET @ddl = IF(
+    @col_exists = 0,
+    'ALTER TABLE CTN_POST ADD COLUMN published_time DATETIME NULL COMMENT ''CTN_POST.published_time 发布时间''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @idx_exists = (
     SELECT COUNT(1)
