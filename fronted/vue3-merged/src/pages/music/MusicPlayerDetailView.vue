@@ -359,8 +359,8 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(320px, 440px) minmax(0, 1fr) 82px;
-  gap: 22px;
+  grid-template-columns: minmax(360px, 500px) minmax(0, 1fr) 86px;
+  gap: 28px;
   overflow: hidden;
 }
 
@@ -372,8 +372,8 @@ onBeforeUnmount(() => {
   position: relative;
   display: grid;
   place-items: center;
-  padding-top: 8px;
-  padding-left: 6px;
+  padding-top: 10px;
+  padding-left: 14px;
 }
 
 .vinyl-disc {
@@ -409,8 +409,8 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
-  padding-left: 14px;
+  gap: 14px;
+  padding-left: 28px;
 }
 
 .track-meta h1 {
@@ -418,6 +418,7 @@ onBeforeUnmount(() => {
   font-size: clamp(28px, 3vw, 52px);
   color: rgba(246, 249, 255, 0.97);
   line-height: 1.08;
+  letter-spacing: 0.01em;
 }
 
 .track-meta .sub {
@@ -460,7 +461,7 @@ onBeforeUnmount(() => {
   max-height: none;
   min-height: 0;
   overflow-y: auto;
-  padding: 160px 24px;
+  padding: 150px 32px;
   display: grid;
   gap: 14px;
   scroll-behavior: smooth;
@@ -695,7 +696,12 @@ onBeforeUnmount(() => {
   }
 
   .content-column {
-    padding-left: 8px;
+    padding-left: 10px;
+  }
+
+  .lyric-scroll {
+    padding-left: 24px;
+    padding-right: 24px;
   }
 
   .lyric-row .line-main {
