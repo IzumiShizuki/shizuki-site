@@ -9,11 +9,53 @@ ALTER TABLE CTN_POST
     ADD COLUMN IF NOT EXISTS reading_minutes INT NOT NULL DEFAULT 1 COMMENT 'CTN_POST.reading_minutes 阅读分钟数',
     ADD COLUMN IF NOT EXISTS published_time DATETIME NULL COMMENT 'CTN_POST.published_time 发布时间';
 
-ALTER TABLE CTN_POST
-    ADD UNIQUE INDEX IF NOT EXISTS AK_CTN_POST_2 (slug_code),
-    ADD INDEX IF NOT EXISTS IX_CTN_POST_3 (status_code),
-    ADD INDEX IF NOT EXISTS IX_CTN_POST_4 (category_code),
-    ADD INDEX IF NOT EXISTS IX_CTN_POST_5 (published_time);
+SET @idx_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND index_name = 'AK_CTN_POST_2'
+);
+SET @ddl = IF(@idx_exists = 0, 'ALTER TABLE CTN_POST ADD UNIQUE INDEX AK_CTN_POST_2 (slug_code)', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND index_name = 'IX_CTN_POST_3'
+);
+SET @ddl = IF(@idx_exists = 0, 'ALTER TABLE CTN_POST ADD INDEX IX_CTN_POST_3 (status_code)', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND index_name = 'IX_CTN_POST_4'
+);
+SET @ddl = IF(@idx_exists = 0, 'ALTER TABLE CTN_POST ADD INDEX IX_CTN_POST_4 (category_code)', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'CTN_POST'
+      AND index_name = 'IX_CTN_POST_5'
+);
+SET @ddl = IF(@idx_exists = 0, 'ALTER TABLE CTN_POST ADD INDEX IX_CTN_POST_5 (published_time)', 'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 UPDATE CTN_POST
 SET status_code = 'PUBLISHED',
