@@ -190,30 +190,15 @@ shizuki-site/
 
 ### Git 提交规范
 
-所有提交必须遵循此格式：`emoji type : description`
+以项目根目录 `AGENTS.md` 为准，当前规则如下：
 
-**常用操作（优先使用）：**
-- ✨ feat：新增功能
-- 🐛 fix：修复 bug
-- ♻️ refactor：重构（不改变功能）
-- 🎨 style：代码风格/格式调整（不改逻辑）
-- ⚡ perf：性能优化
-- ✅ test：新增/修改测试
-- 📝 docs：文档（README、注释、接口文档）
-- 🔧 chore：维护（构建脚本、依赖、配置）
-- 🚀 build：构建相关（打包、编译）
-- 👷 ci：CI 配置（GitHub Actions 等）
-- 🔥 del：删除代码/文件/无用逻辑
-- ⏪ revert：回滚提交
-
-**扩展操作：**
-- 🚚 move：移动/重命名文件或目录
-- 🔒 security：安全修复/加固
-- 🌐 i18n：国际化/本地化
-- 📦 deps：依赖变更（升级/降级）
-- 🧹 cleanup：清理死代码/临时代码
-- 🗃️ data：数据/SQL/迁移脚本变更
-- 🧱 init：初始化项目/基础功能
+- 提交身份固定：
+  - `user.name = Izumi`
+  - `user.email = 29301481@qq.com`
+- 提交信息格式固定：
+  - `fix|feat : 具体内容（简要说明做了什么）`
+- 默认仅本机提交，不自动推送 GitHub。
+- 仅当用户明确要求“push/推送远端”时，才执行远端推送流程。
 
 ## 用户与权限系统
 
@@ -355,4 +340,3 @@ Web 层组件（通过 Spring Boot starter 自动配置）：
 - 公共 API 需要 Javadoc
 - 复杂业务逻辑需要内联注释
 - 架构决策应记录在 `resouces/md/` 中
-
