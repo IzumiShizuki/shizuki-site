@@ -1,190 +1,232 @@
 <template>
   <section class="route-page blog-list-page motion-managed">
-    <header class="hero liquid-material">
-      <div class="hero-main">
-        <p class="hero-eyebrow">Blog</p>
-        <h1>博客</h1>
-        <p class="hero-subtitle">按分类与标签浏览文章，点击卡片进入详情页。</p>
-      </div>
-      <div class="hero-meta">
-        <span>共 {{ listState.total }} 篇</span>
-        <span v-if="listState.loading">加载中...</span>
-      </div>
-    </header>
-
-    <transition name="search-slide">
-      <div v-if="searchState.open" class="search-panel liquid-material">
-        <form class="search-form" @submit.prevent="handleSearchSubmit">
-          <input v-model.trim="filters.keyword" class="search-input" type="text" placeholder="搜索标题 / 摘要 / 标签" />
-          <button type="submit" class="mini-btn ripple-trigger">搜索</button>
-          <button type="button" class="mini-btn ripple-trigger" @click="clearArchiveFilter">清除归档</button>
-          <button type="button" class="mini-btn ripple-trigger" @click="searchState.open = false">收起</button>
-        </form>
-      </div>
-    </transition>
-
-    <section
-      ref="categoryStripRef"
-      class="category-strip liquid-material"
-      :class="{ dragging: categoryDrag.dragging }"
-      @pointerdown="handleCategoryStripPointerDown"
-      @wheel.prevent="handleCategoryStripWheel"
-    >
-      <button
-        v-for="category in categoryTabs"
-        :key="category.categoryCode || '__all__'"
-        type="button"
-        class="category-pill ripple-trigger"
-        :class="{ active: filters.category === category.categoryCode }"
-        @click="applyCategoryFilter(category.categoryCode)"
-      >
-        <span>{{ category.categoryCode || '全部' }}</span>
-        <span class="pill-count">{{ category.count }}</span>
-      </button>
-    </section>
-
-    <div class="list-layout">
-      <main class="feed-column">
-        <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
-
-        <article
-          v-for="(post, index) in listState.items"
-          :key="post.postId"
-          class="feed-card liquid-material ripple-trigger"
-          :class="{ reverse: index % 2 === 1 }"
-          :style="{ '--stagger': index }"
-          @click="openPostDetail(post.postId)"
+    <div class="blog-shell">
+      <aside class="left-switch liquid-material">
+        <button
+          type="button"
+          class="switch-btn ripple-trigger"
+          :class="{ active: uiState.panel === 'read' }"
+          @click="setPanel('read')"
         >
-          <div class="cover-pane">
-            <img :src="resolveCover(post.coverImageUrl)" :alt="post.title" loading="lazy" />
-          </div>
-          <div class="content-pane">
-            <h2>{{ post.title }}</h2>
-            <div class="meta-row">
-              <span>{{ formatDate(post.publishedAt) }}</span>
-              <span>{{ post.categoryCode || 'uncategorized' }}</span>
-              <span>{{ post.readingMinutes }} 分钟</span>
-            </div>
-            <p class="summary">{{ post.summary || '...' }}</p>
-            <div v-if="post.tags.length" class="tag-row">
-              <button
-                v-for="tag in post.tags"
-                :key="`${post.postId}-${tag}`"
-                type="button"
-                class="tag-chip ripple-trigger"
-                @click.stop="applyTagFilter(tag)"
-              >
-                #{{ tag }}
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <p v-if="!listState.loading && !listState.items.length" class="empty-text">暂无符合条件的文章。</p>
-
-        <footer class="pagination-wrap">
-          <button type="button" class="mini-btn ripple-trigger" :disabled="listState.pageNo <= 1" @click="goToPage(listState.pageNo - 1)">
-            上一页
-          </button>
-          <button
-            v-for="page in visiblePages"
-            :key="`page-${page}`"
-            type="button"
-            class="mini-btn ripple-trigger page-btn"
-            :class="{ active: page === listState.pageNo }"
-            @click="goToPage(page)"
-          >
-            {{ page }}
-          </button>
-          <button
-            type="button"
-            class="mini-btn ripple-trigger"
-            :disabled="listState.pageNo >= pageCount"
-            @click="goToPage(listState.pageNo + 1)"
-          >
-            下一页
-          </button>
-        </footer>
-      </main>
-
-      <aside class="sidebar-column">
-        <section class="side-card liquid-material">
-          <header class="side-head">
-            <h3>最新文章</h3>
-            <button type="button" class="icon-btn ripple-trigger" @click="searchState.open = !searchState.open">
-              <i class="fas fa-search"></i>
-              <span>搜索</span>
-            </button>
-          </header>
-          <div v-if="sidebarState.error" class="side-tip">{{ sidebarState.error }}</div>
-          <button
-            v-for="item in sidebarState.latestPosts"
-            :key="`latest-${item.postId}`"
-            type="button"
-            class="latest-item ripple-trigger"
-            @click="openPostDetail(item.postId)"
-          >
-            <img :src="resolveCover(item.coverImageUrl)" :alt="item.title" loading="lazy" />
-            <span class="latest-text">
-              <strong>{{ item.title }}</strong>
-              <small>{{ formatDate(item.publishedAt) }}</small>
-            </span>
-          </button>
-        </section>
-
-        <section class="side-card liquid-material">
-          <header class="side-head">
-            <h3>分类</h3>
-          </header>
-          <button
-            v-for="item in sidebarState.categories"
-            :key="`category-${item.categoryCode}`"
-            type="button"
-            class="list-row ripple-trigger"
-            :class="{ active: filters.category === item.categoryCode }"
-            @click="applyCategoryFilter(item.categoryCode)"
-          >
-            <span>{{ item.categoryCode }}</span>
-            <strong>{{ item.count }}</strong>
-          </button>
-        </section>
-
-        <section class="side-card liquid-material">
-          <header class="side-head">
-            <h3>标签</h3>
-          </header>
-          <div class="tag-cloud">
-            <button
-              v-for="item in sidebarState.tags"
-              :key="`tag-${item.tagCode}`"
-              type="button"
-              class="tag-chip ripple-trigger"
-              :class="{ active: filters.tag === item.tagCode }"
-              @click="applyTagFilter(item.tagCode)"
-            >
-              {{ item.tagCode }}
-              <span>{{ item.count }}</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="side-card liquid-material">
-          <header class="side-head">
-            <h3>归档</h3>
-          </header>
-          <button
-            v-for="item in sidebarState.archives"
-            :key="`archive-${item.month}`"
-            type="button"
-            class="list-row ripple-trigger"
-            :class="{ active: filters.archiveMonth === item.month }"
-            @click="applyArchiveFilter(item.month)"
-          >
-            <span>{{ item.month }}</span>
-            <strong>{{ item.count }}</strong>
-          </button>
-        </section>
+          <i class="far fa-file-lines"></i>
+          <span>看文</span>
+        </button>
+        <button
+          type="button"
+          class="switch-btn ripple-trigger"
+          :class="{ active: uiState.panel === 'write', disabled: !canWrite }"
+          @click="setPanel('write')"
+        >
+          <i class="fas fa-pen"></i>
+          <span>写文</span>
+        </button>
+        <button
+          type="button"
+          class="switch-btn ripple-trigger"
+          :class="{ active: uiState.panel === 'comments' }"
+          @click="setPanel('comments')"
+        >
+          <i class="far fa-comments"></i>
+          <span>评论</span>
+        </button>
+        <p v-if="uiState.actionHint" class="action-hint">{{ uiState.actionHint }}</p>
       </aside>
+
+      <section class="main-column">
+        <transition name="search-slide">
+          <div v-if="searchState.open && uiState.panel === 'read'" class="search-panel liquid-material">
+            <form class="search-form" @submit.prevent="handleSearchSubmit">
+              <input v-model.trim="filters.keyword" class="search-input" type="text" placeholder="搜索标题 / 摘要 / 标签" />
+              <button type="submit" class="mini-btn ripple-trigger">搜索</button>
+              <button type="button" class="mini-btn ripple-trigger" @click="clearArchiveFilter">清除归档</button>
+              <button type="button" class="mini-btn ripple-trigger" @click="searchState.open = false">收起</button>
+            </form>
+          </div>
+        </transition>
+
+        <template v-if="uiState.panel === 'read'">
+          <section
+            ref="categoryStripRef"
+            class="category-strip liquid-material"
+            :class="{ dragging: categoryDrag.dragging }"
+            @pointerdown="handleCategoryStripPointerDown"
+            @wheel.prevent="handleCategoryStripWheel"
+          >
+            <button
+              v-for="category in categoryTabs"
+              :key="category.categoryCode || '__all__'"
+              type="button"
+              class="category-pill ripple-trigger"
+              :class="{ active: filters.category === category.categoryCode }"
+              @click="applyCategoryFilter(category.categoryCode)"
+            >
+              <span>{{ category.categoryCode || '全部' }}</span>
+              <span class="pill-count">{{ category.count }}</span>
+            </button>
+            <span class="strip-meta">共 {{ listState.total }} 篇</span>
+          </section>
+
+          <div class="content-layout">
+            <main class="feed-column">
+              <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
+
+              <article
+                v-for="(post, index) in listState.items"
+                :key="post.postId"
+                class="feed-card liquid-material ripple-trigger"
+                :class="{ reverse: index % 2 === 1 }"
+                :style="{ '--stagger': index }"
+                @click="openPostDetail(post.postId)"
+              >
+                <div class="cover-pane">
+                  <img :src="resolveCover(post.coverImageUrl)" :alt="post.title" loading="lazy" />
+                </div>
+                <div class="content-pane">
+                  <h2>{{ post.title }}</h2>
+                  <div class="meta-row">
+                    <span>{{ formatDate(post.publishedAt) }}</span>
+                    <span>{{ post.categoryCode || 'uncategorized' }}</span>
+                    <span>{{ post.readingMinutes }} 分钟</span>
+                  </div>
+                  <p class="summary">{{ post.summary || '...' }}</p>
+                  <div v-if="post.tags.length" class="tag-row">
+                    <button
+                      v-for="tag in post.tags"
+                      :key="`${post.postId}-${tag}`"
+                      type="button"
+                      class="tag-chip ripple-trigger"
+                      @click.stop="applyTagFilter(tag)"
+                    >
+                      #{{ tag }}
+                    </button>
+                  </div>
+                </div>
+              </article>
+
+              <p v-if="!listState.loading && !listState.items.length" class="empty-text">暂无符合条件的文章。</p>
+
+              <footer class="pagination-wrap">
+                <button type="button" class="mini-btn ripple-trigger" :disabled="listState.pageNo <= 1" @click="goToPage(listState.pageNo - 1)">
+                  上一页
+                </button>
+                <button
+                  v-for="page in visiblePages"
+                  :key="`page-${page}`"
+                  type="button"
+                  class="mini-btn ripple-trigger page-btn"
+                  :class="{ active: page === listState.pageNo }"
+                  @click="goToPage(page)"
+                >
+                  {{ page }}
+                </button>
+                <button
+                  type="button"
+                  class="mini-btn ripple-trigger"
+                  :disabled="listState.pageNo >= pageCount"
+                  @click="goToPage(listState.pageNo + 1)"
+                >
+                  下一页
+                </button>
+              </footer>
+            </main>
+
+            <aside class="sidebar-column">
+              <section class="side-card liquid-material">
+                <header class="side-head">
+                  <h3>最新文章</h3>
+                  <div class="head-actions">
+                    <button type="button" class="icon-btn ripple-trigger" @click="searchState.open = !searchState.open">
+                      <i class="fas fa-search"></i>
+                      <span>搜索</span>
+                    </button>
+                    <button v-if="canWrite" type="button" class="icon-btn ripple-trigger" @click="openEditor">
+                      <i class="fas fa-pen"></i>
+                      <span>写文</span>
+                    </button>
+                  </div>
+                </header>
+                <div v-if="sidebarState.error" class="side-tip">{{ sidebarState.error }}</div>
+                <button
+                  v-for="item in sidebarState.latestPosts"
+                  :key="`latest-${item.postId}`"
+                  type="button"
+                  class="latest-item ripple-trigger"
+                  @click="openPostDetail(item.postId)"
+                >
+                  <img :src="resolveCover(item.coverImageUrl)" :alt="item.title" loading="lazy" />
+                  <span class="latest-text">
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ formatDate(item.publishedAt) }}</small>
+                  </span>
+                </button>
+              </section>
+
+              <section class="side-card liquid-material">
+                <header class="side-head">
+                  <h3>分类</h3>
+                </header>
+                <button
+                  v-for="item in sidebarState.categories"
+                  :key="`category-${item.categoryCode}`"
+                  type="button"
+                  class="list-row ripple-trigger"
+                  :class="{ active: filters.category === item.categoryCode }"
+                  @click="applyCategoryFilter(item.categoryCode)"
+                >
+                  <span>{{ item.categoryCode }}</span>
+                  <strong>{{ item.count }}</strong>
+                </button>
+              </section>
+
+              <section class="side-card liquid-material">
+                <header class="side-head">
+                  <h3>标签</h3>
+                </header>
+                <div class="tag-cloud">
+                  <button
+                    v-for="item in sidebarState.tags"
+                    :key="`tag-${item.tagCode}`"
+                    type="button"
+                    class="tag-chip ripple-trigger"
+                    :class="{ active: filters.tag === item.tagCode }"
+                    @click="applyTagFilter(item.tagCode)"
+                  >
+                    {{ item.tagCode }}
+                    <span>{{ item.count }}</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="side-card liquid-material">
+                <header class="side-head">
+                  <h3>归档</h3>
+                </header>
+                <button
+                  v-for="item in sidebarState.archives"
+                  :key="`archive-${item.month}`"
+                  type="button"
+                  class="list-row ripple-trigger"
+                  :class="{ active: filters.archiveMonth === item.month }"
+                  @click="applyArchiveFilter(item.month)"
+                >
+                  <span>{{ item.month }}</span>
+                  <strong>{{ item.count }}</strong>
+                </button>
+              </section>
+            </aside>
+          </div>
+        </template>
+
+        <section v-else class="comment-panel liquid-material">
+          <h2>评论区（预留）</h2>
+          <p>一期暂不接入评论后端，本页先完成布局与交互占位。</p>
+          <p>后续会补充：评论列表、发布输入框、回复链和权限控制。</p>
+          <div class="comment-placeholder">
+            <span>🧪 评论模块开发中...</span>
+            <span>当前可继续通过“看文 / 写文”完成阅读与发布流程。</span>
+          </div>
+        </section>
+      </section>
     </div>
   </section>
 </template>
@@ -206,6 +248,11 @@ const categoryDrag = reactive({
   dragging: false,
   startX: 0,
   startScrollLeft: 0
+});
+
+const uiState = reactive({
+  panel: 'read',
+  actionHint: ''
 });
 
 const filters = reactive({
@@ -239,6 +286,17 @@ const sidebarState = reactive({
   archives: []
 });
 
+const groupCodes = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.map((group) => String(group || '').trim().toUpperCase()).filter(Boolean);
+});
+
+const permissionCodes = computed(() => {
+  const permissions = Array.isArray(auth.user.value?.permissions) ? auth.user.value.permissions : [];
+  return permissions.map((code) => String(code || '').trim().toLowerCase()).filter(Boolean);
+});
+
+const canWrite = computed(() => groupCodes.value.includes('ADMIN') || permissionCodes.value.includes('blog.post.write'));
 const pageCount = computed(() => Math.max(1, Math.ceil(Math.max(0, listState.total) / listState.pageSize)));
 
 const visiblePages = computed(() => {
@@ -397,11 +455,22 @@ async function loadSidebar() {
   }
 }
 
-async function refreshPageData(options = {}) {
-  await loadPostList();
-  if (options.reloadSidebar) {
-    await loadSidebar();
+function setPanel(nextPanel) {
+  if (nextPanel === 'write') {
+    if (!canWrite.value) {
+      uiState.actionHint = '当前账号暂无写文权限';
+      return;
+    }
+    uiState.actionHint = '';
+    openEditor();
+    return;
   }
+  uiState.panel = nextPanel === 'comments' ? 'comments' : 'read';
+  uiState.actionHint = '';
+}
+
+function openEditor() {
+  router.push({ name: 'blog-editor' });
 }
 
 function goToPage(pageNo) {
@@ -491,7 +560,7 @@ function handleCategoryStripWheel(event) {
 
 onMounted(async () => {
   await auth.ensureReady();
-  await Promise.all([refreshPageData(), loadSidebar()]);
+  await Promise.all([loadPostList(), loadSidebar()]);
 });
 
 onBeforeUnmount(() => {
@@ -503,48 +572,61 @@ onBeforeUnmount(() => {
 <style scoped>
 .blog-list-page {
   min-height: 100%;
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
-  gap: 12px;
   color: rgba(240, 244, 255, 0.96);
   font-family: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
 
-.hero {
-  --liquid-bg: rgba(14, 20, 33, 0.45);
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 16px 32px rgba(7, 10, 18, 0.22);
-  border-radius: 16px;
-  padding: 14px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+.blog-shell {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
   gap: 12px;
 }
 
-.hero-eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(var(--accent-soft-rgb), 0.95);
-}
-
-.hero h1 {
-  margin-top: 4px;
-  font-size: clamp(28px, 4vw, 38px);
-}
-
-.hero-subtitle {
-  margin-top: 8px;
-  color: rgba(219, 227, 247, 0.9);
-}
-
-.hero-meta {
+.left-switch {
+  --liquid-bg: rgba(11, 16, 27, 0.54);
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 14px 30px rgba(6, 9, 16, 0.24);
+  border-radius: 14px;
+  padding: 10px;
   display: grid;
-  gap: 4px;
-  font-size: 13px;
-  color: rgba(216, 226, 248, 0.92);
-  text-align: right;
+  align-content: start;
+  gap: 8px;
+}
+
+.switch-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  min-height: 38px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(236, 243, 255, 0.95);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.switch-btn.active {
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.28);
+  box-shadow: 0 10px 20px rgba(var(--accent-rgb), 0.2);
+}
+
+.switch-btn.disabled {
+  opacity: 0.48;
+}
+
+.action-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(243, 198, 168, 0.98);
+}
+
+.main-column {
+  min-height: 0;
+  display: grid;
+  gap: 10px;
 }
 
 .search-panel {
@@ -579,12 +661,12 @@ onBeforeUnmount(() => {
 }
 
 .mini-btn {
-  min-height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.15);
+  min-height: 32px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.14);
   color: rgba(241, 246, 255, 0.96);
-  padding: 0 12px;
+  padding: 0 10px;
 }
 
 .mini-btn.active {
@@ -600,6 +682,7 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   padding: 8px;
   display: flex;
+  align-items: center;
   gap: 8px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -617,7 +700,7 @@ onBeforeUnmount(() => {
 .category-pill {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 10px;
   background: rgba(255, 255, 255, 0.12);
   color: rgba(236, 243, 255, 0.95);
@@ -643,10 +726,17 @@ onBeforeUnmount(() => {
   font-size: 11px;
 }
 
-.list-layout {
+.strip-meta {
+  margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+  color: rgba(204, 215, 242, 0.88);
+}
+
+.content-layout {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 286px;
+  grid-template-columns: minmax(0, 1fr) 284px;
   gap: 12px;
 }
 
@@ -655,32 +745,32 @@ onBeforeUnmount(() => {
   overflow: auto;
   display: grid;
   align-content: start;
-  gap: 12px;
-  padding-right: 4px;
+  gap: 10px;
+  max-width: 920px;
 }
 
 .feed-card {
   --liquid-bg: rgba(7, 10, 17, 0.78);
   --liquid-border: rgba(255, 255, 255, 0.14);
-  --liquid-shadow: 0 18px 30px rgba(5, 8, 14, 0.28);
-  border-radius: 14px;
+  --liquid-shadow: 0 16px 26px rgba(5, 8, 14, 0.26);
+  border-radius: 12px;
   display: grid;
-  grid-template-columns: minmax(220px, 42%) minmax(0, 1fr);
-  min-height: 230px;
+  grid-template-columns: minmax(160px, 34%) minmax(0, 1fr);
+  min-height: 176px;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 220ms ease, box-shadow 220ms ease;
-  animation: reveal-up 420ms ease both;
-  animation-delay: calc(var(--stagger) * 42ms);
+  transition: transform 180ms ease, box-shadow 200ms ease;
+  animation: reveal-up 350ms ease both;
+  animation-delay: calc(var(--stagger) * 36ms);
 }
 
 .feed-card.reverse {
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 42%);
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 34%);
 }
 
 .feed-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 26px 44px rgba(2, 4, 8, 0.34);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 34px rgba(2, 4, 8, 0.32);
 }
 
 .cover-pane {
@@ -692,38 +782,39 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 320ms ease;
+  transition: transform 260ms ease;
 }
 
 .feed-card:hover .cover-pane img {
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
 .content-pane {
-  padding: 22px;
+  padding: 14px 16px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   align-content: center;
 }
 
 .content-pane h2 {
-  font-size: clamp(22px, 2.6vw, 38px);
-  line-height: 1.24;
+  font-size: clamp(18px, 2.2vw, 28px);
+  line-height: 1.25;
 }
 
 .meta-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  font-size: 13px;
+  gap: 6px 10px;
+  font-size: 12px;
   color: rgba(202, 214, 240, 0.9);
 }
 
 .summary {
   color: rgba(221, 230, 248, 0.92);
-  line-height: 1.75;
+  line-height: 1.62;
+  font-size: 14px;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -739,7 +830,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.14);
   color: rgba(236, 242, 255, 0.95);
-  padding: 3px 9px;
+  padding: 2px 8px;
   font-size: 12px;
 }
 
@@ -756,14 +847,14 @@ onBeforeUnmount(() => {
 }
 
 .page-btn {
-  min-width: 36px;
+  min-width: 34px;
 }
 
 .sidebar-column {
   min-height: 0;
   overflow: auto;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   align-content: start;
 }
 
@@ -771,8 +862,8 @@ onBeforeUnmount(() => {
   --liquid-bg: rgba(8, 11, 20, 0.82);
   --liquid-border: rgba(255, 255, 255, 0.14);
   --liquid-shadow: 0 16px 28px rgba(5, 8, 14, 0.28);
-  border-radius: 14px;
-  padding: 10px;
+  border-radius: 12px;
+  padding: 9px;
   display: grid;
   gap: 8px;
 }
@@ -785,19 +876,25 @@ onBeforeUnmount(() => {
 }
 
 .side-head h3 {
-  font-size: 15px;
+  font-size: 14px;
+}
+
+.head-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .icon-btn {
   border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 10px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.12);
   color: rgba(237, 244, 255, 0.95);
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 28px;
+  padding: 0 8px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  font-size: 12px;
 }
 
 .latest-item {
@@ -807,15 +904,15 @@ onBeforeUnmount(() => {
   padding: 4px;
   background: rgba(255, 255, 255, 0.05);
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 7px;
   text-align: left;
   color: inherit;
 }
 
 .latest-item img {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border-radius: 8px;
   object-fit: cover;
 }
@@ -843,7 +940,7 @@ onBeforeUnmount(() => {
   border: 0;
   width: 100%;
   border-radius: 9px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -867,6 +964,36 @@ onBeforeUnmount(() => {
   opacity: 0.8;
 }
 
+.comment-panel {
+  --liquid-bg: rgba(10, 15, 24, 0.8);
+  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-shadow: 0 16px 28px rgba(5, 8, 14, 0.28);
+  border-radius: 14px;
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.comment-panel h2 {
+  font-size: 22px;
+}
+
+.comment-panel p {
+  color: rgba(214, 225, 247, 0.9);
+  line-height: 1.7;
+}
+
+.comment-placeholder {
+  margin-top: 4px;
+  border-radius: 12px;
+  border: 1px dashed rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.13);
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+  color: rgba(232, 239, 255, 0.95);
+}
+
 .error-text {
   color: #ffadb2;
   font-size: 13px;
@@ -886,13 +1013,13 @@ onBeforeUnmount(() => {
 .search-slide-enter-from,
 .search-slide-leave-to {
   opacity: 0;
-  transform: translateX(16px);
+  transform: translateX(14px);
 }
 
 @keyframes reveal-up {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -900,9 +1027,13 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 1200px) {
-  .list-layout {
+@media (max-width: 1240px) {
+  .content-layout {
     grid-template-columns: 1fr;
+  }
+
+  .feed-column {
+    max-width: none;
   }
 
   .sidebar-column {
@@ -911,14 +1042,19 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 900px) {
-  .hero {
-    display: grid;
-    align-items: start;
+@media (max-width: 980px) {
+  .blog-shell {
+    grid-template-columns: 1fr;
   }
 
-  .hero-meta {
-    text-align: left;
+  .left-switch {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+  }
+
+  .action-hint {
+    grid-column: 1 / -1;
+    margin-top: 0;
   }
 
   .search-form {
@@ -932,15 +1068,20 @@ onBeforeUnmount(() => {
   }
 
   .cover-pane {
-    min-height: 220px;
+    min-height: 160px;
   }
 
   .content-pane {
-    padding: 16px;
+    padding: 12px;
   }
 
   .sidebar-column {
     grid-template-columns: 1fr;
+  }
+
+  .head-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 

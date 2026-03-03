@@ -1,12 +1,6 @@
 <template>
   <section class="route-page blog-page">
-    <header class="page-header">
-      <p class="eyebrow">Blog Module</p>
-      <h1>博客</h1>
-      <p>一期已接入：列表、详情、双模式 TOC、阅读进度、Markdown 下载、草稿/发布与粘贴 Markdown 智能识别。</p>
-    </header>
-
-    <div class="toolbar liquid-material">
+    <div v-if="viewMode === 'list'" class="toolbar liquid-material">
       <form class="search-form" @submit.prevent="handleSearchSubmit">
         <input v-model.trim="filters.keyword" type="text" class="field-input" placeholder="搜索标题/摘要/标签" />
         <button type="submit" class="mini-btn ripple-trigger">搜索</button>
@@ -1221,31 +1215,8 @@ onBeforeUnmount(() => {
   min-height: 100%;
   color: rgba(239, 244, 255, 0.96);
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto 1fr;
   gap: 12px;
-}
-
-.page-header {
-  padding: 8px 4px 0;
-}
-
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(var(--accent-soft-rgb), 0.95);
-}
-
-h1 {
-  margin-top: 4px;
-  font-size: clamp(26px, 4vw, 40px);
-}
-
-.page-header p {
-  margin-top: 10px;
-  max-width: 920px;
-  color: rgba(223, 230, 249, 0.86);
-  line-height: 1.6;
 }
 
 .toolbar {
