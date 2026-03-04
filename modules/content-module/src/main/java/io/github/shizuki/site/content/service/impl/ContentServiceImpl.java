@@ -1,6 +1,9 @@
 package io.github.shizuki.site.content.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.PageResponse;
@@ -9,6 +12,8 @@ import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.model.StorageObjectMetadata;
 import io.github.shizuki.site.content.dto.AppSummary;
+import io.github.shizuki.site.content.dto.AuthorProfileResponse;
+import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
@@ -24,6 +29,7 @@ import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.dto.ReportRequest;
 import io.github.shizuki.site.content.entity.AppEntity;
 import io.github.shizuki.site.content.entity.AppGroupAclEntity;
+import io.github.shizuki.site.content.entity.AuthorProfileEntity;
 import io.github.shizuki.site.content.entity.ContentReportEntity;
 import io.github.shizuki.site.content.entity.PostCategoryMetaEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyEntity;
@@ -33,6 +39,7 @@ import io.github.shizuki.site.content.entity.PostGroupAclEntity;
 import io.github.shizuki.site.content.entity.PostTagEntity;
 import io.github.shizuki.site.content.mapper.AppGroupAclMapper;
 import io.github.shizuki.site.content.mapper.AppMapper;
+import io.github.shizuki.site.content.mapper.AuthorProfileMapper;
 import io.github.shizuki.site.content.mapper.ContentReportMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryMetaMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyGroupMapper;
@@ -45,11 +52,12 @@ import io.github.shizuki.site.content.service.ContentService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -57,9 +65,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -77,6 +85,8 @@ public class ContentServiceImpl implements ContentService {
     private static final long DEFAULT_POST_NUM_BASE = 500_000L;
     private static final String INITIAL_SEED_SLUG_CODE = "initial-overview-v01";
     private static final String INITIAL_SEED_MARKDOWN_CLASSPATH = "monolith/blog-seed/initial-overview-v0.1.md";
+    private static final String DEFAULT_AUTHOR_CODE = "shizuki";
+    private static final int AUTHOR_PROFILE_MAX_JSON_LENGTH = 64_000;
 
     private static final Pattern ASCII_WORD_PATTERN = Pattern.compile("[A-Za-z0-9_]+(?:'[A-Za-z0-9_]+)?");
     private static final Pattern MARKDOWN_IMAGE_PATTERN = Pattern.compile("!\\[[^\\]]*]\\(([^)\\s]+)(?:\\s+\"[^\"]*\")?\\)");
@@ -92,7 +102,9 @@ public class ContentServiceImpl implements ContentService {
     private final PostCategoryPolicyMapper postCategoryPolicyMapper;
     private final PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper;
     private final PostCategoryMetaMapper postCategoryMetaMapper;
+    private final AuthorProfileMapper authorProfileMapper;
     private final ObjectStorageClient objectStorageClient;
+    private final ObjectMapper objectMapper;
 
     @Value("${shizuki.blog.storage.private-bucket:${shizuki.media.storage.private-bucket:}}")
     private String blogPrivateBucket;
@@ -109,7 +121,9 @@ public class ContentServiceImpl implements ContentService {
                               PostCategoryPolicyMapper postCategoryPolicyMapper,
                               PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper,
                               PostCategoryMetaMapper postCategoryMetaMapper,
-                              ObjectStorageClient objectStorageClient) {
+                              AuthorProfileMapper authorProfileMapper,
+                              ObjectStorageClient objectStorageClient,
+                              ObjectMapper objectMapper) {
         this.postMapper = postMapper;
         this.appMapper = appMapper;
         this.contentReportMapper = contentReportMapper;
@@ -119,7 +133,9 @@ public class ContentServiceImpl implements ContentService {
         this.postCategoryPolicyMapper = postCategoryPolicyMapper;
         this.postCategoryPolicyGroupMapper = postCategoryPolicyGroupMapper;
         this.postCategoryMetaMapper = postCategoryMetaMapper;
+        this.authorProfileMapper = authorProfileMapper;
         this.objectStorageClient = objectStorageClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -272,6 +288,336 @@ public class ContentServiceImpl implements ContentService {
             .toList();
 
         return new PostSidebarResponse(latestPosts, categories, tags, archives);
+    }
+
+    @Override
+    public AuthorProfileResponse getAuthorProfile() {
+        return resolveAuthorProfileResponse(DEFAULT_AUTHOR_CODE);
+    }
+
+    @Override
+    public AuthorProfileResponse getAdminAuthorProfile() {
+        requireAdmin();
+        return resolveAuthorProfileResponse(DEFAULT_AUTHOR_CODE);
+    }
+
+    @Override
+    public AuthorProfileResponse upsertAdminAuthorProfile(AuthorProfileUpsertRequest request) {
+        requireAdmin();
+        if (request == null || request.getProfileJson() == null || request.getProfileJson().isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "profile_json is required");
+        }
+
+        AuthorProfileEntity entity = findAuthorProfileEntity(DEFAULT_AUTHOR_CODE);
+        if (entity == null) {
+            entity = new AuthorProfileEntity();
+            entity.setAuthorCode(DEFAULT_AUTHOR_CODE);
+            entity.setCreatedAt(LocalDateTime.now());
+        }
+
+        Map<String, Object> normalizedProfileJson = normalizeProfileJson(request.getProfileJson());
+        String serializedProfile = writeProfileJson(normalizedProfileJson);
+        if (serializedProfile.length() > AUTHOR_PROFILE_MAX_JSON_LENGTH) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "profile_json is too large");
+        }
+
+        entity.setProfileJson(serializedProfile);
+        entity.setEnabledFlag(request.getEnabled() == null ? 1 : (request.getEnabled() ? 1 : 0));
+        entity.setUpdatedAt(LocalDateTime.now());
+
+        if (entity.getId() == null || entity.getId() <= 0) {
+            authorProfileMapper.insert(entity);
+        } else {
+            authorProfileMapper.updateById(entity);
+        }
+        return toAuthorProfileResponse(entity);
+    }
+
+    private AuthorProfileResponse resolveAuthorProfileResponse(String authorCode) {
+        AuthorProfileEntity entity = findAuthorProfileEntity(authorCode);
+        if (entity == null) {
+            return new AuthorProfileResponse(
+                normalizeAuthorCode(authorCode),
+                true,
+                buildDefaultAuthorProfileJson(),
+                null
+            );
+        }
+        return toAuthorProfileResponse(entity);
+    }
+
+    private AuthorProfileEntity findAuthorProfileEntity(String authorCode) {
+        String normalized = normalizeAuthorCode(authorCode);
+        return authorProfileMapper.selectOne(
+            new LambdaQueryWrapper<AuthorProfileEntity>()
+                .eq(AuthorProfileEntity::getAuthorCode, normalized)
+        );
+    }
+
+    private AuthorProfileResponse toAuthorProfileResponse(AuthorProfileEntity entity) {
+        if (entity == null) {
+            return new AuthorProfileResponse(DEFAULT_AUTHOR_CODE, true, buildDefaultAuthorProfileJson(), null);
+        }
+        return new AuthorProfileResponse(
+            normalizeAuthorCode(entity.getAuthorCode()),
+            entity.getEnabledFlag() == null || entity.getEnabledFlag() == 1,
+            readProfileJson(entity.getProfileJson()),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private String normalizeAuthorCode(String authorCode) {
+        String normalized = readString(authorCode, "").trim().toLowerCase(Locale.ROOT);
+        return StringUtils.hasText(normalized) ? normalized : DEFAULT_AUTHOR_CODE;
+    }
+
+    private Map<String, Object> readProfileJson(String profileJson) {
+        if (!StringUtils.hasText(profileJson)) {
+            return buildDefaultAuthorProfileJson();
+        }
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(profileJson, new TypeReference<Map<String, Object>>() {
+            });
+            return normalizeProfileJson(parsed);
+        } catch (Exception ignored) {
+            return buildDefaultAuthorProfileJson();
+        }
+    }
+
+    private String writeProfileJson(Map<String, Object> profileJson) {
+        try {
+            return objectMapper.writeValueAsString(profileJson);
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "profile_json serialization failed");
+        }
+    }
+
+    private Map<String, Object> normalizeProfileJson(Map<String, Object> source) {
+        Map<String, Object> raw = source == null ? Map.of() : source;
+        Map<String, Object> normalized = new LinkedHashMap<>();
+
+        normalized.put("hero", normalizeHeroSection(toMap(raw.get("hero"))));
+        normalized.put("identity", normalizeIdentitySection(toMap(raw.get("identity"))));
+        normalized.put("skills", normalizeStringList(raw.get("skills"), defaultSkills()));
+        normalized.put("journey", normalizeJourneySection(raw.get("journey")));
+        normalized.put("about", normalizeAboutSection(toMap(raw.get("about"))));
+        return normalized;
+    }
+
+    private Map<String, Object> normalizeHeroSection(Map<String, Object> source) {
+        Map<String, Object> normalized = defaultHeroSection();
+        normalized.put("greeting", readStringField(source, normalized.get("greeting").toString(), "greeting"));
+        normalized.put("name", readStringField(source, normalized.get("name").toString(), "name"));
+        normalized.put("quote", readStringField(source, normalized.get("quote").toString(), "quote"));
+        normalized.put("avatar_url", readStringField(source, normalized.get("avatar_url").toString(), "avatar_url", "avatarUrl"));
+        return normalized;
+    }
+
+    private Map<String, Object> normalizeIdentitySection(Map<String, Object> source) {
+        Map<String, Object> normalized = defaultIdentitySection();
+        normalized.put("birth_year", readStringField(source, normalized.get("birth_year").toString(), "birth_year", "birthYear"));
+        normalized.put("school", readStringField(source, normalized.get("school").toString(), "school"));
+        normalized.put("major", readStringField(source, normalized.get("major").toString(), "major"));
+        normalized.put("role", readStringField(source, normalized.get("role").toString(), "role"));
+        normalized.put("labels", normalizeStringList(source.get("labels"), castStringList(normalized.get("labels"))));
+        return normalized;
+    }
+
+    private List<Map<String, Object>> normalizeJourneySection(Object raw) {
+        List<Map<String, Object>> fallback = defaultJourneySection();
+        if (!(raw instanceof List<?> source) || source.isEmpty()) {
+            return fallback;
+        }
+
+        List<Map<String, Object>> normalized = new ArrayList<>();
+        for (Object item : source) {
+            Map<String, Object> map = toMap(item);
+            if (map.isEmpty()) {
+                continue;
+            }
+            String year = readStringField(map, "", "year");
+            String title = readStringField(map, "", "title");
+            String description = readStringField(map, "", "description");
+            if (!StringUtils.hasText(title) && !StringUtils.hasText(description)) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("year", StringUtils.hasText(year) ? year : "未定");
+            row.put("title", StringUtils.hasText(title) ? title : "持续迭代");
+            row.put("description", StringUtils.hasText(description) ? description : "继续完善作者主页与站点表达。");
+            row.put("stack", normalizeStringList(map.get("stack"), List.of("Shizuki Site")));
+            normalized.add(row);
+        }
+        return normalized.isEmpty() ? fallback : normalized;
+    }
+
+    private Map<String, Object> normalizeAboutSection(Map<String, Object> source) {
+        Map<String, Object> normalized = defaultAboutSection();
+        normalized.put("intro", normalizeStringList(source.get("intro"), castStringList(normalized.get("intro"))));
+        normalized.put("mission", readStringField(source, normalized.get("mission").toString(), "mission"));
+        normalized.put("focus", normalizeStringList(source.get("focus"), castStringList(normalized.get("focus"))));
+        normalized.put("music", normalizeStringList(source.get("music"), castStringList(normalized.get("music"))));
+        normalized.put("links", normalizeLinks(source.get("links")));
+        return normalized;
+    }
+
+    private List<Map<String, Object>> normalizeLinks(Object raw) {
+        List<Map<String, Object>> fallback = defaultLinks();
+        if (!(raw instanceof List<?> source) || source.isEmpty()) {
+            return fallback;
+        }
+        List<Map<String, Object>> normalized = new ArrayList<>();
+        for (Object item : source) {
+            Map<String, Object> map = toMap(item);
+            String label = readStringField(map, "", "label");
+            String url = readStringField(map, "", "url");
+            if (!StringUtils.hasText(label) || !StringUtils.hasText(url)) {
+                continue;
+            }
+            Map<String, Object> link = new LinkedHashMap<>();
+            link.put("label", label);
+            link.put("url", url);
+            normalized.add(link);
+        }
+        return normalized.isEmpty() ? fallback : normalized;
+    }
+
+    private List<String> normalizeStringList(Object raw, List<String> fallback) {
+        if (!(raw instanceof List<?> source) || source.isEmpty()) {
+            return fallback;
+        }
+        List<String> normalized = source.stream()
+            .map(item -> item == null ? "" : String.valueOf(item).trim())
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+        return normalized.isEmpty() ? fallback : normalized;
+    }
+
+    private Map<String, Object> toMap(Object raw) {
+        if (!(raw instanceof Map<?, ?> map) || map.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        map.forEach((key, value) -> {
+            if (key != null) {
+                normalized.put(String.valueOf(key), value);
+            }
+        });
+        return normalized;
+    }
+
+    private String readStringField(Map<String, Object> source, String fallback, String... keys) {
+        if (source == null || source.isEmpty() || keys == null || keys.length == 0) {
+            return fallback;
+        }
+        for (String key : keys) {
+            Object value = source.get(key);
+            if (value == null) {
+                continue;
+            }
+            String text = String.valueOf(value).trim();
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+        }
+        return fallback;
+    }
+
+    private Map<String, Object> buildDefaultAuthorProfileJson() {
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("hero", defaultHeroSection());
+        profile.put("identity", defaultIdentitySection());
+        profile.put("skills", defaultSkills());
+        profile.put("journey", defaultJourneySection());
+        profile.put("about", defaultAboutSection());
+        return profile;
+    }
+
+    private Map<String, Object> defaultHeroSection() {
+        Map<String, Object> hero = new LinkedHashMap<>();
+        hero.put("greeting", "你好，很高兴认识你");
+        hero.put("name", "Shizuki");
+        hero.put("quote", "愿你终将与热爱相逢");
+        hero.put("avatar_url", "/images/katanegai.jpg");
+        return hero;
+    }
+
+    private Map<String, Object> defaultIdentitySection() {
+        Map<String, Object> identity = new LinkedHashMap<>();
+        identity.put("birth_year", "2006");
+        identity.put("school", "中国计量大学");
+        identity.put("major", "计算机科学与技术");
+        identity.put("role", "大一学生 / 独立开发者");
+        identity.put("labels", List.of("学习陪伴", "内容沉淀", "图形渲染"));
+        return identity;
+    }
+
+    private List<String> defaultSkills() {
+        return List.of("Java", "Vue3", "Spring Boot", "MySQL", "OpenGL", "Vulkan", "Markdown");
+    }
+
+    private List<Map<String, Object>> defaultJourneySection() {
+        List<Map<String, Object>> journey = new ArrayList<>();
+
+        Map<String, Object> phase1 = new LinkedHashMap<>();
+        phase1.put("year", "2024");
+        phase1.put("title", "确定 Shizuki Site 长期方向");
+        phase1.put("description", "明确学习陪伴、内容沉淀、作品展示三条主线，搭建基础技术架构。");
+        phase1.put("stack", List.of("Spring Boot", "Vue3", "MySQL"));
+        journey.add(phase1);
+
+        Map<String, Object> phase2 = new LinkedHashMap<>();
+        phase2.put("year", "2025");
+        phase2.put("title", "完成博客与音乐模块一期");
+        phase2.put("description", "打通博客阅读/编辑流程与音乐播放器链路，开始文档化沉淀。");
+        phase2.put("stack", List.of("Markdown", "Flyway", "Vite"));
+        journey.add(phase2);
+
+        Map<String, Object> phase3 = new LinkedHashMap<>();
+        phase3.put("year", "2026");
+        phase3.put("title", "完善作者主页与展示能力");
+        phase3.put("description", "升级作者介绍、建站经历和关于模块，提升站点表达与可维护性。");
+        phase3.put("stack", List.of("Vue3", "Spring Boot", "Beads"));
+        journey.add(phase3);
+
+        return journey;
+    }
+
+    private Map<String, Object> defaultAboutSection() {
+        Map<String, Object> about = new LinkedHashMap<>();
+        about.put("intro", List.of(
+            "Shizuki Site 是一个长期学习与创作系统。",
+            "这里记录技术实践、项目迭代与个人成长。"
+        ));
+        about.put("mission", "持续构建一个可陪伴、可沉淀、可展示的个人站点。");
+        about.put("focus", List.of("博客写作", "工程化实践", "图形与交互体验"));
+        about.put("music", List.of("初音未来", "日语流行", "游戏原声"));
+        about.put("links", defaultLinks());
+        return about;
+    }
+
+    private List<Map<String, Object>> defaultLinks() {
+        List<Map<String, Object>> links = new ArrayList<>();
+
+        Map<String, Object> blogLink = new LinkedHashMap<>();
+        blogLink.put("label", "博客列表");
+        blogLink.put("url", "/#/blog");
+        links.add(blogLink);
+
+        Map<String, Object> homeLink = new LinkedHashMap<>();
+        homeLink.put("label", "项目首页");
+        homeLink.put("url", "/#/");
+        links.add(homeLink);
+
+        return links;
+    }
+
+    private List<String> castStringList(Object value) {
+        if (value instanceof List<?> source) {
+            return source.stream().map(String::valueOf).toList();
+        }
+        return List.of();
     }
 
     private List<PostEntity> loadPublishedPostCandidates(ViewerContext viewer) {

@@ -1,6 +1,8 @@
 package io.github.shizuki.site.content.service;
 
 import io.github.shizuki.common.core.response.PageResponse;
+import io.github.shizuki.site.content.dto.AuthorProfileResponse;
+import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.dto.AppSummary;
@@ -58,6 +60,21 @@ public interface ContentService {
      * 查询博客列表页右侧聚合信息。
      */
     PostSidebarResponse getPostSidebar();
+
+    /**
+     * 查询作者主页公开资料。
+     */
+    AuthorProfileResponse getAuthorProfile();
+
+    /**
+     * 管理员查询作者主页资料。
+     */
+    AuthorProfileResponse getAdminAuthorProfile();
+
+    /**
+     * 管理员更新作者主页资料。
+     */
+    AuthorProfileResponse upsertAdminAuthorProfile(AuthorProfileUpsertRequest request);
 
     /**
      * 分页查询应用。
