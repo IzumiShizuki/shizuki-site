@@ -6,9 +6,11 @@ import './styles/theme.css';
 import './styles/music-replica.css';
 import App from './App.vue';
 import router from './router';
+import { initAosManager } from './utils/aosManager';
 import { initWindowLifecycleDiag } from './utils/windowLifecycleDiag';
 
 const app = createApp(App);
 app.use(router);
+initAosManager();
 initWindowLifecycleDiag({ router });
 app.mount('#app');

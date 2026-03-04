@@ -38,7 +38,7 @@ function normalizeRedirectPath(path) {
 const routes = [
   { path: '/', name: 'home', component: HomePage },
   { path: '/blog', name: 'blog', component: BlogListPage },
-  { path: '/blog/editor/:postId?', name: 'blog-editor', component: BlogPage },
+  { path: '/blog/editor/:postId?', name: 'blog-editor', component: BlogPage, meta: { requiresAuth: true } },
   { path: '/blog/:postId', name: 'blog-detail', component: BlogPage },
   {
     path: '/music-library',

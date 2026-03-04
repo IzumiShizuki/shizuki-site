@@ -18,6 +18,7 @@ public record PostDetailResponse(
     Integer readingMinutes,
     Long likeCount,
     LocalDateTime publishedAt,
+    boolean editable,
     String markdown
 ) {
 }

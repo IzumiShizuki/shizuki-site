@@ -180,7 +180,7 @@
         </div>
       </transition>
 
-      <LevitationBall v-if="!runtimeGuards.disableLevitationBall" ref="levitationRef" />
+      <LevitationBall v-if="showLevitationBall" ref="levitationRef" />
 
       <div class="click-ripple-layer" aria-hidden="true">
         <span
@@ -290,6 +290,7 @@ const isBlogRoute = computed(() => currentRouteKey.value === 'blog');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
+const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall && !isBlogRoute.value);
 const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
 const authAvatarUrl = computed(() => String(auth.user.value?.avatarUrl || '').trim());
 const isAdminUser = computed(() => {

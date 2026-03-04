@@ -89,7 +89,7 @@ public class OAuthPreheatRunner implements ApplicationRunner {
                 System.currentTimeMillis() - start
             );
         } catch (Exception ex) {
-            LOGGER.warn(
+            LOGGER.info(
                 "OAUTH_PREHEAT_FAIL provider={} endpoint={} error_type={} error_msg={} cost_ms={}",
                 provider,
                 endpointType,

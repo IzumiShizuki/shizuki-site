@@ -118,7 +118,8 @@ public class MusicTrackCacheUploadConsumer {
                 provider,
                 trackId,
                 sanitizeLogMessage(ex.getMessage()));
-            throw new IllegalStateException("music cache upload consume failed", ex);
+            // 缓存上传属于非阻塞链路，失败后直接跳过当前消息，避免同一失效 URL 无限重试刷屏。
+            return;
         }
     }
 
