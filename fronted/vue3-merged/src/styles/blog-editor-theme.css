@@ -1,0 +1,109 @@
+.blog-rich-editor {
+  min-height: 0;
+  height: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(8, 12, 20, 0.46);
+  overflow: hidden;
+  position: relative;
+}
+
+.blog-rich-editor .editor-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(224, 233, 252, 0.92);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  background: rgba(8, 12, 20, 0.68);
+  z-index: 2;
+}
+
+.blog-rich-editor .editor-host {
+  min-height: 0;
+  height: 100%;
+}
+
+.blog-rich-editor .toastui-editor-defaultUI {
+  border: 0;
+  height: 100%;
+  background: transparent;
+}
+
+.blog-rich-editor .toastui-editor-defaultUI-toolbar,
+.blog-rich-editor .toastui-editor-mode-switch {
+  background: rgba(13, 20, 32, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.blog-rich-editor .toastui-editor-toolbar-icons {
+  border-radius: 8px;
+}
+
+.blog-rich-editor .toastui-editor-toolbar-icons:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.blog-rich-editor .toastui-editor-toolbar-divider {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.blog-rich-editor .toastui-editor-main {
+  background: transparent;
+}
+
+.blog-rich-editor .toastui-editor-md-container,
+.blog-rich-editor .toastui-editor-ww-container {
+  background: rgba(8, 12, 20, 0.4);
+}
+
+.blog-rich-editor .toastui-editor-md-container .toastui-editor,
+.blog-rich-editor .toastui-editor-contents {
+  color: rgba(236, 244, 255, 0.96);
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.blog-rich-editor .toastui-editor-md-container .toastui-editor {
+  padding: 14px 14px 28px;
+}
+
+.blog-rich-editor .toastui-editor-ww-container .toastui-editor-contents {
+  padding: 14px 14px 28px;
+}
+
+.blog-rich-editor .toastui-editor-contents h1,
+.blog-rich-editor .toastui-editor-contents h2,
+.blog-rich-editor .toastui-editor-contents h3,
+.blog-rich-editor .toastui-editor-contents h4,
+.blog-rich-editor .toastui-editor-contents h5,
+.blog-rich-editor .toastui-editor-contents h6 {
+  color: rgba(245, 250, 255, 0.98);
+}
+
+.blog-rich-editor .toastui-editor-contents code {
+  border-radius: 6px;
+  padding: 0 6px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.blog-rich-editor .toastui-editor-contents pre {
+  background: rgba(4, 8, 15, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+}
+
+.blog-rich-editor .toastui-editor-md-tab-container {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 19, 30, 0.9);
+}
+
+.blog-rich-editor .toastui-editor-md-tab-container .tab-item {
+  color: rgba(226, 236, 255, 0.9);
+}
+
+.blog-rich-editor .toastui-editor-md-tab-container .tab-item.active {
+  color: rgba(255, 255, 255, 0.98);
+  border-bottom-color: rgba(128, 178, 255, 0.92);
+}

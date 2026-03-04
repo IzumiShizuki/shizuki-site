@@ -287,46 +287,57 @@
           </section>
 
           <div class="editor-actions">
-            <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
-            <button
-              type="button"
-              class="mini-btn ripple-trigger"
-              :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
-              @click="handlePublish"
-            >
-              发布
-            </button>
-            <button
-              type="button"
-              class="mini-btn ripple-trigger"
-              :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
-              @click="handleUnpublish"
-            >
-              下线
-            </button>
-            <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
-            <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
-            <button type="button" class="mini-btn ripple-trigger" @click="exitEditor">退出编辑</button>
-            <span class="editor-status">
-              {{ writerState.editor.statusCode || 'DRAFT' }}
-              <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
-            </span>
+            <div class="editor-actions-main">
+              <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
+                @click="handlePublish"
+              >
+                发布
+              </button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
+                @click="handleUnpublish"
+              >
+                下线
+              </button>
+            </div>
+            <div class="editor-actions-side">
+              <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
+              <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
+              <button type="button" class="mini-btn ripple-trigger" @click="exitEditor">退出编辑</button>
+              <span class="editor-status">
+                {{ writerState.editor.statusCode || 'DRAFT' }}
+                <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
+              </span>
+            </div>
           </div>
 
           <p v-if="writerState.error" class="error-text">{{ writerState.error }}</p>
           <p v-if="writerState.notice" class="notice-text">{{ writerState.notice }}</p>
 
           <div class="editor-body">
-            <label class="editor-pane editor-pane-full">
-              <span>正文编辑区（粘贴 Markdown 会自动规范格式）</span>
-              <textarea
-                ref="editorTextareaRef"
+            <section class="editor-pane editor-pane-full">
+              <div class="editor-pane-head">
+                <span>正文编辑区（富文本/Markdown 双模式）</span>
+                <button type="button" class="mini-btn ripple-trigger editor-mode-toggle" @click="toggleEditorMode">
+                  {{ editorMode === 'wysiwyg' ? '切到源码' : '切到富文本' }}
+                </button>
+              </div>
+              <AsyncBlogRichEditor
+                ref="richEditorRef"
                 v-model="writerState.editor.markdown"
-                class="markdown-editor"
+                :default-mode="editorMode"
                 placeholder="在这里写 Markdown 内容..."
-                @paste="handleEditorPaste"
-              ></textarea>
-            </label>
+                @ready="handleRichEditorReady"
+                @mode-change="handleEditorModeChange"
+                @paste-candidate="handleRichEditorPasteCandidate"
+              />
+            </section>
           </div>
         </div>
       </section>
@@ -362,6 +373,7 @@
                 :data-heading-id="heading.id"
                 :class="{
                   active: heading.id === activeHeadingId,
+                  ancestor: heading.isAncestor,
                   'has-child': heading.hasChild,
                   'has-next-sibling': heading.hasNextSibling
                 }"
@@ -416,7 +428,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
@@ -433,7 +445,9 @@ import {
   unpublishMyPost,
   updateMyPost
 } from '../services/blogApi';
-import { escapeMarkdownPlainText, looksLikeMarkdown, normalizeMarkdownForEditor, renderMarkdownDocument } from '../utils/blogMarkdown';
+import { escapeMarkdownPlainText, normalizeMarkdownForEditor, renderMarkdownDocument } from '../utils/blogMarkdown';
+
+const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
 
 const DEFAULT_CATEGORY_OPTIONS = [
   { code: '', label: '全部' },
@@ -509,8 +523,6 @@ const detailNavState = reactive({
 const pasteState = reactive({
   dialogVisible: false,
   pendingText: '',
-  selectionStart: 0,
-  selectionEnd: 0,
   sessionDecision: ''
 });
 
@@ -530,16 +542,19 @@ const tocMode = ref('all');
 const activeHeadingId = ref('');
 const readingProgress = ref(0);
 const editorMetaCollapsed = ref(false);
+const editorMode = ref('wysiwyg');
+const editorMetaToggleLocked = ref(false);
 
 const articleScrollRef = ref(null);
 const tocListRef = ref(null);
 const markdownBodyRef = ref(null);
-const editorTextareaRef = ref(null);
 const detailRelatedListRef = ref(null);
 const downloadWrapRef = ref(null);
+const richEditorRef = ref(null);
 
 let headingDomNodes = [];
 let boundScrollRoot = null;
+let editorMetaToggleTimer = null;
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -654,7 +669,29 @@ const visibleTocHeadings = computed(() => {
 const visibleTocTreeHeadings = computed(() => {
   const headings = Array.isArray(visibleTocHeadings.value) ? visibleTocHeadings.value : [];
   if (!headings.length) return [];
+  const parentById = new Map();
+  const stack = [];
+  headings.forEach((heading, index) => {
+    const id = String(heading?.id || `toc-${index}`);
+    const level = Math.max(1, toSafeInt(heading?.level, 1));
+    while (stack.length && stack[stack.length - 1].level >= level) {
+      stack.pop();
+    }
+    const parentId = stack.length ? stack[stack.length - 1].id : '';
+    parentById.set(id, parentId);
+    stack.push({ id, level });
+  });
+  const ancestorIds = new Set();
+  let cursorId = String(activeHeadingId.value || '');
+  while (cursorId && parentById.has(cursorId)) {
+    const parentId = parentById.get(cursorId);
+    if (!parentId) break;
+    ancestorIds.add(parentId);
+    cursorId = parentId;
+  }
+
   return headings.map((heading, index) => {
+    const id = String(heading?.id || `toc-${index}`);
     const level = Math.max(1, toSafeInt(heading?.level, 1));
     const hasChild = index + 1 < headings.length && Math.max(1, toSafeInt(headings[index + 1]?.level, 1)) > level;
     let hasNextSibling = false;
@@ -668,7 +705,9 @@ const visibleTocTreeHeadings = computed(() => {
     }
     return {
       ...heading,
+      id,
       level,
+      isAncestor: ancestorIds.has(id),
       hasChild,
       hasNextSibling
     };
@@ -1060,10 +1099,11 @@ async function relayMarkdownText(markdownText) {
 }
 
 async function ensureEditorMarkdownRelayed() {
-  const markdownText = String(writerState.editor.markdown || '');
+  const markdownText = normalizeMarkdownForEditor(writerState.editor.markdown);
   if (!markdownText.trim()) {
     throw new Error('正文不能为空');
   }
+  writerState.editor.markdown = markdownText;
   const signature = buildMarkdownSignature(markdownText);
   if (
     signature === writerState.editor.lastRelayedSignature &&
@@ -1104,7 +1144,7 @@ function applyPostDetailToEditor(postDetail) {
   writerState.editor.coverImageUrl = normalized.coverImageUrl;
   writerState.editor.visibility = normalized.visibility || 'PUBLIC';
   writerState.editor.tagsText = normalized.tags.map((item) => `#${item}`).join(', ');
-  writerState.editor.markdown = normalized.markdown || '';
+  writerState.editor.markdown = normalizeMarkdownForEditor(normalized.markdown || '');
   writerState.editor.statusCode = normalized.statusCode || 'DRAFT';
   writerState.editor.lastRelayedSignature = '';
 }
@@ -1217,6 +1257,7 @@ function resetEditorForm() {
 function startNewDraft() {
   resetEditorForm();
   editorMetaCollapsed.value = false;
+  editorMode.value = 'wysiwyg';
   switchViewMode('editor');
 }
 
@@ -1313,7 +1354,17 @@ function goBackToBlogList() {
 }
 
 function toggleEditorMetaCollapsed() {
+  if (editorMetaToggleLocked.value) return;
+  editorMetaToggleLocked.value = true;
+  if (editorMetaToggleTimer) {
+    clearTimeout(editorMetaToggleTimer);
+    editorMetaToggleTimer = null;
+  }
   editorMetaCollapsed.value = !editorMetaCollapsed.value;
+  editorMetaToggleTimer = setTimeout(() => {
+    editorMetaToggleLocked.value = false;
+    editorMetaToggleTimer = null;
+  }, 120);
 }
 
 function exitEditor() {
@@ -1588,26 +1639,22 @@ function scrollToTop() {
   });
 }
 
-function insertTextIntoEditor(text, selectionStart, selectionEnd) {
-  const source = String(writerState.editor.markdown || '');
-  const start = Math.max(0, toSafeInt(selectionStart, source.length));
-  const end = Math.max(start, toSafeInt(selectionEnd, start));
-  writerState.editor.markdown = `${source.slice(0, start)}${text}${source.slice(end)}`;
+function insertTextIntoEditor(text) {
+  const editor = richEditorRef.value;
+  if (!editor || typeof editor.insertText !== 'function') {
+    const source = normalizeMarkdownForEditor(writerState.editor.markdown);
+    const next = normalizeMarkdownForEditor(text);
+    writerState.editor.markdown = source ? `${source}\n\n${next}` : next;
+    writerState.editor.lastRelayedSignature = '';
+    return;
+  }
+  editor.insertText(text);
   writerState.editor.lastRelayedSignature = '';
-  nextTick(() => {
-    const textarea = editorTextareaRef.value;
-    if (!textarea) return;
-    const caret = start + text.length;
-    textarea.focus();
-    textarea.setSelectionRange(caret, caret);
-  });
 }
 
 function closePasteDialog() {
   pasteState.dialogVisible = false;
   pasteState.pendingText = '';
-  pasteState.selectionStart = 0;
-  pasteState.selectionEnd = 0;
 }
 
 function cancelPasteDialog() {
@@ -1619,7 +1666,7 @@ function confirmPasteDialog(mode) {
   const pendingText = String(pasteState.pendingText || '');
   const content = normalizedMode === 'markdown' ? normalizeMarkdownForEditor(pendingText) : escapeMarkdownPlainText(pendingText);
   pasteState.sessionDecision = normalizedMode;
-  insertTextIntoEditor(content, pasteState.selectionStart, pasteState.selectionEnd);
+  insertTextIntoEditor(content);
   closePasteDialog();
 }
 
@@ -1627,28 +1674,38 @@ function resetPasteSessionDecision() {
   pasteState.sessionDecision = '';
 }
 
-function handleEditorPaste(event) {
-  const clipboardText = event?.clipboardData?.getData('text/plain');
+function handleRichEditorPasteCandidate(clipboardText) {
   if (!clipboardText) return;
-  if (!looksLikeMarkdown(clipboardText, 2)) return;
-
-  event.preventDefault();
-
-  const target = event.target;
-  const selectionStart = toSafeInt(target?.selectionStart, String(writerState.editor.markdown || '').length);
-  const selectionEnd = toSafeInt(target?.selectionEnd, selectionStart);
   if (pasteState.sessionDecision === 'markdown') {
-    insertTextIntoEditor(normalizeMarkdownForEditor(clipboardText), selectionStart, selectionEnd);
+    insertTextIntoEditor(normalizeMarkdownForEditor(clipboardText));
     return;
   }
   if (pasteState.sessionDecision === 'plain') {
-    insertTextIntoEditor(escapeMarkdownPlainText(clipboardText), selectionStart, selectionEnd);
+    insertTextIntoEditor(escapeMarkdownPlainText(clipboardText));
     return;
   }
   pasteState.pendingText = clipboardText;
-  pasteState.selectionStart = selectionStart;
-  pasteState.selectionEnd = selectionEnd;
   pasteState.dialogVisible = true;
+}
+
+function handleEditorModeChange(mode) {
+  editorMode.value = String(mode || '').toLowerCase() === 'markdown' ? 'markdown' : 'wysiwyg';
+}
+
+function toggleEditorMode() {
+  const nextMode = editorMode.value === 'wysiwyg' ? 'markdown' : 'wysiwyg';
+  const editor = richEditorRef.value;
+  if (editor && typeof editor.setMode === 'function') {
+    editor.setMode(nextMode);
+    return;
+  }
+  editorMode.value = nextMode;
+}
+
+function handleRichEditorReady() {
+  const editor = richEditorRef.value;
+  if (!editor || typeof editor.setMode !== 'function') return;
+  editor.setMode(editorMode.value);
 }
 
 async function syncRouteDrivenView() {
@@ -1677,9 +1734,9 @@ async function syncRouteDrivenView() {
       await router.replace({ name: 'blog' });
       return;
     }
-    if (!writerState.editor.postId) {
-      resetEditorForm();
-    }
+    resetEditorForm();
+    editorMetaCollapsed.value = false;
+    editorMode.value = 'wysiwyg';
     return;
   }
 
@@ -1745,6 +1802,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', handleGlobalPointerDown);
+  if (editorMetaToggleTimer) {
+    clearTimeout(editorMetaToggleTimer);
+    editorMetaToggleTimer = null;
+  }
   teardownReadingScroll();
 });
 </script>
@@ -2205,10 +2266,29 @@ onBeforeUnmount(() => {
 }
 
 .editor-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.editor-actions-main,
+.editor-actions-side {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.editor-actions-side {
+  justify-content: flex-end;
+}
+
+.editor-actions .mini-btn {
+  min-height: 32px;
+  border-radius: 9px;
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .editor-status {
@@ -2231,42 +2311,26 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
+.editor-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .editor-pane span {
   font-size: 12px;
   color: rgba(218, 228, 248, 0.9);
 }
 
-.markdown-editor {
-  width: 100%;
-  min-height: clamp(420px, 58vh, 960px);
-  height: 100%;
-  resize: none;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 12px;
-  background: rgba(8, 12, 20, 0.46);
-  color: rgba(237, 243, 255, 0.96);
-  padding: 12px;
-  line-height: 1.6;
-  font-size: 14px;
-  user-select: text;
+.editor-mode-toggle {
+  min-height: 30px;
+  padding: 0 11px;
 }
 
 .editor-pane-full {
   height: 100%;
-}
-
-.preview-pane {
-  min-height: 0;
-}
-
-.preview-pane .markdown-body {
-  min-height: 0;
-  height: 100%;
-  overflow: auto;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(8, 12, 20, 0.34);
-  padding: 12px;
+  min-height: clamp(460px, 62vh, 980px);
 }
 
 .right-panel {
@@ -2323,26 +2387,36 @@ onBeforeUnmount(() => {
 }
 
 .toc-item {
-  border: 0;
-  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 32px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(226, 236, 255, 0.94);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(222, 234, 255, 0.93);
   text-align: left;
   font-size: 12px;
   padding-right: 8px;
   position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+}
+
+.toc-item::after {
+  content: '';
+  position: absolute;
+  left: calc(8px + var(--toc-indent));
+  top: 5px;
+  bottom: 5px;
+  border-left: 1px solid rgba(120, 138, 175, 0.28);
+  pointer-events: none;
 }
 
 .toc-item .toc-branch {
   position: absolute;
   left: calc(10px + var(--toc-indent));
   top: 50%;
-  width: 10px;
-  border-top: 1px solid rgba(148, 165, 196, 0.46);
+  width: 11px;
+  border-top: 1px solid rgba(168, 187, 224, 0.6);
   transform: translateY(-50%);
 }
 
@@ -2353,34 +2427,47 @@ onBeforeUnmount(() => {
   left: 0;
   top: -14px;
   bottom: -14px;
-  border-left: 1px solid rgba(148, 165, 196, 0.42);
+  border-left: 1px solid rgba(168, 187, 224, 0.55);
 }
 
 .toc-item .toc-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  background: rgba(182, 199, 231, 0.86);
-  flex: 0 0 7px;
+  background: rgba(186, 204, 236, 0.92);
+  flex: 0 0 8px;
   margin-left: calc(var(--toc-indent) + 12px);
+  box-shadow: 0 0 0 1px rgba(7, 11, 18, 0.5);
 }
 
 .toc-item .toc-label {
   min-width: 0;
+  font-weight: 520;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.toc-item.ancestor {
+  border-color: rgba(var(--accent-rgb), 0.28);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: rgba(238, 246, 255, 0.96);
+}
+
 .toc-item.active {
-  background: rgba(var(--accent-rgb), 0.26);
+  border-color: rgba(var(--accent-rgb), 0.62);
+  background: rgba(var(--accent-rgb), 0.3);
   color: rgba(255, 255, 255, 0.98);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.58);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--accent-rgb), 0.58),
+    0 6px 14px rgba(var(--accent-rgb), 0.2);
 }
 
 .toc-item.active .toc-dot {
   background: rgba(var(--accent-rgb), 0.96);
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.24);
+  box-shadow:
+    0 0 0 3px rgba(var(--accent-rgb), 0.24),
+    0 0 10px rgba(var(--accent-rgb), 0.36);
 }
 
 .toc-empty {
@@ -2591,6 +2678,18 @@ onBeforeUnmount(() => {
   .editor-grid,
   .editor-body {
     grid-template-columns: 1fr;
+  }
+
+  .editor-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-actions-side {
+    justify-content: flex-start;
+  }
+
+  .editor-pane-full {
+    min-height: clamp(420px, 62vh, 880px);
   }
 
   .progress-fab {
