@@ -8,6 +8,8 @@ import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyUpdateRequest;
+import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
+import io.github.shizuki.site.content.dto.PostCategoryMetaUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
@@ -141,4 +143,14 @@ public interface ContentService {
      * 更新分类访问策略。
      */
     PostCategoryPolicyResponse updatePostCategoryPolicy(String categoryCode, PostCategoryPolicyUpdateRequest request);
+
+    /**
+     * 查询博客分类展示元数据。
+     */
+    List<PostCategoryMetaResponse> listPostCategoryMetas();
+
+    /**
+     * 更新博客分类展示元数据。
+     */
+    PostCategoryMetaResponse upsertPostCategoryMeta(String categoryCode, PostCategoryMetaUpsertRequest request);
 }

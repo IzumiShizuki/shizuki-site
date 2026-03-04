@@ -15,6 +15,8 @@ import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyUpdateRequest;
+import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
+import io.github.shizuki.site.content.dto.PostCategoryMetaUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
@@ -23,6 +25,7 @@ import io.github.shizuki.site.content.dto.ReportRequest;
 import io.github.shizuki.site.content.entity.AppEntity;
 import io.github.shizuki.site.content.entity.AppGroupAclEntity;
 import io.github.shizuki.site.content.entity.ContentReportEntity;
+import io.github.shizuki.site.content.entity.PostCategoryMetaEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyGroupEntity;
 import io.github.shizuki.site.content.entity.PostEntity;
@@ -31,6 +34,7 @@ import io.github.shizuki.site.content.entity.PostTagEntity;
 import io.github.shizuki.site.content.mapper.AppGroupAclMapper;
 import io.github.shizuki.site.content.mapper.AppMapper;
 import io.github.shizuki.site.content.mapper.ContentReportMapper;
+import io.github.shizuki.site.content.mapper.PostCategoryMetaMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyGroupMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyMapper;
 import io.github.shizuki.site.content.mapper.PostGroupAclMapper;
@@ -53,6 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.regex.Matcher;
@@ -86,6 +91,7 @@ public class ContentServiceImpl implements ContentService {
     private final PostTagMapper postTagMapper;
     private final PostCategoryPolicyMapper postCategoryPolicyMapper;
     private final PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper;
+    private final PostCategoryMetaMapper postCategoryMetaMapper;
     private final ObjectStorageClient objectStorageClient;
 
     @Value("${shizuki.blog.storage.private-bucket:${shizuki.media.storage.private-bucket:}}")
@@ -102,6 +108,7 @@ public class ContentServiceImpl implements ContentService {
                               PostTagMapper postTagMapper,
                               PostCategoryPolicyMapper postCategoryPolicyMapper,
                               PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper,
+                              PostCategoryMetaMapper postCategoryMetaMapper,
                               ObjectStorageClient objectStorageClient) {
         this.postMapper = postMapper;
         this.appMapper = appMapper;
@@ -111,6 +118,7 @@ public class ContentServiceImpl implements ContentService {
         this.postTagMapper = postTagMapper;
         this.postCategoryPolicyMapper = postCategoryPolicyMapper;
         this.postCategoryPolicyGroupMapper = postCategoryPolicyGroupMapper;
+        this.postCategoryMetaMapper = postCategoryMetaMapper;
         this.objectStorageClient = objectStorageClient;
     }
 
@@ -195,7 +203,7 @@ public class ContentServiceImpl implements ContentService {
             .limit(5)
             .map(post -> new PostSidebarResponse.LatestPostItem(
                 post.getId(),
-                post.getTitle(),
+                normalizePostTitle(post.getTitle()),
                 resolvePostPublishTime(post),
                 post.getCoverImageUrl()
             ))
@@ -221,9 +229,35 @@ public class ContentServiceImpl implements ContentService {
             }
         }
 
+        Map<String, PostCategoryMetaEntity> categoryMetaMap = loadCategoryMetaMap(categoryCounter.keySet());
+
         List<PostSidebarResponse.CategoryStatItem> categories = categoryCounter.entrySet().stream()
-            .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey))
-            .map(entry -> new PostSidebarResponse.CategoryStatItem(entry.getKey(), entry.getValue()))
+            .filter(entry -> {
+                PostCategoryMetaEntity meta = categoryMetaMap.get(entry.getKey());
+                return meta == null || meta.getEnabledFlag() == null || meta.getEnabledFlag() == 1;
+            })
+            .sorted((left, right) -> {
+                PostCategoryMetaEntity leftMeta = categoryMetaMap.get(left.getKey());
+                PostCategoryMetaEntity rightMeta = categoryMetaMap.get(right.getKey());
+                int leftSortNum = leftMeta == null || leftMeta.getSortNum() == null ? Integer.MAX_VALUE : leftMeta.getSortNum();
+                int rightSortNum = rightMeta == null || rightMeta.getSortNum() == null ? Integer.MAX_VALUE : rightMeta.getSortNum();
+                int sortCompare = Integer.compare(leftSortNum, rightSortNum);
+                if (sortCompare != 0) {
+                    return sortCompare;
+                }
+                int countCompare = Long.compare(right.getValue(), left.getValue());
+                if (countCompare != 0) {
+                    return countCompare;
+                }
+                return left.getKey().compareTo(right.getKey());
+            })
+            .map(entry -> {
+                String categoryCode = entry.getKey();
+                PostCategoryMetaEntity meta = categoryMetaMap.get(categoryCode);
+                String displayName = normalizeCategoryDisplayName(categoryCode, meta);
+                String coverImageUrl = meta == null ? "" : readString(meta.getCoverImageUrl(), "");
+                return new PostSidebarResponse.CategoryStatItem(categoryCode, entry.getValue(), displayName, coverImageUrl);
+            })
             .toList();
 
         List<PostSidebarResponse.TagStatItem> tags = tagCounter.entrySet().stream()
@@ -268,6 +302,85 @@ public class ContentServiceImpl implements ContentService {
     private String normalizeDisplayCategory(String categoryCode) {
         String normalized = readString(categoryCode, "").trim().toLowerCase(Locale.ROOT);
         return StringUtils.hasText(normalized) ? normalized : "uncategorized";
+    }
+
+    private String normalizePostTitle(String title) {
+        String normalized = readString(title, "").trim();
+        return StringUtils.hasText(normalized) ? normalized : "未命名文章";
+    }
+
+    private String normalizeCategoryDisplayName(String categoryCode, PostCategoryMetaEntity meta) {
+        String displayName = meta == null ? "" : readString(meta.getDisplayName(), "").trim();
+        if (StringUtils.hasText(displayName)) {
+            return displayName;
+        }
+        return normalizeDisplayCategory(categoryCode);
+    }
+
+    private Set<String> collectKnownCategoryCodes() {
+        Set<String> categories = new LinkedHashSet<>();
+
+        List<PostEntity> posts = postMapper.selectList(
+            new LambdaQueryWrapper<PostEntity>()
+                .select(PostEntity::getCategoryCode)
+                .eq(PostEntity::getDeleted, 0)
+                .orderByAsc(PostEntity::getCategoryCode)
+        );
+        posts.stream()
+            .map(PostEntity::getCategoryCode)
+            .map(this::normalizeDisplayCategory)
+            .filter(StringUtils::hasText)
+            .forEach(categories::add);
+
+        postCategoryPolicyMapper.selectList(
+                new LambdaQueryWrapper<PostCategoryPolicyEntity>()
+                    .select(PostCategoryPolicyEntity::getCategoryCode)
+                    .orderByAsc(PostCategoryPolicyEntity::getCategoryCode)
+            ).stream()
+            .map(PostCategoryPolicyEntity::getCategoryCode)
+            .map(this::normalizeDisplayCategory)
+            .filter(StringUtils::hasText)
+            .forEach(categories::add);
+
+        return categories;
+    }
+
+    private Map<String, PostCategoryMetaEntity> loadCategoryMetaMap(Set<String> categoryCodes) {
+        List<PostCategoryMetaEntity> existing = postCategoryMetaMapper.selectList(
+            new LambdaQueryWrapper<PostCategoryMetaEntity>().orderByAsc(PostCategoryMetaEntity::getCategoryCode)
+        );
+        Map<String, PostCategoryMetaEntity> map = existing.stream()
+            .collect(Collectors.toMap(
+                item -> normalizeDisplayCategory(item.getCategoryCode()),
+                Function.identity(),
+                (left, right) -> left,
+                HashMap::new
+            ));
+
+        for (String categoryCode : categoryCodes) {
+            String normalized = normalizeDisplayCategory(categoryCode);
+            if (map.containsKey(normalized)) {
+                continue;
+            }
+            PostCategoryMetaEntity fallback = new PostCategoryMetaEntity();
+            fallback.setCategoryCode(normalized);
+            fallback.setDisplayName(normalized);
+            fallback.setSortNum(Integer.MAX_VALUE);
+            fallback.setEnabledFlag(1);
+            map.put(normalized, fallback);
+        }
+        return map;
+    }
+
+    private PostCategoryMetaResponse toPostCategoryMetaResponse(PostCategoryMetaEntity entity) {
+        String categoryCode = normalizeDisplayCategory(entity.getCategoryCode());
+        return new PostCategoryMetaResponse(
+            categoryCode,
+            normalizeCategoryDisplayName(categoryCode, entity),
+            readString(entity.getCoverImageUrl(), ""),
+            entity.getSortNum() == null ? Integer.MAX_VALUE : entity.getSortNum(),
+            entity.getEnabledFlag() == null || entity.getEnabledFlag() == 1
+        );
     }
 
     private PublishedRange resolvePublishedRange(String publishedFrom, String publishedTo) {
@@ -725,6 +838,66 @@ public class ContentServiceImpl implements ContentService {
 
         replaceCategoryPolicyGroups(normalizedCategory, allowedGroups);
         return new PostCategoryPolicyResponse(normalizedCategory, enabled, allowedGroups);
+    }
+
+    @Override
+    public List<PostCategoryMetaResponse> listPostCategoryMetas() {
+        requireAdmin();
+        Map<String, PostCategoryMetaEntity> metaMap = loadCategoryMetaMap(collectKnownCategoryCodes());
+        return metaMap.values().stream()
+            .sorted(
+                Comparator.comparing(
+                        (PostCategoryMetaEntity item) -> item.getSortNum() == null ? Integer.MAX_VALUE : item.getSortNum()
+                    )
+                    .thenComparing(PostCategoryMetaEntity::getCategoryCode)
+            )
+            .map(this::toPostCategoryMetaResponse)
+            .toList();
+    }
+
+    @Override
+    public PostCategoryMetaResponse upsertPostCategoryMeta(String categoryCode, PostCategoryMetaUpsertRequest request) {
+        requireAdmin();
+        String normalizedCategory = normalizeCategoryCode(categoryCode, true);
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Request body is required");
+        }
+
+        PostCategoryMetaEntity entity = postCategoryMetaMapper.selectOne(
+            new LambdaQueryWrapper<PostCategoryMetaEntity>().eq(PostCategoryMetaEntity::getCategoryCode, normalizedCategory)
+        );
+        if (entity == null) {
+            entity = new PostCategoryMetaEntity();
+            entity.setCategoryCode(normalizedCategory);
+            entity.setCreatedAt(LocalDateTime.now());
+        }
+
+        String displayName = readString(request.getDisplayName(), "").trim();
+        if (displayName.length() > 128) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Display name is too long");
+        }
+        String coverImageUrl = readString(request.getCoverImageUrl(), "").trim();
+        if (coverImageUrl.length() > 512) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Cover image url is too long");
+        }
+        Integer sortNum = request.getSortNum() == null ? Integer.MAX_VALUE : request.getSortNum();
+        if (sortNum < 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Sort number must be >= 0");
+        }
+        boolean enabled = request.getEnabled() == null || request.getEnabled();
+
+        entity.setDisplayName(StringUtils.hasText(displayName) ? displayName : normalizedCategory);
+        entity.setCoverImageUrl(StringUtils.hasText(coverImageUrl) ? coverImageUrl : null);
+        entity.setSortNum(sortNum);
+        entity.setEnabledFlag(enabled ? 1 : 0);
+        entity.setUpdatedAt(LocalDateTime.now());
+
+        if (entity.getId() == null || entity.getId() <= 0) {
+            postCategoryMetaMapper.insert(entity);
+        } else {
+            postCategoryMetaMapper.updateById(entity);
+        }
+        return toPostCategoryMetaResponse(entity);
     }
 
     private boolean canAccessPublishedPost(PostEntity post, ViewerContext viewer) {

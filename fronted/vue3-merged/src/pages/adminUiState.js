@@ -2,7 +2,8 @@ export const AdminTabKey = Object.freeze({
   USERS: 'users',
   GROUPS: 'groups',
   PERMISSIONS: 'permissions',
-  QUOTA: 'quota'
+  QUOTA: 'quota',
+  BLOG_CATEGORIES: 'blog-categories'
 });
 
 export function normalizeCodeList(input, upperCase = false) {

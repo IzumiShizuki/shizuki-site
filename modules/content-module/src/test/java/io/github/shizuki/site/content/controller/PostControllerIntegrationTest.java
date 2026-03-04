@@ -138,7 +138,7 @@ class PostControllerIntegrationTest {
         Mockito.when(contentService.getPostSidebar())
             .thenReturn(new PostSidebarResponse(
                 List.of(new PostSidebarResponse.LatestPostItem(1L, "latest", LocalDateTime.now(), "https://example.com/cover.png")),
-                List.of(new PostSidebarResponse.CategoryStatItem("game", 2L)),
+                List.of(new PostSidebarResponse.CategoryStatItem("game", 2L, "游戏", "https://example.com/game.png")),
                 List.of(new PostSidebarResponse.TagStatItem("ai", 3L)),
                 List.of(new PostSidebarResponse.ArchiveStatItem("2026-03", 4L))
             ));
@@ -148,6 +148,8 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.latest_posts[0].post_id").value(1))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.categories[0].category_code").value("game"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.categories[0].display_name").value("游戏"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.categories[0].cover_image_url").value("https://example.com/game.png"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.tags[0].tag_code").value("ai"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.archives[0].month").value("2026-03"));
     }

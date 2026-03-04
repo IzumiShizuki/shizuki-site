@@ -13,7 +13,7 @@
     </div>
 
     <div class="blog-layout">
-      <aside class="left-panel liquid-material">
+      <SubtleScrollArea tag="aside" class="left-panel liquid-material">
         <template v-if="viewMode === 'detail'">
           <section class="side-block">
             <div class="mine-head">
@@ -48,7 +48,7 @@
                 :class="{ active: detailNavState.selectedCategory === category.categoryCode }"
                 @click="selectDetailCategory(category.categoryCode)"
               >
-                {{ category.categoryCode }}
+                {{ category.displayName || category.categoryCode }}
                 <span class="chip-count">{{ category.count }}</span>
               </button>
             </div>
@@ -132,39 +132,10 @@
             </div>
           </section>
         </template>
-      </aside>
+      </SubtleScrollArea>
 
       <section class="center-panel liquid-material">
-        <div class="center-tabs">
-          <button
-            type="button"
-            class="tab-btn ripple-trigger"
-            :class="{ active: viewMode === 'list' }"
-            @click="switchViewMode('list')"
-          >
-            列表
-          </button>
-          <button
-            type="button"
-            class="tab-btn ripple-trigger"
-            :class="{ active: viewMode === 'detail' }"
-            :disabled="!detailState.post"
-            @click="switchViewMode('detail')"
-          >
-            详情
-          </button>
-          <button
-            v-if="canWrite"
-            type="button"
-            class="tab-btn ripple-trigger"
-            :class="{ active: viewMode === 'editor' }"
-            @click="switchViewMode('editor')"
-          >
-            编辑
-          </button>
-        </div>
-
-        <div v-if="viewMode === 'list'" class="list-view">
+        <SubtleScrollArea v-if="viewMode === 'list'" class="list-view">
           <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
           <div class="post-list">
             <article
@@ -190,45 +161,74 @@
             </article>
             <p v-if="!listState.loading && !listState.items.length" class="empty-text">暂无符合条件的文章。</p>
           </div>
-        </div>
+        </SubtleScrollArea>
 
         <div v-else-if="viewMode === 'detail'" class="detail-view">
           <p v-if="detailState.error" class="error-text">{{ detailState.error }}</p>
           <template v-else-if="detailState.post">
-            <header class="detail-head">
-              <div class="detail-title-row">
-                <h2>{{ detailState.post.title }}</h2>
-                <button
-                  v-if="detailState.post.editable"
-                  type="button"
-                  class="mini-btn ripple-trigger"
-                  @click="openCurrentPostInEditor"
-                >
-                  编辑
-                </button>
-              </div>
-              <p class="detail-summary">{{ detailState.post.summary }}</p>
-              <div class="meta-row">
-                <span>{{ detailState.post.categoryCode || 'uncategorized' }}</span>
-                <span>{{ detailState.post.wordCount }} 字 · {{ detailState.post.readingMinutes }} 分钟</span>
-                <span>❤ {{ detailState.post.likeCount }}</span>
-                <span>{{ formatDateTime(detailState.post.publishedAt) }}</span>
-              </div>
-              <div v-if="detailState.post.tags.length" class="tag-row">
-                <span v-for="tag in detailState.post.tags" :key="`detail-${tag}`" class="tag-chip">#{{ tag }}</span>
-              </div>
-              <div class="detail-actions">
-                <button type="button" class="mini-btn ripple-trigger" @click="goBackToBlogList">返回列表</button>
-                <button type="button" class="mini-btn ripple-trigger" @click="downloadCurrentMarkdown">下载 Markdown</button>
-              </div>
-            </header>
+            <SubtleScrollArea ref="articleScrollRef" class="detail-scroll">
+              <header class="detail-head">
+                <div class="detail-top-actions">
+                  <button
+                    type="button"
+                    class="icon-circle-btn ripple-trigger"
+                    aria-label="返回博客列表"
+                    title="返回博客列表"
+                    @click="goBackToBlogList"
+                  >
+                    <i class="fas fa-arrow-left"></i>
+                  </button>
+                  <div class="detail-action-right">
+                    <button
+                      v-if="detailState.post.editable"
+                      type="button"
+                      class="icon-circle-btn ripple-trigger"
+                      aria-label="编辑文章"
+                      title="编辑文章"
+                      @click="openCurrentPostInEditor"
+                    >
+                      <i class="fas fa-pen"></i>
+                    </button>
+                    <div ref="downloadWrapRef" class="download-wrap">
+                      <button
+                        type="button"
+                        class="icon-circle-btn ripple-trigger"
+                        :aria-expanded="downloadState.open ? 'true' : 'false'"
+                        aria-label="下载文章"
+                        title="下载文章"
+                        @click="toggleDownloadMenu"
+                      >
+                        <i class="fas fa-download"></i>
+                      </button>
+                      <div v-if="downloadState.open" class="download-menu liquid-material">
+                        <button type="button" class="download-item ripple-trigger" @click="downloadCurrentPost('md')">MD</button>
+                        <button type="button" class="download-item ripple-trigger" @click="downloadCurrentPost('html')">HTML</button>
+                        <button type="button" class="download-item ripple-trigger" @click="downloadCurrentPost('txt')">TXT</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="detail-title-row">
+                  <h2>{{ detailState.post.title }}</h2>
+                </div>
+                <p class="detail-summary">{{ detailState.post.summary }}</p>
+                <div class="meta-row">
+                  <span>{{ detailState.post.categoryCode || 'uncategorized' }}</span>
+                  <span>{{ detailWordCount }} 字 · {{ detailReadingMinutes }} 分钟</span>
+                  <span>❤ {{ detailState.post.likeCount }}</span>
+                  <span>{{ formatDateTime(detailState.post.publishedAt) }}</span>
+                </div>
+                <div v-if="detailState.post.tags.length" class="tag-row">
+                  <span v-for="tag in detailState.post.tags" :key="`detail-${tag}`" class="tag-chip">#{{ tag }}</span>
+                </div>
+              </header>
 
-            <div ref="articleScrollRef" class="detail-scroll">
               <figure v-if="detailState.post.coverImageUrl" class="detail-cover-wrap">
                 <img class="detail-cover" :src="detailState.post.coverImageUrl" alt="post-cover" loading="lazy" />
               </figure>
               <article ref="markdownBodyRef" class="markdown-body" v-html="detailState.renderedHtml"></article>
-            </div>
+              <div class="detail-bottom-spacer" aria-hidden="true"></div>
+            </SubtleScrollArea>
           </template>
           <p v-else class="empty-text">请选择一篇文章进入详情。</p>
         </div>
@@ -278,7 +278,6 @@
           </div>
 
           <div class="editor-actions">
-            <button type="button" class="mini-btn ripple-trigger" @click="goBackToBlogList">返回列表</button>
             <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
             <button
               type="button"
@@ -329,47 +328,60 @@
       <aside class="right-panel liquid-material">
         <div class="toc-head">
           <h2>文内目录</h2>
-          <div v-if="viewMode === 'detail'" class="toc-mode-switch">
-            <button type="button" class="mini-btn ripple-trigger" :class="{ active: tocMode === 'all' }" @click="tocMode = 'all'">
-              全部展开
-            </button>
-            <button
-              type="button"
-              class="mini-btn ripple-trigger"
-              :class="{ active: tocMode === 'onlyCurrentTree' }"
-              @click="tocMode = 'onlyCurrentTree'"
-            >
-              当前小节
-            </button>
-          </div>
+          <button
+            v-if="viewMode === 'detail'"
+            type="button"
+            class="icon-circle-btn ripple-trigger toc-mode-toggle"
+            :title="tocModeToggleLabel"
+            :aria-label="tocModeToggleLabel"
+            @click="toggleTocMode"
+          >
+            <i :class="tocModeToggleIcon"></i>
+          </button>
         </div>
 
         <template v-if="viewMode === 'detail' && detailState.post">
-          <div class="toc-metrics">
-            <p>L{{ activeLine }} / {{ detailLineCount }}</p>
-            <p>{{ detailState.post.wordCount }} 字 · {{ detailState.post.readingMinutes }} 分钟</p>
-            <p>已读 {{ progressPercent }}%</p>
+          <div class="toc-body">
+            <div class="toc-metrics">
+              <p>L{{ activeLine }} / {{ detailLineCount }}</p>
+              <p>{{ detailWordCount }} 字 · {{ detailReadingMinutes }} 分钟</p>
+              <p>已读 {{ progressPercent }}%</p>
+            </div>
+            <SubtleScrollArea ref="tocListRef" tag="nav" class="toc-list">
+              <button
+                v-for="heading in visibleTocTreeHeadings"
+                :key="heading.id"
+                type="button"
+                class="toc-item ripple-trigger"
+                :data-heading-id="heading.id"
+                :class="{
+                  active: heading.id === activeHeadingId,
+                  'has-child': heading.hasChild,
+                  'has-next-sibling': heading.hasNextSibling
+                }"
+                :style="tocIndentStyle(heading)"
+                @click="scrollToHeading(heading.id)"
+              >
+                <span class="toc-branch" aria-hidden="true"></span>
+                <span class="toc-dot" aria-hidden="true"></span>
+                <span class="toc-label">{{ heading.text }}</span>
+              </button>
+              <p v-if="!visibleTocTreeHeadings.length" class="side-tip">当前文章暂无可展示目录。</p>
+            </SubtleScrollArea>
           </div>
-          <nav class="toc-list">
-            <button
-              v-for="heading in visibleTocHeadings"
-              :key="heading.id"
-              type="button"
-              class="toc-item ripple-trigger"
-              :class="{ active: heading.id === activeHeadingId }"
-              :style="tocIndentStyle(heading)"
-              @click="scrollToHeading(heading.id)"
-            >
-              {{ heading.text }}
-            </button>
-            <p v-if="!visibleTocHeadings.length" class="side-tip">当前文章暂无可展示目录。</p>
-          </nav>
         </template>
-        <p v-else class="side-tip">进入文章详情后，这里会显示 TOC 与阅读信息。</p>
+        <p v-else class="side-tip toc-empty">进入文章详情后，这里会显示 TOC 与阅读信息。</p>
       </aside>
     </div>
 
-    <button v-if="showProgressFab" type="button" class="progress-fab liquid-material ripple-trigger" @click="scrollToTop">
+    <button
+      v-if="showProgressFab"
+      type="button"
+      class="progress-fab liquid-material ripple-trigger"
+      aria-label="回到顶部"
+      title="回到顶部"
+      @click="scrollToTop"
+    >
       <svg viewBox="0 0 52 52" class="progress-ring" aria-hidden="true">
         <circle class="progress-ring-bg" cx="26" cy="26" r="20"></circle>
         <circle
@@ -381,8 +393,7 @@
           :stroke-dashoffset="progressDashoffset"
         ></circle>
       </svg>
-      <span>{{ progressPercent }}%</span>
-      <span>回到顶部</span>
+      <span class="progress-fab-percent">{{ progressPercent }}%</span>
     </button>
 
     <div v-if="pasteState.dialogVisible" class="dialog-mask" @click.self="cancelPasteDialog">
@@ -401,6 +412,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createMyPost,
@@ -496,6 +508,10 @@ const pasteState = reactive({
   sessionDecision: ''
 });
 
+const downloadState = reactive({
+  open: false
+});
+
 const routeMode = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
   if (name === 'blog-detail') return 'detail';
@@ -509,9 +525,11 @@ const activeHeadingId = ref('');
 const readingProgress = ref(0);
 
 const articleScrollRef = ref(null);
+const tocListRef = ref(null);
 const markdownBodyRef = ref(null);
 const editorTextareaRef = ref(null);
 const detailRelatedListRef = ref(null);
+const downloadWrapRef = ref(null);
 
 let headingDomNodes = [];
 let boundScrollRoot = null;
@@ -555,16 +573,151 @@ const tagOptions = computed(() => {
   return Array.from(tags).sort((a, b) => a.localeCompare(b)).slice(0, 48);
 });
 
+function collectCurrentFamilyHeadingIds(headings, activeId) {
+  if (!Array.isArray(headings) || !headings.length) {
+    return new Set();
+  }
+
+  const nodes = [];
+  const nodeMap = new Map();
+  const stack = [];
+
+  headings.forEach((heading, index) => {
+    const id = String(heading?.id || `heading-${index}`);
+    const level = Math.max(1, toSafeInt(heading?.level, 1));
+    while (stack.length && stack[stack.length - 1].level >= level) {
+      stack.pop();
+    }
+    const parentId = stack.length ? stack[stack.length - 1].id : '';
+    const node = {
+      id,
+      level,
+      parentId,
+      childIds: []
+    };
+    nodes.push(node);
+    nodeMap.set(id, node);
+    if (parentId) {
+      nodeMap.get(parentId)?.childIds.push(id);
+    }
+    stack.push(node);
+  });
+
+  const fallbackId = String(headings[0]?.id || nodes[0]?.id || '');
+  const activeNode = nodeMap.get(String(activeId || '')) || nodeMap.get(fallbackId);
+  if (!activeNode) {
+    return new Set();
+  }
+
+  const visibleIds = new Set();
+  let cursor = activeNode;
+
+  while (cursor) {
+    if (cursor.parentId) {
+      const parentNode = nodeMap.get(cursor.parentId);
+      if (!parentNode) {
+        visibleIds.add(cursor.id);
+        break;
+      }
+      parentNode.childIds.forEach((id) => visibleIds.add(id));
+      visibleIds.add(parentNode.id);
+      cursor = parentNode;
+      continue;
+    }
+    nodes.forEach((node) => {
+      if (!node.parentId) {
+        visibleIds.add(node.id);
+      }
+    });
+    cursor = null;
+  }
+
+  return visibleIds;
+}
+
 const visibleTocHeadings = computed(() => {
   const headings = Array.isArray(detailState.headings) ? detailState.headings : [];
   if (tocMode.value === 'all') return headings;
   if (!headings.length) return [];
-  const active = headings.find((item) => item.id === activeHeadingId.value) || headings[0];
-  const rootId = active?.rootId || active?.id;
-  return headings.filter((item) => item.rootId === rootId);
+  const visibleIds = collectCurrentFamilyHeadingIds(headings, activeHeadingId.value);
+  if (!visibleIds.size) return headings.slice(0, 1);
+  return headings.filter((item) => visibleIds.has(String(item.id || '')));
 });
 
-const detailLineCount = computed(() => toSafeInt(detailState.post?.lineCount, detailState.renderedLineCount));
+const visibleTocTreeHeadings = computed(() => {
+  const headings = Array.isArray(visibleTocHeadings.value) ? visibleTocHeadings.value : [];
+  if (!headings.length) return [];
+  return headings.map((heading, index) => {
+    const level = Math.max(1, toSafeInt(heading?.level, 1));
+    const hasChild = index + 1 < headings.length && Math.max(1, toSafeInt(headings[index + 1]?.level, 1)) > level;
+    let hasNextSibling = false;
+    for (let i = index + 1; i < headings.length; i += 1) {
+      const nextLevel = Math.max(1, toSafeInt(headings[i]?.level, 1));
+      if (nextLevel < level) break;
+      if (nextLevel === level) {
+        hasNextSibling = true;
+        break;
+      }
+    }
+    return {
+      ...heading,
+      level,
+      hasChild,
+      hasNextSibling
+    };
+  });
+});
+
+const tocModeToggleLabel = computed(() => (tocMode.value === 'all' ? '切换到当前小节模式' : '切换到全部展开模式'));
+const tocModeToggleIcon = computed(() => (tocMode.value === 'all' ? 'fas fa-code-branch' : 'fas fa-list-ul'));
+
+function estimateWordCount(markdown) {
+  const text = String(markdown || '');
+  if (!text.trim()) return 0;
+
+  let cjkCount = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) || 0;
+    if (
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x20000 && code <= 0x2a6df) ||
+      (code >= 0x2a700 && code <= 0x2b73f) ||
+      (code >= 0x2b740 && code <= 0x2b81f) ||
+      (code >= 0x2f800 && code <= 0x2fa1f)
+    ) {
+      cjkCount += 1;
+    }
+  }
+
+  const asciiMatches = text.match(/[A-Za-z0-9_]+(?:'[A-Za-z0-9_]+)?/g);
+  const asciiCount = Array.isArray(asciiMatches) ? asciiMatches.length : 0;
+  return cjkCount + asciiCount;
+}
+
+const detailLineCount = computed(() => {
+  const backendLineCount = toSafeInt(detailState.post?.lineCount, 0);
+  if (backendLineCount > 0) {
+    return backendLineCount;
+  }
+  return Math.max(0, toSafeInt(detailState.renderedLineCount, 0));
+});
+const detailWordCount = computed(() => {
+  const backendWordCount = toSafeInt(detailState.post?.wordCount, 0);
+  if (backendWordCount > 0) {
+    return backendWordCount;
+  }
+  return estimateWordCount(detailState.post?.markdown);
+});
+const detailReadingMinutes = computed(() => {
+  const backendWordCount = toSafeInt(detailState.post?.wordCount, 0);
+  const backendReadingMinutes = Math.max(1, toSafeInt(detailState.post?.readingMinutes, 1));
+  if (backendWordCount > 0) {
+    return backendReadingMinutes;
+  }
+  return Math.max(1, Math.ceil(Math.max(1, detailWordCount.value) / 300));
+});
+
 const activeLine = computed(() => {
   const totalLines = Math.max(0, detailLineCount.value);
   if (totalLines <= 0) {
@@ -609,7 +762,7 @@ function normalizeTags(value) {
 function normalizePostSummary(raw) {
   return {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
-    title: normalizeString(raw?.title),
+    title: normalizeString(raw?.title) || '未命名文章',
     summary: normalizeString(raw?.summary),
     coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
@@ -646,7 +799,7 @@ function normalizePostDetail(raw) {
 function normalizeLatestPost(raw) {
   return {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
-    title: normalizeString(raw?.title),
+    title: normalizeString(raw?.title) || '未命名文章',
     publishedAt: raw?.publishedAt ?? raw?.published_at ?? null
   };
 }
@@ -654,7 +807,9 @@ function normalizeLatestPost(raw) {
 function normalizeCategoryStat(raw) {
   return {
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
-    count: Math.max(0, toSafeInt(raw?.count, 0))
+    count: Math.max(0, toSafeInt(raw?.count, 0)),
+    displayName: normalizeString(raw?.displayName ?? raw?.display_name),
+    coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url)
   };
 }
 
@@ -821,7 +976,12 @@ async function loadDetailSidebarContext(post) {
   ) {
     detailNavState.categories = [
       ...detailNavState.categories,
-      { categoryCode: normalizedCategory, count: detailNavState.relatedPosts.length || 0 }
+      {
+        categoryCode: normalizedCategory,
+        count: detailNavState.relatedPosts.length || 0,
+        displayName: normalizedCategory,
+        coverImageUrl: ''
+      }
     ];
   }
 }
@@ -833,6 +993,7 @@ function selectDetailCategory(categoryCode) {
 async function loadPostDetail(postId) {
   detailState.loading = true;
   detailState.error = '';
+  closeDownloadMenu();
   try {
     const payload = await getPostDetail(postId, resolveAuthorizedFetch());
     const normalized = normalizePostDetail(payload);
@@ -1072,6 +1233,7 @@ function switchViewMode(mode) {
   }
   viewMode.value = mode;
   if (mode !== 'detail') {
+    closeDownloadMenu();
     teardownReadingScroll();
     readingProgress.value = 0;
   } else {
@@ -1108,6 +1270,7 @@ async function openPostDetail(postId) {
   const normalizedPostId = toSafeInt(postId, 0);
   if (normalizedPostId <= 0) return;
   if (routeMode.value !== 'detail') {
+    closeDownloadMenu();
     await router.push({ name: 'blog-detail', params: { postId: normalizedPostId } });
     return;
   }
@@ -1130,19 +1293,22 @@ async function openMinePost(postId, options = {}) {
     switchViewMode('editor');
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, '读取我的文章失败');
-    if (routeMode.value === 'editor') {
-      await router.replace({ name: 'blog' });
-    }
   }
 }
 
 async function openCurrentPostInEditor() {
   if (!detailState.post?.editable || !detailState.post?.postId) return;
+  closeDownloadMenu();
   await router.push({ name: 'blog-editor', params: { postId: detailState.post.postId } });
 }
 
 function goBackToBlogList() {
+  closeDownloadMenu();
   router.push({ name: 'blog' });
+}
+
+function toggleTocMode() {
+  tocMode.value = tocMode.value === 'all' ? 'onlyCurrentTree' : 'all';
 }
 
 function sanitizeFileSegment(input, fallback = 'post') {
@@ -1154,8 +1320,8 @@ function sanitizeFileSegment(input, fallback = 'post') {
   return normalized || fallback;
 }
 
-function downloadTextAsFile(content, fileName) {
-  const blob = new Blob([String(content || '')], { type: 'text/markdown;charset=utf-8' });
+function downloadTextAsFile(content, fileName, mimeType = 'text/plain;charset=utf-8') {
+  const blob = new Blob([String(content || '')], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -1164,22 +1330,150 @@ function downloadTextAsFile(content, fileName) {
   URL.revokeObjectURL(url);
 }
 
-async function downloadCurrentMarkdown() {
+function closeDownloadMenu() {
+  downloadState.open = false;
+}
+
+function toggleDownloadMenu() {
+  downloadState.open = !downloadState.open;
+}
+
+function handleGlobalPointerDown(event) {
+  if (!downloadState.open) return;
+  const wrap = downloadWrapRef.value;
+  if (!(wrap instanceof HTMLElement)) {
+    closeDownloadMenu();
+    return;
+  }
+  const target = event?.target;
+  if (target instanceof Node && wrap.contains(target)) {
+    return;
+  }
+  closeDownloadMenu();
+}
+
+async function resolveCurrentMarkdownForDownload() {
+  if (!detailState.post?.postId) return '';
+  const inMemory = normalizeString(detailState.post.markdown);
+  if (inMemory) {
+    return inMemory;
+  }
+  return getPostMarkdown(detailState.post.postId, resolveAuthorizedFetch());
+}
+
+function wrapMarkdownAsHtmlDocument(title, htmlBody) {
+  const safeTitle = String(title || 'blog-post').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${safeTitle}</title>
+</head>
+<body>
+${String(htmlBody || '')}
+</body>
+</html>`;
+}
+
+function markdownToPlainText(markdown) {
+  const source = String(markdown || '');
+  return source
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```/g, '').trim())
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*]\(([^)]+)\)/g, '$1')
+    .replace(/\[([^\]]+)]\(([^)]+)\)/g, '$1')
+    .replace(/^>\s?/gm, '')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/[*_~`>#-]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function downloadCurrentPost(format = 'md') {
   if (!detailState.post?.postId) return;
   try {
-    const markdown = await getPostMarkdown(detailState.post.postId, resolveAuthorizedFetch());
-    const fileName = `${sanitizeFileSegment(detailState.post.slugCode || detailState.post.title || `post-${detailState.post.postId}`)}.md`;
-    downloadTextAsFile(markdown, fileName);
+    const markdown = await resolveCurrentMarkdownForDownload();
+    const safeBaseName = sanitizeFileSegment(detailState.post.slugCode || detailState.post.title || `post-${detailState.post.postId}`);
+    const normalizedFormat = String(format || 'md').toLowerCase();
+    if (normalizedFormat === 'html') {
+      const rendered = renderMarkdownDocument(markdown);
+      const html = wrapMarkdownAsHtmlDocument(detailState.post.title, rendered.html);
+      downloadTextAsFile(html, `${safeBaseName}.html`, 'text/html;charset=utf-8');
+      closeDownloadMenu();
+      return;
+    }
+    if (normalizedFormat === 'txt') {
+      const plainText = markdownToPlainText(markdown);
+      downloadTextAsFile(plainText, `${safeBaseName}.txt`, 'text/plain;charset=utf-8');
+      closeDownloadMenu();
+      return;
+    }
+    downloadTextAsFile(markdown, `${safeBaseName}.md`, 'text/markdown;charset=utf-8');
+    closeDownloadMenu();
   } catch (error) {
-    detailState.error = normalizeErrorMessage(error, '下载 Markdown 失败');
+    detailState.error = normalizeErrorMessage(error, '下载文章失败');
+    closeDownloadMenu();
   }
 }
 
 function tocIndentStyle(heading) {
   const depth = Math.max(0, toSafeInt(heading?.level, 1) - 1);
   return {
-    paddingInlineStart: `${12 + depth * 12}px`
+    '--toc-depth': depth,
+    '--toc-indent': `${depth * 14}px`,
+    paddingInlineStart: `${30 + depth * 14}px`
   };
+}
+
+function resolveScrollRoot() {
+  const source = articleScrollRef.value;
+  if (!source) return null;
+  if (source instanceof HTMLElement) return source;
+  if (typeof source.getElement === 'function') {
+    const element = source.getElement();
+    if (element instanceof HTMLElement) return element;
+  }
+  const fallback = source?.$el;
+  return fallback instanceof HTMLElement ? fallback : null;
+}
+
+function resolveTocListRoot() {
+  const source = tocListRef.value;
+  if (!source) return null;
+  if (source instanceof HTMLElement) return source;
+  if (typeof source.getElement === 'function') {
+    const element = source.getElement();
+    if (element instanceof HTMLElement) return element;
+  }
+  const fallback = source?.$el;
+  return fallback instanceof HTMLElement ? fallback : null;
+}
+
+function syncTocListToActive(options = {}) {
+  if (viewMode.value !== 'detail' || tocMode.value !== 'all') return;
+  const activeId = String(activeHeadingId.value || '');
+  if (!activeId) return;
+  const root = resolveTocListRoot();
+  if (!root) return;
+
+  const activeItem = Array.from(root.querySelectorAll('.toc-item')).find(
+    (item) => item.getAttribute('data-heading-id') === activeId
+  );
+  if (!activeItem) return;
+
+  const maxScrollTop = Math.max(0, root.scrollHeight - root.clientHeight);
+  if (maxScrollTop <= 0) return;
+
+  // Keep active heading near center when possible; clamp near edges to avoid extra movement.
+  const desiredTop = activeItem.offsetTop + activeItem.offsetHeight / 2 - root.clientHeight / 2;
+  const clampedTop = Math.max(0, Math.min(maxScrollTop, desiredTop));
+  if (Math.abs(clampedTop - root.scrollTop) < 1) return;
+
+  root.scrollTo({
+    top: clampedTop,
+    behavior: options.behavior === 'smooth' ? 'smooth' : 'auto'
+  });
 }
 
 function refreshHeadingDomNodes() {
@@ -1200,7 +1494,7 @@ function refreshHeadingDomNodes() {
 }
 
 function updateActiveHeadingByScroll() {
-  const root = articleScrollRef.value;
+  const root = resolveScrollRoot();
   if (!root || !headingDomNodes.length) {
     activeHeadingId.value = '';
     return;
@@ -1215,11 +1509,15 @@ function updateActiveHeadingByScroll() {
       break;
     }
   }
-  activeHeadingId.value = candidate?.getAttribute('data-heading-id') || activeHeadingId.value;
+  const nextHeadingId = candidate?.getAttribute('data-heading-id') || activeHeadingId.value;
+  if (nextHeadingId !== activeHeadingId.value) {
+    activeHeadingId.value = nextHeadingId;
+    syncTocListToActive({ behavior: 'auto' });
+  }
 }
 
 function handleDetailScroll() {
-  const root = articleScrollRef.value;
+  const root = resolveScrollRoot();
   if (!root) return;
   const maxScroll = root.scrollHeight - root.clientHeight;
   if (maxScroll <= 0) {
@@ -1240,16 +1538,17 @@ function teardownReadingScroll() {
 
 function setupReadingScroll() {
   teardownReadingScroll();
-  const root = articleScrollRef.value;
+  const root = resolveScrollRoot();
   if (!root || viewMode.value !== 'detail') return;
   refreshHeadingDomNodes();
   root.addEventListener('scroll', handleDetailScroll, { passive: true });
   boundScrollRoot = root;
   handleDetailScroll();
+  nextTick(() => syncTocListToActive({ behavior: 'auto' }));
 }
 
 function scrollToHeading(headingId) {
-  const root = articleScrollRef.value;
+  const root = resolveScrollRoot();
   if (!root || !headingId) return;
   const target = headingDomNodes.find((item) => item.getAttribute('data-heading-id') === headingId);
   if (!target) return;
@@ -1262,7 +1561,7 @@ function scrollToHeading(headingId) {
 }
 
 function scrollToTop() {
-  const root = articleScrollRef.value;
+  const root = resolveScrollRoot();
   if (!root) return;
   root.scrollTo({
     top: 0,
@@ -1345,6 +1644,7 @@ async function syncRouteDrivenView() {
   }
 
   if (mode === 'editor') {
+    closeDownloadMenu();
     viewMode.value = 'editor';
     const postId = toSafeInt(route.params.postId, 0);
     if (postId > 0) {
@@ -1365,6 +1665,7 @@ async function syncRouteDrivenView() {
   }
 
   resetDetailNavigationState();
+  closeDownloadMenu();
   viewMode.value = 'list';
 }
 
@@ -1402,7 +1703,17 @@ watch(
   }
 );
 
+watch(
+  () => tocMode.value,
+  (mode) => {
+    if (mode === 'all') {
+      nextTick(() => syncTocListToActive({ behavior: 'auto' }));
+    }
+  }
+);
+
 onMounted(async () => {
+  window.addEventListener('pointerdown', handleGlobalPointerDown);
   await auth.ensureReady();
   if (routeMode.value === 'list') {
     await loadPostList();
@@ -1414,6 +1725,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', handleGlobalPointerDown);
   teardownReadingScroll();
 });
 </script>
@@ -1504,8 +1816,6 @@ onBeforeUnmount(() => {
 
 .left-panel {
   padding: 10px;
-  overflow: auto;
-  overscroll-behavior: contain;
   display: grid;
   gap: 12px;
   align-content: start;
@@ -1551,7 +1861,6 @@ onBeforeUnmount(() => {
 }
 
 .chip-btn.active,
-.tab-btn.active,
 .mini-btn.active {
   background: rgba(var(--accent-rgb), 0.28);
   border-color: rgba(var(--accent-rgb), 0.52);
@@ -1624,22 +1933,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 10px;
-}
-
-.center-tabs {
-  display: flex;
-  gap: 8px;
-}
-
-.tab-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  min-height: 34px;
-  padding: 0 12px;
-  background: rgba(255, 255, 255, 0.16);
-  color: rgba(238, 244, 255, 0.94);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .list-view,
@@ -1649,8 +1943,6 @@ onBeforeUnmount(() => {
 }
 
 .list-view {
-  overflow: auto;
-  overscroll-behavior: contain;
 }
 
 .post-list {
@@ -1718,22 +2010,72 @@ onBeforeUnmount(() => {
 }
 
 .detail-view {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 10px;
   min-height: 0;
+  height: 100%;
 }
 
 .detail-head {
   display: grid;
   gap: 8px;
+  margin-bottom: 10px;
+}
+
+.detail-top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detail-action-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-circle-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(241, 246, 255, 0.96);
+  display: inline-grid;
+  place-items: center;
+  font-size: 15px;
+}
+
+.download-wrap {
+  position: relative;
+}
+
+.download-menu {
+  --liquid-bg: rgba(13, 19, 32, 0.8);
+  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-shadow: 0 14px 26px rgba(5, 9, 16, 0.24);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 120px;
+  border-radius: 10px;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  z-index: 20;
+}
+
+.download-item {
+  border: 0;
+  border-radius: 8px;
+  min-height: 30px;
+  padding: 0 10px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(236, 244, 255, 0.95);
 }
 
 .detail-title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  display: block;
 }
 
 .detail-title-row h2 {
@@ -1749,20 +2091,18 @@ onBeforeUnmount(() => {
   line-height: 1.65;
 }
 
-.detail-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .detail-scroll {
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  height: 100%;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(8, 12, 20, 0.36);
   padding: 14px;
+}
+
+.detail-bottom-spacer {
+  height: clamp(140px, 24vh, 280px);
+  pointer-events: none;
 }
 
 .detail-cover-wrap {
@@ -1882,17 +2222,28 @@ onBeforeUnmount(() => {
 }
 
 .toc-head {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .toc-head h2 {
   font-size: 14px;
 }
 
-.toc-mode-switch {
-  display: flex;
-  gap: 6px;
+.toc-mode-toggle {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+}
+
+.toc-body {
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
 }
 
 .toc-metrics {
@@ -1908,8 +2259,6 @@ onBeforeUnmount(() => {
 
 .toc-list {
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
   display: grid;
   gap: 4px;
   align-content: start;
@@ -1919,17 +2268,65 @@ onBeforeUnmount(() => {
   border: 0;
   min-height: 30px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
   color: rgba(226, 236, 255, 0.94);
   text-align: left;
   font-size: 12px;
   padding-right: 8px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.toc-item .toc-branch {
+  position: absolute;
+  left: calc(10px + var(--toc-indent));
+  top: 50%;
+  width: 10px;
+  border-top: 1px solid rgba(148, 165, 196, 0.46);
+  transform: translateY(-50%);
+}
+
+.toc-item.has-next-sibling .toc-branch::before,
+.toc-item.has-child .toc-branch::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -14px;
+  bottom: -14px;
+  border-left: 1px solid rgba(148, 165, 196, 0.42);
+}
+
+.toc-item .toc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(182, 199, 231, 0.86);
+  flex: 0 0 7px;
+  margin-left: calc(var(--toc-indent) + 12px);
+}
+
+.toc-item .toc-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toc-item.active {
   background: rgba(var(--accent-rgb), 0.26);
   color: rgba(255, 255, 255, 0.98);
   box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.58);
+}
+
+.toc-item.active .toc-dot {
+  background: rgba(var(--accent-rgb), 0.96);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.24);
+}
+
+.toc-empty {
+  font-size: 12px;
 }
 
 .error-text {
@@ -1949,23 +2346,31 @@ onBeforeUnmount(() => {
 
 .progress-fab {
   position: fixed;
-  right: 36px;
-  bottom: 136px;
+  right: 24px;
+  bottom: 120px;
   border-radius: 999px;
-  width: 84px;
-  height: 84px;
+  width: 68px;
+  height: 68px;
+  padding: 0;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: rgba(241, 246, 255, 0.96);
   z-index: 1200;
-  gap: 1px;
-  font-size: 11px;
+  overflow: hidden;
+}
+
+.progress-fab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 30%, rgba(var(--accent-rgb), 0.2), rgba(9, 14, 25, 0.68));
+  z-index: -1;
 }
 
 .progress-ring {
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   transform: rotate(-90deg);
 }
 
@@ -1981,6 +2386,18 @@ onBeforeUnmount(() => {
   stroke-width: 4;
   stroke-linecap: round;
   transition: stroke-dashoffset 180ms linear;
+}
+
+.progress-fab-percent {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(241, 246, 255, 0.98);
 }
 
 .dialog-mask {
@@ -2119,10 +2536,20 @@ onBeforeUnmount(() => {
   }
 
   .progress-fab {
-    right: 14px;
-    bottom: 104px;
-    width: 76px;
-    height: 76px;
+    right: 10px;
+    bottom: 88px;
+    width: 60px;
+    height: 60px;
+  }
+
+  .progress-ring {
+    width: 38px;
+    height: 38px;
+  }
+
+  .progress-fab-percent {
+    font-size: 11px;
+    bottom: 4px;
   }
 }
 </style>

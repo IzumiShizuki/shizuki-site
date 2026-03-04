@@ -1,7 +1,7 @@
 <template>
   <section class="route-page blog-list-page motion-managed">
     <div class="blog-shell">
-      <aside class="left-switch liquid-material">
+      <SubtleScrollArea tag="aside" class="left-switch liquid-material">
         <button
           type="button"
           class="switch-btn ripple-trigger"
@@ -30,7 +30,7 @@
           <span>评论</span>
         </button>
         <p v-if="uiState.actionHint" class="action-hint">{{ uiState.actionHint }}</p>
-      </aside>
+      </SubtleScrollArea>
 
       <section class="main-column">
         <transition name="search-slide">
@@ -60,14 +60,21 @@
               :class="{ active: filters.category === category.categoryCode }"
               @click="applyCategoryFilter(category.categoryCode)"
             >
-              <span>{{ category.categoryCode || '全部' }}</span>
+              <img
+                v-if="category.coverImageUrl && category.categoryCode"
+                class="category-pill-cover"
+                :src="resolveCover(category.coverImageUrl)"
+                :alt="category.displayName || category.categoryCode"
+                loading="lazy"
+              />
+              <span>{{ category.displayName || category.categoryCode || '全部' }}</span>
               <span class="pill-count">{{ category.count }}</span>
             </button>
             <span class="strip-meta">共 {{ listState.total }} 篇</span>
           </section>
 
           <div class="content-layout">
-            <main class="feed-column">
+            <SubtleScrollArea tag="main" class="feed-column">
               <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
 
               <article
@@ -128,9 +135,9 @@
                   下一页
                 </button>
               </footer>
-            </main>
+            </SubtleScrollArea>
 
-            <aside class="sidebar-column">
+            <SubtleScrollArea tag="aside" class="sidebar-column">
               <section class="side-card liquid-material">
                 <header class="side-head">
                   <h3>最新文章</h3>
@@ -173,7 +180,16 @@
                   :class="{ active: filters.category === item.categoryCode }"
                   @click="applyCategoryFilter(item.categoryCode)"
                 >
-                  <span>{{ item.categoryCode }}</span>
+                  <span class="category-row-main">
+                    <img
+                      v-if="item.coverImageUrl"
+                      class="category-row-cover"
+                      :src="resolveCover(item.coverImageUrl)"
+                      :alt="item.displayName || item.categoryCode"
+                      loading="lazy"
+                    />
+                    <span>{{ item.displayName || item.categoryCode }}</span>
+                  </span>
                   <strong>{{ item.count }}</strong>
                 </button>
               </section>
@@ -213,11 +229,11 @@
                   <strong>{{ item.count }}</strong>
                 </button>
               </section>
-            </aside>
+            </SubtleScrollArea>
           </div>
         </template>
 
-        <section v-else class="comment-panel liquid-material">
+        <SubtleScrollArea v-else tag="section" class="comment-panel liquid-material">
           <h2>评论区（预留）</h2>
           <p>一期暂不接入评论后端，本页先完成布局与交互占位。</p>
           <p>后续会补充：评论列表、发布输入框、回复链和权限控制。</p>
@@ -225,7 +241,7 @@
             <span>🧪 评论模块开发中...</span>
             <span>当前可继续通过“看文 / 写文”完成阅读与发布流程。</span>
           </div>
-        </section>
+        </SubtleScrollArea>
       </section>
     </div>
   </section>
@@ -234,6 +250,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { getPostSidebar, listPosts } from '../services/blogApi';
 
@@ -314,10 +331,10 @@ const visiblePages = computed(() => {
 const categoryTabs = computed(() => {
   const fromSidebar = Array.isArray(sidebarState.categories) ? sidebarState.categories : [];
   const sum = fromSidebar.reduce((acc, item) => acc + Math.max(0, Number(item.count) || 0), 0);
-  const allItem = { categoryCode: '', count: sum };
+  const allItem = { categoryCode: '', count: sum, displayName: '全部', coverImageUrl: '' };
   const tabs = [allItem, ...fromSidebar];
   if (filters.category && !tabs.some((item) => item.categoryCode === filters.category)) {
-    tabs.push({ categoryCode: filters.category, count: 0 });
+    tabs.push({ categoryCode: filters.category, count: 0, displayName: filters.category, coverImageUrl: '' });
   }
   return tabs;
 });
@@ -340,7 +357,7 @@ function normalizeTags(value) {
 function normalizePostSummary(raw) {
   return {
     postId: Number(raw?.postId ?? raw?.post_id) || 0,
-    title: normalizeString(raw?.title),
+    title: normalizeString(raw?.title) || '未命名文章',
     summary: normalizeString(raw?.summary),
     coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
@@ -356,7 +373,7 @@ function normalizePostSummary(raw) {
 function normalizeLatestPost(raw) {
   return {
     postId: Number(raw?.postId ?? raw?.post_id) || 0,
-    title: normalizeString(raw?.title),
+    title: normalizeString(raw?.title) || '未命名文章',
     coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     publishedAt: raw?.publishedAt ?? raw?.published_at ?? null
   };
@@ -365,7 +382,9 @@ function normalizeLatestPost(raw) {
 function normalizeCategoryStat(raw) {
   return {
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
-    count: Math.max(0, Number(raw?.count) || 0)
+    count: Math.max(0, Number(raw?.count) || 0),
+    displayName: normalizeString(raw?.displayName ?? raw?.display_name),
+    coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url)
   };
 }
 
@@ -596,8 +615,6 @@ onBeforeUnmount(() => {
   display: grid;
   align-content: start;
   gap: 8px;
-  overflow: auto;
-  overscroll-behavior: contain;
 }
 
 .switch-btn {
@@ -719,6 +736,14 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.category-pill-cover {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .category-pill.active {
   border-color: rgba(var(--accent-rgb), 0.58);
   background: rgba(var(--accent-rgb), 0.28);
@@ -754,8 +779,6 @@ onBeforeUnmount(() => {
 .feed-column {
   min-height: 0;
   height: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -880,8 +903,6 @@ onBeforeUnmount(() => {
 .sidebar-column {
   min-height: 0;
   height: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
   display: grid;
   gap: 10px;
   align-content: start;
@@ -977,6 +998,21 @@ onBeforeUnmount(() => {
   color: rgba(236, 243, 255, 0.94);
 }
 
+.category-row-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-row-cover {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
 .list-row.active {
   box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.6);
   background: rgba(var(--accent-rgb), 0.22);
@@ -1000,8 +1036,6 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   padding: 18px;
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
   display: grid;
   gap: 10px;
 }

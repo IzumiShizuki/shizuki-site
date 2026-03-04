@@ -101,7 +101,7 @@
           />
 
           <AdminQuotaPanel
-            v-else
+            v-else-if="activeTab === AdminTabKey.QUOTA"
             :loading="quotaLoading"
             :rows="quotaMatrixRows"
             :quotaCodes="quotaMatrixCodes"
@@ -119,6 +119,18 @@
             @update:advanced="(value) => (uiState.quotaAdvanced = value)"
             @update:customQuotaCode="setCustomQuotaCode"
             @appendCustomQuota="appendCustomQuota"
+          />
+
+          <AdminBlogCategoriesPanel
+            v-else
+            :loading="categoryMetaLoading"
+            :saving="categoryMetaSaving"
+            :error="categoryMetaError"
+            :items="categoryMetaItems"
+            :uploading-code="categoryMetaUploadingCode"
+            @refresh="reloadCategoryMetas"
+            @save="saveCategoryMetaItem"
+            @upload="uploadCategoryMetaCover"
           />
         </section>
       </div>
@@ -172,6 +184,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import * as adminApi from '../services/adminApi';
 import AdminDangerDeleteDialog from '../components/admin/AdminDangerDeleteDialog.vue';
+import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
 import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue';
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
@@ -195,7 +208,8 @@ const tabs = [
   { key: AdminTabKey.USERS, label: '用户管理' },
   { key: AdminTabKey.GROUPS, label: '分组目录' },
   { key: AdminTabKey.PERMISSIONS, label: '分组权限' },
-  { key: AdminTabKey.QUOTA, label: '配额策略' }
+  { key: AdminTabKey.QUOTA, label: '配额策略' },
+  { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类' }
 ];
 
 const booting = ref(true);
@@ -252,6 +266,12 @@ const quotaMatrixRows = ref([]);
 const quotaMatrixCodes = ref([]);
 const selectedQuotaGroupCode = ref('');
 const customQuotaCode = ref('');
+
+const categoryMetaLoading = ref(false);
+const categoryMetaSaving = ref(false);
+const categoryMetaError = ref('');
+const categoryMetaUploadingCode = ref('');
+const categoryMetaItems = ref([]);
 
 const uiState = reactive(createAdminUiState());
 
@@ -423,6 +443,16 @@ function toQuotaPolicyView(raw) {
     groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
     quotaCode: String(readField(raw, 'quotaCode', 'quota_code', '') || '').trim(),
     value: Number(readField(raw, 'value', 'value', 0)) || 0
+  };
+}
+
+function toCategoryMetaItem(raw) {
+  return {
+    categoryCode: String(readField(raw, 'categoryCode', 'category_code', '') || '').toLowerCase(),
+    displayName: String(readField(raw, 'displayName', 'display_name', '') || ''),
+    coverImageUrl: String(readField(raw, 'coverImageUrl', 'cover_image_url', '') || ''),
+    sortNum: Number(readField(raw, 'sortNum', 'sort_num', 1000)) || 1000,
+    enabled: readField(raw, 'enabled', 'enabled', true) !== false
   };
 }
 
@@ -797,6 +827,87 @@ async function reloadQuota() {
   }
 }
 
+async function reloadCategoryMetas() {
+  categoryMetaError.value = '';
+  categoryMetaLoading.value = true;
+  try {
+    const payload = await adminApi.listBlogCategoryMetas(auth.authorizedFetch);
+    const rows = Array.isArray(payload) ? payload.map(toCategoryMetaItem).filter((item) => item.categoryCode) : [];
+    categoryMetaItems.value = rows;
+  } catch (error) {
+    categoryMetaItems.value = [];
+    categoryMetaError.value = readErrorMessage(error);
+  } finally {
+    categoryMetaLoading.value = false;
+  }
+}
+
+async function saveCategoryMetaItem(payload) {
+  const categoryCode = String(payload?.categoryCode || '').trim().toLowerCase();
+  if (!categoryCode) {
+    categoryMetaError.value = '分类编码不能为空';
+    return;
+  }
+  categoryMetaSaving.value = true;
+  categoryMetaError.value = '';
+  try {
+    const saved = await withPrivilegeRetry(() =>
+      adminApi.updateBlogCategoryMeta(
+        categoryCode,
+        {
+          displayName: String(payload?.displayName || '').trim(),
+          coverImageUrl: String(payload?.coverImageUrl || '').trim(),
+          sortNum: Number(payload?.sortNum),
+          enabled: payload?.enabled !== false
+        },
+        auth.authorizedFetch
+      )
+    );
+    const normalized = toCategoryMetaItem(saved);
+    const index = categoryMetaItems.value.findIndex((item) => item.categoryCode === normalized.categoryCode);
+    if (index >= 0) {
+      categoryMetaItems.value[index] = normalized;
+    } else {
+      categoryMetaItems.value.push(normalized);
+    }
+    setGlobalHint(`分类 ${categoryCode} 元数据已更新`);
+  } catch (error) {
+    categoryMetaError.value = readErrorMessage(error);
+  } finally {
+    categoryMetaSaving.value = false;
+  }
+}
+
+async function uploadCategoryMetaCover(payload) {
+  const categoryCode = String(payload?.categoryCode || '').trim().toLowerCase();
+  const file = payload?.file;
+  if (!categoryCode || !(file instanceof File)) {
+    categoryMetaError.value = '请选择分类图片后再上传';
+    return;
+  }
+  categoryMetaUploadingCode.value = categoryCode;
+  categoryMetaError.value = '';
+  try {
+    const uploadResult = await adminApi.uploadBlogCategoryCover(file, auth.authorizedFetch);
+    const url = String(uploadResult?.url || '').trim();
+    if (!url) {
+      throw new Error('分类图片地址为空');
+    }
+    const original = categoryMetaItems.value.find((item) => item.categoryCode === categoryCode);
+    await saveCategoryMetaItem({
+      categoryCode,
+      displayName: original?.displayName || categoryCode,
+      coverImageUrl: url,
+      sortNum: original?.sortNum ?? 1000,
+      enabled: original?.enabled !== false
+    });
+  } catch (error) {
+    categoryMetaError.value = readErrorMessage(error);
+  } finally {
+    categoryMetaUploadingCode.value = '';
+  }
+}
+
 function selectQuotaGroup(groupCode) {
   selectedQuotaGroupCode.value = String(groupCode || '').trim().toUpperCase();
 }
@@ -993,7 +1104,7 @@ onMounted(async () => {
 
   try {
     await reloadOptions();
-    await Promise.all([reloadUsers(1), reloadGroups(1), reloadPermissions(), reloadQuota()]);
+    await Promise.all([reloadUsers(1), reloadGroups(1), reloadPermissions(), reloadQuota(), reloadCategoryMetas()]);
   } finally {
     booting.value = false;
   }

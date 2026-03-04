@@ -20,7 +20,9 @@ public record PostSidebarResponse(
 
     public record CategoryStatItem(
         String categoryCode,
-        Long count
+        Long count,
+        String displayName,
+        String coverImageUrl
     ) {
     }
 
