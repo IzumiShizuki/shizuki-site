@@ -185,6 +185,9 @@ shizuki:
       - /api/v1/music/key-guide
       - /api/v1/music/spotify/search
       - /api/v1/music/spotify/preview-url
+  flyway:
+    auto-repair-on-validate-error: ${FLYWAY_AUTO_REPAIR_ON_VALIDATE_ERROR:true}
+    allow-auto-repair-in-prod: ${FLYWAY_ALLOW_AUTO_REPAIR_IN_PROD:false}
 middleware:
   host: ${MIDDLEWARE_HOST:127.0.0.1}
   ports:
