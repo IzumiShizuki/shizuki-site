@@ -8,10 +8,10 @@
           type="search"
           placeholder="搜索歌单 / 歌曲 / 歌手"
           @input="emit('update:keyword', $event.target.value)"
-          @keydown.enter.prevent="emit('search')"
+          @keydown.enter.prevent="handleSearch()"
         />
       </label>
-      <button class="search-btn ripple-trigger" type="button" :disabled="loading" @click="emit('search')">
+      <button class="search-btn ripple-trigger" type="button" :disabled="loading" @click="handleSearch()">
         <i class="fas fa-magnifying-glass"></i>
         {{ loading ? '搜索中...' : '搜索' }}
       </button>
@@ -19,6 +19,24 @@
         <i class="fas fa-rotate-right"></i>
         {{ loading ? '刷新中...' : '刷新' }}
       </button>
+    </div>
+
+    <div v-if="searchHistory.length" class="history-row">
+      <div class="history-row-head">
+        <span class="history-title">最近搜索</span>
+        <button type="button" class="history-clear-btn ripple-trigger" @click="clearHistory">清空</button>
+      </div>
+      <div class="history-list">
+        <button
+          v-for="item in searchHistory"
+          :key="`music-search-history-${item}`"
+          type="button"
+          class="history-chip ripple-trigger"
+          @click="applyHistory(item)"
+        >
+          {{ item }}
+        </button>
+      </div>
     </div>
 
     <div v-if="showFilters" class="filters-row">
@@ -53,7 +71,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { clearSearchHistory, readSearchHistory, recordSearchHistory } from '../../utils/searchHistory';
+
+const MUSIC_SEARCH_HISTORY_KEY = 'music_search_history_v1';
+const MUSIC_SEARCH_HISTORY_LIMIT = 10;
 
 const props = defineProps({
   keyword: { type: String, default: '' },
@@ -67,10 +89,38 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:keyword', 'set-type', 'toggle-provider', 'search', 'refresh']);
+const searchHistory = ref([]);
 
 const selectedProviderSet = computed(() => {
   const list = Array.isArray(props.selectedProviders) ? props.selectedProviders : [];
   return new Set(list.map((item) => String(item || '').trim().toLowerCase()));
+});
+
+function handleSearch(keywordOverride = props.keyword) {
+  const keyword = String(keywordOverride || '').trim();
+  if (keyword) {
+    searchHistory.value = recordSearchHistory(MUSIC_SEARCH_HISTORY_KEY, keyword, undefined, MUSIC_SEARCH_HISTORY_LIMIT);
+    if (keyword !== props.keyword) {
+      emit('update:keyword', keyword);
+    }
+  }
+  emit('search');
+}
+
+function applyHistory(keyword) {
+  const normalized = String(keyword || '').trim();
+  if (!normalized) return;
+  emit('update:keyword', normalized);
+  handleSearch(normalized);
+}
+
+function clearHistory() {
+  clearSearchHistory(MUSIC_SEARCH_HISTORY_KEY);
+  searchHistory.value = [];
+}
+
+onMounted(() => {
+  searchHistory.value = readSearchHistory(MUSIC_SEARCH_HISTORY_KEY, undefined, MUSIC_SEARCH_HISTORY_LIMIT);
 });
 </script>
 
@@ -92,6 +142,49 @@ const selectedProviderSet = computed(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
+}
+
+.history-row {
+  display: grid;
+  gap: 8px;
+}
+
+.history-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.history-title {
+  font-size: 12px;
+  color: rgba(209, 221, 246, 0.9);
+}
+
+.history-clear-btn {
+  min-height: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(229, 237, 251, 0.93);
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.history-chip {
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(228, 236, 252, 0.9);
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .search-input-wrap {
@@ -188,6 +281,10 @@ const selectedProviderSet = computed(() => {
 @media (max-width: 900px) {
   .search-row {
     grid-template-columns: 1fr;
+  }
+
+  .history-row-head {
+    flex-wrap: wrap;
   }
 
   .filters-row {
