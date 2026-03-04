@@ -63,6 +63,7 @@ class PostControllerIntegrationTest {
                     "PUBLIC",
                     "dev",
                     List.of("spring", "java"),
+                    860L,
                     3,
                     12L,
                     LocalDateTime.now()
@@ -79,7 +80,8 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.total").value(1))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].post_id").value(1))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].title").value("Shizuki v0.1"));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].title").value("Shizuki v0.1"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].word_count").value(860));
     }
 
     /**

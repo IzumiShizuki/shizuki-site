@@ -14,66 +14,124 @@
 
     <div class="blog-layout">
       <aside class="left-panel liquid-material">
-        <section class="side-block">
-          <h2>分类</h2>
-          <div class="chip-group">
-            <button
-              v-for="category in categoryOptions"
-              :key="category.code || 'all'"
-              type="button"
-              class="chip-btn ripple-trigger"
-              :class="{ active: filters.category === category.code }"
-              @click="applyCategoryFilter(category.code)"
-            >
-              {{ category.label }}
-            </button>
-          </div>
-        </section>
+        <template v-if="viewMode === 'detail'">
+          <section class="side-block">
+            <div class="mine-head">
+              <h2>最新文章</h2>
+            </div>
+            <div class="mine-list detail-nav-list">
+              <button
+                v-for="item in detailNavState.latestPosts"
+                :key="`detail-latest-${item.postId}`"
+                type="button"
+                class="mine-item ripple-trigger"
+                :class="{ active: item.postId === detailState.post?.postId }"
+                @click="openPostDetail(item.postId)"
+              >
+                <span class="mine-title">{{ item.title }}</span>
+                <span class="mine-meta">{{ formatDateTime(item.publishedAt) }}</span>
+              </button>
+              <p v-if="detailNavState.loading" class="side-tip">加载中...</p>
+              <p v-else-if="detailNavState.sidebarError" class="side-tip">{{ detailNavState.sidebarError }}</p>
+              <p v-else-if="!detailNavState.latestPosts.length" class="side-tip">暂无可见文章。</p>
+            </div>
+          </section>
 
-        <section class="side-block">
-          <h2>标签</h2>
-          <div class="chip-group">
-            <button
-              v-for="tag in tagOptions"
-              :key="tag"
-              type="button"
-              class="chip-btn ripple-trigger"
-              :class="{ active: filters.tag === tag }"
-              @click="applyTagFilter(tag)"
-            >
-              #{{ tag }}
-            </button>
-          </div>
-        </section>
+          <section class="side-block">
+            <h2>分类</h2>
+            <div class="chip-group">
+              <button
+                v-for="category in detailNavState.categories"
+                :key="`detail-category-${category.categoryCode}`"
+                type="button"
+                class="chip-btn ripple-trigger"
+                :class="{ active: detailNavState.selectedCategory === category.categoryCode }"
+                @click="selectDetailCategory(category.categoryCode)"
+              >
+                {{ category.categoryCode }}
+                <span class="chip-count">{{ category.count }}</span>
+              </button>
+            </div>
+            <p v-if="!detailNavState.loading && !detailNavState.categories.length" class="side-tip">暂无分类统计。</p>
+          </section>
 
-        <section class="side-block policy-block">
-          <h2>访问策略</h2>
-          <p>PUBLIC 文章默认可见。</p>
-          <p>分类策略默认：`game` 仅 `USER / FRIEND / ADMIN` 可访问。</p>
-          <p>文章级 `GROUP / PRIVATE` 会覆盖分类策略。</p>
-        </section>
+          <section class="side-block">
+            <h2>同分类文章 · {{ detailNavState.selectedCategory || 'uncategorized' }}</h2>
+            <div ref="detailRelatedListRef" class="mine-list detail-nav-list">
+              <button
+                v-for="item in detailNavState.relatedPosts"
+                :key="`detail-related-${item.postId}`"
+                type="button"
+                class="mine-item ripple-trigger"
+                :class="{ active: item.postId === detailState.post?.postId }"
+                :data-current="item.postId === detailState.post?.postId ? '1' : '0'"
+                @click="openPostDetail(item.postId)"
+              >
+                <span class="mine-title">{{ item.title }}</span>
+                <span class="mine-meta">{{ formatDateTime(item.publishedAt) }}</span>
+              </button>
+              <p v-if="detailNavState.relatedLoading" class="side-tip">加载同分类文章中...</p>
+              <p v-else-if="detailNavState.relatedError" class="side-tip">{{ detailNavState.relatedError }}</p>
+              <p v-else-if="!detailNavState.relatedPosts.length" class="side-tip">该分类下暂无其它文章。</p>
+            </div>
+          </section>
+        </template>
 
-        <section v-if="canWrite" class="side-block">
-          <div class="mine-head">
-            <h2>我的文章</h2>
-            <button type="button" class="mini-btn ripple-trigger" @click="startNewDraft">新建</button>
-          </div>
-          <div class="mine-list">
-            <button
-              v-for="mine in writerState.myPosts"
-              :key="mine.postId"
-              type="button"
-              class="mine-item ripple-trigger"
-              :class="{ active: viewMode === 'editor' && writerState.editor.postId === mine.postId }"
-              @click="openMinePost(mine.postId)"
-            >
-              <span class="mine-title">{{ mine.title }}</span>
-              <span class="mine-meta">{{ mine.statusCode }} · {{ mine.visibility }}</span>
-            </button>
-            <p v-if="writerState.loading" class="side-tip">加载我的文章中...</p>
-            <p v-else-if="!writerState.myPosts.length" class="side-tip">暂无草稿或文章。</p>
-          </div>
-        </section>
+        <template v-else>
+          <section class="side-block">
+            <h2>分类</h2>
+            <div class="chip-group">
+              <button
+                v-for="category in categoryOptions"
+                :key="category.code || 'all'"
+                type="button"
+                class="chip-btn ripple-trigger"
+                :class="{ active: filters.category === category.code }"
+                @click="applyCategoryFilter(category.code)"
+              >
+                {{ category.label }}
+              </button>
+            </div>
+          </section>
+
+          <section class="side-block">
+            <h2>标签</h2>
+            <div class="chip-group">
+              <button
+                v-for="tag in tagOptions"
+                :key="tag"
+                type="button"
+                class="chip-btn ripple-trigger"
+                :class="{ active: filters.tag === tag }"
+                @click="applyTagFilter(tag)"
+              >
+                #{{ tag }}
+              </button>
+            </div>
+          </section>
+
+          <section v-if="canWrite" class="side-block">
+            <div class="mine-head">
+              <h2>我的文章</h2>
+              <button type="button" class="mini-btn ripple-trigger" @click="startNewDraft">新建</button>
+            </div>
+            <div class="mine-list">
+              <button
+                v-for="mine in writerState.myPosts"
+                :key="mine.postId"
+                type="button"
+                class="mine-item ripple-trigger"
+                :class="{ active: viewMode === 'editor' && writerState.editor.postId === mine.postId }"
+                @click="openMinePost(mine.postId)"
+              >
+                <span class="mine-title">{{ mine.title }}</span>
+                <span class="mine-meta">{{ mine.statusCode }} · {{ mine.visibility }}</span>
+              </button>
+              <p v-if="writerState.loading" class="side-tip">加载我的文章中...</p>
+              <p v-else-if="!writerState.myPosts.length" class="side-tip">暂无草稿或文章。</p>
+            </div>
+          </section>
+        </template>
       </aside>
 
       <section class="center-panel liquid-material">
@@ -122,7 +180,7 @@
               <p class="summary">{{ post.summary }}</p>
               <div class="meta-row">
                 <span>{{ post.categoryCode || 'uncategorized' }}</span>
-                <span>{{ post.readingMinutes }} 分钟</span>
+                <span>{{ post.wordCount }} 字 · {{ post.readingMinutes }} 分钟</span>
                 <span>❤ {{ post.likeCount }}</span>
                 <span>{{ formatDateTime(post.publishedAt) }}</span>
               </div>
@@ -138,11 +196,21 @@
           <p v-if="detailState.error" class="error-text">{{ detailState.error }}</p>
           <template v-else-if="detailState.post">
             <header class="detail-head">
-              <h2>{{ detailState.post.title }}</h2>
+              <div class="detail-title-row">
+                <h2>{{ detailState.post.title }}</h2>
+                <button
+                  v-if="detailState.post.editable"
+                  type="button"
+                  class="mini-btn ripple-trigger"
+                  @click="openCurrentPostInEditor"
+                >
+                  编辑
+                </button>
+              </div>
               <p class="detail-summary">{{ detailState.post.summary }}</p>
               <div class="meta-row">
                 <span>{{ detailState.post.categoryCode || 'uncategorized' }}</span>
-                <span>{{ detailState.post.readingMinutes }} 分钟</span>
+                <span>{{ detailState.post.wordCount }} 字 · {{ detailState.post.readingMinutes }} 分钟</span>
                 <span>❤ {{ detailState.post.likeCount }}</span>
                 <span>{{ formatDateTime(detailState.post.publishedAt) }}</span>
               </div>
@@ -152,7 +220,6 @@
               <div class="detail-actions">
                 <button type="button" class="mini-btn ripple-trigger" @click="goBackToBlogList">返回列表</button>
                 <button type="button" class="mini-btn ripple-trigger" @click="downloadCurrentMarkdown">下载 Markdown</button>
-                <button v-if="canWrite" type="button" class="mini-btn ripple-trigger" @click="openCurrentPostInEditor">在编辑器打开</button>
               </div>
             </header>
 
@@ -339,6 +406,7 @@ import {
   createMyPost,
   getMyPostDetail,
   getPostDetail,
+  getPostSidebar,
   getPostMarkdown,
   listMyPosts,
   listPosts,
@@ -409,6 +477,17 @@ const writerState = reactive({
   }
 });
 
+const detailNavState = reactive({
+  loading: false,
+  relatedLoading: false,
+  sidebarError: '',
+  relatedError: '',
+  latestPosts: [],
+  categories: [],
+  selectedCategory: '',
+  relatedPosts: []
+});
+
 const pasteState = reactive({
   dialogVisible: false,
   pendingText: '',
@@ -432,6 +511,7 @@ const readingProgress = ref(0);
 const articleScrollRef = ref(null);
 const markdownBodyRef = ref(null);
 const editorTextareaRef = ref(null);
+const detailRelatedListRef = ref(null);
 
 let headingDomNodes = [];
 let boundScrollRoot = null;
@@ -484,13 +564,18 @@ const visibleTocHeadings = computed(() => {
   return headings.filter((item) => item.rootId === rootId);
 });
 
-const activeHeading = computed(() => {
-  const headings = Array.isArray(detailState.headings) ? detailState.headings : [];
-  return headings.find((item) => item.id === activeHeadingId.value) || headings[0] || null;
-});
-
-const activeLine = computed(() => activeHeading.value?.line || 0);
 const detailLineCount = computed(() => toSafeInt(detailState.post?.lineCount, detailState.renderedLineCount));
+const activeLine = computed(() => {
+  const totalLines = Math.max(0, detailLineCount.value);
+  if (totalLines <= 0) {
+    return 0;
+  }
+  if (readingProgress.value >= 1) {
+    return totalLines;
+  }
+  const estimated = Math.floor(readingProgress.value * Math.max(0, totalLines - 1)) + 1;
+  return Math.max(1, Math.min(totalLines, estimated));
+});
 const progressPercent = computed(() => Math.round(readingProgress.value * 100));
 const showProgressFab = computed(() => viewMode.value === 'detail' && Boolean(detailState.post));
 
@@ -530,6 +615,7 @@ function normalizePostSummary(raw) {
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     tags: normalizeTags(raw?.tags),
+    wordCount: Math.max(0, toSafeInt(raw?.wordCount ?? raw?.word_count, 0)),
     readingMinutes: Math.max(1, toSafeInt(raw?.readingMinutes ?? raw?.reading_minutes, 1)),
     likeCount: Math.max(0, toSafeInt(raw?.likeCount ?? raw?.like_count, 0)),
     publishedAt: raw?.publishedAt ?? raw?.published_at ?? null
@@ -552,7 +638,23 @@ function normalizePostDetail(raw) {
     readingMinutes: Math.max(1, toSafeInt(raw?.readingMinutes ?? raw?.reading_minutes, 1)),
     likeCount: Math.max(0, toSafeInt(raw?.likeCount ?? raw?.like_count, 0)),
     publishedAt: raw?.publishedAt ?? raw?.published_at ?? null,
+    editable: Boolean(raw?.editable),
     markdown: normalizeString(raw?.markdown)
+  };
+}
+
+function normalizeLatestPost(raw) {
+  return {
+    postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
+    title: normalizeString(raw?.title),
+    publishedAt: raw?.publishedAt ?? raw?.published_at ?? null
+  };
+}
+
+function normalizeCategoryStat(raw) {
+  return {
+    categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
+    count: Math.max(0, toSafeInt(raw?.count, 0))
   };
 }
 
@@ -634,6 +736,100 @@ async function loadPostList() {
   }
 }
 
+function resetDetailNavigationState() {
+  detailNavState.loading = false;
+  detailNavState.relatedLoading = false;
+  detailNavState.sidebarError = '';
+  detailNavState.relatedError = '';
+  detailNavState.latestPosts = [];
+  detailNavState.categories = [];
+  detailNavState.selectedCategory = '';
+  detailNavState.relatedPosts = [];
+}
+
+async function loadDetailSidebarStats() {
+  detailNavState.loading = true;
+  detailNavState.sidebarError = '';
+  try {
+    const payload = await getPostSidebar(resolveAuthorizedFetch());
+    detailNavState.latestPosts = Array.isArray(payload?.latestPosts ?? payload?.latest_posts)
+      ? (payload.latestPosts ?? payload.latest_posts).map(normalizeLatestPost).filter((item) => item.postId > 0)
+      : [];
+    detailNavState.categories = Array.isArray(payload?.categories)
+      ? payload.categories.map(normalizeCategoryStat).filter((item) => item.categoryCode)
+      : [];
+  } catch (error) {
+    detailNavState.sidebarError = normalizeErrorMessage(error, '加载详情侧栏失败');
+    detailNavState.latestPosts = [];
+    detailNavState.categories = [];
+  } finally {
+    detailNavState.loading = false;
+  }
+}
+
+function scrollCurrentRelatedIntoView() {
+  const listEl = detailRelatedListRef.value;
+  if (!listEl) return;
+  const currentItem = listEl.querySelector('[data-current="1"]');
+  if (!currentItem) return;
+  currentItem.scrollIntoView({ block: 'nearest' });
+}
+
+async function loadDetailRelatedPosts(categoryCode, options = {}) {
+  const normalizedCategory = normalizeString(categoryCode).toLowerCase();
+  detailNavState.selectedCategory = normalizedCategory;
+  detailNavState.relatedError = '';
+  if (!normalizedCategory) {
+    detailNavState.relatedPosts = [];
+    return;
+  }
+
+  const silent = options?.silent === true;
+  if (!silent) {
+    detailNavState.relatedLoading = true;
+  }
+  try {
+    const payload = await listPosts(
+      {
+        pageNo: 1,
+        pageSize: 80,
+        category: normalizedCategory
+      },
+      resolveAuthorizedFetch()
+    );
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    detailNavState.relatedPosts = items.map(normalizePostSummary).filter((post) => post.postId > 0);
+    await nextTick();
+    scrollCurrentRelatedIntoView();
+  } catch (error) {
+    detailNavState.relatedError = normalizeErrorMessage(error, '加载同分类文章失败');
+    detailNavState.relatedPosts = [];
+  } finally {
+    detailNavState.relatedLoading = false;
+  }
+}
+
+async function loadDetailSidebarContext(post) {
+  const normalizedCategory = normalizeString(post?.categoryCode).toLowerCase();
+  await Promise.all([
+    loadDetailSidebarStats(),
+    loadDetailRelatedPosts(normalizedCategory, { silent: true })
+  ]);
+  if (
+    normalizedCategory &&
+    !detailNavState.categories.some((item) => item.categoryCode === normalizedCategory)
+  ) {
+    detailNavState.categories = [
+      ...detailNavState.categories,
+      { categoryCode: normalizedCategory, count: detailNavState.relatedPosts.length || 0 }
+    ];
+  }
+}
+
+function selectDetailCategory(categoryCode) {
+  loadDetailRelatedPosts(categoryCode);
+}
+
 async function loadPostDetail(postId) {
   detailState.loading = true;
   detailState.error = '';
@@ -647,6 +843,7 @@ async function loadPostDetail(postId) {
     detailState.renderedLineCount = rendered.lineCount;
     activeHeadingId.value = rendered.headings[0]?.id || '';
     readingProgress.value = 0;
+    await loadDetailSidebarContext(normalized);
     await nextTick();
     setupReadingScroll();
   } catch (error) {
@@ -656,6 +853,7 @@ async function loadPostDetail(postId) {
     detailState.headings = [];
     detailState.renderedLineCount = 0;
     detailState.error = normalizeErrorMessage(error, '加载文章详情失败');
+    resetDetailNavigationState();
   } finally {
     detailState.loading = false;
   }
@@ -918,7 +1116,6 @@ async function openPostDetail(postId) {
 }
 
 async function openMinePost(postId, options = {}) {
-  if (!canWrite.value) return;
   const normalizedPostId = toSafeInt(postId, 0);
   if (normalizedPostId <= 0) return;
   writerState.error = '';
@@ -933,11 +1130,14 @@ async function openMinePost(postId, options = {}) {
     switchViewMode('editor');
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, '读取我的文章失败');
+    if (routeMode.value === 'editor') {
+      await router.replace({ name: 'blog' });
+    }
   }
 }
 
 async function openCurrentPostInEditor() {
-  if (!canWrite.value || !detailState.post?.postId) return;
+  if (!detailState.post?.editable || !detailState.post?.postId) return;
   await router.push({ name: 'blog-editor', params: { postId: detailState.post.postId } });
 }
 
@@ -1021,8 +1221,12 @@ function updateActiveHeadingByScroll() {
 function handleDetailScroll() {
   const root = articleScrollRef.value;
   if (!root) return;
-  const maxScroll = Math.max(1, root.scrollHeight - root.clientHeight);
-  readingProgress.value = Math.max(0, Math.min(1, root.scrollTop / maxScroll));
+  const maxScroll = root.scrollHeight - root.clientHeight;
+  if (maxScroll <= 0) {
+    readingProgress.value = 1;
+  } else {
+    readingProgress.value = Math.max(0, Math.min(1, root.scrollTop / maxScroll));
+  }
   updateActiveHeadingByScroll();
 }
 
@@ -1142,21 +1346,25 @@ async function syncRouteDrivenView() {
 
   if (mode === 'editor') {
     viewMode.value = 'editor';
-    if (!canWrite.value) {
-      writerState.error = '当前账号没有博客编辑权限';
-      goBackToBlogList();
+    const postId = toSafeInt(route.params.postId, 0);
+    if (postId > 0) {
+      if (writerState.editor.postId !== postId) {
+        await openMinePost(postId, { routeSync: false });
+      }
       return;
     }
-    const postId = toSafeInt(route.params.postId, 0);
-    if (postId > 0 && writerState.editor.postId !== postId) {
-      await openMinePost(postId, { routeSync: false });
+    if (!canWrite.value) {
+      writerState.error = '当前账号没有博客写文权限';
+      await router.replace({ name: 'blog' });
+      return;
     }
-    if (postId <= 0 && !writerState.editor.postId) {
+    if (!writerState.editor.postId) {
       resetEditorForm();
     }
     return;
   }
 
+  resetDetailNavigationState();
   viewMode.value = 'list';
 }
 
@@ -1212,7 +1420,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .blog-page {
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   color: rgba(239, 244, 255, 0.96);
   display: grid;
   grid-template-rows: auto 1fr;
@@ -1274,7 +1484,9 @@ onBeforeUnmount(() => {
 }
 
 .blog-layout {
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 280px;
   gap: 12px;
@@ -1293,6 +1505,7 @@ onBeforeUnmount(() => {
 .left-panel {
   padding: 10px;
   overflow: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 12px;
   align-content: start;
@@ -1322,6 +1535,19 @@ onBeforeUnmount(() => {
   font-size: 12px;
   background: rgba(255, 255, 255, 0.16);
   color: rgba(236, 243, 255, 0.93);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-count {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.2);
+  display: inline-grid;
+  place-items: center;
 }
 
 .chip-btn.active,
@@ -1350,6 +1576,13 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
+.detail-nav-list {
+  max-height: 232px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
 .mine-item {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
@@ -1368,6 +1601,11 @@ onBeforeUnmount(() => {
 .mine-title {
   font-size: 13px;
   color: rgba(244, 248, 255, 0.95);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .mine-meta {
@@ -1382,6 +1620,9 @@ onBeforeUnmount(() => {
 
 .center-panel {
   padding: 10px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 10px;
@@ -1409,6 +1650,7 @@ onBeforeUnmount(() => {
 
 .list-view {
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .post-list {
@@ -1487,6 +1729,17 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-title-row h2 {
+  min-width: 0;
+}
+
 .detail-head h2 {
   font-size: clamp(22px, 3vw, 30px);
 }
@@ -1505,6 +1758,7 @@ onBeforeUnmount(() => {
 .detail-scroll {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(8, 12, 20, 0.36);
@@ -1619,6 +1873,9 @@ onBeforeUnmount(() => {
 
 .right-panel {
   padding: 10px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 10px;
@@ -1652,6 +1909,7 @@ onBeforeUnmount(() => {
 .toc-list {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 4px;
   align-content: start;

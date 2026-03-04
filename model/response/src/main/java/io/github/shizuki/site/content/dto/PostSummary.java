@@ -11,6 +11,7 @@ public record PostSummary(
     String visibility,
     String categoryCode,
     List<String> tags,
+    Long wordCount,
     Integer readingMinutes,
     Long likeCount,
     LocalDateTime publishedAt

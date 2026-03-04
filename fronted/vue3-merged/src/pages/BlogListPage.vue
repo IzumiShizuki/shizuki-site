@@ -83,11 +83,11 @@
                 </div>
                 <div class="content-pane">
                   <h2>{{ post.title }}</h2>
-                  <div class="meta-row">
-                    <span>{{ formatDate(post.publishedAt) }}</span>
-                    <span>{{ post.categoryCode || 'uncategorized' }}</span>
-                    <span>{{ post.readingMinutes }} 分钟</span>
-                  </div>
+                <div class="meta-row">
+                  <span>{{ formatDate(post.publishedAt) }}</span>
+                  <span>{{ post.categoryCode || 'uncategorized' }}</span>
+                  <span>{{ post.wordCount }} 字 · {{ post.readingMinutes }} 分钟</span>
+                </div>
                   <p class="summary">{{ post.summary || '...' }}</p>
                   <div v-if="post.tags.length" class="tag-row">
                     <button
@@ -346,6 +346,7 @@ function normalizePostSummary(raw) {
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     tags: normalizeTags(raw?.tags),
+    wordCount: Math.max(0, Number(raw?.wordCount ?? raw?.word_count) || 0),
     readingMinutes: Math.max(1, Number(raw?.readingMinutes ?? raw?.reading_minutes) || 1),
     likeCount: Math.max(0, Number(raw?.likeCount ?? raw?.like_count) || 0),
     publishedAt: raw?.publishedAt ?? raw?.published_at ?? null
@@ -571,12 +572,15 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .blog-list-page {
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   color: rgba(240, 244, 255, 0.96);
   font-family: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
 
 .blog-shell {
+  height: 100%;
   min-height: 0;
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr);
@@ -592,6 +596,8 @@ onBeforeUnmount(() => {
   display: grid;
   align-content: start;
   gap: 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .switch-btn {
@@ -624,9 +630,12 @@ onBeforeUnmount(() => {
 }
 
 .main-column {
+  height: 100%;
   min-height: 0;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  overflow: hidden;
 }
 
 .search-panel {
@@ -734,15 +743,19 @@ onBeforeUnmount(() => {
 }
 
 .content-layout {
+  flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 284px;
   gap: 12px;
+  overflow: hidden;
 }
 
 .feed-column {
   min-height: 0;
+  height: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -755,8 +768,10 @@ onBeforeUnmount(() => {
   --liquid-shadow: 0 16px 26px rgba(5, 8, 14, 0.26);
   border-radius: 12px;
   display: grid;
-  grid-template-columns: minmax(160px, 34%) minmax(0, 1fr);
-  min-height: 176px;
+  grid-template-columns: minmax(148px, 32%) minmax(0, 1fr);
+  grid-template-areas: 'cover content';
+  height: clamp(150px, 20vw, 168px);
+  min-height: 0;
   overflow: hidden;
   cursor: pointer;
   transition: transform 180ms ease, box-shadow 200ms ease;
@@ -765,15 +780,17 @@ onBeforeUnmount(() => {
 }
 
 .feed-card.reverse {
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 34%);
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 32%);
+  grid-template-areas: 'content cover';
 }
 
 .feed-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 34px rgba(2, 4, 8, 0.32);
+  transform: translateY(-1px);
+  box-shadow: 0 18px 30px rgba(2, 4, 8, 0.3);
 }
 
 .cover-pane {
+  grid-area: cover;
   position: relative;
   overflow: hidden;
 }
@@ -786,35 +803,40 @@ onBeforeUnmount(() => {
 }
 
 .feed-card:hover .cover-pane img {
-  transform: scale(1.03);
+  transform: scale(1.02);
 }
 
 .content-pane {
-  padding: 14px 16px;
+  grid-area: content;
+  padding: 12px 14px;
   display: grid;
-  gap: 8px;
-  align-content: center;
+  gap: 6px;
+  align-content: start;
 }
 
 .content-pane h2 {
-  font-size: clamp(18px, 2.2vw, 28px);
+  font-size: clamp(16px, 1.5vw, 22px);
   line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .meta-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 10px;
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(202, 214, 240, 0.9);
 }
 
 .summary {
   color: rgba(221, 230, 248, 0.92);
-  line-height: 1.62;
-  font-size: 14px;
+  line-height: 1.5;
+  font-size: 13px;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -841,6 +863,11 @@ onBeforeUnmount(() => {
 
 .pagination-wrap {
   margin-top: 2px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 8px 0 4px;
+  background: linear-gradient(180deg, rgba(8, 11, 18, 0) 0%, rgba(8, 11, 18, 0.82) 48%);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -852,7 +879,9 @@ onBeforeUnmount(() => {
 
 .sidebar-column {
   min-height: 0;
+  height: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 10px;
   align-content: start;
@@ -970,6 +999,9 @@ onBeforeUnmount(() => {
   --liquid-shadow: 0 16px 28px rgba(5, 8, 14, 0.28);
   border-radius: 14px;
   padding: 18px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 10px;
 }

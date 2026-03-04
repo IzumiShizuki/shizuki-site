@@ -40,6 +40,7 @@
           class="route-content"
           :class="{
             'route-content-home': isHomeRoute,
+            'route-content-blog': isBlogRoute,
             'route-content-music-player': isMusicPlayerDetailRoute,
             'route-content-music-shell': isMusicLibraryRoute && !isMusicPlayerDetailRoute
           }"
@@ -199,7 +200,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import AiDialog from './components/AiDialog.vue';
@@ -211,6 +212,7 @@ import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { usePlayerEngine } from './composables/usePlayerEngine';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
+import { refreshAosManager } from './utils/aosManager';
 import { runtimeGuards } from './utils/runtimeGuards';
 import { recordWindowDiag } from './utils/windowLifecycleDiag';
 
@@ -284,6 +286,7 @@ const currentRouteKey = computed(() => {
 
 const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] || '主页');
 const isHomeRoute = computed(() => currentRouteKey.value === 'home');
+const isBlogRoute = computed(() => currentRouteKey.value === 'blog');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
@@ -923,6 +926,14 @@ watch(activeBackgroundId, () => {
   videoFailed.value = false;
 });
 watch(
+  () => route.fullPath,
+  async () => {
+    await nextTick();
+    refreshAosManager();
+  },
+  { immediate: true }
+);
+watch(
   canUseSidebarAi,
   (allowed) => {
     if (allowed) return;
@@ -1128,6 +1139,10 @@ onBeforeUnmount(() => {
   border: 0;
   box-shadow: none;
   padding: 0;
+}
+
+.route-content.route-content-blog {
+  overflow: hidden;
 }
 
 .route-content.route-content-music-player {

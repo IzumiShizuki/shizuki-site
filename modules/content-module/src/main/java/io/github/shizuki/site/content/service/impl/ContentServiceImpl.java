@@ -59,6 +59,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -69,10 +70,13 @@ public class ContentServiceImpl implements ContentService {
     private static final String POST_STATUS_DRAFT = "DRAFT";
     private static final String POST_STATUS_PUBLISHED = "PUBLISHED";
     private static final long DEFAULT_POST_NUM_BASE = 500_000L;
+    private static final String INITIAL_SEED_SLUG_CODE = "initial-overview-v01";
+    private static final String INITIAL_SEED_MARKDOWN_CLASSPATH = "monolith/blog-seed/initial-overview-v0.1.md";
 
     private static final Pattern ASCII_WORD_PATTERN = Pattern.compile("[A-Za-z0-9_]+(?:'[A-Za-z0-9_]+)?");
     private static final Pattern MARKDOWN_IMAGE_PATTERN = Pattern.compile("!\\[[^\\]]*]\\(([^)\\s]+)(?:\\s+\"[^\"]*\")?\\)");
     private static final DateTimeFormatter ARCHIVE_MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
+    private static final double AVG_READING_UNITS_PER_MINUTE = 300.0d;
 
     private final PostMapper postMapper;
     private final AppMapper appMapper;
@@ -163,6 +167,7 @@ public class ContentServiceImpl implements ContentService {
                 normalizeVisibility(post.getVisibility()).name(),
                 post.getCategoryCode(),
                 loadPostTags(post.getId(), tagCache),
+                post.getWordCount() == null ? 0L : post.getWordCount(),
                 post.getReadingMinutes() == null ? 1 : post.getReadingMinutes(),
                 post.getLikeCount() == null ? 0L : post.getLikeCount(),
                 post.getPublishedAt()
@@ -316,7 +321,7 @@ public class ContentServiceImpl implements ContentService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this post");
         }
 
-        return toPostDetailResponse(post, readPostMarkdown(post));
+        return toPostDetailResponse(post, readPostMarkdown(post), isPostEditable(post, viewer));
     }
 
     @Override
@@ -397,7 +402,7 @@ public class ContentServiceImpl implements ContentService {
         if (!Objects.equals(userId, post.getUserId()) && !currentViewer().admin()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this post");
         }
-        return toPostDetailResponse(post, readPostMarkdown(post));
+        return toPostDetailResponse(post, readPostMarkdown(post), true);
     }
 
     @Override
@@ -764,6 +769,16 @@ public class ContentServiceImpl implements ContentService {
         return viewer.groups().stream().anyMatch(allowedGroups::contains);
     }
 
+    private boolean isPostEditable(PostEntity post, ViewerContext viewer) {
+        if (post == null || viewer == null) {
+            return false;
+        }
+        if (viewer.admin()) {
+            return true;
+        }
+        return viewer.userId() != null && viewer.userId().equals(post.getUserId());
+    }
+
     private boolean canAccessApp(AppEntity app, ViewerContext viewer) {
         ContentVisibilityEnum visibility = normalizeVisibility(app.getVisibility());
         if (visibility == ContentVisibilityEnum.PUBLIC) {
@@ -1113,7 +1128,7 @@ public class ContentServiceImpl implements ContentService {
         return loadPostTags(postId, tagCache).stream().anyMatch(tagCode::equals);
     }
 
-    private PostDetailResponse toPostDetailResponse(PostEntity post, String markdown) {
+    private PostDetailResponse toPostDetailResponse(PostEntity post, String markdown, boolean editable) {
         return new PostDetailResponse(
             post.getId(),
             post.getTitle(),
@@ -1129,6 +1144,7 @@ public class ContentServiceImpl implements ContentService {
             post.getReadingMinutes() == null ? 1 : post.getReadingMinutes(),
             post.getLikeCount() == null ? 0L : post.getLikeCount(),
             post.getPublishedAt(),
+            editable,
             markdown
         );
     }
@@ -1156,10 +1172,37 @@ public class ContentServiceImpl implements ContentService {
     private String readPostMarkdown(PostEntity post) {
         String bucket = readString(post.getMarkdownBucket(), "").trim();
         String key = readString(post.getMarkdownKey(), "").trim();
-        if (!StringUtils.hasText(bucket) || !StringUtils.hasText(key)) {
-            return "";
+        if (StringUtils.hasText(bucket) && StringUtils.hasText(key)) {
+            return readMarkdownObject(bucket, key);
         }
-        return readMarkdownObject(bucket, key);
+        if (isInitialSeedPost(post)) {
+            return readInitialSeedMarkdown();
+        }
+        return "";
+    }
+
+    private boolean isInitialSeedPost(PostEntity post) {
+        if (post == null) {
+            return false;
+        }
+        String slugCode = readString(post.getSlugCode(), "").trim().toLowerCase(Locale.ROOT);
+        return INITIAL_SEED_SLUG_CODE.equals(slugCode);
+    }
+
+    private String readInitialSeedMarkdown() {
+        ClassPathResource resource = new ClassPathResource(INITIAL_SEED_MARKDOWN_CLASSPATH);
+        if (!resource.exists()) {
+            throw new BusinessException(
+                ErrorCode.INTERNAL_ERROR,
+                "Seed markdown resource is missing: " + INITIAL_SEED_MARKDOWN_CLASSPATH
+            );
+        }
+        try (InputStream inputStream = resource.getInputStream()) {
+            byte[] bytes = inputStream.readAllBytes();
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Read seed markdown content failed");
+        }
     }
 
     private String readMarkdownObject(String bucket, String key) {
@@ -1186,7 +1229,7 @@ public class ContentServiceImpl implements ContentService {
         }
 
         long wordCount = cjkCharCount + asciiWordCount;
-        int readingMinutes = (int) Math.max(1L, (long) Math.ceil(Math.max(1L, wordCount) / 300.0d));
+        int readingMinutes = (int) Math.max(1L, (long) Math.ceil(Math.max(1L, wordCount) / AVG_READING_UNITS_PER_MINUTE));
         return new MarkdownMetrics(wordCount, lineCount, readingMinutes);
     }
 
