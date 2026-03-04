@@ -103,6 +103,17 @@ function focus() {
   editorInstance.focus();
 }
 
+function refreshLayout() {
+  if (!editorInstance) return;
+  if (typeof editorInstance.layout === 'function') {
+    editorInstance.layout();
+  }
+  bindPasteListener();
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event('resize'));
+  });
+}
+
 function insertText(text) {
   if (!editorInstance) return;
   const normalized = normalizeMarkdownForEditor(text);
@@ -211,6 +222,7 @@ defineExpose({
   setMarkdown,
   getMarkdown,
   setMode,
-  insertText
+  insertText,
+  refreshLayout
 });
 </script>

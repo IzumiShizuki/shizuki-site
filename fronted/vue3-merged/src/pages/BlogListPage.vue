@@ -248,8 +248,8 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { getPostSidebar, listPosts } from '../services/blogApi';
@@ -258,6 +258,7 @@ const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
 const PAGE_SIZE = 10;
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthSession();
 const categoryStripRef = ref(null);
 
@@ -341,6 +342,32 @@ const categoryTabs = computed(() => {
 
 function resolveAuthorizedFetch() {
   return auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
+}
+
+function normalizePanel(panel) {
+  return String(panel || '').toLowerCase() === 'comments' ? 'comments' : 'read';
+}
+
+function syncPanelFromRouteQuery() {
+  uiState.panel = normalizePanel(route.query.panel);
+}
+
+function syncRouteQueryFromPanel(panel) {
+  const normalized = normalizePanel(panel);
+  const current = normalizePanel(route.query.panel);
+  if (normalized === current) {
+    const hasCommentsFlag = String(route.query.panel || '').toLowerCase() === 'comments';
+    if ((normalized === 'comments' && hasCommentsFlag) || (normalized === 'read' && !hasCommentsFlag)) {
+      return;
+    }
+  }
+  const nextQuery = { ...route.query };
+  if (normalized === 'comments') {
+    nextQuery.panel = 'comments';
+  } else {
+    delete nextQuery.panel;
+  }
+  router.replace({ name: 'blog', query: nextQuery });
 }
 
 function normalizeString(value, fallback = '') {
@@ -487,6 +514,7 @@ function setPanel(nextPanel) {
   }
   uiState.panel = nextPanel === 'comments' ? 'comments' : 'read';
   uiState.actionHint = '';
+  syncRouteQueryFromPanel(uiState.panel);
 }
 
 function openEditor() {
@@ -580,8 +608,16 @@ function handleCategoryStripWheel(event) {
 
 onMounted(async () => {
   await auth.ensureReady();
+  syncPanelFromRouteQuery();
   await Promise.all([loadPostList(), loadSidebar()]);
 });
+
+watch(
+  () => route.query.panel,
+  () => {
+    syncPanelFromRouteQuery();
+  }
+);
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', handleCategoryStripPointerMove);

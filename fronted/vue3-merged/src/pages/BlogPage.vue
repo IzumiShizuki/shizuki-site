@@ -14,6 +14,34 @@
 
     <div class="blog-layout">
       <SubtleScrollArea tag="aside" class="left-panel liquid-material">
+        <section class="side-block side-switch-block">
+          <div class="side-switch">
+            <button
+              type="button"
+              class="switch-btn ripple-trigger"
+              :class="{ active: leftNavMode === 'read' }"
+              @click="jumpToBlogList"
+            >
+              <i class="far fa-file-lines"></i>
+              <span>看文</span>
+            </button>
+            <button
+              type="button"
+              class="switch-btn ripple-trigger"
+              :class="{ active: leftNavMode === 'write', disabled: !canWrite }"
+              @click="jumpToBlogEditor"
+            >
+              <i class="fas fa-pen"></i>
+              <span>写文</span>
+            </button>
+            <button type="button" class="switch-btn ripple-trigger" @click="jumpToBlogComments">
+              <i class="far fa-comments"></i>
+              <span>评论</span>
+            </button>
+          </div>
+          <p v-if="leftNavHint" class="side-tip">{{ leftNavHint }}</p>
+        </section>
+
         <template v-if="viewMode === 'detail'">
           <section class="side-block">
             <div class="mine-head">
@@ -234,6 +262,19 @@
         </div>
 
         <div v-else class="editor-view">
+          <div class="editor-topbar liquid-material">
+            <div class="editor-topbar-main">
+              <h3>文章编辑</h3>
+              <span class="editor-topbar-mode">{{ editorMode === 'wysiwyg' ? '富文本模式' : 'Markdown 源码模式' }}</span>
+            </div>
+            <div class="editor-topbar-actions">
+              <button type="button" class="mini-btn ripple-trigger editor-mode-toggle" @click="toggleEditorMode">
+                {{ editorMode === 'wysiwyg' ? '切到源码' : '切到富文本' }}
+              </button>
+              <button type="button" class="mini-btn ripple-trigger editor-exit-btn" @click="exitEditor">退出编辑</button>
+            </div>
+          </div>
+
           <section class="editor-meta liquid-material" :class="{ collapsed: editorMetaCollapsed }">
             <div class="editor-meta-head">
               <h3>文章信息</h3>
@@ -242,47 +283,49 @@
                 {{ editorMetaCollapsed ? '展开' : '收起' }}
               </button>
             </div>
-            <div v-show="!editorMetaCollapsed" class="editor-grid">
-              <label class="field">
-                <span>标题</span>
-                <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
-              </label>
-              <label class="field">
-                <span>分类</span>
-                <input v-model.trim="writerState.editor.categoryCode" type="text" class="field-input" placeholder="如：life / game / dev" />
-              </label>
-              <label class="field field-wide">
-                <span>摘要</span>
-                <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
-              </label>
-              <label class="field">
-                <span>Slug（可选）</span>
-                <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
-              </label>
-              <label class="field">
-                <span>封面 URL（可选）</span>
-                <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
-              </label>
-              <label class="field">
-                <span>可见性</span>
-                <select v-model="writerState.editor.visibility" class="field-input">
-                  <option value="PUBLIC">PUBLIC</option>
-                  <option value="PRIVATE">PRIVATE</option>
-                  <option value="GROUP">GROUP</option>
-                </select>
-              </label>
-              <label class="field field-wide">
-                <span>标签（逗号分隔）</span>
-                <input v-model.trim="writerState.editor.tagsText" type="text" class="field-input" placeholder="#spring,#vue,#ai" />
-              </label>
-              <label class="field field-wide">
-                <span>GROUP 分组（仅 GROUP 可见性生效）</span>
-                <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
-              </label>
-              <label class="field field-wide file-field">
-                <span>Markdown 文件上传（relay）</span>
-                <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
-              </label>
+            <div class="editor-meta-body" :class="{ collapsed: editorMetaCollapsed }">
+              <div class="editor-grid">
+                <label class="field">
+                  <span>标题</span>
+                  <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
+                </label>
+                <label class="field">
+                  <span>分类</span>
+                  <input v-model.trim="writerState.editor.categoryCode" type="text" class="field-input" placeholder="如：life / game / dev" />
+                </label>
+                <label class="field field-wide">
+                  <span>摘要</span>
+                  <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
+                </label>
+                <label class="field">
+                  <span>Slug（可选）</span>
+                  <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
+                </label>
+                <label class="field">
+                  <span>封面 URL（可选）</span>
+                  <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
+                </label>
+                <label class="field">
+                  <span>可见性</span>
+                  <select v-model="writerState.editor.visibility" class="field-input">
+                    <option value="PUBLIC">PUBLIC</option>
+                    <option value="PRIVATE">PRIVATE</option>
+                    <option value="GROUP">GROUP</option>
+                  </select>
+                </label>
+                <label class="field field-wide">
+                  <span>标签（逗号分隔）</span>
+                  <input v-model.trim="writerState.editor.tagsText" type="text" class="field-input" placeholder="#spring,#vue,#ai" />
+                </label>
+                <label class="field field-wide">
+                  <span>GROUP 分组（仅 GROUP 可见性生效）</span>
+                  <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
+                </label>
+                <label class="field field-wide file-field">
+                  <span>Markdown 文件上传（relay）</span>
+                  <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
+                </label>
+              </div>
             </div>
           </section>
 
@@ -309,7 +352,6 @@
             <div class="editor-actions-side">
               <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
               <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
-              <button type="button" class="mini-btn ripple-trigger" @click="exitEditor">退出编辑</button>
               <span class="editor-status">
                 {{ writerState.editor.statusCode || 'DRAFT' }}
                 <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
@@ -324,9 +366,6 @@
             <section class="editor-pane editor-pane-full">
               <div class="editor-pane-head">
                 <span>正文编辑区（富文本/Markdown 双模式）</span>
-                <button type="button" class="mini-btn ripple-trigger editor-mode-toggle" @click="toggleEditorMode">
-                  {{ editorMode === 'wysiwyg' ? '切到源码' : '切到富文本' }}
-                </button>
               </div>
               <AsyncBlogRichEditor
                 ref="richEditorRef"
@@ -543,7 +582,7 @@ const activeHeadingId = ref('');
 const readingProgress = ref(0);
 const editorMetaCollapsed = ref(false);
 const editorMode = ref('wysiwyg');
-const editorMetaToggleLocked = ref(false);
+const leftNavHint = ref('');
 
 const articleScrollRef = ref(null);
 const tocListRef = ref(null);
@@ -554,7 +593,6 @@ const richEditorRef = ref(null);
 
 let headingDomNodes = [];
 let boundScrollRoot = null;
-let editorMetaToggleTimer = null;
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -570,6 +608,7 @@ const isAdminUser = computed(() => groupCodes.value.includes('ADMIN'));
 const canWrite = computed(() => isAdminUser.value || permissionCodes.value.includes('blog.post.write'));
 const canPublish = computed(() => isAdminUser.value || permissionCodes.value.includes('blog.post.publish'));
 const loadingAny = computed(() => listState.loading || detailState.loading || writerState.loading || writerState.saving || writerState.publishing);
+const leftNavMode = computed(() => (routeMode.value === 'editor' ? 'write' : 'read'));
 
 const categoryOptions = computed(() => {
   const dynamicCodes = new Set();
@@ -1312,6 +1351,28 @@ function handleSearchSubmit() {
   loadPostList();
 }
 
+async function jumpToBlogList() {
+  leftNavHint.value = '';
+  closeDownloadMenu();
+  await router.push({ name: 'blog' });
+}
+
+async function jumpToBlogEditor() {
+  if (!canWrite.value) {
+    leftNavHint.value = '当前账号暂无写文权限';
+    return;
+  }
+  leftNavHint.value = '';
+  closeDownloadMenu();
+  await router.push({ name: 'blog-editor' });
+}
+
+async function jumpToBlogComments() {
+  leftNavHint.value = '';
+  closeDownloadMenu();
+  await router.push({ name: 'blog', query: { panel: 'comments' } });
+}
+
 async function openPostDetail(postId) {
   const normalizedPostId = toSafeInt(postId, 0);
   if (normalizedPostId <= 0) return;
@@ -1353,18 +1414,16 @@ function goBackToBlogList() {
   router.push({ name: 'blog' });
 }
 
-function toggleEditorMetaCollapsed() {
-  if (editorMetaToggleLocked.value) return;
-  editorMetaToggleLocked.value = true;
-  if (editorMetaToggleTimer) {
-    clearTimeout(editorMetaToggleTimer);
-    editorMetaToggleTimer = null;
-  }
+function refreshEditorLayout() {
+  const editor = richEditorRef.value;
+  if (!editor || typeof editor.refreshLayout !== 'function') return;
+  editor.refreshLayout();
+}
+
+async function toggleEditorMetaCollapsed() {
   editorMetaCollapsed.value = !editorMetaCollapsed.value;
-  editorMetaToggleTimer = setTimeout(() => {
-    editorMetaToggleLocked.value = false;
-    editorMetaToggleTimer = null;
-  }, 120);
+  await nextTick();
+  refreshEditorLayout();
 }
 
 function exitEditor() {
@@ -1706,11 +1765,13 @@ function handleRichEditorReady() {
   const editor = richEditorRef.value;
   if (!editor || typeof editor.setMode !== 'function') return;
   editor.setMode(editorMode.value);
+  refreshEditorLayout();
 }
 
 async function syncRouteDrivenView() {
   const mode = routeMode.value;
   if (mode === 'detail') {
+    leftNavHint.value = '';
     const postId = toSafeInt(route.params.postId, 0);
     viewMode.value = 'detail';
     if (postId > 0 && detailState.post?.postId !== postId) {
@@ -1720,6 +1781,7 @@ async function syncRouteDrivenView() {
   }
 
   if (mode === 'editor') {
+    leftNavHint.value = '';
     closeDownloadMenu();
     viewMode.value = 'editor';
     const postId = toSafeInt(route.params.postId, 0);
@@ -1737,10 +1799,13 @@ async function syncRouteDrivenView() {
     resetEditorForm();
     editorMetaCollapsed.value = false;
     editorMode.value = 'wysiwyg';
+    await nextTick();
+    refreshEditorLayout();
     return;
   }
 
   resetDetailNavigationState();
+  leftNavHint.value = '';
   closeDownloadMenu();
   viewMode.value = 'list';
 }
@@ -1802,10 +1867,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', handleGlobalPointerDown);
-  if (editorMetaToggleTimer) {
-    clearTimeout(editorMetaToggleTimer);
-    editorMetaToggleTimer = null;
-  }
   teardownReadingScroll();
 });
 </script>
@@ -1899,6 +1960,38 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 12px;
   align-content: start;
+}
+
+.side-switch-block {
+  gap: 10px;
+}
+
+.side-switch {
+  display: grid;
+  gap: 8px;
+}
+
+.switch-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  min-height: 38px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(236, 243, 255, 0.95);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.switch-btn.active {
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.28);
+  box-shadow: 0 10px 20px rgba(var(--accent-rgb), 0.2);
+}
+
+.switch-btn.disabled {
+  opacity: 0.48;
 }
 
 .side-block {
@@ -2207,6 +2300,45 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+.editor-topbar {
+  --liquid-bg: rgba(16, 24, 38, 0.52);
+  --liquid-border: rgba(255, 255, 255, 0.22);
+  --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editor-topbar-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.editor-topbar-main h3 {
+  font-size: 14px;
+  color: rgba(239, 245, 255, 0.96);
+}
+
+.editor-topbar-mode {
+  font-size: 12px;
+  color: rgba(211, 223, 248, 0.9);
+}
+
+.editor-topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-exit-btn {
+  border-color: rgba(var(--accent-rgb), 0.46);
+  background: rgba(var(--accent-rgb), 0.2);
+}
+
 .editor-meta {
   --liquid-bg: rgba(16, 24, 38, 0.34);
   --liquid-border: rgba(255, 255, 255, 0.2);
@@ -2239,6 +2371,22 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+.editor-meta-body {
+  overflow: hidden;
+  max-height: 640px;
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    max-height 0.22s ease,
+    opacity 0.2s ease;
+}
+
+.editor-meta-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .editor-grid {
@@ -2314,7 +2462,7 @@ onBeforeUnmount(() => {
 .editor-pane-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -2686,6 +2834,16 @@ onBeforeUnmount(() => {
 
   .editor-actions-side {
     justify-content: flex-start;
+  }
+
+  .editor-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .editor-topbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .editor-pane-full {
