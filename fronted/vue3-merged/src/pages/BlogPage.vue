@@ -234,48 +234,57 @@
         </div>
 
         <div v-else class="editor-view">
-          <div class="editor-grid">
-            <label class="field">
-              <span>标题</span>
-              <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
-            </label>
-            <label class="field">
-              <span>分类</span>
-              <input v-model.trim="writerState.editor.categoryCode" type="text" class="field-input" placeholder="如：life / game / dev" />
-            </label>
-            <label class="field field-wide">
-              <span>摘要</span>
-              <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
-            </label>
-            <label class="field">
-              <span>Slug（可选）</span>
-              <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
-            </label>
-            <label class="field">
-              <span>封面 URL（可选）</span>
-              <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
-            </label>
-            <label class="field">
-              <span>可见性</span>
-              <select v-model="writerState.editor.visibility" class="field-input">
-                <option value="PUBLIC">PUBLIC</option>
-                <option value="PRIVATE">PRIVATE</option>
-                <option value="GROUP">GROUP</option>
-              </select>
-            </label>
-            <label class="field field-wide">
-              <span>标签（逗号分隔）</span>
-              <input v-model.trim="writerState.editor.tagsText" type="text" class="field-input" placeholder="#spring,#vue,#ai" />
-            </label>
-            <label class="field field-wide">
-              <span>GROUP 分组（仅 GROUP 可见性生效）</span>
-              <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
-            </label>
-            <label class="field field-wide file-field">
-              <span>Markdown 文件上传（relay）</span>
-              <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
-            </label>
-          </div>
+          <section class="editor-meta liquid-material" :class="{ collapsed: editorMetaCollapsed }">
+            <div class="editor-meta-head">
+              <h3>文章信息</h3>
+              <button type="button" class="mini-btn ripple-trigger editor-meta-toggle" @click="toggleEditorMetaCollapsed">
+                <i :class="editorMetaCollapsed ? 'fas fa-angle-down' : 'fas fa-angle-up'"></i>
+                {{ editorMetaCollapsed ? '展开' : '收起' }}
+              </button>
+            </div>
+            <div v-show="!editorMetaCollapsed" class="editor-grid">
+              <label class="field">
+                <span>标题</span>
+                <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
+              </label>
+              <label class="field">
+                <span>分类</span>
+                <input v-model.trim="writerState.editor.categoryCode" type="text" class="field-input" placeholder="如：life / game / dev" />
+              </label>
+              <label class="field field-wide">
+                <span>摘要</span>
+                <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
+              </label>
+              <label class="field">
+                <span>Slug（可选）</span>
+                <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
+              </label>
+              <label class="field">
+                <span>封面 URL（可选）</span>
+                <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
+              </label>
+              <label class="field">
+                <span>可见性</span>
+                <select v-model="writerState.editor.visibility" class="field-input">
+                  <option value="PUBLIC">PUBLIC</option>
+                  <option value="PRIVATE">PRIVATE</option>
+                  <option value="GROUP">GROUP</option>
+                </select>
+              </label>
+              <label class="field field-wide">
+                <span>标签（逗号分隔）</span>
+                <input v-model.trim="writerState.editor.tagsText" type="text" class="field-input" placeholder="#spring,#vue,#ai" />
+              </label>
+              <label class="field field-wide">
+                <span>GROUP 分组（仅 GROUP 可见性生效）</span>
+                <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
+              </label>
+              <label class="field field-wide file-field">
+                <span>Markdown 文件上传（relay）</span>
+                <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
+              </label>
+            </div>
+          </section>
 
           <div class="editor-actions">
             <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
@@ -297,6 +306,7 @@
             </button>
             <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
             <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
+            <button type="button" class="mini-btn ripple-trigger" @click="exitEditor">退出编辑</button>
             <span class="editor-status">
               {{ writerState.editor.statusCode || 'DRAFT' }}
               <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
@@ -307,8 +317,8 @@
           <p v-if="writerState.notice" class="notice-text">{{ writerState.notice }}</p>
 
           <div class="editor-body">
-            <label class="editor-pane">
-              <span>正文编辑区</span>
+            <label class="editor-pane editor-pane-full">
+              <span>正文编辑区（粘贴 Markdown 会自动规范格式）</span>
               <textarea
                 ref="editorTextareaRef"
                 v-model="writerState.editor.markdown"
@@ -317,10 +327,6 @@
                 @paste="handleEditorPaste"
               ></textarea>
             </label>
-            <section class="editor-pane preview-pane">
-              <span>预览</span>
-              <article class="markdown-body" v-html="editorPreviewHtml"></article>
-            </section>
           </div>
         </div>
       </section>
@@ -427,13 +433,13 @@ import {
   unpublishMyPost,
   updateMyPost
 } from '../services/blogApi';
-import { escapeMarkdownPlainText, looksLikeMarkdown, renderMarkdownDocument } from '../utils/blogMarkdown';
+import { escapeMarkdownPlainText, looksLikeMarkdown, normalizeMarkdownForEditor, renderMarkdownDocument } from '../utils/blogMarkdown';
 
 const DEFAULT_CATEGORY_OPTIONS = [
   { code: '', label: '全部' },
   { code: 'life', label: 'life' },
   { code: 'dev', label: 'dev' },
-  { code: 'game', label: 'game 🔒' }
+  { code: 'game', label: 'game' }
 ];
 
 const auth = useAuthSession();
@@ -523,6 +529,7 @@ const viewMode = ref(routeMode.value);
 const tocMode = ref('all');
 const activeHeadingId = ref('');
 const readingProgress = ref(0);
+const editorMetaCollapsed = ref(false);
 
 const articleScrollRef = ref(null);
 const tocListRef = ref(null);
@@ -735,9 +742,6 @@ const showProgressFab = computed(() => viewMode.value === 'detail' && Boolean(de
 const progressRadius = 20;
 const progressCircumference = 2 * Math.PI * progressRadius;
 const progressDashoffset = computed(() => progressCircumference * (1 - readingProgress.value));
-
-const editorPreview = computed(() => renderMarkdownDocument(writerState.editor.markdown));
-const editorPreviewHtml = computed(() => editorPreview.value.html);
 
 function toSafeInt(value, fallback = 0) {
   const normalized = Number(value);
@@ -1175,7 +1179,7 @@ async function handleMarkdownFileUpload(event) {
   writerState.notice = '';
   try {
     const text = await file.text();
-    writerState.editor.markdown = text;
+    writerState.editor.markdown = normalizeMarkdownForEditor(text);
     writerState.editor.lastRelayedSignature = '';
     const relay = await relayPostMarkdown(file, auth.authorizedFetch);
     writerState.editor.markdownBucket = normalizeString(relay?.bucketName ?? relay?.bucket_name);
@@ -1212,6 +1216,7 @@ function resetEditorForm() {
 
 function startNewDraft() {
   resetEditorForm();
+  editorMetaCollapsed.value = false;
   switchViewMode('editor');
 }
 
@@ -1304,6 +1309,20 @@ async function openCurrentPostInEditor() {
 
 function goBackToBlogList() {
   closeDownloadMenu();
+  router.push({ name: 'blog' });
+}
+
+function toggleEditorMetaCollapsed() {
+  editorMetaCollapsed.value = !editorMetaCollapsed.value;
+}
+
+function exitEditor() {
+  closeDownloadMenu();
+  const postId = toSafeInt(writerState.editor.postId ?? detailState.post?.postId, 0);
+  if (postId > 0) {
+    router.push({ name: 'blog-detail', params: { postId } });
+    return;
+  }
   router.push({ name: 'blog' });
 }
 
@@ -1598,7 +1617,7 @@ function cancelPasteDialog() {
 function confirmPasteDialog(mode) {
   const normalizedMode = mode === 'plain' ? 'plain' : 'markdown';
   const pendingText = String(pasteState.pendingText || '');
-  const content = normalizedMode === 'markdown' ? pendingText : escapeMarkdownPlainText(pendingText);
+  const content = normalizedMode === 'markdown' ? normalizeMarkdownForEditor(pendingText) : escapeMarkdownPlainText(pendingText);
   pasteState.sessionDecision = normalizedMode;
   insertTextIntoEditor(content, pasteState.selectionStart, pasteState.selectionEnd);
   closePasteDialog();
@@ -1619,7 +1638,7 @@ function handleEditorPaste(event) {
   const selectionStart = toSafeInt(target?.selectionStart, String(writerState.editor.markdown || '').length);
   const selectionEnd = toSafeInt(target?.selectionEnd, selectionStart);
   if (pasteState.sessionDecision === 'markdown') {
-    insertTextIntoEditor(clipboardText, selectionStart, selectionEnd);
+    insertTextIntoEditor(normalizeMarkdownForEditor(clipboardText), selectionStart, selectionEnd);
     return;
   }
   if (pasteState.sessionDecision === 'plain') {
@@ -2122,9 +2141,43 @@ onBeforeUnmount(() => {
 
 .editor-view {
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.editor-meta {
+  --liquid-bg: rgba(16, 24, 38, 0.34);
+  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.editor-meta.collapsed {
+  padding-bottom: 8px;
+}
+
+.editor-meta-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editor-meta-head h3 {
+  font-size: 13px;
+  color: rgba(231, 239, 255, 0.95);
+}
+
+.editor-meta-toggle {
+  min-width: 84px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .editor-grid {
@@ -2164,9 +2217,10 @@ onBeforeUnmount(() => {
 }
 
 .editor-body {
+  flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -2184,7 +2238,7 @@ onBeforeUnmount(() => {
 
 .markdown-editor {
   width: 100%;
-  min-height: 0;
+  min-height: clamp(420px, 58vh, 960px);
   height: 100%;
   resize: none;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -2195,6 +2249,10 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   font-size: 14px;
   user-select: text;
+}
+
+.editor-pane-full {
+  height: 100%;
 }
 
 .preview-pane {

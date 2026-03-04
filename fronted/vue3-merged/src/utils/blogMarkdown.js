@@ -112,6 +112,15 @@ export function escapeMarkdownPlainText(input) {
   return String(input || '').replace(/([\\`*_{}\[\]()#+\-.!|>])/g, '\\$1');
 }
 
+export function normalizeMarkdownForEditor(input) {
+  return String(input || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\u00a0/g, ' ')
+    .trimEnd();
+}
+
 export function detectMarkdownSignals(input) {
   const text = String(input || '');
   const signals = {
