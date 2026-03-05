@@ -2933,3 +2933,5 @@ tmp/
 /resouces/yaml/common-config.yaml
 /apps/monolith-app/.mvn/
 /resouces/md/etc01_开发软件的心路历程.md
+/fronted/vue3-merged/dist-temp/images/
+/fronted/vue3-merged/dist-temp/media/

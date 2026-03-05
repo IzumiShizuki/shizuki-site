@@ -11,7 +11,9 @@
         <p class="hero-type">歌单详情</p>
         <h1>{{ profile.name || '未命名歌单' }}</h1>
         <p class="hero-desc">{{ profile.description || '暂无简介' }}</p>
-        <p class="hero-stats">已显示 {{ visibleTracks.length }} / {{ allTracks.length }} 首</p>
+        <p class="hero-stats">
+          已显示 {{ visibleTracks.length }} / 已加载 {{ allTracks.length }} / 总计 {{ totalTrackCount }} 首
+        </p>
 
         <div class="hero-actions">
           <button class="hero-btn primary ripple-trigger" type="button" @click="playAll" :disabled="!visibleTracks.length">
@@ -38,54 +40,7 @@
 
     <p v-if="displayErrorText" class="state-text error">{{ displayErrorText }}</p>
 
-    <section v-if="music.hasActiveSearch.value" class="playlist-table liquid-material">
-      <header class="table-head search-track-head">
-        <span>#</span>
-        <span>标题</span>
-        <span>歌手</span>
-        <span>平台</span>
-        <span>时长</span>
-        <span>操作</span>
-      </header>
-
-      <div v-if="!searchTracks.length && !music.searchLoading.value" class="empty-state">暂无匹配搜索结果</div>
-
-      <article
-        v-for="(item, index) in searchTracks"
-        :key="`search-track-${resolveTrackId(item) || index}`"
-        class="table-row search-track-row ripple-trigger"
-        @click="music.playSearchTrack(item, index)"
-      >
-        <span>{{ String(index + 1).padStart(2, '0') }}</span>
-        <span class="title-col track-title-col">
-          <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
-          <span class="track-title-text">{{ item.title || '未知标题' }}</span>
-        </span>
-        <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
-        <span>{{ item.provider || '-' }}</span>
-        <span>{{ item.durationLabel || '--:--' }}</span>
-        <span class="row-actions">
-          <button
-            class="track-action-btn ripple-trigger"
-            type="button"
-            :title="music.isTrackLiked(resolveTrackId(item)) ? '取消红心' : '加入红心'"
-            @click.stop="music.toggleTrackLike(item)"
-          >
-            <i class="fas" :class="music.isTrackLiked(resolveTrackId(item)) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
-          </button>
-          <button
-            class="track-action-btn ripple-trigger"
-            type="button"
-            title="下一首播放"
-            @click.stop="music.enqueueSearchTrackNext(item, index)"
-          >
-            <i class="fas fa-forward"></i>
-          </button>
-        </span>
-      </article>
-    </section>
-
-    <section v-else class="playlist-table liquid-material">
+    <section class="playlist-table liquid-material">
       <header class="table-head search-track-head">
         <span>#</span>
         <span>标题</span>
@@ -129,6 +84,15 @@
           >
             <i class="fas fa-forward"></i>
           </button>
+          <TrackCollectButton
+            :track="item"
+            :playlist-options="collectPlaylistTargets"
+            :can-collect="music.authState.value.isAuthenticated"
+            :can-collect-default-public="music.authState.value.isAdmin"
+            @collect="handleCollectTrack"
+            @collect-default-public="handleCollectDefaultPublic"
+            @require-login="handleRequireCollectLogin"
+          />
         </span>
       </article>
 
@@ -153,21 +117,26 @@
 <script setup>
 import { computed } from 'vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
+import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
 
 const music = useMusicLibraryContext();
 
 const profile = computed(() => music.currentPlaylistProfile.value || { name: '', description: '', cover: '' });
 const allTracks = computed(() => (Array.isArray(music.currentPlaylistAllTracks?.value) ? music.currentPlaylistAllTracks.value : []));
 const visibleTracks = computed(() => (Array.isArray(music.currentPlaylistTracks.value) ? music.currentPlaylistTracks.value : []));
-const searchTracks = computed(() => (Array.isArray(music.searchResult.value?.tracks) ? music.searchResult.value.tracks : []));
 const currentPlayingTrackId = computed(() => resolveTrackId(music.player.currentTrack.value));
-
-const displayErrorText = computed(() => {
-  if (music.hasActiveSearch.value) {
-    return String(music.searchError.value || '').trim();
+const collectPlaylistTargets = computed(() =>
+  (Array.isArray(music.collectPlaylistTargets?.value) ? music.collectPlaylistTargets.value : [])
+);
+const totalTrackCount = computed(() => {
+  const profileCount = Number(profile.value?.trackCount || 0);
+  if (Number.isFinite(profileCount) && profileCount > 0) {
+    return Math.max(profileCount, allTracks.value.length);
   }
-  return String(music.currentPlaylistError.value || '').trim();
+  return allTracks.value.length;
 });
+
+const displayErrorText = computed(() => String(music.currentPlaylistError.value || '').trim());
 
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
@@ -229,6 +198,27 @@ async function enqueueTrackNext(trackItem) {
   if (!success) {
     window.alert('当前曲目暂不可加入“下一首播放”');
   }
+}
+
+function handleCollectTrack(payload) {
+  const track = payload?.track || null;
+  const playlistCode = String(payload?.playlistCode || '').trim();
+  if (!playlistCode) return;
+  if (typeof music.collectTrackToPlaylist !== 'function') return;
+  music.collectTrackToPlaylist(track, playlistCode);
+}
+
+function handleCollectDefaultPublic(track) {
+  if (typeof music.collectTrackToDefaultPublic !== 'function') return;
+  music.collectTrackToDefaultPublic(track || null);
+}
+
+function handleRequireCollectLogin() {
+  if (typeof music.requestMusicLogin === 'function') {
+    music.requestMusicLogin();
+    return;
+  }
+  window.alert('请先登录后再收藏');
 }
 </script>
 
@@ -350,7 +340,7 @@ async function enqueueTrackNext(trackItem) {
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 84px 72px 96px;
+  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 84px 72px 132px;
   gap: 8px;
   align-items: center;
 }

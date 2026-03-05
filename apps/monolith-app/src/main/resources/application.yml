@@ -90,6 +90,12 @@ shizuki:
       login-only: ${MUSIC_LISTEN_CACHE_LOGIN_ONLY:true}
       storage-mode: ${MUSIC_LISTEN_CACHE_STORAGE_MODE:smart}
       url-ttl-threshold-seconds: ${MUSIC_LISTEN_CACHE_URL_TTL_THRESHOLD_SECONDS:86400}
+    library-home-cache:
+      enabled: ${MUSIC_LIBRARY_HOME_CACHE_ENABLED:true}
+      redis-key: ${MUSIC_LIBRARY_HOME_CACHE_REDIS_KEY:music:library:home:v1}
+      ttl-seconds: ${MUSIC_LIBRARY_HOME_CACHE_TTL_SECONDS:172800}
+      refresh-cron: ${MUSIC_LIBRARY_HOME_CACHE_REFRESH_CRON:0 0 0 * * *}
+      refresh-zone: ${MUSIC_LIBRARY_HOME_CACHE_REFRESH_ZONE:Asia/Shanghai}
     cache-upload:
       kafka:
         enabled: ${MUSIC_CACHE_UPLOAD_KAFKA_ENABLED:true}
@@ -152,6 +158,12 @@ shizuki:
     storage:
       private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:zhuowang-files}}
       max-upload-size: ${BLOG_MAX_UPLOAD_SIZE:1048576}
+  content:
+    author-profile:
+      cache:
+        ttl-seconds: ${AUTHOR_PROFILE_CACHE_TTL_SECONDS:120}
+        public-max-age-seconds: ${AUTHOR_PROFILE_PUBLIC_MAX_AGE_SECONDS:60}
+        stale-while-revalidate-seconds: ${AUTHOR_PROFILE_STALE_WHILE_REVALIDATE_SECONDS:300}
   oss:
     endpoint: ${OSS_ENDPOINT:https://oss-cn-hangzhou.aliyuncs.com}
     access-key-id: ${OSS_ACCESS_KEY_ID:}
@@ -185,6 +197,7 @@ shizuki:
       - /api/v1/music/key-guide
       - /api/v1/music/spotify/search
       - /api/v1/music/spotify/preview-url
+      - /api/v1/author/profile/**
   flyway:
     auto-repair-on-validate-error: ${FLYWAY_AUTO_REPAIR_ON_VALIDATE_ERROR:true}
     allow-auto-repair-in-prod: ${FLYWAY_ALLOW_AUTO_REPAIR_IN_PROD:false}

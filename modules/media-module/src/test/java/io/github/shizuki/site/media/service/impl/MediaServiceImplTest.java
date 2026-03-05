@@ -403,6 +403,119 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldUpsertDefaultPlaylistTrackAndEnqueueWhenAudioProvided() {
+        AdminMusicTrackUpsertRequest request = new AdminMusicTrackUpsertRequest();
+        request.setTrackId("487527929");
+        request.setProvider("netease");
+        request.setTitle("雨夜");
+        request.setArtist("Izumi");
+        request.setAudio("https://music.example.com/a.mp3");
+        request.setEnabled(true);
+
+        Mockito.when(musicPlaylistMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.when(musicTrackCacheMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.when(musicTrackCacheUploadPublisher.publish(
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString()
+        )).thenReturn(true);
+
+        mediaService.upsertAdminDefaultPlaylistTrack(request);
+
+        Mockito.verify(musicPlaylistMapper).insert(ArgumentMatchers.<io.github.shizuki.site.media.entity.MusicPlaylistEntity>any());
+        Mockito.verify(musicTrackCacheUploadPublisher).publish(
+            Mockito.eq("netease"),
+            Mockito.eq("487527929"),
+            Mockito.eq("https://music.example.com/a.mp3"),
+            Mockito.eq("雨夜"),
+            Mockito.eq("Izumi")
+        );
+    }
+
+    @Test
+    void shouldParseAndEnqueueWhenDefaultTrackAudioMissing() {
+        AdminMusicTrackUpsertRequest request = new AdminMusicTrackUpsertRequest();
+        request.setTrackId("1367153990");
+        request.setProvider("netease");
+        request.setTitle("Need Parse");
+        request.setArtist("Shizuki");
+        request.setAudio("");
+        request.setEnabled(true);
+
+        Mockito.when(musicPlaylistMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.when(musicTrackCacheMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.when(tuneHubMusicProvider.parseSingleTrack(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("1367153990"),
+            Mockito.anyString()
+        )).thenReturn(new TuneHubMusicProvider.ParseTrackResult(
+            "1367153990",
+            "Need Parse",
+            "Shizuki",
+            "",
+            "https://music.example.com/parsed.mp3",
+            "",
+            "",
+            ""
+        ));
+        Mockito.when(musicTrackCacheUploadPublisher.publish(
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString()
+        )).thenReturn(true);
+
+        mediaService.upsertAdminDefaultPlaylistTrack(request);
+
+        Mockito.verify(tuneHubMusicProvider).parseSingleTrack(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("1367153990"),
+            Mockito.anyString()
+        );
+        Mockito.verify(musicTrackCacheUploadPublisher).publish(
+            Mockito.eq("netease"),
+            Mockito.eq("1367153990"),
+            Mockito.eq("https://music.example.com/parsed.mp3"),
+            Mockito.eq("Need Parse"),
+            Mockito.eq("Shizuki")
+        );
+    }
+
+    @Test
+    void shouldNotBlockDefaultTrackUpsertWhenParseFails() {
+        AdminMusicTrackUpsertRequest request = new AdminMusicTrackUpsertRequest();
+        request.setTrackId("1367153990");
+        request.setProvider("netease");
+        request.setTitle("Need Parse");
+        request.setArtist("Shizuki");
+        request.setAudio("");
+        request.setEnabled(true);
+
+        Mockito.when(musicPlaylistMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.when(tuneHubMusicProvider.parseSingleTrack(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("1367153990"),
+            Mockito.anyString()
+        )).thenThrow(new RuntimeException("upstream failed"));
+
+        Assertions.assertDoesNotThrow(() -> mediaService.upsertAdminDefaultPlaylistTrack(request));
+        Mockito.verify(musicPlaylistMapper).insert(ArgumentMatchers.<io.github.shizuki.site.media.entity.MusicPlaylistEntity>any());
+        Mockito.verify(musicTrackCacheUploadPublisher, Mockito.never()).publish(
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyString()
+        );
+    }
+
+    @Test
     void shouldAggregateTuneHubSearchTracksSuccessfully() {
         Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "netease", "零之", 1, 24))
             .thenReturn(
@@ -480,7 +593,8 @@ class MediaServiceImplTest {
                         "白色相簿2全人声曲",
                         "测试歌单",
                         "https://p1.music.126.net/cover.jpg",
-                        "vh_tunehub_netease_playlist_2400142669"
+                        "vh_tunehub_netease_playlist_2400142669",
+                        80
                     )
                 )
             );
@@ -528,7 +642,8 @@ class MediaServiceImplTest {
                     "白色相簿2全人声曲",
                     "测试歌单",
                     "https://cover.example/playlist.png",
-                    "vh_tunehub_netease_playlist_2400142669"
+                    "vh_tunehub_netease_playlist_2400142669",
+                    80
                 )
             );
 

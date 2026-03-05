@@ -27,7 +27,7 @@
         <section class="lyric-scroll-shell">
           <div class="lyric-center-guide" aria-hidden="true"></div>
 
-          <div class="lyric-scroll" ref="lyricListRef" @scroll.passive="handleLyricScroll">
+          <SubtleScrollArea class="lyric-scroll" ref="lyricListRef" @scroll.passive="handleLyricScroll">
             <button
               v-for="(row, index) in renderedRows"
               :key="`lyric-row-${index}-${row.time}`"
@@ -40,7 +40,7 @@
               <p class="line-main">{{ row.main || '...' }}</p>
               <p v-if="row.sub" class="line-sub">{{ row.sub }}</p>
             </button>
-          </div>
+          </SubtleScrollArea>
 
           <transition name="lyric-time-fade">
             <button
@@ -98,6 +98,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import SubtleScrollArea from '../../components/SubtleScrollArea.vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import { safeCssUrl } from '../../utils/url';
 
@@ -216,6 +217,20 @@ function setLyricRowRef(el, index) {
   lyricRowRefs.value[index] = el;
 }
 
+function getLyricListElement() {
+  const target = lyricListRef.value;
+  if (!target) return null;
+  if (target instanceof HTMLElement) return target;
+  if (typeof target.getElement === 'function') {
+    const element = target.getElement();
+    if (element instanceof HTMLElement) return element;
+  }
+  if (target.el instanceof HTMLElement) return target.el;
+  if (target.el?.value instanceof HTMLElement) return target.el.value;
+  if (target.$el instanceof HTMLElement) return target.$el;
+  return null;
+}
+
 function seekToLyricRow(time) {
   const target = Number(time);
   if (!Number.isFinite(target) || target < 0) return;
@@ -240,7 +255,7 @@ function revealCenterTime(time) {
 }
 
 function handleLyricScroll() {
-  const container = lyricListRef.value;
+  const container = getLyricListElement();
   if (!container) return;
   autoFollowSuspendUntil = Date.now() + 1800;
 
@@ -265,7 +280,7 @@ function handleLyricScroll() {
 }
 
 function scrollToLyricIndex(index, behavior = 'smooth') {
-  const container = lyricListRef.value;
+  const container = getLyricListElement();
   const rowEl = lyricRowRefs.value[index];
   if (!container || !rowEl) return;
   const targetTop = rowEl.offsetTop - container.clientHeight / 2 + rowEl.offsetHeight / 2;
@@ -465,14 +480,6 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 14px;
   scroll-behavior: smooth;
-}
-
-.lyric-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.lyric-scroll {
-  scrollbar-width: none;
 }
 
 .lyric-row {

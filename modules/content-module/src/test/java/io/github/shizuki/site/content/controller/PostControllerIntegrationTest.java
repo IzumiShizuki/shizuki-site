@@ -3,6 +3,7 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.PageResponse;
+import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
@@ -15,6 +16,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
@@ -152,5 +154,31 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.categories[0].cover_image_url").value("https://example.com/game.png"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.tags[0].tag_code").value("ai"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.archives[0].month").value("2026-03"));
+    }
+
+    @Test
+    void shouldSubmitWhisperSuccessfully() throws Exception {
+        Mockito.when(contentService.submitAuthorWhisper(ArgumentMatchers.any(AuthorWhisperRequest.class)))
+            .thenReturn(Map.of(
+                "whisper_id", 9001L,
+                "status", "CREATED",
+                "target_post_id", 1L,
+                "accepted", true
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/posts/whispers")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "hello author",
+                      "remark": "anonymous",
+                      "post_id": 1
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.whisper_id").value(9001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("CREATED"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.accepted").value(true));
     }
 }

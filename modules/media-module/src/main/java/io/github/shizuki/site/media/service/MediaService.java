@@ -6,6 +6,7 @@ import io.github.shizuki.site.media.dto.AdminAssetAuditResponse;
 import io.github.shizuki.site.media.dto.AdminMusicPlaylistReplaceRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderGuideUpsertRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderVisibilityUpdateRequest;
+import io.github.shizuki.site.media.dto.AdminMusicTrackUpsertRequest;
 import io.github.shizuki.site.media.dto.AssetCreateRequest;
 import io.github.shizuki.site.media.dto.AssetCreateResponse;
 import io.github.shizuki.site.media.dto.AssetDownloadResponse;
@@ -220,6 +221,13 @@ public interface MediaService {
      * @return 替换后的聚合结果
      */
     MusicDefaultPlaylistBundleResponse replaceAdminDefaultPlaylistBundle(AdminMusicDefaultPlaylistBundleReplaceRequest request);
+
+    /**
+     * 管理端向默认歌单追加或更新单曲（按 provider + track_id 幂等）。
+     *
+     * @param request 默认歌单单曲写入请求
+     */
+    void upsertAdminDefaultPlaylistTrack(AdminMusicTrackUpsertRequest request);
 
     /**
      * 管理端查询 provider 配置。

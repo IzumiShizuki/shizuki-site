@@ -40,8 +40,12 @@ public class TuneHubMusicProvider {
     private static final Logger LOGGER = LoggerFactory.getLogger(TuneHubMusicProvider.class);
     private static final Set<String> SUPPORTED_PLATFORMS = Set.of("netease", "kuwo", "qq");
     private static final int MAX_TRACKS = 30;
-    private static final int MAX_VIRTUAL_PLAYLIST_TRACKS = 200;
+    private static final int MAX_VIRTUAL_PLAYLIST_TRACKS = 1000;
+    private static final int MAX_VIRTUAL_SEARCH_TRACKS = 200;
+    private static final int NETEASE_DETAIL_BATCH_SIZE = 100;
     private static final int PARSE_BATCH_SIZE = 10;
+    private static final int PLAYLIST_FETCH_PAGE_SIZE = 100;
+    private static final int PLAYLIST_FETCH_MAX_PAGES = 10;
 
     private final TuneHubMusicProperties properties;
     private final RestClient restClient;
@@ -173,7 +177,8 @@ public class TuneHubMusicProvider {
                         readString(seed.name(), platform.toUpperCase(Locale.ROOT) + " 榜单"),
                         "TuneHub " + platform + " 榜单推荐",
                         readString(seed.cover(), ""),
-                        "vh_tunehub_" + platform + "_toplist_" + seed.id()
+                        "vh_tunehub_" + platform + "_toplist_" + seed.id(),
+                        null
                     ));
                     added += 1;
                     if (added >= safePerPlatform) {
@@ -214,7 +219,7 @@ public class TuneHubMusicProvider {
             if (!StringUtils.hasText(keyword)) {
                 return List.of();
             }
-            List<SearchTrackResult> searchRows = searchTracks(apiKey, normalizedPlatform, keyword, 1, MAX_VIRTUAL_PLAYLIST_TRACKS);
+            List<SearchTrackResult> searchRows = searchTracks(apiKey, normalizedPlatform, keyword, 1, MAX_VIRTUAL_SEARCH_TRACKS);
             List<MusicTrackResponse> result = new ArrayList<>();
             int sort = 1;
             for (SearchTrackResult item : searchRows) {
@@ -232,10 +237,11 @@ public class TuneHubMusicProvider {
                     "",
                     sort,
                     true,
-                    ""
+                    "",
+                    buildTrackMetadata(item.durationSec(), item.album())
                 ));
                 sort += 1;
-                if (result.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
+                if (result.size() >= MAX_VIRTUAL_SEARCH_TRACKS) {
                     break;
                 }
             }
@@ -266,7 +272,8 @@ public class TuneHubMusicProvider {
                 "",
                 sort,
                 true,
-                ""
+                "",
+                buildTrackMetadata(seed.durationSec(), "")
             ));
             sort += 1;
             if (result.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
@@ -367,7 +374,19 @@ public class TuneHubMusicProvider {
                 "limit", safeLimit
             )
         );
-        return parseSearchPlaylists(normalizedPlatform, searchRaw, safeLimit);
+        List<VirtualPlaylistSummary> result = parseSearchPlaylists(normalizedPlatform, searchRaw, safeLimit);
+        VirtualPlaylistSummary first = result.isEmpty() ? null : result.get(0);
+        LOGGER.info(
+            "MUSIC_TUNEHUB_SEARCH_PLAYLISTS_DONE provider={} keywordHash={} page={} limit={} resultCount={} firstPlaylistId={} firstTrackCount={}",
+            normalizedPlatform,
+            Integer.toHexString(normalizedKeyword.hashCode()),
+            safePage,
+            safeLimit,
+            result.size(),
+            first == null ? "-" : sanitizeLogMessage(first.sourceId()),
+            first == null || first.trackCount() == null ? 0 : first.trackCount()
+        );
+        return result;
     }
 
     /**
@@ -403,20 +422,69 @@ public class TuneHubMusicProvider {
             String name = "";
             String description = "";
             String cover = "";
+            Integer trackCount = null;
             if ("netease".equals(normalizedPlatform)) {
                 Map<String, Object> result = toStringObjectMap(raw.get("result"));
+                if (result.isEmpty()) {
+                    result = toStringObjectMap(raw.get("playlist"));
+                }
                 name = readString(result.get("name"), "");
                 description = readString(result.get("description"), "");
                 cover = readString(result.get("coverImgUrl"), "");
+                trackCount = readNeteasePlaylistTrackCount(raw, 0);
+                int methodTrackRows = toObjectMapList(result.get("tracks")).size();
+                int methodTrackIds = extractNeteasePlaylistTrackIds(raw).size();
+                int directTrackCount = 0;
+                int directTrackIds = 0;
+                try {
+                    Map<String, Object> directRaw = loadNeteasePlaylistDetailRaw(sourceId);
+                    Map<String, Object> directResult = toStringObjectMap(directRaw.get("result"));
+                    if (directResult.isEmpty()) {
+                        directResult = toStringObjectMap(directRaw.get("playlist"));
+                    }
+                    directTrackCount = readNeteasePlaylistTrackCount(directRaw, 0);
+                    directTrackIds = extractNeteasePlaylistTrackIds(directRaw).size();
+                    if (!StringUtils.hasText(name)) {
+                        name = readString(directResult.get("name"), name);
+                    }
+                    if (!StringUtils.hasText(description)) {
+                        description = readString(directResult.get("description"), description);
+                    }
+                    if (!StringUtils.hasText(cover)) {
+                        cover = readString(directResult.get("coverImgUrl"), cover);
+                    }
+                    if (directTrackCount > 0) {
+                        trackCount = trackCount == null ? directTrackCount : Math.max(trackCount, directTrackCount);
+                    }
+                } catch (Exception ex) {
+                    LOGGER.warn(
+                        "MUSIC_TUNEHUB_PLAYLIST_SUMMARY_DIRECT_FAIL provider=netease playlistId={} reason={}",
+                        sanitizeLogMessage(sourceId),
+                        sanitizeLogMessage(ex.getMessage())
+                    );
+                }
+                LOGGER.info(
+                    "MUSIC_TUNEHUB_PLAYLIST_SUMMARY_DONE provider=netease playlistId={} methodTrackRows={} methodTrackIds={} finalTrackCount={} directTrackCount={} directTrackIds={}",
+                    sanitizeLogMessage(sourceId),
+                    methodTrackRows,
+                    methodTrackIds,
+                    trackCount == null ? 0 : trackCount,
+                    directTrackCount,
+                    directTrackIds
+                );
             } else if ("kuwo".equals(normalizedPlatform)) {
                 name = readString(raw.get("title"), readString(raw.get("name"), ""));
                 description = readString(raw.get("info"), readString(raw.get("intro"), ""));
                 cover = readString(raw.get("pic"), readString(raw.get("hts_pic"), ""));
+                int kuwoTrackCount = readInt(raw.get("total"), readInt(raw.get("songnum"), readInt(raw.get("musicNum"), 0)));
+                trackCount = kuwoTrackCount > 0 ? kuwoTrackCount : null;
             } else if ("qq".equals(normalizedPlatform)) {
                 Map<String, Object> cdlist = toObjectMapList(raw.get("cdlist")).stream().findFirst().orElse(Map.of());
                 name = readString(cdlist.get("dissname"), "");
                 description = readString(cdlist.get("desc"), "");
                 cover = readString(cdlist.get("logo"), "");
+                int qqTrackCount = readInt(cdlist.get("songnum"), 0);
+                trackCount = qqTrackCount > 0 ? qqTrackCount : null;
             }
             return new VirtualPlaylistSummary(
                 normalizedPlatform,
@@ -425,7 +493,8 @@ public class TuneHubMusicProvider {
                 readString(name, normalizedPlatform.toUpperCase(Locale.ROOT) + " 歌单"),
                 description,
                 normalizeCoverUrl(normalizedPlatform, cover),
-                "vh_tunehub_" + normalizedPlatform + "_playlist_" + sourceId
+                "vh_tunehub_" + normalizedPlatform + "_playlist_" + sourceId,
+                trackCount
             );
         } catch (Exception ex) {
             LOGGER.warn(
@@ -527,16 +596,152 @@ public class TuneHubMusicProvider {
     }
 
     private List<TrackSeed> loadPlaylistTracks(String platform, String playlistId, String apiKey) {
-        Map<String, Object> raw = loadPlaylistRaw(platform, playlistId, apiKey);
-        if ("qq".equals(platform)) {
-            return parseQqPlaylistTracks(raw);
+        if ("netease".equals(platform)) {
+            return loadNeteasePlaylistTracks(playlistId, apiKey);
         }
-        return parseToplistTracks(platform, raw);
+        List<TrackSeed> merged = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        String previousFingerprint = "";
+        for (int page = 1; page <= PLAYLIST_FETCH_MAX_PAGES && merged.size() < MAX_VIRTUAL_PLAYLIST_TRACKS; page += 1) {
+            Map<String, Object> raw = loadPlaylistRaw(platform, playlistId, apiKey, page, PLAYLIST_FETCH_PAGE_SIZE);
+            List<TrackSeed> pageRows = "qq".equals(platform) ? parseQqPlaylistTracks(raw) : parseToplistTracks(platform, raw);
+            if (pageRows.isEmpty()) {
+                break;
+            }
+            String currentFingerprint = buildTrackPageFingerprint(pageRows);
+            if (page > 1 && StringUtils.hasText(currentFingerprint) && currentFingerprint.equals(previousFingerprint)) {
+                break;
+            }
+            previousFingerprint = currentFingerprint;
+
+            int sizeBeforeMerge = merged.size();
+            for (TrackSeed seed : pageRows) {
+                String id = readString(seed.id(), "");
+                if (!StringUtils.hasText(id) || !seen.add(id)) {
+                    continue;
+                }
+                merged.add(seed);
+                if (merged.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
+                    break;
+                }
+            }
+            if (merged.size() == sizeBeforeMerge) {
+                break;
+            }
+        }
+        return merged;
+    }
+
+    private List<TrackSeed> loadNeteasePlaylistTracks(String playlistId, String apiKey) {
+        Map<String, Object> methodRaw = loadPlaylistRaw("netease", playlistId, apiKey, 1, PLAYLIST_FETCH_PAGE_SIZE);
+        List<TrackSeed> firstPageTracks = parseToplistTracks("netease", methodRaw);
+        List<String> orderedTrackIds = extractNeteasePlaylistTrackIds(methodRaw);
+        int methodTrackCount = firstPageTracks.size();
+        int methodTrackIdsCount = orderedTrackIds.size();
+        int declaredTrackCount = readNeteasePlaylistTrackCount(methodRaw, orderedTrackIds.size());
+
+        int directTrackIdsCount = 0;
+        int directDeclaredTrackCount = 0;
+        boolean directTrackIdsUsed = false;
+        try {
+            Map<String, Object> directRaw = loadNeteasePlaylistDetailRaw(playlistId);
+            List<String> directTrackIds = extractNeteasePlaylistTrackIds(directRaw);
+            directTrackIdsCount = directTrackIds.size();
+            directDeclaredTrackCount = readNeteasePlaylistTrackCount(directRaw, directTrackIdsCount);
+            if (!directTrackIds.isEmpty()) {
+                orderedTrackIds = directTrackIds;
+                directTrackIdsUsed = true;
+            }
+            if (firstPageTracks.isEmpty()) {
+                firstPageTracks = parseToplistTracks("netease", directRaw);
+            }
+            if (directDeclaredTrackCount > 0) {
+                declaredTrackCount = Math.max(declaredTrackCount, directDeclaredTrackCount);
+            }
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_TUNEHUB_PLAYLIST_DETAIL_DIRECT_FAIL provider=netease playlistId={} reason={}",
+                sanitizeLogMessage(playlistId),
+                sanitizeLogMessage(ex.getMessage())
+            );
+        }
+
+        Set<String> firstPageTrackIds = new LinkedHashSet<>();
+        for (TrackSeed seed : firstPageTracks) {
+            String id = readString(seed.id(), "");
+            if (StringUtils.hasText(id)) {
+                firstPageTrackIds.add(id);
+            }
+        }
+
+        List<String> missingTrackIds = new ArrayList<>();
+        for (String trackId : orderedTrackIds) {
+            if (!firstPageTrackIds.contains(trackId)) {
+                missingTrackIds.add(trackId);
+            }
+        }
+        Map<String, Map<String, Object>> detailRowsById = fetchNeteaseSongRowsByTrackIds(missingTrackIds);
+        List<TrackSeed> merged = mergeNeteasePlaylistTracks(firstPageTracks, orderedTrackIds, detailRowsById);
+        LOGGER.info(
+            "MUSIC_TUNEHUB_PLAYLIST_TRACKS_DONE provider={} playlistId={} trackIdsSource={} methodTrackCount={} methodTrackIds={} directTrackIds={} declaredTrackCount={} loadedTrackCount={}",
+            "netease",
+            sanitizeLogMessage(playlistId),
+            directTrackIdsUsed ? "direct" : "method",
+            methodTrackCount,
+            methodTrackIdsCount,
+            directTrackIdsCount,
+            declaredTrackCount,
+            merged.size()
+        );
+        return merged;
     }
 
     private Map<String, Object> loadPlaylistRaw(String platform, String playlistId, String apiKey) {
+        return loadPlaylistRaw(platform, playlistId, apiKey, 1, PLAYLIST_FETCH_PAGE_SIZE);
+    }
+
+    private Map<String, Object> loadNeteasePlaylistDetailRaw(String playlistId) {
+        Map<String, Object> raw = requestJson(
+            "GET",
+            "https://music.163.com/api/v6/playlist/detail",
+            Map.of("id", playlistId),
+            Map.of(
+                "Referer", "https://music.163.com/",
+                "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            ),
+            null
+        );
+        int code = readInt(raw.get("code"), -1);
+        if (code != 200 && code != 0) {
+            throw new BusinessException(
+                ErrorCode.INTERNAL_ERROR,
+                "Netease playlist detail unavailable",
+                Map.of("playlistId", playlistId, "code", code)
+            );
+        }
+        return raw;
+    }
+
+    private Map<String, Object> loadPlaylistRaw(String platform,
+                                                String playlistId,
+                                                String apiKey,
+                                                int page,
+                                                int limit) {
         Map<String, Object> playlistMethod = readMethodDefinition(platform, "playlist", apiKey);
-        return invokeMethod(playlistMethod, Map.of("platform", platform, "id", playlistId));
+        int safePage = Math.max(1, page);
+        int safeLimit = Math.max(1, Math.min(120, limit));
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("platform", platform);
+        context.put("id", playlistId);
+        context.put("page", safePage);
+        context.put("limit", safeLimit);
+        context.put("pn", safePage);
+        context.put("rn", safeLimit);
+        context.put("num", safeLimit);
+        context.put("size", safeLimit);
+        context.put("count", safeLimit);
+        context.put("offset", (safePage - 1) * safeLimit);
+        return invokeMethod(playlistMethod, context);
     }
 
     private Map<String, Object> readMethodDefinition(String platform, String method, String apiKey) {
@@ -935,6 +1140,9 @@ public class TuneHubMusicProvider {
         switch (platform) {
             case "netease" -> {
                 Map<String, Object> detail = toStringObjectMap(raw.get("result"));
+                if (detail.isEmpty()) {
+                    detail = toStringObjectMap(raw.get("playlist"));
+                }
                 List<Map<String, Object>> tracks = toObjectMapList(detail.get("tracks"));
                 for (Map<String, Object> item : tracks) {
                     String id = readString(item.get("id"), "");
@@ -946,7 +1154,8 @@ public class TuneHubMusicProvider {
                     String cover = readString(album.get("picUrl"), "");
                     List<Map<String, Object>> artists = toObjectMapList(item.get("artists"));
                     String artist = joinNames(artists, "name");
-                    result.add(new TrackSeed(id, title, artist, cover));
+                    Integer durationSec = readDurationSeconds(item);
+                    result.add(new TrackSeed(id, title, artist, cover, durationSec));
                 }
             }
             case "kuwo" -> {
@@ -961,7 +1170,9 @@ public class TuneHubMusicProvider {
                     }
                     String title = readString(item.get("name"), "");
                     String artist = readString(item.get("artist"), "").replace("&", ", ");
-                    result.add(new TrackSeed(id, title, artist, ""));
+                    String cover = readTrackCover("kuwo", item);
+                    Integer durationSec = readDurationSeconds(item);
+                    result.add(new TrackSeed(id, title, artist, cover, durationSec));
                 }
             }
             case "qq" -> {
@@ -976,7 +1187,9 @@ public class TuneHubMusicProvider {
                     String title = readString(item.get("title"), "");
                     List<Map<String, Object>> singers = toObjectMapList(item.get("singerList"));
                     String artist = joinNames(singers, "name");
-                    result.add(new TrackSeed(id, title, artist, ""));
+                    String cover = readTrackCover("qq", item);
+                    Integer durationSec = readDurationSeconds(item);
+                    result.add(new TrackSeed(id, title, artist, cover, durationSec));
                 }
             }
             default -> {
@@ -984,6 +1197,179 @@ public class TuneHubMusicProvider {
             }
         }
         return result;
+    }
+
+    private List<String> extractNeteasePlaylistTrackIds(Map<String, Object> raw) {
+        Map<String, Object> detail = toStringObjectMap(raw.get("result"));
+        if (detail.isEmpty()) {
+            detail = toStringObjectMap(raw.get("playlist"));
+        }
+        List<Map<String, Object>> trackIdRows = toObjectMapList(detail.get("trackIds"));
+        List<String> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Map<String, Object> row : trackIdRows) {
+            String id = readString(row.get("id"), "");
+            if (!StringUtils.hasText(id) || !seen.add(id)) {
+                continue;
+            }
+            result.add(id);
+            if (result.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private int readNeteasePlaylistTrackCount(Map<String, Object> raw, int fallback) {
+        Map<String, Object> detail = toStringObjectMap(raw.get("result"));
+        if (detail.isEmpty()) {
+            detail = toStringObjectMap(raw.get("playlist"));
+        }
+        int trackCount = readInt(detail.get("trackCount"), 0);
+        if (trackCount > 0) {
+            return trackCount;
+        }
+        List<String> trackIds = extractNeteasePlaylistTrackIds(raw);
+        if (!trackIds.isEmpty()) {
+            return trackIds.size();
+        }
+        return Math.max(0, fallback);
+    }
+
+    private Map<String, Map<String, Object>> fetchNeteaseSongRowsByTrackIds(List<String> trackIds) {
+        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
+        if (trackIds == null || trackIds.isEmpty()) {
+            return result;
+        }
+        List<String> normalizedTrackIds = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (String rawTrackId : trackIds) {
+            String trackId = readString(rawTrackId, "");
+            if (!StringUtils.hasText(trackId) || !seen.add(trackId)) {
+                continue;
+            }
+            normalizedTrackIds.add(trackId);
+            if (normalizedTrackIds.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
+                break;
+            }
+        }
+        for (int offset = 0; offset < normalizedTrackIds.size(); offset += NETEASE_DETAIL_BATCH_SIZE) {
+            int end = Math.min(normalizedTrackIds.size(), offset + NETEASE_DETAIL_BATCH_SIZE);
+            List<String> batch = normalizedTrackIds.subList(offset, end);
+            String idsParam = "["
+                + batch.stream()
+                    .map(item -> "\"" + item + "\"")
+                    .reduce((left, right) -> left + "," + right)
+                    .orElse("")
+                + "]";
+            try {
+                Map<String, Object> payload = requestJson(
+                    "GET",
+                    "https://music.163.com/api/song/detail",
+                    Map.of("ids", idsParam),
+                    Map.of(
+                        "Referer", "https://music.163.com/",
+                        "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    ),
+                    null
+                );
+                List<Map<String, Object>> songs = toObjectMapList(payload.get("songs"));
+                for (Map<String, Object> song : songs) {
+                    String trackId = readString(song.get("id"), "");
+                    if (!StringUtils.hasText(trackId) || result.containsKey(trackId)) {
+                        continue;
+                    }
+                    result.put(trackId, song);
+                }
+            } catch (Exception ex) {
+                LOGGER.warn(
+                    "MUSIC_TUNEHUB_PLAYLIST_DETAIL_BATCH_FAIL provider=netease batchSize={} reason={}",
+                    batch.size(),
+                    sanitizeLogMessage(ex.getMessage())
+                );
+            }
+        }
+        return result;
+    }
+
+    private TrackSeed mapNeteaseSongToTrackSeed(Map<String, Object> song) {
+        String id = readString(song.get("id"), "");
+        if (!StringUtils.hasText(id)) {
+            return null;
+        }
+        String title = readString(song.get("name"), "");
+        Map<String, Object> album = toStringObjectMap(song.get("album"));
+        if (album.isEmpty()) {
+            album = toStringObjectMap(song.get("al"));
+        }
+        String cover = normalizeCoverUrl("netease", readString(album.get("picUrl"), ""));
+        List<Map<String, Object>> artists = toObjectMapList(song.get("artists"));
+        if (artists.isEmpty()) {
+            artists = toObjectMapList(song.get("ar"));
+        }
+        String artist = joinNames(artists, "name");
+        Integer durationSec = readDurationSeconds(song);
+        return new TrackSeed(id, title, artist, cover, durationSec);
+    }
+
+    private List<TrackSeed> mergeNeteasePlaylistTracks(List<TrackSeed> firstPageTracks,
+                                                       List<String> orderedTrackIds,
+                                                       Map<String, Map<String, Object>> detailRowsById) {
+        Map<String, TrackSeed> mergedById = new LinkedHashMap<>();
+        for (TrackSeed seed : firstPageTracks) {
+            String trackId = readString(seed.id(), "");
+            if (!StringUtils.hasText(trackId) || mergedById.containsKey(trackId)) {
+                continue;
+            }
+            mergedById.put(trackId, seed);
+        }
+        if (detailRowsById != null && !detailRowsById.isEmpty()) {
+            for (Map.Entry<String, Map<String, Object>> entry : detailRowsById.entrySet()) {
+                String trackId = readString(entry.getKey(), "");
+                if (!StringUtils.hasText(trackId) || mergedById.containsKey(trackId)) {
+                    continue;
+                }
+                TrackSeed seed = mapNeteaseSongToTrackSeed(entry.getValue());
+                if (seed == null) {
+                    continue;
+                }
+                mergedById.put(trackId, seed);
+            }
+        }
+
+        List<TrackSeed> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        if (orderedTrackIds != null && !orderedTrackIds.isEmpty()) {
+            for (String trackId : orderedTrackIds) {
+                if (!seen.add(trackId)) {
+                    continue;
+                }
+                TrackSeed seed = mergedById.get(trackId);
+                if (seed == null) {
+                    continue;
+                }
+                result.add(seed);
+                if (result.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
+                    break;
+                }
+            }
+            return result;
+        }
+
+        for (TrackSeed seed : mergedById.values()) {
+            result.add(seed);
+            if (result.size() >= MAX_VIRTUAL_PLAYLIST_TRACKS) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private List<TrackSeed> mergeNeteasePlaylistTracks(Map<String, Object> playlistRaw,
+                                                       Map<String, Map<String, Object>> detailRowsById) {
+        List<TrackSeed> firstPageTracks = parseToplistTracks("netease", playlistRaw);
+        List<String> orderedTrackIds = extractNeteasePlaylistTrackIds(playlistRaw);
+        return mergeNeteasePlaylistTracks(firstPageTracks, orderedTrackIds, detailRowsById);
     }
 
     private List<SearchTrackResult> parseSearchTracks(String platform, Map<String, Object> raw, int limit) {
@@ -1032,6 +1418,7 @@ public class TuneHubMusicProvider {
             String name = readSearchPlaylistName(row);
             String description = readSearchPlaylistDescription(row);
             String cover = readSearchPlaylistCover(platform, row);
+            Integer trackCount = readSearchPlaylistTrackCount(row);
             result.add(new VirtualPlaylistSummary(
                 platform,
                 "playlist",
@@ -1039,7 +1426,8 @@ public class TuneHubMusicProvider {
                 readString(name, resolvePlatformDisplayName(platform) + " 歌单"),
                 description,
                 cover,
-                "vh_tunehub_" + platform + "_playlist_" + sourceId
+                "vh_tunehub_" + platform + "_playlist_" + sourceId,
+                trackCount
             ));
             if (result.size() >= limit) {
                 break;
@@ -1249,8 +1637,8 @@ public class TuneHubMusicProvider {
     private String resolveSearchPlaylistId(String platform, Map<String, Object> row) {
         if ("netease".equals(platform)) {
             return firstValidTrackId(
-                readString(row.get("id"), ""),
-                readString(row.get("playlistId"), "")
+                readString(row.get("playlistId"), ""),
+                readString(row.get("id"), "")
             );
         }
         if ("kuwo".equals(platform)) {
@@ -1289,6 +1677,17 @@ public class TuneHubMusicProvider {
         return normalizeCoverUrl(platform, cover);
     }
 
+    private Integer readSearchPlaylistTrackCount(Map<String, Object> row) {
+        int value = readInt(
+            row.get("trackCount"),
+            readInt(
+                row.get("trackcount"),
+                readInt(row.get("songnum"), readInt(row.get("total"), readInt(row.get("musicNum"), 0)))
+            )
+        );
+        return value > 0 ? value : null;
+    }
+
     private String resolvePlatformDisplayName(String platform) {
         return switch (normalizePlatformCode(platform)) {
             case "netease" -> "网易云";
@@ -1313,12 +1712,13 @@ public class TuneHubMusicProvider {
             }
             String title = readString(item.get("songname"), readString(item.get("name"), ""));
             String artist = joinNames(toObjectMapList(item.get("singer")), "name");
-            String cover = "";
+            String cover = readTrackCover("qq", item);
             String albumMid = readString(item.get("albummid"), "");
-            if (StringUtils.hasText(albumMid)) {
+            if (!StringUtils.hasText(cover) && StringUtils.hasText(albumMid)) {
                 cover = "https://y.gtimg.cn/music/photo_new/T002R300x300M000" + albumMid + ".jpg";
             }
-            result.add(new TrackSeed(id, title, artist, cover));
+            Integer durationSec = readDurationSeconds(item);
+            result.add(new TrackSeed(id, title, artist, cover, durationSec));
         }
         return result;
     }
@@ -1578,13 +1978,52 @@ public class TuneHubMusicProvider {
                 "",
                 result.size() + 1,
                 true,
-                readString(parsed.lyricText(), "")
+                readString(parsed.lyricText(), ""),
+                buildTrackMetadata(seed.durationSec(), "")
             ));
             if (result.size() >= MAX_TRACKS) {
                 break;
             }
         }
         return result;
+    }
+
+    private String buildTrackPageFingerprint(List<TrackSeed> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        int size = Math.min(rows.size(), 5);
+        for (int i = 0; i < size; i += 1) {
+            if (i > 0) {
+                builder.append('|');
+            }
+            builder.append(readString(rows.get(i).id(), ""));
+        }
+        return builder.toString();
+    }
+
+    private Map<String, Object> buildTrackMetadata(Integer durationSec, String album) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (durationSec != null && durationSec > 0) {
+            metadata.put("durationSec", durationSec);
+            metadata.put("durationLabel", formatDurationLabel(durationSec));
+        }
+        String normalizedAlbum = readString(album, "");
+        if (StringUtils.hasText(normalizedAlbum)) {
+            metadata.put("album", normalizedAlbum);
+        }
+        return metadata;
+    }
+
+    private String formatDurationLabel(Integer durationSec) {
+        if (durationSec == null || durationSec <= 0) {
+            return "";
+        }
+        int total = durationSec;
+        int minutes = total / 60;
+        int seconds = total % 60;
+        return String.format(Locale.ROOT, "%02d:%02d", minutes, seconds);
     }
 
     private Map<String, Object> requestJson(String method,
@@ -1974,7 +2413,8 @@ public class TuneHubMusicProvider {
                                          String name,
                                          String description,
                                          String cover,
-                                         String playlistCode) {
+                                         String playlistCode,
+                                         Integer trackCount) {
     }
 
     public record ParseTrackResult(String trackId,
@@ -1999,7 +2439,7 @@ public class TuneHubMusicProvider {
     private record ToplistSeed(String id, String name, String cover) {
     }
 
-    private record TrackSeed(String id, String title, String artist, String cover) {
+    private record TrackSeed(String id, String title, String artist, String cover, Integer durationSec) {
     }
 
     private record ParseTrack(String id,

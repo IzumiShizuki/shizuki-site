@@ -110,6 +110,14 @@ export async function getMyPostDetail(postId, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getMyPostCategoryPolicies(authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/me/posts/category-policies', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function relayPostMarkdown(file, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   if (!(file instanceof File)) {
@@ -122,6 +130,133 @@ export async function relayPostMarkdown(file, authorizedFetch) {
     body: formData
   });
   return unwrapApiResponse(response);
+}
+
+function normalizeAssetUrl(raw) {
+  return String(raw || '').trim();
+}
+
+function sanitizeAssetName(raw, fallback = 'blog-cover.png') {
+  const source = String(raw || '').trim();
+  if (!source) return fallback;
+  const dotIndex = source.lastIndexOf('.');
+  const ext = dotIndex >= 0 ? source.slice(dotIndex).toLowerCase() : '';
+  const base = (dotIndex >= 0 ? source.slice(0, dotIndex) : source)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const safeExt = ['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext) ? ext : '.png';
+  return `${base || 'blog-cover'}${safeExt}`;
+}
+
+export async function uploadBlogCoverImage(file, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  if (!(file instanceof File)) {
+    throw new Error('请选择图片文件');
+  }
+
+  const contentType = String(file.type || '').toLowerCase();
+  const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+  if (!allowedTypes.has(contentType)) {
+    throw new Error('封面图片必须是 png/jpeg/webp/gif');
+  }
+  if (Number(file.size || 0) > 8 * 1024 * 1024) {
+    throw new Error('封面图片大小需 <= 8MB');
+  }
+
+  const fileName = sanitizeAssetName(file.name || 'blog-cover.png');
+  const policy = unwrapApiResponse(
+    await request('/api/v1/assets/upload-policies', {
+      method: 'POST',
+      body: {
+        fileName,
+        contentType,
+        assetKind: 'STATIC_IMAGE',
+        visibility: 'PUBLIC'
+      }
+    })
+  );
+
+  const uploadUrl = String(policy?.uploadUrl || policy?.upload_url || '').trim();
+  const policyBucket = String(policy?.bucket || '').trim();
+  const policyKey = String(policy?.key || '').trim();
+  if (!uploadUrl || !policyBucket || !policyKey) {
+    throw new Error('上传策略无效');
+  }
+
+  let bucket = policyBucket;
+  let key = policyKey;
+  let uploadContentType = contentType;
+
+  try {
+    const directResult = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType
+      },
+      body: file
+    });
+    if (!directResult.ok) {
+      throw new Error(`direct upload failed (${directResult.status})`);
+    }
+  } catch (error) {
+    const relayPayload = unwrapApiResponse(
+      await request('/api/v1/assets/upload-relay', {
+        method: 'POST',
+        body: (() => {
+          const formData = new FormData();
+          formData.append('file', file, file.name || fileName);
+          formData.append('asset_kind', 'STATIC_IMAGE');
+          formData.append('visibility', 'PUBLIC');
+          return formData;
+        })()
+      })
+    );
+    bucket = String(relayPayload?.bucket || '').trim();
+    key = String(relayPayload?.key || '').trim();
+    uploadContentType = String(relayPayload?.contentType || relayPayload?.content_type || contentType).trim() || contentType;
+    if (!bucket || !key) {
+      throw new Error(`封面上传失败：${error instanceof Error ? error.message : 'unknown'}`);
+    }
+  }
+
+  const created = unwrapApiResponse(
+    await request('/api/v1/assets', {
+      method: 'POST',
+      body: {
+        bucket,
+        key,
+        assetType: 'image',
+        assetKind: 'STATIC_IMAGE',
+        contentType: uploadContentType,
+        visibility: 'PUBLIC',
+        metadata: {
+          usage: 'blog_post_cover'
+        }
+      }
+    })
+  );
+
+  const assetId = Number(created?.assetId ?? created?.asset_id);
+  if (!Number.isFinite(assetId) || assetId <= 0) {
+    throw new Error('创建封面资产失败');
+  }
+
+  const downloadInfo = unwrapApiResponse(
+    await request(`/api/v1/assets/${encodeURIComponent(assetId)}/download-url`, {
+      method: 'GET'
+    })
+  );
+  const url = normalizeAssetUrl(
+    downloadInfo?.publicUrl || downloadInfo?.public_url || downloadInfo?.downloadUrl || downloadInfo?.download_url
+  );
+  if (!url) {
+    throw new Error('获取封面地址失败');
+  }
+  return {
+    assetId,
+    url
+  };
 }
 
 export async function createMyPost(payload, authorizedFetch) {

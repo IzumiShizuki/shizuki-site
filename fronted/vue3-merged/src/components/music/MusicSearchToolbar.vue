@@ -1,13 +1,15 @@
 <template>
-  <section class="music-search-toolbar liquid-material">
+  <section ref="toolbarRoot" class="music-search-toolbar liquid-material">
     <div class="search-row">
       <label class="search-input-wrap">
         <i class="fas fa-search"></i>
         <input
+          ref="keywordInputRef"
           :value="keyword"
           type="search"
           placeholder="搜索歌单 / 歌曲 / 歌手"
-          @input="emit('update:keyword', $event.target.value)"
+          @focus="openHistoryPanel"
+          @input="handleKeywordInput"
           @keydown.enter.prevent="handleSearch()"
         />
       </label>
@@ -21,12 +23,12 @@
       </button>
     </div>
 
-    <div v-if="searchHistory.length" class="history-row">
-      <div class="history-row-head">
+    <div v-if="showHistoryPanel" class="history-panel liquid-material">
+      <div class="history-panel-head">
         <span class="history-title">最近搜索</span>
         <button type="button" class="history-clear-btn ripple-trigger" @click="clearHistory">清空</button>
       </div>
-      <div class="history-list">
+      <div class="history-panel-list">
         <button
           v-for="item in searchHistory"
           :key="`music-search-history-${item}`"
@@ -71,11 +73,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
-import { clearSearchHistory, readSearchHistory, recordSearchHistory } from '../../utils/searchHistory';
-
-const MUSIC_SEARCH_HISTORY_KEY = 'music_search_history_v1';
-const MUSIC_SEARCH_HISTORY_LIMIT = 10;
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const props = defineProps({
   keyword: { type: String, default: '' },
@@ -83,27 +81,44 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   errorText: { type: String, default: '' },
   showFilters: { type: Boolean, default: true },
+  searchHistory: { type: Array, default: () => [] },
   typeOptions: { type: Array, default: () => [] },
   providerOptions: { type: Array, default: () => [] },
   selectedProviders: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['update:keyword', 'set-type', 'toggle-provider', 'search', 'refresh']);
-const searchHistory = ref([]);
+const emit = defineEmits([
+  'update:keyword',
+  'set-type',
+  'toggle-provider',
+  'search',
+  'refresh',
+  'apply-history',
+  'clear-history'
+]);
+const toolbarRoot = ref(null);
+const keywordInputRef = ref(null);
+const historyPanelVisible = ref(false);
 
 const selectedProviderSet = computed(() => {
   const list = Array.isArray(props.selectedProviders) ? props.selectedProviders : [];
   return new Set(list.map((item) => String(item || '').trim().toLowerCase()));
 });
 
-function handleSearch(keywordOverride = props.keyword) {
-  const keyword = String(keywordOverride || '').trim();
-  if (keyword) {
-    searchHistory.value = recordSearchHistory(MUSIC_SEARCH_HISTORY_KEY, keyword, undefined, MUSIC_SEARCH_HISTORY_LIMIT);
-    if (keyword !== props.keyword) {
-      emit('update:keyword', keyword);
-    }
-  }
+const showHistoryPanel = computed(
+  () => historyPanelVisible.value && Array.isArray(props.searchHistory) && props.searchHistory.length > 0
+);
+
+function handleKeywordInput(event) {
+  emit('update:keyword', event?.target?.value || '');
+}
+
+function openHistoryPanel() {
+  historyPanelVisible.value = true;
+}
+
+function handleSearch() {
+  historyPanelVisible.value = false;
   emit('search');
 }
 
@@ -111,16 +126,33 @@ function applyHistory(keyword) {
   const normalized = String(keyword || '').trim();
   if (!normalized) return;
   emit('update:keyword', normalized);
-  handleSearch(normalized);
+  emit('apply-history', normalized);
+  historyPanelVisible.value = false;
+  keywordInputRef.value?.focus?.();
 }
 
 function clearHistory() {
-  clearSearchHistory(MUSIC_SEARCH_HISTORY_KEY);
-  searchHistory.value = [];
+  emit('clear-history');
+}
+
+function handleDocumentPointerDown(event) {
+  const root = toolbarRoot.value;
+  if (!root || root.contains(event.target)) {
+    return;
+  }
+  historyPanelVisible.value = false;
 }
 
 onMounted(() => {
-  searchHistory.value = readSearchHistory(MUSIC_SEARCH_HISTORY_KEY, undefined, MUSIC_SEARCH_HISTORY_LIMIT);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('pointerdown', handleDocumentPointerDown, true);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
+  }
 });
 </script>
 
@@ -139,17 +171,23 @@ onMounted(() => {
 }
 
 .search-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
 }
 
-.history-row {
+.history-panel {
+  --liquid-bg: linear-gradient(150deg, rgba(17, 22, 34, 0.97), rgba(12, 18, 30, 0.95));
+  --liquid-border: rgba(255, 255, 255, 0.18);
+  --liquid-shadow: 0 18px 34px rgba(5, 10, 20, 0.45);
+  border-radius: 12px;
+  padding: 10px;
   display: grid;
   gap: 8px;
 }
 
-.history-row-head {
+.history-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -171,7 +209,7 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.history-list {
+.history-panel-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -283,7 +321,7 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .history-row-head {
+  .history-panel-head {
     flex-wrap: wrap;
   }
 

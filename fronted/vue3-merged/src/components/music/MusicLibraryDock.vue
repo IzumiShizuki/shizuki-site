@@ -75,6 +75,14 @@
 
       <div class="collect-body">
         <button
+          v-if="canCollectDefaultPublic"
+          class="collect-item collect-default ripple-trigger"
+          type="button"
+          @click="handleCollectToDefaultPublic"
+        >
+          <span class="collect-name">加入默认收藏夹（云端）</span>
+        </button>
+        <button
           v-for="item in playlistOptions"
           :key="`collect-playlist-${item.playlistCode || item.playlist_code || item.name}`"
           class="collect-item ripple-trigger"
@@ -87,7 +95,7 @@
         <button v-if="!canCollect" class="collect-login ripple-trigger" type="button" @click="handleCollectLogin">
           登录后可收藏到歌单
         </button>
-        <p v-else-if="!playlistOptions.length" class="collect-empty">你还没有创建歌单</p>
+        <p v-else-if="!playlistOptions.length && !canCollectDefaultPublic" class="collect-empty">暂无可收藏歌单</p>
       </div>
     </section>
   </footer>
@@ -108,10 +116,22 @@ const props = defineProps({
   volume: { type: Number, default: 0.8 },
   detailLayout: { type: Boolean, default: false },
   playlistOptions: { type: Array, default: () => [] },
-  canCollect: { type: Boolean, default: false }
+  canCollect: { type: Boolean, default: false },
+  canCollectDefaultPublic: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['toggle-play', 'prev', 'next', 'seek', 'cycle-mode', 'set-volume', 'select-track', 'collect-track', 'open-player-detail']);
+const emit = defineEmits([
+  'toggle-play',
+  'prev',
+  'next',
+  'seek',
+  'cycle-mode',
+  'set-volume',
+  'select-track',
+  'collect-track',
+  'collect-default-public-track',
+  'open-player-detail'
+]);
 const rootRef = ref(null);
 const queueOpen = ref(false);
 const collectOpen = ref(false);
@@ -183,6 +203,11 @@ function handleCollectToPlaylist(playlistCode) {
   const code = String(playlistCode || '').trim();
   if (!code) return;
   emit('collect-track', code);
+  collectOpen.value = false;
+}
+
+function handleCollectToDefaultPublic() {
+  emit('collect-default-public-track');
   collectOpen.value = false;
 }
 
@@ -491,6 +516,12 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+}
+
+.collect-item.collect-default {
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
 
 .collect-name {

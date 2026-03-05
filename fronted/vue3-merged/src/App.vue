@@ -210,6 +210,7 @@ import TopMenu from './components/TopMenu.vue';
 import { useAuthSession } from './composables/useAuthSession';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { usePlayerEngine } from './composables/usePlayerEngine';
+import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
 import { refreshAosManager } from './utils/aosManager';
@@ -218,6 +219,7 @@ import { recordWindowDiag } from './utils/windowLifecycleDiag';
 
 const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
+const MUSIC_EQ_CHANGE_EVENT = 'shizuki:music:eq-change';
 const menuExpanded = ref(false);
 const levitationRef = ref(null);
 const clickRipples = ref([]);
@@ -245,6 +247,10 @@ const dragState = {
 
 let rippleSeq = 0;
 let audioCtx = null;
+let sourceNode = null;
+let eqLowNode = null;
+let eqMidNode = null;
+let eqHighNode = null;
 let analyser = null;
 let freqData = null;
 let rafId = 0;
@@ -260,6 +266,7 @@ const auth = useAuthSession();
 const player = usePlayerEngine({
   getAuthorizedFetch: () => (auth.isAuthenticated.value ? auth.authorizedFetch : undefined)
 });
+const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
 
 const routeLabelMap = {
@@ -537,16 +544,70 @@ function clearCurrentRouteBackground() {
   videoFailed.value = false;
 }
 
+function normalizeEqLevel(raw, fallback = 0.5) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.min(1, value));
+}
+
+function eqLevelToDb(level) {
+  const centered = normalizeEqLevel(level, 0.5) - 0.5;
+  return Math.max(-12, Math.min(12, centered * 24));
+}
+
+function applyEqLevels(levels) {
+  if (!eqLowNode || !eqMidNode || !eqHighNode) return;
+  const sourceLevels = Array.isArray(levels) ? levels : [];
+  const low = normalizeEqLevel(sourceLevels[0], 0.66);
+  const mid = normalizeEqLevel(sourceLevels[1], 0.52);
+  const high = normalizeEqLevel(sourceLevels[2], 0.74);
+  eqLowNode.gain.value = eqLevelToDb(low);
+  eqMidNode.gain.value = eqLevelToDb(mid);
+  eqHighNode.gain.value = eqLevelToDb(high);
+}
+
 function ensureAudioAnalyser() {
   if (analyser || !player.audioElement || typeof window === 'undefined' || !window.AudioContext) return;
   audioCtx = new window.AudioContext();
-  const source = audioCtx.createMediaElementSource(player.audioElement);
+  sourceNode = audioCtx.createMediaElementSource(player.audioElement);
+  eqLowNode = audioCtx.createBiquadFilter();
+  eqLowNode.type = 'lowshelf';
+  eqLowNode.frequency.value = 180;
+  eqLowNode.Q.value = 0.8;
+
+  eqMidNode = audioCtx.createBiquadFilter();
+  eqMidNode.type = 'peaking';
+  eqMidNode.frequency.value = 1200;
+  eqMidNode.Q.value = 0.95;
+
+  eqHighNode = audioCtx.createBiquadFilter();
+  eqHighNode.type = 'highshelf';
+  eqHighNode.frequency.value = 5200;
+  eqHighNode.Q.value = 0.72;
+
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
   analyser.smoothingTimeConstant = 0.88;
-  source.connect(analyser);
+  sourceNode.connect(eqLowNode);
+  eqLowNode.connect(eqMidNode);
+  eqMidNode.connect(eqHighNode);
+  eqHighNode.connect(analyser);
   analyser.connect(audioCtx.destination);
   freqData = new Uint8Array(analyser.frequencyBinCount);
+  applyEqLevels(musicUi.eqLevels.value);
+}
+
+function handleEqChangeEvent(event) {
+  const levels = Array.isArray(event?.detail?.levels)
+    ? event.detail.levels
+    : Array.isArray(musicUi.eqLevels.value)
+      ? musicUi.eqLevels.value
+      : [0.66, 0.52, 0.74];
+  ensureAudioAnalyser();
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  applyEqLevels(levels);
 }
 
 function stopVisualizerLoop() {
@@ -970,6 +1031,14 @@ watch(
 );
 
 watch(
+  () => (Array.isArray(musicUi.eqLevels.value) ? musicUi.eqLevels.value.slice() : []),
+  (levels) => {
+    if (!eqLowNode || !eqMidNode || !eqHighNode) return;
+    applyEqLevels(levels);
+  }
+);
+
+watch(
   [shouldRunVisualizer, visualizerPaused],
   ([enabled, paused]) => {
     if (typeof window === 'undefined') return;
@@ -1000,6 +1069,7 @@ onMounted(async () => {
   window.addEventListener('focus', onWindowFocus);
   window.addEventListener('pagehide', onPageHide);
   window.addEventListener('pageshow', onPageShow);
+  window.addEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
 
   if (!runtimeGuards.disableGlobalPointerHooks) {
     window.addEventListener('keydown', onGlobalHotkey);
@@ -1024,6 +1094,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', onWindowFocus);
   window.removeEventListener('pagehide', onPageHide);
   window.removeEventListener('pageshow', onPageShow);
+  window.removeEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
   window.removeEventListener('keydown', onGlobalHotkey);
   window.removeEventListener('pointerdown', onGlobalPointerDown, true);
   window.removeEventListener('pointermove', onGlobalPointerMove, true);
@@ -1033,6 +1104,12 @@ onBeforeUnmount(() => {
   if (audioCtx) {
     audioCtx.close().catch(() => {});
     audioCtx = null;
+    sourceNode = null;
+    eqLowNode = null;
+    eqMidNode = null;
+    eqHighNode = null;
+    analyser = null;
+    freqData = null;
   }
 });
 </script>
@@ -1104,9 +1181,11 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 40;
   height: 100%;
+  box-sizing: border-box;
   padding: 58px 14px 14px;
   display: grid;
   grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   transition: padding-top 260ms ease;
 }
@@ -1120,9 +1199,17 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 3fr) minmax(300px, 1fr);
 }
 
+.workspace-shell > .route-content,
+.workspace-shell > .ai-side-column {
+  min-height: 0;
+  height: 100%;
+}
+
 .route-content {
   min-height: 0;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 132, 158, 0.48) rgba(9, 14, 24, 0.12);
   border-radius: 18px;
   padding: 16px;
   background: rgba(10, 14, 22, 0.32);
@@ -1135,6 +1222,28 @@ onBeforeUnmount(() => {
     padding 260ms ease;
 }
 
+.route-content::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.route-content::-webkit-scrollbar-track {
+  background: rgba(9, 14, 24, 0.14);
+  border-radius: 999px;
+}
+
+.route-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: linear-gradient(180deg, rgba(156, 172, 205, 0.62), rgba(115, 128, 156, 0.5));
+  background-clip: content-box;
+}
+
+.route-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(177, 194, 232, 0.72), rgba(135, 149, 181, 0.62));
+  background-clip: content-box;
+}
+
 .route-content.route-content-home {
   background: transparent;
   border: 0;
@@ -1143,7 +1252,15 @@ onBeforeUnmount(() => {
 }
 
 .route-content.route-content-blog {
+  display: flex;
   overflow: hidden;
+}
+
+.route-content.route-content-blog > .route-page-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .route-content.route-content-music-player {

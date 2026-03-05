@@ -2,6 +2,7 @@ package io.github.shizuki.site.content.dto;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 public record PostDetailResponse(
     Long postId,
@@ -11,6 +12,7 @@ public record PostDetailResponse(
     String categoryCode,
     String slugCode,
     String visibility,
+    Set<String> allowedGroupCodes,
     String statusCode,
     List<String> tags,
     Long wordCount,

@@ -221,6 +221,15 @@ export async function replaceAdminDefaultPlaylistBundle(payload, authorizedFetch
   return unwrapApiResponse(response);
 }
 
+export async function upsertAdminDefaultPlaylistTrack(payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/music/default-playlist/tracks', {
+    method: 'POST',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function listAdminProviders(authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/admin/music/providers', {

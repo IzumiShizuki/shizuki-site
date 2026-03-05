@@ -1,7 +1,21 @@
 <template>
   <section class="route-page blog-list-page motion-managed">
-    <div class="blog-shell">
-      <SubtleScrollArea tag="aside" class="left-switch liquid-material">
+    <div
+      class="blog-shell"
+      :class="{ 'left-panel-collapsed': leftPanelCollapsed, 'right-panel-collapsed': rightPanelCollapsed }"
+    >
+      <SubtleScrollArea tag="aside" class="left-switch liquid-material" :class="{ collapsed: leftPanelCollapsed }">
+        <div class="left-switch-head">
+          <button
+            type="button"
+            class="icon-circle-btn ripple-trigger sidebar-collapse-btn"
+            aria-label="收起左栏"
+            title="收起左栏"
+            @click="toggleLeftPanelCollapsed"
+          >
+            <i class="fas fa-angles-left"></i>
+          </button>
+        </div>
         <button
           type="button"
           class="switch-btn ripple-trigger"
@@ -73,7 +87,7 @@
             <span class="strip-meta">共 {{ listState.total }} 篇</span>
           </section>
 
-          <div class="content-layout">
+          <div class="content-layout" :class="{ 'right-panel-collapsed': rightPanelCollapsed }">
             <SubtleScrollArea tag="main" class="feed-column">
               <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
 
@@ -137,7 +151,19 @@
               </footer>
             </SubtleScrollArea>
 
-            <SubtleScrollArea tag="aside" class="sidebar-column">
+            <SubtleScrollArea tag="aside" class="sidebar-column" :class="{ collapsed: rightPanelCollapsed }">
+              <header class="sidebar-column-head">
+                <span>侧栏</span>
+                <button
+                  type="button"
+                  class="icon-circle-btn ripple-trigger sidebar-collapse-btn"
+                  aria-label="收起右栏"
+                  title="收起右栏"
+                  @click="toggleRightPanelCollapsed"
+                >
+                  <i class="fas fa-angles-right"></i>
+                </button>
+              </header>
               <section class="side-card liquid-material">
                 <header class="side-head">
                   <h3>最新文章</h3>
@@ -244,6 +270,28 @@
         </SubtleScrollArea>
       </section>
     </div>
+
+    <button
+      v-if="leftPanelCollapsed"
+      type="button"
+      class="sidebar-reopen-btn sidebar-reopen-left icon-circle-btn ripple-trigger"
+      aria-label="展开左栏"
+      title="展开左栏"
+      @click="openLeftPanel"
+    >
+      <i class="fas fa-chevron-right"></i>
+    </button>
+
+    <button
+      v-if="rightPanelCollapsed && !isMobileLike"
+      type="button"
+      class="sidebar-reopen-btn sidebar-reopen-right icon-circle-btn ripple-trigger"
+      aria-label="展开右栏"
+      title="展开右栏"
+      @click="openRightPanel"
+    >
+      <i class="fas fa-chevron-left"></i>
+    </button>
   </section>
 </template>
 
@@ -252,15 +300,24 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
+import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
 import { getPostSidebar, listPosts } from '../services/blogApi';
 
 const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
 const PAGE_SIZE = 10;
+const BLOG_LEFT_PANEL_STATE_KEY = 'blog_left_panel_collapsed';
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthSession();
 const categoryStripRef = ref(null);
+const leftPanelCollapsed = ref(readPersistedLeftPanelCollapsed());
+const rightPanelCollapsed = ref(false);
+const rightPanelTouchedByUser = ref(false);
+const { isNarrowDesktop, isMobileLike, recommendedRightCollapsed } = useBlogResponsiveLayout({
+  desktopBreakpoint: 1366,
+  mobileBreakpoint: 980
+});
 
 const categoryDrag = reactive({
   dragging: false,
@@ -316,6 +373,11 @@ const permissionCodes = computed(() => {
 
 const canWrite = computed(() => groupCodes.value.includes('ADMIN') || permissionCodes.value.includes('blog.post.write'));
 const pageCount = computed(() => Math.max(1, Math.ceil(Math.max(0, listState.total) / listState.pageSize)));
+const viewportZone = computed(() => {
+  if (isMobileLike.value) return 'mobile';
+  if (isNarrowDesktop.value) return 'narrow';
+  return 'wide';
+});
 
 const visiblePages = computed(() => {
   const total = pageCount.value;
@@ -342,6 +404,20 @@ const categoryTabs = computed(() => {
 
 function resolveAuthorizedFetch() {
   return auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
+}
+
+function readPersistedLeftPanelCollapsed() {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(BLOG_LEFT_PANEL_STATE_KEY) === '1';
+}
+
+function persistLeftPanelCollapsed(value) {
+  if (typeof window === 'undefined') return;
+  if (value) {
+    window.localStorage.setItem(BLOG_LEFT_PANEL_STATE_KEY, '1');
+    return;
+  }
+  window.localStorage.removeItem(BLOG_LEFT_PANEL_STATE_KEY);
 }
 
 function normalizePanel(panel) {
@@ -517,6 +593,24 @@ function setPanel(nextPanel) {
   syncRouteQueryFromPanel(uiState.panel);
 }
 
+function toggleLeftPanelCollapsed() {
+  leftPanelCollapsed.value = !leftPanelCollapsed.value;
+}
+
+function openLeftPanel() {
+  leftPanelCollapsed.value = false;
+}
+
+function toggleRightPanelCollapsed() {
+  rightPanelCollapsed.value = !rightPanelCollapsed.value;
+  rightPanelTouchedByUser.value = true;
+}
+
+function openRightPanel() {
+  rightPanelCollapsed.value = false;
+  rightPanelTouchedByUser.value = true;
+}
+
 function openEditor() {
   router.push({ name: 'blog-editor' });
 }
@@ -607,6 +701,7 @@ function handleCategoryStripWheel(event) {
 }
 
 onMounted(async () => {
+  leftPanelCollapsed.value = readPersistedLeftPanelCollapsed();
   await auth.ensureReady();
   syncPanelFromRouteQuery();
   await Promise.all([loadPostList(), loadSidebar()]);
@@ -619,6 +714,36 @@ watch(
   }
 );
 
+watch(
+  () => leftPanelCollapsed.value,
+  (value) => {
+    persistLeftPanelCollapsed(value);
+  }
+);
+
+watch(
+  () => viewportZone.value,
+  (zone, previousZone) => {
+    if (zone === 'mobile') {
+      rightPanelCollapsed.value = false;
+      rightPanelTouchedByUser.value = false;
+      return;
+    }
+    if (zone === 'wide') {
+      rightPanelCollapsed.value = false;
+      rightPanelTouchedByUser.value = false;
+      return;
+    }
+    if (zone === 'narrow') {
+      if (previousZone !== 'narrow' || !rightPanelTouchedByUser.value) {
+        rightPanelCollapsed.value = recommendedRightCollapsed.value;
+        rightPanelTouchedByUser.value = false;
+      }
+    }
+  },
+  { immediate: true }
+);
+
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', handleCategoryStripPointerMove);
   window.removeEventListener('pointerup', handleCategoryStripPointerUp);
@@ -627,9 +752,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .blog-list-page {
+  --blog-gap: clamp(8px, 0.9vw, 14px);
+  --blog-panel-padding: clamp(8px, 0.8vw, 12px);
+  --blog-left-width: clamp(200px, 18vw, 248px);
+  --blog-right-width: clamp(190px, 20vw, 288px);
+  --blog-right-effective-width: var(--blog-right-width);
+  --blog-sidebar-button-size: clamp(28px, 2.2vw, 34px);
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  position: relative;
   color: rgba(240, 244, 255, 0.96);
   font-family: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
@@ -638,8 +770,17 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: var(--blog-left-width) minmax(0, 1fr);
+  gap: var(--blog-gap);
+  transition: grid-template-columns 200ms ease;
+}
+
+.blog-shell.left-panel-collapsed {
+  --blog-left-width: 0px;
+}
+
+.blog-shell.right-panel-collapsed {
+  --blog-right-effective-width: 0px;
 }
 
 .left-switch {
@@ -647,10 +788,68 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 14px 30px rgba(6, 9, 16, 0.24);
   border-radius: 14px;
-  padding: 10px;
+  padding: var(--blog-panel-padding);
   display: grid;
   align-content: start;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  transition:
+    opacity 0.2s ease,
+    padding 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.left-switch.collapsed {
+  padding: 0;
+  gap: 0;
+  max-height: 0;
+  border-color: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.left-switch-head {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: -2px;
+}
+
+.sidebar-collapse-btn {
+  width: var(--blog-sidebar-button-size);
+  height: var(--blog-sidebar-button-size);
+  font-size: 12px;
+}
+
+.icon-circle-btn {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(241, 246, 255, 0.96);
+  display: inline-grid;
+  place-items: center;
+}
+
+.sidebar-reopen-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(var(--blog-sidebar-button-size, 30px) + 2px);
+  height: clamp(46px, 6.2vh, 58px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(18, 26, 40, 0.68);
+  color: rgba(232, 241, 255, 0.95);
+  z-index: 1250;
+}
+
+.sidebar-reopen-left {
+  left: 4px;
+}
+
+.sidebar-reopen-right {
+  right: 4px;
 }
 
 .switch-btn {
@@ -687,7 +886,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--blog-gap);
   overflow: hidden;
 }
 
@@ -696,7 +895,7 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.18);
   --liquid-shadow: 0 12px 24px rgba(4, 9, 16, 0.24);
   border-radius: 14px;
-  padding: 10px;
+  padding: var(--blog-panel-padding);
 }
 
 .search-form {
@@ -704,6 +903,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   align-items: center;
 }
+
 
 .search-input {
   flex: 1;
@@ -742,7 +942,7 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 12px 24px rgba(5, 9, 16, 0.2);
   border-radius: 14px;
-  padding: 8px;
+  padding: calc(var(--blog-panel-padding) - 2px);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -807,9 +1007,13 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 284px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--blog-right-effective-width));
+  gap: var(--blog-gap);
   overflow: hidden;
+}
+
+.content-layout.right-panel-collapsed {
+  --blog-right-effective-width: 0px;
 }
 
 .feed-column {
@@ -817,8 +1021,10 @@ onBeforeUnmount(() => {
   height: 100%;
   display: grid;
   align-content: start;
-  gap: 10px;
-  max-width: 920px;
+  gap: var(--blog-gap);
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
 
 .feed-card {
@@ -827,9 +1033,9 @@ onBeforeUnmount(() => {
   --liquid-shadow: 0 16px 26px rgba(5, 8, 14, 0.26);
   border-radius: 12px;
   display: grid;
-  grid-template-columns: minmax(148px, 32%) minmax(0, 1fr);
+  grid-template-columns: minmax(136px, 34%) minmax(0, 1fr);
   grid-template-areas: 'cover content';
-  height: clamp(150px, 20vw, 168px);
+  height: clamp(152px, 18vw, 206px);
   min-height: 0;
   overflow: hidden;
   cursor: pointer;
@@ -839,7 +1045,7 @@ onBeforeUnmount(() => {
 }
 
 .feed-card.reverse {
-  grid-template-columns: minmax(0, 1fr) minmax(148px, 32%);
+  grid-template-columns: minmax(0, 1fr) minmax(136px, 34%);
   grid-template-areas: 'content cover';
 }
 
@@ -867,7 +1073,7 @@ onBeforeUnmount(() => {
 
 .content-pane {
   grid-area: content;
-  padding: 12px 14px;
+  padding: clamp(10px, 1.05vw, 14px);
   display: grid;
   gap: 6px;
   align-content: start;
@@ -940,8 +1146,29 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: 100%;
   display: grid;
-  gap: 10px;
+  gap: var(--blog-gap);
   align-content: start;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.sidebar-column.collapsed {
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+}
+
+.sidebar-column-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+  color: rgba(204, 218, 247, 0.9);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .side-card {
@@ -949,7 +1176,7 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.14);
   --liquid-shadow: 0 16px 28px rgba(5, 8, 14, 0.28);
   border-radius: 12px;
-  padding: 9px;
+  padding: var(--blog-panel-padding);
   display: grid;
   gap: 8px;
 }
@@ -1070,7 +1297,7 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.14);
   --liquid-shadow: 0 16px 28px rgba(5, 8, 14, 0.28);
   border-radius: 14px;
-  padding: 18px;
+  padding: clamp(14px, 1.3vw, 18px);
   min-height: 0;
   display: grid;
   gap: 10px;
@@ -1129,29 +1356,58 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 1240px) {
-  .content-layout {
-    grid-template-columns: 1fr;
+@media (max-width: 1365px) {
+  .blog-shell {
+    --blog-left-width: clamp(188px, 19vw, 232px);
+    --blog-right-width: clamp(170px, 20vw, 236px);
   }
+}
 
-  .feed-column {
-    max-width: none;
+@media (max-width: 1200px) {
+  .blog-shell {
+    --blog-left-width: clamp(160px, 17vw, 196px);
+    --blog-right-width: clamp(156px, 18vw, 210px);
   }
+}
 
-  .sidebar-column {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    display: grid;
+@media (max-width: 1080px) {
+  .blog-shell {
+    --blog-left-width: clamp(148px, 16vw, 176px);
+    --blog-right-width: clamp(142px, 16.5vw, 188px);
   }
 }
 
 @media (max-width: 980px) {
   .blog-shell {
+    --blog-left-width: 1fr;
+    --blog-right-width: 1fr;
+    --blog-right-effective-width: 1fr;
     grid-template-columns: 1fr;
+  }
+
+  .content-layout,
+  .content-layout.right-panel-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-column,
+  .sidebar-column.collapsed {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .sidebar-column-head {
+    display: none;
   }
 
   .left-switch {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: center;
+  }
+
+  .left-switch-head {
+    grid-column: 1 / -1;
   }
 
   .action-hint {

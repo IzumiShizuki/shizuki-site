@@ -2,6 +2,8 @@ package io.github.shizuki.site.media.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.site.media.config.TuneHubMusicProperties;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -146,6 +148,117 @@ class TuneHubMusicProviderSearchParserTest {
         );
 
         Assertions.assertEquals("[00:01.00]line1\n[00:03.00]line2", String.valueOf(lyricText));
+    }
+
+    @Test
+    void shouldParseKuwoToplistTrackCoverAndDuration() {
+        Map<String, Object> raw = Map.of(
+            "musiclist",
+            List.of(
+                Map.of(
+                    "rid", "168060593",
+                    "name", "Sweet",
+                    "artist", "Bren Joy&Landon Sears",
+                    "web_albumpic_short", "120/40/78/4180484296.jpg",
+                    "duration", 226153
+                )
+            )
+        );
+
+        @SuppressWarnings("unchecked")
+        List<Object> rows = (List<Object>) ReflectionTestUtils.invokeMethod(provider, "parseToplistTracks", "kuwo", raw);
+        Assertions.assertEquals(1, rows.size());
+        Object row = rows.get(0);
+        Assertions.assertEquals(
+            "https://img4.kuwo.cn/star/albumcover/120/40/78/4180484296.jpg",
+            String.valueOf(ReflectionTestUtils.getField(row, "cover"))
+        );
+        Assertions.assertEquals(226, ReflectionTestUtils.getField(row, "durationSec"));
+    }
+
+    @Test
+    void shouldParseQqPlaylistTrackCoverAndDuration() {
+        Map<String, Object> raw = Map.of(
+            "cdlist",
+            List.of(
+                Map.of(
+                    "songlist",
+                    List.of(
+                        Map.of(
+                            "songmid", "0042QMdr3F6tdY",
+                            "songname", "Sweet Child O' Mine",
+                            "singer", List.of(Map.of("name", "Guns N' Roses")),
+                            "albummid", "001A2B3C4D",
+                            "interval", 355
+                        )
+                    )
+                )
+            )
+        );
+
+        @SuppressWarnings("unchecked")
+        List<Object> rows = (List<Object>) ReflectionTestUtils.invokeMethod(provider, "parseQqPlaylistTracks", raw);
+        Assertions.assertEquals(1, rows.size());
+        Object row = rows.get(0);
+        Assertions.assertEquals(
+            "https://y.gtimg.cn/music/photo_new/T002R300x300M000001A2B3C4D.jpg",
+            String.valueOf(ReflectionTestUtils.getField(row, "cover"))
+        );
+        Assertions.assertEquals(355, ReflectionTestUtils.getField(row, "durationSec"));
+    }
+
+    @Test
+    void shouldMergeNeteasePlaylistTracksByTrackIdsWhenFirstPageContainsTenRowsOnly() {
+        List<Map<String, Object>> trackIds = new ArrayList<>();
+        List<Map<String, Object>> firstPageTracks = new ArrayList<>();
+        for (int index = 1; index <= 80; index += 1) {
+            trackIds.add(Map.of("id", index));
+            if (index <= 10) {
+                firstPageTracks.add(Map.of(
+                    "id", index,
+                    "name", "Song " + index,
+                    "artists", List.of(Map.of("name", "Artist " + index)),
+                    "album", Map.of("picUrl", "https://cover.example/" + index + ".png"),
+                    "duration", 180000
+                ));
+            }
+        }
+
+        Map<String, Object> playlistRaw = Map.of(
+            "result",
+            Map.of(
+                "trackCount", 80,
+                "trackIds", trackIds,
+                "tracks", firstPageTracks
+            )
+        );
+        Map<String, Map<String, Object>> detailRowsById = new LinkedHashMap<>();
+        for (int index = 11; index <= 80; index += 1) {
+            detailRowsById.put(
+                String.valueOf(index),
+                Map.of(
+                    "id", index,
+                    "name", "Song " + index,
+                    "artists", List.of(Map.of("name", "Artist " + index)),
+                    "album", Map.of("picUrl", "https://cover.example/" + index + ".png"),
+                    "duration", 180000
+                )
+            );
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Object> merged = (List<Object>) ReflectionTestUtils.invokeMethod(
+            provider,
+            "mergeNeteasePlaylistTracks",
+            playlistRaw,
+            detailRowsById
+        );
+
+        Assertions.assertNotNull(merged);
+        Assertions.assertEquals(80, merged.size());
+        Assertions.assertEquals("1", String.valueOf(ReflectionTestUtils.getField(merged.get(0), "id")));
+        Assertions.assertEquals("10", String.valueOf(ReflectionTestUtils.getField(merged.get(9), "id")));
+        Assertions.assertEquals("11", String.valueOf(ReflectionTestUtils.getField(merged.get(10), "id")));
     }
 
     @SuppressWarnings("unchecked")

@@ -261,7 +261,7 @@
           <p v-else class="empty-text">请选择一篇文章进入详情。</p>
         </div>
 
-        <div v-else class="editor-view">
+        <div v-else class="editor-view" :class="{ 'meta-expanded': !editorMetaCollapsed }">
           <div class="editor-topbar liquid-material">
             <div class="editor-topbar-main">
               <h3>文章编辑</h3>
@@ -283,7 +283,7 @@
                 {{ editorMetaCollapsed ? '展开' : '收起' }}
               </button>
             </div>
-            <div class="editor-meta-body" :class="{ collapsed: editorMetaCollapsed }">
+            <SubtleScrollArea tag="div" class="editor-meta-body" :class="{ collapsed: editorMetaCollapsed }">
               <div class="editor-grid">
                 <label class="field">
                   <span>标题</span>
@@ -326,7 +326,7 @@
                   <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
                 </label>
               </div>
-            </div>
+            </SubtleScrollArea>
           </section>
 
           <div class="editor-actions">
@@ -1873,13 +1873,17 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .blog-page {
+  --blog-gap: clamp(8px, 0.9vw, 14px);
+  --blog-panel-padding: clamp(8px, 0.8vw, 12px);
+  --blog-left-width: clamp(200px, 18vw, 248px);
+  --blog-right-width: clamp(190px, 20vw, 288px);
   height: 100%;
   min-height: 0;
   overflow: hidden;
   color: rgba(239, 244, 255, 0.96);
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 12px;
+  gap: var(--blog-gap);
 }
 
 .toolbar {
@@ -1887,7 +1891,7 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.2);
   --liquid-shadow: 0 12px 28px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: var(--blog-panel-padding) calc(var(--blog-panel-padding) + 2px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1941,8 +1945,8 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 280px;
-  gap: 12px;
+  grid-template-columns: var(--blog-left-width) minmax(0, 1fr) var(--blog-right-width);
+  gap: var(--blog-gap);
 }
 
 .left-panel,
@@ -1956,10 +1960,11 @@ onBeforeUnmount(() => {
 }
 
 .left-panel {
-  padding: 10px;
+  padding: var(--blog-panel-padding);
   display: grid;
   gap: 12px;
   align-content: start;
+  min-width: 0;
 }
 
 .side-switch-block {
@@ -2101,12 +2106,16 @@ onBeforeUnmount(() => {
 }
 
 .center-panel {
-  padding: 10px;
+  padding: var(--blog-panel-padding);
+  container-type: inline-size;
+  container-name: blog-center;
   height: 100%;
   min-height: 0;
   overflow: hidden;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .list-view,
@@ -2294,10 +2303,31 @@ onBeforeUnmount(() => {
 }
 
 .editor-view {
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--blog-gap);
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editor-view.meta-expanded .editor-meta {
+  max-height: calc(100% - clamp(118px, 14vh, 170px));
+}
+
+.editor-view.meta-expanded .editor-meta-body {
+  max-height: calc(100% - 46px);
+}
+
+.editor-view.meta-expanded .editor-body {
+  flex: 0 1 0;
+  min-height: 0;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  gap: 0;
 }
 
 .editor-topbar {
@@ -2305,7 +2335,7 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.22);
   --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
-  padding: 10px;
+  padding: var(--blog-panel-padding);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2344,9 +2374,14 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.2);
   --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
-  padding: 10px;
+  padding: var(--blog-panel-padding);
   display: grid;
-  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--blog-gap);
+  min-height: 0;
+  max-height: clamp(180px, 36vh, 420px);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .editor-meta.collapsed {
@@ -2374,8 +2409,10 @@ onBeforeUnmount(() => {
 }
 
 .editor-meta-body {
-  overflow: hidden;
-  max-height: 640px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  max-height: clamp(150px, 30vh, 320px);
   opacity: 1;
   pointer-events: auto;
   transition:
@@ -2391,13 +2428,16 @@ onBeforeUnmount(() => {
 
 .editor-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 8px 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .field {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .field span {
@@ -2414,15 +2454,19 @@ onBeforeUnmount(() => {
 }
 
 .editor-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--blog-gap);
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .editor-actions-main,
 .editor-actions-side {
   min-width: 0;
+  flex: 1 1 320px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -2445,18 +2489,26 @@ onBeforeUnmount(() => {
 }
 
 .editor-body {
-  flex: 1;
+  flex: 1 0 clamp(280px, 44vh, 640px);
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--blog-gap);
+  min-width: 0;
+  max-width: 100%;
+  transition:
+    max-height 0.22s ease,
+    opacity 0.2s ease,
+    gap 0.2s ease;
 }
 
 .editor-pane {
+  flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .editor-pane-head {
@@ -2476,19 +2528,31 @@ onBeforeUnmount(() => {
   padding: 0 11px;
 }
 
+.editor-rich-editor {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
 .editor-pane-full {
-  height: 100%;
-  min-height: clamp(460px, 62vh, 980px);
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .right-panel {
-  padding: 10px;
+  padding: var(--blog-panel-padding);
   height: 100%;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 10px;
+  gap: var(--blog-gap);
 }
 
 .toc-head {
@@ -2798,14 +2862,57 @@ onBeforeUnmount(() => {
   color: rgba(var(--accent-rgb), 0.96);
 }
 
-@media (max-width: 1320px) {
-  .blog-layout {
-    grid-template-columns: 220px minmax(0, 1fr);
+@media (max-width: 1365px) {
+  .blog-page {
+    --blog-left-width: clamp(188px, 19vw, 232px);
+    --blog-right-width: clamp(170px, 20vw, 236px);
+  }
+}
+
+@media (max-width: 1200px) {
+  .blog-page {
+    --blog-left-width: clamp(160px, 17vw, 196px);
+    --blog-right-width: clamp(156px, 18vw, 210px);
+  }
+}
+
+@media (max-width: 1080px) {
+  .blog-page {
+    --blog-left-width: clamp(148px, 16vw, 176px);
+    --blog-right-width: clamp(142px, 16.5vw, 188px);
+  }
+}
+
+@container blog-center (max-width: 980px) {
+  .editor-grid {
+    grid-template-columns: 1fr;
   }
 
-  .right-panel {
-    grid-column: 1 / -1;
-    max-height: 260px;
+  .editor-actions-main,
+  .editor-actions-side {
+    flex-basis: 100%;
+  }
+
+  .editor-actions-side {
+    justify-content: flex-start;
+  }
+}
+
+@container blog-center (max-width: 760px) {
+  .editor-topbar {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .editor-topbar-main {
+    order: 3;
+    width: 100%;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .editor-topbar-actions {
+    margin-inline-start: auto;
   }
 }
 
@@ -2823,15 +2930,6 @@ onBeforeUnmount(() => {
     max-height: 280px;
   }
 
-  .editor-grid,
-  .editor-body {
-    grid-template-columns: 1fr;
-  }
-
-  .editor-actions {
-    grid-template-columns: 1fr;
-  }
-
   .editor-actions-side {
     justify-content: flex-start;
   }
@@ -2844,10 +2942,16 @@ onBeforeUnmount(() => {
   .editor-topbar-actions {
     width: 100%;
     flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .editor-body {
+    flex: 1;
+    min-height: 0;
   }
 
   .editor-pane-full {
-    min-height: clamp(420px, 62vh, 880px);
+    min-height: 0;
   }
 
   .progress-fab {

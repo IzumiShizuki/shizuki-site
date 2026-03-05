@@ -7,6 +7,7 @@ import io.github.shizuki.site.media.dto.AdminMusicDefaultPlaylistBundleReplaceRe
 import io.github.shizuki.site.media.dto.AdminMusicPlaylistReplaceRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderGuideUpsertRequest;
 import io.github.shizuki.site.media.dto.AdminMusicProviderVisibilityUpdateRequest;
+import io.github.shizuki.site.media.dto.AdminMusicTrackUpsertRequest;
 import io.github.shizuki.site.media.dto.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.dto.MusicKeyGuideResponse;
 import io.github.shizuki.site.media.dto.MusicProviderResponse;
@@ -21,6 +22,7 @@ import java.util.List;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,6 +67,21 @@ public class AdminMusicController {
         return ApiResponse.success(mediaService.replaceAdminDefaultPlaylist(
             request == null ? new AdminMusicPlaylistReplaceRequest() : request
         ));
+    }
+
+    @PostMapping("/default-playlist/tracks")
+    @AuditLog(action = "music.admin.default-playlist.track.upsert", resource = "music_playlist")
+    @Operation(summary = "向默认歌单追加单曲", description = "管理员向默认歌单新增或更新单曲（provider + track_id 幂等）")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "写入成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "参数错误",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    public ApiResponse<Void> upsertDefaultPlaylistTrack(@RequestBody(required = false) AdminMusicTrackUpsertRequest request) {
+        mediaService.upsertAdminDefaultPlaylistTrack(
+            request == null ? new AdminMusicTrackUpsertRequest() : request
+        );
+        return ApiResponse.success(null);
     }
 
     @PutMapping("/default-playlist/bundle")

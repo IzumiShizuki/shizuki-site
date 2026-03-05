@@ -9,6 +9,8 @@ import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,14 +31,18 @@ public class AdminAuthorProfileController {
 
     @GetMapping
     @Operation(summary = "管理员获取作者资料")
-    public ApiResponse<AuthorProfileResponse> getProfile() {
-        return ApiResponse.success(contentService.getAdminAuthorProfile());
+    public ResponseEntity<ApiResponse<AuthorProfileResponse>> getProfile() {
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(ApiResponse.success(contentService.getAdminAuthorProfile()));
     }
 
     @PutMapping
     @AuditLog(action = "author.profile.update", resource = "author_profile")
     @Operation(summary = "管理员更新作者资料")
-    public ApiResponse<AuthorProfileResponse> updateProfile(@Valid @RequestBody AuthorProfileUpsertRequest request) {
-        return ApiResponse.success(contentService.upsertAdminAuthorProfile(request));
+    public ResponseEntity<ApiResponse<AuthorProfileResponse>> updateProfile(@Valid @RequestBody AuthorProfileUpsertRequest request) {
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(ApiResponse.success(contentService.upsertAdminAuthorProfile(request)));
     }
 }

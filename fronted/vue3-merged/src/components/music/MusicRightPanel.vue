@@ -30,32 +30,45 @@
     </article>
 
     <section class="control-panel">
-      <div class="volume-column">
-        <p class="control-title">VOL</p>
-        <input
-          class="vertical-range"
-          type="range"
-          min="0"
-          max="100"
-          :value="Math.round(volume * 100)"
-          @input="onVolumeInput"
-        />
-        <p class="control-value">{{ Math.round(volume * 100) }}%</p>
-      </div>
+      <header class="control-head">
+        <p class="control-head-title">音频调节器</p>
+        <p class="control-head-sub">实时生效</p>
+      </header>
 
-      <div class="eq-columns">
-        <div v-for="(item, idx) in eqItems" :key="item.label" class="eq-col">
-          <p class="control-title">{{ item.label }}</p>
+      <div class="control-grid">
+        <article class="control-chip volume-chip">
+          <p class="control-title">
+            <i class="fas fa-volume-high"></i>
+            VOL
+          </p>
+          <input
+            class="vertical-range"
+            type="range"
+            min="0"
+            max="100"
+            :value="Math.round(volume * 100)"
+            :style="{ '--level': `${Math.round(volume * 100)}%` }"
+            @input="onVolumeInput"
+          />
+          <p class="control-value">{{ Math.round(volume * 100) }}%</p>
+        </article>
+
+        <article v-for="(item, idx) in eqItems" :key="item.label" class="control-chip eq-chip">
+          <p class="control-title">
+            <i class="fas" :class="item.icon"></i>
+            {{ item.label }}
+          </p>
           <input
             class="vertical-range eq"
             type="range"
             min="0"
             max="100"
             :value="Math.round(item.value * 100)"
+            :style="{ '--level': `${Math.round(item.value * 100)}%` }"
             @input="onEqInput($event, idx)"
           />
-          <p class="control-value">{{ Math.round(item.value * 100) }}</p>
-        </div>
+          <p class="control-value">{{ item.dbLabel }}</p>
+        </article>
       </div>
     </section>
 
@@ -248,12 +261,34 @@ const coverStyle = computed(() => {
   };
 });
 
+function toEqDbLabel(rawValue) {
+  const safe = Number.isFinite(Number(rawValue)) ? Number(rawValue) : 0.5;
+  const db = Math.round((Math.max(0, Math.min(1, safe)) - 0.5) * 24);
+  const prefix = db > 0 ? '+' : '';
+  return `${prefix}${db}dB`;
+}
+
 const eqItems = computed(() => {
   const source = Array.isArray(props.eqLevels) ? props.eqLevels : [0.66, 0.52, 0.74];
   return [
-    { label: 'LOW', value: Number(source[0] ?? 0.66) },
-    { label: 'MID', value: Number(source[1] ?? 0.52) },
-    { label: 'HIGH', value: Number(source[2] ?? 0.74) }
+    {
+      label: 'LOW',
+      icon: 'fa-wave-square',
+      value: Number(source[0] ?? 0.66),
+      dbLabel: toEqDbLabel(source[0] ?? 0.66)
+    },
+    {
+      label: 'MID',
+      icon: 'fa-sliders',
+      value: Number(source[1] ?? 0.52),
+      dbLabel: toEqDbLabel(source[1] ?? 0.52)
+    },
+    {
+      label: 'HIGH',
+      icon: 'fa-signal',
+      value: Number(source[2] ?? 0.74),
+      dbLabel: toEqDbLabel(source[2] ?? 0.74)
+    }
   ];
 });
 
@@ -526,35 +561,77 @@ function onEqInput(event, index) {
 .control-panel {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
-  padding: 10px 8px;
+  background:
+    radial-gradient(120% 100% at 8% 0%, rgba(var(--accent-soft-rgb), 0.16), transparent 55%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
+  padding: 10px 9px 12px;
   display: grid;
-  grid-template-columns: 74px 1fr;
-  gap: 6px;
+  gap: 10px;
 }
 
-.volume-column,
-.eq-col {
+.control-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.control-head-title {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(234, 241, 255, 0.94);
+}
+
+.control-head-sub {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(174, 188, 217, 0.82);
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.control-chip {
   display: grid;
   justify-items: center;
+  align-content: start;
   gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 11px;
+  padding: 7px 4px 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 6px 16px rgba(6, 10, 18, 0.22);
 }
 
-.eq-columns {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.eq-chip {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0.04));
 }
 
 .control-title {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 10px;
   letter-spacing: 0.1em;
-  color: rgba(178, 189, 214, 0.74);
+  color: rgba(191, 204, 231, 0.86);
+}
+
+.control-title i {
+  font-size: 10px;
+  color: rgba(var(--accent-soft-rgb), 0.94);
 }
 
 .control-value {
   margin: 0;
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
   color: rgba(238, 244, 255, 0.94);
 }
 
@@ -562,7 +639,7 @@ function onEqInput(event, index) {
   -webkit-appearance: slider-vertical;
   appearance: none;
   width: 18px;
-  height: 132px;
+  height: 120px;
   writing-mode: bt-lr;
   cursor: pointer;
   background: transparent;
@@ -571,41 +648,61 @@ function onEqInput(event, index) {
 
 .vertical-range.eq {
   accent-color: rgb(var(--accent-rgb));
-  filter: saturate(0.94);
+  filter: saturate(1.08);
 }
 
 .vertical-range::-webkit-slider-runnable-track {
-  width: 8px;
+  width: 10px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(245, 248, 255, 0.56));
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--accent-soft-rgb), 0.88) 0%,
+      rgba(var(--accent-rgb), 0.7) var(--level, 50%),
+      rgba(255, 255, 255, 0.22) var(--level, 50%),
+      rgba(255, 255, 255, 0.08) 100%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .vertical-range::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   margin-top: -2px;
   border-radius: 50%;
   border: 2px solid rgba(236, 242, 255, 0.95);
   background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
-  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.42);
+  box-shadow:
+    0 0 0 3px rgba(var(--accent-rgb), 0.16),
+    0 0 12px rgba(var(--accent-rgb), 0.52);
 }
 
 .vertical-range::-moz-range-track {
-  width: 8px;
+  width: 10px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(245, 248, 255, 0.56));
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--accent-soft-rgb), 0.88) 0%,
+      rgba(var(--accent-rgb), 0.7) var(--level, 50%),
+      rgba(255, 255, 255, 0.22) var(--level, 50%),
+      rgba(255, 255, 255, 0.08) 100%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .vertical-range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   border: 2px solid rgba(236, 242, 255, 0.95);
   background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
-  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.42);
+  box-shadow:
+    0 0 0 3px rgba(var(--accent-rgb), 0.16),
+    0 0 12px rgba(var(--accent-rgb), 0.52);
 }
 
 .integration-panel {

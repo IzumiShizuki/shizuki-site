@@ -16,6 +16,7 @@ import io.github.shizuki.site.content.dto.AuthorProfileResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
@@ -24,6 +25,7 @@ import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.dto.PostCategoryMetaUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.dto.ReportRequest;
@@ -49,6 +51,7 @@ import io.github.shizuki.site.content.mapper.PostMapper;
 import io.github.shizuki.site.content.mapper.PostTagMapper;
 import io.github.shizuki.site.content.model.ContentVisibilityEnum;
 import io.github.shizuki.site.content.service.ContentService;
+import io.github.shizuki.site.content.support.AuthorProfileHttpCacheSupport;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -87,6 +90,8 @@ public class ContentServiceImpl implements ContentService {
     private static final String INITIAL_SEED_MARKDOWN_CLASSPATH = "monolith/blog-seed/initial-overview-v0.1.md";
     private static final String DEFAULT_AUTHOR_CODE = "shizuki";
     private static final int AUTHOR_PROFILE_MAX_JSON_LENGTH = 64_000;
+    private static final String REPORT_STATUS_CREATED = "CREATED";
+    private static final String REPORT_TARGET_AUTHOR_WHISPER = "AUTHOR_WHISPER";
 
     private static final Pattern ASCII_WORD_PATTERN = Pattern.compile("[A-Za-z0-9_]+(?:'[A-Za-z0-9_]+)?");
     private static final Pattern MARKDOWN_IMAGE_PATTERN = Pattern.compile("!\\[[^\\]]*]\\(([^)\\s]+)(?:\\s+\"[^\"]*\")?\\)");
@@ -111,6 +116,12 @@ public class ContentServiceImpl implements ContentService {
 
     @Value("${shizuki.blog.storage.max-upload-size:1048576}")
     private long blogMaxUploadSize;
+
+    @Value("${shizuki.content.author-profile.cache.ttl-seconds:120}")
+    private long authorProfileCacheTtlSeconds;
+
+    private final Object authorProfileCacheLock = new Object();
+    private volatile AuthorProfileCacheSnapshot authorProfileCacheSnapshot;
 
     public ContentServiceImpl(PostMapper postMapper,
                               AppMapper appMapper,
@@ -183,19 +194,22 @@ public class ContentServiceImpl implements ContentService {
         int toIndex = (int) Math.min(fromIndex + normalizedPageSize, total);
 
         List<PostSummary> items = filtered.subList(fromIndex, toIndex).stream()
-            .map(post -> new PostSummary(
-                post.getId(),
-                post.getTitle(),
-                post.getSummary(),
-                post.getCoverImageUrl(),
-                normalizeVisibility(post.getVisibility()).name(),
-                post.getCategoryCode(),
-                loadPostTags(post.getId(), tagCache),
-                post.getWordCount() == null ? 0L : post.getWordCount(),
-                post.getReadingMinutes() == null ? 1 : post.getReadingMinutes(),
-                post.getLikeCount() == null ? 0L : post.getLikeCount(),
-                post.getPublishedAt()
-            ))
+            .map(post -> {
+                MarkdownMetrics summaryMetrics = resolveSummaryMetrics(post);
+                return new PostSummary(
+                    post.getId(),
+                    post.getTitle(),
+                    post.getSummary(),
+                    post.getCoverImageUrl(),
+                    normalizeVisibility(post.getVisibility()).name(),
+                    post.getCategoryCode(),
+                    loadPostTags(post.getId(), tagCache),
+                    summaryMetrics.wordCount(),
+                    summaryMetrics.readingMinutes(),
+                    post.getLikeCount() == null ? 0L : post.getLikeCount(),
+                    post.getPublishedAt()
+                );
+            })
             .toList();
 
         return PageResponse.of(items, total, normalizedPageNo, normalizedPageSize);
@@ -290,9 +304,34 @@ public class ContentServiceImpl implements ContentService {
         return new PostSidebarResponse(latestPosts, categories, tags, archives);
     }
 
+    private MarkdownMetrics resolveSummaryMetrics(PostEntity post) {
+        if (post == null) {
+            return new MarkdownMetrics(0L, 0L, 1);
+        }
+        long persistedWordCount = post.getWordCount() == null ? 0L : post.getWordCount();
+        long persistedLineCount = post.getLineCount() == null ? 0L : post.getLineCount();
+        int persistedReadingMinutes = post.getReadingMinutes() == null ? 0 : post.getReadingMinutes();
+        if (persistedWordCount > 0 && persistedLineCount > 0 && persistedReadingMinutes > 0) {
+            return new MarkdownMetrics(persistedWordCount, persistedLineCount, persistedReadingMinutes);
+        }
+
+        MarkdownMetrics calculated;
+        try {
+            String markdown = readPostMarkdown(post);
+            calculated = computeMarkdownMetrics(markdown);
+        } catch (BusinessException ignored) {
+            calculated = new MarkdownMetrics(0L, 0L, 1);
+        }
+
+        long finalWordCount = persistedWordCount > 0 ? persistedWordCount : calculated.wordCount();
+        long finalLineCount = persistedLineCount > 0 ? persistedLineCount : calculated.lineCount();
+        int finalReadingMinutes = persistedReadingMinutes > 0 ? persistedReadingMinutes : calculated.readingMinutes();
+        return new MarkdownMetrics(finalWordCount, finalLineCount, finalReadingMinutes);
+    }
+
     @Override
     public AuthorProfileResponse getAuthorProfile() {
-        return resolveAuthorProfileResponse(DEFAULT_AUTHOR_CODE);
+        return resolveAuthorProfileSnapshot(false).response();
     }
 
     @Override
@@ -330,7 +369,53 @@ public class ContentServiceImpl implements ContentService {
         } else {
             authorProfileMapper.updateById(entity);
         }
-        return toAuthorProfileResponse(entity);
+        AuthorProfileResponse response = toAuthorProfileResponse(entity);
+        refreshAuthorProfileSnapshot(response);
+        return response;
+    }
+
+    private AuthorProfileCacheSnapshot resolveAuthorProfileSnapshot(boolean forceRefresh) {
+        long now = System.currentTimeMillis();
+        AuthorProfileCacheSnapshot snapshot = authorProfileCacheSnapshot;
+        if (!forceRefresh && snapshot != null && snapshot.expireAtMs() > now) {
+            return snapshot;
+        }
+
+        synchronized (authorProfileCacheLock) {
+            long nowInLock = System.currentTimeMillis();
+            AuthorProfileCacheSnapshot inLock = authorProfileCacheSnapshot;
+            if (!forceRefresh && inLock != null && inLock.expireAtMs() > nowInLock) {
+                return inLock;
+            }
+
+            AuthorProfileResponse response = resolveAuthorProfileResponse(DEFAULT_AUTHOR_CODE);
+            AuthorProfileCacheSnapshot refreshed = buildAuthorProfileSnapshot(response, nowInLock);
+            authorProfileCacheSnapshot = refreshed;
+            return refreshed;
+        }
+    }
+
+    private void refreshAuthorProfileSnapshot(AuthorProfileResponse response) {
+        synchronized (authorProfileCacheLock) {
+            authorProfileCacheSnapshot = buildAuthorProfileSnapshot(response, System.currentTimeMillis());
+        }
+    }
+
+    private AuthorProfileCacheSnapshot buildAuthorProfileSnapshot(AuthorProfileResponse response, long nowEpochMillis) {
+        long ttlMs = resolveAuthorProfileCacheTtlMillis();
+        String etag = AuthorProfileHttpCacheSupport.buildWeakEtag(response);
+        long lastModifiedEpochMillis = AuthorProfileHttpCacheSupport.resolveLastModifiedEpochMillis(response, nowEpochMillis);
+        return new AuthorProfileCacheSnapshot(
+            response,
+            etag,
+            lastModifiedEpochMillis,
+            nowEpochMillis + ttlMs
+        );
+    }
+
+    private long resolveAuthorProfileCacheTtlMillis() {
+        long normalizedSeconds = Math.max(1L, authorProfileCacheTtlSeconds);
+        return normalizedSeconds * 1000L;
     }
 
     private AuthorProfileResponse resolveAuthorProfileResponse(String authorCode) {
@@ -620,6 +705,14 @@ public class ContentServiceImpl implements ContentService {
         return List.of();
     }
 
+    private record AuthorProfileCacheSnapshot(
+        AuthorProfileResponse response,
+        String etag,
+        long lastModifiedEpochMillis,
+        long expireAtMs
+    ) {
+    }
+
     private List<PostEntity> loadPublishedPostCandidates(ViewerContext viewer) {
         if (viewer.admin()) {
             return postMapper.selectList(
@@ -865,6 +958,55 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
+    public PostEditorPolicyResponse getMyPostCategoryPolicies() {
+        requireLoginUserId();
+        requirePermission("blog.post.write");
+
+        ViewerContext viewer = currentViewer();
+        List<PostCategoryPolicyEntity> policies = postCategoryPolicyMapper.selectList(
+            new LambdaQueryWrapper<PostCategoryPolicyEntity>().orderByAsc(PostCategoryPolicyEntity::getCategoryCode)
+        );
+        Map<String, PostCategoryPolicyEntity> policyMap = policies.stream()
+            .collect(Collectors.toMap(
+                item -> normalizeDisplayCategory(item.getCategoryCode()),
+                Function.identity(),
+                (left, right) -> left,
+                LinkedHashMap::new
+            ));
+
+        Set<String> categories = new LinkedHashSet<>(collectKnownCategoryCodes());
+        categories.addAll(policyMap.keySet());
+
+        List<String> sortedCategories = categories.stream()
+            .map(this::normalizeDisplayCategory)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .sorted()
+            .toList();
+
+        Set<String> groupOptions = new LinkedHashSet<>(List.of("USER", "FRIEND", "ADMIN", "GUEST", "INTERVIEWER"));
+        groupOptions.addAll(viewer.groups());
+
+        List<PostEditorPolicyResponse.CategoryDefaultItem> categoryDefaults = new ArrayList<>();
+        for (String categoryCode : sortedCategories) {
+            PostCategoryPolicyEntity policy = policyMap.get(categoryCode);
+            boolean enabled = policy != null && policy.getEnabledFlag() != null && policy.getEnabledFlag() == 1;
+            Set<String> allowedGroups = enabled ? loadCategoryPolicyGroups(categoryCode) : Set.of();
+            groupOptions.addAll(allowedGroups);
+            categoryDefaults.add(new PostEditorPolicyResponse.CategoryDefaultItem(categoryCode, enabled, allowedGroups));
+        }
+
+        List<String> normalizedGroupOptions = groupOptions.stream()
+            .map(item -> item == null ? "" : item.trim().toUpperCase(Locale.ROOT))
+            .filter(StringUtils::hasText)
+            .distinct()
+            .sorted()
+            .toList();
+
+        return new PostEditorPolicyResponse(normalizedGroupOptions, categoryDefaults);
+    }
+
+    @Override
     public PostContentRelayResponse relayPostMarkdown(MultipartFile file) {
         Long userId = requireLoginUserId();
         requirePermission("blog.post.write");
@@ -1057,7 +1199,7 @@ public class ContentServiceImpl implements ContentService {
         report.setTargetType(request.getTargetType());
         report.setTargetId(request.getTargetId());
         report.setReason(request.getReason());
-        report.setStatus("CREATED");
+        report.setStatus(REPORT_STATUS_CREATED);
         report.setCreatedAt(LocalDateTime.now());
         contentReportMapper.insert(report);
         return Map.of(
@@ -1066,6 +1208,68 @@ public class ContentServiceImpl implements ContentService {
             "target_id", report.getTargetId(),
             "status", report.getStatus()
         );
+    }
+
+    @Override
+    public Map<String, Object> submitAuthorWhisper(AuthorWhisperRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "request body is required");
+        }
+
+        String content = trimToEmpty(request.getContent());
+        if (!StringUtils.hasText(content)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "content is required");
+        }
+
+        Long normalizedPostId = request.getPostId();
+        if (normalizedPostId != null && normalizedPostId > 0) {
+            PostEntity post = postMapper.selectById(normalizedPostId);
+            if (post == null || !POST_STATUS_PUBLISHED.equalsIgnoreCase(readString(post.getStatusCode(), POST_STATUS_DRAFT))) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+            }
+        } else {
+            normalizedPostId = 0L;
+        }
+
+        String whisperReason = buildWhisperReason(content, request.getNickname(), request.getRemark());
+        ContentReportEntity report = new ContentReportEntity();
+        report.setTargetType(REPORT_TARGET_AUTHOR_WHISPER);
+        report.setTargetId(normalizedPostId);
+        report.setReason(whisperReason);
+        report.setStatus(REPORT_STATUS_CREATED);
+        report.setCreatedAt(LocalDateTime.now());
+        contentReportMapper.insert(report);
+
+        return Map.of(
+            "whisper_id", report.getId(),
+            "status", report.getStatus(),
+            "target_post_id", normalizedPostId,
+            "accepted", true
+        );
+    }
+
+    private String buildWhisperReason(String content, String nickname, String remark) {
+        String normalizedNickname = trimToEmpty(nickname);
+        String normalizedRemark = trimToEmpty(remark);
+        String normalizedContent = trimToEmpty(content);
+
+        List<String> sections = new ArrayList<>();
+        sections.add("content=" + normalizedContent);
+        if (StringUtils.hasText(normalizedNickname)) {
+            sections.add("nickname=" + normalizedNickname);
+        }
+        if (StringUtils.hasText(normalizedRemark)) {
+            sections.add("remark=" + normalizedRemark);
+        }
+        String payload = String.join(" | ", sections);
+        if (payload.length() <= 255) {
+            return payload;
+        }
+        return payload.substring(0, 255);
+    }
+
+    private String trimToEmpty(String value) {
+        return StringUtils.trimWhitespace(readString(value, ""));
     }
 
     @Override
@@ -1648,6 +1852,8 @@ public class ContentServiceImpl implements ContentService {
     }
 
     private PostDetailResponse toPostDetailResponse(PostEntity post, String markdown, boolean editable) {
+        ContentVisibilityEnum visibility = normalizeVisibility(post.getVisibility());
+        Set<String> allowedGroupCodes = visibility == ContentVisibilityEnum.GROUP ? loadPostAclGroups(post.getId()) : Set.of();
         return new PostDetailResponse(
             post.getId(),
             post.getTitle(),
@@ -1655,7 +1861,8 @@ public class ContentServiceImpl implements ContentService {
             post.getCoverImageUrl(),
             post.getCategoryCode(),
             post.getSlugCode(),
-            readString(post.getVisibility(), ContentVisibilityEnum.PUBLIC.name()),
+            visibility.name(),
+            allowedGroupCodes,
             readString(post.getStatusCode(), POST_STATUS_DRAFT),
             loadPostTags(post.getId()),
             post.getWordCount() == null ? 0L : post.getWordCount(),

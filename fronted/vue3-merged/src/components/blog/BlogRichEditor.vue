@@ -29,7 +29,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:modelValue', 'mode-change', 'ready', 'paste-candidate']);
+const emit = defineEmits(['update:modelValue', 'mode-change', 'ready', 'paste-candidate', 'markdown-file-drop', 'markdown-file-rejected']);
 
 const hostRef = ref(null);
 const loading = ref(true);
@@ -53,6 +53,8 @@ function emitMarkdownUpdate() {
 function removePasteListener() {
   if (!editorRootElement) return;
   editorRootElement.removeEventListener('paste', handlePasteCapture, true);
+  editorRootElement.removeEventListener('dragover', handleDragOverCapture, true);
+  editorRootElement.removeEventListener('drop', handleDropCapture, true);
 }
 
 function handlePasteCapture(event) {
@@ -62,6 +64,42 @@ function handlePasteCapture(event) {
   if (!looksLikeMarkdown(clipboardText, 2)) return;
   event.preventDefault();
   emit('paste-candidate', normalizeMarkdownForEditor(clipboardText));
+}
+
+function isMarkdownLikeFile(file) {
+  if (!(file instanceof File)) return false;
+  const name = String(file.name || '').toLowerCase();
+  if (name.endsWith('.md') || name.endsWith('.markdown') || name.endsWith('.txt')) {
+    return true;
+  }
+  const contentType = String(file.type || '').toLowerCase();
+  return contentType === 'text/markdown' || contentType === 'text/plain' || contentType === 'application/octet-stream';
+}
+
+function findMarkdownFileFromDataTransfer(dataTransfer) {
+  if (!(dataTransfer instanceof DataTransfer)) return null;
+  const files = Array.from(dataTransfer.files || []);
+  return files.find((file) => isMarkdownLikeFile(file)) || null;
+}
+
+function handleDragOverCapture(event) {
+  const files = Array.from(event?.dataTransfer?.files || []);
+  if (!files.length) return;
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+  event.dataTransfer.dropEffect = files.some((file) => isMarkdownLikeFile(file)) ? 'copy' : 'none';
+}
+
+function handleDropCapture(event) {
+  const files = Array.from(event?.dataTransfer?.files || []);
+  if (!files.length) return;
+  event.preventDefault();
+  const markdownFile = findMarkdownFileFromDataTransfer(event?.dataTransfer);
+  if (!(markdownFile instanceof File)) {
+    emit('markdown-file-rejected', files[0]?.name || '');
+    return;
+  }
+  emit('markdown-file-drop', markdownFile);
 }
 
 function bindPasteListener() {
@@ -74,6 +112,8 @@ function bindPasteListener() {
     return;
   }
   editorRootElement.addEventListener('paste', handlePasteCapture, true);
+  editorRootElement.addEventListener('dragover', handleDragOverCapture, true);
+  editorRootElement.addEventListener('drop', handleDropCapture, true);
 }
 
 function setMode(mode) {
@@ -162,6 +202,7 @@ onMounted(async () => {
     initialValue: normalizeMarkdownForEditor(props.modelValue),
     initialEditType: normalizedMode,
     previewStyle: 'tab',
+    height: '100%',
     hideModeSwitch: true,
     usageStatistics: false,
     placeholder: props.placeholder || '',

@@ -112,4 +112,27 @@ class AdminMusicControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.profile.name").value("学习歌单"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.tracks[0].track_id").value("track-new-1"));
     }
+
+    @Test
+    void shouldUpsertDefaultPlaylistTrackSuccessfully() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/admin/music/default-playlist/tracks")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "track_id": "track-1",
+                      "provider": "netease",
+                      "title": "Rain",
+                      "artist": "Izumi",
+                      "cover": "https://cdn.example.com/cover.png",
+                      "audio": "https://cdn.example.com/audio.mp3",
+                      "lyric": "https://cdn.example.com/lyric.lrc",
+                      "sort": 1,
+                      "enabled": true
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"));
+
+        Mockito.verify(mediaService).upsertAdminDefaultPlaylistTrack(ArgumentMatchers.any());
+    }
 }

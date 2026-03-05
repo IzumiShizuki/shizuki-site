@@ -1,12 +1,5 @@
 <template>
   <section class="route-page author-page motion-managed">
-    <header class="page-header">
-      <p class="eyebrow">Author Space</p>
-      <h1>作者介绍</h1>
-      <p>这里展示建站者信息、建站经历与关于站点的长期目标。</p>
-      <p class="updated-tip">最近更新：{{ updatedAtText }}</p>
-    </header>
-
     <div class="dashboard-layout">
       <aside class="sidebar liquid-material">
         <button
@@ -14,15 +7,19 @@
           :key="tab.key"
           class="side-item ripple-trigger"
           :class="{ active: activeTab === tab.key }"
+          :title="tab.label"
+          :aria-label="tab.label"
           type="button"
           @click="openTab(tab.key)"
         >
-          {{ tab.label }}
+          <i :class="tab.icon" aria-hidden="true"></i>
         </button>
       </aside>
 
-      <section
+      <SubtleScrollArea
         ref="contentPanelRef"
+        tag="section"
+        :contain-overscroll="false"
         class="content-panel liquid-material"
         :style="contentPanelStyle"
         @pointermove="handleContentPointerMove"
@@ -33,110 +30,178 @@
         <p v-else-if="loadError" class="error-text">{{ loadError }}</p>
 
         <template v-else>
-          <div v-if="canEditCurrentTab" class="section-edit-launch">
-            <button class="section-edit-btn ripple-trigger" type="button" @click="openSectionEditor(activeTab)">
-              <i class="fas fa-pen"></i>
-            </button>
-          </div>
+          <p v-if="cacheNotice" class="state-tip">{{ cacheNotice }}</p>
 
-          <div v-if="activeTab === 'overview'" class="content-block overview-motion-root">
-            <section class="hero-stage hero-card author-card reveal-node" :style="staggerStyle(0)">
-              <div class="hero-bg-glow" aria-hidden="true">
-                <span class="orb orb-a"></span>
-                <span class="orb orb-b"></span>
-                <span class="orb orb-c"></span>
+          <div v-if="activeTab === 'overview'" class="content-block overview-motion-root overview-story-root">
+            <section class="story-hero-stage author-card reveal-node" :style="staggerStyle(0)">
+              <button
+                v-if="canEditCurrentTab"
+                class="inline-edit-fab ripple-trigger"
+                type="button"
+                title="编辑作者主页"
+                @click="openSectionEditor(AuthorTabKey.OVERVIEW)"
+              >
+                <i class="fas fa-pen"></i>
+              </button>
+              <img class="story-hero-cover" :src="hero.coverImageUrl || hero.avatarUrl" :alt="`${hero.name} cover`" />
+              <div class="story-hero-atmosphere" aria-hidden="true">
+                <span class="story-orb story-orb-a"></span>
+                <span class="story-orb story-orb-b"></span>
+                <span class="story-orb story-orb-c"></span>
               </div>
-              <img class="hero-cover-image" :src="hero.coverImageUrl || hero.avatarUrl" :alt="`${hero.name} cover`" />
 
-              <div class="hero-avatar-wrap hero-avatar-ring">
-                <span class="avatar-aurora-ring" aria-hidden="true"></span>
-                <img class="hero-avatar" :src="hero.avatarUrl" :alt="hero.name" />
-                <span class="hero-badge" :class="{ off: !authorProfile.enabled }">
-                  {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
-                </span>
+              <div class="story-hero-main">
+                <div class="story-avatar-stack">
+                  <span class="story-avatar-ring" aria-hidden="true"></span>
+                  <img class="story-avatar" :src="hero.avatarUrl" :alt="hero.name" />
+                  <span class="story-status-badge" :class="{ off: !authorProfile.enabled }">
+                    {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
+                  </span>
+                </div>
+                <div class="story-hero-copy">
+                  <p class="story-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
+                  <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
+                  <p class="story-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
+                  <div class="chip-row reveal-line" :style="staggerStyle(4)">
+                    <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="hero-content hero-content-stack">
-                <p class="hero-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
-                <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
-                <p class="hero-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
-                <div class="chip-row reveal-line" :style="staggerStyle(4)">
-                  <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
+
+              <div class="story-skill-ribbon reveal-line" :style="staggerStyle(5)">
+                <div class="skill-focus-frame" tabindex="0" aria-label="学习内容展示栏">
+                  <div class="skill-slide-mask">
+                    <div class="skill-slide-track" :class="{ static: !motionState.motionEnabled }">
+                      <span
+                        v-for="(item, index) in skillNodes"
+                        :key="`skill-main-${item.label}-${index}`"
+                        class="skill-slide-pill"
+                        :class="item.tone"
+                      >
+                        <span class="skill-node-icon" aria-hidden="true">
+                          <i :class="item.icon"></i>
+                        </span>
+                        <span class="skill-node-label">{{ item.label }}</span>
+                      </span>
+                    </div>
+                    <div class="skill-slide-track clone" :class="{ static: !motionState.motionEnabled }" aria-hidden="true">
+                      <span
+                        v-for="(item, index) in skillNodes"
+                        :key="`skill-clone-${item.label}-${index}`"
+                        class="skill-slide-pill"
+                        :class="item.tone"
+                      >
+                        <span class="skill-node-icon" aria-hidden="true">
+                          <i :class="item.icon"></i>
+                        </span>
+                        <span class="skill-node-label">{{ item.label }}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="skill-focus-list">
+                    <article
+                      v-for="(item, index) in skillNodes"
+                      :key="`skill-focus-${item.label}-${index}`"
+                      class="skill-focus-item"
+                      :class="item.tone"
+                    >
+                      <span class="skill-node-icon" aria-hidden="true">
+                        <i :class="item.icon"></i>
+                      </span>
+                      <span class="skill-node-label">{{ item.label }}</span>
+                    </article>
+                  </div>
                 </div>
               </div>
             </section>
 
-            <div class="overview-grid">
-              <article class="author-card overview-card reveal-node" :style="staggerStyle(5)">
-                <h3>身份信息</h3>
-                <dl class="kv-grid">
-                  <div class="kv-row">
-                    <dt>出生年份</dt>
-                    <dd>{{ identity.birthYear }}</dd>
+            <section class="story-free-layout">
+              <article class="author-card story-identity-ribbon reveal-node" :style="staggerStyle(6)">
+                <h3>身份坐标</h3>
+                <div class="identity-track">
+                  <div class="identity-unit">
+                    <span class="identity-label">出生年份</span>
+                    <strong>{{ identity.birthYear }}</strong>
                   </div>
-                  <div class="kv-row">
-                    <dt>学校</dt>
-                    <dd>{{ identity.school }}</dd>
+                  <div class="identity-unit">
+                    <span class="identity-label">学校</span>
+                    <strong>{{ identity.school }}</strong>
                   </div>
-                  <div class="kv-row">
-                    <dt>专业</dt>
-                    <dd>{{ identity.major }}</dd>
+                  <div class="identity-unit">
+                    <span class="identity-label">专业</span>
+                    <strong>{{ identity.major }}</strong>
                   </div>
-                  <div class="kv-row">
-                    <dt>当前角色</dt>
-                    <dd>{{ identity.role }}</dd>
+                  <div class="identity-unit">
+                    <span class="identity-label">当前角色</span>
+                    <strong>{{ identity.role }}</strong>
                   </div>
-                </dl>
-              </article>
-
-              <article class="author-card overview-card reveal-node" :style="staggerStyle(6)">
-                <h3>技能栈</h3>
-                <div class="chip-row skills-grid">
-                  <span v-for="skill in skills" :key="`skill-${skill}`" class="chip skill-chip">{{ skill }}</span>
                 </div>
               </article>
 
-              <article class="author-card overview-card reveal-node" :style="staggerStyle(7)">
-                <h3>碎碎念</h3>
+              <article class="author-card story-notes reveal-node" :style="staggerStyle(7)">
+                <h3>碎碎念频道</h3>
                 <p v-for="(line, index) in about.intro" :key="`intro-${index}`" class="line-text">
                   {{ line }}
                 </p>
               </article>
 
-              <article class="author-card overview-card reveal-node" :style="staggerStyle(8)">
-                <h3>偏好与关注</h3>
+              <article class="author-card story-focus-panel reveal-node" :style="staggerStyle(8)">
+                <h3>当前关注</h3>
                 <p class="line-text"><strong>目标：</strong>{{ about.mission }}</p>
                 <p class="mini-title">关注方向</p>
-                <div class="chip-row">
+                <div class="chip-row focus-cloud">
                   <span v-for="focus in about.focus" :key="`focus-${focus}`" class="chip">{{ focus }}</span>
                 </div>
                 <p class="mini-title">音乐偏好</p>
-                <div class="chip-row">
+                <div class="chip-row focus-cloud">
                   <span v-for="music in about.music" :key="`music-${music}`" class="chip">{{ music }}</span>
                 </div>
               </article>
-            </div>
+            </section>
           </div>
 
-          <div v-else-if="activeTab === 'journey'" class="content-block timeline-wrap journey-motion-root">
-            <div ref="journeyTimelineRef" class="timeline-rail">
-              <article
-                v-for="(item, index) in journey"
-                :key="`journey-${index}-${item.title}`"
-                class="timeline-item author-card reveal-node"
-                :class="{ 'is-active': motionState.activeJourneyIndex === index }"
-                :data-journey-index="index"
-                :style="staggerStyle(index)"
+          <div v-else-if="activeTab === 'journey'" class="content-block journey-motion-root journey-story-root">
+            <section class="journey-stage">
+              <button
+                v-if="canEditCurrentTab"
+                class="inline-edit-fab ripple-trigger"
+                type="button"
+                title="编辑建站经历"
+                @click="openSectionEditor(AuthorTabKey.JOURNEY)"
               >
-                <span class="timeline-node" aria-hidden="true"></span>
-                <img v-if="item.imageUrl" class="timeline-cover" :src="item.imageUrl" :alt="`${item.title} cover`" />
-                <p class="timeline-year">{{ item.year }}</p>
-                <h3>{{ item.title }}</h3>
-                <p class="line-text">{{ item.description }}</p>
-                <div class="chip-row">
-                  <span v-for="stack in item.stack" :key="`stack-${item.year}-${stack}`" class="chip timeline-chip">{{ stack }}</span>
-                </div>
-              </article>
-            </div>
+                <i class="fas fa-pen"></i>
+              </button>
+              <aside class="journey-sticky-axis" aria-hidden="true">
+                <span class="journey-axis-line"></span>
+                <span class="journey-axis-progress"></span>
+                <span class="journey-axis-year">{{ journey[motionState.activeJourneyIndex]?.year || journey[0]?.year || 'Now' }}</span>
+              </aside>
+
+              <div ref="journeyTimelineRef" class="journey-storyline">
+                <article
+                  v-for="(item, index) in journey"
+                  :key="`journey-${index}-${item.title}`"
+                  class="timeline-item journey-scene author-card reveal-node"
+                  :class="{ 'is-active': motionState.activeJourneyIndex === index }"
+                  :data-journey-index="index"
+                  :style="staggerStyle(index)"
+                >
+                  <span class="timeline-node journey-scene-node" aria-hidden="true"></span>
+                  <div class="journey-scene-media">
+                    <img v-if="item.imageUrl" class="journey-scene-image" :src="item.imageUrl" :alt="`${item.title} cover`" />
+                  </div>
+                  <div class="journey-scene-copy">
+                    <p class="journey-scene-year">{{ item.year }}</p>
+                    <h3>{{ item.title }}</h3>
+                    <p class="line-text">{{ item.description }}</p>
+                    <div class="chip-row">
+                      <span v-for="stack in item.stack" :key="`stack-${item.year}-${stack}`" class="chip journey-chip">{{ stack }}</span>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </section>
           </div>
 
           <div v-else-if="activeTab === 'posts'" class="content-block">
@@ -149,24 +214,52 @@
             </article>
           </div>
 
-          <div v-else-if="activeTab === 'about'" class="content-block about-motion-root">
-            <div class="about-grid about-grid-asymmetric">
-              <article class="author-card about-intro-card reveal-node" :style="staggerStyle(0)">
-                <img v-if="about.introImageUrl" class="about-section-image" :src="about.introImageUrl" alt="about intro image" />
+          <div v-else-if="activeTab === 'about'" class="content-block about-motion-root about-story-root">
+            <article class="author-card about-manifesto reveal-node" :style="staggerStyle(0)">
+              <button
+                v-if="canEditCurrentTab"
+                class="inline-edit-fab ripple-trigger"
+                type="button"
+                title="编辑关于本站"
+                @click="openSectionEditor(AuthorTabKey.ABOUT)"
+              >
+                <i class="fas fa-pen"></i>
+              </button>
+              <img v-if="about.introImageUrl" class="about-hero-image" :src="about.introImageUrl" alt="about intro image" />
+              <div class="about-manifesto-copy">
                 <h2>关于本站</h2>
-                <p v-for="(line, index) in about.intro" :key="`about-intro-${index}`" class="line-text reveal-line" :style="staggerStyle(index + 1)">
+                <p
+                  v-for="(line, index) in about.intro"
+                  :key="`about-intro-${index}`"
+                  class="line-text reveal-line"
+                  :style="staggerStyle(index + 1)"
+                >
                   {{ line }}
                 </p>
-              </article>
+              </div>
+            </article>
 
-              <article class="author-card about-mission-card reveal-node" :style="staggerStyle(3)">
-                <span class="mission-sweep" aria-hidden="true"></span>
+            <section class="about-flow-grid">
+              <article class="author-card about-goal-stage reveal-node" :style="staggerStyle(3)">
+                <span class="about-goal-sweep" aria-hidden="true"></span>
                 <img v-if="about.missionImageUrl" class="about-section-image" :src="about.missionImageUrl" alt="about mission image" />
                 <h3>长期目标</h3>
                 <p class="line-text">{{ about.mission }}</p>
               </article>
 
-              <article class="author-card about-links-card reveal-node" :style="staggerStyle(4)">
+              <article class="author-card about-preference-stage reveal-node" :style="staggerStyle(4)">
+                <h3>偏好与灵感</h3>
+                <p class="mini-title">关注方向</p>
+                <div class="chip-row pulse-cloud">
+                  <span v-for="focus in about.focus" :key="`about-focus-${focus}`" class="chip">{{ focus }}</span>
+                </div>
+                <p class="mini-title">音乐偏好</p>
+                <div class="chip-row pulse-cloud">
+                  <span v-for="music in about.music" :key="`about-music-${music}`" class="chip">{{ music }}</span>
+                </div>
+              </article>
+
+              <article class="author-card about-links-stage reveal-node" :style="staggerStyle(5)">
                 <img v-if="about.linksImageUrl" class="about-section-image" :src="about.linksImageUrl" alt="about links image" />
                 <h3>站点外链</h3>
                 <div class="link-list">
@@ -183,7 +276,7 @@
                   </button>
                 </div>
               </article>
-            </div>
+            </section>
           </div>
         </template>
 
@@ -579,7 +672,7 @@
             </section>
           </div>
         </transition>
-      </section>
+      </SubtleScrollArea>
     </div>
   </section>
 </template>
@@ -588,6 +681,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
+import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
 import {
   AuthorTabKey,
@@ -604,20 +698,43 @@ import {
   createEmptyLinkRow
 } from './authorEditFormState';
 import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
+import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
 
 const baseTabs = [
-  { key: AuthorTabKey.OVERVIEW, label: '作者主页' },
-  { key: AuthorTabKey.JOURNEY, label: '建站经历' },
-  { key: AuthorTabKey.POSTS, label: '作者文章' },
-  { key: AuthorTabKey.ABOUT, label: '关于本站' }
+  { key: AuthorTabKey.OVERVIEW, label: '作者主页', icon: 'fas fa-user-astronaut' },
+  { key: AuthorTabKey.JOURNEY, label: '建站经历', icon: 'fas fa-route' },
+  { key: AuthorTabKey.POSTS, label: '作者文章', icon: 'fas fa-feather-pointed' },
+  { key: AuthorTabKey.ABOUT, label: '关于本站', icon: 'fas fa-compass-drafting' }
 ];
+
+const SKILL_ICON_RULES = [
+  { pattern: /(c\+\+|cpp|c\/c\+\+|clang|gcc)/i, icon: 'fas fa-code', tone: 'tone-cyan' },
+  { pattern: /(unreal|ue5|ue4)/i, icon: 'fas fa-gamepad', tone: 'tone-blue' },
+  { pattern: /(unity|c#)/i, icon: 'fas fa-cubes', tone: 'tone-violet' },
+  { pattern: /(python)/i, icon: 'fab fa-python', tone: 'tone-gold' },
+  { pattern: /(java|spring)/i, icon: 'fab fa-java', tone: 'tone-rose' },
+  { pattern: /(css|scss|sass|tailwind)/i, icon: 'fab fa-css3-alt', tone: 'tone-blue' },
+  { pattern: /(javascript|typescript|js|ts)/i, icon: 'fab fa-js', tone: 'tone-gold' },
+  { pattern: /(html)/i, icon: 'fab fa-html5', tone: 'tone-rose' },
+  { pattern: /(git|github|gitlab)/i, icon: 'fab fa-git-alt', tone: 'tone-cyan' },
+  { pattern: /(vue|react|frontend|web)/i, icon: 'fab fa-vuejs', tone: 'tone-mint' },
+  { pattern: /(mysql|postgres|database|sql)/i, icon: 'fas fa-database', tone: 'tone-blue' },
+  { pattern: /(redis|cache)/i, icon: 'fas fa-memory', tone: 'tone-rose' },
+  { pattern: /(openai|ai|llm|ml|deep)/i, icon: 'fas fa-brain', tone: 'tone-violet' },
+  { pattern: /(open ?gl|vulkan|shader|render)/i, icon: 'fas fa-cube', tone: 'tone-cyan' },
+  { pattern: /(blender|3d|model)/i, icon: 'fas fa-shapes', tone: 'tone-mint' }
+];
+
+const SKILL_FALLBACK_ICONS = ['fas fa-code', 'fas fa-cubes', 'fas fa-bolt', 'fas fa-layer-group', 'fas fa-compass-drafting', 'fas fa-brain'];
+const SKILL_FALLBACK_TONES = ['tone-cyan', 'tone-blue', 'tone-violet', 'tone-gold', 'tone-rose', 'tone-mint'];
 
 const loading = ref(false);
 const loadError = ref('');
+const cacheNotice = ref('');
 const authorProfile = ref(createDefaultAuthorProfilePayload());
 const editForm = ref(createDefaultAuthorEditForm());
 const sectionImageUploadInputRef = ref(null);
@@ -668,9 +785,22 @@ const identity = computed(() => authorProfile.value.profileJson.identity);
 const skills = computed(() => authorProfile.value.profileJson.skills);
 const journey = computed(() => authorProfile.value.profileJson.journey);
 const about = computed(() => authorProfile.value.profileJson.about);
+const skillNodes = computed(() => {
+  const rawList = Array.isArray(skills.value) ? skills.value : [];
+  const deduped = [];
+  const seen = new Set();
 
-const updatedAtText = computed(() => {
-  return formatDateTime(authorProfile.value.updatedAt || '') || '未记录';
+  rawList.forEach((item) => {
+    const label = String(item || '').trim();
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(label);
+  });
+
+  const source = deduped.length ? deduped : ['Java', 'Vue3', 'Spring Boot', 'MySQL', 'Redis', 'OpenAI'];
+  return source.slice(0, 14).map((label, index) => resolveSkillNode(label, index));
 });
 
 const contentPanelStyle = computed(() => {
@@ -721,6 +851,7 @@ async function refreshSectionEditor() {
     const payload = await getAdminAuthorProfile(auth.authorizedFetch);
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
+    writeAuthorProfileCache(authorProfile.value);
     refreshActiveTabMotion();
   } catch (error) {
     editState.error = readErrorMessage(error, '读取管理员作者资料失败');
@@ -834,9 +965,39 @@ function staggerStyle(index) {
   };
 }
 
+function resolveSkillNode(label, index) {
+  const normalized = String(label || '').trim();
+  const matched = SKILL_ICON_RULES.find((rule) => rule.pattern.test(normalized));
+  if (matched) {
+    return {
+      label: normalized,
+      icon: matched.icon,
+      tone: matched.tone
+    };
+  }
+  return {
+    label: normalized,
+    icon: SKILL_FALLBACK_ICONS[index % SKILL_FALLBACK_ICONS.length],
+    tone: SKILL_FALLBACK_TONES[index % SKILL_FALLBACK_TONES.length]
+  };
+}
+
+function resolveContentPanelElement() {
+  const target = contentPanelRef.value;
+  if (target instanceof HTMLElement) return target;
+  if (target && typeof target.getElement === 'function') {
+    const element = target.getElement();
+    if (element instanceof HTMLElement) return element;
+  }
+  if (target?.el instanceof HTMLElement) return target.el;
+  if (target?.el?.value instanceof HTMLElement) return target.el.value;
+  if (target?.$el instanceof HTMLElement) return target.$el;
+  return null;
+}
+
 function handleContentPointerMove(event) {
   if (!isDisplayTab() || !isDesktopPointerEnabled()) return;
-  const panel = contentPanelRef.value;
+  const panel = resolveContentPanelElement();
   if (!(panel instanceof HTMLElement)) return;
   const mapped = mapPointerToParallax(event.clientX, event.clientY, panel.getBoundingClientRect(), 8);
   motionState.pointer.x = mapped.x;
@@ -892,7 +1053,7 @@ function getRevealSelectorByTab(tabKey = activeTab.value) {
 
 function setupActiveRevealObserver() {
   disconnectRevealController();
-  const panel = contentPanelRef.value;
+  const panel = resolveContentPanelElement();
   if (!(panel instanceof HTMLElement)) return;
 
   const selector = getRevealSelectorByTab(activeTab.value);
@@ -936,7 +1097,7 @@ function updateJourneyProgressFromRatios(totalCount) {
 
 function syncJourneyProgressByScroll() {
   if (activeTab.value !== AuthorTabKey.JOURNEY) return;
-  const panel = contentPanelRef.value;
+  const panel = resolveContentPanelElement();
   const total = journey.value.length;
   if (!(panel instanceof HTMLElement) || total <= 0) {
     motionState.activeJourneyIndex = -1;
@@ -953,7 +1114,7 @@ function setupJourneyProgressObserver() {
   disconnectJourneyObserver();
   if (activeTab.value !== AuthorTabKey.JOURNEY) return;
 
-  const panel = contentPanelRef.value;
+  const panel = resolveContentPanelElement();
   const timelineEl = journeyTimelineRef.value;
   if (!(panel instanceof HTMLElement) || !(timelineEl instanceof HTMLElement)) return;
   const items = Array.from(timelineEl.querySelectorAll('.timeline-item')).filter((node) => node instanceof HTMLElement);
@@ -1129,17 +1290,39 @@ function resetEditProfile() {
   syncEditStateFromProfile();
 }
 
+function applyCachedPublicProfile() {
+  const cached = readAuthorProfileCache();
+  if (!cached) return false;
+  authorProfile.value = normalizeAuthorProfilePayload(cached);
+  applyEditFormFromProfile(authorProfile.value);
+  cacheNotice.value = '已显示本地缓存，正在后台刷新最新内容...';
+  refreshActiveTabMotion();
+  return true;
+}
+
 async function loadPublicProfile() {
   loading.value = true;
   loadError.value = '';
+  cacheNotice.value = '';
+  const hadCache = applyCachedPublicProfile();
+  if (hadCache) {
+    loading.value = false;
+  }
   try {
     await auth.ensureReady();
     const payload = await getAuthorProfile(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
+    writeAuthorProfileCache(authorProfile.value);
+    cacheNotice.value = '';
     refreshActiveTabMotion();
   } catch (error) {
-    loadError.value = readErrorMessage(error, '加载作者资料失败');
+    if (hadCache) {
+      loadError.value = '';
+      cacheNotice.value = `已显示缓存，后台刷新失败：${readErrorMessage(error, '加载作者资料失败')}`;
+    } else {
+      loadError.value = readErrorMessage(error, '加载作者资料失败');
+    }
   } finally {
     loading.value = false;
   }
@@ -1198,7 +1381,9 @@ async function saveAdminProfile() {
 
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
+    writeAuthorProfileCache(authorProfile.value);
     editState.success = '作者资料已保存';
+    cacheNotice.value = '';
     refreshActiveTabMotion();
   } catch (error) {
     editState.error = readErrorMessage(error, '保存作者资料失败');
@@ -1302,15 +1487,6 @@ function readErrorMessage(error, fallback) {
   return message || fallback;
 }
 
-function formatDateTime(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(
-    date.getHours()
-  ).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
 watch(
   () => route.query.tab,
   (nextTab) => {
@@ -1363,71 +1539,64 @@ onBeforeUnmount(() => {
 <style scoped>
 .author-page {
   min-height: 100%;
+  height: 100%;
   color: rgba(239, 244, 255, 0.96);
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 12px;
-}
-
-.page-header {
-  padding: 8px 4px 4px;
-}
-
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(var(--accent-soft-rgb), 0.95);
-}
-
-h1 {
-  margin-top: 4px;
-  font-size: clamp(24px, 3.6vw, 36px);
-}
-
-.page-header p {
-  margin-top: 10px;
-  max-width: 760px;
-  color: rgba(223, 230, 249, 0.86);
-}
-
-.updated-tip {
-  font-size: 12px;
-  color: rgba(188, 200, 228, 0.9);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .dashboard-layout {
+  position: relative;
   min-height: 0;
+  height: 100%;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .sidebar {
   --liquid-bg: rgba(20, 27, 42, 0.36);
   --liquid-border: rgba(255, 255, 255, 0.2);
   --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.22);
-  border-radius: 14px;
-  padding: 10px;
-  display: grid;
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 12;
+  border-radius: 999px;
+  padding: 8px;
+  display: inline-flex;
+  flex-wrap: nowrap;
   gap: 8px;
-  align-content: start;
+  align-items: center;
+  pointer-events: none;
 }
 
 .side-item {
+  pointer-events: auto;
   border: 0;
-  border-radius: 10px;
-  min-height: 36px;
-  padding: 0 12px;
-  text-align: left;
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(255, 255, 255, 0.2);
   color: rgba(233, 241, 255, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
+}
+
+.side-item i {
+  font-size: 13px;
 }
 
 .side-item.active {
-  background: rgba(var(--accent-rgb), 0.26);
+  background: rgba(var(--accent-rgb), 0.34);
   color: rgb(var(--accent-strong-rgb));
   box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.58);
+}
+
+.side-item:hover {
+  transform: translateY(-1px) scale(1.04);
 }
 
 .content-panel {
@@ -1438,8 +1607,9 @@ h1 {
   --parallax-y: 0px;
   --journey-progress: 0%;
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 54px 16px 14px;
   overflow: auto;
+  overscroll-behavior: auto;
   perspective: 1200px;
   position: relative;
 }
@@ -1449,17 +1619,11 @@ h1 {
   gap: 12px;
 }
 
-.section-edit-launch {
-  position: sticky;
-  top: 8px;
-  z-index: 8;
-  display: flex;
-  justify-content: flex-end;
-  pointer-events: none;
-}
-
-.section-edit-btn {
-  pointer-events: auto;
+.inline-edit-fab {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 6;
   width: 36px;
   height: 36px;
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -1470,7 +1634,7 @@ h1 {
   transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
 }
 
-.section-edit-btn:hover {
+.inline-edit-fab:hover {
   transform: translateY(-2px);
   border-color: rgba(var(--accent-rgb), 0.62);
   box-shadow: 0 14px 24px rgba(8, 14, 24, 0.36);
@@ -1953,6 +2117,543 @@ h1 {
   transform: translateX(420%) rotate(18deg);
 }
 
+.overview-story-root,
+.journey-story-root,
+.about-story-root {
+  gap: 14px;
+}
+
+.story-hero-stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+  isolation: isolate;
+  transform: translate3d(calc(var(--parallax-x) * 0.24), calc(var(--parallax-y) * 0.18), 0);
+}
+
+.story-hero-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+  filter: contrast(1.08) saturate(1.16);
+  z-index: 0;
+}
+
+.story-hero-atmosphere {
+  pointer-events: none;
+  position: absolute;
+  inset: -20% -8%;
+  z-index: 0;
+}
+
+.story-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(1px);
+  opacity: 0.66;
+}
+
+.story-orb-a {
+  width: 220px;
+  height: 220px;
+  left: -30px;
+  top: -34px;
+  background: radial-gradient(circle, rgba(84, 170, 255, 0.54), rgba(84, 170, 255, 0.06) 72%, rgba(84, 170, 255, 0));
+  animation: float-orb-1 9.2s ease-in-out infinite;
+}
+
+.story-orb-b {
+  width: 240px;
+  height: 240px;
+  right: -24px;
+  bottom: -80px;
+  background: radial-gradient(circle, rgba(198, 138, 255, 0.44), rgba(198, 138, 255, 0.08) 74%, rgba(198, 138, 255, 0));
+  animation: float-orb-2 10.6s ease-in-out infinite;
+}
+
+.story-orb-c {
+  width: 160px;
+  height: 160px;
+  right: 34%;
+  top: -24px;
+  background: radial-gradient(circle, rgba(124, 255, 216, 0.42), rgba(124, 255, 216, 0.06) 70%, rgba(124, 255, 216, 0));
+  animation: float-orb-3 8.2s ease-in-out infinite;
+}
+
+.story-hero-main {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.story-avatar-stack {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.story-avatar-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  border: 1px solid rgba(145, 218, 255, 0.52);
+  background: conic-gradient(
+    from 0deg,
+    rgba(120, 230, 255, 0.12),
+    rgba(190, 143, 255, 0.24),
+    rgba(120, 230, 255, 0.12)
+  );
+  animation: spin-slow 11s linear infinite;
+}
+
+.story-avatar {
+  width: 124px;
+  height: 124px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 14px 32px rgba(4, 8, 16, 0.42);
+  transition: transform 240ms ease, box-shadow 240ms ease;
+}
+
+.story-status-badge {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(138, 236, 179, 0.2);
+  color: rgba(203, 255, 226, 0.95);
+}
+
+.story-status-badge.off {
+  background: rgba(249, 153, 153, 0.2);
+  color: rgba(255, 210, 210, 0.95);
+}
+
+.story-hero-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.story-hero-copy h2 {
+  margin-top: 4px;
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.story-greeting {
+  margin: 0;
+  color: rgba(208, 220, 246, 0.92);
+}
+
+.story-quote {
+  margin-top: 6px;
+}
+
+.story-hero-stage:hover .story-avatar {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 18px 36px rgba(72, 149, 255, 0.34);
+}
+
+.story-skill-ribbon {
+  position: relative;
+  z-index: 1;
+  margin-top: 2px;
+}
+
+.skill-focus-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  min-height: 62px;
+  padding: 9px 10px;
+  transition: min-height 240ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.skill-focus-frame:hover,
+.skill-focus-frame:focus-within,
+.skill-focus-frame:focus-visible {
+  min-height: 146px;
+  border-color: rgba(var(--accent-rgb), 0.5);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.2);
+  outline: none;
+}
+
+.skill-slide-mask {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.skill-slide-track {
+  min-width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  animation: skill-slide-loop 16s linear infinite;
+}
+
+.skill-slide-track.clone {
+  animation-delay: -8s;
+}
+
+.skill-slide-track.static {
+  animation: none;
+}
+
+.skill-slide-pill {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(9, 16, 28, 0.4);
+  padding: 5px 12px 5px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.skill-focus-list {
+  position: absolute;
+  inset: 8px 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 6px 10px;
+  align-content: start;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.skill-focus-item {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(9, 16, 28, 0.18);
+  border-radius: 6px;
+}
+
+.skill-focus-frame:hover .skill-slide-mask,
+.skill-focus-frame:focus-within .skill-slide-mask,
+.skill-focus-frame:focus-visible .skill-slide-mask {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.skill-focus-frame:hover .skill-focus-list,
+.skill-focus-frame:focus-within .skill-focus-list,
+.skill-focus-frame:focus-visible .skill-focus-list {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.skill-node-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  font-size: 14px;
+  color: rgba(238, 245, 255, 0.96);
+  background: linear-gradient(145deg, rgba(115, 167, 255, 0.44), rgba(91, 104, 255, 0.32));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.skill-node-label {
+  font-size: 13px;
+  color: rgba(236, 244, 255, 0.95);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-slide-pill.tone-cyan .skill-node-icon,
+.skill-focus-item.tone-cyan .skill-node-icon {
+  background: linear-gradient(145deg, rgba(89, 211, 255, 0.5), rgba(84, 151, 255, 0.34));
+}
+
+.skill-slide-pill.tone-blue .skill-node-icon,
+.skill-focus-item.tone-blue .skill-node-icon {
+  background: linear-gradient(145deg, rgba(98, 152, 255, 0.5), rgba(80, 104, 255, 0.36));
+}
+
+.skill-slide-pill.tone-violet .skill-node-icon,
+.skill-focus-item.tone-violet .skill-node-icon {
+  background: linear-gradient(145deg, rgba(152, 129, 255, 0.52), rgba(189, 125, 255, 0.34));
+}
+
+.skill-slide-pill.tone-gold .skill-node-icon,
+.skill-focus-item.tone-gold .skill-node-icon {
+  background: linear-gradient(145deg, rgba(255, 204, 92, 0.56), rgba(241, 158, 70, 0.34));
+}
+
+.skill-slide-pill.tone-rose .skill-node-icon,
+.skill-focus-item.tone-rose .skill-node-icon {
+  background: linear-gradient(145deg, rgba(255, 143, 187, 0.54), rgba(240, 109, 135, 0.34));
+}
+
+.skill-slide-pill.tone-mint .skill-node-icon,
+.skill-focus-item.tone-mint .skill-node-icon {
+  background: linear-gradient(145deg, rgba(103, 243, 214, 0.5), rgba(107, 195, 255, 0.34));
+}
+
+.story-free-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 12px;
+}
+
+.story-identity-ribbon {
+  grid-column: 1 / -1;
+}
+
+.identity-track {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.identity-unit {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.identity-label {
+  font-size: 12px;
+  color: rgba(185, 201, 226, 0.92);
+}
+
+.story-notes,
+.story-focus-panel {
+  transform: translate3d(calc(var(--parallax-x) * 0.12), calc(var(--parallax-y) * 0.08), 0);
+}
+
+.story-notes:hover,
+.story-focus-panel:hover,
+.story-identity-ribbon:hover {
+  transform: translateY(-4px);
+  border-color: rgba(var(--accent-rgb), 0.46);
+  box-shadow: 0 18px 34px rgba(10, 20, 36, 0.4);
+}
+
+.focus-cloud .chip {
+  animation: cloud-rise 7.4s ease-in-out infinite;
+}
+
+.focus-cloud .chip:nth-child(2n) {
+  animation-delay: -2.2s;
+}
+
+.focus-cloud .chip:nth-child(3n) {
+  animation-delay: -4.1s;
+}
+
+.journey-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.journey-sticky-axis {
+  position: sticky;
+  top: 10px;
+  align-self: start;
+  height: calc(100dvh - 240px);
+  min-height: 220px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 10px;
+}
+
+.journey-axis-line,
+.journey-axis-progress {
+  width: 4px;
+  border-radius: 999px;
+}
+
+.journey-axis-line {
+  height: 100%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+}
+
+.journey-axis-progress {
+  position: absolute;
+  top: 0;
+  height: var(--journey-progress);
+  background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.95), rgba(var(--accent-rgb), 0.6));
+  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.46);
+  transition: height 220ms ease;
+}
+
+.journey-axis-year {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(var(--accent-soft-rgb), 0.94);
+}
+
+.journey-storyline {
+  position: relative;
+  display: grid;
+  gap: 14px;
+}
+
+.journey-scene {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(160px, 260px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.journey-scene::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.76), rgba(var(--accent-rgb), 0.16));
+}
+
+.journey-scene-node {
+  left: -7px;
+  top: 20px;
+}
+
+.journey-scene-media {
+  min-height: 144px;
+}
+
+.journey-scene-image {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.journey-scene-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.journey-scene-year {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: rgba(var(--accent-soft-rgb), 0.92);
+}
+
+.journey-scene.is-active {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  box-shadow: 0 20px 36px rgba(8, 16, 28, 0.45);
+}
+
+.journey-scene.is-active .journey-scene-node {
+  animation: pulse-node 1.9s ease-in-out infinite;
+}
+
+.journey-chip {
+  transition: transform 200ms ease, filter 200ms ease, border-color 200ms ease;
+}
+
+.journey-chip:hover {
+  transform: translateY(-2px);
+  filter: saturate(1.2);
+  border-color: rgba(var(--accent-rgb), 0.58);
+}
+
+.about-manifesto {
+  position: relative;
+  overflow: hidden;
+  min-height: 230px;
+  display: grid;
+  grid-template-columns: minmax(200px, 320px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.about-hero-image {
+  width: 100%;
+  height: 100%;
+  min-height: 190px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.about-manifesto-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.about-flow-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 12px;
+}
+
+.about-goal-stage {
+  position: relative;
+  overflow: hidden;
+}
+
+.about-goal-sweep {
+  pointer-events: none;
+  position: absolute;
+  inset: -25%;
+  background: conic-gradient(from 180deg, rgba(126, 217, 255, 0), rgba(126, 217, 255, 0.2), rgba(126, 217, 255, 0));
+  animation: sweep-border 6s linear infinite;
+}
+
+.about-preference-stage,
+.about-links-stage {
+  display: grid;
+  gap: 4px;
+}
+
+.pulse-cloud .chip {
+  animation: pulse-cloud 4.8s ease-in-out infinite;
+}
+
+.pulse-cloud .chip:nth-child(2n) {
+  animation-delay: -1.4s;
+}
+
+.pulse-cloud .chip:nth-child(3n) {
+  animation-delay: -2.7s;
+}
+
 .is-reveal-ready {
   opacity: 0;
   transform: translate3d(0, 18px, 0) scale(0.995);
@@ -2114,6 +2815,37 @@ h1 {
   }
 }
 
+@keyframes skill-slide-loop {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes cloud-rise {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pulse-cloud {
+  0%,
+  100% {
+    filter: saturate(1);
+    transform: translateY(0);
+  }
+  50% {
+    filter: saturate(1.18);
+    transform: translateY(-2px);
+  }
+}
+
 .editor-card {
   display: grid;
   gap: 10px;
@@ -2221,20 +2953,31 @@ h1 {
 
 @media (prefers-reduced-motion: reduce) {
   .orb,
+  .story-orb,
   .avatar-aurora-ring,
+  .story-avatar-ring,
   .mission-sweep,
+  .about-goal-sweep,
+  .skill-slide-track,
+  .focus-cloud .chip,
+  .pulse-cloud .chip,
   .timeline-item.is-active .timeline-node,
   .is-reveal-ready.is-revealed {
     animation: none !important;
   }
 
   .hero-stage,
+  .story-hero-stage,
   .overview-card,
+  .story-notes,
+  .story-focus-panel,
+  .story-identity-ribbon,
   .shine-link,
   .timeline-item,
+  .journey-scene,
   .author-card,
   .is-reveal-ready,
-  .section-edit-btn {
+  .inline-edit-fab {
     transform: none !important;
     transition: opacity 120ms linear !important;
   }
@@ -2246,28 +2989,74 @@ h1 {
   .timeline-rail::after {
     transition: none !important;
   }
+
+  .story-skill-ribbon {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
 }
 
 @media (max-width: 900px) {
-  .dashboard-layout {
-    grid-template-columns: 1fr;
-  }
-
   .sidebar {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    top: 8px;
+    left: 8px;
+    padding: 6px;
+    gap: 6px;
   }
 
   .side-item {
-    min-height: 34px;
-    padding: 0 8px;
-    text-align: center;
-    font-size: 12px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .content-panel {
+    padding-top: 50px;
   }
 
   .hero-card {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
+  }
+
+  .story-hero-stage {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .story-hero-main {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .story-free-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .skill-focus-frame {
+    min-height: 58px;
+    padding: 8px;
+  }
+
+  .skill-focus-frame:hover,
+  .skill-focus-frame:focus-within,
+  .skill-focus-frame:focus-visible {
+    min-height: 176px;
+  }
+
+  .skill-focus-list {
+    inset: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+  }
+
+  .skill-node-label {
+    font-size: 12px;
+  }
+
+  .identity-track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .overview-grid,
@@ -2281,6 +3070,37 @@ h1 {
       'intro'
       'mission'
       'links';
+  }
+
+  .journey-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .journey-sticky-axis {
+    position: relative;
+    top: auto;
+    min-height: 12px;
+    height: 12px;
+    width: 100%;
+  }
+
+  .journey-axis-line,
+  .journey-axis-progress {
+    width: 100%;
+    height: 3px !important;
+  }
+
+  .journey-axis-year {
+    margin-top: 18px;
+  }
+
+  .journey-scene {
+    grid-template-columns: 1fr;
+  }
+
+  .about-manifesto,
+  .about-flow-grid {
+    grid-template-columns: 1fr;
   }
 
   .kv-row {

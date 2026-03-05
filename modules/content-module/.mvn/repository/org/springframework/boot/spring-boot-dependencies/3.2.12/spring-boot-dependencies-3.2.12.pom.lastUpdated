@@ -1,0 +1,4 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Thu Mar 05 14:52:31 CST 2026
+@default-central-https\://repo.maven.apache.org/maven2/.lastUpdated=1772693551305
+https\://repo.maven.apache.org/maven2/.error=Could not transfer artifact org.springframework.boot\:spring-boot-dependencies\:pom\:3.2.12 from/to central (https\://repo.maven.apache.org/maven2)\: transfer failed for https\://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-dependencies/3.2.12/spring-boot-dependencies-3.2.12.pom

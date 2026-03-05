@@ -5,6 +5,7 @@ import io.github.shizuki.site.content.dto.AuthorProfileResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
 import io.github.shizuki.site.content.dto.AppSummary;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
@@ -14,6 +15,7 @@ import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.dto.PostCategoryMetaUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.dto.ReportRequest;
@@ -92,6 +94,11 @@ public interface ContentService {
     PostDetailResponse getMyPostDetail(Long postId);
 
     /**
+     * 查询当前作者可读的分类默认分组策略和分组选项。
+     */
+    PostEditorPolicyResponse getMyPostCategoryPolicies();
+
+    /**
      * 中转上传 markdown 文件。
      */
     PostContentRelayResponse relayPostMarkdown(MultipartFile file);
@@ -130,6 +137,11 @@ public interface ContentService {
      * 提交举报。
      */
     Map<String, Object> report(ReportRequest request);
+
+    /**
+     * 提交匿名悄悄话给作者。
+     */
+    Map<String, Object> submitAuthorWhisper(AuthorWhisperRequest request);
 
     /**
      * 查询帖子可见性配置。

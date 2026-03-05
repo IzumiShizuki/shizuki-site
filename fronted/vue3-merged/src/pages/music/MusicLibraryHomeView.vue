@@ -19,7 +19,12 @@
             <span>{{ visibleSearchPlaylists.length }}</span>
           </div>
           <div v-if="!visibleSearchPlaylists.length" class="empty-state compact">暂无匹配歌单</div>
-          <div class="playlist-grid">
+          <div
+            ref="searchPlaylistRowRef"
+            class="playlist-grid"
+            :class="{ 'playlist-grid-single-row': searchType === 'all' }"
+            :style="searchType === 'all' ? playlistRowStyle : null"
+          >
             <button
               v-for="item in visibleSearchPlaylists"
               :key="`search-playlist-${item.playlistCode}`"
@@ -32,6 +37,14 @@
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
+                <button
+                  v-if="shouldShowDescExpand(item)"
+                  class="desc-expand-btn ripple-trigger"
+                  type="button"
+                  @click.stop="openDescriptionPopover($event, item)"
+                >
+                  展开
+                </button>
               </div>
             </button>
           </div>
@@ -104,6 +117,15 @@
               >
                 <i class="fas fa-forward"></i>
               </button>
+              <TrackCollectButton
+                :track="item"
+                :playlist-options="collectPlaylistTargets"
+                :can-collect="music.authState.value.isAuthenticated"
+                :can-collect-default-public="music.authState.value.isAdmin"
+                @collect="handleCollectTrack"
+                @collect-default-public="handleCollectDefaultPublic"
+                @require-login="handleRequireCollectLogin"
+              />
             </span>
           </article>
           <footer v-if="showAllTrackPager" class="search-section-pager">
@@ -165,6 +187,23 @@
             </button>
           </footer>
         </section>
+
+        <teleport to="body">
+          <div
+            v-if="descriptionPopover.visible"
+            ref="descriptionPopoverRef"
+            class="playlist-desc-popover liquid-material"
+            :style="descriptionPopoverStyle"
+            role="dialog"
+            aria-live="polite"
+          >
+            <header>
+              <p>{{ descriptionPopover.title || '歌单简介' }}</p>
+              <button type="button" class="close-btn ripple-trigger" @click="closeDescriptionPopover">×</button>
+            </header>
+            <div class="body">{{ descriptionPopover.description }}</div>
+          </div>
+        </teleport>
 
         <footer v-if="showSearchPager" class="search-pager">
           <p v-if="music.searchLoadingMore.value" class="pager-text">
@@ -243,29 +282,56 @@
           <span>{{ filteredTracks.length }} 首</span>
         </header>
 
-        <div class="table-head">
+        <div class="table-head recommend-track-head">
           <span>#</span>
           <span>标题</span>
           <span>歌手</span>
           <span>时长</span>
+          <span>操作</span>
         </div>
 
         <div v-if="!filteredTracks.length && !music.homeLoading.value" class="empty-state">
           暂无推荐歌曲
         </div>
 
-        <button
+        <article
           v-for="(item, index) in filteredTracks"
           :key="`home-track-${item.trackId || item.id || index}`"
-          class="table-row ripple-trigger"
-          type="button"
+          class="table-row recommend-track-row ripple-trigger"
           @click="music.playFeaturedTrack(item, index)"
         >
           <span>{{ String(index + 1).padStart(2, '0') }}</span>
           <span class="title-col">{{ item.title || '未知标题' }}</span>
           <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
           <span>{{ item.duration || item.durationLabel || '--:--' }}</span>
-        </button>
+          <span class="row-actions">
+            <button
+              class="track-action-btn ripple-trigger"
+              type="button"
+              :title="music.isTrackLiked(item.trackId || item.id) ? '取消红心' : '加入红心'"
+              @click.stop="music.toggleTrackLike(item)"
+            >
+              <i class="fas" :class="music.isTrackLiked(item.trackId || item.id) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+            </button>
+            <button
+              class="track-action-btn ripple-trigger"
+              type="button"
+              title="下一首播放"
+              @click.stop="music.enqueueFeaturedTrackNext(item, index)"
+            >
+              <i class="fas fa-forward"></i>
+            </button>
+            <TrackCollectButton
+              :track="item"
+              :playlist-options="collectPlaylistTargets"
+              :can-collect="music.authState.value.isAuthenticated"
+              :can-collect-default-public="music.authState.value.isAdmin"
+              @collect="handleCollectTrack"
+              @collect-default-public="handleCollectDefaultPublic"
+              @require-login="handleRequireCollectLogin"
+            />
+          </span>
+        </article>
       </section>
     </template>
 
@@ -275,6 +341,32 @@
           <h2>歌单总览</h2>
           <span>TuneHub + Spotify 占位</span>
         </header>
+
+        <section class="provider-block">
+          <div class="provider-head">
+            <h3>我收藏的歌单</h3>
+            <span>{{ userCollectedPlaylists.length }}</span>
+          </div>
+          <div v-if="!userCollectedPlaylists.length" class="empty-state compact">
+            暂无收藏歌单
+          </div>
+          <div class="playlist-grid">
+            <button
+              v-for="item in userCollectedPlaylists"
+              :key="`playlist-collected-${item.playlistCode}`"
+              class="playlist-card ripple-trigger"
+              :class="{ opening: openingPlaylistCode === item.playlistCode }"
+              type="button"
+              @click="handleOpenPlaylist(item.playlistCode)"
+            >
+              <div class="cover" :style="coverStyle(item)"></div>
+              <div class="meta">
+                <p class="name">{{ item.name || '未命名歌单' }}</p>
+                <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
+              </div>
+            </button>
+          </div>
+        </section>
 
         <section class="provider-block">
           <div class="provider-head">
@@ -344,13 +436,33 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
+import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
+import {
+  estimatePlaylistRowCapacity as estimatePlaylistRowCapacityByWidth,
+  normalizePlaylistRowCapacity
+} from '../../utils/musicSearchAllLayout';
 
 const music = useMusicLibraryContext();
 const openingPlaylistCode = ref('');
+const searchPlaylistRowRef = ref(null);
+const descriptionPopoverRef = ref(null);
+const descriptionPopover = ref({
+  visible: false,
+  title: '',
+  description: '',
+  top: 24,
+  left: 24,
+  width: 320
+});
+const playlistRowCapacity = ref(Number(music.searchPlaylistRowCapacity?.value || 3) || 3);
 const OPEN_PLAYLIST_ANIMATION_MS = 320;
+const PLAYLIST_DESC_EXPAND_THRESHOLD = 36;
+const PLAYLIST_CARD_MIN_WIDTH = 188;
+const PLAYLIST_CARD_GAP = 10;
 let openPlaylistTimer = 0;
+let playlistRowResizeObserver = null;
 
 const SPOTIFY_PLACEHOLDER = [
   { id: 'sp-1', name: 'Spotify 热门精选', description: '即将接入 Spotify 歌单能力', cover: '' },
@@ -376,6 +488,12 @@ const filteredTracks = computed(() => {
 
 const spotifyPlaceholderPlaylists = computed(() => SPOTIFY_PLACEHOLDER);
 const filteredPodcastCards = computed(() => PODCAST_PLACEHOLDER);
+const collectPlaylistTargets = computed(() =>
+  (Array.isArray(music.collectPlaylistTargets?.value) ? music.collectPlaylistTargets.value : [])
+);
+const userCollectedPlaylists = computed(() =>
+  (Array.isArray(music.collectedPlaylists?.value) ? music.collectedPlaylists.value : [])
+);
 const searchType = computed(() => String(music.ui.globalSearchType.value || 'all'));
 const searchPlaylists = computed(() => (Array.isArray(music.searchResult.value?.playlists) ? music.searchResult.value.playlists : []));
 const searchTracks = computed(() => (Array.isArray(music.searchResult.value?.tracks) ? music.searchResult.value.tracks : []));
@@ -390,7 +508,9 @@ const searchAllVisibleCount = computed(() => {
 });
 const visibleSearchPlaylists = computed(() => {
   if (searchType.value !== 'all') return searchPlaylists.value;
-  return searchPlaylists.value.slice(0, searchAllVisibleCount.value.playlists);
+  const configured = Math.max(1, Number(searchAllVisibleCount.value.playlists || 1));
+  const capacity = Math.max(1, Number(playlistRowCapacity.value || configured));
+  return searchPlaylists.value.slice(0, Math.min(configured, capacity));
 });
 const visibleSearchTracks = computed(() => {
   if (searchType.value !== 'all') return searchTracks.value;
@@ -418,6 +538,17 @@ const showSearchPager = computed(() => {
   if (searchType.value === 'artist') return Boolean(hasMore.artists);
   return Boolean(hasMore.tracks);
 });
+const playlistRowStyle = computed(() => {
+  const cardCount = Math.max(1, visibleSearchPlaylists.value.length || playlistRowCapacity.value || 1);
+  return {
+    '--playlist-row-capacity': String(cardCount)
+  };
+});
+const descriptionPopoverStyle = computed(() => ({
+  top: `${descriptionPopover.value.top}px`,
+  left: `${descriptionPopover.value.left}px`,
+  width: `${descriptionPopover.value.width}px`
+}));
 const playlistCanLoadMore = computed(() => hiddenPlaylistsCount.value > 0 || Boolean(music.searchHasMore.value?.playlists));
 const trackCanLoadMore = computed(() => hiddenTracksCount.value > 0 || Boolean(music.searchHasMore.value?.tracks));
 const artistCanLoadMore = computed(() => hiddenArtistsCount.value > 0 || Boolean(music.searchHasMore.value?.artists));
@@ -486,11 +617,155 @@ function handleOpenPlaylist(playlistCode) {
   const delay = prefersReducedMotion() ? 0 : OPEN_PLAYLIST_ANIMATION_MS;
   openPlaylistTimer = window.setTimeout(() => {
     openPlaylistTimer = 0;
+    closeDescriptionPopover();
     music.openPlaylistDetail(code);
   }, delay);
 }
 
+function handleCollectTrack(payload) {
+  const track = payload?.track || null;
+  const playlistCode = String(payload?.playlistCode || '').trim();
+  if (!playlistCode) return;
+  if (typeof music.collectTrackToPlaylist !== 'function') return;
+  music.collectTrackToPlaylist(track, playlistCode);
+}
+
+function handleCollectDefaultPublic(track) {
+  if (typeof music.collectTrackToDefaultPublic !== 'function') return;
+  music.collectTrackToDefaultPublic(track || null);
+}
+
+function handleRequireCollectLogin() {
+  if (typeof music.requestMusicLogin === 'function') {
+    music.requestMusicLogin();
+    return;
+  }
+  window.alert('请先登录后再收藏');
+}
+
+function computePlaylistRowCapacity(width) {
+  return estimatePlaylistRowCapacityByWidth(width, {
+    cardMinWidth: PLAYLIST_CARD_MIN_WIDTH,
+    gap: PLAYLIST_CARD_GAP,
+    min: 1,
+    max: 12,
+    fallback: normalizePlaylistRowCapacity(playlistRowCapacity.value)
+  });
+}
+
+function syncSearchPlaylistRowCapacity() {
+  if (searchType.value !== 'all' || !music.hasActiveSearch.value) return;
+  const element = searchPlaylistRowRef.value;
+  if (!element) return;
+  const nextCapacity = computePlaylistRowCapacity(element.clientWidth);
+  if (nextCapacity === playlistRowCapacity.value) return;
+  playlistRowCapacity.value = nextCapacity;
+  if (typeof music.setSearchPlaylistRowCapacity === 'function') {
+    music.setSearchPlaylistRowCapacity(nextCapacity);
+  }
+}
+
+function stopObservePlaylistRow() {
+  if (!playlistRowResizeObserver) return;
+  playlistRowResizeObserver.disconnect();
+  playlistRowResizeObserver = null;
+}
+
+async function startObservePlaylistRow() {
+  await nextTick();
+  const element = searchPlaylistRowRef.value;
+  if (!element) return;
+  syncSearchPlaylistRowCapacity();
+  if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return;
+  stopObservePlaylistRow();
+  playlistRowResizeObserver = new ResizeObserver(() => {
+    syncSearchPlaylistRowCapacity();
+  });
+  playlistRowResizeObserver.observe(element);
+}
+
+function shouldShowDescExpand(item) {
+  return String(item?.description || '').trim().length > PLAYLIST_DESC_EXPAND_THRESHOLD;
+}
+
+function openDescriptionPopover(event, item) {
+  const trigger = event?.currentTarget;
+  const rect = trigger?.getBoundingClientRect?.();
+  const description = String(item?.description || '').trim();
+  if (!description) return;
+  const width = 340;
+  const safeTop = rect ? Math.min(window.innerHeight - 220, rect.bottom + 8) : 24;
+  const safeLeft = rect ? Math.min(window.innerWidth - width - 16, Math.max(16, rect.left)) : 24;
+  descriptionPopover.value = {
+    visible: true,
+    title: String(item?.name || '歌单简介'),
+    description,
+    top: Math.max(16, safeTop),
+    left: Math.max(16, safeLeft),
+    width
+  };
+}
+
+function closeDescriptionPopover() {
+  if (!descriptionPopover.value.visible) return;
+  descriptionPopover.value = {
+    visible: false,
+    title: '',
+    description: '',
+    top: 24,
+    left: 24,
+    width: 320
+  };
+}
+
+function handleGlobalPointerDown(event) {
+  if (!descriptionPopover.value.visible) return;
+  const node = descriptionPopoverRef.value;
+  if (node && node.contains(event.target)) return;
+  closeDescriptionPopover();
+}
+
+function handleGlobalKeydown(event) {
+  if (event?.key === 'Escape') {
+    closeDescriptionPopover();
+  }
+}
+
+watch(
+  () => [music.hasActiveSearch.value, searchType.value, showPlaylistResults.value],
+  async ([activeSearch, type, showPlaylists]) => {
+    if (activeSearch && showPlaylists && type === 'all') {
+      await startObservePlaylistRow();
+      return;
+    }
+    stopObservePlaylistRow();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => music.searchPlaylistRowCapacity?.value,
+  (next) => {
+    const normalized = normalizePlaylistRowCapacity(next, { min: 1, max: 12, fallback: 3 });
+    if (normalized !== playlistRowCapacity.value) {
+      playlistRowCapacity.value = normalized;
+    }
+  }
+);
+
+onMounted(() => {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('pointerdown', handleGlobalPointerDown, true);
+  window.addEventListener('keydown', handleGlobalKeydown);
+});
+
 onBeforeUnmount(() => {
+  stopObservePlaylistRow();
+  closeDescriptionPopover();
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('pointerdown', handleGlobalPointerDown, true);
+    window.removeEventListener('keydown', handleGlobalKeydown);
+  }
   if (openPlaylistTimer) {
     window.clearTimeout(openPlaylistTimer);
     openPlaylistTimer = 0;
@@ -619,13 +894,23 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+.playlist-grid-single-row {
+  grid-template-columns: repeat(var(--playlist-row-capacity, 1), minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  overflow: hidden;
+}
+
 .playlist-card {
+  position: relative;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.07);
   color: rgba(234, 241, 255, 0.94);
   overflow: hidden;
   text-align: left;
+  min-height: 278px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .playlist-card.opening {
@@ -654,7 +939,8 @@ onBeforeUnmount(() => {
 .meta {
   padding: 8px;
   display: grid;
-  gap: 4px;
+  gap: 6px;
+  align-content: start;
 }
 
 .meta p {
@@ -664,11 +950,79 @@ onBeforeUnmount(() => {
 .meta .name {
   font-size: 13px;
   color: rgba(244, 248, 255, 0.96);
+  min-height: 20px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .meta .desc {
   font-size: 11px;
   color: rgba(181, 192, 216, 0.84);
+  line-height: 1.4;
+  min-height: calc(1.4em * 2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desc-expand-btn {
+  justify-self: start;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(227, 236, 255, 0.92);
+  font-size: 11px;
+}
+
+.playlist-desc-popover {
+  position: fixed;
+  z-index: 1200;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(16, 22, 35, 0.95);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.36);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.playlist-desc-popover header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.playlist-desc-popover header p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(244, 248, 255, 0.96);
+  font-weight: 600;
+}
+
+.playlist-desc-popover .body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(201, 212, 236, 0.9);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.playlist-desc-popover .close-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(220, 231, 255, 0.9);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .table-head,
@@ -702,7 +1056,12 @@ onBeforeUnmount(() => {
 
 .search-track-head,
 .search-track-row {
-  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 84px 72px 96px;
+  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 84px 72px 132px;
+}
+
+.recommend-track-head,
+.recommend-track-row {
+  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 72px 132px;
 }
 
 .track-cover {
@@ -902,13 +1261,23 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   }
 
+  .playlist-grid-single-row {
+    grid-template-columns: repeat(var(--playlist-row-capacity, 1), minmax(0, 1fr));
+  }
+
   .podcast-grid {
     grid-template-columns: 1fr;
   }
 
   .search-track-head,
   .search-track-row {
-    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) 66px 58px 82px;
+    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) 66px 58px 122px;
+    gap: 6px;
+  }
+
+  .recommend-track-head,
+  .recommend-track-row {
+    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) 66px 122px;
     gap: 6px;
   }
 }

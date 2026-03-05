@@ -13,6 +13,7 @@ import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.common.storage.model.StorageObjectMetadata;
 import io.github.shizuki.common.storage.util.OssKeyBuilder;
 import io.github.shizuki.common.storage.util.UploadValidator;
+import io.github.shizuki.site.media.cache.MusicLibraryHomeCacheStore;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
@@ -119,6 +120,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -173,6 +175,9 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_EVENT_SEARCH_STAGE_DONE = "MUSIC_SEARCH_STAGE_DONE";
     private static final String LOG_EVENT_RESOLVE_STAGE_START = "MUSIC_RESOLVE_PLAYBACK_STAGE_START";
     private static final String LOG_EVENT_RESOLVE_STAGE_DONE = "MUSIC_RESOLVE_PLAYBACK_STAGE_DONE";
+    private static final String LOG_EVENT_DEFAULT_COLLECT_UPSERT_DONE = "MUSIC_DEFAULT_COLLECT_UPSERT_DONE";
+    private static final String LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_OK = "MUSIC_DEFAULT_COLLECT_CLOUD_ENQUEUE_OK";
+    private static final String LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL = "MUSIC_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL";
     private static final String SOURCE_ONLY_OBJECT_CODE = "__source_only__";
     private static final int TRACK_METADATA_JSON_MAX_LENGTH = 4096;
     private static final Set<String> TRACK_METADATA_ALLOWED_KEYS = Set.of(
@@ -215,6 +220,8 @@ public class MediaServiceImpl implements MediaService {
     private final MusicListenCacheProperties musicListenCacheProperties;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    @Autowired(required = false)
+    private MusicLibraryHomeCacheStore musicLibraryHomeCacheStore;
 
     /**
      * 构造媒体服务实现。
@@ -720,6 +727,35 @@ public class MediaServiceImpl implements MediaService {
      */
     @Override
     public MusicLibraryHomeResponse getMusicLibraryHome() {
+        if (musicLibraryHomeCacheStore != null && musicLibraryHomeCacheStore.isEnabled()) {
+            MusicLibraryHomeResponse cached = musicLibraryHomeCacheStore.read();
+            if (cached != null) {
+                LOGGER.info(
+                    "MUSIC_LIBRARY_HOME_CACHE_HIT playlists={} tracks={}",
+                    cached.featuredPlaylists() == null ? 0 : cached.featuredPlaylists().size(),
+                    cached.featuredTracks() == null ? 0 : cached.featuredTracks().size()
+                );
+                return cached;
+            }
+            LOGGER.info("MUSIC_LIBRARY_HOME_CACHE_MISS");
+        }
+        return rebuildMusicLibraryHomeCache();
+    }
+
+    public MusicLibraryHomeResponse rebuildMusicLibraryHomeCache() {
+        MusicLibraryHomeResponse response = buildMusicLibraryHome();
+        if (musicLibraryHomeCacheStore != null && musicLibraryHomeCacheStore.isEnabled()) {
+            musicLibraryHomeCacheStore.write(response);
+            LOGGER.info(
+                "MUSIC_LIBRARY_HOME_CACHE_REFRESH_DONE playlists={} tracks={}",
+                response.featuredPlaylists() == null ? 0 : response.featuredPlaylists().size(),
+                response.featuredTracks() == null ? 0 : response.featuredTracks().size()
+            );
+        }
+        return response;
+    }
+
+    private MusicLibraryHomeResponse buildMusicLibraryHome() {
         List<MusicPlaylistSummaryResponse> featuredPlaylists = new ArrayList<>();
         List<MusicTrackResponse> featuredTracks = new ArrayList<>();
 
@@ -1753,6 +1789,73 @@ public class MediaServiceImpl implements MediaService {
      * {@inheritDoc}
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void upsertAdminDefaultPlaylistTrack(AdminMusicTrackUpsertRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Track request is required");
+        }
+        String provider = normalizeTrackProvider(request.getProvider());
+        String trackId = readString(request.getTrackId(), "");
+        if (!StringUtils.hasText(trackId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
+        }
+        String title = readString(request.getTitle(), trackId);
+        String artist = readString(request.getArtist(), "");
+        String cover = readString(request.getCover(), "");
+        String audio = readString(request.getAudio(), "");
+        String lyric = readString(request.getLyric(), "");
+        validateHttpUrlIfPresent(cover, "cover");
+        validateHttpUrlIfPresent(audio, "audio");
+        validateHttpUrlIfPresent(lyric, "lyric");
+
+        MusicPlaylistEntity entity = musicPlaylistMapper.selectOne(
+            new LambdaQueryWrapper<MusicPlaylistEntity>()
+                .eq(MusicPlaylistEntity::getProviderCode, provider)
+                .eq(MusicPlaylistEntity::getTrackId, trackId)
+                .last("LIMIT 1")
+        );
+        boolean created = false;
+        if (entity == null) {
+            entity = new MusicPlaylistEntity();
+            entity.setProviderCode(provider);
+            entity.setTrackId(trackId);
+            entity.setCreatedAt(LocalDateTime.now());
+            created = true;
+        }
+        int nextSort = request.getSort() == null
+            ? (created ? resolveNextDefaultPlaylistTrackSort() : Math.max(0, entity.getSortNum() == null ? 0 : entity.getSortNum()))
+            : Math.max(0, request.getSort());
+        entity.setTitle(title);
+        entity.setArtist(artist);
+        entity.setCoverUrl(cover);
+        entity.setAudioUrl(audio);
+        entity.setLyricUrl(lyric);
+        entity.setSortNum(nextSort);
+        entity.setEnabledFlag(request.getEnabled() == null ? true : request.getEnabled());
+        entity.setMetadataJson(writeJson(sanitizeTrackMetadata(request.getMetadata())));
+        entity.setUpdatedAt(LocalDateTime.now());
+        if (created) {
+            musicPlaylistMapper.insert(entity);
+        } else {
+            musicPlaylistMapper.updateById(entity);
+        }
+
+        ensureDefaultPlaylistTrackCloudPersist(provider, trackId, title, artist, audio);
+        LOGGER.info(
+            "{} provider={} trackId={} created={} enabled={} sort={}",
+            LOG_EVENT_DEFAULT_COLLECT_UPSERT_DONE,
+            provider,
+            trackId,
+            created,
+            Boolean.TRUE.equals(entity.getEnabledFlag()),
+            entity.getSortNum()
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public List<MusicProviderResponse> listAdminProviders() {
         List<MusicProviderConfigEntity> entities = musicProviderConfigMapper.selectList(
             new LambdaQueryWrapper<MusicProviderConfigEntity>()
@@ -2179,9 +2282,24 @@ public class MediaServiceImpl implements MediaService {
                 ref.provider().toUpperCase(Locale.ROOT) + " 歌单",
                 "TuneHub 虚拟歌单",
                 "",
-                ref.playlistCode()
+                ref.playlistCode(),
+                tracks.size()
             );
         }
+        int resolvedTrackCount = tracks.size();
+        if (summary.trackCount() != null && summary.trackCount() > 0) {
+            resolvedTrackCount = Math.max(resolvedTrackCount, summary.trackCount());
+        }
+        LOGGER.info(
+            "MUSIC_VIRTUAL_PLAYLIST_BUNDLE_DONE playlistCode={} provider={} sourceType={} sourceId={} loadedTrackCount={} summaryTrackCount={} resolvedTrackCount={}",
+            ref.playlistCode(),
+            summary.platform(),
+            summary.sourceType(),
+            summary.sourceId(),
+            tracks.size(),
+            summary.trackCount() == null ? 0 : summary.trackCount(),
+            resolvedTrackCount
+        );
 
         MusicPlaylistSummaryResponse profile = new MusicPlaylistSummaryResponse(
             ref.playlistCode(),
@@ -2191,7 +2309,7 @@ public class MediaServiceImpl implements MediaService {
             PLAYLIST_TYPE_CUSTOM,
             0L,
             true,
-            tracks.size(),
+            resolvedTrackCount,
             normalizeSourceProvider(summary.platform())
         );
         return new MusicPlaylistBundleResponse(profile, tracks);
@@ -2969,6 +3087,92 @@ public class MediaServiceImpl implements MediaService {
         return !TrackUrlExpiryPolicy.isExpired(url);
     }
 
+    private void ensureDefaultPlaylistTrackCloudPersist(String provider,
+                                                        String trackId,
+                                                        String title,
+                                                        String artist,
+                                                        String audioUrl) {
+        String resolvedAudioUrl = readString(audioUrl, "");
+        if (!StringUtils.hasText(resolvedAudioUrl)) {
+            String normalizedProvider = normalizeSourceProvider(provider);
+            if (!StringUtils.hasText(normalizedProvider)) {
+                LOGGER.warn(
+                    "{} provider={} trackId={} reason=audio_missing_and_provider_not_supported",
+                    LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL,
+                    provider,
+                    trackId
+                );
+                return;
+            }
+            TuneHubApiContext apiContext = resolveTuneHubApiContext(false);
+            if (!StringUtils.hasText(apiContext.apiKey())) {
+                LOGGER.warn(
+                    "{} provider={} trackId={} reason=api_key_missing",
+                    LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL,
+                    provider,
+                    trackId
+                );
+                return;
+            }
+            try {
+                TuneHubMusicProvider.ParseTrackResult parsed = tuneHubMusicProvider.parseSingleTrack(
+                    apiContext.apiKey(),
+                    normalizedProvider,
+                    trackId,
+                    tuneHubMusicProperties.getDefaultQuality()
+                );
+                resolvedAudioUrl = readString(parsed.audioUrl(), "");
+            } catch (Exception exception) {
+                LOGGER.warn(
+                    "{} provider={} trackId={} reason=parse_failed detail={}",
+                    LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL,
+                    provider,
+                    trackId,
+                    sanitizeLogMessage(readString(exception.getMessage(), "unknown_error"))
+                );
+                return;
+            }
+        }
+
+        if (!StringUtils.hasText(resolvedAudioUrl)) {
+            LOGGER.warn(
+                "{} provider={} trackId={} reason=audio_missing",
+                LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL,
+                provider,
+                trackId
+            );
+            return;
+        }
+        try {
+            validateHttpUrlIfPresent(resolvedAudioUrl, "audio");
+        } catch (BusinessException exception) {
+            LOGGER.warn(
+                "{} provider={} trackId={} reason=invalid_audio_url",
+                LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL,
+                provider,
+                trackId
+            );
+            return;
+        }
+        upsertTrackSourceCache(provider, trackId, resolvedAudioUrl);
+        boolean enqueued = musicTrackCacheUploadPublisher.publish(provider, trackId, resolvedAudioUrl, title, artist);
+        if (enqueued) {
+            LOGGER.info(
+                "{} provider={} trackId={}",
+                LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_OK,
+                provider,
+                trackId
+            );
+            return;
+        }
+        LOGGER.warn(
+            "{} provider={} trackId={} reason=enqueue_failed",
+            LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL,
+            provider,
+            trackId
+        );
+    }
+
     private boolean hasOssObjectCache(MusicTrackCacheEntity cache) {
         if (cache == null) {
             return false;
@@ -3385,6 +3589,19 @@ public class MediaServiceImpl implements MediaService {
                 .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlistCode)
                 .orderByDesc(UserMusicPlaylistTrackEntity::getSortNum)
                 .orderByDesc(UserMusicPlaylistTrackEntity::getId)
+                .last("LIMIT 1")
+        );
+        if (maxSort == null || maxSort.getSortNum() == null) {
+            return 1;
+        }
+        return Math.max(0, maxSort.getSortNum()) + 1;
+    }
+
+    private int resolveNextDefaultPlaylistTrackSort() {
+        MusicPlaylistEntity maxSort = musicPlaylistMapper.selectOne(
+            new LambdaQueryWrapper<MusicPlaylistEntity>()
+                .orderByDesc(MusicPlaylistEntity::getSortNum)
+                .orderByDesc(MusicPlaylistEntity::getId)
                 .last("LIMIT 1")
         );
         if (maxSort == null || maxSort.getSortNum() == null) {

@@ -7,6 +7,7 @@ import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -49,6 +50,12 @@ public class MyPostController {
     @Operation(summary = "查询我的文章详情")
     public ApiResponse<PostDetailResponse> detailMine(@PathVariable("post_id") Long postId) {
         return ApiResponse.success(contentService.getMyPostDetail(postId));
+    }
+
+    @GetMapping("/category-policies")
+    @Operation(summary = "查询作者可读分类默认分组策略")
+    public ApiResponse<PostEditorPolicyResponse> categoryPolicies() {
+        return ApiResponse.success(contentService.getMyPostCategoryPolicies());
     }
 
     @PostMapping(value = "/content-relay", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

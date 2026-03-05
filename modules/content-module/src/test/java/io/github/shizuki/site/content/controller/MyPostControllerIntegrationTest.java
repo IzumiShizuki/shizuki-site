@@ -3,9 +3,11 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
+import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -79,5 +81,27 @@ class MyPostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.bucket").value("blog-private"));
+    }
+
+    @Test
+    void shouldReturnCategoryPoliciesSuccessfully() throws Exception {
+        Mockito.when(contentService.getMyPostCategoryPolicies())
+            .thenReturn(new PostEditorPolicyResponse(
+                List.of("ADMIN", "FRIEND", "USER"),
+                List.of(
+                    new PostEditorPolicyResponse.CategoryDefaultItem(
+                        "game",
+                        true,
+                        Set.of("USER", "FRIEND")
+                    )
+                )
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/me/posts/category-policies"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.group_options[0]").value("ADMIN"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.category_defaults[0].category_code").value("game"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.category_defaults[0].enabled").value(true));
     }
 }
