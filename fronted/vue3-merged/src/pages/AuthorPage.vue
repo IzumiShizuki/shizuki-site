@@ -124,20 +124,283 @@
             </article>
 
             <article v-else class="author-card editor-card">
-              <h2>编辑作者主页 JSON</h2>
-              <p class="line-text">可直接维护 profile_json；保存后会同步刷新当前页面展示。</p>
+              <h2>编辑作者主页</h2>
+              <p class="line-text">通过表单维护展示字段，保存后会同步刷新当前页面展示。</p>
 
-              <label class="editor-switch">
-                <input v-model="editState.enabled" type="checkbox" :disabled="editState.loading" />
-                <span>启用作者主页公开展示</span>
-              </label>
+              <section class="form-section">
+                <h3>基础设置</h3>
+                <label class="editor-switch">
+                  <input v-model="editForm.enabled" type="checkbox" :disabled="editState.loading" />
+                  <span>启用作者主页公开展示</span>
+                </label>
+              </section>
 
-              <textarea
-                v-model="editState.profileJsonText"
-                class="json-editor"
-                spellcheck="false"
-                :disabled="editState.loading"
-              ></textarea>
+              <section class="form-section">
+                <h3>主视觉</h3>
+                <div class="field-grid two-col">
+                  <label class="field-block">
+                    <span>问候语</span>
+                    <input v-model.trim="editForm.hero.greeting" type="text" :disabled="editState.loading" />
+                  </label>
+                  <label class="field-block">
+                    <span>名字</span>
+                    <input v-model.trim="editForm.hero.name" type="text" :disabled="editState.loading" />
+                  </label>
+                </div>
+                <label class="field-block">
+                  <span>签名</span>
+                  <textarea v-model.trim="editForm.hero.quote" rows="2" :disabled="editState.loading"></textarea>
+                </label>
+                <label class="field-block">
+                  <span>头像 URL</span>
+                  <input v-model.trim="editForm.hero.avatarUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
+                </label>
+                <div class="inline-actions compact">
+                  <input
+                    ref="avatarUploadInputRef"
+                    class="hidden-file-input"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    :disabled="editState.loading || editState.uploadingAvatar"
+                    @change="handleAvatarFileChange"
+                  />
+                  <button
+                    class="mini-btn ripple-trigger"
+                    type="button"
+                    :disabled="editState.loading || editState.uploadingAvatar"
+                    @click="triggerAvatarUpload"
+                  >
+                    {{ editState.uploadingAvatar ? '上传中...' : '上传头像并回填' }}
+                  </button>
+                </div>
+                <img class="avatar-preview" :src="editForm.hero.avatarUrl || hero.avatarUrl" alt="avatar preview" />
+              </section>
+
+              <section class="form-section">
+                <h3>身份信息</h3>
+                <div class="field-grid two-col">
+                  <label class="field-block">
+                    <span>出生年份</span>
+                    <input v-model.trim="editForm.identity.birthYear" type="text" :disabled="editState.loading" />
+                  </label>
+                  <label class="field-block">
+                    <span>学校</span>
+                    <input v-model.trim="editForm.identity.school" type="text" :disabled="editState.loading" />
+                  </label>
+                  <label class="field-block">
+                    <span>专业</span>
+                    <input v-model.trim="editForm.identity.major" type="text" :disabled="editState.loading" />
+                  </label>
+                  <label class="field-block">
+                    <span>当前角色</span>
+                    <input v-model.trim="editForm.identity.role" type="text" :disabled="editState.loading" />
+                  </label>
+                </div>
+                <div class="field-block">
+                  <span>身份标签（回车添加）</span>
+                  <div class="tag-editor">
+                    <div class="chip-row">
+                      <button
+                        v-for="(item, index) in editForm.identity.labels"
+                        :key="`identity-label-${item}-${index}`"
+                        type="button"
+                        class="chip removable-chip ripple-trigger"
+                        :disabled="editState.loading"
+                        @click="removeTag(editForm.identity.labels, index)"
+                      >
+                        {{ item }} ×
+                      </button>
+                    </div>
+                    <input
+                      v-model="tagInputs.identityLabels"
+                      type="text"
+                      :disabled="editState.loading"
+                      placeholder="输入标签，回车添加"
+                      @keydown.enter.prevent="commitTagInput('identityLabels', editForm.identity.labels)"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section class="form-section">
+                <h3>技能与偏好</h3>
+                <div class="field-block">
+                  <span>技能（回车添加）</span>
+                  <div class="tag-editor">
+                    <div class="chip-row">
+                      <button
+                        v-for="(item, index) in editForm.skills"
+                        :key="`skill-${item}-${index}`"
+                        type="button"
+                        class="chip removable-chip ripple-trigger"
+                        :disabled="editState.loading"
+                        @click="removeTag(editForm.skills, index)"
+                      >
+                        {{ item }} ×
+                      </button>
+                    </div>
+                    <input
+                      v-model="tagInputs.skills"
+                      type="text"
+                      :disabled="editState.loading"
+                      placeholder="输入技能，回车添加"
+                      @keydown.enter.prevent="commitTagInput('skills', editForm.skills)"
+                    />
+                  </div>
+                </div>
+                <div class="field-block">
+                  <span>碎碎念（每行一条）</span>
+                  <textarea v-model="editForm.about.introText" rows="4" :disabled="editState.loading"></textarea>
+                </div>
+                <label class="field-block">
+                  <span>目标</span>
+                  <textarea v-model.trim="editForm.about.mission" rows="2" :disabled="editState.loading"></textarea>
+                </label>
+                <div class="field-grid two-col">
+                  <div class="field-block">
+                    <span>关注方向（回车添加）</span>
+                    <div class="tag-editor">
+                      <div class="chip-row">
+                        <button
+                          v-for="(item, index) in editForm.about.focus"
+                          :key="`focus-${item}-${index}`"
+                          type="button"
+                          class="chip removable-chip ripple-trigger"
+                          :disabled="editState.loading"
+                          @click="removeTag(editForm.about.focus, index)"
+                        >
+                          {{ item }} ×
+                        </button>
+                      </div>
+                      <input
+                        v-model="tagInputs.aboutFocus"
+                        type="text"
+                        :disabled="editState.loading"
+                        placeholder="输入关注方向，回车添加"
+                        @keydown.enter.prevent="commitTagInput('aboutFocus', editForm.about.focus)"
+                      />
+                    </div>
+                  </div>
+                  <div class="field-block">
+                    <span>音乐偏好（回车添加）</span>
+                    <div class="tag-editor">
+                      <div class="chip-row">
+                        <button
+                          v-for="(item, index) in editForm.about.music"
+                          :key="`music-${item}-${index}`"
+                          type="button"
+                          class="chip removable-chip ripple-trigger"
+                          :disabled="editState.loading"
+                          @click="removeTag(editForm.about.music, index)"
+                        >
+                          {{ item }} ×
+                        </button>
+                      </div>
+                      <input
+                        v-model="tagInputs.aboutMusic"
+                        type="text"
+                        :disabled="editState.loading"
+                        placeholder="输入音乐偏好，回车添加"
+                        @keydown.enter.prevent="commitTagInput('aboutMusic', editForm.about.music)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="form-section">
+                <h3>建站经历</h3>
+                <article v-for="(item, index) in editForm.journey" :key="`journey-row-${index}`" class="nested-card">
+                  <div class="field-grid two-col">
+                    <label class="field-block">
+                      <span>年份</span>
+                      <input v-model.trim="item.year" type="text" :disabled="editState.loading" />
+                    </label>
+                    <label class="field-block">
+                      <span>标题</span>
+                      <input v-model.trim="item.title" type="text" :disabled="editState.loading" />
+                    </label>
+                  </div>
+                  <label class="field-block">
+                    <span>描述</span>
+                    <textarea v-model.trim="item.description" rows="3" :disabled="editState.loading"></textarea>
+                  </label>
+                  <div class="field-block">
+                    <span>技术栈（回车添加）</span>
+                    <div class="tag-editor">
+                      <div class="chip-row">
+                        <button
+                          v-for="(stackItem, stackIndex) in item.stack"
+                          :key="`journey-stack-${index}-${stackItem}-${stackIndex}`"
+                          type="button"
+                          class="chip removable-chip ripple-trigger"
+                          :disabled="editState.loading"
+                          @click="removeTag(item.stack, stackIndex)"
+                        >
+                          {{ stackItem }} ×
+                        </button>
+                      </div>
+                      <input
+                        v-model="item.stackInput"
+                        type="text"
+                        :disabled="editState.loading"
+                        placeholder="输入技术栈，回车添加"
+                        @keydown.enter.prevent="commitJourneyStackInput(item)"
+                      />
+                    </div>
+                  </div>
+                  <div class="inline-actions compact">
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading || index === 0" @click="moveJourneyRow(index, -1)">
+                      上移
+                    </button>
+                    <button
+                      class="mini-btn ripple-trigger"
+                      type="button"
+                      :disabled="editState.loading || index === editForm.journey.length - 1"
+                      @click="moveJourneyRow(index, 1)"
+                    >
+                      下移
+                    </button>
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="removeJourneyRow(index)">删除</button>
+                  </div>
+                </article>
+                <div class="inline-actions compact">
+                  <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="addJourneyRow">新增经历</button>
+                </div>
+              </section>
+
+              <section class="form-section">
+                <h3>外链</h3>
+                <article v-for="(item, index) in editForm.about.links" :key="`link-row-${index}`" class="nested-card">
+                  <div class="field-grid two-col">
+                    <label class="field-block">
+                      <span>名称</span>
+                      <input v-model.trim="item.label" type="text" :disabled="editState.loading" />
+                    </label>
+                    <label class="field-block">
+                      <span>URL</span>
+                      <input v-model.trim="item.url" type="text" :disabled="editState.loading" />
+                    </label>
+                  </div>
+                  <div class="inline-actions compact">
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading || index === 0" @click="moveLinkRow(index, -1)">
+                      上移
+                    </button>
+                    <button
+                      class="mini-btn ripple-trigger"
+                      type="button"
+                      :disabled="editState.loading || index === editForm.about.links.length - 1"
+                      @click="moveLinkRow(index, 1)"
+                    >
+                      下移
+                    </button>
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="removeLinkRow(index)">删除</button>
+                  </div>
+                </article>
+                <div class="inline-actions compact">
+                  <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="addLinkRow">新增外链</button>
+                </div>
+              </section>
 
               <div class="inline-actions compact">
                 <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="loadAdminProfile">
@@ -150,6 +413,7 @@
                   {{ editState.loading ? '保存中...' : '保存资料' }}
                 </button>
               </div>
+              <p v-if="editState.dirty" class="state-tip">你有未保存的修改。</p>
 
               <p v-if="editState.error" class="error-text">{{ editState.error }}</p>
               <p v-if="editState.success" class="state-tip">{{ editState.success }}</p>
@@ -194,13 +458,21 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
-import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile } from '../services/authorApi';
+import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
 import {
   AuthorTabKey,
   createDefaultAuthorProfilePayload,
   normalizeAuthorProfilePayload,
   normalizeAuthorTabKey
 } from './authorUiState';
+import {
+  appendUniqueTags,
+  buildEditFormFromProfile,
+  buildProfileJsonFromEditForm,
+  createDefaultAuthorEditForm,
+  createEmptyJourneyRow,
+  createEmptyLinkRow
+} from './authorEditFormState';
 
 const route = useRoute();
 const router = useRouter();
@@ -216,14 +488,25 @@ const baseTabs = [
 const loading = ref(false);
 const loadError = ref('');
 const authorProfile = ref(createDefaultAuthorProfilePayload());
+const editForm = ref(createDefaultAuthorEditForm());
+const avatarUploadInputRef = ref(null);
 
 const editState = reactive({
-  enabled: true,
-  profileJsonText: '',
   loading: false,
   error: '',
-  success: ''
+  success: '',
+  uploadingAvatar: false,
+  dirty: false
 });
+
+const tagInputs = reactive({
+  identityLabels: '',
+  skills: '',
+  aboutFocus: '',
+  aboutMusic: ''
+});
+
+let suppressDirtyTracking = false;
 
 const isAdminUser = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -267,11 +550,89 @@ function openTab(tabKey) {
   router.replace({ path: '/author', query: { tab: normalized } });
 }
 
-function syncEditStateFromProfile() {
-  editState.enabled = authorProfile.value.enabled;
-  editState.profileJsonText = JSON.stringify(authorProfile.value.profileJson, null, 2);
+function resetTagInputs() {
+  tagInputs.identityLabels = '';
+  tagInputs.skills = '';
+  tagInputs.aboutFocus = '';
+  tagInputs.aboutMusic = '';
+}
+
+function normalizeJourneyRow(row = {}) {
+  return {
+    year: String(row.year || '').trim(),
+    title: String(row.title || '').trim(),
+    description: String(row.description || '').trim(),
+    stack: Array.isArray(row.stack)
+      ? row.stack
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+          .filter((item, index, list) => list.indexOf(item) === index)
+      : [],
+    stackInput: ''
+  };
+}
+
+function normalizeLinkRow(row = {}) {
+  return {
+    label: String(row.label || '').trim(),
+    url: String(row.url || '').trim()
+  };
+}
+
+function createJourneyRow() {
+  return normalizeJourneyRow(createEmptyJourneyRow());
+}
+
+function createLinkRow() {
+  return normalizeLinkRow(createEmptyLinkRow());
+}
+
+function buildEditFormState(profilePayload) {
+  const source = buildEditFormFromProfile(profilePayload);
+  return {
+    enabled: source.enabled !== false,
+    hero: {
+      greeting: String(source.hero?.greeting || '').trim(),
+      name: String(source.hero?.name || '').trim(),
+      quote: String(source.hero?.quote || '').trim(),
+      avatarUrl: String(source.hero?.avatarUrl || '').trim()
+    },
+    identity: {
+      birthYear: String(source.identity?.birthYear || '').trim(),
+      school: String(source.identity?.school || '').trim(),
+      major: String(source.identity?.major || '').trim(),
+      role: String(source.identity?.role || '').trim(),
+      labels: Array.isArray(source.identity?.labels) ? [...source.identity.labels] : []
+    },
+    skills: Array.isArray(source.skills) ? [...source.skills] : [],
+    journey: Array.isArray(source.journey) && source.journey.length ? source.journey.map(normalizeJourneyRow) : [createJourneyRow()],
+    about: {
+      introText: String(source.about?.introText || ''),
+      mission: String(source.about?.mission || '').trim(),
+      focus: Array.isArray(source.about?.focus) ? [...source.about.focus] : [],
+      music: Array.isArray(source.about?.music) ? [...source.about.music] : [],
+      links:
+        Array.isArray(source.about?.links) && source.about.links.length
+          ? source.about.links.map(normalizeLinkRow)
+          : [createLinkRow()]
+    }
+  };
+}
+
+function applyEditFormFromProfile(profilePayload) {
+  suppressDirtyTracking = true;
+  editForm.value = buildEditFormState(profilePayload);
+  resetTagInputs();
   editState.error = '';
   editState.success = '';
+  editState.dirty = false;
+  Promise.resolve().then(() => {
+    suppressDirtyTracking = false;
+  });
+}
+
+function syncEditStateFromProfile() {
+  applyEditFormFromProfile(authorProfile.value);
 }
 
 function resetEditProfile() {
@@ -285,7 +646,7 @@ async function loadPublicProfile() {
     await auth.ensureReady();
     const payload = await getAuthorProfile(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
     authorProfile.value = normalizeAuthorProfilePayload(payload);
-    syncEditStateFromProfile();
+    applyEditFormFromProfile(authorProfile.value);
   } catch (error) {
     loadError.value = readErrorMessage(error, '加载作者资料失败');
   } finally {
@@ -301,7 +662,7 @@ async function loadAdminProfile() {
   try {
     const payload = await getAdminAuthorProfile(auth.authorizedFetch);
     authorProfile.value = normalizeAuthorProfilePayload(payload);
-    syncEditStateFromProfile();
+    applyEditFormFromProfile(authorProfile.value);
   } catch (error) {
     editState.error = readErrorMessage(error, '读取管理员作者资料失败');
   } finally {
@@ -309,37 +670,160 @@ async function loadAdminProfile() {
   }
 }
 
+function validateEditForm(form) {
+  const heroName = String(form?.hero?.name || '').trim();
+  if (!heroName) {
+    return '请填写作者名字';
+  }
+
+  const journeyRows = Array.isArray(form?.journey) ? form.journey : [];
+  for (let index = 0; index < journeyRows.length; index += 1) {
+    const row = journeyRows[index] || {};
+    const hasContent = [row.year, row.title, row.description].some((item) => String(item || '').trim()) || (Array.isArray(row.stack) && row.stack.length > 0);
+    if (!hasContent) continue;
+    if (!String(row.title || '').trim()) {
+      return `建站经历第 ${index + 1} 项缺少标题`;
+    }
+  }
+
+  const links = Array.isArray(form?.about?.links) ? form.about.links : [];
+  for (let index = 0; index < links.length; index += 1) {
+    const row = links[index] || {};
+    const label = String(row.label || '').trim();
+    const url = String(row.url || '').trim();
+    if (label && !url) return `外链第 ${index + 1} 项缺少 URL`;
+    if (!label && url) return `外链第 ${index + 1} 项缺少名称`;
+  }
+
+  return '';
+}
+
 async function saveAdminProfile() {
   if (!isAdminUser.value) return;
+
+  const validationError = validateEditForm(editForm.value);
+  if (validationError) {
+    editState.error = validationError;
+    editState.success = '';
+    return;
+  }
 
   editState.loading = true;
   editState.error = '';
   editState.success = '';
   try {
-    const parsed = JSON.parse(editState.profileJsonText || '{}');
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('profile_json 必须是 JSON 对象');
-    }
-
+    const profileJson = buildProfileJsonFromEditForm(editForm.value);
     const payload = await updateAdminAuthorProfile(
       {
-        enabled: editState.enabled,
-        profileJson: parsed
+        enabled: editForm.value.enabled !== false,
+        profileJson
       },
       auth.authorizedFetch
     );
 
     authorProfile.value = normalizeAuthorProfilePayload(payload);
-    syncEditStateFromProfile();
+    applyEditFormFromProfile(authorProfile.value);
     editState.success = '作者资料已保存';
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      editState.error = 'JSON 格式错误，请检查后再保存';
-    } else {
-      editState.error = readErrorMessage(error, '保存作者资料失败');
-    }
+    editState.error = readErrorMessage(error, '保存作者资料失败');
   } finally {
     editState.loading = false;
+  }
+}
+
+function removeTag(target, index) {
+  if (!Array.isArray(target)) return;
+  if (index < 0 || index >= target.length) return;
+  target.splice(index, 1);
+}
+
+function commitTagInput(key, target) {
+  if (!Array.isArray(target)) return;
+  const input = tagInputs[key] || '';
+  const next = appendUniqueTags(target, input);
+  target.splice(0, target.length, ...next);
+  tagInputs[key] = '';
+}
+
+function commitJourneyStackInput(item) {
+  if (!item || !Array.isArray(item.stack)) return;
+  const next = appendUniqueTags(item.stack, item.stackInput || '');
+  item.stack.splice(0, item.stack.length, ...next);
+  item.stackInput = '';
+}
+
+function addJourneyRow() {
+  editForm.value.journey.push(createJourneyRow());
+}
+
+function removeJourneyRow(index) {
+  const list = editForm.value.journey;
+  if (index < 0 || index >= list.length) return;
+  list.splice(index, 1);
+  if (!list.length) {
+    list.push(createJourneyRow());
+  }
+}
+
+function moveJourneyRow(index, direction) {
+  const list = editForm.value.journey;
+  const nextIndex = index + direction;
+  if (index < 0 || index >= list.length) return;
+  if (nextIndex < 0 || nextIndex >= list.length) return;
+  const [row] = list.splice(index, 1);
+  list.splice(nextIndex, 0, row);
+}
+
+function addLinkRow() {
+  editForm.value.about.links.push(createLinkRow());
+}
+
+function removeLinkRow(index) {
+  const list = editForm.value.about.links;
+  if (index < 0 || index >= list.length) return;
+  list.splice(index, 1);
+  if (!list.length) {
+    list.push(createLinkRow());
+  }
+}
+
+function moveLinkRow(index, direction) {
+  const list = editForm.value.about.links;
+  const nextIndex = index + direction;
+  if (index < 0 || index >= list.length) return;
+  if (nextIndex < 0 || nextIndex >= list.length) return;
+  const [row] = list.splice(index, 1);
+  list.splice(nextIndex, 0, row);
+}
+
+function triggerAvatarUpload() {
+  if (editState.loading || editState.uploadingAvatar) return;
+  avatarUploadInputRef.value?.click();
+}
+
+async function handleAvatarFileChange(event) {
+  const inputEl = event?.target;
+  const file = inputEl?.files?.[0];
+  if (!file) return;
+
+  editState.uploadingAvatar = true;
+  editState.error = '';
+  editState.success = '';
+  try {
+    const payload = await uploadAuthorAvatar(file, auth.authorizedFetch);
+    const avatarUrl = String(payload?.url || '').trim();
+    if (!avatarUrl) {
+      throw new Error('头像 URL 为空');
+    }
+    editForm.value.hero.avatarUrl = avatarUrl;
+    editState.success = '头像上传成功，已自动回填 URL';
+  } catch (error) {
+    editState.error = readErrorMessage(error, '头像上传失败');
+  } finally {
+    editState.uploadingAvatar = false;
+    if (inputEl && typeof inputEl.value === 'string') {
+      inputEl.value = '';
+    }
   }
 }
 
@@ -400,6 +884,19 @@ watch(
       loadAdminProfile();
     }
   }
+);
+
+watch(
+  () => editForm.value,
+  () => {
+    if (suppressDirtyTracking) return;
+    if (activeTab.value !== AuthorTabKey.EDIT) return;
+    editState.dirty = true;
+    if (editState.success) {
+      editState.success = '';
+    }
+  },
+  { deep: true }
 );
 
 onMounted(() => {
@@ -697,6 +1194,7 @@ h1 {
 }
 
 .editor-card {
+  display: grid;
   gap: 10px;
 }
 
@@ -708,22 +1206,96 @@ h1 {
   color: rgba(226, 235, 252, 0.9);
 }
 
-.json-editor {
-  width: 100%;
-  min-height: 320px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(6, 11, 19, 0.72);
-  color: rgba(234, 242, 255, 0.95);
-  padding: 12px;
-  line-height: 1.5;
-  font-family: 'Roboto', 'Noto Sans SC', monospace;
+.form-section {
+  display: grid;
+  gap: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+  padding-top: 10px;
 }
 
-.json-editor:focus {
+.form-section h3 {
+  margin: 0;
+}
+
+.field-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.field-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-block {
+  display: grid;
+  gap: 6px;
+}
+
+.field-block > span {
+  font-size: 12px;
+  color: rgba(184, 201, 230, 0.9);
+}
+
+.field-block input,
+.field-block textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(6, 11, 19, 0.62);
+  color: rgba(236, 243, 255, 0.95);
+  padding: 9px 10px;
+  resize: vertical;
+}
+
+.field-block input:focus,
+.field-block textarea:focus {
   outline: none;
   border-color: rgba(var(--accent-rgb), 0.55);
   box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2);
+}
+
+.tag-editor {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.tag-editor .chip-row {
+  margin-top: 0;
+}
+
+.removable-chip {
+  cursor: pointer;
+}
+
+.removable-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.nested-card {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(7, 12, 22, 0.52);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.avatar-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 @media (max-width: 900px) {
@@ -755,6 +1327,10 @@ h1 {
 
   .kv-row {
     grid-template-columns: 86px minmax(0, 1fr);
+  }
+
+  .field-grid.two-col {
+    grid-template-columns: 1fr;
   }
 }
 </style>
