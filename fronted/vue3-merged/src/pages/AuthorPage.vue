@@ -21,31 +21,45 @@
         </button>
       </aside>
 
-      <section class="content-panel liquid-material">
+      <section
+        ref="contentPanelRef"
+        class="content-panel liquid-material"
+        :style="contentPanelStyle"
+        @pointermove="handleContentPointerMove"
+        @pointerleave="resetParallax"
+        @scroll.passive="handleContentScroll"
+      >
         <p v-if="loading" class="state-tip">正在同步作者主页资料...</p>
         <p v-else-if="loadError" class="error-text">{{ loadError }}</p>
 
         <template v-else>
-          <div v-if="activeTab === 'overview'" class="content-block">
-            <section class="hero-card author-card">
-              <div class="hero-avatar-wrap">
+          <div v-if="activeTab === 'overview'" class="content-block overview-motion-root">
+            <section class="hero-stage hero-card author-card reveal-node" :style="staggerStyle(0)">
+              <div class="hero-bg-glow" aria-hidden="true">
+                <span class="orb orb-a"></span>
+                <span class="orb orb-b"></span>
+                <span class="orb orb-c"></span>
+              </div>
+
+              <div class="hero-avatar-wrap hero-avatar-ring">
+                <span class="avatar-aurora-ring" aria-hidden="true"></span>
                 <img class="hero-avatar" :src="hero.avatarUrl" :alt="hero.name" />
                 <span class="hero-badge" :class="{ off: !authorProfile.enabled }">
                   {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
                 </span>
               </div>
-              <div class="hero-content">
-                <p class="hero-greeting">{{ hero.greeting }}</p>
-                <h2>{{ hero.name }}</h2>
-                <p class="hero-quote">{{ hero.quote }}</p>
-                <div class="chip-row">
+              <div class="hero-content hero-content-stack">
+                <p class="hero-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
+                <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
+                <p class="hero-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
+                <div class="chip-row reveal-line" :style="staggerStyle(4)">
                   <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
                 </div>
               </div>
             </section>
 
             <div class="overview-grid">
-              <article class="author-card">
+              <article class="author-card overview-card reveal-node" :style="staggerStyle(5)">
                 <h3>身份信息</h3>
                 <dl class="kv-grid">
                   <div class="kv-row">
@@ -67,21 +81,21 @@
                 </dl>
               </article>
 
-              <article class="author-card">
+              <article class="author-card overview-card reveal-node" :style="staggerStyle(6)">
                 <h3>技能栈</h3>
                 <div class="chip-row skills-grid">
                   <span v-for="skill in skills" :key="`skill-${skill}`" class="chip skill-chip">{{ skill }}</span>
                 </div>
               </article>
 
-              <article class="author-card">
+              <article class="author-card overview-card reveal-node" :style="staggerStyle(7)">
                 <h3>碎碎念</h3>
                 <p v-for="(line, index) in about.intro" :key="`intro-${index}`" class="line-text">
                   {{ line }}
                 </p>
               </article>
 
-              <article class="author-card">
+              <article class="author-card overview-card reveal-node" :style="staggerStyle(8)">
                 <h3>偏好与关注</h3>
                 <p class="line-text"><strong>目标：</strong>{{ about.mission }}</p>
                 <p class="mini-title">关注方向</p>
@@ -96,15 +110,25 @@
             </div>
           </div>
 
-          <div v-else-if="activeTab === 'journey'" class="content-block timeline-wrap">
-            <article v-for="(item, index) in journey" :key="`journey-${index}-${item.title}`" class="timeline-item author-card">
-              <p class="timeline-year">{{ item.year }}</p>
-              <h3>{{ item.title }}</h3>
-              <p class="line-text">{{ item.description }}</p>
-              <div class="chip-row">
-                <span v-for="stack in item.stack" :key="`stack-${item.year}-${stack}`" class="chip">{{ stack }}</span>
-              </div>
-            </article>
+          <div v-else-if="activeTab === 'journey'" class="content-block timeline-wrap journey-motion-root">
+            <div ref="journeyTimelineRef" class="timeline-rail">
+              <article
+                v-for="(item, index) in journey"
+                :key="`journey-${index}-${item.title}`"
+                class="timeline-item author-card reveal-node"
+                :class="{ 'is-active': motionState.activeJourneyIndex === index }"
+                :data-journey-index="index"
+                :style="staggerStyle(index)"
+              >
+                <span class="timeline-node" aria-hidden="true"></span>
+                <p class="timeline-year">{{ item.year }}</p>
+                <h3>{{ item.title }}</h3>
+                <p class="line-text">{{ item.description }}</p>
+                <div class="chip-row">
+                  <span v-for="stack in item.stack" :key="`stack-${item.year}-${stack}`" class="chip timeline-chip">{{ stack }}</span>
+                </div>
+              </article>
+            </div>
           </div>
 
           <div v-else-if="activeTab === 'posts'" class="content-block">
@@ -420,26 +444,31 @@
             </article>
           </div>
 
-          <div v-else class="content-block">
-            <div class="about-grid">
-              <article class="author-card">
+          <div v-else class="content-block about-motion-root">
+            <div class="about-grid about-grid-asymmetric">
+              <article class="author-card about-intro-card reveal-node" :style="staggerStyle(0)">
                 <h2>关于本站</h2>
-                <p v-for="(line, index) in about.intro" :key="`about-intro-${index}`" class="line-text">{{ line }}</p>
+                <p v-for="(line, index) in about.intro" :key="`about-intro-${index}`" class="line-text reveal-line" :style="staggerStyle(index + 1)">
+                  {{ line }}
+                </p>
               </article>
 
-              <article class="author-card">
+              <article class="author-card about-mission-card reveal-node" :style="staggerStyle(3)">
+                <span class="mission-sweep" aria-hidden="true"></span>
                 <h3>长期目标</h3>
                 <p class="line-text">{{ about.mission }}</p>
               </article>
 
-              <article class="author-card">
+              <article class="author-card about-links-card reveal-node" :style="staggerStyle(4)">
                 <h3>站点外链</h3>
                 <div class="link-list">
                   <button
                     v-for="item in about.links"
                     :key="`link-${item.label}-${item.url}`"
                     type="button"
-                    class="link-btn ripple-trigger"
+                    class="link-btn ripple-trigger shine-link"
+                    @pointermove="handleMagneticPointerMove"
+                    @pointerleave="resetMagneticPointer"
                     @click="openLink(item.url)"
                   >
                     {{ item.label }}
@@ -455,7 +484,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
@@ -473,6 +502,7 @@ import {
   createEmptyJourneyRow,
   createEmptyLinkRow
 } from './authorEditFormState';
+import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
 
 const route = useRoute();
 const router = useRouter();
@@ -490,6 +520,9 @@ const loadError = ref('');
 const authorProfile = ref(createDefaultAuthorProfilePayload());
 const editForm = ref(createDefaultAuthorEditForm());
 const avatarUploadInputRef = ref(null);
+const contentPanelRef = ref(null);
+const journeyTimelineRef = ref(null);
+const motionState = reactive(createAuthorMotionState({ reducedMotion: readReducedMotionPreference() }));
 
 const editState = reactive({
   loading: false,
@@ -507,6 +540,10 @@ const tagInputs = reactive({
 });
 
 let suppressDirtyTracking = false;
+let revealController = null;
+let journeyObserver = null;
+let motionMediaCleanup = null;
+const journeyRatioMap = new Map();
 
 const isAdminUser = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -536,6 +573,14 @@ const updatedAtText = computed(() => {
   return formatDateTime(authorProfile.value.updatedAt || '') || '未记录';
 });
 
+const contentPanelStyle = computed(() => {
+  return {
+    '--parallax-x': `${motionState.pointer.x.toFixed(2)}px`,
+    '--parallax-y': `${motionState.pointer.y.toFixed(2)}px`,
+    '--journey-progress': `${Math.round(Math.max(0, Math.min(1, motionState.journeyProgress || 0)) * 100)}%`
+  };
+});
+
 function normalizeTab(raw) {
   const normalized = normalizeAuthorTabKey(String(raw || '').trim().toLowerCase());
   if (normalized === AuthorTabKey.EDIT && !isAdminUser.value) {
@@ -548,6 +593,232 @@ function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
+}
+
+function readReducedMotionPreference() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function isDisplayTab(tabKey = activeTab.value) {
+  return tabKey === AuthorTabKey.OVERVIEW || tabKey === AuthorTabKey.JOURNEY || tabKey === AuthorTabKey.ABOUT;
+}
+
+function isDesktopPointerEnabled() {
+  if (!motionState.motionEnabled) return false;
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(min-width: 901px)').matches;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function staggerStyle(index) {
+  return {
+    '--reveal-delay': `${Math.max(0, Number(index) || 0) * 60}ms`
+  };
+}
+
+function handleContentPointerMove(event) {
+  if (!isDisplayTab() || !isDesktopPointerEnabled()) return;
+  const panel = contentPanelRef.value;
+  if (!(panel instanceof HTMLElement)) return;
+  const mapped = mapPointerToParallax(event.clientX, event.clientY, panel.getBoundingClientRect(), 8);
+  motionState.pointer.x = mapped.x;
+  motionState.pointer.y = mapped.y;
+  motionState.pointer.active = true;
+}
+
+function resetParallax() {
+  motionState.pointer.active = false;
+  motionState.pointer.x = 0;
+  motionState.pointer.y = 0;
+}
+
+function handleMagneticPointerMove(event) {
+  if (!isDesktopPointerEnabled()) return;
+  const target = event.currentTarget;
+  if (!(target instanceof HTMLElement)) return;
+  const mapped = mapPointerToParallax(event.clientX, event.clientY, target.getBoundingClientRect(), 4);
+  target.style.setProperty('--mx', `${mapped.x.toFixed(2)}px`);
+  target.style.setProperty('--my', `${mapped.y.toFixed(2)}px`);
+}
+
+function resetMagneticPointer(event) {
+  const target = event.currentTarget;
+  if (!(target instanceof HTMLElement)) return;
+  target.style.setProperty('--mx', '0px');
+  target.style.setProperty('--my', '0px');
+}
+
+function disconnectRevealController() {
+  if (revealController) {
+    revealController.disconnect();
+  }
+  revealController = null;
+}
+
+function disconnectJourneyObserver() {
+  if (journeyObserver) {
+    journeyObserver.disconnect();
+  }
+  journeyObserver = null;
+  journeyRatioMap.clear();
+  motionState.activeJourneyIndex = -1;
+  motionState.journeyProgress = 0;
+}
+
+function getRevealSelectorByTab(tabKey = activeTab.value) {
+  if (tabKey === AuthorTabKey.OVERVIEW) return '.overview-motion-root .reveal-node, .overview-motion-root .reveal-line';
+  if (tabKey === AuthorTabKey.JOURNEY) return '.journey-motion-root .reveal-node';
+  if (tabKey === AuthorTabKey.ABOUT) return '.about-motion-root .reveal-node, .about-motion-root .reveal-line';
+  return '';
+}
+
+function setupActiveRevealObserver() {
+  disconnectRevealController();
+  const panel = contentPanelRef.value;
+  if (!(panel instanceof HTMLElement)) return;
+
+  const selector = getRevealSelectorByTab(activeTab.value);
+  if (!selector) return;
+  revealController = setupRevealObserver(panel, selector, {
+    root: panel,
+    threshold: 0.16,
+    once: true,
+    baseDelay: 0,
+    stepDelay: 60,
+    disabled: !motionState.motionEnabled
+  });
+}
+
+function updateJourneyProgressFromRatios(totalCount) {
+  if (totalCount <= 0) {
+    motionState.activeJourneyIndex = -1;
+    motionState.journeyProgress = 0;
+    return;
+  }
+
+  let bestIndex = -1;
+  let bestRatio = -1;
+  for (let index = 0; index < totalCount; index += 1) {
+    const ratio = Number(journeyRatioMap.get(index) || 0);
+    if (ratio > bestRatio) {
+      bestRatio = ratio;
+      bestIndex = index;
+    }
+  }
+
+  if (bestIndex < 0 || bestRatio <= 0) {
+    motionState.activeJourneyIndex = 0;
+    motionState.journeyProgress = 0;
+    return;
+  }
+
+  motionState.activeJourneyIndex = bestIndex;
+  motionState.journeyProgress = clampNumber((bestIndex + bestRatio) / totalCount, 0, 1);
+}
+
+function syncJourneyProgressByScroll() {
+  if (activeTab.value !== AuthorTabKey.JOURNEY) return;
+  const panel = contentPanelRef.value;
+  const total = journey.value.length;
+  if (!(panel instanceof HTMLElement) || total <= 0) {
+    motionState.activeJourneyIndex = -1;
+    motionState.journeyProgress = 0;
+    return;
+  }
+  const maxScroll = Math.max(1, panel.scrollHeight - panel.clientHeight);
+  const ratio = clampNumber(panel.scrollTop / maxScroll, 0, 1);
+  motionState.journeyProgress = ratio;
+  motionState.activeJourneyIndex = Math.min(total - 1, Math.floor(ratio * total));
+}
+
+function setupJourneyProgressObserver() {
+  disconnectJourneyObserver();
+  if (activeTab.value !== AuthorTabKey.JOURNEY) return;
+
+  const panel = contentPanelRef.value;
+  const timelineEl = journeyTimelineRef.value;
+  if (!(panel instanceof HTMLElement) || !(timelineEl instanceof HTMLElement)) return;
+  const items = Array.from(timelineEl.querySelectorAll('.timeline-item')).filter((node) => node instanceof HTMLElement);
+  if (!items.length) {
+    motionState.activeJourneyIndex = -1;
+    motionState.journeyProgress = 0;
+    return;
+  }
+
+  if (!motionState.motionEnabled || typeof IntersectionObserver !== 'function') {
+    motionState.activeJourneyIndex = 0;
+    motionState.journeyProgress = 1;
+    return;
+  }
+
+  journeyObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const index = Number(entry.target?.dataset?.journeyIndex ?? -1);
+        if (!Number.isInteger(index) || index < 0) return;
+        journeyRatioMap.set(index, entry.isIntersecting ? entry.intersectionRatio : 0);
+      });
+      updateJourneyProgressFromRatios(items.length);
+    },
+    {
+      root: panel,
+      threshold: [0, 0.15, 0.35, 0.55, 0.75, 1]
+    }
+  );
+
+  items.forEach((item, index) => {
+    item.dataset.journeyIndex = String(index);
+    journeyObserver?.observe(item);
+  });
+}
+
+function handleContentScroll() {
+  if (activeTab.value !== AuthorTabKey.JOURNEY) return;
+  if (!journeyObserver) {
+    syncJourneyProgressByScroll();
+  }
+}
+
+function refreshActiveTabMotion() {
+  nextTick(() => {
+    setupActiveRevealObserver();
+    setupJourneyProgressObserver();
+    if (!isDisplayTab()) {
+      resetParallax();
+    } else if (activeTab.value === AuthorTabKey.JOURNEY && !journeyObserver) {
+      syncJourneyProgressByScroll();
+    }
+  });
+}
+
+function bindReducedMotionWatcher() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+  const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const applyMotionPreference = () => {
+    motionState.motionEnabled = !mediaQuery.matches;
+    if (!motionState.motionEnabled) {
+      resetParallax();
+    }
+    refreshActiveTabMotion();
+  };
+
+  applyMotionPreference();
+
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', applyMotionPreference);
+    motionMediaCleanup = () => mediaQuery.removeEventListener('change', applyMotionPreference);
+    return;
+  }
+  if (typeof mediaQuery.addListener === 'function') {
+    mediaQuery.addListener(applyMotionPreference);
+    motionMediaCleanup = () => mediaQuery.removeListener(applyMotionPreference);
+    return;
+  }
+  motionMediaCleanup = null;
 }
 
 function resetTagInputs() {
@@ -647,6 +918,7 @@ async function loadPublicProfile() {
     const payload = await getAuthorProfile(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
+    refreshActiveTabMotion();
   } catch (error) {
     loadError.value = readErrorMessage(error, '加载作者资料失败');
   } finally {
@@ -663,6 +935,7 @@ async function loadAdminProfile() {
     const payload = await getAdminAuthorProfile(auth.authorizedFetch);
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
+    refreshActiveTabMotion();
   } catch (error) {
     editState.error = readErrorMessage(error, '读取管理员作者资料失败');
   } finally {
@@ -724,6 +997,7 @@ async function saveAdminProfile() {
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
     editState.success = '作者资料已保存';
+    refreshActiveTabMotion();
   } catch (error) {
     editState.error = readErrorMessage(error, '保存作者资料失败');
   } finally {
@@ -883,6 +1157,7 @@ watch(
     if (nextTab === AuthorTabKey.EDIT && isAdminUser.value && !editState.loading) {
       loadAdminProfile();
     }
+    refreshActiveTabMotion();
   }
 );
 
@@ -900,7 +1175,17 @@ watch(
 );
 
 onMounted(() => {
+  bindReducedMotionWatcher();
   loadPublicProfile();
+  refreshActiveTabMotion();
+});
+
+onBeforeUnmount(() => {
+  disconnectRevealController();
+  disconnectJourneyObserver();
+  if (typeof motionMediaCleanup === 'function') {
+    motionMediaCleanup();
+  }
 });
 </script>
 
@@ -978,9 +1263,13 @@ h1 {
   --liquid-bg: rgba(20, 27, 42, 0.32);
   --liquid-border: rgba(255, 255, 255, 0.2);
   --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.2);
+  --parallax-x: 0px;
+  --parallax-y: 0px;
+  --journey-progress: 0%;
   border-radius: 14px;
   padding: 14px 16px;
   overflow: auto;
+  perspective: 1200px;
 }
 
 .content-block {
@@ -1002,6 +1291,8 @@ h1 {
   background: rgba(9, 14, 24, 0.46);
   box-shadow: 0 10px 24px rgba(6, 10, 18, 0.18);
   padding: 14px;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease, border-color 240ms ease;
+  will-change: transform;
 }
 
 .hero-card {
@@ -1009,12 +1300,82 @@ h1 {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
   align-items: center;
+  transform: translate3d(calc(var(--parallax-x) * 0.28), calc(var(--parallax-y) * 0.22), 0);
+}
+
+.hero-stage {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hero-bg-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: -24% -8%;
+  z-index: 0;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: 0.65;
+}
+
+.orb-a {
+  width: 180px;
+  height: 180px;
+  left: -18px;
+  top: -26px;
+  background: radial-gradient(circle, rgba(92, 173, 255, 0.58), rgba(92, 173, 255, 0.08) 70%, rgba(92, 173, 255, 0));
+  animation: float-orb-1 8.4s ease-in-out infinite;
+}
+
+.orb-b {
+  width: 200px;
+  height: 200px;
+  right: -12px;
+  bottom: -64px;
+  background: radial-gradient(circle, rgba(182, 132, 255, 0.52), rgba(182, 132, 255, 0.1) 70%, rgba(182, 132, 255, 0));
+  animation: float-orb-2 9.6s ease-in-out infinite;
+}
+
+.orb-c {
+  width: 136px;
+  height: 136px;
+  right: 28%;
+  top: -22px;
+  background: radial-gradient(circle, rgba(118, 255, 226, 0.5), rgba(118, 255, 226, 0.08) 68%, rgba(118, 255, 226, 0));
+  animation: float-orb-3 7.5s ease-in-out infinite;
 }
 
 .hero-avatar-wrap {
   display: grid;
   gap: 8px;
   justify-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-avatar-ring {
+  padding: 4px;
+}
+
+.avatar-aurora-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  border: 1px solid rgba(145, 218, 255, 0.56);
+  background: conic-gradient(
+    from 0deg,
+    rgba(120, 230, 255, 0.12),
+    rgba(190, 143, 255, 0.24),
+    rgba(120, 230, 255, 0.12)
+  );
+  filter: blur(0.5px);
+  animation: spin-slow 10s linear infinite;
+  transition: border-color 220ms ease;
 }
 
 .hero-avatar {
@@ -1024,6 +1385,9 @@ h1 {
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, 0.58);
   box-shadow: 0 10px 22px rgba(6, 10, 18, 0.34);
+  position: relative;
+  z-index: 1;
+  transition: transform 240ms ease, box-shadow 240ms ease;
 }
 
 .hero-badge {
@@ -1039,9 +1403,32 @@ h1 {
   color: rgba(255, 210, 210, 0.95);
 }
 
+.hero-stage:hover {
+  box-shadow: 0 18px 36px rgba(5, 10, 18, 0.36);
+}
+
+.hero-stage:hover .hero-avatar {
+  transform: scale(1.04);
+  box-shadow: 0 16px 36px rgba(82, 168, 255, 0.35);
+}
+
+.hero-stage:hover .avatar-aurora-ring {
+  border-color: rgba(163, 225, 255, 0.78);
+}
+
 .hero-greeting {
   margin: 0;
   color: rgba(203, 217, 242, 0.9);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-content-stack {
+  display: grid;
+  gap: 4px;
 }
 
 .hero-content h2 {
@@ -1061,13 +1448,71 @@ h1 {
   gap: 12px;
 }
 
+.overview-card {
+  transform: translate3d(calc(var(--parallax-x) * 0.16), calc(var(--parallax-y) * 0.12), 0);
+}
+
+.overview-card:hover {
+  transform: translate3d(calc(var(--parallax-x) * 0.16), calc(var(--parallax-y) * 0.12 - 4px), 0);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 16px 30px rgba(14, 25, 44, 0.42);
+}
+
 .timeline-wrap {
   gap: 10px;
+}
+
+.timeline-rail {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding-left: 22px;
+}
+
+.timeline-rail::before,
+.timeline-rail::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  width: 3px;
+  border-radius: 999px;
+}
+
+.timeline-rail::before {
+  bottom: 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+}
+
+.timeline-rail::after {
+  height: var(--journey-progress);
+  background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.95), rgba(var(--accent-rgb), 0.62));
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.42);
+  transition: height 220ms ease;
 }
 
 .timeline-item {
   position: relative;
   overflow: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.timeline-item:hover {
+  transform: translate3d(0, -4px, 0);
+  box-shadow: 0 16px 30px rgba(6, 10, 18, 0.3);
+}
+
+.timeline-node {
+  position: absolute;
+  left: -20px;
+  top: 17px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(214, 238, 255, 0.9);
+  border: 2px solid rgba(var(--accent-rgb), 0.6);
+  box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.34);
+  transition: box-shadow 220ms ease, transform 220ms ease;
 }
 
 .timeline-item::before {
@@ -1078,6 +1523,17 @@ h1 {
   bottom: 0;
   width: 3px;
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.76), rgba(var(--accent-rgb), 0.16));
+}
+
+.timeline-item.is-active {
+  border-color: rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 18px 34px rgba(7, 14, 24, 0.38);
+}
+
+.timeline-item.is-active .timeline-node {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0.2);
+  animation: pulse-node 1.9s ease-in-out infinite;
 }
 
 .timeline-year {
@@ -1139,6 +1595,16 @@ h1 {
   border-color: rgba(var(--accent-rgb), 0.34);
 }
 
+.timeline-chip {
+  transition: transform 200ms ease, filter 200ms ease, border-color 200ms ease;
+}
+
+.timeline-chip:hover {
+  transform: translateY(-2px);
+  filter: saturate(1.2);
+  border-color: rgba(var(--accent-rgb), 0.58);
+}
+
 .line-text {
   color: rgba(223, 230, 249, 0.88);
   line-height: 1.68;
@@ -1149,6 +1615,40 @@ h1 {
   margin-top: 12px;
   font-size: 12px;
   color: rgba(184, 201, 230, 0.9);
+}
+
+.about-grid-asymmetric {
+  grid-template-columns: 1.2fr 1fr;
+  grid-template-areas:
+    'intro mission'
+    'intro links';
+}
+
+.about-intro-card {
+  grid-area: intro;
+}
+
+.about-mission-card {
+  grid-area: mission;
+  position: relative;
+  overflow: hidden;
+}
+
+.about-links-card {
+  grid-area: links;
+}
+
+.mission-sweep {
+  pointer-events: none;
+  position: absolute;
+  inset: -25%;
+  background: conic-gradient(
+    from 180deg,
+    rgba(126, 217, 255, 0),
+    rgba(126, 217, 255, 0.2),
+    rgba(126, 217, 255, 0)
+  );
+  animation: sweep-border 6s linear infinite;
 }
 
 .inline-actions {
@@ -1191,6 +1691,119 @@ h1 {
   text-align: left;
   background: rgba(255, 255, 255, 0.14);
   color: rgba(236, 243, 255, 0.95);
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.shine-link {
+  --mx: 0px;
+  --my: 0px;
+  position: relative;
+  overflow: hidden;
+  transform: translate3d(var(--mx), var(--my), 0);
+}
+
+.shine-link::after {
+  content: '';
+  position: absolute;
+  top: -120%;
+  left: -30%;
+  width: 32%;
+  height: 300%;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0));
+  transform: translateX(-120%) rotate(18deg);
+  transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.shine-link:hover {
+  border-color: rgba(var(--accent-rgb), 0.56);
+  box-shadow: 0 12px 24px rgba(16, 32, 52, 0.32);
+}
+
+.shine-link:hover::after {
+  transform: translateX(420%) rotate(18deg);
+}
+
+.is-reveal-ready {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0) scale(0.995);
+  transition:
+    opacity 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.is-reveal-ready.is-revealed {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  animation: journey-rise 380ms ease both;
+}
+
+@keyframes float-orb-1 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14px, -12px, 0) scale(1.05);
+  }
+}
+
+@keyframes float-orb-2 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-12px, 12px, 0) scale(1.08);
+  }
+}
+
+@keyframes float-orb-3 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8px, 16px, 0) scale(0.94);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-node {
+  0%,
+  100% {
+    box-shadow: 0 0 0 6px rgba(var(--accent-rgb), 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 11px rgba(var(--accent-rgb), 0.12);
+  }
+}
+
+@keyframes sweep-border {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes journey-rise {
+  from {
+    filter: saturate(0.8);
+  }
+  to {
+    filter: saturate(1);
+  }
 }
 
 .editor-card {
@@ -1298,6 +1911,34 @@ h1 {
   background: rgba(255, 255, 255, 0.08);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .avatar-aurora-ring,
+  .mission-sweep,
+  .timeline-item.is-active .timeline-node,
+  .is-reveal-ready.is-revealed {
+    animation: none !important;
+  }
+
+  .hero-stage,
+  .overview-card,
+  .shine-link,
+  .timeline-item,
+  .author-card,
+  .is-reveal-ready {
+    transform: none !important;
+    transition: opacity 120ms linear !important;
+  }
+
+  .is-reveal-ready {
+    opacity: 1 !important;
+  }
+
+  .timeline-rail::after {
+    transition: none !important;
+  }
+}
+
 @media (max-width: 900px) {
   .dashboard-layout {
     grid-template-columns: 1fr;
@@ -1323,6 +1964,14 @@ h1 {
   .overview-grid,
   .about-grid {
     grid-template-columns: 1fr;
+  }
+
+  .about-grid-asymmetric {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'intro'
+      'mission'
+      'links';
   }
 
   .kv-row {
