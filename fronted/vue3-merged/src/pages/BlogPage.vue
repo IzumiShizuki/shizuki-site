@@ -22,8 +22,8 @@
               :class="{ active: leftNavMode === 'read' }"
               @click="jumpToBlogList"
             >
-              <i class="far fa-file-lines"></i>
-              <span>看文</span>
+              <i class="fas fa-house"></i>
+              <span>主页</span>
             </button>
             <button
               type="button"
@@ -34,9 +34,13 @@
               <i class="fas fa-pen"></i>
               <span>写文</span>
             </button>
-            <button type="button" class="switch-btn ripple-trigger" @click="jumpToBlogComments">
-              <i class="far fa-comments"></i>
-              <span>评论</span>
+            <button type="button" class="switch-btn ripple-trigger" @click="jumpToBlogCategories">
+              <i class="fas fa-folder-open"></i>
+              <span>分类</span>
+            </button>
+            <button type="button" class="switch-btn ripple-trigger" @click="jumpToBlogWhisper">
+              <i class="fas fa-user-secret"></i>
+              <span>悄悄话</span>
             </button>
           </div>
           <p v-if="leftNavHint" class="side-tip">{{ leftNavHint }}</p>
@@ -1367,10 +1371,16 @@ async function jumpToBlogEditor() {
   await router.push({ name: 'blog-editor' });
 }
 
-async function jumpToBlogComments() {
+async function jumpToBlogCategories() {
   leftNavHint.value = '';
   closeDownloadMenu();
-  await router.push({ name: 'blog', query: { panel: 'comments' } });
+  await router.push({ name: 'blog', query: { panel: 'categories' } });
+}
+
+async function jumpToBlogWhisper() {
+  leftNavHint.value = '';
+  closeDownloadMenu();
+  await router.push({ name: 'blog', query: { panel: 'whisper' } });
 }
 
 async function openPostDetail(postId) {

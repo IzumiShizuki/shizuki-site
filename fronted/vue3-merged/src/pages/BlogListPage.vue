@@ -22,8 +22,8 @@
           :class="{ active: uiState.panel === 'read' }"
           @click="setPanel('read')"
         >
-          <i class="far fa-file-lines"></i>
-          <span>看文</span>
+          <i class="fas fa-house"></i>
+          <span>主页</span>
         </button>
         <button
           type="button"
@@ -37,11 +37,20 @@
         <button
           type="button"
           class="switch-btn ripple-trigger"
-          :class="{ active: uiState.panel === 'comments' }"
-          @click="setPanel('comments')"
+          :class="{ active: uiState.panel === 'categories' }"
+          @click="setPanel('categories')"
         >
-          <i class="far fa-comments"></i>
-          <span>评论</span>
+          <i class="fas fa-folder-open"></i>
+          <span>分类</span>
+        </button>
+        <button
+          type="button"
+          class="switch-btn ripple-trigger"
+          :class="{ active: uiState.panel === 'whisper' }"
+          @click="setPanel('whisper')"
+        >
+          <i class="fas fa-user-secret"></i>
+          <span>悄悄话</span>
         </button>
         <p v-if="uiState.actionHint" class="action-hint">{{ uiState.actionHint }}</p>
       </SubtleScrollArea>
@@ -259,14 +268,75 @@
           </div>
         </template>
 
-        <SubtleScrollArea v-else tag="section" class="comment-panel liquid-material">
-          <h2>评论区（预留）</h2>
-          <p>一期暂不接入评论后端，本页先完成布局与交互占位。</p>
-          <p>后续会补充：评论列表、发布输入框、回复链和权限控制。</p>
-          <div class="comment-placeholder">
-            <span>🧪 评论模块开发中...</span>
-            <span>当前可继续通过“看文 / 写文”完成阅读与发布流程。</span>
+        <SubtleScrollArea v-else-if="uiState.panel === 'categories'" tag="section" class="category-panel liquid-material">
+          <h2>分类总览</h2>
+          <p>这里展示当前可见的全部分类，点击即可按分类筛选并回到主页列表。</p>
+          <div class="category-panel-grid">
+            <button
+              v-for="item in sidebarState.categories"
+              :key="`panel-category-${item.categoryCode}`"
+              type="button"
+              class="category-panel-card ripple-trigger"
+              @click="viewCategory(item.categoryCode)"
+            >
+              <img
+                v-if="item.coverImageUrl"
+                :src="resolveCover(item.coverImageUrl)"
+                :alt="item.displayName || item.categoryCode"
+                loading="lazy"
+              />
+              <div class="category-panel-card-main">
+                <strong>{{ item.displayName || item.categoryCode }}</strong>
+                <span>{{ item.count }} 篇</span>
+              </div>
+            </button>
+            <p v-if="!sidebarState.categories.length && !sidebarState.loading" class="empty-text">暂无可见分类。</p>
           </div>
+        </SubtleScrollArea>
+
+        <SubtleScrollArea v-else tag="section" class="whisper-panel liquid-material">
+          <h2>悄悄话</h2>
+          <p>支持匿名发送给作者，不登录也可以提交。备注可留空。</p>
+          <form class="whisper-form" @submit.prevent="submitWhisper">
+            <label class="whisper-field">
+              <span>内容（必填）</span>
+              <textarea
+                v-model.trim="whisperState.form.content"
+                maxlength="180"
+                placeholder="想对作者说点什么..."
+                required
+              ></textarea>
+            </label>
+            <div class="whisper-grid">
+              <label class="whisper-field">
+                <span>昵称（可选）</span>
+                <input v-model.trim="whisperState.form.nickname" type="text" maxlength="40" placeholder="匿名访客" />
+              </label>
+              <label class="whisper-field">
+                <span>备注/联系方式（可选）</span>
+                <input v-model.trim="whisperState.form.remark" type="text" maxlength="120" placeholder="QQ / 邮箱 / 留空都可以" />
+              </label>
+            </div>
+            <label class="whisper-field">
+              <span>关联文章（可选）</span>
+              <select v-model="whisperState.form.postId">
+                <option value="">不关联具体文章</option>
+                <option v-for="item in sidebarState.latestPosts" :key="`whisper-post-${item.postId}`" :value="String(item.postId)">
+                  {{ item.title }}
+                </option>
+              </select>
+            </label>
+            <div class="whisper-actions">
+              <button type="submit" class="mini-btn ripple-trigger" :disabled="whisperState.submitting">
+                {{ whisperState.submitting ? '发送中...' : '发送悄悄话' }}
+              </button>
+              <button type="button" class="mini-btn ripple-trigger" :disabled="whisperState.submitting" @click="resetWhisperForm">
+                清空
+              </button>
+            </div>
+            <p v-if="whisperState.error" class="error-text">{{ whisperState.error }}</p>
+            <p v-if="whisperState.notice" class="side-tip">{{ whisperState.notice }}</p>
+          </form>
         </SubtleScrollArea>
       </section>
     </div>
@@ -301,7 +371,7 @@ import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
-import { getPostSidebar, listPosts } from '../services/blogApi';
+import { getPostSidebar, listPosts, submitPostWhisper } from '../services/blogApi';
 
 const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
 const PAGE_SIZE = 10;
@@ -328,6 +398,18 @@ const categoryDrag = reactive({
 const uiState = reactive({
   panel: 'read',
   actionHint: ''
+});
+
+const whisperState = reactive({
+  submitting: false,
+  error: '',
+  notice: '',
+  form: {
+    content: '',
+    nickname: '',
+    remark: '',
+    postId: ''
+  }
 });
 
 const filters = reactive({
@@ -421,7 +503,12 @@ function persistLeftPanelCollapsed(value) {
 }
 
 function normalizePanel(panel) {
-  return String(panel || '').toLowerCase() === 'comments' ? 'comments' : 'read';
+  const normalized = String(panel || '').toLowerCase();
+  if (normalized === 'categories' || normalized === 'category') return 'categories';
+  if (normalized === 'whisper' || normalized === 'whispers' || normalized === 'comments' || normalized === 'comment') {
+    return 'whisper';
+  }
+  return 'read';
 }
 
 function syncPanelFromRouteQuery() {
@@ -432,14 +519,19 @@ function syncRouteQueryFromPanel(panel) {
   const normalized = normalizePanel(panel);
   const current = normalizePanel(route.query.panel);
   if (normalized === current) {
-    const hasCommentsFlag = String(route.query.panel || '').toLowerCase() === 'comments';
-    if ((normalized === 'comments' && hasCommentsFlag) || (normalized === 'read' && !hasCommentsFlag)) {
+    const currentPanel = String(route.query.panel || '').toLowerCase();
+    const isReadWithoutFlag = normalized === 'read' && !currentPanel;
+    const isCategories = normalized === 'categories' && currentPanel === 'categories';
+    const isWhisper = normalized === 'whisper' && (currentPanel === 'whisper' || currentPanel === 'comments');
+    if (isReadWithoutFlag || isCategories || isWhisper) {
       return;
     }
   }
   const nextQuery = { ...route.query };
-  if (normalized === 'comments') {
-    nextQuery.panel = 'comments';
+  if (normalized === 'categories') {
+    nextQuery.panel = 'categories';
+  } else if (normalized === 'whisper') {
+    nextQuery.panel = 'whisper';
   } else {
     delete nextQuery.panel;
   }
@@ -588,9 +680,53 @@ function setPanel(nextPanel) {
     openEditor();
     return;
   }
-  uiState.panel = nextPanel === 'comments' ? 'comments' : 'read';
+  uiState.panel = normalizePanel(nextPanel);
   uiState.actionHint = '';
   syncRouteQueryFromPanel(uiState.panel);
+}
+
+function viewCategory(categoryCode) {
+  applyCategoryFilter(categoryCode);
+  setPanel('read');
+}
+
+function resetWhisperForm() {
+  whisperState.form.content = '';
+  whisperState.form.nickname = '';
+  whisperState.form.remark = '';
+  whisperState.form.postId = '';
+  whisperState.error = '';
+  whisperState.notice = '';
+}
+
+async function submitWhisper() {
+  whisperState.error = '';
+  whisperState.notice = '';
+  const content = normalizeString(whisperState.form.content).trim();
+  if (!content) {
+    whisperState.error = '请先填写悄悄话内容';
+    return;
+  }
+
+  whisperState.submitting = true;
+  try {
+    const postId = Number.parseInt(String(whisperState.form.postId || ''), 10);
+    await submitPostWhisper(
+      {
+        content,
+        nickname: normalizeString(whisperState.form.nickname).trim(),
+        remark: normalizeString(whisperState.form.remark).trim(),
+        postId: Number.isFinite(postId) && postId > 0 ? postId : undefined
+      },
+      resolveAuthorizedFetch()
+    );
+    whisperState.notice = '已发送给作者，感谢你的留言。';
+    whisperState.form.content = '';
+  } catch (error) {
+    whisperState.error = normalizeErrorMessage(error, '发送悄悄话失败');
+  } finally {
+    whisperState.submitting = false;
+  }
 }
 
 function toggleLeftPanelCollapsed() {
@@ -1292,7 +1428,8 @@ onBeforeUnmount(() => {
   opacity: 0.8;
 }
 
-.comment-panel {
+.category-panel,
+.whisper-panel {
   --liquid-bg: rgba(10, 15, 24, 0.8);
   --liquid-border: rgba(255, 255, 255, 0.14);
   --liquid-shadow: 0 16px 28px rgba(5, 8, 14, 0.28);
@@ -1303,24 +1440,108 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
-.comment-panel h2 {
+.category-panel h2,
+.whisper-panel h2 {
   font-size: 22px;
 }
 
-.comment-panel p {
+.category-panel p,
+.whisper-panel p {
   color: rgba(214, 225, 247, 0.9);
   line-height: 1.7;
 }
 
-.comment-placeholder {
-  margin-top: 4px;
+.category-panel-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.category-panel-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
-  border: 1px dashed rgba(var(--accent-rgb), 0.5);
-  background: rgba(var(--accent-rgb), 0.13);
-  padding: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(236, 243, 255, 0.96);
+  text-align: left;
+  padding: 9px;
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.category-panel-card img {
+  width: 62px;
+  height: 62px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.category-panel-card-main {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+
+.category-panel-card-main strong {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.category-panel-card-main span {
+  font-size: 12px;
+  color: rgba(205, 218, 245, 0.88);
+}
+
+.whisper-form {
+  display: grid;
+  gap: 10px;
+}
+
+.whisper-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.whisper-field {
   display: grid;
   gap: 6px;
-  color: rgba(232, 239, 255, 0.95);
+}
+
+.whisper-field span {
+  font-size: 12px;
+  color: rgba(210, 223, 246, 0.92);
+}
+
+.whisper-field textarea,
+.whisper-field input,
+.whisper-field select {
+  width: 100%;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(9, 14, 25, 0.62);
+  color: rgba(239, 244, 255, 0.96);
+  padding: 8px 10px;
+}
+
+.whisper-field textarea {
+  resize: vertical;
+  min-height: 108px;
+}
+
+.whisper-field textarea:focus,
+.whisper-field input:focus,
+.whisper-field select:focus {
+  outline: none;
+  border-color: rgba(var(--accent-rgb), 0.62);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2);
+}
+
+.whisper-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .error-text {
@@ -1402,7 +1623,7 @@ onBeforeUnmount(() => {
   }
 
   .left-switch {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: center;
   }
 
@@ -1440,6 +1661,10 @@ onBeforeUnmount(() => {
   .head-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  .whisper-grid {
+    grid-template-columns: 1fr;
   }
 }
 

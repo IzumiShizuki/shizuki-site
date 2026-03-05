@@ -67,6 +67,27 @@ export async function getPostSidebar(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+function normalizeWhisperPayload(payload = {}) {
+  return {
+    content: String(payload.content || '').trim(),
+    nickname: payload.nickname ? String(payload.nickname).trim() : undefined,
+    remark: payload.remark ? String(payload.remark).trim() : undefined,
+    postId: Number.isFinite(Number(payload.postId)) ? Number(payload.postId) : undefined
+  };
+}
+
+export async function submitPostWhisper(payload = {}, authorizedFetch) {
+  const requestPayload = {
+    method: 'POST',
+    body: normalizeWhisperPayload(payload)
+  };
+  const response =
+    typeof authorizedFetch === 'function'
+      ? await authorizedFetch('/api/v1/posts/whispers', requestPayload)
+      : await httpRequest('/api/v1/posts/whispers', requestPayload);
+  return unwrapApiResponse(response);
+}
+
 export async function getPostDetail(postId, authorizedFetch) {
   const id = normalizePostId(postId);
   const path = `/api/v1/posts/${id}`;
