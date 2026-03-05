@@ -26,7 +26,8 @@ describe('authorUiState', () => {
       profile_json: {
         hero: {
           name: 'Shizuki Updated',
-          avatar_url: 'https://example.com/avatar.png'
+          avatar_url: 'https://example.com/avatar.png',
+          cover_image_url: 'https://example.com/cover.png'
         },
         skills: ['Vue3', 'Vue3', 'Spring Boot'],
         journey: [
@@ -34,10 +35,14 @@ describe('authorUiState', () => {
             year: '2026',
             title: 'Author module',
             description: 'completed',
+            image_url: 'https://example.com/journey.png',
             stack: ['Vue3']
           }
         ],
         about: {
+          intro_image_url: 'https://example.com/about-intro.png',
+          mission_image_url: 'https://example.com/about-mission.png',
+          links_image_url: 'https://example.com/about-links.png',
           links: [{ label: 'Blog', url: '/#/blog' }]
         }
       }
@@ -46,8 +51,11 @@ describe('authorUiState', () => {
     expect(normalized.authorCode).toBe('shizuki');
     expect(normalized.profileJson.hero.name).toBe('Shizuki Updated');
     expect(normalized.profileJson.hero.avatarUrl).toBe('https://example.com/avatar.png');
+    expect(normalized.profileJson.hero.coverImageUrl).toBe('https://example.com/cover.png');
     expect(normalized.profileJson.skills).toEqual(['Vue3', 'Spring Boot']);
     expect(normalized.profileJson.journey[0].title).toBe('Author module');
+    expect(normalized.profileJson.journey[0].imageUrl).toBe('https://example.com/journey.png');
+    expect(normalized.profileJson.about.introImageUrl).toBe('https://example.com/about-intro.png');
     expect(normalized.profileJson.about.links[0].label).toBe('Blog');
   });
 });

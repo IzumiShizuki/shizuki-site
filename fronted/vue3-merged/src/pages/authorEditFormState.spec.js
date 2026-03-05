@@ -15,7 +15,8 @@ describe('authorEditFormState', () => {
           greeting: '你好',
           name: 'Shizuki',
           quote: 'Quote',
-          avatar_url: 'https://example.com/a.png'
+          avatar_url: 'https://example.com/a.png',
+          cover_image_url: 'https://example.com/cover.png'
         },
         identity: {
           birth_year: '2006',
@@ -30,6 +31,7 @@ describe('authorEditFormState', () => {
             year: '2026',
             title: 'Milestone',
             description: 'Done',
+            image_url: 'https://example.com/journey.png',
             stack: ['Vue3']
           }
         ],
@@ -38,6 +40,9 @@ describe('authorEditFormState', () => {
           mission: 'Mission',
           focus: ['Focus'],
           music: ['Miku'],
+          intro_image_url: 'https://example.com/about-intro.png',
+          mission_image_url: 'https://example.com/about-mission.png',
+          links_image_url: 'https://example.com/about-links.png',
           links: [{ label: 'Blog', url: '/#/blog' }]
         }
       }
@@ -45,9 +50,12 @@ describe('authorEditFormState', () => {
 
     expect(form.enabled).toBe(false);
     expect(form.hero.avatarUrl).toBe('https://example.com/a.png');
+    expect(form.hero.coverImageUrl).toBe('https://example.com/cover.png');
     expect(form.identity.birthYear).toBe('2006');
     expect(form.skills).toEqual(['Vue3', 'Spring Boot']);
     expect(form.about.introText).toBe('line-1\nline-2');
+    expect(form.journey[0].imageUrl).toBe('https://example.com/journey.png');
+    expect(form.about.introImageUrl).toBe('https://example.com/about-intro.png');
     expect(form.about.links[0]).toEqual({ label: 'Blog', url: '/#/blog' });
   });
 
@@ -57,7 +65,8 @@ describe('authorEditFormState', () => {
         greeting: ' hi ',
         name: ' Shizuki ',
         quote: ' q ',
-        avatarUrl: 'https://example.com/avatar.png'
+        avatarUrl: 'https://example.com/avatar.png',
+        coverImageUrl: 'https://example.com/cover.png'
       },
       identity: {
         birthYear: ' 2006 ',
@@ -72,6 +81,7 @@ describe('authorEditFormState', () => {
           year: '2026',
           title: ' Author ',
           description: ' Done ',
+          imageUrl: ' https://example.com/journey.png ',
           stack: ['Vue3', 'Vue3']
         },
         {
@@ -86,6 +96,9 @@ describe('authorEditFormState', () => {
         mission: ' mission ',
         focus: ['A', 'A', 'B'],
         music: ['Miku'],
+        introImageUrl: ' https://example.com/about-intro.png ',
+        missionImageUrl: ' https://example.com/about-mission.png ',
+        linksImageUrl: ' https://example.com/about-links.png ',
         links: [
           { label: ' Blog ', url: ' /#/blog ' },
           { label: '', url: '' }
@@ -94,10 +107,15 @@ describe('authorEditFormState', () => {
     });
 
     expect(profileJson.hero.avatar_url).toBe('https://example.com/avatar.png');
+    expect(profileJson.hero.cover_image_url).toBe('https://example.com/cover.png');
     expect(profileJson.identity.birth_year).toBe('2006');
     expect(profileJson.identity.labels).toEqual(['Vue3', 'Spring Boot']);
     expect(profileJson.skills).toEqual(['Java', 'Vue3']);
+    expect(profileJson.journey[0].image_url).toBe('https://example.com/journey.png');
     expect(profileJson.about.intro).toEqual(['line-a', 'line-b']);
+    expect(profileJson.about.intro_image_url).toBe('https://example.com/about-intro.png');
+    expect(profileJson.about.mission_image_url).toBe('https://example.com/about-mission.png');
+    expect(profileJson.about.links_image_url).toBe('https://example.com/about-links.png');
     expect(profileJson.about.links).toEqual([{ label: 'Blog', url: '/#/blog' }]);
     expect(profileJson.journey).toHaveLength(1);
     expect(profileJson.journey[0].title).toBe('Author');

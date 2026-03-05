@@ -73,9 +73,6 @@
               <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('journey')">建站经历</button>
               <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('posts')">作者文章</button>
               <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('about')">关于本站</button>
-              <button v-if="isAdmin" class="popover-item ripple-trigger" type="button" @click="openAuthorTab('edit')">
-                编辑作者简介
-              </button>
             </section>
           </transition>
         </div>

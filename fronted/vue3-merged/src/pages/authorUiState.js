@@ -22,7 +22,8 @@ export function createDefaultAuthorProfileJson() {
       greeting: '你好，很高兴认识你',
       name: 'Shizuki',
       quote: '愿你终将与热爱相逢',
-      avatarUrl: '/images/katanegai.jpg'
+      avatarUrl: '/images/katanegai.jpg',
+      coverImageUrl: '/images/katanegai.jpg'
     },
     identity: {
       birthYear: '2006',
@@ -37,18 +38,21 @@ export function createDefaultAuthorProfileJson() {
         year: '2024',
         title: '确定 Shizuki Site 长期方向',
         description: '明确学习陪伴、内容沉淀、作品展示三条主线，搭建基础技术架构。',
+        imageUrl: '/images/katanegai.jpg',
         stack: ['Spring Boot', 'Vue3', 'MySQL']
       },
       {
         year: '2025',
         title: '完成博客与音乐模块一期',
         description: '打通博客阅读/编辑流程与音乐播放器链路，开始文档化沉淀。',
+        imageUrl: '/images/katanegai.jpg',
         stack: ['Markdown', 'Flyway', 'Vite']
       },
       {
         year: '2026',
         title: '完善作者主页与展示能力',
         description: '升级作者介绍、建站经历和关于模块，提升站点表达与可维护性。',
+        imageUrl: '/images/katanegai.jpg',
         stack: ['Vue3', 'Spring Boot', 'Beads']
       }
     ],
@@ -57,6 +61,9 @@ export function createDefaultAuthorProfileJson() {
       mission: '持续构建一个可陪伴、可沉淀、可展示的个人站点。',
       focus: ['博客写作', '工程化实践', '图形与交互体验'],
       music: ['初音未来', '日语流行', '游戏原声'],
+      introImageUrl: '/images/katanegai.jpg',
+      missionImageUrl: '/images/katanegai.jpg',
+      linksImageUrl: '/images/katanegai.jpg',
       links: [
         { label: '博客列表', url: '/#/blog' },
         { label: '项目首页', url: '/#/' }
@@ -99,7 +106,8 @@ function normalizeAuthorProfileJson(raw, fallback) {
       greeting: normalizeString(heroRaw.greeting, fallback.hero.greeting),
       name: normalizeString(heroRaw.name, fallback.hero.name),
       quote: normalizeString(heroRaw.quote, fallback.hero.quote),
-      avatarUrl: normalizeString(heroRaw.avatarUrl ?? heroRaw.avatar_url, fallback.hero.avatarUrl)
+      avatarUrl: normalizeString(heroRaw.avatarUrl ?? heroRaw.avatar_url, fallback.hero.avatarUrl),
+      coverImageUrl: normalizeString(heroRaw.coverImageUrl ?? heroRaw.cover_image_url, fallback.hero.coverImageUrl)
     },
     identity: {
       birthYear: normalizeString(identityRaw.birthYear ?? identityRaw.birth_year, fallback.identity.birthYear),
@@ -115,6 +123,9 @@ function normalizeAuthorProfileJson(raw, fallback) {
       mission: normalizeString(aboutRaw.mission, fallback.about.mission),
       focus: normalizeStringList(aboutRaw.focus, fallback.about.focus),
       music: normalizeStringList(aboutRaw.music, fallback.about.music),
+      introImageUrl: normalizeString(aboutRaw.introImageUrl ?? aboutRaw.intro_image_url, fallback.about.introImageUrl),
+      missionImageUrl: normalizeString(aboutRaw.missionImageUrl ?? aboutRaw.mission_image_url, fallback.about.missionImageUrl),
+      linksImageUrl: normalizeString(aboutRaw.linksImageUrl ?? aboutRaw.links_image_url, fallback.about.linksImageUrl),
       links: normalizeLinkList(aboutRaw.links, fallback.about.links)
     }
   };
@@ -123,8 +134,9 @@ function normalizeAuthorProfileJson(raw, fallback) {
 function normalizeJourneyList(raw, fallback) {
   if (!Array.isArray(raw) || !raw.length) return fallback;
   const normalized = raw
-    .map((item) => {
+    .map((item, index) => {
       const row = toPlainObject(item);
+      const fallbackRow = Array.isArray(fallback) && fallback[index] ? fallback[index] : {};
       const title = normalizeString(row.title);
       const description = normalizeString(row.description);
       if (!title && !description) return null;
@@ -132,6 +144,7 @@ function normalizeJourneyList(raw, fallback) {
         year: normalizeString(row.year, '未定'),
         title: title || '持续迭代',
         description: description || '继续完善作者主页与站点表达。',
+        imageUrl: normalizeString(row.imageUrl ?? row.image_url, normalizeString(fallbackRow.imageUrl)),
         stack: normalizeStringList(row.stack, ['Shizuki Site'])
       };
     })

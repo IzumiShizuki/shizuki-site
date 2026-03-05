@@ -2,6 +2,7 @@ const EMPTY_JOURNEY_ROW = Object.freeze({
   year: '',
   title: '',
   description: '',
+  imageUrl: '',
   stack: []
 });
 
@@ -15,6 +16,7 @@ export function createEmptyJourneyRow() {
     year: EMPTY_JOURNEY_ROW.year,
     title: EMPTY_JOURNEY_ROW.title,
     description: EMPTY_JOURNEY_ROW.description,
+    imageUrl: EMPTY_JOURNEY_ROW.imageUrl,
     stack: []
   };
 }
@@ -33,7 +35,8 @@ export function createDefaultAuthorEditForm() {
       greeting: '',
       name: '',
       quote: '',
-      avatarUrl: ''
+      avatarUrl: '',
+      coverImageUrl: ''
     },
     identity: {
       birthYear: '',
@@ -49,6 +52,9 @@ export function createDefaultAuthorEditForm() {
       mission: '',
       focus: [],
       music: [],
+      introImageUrl: '',
+      missionImageUrl: '',
+      linksImageUrl: '',
       links: [createEmptyLinkRow()]
     }
   };
@@ -72,7 +78,8 @@ export function buildEditFormFromProfile(profilePayload) {
       greeting: normalizeString(hero.greeting),
       name: normalizeString(hero.name),
       quote: normalizeString(hero.quote),
-      avatarUrl: normalizeString(hero.avatarUrl ?? hero.avatar_url)
+      avatarUrl: normalizeString(hero.avatarUrl ?? hero.avatar_url),
+      coverImageUrl: normalizeString(hero.coverImageUrl ?? hero.cover_image_url)
     },
     identity: {
       birthYear: normalizeString(identity.birthYear ?? identity.birth_year),
@@ -88,6 +95,9 @@ export function buildEditFormFromProfile(profilePayload) {
       mission: normalizeString(about.mission),
       focus: normalizeStringList(about.focus),
       music: normalizeStringList(about.music),
+      introImageUrl: normalizeString(about.introImageUrl ?? about.intro_image_url),
+      missionImageUrl: normalizeString(about.missionImageUrl ?? about.mission_image_url),
+      linksImageUrl: normalizeString(about.linksImageUrl ?? about.links_image_url),
       links: links.length ? links : defaultForm.about.links
     }
   };
@@ -98,13 +108,21 @@ export function buildProfileJsonFromEditForm(formInput) {
   const hero = toObject(form.hero);
   const identity = toObject(form.identity);
   const about = toObject(form.about);
+  const journeyRows = normalizeJourneyRows(form.journey).map((row) => ({
+    year: normalizeString(row.year),
+    title: normalizeString(row.title),
+    description: normalizeString(row.description),
+    image_url: normalizeString(row.imageUrl ?? row.image_url),
+    stack: normalizeStringList(row.stack)
+  }));
 
   return {
     hero: {
       greeting: normalizeString(hero.greeting),
       name: normalizeString(hero.name),
       quote: normalizeString(hero.quote),
-      avatar_url: normalizeString(hero.avatarUrl ?? hero.avatar_url)
+      avatar_url: normalizeString(hero.avatarUrl ?? hero.avatar_url),
+      cover_image_url: normalizeString(hero.coverImageUrl ?? hero.cover_image_url)
     },
     identity: {
       birth_year: normalizeString(identity.birthYear ?? identity.birth_year),
@@ -114,12 +132,15 @@ export function buildProfileJsonFromEditForm(formInput) {
       labels: normalizeStringList(identity.labels)
     },
     skills: normalizeStringList(form.skills),
-    journey: normalizeJourneyRows(form.journey),
+    journey: journeyRows,
     about: {
       intro: splitMultilineText(about.introText),
       mission: normalizeString(about.mission),
       focus: normalizeStringList(about.focus),
       music: normalizeStringList(about.music),
+      intro_image_url: normalizeString(about.introImageUrl ?? about.intro_image_url),
+      mission_image_url: normalizeString(about.missionImageUrl ?? about.mission_image_url),
+      links_image_url: normalizeString(about.linksImageUrl ?? about.links_image_url),
       links: normalizeLinks(about.links)
     }
   };
@@ -164,9 +185,10 @@ function normalizeJourneyRows(raw) {
       const year = normalizeString(row.year);
       const title = normalizeString(row.title);
       const description = normalizeString(row.description);
+      const imageUrl = normalizeString(row.imageUrl ?? row.image_url);
       const stack = normalizeStringList(row.stack);
-      if (!year && !title && !description && !stack.length) return null;
-      return { year, title, description, stack };
+      if (!year && !title && !description && !imageUrl && !stack.length) return null;
+      return { year, title, description, imageUrl, stack };
     })
     .filter(Boolean);
 }
