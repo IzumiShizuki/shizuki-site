@@ -1,21 +1,27 @@
 <template>
   <section class="route-page profile-page motion-managed">
-    <div class="profile-shell">
-      <aside class="profile-tabs liquid-material">
+    <div class="profile-stage liquid-material">
+      <nav class="profile-top-tabs liquid-material" aria-label="个人设置导航">
         <button
           v-for="tab in tabs"
           :key="tab.key"
           class="tab-btn ripple-trigger"
           :class="{ active: activeTab === tab.key }"
           type="button"
+          :aria-label="tab.label"
           @click="openTab(tab.key)"
         >
-          <span class="tab-title">{{ tab.label }}</span>
-          <span class="tab-caption">{{ tab.caption }}</span>
+          <span class="tab-icon" aria-hidden="true">
+            <i :class="tab.icon"></i>
+          </span>
+          <span class="tab-copy">
+            <span class="tab-title">{{ tab.label }}</span>
+            <span class="tab-caption">{{ tab.caption }}</span>
+          </span>
         </button>
-      </aside>
+      </nav>
 
-      <section class="profile-main liquid-material">
+      <section class="profile-content-panel">
         <ProfileHeroCard
           :avatar-url="avatarPreview"
           avatar-action-label="查看或修改头像"
@@ -334,8 +340,8 @@
 
           <template #section-workspace>
             <div class="placeholder-card">
-              <p class="placeholder-title">创作工作台</p>
-              <p class="helper-text">后续将接入草稿、发布与文章统计，这里先保留结构入口。</p>
+              <p class="placeholder-title">创作工作台 · Coming Soon</p>
+              <p class="helper-text">已预留草稿管理、发布计划、阅读统计等模块，后续会直接接入真实数据。</p>
               <div class="inline-actions compact">
                 <span class="status-chip">草稿 0</span>
                 <span class="status-chip">已发布 0</span>
@@ -346,8 +352,8 @@
 
           <template #section-archive>
             <div class="placeholder-card">
-              <p class="placeholder-title">归档与历史</p>
-              <p class="helper-text">可在此扩展浏览记录、点赞记录、收藏列表。</p>
+              <p class="placeholder-title">归档与历史 · Coming Soon</p>
+              <p class="helper-text">后续将提供浏览记录、点赞时间线、收藏夹筛选和跨设备同步。</p>
             </div>
           </template>
 
@@ -361,8 +367,8 @@
 
           <template #section-advanced>
             <div class="placeholder-card">
-              <p class="placeholder-title">高级偏好</p>
-              <p class="helper-text">本区域用于后续扩展实验功能和行为偏好。</p>
+              <p class="placeholder-title">高级偏好 · Coming Soon</p>
+              <p class="helper-text">用于扩展实验功能、行为偏好和可访问性增强选项。</p>
             </div>
           </template>
         </ProfileSectionAccordion>
@@ -431,10 +437,10 @@ const settingsVisible = ref(false);
 const avatarFileInput = ref(null);
 
 const tabs = [
-  { key: ProfileTabKey.PROFILE, label: '个人', caption: '概览与快捷入口' },
-  { key: ProfileTabKey.ACCOUNT, label: '账号', caption: '绑定与安全' },
-  { key: ProfileTabKey.ARTICLES, label: '文章', caption: '创作工作台' },
-  { key: ProfileTabKey.SETTINGS, label: '设置', caption: '外观与偏好' }
+  { key: ProfileTabKey.PROFILE, label: '个人', shortLabel: '个人', caption: '概览与快捷入口', icon: 'fas fa-id-card' },
+  { key: ProfileTabKey.ACCOUNT, label: '账号', shortLabel: '账号', caption: '绑定与安全', icon: 'fas fa-shield-halved' },
+  { key: ProfileTabKey.ARTICLES, label: '文章', shortLabel: '文章', caption: '创作工作台', icon: 'fas fa-newspaper' },
+  { key: ProfileTabKey.SETTINGS, label: '设置', shortLabel: '设置', caption: '外观与偏好', icon: 'fas fa-sliders' }
 ];
 
 const MUSIC_PROVIDER_ORDER_DEFAULT = ['netease', 'kuwo', 'qq'];
@@ -1297,6 +1303,7 @@ const profileSections = computed(() => [
   {
     key: ProfileSectionKey.PROFILE.OVERVIEW,
     title: '概览面板',
+    icon: 'fas fa-chart-pie',
     summary: buildSectionSummary(ProfileSectionKey.PROFILE.OVERVIEW, {
       nickname: profileForm.nickname || displayName.value
     }),
@@ -1305,12 +1312,14 @@ const profileSections = computed(() => [
   {
     key: ProfileSectionKey.PROFILE.QUICK_ACTIONS,
     title: '快捷入口',
+    icon: 'fas fa-bolt',
     summary: buildSectionSummary(ProfileSectionKey.PROFILE.QUICK_ACTIONS),
     statusText: '常用'
   },
   {
     key: ProfileSectionKey.PROFILE.RECENT,
     title: '最近状态',
+    icon: 'fas fa-clock-rotate-left',
     summary: buildSectionSummary(ProfileSectionKey.PROFILE.RECENT),
     statusText: '在线'
   }
@@ -1320,6 +1329,7 @@ const accountSections = computed(() => [
   {
     key: ProfileSectionKey.ACCOUNT.AVATAR,
     title: '头像管理',
+    icon: 'fas fa-image',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.AVATAR, {
       avatarUrl: account.avatarUrl
     }),
@@ -1328,6 +1338,7 @@ const accountSections = computed(() => [
   {
     key: ProfileSectionKey.ACCOUNT.ACCOUNT_INFO,
     title: '账号信息',
+    icon: 'fas fa-id-badge',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.ACCOUNT_INFO, {
       email: account.email
     }),
@@ -1336,6 +1347,7 @@ const accountSections = computed(() => [
   {
     key: ProfileSectionKey.ACCOUNT.EMAIL_BIND,
     title: '邮箱绑定',
+    icon: 'fas fa-envelope',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.EMAIL_BIND, {
       emailVerified: Boolean(account.emailVerified)
     }),
@@ -1344,6 +1356,7 @@ const accountSections = computed(() => [
   {
     key: ProfileSectionKey.ACCOUNT.OAUTH_BIND,
     title: 'OAuth 绑定',
+    icon: 'fas fa-link',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.OAUTH_BIND, {
       oauthBindingCount: oauthBindingCount.value
     }),
@@ -1352,6 +1365,7 @@ const accountSections = computed(() => [
   {
     key: ProfileSectionKey.ACCOUNT.MUSIC_AUTH,
     title: '音乐授权与推荐顺序',
+    icon: 'fas fa-music',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.MUSIC_AUTH, {
       tunehubBound: musicTunehubStatus.value.keyBound
     }),
@@ -1360,6 +1374,7 @@ const accountSections = computed(() => [
   {
     key: ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD,
     title: '修改密码',
+    icon: 'fas fa-key',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD, {
       hasPassword: account.hasPassword
     }),
@@ -1371,12 +1386,14 @@ const articlesSections = computed(() => [
   {
     key: ProfileSectionKey.ARTICLES.WORKSPACE,
     title: '创作工作台',
+    icon: 'fas fa-pen-to-square',
     summary: buildSectionSummary(ProfileSectionKey.ARTICLES.WORKSPACE),
     statusText: '占位'
   },
   {
     key: ProfileSectionKey.ARTICLES.ARCHIVE,
     title: '归档历史',
+    icon: 'fas fa-box-archive',
     summary: buildSectionSummary(ProfileSectionKey.ARTICLES.ARCHIVE),
     statusText: '占位'
   }
@@ -1386,12 +1403,14 @@ const settingsSections = computed(() => [
   {
     key: ProfileSectionKey.SETTINGS.APPEARANCE,
     title: '外观设置',
+    icon: 'fas fa-palette',
     summary: buildSectionSummary(ProfileSectionKey.SETTINGS.APPEARANCE),
     statusText: '可编辑'
   },
   {
     key: ProfileSectionKey.SETTINGS.ADVANCED,
     title: '高级偏好',
+    icon: 'fas fa-flask',
     summary: buildSectionSummary(ProfileSectionKey.SETTINGS.ADVANCED),
     statusText: '预留'
   }
@@ -1464,8 +1483,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .profile-page {
   height: 100%;
-  color: rgba(236, 243, 255, 0.95);
-  font-family: 'Avenir Next', 'PingFang SC', 'Noto Sans SC', sans-serif;
+  color: rgba(232, 241, 252, 0.95);
+  font-family: var(--font-ui);
   animation: page-enter 0.32s ease;
 }
 
@@ -1481,68 +1500,121 @@ onBeforeUnmount(() => {
   }
 }
 
-.profile-shell {
+.profile-stage {
+  --liquid-bg: linear-gradient(155deg, rgba(8, 17, 28, 0.58), rgba(6, 12, 21, 0.54));
+  --liquid-border: rgba(155, 188, 214, 0.24);
+  --liquid-shadow: 0 16px 34px rgba(3, 8, 15, 0.22);
   height: 100%;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 14px;
-}
-
-.profile-tabs {
-  --liquid-bg: linear-gradient(168deg, rgba(18, 27, 41, 0.48), rgba(12, 18, 30, 0.42));
-  --liquid-border: rgba(225, 235, 248, 0.2);
-  --liquid-shadow: 0 16px 30px rgba(4, 7, 12, 0.2);
   border-radius: 16px;
   padding: 10px;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.profile-top-tabs {
+  --liquid-bg: rgba(9, 18, 30, 0.52);
+  --liquid-border: rgba(145, 178, 203, 0.3);
+  --liquid-shadow: 0 10px 22px rgba(4, 8, 14, 0.24);
+  border-radius: 999px;
+  padding: 7px;
+  display: flex;
   gap: 8px;
-  align-content: start;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.profile-top-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {
   border: 0;
-  border-radius: 12px;
-  min-height: 56px;
-  padding: 8px 12px;
-  display: grid;
-  gap: 2px;
+  border-radius: 999px;
+  min-height: 44px;
+  min-width: 128px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(221, 236, 250, 0.92);
+  background: rgba(152, 186, 212, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.2);
+  flex-shrink: 0;
   text-align: left;
-  color: rgba(225, 236, 251, 0.92);
-  background: rgba(255, 255, 255, 0.14);
+}
+
+.tab-btn:hover {
+  background: rgba(168, 199, 223, 0.2);
+}
+
+.tab-btn:focus-visible {
+  outline: 2px solid rgba(98, 219, 245, 0.75);
+  outline-offset: 2px;
 }
 
 .tab-btn.active {
-  background: rgba(var(--accent-rgb), 0.24);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.44);
+  background: linear-gradient(145deg, rgba(63, 176, 209, 0.3), rgba(56, 121, 191, 0.28));
+  box-shadow: inset 0 0 0 1px rgba(89, 201, 233, 0.56);
+  color: rgba(240, 248, 255, 0.98);
+}
+
+.tab-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(67, 184, 219, 0.2);
+  color: rgba(184, 237, 252, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(97, 209, 239, 0.34);
+  flex-shrink: 0;
+}
+
+.tab-icon i {
+  font-size: 12px;
+}
+
+.tab-copy {
+  display: grid;
+  gap: 1px;
 }
 
 .tab-title {
-  font-size: 14px;
-  font-weight: 640;
+  font-size: 13px;
+  font-weight: 620;
 }
 
 .tab-caption {
   font-size: 11px;
-  color: rgba(200, 216, 238, 0.88);
+  color: rgba(182, 208, 231, 0.86);
 }
 
-.profile-main {
-  --liquid-bg: linear-gradient(165deg, rgba(18, 27, 41, 0.45), rgba(10, 15, 25, 0.39));
-  --liquid-border: rgba(220, 232, 248, 0.2);
-  --liquid-shadow: 0 18px 32px rgba(3, 6, 11, 0.18);
-  border-radius: 16px;
-  padding: 14px;
+.profile-content-panel {
   min-height: 0;
   overflow: auto;
+  padding-right: 4px;
   display: grid;
   align-content: start;
   gap: 10px;
 }
 
+.profile-content-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.profile-content-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(116, 157, 194, 0.36);
+}
+
 .state-tip {
-  margin: 2px 2px 4px;
-  color: rgba(209, 224, 245, 0.94);
+  margin: 2px 2px 3px;
+  color: rgba(192, 216, 239, 0.95);
   font-size: 12px;
 }
 
@@ -1553,28 +1625,28 @@ onBeforeUnmount(() => {
 }
 
 .overview-card {
-  border-radius: 12px;
-  background: rgba(9, 16, 25, 0.44);
-  box-shadow: inset 0 0 0 1px rgba(176, 198, 228, 0.22);
+  border-radius: 13px;
+  background: linear-gradient(148deg, rgba(10, 18, 30, 0.56), rgba(8, 15, 25, 0.48));
+  box-shadow: inset 0 0 0 1px rgba(146, 178, 204, 0.2);
   padding: 10px;
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .overview-label {
   font-size: 12px;
-  color: rgba(200, 217, 241, 0.88);
+  color: rgba(181, 206, 230, 0.9);
 }
 
 .overview-value {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 650;
-  color: rgba(242, 247, 255, 0.95);
+  color: rgba(237, 246, 255, 0.96);
 }
 
 .overview-hint {
   font-size: 11px;
-  color: rgba(193, 214, 242, 0.86);
+  color: rgba(167, 194, 220, 0.86);
 }
 
 .quick-grid {
@@ -1586,17 +1658,17 @@ onBeforeUnmount(() => {
 .quick-btn {
   border: 0;
   border-radius: 12px;
-  min-height: 40px;
+  min-height: 42px;
   padding: 0 12px;
   font-size: 12px;
-  color: rgba(240, 246, 255, 0.95);
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(201, 220, 246, 0.2);
+  color: rgba(229, 239, 251, 0.96);
+  background: rgba(150, 185, 211, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.24);
 }
 
 .quick-btn:hover {
-  background: rgba(var(--accent-rgb), 0.26);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.36);
+  background: linear-gradient(145deg, rgba(61, 173, 207, 0.3), rgba(56, 120, 189, 0.26));
+  box-shadow: inset 0 0 0 1px rgba(85, 199, 232, 0.44);
 }
 
 .recent-grid {
@@ -1606,9 +1678,9 @@ onBeforeUnmount(() => {
 }
 
 .recent-item {
-  border-radius: 10px;
-  background: rgba(10, 16, 25, 0.42);
-  box-shadow: inset 0 0 0 1px rgba(176, 198, 228, 0.2);
+  border-radius: 12px;
+  background: rgba(10, 18, 29, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(142, 175, 202, 0.22);
   padding: 8px 10px;
   display: grid;
   gap: 3px;
@@ -1616,12 +1688,12 @@ onBeforeUnmount(() => {
 
 .recent-label {
   font-size: 11px;
-  color: rgba(198, 216, 240, 0.86);
+  color: rgba(176, 202, 227, 0.86);
 }
 
 .recent-value {
   font-size: 13px;
-  color: rgba(237, 245, 255, 0.95);
+  color: rgba(232, 242, 253, 0.96);
   font-weight: 600;
 }
 
@@ -1632,18 +1704,25 @@ onBeforeUnmount(() => {
 
 .field-label {
   font-size: 12px;
-  color: rgba(215, 228, 246, 0.9);
+  color: rgba(198, 219, 239, 0.9);
 }
 
 .field-input,
 select.field-input {
   border: 0;
-  border-radius: 10px;
-  min-height: 38px;
+  border-radius: 11px;
+  min-height: 40px;
   padding: 0 12px;
-  background: rgba(8, 14, 24, 0.56);
-  color: rgba(238, 245, 255, 0.96);
-  box-shadow: inset 0 0 0 1px rgba(175, 196, 227, 0.22);
+  background: rgba(8, 15, 25, 0.62);
+  color: rgba(236, 245, 255, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(138, 172, 199, 0.26);
+}
+
+.field-input:focus-visible,
+select.field-input:focus-visible,
+.captcha-preview:focus-visible {
+  outline: 2px solid rgba(90, 209, 240, 0.72);
+  outline-offset: 2px;
 }
 
 .inline-actions {
@@ -1667,25 +1746,26 @@ select.field-input {
 .oauth-btn,
 .danger-btn {
   border: 0;
-  border-radius: 10px;
+  border-radius: 11px;
   min-height: 36px;
-  padding: 0 12px;
-  color: rgba(240, 246, 255, 0.95);
+  padding: 0 13px;
+  color: rgba(234, 244, 255, 0.96);
 }
 
 .primary-btn {
-  background: rgba(var(--accent-rgb), 0.34);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.38);
+  background: linear-gradient(145deg, rgba(66, 178, 211, 0.42), rgba(55, 117, 186, 0.36));
+  box-shadow: inset 0 0 0 1px rgba(96, 209, 239, 0.4);
 }
 
 .ghost-btn,
 .oauth-btn {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(148, 183, 208, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(141, 176, 202, 0.24);
 }
 
 .danger-btn {
-  background: rgba(236, 97, 126, 0.25);
-  box-shadow: inset 0 0 0 1px rgba(255, 176, 198, 0.32);
+  background: rgba(225, 92, 124, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(251, 154, 180, 0.36);
 }
 
 .status-chip {
@@ -1695,13 +1775,13 @@ select.field-input {
   display: inline-flex;
   align-items: center;
   font-size: 11px;
-  background: rgba(var(--accent-rgb), 0.22);
-  color: rgba(240, 246, 255, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.42);
+  background: rgba(70, 187, 220, 0.16);
+  color: rgba(206, 237, 249, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(90, 202, 232, 0.34);
 }
 
 .helper-text {
-  color: rgba(206, 221, 241, 0.9);
+  color: rgba(174, 202, 228, 0.9);
   font-size: 12px;
 }
 
@@ -1711,9 +1791,9 @@ select.field-input {
 }
 
 .music-auth-card {
-  border-radius: 12px;
-  background: rgba(11, 18, 28, 0.34);
-  box-shadow: inset 0 0 0 1px rgba(173, 196, 228, 0.16);
+  border-radius: 13px;
+  background: linear-gradient(148deg, rgba(9, 18, 30, 0.56), rgba(8, 15, 25, 0.5));
+  box-shadow: inset 0 0 0 1px rgba(141, 173, 200, 0.18);
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -1732,16 +1812,17 @@ select.field-input {
 
 .provider-order-item {
   border: 0;
-  border-radius: 10px;
-  min-height: 42px;
+  border-radius: 11px;
+  min-height: 44px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(236, 244, 255, 0.95);
+  background: rgba(146, 182, 208, 0.15);
+  color: rgba(232, 242, 252, 0.95);
   display: grid;
   grid-template-columns: auto 1fr auto auto;
   gap: 8px;
   align-items: center;
   text-align: left;
+  box-shadow: inset 0 0 0 1px rgba(140, 175, 202, 0.24);
 }
 
 .provider-order-item i {
@@ -1780,7 +1861,7 @@ select.field-input {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: rgba(220, 234, 254, 0.92);
+  color: rgba(201, 223, 244, 0.94);
 }
 
 .provider-chip-row {
@@ -1813,7 +1894,7 @@ select.field-input {
 }
 
 .provider-chip.spotify {
-  background: rgba(104, 84, 184, 0.28);
+  background: rgba(91, 133, 204, 0.24);
 }
 
 .error-text {
@@ -1833,13 +1914,13 @@ select.field-input {
 .simple-table th,
 .simple-table td {
   padding: 8px 6px;
-  border-bottom: 1px solid rgba(188, 209, 234, 0.18);
+  border-bottom: 1px solid rgba(148, 182, 209, 0.2);
   text-align: left;
 }
 
 .kv-table th,
 .simple-table th {
-  color: rgba(194, 214, 239, 0.92);
+  color: rgba(179, 206, 233, 0.93);
   font-weight: 600;
 }
 
@@ -1857,8 +1938,8 @@ select.field-input {
   object-fit: cover;
   box-shadow:
     0 10px 20px rgba(4, 7, 12, 0.24),
-    inset 0 0 0 1px rgba(171, 194, 226, 0.3);
-  background: rgba(9, 14, 21, 0.55);
+    inset 0 0 0 1px rgba(161, 191, 218, 0.34);
+  background: rgba(8, 14, 22, 0.58);
 }
 
 .avatar-controls {
@@ -1878,7 +1959,7 @@ select.field-input {
   border-radius: 10px;
   overflow: hidden;
   background: rgba(8, 14, 24, 0.56);
-  box-shadow: inset 0 0 0 1px rgba(175, 196, 227, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(136, 170, 196, 0.26);
   color: rgba(224, 237, 251, 0.92);
 }
 
@@ -1891,15 +1972,18 @@ select.field-input {
 .placeholder-card {
   display: grid;
   gap: 8px;
-  padding: 10px;
-  border-radius: 12px;
-  background: rgba(11, 18, 28, 0.34);
-  box-shadow: inset 0 0 0 1px rgba(173, 196, 228, 0.16);
+  padding: 12px;
+  border-radius: 13px;
+  background:
+    linear-gradient(140deg, rgba(9, 18, 30, 0.58), rgba(8, 15, 25, 0.48)),
+    radial-gradient(circle at 90% 10%, rgba(63, 176, 208, 0.12), transparent 40%);
+  box-shadow: inset 0 0 0 1px rgba(137, 169, 196, 0.2);
 }
 
 .placeholder-title {
   font-size: 14px;
   font-weight: 620;
+  color: rgba(230, 241, 252, 0.95);
 }
 
 .hidden-file-input {
@@ -1911,18 +1995,12 @@ select.field-input {
 }
 
 @media (max-width: 1060px) {
-  .profile-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-tabs {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: stretch;
+  .profile-stage {
+    padding: 9px;
   }
 
   .tab-btn {
-    min-height: 52px;
-    padding: 8px;
+    min-width: 122px;
   }
 
   .tab-caption {
@@ -1935,8 +2013,35 @@ select.field-input {
 }
 
 @media (max-width: 760px) {
-  .profile-main {
-    padding: 10px;
+  .profile-stage {
+    padding: 8px;
+    border-radius: 14px;
+    gap: 8px;
+  }
+
+  .profile-top-tabs {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .tab-btn {
+    min-width: 98px;
+    min-height: 40px;
+    padding: 0 11px;
+    gap: 7px;
+  }
+
+  .tab-icon {
+    width: 21px;
+    height: 21px;
+  }
+
+  .tab-title {
+    font-size: 12px;
+  }
+
+  .profile-content-panel {
+    padding-right: 0;
   }
 
   .overview-grid,

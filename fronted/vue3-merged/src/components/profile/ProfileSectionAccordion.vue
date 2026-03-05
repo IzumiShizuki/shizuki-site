@@ -5,6 +5,7 @@
       :key="section.key"
       :title="section.title"
       :summary="section.summary"
+      :icon="section.icon || ''"
       :status-text="section.statusText || ''"
       :avatar-url="section.avatarUrl || avatarUrl || ''"
       :avatar-action-label="avatarActionLabel"
@@ -46,7 +47,7 @@ defineEmits(['toggle', 'avatar-click']);
 .section-accordion {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   align-items: start;
 }
 
@@ -57,6 +58,7 @@ defineEmits(['toggle', 'avatar-click']);
 @media (max-width: 1060px) {
   .section-accordion {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 }
 </style>

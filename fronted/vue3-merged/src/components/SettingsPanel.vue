@@ -260,41 +260,72 @@ function resetDefault() {
 .settings-mask {
   position: fixed;
   inset: 0;
-  z-index: 1900;
+  z-index: 2000;
   display: grid;
   place-items: center;
-  background: rgba(8, 11, 18, 0.44);
-  backdrop-filter: blur(6px) saturate(120%);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  padding: 10px;
+  background:
+    radial-gradient(circle at 10% 8%, rgba(62, 176, 203, 0.2), transparent 48%),
+    radial-gradient(circle at 88% 94%, rgba(46, 93, 155, 0.18), transparent 42%),
+    rgba(5, 10, 16, 0.62);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
 }
 
 .settings-panel {
-  --liquid-bg: rgba(var(--glass-rgb), 0.42);
-  --liquid-border: rgba(255, 255, 255, 0.5);
-  --liquid-shadow: 0 18px 46px rgba(8, 12, 20, 0.38);
-  width: min(92vw, 580px);
-  border-radius: 20px;
-  padding: 14px;
-  color: rgba(20, 24, 34, 0.9);
+  --liquid-bg: linear-gradient(155deg, rgba(9, 19, 31, 0.85), rgba(7, 14, 24, 0.82));
+  --liquid-border: rgba(156, 190, 216, 0.3);
+  --liquid-shadow: 0 26px 54px rgba(3, 8, 15, 0.52);
+  width: min(92vw, 640px);
+  border-radius: 22px;
+  padding: 16px;
+  color: rgba(225, 238, 250, 0.95);
+  max-height: calc(100dvh - 20px);
+  overflow: auto;
+}
+
+.settings-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(118, 161, 198, 0.36);
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 }
 
 .panel-header h2 {
   font-size: 20px;
+  letter-spacing: 0.02em;
+  color: rgba(237, 246, 255, 0.97);
 }
 
 .close-btn {
-  border: 0;
-  border-radius: 10px;
+  border: 1px solid rgba(162, 194, 218, 0.32);
+  border-radius: 11px;
   min-width: 64px;
-  height: 32px;
-  background: rgba(255, 255, 255, 0.36);
-  color: rgba(25, 29, 38, 0.8);
+  height: 34px;
+  background: rgba(161, 193, 218, 0.14);
+  color: rgba(210, 231, 247, 0.92);
+}
+
+.close-btn:focus-visible,
+.mode-btn:focus-visible,
+.preset-btn:focus-visible,
+.gradient-btn:focus-visible,
+.apply-btn:focus-visible,
+.reset-btn:focus-visible,
+.hex-wrap input:focus-visible,
+.gradient-input-grid input:focus-visible,
+.picker-field input[type='color']:focus-visible {
+  outline: 2px solid rgba(95, 214, 244, 0.7);
+  outline-offset: 2px;
 }
 
 .section-block {
@@ -308,13 +339,15 @@ function resetDefault() {
 }
 
 .section-block h3 {
-  font-size: 16px;
+  font-size: 15px;
+  color: rgba(233, 245, 255, 0.95);
 }
 
 .section-block p,
 .helper-text {
-  color: rgba(37, 42, 53, 0.78);
-  line-height: 1.6;
+  color: rgba(178, 203, 228, 0.88);
+  line-height: 1.55;
+  font-size: 12px;
 }
 
 .mode-switch {
@@ -325,18 +358,18 @@ function resetDefault() {
 }
 
 .mode-btn {
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(151, 184, 210, 0.34);
   border-radius: 11px;
-  height: 36px;
-  background: rgba(255, 255, 255, 0.34);
-  color: rgba(24, 28, 37, 0.84);
+  height: 38px;
+  background: rgba(145, 182, 210, 0.12);
+  color: rgba(216, 234, 249, 0.9);
 }
 
 .mode-btn.active {
-  border-color: rgba(var(--accent-rgb), 0.64);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.2);
-  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(94, 207, 237, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(82, 194, 225, 0.26);
+  background: linear-gradient(145deg, rgba(66, 177, 210, 0.28), rgba(53, 117, 186, 0.24));
+  color: rgba(241, 249, 255, 0.98);
 }
 
 .preset-grid,
@@ -349,35 +382,35 @@ function resetDefault() {
 
 .preset-btn,
 .gradient-btn {
-  border: 0;
+  border: 1px solid rgba(148, 182, 207, 0.28);
   border-radius: 12px;
   min-height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.3);
-  color: rgba(28, 32, 40, 0.88);
+  background: rgba(146, 183, 210, 0.12);
+  color: rgba(225, 238, 250, 0.92);
 }
 
 .preset-btn.active,
 .gradient-btn.active {
-  box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0.6);
-  background: rgba(var(--accent-rgb), 0.18);
+  box-shadow: inset 0 0 0 1px rgba(80, 200, 232, 0.65);
+  background: linear-gradient(145deg, rgba(66, 177, 210, 0.24), rgba(50, 111, 178, 0.2));
 }
 
 .swatch {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(214, 231, 246, 0.72);
 }
 
 .gradient-swatch {
   width: 26px;
   height: 16px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(201, 224, 244, 0.74);
 }
 
 .custom-row {
@@ -394,21 +427,21 @@ function resetDefault() {
   display: grid;
   gap: 4px;
   font-size: 12px;
-  color: rgba(25, 29, 38, 0.86);
+  color: rgba(195, 219, 239, 0.9);
 }
 
 .picker-field input[type='color'] {
   width: 100%;
   height: 38px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(146, 181, 208, 0.34);
+  background: rgba(142, 178, 205, 0.12);
   padding: 4px;
 }
 
 .custom-row label {
   font-size: 13px;
-  color: rgba(25, 29, 38, 0.86);
+  color: rgba(195, 219, 239, 0.9);
 }
 
 .hex-wrap {
@@ -419,12 +452,12 @@ function resetDefault() {
 
 .hex-wrap input,
 .gradient-input-grid input {
-  border: 1px solid rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(146, 181, 208, 0.34);
   border-radius: 10px;
   height: 38px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.38);
-  color: rgba(27, 31, 40, 0.92);
+  background: rgba(142, 178, 205, 0.12);
+  color: rgba(227, 239, 250, 0.94);
 }
 
 .gradient-input-grid {
@@ -439,21 +472,21 @@ function resetDefault() {
   display: grid;
   gap: 4px;
   font-size: 12px;
-  color: rgba(25, 29, 38, 0.86);
+  color: rgba(195, 219, 239, 0.9);
 }
 
 .apply-btn {
-  border: 0;
+  border: 1px solid rgba(95, 206, 236, 0.34);
   border-radius: 10px;
   min-width: 80px;
   height: 38px;
-  background: rgba(var(--accent-rgb), 0.28);
-  color: rgba(245, 241, 255, 0.95);
+  background: linear-gradient(145deg, rgba(66, 177, 210, 0.34), rgba(55, 118, 188, 0.3));
+  color: rgba(241, 249, 255, 0.98);
 }
 
 .error-text {
   margin-top: 10px;
-  color: rgba(210, 50, 80, 0.88);
+  color: rgba(255, 171, 189, 0.93);
   font-size: 12px;
 }
 
@@ -462,12 +495,12 @@ function resetDefault() {
 }
 
 .reset-btn {
-  border: 0;
+  border: 1px solid rgba(148, 183, 208, 0.3);
   border-radius: 10px;
   min-width: 138px;
-  height: 34px;
-  background: rgba(255, 255, 255, 0.34);
-  color: rgba(25, 29, 38, 0.84);
+  height: 36px;
+  background: rgba(149, 184, 210, 0.14);
+  color: rgba(214, 233, 248, 0.92);
 }
 
 .settings-fade-enter-active,
@@ -482,9 +515,9 @@ function resetDefault() {
 
 @media (max-width: 700px) {
   .settings-panel {
-    width: calc(100vw - 16px);
+    width: calc(100vw - 14px);
     padding: 12px;
-    border-radius: 16px;
+    border-radius: 18px;
   }
 
   .preset-grid,
