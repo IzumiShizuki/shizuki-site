@@ -1,0 +1,11 @@
+.git
+.gitignore
+.idea
+.vscode
+.beads
+**/target
+**/node_modules
+**/.DS_Store
+**/*.log
+fronted/vue3-merged/dist
+fronted/vue3-merged/dist-temp

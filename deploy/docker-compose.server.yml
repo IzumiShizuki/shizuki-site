@@ -1,0 +1,32 @@
+name: shizuki-site
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile.backend
+    image: shizuki-site/backend:latest
+    container_name: shizuki-site-backend
+    restart: unless-stopped
+    env_file:
+      - .env.server
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+  site:
+    build:
+      context: ..
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_GATEWAY_BASE_URL: ${VITE_GATEWAY_BASE_URL:-/}
+    image: shizuki-site/site:latest
+    container_name: shizuki-site-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${SITE_PORT:-5173}:80"

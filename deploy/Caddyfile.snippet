@@ -1,0 +1,9 @@
+# Put these blocks into your server Caddyfile.
+
+site.shizuki.online {
+  reverse_proxy 127.0.0.1:5173
+}
+
+api.shizuki.online {
+  reverse_proxy 127.0.0.1:8080
+}

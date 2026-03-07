@@ -1,0 +1,28 @@
+FROM m.daocloud.io/docker.io/library/maven:3.9.9-eclipse-temurin-17 AS build
+WORKDIR /workspace
+
+COPY pom.xml ./
+COPY libs ./libs
+COPY model ./model
+COPY modules ./modules
+COPY apps ./apps
+
+RUN mvn -B -DskipTests clean package -pl apps/monolith-app -am
+
+FROM m.daocloud.io/docker.io/library/eclipse-temurin:17-jre-jammy AS runtime
+WORKDIR /app
+
+RUN addgroup --system app && adduser --system --ingroup app app
+COPY --from=build /workspace/apps/monolith-app/target /tmp/target
+RUN set -eux; \
+    jar="$(find /tmp/target -maxdepth 1 -type f -name 'monolith-app-*.jar' ! -name '*.jar.original' | head -n1)"; \
+    test -n "${jar}"; \
+    cp "${jar}" /app/app.jar; \
+    rm -rf /tmp/target
+
+EXPOSE 8080
+ENV TZ=Asia/Shanghai
+ENV JAVA_OPTS="-Xms512m -Xmx1024m"
+
+USER app
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Duser.timezone=$TZ -jar /app/app.jar --spring.profiles.active=${SPRING_PROFILES_ACTIVE:-docker}"]
