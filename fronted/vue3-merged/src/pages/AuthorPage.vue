@@ -51,66 +51,39 @@
               </div>
 
               <div class="story-hero-main">
-                <div class="story-avatar-stack">
-                  <span class="story-avatar-ring" aria-hidden="true"></span>
-                  <img class="story-avatar" :src="hero.avatarUrl" :alt="hero.name" />
-                  <span class="story-status-badge" :class="{ off: !authorProfile.enabled }">
-                    {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
-                  </span>
-                </div>
-                <div class="story-hero-copy">
-                  <p class="story-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
-                  <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
-                  <p class="story-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
-                  <div class="chip-row reveal-line" :style="staggerStyle(4)">
-                    <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
+                <div class="story-hero-intro">
+                  <div class="story-avatar-stack">
+                    <span class="story-avatar-ring" aria-hidden="true"></span>
+                    <img class="story-avatar" :src="hero.avatarUrl" :alt="hero.name" />
+                    <span class="story-status-badge" :class="{ off: !authorProfile.enabled }">
+                      {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
+                    </span>
+                  </div>
+                  <div class="story-hero-copy">
+                    <p class="story-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
+                    <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
+                    <p class="story-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
+                    <div class="chip-row reveal-line" :style="staggerStyle(4)">
+                      <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="story-skill-ribbon reveal-line" :style="staggerStyle(5)">
-                <div class="skill-focus-frame" tabindex="0" aria-label="学习内容展示栏">
-                  <div class="skill-slide-mask">
-                    <div class="skill-slide-track" :class="{ static: !motionState.motionEnabled }">
-                      <span
+                <div class="story-skill-ribbon reveal-line" :style="staggerStyle(5)">
+                  <div class="skill-focus-frame" aria-label="学习内容展示栏">
+                    <div class="skill-focus-list">
+                      <article
                         v-for="(item, index) in skillNodes"
-                        :key="`skill-main-${item.label}-${index}`"
-                        class="skill-slide-pill"
+                        :key="`skill-focus-${item.label}-${index}`"
+                        class="skill-focus-item"
                         :class="item.tone"
                       >
                         <span class="skill-node-icon" aria-hidden="true">
                           <i :class="item.icon"></i>
                         </span>
                         <span class="skill-node-label">{{ item.label }}</span>
-                      </span>
+                      </article>
                     </div>
-                    <div class="skill-slide-track clone" :class="{ static: !motionState.motionEnabled }" aria-hidden="true">
-                      <span
-                        v-for="(item, index) in skillNodes"
-                        :key="`skill-clone-${item.label}-${index}`"
-                        class="skill-slide-pill"
-                        :class="item.tone"
-                      >
-                        <span class="skill-node-icon" aria-hidden="true">
-                          <i :class="item.icon"></i>
-                        </span>
-                        <span class="skill-node-label">{{ item.label }}</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="skill-focus-list">
-                    <article
-                      v-for="(item, index) in skillNodes"
-                      :key="`skill-focus-${item.label}-${index}`"
-                      class="skill-focus-item"
-                      :class="item.tone"
-                    >
-                      <span class="skill-node-icon" aria-hidden="true">
-                        <i :class="item.icon"></i>
-                      </span>
-                      <span class="skill-node-label">{{ item.label }}</span>
-                    </article>
                   </div>
                 </div>
               </div>
@@ -287,6 +260,17 @@
           accept="image/png,image/jpeg,image/webp,image/gif"
           :disabled="editState.loading || editState.uploadingAvatar"
           @change="handleSectionImageFileChange"
+        />
+        <ImageCropDialog
+          :visible="sectionImageCropVisible"
+          :source-url="sectionImageCropSourceUrl"
+          :source-name="sectionImageCropSourceName"
+          :title="sectionImageCropTitle"
+          :description="sectionImageCropDescription"
+          :aspect-ratio="sectionImageCropAspectRatio"
+          :submitting="editState.uploadingAvatar"
+          @close="closeSectionImageCropDialog"
+          @confirm="handleSectionImageCropConfirm"
         />
 
         <transition name="editor-fade">
@@ -682,6 +666,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
+import ImageCropDialog from '../components/common/ImageCropDialog.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
 import {
   AuthorTabKey,
@@ -743,6 +728,10 @@ const journeyTimelineRef = ref(null);
 const sectionEditorOpen = ref(false);
 const sectionEditorSection = ref(AuthorTabKey.OVERVIEW);
 const pendingSectionImagePath = ref('');
+const sectionImageCropVisible = ref(false);
+const sectionImageCropSourceUrl = ref('');
+const sectionImageCropSourceName = ref('section-image.png');
+const sectionImageCropTargetPath = ref('');
 const motionState = reactive(createAuthorMotionState({ reducedMotion: readReducedMotionPreference() }));
 
 const editState = reactive({
@@ -801,6 +790,27 @@ const skillNodes = computed(() => {
 
   const source = deduped.length ? deduped : ['Java', 'Vue3', 'Spring Boot', 'MySQL', 'Redis', 'OpenAI'];
   return source.slice(0, 14).map((label, index) => resolveSkillNode(label, index));
+});
+
+const sectionImageCropAspectRatio = computed(() => {
+  const targetPath = sectionImageCropTargetPath.value;
+  if (targetPath === 'hero.avatarUrl') return 1;
+  if (targetPath === 'hero.coverImageUrl') return 16 / 9;
+  return 0;
+});
+
+const sectionImageCropTitle = computed(() => {
+  return sectionImageCropTargetPath.value === 'hero.avatarUrl' ? '裁剪头像' : '裁剪图片';
+});
+
+const sectionImageCropDescription = computed(() => {
+  if (sectionImageCropTargetPath.value === 'hero.coverImageUrl') {
+    return '建议选择横向区域，确认后会自动上传并回填封面 URL。';
+  }
+  if (sectionImageCropTargetPath.value === 'hero.avatarUrl') {
+    return '拖动和缩放头像范围，确认后会自动上传并回填头像 URL。';
+  }
+  return '拖动和缩放图片，选择要保留的范围后上传并回填。';
 });
 
 const contentPanelStyle = computed(() => {
@@ -869,6 +879,7 @@ async function openSectionEditor(sectionKey) {
 
 function closeSectionEditor() {
   sectionEditorOpen.value = false;
+  closeSectionImageCropDialog();
   pendingSectionImagePath.value = '';
   editState.error = '';
   editState.success = '';
@@ -914,13 +925,65 @@ async function handleSectionImageFileChange(event) {
     if (inputEl && typeof inputEl.value === 'string') inputEl.value = '';
     return;
   }
+  if (inputEl && typeof inputEl.value === 'string') {
+    inputEl.value = '';
+  }
+
+  const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+  const contentType = String(file.type || '').toLowerCase();
+  if (!allowedTypes.has(contentType)) {
+    editState.error = '图片文件仅支持 png/jpeg/webp/gif';
+    return;
+  }
+  if (Number(file.size || 0) > 8 * 1024 * 1024) {
+    editState.error = '原始图片不能超过 8MB';
+    return;
+  }
+
+  resetSectionImageCropSource();
+  sectionImageCropSourceUrl.value = URL.createObjectURL(file);
+  sectionImageCropSourceName.value = String(file.name || 'section-image.png');
+  sectionImageCropTargetPath.value = targetPath;
+  sectionImageCropVisible.value = true;
+}
+
+function resetSectionImageCropSource() {
+  if (sectionImageCropSourceUrl.value && sectionImageCropSourceUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(sectionImageCropSourceUrl.value);
+  }
+  sectionImageCropSourceUrl.value = '';
+  sectionImageCropSourceName.value = 'section-image.png';
+}
+
+function closeSectionImageCropDialog() {
+  sectionImageCropVisible.value = false;
+  sectionImageCropTargetPath.value = '';
+  pendingSectionImagePath.value = '';
+  resetSectionImageCropSource();
+}
+
+async function handleSectionImageCropConfirm(payload) {
+  const targetPath = sectionImageCropTargetPath.value || pendingSectionImagePath.value;
+  const blob = payload?.blob;
+  if (!blob || !targetPath) {
+    closeSectionImageCropDialog();
+    return;
+  }
+
+  const file = new File([blob], buildSectionImageFileName(sectionImageCropSourceName.value, targetPath), {
+    type: 'image/png'
+  });
+  if (Number(file.size || 0) > 8 * 1024 * 1024) {
+    editState.error = '裁剪后图片超过 8MB，请缩小截取范围后重试';
+    return;
+  }
 
   editState.uploadingAvatar = true;
   editState.error = '';
   editState.success = '';
   try {
-    const payload = await uploadAuthorAvatar(file, auth.authorizedFetch);
-    const url = String(payload?.url || '').trim();
+    const uploadPayload = await uploadAuthorAvatar(file, auth.authorizedFetch);
+    const url = String(uploadPayload?.url || '').trim();
     if (!url) {
       throw new Error('图片 URL 为空');
     }
@@ -928,16 +991,25 @@ async function handleSectionImageFileChange(event) {
     if (!applied) {
       throw new Error('图片字段写入失败');
     }
-    editState.success = '图片上传成功，已自动回填 URL';
+    editState.success = '图片裁剪上传成功，已自动回填 URL';
+    closeSectionImageCropDialog();
   } catch (error) {
     editState.error = readErrorMessage(error, '图片上传失败');
   } finally {
-    pendingSectionImagePath.value = '';
     editState.uploadingAvatar = false;
-    if (inputEl && typeof inputEl.value === 'string') {
-      inputEl.value = '';
-    }
   }
+}
+
+function buildSectionImageFileName(sourceName, targetPath) {
+  const rawSource = String(sourceName || '').trim() || 'section-image';
+  const sourceBase = rawSource.replace(/\.[^.]+$/u, '');
+  const pathLeaf = String(targetPath || '')
+    .split('.')
+    .pop()
+    .toLowerCase();
+  const rawBase = pathLeaf || sourceBase;
+  const safeBase = rawBase.replace(/[^a-z0-9_-]+/giu, '-').replace(/^-+|-+$/g, '');
+  return `${safeBase || 'section-image'}-${Date.now()}.png`;
 }
 
 function readReducedMotionPreference() {
@@ -2190,6 +2262,14 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 38%);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.story-hero-intro {
+  min-width: 0;
+  display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 18px;
   align-items: center;
@@ -2242,6 +2322,7 @@ onBeforeUnmount(() => {
 .story-hero-copy {
   position: relative;
   z-index: 1;
+  min-width: 0;
 }
 
 .story-hero-copy h2 {
@@ -2266,7 +2347,10 @@ onBeforeUnmount(() => {
 .story-skill-ribbon {
   position: relative;
   z-index: 1;
-  margin-top: 2px;
+  margin-top: 0;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
 }
 
 .skill-focus-frame {
@@ -2275,94 +2359,43 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: transparent;
-  min-height: 62px;
-  padding: 9px 10px;
-  transition: min-height 240ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  width: 100%;
+  min-height: 132px;
+  height: 132px;
+  max-height: 132px;
+  padding: 10px;
+  transition: border-color 220ms ease, box-shadow 220ms ease;
 }
 
 .skill-focus-frame:hover,
 .skill-focus-frame:focus-within,
 .skill-focus-frame:focus-visible {
-  min-height: 146px;
   border-color: rgba(var(--accent-rgb), 0.5);
   box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.2);
   outline: none;
 }
 
-.skill-slide-mask {
-  position: relative;
-  display: flex;
-  gap: 10px;
-  overflow: hidden;
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.skill-slide-track {
-  min-width: max-content;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  animation: skill-slide-loop 16s linear infinite;
-}
-
-.skill-slide-track.clone {
-  animation-delay: -8s;
-}
-
-.skill-slide-track.static {
-  animation: none;
-}
-
-.skill-slide-pill {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(9, 16, 28, 0.4);
-  padding: 5px 12px 5px 6px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
 .skill-focus-list {
-  position: absolute;
-  inset: 8px 10px;
+  position: static;
+  width: 100%;
+  height: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
-  gap: 6px 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
   align-content: start;
-  opacity: 0;
-  transform: translateY(8px);
-  pointer-events: none;
-  transition: opacity 220ms ease, transform 220ms ease;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .skill-focus-item {
-  min-height: 32px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 4px;
+  padding: 4px 6px;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
   background: rgba(9, 16, 28, 0.18);
   border-radius: 6px;
-}
-
-.skill-focus-frame:hover .skill-slide-mask,
-.skill-focus-frame:focus-within .skill-slide-mask,
-.skill-focus-frame:focus-visible .skill-slide-mask {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.skill-focus-frame:hover .skill-focus-list,
-.skill-focus-frame:focus-within .skill-focus-list,
-.skill-focus-frame:focus-visible .skill-focus-list {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
 }
 
 .skill-node-icon {
@@ -3030,25 +3063,27 @@ onBeforeUnmount(() => {
     text-align: center;
   }
 
+  .story-hero-intro {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
   .story-free-layout {
     grid-template-columns: 1fr;
   }
 
   .skill-focus-frame {
-    min-height: 58px;
+    min-height: 124px;
+    height: 124px;
+    max-height: 124px;
     padding: 8px;
   }
 
-  .skill-focus-frame:hover,
-  .skill-focus-frame:focus-within,
-  .skill-focus-frame:focus-visible {
-    min-height: 176px;
-  }
-
   .skill-focus-list {
-    inset: 8px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px 8px;
+    overflow: auto;
   }
 
   .skill-node-label {

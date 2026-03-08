@@ -37,37 +37,52 @@
 
       <div class="control-grid">
         <article class="control-chip volume-chip">
-          <p class="control-title">
-            <i class="fas fa-volume-high"></i>
-            VOL
-          </p>
-          <input
-            class="vertical-range"
-            type="range"
-            min="0"
-            max="100"
-            :value="Math.round(volume * 100)"
-            :style="{ '--level': `${Math.round(volume * 100)}%` }"
-            @input="onVolumeInput"
-          />
-          <p class="control-value">{{ Math.round(volume * 100) }}%</p>
+          <header class="control-chip-head">
+            <p class="control-title">
+              <i class="fas fa-volume-high"></i>
+              VOL
+            </p>
+            <p class="control-value">{{ Math.round(volume * 100) }}%</p>
+          </header>
+          <div class="control-range-row">
+            <span class="range-bound">0</span>
+            <input
+              class="control-range"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              :value="Math.round(volume * 100)"
+              :style="{ '--level-percent': `${Math.round(volume * 100)}%` }"
+              @input="onVolumeInput"
+            />
+            <span class="range-bound">100</span>
+          </div>
         </article>
 
         <article v-for="(item, idx) in eqItems" :key="item.label" class="control-chip eq-chip">
-          <p class="control-title">
-            <i class="fas" :class="item.icon"></i>
-            {{ item.label }}
-          </p>
-          <input
-            class="vertical-range eq"
-            type="range"
-            min="0"
-            max="100"
-            :value="Math.round(item.value * 100)"
-            :style="{ '--level': `${Math.round(item.value * 100)}%` }"
-            @input="onEqInput($event, idx)"
-          />
-          <p class="control-value">{{ item.dbLabel }}</p>
+          <header class="control-chip-head">
+            <p class="control-title">
+              <i class="fas" :class="item.icon"></i>
+              {{ item.label }}
+            </p>
+            <p class="control-value">{{ item.percentLabel }}</p>
+          </header>
+          <div class="control-range-row">
+            <span class="range-bound">0</span>
+            <input
+              class="control-range eq"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              :value="item.percent"
+              :style="{ '--level-percent': `${item.percent}%` }"
+              @input="onEqInput($event, idx)"
+            />
+            <span class="range-bound">100</span>
+          </div>
+          <p class="control-sub-value">{{ item.dbLabel }}</p>
         </article>
       </div>
     </section>
@@ -270,24 +285,38 @@ function toEqDbLabel(rawValue) {
 
 const eqItems = computed(() => {
   const source = Array.isArray(props.eqLevels) ? props.eqLevels : [0.66, 0.52, 0.74];
+  const clamp = (value, fallback) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(0, Math.min(1, parsed));
+  };
+  const low = clamp(source[0], 0.66);
+  const mid = clamp(source[1], 0.52);
+  const high = clamp(source[2], 0.74);
   return [
     {
       label: 'LOW',
       icon: 'fa-wave-square',
-      value: Number(source[0] ?? 0.66),
-      dbLabel: toEqDbLabel(source[0] ?? 0.66)
+      value: low,
+      percent: Math.round(low * 100),
+      percentLabel: `${Math.round(low * 100)}%`,
+      dbLabel: toEqDbLabel(low)
     },
     {
       label: 'MID',
       icon: 'fa-sliders',
-      value: Number(source[1] ?? 0.52),
-      dbLabel: toEqDbLabel(source[1] ?? 0.52)
+      value: mid,
+      percent: Math.round(mid * 100),
+      percentLabel: `${Math.round(mid * 100)}%`,
+      dbLabel: toEqDbLabel(mid)
     },
     {
       label: 'HIGH',
       icon: 'fa-signal',
-      value: Number(source[2] ?? 0.74),
-      dbLabel: toEqDbLabel(source[2] ?? 0.74)
+      value: high,
+      percent: Math.round(high * 100),
+      percentLabel: `${Math.round(high * 100)}%`,
+      dbLabel: toEqDbLabel(high)
     }
   ];
 });
@@ -417,10 +446,11 @@ function onEqInput(event, index) {
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 16px 30px rgba(8, 10, 18, 0.32);
   border-radius: 18px;
-  padding: 14px 12px;
+  padding: 14px 12px calc(var(--music-bottom-dock-height, 124px) + 12px);
   height: 100%;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -591,18 +621,17 @@ function onEqInput(event, index) {
 
 .control-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
 .control-chip {
   display: grid;
-  justify-items: center;
-  align-content: start;
+  align-content: center;
   gap: 6px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 11px;
-  padding: 7px 4px 6px;
+  padding: 8px 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
@@ -611,6 +640,13 @@ function onEqInput(event, index) {
 
 .eq-chip {
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0.04));
+}
+
+.control-chip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .control-title {
@@ -630,47 +666,63 @@ function onEqInput(event, index) {
 
 .control-value {
   margin: 0;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: rgba(238, 244, 255, 0.94);
+  white-space: nowrap;
 }
 
-.vertical-range {
-  -webkit-appearance: slider-vertical;
+.control-sub-value {
+  margin: 0;
+  font-size: 10px;
+  color: rgba(187, 201, 230, 0.88);
+}
+
+.control-range-row {
+  display: grid;
+  grid-template-columns: 20px 1fr 26px;
+  align-items: center;
+  gap: 6px;
+}
+
+.range-bound {
+  font-size: 10px;
+  color: rgba(182, 196, 226, 0.82);
+}
+
+.control-range {
+  -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 120px;
-  writing-mode: bt-lr;
+  width: 100%;
+  height: 20px;
   cursor: pointer;
   background: transparent;
-  accent-color: rgb(var(--accent-strong-rgb));
 }
 
-.vertical-range.eq {
-  accent-color: rgb(var(--accent-rgb));
+.control-range.eq {
   filter: saturate(1.08);
 }
 
-.vertical-range::-webkit-slider-runnable-track {
-  width: 10px;
+.control-range::-webkit-slider-runnable-track {
+  height: 8px;
   border-radius: 999px;
   background:
     linear-gradient(
-      180deg,
-      rgba(var(--accent-soft-rgb), 0.88) 0%,
-      rgba(var(--accent-rgb), 0.7) var(--level, 50%),
-      rgba(255, 255, 255, 0.22) var(--level, 50%),
+      90deg,
+      rgba(var(--accent-soft-rgb), 0.9) 0%,
+      rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
+      rgba(255, 255, 255, 0.24) var(--level-percent, 50%),
       rgba(255, 255, 255, 0.08) 100%
     );
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-.vertical-range::-webkit-slider-thumb {
+.control-range::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 15px;
-  height: 15px;
-  margin-top: -2px;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
   border-radius: 50%;
   border: 2px solid rgba(236, 242, 255, 0.95);
   background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
@@ -679,30 +731,36 @@ function onEqInput(event, index) {
     0 0 12px rgba(var(--accent-rgb), 0.52);
 }
 
-.vertical-range::-moz-range-track {
-  width: 10px;
+.control-range::-moz-range-track {
+  height: 8px;
   border-radius: 999px;
   background:
     linear-gradient(
-      180deg,
-      rgba(var(--accent-soft-rgb), 0.88) 0%,
-      rgba(var(--accent-rgb), 0.7) var(--level, 50%),
-      rgba(255, 255, 255, 0.22) var(--level, 50%),
+      90deg,
+      rgba(var(--accent-soft-rgb), 0.9) 0%,
+      rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
+      rgba(255, 255, 255, 0.24) var(--level-percent, 50%),
       rgba(255, 255, 255, 0.08) 100%
     );
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-.vertical-range::-moz-range-thumb {
-  width: 15px;
-  height: 15px;
+.control-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 2px solid rgba(236, 242, 255, 0.95);
   background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
   box-shadow:
     0 0 0 3px rgba(var(--accent-rgb), 0.16),
     0 0 12px rgba(var(--accent-rgb), 0.52);
+}
+
+@media (max-width: 1100px) {
+  .control-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .integration-panel {
@@ -947,6 +1005,7 @@ function onEqInput(event, index) {
     z-index: 1220;
     transform: translateX(112%);
     transition: transform 260ms ease;
+    padding-bottom: 16px;
   }
 
   .music-right-panel.mobile.drawer-open {

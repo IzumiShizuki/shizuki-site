@@ -1,5 +1,11 @@
 <template>
   <section class="route-page music-library-page" :class="{ 'player-detail-route': isPlayerDetailRoute }">
+    <section v-if="fatalErrorText" class="music-fatal-error liquid-material">
+      <h3>音乐页面加载失败</h3>
+      <p>{{ fatalErrorText }}</p>
+      <button class="retry-btn ripple-trigger" type="button" @click="reloadAfterFatalError">重试加载</button>
+    </section>
+
     <div class="music-library-module" :class="{ 'player-detail-only': isPlayerDetailRoute }">
       <template v-if="!isPlayerDetailRoute">
         <button
@@ -118,7 +124,7 @@
         :detail-layout="isPlayerDetailRoute"
         :playlist-options="collectPlaylistTargets"
         :can-collect="auth.isAuthenticated.value"
-        :can-collect-default-public="authState.value.isAdmin"
+        :can-collect-default-public="isAdminUser"
         @toggle-play="player.togglePlay"
         @prev="player.playPrev"
         @next="player.playNext"
@@ -143,7 +149,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, provide, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import MusicLibraryDock from '../components/music/MusicLibraryDock.vue';
 import MusicCreatePlaylistDialog from '../components/music/MusicCreatePlaylistDialog.vue';
@@ -318,6 +324,7 @@ const currentPlaylistError = computed(() => String(playlistBrowseError.value || 
 const playerQueueTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
 const centerTransitionName = ref('music-center-fade');
 let allSearchCapacityRefreshTimer = 0;
+const fatalErrorText = ref('');
 
 const isAdminUser = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -404,6 +411,12 @@ function parseErrorMessage(error, fallback = '操作失败，请稍后重试') {
   if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
   if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
   return fallback;
+}
+
+function setFatalError(error, fallback = '页面渲染异常，请刷新后重试') {
+  fatalErrorText.value = parseErrorMessage(error, fallback);
+  // eslint-disable-next-line no-console
+  console.error('[MUSIC_PAGE_FATAL]', error);
 }
 
 function normalizePlaylistSummary(raw, fallbackCode = DEFAULT_PLAYLIST_CODE) {
@@ -706,11 +719,16 @@ function requestMusicLogin() {
 }
 
 function updateViewportMode() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+  if (typeof window === 'undefined') {
     isMobileViewport.value = false;
     return;
   }
-  isMobileViewport.value = window.matchMedia('(max-width: 900px), (orientation: portrait)').matches;
+  const viewportWidth = Number(window.innerWidth || document?.documentElement?.clientWidth || 0);
+  const mobile = viewportWidth > 0 ? viewportWidth <= 900 : false;
+  isMobileViewport.value = mobile;
+  if (!mobile) {
+    ui.closeDrawers();
+  }
 }
 
 function getCenterPaneElement() {
@@ -1901,25 +1919,46 @@ watch(
 );
 
 onMounted(async () => {
-  await auth.ensureReady();
-  ui.setExpandedProvider('');
-  updateViewportMode();
-  musicSearchHistory.value = readMusicSearchHistory();
-  if (typeof window !== 'undefined') {
-    window.addEventListener('resize', updateViewportMode, { passive: true });
-  }
+  try {
+    await auth.ensureReady();
+    ui.setExpandedProvider('');
+    updateViewportMode();
+    musicSearchHistory.value = readMusicSearchHistory();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', updateViewportMode, { passive: true });
+    }
 
+    await Promise.all([
+      loadHomeData(),
+      loadSidebarData(),
+      loadTunehubStatus(),
+      loadSpotifyBindingStatus(),
+      ensureCurrentRoutePlaylistLoaded()
+    ]);
+
+    await nextTick();
+    restoreCenterScroll(route.fullPath);
+  } catch (error) {
+    setFatalError(error, '初始化失败，请稍后重试');
+  }
+});
+
+onErrorCaptured((error, instance, info) => {
+  const componentName = String(instance?.type?.name || 'unknown');
+  setFatalError(error, `渲染阶段异常（${componentName} / ${String(info || 'unknown')}）`);
+  return false;
+});
+
+async function reloadAfterFatalError() {
+  fatalErrorText.value = '';
   await Promise.all([
     loadHomeData(),
     loadSidebarData(),
     loadTunehubStatus(),
     loadSpotifyBindingStatus(),
-    ensureCurrentRoutePlaylistLoaded()
+    ensureCurrentRoutePlaylistLoaded({ force: true })
   ]);
-
-  await nextTick();
-  restoreCenterScroll(route.fullPath);
-});
+}
 
 onBeforeUnmount(() => {
   if (allSearchCapacityRefreshTimer) {
@@ -1931,3 +1970,39 @@ onBeforeUnmount(() => {
   }
 });
 </script>
+
+<style scoped>
+.music-fatal-error {
+  --liquid-bg: linear-gradient(150deg, rgba(36, 17, 22, 0.82), rgba(24, 13, 18, 0.78));
+  --liquid-border: rgba(255, 162, 186, 0.42);
+  --liquid-shadow: 0 14px 30px rgba(40, 8, 16, 0.34);
+  margin: 0 0 10px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.music-fatal-error h3 {
+  margin: 0;
+  font-size: 15px;
+  color: rgba(255, 231, 239, 0.96);
+}
+
+.music-fatal-error p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 199, 217, 0.94);
+  word-break: break-word;
+}
+
+.retry-btn {
+  justify-self: start;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 175, 197, 0.48);
+  background: rgba(255, 152, 183, 0.24);
+  color: rgba(255, 242, 247, 0.96);
+}
+</style>

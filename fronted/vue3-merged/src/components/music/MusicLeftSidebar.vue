@@ -109,10 +109,11 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 16px 30px rgba(8, 10, 18, 0.32);
   border-radius: 18px;
-  padding: 14px 12px;
+  padding: 14px 12px calc(var(--music-bottom-dock-height, 124px) + 10px);
   height: 100%;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   z-index: 22;
 }
@@ -227,6 +228,7 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
     z-index: 1220;
     transform: translateX(-112%);
     transition: transform 260ms ease;
+    padding-bottom: 16px;
   }
 
   .music-left-sidebar.mobile.drawer-open {

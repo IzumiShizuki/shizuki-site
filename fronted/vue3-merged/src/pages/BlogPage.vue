@@ -424,7 +424,9 @@
                 @click="scrollToHeading(heading.id)"
               >
                 <span class="toc-branch" aria-hidden="true"></span>
-                <span class="toc-dot" aria-hidden="true"></span>
+                <span class="toc-icon" aria-hidden="true">
+                  <i :class="resolveTocIcon(heading.level, heading.id === activeHeadingId)"></i>
+                </span>
                 <span class="toc-label">{{ heading.text }}</span>
               </button>
               <p v-if="!visibleTocTreeHeadings.length" class="side-tip">当前文章暂无可展示目录。</p>
@@ -1561,8 +1563,17 @@ function tocIndentStyle(heading) {
   return {
     '--toc-depth': depth,
     '--toc-indent': `${depth * 14}px`,
-    paddingInlineStart: `${30 + depth * 14}px`
+    paddingInlineStart: '4px'
   };
+}
+
+function resolveTocIcon(depth, isActive = false) {
+  if (isActive) return 'fas fa-location-dot';
+  const normalizedDepth = Math.max(0, toSafeInt(depth, 0));
+  if (normalizedDepth <= 0) return 'fas fa-bookmark';
+  if (normalizedDepth === 1) return 'fas fa-folder-open';
+  if (normalizedDepth === 2) return 'fas fa-file-lines';
+  return 'fas fa-angle-right';
 }
 
 function resolveScrollRoot() {
@@ -2591,10 +2602,9 @@ onBeforeUnmount(() => {
 }
 
 .toc-metrics {
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(10, 15, 25, 0.34);
-  padding: 8px;
+  border: none;
+  background: transparent;
+  padding: 4px 2px 8px;
   display: grid;
   gap: 3px;
   font-size: 12px;
@@ -2604,32 +2614,32 @@ onBeforeUnmount(() => {
 .toc-list {
   min-height: 0;
   display: grid;
-  gap: 4px;
+  gap: 1px;
   align-content: start;
 }
 
 .toc-item {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  min-height: 32px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  min-height: 30px;
+  border-radius: 0;
+  background: transparent;
   color: rgba(222, 234, 255, 0.93);
   text-align: left;
-  font-size: 12px;
-  padding-right: 8px;
+  font-size: 13px;
+  padding: 3px 4px 3px 0;
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .toc-item::after {
   content: '';
   position: absolute;
-  left: calc(8px + var(--toc-indent));
-  top: 5px;
-  bottom: 5px;
-  border-left: 1px solid rgba(120, 138, 175, 0.28);
+  left: calc(10px + var(--toc-indent));
+  top: -4px;
+  bottom: -4px;
+  border-left: 1px solid rgba(148, 168, 206, 0.3);
   pointer-events: none;
 }
 
@@ -2637,8 +2647,8 @@ onBeforeUnmount(() => {
   position: absolute;
   left: calc(10px + var(--toc-indent));
   top: 50%;
-  width: 11px;
-  border-top: 1px solid rgba(168, 187, 224, 0.6);
+  width: 13px;
+  border-top: 1px solid rgba(179, 199, 236, 0.64);
   transform: translateY(-50%);
 }
 
@@ -2647,49 +2657,54 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   left: 0;
-  top: -14px;
-  bottom: -14px;
-  border-left: 1px solid rgba(168, 187, 224, 0.55);
+  top: -15px;
+  bottom: -15px;
+  border-left: 1px solid rgba(179, 199, 236, 0.5);
 }
 
-.toc-item .toc-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(186, 204, 236, 0.92);
-  flex: 0 0 8px;
-  margin-left: calc(var(--toc-indent) + 12px);
-  box-shadow: 0 0 0 1px rgba(7, 11, 18, 0.5);
+.toc-item .toc-icon {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 16px;
+  margin-left: calc(var(--toc-indent) + 14px);
+  color: rgba(193, 211, 242, 0.9);
+}
+
+.toc-item .toc-icon i {
+  font-size: 11px;
 }
 
 .toc-item .toc-label {
   min-width: 0;
-  font-weight: 520;
+  font-weight: 630;
+  letter-spacing: 0.1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .toc-item.ancestor {
-  border-color: rgba(var(--accent-rgb), 0.28);
-  background: rgba(var(--accent-rgb), 0.14);
-  color: rgba(238, 246, 255, 0.96);
+  color: rgba(236, 246, 255, 0.98);
 }
 
 .toc-item.active {
-  border-color: rgba(var(--accent-rgb), 0.62);
-  background: rgba(var(--accent-rgb), 0.3);
-  color: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--accent-rgb), 0.58),
-    0 6px 14px rgba(var(--accent-rgb), 0.2);
+  color: rgba(255, 255, 255, 0.99);
+  font-weight: 740;
+  text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.22);
 }
 
-.toc-item.active .toc-dot {
-  background: rgba(var(--accent-rgb), 0.96);
-  box-shadow:
-    0 0 0 3px rgba(var(--accent-rgb), 0.24),
-    0 0 10px rgba(var(--accent-rgb), 0.36);
+.toc-item.active .toc-icon {
+  color: rgba(var(--accent-rgb), 0.98);
+}
+
+.toc-item.active .toc-icon i {
+  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.42));
+}
+
+.toc-item:hover {
+  color: rgba(246, 252, 255, 0.98);
 }
 
 .toc-empty {
