@@ -50,3 +50,8 @@ docker compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server
 ```bash
 docker compose -f docker-compose.server.yml --env-file .env.server down
 ```
+
+## 8) One-click redeploy
+
+- Windows (double click): `deploy/redeploy-server.bat`
+- Linux/WSL: `bash deploy/redeploy-server.sh`
