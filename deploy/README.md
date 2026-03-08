@@ -55,3 +55,4 @@ docker compose -f docker-compose.server.yml --env-file .env.server down
 
 - Windows (double click): `deploy/redeploy-server.bat`
 - Linux/WSL: `bash deploy/redeploy-server.sh`
+- Behavior: sync local project to `/opt/shizuki-site` first, then run `docker compose up -d --build`
