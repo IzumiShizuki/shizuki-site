@@ -121,6 +121,16 @@
             @appendCustomQuota="appendCustomQuota"
           />
 
+          <AdminWallpapersPanel
+            v-else-if="activeTab === AdminTabKey.WALLPAPERS"
+            :loading="wallpapersLoading"
+            :submitting="wallpapersSubmitting"
+            :error="wallpapersError"
+            :items="pendingWallpapers"
+            @refresh="reloadPendingWallpapers"
+            @audit="auditPendingWallpaper"
+          />
+
           <AdminBlogCategoriesPanel
             v-else
             :loading="categoryMetaLoading"
@@ -189,6 +199,7 @@ import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
 import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue';
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
 import AdminUsersPanel from '../components/admin/AdminUsersPanel.vue';
+import AdminWallpapersPanel from '../components/admin/AdminWallpapersPanel.vue';
 import {
   AdminTabKey,
   buildQuotaMatrix,
@@ -209,6 +220,7 @@ const tabs = [
   { key: AdminTabKey.GROUPS, label: '分组目录' },
   { key: AdminTabKey.PERMISSIONS, label: '分组权限' },
   { key: AdminTabKey.QUOTA, label: '配额策略' },
+  { key: AdminTabKey.WALLPAPERS, label: '壁纸审核' },
   { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类' }
 ];
 
@@ -272,6 +284,11 @@ const categoryMetaSaving = ref(false);
 const categoryMetaError = ref('');
 const categoryMetaUploadingCode = ref('');
 const categoryMetaItems = ref([]);
+
+const wallpapersLoading = ref(false);
+const wallpapersSubmitting = ref(false);
+const wallpapersError = ref('');
+const pendingWallpapers = ref([]);
 
 const uiState = reactive(createAdminUiState());
 
@@ -453,6 +470,20 @@ function toCategoryMetaItem(raw) {
     coverImageUrl: String(readField(raw, 'coverImageUrl', 'cover_image_url', '') || ''),
     sortNum: Number(readField(raw, 'sortNum', 'sort_num', 1000)) || 1000,
     enabled: readField(raw, 'enabled', 'enabled', true) !== false
+  };
+}
+
+function toWallpaperItem(raw) {
+  return {
+    wallpaperId: toPositiveInt(readField(raw, 'wallpaperId', 'wallpaper_id', 0), 0),
+    title: String(readField(raw, 'title', 'title', '') || ''),
+    sceneType: String(readField(raw, 'sceneType', 'scene_type', 'STATIC') || '').toUpperCase(),
+    visibility: String(readField(raw, 'visibility', 'visibility', 'PRIVATE') || '').toUpperCase(),
+    auditStatus: String(readField(raw, 'auditStatus', 'audit_status', 'PENDING_AUDIT') || '').toUpperCase(),
+    ownerUserId: toPositiveInt(readField(raw, 'ownerUserId', 'owner_user_id', 0), 0),
+    visualUrl: String(readField(raw, 'visualUrl', 'visual_url', '') || ''),
+    previewUrl: String(readField(raw, 'previewUrl', 'preview_url', '') || ''),
+    workshopItemId: String(readField(raw, 'workshopItemId', 'workshop_item_id', '') || '')
   };
 }
 
@@ -842,6 +873,48 @@ async function reloadCategoryMetas() {
   }
 }
 
+async function reloadPendingWallpapers() {
+  wallpapersError.value = '';
+  wallpapersLoading.value = true;
+  try {
+    const payload = await adminApi.listPendingWallpapers(auth.authorizedFetch);
+    pendingWallpapers.value = Array.isArray(payload) ? payload.map(toWallpaperItem).filter((item) => item.wallpaperId > 0) : [];
+  } catch (error) {
+    pendingWallpapers.value = [];
+    wallpapersError.value = readErrorMessage(error);
+  } finally {
+    wallpapersLoading.value = false;
+  }
+}
+
+async function auditPendingWallpaper(payload) {
+  const wallpaperId = toPositiveInt(payload?.wallpaperId, 0);
+  if (!wallpaperId) {
+    wallpapersError.value = 'wallpaperId 无效';
+    return;
+  }
+  wallpapersError.value = '';
+  wallpapersSubmitting.value = true;
+  try {
+    await withPrivilegeRetry(() =>
+      adminApi.auditWallpaper(
+        wallpaperId,
+        {
+          auditStatus: String(payload?.auditStatus || '').toUpperCase(),
+          visibility: String(payload?.visibility || '').toUpperCase()
+        },
+        auth.authorizedFetch
+      )
+    );
+    setGlobalHint(`壁纸 #${wallpaperId} 审核已更新`);
+    await reloadPendingWallpapers();
+  } catch (error) {
+    wallpapersError.value = readErrorMessage(error);
+  } finally {
+    wallpapersSubmitting.value = false;
+  }
+}
+
 async function saveCategoryMetaItem(payload) {
   const categoryCode = String(payload?.categoryCode || '').trim().toLowerCase();
   if (!categoryCode) {
@@ -1104,7 +1177,7 @@ onMounted(async () => {
 
   try {
     await reloadOptions();
-    await Promise.all([reloadUsers(1), reloadGroups(1), reloadPermissions(), reloadQuota(), reloadCategoryMetas()]);
+    await Promise.all([reloadUsers(1), reloadGroups(1), reloadPermissions(), reloadQuota(), reloadPendingWallpapers(), reloadCategoryMetas()]);
   } finally {
     booting.value = false;
   }

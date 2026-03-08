@@ -154,6 +154,15 @@ shizuki:
       - audio/mpeg
       - audio/wav
       - audio/ogg
+    wallpaper:
+      workshop:
+        enabled: ${WALLPAPER_WORKSHOP_ENABLED:false}
+        steamcmd-path: ${WALLPAPER_STEAMCMD_PATH:steamcmd}
+        steam-username: ${WALLPAPER_STEAM_USERNAME:}
+        steam-password: ${WALLPAPER_STEAM_PASSWORD:}
+        workshop-app-id: ${WALLPAPER_WORKSHOP_APP_ID:431960}
+        download-root: ${WALLPAPER_WORKSHOP_DOWNLOAD_ROOT:/tmp/steam-workshop}
+        command-timeout-seconds: ${WALLPAPER_WORKSHOP_TIMEOUT_SECONDS:180}
   blog:
     storage:
       private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:zhuowang-files}}
@@ -198,6 +207,7 @@ shizuki:
       - /api/v1/music/spotify/search
       - /api/v1/music/spotify/preview-url
       - /api/v1/author/profile/**
+      - /api/v1/home-wallpapers/public
   flyway:
     auto-repair-on-validate-error: ${FLYWAY_AUTO_REPAIR_ON_VALIDATE_ERROR:true}
     allow-auto-repair-in-prod: ${FLYWAY_ALLOW_AUTO_REPAIR_IN_PROD:false}

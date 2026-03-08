@@ -14,6 +14,29 @@
           preload="auto"
           @error="videoFailed = true"
         ></video>
+        <WallpaperL2dCanvas
+          v-if="activeL2dVisible"
+          :model-url="activeBackground?.src || ''"
+          :model-entry="activeBackground?.l2dEntryModelJson || ''"
+          :fallback-src="activeImageBackground"
+          @error="handleL2dRenderError"
+        />
+        <audio
+          ref="wallpaperBgmRef"
+          class="wallpaper-audio"
+          :src="activeWallpaperBgmUrl"
+          preload="metadata"
+          loop
+          playsinline
+        ></audio>
+        <video
+          ref="wallpaperBgvRef"
+          class="wallpaper-audio"
+          :src="activeWallpaperBgvUrl"
+          preload="metadata"
+          loop
+          playsinline
+        ></video>
         <div class="bg-fx" :class="{ 'bg-fx-home': isHomeRoute }"></div>
       </div>
 
@@ -122,6 +145,49 @@
               <button class="picker-close ripple-trigger" @click="backgroundPickerVisible = false">关闭</button>
             </header>
 
+            <div class="picker-status">
+              <button class="scope-btn ripple-trigger" :disabled="wallpaperLoading" @click="refreshBackgroundLibrary">
+                {{ wallpaperLoading ? '刷新中...' : '刷新壁纸库' }}
+              </button>
+              <span v-if="backgroundManifestFallbackUsed" class="route-bg-note">当前使用本地 manifest 兜底</span>
+              <span v-if="wallpaperErrorHint" class="route-bg-note">{{ wallpaperErrorHint }}</span>
+              <span v-if="importState.hint" class="route-bg-note">{{ importState.hint }}</span>
+            </div>
+
+            <div v-if="auth.isAuthenticated.value" class="picker-import-grid">
+              <section class="import-card">
+                <h4>本地包导入</h4>
+                <input type="file" accept=".zip,image/*,video/*" @change="onPackageFileChange" />
+                <input v-model.trim="importState.packageTitle" class="field-input-lite" type="text" placeholder="壁纸标题（可选）" />
+                <select v-model="importState.packageVisibility" class="field-input-lite">
+                  <option value="PRIVATE">私有</option>
+                  <option value="PUBLIC">公开</option>
+                </select>
+                <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.packageFile" @click="submitPackageImport">
+                  上传并导入
+                </button>
+              </section>
+
+              <section class="import-card">
+                <h4>Workshop 导入</h4>
+                <input
+                  v-model.trim="importState.workshopUrl"
+                  class="field-input-lite"
+                  type="url"
+                  placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=..."
+                />
+                <input v-model.trim="importState.workshopTitle" class="field-input-lite" type="text" placeholder="标题覆盖（可选）" />
+                <select v-model="importState.workshopVisibility" class="field-input-lite">
+                  <option value="PRIVATE">私有</option>
+                  <option value="PUBLIC">公开</option>
+                </select>
+                <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="submitWorkshopImport">
+                  创建导入任务
+                </button>
+              </section>
+            </div>
+            <p v-else class="route-bg-note">登录后可上传本地包或导入 Workshop 资源。</p>
+
             <div class="picker-tabs">
               <button
                 v-for="tab in bgTabs"
@@ -164,6 +230,92 @@
               <span v-else>（未设置，沿用全局）</span>
             </p>
 
+            <section v-if="activeBackground?.wallpaperId && canEditActiveWallpaper" class="wallpaper-settings">
+              <div class="picker-title">Wallpaper 设置</div>
+              <p class="route-bg-note">
+                来源：{{ activeBackground.importSource || 'PACKAGE' }}
+                <span v-if="activeBackground.workshopItemId"> | Workshop ID: {{ activeBackground.workshopItemId }}</span>
+              </p>
+              <div class="settings-grid">
+                <label>
+                  主音量 {{ formatPercent(wallpaperSettingState.masterVolume) }}
+                  <input v-model.number="wallpaperSettingState.masterVolume" type="range" min="0" max="1" step="0.01" />
+                </label>
+                <label>
+                  BGM 音量 {{ formatPercent(wallpaperSettingState.bgmVolume) }}
+                  <input v-model.number="wallpaperSettingState.bgmVolume" type="range" min="0" max="1" step="0.01" />
+                </label>
+                <label>
+                  BGV 音量 {{ formatPercent(wallpaperSettingState.bgvVolume) }}
+                  <input v-model.number="wallpaperSettingState.bgvVolume" type="range" min="0" max="1" step="0.01" />
+                </label>
+                <label>
+                  内置 BGM 资源 ID
+                  <input v-model.trim="wallpaperSettingState.bgmAssetIdText" class="field-input-lite" type="text" placeholder="可选，数字ID" />
+                </label>
+                <label>
+                  内置 BGV 资源 ID
+                  <input v-model.trim="wallpaperSettingState.bgvAssetIdText" class="field-input-lite" type="text" placeholder="可选，数字ID" />
+                </label>
+              </div>
+
+              <div class="settings-checks">
+                <label><input v-model="wallpaperSettingState.bgmEnabled" type="checkbox" /> 启用 BGM</label>
+                <label><input v-model="wallpaperSettingState.bgvEnabled" type="checkbox" /> 启用 BGV</label>
+              </div>
+
+              <div v-if="activeCustomSchemaItems.length" class="settings-custom">
+                <h4>自定义参数</h4>
+                <div v-for="schemaItem in activeCustomSchemaItems" :key="schemaItem.key" class="custom-row">
+                  <label>{{ schemaItem.label }}</label>
+                  <input
+                    v-if="schemaItem.type === 'slider'"
+                    v-model.number="wallpaperSettingState.customValues[schemaItem.key]"
+                    type="range"
+                    :min="schemaItem.min"
+                    :max="schemaItem.max"
+                    :step="schemaItem.step"
+                  />
+                  <select
+                    v-else-if="schemaItem.type === 'select'"
+                    v-model="wallpaperSettingState.customValues[schemaItem.key]"
+                    class="field-input-lite"
+                  >
+                    <option v-for="option in schemaItem.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+                  </select>
+                  <input
+                    v-else-if="schemaItem.type === 'toggle'"
+                    v-model="wallpaperSettingState.customValues[schemaItem.key]"
+                    type="checkbox"
+                  />
+                  <input
+                    v-else-if="schemaItem.type === 'color'"
+                    v-model="wallpaperSettingState.customValues[schemaItem.key]"
+                    type="color"
+                  />
+                  <input
+                    v-else
+                    v-model="wallpaperSettingState.customValues[schemaItem.key]"
+                    class="field-input-lite"
+                    type="text"
+                  />
+                </div>
+              </div>
+
+              <div class="picker-apply-mode">
+                <button class="scope-btn ripple-trigger" :disabled="wallpaperSettingState.saving" @click="saveActiveWallpaperSettings">
+                  {{ wallpaperSettingState.saving ? '保存中...' : '保存设置' }}
+                </button>
+                <button class="scope-btn ripple-trigger" :disabled="wallpaperSettingState.visibilitySaving" @click="setActiveWallpaperVisibility('PUBLIC')">
+                  提交公开
+                </button>
+                <button class="scope-btn danger ripple-trigger" :disabled="wallpaperSettingState.visibilitySaving" @click="setActiveWallpaperVisibility('PRIVATE')">
+                  设为私有
+                </button>
+              </div>
+              <p v-if="wallpaperSettingState.error" class="route-bg-note">{{ wallpaperSettingState.error }}</p>
+            </section>
+
             <div class="picker-grid">
               <button
                 v-for="item in filteredBackgroundItems"
@@ -174,6 +326,7 @@
               >
                 <img class="picker-preview" :src="item.preview" :alt="item.name" />
                 <span class="picker-name">{{ item.name }}</span>
+                <span class="picker-meta">{{ item.type.toUpperCase() }}</span>
               </button>
             </div>
           </section>
@@ -200,12 +353,13 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
 import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import AiDialog from './components/AiDialog.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
+import WallpaperL2dCanvas from './components/WallpaperL2dCanvas.vue';
 import TopMenu from './components/TopMenu.vue';
 import { useAuthSession } from './composables/useAuthSession';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
@@ -213,6 +367,7 @@ import { usePlayerEngine } from './composables/usePlayerEngine';
 import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
+import * as wallpaperApi from './services/wallpaperApi';
 import { refreshAosManager } from './utils/aosManager';
 import { runtimeGuards } from './utils/runtimeGuards';
 import { recordWindowDiag } from './utils/windowLifecycleDiag';
@@ -226,6 +381,9 @@ const clickRipples = ref([]);
 const videoFailed = ref(false);
 const backgroundPickerVisible = ref(false);
 const backgroundItems = ref([]);
+const backgroundManifestFallbackUsed = ref(false);
+const wallpaperLoading = ref(false);
+const wallpaperErrorHint = ref('');
 const bgTab = ref('all');
 const backgroundApplyTarget = ref('route');
 const subtitleVisible = ref(true);
@@ -236,6 +394,36 @@ const windowFocused = ref(typeof document === 'undefined' ? true : document.hasF
 const barLevels = ref(Array.from({ length: 44 }, () => 0));
 const ringLevels = ref(Array.from({ length: 72 }, () => 0));
 const sidebarAiColumnVisible = ref(false);
+const l2dRenderFailed = ref(false);
+const wallpaperBgmRef = ref(null);
+const wallpaperBgvRef = ref(null);
+const wallpaperCustomValuesById = reactive({});
+
+const importState = reactive({
+  packageVisibility: 'PRIVATE',
+  packageTitle: '',
+  packageFile: null,
+  workshopUrl: '',
+  workshopVisibility: 'PRIVATE',
+  workshopTitle: '',
+  runningJobId: 0,
+  hint: '',
+  busy: false
+});
+
+const wallpaperSettingState = reactive({
+  masterVolume: 1,
+  bgmVolume: 1,
+  bgvVolume: 1,
+  bgmEnabled: true,
+  bgvEnabled: true,
+  bgmAssetIdText: '',
+  bgvAssetIdText: '',
+  customValues: {},
+  saving: false,
+  visibilitySaving: false,
+  error: ''
+});
 
 const dragState = {
   pointerId: null,
@@ -256,6 +444,8 @@ let freqData = null;
 let rafId = 0;
 let lastVisualizerFrameAt = 0;
 let sidebarAiCloseTimer = 0;
+let wallpaperImportPollTimer = 0;
+let wallpaperPreferenceSaveTimer = 0;
 const AI_SIDEBAR_EXIT_MS = 260;
 const VISUALIZER_TARGET_FPS = 30;
 const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
@@ -358,7 +548,14 @@ const activeBackground = computed(() => {
   return backgroundItems.value.find((item) => item.id === activeBackgroundId.value) || null;
 });
 
+const canEditActiveWallpaper = computed(() => {
+  const item = activeBackground.value;
+  if (!item || !item.wallpaperId) return false;
+  return Boolean(item.mine) || isAdminUser.value;
+});
+
 const activeVideoBackground = computed(() => {
+  if (activeBackground.value?.type === 'l2d') return '';
   const src = activeBackground.value?.src || '';
   const ext = src.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase();
   if (['webm', 'mp4', 'mov', 'ogg'].includes(ext)) return src;
@@ -368,6 +565,30 @@ const activeVideoBackground = computed(() => {
 const activeImageBackground = computed(() => {
   return activeBackground.value?.preview || `${import.meta.env.BASE_URL}images/original-bg.png`;
 });
+
+const activeL2dVisible = computed(() => {
+  if (l2dRenderFailed.value) return false;
+  const item = activeBackground.value;
+  if (!item) return false;
+  if (item.type !== 'l2d') return false;
+  return Boolean(item.src) && Boolean(item.l2dEntryModelJson);
+});
+
+const activeWallpaperBgmUrl = computed(() => String(activeBackground.value?.embeddedBgmUrl || '').trim());
+const activeWallpaperBgvUrl = computed(() => String(activeBackground.value?.embeddedBgvUrl || '').trim());
+const activeWallpaperCustomSchema = computed(() => {
+  const schema = activeBackground.value?.customSchema;
+  if (!schema || typeof schema !== 'object') return [];
+  if (Array.isArray(schema)) {
+    return schema
+      .map((item, index) => normalizeSchemaItem(item, `custom_${index}`))
+      .filter(Boolean);
+  }
+  return Object.entries(schema)
+    .map(([key, value]) => normalizeSchemaItem(value, key))
+    .filter(Boolean);
+});
+const activeCustomSchemaItems = computed(() => activeWallpaperCustomSchema.value);
 
 const playerBridge = Object.freeze({
   tracks: player.tracks,
@@ -415,9 +636,620 @@ function normalizeAssetPath(path) {
 
 function inferBgType(item) {
   if (item?.type === 'l2d') return 'l2d';
+  if (String(item?.sceneType || '').toUpperCase() === 'L2D') return 'l2d';
   const src = String(item?.src || item?.preview || '').toLowerCase();
   if (/\.(webm|mp4|mov|ogg|gif|webp)$/.test(src)) return 'dynamic';
   return 'static';
+}
+
+function readRecordField(record, camel, snake, fallback = '') {
+  if (!record || typeof record !== 'object') return fallback;
+  if (record[camel] !== undefined && record[camel] !== null) return record[camel];
+  if (record[snake] !== undefined && record[snake] !== null) return record[snake];
+  return fallback;
+}
+
+function toSafeNumber(input, fallback = 0) {
+  const value = Number(input);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function clampUnit(input, fallback = 1) {
+  const value = toSafeNumber(input, fallback);
+  return Math.max(0, Math.min(1, value));
+}
+
+function parsePositiveId(raw) {
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function toBoolean(input, fallback = false) {
+  if (typeof input === 'boolean') return input;
+  if (typeof input === 'string') {
+    const normalized = input.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return fallback;
+}
+
+function formatPercent(value) {
+  return `${Math.round(clampUnit(value, 1) * 100)}%`;
+}
+
+function normalizeSchemaItem(raw, keyFallback = '') {
+  if (!raw || typeof raw !== 'object') return null;
+  const key = String(raw.key || keyFallback || '').trim();
+  if (!key) return null;
+  const typeRaw = String(raw.type || 'text').trim().toLowerCase();
+  const type = ['slider', 'select', 'toggle', 'color', 'text'].includes(typeRaw) ? typeRaw : 'text';
+  const optionsRaw = Array.isArray(raw.options) ? raw.options : [];
+  const options = optionsRaw
+    .map((item) => {
+      if (item && typeof item === 'object') {
+        const value = readRecordField(item, 'value', 'value', '');
+        return {
+          value: String(value),
+          label: String(readRecordField(item, 'label', 'label', value))
+        };
+      }
+      const value = String(item ?? '');
+      return {
+        value,
+        label: value
+      };
+    })
+    .filter((item) => item.value !== '');
+
+  return {
+    key,
+    label: String(raw.label || key),
+    type,
+    min: toSafeNumber(raw.min, 0),
+    max: toSafeNumber(raw.max, 1),
+    step: toSafeNumber(raw.step, 0.01),
+    options
+  };
+}
+
+function normalizeWallpaperProfile(raw, index = 0) {
+  const wallpaperId = parsePositiveId(readRecordField(raw, 'wallpaperId', 'wallpaper_id', 0));
+  const sceneType = String(readRecordField(raw, 'sceneType', 'scene_type', 'STATIC')).trim().toUpperCase();
+  const type = sceneType === 'L2D' ? 'l2d' : sceneType === 'DYNAMIC' ? 'dynamic' : 'static';
+  const visualUrl = String(readRecordField(raw, 'visualUrl', 'visual_url', '') || '').trim();
+  const previewUrl = String(readRecordField(raw, 'previewUrl', 'preview_url', visualUrl) || '').trim();
+  const itemId = wallpaperId > 0 ? `wp-${wallpaperId}` : `wp-temp-${index}`;
+  return {
+    id: itemId,
+    wallpaperId,
+    name: String(readRecordField(raw, 'title', 'title', `壁纸 ${index + 1}`) || `壁纸 ${index + 1}`),
+    src: visualUrl || normalizeAssetPath('images/original-bg.png'),
+    preview: previewUrl || visualUrl || normalizeAssetPath('images/original-bg.png'),
+    type,
+    sceneType,
+    visibility: String(readRecordField(raw, 'visibility', 'visibility', 'PRIVATE')).toUpperCase(),
+    auditStatus: String(readRecordField(raw, 'auditStatus', 'audit_status', 'PENDING_AUDIT')).toUpperCase(),
+    embeddedBgmAssetId: parsePositiveId(readRecordField(raw, 'embeddedBgmAssetId', 'embedded_bgm_asset_id', 0)),
+    embeddedBgmUrl: String(readRecordField(raw, 'embeddedBgmUrl', 'embedded_bgm_url', '') || '').trim(),
+    embeddedBgvAssetId: parsePositiveId(readRecordField(raw, 'embeddedBgvAssetId', 'embedded_bgv_asset_id', 0)),
+    embeddedBgvUrl: String(readRecordField(raw, 'embeddedBgvUrl', 'embedded_bgv_url', '') || '').trim(),
+    l2dEntryModelJson: String(readRecordField(raw, 'l2dEntryModelJson', 'l2d_entry_model_json', '') || '').trim(),
+    defaultMasterVolume: clampUnit(readRecordField(raw, 'defaultMasterVolume', 'default_master_volume', 1), 1),
+    defaultBgmVolume: clampUnit(readRecordField(raw, 'defaultBgmVolume', 'default_bgm_volume', 1), 1),
+    defaultBgvVolume: clampUnit(readRecordField(raw, 'defaultBgvVolume', 'default_bgv_volume', 1), 1),
+    customSchema: readRecordField(raw, 'customSchema', 'custom_schema', {}),
+    customDefaults: readRecordField(raw, 'customDefaults', 'custom_defaults', {}),
+    importSource: String(readRecordField(raw, 'importSource', 'import_source', 'PACKAGE') || 'PACKAGE'),
+    workshopItemId: String(readRecordField(raw, 'workshopItemId', 'workshop_item_id', '') || ''),
+    mine: toBoolean(readRecordField(raw, 'mine', 'mine', false), false)
+  };
+}
+
+function applyBackgroundSelectionGuard() {
+  const validIds = new Set(backgroundItems.value.map((item) => item.id));
+  if (ui.state.globalBackgroundId && !validIds.has(ui.state.globalBackgroundId)) {
+    ui.setGlobalBackgroundId('');
+  }
+  Object.entries(ui.state.routeBackgroundByKey || {}).forEach(([key, value]) => {
+    if (!validIds.has(value)) {
+      ui.clearRouteBackground(key);
+    }
+  });
+  if (!ui.state.globalBackgroundId && !Object.keys(ui.state.routeBackgroundByKey || {}).length && defaultBackgroundId.value) {
+    ui.setGlobalBackgroundId(defaultBackgroundId.value);
+  }
+}
+
+async function loadBackgroundManifestFallback() {
+  backgroundManifestFallbackUsed.value = true;
+  try {
+    const resp = await fetch(`${import.meta.env.BASE_URL}media/manifest.json`, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('manifest not found');
+    const data = await resp.json();
+    const list = Array.isArray(data?.backgrounds) ? data.backgrounds : [];
+    backgroundItems.value = list
+      .filter((item) => item?.available !== false)
+      .slice(0, 180)
+      .map((item, index) => ({
+        id: item.id || `bg-${index}`,
+        wallpaperId: 0,
+        name: item.name || item.id || `背景 ${index + 1}`,
+        src: item.src ? normalizeAssetPath(item.src) : '',
+        preview: normalizeAssetPath(item.preview || item.src || 'images/original-bg.png'),
+        type: inferBgType(item),
+        sceneType: inferBgType(item).toUpperCase(),
+        visibility: 'PUBLIC',
+        auditStatus: 'APPROVED',
+        embeddedBgmAssetId: 0,
+        embeddedBgmUrl: '',
+        embeddedBgvAssetId: 0,
+        embeddedBgvUrl: '',
+        l2dEntryModelJson: '',
+        defaultMasterVolume: 1,
+        defaultBgmVolume: 1,
+        defaultBgvVolume: 1,
+        customSchema: {},
+        customDefaults: {},
+        importSource: 'MANIFEST',
+        workshopItemId: '',
+        mine: false
+      }));
+  } catch {
+    backgroundItems.value = [
+      {
+        id: 'video-954',
+        wallpaperId: 0,
+        name: '954',
+        src: `${import.meta.env.BASE_URL}media/background/954.webm`,
+        preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
+        type: 'dynamic',
+        sceneType: 'DYNAMIC',
+        visibility: 'PUBLIC',
+        auditStatus: 'APPROVED',
+        embeddedBgmAssetId: 0,
+        embeddedBgmUrl: '',
+        embeddedBgvAssetId: 0,
+        embeddedBgvUrl: '',
+        l2dEntryModelJson: '',
+        defaultMasterVolume: 1,
+        defaultBgmVolume: 1,
+        defaultBgvVolume: 1,
+        customSchema: {},
+        customDefaults: {},
+        importSource: 'MANIFEST',
+        workshopItemId: '',
+        mine: false
+      },
+      {
+        id: 'default-bg',
+        wallpaperId: 0,
+        name: '默认',
+        src: `${import.meta.env.BASE_URL}images/original-bg.png`,
+        preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
+        type: 'static',
+        sceneType: 'STATIC',
+        visibility: 'PUBLIC',
+        auditStatus: 'APPROVED',
+        embeddedBgmAssetId: 0,
+        embeddedBgmUrl: '',
+        embeddedBgvAssetId: 0,
+        embeddedBgvUrl: '',
+        l2dEntryModelJson: '',
+        defaultMasterVolume: 1,
+        defaultBgmVolume: 1,
+        defaultBgvVolume: 1,
+        customSchema: {},
+        customDefaults: {},
+        importSource: 'MANIFEST',
+        workshopItemId: '',
+        mine: false
+      },
+      {
+        id: 'l2d-placeholder',
+        wallpaperId: 0,
+        name: 'L2D 占位',
+        src: '',
+        preview: `${import.meta.env.BASE_URL}images/katanegai.jpg`,
+        type: 'l2d',
+        sceneType: 'L2D',
+        visibility: 'PUBLIC',
+        auditStatus: 'APPROVED',
+        embeddedBgmAssetId: 0,
+        embeddedBgmUrl: '',
+        embeddedBgvAssetId: 0,
+        embeddedBgvUrl: '',
+        l2dEntryModelJson: '',
+        defaultMasterVolume: 1,
+        defaultBgmVolume: 1,
+        defaultBgvVolume: 1,
+        customSchema: {},
+        customDefaults: {},
+        importSource: 'MANIFEST',
+        workshopItemId: '',
+        mine: false
+      }
+    ];
+  }
+}
+
+async function loadBackgroundLibrary() {
+  wallpaperLoading.value = true;
+  wallpaperErrorHint.value = '';
+  backgroundManifestFallbackUsed.value = false;
+  try {
+    let list = [];
+    if (auth.isAuthenticated.value) {
+      list = await wallpaperApi.listWallpaperLibrary('all', auth.authorizedFetch);
+    } else {
+      list = await wallpaperApi.listPublicWallpapers();
+    }
+    const profiles = Array.isArray(list) ? list : [];
+    if (profiles.length > 0) {
+      backgroundItems.value = profiles.map((item, index) => normalizeWallpaperProfile(item, index));
+    } else {
+      await loadBackgroundManifestFallback();
+      wallpaperErrorHint.value = '当前壁纸库为空，已回退到本地资源。';
+    }
+  } catch (error) {
+    await loadBackgroundManifestFallback();
+    const detail = String(error?.detail || error?.message || '').trim();
+    wallpaperErrorHint.value = detail ? `壁纸库加载失败：${detail}` : '壁纸库加载失败，已回退到本地资源。';
+  } finally {
+    applyBackgroundSelectionGuard();
+    wallpaperLoading.value = false;
+    syncActiveWallpaperSettingFromItem(true);
+  }
+}
+
+async function refreshBackgroundLibrary() {
+  await loadBackgroundLibrary();
+}
+
+function saveActiveCustomValueSnapshot() {
+  const activeId = String(activeBackgroundId.value || '').trim();
+  if (!activeId) return;
+  wallpaperCustomValuesById[activeId] = {
+    ...(wallpaperSettingState.customValues || {})
+  };
+}
+
+function syncActiveWallpaperSettingFromItem(force = false) {
+  const item = activeBackground.value;
+  if (!item) return;
+  if (!force) {
+    saveActiveCustomValueSnapshot();
+  }
+  const defaults = item.customDefaults && typeof item.customDefaults === 'object' && !Array.isArray(item.customDefaults)
+    ? { ...item.customDefaults }
+    : {};
+  const activeId = String(item.id || '').trim();
+  const cached = activeId ? wallpaperCustomValuesById[activeId] : null;
+  wallpaperSettingState.masterVolume = clampUnit(item.defaultMasterVolume, 1);
+  wallpaperSettingState.bgmVolume = clampUnit(item.defaultBgmVolume, 1);
+  wallpaperSettingState.bgvVolume = clampUnit(item.defaultBgvVolume, 1);
+  wallpaperSettingState.bgmEnabled = toBoolean(defaults.bgmEnabled, item.embeddedBgmAssetId > 0);
+  wallpaperSettingState.bgvEnabled = toBoolean(defaults.bgvEnabled, item.embeddedBgvAssetId > 0);
+  wallpaperSettingState.bgmAssetIdText = item.embeddedBgmAssetId > 0 ? String(item.embeddedBgmAssetId) : '';
+  wallpaperSettingState.bgvAssetIdText = item.embeddedBgvAssetId > 0 ? String(item.embeddedBgvAssetId) : '';
+  wallpaperSettingState.customValues = cached && typeof cached === 'object'
+    ? { ...cached }
+    : { ...defaults };
+}
+
+function applyWallpaperCustomVariables() {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const values = wallpaperSettingState.customValues || {};
+  Object.entries(values).forEach(([key, value]) => {
+    const cssKey = String(key || '').trim().replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+    if (!cssKey) return;
+    root.style.setProperty(`--wallpaper-custom-${cssKey}`, String(value ?? ''));
+  });
+}
+
+function applyWallpaperAudioState() {
+  const master = clampUnit(wallpaperSettingState.masterVolume, 1);
+  const bgmVol = clampUnit(wallpaperSettingState.bgmVolume, 1);
+  const bgvVol = clampUnit(wallpaperSettingState.bgvVolume, 1);
+
+  const bgmEl = wallpaperBgmRef.value;
+  if (bgmEl) {
+    bgmEl.volume = master * bgmVol;
+    bgmEl.muted = !wallpaperSettingState.bgmEnabled || !activeWallpaperBgmUrl.value;
+    if (!bgmEl.muted && bgmEl.paused) {
+      bgmEl.play().catch(() => {});
+    }
+    if (bgmEl.muted && !bgmEl.paused) {
+      bgmEl.pause();
+    }
+  }
+
+  const bgvEl = wallpaperBgvRef.value;
+  if (bgvEl) {
+    bgvEl.volume = master * bgvVol;
+    bgvEl.muted = !wallpaperSettingState.bgvEnabled || !activeWallpaperBgvUrl.value;
+    if (!bgvEl.muted && bgvEl.paused) {
+      bgvEl.play().catch(() => {});
+    }
+    if (bgvEl.muted && !bgvEl.paused) {
+      bgvEl.pause();
+    }
+  }
+}
+
+async function loadRemoteWallpaperPreference() {
+  if (!auth.isAuthenticated.value) return;
+  try {
+    const payload = await auth.getPreference();
+    const preferenceMap = payload && typeof payload === 'object' ? payload : {};
+    const wallpaperPreference = preferenceMap.home_wallpaper && typeof preferenceMap.home_wallpaper === 'object'
+      ? preferenceMap.home_wallpaper
+      : preferenceMap.homeWallpaper && typeof preferenceMap.homeWallpaper === 'object'
+        ? preferenceMap.homeWallpaper
+        : {};
+
+    if (typeof wallpaperPreference.globalBackgroundId === 'string') {
+      ui.setGlobalBackgroundId(wallpaperPreference.globalBackgroundId);
+    }
+    if (wallpaperPreference.routeBackgroundByKey && typeof wallpaperPreference.routeBackgroundByKey === 'object') {
+      Object.entries(wallpaperPreference.routeBackgroundByKey).forEach(([key, value]) => {
+        if (typeof value === 'string' && value) {
+          ui.setRouteBackground(key, value);
+        }
+      });
+    }
+    if (wallpaperPreference.customValuesByWallpaper && typeof wallpaperPreference.customValuesByWallpaper === 'object') {
+      Object.entries(wallpaperPreference.customValuesByWallpaper).forEach(([key, value]) => {
+        if (value && typeof value === 'object') {
+          wallpaperCustomValuesById[key] = { ...value };
+        }
+      });
+    }
+    wallpaperSettingState.masterVolume = clampUnit(wallpaperPreference.masterVolume, wallpaperSettingState.masterVolume);
+    wallpaperSettingState.bgmVolume = clampUnit(wallpaperPreference.bgmVolume, wallpaperSettingState.bgmVolume);
+    wallpaperSettingState.bgvVolume = clampUnit(wallpaperPreference.bgvVolume, wallpaperSettingState.bgvVolume);
+    wallpaperSettingState.bgmEnabled = toBoolean(wallpaperPreference.bgmEnabled, wallpaperSettingState.bgmEnabled);
+    wallpaperSettingState.bgvEnabled = toBoolean(wallpaperPreference.bgvEnabled, wallpaperSettingState.bgvEnabled);
+  } catch {
+    // keep local cache when remote preference unavailable
+  }
+}
+
+function buildWallpaperPreferencePayload() {
+  saveActiveCustomValueSnapshot();
+  return {
+    globalBackgroundId: ui.state.globalBackgroundId || '',
+    routeBackgroundByKey: { ...(ui.state.routeBackgroundByKey || {}) },
+    masterVolume: clampUnit(wallpaperSettingState.masterVolume, 1),
+    bgmVolume: clampUnit(wallpaperSettingState.bgmVolume, 1),
+    bgvVolume: clampUnit(wallpaperSettingState.bgvVolume, 1),
+    bgmEnabled: Boolean(wallpaperSettingState.bgmEnabled),
+    bgvEnabled: Boolean(wallpaperSettingState.bgvEnabled),
+    customValuesByWallpaper: { ...wallpaperCustomValuesById }
+  };
+}
+
+function queueWallpaperPreferenceSync() {
+  if (!auth.isAuthenticated.value) return;
+  if (wallpaperPreferenceSaveTimer) {
+    window.clearTimeout(wallpaperPreferenceSaveTimer);
+  }
+  wallpaperPreferenceSaveTimer = window.setTimeout(async () => {
+    try {
+      const current = await auth.getPreference();
+      const source = current && typeof current === 'object' ? { ...current } : {};
+      source.home_wallpaper = buildWallpaperPreferencePayload();
+      await auth.updatePreference(source);
+    } catch {
+      // ignore remote sync failure
+    } finally {
+      wallpaperPreferenceSaveTimer = 0;
+    }
+  }, 650);
+}
+
+function onPackageFileChange(event) {
+  const file = event?.target?.files?.[0];
+  importState.packageFile = file instanceof File ? file : null;
+}
+
+function normalizeImportJobResponse(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    jobId: parsePositiveId(readRecordField(raw, 'jobId', 'job_id', 0)),
+    sourceType: String(readRecordField(raw, 'sourceType', 'source_type', 'PACKAGE')),
+    status: String(readRecordField(raw, 'status', 'status', 'PENDING')).toUpperCase(),
+    visibility: String(readRecordField(raw, 'visibility', 'visibility', 'PRIVATE')).toUpperCase(),
+    wallpaperId: parsePositiveId(readRecordField(raw, 'wallpaperId', 'wallpaper_id', 0)),
+    errorMessage: String(readRecordField(raw, 'errorMessage', 'error_message', '')),
+    fallbackHint: String(readRecordField(raw, 'fallbackHint', 'fallback_hint', ''))
+  };
+}
+
+function stopImportPolling() {
+  if (wallpaperImportPollTimer) {
+    window.clearInterval(wallpaperImportPollTimer);
+    wallpaperImportPollTimer = 0;
+  }
+}
+
+async function pollWallpaperImportJob(jobId) {
+  if (!auth.isAuthenticated.value || !jobId) return;
+  const payload = normalizeImportJobResponse(await wallpaperApi.getWallpaperImportJob(jobId, auth.authorizedFetch));
+  if (!payload) return;
+  const status = payload.status;
+  if (status === 'SUCCEEDED') {
+    importState.hint = `导入成功（任务 #${payload.jobId}）`;
+    stopImportPolling();
+    await refreshBackgroundLibrary();
+    if (payload.wallpaperId > 0) {
+      const targetId = `wp-${payload.wallpaperId}`;
+      if (backgroundItems.value.some((item) => item.id === targetId)) {
+        ui.setGlobalBackgroundId(targetId);
+      }
+    }
+    return;
+  }
+  if (status === 'FAILED' || status === 'FALLBACK_REQUIRED') {
+    const detail = payload.errorMessage || payload.fallbackHint || '导入失败';
+    importState.hint = `导入未完成：${detail}`;
+    stopImportPolling();
+    return;
+  }
+  importState.hint = `任务 #${payload.jobId} 状态：${status}`;
+}
+
+function startImportPolling(jobId) {
+  stopImportPolling();
+  importState.runningJobId = jobId;
+  pollWallpaperImportJob(jobId).catch(() => {});
+  wallpaperImportPollTimer = window.setInterval(() => {
+    pollWallpaperImportJob(jobId).catch(() => {});
+  }, 2500);
+}
+
+async function submitPackageImport() {
+  if (!auth.isAuthenticated.value) {
+    importState.hint = '请先登录后再上传导入。';
+    return;
+  }
+  if (!(importState.packageFile instanceof File)) {
+    importState.hint = '请先选择本地资源包。';
+    return;
+  }
+  importState.busy = true;
+  importState.hint = '';
+  try {
+    const payload = normalizeImportJobResponse(await wallpaperApi.importWallpaperPackage(
+      importState.packageFile,
+      {
+        visibility: importState.packageVisibility,
+        title: importState.packageTitle
+      },
+      auth.authorizedFetch
+    ));
+    if (!payload || !payload.jobId) {
+      throw new Error('导入任务创建失败');
+    }
+    importState.hint = `导入任务已创建：#${payload.jobId}`;
+    startImportPolling(payload.jobId);
+  } catch (error) {
+    importState.hint = String(error?.detail || error?.message || '包导入失败');
+  } finally {
+    importState.busy = false;
+  }
+}
+
+async function submitWorkshopImport() {
+  if (!auth.isAuthenticated.value) {
+    importState.hint = '请先登录后再导入 Workshop。';
+    return;
+  }
+  if (!importState.workshopUrl) {
+    importState.hint = '请输入 Workshop URL。';
+    return;
+  }
+  importState.busy = true;
+  importState.hint = '';
+  try {
+    const payload = normalizeImportJobResponse(await wallpaperApi.importWallpaperWorkshop(
+      {
+        workshopUrl: importState.workshopUrl,
+        visibility: importState.workshopVisibility,
+        title: importState.workshopTitle
+      },
+      auth.authorizedFetch
+    ));
+    if (!payload || !payload.jobId) {
+      throw new Error('任务创建失败');
+    }
+    importState.hint = `Workshop 导入任务已创建：#${payload.jobId}`;
+    startImportPolling(payload.jobId);
+  } catch (error) {
+    importState.hint = String(error?.detail || error?.message || 'Workshop 导入失败');
+  } finally {
+    importState.busy = false;
+  }
+}
+
+async function saveActiveWallpaperSettings() {
+  wallpaperSettingState.error = '';
+  if (!auth.isAuthenticated.value) {
+    wallpaperSettingState.error = '请先登录。';
+    return;
+  }
+  const item = activeBackground.value;
+  if (!item || !item.wallpaperId) {
+    wallpaperSettingState.error = '当前壁纸不支持设置。';
+    return;
+  }
+  wallpaperSettingState.saving = true;
+  try {
+    const payload = await wallpaperApi.updateWallpaperSettings(
+      item.wallpaperId,
+      {
+        embeddedBgmAssetId: parsePositiveId(wallpaperSettingState.bgmAssetIdText) || undefined,
+        embeddedBgvAssetId: parsePositiveId(wallpaperSettingState.bgvAssetIdText) || undefined,
+        defaultMasterVolume: clampUnit(wallpaperSettingState.masterVolume, 1),
+        defaultBgmVolume: clampUnit(wallpaperSettingState.bgmVolume, 1),
+        defaultBgvVolume: clampUnit(wallpaperSettingState.bgvVolume, 1),
+        bgmEnabled: Boolean(wallpaperSettingState.bgmEnabled),
+        bgvEnabled: Boolean(wallpaperSettingState.bgvEnabled),
+        customDefaults: { ...(wallpaperSettingState.customValues || {}) }
+      },
+      auth.authorizedFetch
+    );
+    const normalized = normalizeWallpaperProfile(payload, 0);
+    const targetIndex = backgroundItems.value.findIndex((bg) => bg.id === item.id);
+    if (targetIndex >= 0) {
+      backgroundItems.value[targetIndex] = {
+        ...backgroundItems.value[targetIndex],
+        ...normalized
+      };
+    }
+    saveActiveCustomValueSnapshot();
+    queueWallpaperPreferenceSync();
+  } catch (error) {
+    wallpaperSettingState.error = String(error?.detail || error?.message || '设置保存失败');
+  } finally {
+    wallpaperSettingState.saving = false;
+  }
+}
+
+async function setActiveWallpaperVisibility(visibility) {
+  wallpaperSettingState.error = '';
+  if (!auth.isAuthenticated.value) {
+    wallpaperSettingState.error = '请先登录。';
+    return;
+  }
+  const item = activeBackground.value;
+  if (!item || !item.wallpaperId) {
+    wallpaperSettingState.error = '当前壁纸不支持设置。';
+    return;
+  }
+  wallpaperSettingState.visibilitySaving = true;
+  try {
+    const payload = await wallpaperApi.updateWallpaperVisibility(item.wallpaperId, visibility, auth.authorizedFetch);
+    const normalized = normalizeWallpaperProfile(payload, 0);
+    const targetIndex = backgroundItems.value.findIndex((bg) => bg.id === item.id);
+    if (targetIndex >= 0) {
+      backgroundItems.value[targetIndex] = {
+        ...backgroundItems.value[targetIndex],
+        ...normalized
+      };
+    }
+    importState.hint = visibility === 'PUBLIC' ? '公开申请已提交，等待审核。' : '已切换为私有。';
+  } catch (error) {
+    wallpaperSettingState.error = String(error?.detail || error?.message || '可见性更新失败');
+  } finally {
+    wallpaperSettingState.visibilitySaving = false;
+  }
+}
+
+function handleL2dRenderError(message) {
+  l2dRenderFailed.value = true;
+  wallpaperErrorHint.value = `L2D 渲染失败，已降级到封面图。${String(message || '')}`.trim();
 }
 
 function loadPersistedExtra() {
@@ -463,65 +1295,6 @@ function persistExtra() {
   }
 }
 
-async function loadBackgroundManifest() {
-  try {
-    const resp = await fetch(`${import.meta.env.BASE_URL}media/manifest.json`, { cache: 'no-store' });
-    if (!resp.ok) throw new Error('manifest not found');
-    const data = await resp.json();
-    const list = Array.isArray(data?.backgrounds) ? data.backgrounds : [];
-    backgroundItems.value = list
-      .filter((item) => item?.available !== false)
-      .slice(0, 140)
-      .map((item, index) => ({
-        id: item.id || `bg-${index}`,
-        name: item.name || item.id || `背景 ${index + 1}`,
-        src: item.src ? normalizeAssetPath(item.src) : '',
-        preview: normalizeAssetPath(item.preview || item.src || 'images/original-bg.png'),
-        type: inferBgType(item)
-      }));
-  } catch {
-    backgroundItems.value = [
-      {
-        id: 'video-954',
-        name: '954',
-        src: `${import.meta.env.BASE_URL}media/background/954.webm`,
-        preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
-        type: 'dynamic'
-      },
-      {
-        id: 'default-bg',
-        name: '默认',
-        src: `${import.meta.env.BASE_URL}images/original-bg.png`,
-        preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
-        type: 'static'
-      },
-      {
-        id: 'l2d-placeholder',
-        name: 'L2D 占位',
-        src: '',
-        preview: `${import.meta.env.BASE_URL}images/katanegai.jpg`,
-        type: 'l2d'
-      }
-    ];
-  }
-
-  const validIds = new Set(backgroundItems.value.map((item) => item.id));
-
-  if (ui.state.globalBackgroundId && !validIds.has(ui.state.globalBackgroundId)) {
-    ui.setGlobalBackgroundId('');
-  }
-
-  Object.entries(ui.state.routeBackgroundByKey || {}).forEach(([key, value]) => {
-    if (!validIds.has(value)) {
-      ui.clearRouteBackground(key);
-    }
-  });
-
-  if (!ui.state.globalBackgroundId && !Object.keys(ui.state.routeBackgroundByKey || {}).length && defaultBackgroundId.value) {
-    ui.setGlobalBackgroundId(defaultBackgroundId.value);
-  }
-}
-
 function setBgTab(tabKey) {
   bgTab.value = tabKey;
 }
@@ -536,12 +1309,16 @@ function selectBackground(id) {
     ui.setGlobalBackgroundId(id);
   }
 
+  l2dRenderFailed.value = false;
   videoFailed.value = false;
+  syncActiveWallpaperSettingFromItem();
+  queueWallpaperPreferenceSync();
 }
 
 function clearCurrentRouteBackground() {
   ui.clearRouteBackground(currentRouteKey.value);
   videoFailed.value = false;
+  queueWallpaperPreferenceSync();
 }
 
 function normalizeEqLevel(raw, fallback = 0.5) {
@@ -986,7 +1763,45 @@ function onGlobalHotkey(event) {
 watch([subtitleVisible, lyricOffset], persistExtra, { deep: true });
 watch(activeBackgroundId, () => {
   videoFailed.value = false;
+  l2dRenderFailed.value = false;
+  syncActiveWallpaperSettingFromItem(true);
+  applyWallpaperAudioState();
 });
+watch(
+  () => [activeWallpaperBgmUrl.value, activeWallpaperBgvUrl.value],
+  () => {
+    applyWallpaperAudioState();
+  },
+  { immediate: true }
+);
+watch(
+  () => [
+    wallpaperSettingState.masterVolume,
+    wallpaperSettingState.bgmVolume,
+    wallpaperSettingState.bgvVolume,
+    wallpaperSettingState.bgmEnabled,
+    wallpaperSettingState.bgvEnabled
+  ],
+  () => {
+    applyWallpaperAudioState();
+    queueWallpaperPreferenceSync();
+  }
+);
+watch(
+  () => wallpaperSettingState.customValues,
+  () => {
+    applyWallpaperCustomVariables();
+    saveActiveCustomValueSnapshot();
+    queueWallpaperPreferenceSync();
+  },
+  { deep: true }
+);
+watch(
+  () => [ui.state.globalBackgroundId, JSON.stringify(ui.state.routeBackgroundByKey || {})],
+  () => {
+    queueWallpaperPreferenceSync();
+  }
+);
 watch(
   () => route.fullPath,
   async () => {
@@ -1059,7 +1874,10 @@ onMounted(async () => {
   await auth.ensureReady();
   ui.initializeUiPreferences();
   loadPersistedExtra();
-  await loadBackgroundManifest();
+  await loadRemoteWallpaperPreference();
+  await loadBackgroundLibrary();
+  applyWallpaperCustomVariables();
+  applyWallpaperAudioState();
   updateViewportMode();
   recordWindowDiag('app.guard.state', runtimeGuards);
 
@@ -1083,6 +1901,11 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  stopImportPolling();
+  if (wallpaperPreferenceSaveTimer) {
+    window.clearTimeout(wallpaperPreferenceSaveTimer);
+    wallpaperPreferenceSaveTimer = 0;
+  }
   if (sidebarAiCloseTimer) {
     window.clearTimeout(sidebarAiCloseTimer);
     sidebarAiCloseTimer = 0;
@@ -1601,6 +2424,106 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.wallpaper-audio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.picker-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker-import-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.import-card {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.24);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.import-card h4 {
+  margin: 0;
+  color: rgba(24, 28, 38, 0.88);
+  font-size: 13px;
+}
+
+.field-input-lite {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  min-height: 32px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.6);
+  color: rgba(24, 28, 38, 0.9);
+}
+
+.wallpaper-settings {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.26);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-grid label {
+  display: grid;
+  gap: 4px;
+  color: rgba(28, 32, 40, 0.86);
+  font-size: 12px;
+}
+
+.settings-checks {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.settings-checks label {
+  color: rgba(25, 30, 40, 0.86);
+  font-size: 12px;
+}
+
+.settings-custom {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-custom h4 {
+  margin: 0;
+  color: rgba(25, 30, 40, 0.88);
+  font-size: 13px;
+}
+
+.custom-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-row label {
+  color: rgba(24, 28, 38, 0.88);
+  font-size: 12px;
+}
+
 .picker-grid {
   flex: 1;
   min-height: 0;
@@ -1638,6 +2561,11 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.picker-meta {
+  color: rgba(34, 38, 48, 0.68);
+  font-size: 11px;
 }
 
 .click-ripple-layer {
@@ -1782,6 +2710,15 @@ onBeforeUnmount(() => {
     max-height: 90vh;
     border-radius: 16px;
     padding: 10px;
+  }
+
+  .picker-import-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-row {
+    grid-template-columns: 1fr;
   }
 
   .picker-grid {

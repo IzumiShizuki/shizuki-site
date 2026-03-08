@@ -138,6 +138,25 @@ export async function listBlogCategoryMetas(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function listPendingWallpapers(authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/home-wallpapers/pending', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function auditWallpaper(wallpaperId, payload, authorizedFetch) {
+  const normalizedId = Number(wallpaperId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    throw new Error('wallpaperId is required');
+  }
+  const response = await authorizedFetch(`/api/v1/admin/home-wallpapers/${encodeURIComponent(normalizedId)}/audit-status`, {
+    method: 'PUT',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function updateBlogCategoryMeta(categoryCode, payload, authorizedFetch) {
   const code = String(categoryCode || '').trim();
   if (!code) {
