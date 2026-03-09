@@ -10,6 +10,55 @@
       </button>
     </header>
 
+    <section v-if="allowCreate" class="create-card liquid-material">
+      <h3>新增分类</h3>
+      <div class="field-grid">
+        <label class="field">
+          <span>分类编码</span>
+          <input
+            v-model.trim="createDraft.categoryCode"
+            class="field-input"
+            type="text"
+            maxlength="64"
+            placeholder="例如：notes / design / ai"
+          />
+        </label>
+        <label class="field">
+          <span>展示名称</span>
+          <input v-model.trim="createDraft.displayName" class="field-input" type="text" maxlength="128" placeholder="例如：学习笔记" />
+        </label>
+      </div>
+      <label class="field field-wide">
+        <span>图片 URL</span>
+        <input v-model.trim="createDraft.coverImageUrl" class="field-input" type="text" maxlength="512" placeholder="https://..." />
+      </label>
+      <div class="inline-fields">
+        <label class="field">
+          <span>排序</span>
+          <input v-model.number="createDraft.sortNum" class="field-input" type="number" min="0" step="1" />
+        </label>
+        <label class="field checkbox-field">
+          <span>启用</span>
+          <input v-model="createDraft.enabled" type="checkbox" />
+        </label>
+      </div>
+      <div class="actions">
+        <label class="ghost-btn ripple-trigger upload-btn" :class="{ disabled: uploadingCode === normalizedCreateCode || !normalizedCreateCode }">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            :disabled="uploadingCode === normalizedCreateCode || !normalizedCreateCode"
+            @change="handleCoverFileChange(normalizedCreateCode, $event)"
+          />
+          {{ uploadingCode === normalizedCreateCode ? '上传中...' : '上传图片' }}
+        </label>
+        <button class="ghost-btn ripple-trigger" type="button" @click="resetCreateDraft">清空</button>
+        <button class="primary-btn ripple-trigger" type="button" :disabled="saving || !normalizedCreateCode" @click="createCategory">
+          {{ saving ? '保存中...' : '新增分类' }}
+        </button>
+      </div>
+    </section>
+
     <p v-if="error" class="error-text">{{ error }}</p>
     <p v-else-if="loading && !items.length" class="state-tip">正在加载分类配置...</p>
     <p v-else-if="!items.length" class="state-tip">暂无分类元数据。</p>
@@ -80,7 +129,7 @@
 </template>
 
 <script setup>
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 
 const props = defineProps({
   loading: {
@@ -102,12 +151,19 @@ const props = defineProps({
   uploadingCode: {
     type: String,
     default: ''
+  },
+  allowCreate: {
+    type: Boolean,
+    default: true
   }
 });
 
 const emit = defineEmits(['refresh', 'save', 'upload']);
 
 const drafts = reactive({});
+const createDraft = reactive(createEmptyDraft());
+
+const normalizedCreateCode = computed(() => normalizeCategoryCode(createDraft.categoryCode));
 
 function syncDrafts(list) {
   const nextMap = {};
@@ -144,7 +200,7 @@ watch(
 );
 
 function saveCategory(categoryCode) {
-  const normalizedCode = String(categoryCode || '').toLowerCase();
+  const normalizedCode = normalizeCategoryCode(categoryCode);
   const draft = drafts[normalizedCode];
   if (!normalizedCode || !draft) return;
   emit('save', {
@@ -156,11 +212,52 @@ function saveCategory(categoryCode) {
 function handleCoverFileChange(categoryCode, event) {
   const file = event?.target?.files?.[0];
   if (!(file instanceof File)) return;
+  const normalizedCode = normalizeCategoryCode(categoryCode);
+  if (!normalizedCode) return;
   emit('upload', {
-    categoryCode: String(categoryCode || '').toLowerCase(),
+    categoryCode: normalizedCode,
     file
   });
   event.target.value = '';
+}
+
+function createCategory() {
+  const categoryCode = normalizedCreateCode.value;
+  if (!categoryCode) return;
+  emit('save', {
+    categoryCode,
+    displayName: String(createDraft.displayName || '').trim() || categoryCode,
+    coverImageUrl: String(createDraft.coverImageUrl || '').trim(),
+    sortNum: Number.isFinite(Number(createDraft.sortNum)) ? Math.max(0, Math.trunc(Number(createDraft.sortNum))) : 1000,
+    enabled: createDraft.enabled !== false
+  });
+}
+
+function resetCreateDraft() {
+  const empty = createEmptyDraft();
+  createDraft.categoryCode = empty.categoryCode;
+  createDraft.displayName = empty.displayName;
+  createDraft.coverImageUrl = empty.coverImageUrl;
+  createDraft.sortNum = empty.sortNum;
+  createDraft.enabled = empty.enabled;
+}
+
+function createEmptyDraft() {
+  return {
+    categoryCode: '',
+    displayName: '',
+    coverImageUrl: '',
+    sortNum: 1000,
+    enabled: true
+  };
+}
+
+function normalizeCategoryCode(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 </script>
 
@@ -169,6 +266,26 @@ function handleCoverFileChange(categoryCode, event) {
   min-height: 0;
   display: grid;
   gap: 12px;
+}
+
+.create-card {
+  --liquid-bg: rgba(11, 17, 29, 0.52);
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 14px 24px rgba(6, 9, 16, 0.2);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.create-card h3 {
+  font-size: 14px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .panel-head {
@@ -327,6 +444,10 @@ function handleCoverFileChange(categoryCode, event) {
 }
 
 @media (max-width: 980px) {
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
   .category-card {
     grid-template-columns: 1fr;
   }

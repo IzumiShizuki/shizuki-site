@@ -269,29 +269,46 @@
         </template>
 
         <SubtleScrollArea v-else-if="uiState.panel === 'categories'" tag="section" class="category-panel liquid-material">
-          <h2>分类总览</h2>
-          <p>这里展示当前可见的全部分类，点击即可按分类筛选并回到主页列表。</p>
-          <div class="category-panel-grid">
-            <button
-              v-for="item in sidebarState.categories"
-              :key="`panel-category-${item.categoryCode}`"
-              type="button"
-              class="category-panel-card ripple-trigger"
-              @click="viewCategory(item.categoryCode)"
-            >
-              <img
-                v-if="item.coverImageUrl"
-                :src="resolveCover(item.coverImageUrl)"
-                :alt="item.displayName || item.categoryCode"
-                loading="lazy"
-              />
-              <div class="category-panel-card-main">
-                <strong>{{ item.displayName || item.categoryCode }}</strong>
-                <span>{{ item.count }} 篇</span>
-              </div>
-            </button>
-            <p v-if="!sidebarState.categories.length && !sidebarState.loading" class="empty-text">暂无可见分类。</p>
-          </div>
+          <template v-if="canManageCategories">
+            <h2>分类管理</h2>
+            <p>在博客界面直接维护分类，支持新增分类、上传分类图和调整展示信息。</p>
+            <AdminBlogCategoriesPanel
+              :loading="categoryMetaLoading"
+              :saving="categoryMetaSaving"
+              :error="categoryMetaError"
+              :items="categoryMetaItems"
+              :uploading-code="categoryMetaUploadingCode"
+              :allow-create="true"
+              @refresh="reloadCategoryMetas"
+              @save="saveCategoryMetaItem"
+              @upload="uploadCategoryMetaCover"
+            />
+          </template>
+          <template v-else>
+            <h2>分类总览</h2>
+            <p>这里展示当前可见的全部分类，点击即可按分类筛选并回到主页列表。</p>
+            <div class="category-panel-grid">
+              <button
+                v-for="item in sidebarState.categories"
+                :key="`panel-category-${item.categoryCode}`"
+                type="button"
+                class="category-panel-card ripple-trigger"
+                @click="viewCategory(item.categoryCode)"
+              >
+                <img
+                  v-if="item.coverImageUrl"
+                  :src="resolveCover(item.coverImageUrl)"
+                  :alt="item.displayName || item.categoryCode"
+                  loading="lazy"
+                />
+                <div class="category-panel-card-main">
+                  <strong>{{ item.displayName || item.categoryCode }}</strong>
+                  <span>{{ item.count }} 篇</span>
+                </div>
+              </button>
+              <p v-if="!sidebarState.categories.length && !sidebarState.loading" class="empty-text">暂无可见分类。</p>
+            </div>
+          </template>
         </SubtleScrollArea>
 
         <SubtleScrollArea v-else tag="section" class="whisper-panel liquid-material">
@@ -369,9 +386,11 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
+import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
 import { getPostSidebar, listPosts, submitPostWhisper } from '../services/blogApi';
+import { listBlogCategoryMetas, updateBlogCategoryMeta, uploadBlogCategoryCover } from '../services/adminApi';
 
 const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
 const PAGE_SIZE = 10;
@@ -443,6 +462,12 @@ const sidebarState = reactive({
   archives: []
 });
 
+const categoryMetaLoading = ref(false);
+const categoryMetaSaving = ref(false);
+const categoryMetaError = ref('');
+const categoryMetaUploadingCode = ref('');
+const categoryMetaItems = ref([]);
+
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
   return groups.map((group) => String(group || '').trim().toUpperCase()).filter(Boolean);
@@ -454,6 +479,7 @@ const permissionCodes = computed(() => {
 });
 
 const canWrite = computed(() => groupCodes.value.includes('ADMIN') || permissionCodes.value.includes('blog.post.write'));
+const canManageCategories = computed(() => groupCodes.value.includes('ADMIN'));
 const pageCount = computed(() => Math.max(1, Math.ceil(Math.max(0, listState.total) / listState.pageSize)));
 const viewportZone = computed(() => {
   if (isMobileLike.value) return 'mobile';
@@ -597,6 +623,16 @@ function normalizeArchiveStat(raw) {
   };
 }
 
+function normalizeCategoryMetaItem(raw) {
+  return {
+    categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
+    displayName: normalizeString(raw?.displayName ?? raw?.display_name),
+    coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
+    sortNum: Number(raw?.sortNum ?? raw?.sort_num) || 1000,
+    enabled: raw?.enabled !== false
+  };
+}
+
 function normalizeErrorMessage(error, fallback) {
   const detail = normalizeString(error?.detail).trim();
   if (detail) return detail;
@@ -670,6 +706,96 @@ async function loadSidebar() {
   }
 }
 
+async function reloadCategoryMetas() {
+  if (!canManageCategories.value) return;
+  categoryMetaError.value = '';
+  categoryMetaLoading.value = true;
+  try {
+    const payload = await listBlogCategoryMetas(auth.authorizedFetch);
+    categoryMetaItems.value = Array.isArray(payload)
+      ? payload.map(normalizeCategoryMetaItem).filter((item) => item.categoryCode)
+      : [];
+  } catch (error) {
+    categoryMetaItems.value = [];
+    categoryMetaError.value = normalizeErrorMessage(error, '加载分类管理数据失败');
+  } finally {
+    categoryMetaLoading.value = false;
+  }
+}
+
+async function saveCategoryMetaItem(payload) {
+  if (!canManageCategories.value) {
+    uiState.actionHint = '只有管理员可以修改分类';
+    return;
+  }
+  const categoryCode = normalizeString(payload?.categoryCode).toLowerCase();
+  if (!categoryCode) {
+    categoryMetaError.value = '分类编码不能为空';
+    return;
+  }
+  categoryMetaSaving.value = true;
+  categoryMetaError.value = '';
+  try {
+    const saved = await updateBlogCategoryMeta(
+      categoryCode,
+      {
+        displayName: normalizeString(payload?.displayName),
+        coverImageUrl: normalizeString(payload?.coverImageUrl),
+        sortNum: Number(payload?.sortNum),
+        enabled: payload?.enabled !== false
+      },
+      auth.authorizedFetch
+    );
+    const normalized = normalizeCategoryMetaItem(saved);
+    const index = categoryMetaItems.value.findIndex((item) => item.categoryCode === normalized.categoryCode);
+    if (index >= 0) {
+      categoryMetaItems.value[index] = normalized;
+    } else {
+      categoryMetaItems.value.push(normalized);
+    }
+    await loadSidebar();
+    uiState.actionHint = `分类 ${categoryCode} 已保存`;
+  } catch (error) {
+    categoryMetaError.value = normalizeErrorMessage(error, '保存分类失败');
+  } finally {
+    categoryMetaSaving.value = false;
+  }
+}
+
+async function uploadCategoryMetaCover(payload) {
+  if (!canManageCategories.value) {
+    uiState.actionHint = '只有管理员可以上传分类图片';
+    return;
+  }
+  const categoryCode = normalizeString(payload?.categoryCode).toLowerCase();
+  const file = payload?.file;
+  if (!categoryCode || !(file instanceof File)) {
+    categoryMetaError.value = '请选择分类图片后再上传';
+    return;
+  }
+  categoryMetaUploadingCode.value = categoryCode;
+  categoryMetaError.value = '';
+  try {
+    const uploadResult = await uploadBlogCategoryCover(file, auth.authorizedFetch);
+    const url = normalizeString(uploadResult?.url);
+    if (!url) {
+      throw new Error('分类图片地址为空');
+    }
+    const original = categoryMetaItems.value.find((item) => item.categoryCode === categoryCode);
+    await saveCategoryMetaItem({
+      categoryCode,
+      displayName: original?.displayName || categoryCode,
+      coverImageUrl: url,
+      sortNum: original?.sortNum ?? 1000,
+      enabled: original?.enabled !== false
+    });
+  } catch (error) {
+    categoryMetaError.value = normalizeErrorMessage(error, '上传分类图片失败');
+  } finally {
+    categoryMetaUploadingCode.value = '';
+  }
+}
+
 function setPanel(nextPanel) {
   if (nextPanel === 'write') {
     if (!canWrite.value) {
@@ -682,6 +808,9 @@ function setPanel(nextPanel) {
   }
   uiState.panel = normalizePanel(nextPanel);
   uiState.actionHint = '';
+  if (uiState.panel === 'categories' && canManageCategories.value) {
+    reloadCategoryMetas();
+  }
   syncRouteQueryFromPanel(uiState.panel);
 }
 
@@ -840,6 +969,9 @@ onMounted(async () => {
   leftPanelCollapsed.value = readPersistedLeftPanelCollapsed();
   await auth.ensureReady();
   syncPanelFromRouteQuery();
+  if (uiState.panel === 'categories' && canManageCategories.value) {
+    await reloadCategoryMetas();
+  }
   await Promise.all([loadPostList(), loadSidebar()]);
 });
 
@@ -847,6 +979,9 @@ watch(
   () => route.query.panel,
   () => {
     syncPanelFromRouteQuery();
+    if (uiState.panel === 'categories' && canManageCategories.value) {
+      reloadCategoryMetas();
+    }
   }
 );
 

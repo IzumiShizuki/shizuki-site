@@ -149,7 +149,7 @@
               <button class="scope-btn ripple-trigger" :disabled="wallpaperLoading" @click="refreshBackgroundLibrary">
                 {{ wallpaperLoading ? '刷新中...' : '刷新壁纸库' }}
               </button>
-              <span v-if="backgroundManifestFallbackUsed" class="route-bg-note">当前使用本地 manifest 兜底</span>
+              <span v-if="backgroundEmergencyFallbackUsed" class="route-bg-note">当前使用紧急占位背景</span>
               <span v-if="wallpaperErrorHint" class="route-bg-note">{{ wallpaperErrorHint }}</span>
               <span v-if="importState.hint" class="route-bg-note">{{ importState.hint }}</span>
             </div>
@@ -181,9 +181,14 @@
                   <option value="PRIVATE">私有</option>
                   <option value="PUBLIC">公开</option>
                 </select>
-                <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="submitWorkshopImport">
-                  创建导入任务
-                </button>
+                <div class="import-actions">
+                  <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="submitWorkshopImport">
+                    创建导入任务
+                  </button>
+                  <button class="scope-btn ghost ripple-trigger" :disabled="!importState.workshopUrl" @click="openWorkshopPreviewWindow">
+                    小窗预览
+                  </button>
+                </div>
               </section>
             </div>
             <p v-else class="route-bg-note">登录后可上传本地包或导入 Workshop 资源。</p>
@@ -383,7 +388,7 @@ const clickRipples = ref([]);
 const videoFailed = ref(false);
 const backgroundPickerVisible = ref(false);
 const backgroundItems = ref([]);
-const backgroundManifestFallbackUsed = ref(false);
+const backgroundEmergencyFallbackUsed = ref(false);
 const wallpaperLoading = ref(false);
 const wallpaperErrorHint = ref('');
 const bgTab = ref('all');
@@ -636,14 +641,6 @@ function normalizeAssetPath(path) {
   return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
 }
 
-function inferBgType(item) {
-  if (item?.type === 'l2d') return 'l2d';
-  if (String(item?.sceneType || '').toUpperCase() === 'L2D') return 'l2d';
-  const src = String(item?.src || item?.preview || '').toLowerCase();
-  if (/\.(webm|mp4|mov|ogg|gif|webp)$/.test(src)) return 'dynamic';
-  return 'static';
-}
-
 function readRecordField(record, camel, snake, fallback = '') {
   if (!record || typeof record !== 'object') return fallback;
   if (record[camel] !== undefined && record[camel] !== null) return record[camel];
@@ -763,122 +760,40 @@ function applyBackgroundSelectionGuard() {
   }
 }
 
-async function loadBackgroundManifestFallback() {
-  backgroundManifestFallbackUsed.value = true;
-  try {
-    const resp = await fetch(`${import.meta.env.BASE_URL}media/manifest.json`, { cache: 'no-store' });
-    if (!resp.ok) throw new Error('manifest not found');
-    const data = await resp.json();
-    const list = Array.isArray(data?.backgrounds) ? data.backgrounds : [];
-    backgroundItems.value = list
-      .filter((item) => item?.available !== false)
-      .slice(0, 180)
-      .map((item, index) => ({
-        id: item.id || `bg-${index}`,
-        wallpaperId: 0,
-        name: item.name || item.id || `背景 ${index + 1}`,
-        src: item.src ? normalizeAssetPath(item.src) : '',
-        preview: normalizeAssetPath(item.preview || item.src || 'images/original-bg.png'),
-        type: inferBgType(item),
-        sceneType: inferBgType(item).toUpperCase(),
-        visibility: 'PUBLIC',
-        auditStatus: 'APPROVED',
-        embeddedBgmAssetId: 0,
-        embeddedBgmUrl: '',
-        embeddedBgvAssetId: 0,
-        embeddedBgvUrl: '',
-        l2dEntryModelJson: '',
-        defaultMasterVolume: 1,
-        defaultBgmVolume: 1,
-        defaultBgvVolume: 1,
-        customSchema: {},
-        customDefaults: {},
-        importSource: 'MANIFEST',
-        workshopItemId: '',
-        mine: false
-      }));
-  } catch {
-    backgroundItems.value = [
-      {
-        id: 'video-954',
-        wallpaperId: 0,
-        name: '954',
-        src: `${import.meta.env.BASE_URL}media/background/954.webm`,
-        preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
-        type: 'dynamic',
-        sceneType: 'DYNAMIC',
-        visibility: 'PUBLIC',
-        auditStatus: 'APPROVED',
-        embeddedBgmAssetId: 0,
-        embeddedBgmUrl: '',
-        embeddedBgvAssetId: 0,
-        embeddedBgvUrl: '',
-        l2dEntryModelJson: '',
-        defaultMasterVolume: 1,
-        defaultBgmVolume: 1,
-        defaultBgvVolume: 1,
-        customSchema: {},
-        customDefaults: {},
-        importSource: 'MANIFEST',
-        workshopItemId: '',
-        mine: false
-      },
-      {
-        id: 'default-bg',
-        wallpaperId: 0,
-        name: '默认',
-        src: `${import.meta.env.BASE_URL}images/original-bg.png`,
-        preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
-        type: 'static',
-        sceneType: 'STATIC',
-        visibility: 'PUBLIC',
-        auditStatus: 'APPROVED',
-        embeddedBgmAssetId: 0,
-        embeddedBgmUrl: '',
-        embeddedBgvAssetId: 0,
-        embeddedBgvUrl: '',
-        l2dEntryModelJson: '',
-        defaultMasterVolume: 1,
-        defaultBgmVolume: 1,
-        defaultBgvVolume: 1,
-        customSchema: {},
-        customDefaults: {},
-        importSource: 'MANIFEST',
-        workshopItemId: '',
-        mine: false
-      },
-      {
-        id: 'l2d-placeholder',
-        wallpaperId: 0,
-        name: 'L2D 占位',
-        src: '',
-        preview: `${import.meta.env.BASE_URL}images/katanegai.jpg`,
-        type: 'l2d',
-        sceneType: 'L2D',
-        visibility: 'PUBLIC',
-        auditStatus: 'APPROVED',
-        embeddedBgmAssetId: 0,
-        embeddedBgmUrl: '',
-        embeddedBgvAssetId: 0,
-        embeddedBgvUrl: '',
-        l2dEntryModelJson: '',
-        defaultMasterVolume: 1,
-        defaultBgmVolume: 1,
-        defaultBgvVolume: 1,
-        customSchema: {},
-        customDefaults: {},
-        importSource: 'MANIFEST',
-        workshopItemId: '',
-        mine: false
-      }
-    ];
-  }
+function loadEmergencySingleBackgroundFallback() {
+  backgroundEmergencyFallbackUsed.value = true;
+  backgroundItems.value = [
+    {
+      id: 'fallback-default',
+      wallpaperId: 0,
+      name: '默认背景',
+      src: `${import.meta.env.BASE_URL}images/original-bg.png`,
+      preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
+      type: 'static',
+      sceneType: 'STATIC',
+      visibility: 'PUBLIC',
+      auditStatus: 'APPROVED',
+      embeddedBgmAssetId: 0,
+      embeddedBgmUrl: '',
+      embeddedBgvAssetId: 0,
+      embeddedBgvUrl: '',
+      l2dEntryModelJson: '',
+      defaultMasterVolume: 1,
+      defaultBgmVolume: 1,
+      defaultBgvVolume: 1,
+      customSchema: {},
+      customDefaults: {},
+      importSource: 'EMERGENCY_FALLBACK',
+      workshopItemId: '',
+      mine: false
+    }
+  ];
 }
 
 async function loadBackgroundLibrary() {
   wallpaperLoading.value = true;
   wallpaperErrorHint.value = '';
-  backgroundManifestFallbackUsed.value = false;
+  backgroundEmergencyFallbackUsed.value = false;
   try {
     let list = [];
     if (auth.isAuthenticated.value) {
@@ -890,13 +805,13 @@ async function loadBackgroundLibrary() {
     if (profiles.length > 0) {
       backgroundItems.value = profiles.map((item, index) => normalizeWallpaperProfile(item, index));
     } else {
-      await loadBackgroundManifestFallback();
-      wallpaperErrorHint.value = '当前壁纸库为空，已回退到本地资源。';
+      loadEmergencySingleBackgroundFallback();
+      wallpaperErrorHint.value = '当前壁纸库为空，请先导入壁纸资源。';
     }
   } catch (error) {
-    await loadBackgroundManifestFallback();
+    loadEmergencySingleBackgroundFallback();
     const detail = String(error?.detail || error?.message || '').trim();
-    wallpaperErrorHint.value = detail ? `壁纸库加载失败：${detail}` : '壁纸库加载失败，已回退到本地资源。';
+    wallpaperErrorHint.value = detail ? `壁纸库加载失败：${detail}` : '壁纸库加载失败，已切换到紧急占位背景。';
   } finally {
     applyBackgroundSelectionGuard();
     wallpaperLoading.value = false;
@@ -1173,6 +1088,30 @@ async function submitWorkshopImport() {
   } finally {
     importState.busy = false;
   }
+}
+
+function openWorkshopPreviewWindow() {
+  const source = String(importState.workshopUrl || '').trim();
+  if (!source) {
+    importState.hint = '请输入 Workshop URL。';
+    return;
+  }
+  let normalized = '';
+  try {
+    const parsed = new URL(source);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('invalid protocol');
+    }
+    normalized = parsed.toString();
+  } catch {
+    importState.hint = 'Workshop URL 格式无效。';
+    return;
+  }
+  window.open(
+    normalized,
+    'shizuki-workshop-preview',
+    'popup=yes,width=1120,height=760,noopener,noreferrer'
+  );
 }
 
 async function saveActiveWallpaperSettings() {
@@ -2421,6 +2360,11 @@ onBeforeUnmount(() => {
   color: rgba(135, 27, 50, 0.9);
 }
 
+.scope-btn.ghost {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(24, 28, 38, 0.88);
+}
+
 .route-bg-note {
   color: rgba(28, 32, 40, 0.82);
   font-size: 12px;
@@ -2459,6 +2403,12 @@ onBeforeUnmount(() => {
   margin: 0;
   color: rgba(24, 28, 38, 0.88);
   font-size: 13px;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .field-input-lite {

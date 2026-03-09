@@ -155,6 +155,9 @@ shizuki:
       - audio/wav
       - audio/ogg
     wallpaper:
+      bootstrap:
+        enabled: ${WALLPAPER_BOOTSTRAP_ENABLED:true}
+        owner-user-id: ${WALLPAPER_BOOTSTRAP_OWNER_USER_ID:1}
       workshop:
         enabled: ${WALLPAPER_WORKSHOP_ENABLED:false}
         steamcmd-path: ${WALLPAPER_STEAMCMD_PATH:steamcmd}
