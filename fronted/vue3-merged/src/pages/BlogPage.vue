@@ -180,7 +180,7 @@
                 <h3>{{ post.title }}</h3>
                 <span class="visibility">{{ post.visibility }}</span>
               </header>
-              <p class="summary">{{ post.summary }}</p>
+              <p class="summary">{{ resolveSummary(post.summary) }}</p>
               <div class="meta-row">
                 <span>{{ post.categoryCode || 'uncategorized' }}</span>
                 <span>{{ post.wordCount }} 字 · {{ post.readingMinutes }} 分钟</span>
@@ -243,7 +243,7 @@
                 <div class="detail-title-row">
                   <h2>{{ detailState.post.title }}</h2>
                 </div>
-                <p class="detail-summary">{{ detailState.post.summary }}</p>
+                <p class="detail-summary">{{ resolveSummary(detailState.post.summary) }}</p>
                 <div class="meta-row">
                   <span>{{ detailState.post.categoryCode || 'uncategorized' }}</span>
                   <span>{{ detailWordCount }} 字 · {{ detailReadingMinutes }} 分钟</span>
@@ -949,8 +949,14 @@ function normalizeErrorMessage(error, fallback) {
 function formatDateTime(value) {
   if (!value) return '-';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  if (date.getFullYear() <= 0) return '-';
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function resolveSummary(value) {
+  const normalized = normalizeString(value).trim();
+  return normalized || '暂无简介';
 }
 
 async function loadPostList() {

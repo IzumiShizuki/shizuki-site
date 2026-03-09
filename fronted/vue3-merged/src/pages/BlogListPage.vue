@@ -118,7 +118,7 @@
                   <span>{{ post.categoryCode || 'uncategorized' }}</span>
                   <span>{{ post.wordCount }} 字 · {{ post.readingMinutes }} 分钟</span>
                 </div>
-                  <p class="summary">{{ post.summary || '...' }}</p>
+                  <p class="summary">{{ resolveSummary(post.summary) }}</p>
                   <div v-if="post.tags.length" class="tag-row">
                     <button
                       v-for="tag in post.tags"
@@ -643,8 +643,14 @@ function normalizeErrorMessage(error, fallback) {
 function formatDate(value) {
   if (!value) return '-';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  if (date.getFullYear() <= 0) return '-';
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function resolveSummary(value) {
+  const normalized = normalizeString(value).trim();
+  return normalized || '暂无简介';
 }
 
 function resolveCover(url) {

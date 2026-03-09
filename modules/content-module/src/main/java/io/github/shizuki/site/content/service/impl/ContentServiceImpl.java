@@ -169,11 +169,10 @@ public class ContentServiceImpl implements ContentService {
         String publishedFrom,
         String publishedTo
     ) {
-        ViewerContext viewer = currentViewer();
         long normalizedPageNo = pageNo <= 0 ? 1 : pageNo;
         long normalizedPageSize = Math.max(1L, Math.min(pageSize <= 0 ? 10L : pageSize, 100L));
 
-        List<PostEntity> candidates = loadPublishedPostCandidates(viewer);
+        List<PostEntity> candidates = loadPublishedPostCandidates();
 
         String normalizedKeyword = normalizeKeyword(keyword);
         String normalizedCategory = normalizeCategoryCode(categoryCode, false);
@@ -182,11 +181,14 @@ public class ContentServiceImpl implements ContentService {
         Map<Long, List<String>> tagCache = new HashMap<>();
 
         List<PostEntity> filtered = candidates.stream()
-            .filter(post -> canAccessPublishedPost(post, viewer))
             .filter(post -> matchesKeyword(post, normalizedKeyword, tagCache))
             .filter(post -> matchesCategory(post, normalizedCategory))
             .filter(post -> matchesTag(post.getId(), normalizedTag, tagCache))
             .filter(post -> matchesPublishedRange(post, range))
+            .sorted(
+                Comparator.comparing(this::resolvePostPublishTimeForSort, Comparator.reverseOrder())
+                    .thenComparing(PostEntity::getId, Comparator.reverseOrder())
+            )
             .toList();
 
         long total = filtered.size();
@@ -207,7 +209,7 @@ public class ContentServiceImpl implements ContentService {
                     summaryMetrics.wordCount(),
                     summaryMetrics.readingMinutes(),
                     post.getLikeCount() == null ? 0L : post.getLikeCount(),
-                    post.getPublishedAt()
+                    resolvePostPublishTimeForDisplay(post)
                 );
             })
             .toList();
@@ -217,24 +219,21 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     public PostSidebarResponse getPostSidebar() {
-        ViewerContext viewer = currentViewer();
-        List<PostEntity> candidates = loadPublishedPostCandidates(viewer);
+        List<PostEntity> candidates = loadPublishedPostCandidates();
 
         Map<Long, List<String>> tagCache = new HashMap<>();
-        List<PostEntity> visiblePosts = candidates.stream()
-            .filter(post -> canAccessPublishedPost(post, viewer))
-            .toList();
+        List<PostEntity> visiblePosts = candidates;
 
         List<PostSidebarResponse.LatestPostItem> latestPosts = visiblePosts.stream()
             .sorted(
-                Comparator.comparing(this::resolvePostPublishTime, Comparator.reverseOrder())
+                Comparator.comparing(this::resolvePostPublishTimeForSort, Comparator.reverseOrder())
                     .thenComparing(PostEntity::getId, Comparator.reverseOrder())
             )
             .limit(5)
             .map(post -> new PostSidebarResponse.LatestPostItem(
                 post.getId(),
                 normalizePostTitle(post.getTitle()),
-                resolvePostPublishTime(post),
+                resolvePostPublishTimeForDisplay(post),
                 post.getCoverImageUrl()
             ))
             .toList();
@@ -247,9 +246,11 @@ public class ContentServiceImpl implements ContentService {
             String category = normalizeDisplayCategory(post.getCategoryCode());
             categoryCounter.merge(category, 1L, Long::sum);
 
-            LocalDateTime publishTime = resolvePostPublishTime(post);
-            String month = ARCHIVE_MONTH_FORMATTER.format(publishTime);
-            archiveCounter.merge(month, 1L, Long::sum);
+            LocalDateTime publishTime = resolvePostPublishTimeForDisplay(post);
+            if (publishTime != null) {
+                String month = ARCHIVE_MONTH_FORMATTER.format(publishTime);
+                archiveCounter.merge(month, 1L, Long::sum);
+            }
 
             for (String tag : loadPostTags(post.getId(), tagCache)) {
                 if (!StringUtils.hasText(tag)) {
@@ -713,27 +714,60 @@ public class ContentServiceImpl implements ContentService {
     ) {
     }
 
-    private List<PostEntity> loadPublishedPostCandidates(ViewerContext viewer) {
-        if (viewer.admin()) {
-            return postMapper.selectList(
-                new LambdaQueryWrapper<PostEntity>()
-                    .eq(PostEntity::getStatusCode, POST_STATUS_PUBLISHED)
-                    .orderByDesc(PostEntity::getPublishedAt)
-                    .orderByDesc(PostEntity::getId)
-            );
-        }
-        return postMapper.selectVisiblePublishedPostsRaw(viewer.userId(), viewer.groups());
+    private List<PostEntity> loadPublishedPostCandidates() {
+        return postMapper.selectList(
+            new LambdaQueryWrapper<PostEntity>()
+                .eq(PostEntity::getDeleted, 0)
+                .eq(PostEntity::getStatusCode, POST_STATUS_PUBLISHED)
+                .orderByDesc(PostEntity::getPublishedAt)
+                .orderByDesc(PostEntity::getId)
+        );
     }
 
-    private LocalDateTime resolvePostPublishTime(PostEntity post) {
+    private LocalDateTime resolvePostPublishTimeForDisplay(PostEntity post) {
         if (post == null) {
-            return LocalDateTime.MIN;
+            return null;
         }
-        if (post.getPublishedAt() != null) {
-            return post.getPublishedAt();
+        LocalDateTime publishedAt = normalizePublishTime(post.getPublishedAt());
+        if (publishedAt != null) {
+            return publishedAt;
         }
-        if (post.getCreatedAt() != null) {
-            return post.getCreatedAt();
+        LocalDateTime createdAt = normalizePublishTime(post.getCreatedAt());
+        if (createdAt != null) {
+            return createdAt;
+        }
+        LocalDateTime updatedAt = normalizePublishTime(post.getUpdatedAt());
+        if (updatedAt != null) {
+            return updatedAt;
+        }
+        return null;
+    }
+
+    private LocalDateTime resolvePostPublishTimeForSort(PostEntity post) {
+        LocalDateTime publishTime = resolvePostPublishTimeForDisplay(post);
+        return publishTime == null ? LocalDateTime.MIN : publishTime;
+    }
+
+    private LocalDateTime normalizePublishTime(LocalDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        if (value.getYear() <= 0) {
+            return null;
+        }
+        if (value.equals(LocalDateTime.MIN)) {
+            return null;
+        }
+        if (value.equals(LocalDateTime.MAX)) {
+            return null;
+        }
+        return value;
+    }
+
+    private LocalDateTime resolvePostPublishTimeForFilter(PostEntity post) {
+        LocalDateTime publishTime = resolvePostPublishTimeForDisplay(post);
+        if (publishTime != null) {
+            return publishTime;
         }
         return LocalDateTime.MIN;
     }
@@ -851,7 +885,7 @@ public class ContentServiceImpl implements ContentService {
         if (range == null || range.isEmpty()) {
             return true;
         }
-        LocalDateTime publishedAt = resolvePostPublishTime(post);
+        LocalDateTime publishedAt = resolvePostPublishTimeForFilter(post);
         if (range.from() != null && publishedAt.isBefore(range.from())) {
             return false;
         }
@@ -1869,7 +1903,7 @@ public class ContentServiceImpl implements ContentService {
             post.getLineCount() == null ? 0L : post.getLineCount(),
             post.getReadingMinutes() == null ? 1 : post.getReadingMinutes(),
             post.getLikeCount() == null ? 0L : post.getLikeCount(),
-            post.getPublishedAt(),
+            resolvePostPublishTimeForDisplay(post),
             editable,
             markdown
         );
@@ -1890,7 +1924,7 @@ public class ContentServiceImpl implements ContentService {
             post.getLineCount() == null ? 0L : post.getLineCount(),
             post.getReadingMinutes() == null ? 1 : post.getReadingMinutes(),
             post.getLikeCount() == null ? 0L : post.getLikeCount(),
-            post.getPublishedAt(),
+            resolvePostPublishTimeForDisplay(post),
             post.getUpdatedAt()
         );
     }
