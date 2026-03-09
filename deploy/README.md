@@ -51,8 +51,15 @@ docker compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server
 docker compose -f docker-compose.server.yml --env-file .env.server down
 ```
 
-## 8) One-click redeploy
+## 8) One-click scripts
 
-- Windows (double click): `deploy/redeploy-server.bat`
-- Linux/WSL: `bash deploy/redeploy-server.sh`
-- Behavior: sync local project to `/opt/shizuki-site` first, then run `docker compose up -d --build`
+- Update code + rebuild deploy
+  - Windows (double click): `deploy/update-code-and-deploy.bat`
+  - Linux/WSL: `bash deploy/update-code-and-deploy.sh`
+  - Behavior: sync local project to `/opt/shizuki-site`, then run `docker compose up -d --build`
+- Restart only (no upload, no rebuild)
+  - Windows (double click): `deploy/restart-only.bat`
+  - Linux/WSL: `bash deploy/restart-only.sh`
+  - Behavior: run `docker compose up -d --no-build`
+- Backward-compatible old entry
+  - `deploy/redeploy-server.bat` / `deploy/redeploy-server.sh` now forward to "Update code + rebuild deploy"
