@@ -17,7 +17,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Restarting containers on server...
-wsl.exe bash -lc "set -e; command -v sshpass >/dev/null 2>&1 || { echo '[ERROR] sshpass not found in WSL. Install with: sudo apt-get update && sudo apt-get install -y sshpass'; exit 1; }; sshpass -p '%REMOTE_PASS%' ssh -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% 'set -e; cd %REMOTE_DEPLOY_DIR%; docker compose -f docker-compose.server.yml --env-file .env.server up -d --no-build; docker compose -f docker-compose.server.yml --env-file .env.server ps'"
+wsl.exe bash -lc "set -e; APP_DIR=\$(wslpath -a \"%~dp0..\"); cd \"\$APP_DIR\"; export REMOTE_HOST='%REMOTE_HOST%'; export REMOTE_USER='%REMOTE_USER%'; export REMOTE_PASS='%REMOTE_PASS%'; export REMOTE_DEPLOY_DIR='%REMOTE_DEPLOY_DIR%'; bash deploy/restart-only.sh"
 if errorlevel 1 (
   echo [ERROR] Restart-only deploy failed.
   pause

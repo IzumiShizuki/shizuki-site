@@ -7,13 +7,26 @@ REMOTE_PASS="${REMOTE_PASS:-Izumi2486}"
 REMOTE_APP_DIR="${REMOTE_APP_DIR:-/opt/shizuki-site}"
 REMOTE_DEPLOY_DIR="${REMOTE_DEPLOY_DIR:-${REMOTE_APP_DIR}/deploy}"
 
+SSH_OPTS=(
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o LogLevel=ERROR
+  -o PreferredAuthentications=password
+  -o PubkeyAuthentication=no
+  -o ConnectTimeout=10
+  -o ConnectionAttempts=3
+  -o ServerAliveInterval=15
+  -o ServerAliveCountMax=8
+  -o TCPKeepAlive=yes
+)
+
 if ! command -v sshpass >/dev/null 2>&1; then
   echo "[ERROR] sshpass not found. Install with: sudo apt-get update && sudo apt-get install -y sshpass" >&2
   exit 1
 fi
 
 echo "[1/1] Restarting existing containers without uploading code ..."
-sshpass -p "${REMOTE_PASS}" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+sshpass -p "${REMOTE_PASS}" ssh "${SSH_OPTS[@]}" "${REMOTE_USER}@${REMOTE_HOST}" \
   "set -e; cd ${REMOTE_DEPLOY_DIR}; docker compose -f docker-compose.server.yml --env-file .env.server up -d --no-build; docker compose -f docker-compose.server.yml --env-file .env.server ps"
 
 echo "Restart-only deployment finished."

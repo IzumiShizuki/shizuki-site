@@ -18,7 +18,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Uploading local code and rebuilding...
-wsl.exe bash -lc "set -e; APP_DIR=\$(wslpath -a \"%~dp0..\"); command -v sshpass >/dev/null 2>&1 || { echo '[ERROR] sshpass not found in WSL. Install with: sudo apt-get update && sudo apt-get install -y sshpass'; exit 1; }; command -v rsync >/dev/null 2>&1 || { echo '[ERROR] rsync not found in WSL. Install with: sudo apt-get update && sudo apt-get install -y rsync'; exit 1; }; sshpass -p '%REMOTE_PASS%' rsync -az --delete --exclude '.git/' --exclude '.beads/' --exclude '.idea/' --exclude '.vscode/' --exclude '.mvn/repository/' --exclude 'node_modules/' --exclude 'target/' --exclude 'dist-temp/' --exclude '.DS_Store' --exclude 'deploy/.env.server' -e 'ssh -o StrictHostKeyChecking=no' \"\$APP_DIR/\" %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_APP_DIR%/; sshpass -p '%REMOTE_PASS%' ssh -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% 'set -e; cd %REMOTE_DEPLOY_DIR%; docker compose -f docker-compose.server.yml --env-file .env.server up -d --build; docker compose -f docker-compose.server.yml --env-file .env.server ps'"
+wsl.exe bash -lc "set -e; APP_DIR=\$(wslpath -a \"%~dp0..\"); cd \"\$APP_DIR\"; export REMOTE_HOST='%REMOTE_HOST%'; export REMOTE_USER='%REMOTE_USER%'; export REMOTE_PASS='%REMOTE_PASS%'; export REMOTE_APP_DIR='%REMOTE_APP_DIR%'; export REMOTE_DEPLOY_DIR='%REMOTE_DEPLOY_DIR%'; bash deploy/update-code-and-deploy.sh"
 if errorlevel 1 (
   echo [ERROR] Update code + deploy failed.
   pause

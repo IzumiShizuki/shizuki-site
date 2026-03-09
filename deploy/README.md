@@ -57,6 +57,7 @@ docker compose -f docker-compose.server.yml --env-file .env.server down
   - Windows (double click): `deploy/update-code-and-deploy.bat`
   - Linux/WSL: `bash deploy/update-code-and-deploy.sh`
   - Behavior: sync local project to `/opt/shizuki-site`, then run `docker compose up -d --build`
+  - Built-in robustness: SSH keepalive + upload auto-retry (default 4 times, override with `UPLOAD_RETRIES`)
 - Restart only (no upload, no rebuild)
   - Windows (double click): `deploy/restart-only.bat`
   - Linux/WSL: `bash deploy/restart-only.sh`
