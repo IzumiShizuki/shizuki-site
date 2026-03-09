@@ -8,11 +8,12 @@
         :class="{ active: activeModule === module.code }"
         type="button"
         role="tab"
+        :title="module.label"
+        :aria-label="module.label"
         :aria-selected="activeModule === module.code"
         @click="activeModule = module.code"
       >
         <i :class="module.iconClass" aria-hidden="true"></i>
-        <span>{{ module.label }}</span>
       </button>
     </header>
 
@@ -71,22 +72,28 @@ const activeComponent = computed(() => moduleMap[activeModule.value] || TodoWind
 
 .suite-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(122, 136, 166, 0.46) transparent;
 }
 
 .suite-tab {
   border: 1px solid var(--suite-border);
   background: var(--suite-btn-bg);
   color: var(--suite-muted);
-  border-radius: 999px;
-  min-height: 32px;
-  padding: 0 12px;
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
   transition:
     background-color 160ms ease,
     color 160ms ease,
@@ -99,25 +106,34 @@ const activeComponent = computed(() => moduleMap[activeModule.value] || TodoWind
   background: var(--suite-btn-active-bg);
 }
 
+.suite-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.suite-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.suite-tabs::-webkit-scrollbar-thumb {
+  background: rgba(122, 136, 166, 0.42);
+  border-radius: 999px;
+}
+
 .suite-content {
   min-width: 0;
   min-height: 0;
 }
 
 @container lightapp-window-body (max-width: 760px) {
-  .suite-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .suite-tab {
-    border-radius: 10px;
+    width: 30px;
+    height: 30px;
   }
 }
 
 @container lightapp-window-body (max-width: 430px) {
-  .suite-tabs {
-    grid-template-columns: 1fr;
+  .suite-tabs::-webkit-scrollbar {
+    height: 3px;
   }
 }
 </style>
