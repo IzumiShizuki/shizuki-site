@@ -5,13 +5,13 @@
         v-for="module in modules"
         :key="module.code"
         class="suite-tab ripple-trigger"
-        :class="{ active: activeModule === module.code }"
+        :class="{ active: session.activeModule === module.code }"
         type="button"
         role="tab"
         :title="module.label"
         :aria-label="module.label"
-        :aria-selected="activeModule === module.code"
-        @click="activeModule = module.code"
+        :aria-selected="session.activeModule === module.code"
+        @click="setActiveModule(module.code)"
       >
         <i :class="module.iconClass" aria-hidden="true"></i>
       </button>
@@ -26,11 +26,22 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, provide, reactive } from 'vue';
 import ProjectsWindow from './ProjectsWindow.vue';
 import ScheduleWindow from './ScheduleWindow.vue';
 import TaskBoardWindow from './TaskBoardWindow.vue';
 import TodoWindow from './TodoWindow.vue';
+import {
+  TIMEPRISM_MODULE_BOARD,
+  TIMEPRISM_MODULE_PROJECTS,
+  TIMEPRISM_MODULE_SCHEDULE,
+  TIMEPRISM_MODULE_TODO,
+  TIMEPRISM_SUITE_CONTEXT_KEY,
+  createTimePrismSuiteSessionState,
+  openTodoWithProjectFilter,
+  setSuiteActiveModule,
+  setSuiteProjectFilters
+} from './timePrismSuiteState';
 
 defineProps({
   windowId: {
@@ -40,22 +51,42 @@ defineProps({
 });
 
 const modules = Object.freeze([
-  { code: 'todo', label: 'Todo', iconClass: 'fas fa-list-check' },
-  { code: 'board', label: 'Task Board', iconClass: 'fas fa-columns' },
-  { code: 'schedule', label: 'Schedule', iconClass: 'fas fa-calendar-days' },
-  { code: 'projects', label: 'Projects', iconClass: 'fas fa-folder-tree' }
+  { code: TIMEPRISM_MODULE_TODO, label: 'Todo', iconClass: 'fas fa-list-check' },
+  { code: TIMEPRISM_MODULE_BOARD, label: 'Task Board', iconClass: 'fas fa-columns' },
+  { code: TIMEPRISM_MODULE_SCHEDULE, label: 'Schedule', iconClass: 'fas fa-calendar-days' },
+  { code: TIMEPRISM_MODULE_PROJECTS, label: 'Projects', iconClass: 'fas fa-folder-tree' }
 ]);
 
 const moduleMap = Object.freeze({
-  todo: TodoWindow,
-  board: TaskBoardWindow,
-  schedule: ScheduleWindow,
-  projects: ProjectsWindow
+  [TIMEPRISM_MODULE_TODO]: TodoWindow,
+  [TIMEPRISM_MODULE_BOARD]: TaskBoardWindow,
+  [TIMEPRISM_MODULE_SCHEDULE]: ScheduleWindow,
+  [TIMEPRISM_MODULE_PROJECTS]: ProjectsWindow
 });
 
-const activeModule = ref('todo');
+const session = reactive(createTimePrismSuiteSessionState());
 
-const activeComponent = computed(() => moduleMap[activeModule.value] || TodoWindow);
+function setActiveModule(code) {
+  setSuiteActiveModule(session, code);
+}
+
+function setProjectFilters(ids) {
+  setSuiteProjectFilters(session, ids);
+}
+
+function openTodoWithProject(projectId) {
+  openTodoWithProjectFilter(session, projectId);
+}
+
+provide(TIMEPRISM_SUITE_CONTEXT_KEY, {
+  activeModule: computed(() => session.activeModule),
+  selectedProjectIds: computed(() => session.selectedProjectIds),
+  setActiveModule,
+  setProjectFilters,
+  openTodoWithProject
+});
+
+const activeComponent = computed(() => moduleMap[session.activeModule] || TodoWindow);
 </script>
 
 <style scoped>

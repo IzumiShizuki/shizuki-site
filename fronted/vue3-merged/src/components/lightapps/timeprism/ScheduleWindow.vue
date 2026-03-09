@@ -1,20 +1,28 @@
 <template>
   <section class="lightapp-window">
-    <form class="event-create" @submit.prevent="createScheduleItem">
-      <input v-model.trim="draft.title" type="text" placeholder="新增日程，例如：周会复盘" />
-      <select v-model="draft.projectId">
-        <option value="">无项目</option>
-        <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
-          {{ item.name }}
-        </option>
-      </select>
-      <input v-model="draft.startAt" type="datetime-local" />
-      <input v-model="draft.endAt" type="datetime-local" />
-      <label class="all-day-check"><input v-model="draft.allDay" type="checkbox" /> 全天</label>
-      <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim() || !draft.startAt">
-        {{ saving ? '添加中...' : '添加' }}
+    <div class="top-toolbar">
+      <button class="action-btn ripple-trigger" type="button" @click="toggleCreateForm">
+        {{ showCreateForm ? '收起添加区' : '添加日程' }}
       </button>
-    </form>
+    </div>
+
+    <Transition name="panel-collapse">
+      <form v-if="showCreateForm" class="event-create" @submit.prevent="createScheduleItem">
+        <input v-model.trim="draft.title" type="text" placeholder="新增日程，例如：周会复盘" />
+        <select v-model="draft.projectId">
+          <option value="">无项目</option>
+          <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
+            {{ item.name }}
+          </option>
+        </select>
+        <input v-model="draft.startAt" type="datetime-local" />
+        <input v-model="draft.endAt" type="datetime-local" />
+        <label class="all-day-check"><input v-model="draft.allDay" type="checkbox" /> 全天</label>
+        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim() || !draft.startAt">
+          {{ saving ? '添加中...' : '添加' }}
+        </button>
+      </form>
+    </Transition>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
@@ -82,6 +90,7 @@ const upcomingItems = ref([]);
 const saving = ref(false);
 const errorText = ref('');
 const upcomingDays = 7;
+const showCreateForm = ref(false);
 
 const draft = reactive({
   title: '',
@@ -90,6 +99,10 @@ const draft = reactive({
   endAt: '',
   allDay: false
 });
+
+function toggleCreateForm() {
+  showCreateForm.value = !showCreateForm.value;
+}
 
 function parseIso(input) {
   const raw = String(input || '').trim();
@@ -283,6 +296,7 @@ async function createScheduleItem() {
     draft.startAt = '';
     draft.endAt = '';
     draft.allDay = false;
+    showCreateForm.value = false;
   } catch (error) {
     errorText.value = error?.message || '日程创建失败';
   } finally {
@@ -351,6 +365,13 @@ onMounted(() => {
   gap: 10px;
   color: var(--la-text);
   min-width: 0;
+}
+
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .event-create {
@@ -485,6 +506,26 @@ onMounted(() => {
   text-align: center;
   color: var(--la-muted);
   padding: 10px 0;
+}
+
+.panel-collapse-enter-active,
+.panel-collapse-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 180ms ease;
+  transform-origin: top center;
+}
+
+.panel-collapse-enter-from,
+.panel-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scaleY(0.95);
+}
+
+.panel-collapse-enter-to,
+.panel-collapse-leave-from {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
 }
 
 @container lightapp-window-body (max-width: 940px) {

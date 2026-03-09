@@ -1,28 +1,45 @@
 <template>
   <section class="lightapp-window">
-    <form class="project-form" @submit.prevent="submitProject">
-      <input v-model.trim="draft.name" type="text" placeholder="项目名称，例如：春季学习计划" />
-      <input v-model.trim="draft.description" type="text" placeholder="描述（可选）" />
-      <input v-model="draft.color" type="color" />
-      <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.name.trim()">
-        {{ saving ? '保存中...' : editingId ? '更新项目' : '创建项目' }}
+    <div class="top-toolbar">
+      <button class="action-btn ripple-trigger" type="button" @click="toggleForm">
+        {{ showForm ? '收起添加区' : '添加项目' }}
       </button>
-      <button
-        v-if="editingId"
-        class="action-btn ripple-trigger"
-        type="button"
-        :disabled="saving"
-        @click="cancelEditing"
-      >
-        取消
-      </button>
-    </form>
+      <span class="toolbar-hint">共 {{ projects.length }} 个项目</span>
+    </div>
+
+    <Transition name="panel-collapse">
+      <form v-if="showForm" class="project-form" @submit.prevent="submitProject">
+        <input v-model.trim="draft.name" type="text" placeholder="项目名称，例如：春季学习计划" />
+        <input v-model.trim="draft.description" type="text" placeholder="描述（可选）" />
+        <input v-model="draft.color" type="color" />
+        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.name.trim()">
+          {{ saving ? '保存中...' : editingId ? '更新项目' : '创建项目' }}
+        </button>
+        <button
+          v-if="editingId"
+          class="action-btn ripple-trigger"
+          type="button"
+          :disabled="saving"
+          @click="cancelEditing"
+        >
+          取消
+        </button>
+      </form>
+    </Transition>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
     <ul v-if="projects.length" class="project-list">
       <li v-for="item in projects" :key="item.projectId" class="project-item" :class="{ archived: item.archived }">
-        <div class="project-main">
+        <div
+          class="project-main project-main-clickable"
+          role="button"
+          tabindex="0"
+          title="查看该项目待办"
+          @click="openTodoByProject(item.projectId)"
+          @keydown.enter.prevent="openTodoByProject(item.projectId)"
+          @keydown.space.prevent="openTodoByProject(item.projectId)"
+        >
           <span class="project-color" :style="{ backgroundColor: item.color || '#6aa9ff' }"></span>
           <div>
             <p>{{ item.name }}</p>
@@ -47,7 +64,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { inject, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppProject,
@@ -62,13 +79,16 @@ import {
   updateGuestLightAppData,
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
+import { TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
 
 const auth = useAuthSession();
+const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
 
 const projects = ref([]);
 const errorText = ref('');
 const saving = ref(false);
 const editingId = ref(0);
+const showForm = ref(false);
 
 const draft = reactive({
   name: '',
@@ -95,6 +115,13 @@ function resetDraft() {
   draft.description = '';
   draft.color = '#6aa9ff';
   editingId.value = 0;
+}
+
+function toggleForm() {
+  if (showForm.value && editingId.value) {
+    resetDraft();
+  }
+  showForm.value = !showForm.value;
 }
 
 function sortProjects(items) {
@@ -139,6 +166,7 @@ function startEditing(item) {
     errorText.value = '项目数据异常，请刷新后重试';
     return;
   }
+  showForm.value = true;
   editingId.value = projectId;
   draft.name = item.name || '';
   draft.description = item.description || '';
@@ -147,6 +175,14 @@ function startEditing(item) {
 
 function cancelEditing() {
   resetDraft();
+  showForm.value = false;
+}
+
+function openTodoByProject(projectId) {
+  const normalizedProjectId = normalizeProjectId(projectId);
+  if (!normalizedProjectId) return;
+  if (!suiteContext?.openTodoWithProject) return;
+  suiteContext.openTodoWithProject(normalizedProjectId);
 }
 
 async function submitProject() {
@@ -172,6 +208,7 @@ async function submitProject() {
       const list = await listLightAppProjects(auth.authorizedFetch);
       projects.value = sortProjects(Array.isArray(list) ? list : []);
       writeRemoteLightAppCache({ projects: projects.value });
+      showForm.value = false;
       resetDraft();
       return;
     }
@@ -189,6 +226,7 @@ async function submitProject() {
           };
         })
       );
+      showForm.value = false;
       resetDraft();
       return;
     }
@@ -208,6 +246,7 @@ async function submitProject() {
         updatedAt: new Date().toISOString()
       }
     ]);
+    showForm.value = false;
     resetDraft();
   } catch (error) {
     errorText.value = error?.message || '项目保存失败';
@@ -307,6 +346,19 @@ onMounted(() => {
   min-width: 0;
 }
 
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-hint {
+  margin-left: auto;
+  color: var(--la-muted);
+  font-size: 12px;
+}
+
 .project-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 60px auto auto;
@@ -359,6 +411,23 @@ onMounted(() => {
   min-width: 0;
 }
 
+.project-main-clickable {
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background-color 140ms ease;
+}
+
+.project-main-clickable:hover {
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+.project-main-clickable:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.45);
+  outline-offset: 2px;
+}
+
 .project-main p {
   margin: 0;
   word-break: break-word;
@@ -402,9 +471,34 @@ onMounted(() => {
   padding: 14px 0;
 }
 
+.panel-collapse-enter-active,
+.panel-collapse-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 180ms ease;
+  transform-origin: top center;
+}
+
+.panel-collapse-enter-from,
+.panel-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scaleY(0.95);
+}
+
+.panel-collapse-enter-to,
+.panel-collapse-leave-from {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+}
+
 @container lightapp-window-body (max-width: 860px) {
   .project-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar-hint {
+    margin-left: 0;
+    width: 100%;
   }
 }
 

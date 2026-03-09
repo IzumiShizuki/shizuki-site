@@ -1,25 +1,33 @@
 <template>
   <section class="lightapp-window">
-    <form class="task-create" @submit.prevent="createTaskItem">
-      <input v-model.trim="draft.title" type="text" placeholder="新增看板任务，例如：完成接口联调" />
-      <select v-model="draft.projectId">
-        <option value="">无项目</option>
-        <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
-          {{ item.name }}
-        </option>
-      </select>
-      <select v-model="draft.columnCode">
-        <option v-for="column in enabledColumns" :key="column.columnCode" :value="column.columnCode">
-          {{ column.title }}
-        </option>
-      </select>
-      <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim()">
-        {{ saving ? '新增中...' : '新增' }}
+    <div class="top-toolbar">
+      <button class="action-btn ripple-trigger" type="button" @click="toggleCreateForm">
+        {{ showCreateForm ? '收起添加区' : '添加任务' }}
       </button>
       <button class="action-btn ripple-trigger" type="button" @click="toggleColumnEditor">
         {{ showColumnEditor ? '关闭列配置' : '列配置' }}
       </button>
-    </form>
+    </div>
+
+    <Transition name="panel-collapse">
+      <form v-if="showCreateForm" class="task-create" @submit.prevent="createTaskItem">
+        <input v-model.trim="draft.title" type="text" placeholder="新增看板任务，例如：完成接口联调" />
+        <select v-model="draft.projectId">
+          <option value="">无项目</option>
+          <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
+            {{ item.name }}
+          </option>
+        </select>
+        <select v-model="draft.columnCode">
+          <option v-for="column in enabledColumns" :key="column.columnCode" :value="column.columnCode">
+            {{ column.title }}
+          </option>
+        </select>
+        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim()">
+          {{ saving ? '新增中...' : '新增' }}
+        </button>
+      </form>
+    </Transition>
 
     <section v-if="showColumnEditor" class="column-editor liquid-material">
       <header>
@@ -102,6 +110,7 @@ const projects = ref([]);
 const saving = ref(false);
 const errorText = ref('');
 const showColumnEditor = ref(false);
+const showCreateForm = ref(false);
 const columnDrafts = ref([]);
 
 const draft = reactive({
@@ -220,6 +229,10 @@ function persistGuest(payload) {
   }));
 }
 
+function toggleCreateForm() {
+  showCreateForm.value = !showCreateForm.value;
+}
+
 async function hydrate() {
   errorText.value = '';
   await auth.ensureReady();
@@ -324,6 +337,7 @@ async function createTaskItem() {
     }
 
     draft.title = '';
+    showCreateForm.value = false;
   } catch (error) {
     errorText.value = error?.message || '任务创建失败';
   } finally {
@@ -491,9 +505,16 @@ onMounted(() => {
   min-width: 0;
 }
 
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .task-create {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px 130px 80px 96px;
+  grid-template-columns: minmax(0, 1fr) 140px 130px 80px;
   gap: 8px;
 }
 
@@ -633,6 +654,26 @@ onMounted(() => {
   margin: 8px 0 0;
   color: var(--la-muted);
   font-size: 12px;
+}
+
+.panel-collapse-enter-active,
+.panel-collapse-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 180ms ease;
+  transform-origin: top center;
+}
+
+.panel-collapse-enter-from,
+.panel-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scaleY(0.95);
+}
+
+.panel-collapse-enter-to,
+.panel-collapse-leave-from {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
 }
 
 @container lightapp-window-body (max-width: 860px) {

@@ -1,29 +1,61 @@
 <template>
   <section class="lightapp-window">
-    <form class="todo-create" @submit.prevent="createTodoItem">
-      <input v-model.trim="draft.title" type="text" placeholder="添加待办，例如：整理算法笔记" />
-      <select v-model="draft.projectId">
-        <option value="">无项目</option>
-        <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
-          {{ item.name }}
-        </option>
-      </select>
-      <select v-model="draft.priority">
-        <option value="LOW">低</option>
-        <option value="MEDIUM">中</option>
-        <option value="HIGH">高</option>
-      </select>
-      <input v-model="draft.dueAt" type="datetime-local" />
-      <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim()">
-        {{ saving ? '添加中...' : '添加' }}
+    <div class="top-toolbar">
+      <button class="action-btn ripple-trigger" type="button" @click="toggleCreateForm">
+        {{ showCreateForm ? '收起添加区' : '添加待办' }}
       </button>
-    </form>
+      <span class="toolbar-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
+    </div>
+
+    <Transition name="panel-collapse">
+      <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
+        <input v-model.trim="draft.title" type="text" placeholder="添加待办，例如：整理算法笔记" />
+        <select v-model="draft.projectId">
+          <option value="">无项目</option>
+          <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
+            {{ item.name }}
+          </option>
+        </select>
+        <select v-model="draft.priority">
+          <option value="LOW">低</option>
+          <option value="MEDIUM">中</option>
+          <option value="HIGH">高</option>
+        </select>
+        <input v-model="draft.dueAt" type="datetime-local" />
+        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim()">
+          {{ saving ? '添加中...' : '添加' }}
+        </button>
+      </form>
+    </Transition>
 
     <div class="todo-toolbar">
-      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === 'ALL' }" @click="viewFilter = 'ALL'">全部</button>
-      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === 'OPEN' }" @click="viewFilter = 'OPEN'">未完成</button>
-      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === 'DONE' }" @click="viewFilter = 'DONE'">已完成</button>
-      <span class="toolbar-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
+      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_ALL }" @click="viewFilter = TODO_VIEW_ALL">全部</button>
+      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_OPEN }" @click="viewFilter = TODO_VIEW_OPEN">未完成</button>
+      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_DONE }" @click="viewFilter = TODO_VIEW_DONE">已完成</button>
+    </div>
+
+    <div v-if="projects.length || hasUnassignedTodos" class="project-filters">
+      <button class="chip-btn ripple-trigger" :class="{ active: !selectedProjectIds.length }" @click="clearProjectFilters">
+        全部项目
+      </button>
+      <button
+        class="chip-btn ripple-trigger"
+        :class="{ active: isProjectFilterActive(UNASSIGNED_PROJECT_FILTER_ID) }"
+        @click="toggleProjectFilter(UNASSIGNED_PROJECT_FILTER_ID)"
+      >
+        无项目
+      </button>
+      <button
+        v-for="project in projects"
+        :key="`project_filter_${project.projectId}`"
+        class="chip-btn ripple-trigger project-chip"
+        :class="{ active: isProjectFilterActive(project.projectId) }"
+        :style="projectChipStyle(project.color)"
+        @click="toggleProjectFilter(project.projectId)"
+      >
+        <span class="project-chip-dot" :style="{ backgroundColor: projectColor(project.projectId) }"></span>
+        {{ project.name }}
+      </button>
     </div>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
@@ -36,10 +68,12 @@
         </label>
         <div class="todo-main">
           <p>{{ item.title }}</p>
-          <small>
-            {{ priorityLabel(item.priority) }}
-            <template v-if="item.projectId"> · {{ projectName(item.projectId) }}</template>
-            <template v-if="item.dueAt"> · {{ formatDateTime(item.dueAt) }}</template>
+          <small class="todo-meta">
+            <span>{{ priorityLabel(item.priority) }}</span>
+            <span class="project-badge" :style="projectBadgeStyle(item.projectId)">
+              {{ projectName(item.projectId) }}
+            </span>
+            <span v-if="item.dueAt">{{ formatDateTime(item.dueAt) }}</span>
           </small>
         </div>
         <div class="todo-actions">
@@ -60,7 +94,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, inject, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppTodo,
@@ -77,14 +111,26 @@ import {
   updateGuestLightAppData,
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
+import {
+  TIMEPRISM_SUITE_CONTEXT_KEY,
+  TODO_VIEW_ALL,
+  TODO_VIEW_DONE,
+  TODO_VIEW_OPEN,
+  UNASSIGNED_PROJECT_FILTER_ID,
+  filterTodosByViewAndProjects,
+  normalizeProjectFilterIds
+} from './timePrismSuiteState';
 
 const auth = useAuthSession();
+const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
 
 const todos = ref([]);
 const projects = ref([]);
-const viewFilter = ref('ALL');
+const viewFilter = ref(TODO_VIEW_ALL);
 const saving = ref(false);
 const errorText = ref('');
+const showCreateForm = ref(false);
+const localProjectFilters = ref([]);
 
 const draft = reactive({
   title: '',
@@ -93,10 +139,17 @@ const draft = reactive({
   dueAt: ''
 });
 
+const selectedProjectIds = computed(() => {
+  const source = suiteContext?.selectedProjectIds?.value ?? localProjectFilters.value;
+  return normalizeProjectFilterIds(source);
+});
+
+const hasUnassignedTodos = computed(() =>
+  todos.value.some((item) => (Number.isInteger(Number(item?.projectId)) ? Number(item.projectId) <= 0 : true))
+);
+
 const filteredTodos = computed(() => {
-  if (viewFilter.value === 'OPEN') return todos.value.filter((item) => !item.done);
-  if (viewFilter.value === 'DONE') return todos.value.filter((item) => item.done);
-  return todos.value;
+  return filterTodosByViewAndProjects(todos.value, viewFilter.value, selectedProjectIds.value);
 });
 
 const openCount = computed(() => todos.value.filter((item) => !item.done).length);
@@ -115,10 +168,86 @@ function parseIsoFromInput(value) {
   return new Date(ts).toISOString();
 }
 
-function projectName(projectId) {
+function addHexAlpha(color, alpha) {
+  const normalized = String(color || '').trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+    return normalized || '#6aa9ff';
+  }
+  return `${normalized}${alpha}`;
+}
+
+function projectById(projectId) {
   const id = Number(projectId);
-  const matched = projects.value.find((item) => item.projectId === id);
-  return matched?.name || `项目#${id}`;
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return projects.value.find((item) => item.projectId === id) || null;
+}
+
+function projectName(projectId) {
+  const matched = projectById(projectId);
+  if (matched) return matched.name;
+  const id = Number(projectId);
+  if (!Number.isInteger(id) || id <= 0) return '无项目';
+  return `项目#${id}`;
+}
+
+function projectColor(projectId) {
+  const matched = projectById(projectId);
+  if (matched?.color) return matched.color;
+  const id = Number(projectId);
+  if (!Number.isInteger(id) || id <= 0) return '#9da6b6';
+  return '#6aa9ff';
+}
+
+function projectChipStyle(color) {
+  const chipColor = String(color || '#6aa9ff').trim() || '#6aa9ff';
+  return {
+    borderColor: addHexAlpha(chipColor, '88'),
+    color: chipColor,
+    backgroundColor: addHexAlpha(chipColor, '1f')
+  };
+}
+
+function projectBadgeStyle(projectId) {
+  const color = projectColor(projectId);
+  return {
+    borderColor: addHexAlpha(color, '88'),
+    color,
+    backgroundColor: addHexAlpha(color, '22')
+  };
+}
+
+function applyProjectFilters(nextFilters) {
+  const normalized = normalizeProjectFilterIds(nextFilters);
+  if (suiteContext?.setProjectFilters) {
+    suiteContext.setProjectFilters(normalized);
+    return;
+  }
+  localProjectFilters.value = normalized;
+}
+
+function clearProjectFilters() {
+  applyProjectFilters([]);
+}
+
+function toggleProjectFilter(projectId) {
+  const normalizedProjectId = Number(projectId);
+  if (!Number.isInteger(normalizedProjectId) || normalizedProjectId < 0) return;
+  const active = selectedProjectIds.value.includes(normalizedProjectId);
+  if (active) {
+    applyProjectFilters(selectedProjectIds.value.filter((id) => id !== normalizedProjectId));
+    return;
+  }
+  applyProjectFilters([...selectedProjectIds.value, normalizedProjectId]);
+}
+
+function isProjectFilterActive(projectId) {
+  const normalizedProjectId = Number(projectId);
+  if (!Number.isInteger(normalizedProjectId) || normalizedProjectId < 0) return false;
+  return selectedProjectIds.value.includes(normalizedProjectId);
+}
+
+function toggleCreateForm() {
+  showCreateForm.value = !showCreateForm.value;
 }
 
 function priorityLabel(priority) {
@@ -238,6 +367,7 @@ async function createTodoItem() {
     draft.title = '';
     draft.dueAt = '';
     draft.priority = 'MEDIUM';
+    showCreateForm.value = false;
   } catch (error) {
     errorText.value = error?.message || '创建待办失败';
   } finally {
@@ -347,6 +477,13 @@ onMounted(() => {
   min-width: 0;
 }
 
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .todo-create {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) 132px 84px 178px 72px;
@@ -363,6 +500,13 @@ onMounted(() => {
 }
 
 .todo-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.project-filters {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -388,6 +532,19 @@ onMounted(() => {
   margin-left: auto;
   color: var(--la-muted);
   font-size: 12px;
+}
+
+.project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .todo-list {
@@ -421,6 +578,20 @@ onMounted(() => {
 
 .todo-main small {
   color: var(--la-muted);
+}
+
+.todo-meta {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.project-badge {
+  border: 1px solid var(--la-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  line-height: 1.2;
 }
 
 .todo-check input {
@@ -467,6 +638,26 @@ onMounted(() => {
   font-size: 12px;
 }
 
+.panel-collapse-enter-active,
+.panel-collapse-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 180ms ease;
+  transform-origin: top center;
+}
+
+.panel-collapse-enter-from,
+.panel-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scaleY(0.95);
+}
+
+.panel-collapse-enter-to,
+.panel-collapse-leave-from {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+}
+
 @container lightapp-window-body (max-width: 760px) {
   .todo-create {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -479,6 +670,10 @@ onMounted(() => {
   .toolbar-hint {
     margin-left: 0;
     width: 100%;
+  }
+
+  .project-filters {
+    gap: 6px;
   }
 
   .todo-item {
@@ -503,6 +698,10 @@ onMounted(() => {
 
   .todo-item {
     padding: 8px 10px;
+  }
+
+  .project-filters {
+    gap: 6px;
   }
 }
 
