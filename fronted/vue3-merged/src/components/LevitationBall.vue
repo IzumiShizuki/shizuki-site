@@ -1,80 +1,45 @@
 <template>
   <div
     ref="containerRef"
-    class="drop-container"
-    :class="{
-      'is-dragging': state.isDragging,
-      'is-expanded': state.isExpanded,
-      'is-idle': state.isIdle
-    }"
+    class="float-ball"
+    :class="{ expanded: ui.expanded, dragging: ui.dragging }"
+    :style="containerStyle"
+    @pointerdown="onPointerDown"
+    @click="onContainerClick"
   >
-    <div ref="visualRef" class="drop-body liquid-material">
-      <div class="icon-gear-wrapper">
-        <svg viewBox="0 0 24 24">
-          <path
-            d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"
-          />
-        </svg>
+    <div class="ball-body liquid-material">
+      <div v-if="!ui.expanded" class="ball-icon">
+        <i class="fas fa-compass"></i>
       </div>
 
-      <div class="menu-list">
-        <div class="menu-item close-btn ripple-trigger" title="Close" @click.stop="handleCloseClick">
-          <svg viewBox="0 0 24 24">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-          </svg>
-        </div>
-        <div
-          ref="chatButtonRef"
-          class="menu-item chat-btn ripple-trigger"
-          :title="quickSlotApps[0]?.title || '轻应用配置'"
-          @click.stop="handleChatClick"
+      <div v-else class="menu-list">
+        <button class="menu-block close-block ripple-trigger" type="button" title="收起" @click.stop="collapseMenu">
+          <i class="fas fa-chevron-down"></i>
+        </button>
+        <button
+          v-for="slot in activeSlots"
+          :key="`slot_${slot.slotIndex}`"
+          class="menu-block ripple-trigger"
+          type="button"
+          :title="slotTitle(slot)"
+          @click.stop="triggerSlot(slot)"
         >
-          <i :class="quickSlotApps[0]?.iconClass || 'fas fa-th-large'" aria-hidden="true"></i>
-        </div>
-        <div class="menu-item ripple-trigger" :title="quickSlotApps[1]?.title || '轻应用配置'" @click.stop="handleMenuAction('record', $event)">
-          <i :class="quickSlotApps[1]?.iconClass || 'fas fa-th-large'" aria-hidden="true"></i>
-        </div>
-        <div class="menu-item ripple-trigger" :title="quickSlotApps[2]?.title || '轻应用配置'" @click.stop="handleMenuAction('settings', $event)">
-          <i :class="quickSlotApps[2]?.iconClass || 'fas fa-th-large'" aria-hidden="true"></i>
-        </div>
+          <i :class="slotIcon(slot)"></i>
+        </button>
       </div>
 
-      <div
-        class="submenu-panel liquid-material"
-        :class="{ 'is-open': state.isSubmenuOpen }"
-        :aria-hidden="(!state.isSubmenuOpen).toString()"
-        :style="{
-          top: chatSubmenuTop,
-          '--submenu-launch-x': submenuLaunchX,
-          '--submenu-launch-y': submenuLaunchY,
-          '--submenu-overshoot-x': submenuOvershootX,
-          '--submenu-overshoot-y': submenuOvershootY
-        }"
-      >
+      <div v-if="ui.expanded && ui.pickerOpen" class="picker-panel liquid-material">
         <button
-          class="submenu-item ripple-trigger"
-          style="--submenu-item-index: 0"
+          v-for="app in pickerApps"
+          :key="app.code"
+          class="picker-item ripple-trigger"
           type="button"
-          @click.stop="handleSubmenuAction('a', $event)"
+          @click.stop="openByCode(app.code)"
         >
-          a
+          <i :class="app.iconClass"></i>
+          <span>{{ app.title }}</span>
         </button>
-        <button
-          class="submenu-item ripple-trigger"
-          style="--submenu-item-index: 1"
-          type="button"
-          @click.stop="handleSubmenuAction('b', $event)"
-        >
-          b
-        </button>
-        <button
-          class="submenu-item ripple-trigger"
-          style="--submenu-item-index: 2"
-          type="button"
-          @click.stop="handleSubmenuAction('c', $event)"
-        >
-          c
-        </button>
+        <p v-if="!pickerApps.length" class="picker-empty">暂无可选应用</p>
       </div>
     </div>
   </div>
@@ -83,1046 +48,341 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { getLightAppByCode } from '../utils/lightAppsCatalog';
+import { getLightAppByCode, LIGHT_APPS_CATALOG } from '../utils/lightAppsCatalog';
+import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { LIGHT_APPS_CHANGED_EVENT, readLightAppsState } from '../utils/lightAppsState';
-import { recordWindowDiag } from '../utils/windowLifecycleDiag';
-
-const containerRef = ref(null);
-const visualRef = ref(null);
-const chatButtonRef = ref(null);
-const chatSubmenuTop = ref('58px');
-const submenuLaunchX = ref('0px');
-const submenuLaunchY = ref('0px');
-const submenuOvershootX = ref('0px');
-const submenuOvershootY = ref('0px');
-const quickApps = ref([]);
 
 const router = useRouter();
+const containerRef = ref(null);
+const appState = ref(readLightAppsState());
 
-const quickSlotApps = computed(() => [
-  quickApps.value[0] || null,
-  quickApps.value[1] || null,
-  quickApps.value[2] || null
-]);
-
-const EXPANDED_WIDTH = 70;
-const EXPANDED_HEIGHT = 260;
-const BASE_SIZE = 60;
-const SUBMENU_WIDTH = 78;
-const SUBMENU_HEIGHT = 144;
-const SUBMENU_GAP = 12;
-
-const IDLE_TIMEOUT = 3000;
-const FRICTION = 0.85;
-const SPRING = 0.1;
-const SNAP_THRESHOLD = 100;
-const STRETCH_FACTOR = 0.3;
-const MAX_STRETCH = 0.3;
-const VELOCITY_EPSILON = 0.08;
-const SCREEN_MARGIN_EXPANDED = 10;
-const HIDING_RATIO = 0.4;
-
-const state = reactive({
+const ui = reactive({
   x: 0,
-  y: 100,
-  vx: 0,
-  vy: 0,
-  isDragging: false,
-  isExpanded: false,
-  isIdle: false,
-  isSubmenuOpen: false
+  y: 120,
+  dragging: false,
+  expanded: false,
+  pickerOpen: false,
+  pointerId: 0,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
+  clickStartX: 0,
+  clickStartY: 0
 });
 
-const dragOffset = { x: 0, y: 0 };
-const lastPos = { x: 0, y: 0 };
-const startClickPos = { x: 0, y: 0 };
+const activeSlots = computed(() => {
+  const slots = Array.isArray(appState.value?.ball_slots) ? appState.value.ball_slots : [];
+  return slots
+    .map((slot, index) => ({
+      slotIndex: index,
+      enabled: Boolean(slot?.enabled),
+      type: String(slot?.type || 'app').trim().toLowerCase() === 'picker' ? 'picker' : 'app',
+      appCode: String(slot?.app_code || '').trim()
+    }))
+    .filter((slot) => slot.enabled)
+    .slice(0, 8);
+});
 
-let pointerId = null;
-let idleTimer = null;
-let targetSnap = null;
-let rafId = null;
-let destroyed = false;
+const pickerApps = computed(() => {
+  const enabledCodes = Array.isArray(appState.value?.enabled_codes) ? appState.value.enabled_codes : [];
+  const enabledSet = new Set(enabledCodes);
+  return LIGHT_APPS_CATALOG.filter((item) => enabledSet.has(item.code));
+});
 
-const touchStartOptions = { passive: true };
-let pageVisible = typeof document === 'undefined' ? true : !document.hidden;
-let windowFocused = typeof document === 'undefined' ? true : document.hasFocus();
+const panelHeight = computed(() => {
+  const blockCount = 1 + activeSlots.value.length;
+  return 14 + blockCount * 40 + (blockCount - 1) * 8 + 14;
+});
 
-function interactionBlocked() {
-  return !pageVisible || !windowFocused;
+const containerStyle = computed(() => {
+  const width = ui.expanded ? 70 : 58;
+  const height = ui.expanded ? panelHeight.value : 58;
+  return {
+    transform: `translate3d(${ui.x}px, ${ui.y}px, 0)`,
+    width: `${width}px`,
+    height: `${height}px`
+  };
+});
+
+function syncState(rawState) {
+  appState.value = rawState && typeof rawState === 'object' ? rawState : readLightAppsState();
 }
 
-function releasePointerCaptureIfNeeded() {
-  const container = containerRef.value;
-  if (container && pointerId !== null) {
-    try {
-      if (container.hasPointerCapture(pointerId)) {
-        container.releasePointerCapture(pointerId);
-      }
-    } catch {
-      // ignore release failures
-    }
-  }
-  pointerId = null;
-  state.isDragging = false;
+function onLightAppsChanged(event) {
+  syncState(event?.detail);
 }
 
-function stopAnimationLoop() {
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-}
+function clampPosition() {
+  const width = ui.expanded ? 70 : 58;
+  const height = ui.expanded ? panelHeight.value : 58;
+  const maxX = Math.max(8, window.innerWidth - width - 8);
+  const maxY = Math.max(8, window.innerHeight - height - 8);
 
-function startAnimationLoop() {
-  if (destroyed || rafId !== null) return;
-  rafId = requestAnimationFrame(animate);
-}
-
-function shouldKeepAnimating() {
-  return state.isDragging || Boolean(targetSnap) || Math.abs(state.vx) > VELOCITY_EPSILON || Math.abs(state.vy) > VELOCITY_EPSILON;
-}
-
-function pauseFloatingRuntime(reason) {
-  releasePointerCaptureIfNeeded();
-  clearTimeout(idleTimer);
-  idleTimer = null;
-  stopAnimationLoop();
-  recordWindowDiag('levitation.pause', {
-    reason,
-    x: Number(state.x.toFixed(2)),
-    y: Number(state.y.toFixed(2)),
-    expanded: state.isExpanded
-  });
-}
-
-function resumeFloatingRuntime(reason) {
-  if (destroyed || interactionBlocked()) return;
-  startAnimationLoop();
-  if (!state.isExpanded) {
-    resetIdleTimer();
-  }
-  recordWindowDiag('levitation.resume', {
-    reason,
-    x: Number(state.x.toFixed(2)),
-    y: Number(state.y.toFixed(2)),
-    expanded: state.isExpanded
-  });
-}
-
-function onVisibilityChange() {
-  pageVisible = typeof document === 'undefined' ? true : !document.hidden;
-  recordWindowDiag('levitation.visibilitychange', {
-    hidden: !pageVisible,
-    visibilityState: typeof document === 'undefined' ? 'unknown' : document.visibilityState
-  });
-  if (!pageVisible) {
-    pauseFloatingRuntime('visibility_hidden');
-    return;
-  }
-  if (windowFocused) {
-    resumeFloatingRuntime('visibility_visible');
-  }
-}
-
-function onWindowBlur(event) {
-  if (typeof window !== 'undefined' && event?.target && event.target !== window) return;
-  windowFocused = false;
-  pauseFloatingRuntime('window_blur');
-}
-
-function onWindowFocus(event) {
-  if (typeof window !== 'undefined' && event?.target && event.target !== window) return;
-  windowFocused = true;
-  resumeFloatingRuntime('window_focus');
-}
-
-function onPageHide(event) {
-  pageVisible = false;
-  windowFocused = false;
-  pauseFloatingRuntime(`page_hide:${Boolean(event?.persisted)}`);
-}
-
-function onPageShow(event) {
-  pageVisible = typeof document === 'undefined' ? true : !document.hidden;
-  windowFocused = typeof document === 'undefined' ? true : document.hasFocus();
-  recordWindowDiag('levitation.pageshow', {
-    persisted: Boolean(event?.persisted),
-    hidden: !pageVisible,
-    hasFocus: windowFocused
-  });
-  resumeFloatingRuntime('page_show');
-}
-
-function onPointerDown(e) {
-  if (interactionBlocked()) return;
-  const target = e.target;
-  if (target.closest('.menu-item, .submenu-item')) return;
-  startAnimationLoop();
-
-  if (state.isIdle) {
-    wakeUp();
-  }
-
-  const container = containerRef.value;
-  if (!container) return;
-
-  const rect = container.getBoundingClientRect();
-  dragOffset.x = e.clientX - rect.left;
-  dragOffset.y = e.clientY - rect.top;
-
-  state.isDragging = true;
-
-  try {
-    container.setPointerCapture(e.pointerId);
-    pointerId = e.pointerId;
-  } catch {
-    pointerId = null;
-  }
-
-  state.vx = 0;
-  state.vy = 0;
-  lastPos.x = e.clientX;
-  lastPos.y = e.clientY;
-  startClickPos.x = e.clientX;
-  startClickPos.y = e.clientY;
-}
-
-function onPointerMove(e) {
-  if (interactionBlocked()) return;
-  resetIdleTimer();
-  if (!state.isDragging) return;
-  if (pointerId !== null && e.pointerId !== pointerId) return;
-
-  const targetX = e.clientX - dragOffset.x;
-  const targetY = e.clientY - dragOffset.y;
-
-  state.vx = e.clientX - lastPos.x;
-  state.vy = e.clientY - lastPos.y;
-
-  state.x = targetX;
-  state.y = targetY;
-
-  lastPos.x = e.clientX;
-  lastPos.y = e.clientY;
-}
-
-function onPointerUp(e) {
-  if (interactionBlocked()) return;
-  if (!state.isDragging) return;
-  if (pointerId !== null && e.pointerId !== pointerId) return;
-
-  const container = containerRef.value;
-
-  state.isDragging = false;
-
-  if (container && pointerId !== null) {
-    try {
-      if (container.hasPointerCapture(pointerId)) {
-        container.releasePointerCapture(pointerId);
-      }
-    } catch {
-      // ignore release failures
-    }
-  }
-  pointerId = null;
-
-  handleSnap();
-}
-
-function handleSnap() {
-  const currentW = state.isExpanded ? EXPANDED_WIDTH : BASE_SIZE;
-  const currentH = state.isExpanded ? EXPANDED_HEIGHT : BASE_SIZE;
-  const screenW = window.innerWidth;
-  const screenH = window.innerHeight;
-
-  let destX = state.x;
-  let destY = state.y;
-
-  const distLeft = state.x;
-  const distRight = screenW - (state.x + currentW);
-  const distTop = state.y;
-  const distBottom = screenH - (state.y + currentH);
-
-  if (!state.isExpanded) {
-    const hideOffset = BASE_SIZE * HIDING_RATIO;
-
-    if (distLeft < SNAP_THRESHOLD) {
-      destX = -hideOffset;
-    } else if (distRight < SNAP_THRESHOLD) {
-      destX = screenW - currentW + hideOffset;
-    } else {
-      if (destX < SCREEN_MARGIN_EXPANDED) destX = SCREEN_MARGIN_EXPANDED;
-      if (destX > screenW - currentW - SCREEN_MARGIN_EXPANDED) destX = screenW - currentW - SCREEN_MARGIN_EXPANDED;
-    }
-
-    if (distTop < SNAP_THRESHOLD) {
-      destY = -hideOffset;
-    } else if (distBottom < SNAP_THRESHOLD) {
-      destY = screenH - currentH + hideOffset;
-    } else {
-      if (destY < SCREEN_MARGIN_EXPANDED) destY = SCREEN_MARGIN_EXPANDED;
-      if (destY > screenH - currentH - SCREEN_MARGIN_EXPANDED) destY = screenH - currentH - SCREEN_MARGIN_EXPANDED;
-    }
-  } else {
-    if (distLeft < SNAP_THRESHOLD) {
-      destX = SCREEN_MARGIN_EXPANDED;
-    } else if (distRight < SNAP_THRESHOLD) {
-      destX = screenW - currentW - SCREEN_MARGIN_EXPANDED;
-    } else {
-      if (destX < SCREEN_MARGIN_EXPANDED) destX = SCREEN_MARGIN_EXPANDED;
-      if (destX > screenW - currentW - SCREEN_MARGIN_EXPANDED) destX = screenW - currentW - SCREEN_MARGIN_EXPANDED;
-    }
-
-    if (distTop < SNAP_THRESHOLD) {
-      destY = SCREEN_MARGIN_EXPANDED;
-    } else if (distBottom < SNAP_THRESHOLD) {
-      destY = screenH - currentH - SCREEN_MARGIN_EXPANDED;
-    } else {
-      if (destY < SCREEN_MARGIN_EXPANDED) destY = SCREEN_MARGIN_EXPANDED;
-      if (destY > screenH - currentH - SCREEN_MARGIN_EXPANDED) destY = screenH - currentH - SCREEN_MARGIN_EXPANDED;
-    }
-  }
-
-  targetSnap = { x: destX, y: destY };
-  startAnimationLoop();
-}
-
-function onResize() {
-  handleSnap();
-  if (state.isExpanded && state.isSubmenuOpen) {
-    ensureSubmenuVisible();
-    positionSubmenuAtChat();
-  }
-}
-
-function animate() {
-  if (destroyed) return;
-
-  const container = containerRef.value;
-  const visual = visualRef.value;
-
-  if (!container || !visual) {
-    rafId = requestAnimationFrame(animate);
-    return;
-  }
-
-  if (!state.isDragging) {
-    if (targetSnap) {
-      const dx = targetSnap.x - state.x;
-      const dy = targetSnap.y - state.y;
-      state.vx += dx * SPRING;
-      state.vy += dy * SPRING;
-      state.vx *= FRICTION;
-      state.vy *= FRICTION;
-
-      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(state.vx) < 0.1 && Math.abs(state.vy) < 0.1) {
-        state.x = targetSnap.x;
-        state.y = targetSnap.y;
-        state.vx = 0;
-        state.vy = 0;
-        targetSnap = null;
-      }
-    } else {
-      state.vx *= FRICTION;
-      state.vy *= FRICTION;
-
-      if (state.x < -BASE_SIZE || state.x > window.innerWidth) state.vx *= -0.5;
-      if (state.y < -BASE_SIZE || state.y > window.innerHeight) state.vy *= -0.5;
-    }
-
-    state.x += state.vx;
-    state.y += state.vy;
-  }
-
-  container.style.transform = `translate3d(${state.x}px, ${state.y}px, 0)`;
-
-  const velocity = Math.sqrt(state.vx * state.vx + state.vy * state.vy);
-  if (!state.isExpanded) {
-    let scaleX = 1;
-    let scaleY = 1;
-    let angle = 0;
-
-    if (velocity > 1) {
-      angle = Math.atan2(state.vy, state.vx);
-      const stretch = Math.min(velocity * STRETCH_FACTOR * 0.01, MAX_STRETCH);
-      scaleX = 1 + stretch;
-      scaleY = 1 - stretch * 0.5;
-    }
-
-    visual.style.transform = `rotate(${angle}rad) scale(${scaleX}, ${scaleY})`;
-  } else {
-    visual.style.transform = 'none';
-  }
-  if (!shouldKeepAnimating()) {
-    state.vx = 0;
-    state.vy = 0;
-    rafId = null;
-    return;
-  }
-
-  rafId = requestAnimationFrame(animate);
-}
-
-function resetIdleTimer() {
-  if (state.isExpanded) return;
-  if (state.isIdle) wakeUp();
-
-  clearTimeout(idleTimer);
-  idleTimer = setTimeout(goIdle, IDLE_TIMEOUT);
-}
-
-function goIdle() {
-  if (state.isDragging || state.isExpanded) return;
-  state.isIdle = true;
-}
-
-function wakeUp() {
-  state.isIdle = false;
-  const visual = visualRef.value;
-
-  if (visual?.animate) {
-    visual.animate(
-      [{ transform: 'scale(0.95)' }, { transform: 'scale(1.05)' }, { transform: 'scale(1)' }],
-      { duration: 400, easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)' }
-    );
-  }
-
-  clearTimeout(idleTimer);
-  idleTimer = setTimeout(goIdle, IDLE_TIMEOUT);
-}
-
-function onDocumentPointerDown(e) {
-  if (interactionBlocked()) return;
-  if (!state.isExpanded) return;
-
-  const container = containerRef.value;
-  const target = e.target;
-
-  if (container && container.contains(target)) return;
-  if (target.closest('.top-menu-root')) return;
-
-  collapseMenu();
-}
-
-function onClickContainer(e) {
-  if (interactionBlocked()) return;
-  if (state.isIdle) return;
-
-  const dx = e.clientX - startClickPos.x;
-  const dy = e.clientY - startClickPos.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  if (distance > 5) return;
-
-  if (!state.isExpanded) {
-    expandMenu();
-  }
+  if (ui.x < 8) ui.x = 8;
+  if (ui.y < 8) ui.y = 8;
+  if (ui.x > maxX) ui.x = maxX;
+  if (ui.y > maxY) ui.y = maxY;
 }
 
 function expandMenu() {
-  if (interactionBlocked()) return;
-  closeChatSubmenu();
-
-  let newX = state.x;
-  let newY = state.y;
-  const screenW = window.innerWidth;
-  const screenH = window.innerHeight;
-
-  if (newX < 0) newX = SCREEN_MARGIN_EXPANDED;
-  if (newX > screenW - EXPANDED_WIDTH - SCREEN_MARGIN_EXPANDED) {
-    newX = screenW - EXPANDED_WIDTH - SCREEN_MARGIN_EXPANDED;
-  }
-
-  if (newY < 0) newY = SCREEN_MARGIN_EXPANDED;
-  if (screenH - newY < EXPANDED_HEIGHT + 20) {
-    newY = screenH - EXPANDED_HEIGHT - 20;
-  }
-
-  targetSnap = { x: newX, y: newY };
-  startAnimationLoop();
-  state.isExpanded = true;
-  recordWindowDiag('levitation.expand', {
-    x: Number(newX.toFixed(2)),
-    y: Number(newY.toFixed(2))
-  });
-
-  clearTimeout(idleTimer);
-
-  const visual = visualRef.value;
-  if (visual?.animate) {
-    visual.animate(
-      [
-        { transform: 'translateY(0) scale(1,1)' },
-        { transform: 'translateY(-15px) scale(0.9, 1.1)' },
-        { transform: 'translateY(0) scale(1,1)' }
-      ],
-      { duration: 300, easing: 'ease-out' }
-    );
-  }
+  ui.expanded = true;
+  ui.pickerOpen = false;
+  clampPosition();
 }
 
 function collapseMenu() {
-  closeChatSubmenu();
-  state.isExpanded = false;
-  recordWindowDiag('levitation.collapse', {
-    x: Number(state.x.toFixed(2)),
-    y: Number(state.y.toFixed(2))
-  });
-  resetIdleTimer();
-  setTimeout(handleSnap, 400);
+  ui.expanded = false;
+  ui.pickerOpen = false;
+  clampPosition();
 }
 
-function toggleExpanded() {
-  if (state.isExpanded) {
+function toggleMenu() {
+  if (ui.expanded) {
     collapseMenu();
   } else {
     expandMenu();
   }
 }
 
-function toggleChatSubmenu() {
-  if (!state.isExpanded) return;
-
-  if (state.isSubmenuOpen) {
-    closeChatSubmenu();
-  } else {
-    openChatSubmenu();
+function onContainerClick(event) {
+  if (ui.dragging) return;
+  const target = event.target;
+  if (target?.closest?.('.menu-block, .picker-item')) return;
+  if (!ui.expanded) {
+    expandMenu();
   }
 }
 
-function openChatSubmenu() {
-  ensureSubmenuVisible();
-  positionSubmenuAtChat();
-  state.isSubmenuOpen = true;
-  recordWindowDiag('levitation.submenu.open', {
-    x: Number(state.x.toFixed(2)),
-    y: Number(state.y.toFixed(2))
-  });
+function onPointerDown(event) {
+  const target = event.target;
+  if (target?.closest?.('.menu-block, .picker-panel')) return;
+
+  ui.dragging = true;
+  ui.pointerId = event.pointerId;
+  ui.dragOffsetX = event.clientX - ui.x;
+  ui.dragOffsetY = event.clientY - ui.y;
+  ui.clickStartX = event.clientX;
+  ui.clickStartY = event.clientY;
+
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
 }
 
-function closeChatSubmenu() {
-  state.isSubmenuOpen = false;
-  recordWindowDiag('levitation.submenu.close');
+function onPointerMove(event) {
+  if (!ui.dragging) return;
+  if (ui.pointerId && event.pointerId !== ui.pointerId) return;
+
+  ui.x = event.clientX - ui.dragOffsetX;
+  ui.y = event.clientY - ui.dragOffsetY;
+  clampPosition();
 }
 
-function ensureSubmenuVisible() {
-  const screenW = window.innerWidth;
-  const screenH = window.innerHeight;
-  const maxX = screenW - EXPANDED_WIDTH - SCREEN_MARGIN_EXPANDED;
-  const maxY = screenH - EXPANDED_HEIGHT - SCREEN_MARGIN_EXPANDED;
-  const originalX = state.x;
-  const originalY = state.y;
+function onPointerUp(event) {
+  if (!ui.dragging) return;
+  if (ui.pointerId && event.pointerId !== ui.pointerId) return;
 
-  if (state.x < SCREEN_MARGIN_EXPANDED) state.x = SCREEN_MARGIN_EXPANDED;
-  if (state.x > maxX) state.x = maxX;
-  if (state.y < SCREEN_MARGIN_EXPANDED) state.y = SCREEN_MARGIN_EXPANDED;
-  if (state.y > maxY) state.y = maxY;
+  const dx = Math.abs(event.clientX - ui.clickStartX);
+  const dy = Math.abs(event.clientY - ui.clickStartY);
+  const clickLike = dx <= 5 && dy <= 5;
 
-  const rightEdge = state.x + EXPANDED_WIDTH + SUBMENU_GAP + SUBMENU_WIDTH + SCREEN_MARGIN_EXPANDED;
-  if (rightEdge > screenW) {
-    const overflow = rightEdge - screenW;
-    state.x = Math.max(SCREEN_MARGIN_EXPANDED, state.x - overflow);
+  ui.dragging = false;
+  ui.pointerId = 0;
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', onPointerUp);
+
+  if (clickLike && !ui.expanded) {
+    toggleMenu();
   }
-
-  if (state.x !== originalX || state.y !== originalY) {
-    targetSnap = { x: state.x, y: state.y };
-  }
 }
 
-function positionSubmenuAtChat() {
-  const chatButton = chatButtonRef.value;
-  const visual = visualRef.value;
-  if (!chatButton || !visual) return;
-
-  const chatRect = chatButton.getBoundingClientRect();
-  const visualRect = visual.getBoundingClientRect();
-  const buttonCenterX = chatRect.left - visualRect.left + chatRect.width * 0.5;
-  const buttonCenterY = chatRect.top - visualRect.top + chatRect.height * 0.5;
-
-  let top = chatRect.top - visualRect.top + chatRect.height * 0.5 - SUBMENU_HEIGHT * 0.5;
-  const minTop = 8;
-  const maxTop = EXPANDED_HEIGHT - SUBMENU_HEIGHT - 8;
-  if (top < minTop) top = minTop;
-  if (top > maxTop) top = maxTop;
-
-  chatSubmenuTop.value = `${top}px`;
-
-  const submenuCenterX = EXPANDED_WIDTH + SUBMENU_GAP + SUBMENU_WIDTH * 0.5;
-  const submenuCenterY = top + SUBMENU_HEIGHT * 0.5;
-  const launchX = buttonCenterX - submenuCenterX;
-  const launchY = buttonCenterY - submenuCenterY;
-
-  submenuLaunchX.value = `${launchX.toFixed(2)}px`;
-  submenuLaunchY.value = `${launchY.toFixed(2)}px`;
-  submenuOvershootX.value = `${(-launchX * 0.12).toFixed(2)}px`;
-  submenuOvershootY.value = `${(-launchY * 0.12).toFixed(2)}px`;
+function slotIcon(slot) {
+  if (slot.type === 'picker') return 'fas fa-th-large';
+  return getLightAppByCode(slot.appCode)?.iconClass || 'fas fa-circle';
 }
 
-function resolveQuickAppsFromState(rawState) {
-  const source = rawState && typeof rawState === 'object' ? rawState : readLightAppsState();
-  const floatingCodes = Array.isArray(source.floatingCodes) ? source.floatingCodes : [];
-  return floatingCodes
-    .slice(0, 3)
-    .map((code) => {
-      const app = getLightAppByCode(code);
-      if (!app) return null;
-      return {
-        code: app.code,
-        title: app.title,
-        iconClass: app.iconClass
-      };
-    })
-    .filter(Boolean);
+function slotTitle(slot) {
+  if (slot.type === 'picker') return '应用选择器';
+  return getLightAppByCode(slot.appCode)?.title || '未绑定应用';
 }
 
-function syncQuickApps(rawState) {
-  quickApps.value = resolveQuickAppsFromState(rawState);
-}
-
-function onLightAppsChanged(event) {
-  syncQuickApps(event?.detail);
-}
-
-function openQuickAppBySlot(slot) {
-  const app = quickApps.value[slot];
-  collapseMenu();
+function openByCode(code) {
+  const app = getLightAppByCode(code);
   if (!app) {
     router.push({ path: '/apps' }).catch(() => {});
+    collapseMenu();
     return;
   }
 
-  router
-    .push({
-      path: '/apps',
-      query: {
-        app: app.code,
-        mode: 'floating'
-      }
-    })
-    .catch(() => {});
-
-  recordWindowDiag('levitation.quickapp.open', {
-    code: app.code,
-    slot: slot + 1
-  });
-}
-
-function triggerRipple(element) {
-  if (!element?.animate) return;
-
-  element.animate([{ transform: 'scale(0.9)' }, { transform: 'scale(1)' }], {
-    duration: 200,
-    easing: 'ease-out'
-  });
-}
-
-function handleCloseClick(e) {
-  if (e?.currentTarget) triggerRipple(e.currentTarget);
+  openLightAppWindow(app.code, { source: 'levitation_ball' });
   collapseMenu();
 }
 
-function handleChatClick(e) {
-  if (e?.currentTarget) triggerRipple(e.currentTarget);
-  openQuickAppBySlot(0);
-}
-
-function handleMenuAction(action, e) {
-  if (e?.currentTarget) triggerRipple(e.currentTarget);
-  if (action === 'record') {
-    openQuickAppBySlot(1);
+function triggerSlot(slot) {
+  if (slot.type === 'picker') {
+    ui.pickerOpen = !ui.pickerOpen;
     return;
   }
-  openQuickAppBySlot(2);
+
+  if (!slot.appCode) {
+    router.push({ path: '/apps' }).catch(() => {});
+    collapseMenu();
+    return;
+  }
+
+  openByCode(slot.appCode);
 }
 
-function handleSubmenuAction(label, e) {
-  triggerRipple(e.currentTarget);
-  router.push({ path: '/apps' }).catch(() => {});
+function onDocumentPointerDown(event) {
+  if (!ui.expanded) return;
+  const container = containerRef.value;
+  if (!container) return;
+  if (container.contains(event.target)) return;
   collapseMenu();
-  recordWindowDiag('levitation.submenu.redirect', { label: String(label || '') });
+}
+
+function onResize() {
+  clampPosition();
 }
 
 defineExpose({
-  toggleExpanded,
+  toggleExpanded: toggleMenu,
   triggerMenuByIndex(index) {
     const n = Number(index);
-    if (!Number.isInteger(n) || n < 1 || n > 4) return;
+    if (!Number.isInteger(n) || n < 1 || n > 9) return;
 
     if (n === 1) {
-      handleCloseClick();
+      toggleMenu();
       return;
     }
 
-    if (!state.isExpanded) {
+    if (!ui.expanded) {
       expandMenu();
     }
 
-    if (n === 2) {
-      openQuickAppBySlot(0);
-      return;
-    }
-
-    if (n === 3) {
-      openQuickAppBySlot(1);
-      return;
-    }
-
-    openQuickAppBySlot(2);
+    const slot = activeSlots.value[n - 2];
+    if (!slot) return;
+    triggerSlot(slot);
   }
 });
 
 onMounted(() => {
-  const container = containerRef.value;
-  if (!container) return;
+  syncState();
+  ui.x = Math.max(8, window.innerWidth - 92);
+  ui.y = 120;
+  clampPosition();
 
-  syncQuickApps();
-  destroyed = false;
-  state.x = window.innerWidth - 100;
-  state.y = 100;
-
-  container.addEventListener('pointerdown', onPointerDown);
-  container.addEventListener('click', onClickContainer);
-
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
-  window.addEventListener('resize', onResize);
-
-  document.addEventListener('mousemove', resetIdleTimer);
-  document.addEventListener('touchstart', resetIdleTimer, touchStartOptions);
-  document.addEventListener('pointerdown', onDocumentPointerDown);
-  document.addEventListener('visibilitychange', onVisibilityChange);
-  window.addEventListener('blur', onWindowBlur);
-  window.addEventListener('focus', onWindowFocus);
-  window.addEventListener('pagehide', onPageHide);
-  window.addEventListener('pageshow', onPageShow);
   window.addEventListener(LIGHT_APPS_CHANGED_EVENT, onLightAppsChanged);
-
-  if (!interactionBlocked()) {
-    startAnimationLoop();
-    resetIdleTimer();
-  } else {
-    recordWindowDiag('levitation.init.blocked', {
-      hidden: !pageVisible,
-      hasFocus: windowFocused
-    });
-  }
+  window.addEventListener('resize', onResize);
+  document.addEventListener('pointerdown', onDocumentPointerDown);
 });
 
 onBeforeUnmount(() => {
-  destroyed = true;
-
-  const container = containerRef.value;
-  if (container) {
-    container.removeEventListener('pointerdown', onPointerDown);
-    container.removeEventListener('click', onClickContainer);
-  }
-
+  window.removeEventListener(LIGHT_APPS_CHANGED_EVENT, onLightAppsChanged);
+  window.removeEventListener('resize', onResize);
+  document.removeEventListener('pointerdown', onDocumentPointerDown);
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', onPointerUp);
-  window.removeEventListener('resize', onResize);
-
-  document.removeEventListener('mousemove', resetIdleTimer);
-  document.removeEventListener('touchstart', resetIdleTimer, touchStartOptions);
-  document.removeEventListener('pointerdown', onDocumentPointerDown);
-  document.removeEventListener('visibilitychange', onVisibilityChange);
-  window.removeEventListener('blur', onWindowBlur);
-  window.removeEventListener('focus', onWindowFocus);
-  window.removeEventListener('pagehide', onPageHide);
-  window.removeEventListener('pageshow', onPageShow);
-  window.removeEventListener(LIGHT_APPS_CHANGED_EVENT, onLightAppsChanged);
-
-  clearTimeout(idleTimer);
-  idleTimer = null;
-  stopAnimationLoop();
 });
 </script>
 
 <style scoped>
-.drop-container {
-  --drop-size: 60px;
-  --menu-width: 70px;
-  --menu-height: 260px;
-  --submenu-width: 78px;
-  --submenu-height: 144px;
-  --submenu-gap: 12px;
-  --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.drop-container {
+.float-ball {
   position: fixed;
   top: 0;
   left: 0;
-  width: var(--drop-size);
-  height: var(--drop-size);
-  z-index: 1000;
+  z-index: 2200;
   touch-action: none;
-  cursor: pointer;
-  transition: opacity 0.6s ease;
+  cursor: grab;
+  transition: width 0.22s ease, height 0.22s ease;
 }
 
-.drop-container.is-idle {
-  opacity: 0.3;
+.float-ball.dragging {
+  cursor: grabbing;
 }
 
-.drop-body {
-  --liquid-bg: var(--glass-bg);
+.ball-body {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  border-radius: 999px;
+  --liquid-bg: rgba(var(--glass-rgb), 0.46);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  transform-origin: center center;
-  transition:
-    width 0.4s var(--ease-elastic),
-    height 0.4s var(--ease-elastic),
-    border-radius 0.4s ease,
-    background-color 0.3s ease;
+  overflow: visible;
+  transition: border-radius 0.2s ease;
 }
 
-.drop-body::after {
-  content: '';
-  position: absolute;
-  top: 8%;
-  left: 12%;
-  width: 40%;
-  height: 25%;
-  border-radius: 50%;
-  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%);
-  opacity: 0.7;
-  pointer-events: none;
-  filter: blur(2px);
+.float-ball.expanded .ball-body {
+  border-radius: 24px;
 }
 
-.drop-body::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(148, 157, 192, 0.34);
-  pointer-events: none;
-}
-
-@keyframes breath {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.03);
-  }
-}
-
-.drop-container:not(.is-dragging):not(.is-expanded) .drop-body {
-  animation: breath 6s ease-in-out infinite;
-}
-
-@keyframes press-wobble {
-  0% {
-    transform: scale(1);
-  }
-  35% {
-    transform: scale(0.92, 1.06);
-  }
-  70% {
-    transform: scale(1.04, 0.96);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes submenu-panel-in {
-  0% {
-    opacity: 0;
-    transform: translate3d(var(--submenu-launch-x), var(--submenu-launch-y), 0) scale(0.28);
-  }
-  72% {
-    opacity: 1;
-    transform: translate3d(var(--submenu-overshoot-x), var(--submenu-overshoot-y), 0) scale(1.07);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes submenu-item-in {
-  0% {
-    opacity: 0;
-    transform: translateX(-9px) scale(0.92);
-  }
-  70% {
-    opacity: 1;
-    transform: translateX(1px) scale(1.05);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-.icon-gear-wrapper {
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  opacity: 0.6;
-  transition: opacity 0.3s, transform 0.3s;
-}
-
-.icon-gear-wrapper svg {
-  width: 100%;
-  height: 100%;
-  fill: #fff;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
-}
-
-.drop-container.is-expanded .icon-gear-wrapper {
-  opacity: 0;
-  transform: scale(0.5);
+.ball-icon {
+  color: rgba(245, 249, 255, 0.94);
+  font-size: 18px;
 }
 
 .menu-list {
-  position: absolute;
-  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 14px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-evenly;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(10px);
-  transition: opacity 0.2s 0.1s, transform 0.3s var(--ease-elastic) 0.1s;
+  gap: 8px;
 }
 
-.drop-container.is-expanded .menu-list {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-.drop-container.is-expanded .drop-body {
-  --liquid-bg: rgba(var(--glass-rgb), 0.34);
-  width: var(--menu-width);
-  height: var(--menu-height);
-  border-radius: 35px;
-  overflow: visible;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.menu-block {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  font-size: 0;
-  cursor: pointer;
-  transition: transform 0.1s, background 0.2s;
-  position: relative;
-}
-
-.menu-item:hover {
-  background: rgba(var(--accent-rgb), 0.46);
-}
-
-.menu-item:active {
-  animation: press-wobble 260ms ease;
-}
-
-.menu-item.close-btn {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.menu-item.close-btn:hover {
-  background: rgba(0, 0, 0, 0.22);
-}
-
-.menu-item.close-btn svg {
-  fill: rgba(0, 0, 0, 0.6);
-}
-
-.menu-item svg {
-  width: 20px;
-  height: 20px;
-  fill: rgba(255, 255, 255, 0.9);
-}
-
-.menu-item i {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.94);
-}
-
-.submenu-panel {
-  position: absolute;
-  left: calc(100% + var(--submenu-gap));
-  width: var(--submenu-width);
-  height: var(--submenu-height);
-  padding: 10px 8px;
-  border-radius: 24px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(24, 31, 48, 0.64);
+  color: rgba(236, 243, 255, 0.94);
+  display: inline-flex;
   align-items: center;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate3d(var(--submenu-launch-x), var(--submenu-launch-y), 0) scale(0.28);
-  transform-origin: center center;
-  transition: opacity 0.2s ease, transform 0.25s var(--ease-elastic);
+  justify-content: center;
 }
 
-.submenu-panel.is-open {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate3d(0, 0, 0) scale(1);
-  animation: submenu-panel-in 320ms cubic-bezier(0.18, 0.92, 0.24, 1.2);
+.menu-block.close-block {
+  background: rgba(35, 44, 66, 0.78);
 }
 
-.submenu-item {
-  width: 46px;
-  height: 36px;
-  border: 0;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  opacity: 0;
-  transform: translateX(-8px) scale(0.94);
-  transition: background 0.2s, color 0.2s;
+.picker-panel {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 8px;
+  min-width: 180px;
+  max-width: 240px;
+  border-radius: 12px;
+  --liquid-bg: rgba(13, 19, 34, 0.86);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
 }
 
-.submenu-item:hover {
-  background: rgba(var(--accent-rgb), 0.46);
-  color: #ffffff;
+.picker-item {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(24, 31, 47, 0.68);
+  color: rgba(236, 243, 255, 0.95);
+  min-height: 34px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.submenu-item:active {
-  animation: press-wobble 260ms ease;
+.picker-empty {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(210, 221, 242, 0.78);
+  padding: 6px;
 }
 
-.submenu-panel.is-open .submenu-item {
-  animation: submenu-item-in 250ms ease forwards;
-  animation-delay: calc(var(--submenu-item-index) * 55ms + 35ms);
-}
-
-.drop-container.is-expanded .menu-item:nth-child(1) {
-  transition-delay: 0.05s;
-}
-
-.drop-container.is-expanded .menu-item:nth-child(2) {
-  transition-delay: 0.1s;
-}
-
-.drop-container.is-expanded .menu-item:nth-child(3) {
-  transition-delay: 0.15s;
-}
-
-.drop-container.is-expanded .menu-item:nth-child(4) {
-  transition-delay: 0.2s;
+@media (max-width: 860px) {
+  .picker-panel {
+    left: auto;
+    right: calc(100% + 10px);
+  }
 }
 </style>

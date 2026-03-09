@@ -333,6 +333,7 @@
         </div>
       </transition>
 
+      <LightAppWindowHost :is-home-route="isHomeRoute" />
       <LevitationBall v-if="showLevitationBall" ref="levitationRef" />
 
       <div class="click-ripple-layer" aria-hidden="true">
@@ -358,6 +359,7 @@ import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import AiDialog from './components/AiDialog.vue';
 import LevitationBall from './components/LevitationBall.vue';
+import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
 import WallpaperL2dCanvas from './components/WallpaperL2dCanvas.vue';
 import TopMenu from './components/TopMenu.vue';

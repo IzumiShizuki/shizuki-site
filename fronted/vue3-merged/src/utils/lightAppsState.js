@@ -1,12 +1,21 @@
 import { LIGHT_APP_CODES, isKnownLightAppCode } from './lightAppsCatalog';
 
-export const LIGHT_APPS_STORAGE_KEY = 'shizuki.lightApps.v1';
+export const LIGHT_APPS_STORAGE_KEY = 'shizuki.lightApps.v2';
 export const LIGHT_APPS_CHANGED_EVENT = 'shizuki:light-apps-changed';
 export const LIGHT_APPS_PREFERENCE_KEY = 'light_apps';
-export const MAX_FLOATING_APPS = 3;
+export const MAX_BALL_SLOTS = 8;
 
-const DEFAULT_ENABLED_CODES = LIGHT_APP_CODES.slice(0, 3);
-const DEFAULT_FLOATING_CODES = LIGHT_APP_CODES.slice(0, MAX_FLOATING_APPS);
+const DEFAULT_ENABLED_CODES = LIGHT_APP_CODES.slice(0, 4);
+const DEFAULT_SLOT_BLUEPRINT = Object.freeze([
+  { enabled: true, type: 'picker', app_code: '' },
+  { enabled: true, type: 'app', app_code: 'timeprism-todo' },
+  { enabled: true, type: 'app', app_code: 'timeprism-board' },
+  { enabled: true, type: 'app', app_code: 'timeprism-schedule' },
+  { enabled: true, type: 'app', app_code: 'timeprism-projects' },
+  { enabled: false, type: 'app', app_code: '' },
+  { enabled: false, type: 'app', app_code: '' },
+  { enabled: false, type: 'app', app_code: '' }
+]);
 
 function toObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -28,6 +37,11 @@ function uniqueKnownCodes(codes) {
   return output;
 }
 
+function resolveEnabledCodes(input) {
+  const codes = uniqueKnownCodes(input);
+  return codes.length ? codes : DEFAULT_ENABLED_CODES.slice();
+}
+
 function normalizeConfigs(input, enabledCodes) {
   const source = toObject(input);
   const enabledSet = new Set(enabledCodes);
@@ -42,38 +56,128 @@ function normalizeConfigs(input, enabledCodes) {
   return next;
 }
 
-function resolveEnabledCodes(input) {
-  const codes = uniqueKnownCodes(input);
-  return codes.length ? codes : DEFAULT_ENABLED_CODES.slice();
+function resolveKnownCode(raw) {
+  const code = String(raw || '').trim();
+  return isKnownLightAppCode(code) ? code : '';
 }
 
-function resolveFloatingCodes(input, enabledCodes) {
+function pickFallbackAppCode(enabledCodes, usedCodes) {
   const enabledSet = new Set(enabledCodes);
-  const codes = uniqueKnownCodes(input).filter((code) => enabledSet.has(code));
-  if (codes.length) {
-    return codes.slice(0, MAX_FLOATING_APPS);
+  const firstUnused = LIGHT_APP_CODES.find((code) => enabledSet.has(code) && !usedCodes.has(code));
+  if (firstUnused) {
+    usedCodes.add(firstUnused);
+    return firstUnused;
   }
 
-  return DEFAULT_FLOATING_CODES.filter((code) => enabledSet.has(code)).slice(0, MAX_FLOATING_APPS);
+  const firstEnabled = enabledCodes[0] || '';
+  if (firstEnabled) {
+    usedCodes.add(firstEnabled);
+  }
+  return firstEnabled;
+}
+
+function normalizeBallSlots(input, enabledCodes) {
+  const source = Array.isArray(input) ? input : [];
+  const normalized = [];
+  const usedCodes = new Set();
+
+  for (let i = 0; i < MAX_BALL_SLOTS; i += 1) {
+    const fallback = DEFAULT_SLOT_BLUEPRINT[i] || { enabled: false, type: 'app', app_code: '' };
+    const raw = toObject(source[i]);
+
+    const enabled = raw.enabled === undefined ? Boolean(fallback.enabled) : Boolean(raw.enabled);
+
+    const rawType = String(raw.type || fallback.type || 'app').trim().toLowerCase();
+    const type = rawType === 'picker' ? 'picker' : 'app';
+
+    let appCode = resolveKnownCode(raw.app_code || raw.appCode || fallback.app_code || fallback.appCode);
+    if (appCode && enabledCodes.includes(appCode)) {
+      usedCodes.add(appCode);
+    }
+
+    if (type === 'app') {
+      if (!enabled) {
+        appCode = '';
+      } else if (!appCode || !enabledCodes.includes(appCode)) {
+        appCode = pickFallbackAppCode(enabledCodes, usedCodes);
+      }
+    } else {
+      appCode = '';
+    }
+
+    normalized.push({
+      enabled,
+      type,
+      app_code: appCode
+    });
+  }
+
+  return normalized;
+}
+
+function buildSlotsFromFloatingCodes(floatingCodes, enabledCodes) {
+  const next = DEFAULT_SLOT_BLUEPRINT.map((slot) => ({ ...slot }));
+  const codes = uniqueKnownCodes(floatingCodes).filter((code) => enabledCodes.includes(code));
+  if (!codes.length) {
+    return normalizeBallSlots(next, enabledCodes);
+  }
+
+  for (let i = 0; i < MAX_BALL_SLOTS; i += 1) {
+    if (i === 0) continue;
+    const code = codes[i - 1] || '';
+    if (!code) {
+      next[i] = { enabled: false, type: 'app', app_code: '' };
+      continue;
+    }
+    next[i] = { enabled: true, type: 'app', app_code: code };
+  }
+
+  return normalizeBallSlots(next, enabledCodes);
+}
+
+function fromLegacyState(source) {
+  const enabledCodes = resolveEnabledCodes(source.enabledCodes || source.enabled_codes);
+  const legacyConfigs = source.configs || source.app_configs;
+  const legacyFloatingCodes = source.floatingCodes || source.floating_codes;
+
+  return {
+    enabled_codes: enabledCodes,
+    ball_slots: buildSlotsFromFloatingCodes(legacyFloatingCodes, enabledCodes),
+    app_configs: normalizeConfigs(legacyConfigs, enabledCodes)
+  };
 }
 
 export function createDefaultLightAppsState() {
   const enabledCodes = resolveEnabledCodes(DEFAULT_ENABLED_CODES);
   return {
-    enabledCodes,
-    floatingCodes: resolveFloatingCodes(DEFAULT_FLOATING_CODES, enabledCodes),
-    configs: {}
+    enabled_codes: enabledCodes,
+    ball_slots: normalizeBallSlots(DEFAULT_SLOT_BLUEPRINT, enabledCodes),
+    app_configs: {}
   };
 }
 
 export function normalizeLightAppsState(input) {
   const source = toObject(input);
-  const enabledCodes = resolveEnabledCodes(source.enabledCodes);
-  const floatingCodes = resolveFloatingCodes(source.floatingCodes, enabledCodes);
+  const maybeLegacy =
+    Object.prototype.hasOwnProperty.call(source, 'enabledCodes') ||
+    Object.prototype.hasOwnProperty.call(source, 'floatingCodes') ||
+    Object.prototype.hasOwnProperty.call(source, 'configs');
+
+  if (maybeLegacy) {
+    return fromLegacyState(source);
+  }
+
+  const enabledCodes = resolveEnabledCodes(source.enabled_codes || source.enabledCodes);
+  const ballSlots = normalizeBallSlots(
+    source.ball_slots || source.ballSlots || source.floating_slots || source.floatingSlots,
+    enabledCodes
+  );
+  const appConfigs = normalizeConfigs(source.app_configs || source.appConfigs || source.configs, enabledCodes);
+
   return {
-    enabledCodes,
-    floatingCodes,
-    configs: normalizeConfigs(source.configs, enabledCodes)
+    enabled_codes: enabledCodes,
+    ball_slots: ballSlots,
+    app_configs: appConfigs
   };
 }
 
@@ -116,7 +220,7 @@ export function notifyLightAppsChanged(state) {
 
 export function readLightAppsPreference(preferencePayload) {
   const source = toObject(preferencePayload);
-  const candidate = source[LIGHT_APPS_PREFERENCE_KEY] || source.lightApps;
+  const candidate = source[LIGHT_APPS_PREFERENCE_KEY] || source.light_apps || source.lightApps;
   if (!candidate || typeof candidate !== 'object') return null;
   return normalizeLightAppsState(candidate);
 }

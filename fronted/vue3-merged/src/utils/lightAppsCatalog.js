@@ -2,7 +2,7 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
   {
     code: 'timeprism-todo',
     title: 'TimePrism Todo',
-    summary: '创建与管理待办事项，支持完成状态与优先级筛选。',
+    summary: '管理待办与优先级，支持重排与登录后云端同步。',
     iconClass: 'fas fa-list-check',
     source: 'TimePrism',
     floatingAble: true
@@ -10,7 +10,7 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
   {
     code: 'timeprism-board',
     title: 'TimePrism Task Board',
-    summary: '轻量看板视图，适合按列推进学习任务。',
+    summary: '多列任务看板，支持任务移动、列配置与排序。',
     iconClass: 'fas fa-columns',
     source: 'TimePrism',
     floatingAble: true
@@ -18,8 +18,16 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
   {
     code: 'timeprism-schedule',
     title: 'TimePrism Schedule',
-    summary: '维护学习日程事件，快速查看最近安排。',
+    summary: '日程事件管理与近期安排预览，支持项目关联。',
     iconClass: 'fas fa-calendar-days',
+    source: 'TimePrism',
+    floatingAble: true
+  },
+  {
+    code: 'timeprism-projects',
+    title: 'TimePrism Projects',
+    summary: '项目分组与归档管理，为 Todo/Task/Schedule 提供归属。',
+    iconClass: 'fas fa-folder-tree',
     source: 'TimePrism',
     floatingAble: true
   }

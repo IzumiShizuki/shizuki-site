@@ -1,0 +1,94 @@
+CREATE TABLE IF NOT EXISTS CTN_LA_PROJECT (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'CTN_LA_PROJECT.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'CTN_LA_PROJECT.user_id 用户ID',
+    project_code VARCHAR(64) NOT NULL COMMENT 'CTN_LA_PROJECT.project_code 项目标识',
+    name_text VARCHAR(120) NOT NULL COMMENT 'CTN_LA_PROJECT.name_text 项目名称',
+    description_text VARCHAR(1024) NULL COMMENT 'CTN_LA_PROJECT.description_text 项目描述',
+    color_text VARCHAR(32) NOT NULL DEFAULT '#6aa9ff' COMMENT 'CTN_LA_PROJECT.color_text 主题色',
+    archived_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_PROJECT.archived_flag 归档标记',
+    sort_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_PROJECT.sort_num 排序值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'CTN_LA_PROJECT.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'CTN_LA_PROJECT.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_PROJECT.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_PROJECT.version_num 版本号',
+    CONSTRAINT PK_CTN_LA_PROJECT PRIMARY KEY (id),
+    CONSTRAINT AK_CTN_LA_PROJECT_1 UNIQUE (user_id, project_code),
+    KEY IX_CTN_LA_PROJECT_1 (user_id, sort_num, update_time)
+) COMMENT='轻应用项目表';
+
+CREATE TABLE IF NOT EXISTS CTN_LA_TODO (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'CTN_LA_TODO.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'CTN_LA_TODO.user_id 用户ID',
+    project_id BIGINT NULL COMMENT 'CTN_LA_TODO.project_id 关联项目ID',
+    title_text VARCHAR(200) NOT NULL COMMENT 'CTN_LA_TODO.title_text 待办标题',
+    detail_text VARCHAR(2000) NULL COMMENT 'CTN_LA_TODO.detail_text 待办详情',
+    priority_code VARCHAR(16) NOT NULL DEFAULT 'MEDIUM' COMMENT 'CTN_LA_TODO.priority_code 优先级',
+    done_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TODO.done_flag 完成标记',
+    due_datetime DATETIME NULL COMMENT 'CTN_LA_TODO.due_datetime 截止时间',
+    sort_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TODO.sort_num 排序值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'CTN_LA_TODO.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'CTN_LA_TODO.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TODO.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TODO.version_num 版本号',
+    CONSTRAINT PK_CTN_LA_TODO PRIMARY KEY (id),
+    KEY IX_CTN_LA_TODO_1 (user_id, done_flag, sort_num, update_time),
+    KEY IX_CTN_LA_TODO_2 (user_id, project_id),
+    CONSTRAINT FK_CTN_LA_TODO_1 FOREIGN KEY (project_id) REFERENCES CTN_LA_PROJECT(id)
+) COMMENT='轻应用待办表';
+
+CREATE TABLE IF NOT EXISTS CTN_LA_TASK_COLUMN (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'CTN_LA_TASK_COLUMN.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'CTN_LA_TASK_COLUMN.user_id 用户ID',
+    column_code VARCHAR(64) NOT NULL COMMENT 'CTN_LA_TASK_COLUMN.column_code 列编码',
+    title_text VARCHAR(120) NOT NULL COMMENT 'CTN_LA_TASK_COLUMN.title_text 列标题',
+    sort_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TASK_COLUMN.sort_num 排序值',
+    enabled_flag TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'CTN_LA_TASK_COLUMN.enabled_flag 启用标记',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'CTN_LA_TASK_COLUMN.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'CTN_LA_TASK_COLUMN.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TASK_COLUMN.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TASK_COLUMN.version_num 版本号',
+    CONSTRAINT PK_CTN_LA_TASK_COLUMN PRIMARY KEY (id),
+    CONSTRAINT AK_CTN_LA_TASK_COLUMN_1 UNIQUE (user_id, column_code),
+    KEY IX_CTN_LA_TASK_COLUMN_1 (user_id, sort_num)
+) COMMENT='轻应用任务看板列配置表';
+
+CREATE TABLE IF NOT EXISTS CTN_LA_TASK (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'CTN_LA_TASK.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'CTN_LA_TASK.user_id 用户ID',
+    project_id BIGINT NULL COMMENT 'CTN_LA_TASK.project_id 关联项目ID',
+    column_code VARCHAR(64) NOT NULL COMMENT 'CTN_LA_TASK.column_code 列编码',
+    title_text VARCHAR(200) NOT NULL COMMENT 'CTN_LA_TASK.title_text 任务标题',
+    detail_text VARCHAR(2000) NULL COMMENT 'CTN_LA_TASK.detail_text 任务详情',
+    due_datetime DATETIME NULL COMMENT 'CTN_LA_TASK.due_datetime 截止时间',
+    sort_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TASK.sort_num 排序值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'CTN_LA_TASK.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'CTN_LA_TASK.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TASK.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_TASK.version_num 版本号',
+    CONSTRAINT PK_CTN_LA_TASK PRIMARY KEY (id),
+    KEY IX_CTN_LA_TASK_1 (user_id, column_code, sort_num, update_time),
+    KEY IX_CTN_LA_TASK_2 (user_id, project_id),
+    CONSTRAINT FK_CTN_LA_TASK_1 FOREIGN KEY (project_id) REFERENCES CTN_LA_PROJECT(id)
+) COMMENT='轻应用任务表';
+
+CREATE TABLE IF NOT EXISTS CTN_LA_SCHEDULE_EVENT (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'CTN_LA_SCHEDULE_EVENT.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'CTN_LA_SCHEDULE_EVENT.user_id 用户ID',
+    project_id BIGINT NULL COMMENT 'CTN_LA_SCHEDULE_EVENT.project_id 关联项目ID',
+    title_text VARCHAR(200) NOT NULL COMMENT 'CTN_LA_SCHEDULE_EVENT.title_text 日程标题',
+    detail_text VARCHAR(2000) NULL COMMENT 'CTN_LA_SCHEDULE_EVENT.detail_text 日程详情',
+    start_datetime DATETIME NOT NULL COMMENT 'CTN_LA_SCHEDULE_EVENT.start_datetime 开始时间',
+    end_datetime DATETIME NULL COMMENT 'CTN_LA_SCHEDULE_EVENT.end_datetime 结束时间',
+    all_day_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_SCHEDULE_EVENT.all_day_flag 全天标记',
+    location_text VARCHAR(255) NULL COMMENT 'CTN_LA_SCHEDULE_EVENT.location_text 地点',
+    status_code VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT 'CTN_LA_SCHEDULE_EVENT.status_code 状态',
+    sort_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_SCHEDULE_EVENT.sort_num 排序值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'CTN_LA_SCHEDULE_EVENT.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'CTN_LA_SCHEDULE_EVENT.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_SCHEDULE_EVENT.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_SCHEDULE_EVENT.version_num 版本号',
+    CONSTRAINT PK_CTN_LA_SCHEDULE_EVENT PRIMARY KEY (id),
+    KEY IX_CTN_LA_SCHEDULE_EVENT_1 (user_id, start_datetime, status_code),
+    KEY IX_CTN_LA_SCHEDULE_EVENT_2 (user_id, project_id),
+    CONSTRAINT FK_CTN_LA_SCHEDULE_EVENT_1 FOREIGN KEY (project_id) REFERENCES CTN_LA_PROJECT(id)
+) COMMENT='轻应用日程表';
