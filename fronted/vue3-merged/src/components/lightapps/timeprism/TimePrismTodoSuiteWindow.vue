@@ -32,6 +32,7 @@ import ScheduleWindow from './ScheduleWindow.vue';
 import TaskBoardWindow from './TaskBoardWindow.vue';
 import TodoWindow from './TodoWindow.vue';
 import {
+  bumpSuiteProjectVersion,
   TIMEPRISM_MODULE_BOARD,
   TIMEPRISM_MODULE_PROJECTS,
   TIMEPRISM_MODULE_SCHEDULE,
@@ -78,12 +79,18 @@ function openTodoWithProject(projectId) {
   openTodoWithProjectFilter(session, projectId);
 }
 
+function notifyProjectsChanged() {
+  bumpSuiteProjectVersion(session);
+}
+
 provide(TIMEPRISM_SUITE_CONTEXT_KEY, {
   activeModule: computed(() => session.activeModule),
   selectedProjectIds: computed(() => session.selectedProjectIds),
+  projectVersion: computed(() => session.projectVersion),
   setActiveModule,
   setProjectFilters,
-  openTodoWithProject
+  openTodoWithProject,
+  notifyProjectsChanged
 });
 
 const activeComponent = computed(() => moduleMap[session.activeModule] || TodoWindow);

@@ -64,7 +64,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, inject, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppSchedule,
@@ -81,8 +81,10 @@ import {
   updateGuestLightAppData,
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
+import { TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
 
 const auth = useAuthSession();
+const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
 
 const schedules = ref([]);
 const projects = ref([]);
@@ -230,6 +232,19 @@ async function refreshRemoteSchedules() {
   writeRemoteLightAppCache({ projects: projects.value, schedules: schedules.value });
 }
 
+async function refreshProjectOptionsOnly() {
+  await auth.ensureReady();
+  if (!auth.isAuthenticated.value) {
+    const guest = readGuestLightAppData();
+    projects.value = Array.isArray(guest.projects) ? guest.projects : [];
+    return;
+  }
+
+  const projectList = await listLightAppProjects(auth.authorizedFetch);
+  projects.value = Array.isArray(projectList) ? projectList : [];
+  writeRemoteLightAppCache({ projects: projects.value, schedules: schedules.value });
+}
+
 async function reloadUpcoming() {
   errorText.value = '';
   try {
@@ -349,6 +364,20 @@ async function removeSchedule(scheduleId) {
 onMounted(() => {
   hydrate();
 });
+
+if (suiteContext?.projectVersion) {
+  watch(
+    () => suiteContext.projectVersion.value,
+    async (current, previous) => {
+      if (current === previous) return;
+      try {
+        await refreshProjectOptionsOnly();
+      } catch {
+        // keep current project snapshot
+      }
+    }
+  );
+}
 </script>
 
 <style scoped>

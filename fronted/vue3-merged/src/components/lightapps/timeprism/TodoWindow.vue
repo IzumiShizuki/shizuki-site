@@ -50,7 +50,7 @@
         :key="`project_filter_${project.projectId}`"
         class="chip-btn ripple-trigger project-chip"
         :class="{ active: isProjectFilterActive(project.projectId) }"
-        :style="projectChipStyle(project.color)"
+        :style="projectChipStyle(project.projectId)"
         @click="toggleProjectFilter(project.projectId)"
       >
         <span class="project-chip-dot" :style="{ backgroundColor: projectColor(project.projectId) }"></span>
@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted, reactive, ref } from 'vue';
+import { computed, inject, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppTodo,
@@ -145,7 +145,10 @@ const selectedProjectIds = computed(() => {
 });
 
 const hasUnassignedTodos = computed(() =>
-  todos.value.some((item) => (Number.isInteger(Number(item?.projectId)) ? Number(item.projectId) <= 0 : true))
+  todos.value.some((item) => {
+    const projectId = Number(item?.projectId);
+    return !Number.isInteger(projectId) || projectId <= 0;
+  })
 );
 
 const filteredTodos = computed(() => {
@@ -198,12 +201,12 @@ function projectColor(projectId) {
   return '#6aa9ff';
 }
 
-function projectChipStyle(color) {
-  const chipColor = String(color || '#6aa9ff').trim() || '#6aa9ff';
+function projectChipStyle(projectId) {
+  const chipColor = projectColor(projectId);
   return {
-    borderColor: addHexAlpha(chipColor, '88'),
-    color: chipColor,
-    backgroundColor: addHexAlpha(chipColor, '1f')
+    '--project-chip-color': chipColor,
+    '--project-chip-border': addHexAlpha(chipColor, '88'),
+    '--project-chip-bg': addHexAlpha(chipColor, '22')
   };
 }
 
@@ -320,6 +323,19 @@ async function refreshRemoteTodos() {
   ]);
   projects.value = Array.isArray(projectList) ? projectList : [];
   todos.value = sortTodos(Array.isArray(todoList) ? todoList : []);
+  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value });
+}
+
+async function refreshProjectOptionsOnly() {
+  await auth.ensureReady();
+  if (!auth.isAuthenticated.value) {
+    const guest = readGuestLightAppData();
+    projects.value = (guest.projects || []).slice();
+    return;
+  }
+
+  const projectList = await listLightAppProjects(auth.authorizedFetch);
+  projects.value = Array.isArray(projectList) ? projectList : [];
   writeRemoteLightAppCache({ projects: projects.value, todos: todos.value });
 }
 
@@ -460,6 +476,20 @@ async function moveTodo(todoId, direction) {
 onMounted(() => {
   hydrate();
 });
+
+if (suiteContext?.projectVersion) {
+  watch(
+    () => suiteContext.projectVersion.value,
+    async (current, previous) => {
+      if (current === previous) return;
+      try {
+        await refreshProjectOptionsOnly();
+      } catch {
+        // keep current projects snapshot
+      }
+    }
+  );
+}
 </script>
 
 <style scoped>
@@ -538,6 +568,15 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  color: var(--la-muted);
+  border-color: var(--la-border);
+  background: var(--la-btn-bg);
+}
+
+.project-chip.active {
+  color: var(--project-chip-color);
+  border-color: var(--project-chip-border);
+  background: var(--project-chip-bg);
 }
 
 .project-chip-dot {

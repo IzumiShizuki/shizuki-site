@@ -208,6 +208,7 @@ async function submitProject() {
       const list = await listLightAppProjects(auth.authorizedFetch);
       projects.value = sortProjects(Array.isArray(list) ? list : []);
       writeRemoteLightAppCache({ projects: projects.value });
+      suiteContext?.notifyProjectsChanged?.();
       showForm.value = false;
       resetDraft();
       return;
@@ -226,6 +227,7 @@ async function submitProject() {
           };
         })
       );
+      suiteContext?.notifyProjectsChanged?.();
       showForm.value = false;
       resetDraft();
       return;
@@ -246,6 +248,7 @@ async function submitProject() {
         updatedAt: new Date().toISOString()
       }
     ]);
+    suiteContext?.notifyProjectsChanged?.();
     showForm.value = false;
     resetDraft();
   } catch (error) {
@@ -279,6 +282,7 @@ async function toggleArchived(item) {
       const list = await listLightAppProjects(auth.authorizedFetch);
       projects.value = sortProjects(Array.isArray(list) ? list : []);
       writeRemoteLightAppCache({ projects: projects.value });
+      suiteContext?.notifyProjectsChanged?.();
       return;
     }
 
@@ -291,6 +295,7 @@ async function toggleArchived(item) {
         };
       })
     );
+    suiteContext?.notifyProjectsChanged?.();
   } catch (error) {
     errorText.value = error?.message || '项目状态更新失败';
   }
@@ -311,6 +316,7 @@ async function removeProject(projectId) {
       const list = await listLightAppProjects(auth.authorizedFetch);
       projects.value = sortProjects(Array.isArray(list) ? list : []);
       writeRemoteLightAppCache({ projects: projects.value });
+      suiteContext?.notifyProjectsChanged?.();
       if (editingId.value === normalizedProjectId) {
         resetDraft();
       }
@@ -318,6 +324,7 @@ async function removeProject(projectId) {
     }
 
     persistGuestProjects(projects.value.filter((item) => item.projectId !== normalizedProjectId));
+    suiteContext?.notifyProjectsChanged?.();
     if (editingId.value === normalizedProjectId) {
       resetDraft();
     }

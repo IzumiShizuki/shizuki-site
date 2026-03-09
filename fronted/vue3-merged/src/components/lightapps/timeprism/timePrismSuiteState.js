@@ -49,7 +49,8 @@ export function normalizeTodoViewFilter(value) {
 export function createTimePrismSuiteSessionState(seed = {}) {
   return {
     activeModule: normalizeSuiteModule(seed.activeModule),
-    selectedProjectIds: normalizeProjectFilterIds(seed.selectedProjectIds)
+    selectedProjectIds: normalizeProjectFilterIds(seed.selectedProjectIds),
+    projectVersion: Number.isInteger(Number(seed.projectVersion)) ? Number(seed.projectVersion) : 0
   };
 }
 
@@ -62,6 +63,13 @@ export function setSuiteActiveModule(state, code) {
 export function setSuiteProjectFilters(state, ids) {
   if (!state || typeof state !== 'object') return state;
   state.selectedProjectIds = normalizeProjectFilterIds(ids);
+  return state;
+}
+
+export function bumpSuiteProjectVersion(state) {
+  if (!state || typeof state !== 'object') return state;
+  const current = Number(state.projectVersion);
+  state.projectVersion = Number.isInteger(current) ? current + 1 : 1;
   return state;
 }
 

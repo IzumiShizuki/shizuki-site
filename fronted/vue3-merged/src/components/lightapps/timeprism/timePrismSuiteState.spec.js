@@ -7,6 +7,7 @@ import {
   TODO_VIEW_OPEN,
   UNASSIGNED_PROJECT_FILTER_ID,
   createTimePrismSuiteSessionState,
+  bumpSuiteProjectVersion,
   filterTodosByViewAndProjects,
   normalizeProjectFilterIds,
   openTodoWithProjectFilter,
@@ -36,6 +37,10 @@ describe('timePrismSuiteState', () => {
     const state = createTimePrismSuiteSessionState();
     setSuiteProjectFilters(state, [2, 2, 3, UNASSIGNED_PROJECT_FILTER_ID]);
     expect(state.selectedProjectIds).toEqual([2, 3, UNASSIGNED_PROJECT_FILTER_ID]);
+
+    bumpSuiteProjectVersion(state);
+    bumpSuiteProjectVersion(state);
+    expect(state.projectVersion).toBe(2);
   });
 
   it('opens todo with single project filter when triggered from projects module', () => {
