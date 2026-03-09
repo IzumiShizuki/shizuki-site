@@ -279,6 +279,7 @@ onMounted(() => {
   display: grid;
   gap: 10px;
   color: var(--la-text);
+  min-width: 0;
 }
 
 .project-form {
@@ -335,6 +336,7 @@ onMounted(() => {
 
 .project-main p {
   margin: 0;
+  word-break: break-word;
 }
 
 .project-main small {
@@ -373,6 +375,32 @@ onMounted(() => {
   text-align: center;
   color: var(--la-muted);
   padding: 14px 0;
+}
+
+@container lightapp-window-body (max-width: 860px) {
+  .project-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container lightapp-window-body (max-width: 560px) {
+  .project-form {
+    grid-template-columns: 1fr;
+  }
+
+  .project-item {
+    grid-template-columns: 1fr;
+  }
+
+  .project-actions {
+    justify-content: flex-end;
+  }
+}
+
+@container lightapp-window-body (max-height: 360px) {
+  .lightapp-window {
+    gap: 8px;
+  }
 }
 
 @media (max-width: 900px) {

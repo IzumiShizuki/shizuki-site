@@ -331,6 +331,36 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: auto;
   padding: 10px;
+  container-type: size;
+  container-name: lightapp-window-body;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(110, 122, 146, 0.44) rgba(255, 255, 255, 0.1);
+}
+
+.window-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.window-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.window-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(110, 122, 146, 0.4);
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+.window-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(121, 134, 161, 0.55);
+  background-clip: content-box;
+}
+
+.window-body::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .window-resize {

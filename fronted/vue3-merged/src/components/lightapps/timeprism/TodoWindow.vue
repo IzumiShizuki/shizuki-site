@@ -344,6 +344,7 @@ onMounted(() => {
   display: grid;
   gap: 10px;
   color: var(--la-text);
+  min-width: 0;
 }
 
 .todo-create {
@@ -415,6 +416,7 @@ onMounted(() => {
 .todo-main p {
   margin: 0;
   line-height: 1.45;
+  word-break: break-word;
 }
 
 .todo-main small {
@@ -463,6 +465,55 @@ onMounted(() => {
   margin: 0;
   color: var(--la-danger);
   font-size: 12px;
+}
+
+@container lightapp-window-body (max-width: 760px) {
+  .todo-create {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .todo-toolbar {
+    gap: 6px;
+  }
+
+  .toolbar-hint {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .todo-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .todo-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@container lightapp-window-body (max-width: 520px) {
+  .todo-create {
+    grid-template-columns: 1fr;
+  }
+
+  .chip-btn,
+  .action-btn {
+    min-height: 32px;
+  }
+
+  .todo-item {
+    padding: 8px 10px;
+  }
+}
+
+@container lightapp-window-body (max-height: 360px) {
+  .lightapp-window {
+    gap: 8px;
+  }
+
+  .todo-item {
+    padding: 8px 10px;
+  }
 }
 
 @media (max-width: 960px) {

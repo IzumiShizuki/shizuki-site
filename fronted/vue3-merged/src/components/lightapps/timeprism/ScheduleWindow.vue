@@ -350,6 +350,7 @@ onMounted(() => {
   display: grid;
   gap: 10px;
   color: var(--la-text);
+  min-width: 0;
 }
 
 .event-create {
@@ -452,6 +453,7 @@ onMounted(() => {
 
 .event-main p {
   margin: 0;
+  word-break: break-word;
 }
 
 .event-main small {
@@ -483,6 +485,42 @@ onMounted(() => {
   text-align: center;
   color: var(--la-muted);
   padding: 10px 0;
+}
+
+@container lightapp-window-body (max-width: 940px) {
+  .event-create {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .upcoming-panel header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@container lightapp-window-body (max-width: 560px) {
+  .event-create {
+    grid-template-columns: 1fr;
+  }
+
+  .event-item {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .event-actions {
+    justify-content: flex-end;
+  }
+}
+
+@container lightapp-window-body (max-height: 380px) {
+  .lightapp-window {
+    gap: 8px;
+  }
+
+  .event-item {
+    padding: 8px 10px;
+  }
 }
 
 @media (max-width: 980px) {

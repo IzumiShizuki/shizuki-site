@@ -488,6 +488,7 @@ onMounted(() => {
   display: grid;
   gap: 10px;
   color: var(--la-text);
+  min-width: 0;
 }
 
 .task-create {
@@ -596,6 +597,7 @@ onMounted(() => {
 
 .task-card p {
   margin: 0;
+  word-break: break-word;
 }
 
 .task-card small {
@@ -631,6 +633,46 @@ onMounted(() => {
   margin: 8px 0 0;
   color: var(--la-muted);
   font-size: 12px;
+}
+
+@container lightapp-window-body (max-width: 860px) {
+  .task-create {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .column-editor-list li {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 86px auto;
+  }
+
+  .column-editor-list li button.icon-btn {
+    width: 100%;
+  }
+}
+
+@container lightapp-window-body (max-width: 560px) {
+  .task-create,
+  .column-editor-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .column-editor header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .card-actions {
+    justify-content: flex-end;
+  }
+}
+
+@container lightapp-window-body (max-height: 380px) {
+  .lightapp-window {
+    gap: 8px;
+  }
+
+  .column-card {
+    padding: 8px;
+  }
 }
 
 @media (max-width: 980px) {
