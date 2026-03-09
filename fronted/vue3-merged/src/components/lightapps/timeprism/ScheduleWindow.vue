@@ -339,8 +339,17 @@ onMounted(() => {
 
 <style scoped>
 .lightapp-window {
+  --la-border: rgba(255, 255, 255, 0.44);
+  --la-input-bg: rgba(var(--glass-rgb), 0.32);
+  --la-btn-bg: rgba(var(--glass-rgb), 0.3);
+  --la-panel-bg: rgba(var(--glass-rgb), 0.28);
+  --la-card-bg: rgba(var(--glass-rgb), 0.24);
+  --la-text: rgba(35, 42, 58, 0.9);
+  --la-muted: rgba(55, 64, 84, 0.74);
+  --la-danger: rgba(214, 74, 103, 0.92);
   display: grid;
   gap: 10px;
+  color: var(--la-text);
 }
 
 .event-create {
@@ -351,9 +360,9 @@ onMounted(() => {
 
 .event-create input,
 .event-create select {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(15, 20, 33, 0.56);
-  color: rgba(239, 244, 255, 0.95);
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
   border-radius: 10px;
   padding: 8px 10px;
 }
@@ -363,20 +372,21 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: rgba(236, 243, 255, 0.9);
+  color: var(--la-muted);
 }
 
 .action-btn,
 .chip-btn,
 .icon-btn {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(17, 23, 38, 0.64);
-  color: rgba(239, 244, 255, 0.95);
+  border: 1px solid var(--la-border);
+  background: var(--la-btn-bg);
+  color: var(--la-text);
   border-radius: 10px;
 }
 
 .upcoming-panel {
-  --liquid-bg: rgba(17, 23, 39, 0.54);
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
   border-radius: 12px;
   padding: 10px;
   display: grid;
@@ -406,7 +416,7 @@ onMounted(() => {
 }
 
 .upcoming-list small {
-  color: rgba(223, 230, 249, 0.72);
+  color: var(--la-muted);
 }
 
 .event-list {
@@ -423,8 +433,8 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  background: rgba(10, 14, 24, 0.46);
+  border: 1px solid var(--la-border);
+  background: var(--la-card-bg);
   padding: 10px 12px;
 }
 
@@ -445,7 +455,7 @@ onMounted(() => {
 }
 
 .event-main small {
-  color: rgba(223, 230, 249, 0.72);
+  color: var(--la-muted);
 }
 
 .event-actions {
@@ -464,14 +474,14 @@ onMounted(() => {
 
 .error-text {
   margin: 0;
-  color: rgba(255, 154, 167, 0.95);
+  color: var(--la-danger);
   font-size: 12px;
 }
 
 .empty-hint {
   margin: 0;
   text-align: center;
-  color: rgba(223, 230, 249, 0.72);
+  color: var(--la-muted);
   padding: 10px 0;
 }
 

@@ -269,8 +269,16 @@ onMounted(() => {
 
 <style scoped>
 .lightapp-window {
+  --la-border: rgba(255, 255, 255, 0.44);
+  --la-input-bg: rgba(var(--glass-rgb), 0.32);
+  --la-btn-bg: rgba(var(--glass-rgb), 0.3);
+  --la-card-bg: rgba(var(--glass-rgb), 0.24);
+  --la-text: rgba(35, 42, 58, 0.9);
+  --la-muted: rgba(55, 64, 84, 0.74);
+  --la-danger: rgba(214, 74, 103, 0.92);
   display: grid;
   gap: 10px;
+  color: var(--la-text);
 }
 
 .project-form {
@@ -281,18 +289,18 @@ onMounted(() => {
 
 .project-form input[type='text'],
 .project-form input[type='color'] {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(14, 20, 34, 0.56);
-  color: rgba(236, 243, 255, 0.96);
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
   border-radius: 10px;
   padding: 8px 10px;
 }
 
 .action-btn,
 .icon-btn {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(26, 33, 50, 0.66);
-  color: rgba(236, 243, 255, 0.94);
+  border: 1px solid var(--la-border);
+  background: var(--la-btn-bg);
+  color: var(--la-text);
   border-radius: 10px;
 }
 
@@ -305,9 +313,9 @@ onMounted(() => {
 }
 
 .project-item {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--la-border);
   border-radius: 12px;
-  background: rgba(12, 17, 28, 0.48);
+  background: var(--la-card-bg);
   padding: 10px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -330,7 +338,7 @@ onMounted(() => {
 }
 
 .project-main small {
-  color: rgba(206, 218, 238, 0.8);
+  color: var(--la-muted);
 }
 
 .project-color {
@@ -356,14 +364,14 @@ onMounted(() => {
 
 .error-text {
   margin: 0;
-  color: rgba(255, 154, 167, 0.95);
+  color: var(--la-danger);
   font-size: 12px;
 }
 
 .empty-hint {
   margin: 0;
   text-align: center;
-  color: rgba(206, 218, 238, 0.82);
+  color: var(--la-muted);
   padding: 14px 0;
 }
 

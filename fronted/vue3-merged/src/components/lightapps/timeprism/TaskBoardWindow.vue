@@ -476,8 +476,18 @@ onMounted(() => {
 
 <style scoped>
 .lightapp-window {
+  --la-border: rgba(255, 255, 255, 0.44);
+  --la-input-bg: rgba(var(--glass-rgb), 0.32);
+  --la-btn-bg: rgba(var(--glass-rgb), 0.3);
+  --la-panel-bg: rgba(var(--glass-rgb), 0.28);
+  --la-column-bg: rgba(var(--glass-rgb), 0.26);
+  --la-card-bg: rgba(var(--glass-rgb), 0.24);
+  --la-text: rgba(35, 42, 58, 0.9);
+  --la-muted: rgba(55, 64, 84, 0.74);
+  --la-danger: rgba(214, 74, 103, 0.92);
   display: grid;
   gap: 10px;
+  color: var(--la-text);
 }
 
 .task-create {
@@ -489,23 +499,24 @@ onMounted(() => {
 .task-create input,
 .task-create select,
 .column-editor input {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(15, 20, 33, 0.56);
-  color: rgba(239, 244, 255, 0.95);
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
   border-radius: 10px;
   padding: 8px 10px;
 }
 
 .action-btn,
 .icon-btn {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(17, 23, 38, 0.64);
-  color: rgba(239, 244, 255, 0.95);
+  border: 1px solid var(--la-border);
+  background: var(--la-btn-bg);
+  color: var(--la-text);
   border-radius: 10px;
 }
 
 .column-editor {
-  --liquid-bg: rgba(17, 23, 38, 0.55);
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
   border-radius: 12px;
   padding: 10px;
   display: grid;
@@ -544,7 +555,8 @@ onMounted(() => {
 }
 
 .column-card {
-  --liquid-bg: rgba(18, 24, 40, 0.44);
+  --liquid-bg: var(--la-column-bg);
+  --liquid-border: var(--la-border);
   border-radius: 12px;
   padding: 10px;
 }
@@ -562,7 +574,7 @@ onMounted(() => {
 
 .column-card header span {
   font-size: 12px;
-  color: rgba(223, 230, 249, 0.7);
+  color: var(--la-muted);
 }
 
 .card-list {
@@ -575,8 +587,8 @@ onMounted(() => {
 
 .task-card {
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(10, 14, 24, 0.46);
+  border: 1px solid var(--la-border);
+  background: var(--la-card-bg);
   padding: 8px;
   display: grid;
   gap: 8px;
@@ -587,7 +599,7 @@ onMounted(() => {
 }
 
 .task-card small {
-  color: rgba(223, 230, 249, 0.72);
+  color: var(--la-muted);
 }
 
 .card-actions {
@@ -611,13 +623,13 @@ onMounted(() => {
 
 .error-text {
   margin: 0;
-  color: rgba(255, 154, 167, 0.95);
+  color: var(--la-danger);
   font-size: 12px;
 }
 
 .empty-hint {
   margin: 8px 0 0;
-  color: rgba(223, 230, 249, 0.62);
+  color: var(--la-muted);
   font-size: 12px;
 }
 

@@ -7,19 +7,19 @@
     @pointerdown="onPointerDown"
     @click="onContainerClick"
   >
-    <div class="ball-body liquid-material">
-      <div v-if="!ui.expanded" class="ball-icon">
+    <div class="ball-body drop-body liquid-material">
+      <div v-if="!ui.expanded" class="ball-icon icon-gear-wrapper">
         <i class="fas fa-compass"></i>
       </div>
 
       <div v-else class="menu-list">
-        <button class="menu-block close-block ripple-trigger" type="button" title="收起" @click.stop="collapseMenu">
+        <button class="menu-block menu-item close-block ripple-trigger" type="button" title="收起" @click.stop="collapseMenu">
           <i class="fas fa-chevron-down"></i>
         </button>
         <button
           v-for="slot in activeSlots"
           :key="`slot_${slot.slotIndex}`"
-          class="menu-block ripple-trigger"
+          class="menu-block menu-item ripple-trigger"
           type="button"
           :title="slotTitle(slot)"
           @click.stop="triggerSlot(slot)"
@@ -28,11 +28,11 @@
         </button>
       </div>
 
-      <div v-if="ui.expanded && ui.pickerOpen" class="picker-panel liquid-material">
+      <div v-if="ui.expanded && ui.pickerOpen" class="picker-panel submenu-panel liquid-material">
         <button
           v-for="app in pickerApps"
           :key="app.code"
-          class="picker-item ripple-trigger"
+          class="picker-item submenu-item ripple-trigger"
           type="button"
           @click.stop="openByCode(app.code)"
         >
@@ -286,13 +286,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .float-ball {
+  --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
   position: fixed;
   top: 0;
   left: 0;
   z-index: 2200;
   touch-action: none;
-  cursor: grab;
-  transition: width 0.22s ease, height 0.22s ease;
+  cursor: pointer;
+  transition: width 0.35s var(--ease-elastic), height 0.35s var(--ease-elastic);
 }
 
 .float-ball.dragging {
@@ -300,89 +301,188 @@ onBeforeUnmount(() => {
 }
 
 .ball-body {
+  --liquid-bg: var(--glass-bg);
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 999px;
-  --liquid-bg: rgba(var(--glass-rgb), 0.46);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: visible;
-  transition: border-radius 0.2s ease;
+  overflow: hidden;
+  transform-origin: center center;
+  transition:
+    border-radius 0.34s ease,
+    background-color 0.3s ease;
+}
+
+.ball-body::after {
+  content: '';
+  position: absolute;
+  top: 8%;
+  left: 12%;
+  width: 40%;
+  height: 25%;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%);
+  opacity: 0.7;
+  pointer-events: none;
+  filter: blur(2px);
+}
+
+.ball-body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(148, 157, 192, 0.34);
+  pointer-events: none;
+}
+
+@keyframes breath {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.float-ball:not(.dragging):not(.expanded) .ball-body {
+  animation: breath 6s ease-in-out infinite;
 }
 
 .float-ball.expanded .ball-body {
-  border-radius: 24px;
+  --liquid-bg: rgba(var(--glass-rgb), 0.34);
+  border-radius: 35px;
+  overflow: visible;
 }
 
 .ball-icon {
-  color: rgba(245, 249, 255, 0.94);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 18px;
+  opacity: 0.62;
+  transition: opacity 0.26s ease, transform 0.26s ease;
+}
+
+.float-ball.expanded .ball-icon {
+  opacity: 0;
+  transform: scale(0.5);
 }
 
 .menu-list {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   padding: 14px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity 0.22s 0.1s, transform 0.3s var(--ease-elastic) 0.1s;
+}
+
+.float-ball.expanded .menu-list {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .menu-block {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(24, 31, 48, 0.64);
-  color: rgba(236, 243, 255, 0.94);
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.94);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.1s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.menu-block:hover {
+  background: rgba(var(--accent-rgb), 0.46);
 }
 
 .menu-block.close-block {
-  background: rgba(35, 44, 66, 0.78);
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.menu-block.close-block:hover {
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .picker-panel {
   position: absolute;
   left: calc(100% + 10px);
-  top: 8px;
-  min-width: 180px;
+  top: 6px;
+  min-width: 188px;
   max-width: 240px;
-  border-radius: 12px;
-  --liquid-bg: rgba(13, 19, 34, 0.86);
-  padding: 8px;
-  display: grid;
+  border-radius: 24px;
+  --liquid-bg: rgba(var(--glass-rgb), 0.34);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  opacity: 0;
+  transform: translate3d(8px, 0, 0) scale(0.94);
+  transform-origin: left center;
+  animation: submenu-panel-in 320ms cubic-bezier(0.18, 0.92, 0.24, 1.2) forwards;
+}
+
+@keyframes submenu-panel-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(8px, 0, 0) scale(0.82);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 .picker-item {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  background: rgba(24, 31, 47, 0.68);
-  color: rgba(236, 243, 255, 0.95);
-  min-height: 34px;
-  padding: 0 10px;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.95);
+  min-height: 36px;
+  padding: 0 12px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  justify-content: flex-start;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.picker-item:hover {
+  background: rgba(var(--accent-rgb), 0.46);
+  color: rgba(255, 255, 255, 1);
 }
 
 .picker-empty {
   margin: 0;
   font-size: 12px;
-  color: rgba(210, 221, 242, 0.78);
+  color: rgba(67, 74, 94, 0.82);
   padding: 6px;
+  text-align: center;
 }
 
 @media (max-width: 860px) {
   .picker-panel {
     left: auto;
     right: calc(100% + 10px);
+    transform-origin: right center;
   }
 }
 </style>

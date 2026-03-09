@@ -272,8 +272,9 @@ onBeforeUnmount(() => {
   min-width: 300px;
   min-height: 48px;
   border-radius: 14px;
-  --liquid-bg: rgba(15, 21, 35, 0.74);
-  box-shadow: 0 22px 45px rgba(5, 9, 20, 0.35);
+  --liquid-bg: rgba(var(--glass-rgb), 0.3);
+  --liquid-border: rgba(255, 255, 255, 0.44);
+  --liquid-shadow: 0 16px 36px rgba(16, 23, 38, 0.16);
   overflow: hidden;
 }
 
@@ -283,7 +284,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.26);
   cursor: move;
   user-select: none;
 }
@@ -293,7 +294,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  color: rgba(236, 243, 255, 0.96);
+  color: rgba(36, 43, 58, 0.9);
 }
 
 .window-title span {
@@ -304,10 +305,11 @@ onBeforeUnmount(() => {
 
 .pin-hint {
   font-size: 11px;
-  color: rgba(156, 210, 255, 0.92);
-  border: 1px solid rgba(156, 210, 255, 0.38);
+  color: rgba(43, 109, 168, 0.88);
+  border: 1px solid rgba(112, 170, 224, 0.45);
   border-radius: 999px;
   padding: 1px 8px;
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .window-actions {
@@ -320,9 +322,9 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(26, 33, 50, 0.62);
-  color: rgba(235, 242, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.32);
+  color: rgba(34, 41, 56, 0.84);
 }
 
 .window-body {
@@ -337,10 +339,10 @@ onBeforeUnmount(() => {
   bottom: 8px;
   width: 24px;
   height: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.42);
   border-radius: 6px;
-  background: rgba(25, 33, 52, 0.68);
-  color: rgba(235, 242, 255, 0.94);
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(34, 41, 56, 0.84);
   display: inline-flex;
   align-items: center;
   justify-content: center;

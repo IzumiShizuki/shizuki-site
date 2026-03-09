@@ -334,8 +334,16 @@ onMounted(() => {
 
 <style scoped>
 .lightapp-window {
+  --la-border: rgba(255, 255, 255, 0.44);
+  --la-input-bg: rgba(var(--glass-rgb), 0.32);
+  --la-btn-bg: rgba(var(--glass-rgb), 0.3);
+  --la-card-bg: rgba(var(--glass-rgb), 0.24);
+  --la-text: rgba(35, 42, 58, 0.9);
+  --la-muted: rgba(55, 64, 84, 0.74);
+  --la-danger: rgba(214, 74, 103, 0.92);
   display: grid;
   gap: 10px;
+  color: var(--la-text);
 }
 
 .todo-create {
@@ -346,9 +354,9 @@ onMounted(() => {
 
 .todo-create input,
 .todo-create select {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(15, 20, 33, 0.56);
-  color: rgba(239, 244, 255, 0.95);
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
   border-radius: 10px;
   padding: 8px 10px;
 }
@@ -363,21 +371,21 @@ onMounted(() => {
 .chip-btn,
 .action-btn,
 .icon-btn {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(17, 23, 38, 0.64);
-  color: rgba(239, 244, 255, 0.95);
+  border: 1px solid var(--la-border);
+  background: var(--la-btn-bg);
+  color: var(--la-text);
   border-radius: 10px;
   padding: 6px 10px;
 }
 
 .chip-btn.active {
-  border-color: rgba(var(--accent-rgb), 0.8);
-  background: rgba(var(--accent-rgb), 0.2);
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.24);
 }
 
 .toolbar-hint {
   margin-left: auto;
-  color: rgba(223, 230, 249, 0.72);
+  color: var(--la-muted);
   font-size: 12px;
 }
 
@@ -396,12 +404,12 @@ onMounted(() => {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(12, 17, 30, 0.44);
+  border: 1px solid var(--la-border);
+  background: var(--la-card-bg);
 }
 
 .todo-item.done {
-  opacity: 0.72;
+  opacity: 0.66;
 }
 
 .todo-main p {
@@ -410,7 +418,7 @@ onMounted(() => {
 }
 
 .todo-main small {
-  color: rgba(223, 230, 249, 0.72);
+  color: var(--la-muted);
 }
 
 .todo-check input {
@@ -422,12 +430,12 @@ onMounted(() => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.58);
+  border: 2px solid rgba(86, 98, 128, 0.58);
 }
 
 .todo-check input:checked + span {
-  border-color: rgba(var(--accent-rgb), 0.92);
-  background: rgba(var(--accent-rgb), 0.3);
+  border-color: rgba(var(--accent-rgb), 0.72);
+  background: rgba(var(--accent-rgb), 0.24);
 }
 
 .todo-actions {
@@ -447,13 +455,13 @@ onMounted(() => {
 .empty-hint {
   margin: 0;
   text-align: center;
-  color: rgba(223, 230, 249, 0.72);
+  color: var(--la-muted);
   padding: 18px 0;
 }
 
 .error-text {
   margin: 0;
-  color: rgba(255, 154, 167, 0.95);
+  color: var(--la-danger);
   font-size: 12px;
 }
 
