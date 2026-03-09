@@ -76,6 +76,11 @@ const draft = reactive({
   color: '#6aa9ff'
 });
 
+function normalizeProjectId(value) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : 0;
+}
+
 function toProjectPayload() {
   return {
     name: draft.name.trim(),
@@ -129,7 +134,12 @@ function persistGuestProjects(nextProjects) {
 }
 
 function startEditing(item) {
-  editingId.value = item.projectId;
+  const projectId = normalizeProjectId(item?.projectId ?? item?.project_id);
+  if (!projectId) {
+    errorText.value = '项目数据异常，请刷新后重试';
+    return;
+  }
+  editingId.value = projectId;
   draft.name = item.name || '';
   draft.description = item.description || '';
   draft.color = item.color || '#6aa9ff';
@@ -151,7 +161,11 @@ async function submitProject() {
 
     if (auth.isAuthenticated.value) {
       if (editingId.value) {
-        await updateLightAppProject(editingId.value, toProjectPayload(), auth.authorizedFetch);
+        const projectId = normalizeProjectId(editingId.value);
+        if (!projectId) {
+          throw new Error('项目ID无效，请刷新后重试');
+        }
+        await updateLightAppProject(projectId, toProjectPayload(), auth.authorizedFetch);
       } else {
         await createLightAppProject(toProjectPayload(), auth.authorizedFetch);
       }
@@ -206,9 +220,14 @@ async function toggleArchived(item) {
   errorText.value = '';
   try {
     await auth.ensureReady();
+    const projectId = normalizeProjectId(item?.projectId ?? item?.project_id);
+    if (!projectId) {
+      throw new Error('项目ID无效，请刷新后重试');
+    }
+
     if (auth.isAuthenticated.value) {
       await updateLightAppProject(
-        item.projectId,
+        projectId,
         {
           name: item.name,
           description: item.description,
@@ -226,7 +245,7 @@ async function toggleArchived(item) {
 
     persistGuestProjects(
       projects.value.map((row) => {
-        if (row.projectId !== item.projectId) return row;
+        if (row.projectId !== projectId) return row;
         return {
           ...row,
           archived: !row.archived
@@ -240,21 +259,27 @@ async function toggleArchived(item) {
 
 async function removeProject(projectId) {
   errorText.value = '';
+  const normalizedProjectId = normalizeProjectId(projectId);
+  if (!normalizedProjectId) {
+    errorText.value = '项目ID无效，请刷新后重试';
+    return;
+  }
+
   try {
     await auth.ensureReady();
     if (auth.isAuthenticated.value) {
-      await deleteLightAppProject(projectId, auth.authorizedFetch);
+      await deleteLightAppProject(normalizedProjectId, auth.authorizedFetch);
       const list = await listLightAppProjects(auth.authorizedFetch);
       projects.value = sortProjects(Array.isArray(list) ? list : []);
       writeRemoteLightAppCache({ projects: projects.value });
-      if (editingId.value === projectId) {
+      if (editingId.value === normalizedProjectId) {
         resetDraft();
       }
       return;
     }
 
-    persistGuestProjects(projects.value.filter((item) => item.projectId !== projectId));
-    if (editingId.value === projectId) {
+    persistGuestProjects(projects.value.filter((item) => item.projectId !== normalizedProjectId));
+    if (editingId.value === normalizedProjectId) {
       resetDraft();
     }
   } catch (error) {
