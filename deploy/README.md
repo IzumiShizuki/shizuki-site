@@ -35,6 +35,7 @@ docker logs -f shizuki-site-frontend
 
 After DNS points to the server, add `deploy/Caddyfile.snippet` to your Caddy config:
 
+- `https://shizuki.online` -> 301 redirect to `https://site.shizuki.online`
 - `https://site.shizuki.online` -> frontend
 - `https://api.shizuki.online` -> backend
 

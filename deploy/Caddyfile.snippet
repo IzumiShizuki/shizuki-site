@@ -1,5 +1,9 @@
 # Put these blocks into your server Caddyfile.
 
+shizuki.online {
+  redir https://site.shizuki.online{uri} permanent
+}
+
 site.shizuki.online {
   reverse_proxy 127.0.0.1:5173
 }
