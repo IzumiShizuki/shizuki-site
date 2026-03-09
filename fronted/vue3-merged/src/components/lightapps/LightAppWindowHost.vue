@@ -63,10 +63,7 @@ import {
   setWindowRect,
   toggleWindowPinned
 } from '../../utils/lightAppWindowRuntime';
-import ProjectsWindow from './timeprism/ProjectsWindow.vue';
-import ScheduleWindow from './timeprism/ScheduleWindow.vue';
-import TaskBoardWindow from './timeprism/TaskBoardWindow.vue';
-import TodoWindow from './timeprism/TodoWindow.vue';
+import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
 
 const props = defineProps({
   isHomeRoute: {
@@ -90,10 +87,7 @@ const interaction = reactive({
 });
 
 const componentMap = Object.freeze({
-  'timeprism-todo': TodoWindow,
-  'timeprism-board': TaskBoardWindow,
-  'timeprism-schedule': ScheduleWindow,
-  'timeprism-projects': ProjectsWindow
+  'timeprism-todo': TimePrismTodoSuiteWindow
 });
 
 const visibleWindows = computed(() => getVisibleWindows(state, props.isHomeRoute));
@@ -115,7 +109,7 @@ function replaceState(next) {
 }
 
 function resolveWindowComponent(code) {
-  return componentMap[code] || TodoWindow;
+  return componentMap[code] || TimePrismTodoSuiteWindow;
 }
 
 function windowStyle(win) {

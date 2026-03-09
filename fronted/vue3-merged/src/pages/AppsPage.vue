@@ -81,7 +81,7 @@
         </li>
       </ul>
       <p class="empty-hint">
-        提示：默认第 2 块建议使用 picker，其余槽位可直开高频轻应用；悬浮球面板长度会随启用槽位自动增长。
+        提示：默认第 2 块直开 TimePrism Todo，其余槽位默认关闭；需要二级分流时可将任意槽位改为 picker。
       </p>
     </section>
   </section>

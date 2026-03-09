@@ -2,32 +2,8 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
   {
     code: 'timeprism-todo',
     title: 'TimePrism Todo',
-    summary: '管理待办与优先级，支持重排与登录后云端同步。',
+    summary: '统一入口：Todo + Task Board + Schedule + Projects，支持同窗切换与登录后云端同步。',
     iconClass: 'fas fa-list-check',
-    source: 'TimePrism',
-    floatingAble: true
-  },
-  {
-    code: 'timeprism-board',
-    title: 'TimePrism Task Board',
-    summary: '多列任务看板，支持任务移动、列配置与排序。',
-    iconClass: 'fas fa-columns',
-    source: 'TimePrism',
-    floatingAble: true
-  },
-  {
-    code: 'timeprism-schedule',
-    title: 'TimePrism Schedule',
-    summary: '日程事件管理与近期安排预览，支持项目关联。',
-    iconClass: 'fas fa-calendar-days',
-    source: 'TimePrism',
-    floatingAble: true
-  },
-  {
-    code: 'timeprism-projects',
-    title: 'TimePrism Projects',
-    summary: '项目分组与归档管理，为 Todo/Task/Schedule 提供归属。',
-    iconClass: 'fas fa-folder-tree',
     source: 'TimePrism',
     floatingAble: true
   }

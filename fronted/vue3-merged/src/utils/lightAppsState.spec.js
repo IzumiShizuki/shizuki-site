@@ -20,31 +20,77 @@ describe('lightAppsState', () => {
       }
     });
 
-    expect(normalized.enabled_codes.length).toBeGreaterThan(0);
+    expect(normalized.enabled_codes).toEqual(['timeprism-todo']);
     expect(normalized.ball_slots).toHaveLength(MAX_BALL_SLOTS);
+    expect(normalized.ball_slots[0]).toEqual({
+      enabled: true,
+      type: 'app',
+      app_code: 'timeprism-todo'
+    });
+    expect(normalized.ball_slots[1]).toEqual({
+      enabled: true,
+      type: 'picker',
+      app_code: ''
+    });
     expect(Object.keys(normalized.app_configs)).toHaveLength(0);
   });
 
-  it('keeps ball slots in app|picker schema and fills fallback app code', () => {
+  it('hard-migrates legacy module codes into single todo entry and deduplicates slots', () => {
     const normalized = normalizeLightAppsState({
-      enabled_codes: ['timeprism-todo', 'timeprism-board'],
+      enabled_codes: ['timeprism-todo', 'timeprism-board', 'timeprism-schedule', 'timeprism-projects'],
       ball_slots: [
-        { enabled: true, type: 'picker' },
         { enabled: true, type: 'app', app_code: 'timeprism-board' },
-        { enabled: true, type: 'app', app_code: 'unknown-code' }
-      ]
+        { enabled: true, type: 'app', app_code: 'timeprism-schedule' },
+        { enabled: true, type: 'app', app_code: 'timeprism-projects' },
+        { enabled: true, type: 'picker' },
+        { enabled: true, type: 'app', app_code: 'timeprism-todo' },
+        { enabled: false, type: 'app', app_code: '' },
+        { enabled: false, type: 'app', app_code: '' },
+        { enabled: false, type: 'app', app_code: '' }
+      ],
+      app_configs: {
+        'timeprism-schedule': { view: 'agenda' },
+        'timeprism-todo': { view: 'todo' },
+        'timeprism-projects': { foo: 'bar' }
+      }
     });
 
+    expect(normalized.enabled_codes).toEqual(['timeprism-todo']);
     expect(normalized.ball_slots).toHaveLength(MAX_BALL_SLOTS);
-    expect(normalized.ball_slots[0].type).toBe('picker');
-    expect(normalized.ball_slots[1].app_code).toBe('timeprism-board');
-    expect(['timeprism-todo', 'timeprism-board']).toContain(normalized.ball_slots[2].app_code);
+    expect(normalized.ball_slots[0]).toEqual({
+      enabled: true,
+      type: 'app',
+      app_code: 'timeprism-todo'
+    });
+    expect(normalized.ball_slots[1]).toEqual({
+      enabled: false,
+      type: 'app',
+      app_code: ''
+    });
+    expect(normalized.ball_slots[2]).toEqual({
+      enabled: false,
+      type: 'app',
+      app_code: ''
+    });
+    expect(normalized.ball_slots[3]).toEqual({
+      enabled: true,
+      type: 'picker',
+      app_code: ''
+    });
+    expect(normalized.ball_slots[4]).toEqual({
+      enabled: false,
+      type: 'app',
+      app_code: ''
+    });
+    expect(normalized.app_configs).toEqual({
+      'timeprism-todo': { view: 'todo' }
+    });
   });
 
   it('supports legacy state migration from enabledCodes/floatingCodes/configs', () => {
     const normalized = normalizeLightAppsState({
       enabledCodes: ['timeprism-todo', 'timeprism-schedule'],
-      floatingCodes: ['timeprism-schedule'],
+      floatingCodes: ['timeprism-projects', 'timeprism-schedule'],
       configs: {
         'timeprism-schedule': {
           foo: 'bar'
@@ -52,18 +98,20 @@ describe('lightAppsState', () => {
       }
     });
 
-    expect(normalized.enabled_codes).toEqual(['timeprism-todo', 'timeprism-schedule']);
-    expect(normalized.ball_slots[1].enabled).toBe(true);
-    expect(normalized.ball_slots[1].type).toBe('app');
-    expect(normalized.ball_slots[1].app_code).toBe('timeprism-schedule');
-    expect(normalized.app_configs['timeprism-schedule']).toEqual({ foo: 'bar' });
+    expect(normalized.enabled_codes).toEqual(['timeprism-todo']);
+    expect(normalized.ball_slots[0]).toEqual({
+      enabled: true,
+      type: 'app',
+      app_code: 'timeprism-todo'
+    });
+    expect(normalized.ball_slots[1].enabled).toBe(false);
+    expect(normalized.app_configs['timeprism-todo']).toEqual({ foo: 'bar' });
   });
 
   it('reads and writes preference payload in snake_case key', () => {
     const state = normalizeLightAppsState({
-      enabled_codes: ['timeprism-todo', 'timeprism-schedule'],
+      enabled_codes: ['timeprism-schedule'],
       ball_slots: [
-        { enabled: true, type: 'picker' },
         { enabled: true, type: 'app', app_code: 'timeprism-schedule' }
       ]
     });

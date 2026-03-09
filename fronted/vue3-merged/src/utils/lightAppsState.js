@@ -5,13 +5,20 @@ export const LIGHT_APPS_CHANGED_EVENT = 'shizuki:light-apps-changed';
 export const LIGHT_APPS_PREFERENCE_KEY = 'light_apps';
 export const MAX_BALL_SLOTS = 8;
 
-const DEFAULT_ENABLED_CODES = LIGHT_APP_CODES.slice(0, 4);
+const TIMEPRISM_TODO_CODE = 'timeprism-todo';
+const LEGACY_TIMEPRISM_CODE_MAP = Object.freeze({
+  'timeprism-board': TIMEPRISM_TODO_CODE,
+  'timeprism-schedule': TIMEPRISM_TODO_CODE,
+  'timeprism-projects': TIMEPRISM_TODO_CODE
+});
+
+const DEFAULT_ENABLED_CODES = Object.freeze([TIMEPRISM_TODO_CODE]);
 const DEFAULT_SLOT_BLUEPRINT = Object.freeze([
-  { enabled: true, type: 'picker', app_code: '' },
-  { enabled: true, type: 'app', app_code: 'timeprism-todo' },
-  { enabled: true, type: 'app', app_code: 'timeprism-board' },
-  { enabled: true, type: 'app', app_code: 'timeprism-schedule' },
-  { enabled: true, type: 'app', app_code: 'timeprism-projects' },
+  { enabled: true, type: 'app', app_code: TIMEPRISM_TODO_CODE },
+  { enabled: false, type: 'app', app_code: '' },
+  { enabled: false, type: 'app', app_code: '' },
+  { enabled: false, type: 'app', app_code: '' },
+  { enabled: false, type: 'app', app_code: '' },
   { enabled: false, type: 'app', app_code: '' },
   { enabled: false, type: 'app', app_code: '' },
   { enabled: false, type: 'app', app_code: '' }
@@ -21,13 +28,19 @@ function toObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function normalizeCodeAlias(rawCode) {
+  const code = String(rawCode || '').trim();
+  if (!code) return '';
+  return LEGACY_TIMEPRISM_CODE_MAP[code] || code;
+}
+
 function uniqueKnownCodes(codes) {
   const source = Array.isArray(codes) ? codes : [];
   const seen = new Set();
   const output = [];
 
   source.forEach((item) => {
-    const code = String(item || '').trim();
+    const code = normalizeCodeAlias(item);
     if (!isKnownLightAppCode(code)) return;
     if (seen.has(code)) return;
     seen.add(code);
@@ -47,9 +60,14 @@ function normalizeConfigs(input, enabledCodes) {
   const enabledSet = new Set(enabledCodes);
   const next = {};
 
+  if (enabledSet.has(TIMEPRISM_TODO_CODE) && source[TIMEPRISM_TODO_CODE] && typeof source[TIMEPRISM_TODO_CODE] === 'object') {
+    next[TIMEPRISM_TODO_CODE] = toObject(source[TIMEPRISM_TODO_CODE]);
+  }
+
   Object.entries(source).forEach(([rawCode, value]) => {
-    const code = String(rawCode || '').trim();
+    const code = normalizeCodeAlias(rawCode);
     if (!enabledSet.has(code)) return;
+    if (Object.prototype.hasOwnProperty.call(next, code)) return;
     next[code] = toObject(value);
   });
 
@@ -57,7 +75,7 @@ function normalizeConfigs(input, enabledCodes) {
 }
 
 function resolveKnownCode(raw) {
-  const code = String(raw || '').trim();
+  const code = normalizeCodeAlias(raw);
   return isKnownLightAppCode(code) ? code : '';
 }
 
@@ -112,7 +130,21 @@ function normalizeBallSlots(input, enabledCodes) {
     });
   }
 
-  return normalized;
+  const duplicatedCodes = new Set();
+  return normalized.map((slot) => {
+    if (!slot.enabled || slot.type !== 'app' || !slot.app_code) {
+      return slot;
+    }
+    if (duplicatedCodes.has(slot.app_code)) {
+      return {
+        ...slot,
+        enabled: false,
+        app_code: ''
+      };
+    }
+    duplicatedCodes.add(slot.app_code);
+    return slot;
+  });
 }
 
 function buildSlotsFromFloatingCodes(floatingCodes, enabledCodes) {
@@ -123,8 +155,7 @@ function buildSlotsFromFloatingCodes(floatingCodes, enabledCodes) {
   }
 
   for (let i = 0; i < MAX_BALL_SLOTS; i += 1) {
-    if (i === 0) continue;
-    const code = codes[i - 1] || '';
+    const code = codes[i] || '';
     if (!code) {
       next[i] = { enabled: false, type: 'app', app_code: '' };
       continue;
