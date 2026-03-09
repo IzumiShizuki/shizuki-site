@@ -1,45 +1,51 @@
 <template>
-  <div v-if="visibleWindows.length" class="light-window-host" aria-live="polite">
-    <article
-      v-for="win in visibleWindows"
-      :key="win.id"
-      class="light-window liquid-material"
-      :style="windowStyle(win)"
-      @pointerdown="focusById(win.id)"
-    >
-      <header class="window-header" @pointerdown="startDrag($event, win)">
-        <div class="window-title">
-          <i :class="win.iconClass" aria-hidden="true"></i>
-          <span>{{ win.title }}</span>
-          <small v-if="win.pinned" class="pin-hint">主页固定</small>
-        </div>
-        <div class="window-actions">
-          <button class="icon-btn ripple-trigger" :title="win.pinned ? '取消固定' : '固定到主页'" @click.stop="togglePinned(win.id)">
-            <i :class="win.pinned ? 'fas fa-thumbtack' : 'fas fa-thumbtack fa-rotate-90'" aria-hidden="true"></i>
-          </button>
-          <button class="icon-btn ripple-trigger" :title="win.minimized ? '还原' : '最小化'" @click.stop="toggleMinimized(win.id)">
-            <i :class="win.minimized ? 'fas fa-up-right-and-down-left-from-center' : 'fas fa-window-minimize'" aria-hidden="true"></i>
-          </button>
-          <button class="icon-btn ripple-trigger" title="关闭" @click.stop="closeById(win.id)">
-            <i class="fas fa-xmark" aria-hidden="true"></i>
-          </button>
-        </div>
-      </header>
-
-      <section v-show="!win.minimized" class="window-body">
-        <component :is="resolveWindowComponent(win.code)" :window-id="win.id" />
-      </section>
-
-      <button
-        v-if="!win.minimized"
-        class="window-resize"
-        type="button"
-        title="拖拽缩放"
-        @pointerdown.stop.prevent="startResize($event, win)"
+  <div class="light-window-host" aria-live="polite">
+    <TransitionGroup appear name="light-window-stretch" tag="div" class="light-window-layer">
+      <article
+        v-for="win in visibleWindows"
+        :key="win.id"
+        class="light-window liquid-material"
+        :style="windowStyle(win)"
+        @pointerdown="focusById(win.id)"
       >
-        <i class="fas fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
-      </button>
-    </article>
+        <header class="window-header" @pointerdown="startDrag($event, win)">
+          <div class="window-title">
+            <i :class="win.iconClass" aria-hidden="true"></i>
+            <span>{{ win.title }}</span>
+            <small v-if="win.pinned" class="pin-hint">主页固定</small>
+          </div>
+          <div class="window-actions">
+            <button class="icon-btn ripple-trigger" :title="win.pinned ? '取消固定' : '固定到主页'" @click.stop="togglePinned(win.id)">
+              <i :class="win.pinned ? 'fas fa-thumbtack' : 'fas fa-thumbtack fa-rotate-90'" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn ripple-trigger" :title="win.minimized ? '还原' : '最小化'" @click.stop="toggleMinimized(win.id)">
+              <i :class="win.minimized ? 'fas fa-up-right-and-down-left-from-center' : 'fas fa-window-minimize'" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn ripple-trigger" title="关闭" @click.stop="closeById(win.id)">
+              <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+
+        <Transition name="window-collapse">
+          <section v-if="!win.minimized" class="window-body">
+            <component :is="resolveWindowComponent(win.code)" :window-id="win.id" />
+          </section>
+        </Transition>
+
+        <Transition name="window-collapse">
+          <button
+            v-if="!win.minimized"
+            class="window-resize"
+            type="button"
+            title="拖拽缩放"
+            @pointerdown.stop.prevent="startResize($event, win)"
+          >
+            <i class="fas fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
+          </button>
+        </Transition>
+      </article>
+    </TransitionGroup>
   </div>
 </template>
 
@@ -264,6 +270,13 @@ onBeforeUnmount(() => {
   z-index: 2400;
 }
 
+.light-window-layer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .light-window {
   position: fixed;
   pointer-events: auto;
@@ -276,6 +289,50 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.44);
   --liquid-shadow: 0 16px 36px rgba(16, 23, 38, 0.16);
   overflow: hidden;
+}
+
+.light-window-stretch-enter-active,
+.light-window-stretch-leave-active {
+  transition:
+    transform 240ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms ease;
+  transform-origin: center top;
+}
+
+.light-window-stretch-enter-from,
+.light-window-stretch-leave-to {
+  opacity: 0;
+  transform: scaleY(0.82) scaleX(0.97);
+}
+
+.light-window-stretch-enter-to,
+.light-window-stretch-leave-from {
+  opacity: 1;
+  transform: scaleY(1) scaleX(1);
+}
+
+.light-window-stretch-move {
+  transition: none;
+}
+
+.window-collapse-enter-active,
+.window-collapse-leave-active {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.88, 0.32, 1),
+    opacity 140ms ease;
+  transform-origin: top center;
+}
+
+.window-collapse-enter-from,
+.window-collapse-leave-to {
+  opacity: 0;
+  transform: scaleY(0.86);
+}
+
+.window-collapse-enter-to,
+.window-collapse-leave-from {
+  opacity: 1;
+  transform: scaleY(1);
 }
 
 .window-header {
@@ -386,6 +443,15 @@ onBeforeUnmount(() => {
 
   .window-title span {
     max-width: 132px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light-window-stretch-enter-active,
+  .light-window-stretch-leave-active,
+  .window-collapse-enter-active,
+  .window-collapse-leave-active {
+    transition-duration: 80ms;
   }
 }
 </style>
