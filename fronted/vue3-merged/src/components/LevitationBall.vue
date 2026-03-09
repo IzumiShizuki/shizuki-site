@@ -23,20 +23,19 @@
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>
         </div>
-        <div ref="chatButtonRef" class="menu-item chat-btn ripple-trigger" title="Chat" @click.stop="handleChatClick">
-          <svg viewBox="0 0 24 24">
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-          </svg>
+        <div
+          ref="chatButtonRef"
+          class="menu-item chat-btn ripple-trigger"
+          :title="quickSlotApps[0]?.title || '轻应用配置'"
+          @click.stop="handleChatClick"
+        >
+          <i :class="quickSlotApps[0]?.iconClass || 'fas fa-th-large'" aria-hidden="true"></i>
         </div>
-        <div class="menu-item ripple-trigger" title="Record" @click.stop="handleMenuAction('record', $event)">
-          <svg viewBox="0 0 24 24">
-            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
-          </svg>
+        <div class="menu-item ripple-trigger" :title="quickSlotApps[1]?.title || '轻应用配置'" @click.stop="handleMenuAction('record', $event)">
+          <i :class="quickSlotApps[1]?.iconClass || 'fas fa-th-large'" aria-hidden="true"></i>
         </div>
-        <div class="menu-item ripple-trigger" title="Settings" @click.stop="handleMenuAction('settings', $event)">
-          <svg viewBox="0 0 24 24">
-            <path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" />
-          </svg>
+        <div class="menu-item ripple-trigger" :title="quickSlotApps[2]?.title || '轻应用配置'" @click.stop="handleMenuAction('settings', $event)">
+          <i :class="quickSlotApps[2]?.iconClass || 'fas fa-th-large'" aria-hidden="true"></i>
         </div>
       </div>
 
@@ -82,7 +81,10 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { getLightAppByCode } from '../utils/lightAppsCatalog';
+import { LIGHT_APPS_CHANGED_EVENT, readLightAppsState } from '../utils/lightAppsState';
 import { recordWindowDiag } from '../utils/windowLifecycleDiag';
 
 const containerRef = ref(null);
@@ -93,6 +95,15 @@ const submenuLaunchX = ref('0px');
 const submenuLaunchY = ref('0px');
 const submenuOvershootX = ref('0px');
 const submenuOvershootY = ref('0px');
+const quickApps = ref([]);
+
+const router = useRouter();
+
+const quickSlotApps = computed(() => [
+  quickApps.value[0] || null,
+  quickApps.value[1] || null,
+  quickApps.value[2] || null
+]);
 
 const EXPANDED_WIDTH = 70;
 const EXPANDED_HEIGHT = 260;
@@ -647,6 +658,55 @@ function positionSubmenuAtChat() {
   submenuOvershootY.value = `${(-launchY * 0.12).toFixed(2)}px`;
 }
 
+function resolveQuickAppsFromState(rawState) {
+  const source = rawState && typeof rawState === 'object' ? rawState : readLightAppsState();
+  const floatingCodes = Array.isArray(source.floatingCodes) ? source.floatingCodes : [];
+  return floatingCodes
+    .slice(0, 3)
+    .map((code) => {
+      const app = getLightAppByCode(code);
+      if (!app) return null;
+      return {
+        code: app.code,
+        title: app.title,
+        iconClass: app.iconClass
+      };
+    })
+    .filter(Boolean);
+}
+
+function syncQuickApps(rawState) {
+  quickApps.value = resolveQuickAppsFromState(rawState);
+}
+
+function onLightAppsChanged(event) {
+  syncQuickApps(event?.detail);
+}
+
+function openQuickAppBySlot(slot) {
+  const app = quickApps.value[slot];
+  collapseMenu();
+  if (!app) {
+    router.push({ path: '/apps' }).catch(() => {});
+    return;
+  }
+
+  router
+    .push({
+      path: '/apps',
+      query: {
+        app: app.code,
+        mode: 'floating'
+      }
+    })
+    .catch(() => {});
+
+  recordWindowDiag('levitation.quickapp.open', {
+    code: app.code,
+    slot: slot + 1
+  });
+}
+
 function triggerRipple(element) {
   if (!element?.animate) return;
 
@@ -663,18 +723,23 @@ function handleCloseClick(e) {
 
 function handleChatClick(e) {
   if (e?.currentTarget) triggerRipple(e.currentTarget);
-  toggleChatSubmenu();
+  openQuickAppBySlot(0);
 }
 
 function handleMenuAction(action, e) {
   if (e?.currentTarget) triggerRipple(e.currentTarget);
-  closeChatSubmenu();
-  console.log(`Action ${action} clicked`);
+  if (action === 'record') {
+    openQuickAppBySlot(1);
+    return;
+  }
+  openQuickAppBySlot(2);
 }
 
 function handleSubmenuAction(label, e) {
   triggerRipple(e.currentTarget);
-  console.log(`Submenu ${label} clicked`);
+  router.push({ path: '/apps' }).catch(() => {});
+  collapseMenu();
+  recordWindowDiag('levitation.submenu.redirect', { label: String(label || '') });
 }
 
 defineExpose({
@@ -693,16 +758,16 @@ defineExpose({
     }
 
     if (n === 2) {
-      toggleChatSubmenu();
+      openQuickAppBySlot(0);
       return;
     }
 
     if (n === 3) {
-      handleMenuAction('record');
+      openQuickAppBySlot(1);
       return;
     }
 
-    handleMenuAction('settings');
+    openQuickAppBySlot(2);
   }
 });
 
@@ -710,6 +775,7 @@ onMounted(() => {
   const container = containerRef.value;
   if (!container) return;
 
+  syncQuickApps();
   destroyed = false;
   state.x = window.innerWidth - 100;
   state.y = 100;
@@ -729,6 +795,7 @@ onMounted(() => {
   window.addEventListener('focus', onWindowFocus);
   window.addEventListener('pagehide', onPageHide);
   window.addEventListener('pageshow', onPageShow);
+  window.addEventListener(LIGHT_APPS_CHANGED_EVENT, onLightAppsChanged);
 
   if (!interactionBlocked()) {
     startAnimationLoop();
@@ -762,6 +829,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', onWindowFocus);
   window.removeEventListener('pagehide', onPageHide);
   window.removeEventListener('pageshow', onPageShow);
+  window.removeEventListener(LIGHT_APPS_CHANGED_EVENT, onLightAppsChanged);
 
   clearTimeout(idleTimer);
   idleTimer = null;
@@ -981,6 +1049,11 @@ onBeforeUnmount(() => {
   width: 20px;
   height: 20px;
   fill: rgba(255, 255, 255, 0.9);
+}
+
+.menu-item i {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.94);
 }
 
 .submenu-panel {
