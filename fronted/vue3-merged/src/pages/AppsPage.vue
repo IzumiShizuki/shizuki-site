@@ -1,17 +1,11 @@
 <template>
   <section class="route-page apps-route">
-    <header class="page-header">
-      <p class="eyebrow">Apps</p>
-      <h1>轻应用中心</h1>
-      <p>这里可以做轻应用管理，也可以直接在本页打开更完整的页面模式；悬浮球和“使用”按钮仍走小窗模式。</p>
-      <p v-if="syncHint" class="sync-hint">{{ syncHint }}</p>
-    </header>
-
     <section class="config-block liquid-material">
       <header class="block-head">
         <h2>应用清单</h2>
         <span>已启用 {{ appState.enabled_codes.length }}/{{ catalog.length }}</span>
       </header>
+      <p v-if="syncHint" class="sync-hint">{{ syncHint }}</p>
       <div class="catalog-grid">
         <article
           v-for="app in catalog"
@@ -46,48 +40,6 @@
           </div>
         </article>
       </div>
-    </section>
-
-    <section class="config-block liquid-material">
-      <header class="block-head">
-        <h2>页面模式</h2>
-        <span>{{ activePageApp ? `当前：${activePageApp.title}` : '未打开' }}</span>
-      </header>
-      <p class="empty-hint">适合长时间操作：本区会展示更完整的应用内容，不受小窗尺寸限制。</p>
-
-      <article v-if="activePageApp && activePageComponent" class="page-mode-shell">
-        <header class="page-mode-head">
-          <div class="page-mode-title">
-            <i :class="activePageApp.iconClass" aria-hidden="true"></i>
-            <strong>{{ activePageApp.title }}</strong>
-          </div>
-
-          <div v-if="activePageTabItems.length" class="page-mode-tabs" role="tablist" :aria-label="`${activePageApp.title} tabs`">
-            <button
-              v-for="item in activePageTabItems"
-              :key="`page_tab_${activePageCode}_${item.value}`"
-              class="tab-btn ripple-trigger"
-              :class="{ active: activePageTabCode === item.value }"
-              type="button"
-              role="tab"
-              :aria-selected="activePageTabCode === item.value"
-              :title="item.label"
-              :aria-label="item.label"
-              @click="setActivePageTab(item.value)"
-            >
-              <i :class="item.iconClass" aria-hidden="true"></i>
-            </button>
-          </div>
-
-          <button class="tab-btn ripple-trigger" type="button" title="关闭页面模式" aria-label="关闭页面模式" @click="closePageMode">
-            <i class="fas fa-xmark" aria-hidden="true"></i>
-          </button>
-        </header>
-
-        <section class="page-mode-body">
-          <component :is="activePageComponent" :window-id="activePageWindowId" />
-        </section>
-      </article>
     </section>
 
     <section class="config-block liquid-material">
@@ -130,10 +82,58 @@
       </p>
     </section>
   </section>
+
+  <Teleport to="body">
+    <Transition name="page-mode-overlay">
+      <section
+        v-if="activePageApp && activePageComponent"
+        class="page-mode-overlay"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="`${activePageApp.title} 页面模式`"
+        @click.self="closePageMode"
+      >
+        <article class="page-mode-shell liquid-material" @click.stop>
+          <header class="page-mode-head">
+            <div class="page-mode-title">
+              <i :class="activePageApp.iconClass" aria-hidden="true"></i>
+              <strong>{{ activePageApp.title }}</strong>
+            </div>
+
+            <div v-if="activePageTabItems.length" class="page-mode-tabs" role="tablist" :aria-label="`${activePageApp.title} tabs`">
+              <button
+                v-for="item in activePageTabItems"
+                :key="`page_tab_${activePageCode}_${item.value}`"
+                class="tab-btn ripple-trigger"
+                :class="{ active: activePageTabCode === item.value }"
+                type="button"
+                role="tab"
+                :aria-selected="activePageTabCode === item.value"
+                :title="item.label"
+                :aria-label="item.label"
+                @click="setActivePageTab(item.value)"
+              >
+                <i :class="item.iconClass" aria-hidden="true"></i>
+              </button>
+            </div>
+
+            <button class="tab-btn ripple-trigger" type="button" title="关闭页面模式" aria-label="关闭页面模式" @click="closePageMode">
+              <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+
+          <section class="page-mode-body">
+            <component :is="activePageComponent" :window-id="activePageWindowId" />
+          </section>
+          <p class="page-mode-foot-hint">按 Esc 或点击遮罩空白区域可关闭页面模式</p>
+        </article>
+      </section>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BalanceLedgerWindow from '../components/lightapps/balance/BalanceLedgerWindow.vue';
 import {
   BALANCE_SECTION_ITEMS,
@@ -202,6 +202,7 @@ const activePageApp = computed(() => getLightAppByCode(activePageCode.value));
 const activePageWindowId = computed(() => PAGE_WINDOW_IDS[activePageCode.value] || 0);
 
 const activePageComponent = computed(() => PAGE_COMPONENT_MAP[activePageCode.value] || null);
+const hasActivePageOverlay = computed(() => Boolean(activePageApp.value && activePageComponent.value));
 
 const activePageTabItems = computed(() => {
   if (activePageCode.value === 'timeprism-todo') {
@@ -362,6 +363,9 @@ function toggleEnabled(code) {
     enabledSet.delete(code);
     nextSlots = removeAppFromSlots(code, nextSlots);
     delete nextConfigs[code];
+    if (activePageCode.value === code) {
+      closePageMode();
+    }
     showHint('应用已停用。');
   } else {
     enabledSet.add(code);
@@ -497,6 +501,18 @@ function closePageMode() {
   activePageCode.value = '';
 }
 
+function onOverlayKeydown(event) {
+  if (!hasActivePageOverlay.value) return;
+  if (event.key === 'Escape') {
+    closePageMode();
+  }
+}
+
+watch(hasActivePageOverlay, (open) => {
+  if (typeof document === 'undefined') return;
+  document.body.classList.toggle('apps-page-overlay-open', open);
+});
+
 function setActivePageTab(tabCode) {
   const windowId = activePageWindowId.value;
   if (!windowId) return;
@@ -518,6 +534,9 @@ function setActivePageTab(tabCode) {
 }
 
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', onOverlayKeydown);
+  }
   await hydrateState();
 });
 
@@ -533,6 +552,12 @@ onBeforeUnmount(() => {
   releaseTimePrismSuiteSession(PAGE_WINDOW_IDS['timeprism-todo']);
   releasePomodoroWindowState(PAGE_WINDOW_IDS['pomodoro-timer']);
   releaseBalanceWindowState(PAGE_WINDOW_IDS['balance-ledger']);
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', onOverlayKeydown);
+  }
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('apps-page-overlay-open');
+  }
 });
 </script>
 
@@ -544,28 +569,12 @@ onBeforeUnmount(() => {
   color: rgba(239, 244, 255, 0.96);
 }
 
-.page-header {
-  padding: 8px 4px 2px;
-}
-
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(var(--accent-soft-rgb), 0.95);
-}
-
-.page-header h1 {
-  margin: 2px 0 6px;
-}
-
-.page-header p {
-  margin: 0;
-  color: rgba(226, 233, 250, 0.86);
-}
-
 .sync-hint {
-  margin-top: 8px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(162, 233, 197, 0.36);
+  border-radius: 10px;
+  background: rgba(98, 177, 142, 0.14);
   color: rgba(168, 236, 200, 0.92);
   font-size: 13px;
 }
@@ -576,6 +585,7 @@ onBeforeUnmount(() => {
   padding: 12px;
   display: grid;
   gap: 10px;
+  animation: block-fade-up 320ms cubic-bezier(0.2, 0.84, 0.34, 1) both;
 }
 
 .block-head {
@@ -608,6 +618,18 @@ onBeforeUnmount(() => {
   background: rgba(11, 16, 28, 0.5);
   display: grid;
   gap: 9px;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 220ms ease,
+    background-color 180ms ease;
+}
+
+.app-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(188, 215, 255, 0.38);
+  background: rgba(14, 20, 34, 0.58);
+  box-shadow: 0 10px 24px rgba(5, 9, 18, 0.22);
 }
 
 .app-card.enabled {
@@ -662,6 +684,18 @@ onBeforeUnmount(() => {
   color: rgba(236, 243, 255, 0.94);
   padding: 7px 10px;
   font-size: 12px;
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 180ms ease;
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(var(--accent-rgb), 0.48);
+  background: rgba(27, 37, 58, 0.72);
+  box-shadow: 0 6px 16px rgba(5, 10, 20, 0.2);
 }
 
 .action-btn:disabled {
@@ -686,6 +720,14 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   background: rgba(11, 16, 27, 0.44);
   padding: 8px;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.slot-item:hover {
+  border-color: rgba(188, 214, 255, 0.34);
+  background: rgba(14, 21, 34, 0.55);
 }
 
 .slot-main p {
@@ -720,12 +762,18 @@ onBeforeUnmount(() => {
 }
 
 .page-mode-shell {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  background: rgba(10, 16, 28, 0.34);
+  --liquid-bg: rgba(16, 24, 40, 0.74);
+  --liquid-border: rgba(255, 255, 255, 0.34);
+  --liquid-shadow: 0 28px 72px rgba(4, 7, 14, 0.5);
+  width: min(1320px, calc(100vw - 34px));
+  max-height: calc(100vh - 32px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(10, 16, 28, 0.42);
   display: grid;
   gap: 10px;
-  padding: 10px;
+  padding: 12px;
+  overflow: hidden;
 }
 
 .page-mode-head {
@@ -760,6 +808,17 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(20, 28, 45, 0.56);
   color: rgba(236, 243, 255, 0.95);
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 180ms ease;
+}
+
+.tab-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(193, 217, 255, 0.46);
+  background: rgba(27, 37, 58, 0.7);
 }
 
 .tab-btn.active {
@@ -769,16 +828,102 @@ onBeforeUnmount(() => {
 }
 
 .page-mode-body {
-  min-height: 66vh;
+  min-height: 60vh;
+  max-height: calc(100vh - 130px);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
   padding: 10px;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 158, 190, 0.58) rgba(255, 255, 255, 0.1);
+}
+
+.page-mode-body::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.page-mode-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.page-mode-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(140, 158, 190, 0.58);
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+.page-mode-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(154, 172, 205, 0.72);
+  background-clip: content-box;
 }
 
 .page-mode-body :deep(.lightapp-window) {
-  min-height: calc(66vh - 22px);
+  min-height: calc(60vh - 22px);
+}
+
+.page-mode-foot-hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(213, 226, 249, 0.72);
+}
+
+.page-mode-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  padding: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 12, 21, 0.5);
+  backdrop-filter: blur(5px);
+}
+
+.page-mode-overlay-enter-active,
+.page-mode-overlay-leave-active {
+  transition: opacity 240ms ease;
+}
+
+.page-mode-overlay-enter-active .page-mode-shell,
+.page-mode-overlay-leave-active .page-mode-shell {
+  transition:
+    transform 260ms cubic-bezier(0.2, 0.88, 0.34, 1),
+    opacity 200ms ease;
+}
+
+.page-mode-overlay-enter-from,
+.page-mode-overlay-leave-to {
+  opacity: 0;
+}
+
+.page-mode-overlay-enter-from .page-mode-shell,
+.page-mode-overlay-leave-to .page-mode-shell {
+  opacity: 0;
+  transform: translateY(10px) scale(0.97);
+}
+
+.page-mode-overlay-enter-to .page-mode-shell,
+.page-mode-overlay-leave-from .page-mode-shell {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+:global(body.apps-page-overlay-open) {
+  overflow: hidden;
+}
+
+@keyframes block-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 980px) {
@@ -798,6 +943,31 @@ onBeforeUnmount(() => {
   .page-mode-tabs {
     justify-self: flex-start;
     flex-wrap: wrap;
+  }
+
+  .page-mode-shell {
+    width: calc(100vw - 14px);
+    max-height: calc(100vh - 12px);
+    padding: 10px;
+  }
+
+  .page-mode-overlay {
+    padding: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .config-block,
+  .app-card,
+  .action-btn,
+  .slot-item,
+  .tab-btn,
+  .page-mode-overlay-enter-active,
+  .page-mode-overlay-leave-active,
+  .page-mode-overlay-enter-active .page-mode-shell,
+  .page-mode-overlay-leave-active .page-mode-shell {
+    transition-duration: 80ms !important;
+    animation-duration: 80ms !important;
   }
 }
 </style>

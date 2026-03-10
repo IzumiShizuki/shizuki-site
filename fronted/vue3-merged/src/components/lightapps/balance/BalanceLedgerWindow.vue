@@ -1205,6 +1205,18 @@ onBeforeUnmount(() => {
   background: var(--la-btn-bg);
   color: var(--la-text);
   border-radius: 10px;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 180ms ease;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(189, 213, 252, 0.62);
+  background: rgba(var(--glass-rgb), 0.4);
+  box-shadow: 0 5px 14px rgba(12, 18, 32, 0.14);
 }
 
 .create-form {
@@ -1329,6 +1341,16 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 180ms ease;
+}
+
+.list-item:hover {
+  transform: translateY(-1px);
+  --liquid-border: rgba(193, 216, 253, 0.62);
+  --liquid-bg: rgba(var(--glass-rgb), 0.34);
 }
 
 .list-main p {
@@ -1366,6 +1388,30 @@ onBeforeUnmount(() => {
   color: var(--la-danger);
 }
 
+.panel-collapse-enter-active,
+.panel-collapse-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 240ms cubic-bezier(0.2, 0.88, 0.34, 1),
+    max-height 240ms ease;
+  transform-origin: top center;
+  overflow: hidden;
+}
+
+.panel-collapse-enter-from,
+.panel-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scaleY(0.94);
+  max-height: 0;
+}
+
+.panel-collapse-enter-to,
+.panel-collapse-leave-from {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+  max-height: 540px;
+}
+
 @container lightapp-window-body (max-width: 700px) {
   .create-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1391,6 +1437,15 @@ onBeforeUnmount(() => {
 
   .list-actions {
     justify-content: flex-end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn,
+  .list-item,
+  .panel-collapse-enter-active,
+  .panel-collapse-leave-active {
+    transition-duration: 80ms !important;
   }
 }
 </style>

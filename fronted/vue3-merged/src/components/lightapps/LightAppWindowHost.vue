@@ -400,6 +400,14 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.44);
   --liquid-shadow: 0 16px 36px rgba(16, 23, 38, 0.16);
   overflow: hidden;
+  transition:
+    box-shadow 220ms ease,
+    border-color 180ms ease;
+}
+
+.light-window:focus-within {
+  --liquid-shadow: 0 24px 56px rgba(10, 16, 30, 0.24);
+  --liquid-border: rgba(255, 255, 255, 0.5);
 }
 
 .light-window-stretch-enter-active,
@@ -455,6 +463,11 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.26);
   cursor: move;
   user-select: none;
+  transition: background-color 180ms ease;
+}
+
+.window-header:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .window-left {
@@ -509,6 +522,18 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.42);
   background: rgba(255, 255, 255, 0.32);
   color: rgba(34, 41, 56, 0.84);
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 180ms ease;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.44);
+  box-shadow: 0 5px 14px rgba(14, 20, 34, 0.16);
 }
 
 .app-switch-btn.active {
@@ -567,6 +592,16 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   cursor: nwse-resize;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.window-resize:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.42);
 }
 
 @media (max-width: 760px) {
