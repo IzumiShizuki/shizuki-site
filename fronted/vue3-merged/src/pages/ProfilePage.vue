@@ -1,27 +1,28 @@
 <template>
   <section class="route-page profile-page motion-managed">
     <div class="profile-stage liquid-material">
-      <nav class="profile-top-tabs liquid-material" aria-label="个人设置导航">
+      <aside class="profile-anchor-nav liquid-material" aria-label="个人分组导航">
+        <span class="anchor-line" aria-hidden="true"></span>
         <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          class="tab-btn ripple-trigger"
-          :class="{ active: activeTab === tab.key }"
+          v-for="group in navGroups"
+          :key="group.key"
+          class="anchor-btn ripple-trigger"
+          :class="{ active: activeGroup === group.key }"
           type="button"
-          :aria-label="tab.label"
-          @click="openTab(tab.key)"
+          :aria-label="group.label"
+          @click="navigateToGroup(group.key)"
         >
-          <span class="tab-icon" aria-hidden="true">
-            <i :class="tab.icon"></i>
+          <span class="anchor-dot" aria-hidden="true">
+            <i :class="group.icon"></i>
           </span>
-          <span class="tab-copy">
-            <span class="tab-title">{{ tab.label }}</span>
-            <span class="tab-caption">{{ tab.caption }}</span>
+          <span class="anchor-copy">
+            <span class="anchor-title">{{ group.label }}</span>
+            <span class="anchor-caption">{{ group.caption }}</span>
           </span>
         </button>
-      </nav>
+      </aside>
 
-      <section class="profile-content-panel">
+      <section ref="profileContentPanel" class="profile-content-panel">
         <ProfileHeroCard
           :avatar-url="avatarPreview"
           avatar-action-label="查看或修改头像"
@@ -35,343 +36,413 @@
         />
 
         <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
-        <p v-if="activeTab === ProfileTabKey.ACCOUNT && accountLoading" class="state-tip">正在同步账号数据...</p>
-
-        <ProfileSectionAccordion
-          :sections="activeSections"
-          :open-key="openSectionKey"
-          :avatar-url="avatarPreview"
-          avatar-action-label="查看或修改头像"
-          @toggle="toggleActiveSection"
-          @avatar-click="handleSectionAvatarClick"
+        <section
+          :id="ProfileTabKey.PROFILE"
+          :ref="(el) => setGroupRef(ProfileTabKey.PROFILE, el)"
+          :data-group-key="ProfileTabKey.PROFILE"
+          class="profile-group"
         >
-          <template #section-overview>
-            <div class="overview-grid">
-              <article v-for="card in profileOverviewCards" :key="card.key" class="overview-card">
-                <p class="overview-label">{{ card.label }}</p>
-                <p class="overview-value">{{ card.value }}</p>
-                <p class="overview-hint">{{ card.hint }}</p>
-              </article>
-            </div>
-          </template>
+          <header class="group-header">
+            <p class="group-eyebrow">Profile</p>
+            <h3 class="group-title">个人概览</h3>
+            <p class="group-caption">核心状态与快捷操作集中展示。</p>
+          </header>
 
-          <template #section-quick-actions>
-            <div class="quick-grid">
-              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.AVATAR)">
-                修改头像
-              </button>
-              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.ACCOUNT_INFO)">
-                查看账号信息
-              </button>
-              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.EMAIL_BIND)">
-                绑定邮箱
-              </button>
-              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.OAUTH_BIND)">
-                绑定 GitHub / LinuxDo
-              </button>
-              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.MUSIC_AUTH)">
-                音乐授权与排序
-              </button>
-              <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
-                修改密码
-              </button>
-              <button class="quick-btn ripple-trigger" type="button" @click="openSettingsAppearance">
-                外观设置
-              </button>
-            </div>
-          </template>
-
-          <template #section-recent>
-            <div class="recent-grid">
-              <div v-for="row in profileRecentRows" :key="row.key" class="recent-item">
-                <span class="recent-label">{{ row.label }}</span>
-                <span class="recent-value">{{ row.value }}</span>
+          <ProfileSectionAccordion
+            :sections="profileSections"
+            :open-key="accordionState[ProfileTabKey.PROFILE]"
+            @toggle="toggleGroupSection(ProfileTabKey.PROFILE, $event)"
+          >
+            <template #section-overview>
+              <div class="overview-grid">
+                <article v-for="card in profileOverviewCards" :key="card.key" class="overview-card">
+                  <p class="overview-label">{{ card.label }}</p>
+                  <p class="overview-value">{{ card.value }}</p>
+                  <p class="overview-hint">{{ card.hint }}</p>
+                </article>
               </div>
-            </div>
-            <div class="inline-actions compact">
-              <button class="danger-btn ripple-trigger" type="button" @click="handleLogout">安全退出</button>
-            </div>
-          </template>
+            </template>
 
-          <template #section-avatar>
-            <div class="avatar-workbench">
-              <img :src="avatarPreview" alt="avatar" class="avatar-image" />
-              <div class="avatar-controls">
-                <div class="inline-actions">
-                  <button class="ghost-btn ripple-trigger" type="button" @click="openAvatarActions">头像操作</button>
-                  <button class="ghost-btn ripple-trigger" type="button" @click="triggerAvatarFilePicker">选择新图片</button>
+            <template #section-quick-actions>
+              <div class="quick-grid">
+                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.AVATAR)">
+                  修改头像
+                </button>
+                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.ACCOUNT_INFO)">
+                  查看账号信息
+                </button>
+                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.EMAIL_BIND)">
+                  绑定邮箱
+                </button>
+                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.OAUTH_BIND)">
+                  绑定 GitHub / LinuxDo
+                </button>
+                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.MUSIC_AUTH)">
+                  音乐授权与排序
+                </button>
+                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
+                  修改密码
+                </button>
+                <button class="quick-btn ripple-trigger" type="button" @click="openSettingsAppearance">
+                  外观设置
+                </button>
+              </div>
+            </template>
+
+            <template #section-recent>
+              <div class="recent-grid">
+                <div v-for="row in profileRecentRows" :key="row.key" class="recent-item">
+                  <span class="recent-label">{{ row.label }}</span>
+                  <span class="recent-value">{{ row.value }}</span>
                 </div>
-                <p v-if="selectedAvatarFile" class="helper-text">
-                  已裁剪待上传：{{ selectedAvatarFile.name }}（{{ selectedAvatarFile.type || 'unknown' }}）
-                </p>
-                <button
-                  class="primary-btn ripple-trigger"
-                  type="button"
-                  :disabled="avatarUploading || !selectedAvatarFile"
-                  @click="submitAvatarUpload"
-                >
-                  {{ avatarUploading ? '上传中...' : '上传到 OSS' }}
-                </button>
-                <p class="helper-text">支持 png/jpeg/webp。选择后先裁剪为圆形预览，最终上传 512x512 PNG。</p>
               </div>
-            </div>
-            <p v-if="avatarError" class="error-text">{{ avatarError }}</p>
-          </template>
-
-          <template #section-account-info>
-            <table class="kv-table">
-              <tbody>
-                <tr>
-                  <th>用户名</th>
-                  <td>{{ account.username || '-' }}</td>
-                </tr>
-                <tr>
-                  <th>昵称</th>
-                  <td>{{ account.nickname || '-' }}</td>
-                </tr>
-                <tr>
-                  <th>邮箱</th>
-                  <td>{{ account.email || '-' }}</td>
-                </tr>
-                <tr>
-                  <th>邮箱验证</th>
-                  <td>{{ account.emailVerified ? '已验证' : '未验证' }}</td>
-                </tr>
-                <tr>
-                  <th>本地密码</th>
-                  <td>{{ account.hasPassword ? '已设置' : '未设置' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
-
-          <template #section-email-bind>
-            <form class="stack-form" @submit.prevent="submitBindEmail">
-              <label class="field-label" for="bind-email">邮箱</label>
-              <input id="bind-email" v-model.trim="bindEmailForm.email" class="field-input" type="email" autocomplete="email" required />
-
-              <label class="field-label" for="bind-password">密码</label>
-              <input id="bind-password" v-model="bindEmailForm.password" class="field-input" type="password" minlength="8" autocomplete="new-password" required />
-
-              <label class="field-label" for="bind-captcha-answer">图形验证码</label>
-              <div class="captcha-row">
-                <input
-                  id="bind-captcha-answer"
-                  v-model.trim="bindEmailForm.captchaAnswer"
-                  class="field-input grow"
-                  type="text"
-                  autocomplete="off"
-                  required
-                />
-                <button class="captcha-preview ripple-trigger" type="button" :disabled="captchaLoading" @click="refreshCaptcha">
-                  <span v-if="captchaLoading">刷新中...</span>
-                  <span v-else class="captcha-svg" v-html="captcha.svgContent || placeholderCaptcha"></span>
-                </button>
+              <div class="inline-actions compact">
+                <button class="danger-btn ripple-trigger" type="button" @click="handleLogout">安全退出</button>
               </div>
+            </template>
+          </ProfileSectionAccordion>
+        </section>
 
-              <label class="field-label" for="bind-email-code">邮箱验证码</label>
-              <div class="inline-actions">
-                <input id="bind-email-code" v-model.trim="bindEmailForm.emailCode" class="field-input grow" type="text" autocomplete="off" required />
-                <button class="ghost-btn ripple-trigger" type="button" :disabled="bindCodeLocked" @click="sendBindEmailCode">
-                  {{ bindCodeButtonText }}
-                </button>
-              </div>
+        <section
+          :id="ProfileTabKey.ACCOUNT"
+          :ref="(el) => setGroupRef(ProfileTabKey.ACCOUNT, el)"
+          :data-group-key="ProfileTabKey.ACCOUNT"
+          class="profile-group"
+        >
+          <header class="group-header">
+            <p class="group-eyebrow">Account</p>
+            <h3 class="group-title">账号与安全</h3>
+            <p class="group-caption">绑定、改密、授权与个人凭据管理。</p>
+          </header>
 
-              <button class="primary-btn ripple-trigger" type="submit" :disabled="bindEmailSubmitting">
-                {{ bindEmailSubmitting ? '绑定中...' : '绑定邮箱' }}
-              </button>
-            </form>
-            <p v-if="bindCodeError" class="error-text">{{ bindCodeError }}</p>
-            <p v-if="bindEmailError" class="error-text">{{ bindEmailError }}</p>
-          </template>
+          <p v-if="accountLoading" class="state-tip">正在同步账号数据...</p>
 
-          <template #section-oauth-bind>
-            <p class="helper-text">绑定后可使用对应平台直接登录当前账号。</p>
-            <div class="inline-actions">
-              <button class="oauth-btn ripple-trigger" type="button" :disabled="oauthBindingSubmitting" @click="startOAuthBind('github')">
-                绑定 GitHub
-              </button>
-              <button class="oauth-btn ripple-trigger" type="button" :disabled="oauthBindingSubmitting" @click="startOAuthBind('linuxdo')">
-                绑定 LinuxDo
-              </button>
-            </div>
-
-            <table class="simple-table">
-              <thead>
-                <tr>
-                  <th>Provider</th>
-                  <th>Login</th>
-                  <th>绑定时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in account.oauthBindings" :key="`${item.provider}-${item.providerLogin}`">
-                  <td>{{ item.provider }}</td>
-                  <td>{{ item.providerLogin || '-' }}</td>
-                  <td>{{ item.boundAt || '-' }}</td>
-                </tr>
-                <tr v-if="!account.oauthBindings.length">
-                  <td colspan="3">暂无绑定</td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-if="oauthBindingError" class="error-text">{{ oauthBindingError }}</p>
-          </template>
-
-          <template #section-change-password>
-            <form class="stack-form" @submit.prevent="submitChangePassword">
-              <label class="field-label" for="change-email">邮箱</label>
-              <input id="change-email" v-model.trim="changePasswordForm.email" class="field-input" type="email" autocomplete="email" required />
-
-              <label class="field-label" for="change-captcha-answer">图形验证码</label>
-              <div class="captcha-row">
-                <input
-                  id="change-captcha-answer"
-                  v-model.trim="changePasswordForm.captchaAnswer"
-                  class="field-input grow"
-                  type="text"
-                  autocomplete="off"
-                  required
-                />
-                <button class="captcha-preview ripple-trigger" type="button" :disabled="captchaLoading" @click="refreshCaptcha">
-                  <span v-if="captchaLoading">刷新中...</span>
-                  <span v-else class="captcha-svg" v-html="captcha.svgContent || placeholderCaptcha"></span>
-                </button>
-              </div>
-
-              <label class="field-label" for="change-email-code">邮箱验证码</label>
-              <div class="inline-actions">
-                <input id="change-email-code" v-model.trim="changePasswordForm.emailCode" class="field-input grow" type="text" autocomplete="off" required />
-                <button class="ghost-btn ripple-trigger" type="button" :disabled="changePwdCodeLocked" @click="sendChangePwdCode">
-                  {{ changePwdCodeButtonText }}
-                </button>
-              </div>
-
-              <label class="field-label" for="change-new-password">新密码</label>
-              <input id="change-new-password" v-model="changePasswordForm.newPassword" class="field-input" type="password" minlength="8" autocomplete="new-password" required />
-
-              <label class="field-label" for="change-confirm-password">确认新密码</label>
-              <input id="change-confirm-password" v-model="changePasswordForm.confirmPassword" class="field-input" type="password" minlength="8" autocomplete="new-password" required />
-
-              <button class="primary-btn ripple-trigger" type="submit" :disabled="changePasswordSubmitting">
-                {{ changePasswordSubmitting ? '提交中...' : '修改密码' }}
-              </button>
-            </form>
-            <p v-if="changePwdCodeError" class="error-text">{{ changePwdCodeError }}</p>
-            <p v-if="changePasswordError" class="error-text">{{ changePasswordError }}</p>
-          </template>
-
-          <template #section-music-auth>
-            <div class="music-auth-grid">
-              <article class="music-auth-card">
-                <p class="music-auth-title">TuneHub Key</p>
-                <p class="helper-text">用于 TuneHub 聚合能力，默认推荐会优先使用该 Key。</p>
-                <div class="stack-form">
-                  <input
-                    v-model.trim="musicTunehubKeyInput"
-                    class="field-input"
-                    type="password"
-                    placeholder="输入 TuneHub API Key"
-                    autocomplete="off"
-                  />
+          <ProfileSectionAccordion
+            :sections="accountSections"
+            :open-key="accordionState[ProfileTabKey.ACCOUNT]"
+            :avatar-url="avatarPreview"
+            avatar-action-label="查看或修改头像"
+            @toggle="toggleGroupSection(ProfileTabKey.ACCOUNT, $event)"
+            @avatar-click="handleSectionAvatarClick"
+          >
+            <template #section-avatar>
+              <div class="avatar-workbench">
+                <img :src="avatarPreview" alt="avatar" class="avatar-image" />
+                <div class="avatar-controls">
                   <div class="inline-actions">
-                    <button class="primary-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="saveMusicTunehubKey">
-                      {{ musicTunehubBusy ? '保存中...' : '保存 Key' }}
-                    </button>
-                    <button class="ghost-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="deleteMusicTunehubKey">
-                      删除 Key
-                    </button>
-                    <button class="ghost-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="loadMusicTunehubStatus">
-                      刷新状态
+                    <button class="ghost-btn ripple-trigger" type="button" @click="openAvatarActions">头像操作</button>
+                    <button class="ghost-btn ripple-trigger" type="button" @click="triggerAvatarFilePicker">选择新图片</button>
+                  </div>
+                  <p v-if="selectedAvatarFile" class="helper-text">
+                    已裁剪待上传：{{ selectedAvatarFile.name }}（{{ selectedAvatarFile.type || 'unknown' }}）
+                  </p>
+                  <button
+                    class="primary-btn ripple-trigger"
+                    type="button"
+                    :disabled="avatarUploading || !selectedAvatarFile"
+                    @click="submitAvatarUpload"
+                  >
+                    {{ avatarUploading ? '上传中...' : '上传到 OSS' }}
+                  </button>
+                  <p class="helper-text">支持 png/jpeg/webp。选择后先裁剪为圆形预览，最终上传 512x512 PNG。</p>
+                </div>
+              </div>
+              <p v-if="avatarError" class="error-text">{{ avatarError }}</p>
+            </template>
+
+            <template #section-account-info>
+              <table class="kv-table">
+                <tbody>
+                  <tr>
+                    <th>用户名</th>
+                    <td>{{ account.username || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <th>昵称</th>
+                    <td>{{ account.nickname || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <th>邮箱</th>
+                    <td>{{ account.email || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <th>邮箱验证</th>
+                    <td>{{ account.emailVerified ? '已验证' : '未验证' }}</td>
+                  </tr>
+                  <tr>
+                    <th>本地密码</th>
+                    <td>{{ account.hasPassword ? '已设置' : '未设置' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+
+            <template #section-email-bind>
+              <form class="stack-form" @submit.prevent="submitBindEmail">
+                <label class="field-label" for="bind-email">邮箱</label>
+                <input id="bind-email" v-model.trim="bindEmailForm.email" class="field-input" type="email" autocomplete="email" required />
+
+                <label class="field-label" for="bind-password">密码</label>
+                <input id="bind-password" v-model="bindEmailForm.password" class="field-input" type="password" minlength="8" autocomplete="new-password" required />
+
+                <label class="field-label" for="bind-captcha-answer">图形验证码</label>
+                <div class="captcha-row">
+                  <input
+                    id="bind-captcha-answer"
+                    v-model.trim="bindEmailForm.captchaAnswer"
+                    class="field-input grow"
+                    type="text"
+                    autocomplete="off"
+                    required
+                  />
+                  <button class="captcha-preview ripple-trigger" type="button" :disabled="captchaLoading" @click="refreshCaptcha">
+                    <span v-if="captchaLoading">刷新中...</span>
+                    <span v-else class="captcha-svg" v-html="captcha.svgContent || placeholderCaptcha"></span>
+                  </button>
+                </div>
+
+                <label class="field-label" for="bind-email-code">邮箱验证码</label>
+                <div class="inline-actions">
+                  <input id="bind-email-code" v-model.trim="bindEmailForm.emailCode" class="field-input grow" type="text" autocomplete="off" required />
+                  <button class="ghost-btn ripple-trigger" type="button" :disabled="bindCodeLocked" @click="sendBindEmailCode">
+                    {{ bindCodeButtonText }}
+                  </button>
+                </div>
+
+                <button class="primary-btn ripple-trigger" type="submit" :disabled="bindEmailSubmitting">
+                  {{ bindEmailSubmitting ? '绑定中...' : '绑定邮箱' }}
+                </button>
+              </form>
+              <p v-if="bindCodeError" class="error-text">{{ bindCodeError }}</p>
+              <p v-if="bindEmailError" class="error-text">{{ bindEmailError }}</p>
+            </template>
+
+            <template #section-oauth-bind>
+              <p class="helper-text">绑定后可使用对应平台直接登录当前账号。</p>
+              <div class="inline-actions">
+                <button class="oauth-btn ripple-trigger" type="button" :disabled="oauthBindingSubmitting" @click="startOAuthBind('github')">
+                  绑定 GitHub
+                </button>
+                <button class="oauth-btn ripple-trigger" type="button" :disabled="oauthBindingSubmitting" @click="startOAuthBind('linuxdo')">
+                  绑定 LinuxDo
+                </button>
+              </div>
+
+              <table class="simple-table">
+                <thead>
+                  <tr>
+                    <th>Provider</th>
+                    <th>Login</th>
+                    <th>绑定时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in account.oauthBindings" :key="`${item.provider}-${item.providerLogin}`">
+                    <td>{{ item.provider }}</td>
+                    <td>{{ item.providerLogin || '-' }}</td>
+                    <td>{{ item.boundAt || '-' }}</td>
+                  </tr>
+                  <tr v-if="!account.oauthBindings.length">
+                    <td colspan="3">暂无绑定</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-if="oauthBindingError" class="error-text">{{ oauthBindingError }}</p>
+            </template>
+
+            <template #section-change-password>
+              <form class="stack-form" @submit.prevent="submitChangePassword">
+                <label class="field-label" for="change-email">邮箱</label>
+                <input id="change-email" v-model.trim="changePasswordForm.email" class="field-input" type="email" autocomplete="email" required />
+
+                <label class="field-label" for="change-captcha-answer">图形验证码</label>
+                <div class="captcha-row">
+                  <input
+                    id="change-captcha-answer"
+                    v-model.trim="changePasswordForm.captchaAnswer"
+                    class="field-input grow"
+                    type="text"
+                    autocomplete="off"
+                    required
+                  />
+                  <button class="captcha-preview ripple-trigger" type="button" :disabled="captchaLoading" @click="refreshCaptcha">
+                    <span v-if="captchaLoading">刷新中...</span>
+                    <span v-else class="captcha-svg" v-html="captcha.svgContent || placeholderCaptcha"></span>
+                  </button>
+                </div>
+
+                <label class="field-label" for="change-email-code">邮箱验证码</label>
+                <div class="inline-actions">
+                  <input id="change-email-code" v-model.trim="changePasswordForm.emailCode" class="field-input grow" type="text" autocomplete="off" required />
+                  <button class="ghost-btn ripple-trigger" type="button" :disabled="changePwdCodeLocked" @click="sendChangePwdCode">
+                    {{ changePwdCodeButtonText }}
+                  </button>
+                </div>
+
+                <label class="field-label" for="change-new-password">新密码</label>
+                <input id="change-new-password" v-model="changePasswordForm.newPassword" class="field-input" type="password" minlength="8" autocomplete="new-password" required />
+
+                <label class="field-label" for="change-confirm-password">确认新密码</label>
+                <input id="change-confirm-password" v-model="changePasswordForm.confirmPassword" class="field-input" type="password" minlength="8" autocomplete="new-password" required />
+
+                <button class="primary-btn ripple-trigger" type="submit" :disabled="changePasswordSubmitting">
+                  {{ changePasswordSubmitting ? '提交中...' : '修改密码' }}
+                </button>
+              </form>
+              <p v-if="changePwdCodeError" class="error-text">{{ changePwdCodeError }}</p>
+              <p v-if="changePasswordError" class="error-text">{{ changePasswordError }}</p>
+            </template>
+
+            <template #section-music-auth>
+              <div class="music-auth-grid">
+                <article class="music-auth-card">
+                  <p class="music-auth-title">TuneHub Key</p>
+                  <p class="helper-text">用于 TuneHub 聚合能力，默认推荐会优先使用该 Key。</p>
+                  <div class="stack-form">
+                    <input
+                      v-model.trim="musicTunehubKeyInput"
+                      class="field-input"
+                      type="password"
+                      placeholder="输入 TuneHub API Key"
+                      autocomplete="off"
+                    />
+                    <div class="inline-actions">
+                      <button class="primary-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="saveMusicTunehubKey">
+                        {{ musicTunehubBusy ? '保存中...' : '保存 Key' }}
+                      </button>
+                      <button class="ghost-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="deleteMusicTunehubKey">
+                        删除 Key
+                      </button>
+                      <button class="ghost-btn ripple-trigger" type="button" :disabled="musicTunehubBusy" @click="loadMusicTunehubStatus">
+                        刷新状态
+                      </button>
+                    </div>
+                  </div>
+                  <p class="helper-text">{{ musicTunehubStatusText }}</p>
+                </article>
+
+                <article class="music-auth-card">
+                  <p class="music-auth-title">推荐顺序（拖拽调整）</p>
+                  <p class="helper-text">按顺序推荐：网易云 / 酷我 / QQ。拖拽卡片即可调整优先级。</p>
+                  <div class="provider-order-list">
+                    <button
+                      v-for="item in musicProviderOrderCards"
+                      :key="item.code"
+                      class="provider-order-item ripple-trigger"
+                      type="button"
+                      draggable="true"
+                      @dragstart="onProviderDragStart(item.code)"
+                      @dragover.prevent="onProviderDragOver(item.code)"
+                      @drop.prevent="onProviderDrop"
+                      @dragend="onProviderDragEnd"
+                    >
+                      <span class="provider-icon" :class="`provider-${item.code}`">{{ item.iconText }}</span>
+                      <span class="provider-name">{{ item.name }}</span>
+                      <label class="provider-toggle">
+                        <input
+                          :checked="musicProviderEnabled[item.code]"
+                          type="checkbox"
+                          @change="toggleMusicProvider(item.code, $event.target.checked)"
+                        />
+                        <span>启用</span>
+                      </label>
+                      <i class="fas fa-grip-vertical"></i>
                     </button>
                   </div>
-                </div>
-                <p class="helper-text">{{ musicTunehubStatusText }}</p>
-              </article>
+                  <div class="inline-actions compact">
+                    <button class="primary-btn ripple-trigger" type="button" :disabled="musicPreferenceBusy" @click="saveMusicPreferences">
+                      {{ musicPreferenceBusy ? '保存中...' : '保存排序' }}
+                    </button>
+                  </div>
+                  <p v-if="musicPreferenceError" class="error-text">{{ musicPreferenceError }}</p>
+                </article>
 
-              <article class="music-auth-card">
-                <p class="music-auth-title">推荐顺序（拖拽调整）</p>
-                <p class="helper-text">按顺序推荐：网易云 / 酷我 / QQ。拖拽卡片即可调整优先级。</p>
-                <div class="provider-order-list">
-                  <button
-                    v-for="item in musicProviderOrderCards"
-                    :key="item.code"
-                    class="provider-order-item ripple-trigger"
-                    type="button"
-                    draggable="true"
-                    @dragstart="onProviderDragStart(item.code)"
-                    @dragover.prevent="onProviderDragOver(item.code)"
-                    @drop.prevent="onProviderDrop"
-                    @dragend="onProviderDragEnd"
-                  >
-                    <span class="provider-icon" :class="`provider-${item.code}`">{{ item.iconText }}</span>
-                    <span class="provider-name">{{ item.name }}</span>
-                    <label class="provider-toggle">
-                      <input
-                        :checked="musicProviderEnabled[item.code]"
-                        type="checkbox"
-                        @change="toggleMusicProvider(item.code, $event.target.checked)"
-                      />
-                      <span>启用</span>
-                    </label>
-                    <i class="fas fa-grip-vertical"></i>
-                  </button>
-                </div>
-                <div class="inline-actions compact">
-                  <button class="primary-btn ripple-trigger" type="button" :disabled="musicPreferenceBusy" @click="saveMusicPreferences">
-                    {{ musicPreferenceBusy ? '保存中...' : '保存排序' }}
-                  </button>
-                </div>
-                <p v-if="musicPreferenceError" class="error-text">{{ musicPreferenceError }}</p>
-              </article>
-
-              <article class="music-auth-card">
-                <p class="music-auth-title">平台状态</p>
-                <div class="provider-chip-row">
-                  <span class="provider-chip netease">网易云</span>
-                  <span class="provider-chip kuwo">酷我</span>
-                  <span class="provider-chip qq">QQ 音乐</span>
-                  <span class="provider-chip spotify">Spotify（预览模式）</span>
-                </div>
-                <p class="helper-text">Spotify 当前采用最小授权预览模式，不要求用户 OAuth 才能展示基础结果。</p>
-              </article>
-            </div>
-          </template>
-
-          <template #section-workspace>
-            <div class="placeholder-card">
-              <p class="placeholder-title">创作工作台 · Coming Soon</p>
-              <p class="helper-text">已预留草稿管理、发布计划、阅读统计等模块，后续会直接接入真实数据。</p>
-              <div class="inline-actions compact">
-                <span class="status-chip">草稿 0</span>
-                <span class="status-chip">已发布 0</span>
-                <span class="status-chip">收藏 0</span>
+                <article class="music-auth-card">
+                  <p class="music-auth-title">平台状态</p>
+                  <div class="provider-chip-row">
+                    <span class="provider-chip netease">网易云</span>
+                    <span class="provider-chip kuwo">酷我</span>
+                    <span class="provider-chip qq">QQ 音乐</span>
+                    <span class="provider-chip spotify">Spotify（预览模式）</span>
+                  </div>
+                  <p class="helper-text">Spotify 当前采用最小授权预览模式，不要求用户 OAuth 才能展示基础结果。</p>
+                </article>
               </div>
-            </div>
-          </template>
+            </template>
+          </ProfileSectionAccordion>
+        </section>
 
-          <template #section-archive>
-            <div class="placeholder-card">
-              <p class="placeholder-title">归档与历史 · Coming Soon</p>
-              <p class="helper-text">后续将提供浏览记录、点赞时间线、收藏夹筛选和跨设备同步。</p>
-            </div>
-          </template>
+        <section
+          :id="ProfileTabKey.ARTICLES"
+          :ref="(el) => setGroupRef(ProfileTabKey.ARTICLES, el)"
+          :data-group-key="ProfileTabKey.ARTICLES"
+          class="profile-group"
+        >
+          <header class="group-header">
+            <p class="group-eyebrow">Articles</p>
+            <h3 class="group-title">创作与归档</h3>
+            <p class="group-caption">文章工作台与历史内容入口。</p>
+          </header>
 
-          <template #section-appearance>
-            <div class="placeholder-card">
-              <p class="placeholder-title">外观设置</p>
-              <p class="helper-text">打开外观面板调整主题与背景效果。</p>
-              <button class="primary-btn ripple-trigger" type="button" @click="settingsVisible = true">打开外观设置</button>
-            </div>
-          </template>
+          <ProfileSectionAccordion
+            :sections="articlesSections"
+            :open-key="accordionState[ProfileTabKey.ARTICLES]"
+            @toggle="toggleGroupSection(ProfileTabKey.ARTICLES, $event)"
+          >
+            <template #section-workspace>
+              <div class="placeholder-card">
+                <p class="placeholder-title">创作工作台 · Coming Soon</p>
+                <p class="helper-text">已预留草稿管理、发布计划、阅读统计等模块，后续会直接接入真实数据。</p>
+                <div class="inline-actions compact">
+                  <span class="status-chip">草稿 0</span>
+                  <span class="status-chip">已发布 0</span>
+                  <span class="status-chip">收藏 0</span>
+                </div>
+              </div>
+            </template>
 
-          <template #section-advanced>
-            <div class="placeholder-card">
-              <p class="placeholder-title">高级偏好 · Coming Soon</p>
-              <p class="helper-text">用于扩展实验功能、行为偏好和可访问性增强选项。</p>
-            </div>
-          </template>
-        </ProfileSectionAccordion>
+            <template #section-archive>
+              <div class="placeholder-card">
+                <p class="placeholder-title">归档与历史 · Coming Soon</p>
+                <p class="helper-text">后续将提供浏览记录、点赞时间线、收藏夹筛选和跨设备同步。</p>
+              </div>
+            </template>
+          </ProfileSectionAccordion>
+        </section>
+
+        <section
+          :id="ProfileTabKey.SETTINGS"
+          :ref="(el) => setGroupRef(ProfileTabKey.SETTINGS, el)"
+          :data-group-key="ProfileTabKey.SETTINGS"
+          class="profile-group"
+        >
+          <header class="group-header">
+            <p class="group-eyebrow">Settings</p>
+            <h3 class="group-title">外观与偏好</h3>
+            <p class="group-caption">外观面板与高级选项入口。</p>
+          </header>
+
+          <ProfileSectionAccordion
+            :sections="settingsSections"
+            :open-key="accordionState[ProfileTabKey.SETTINGS]"
+            @toggle="toggleGroupSection(ProfileTabKey.SETTINGS, $event)"
+          >
+            <template #section-appearance>
+              <div class="placeholder-card">
+                <p class="placeholder-title">外观设置</p>
+                <p class="helper-text">打开外观面板调整主题与背景效果。</p>
+                <button class="primary-btn ripple-trigger" type="button" @click="settingsVisible = true">打开外观设置</button>
+              </div>
+            </template>
+
+            <template #section-advanced>
+              <div class="placeholder-card">
+                <p class="placeholder-title">高级偏好 · Coming Soon</p>
+                <p class="helper-text">用于扩展实验功能、行为偏好和可访问性增强选项。</p>
+              </div>
+            </template>
+          </ProfileSectionAccordion>
+        </section>
       </section>
     </div>
 
@@ -410,7 +481,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ProfileAvatarActionSheet from '../components/profile/ProfileAvatarActionSheet.vue';
 import ProfileAvatarCropDialog from '../components/profile/ProfileAvatarCropDialog.vue';
@@ -426,6 +497,7 @@ import {
   buildSectionSummary,
   createProfileAccordionState,
   getTabOpenSection,
+  normalizeProfileTabKey,
   toggleProfileAccordion
 } from './profileUiState';
 
@@ -435,13 +507,21 @@ const auth = useAuthSession();
 
 const settingsVisible = ref(false);
 const avatarFileInput = ref(null);
-
-const tabs = [
-  { key: ProfileTabKey.PROFILE, label: '个人', shortLabel: '个人', caption: '概览与快捷入口', icon: 'fas fa-id-card' },
-  { key: ProfileTabKey.ACCOUNT, label: '账号', shortLabel: '账号', caption: '绑定与安全', icon: 'fas fa-shield-halved' },
-  { key: ProfileTabKey.ARTICLES, label: '文章', shortLabel: '文章', caption: '创作工作台', icon: 'fas fa-newspaper' },
-  { key: ProfileTabKey.SETTINGS, label: '设置', shortLabel: '设置', caption: '外观与偏好', icon: 'fas fa-sliders' }
+const profileContentPanel = ref(null);
+const activeGroup = ref(ProfileTabKey.PROFILE);
+const groupRefs = reactive({
+  [ProfileTabKey.PROFILE]: null,
+  [ProfileTabKey.ACCOUNT]: null,
+  [ProfileTabKey.ARTICLES]: null,
+  [ProfileTabKey.SETTINGS]: null
+});
+const navGroups = [
+  { key: ProfileTabKey.PROFILE, label: '个人', caption: '概览与快捷入口', icon: 'fas fa-id-card' },
+  { key: ProfileTabKey.ACCOUNT, label: '账号', caption: '绑定与安全', icon: 'fas fa-shield-halved' },
+  { key: ProfileTabKey.ARTICLES, label: '文章', caption: '创作工作台', icon: 'fas fa-newspaper' },
+  { key: ProfileTabKey.SETTINGS, label: '设置', caption: '外观与偏好', icon: 'fas fa-sliders' }
 ];
+const accountSectionLoaded = ref(false);
 
 const MUSIC_PROVIDER_ORDER_DEFAULT = ['netease', 'kuwo', 'qq'];
 const MUSIC_PROVIDER_CATALOG = Object.freeze({
@@ -540,9 +620,101 @@ const placeholderCaptcha =
 
 let bindCooldownTimer = 0;
 let changePwdCooldownTimer = 0;
+let groupObserver = null;
 
-function normalizeTab(raw) {
-  return tabs.some((item) => item.key === raw) ? raw : ProfileTabKey.PROFILE;
+function normalizeGroupKey(raw, fallback = ProfileTabKey.PROFILE) {
+  return normalizeProfileTabKey(raw, fallback);
+}
+
+function tryResolveGroupKey(raw) {
+  const candidate = normalizeProfileTabKey(raw, '__invalid__');
+  return candidate === '__invalid__' ? '' : candidate;
+}
+
+function cleanProfileQuery(rawQuery = route.query) {
+  const next = {};
+  Object.entries(rawQuery || {}).forEach(([key, value]) => {
+    if (key === 'tab' || value == null) return;
+    next[key] = value;
+  });
+  return next;
+}
+
+function resolveInitialGroupFromRoute() {
+  const fromHash = tryResolveGroupKey(String(route.hash || '').replace(/^#/, ''));
+  if (fromHash) return fromHash;
+  const fromLegacyTab = tryResolveGroupKey(typeof route.query.tab === 'string' ? route.query.tab : '');
+  if (fromLegacyTab) return fromLegacyTab;
+  return ProfileTabKey.PROFILE;
+}
+
+async function replaceRouteHash(groupKey) {
+  const normalized = normalizeGroupKey(groupKey);
+  const targetHash = `#${normalized}`;
+  const nextQuery = cleanProfileQuery();
+  const hasLegacyTab = Object.prototype.hasOwnProperty.call(route.query || {}, 'tab');
+  if (route.hash === targetHash && !hasLegacyTab) return;
+  await router.replace({ path: '/profile', query: nextQuery, hash: targetHash });
+}
+
+function setGroupRef(groupKey, element) {
+  groupRefs[groupKey] = element || null;
+}
+
+function scrollToGroup(groupKey, smooth = true) {
+  const normalized = normalizeGroupKey(groupKey);
+  const target = groupRefs[normalized];
+  if (!target || typeof target.scrollIntoView !== 'function') return;
+  target.scrollIntoView({
+    behavior: smooth ? 'smooth' : 'auto',
+    block: 'start',
+    inline: 'nearest'
+  });
+}
+
+async function navigateToGroup(groupKey) {
+  const normalized = normalizeGroupKey(groupKey);
+  activeGroup.value = normalized;
+  await replaceRouteHash(normalized);
+  await nextTick();
+  scrollToGroup(normalized, true);
+  if (normalized === ProfileTabKey.ACCOUNT) {
+    await ensureAccountSectionReady();
+  }
+}
+
+function setupGroupObserver() {
+  if (typeof window === 'undefined' || typeof IntersectionObserver !== 'function') return;
+  if (groupObserver) {
+    groupObserver.disconnect();
+    groupObserver = null;
+  }
+
+  const rootEl = profileContentPanel.value;
+  if (!rootEl) return;
+
+  groupObserver = new IntersectionObserver(
+    (entries) => {
+      const visibleEntries = entries.filter((entry) => entry.isIntersecting && entry.intersectionRatio > 0);
+      if (!visibleEntries.length) return;
+
+      visibleEntries.sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+      const candidate = tryResolveGroupKey(visibleEntries[0]?.target?.dataset?.groupKey);
+      if (!candidate || candidate === activeGroup.value) return;
+      activeGroup.value = candidate;
+    },
+    {
+      root: rootEl,
+      threshold: [0.2, 0.35, 0.55, 0.72],
+      rootMargin: '-18% 0px -50% 0px'
+    }
+  );
+
+  navGroups.forEach((group) => {
+    const target = groupRefs[group.key];
+    if (!target) return;
+    groupObserver.observe(target);
+  });
 }
 
 function normalizeRedirectPath(path) {
@@ -630,12 +802,6 @@ function clearErrors() {
   musicPreferenceError.value = '';
 }
 
-function openTab(tabKey) {
-  const normalized = normalizeTab(tabKey);
-  if (activeTab.value === normalized) return;
-  router.replace({ path: '/profile', query: { tab: normalized } });
-}
-
 function setGlobalHint(message) {
   globalHint.value = message;
 }
@@ -677,13 +843,14 @@ function forceOpenSection(tabKey, sectionKey) {
   applyAccordionState(nextState);
 }
 
-function toggleActiveSection(sectionKey) {
-  const nextState = toggleProfileAccordion(accordionState, activeTab.value, sectionKey);
+function toggleGroupSection(groupKey, sectionKey) {
+  const normalizedGroup = normalizeGroupKey(groupKey);
+  const nextState = toggleProfileAccordion(accordionState, normalizedGroup, sectionKey);
   applyAccordionState(nextState);
 
   const openAccountSection = getTabOpenSection(nextState, ProfileTabKey.ACCOUNT);
   if (
-    activeTab.value === ProfileTabKey.ACCOUNT &&
+    normalizedGroup === ProfileTabKey.ACCOUNT &&
     (openAccountSection === ProfileSectionKey.ACCOUNT.EMAIL_BIND ||
       openAccountSection === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD) &&
     !captcha.captchaId
@@ -741,6 +908,7 @@ async function loadAccountProfile() {
   if (!auth.isAuthenticated.value) return;
   accountLoading.value = true;
   clearErrors();
+  let success = false;
   try {
     const payload = normalizeAccountView(await auth.getAccountProfile());
     account.userId = payload.userId;
@@ -756,10 +924,20 @@ async function loadAccountProfile() {
     bindEmailForm.email = payload.email || '';
     changePasswordForm.email = payload.email || '';
     await loadMusicAuthorizationState();
+    success = true;
   } catch (error) {
     setGlobalHint(readErrorMessage(error));
   } finally {
     accountLoading.value = false;
+  }
+  return success;
+}
+
+async function ensureAccountSectionReady() {
+  if (accountSectionLoaded.value) return;
+  const ok = await loadAccountProfile();
+  if (ok) {
+    accountSectionLoaded.value = true;
   }
 }
 
@@ -942,7 +1120,7 @@ async function startOAuthBind(provider) {
   oauthBindingError.value = '';
   oauthBindingSubmitting.value = true;
   try {
-    await auth.startOAuthBind(provider, '/profile?tab=account');
+    await auth.startOAuthBind(provider, '/profile#account');
   } catch (error) {
     oauthBindingError.value = readErrorMessage(error);
     oauthBindingSubmitting.value = false;
@@ -1116,10 +1294,9 @@ function handleSectionAvatarClick() {
 }
 
 async function openAccountSection(sectionKey) {
-  if (activeTab.value !== ProfileTabKey.ACCOUNT) {
-    await router.replace({ path: '/profile', query: { tab: ProfileTabKey.ACCOUNT } });
-  }
+  await ensureAccountSectionReady();
   forceOpenSection(ProfileTabKey.ACCOUNT, sectionKey);
+  await navigateToGroup(ProfileTabKey.ACCOUNT);
   if (
     sectionKey === ProfileSectionKey.ACCOUNT.EMAIL_BIND ||
     sectionKey === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD
@@ -1131,9 +1308,7 @@ async function openAccountSection(sectionKey) {
 }
 
 async function openSettingsAppearance() {
-  if (activeTab.value !== ProfileTabKey.SETTINGS) {
-    await router.replace({ path: '/profile', query: { tab: ProfileTabKey.SETTINGS } });
-  }
+  await navigateToGroup(ProfileTabKey.SETTINGS);
   forceOpenSection(ProfileTabKey.SETTINGS, ProfileSectionKey.SETTINGS.APPEARANCE);
 }
 
@@ -1153,13 +1328,6 @@ async function handleLogout() {
     }
   });
 }
-
-const activeTab = computed(() => {
-  const raw = typeof route.query.tab === 'string' ? route.query.tab : '';
-  return normalizeTab(raw);
-});
-
-const openSectionKey = computed(() => getTabOpenSection(accordionState, activeTab.value));
 
 const displayName = computed(() => auth.user.value?.nickname || account.nickname || '未命名用户');
 const userIdText = computed(() => {
@@ -1211,28 +1379,28 @@ const changePwdCodeButtonText = computed(() => {
 });
 
 const heroEyebrow = computed(() => {
-  if (activeTab.value === ProfileTabKey.ACCOUNT) return 'Account Security';
-  if (activeTab.value === ProfileTabKey.ARTICLES) return 'Content Workspace';
-  if (activeTab.value === ProfileTabKey.SETTINGS) return 'Appearance';
+  if (activeGroup.value === ProfileTabKey.ACCOUNT) return 'Account Security';
+  if (activeGroup.value === ProfileTabKey.ARTICLES) return 'Content Workspace';
+  if (activeGroup.value === ProfileTabKey.SETTINGS) return 'Appearance';
   return 'Profile Overview';
 });
 
 const heroTitle = computed(() => {
-  if (activeTab.value === ProfileTabKey.ACCOUNT) return '账号与安全';
-  if (activeTab.value === ProfileTabKey.ARTICLES) return '内容工作台';
-  if (activeTab.value === ProfileTabKey.SETTINGS) return '偏好与外观';
+  if (activeGroup.value === ProfileTabKey.ACCOUNT) return '账号与安全';
+  if (activeGroup.value === ProfileTabKey.ARTICLES) return '内容工作台';
+  if (activeGroup.value === ProfileTabKey.SETTINGS) return '偏好与外观';
   return `你好，${displayName.value}`;
 });
 
 const heroSubtitle = computed(() => {
-  if (activeTab.value === ProfileTabKey.ACCOUNT) return '账号与绑定集中管理，默认折叠，按需展开。';
-  if (activeTab.value === ProfileTabKey.ARTICLES) return '先保留高质量结构入口，后续接入真实文章数据。';
-  if (activeTab.value === ProfileTabKey.SETTINGS) return '保持轻量设置层次，把常用操作放前面。';
+  if (activeGroup.value === ProfileTabKey.ACCOUNT) return '账号与绑定集中管理，默认折叠，按需展开。';
+  if (activeGroup.value === ProfileTabKey.ARTICLES) return '先保留高质量结构入口，后续接入真实文章数据。';
+  if (activeGroup.value === ProfileTabKey.SETTINGS) return '保持轻量设置层次，把常用操作放前面。';
   return '个人页展示核心状态与常用入口，减少无关信息占屏。';
 });
 
 const heroChips = computed(() => {
-  if (activeTab.value === ProfileTabKey.ACCOUNT) {
+  if (activeGroup.value === ProfileTabKey.ACCOUNT) {
     return [
       account.email ? '邮箱已填写' : '邮箱未填写',
       account.emailVerified ? '邮箱已验证' : '邮箱未验证',
@@ -1240,10 +1408,10 @@ const heroChips = computed(() => {
       `OAuth ${oauthBindingCount.value}`
     ];
   }
-  if (activeTab.value === ProfileTabKey.ARTICLES) {
+  if (activeGroup.value === ProfileTabKey.ARTICLES) {
     return ['草稿入口', '发布入口', '归档入口'];
   }
-  if (activeTab.value === ProfileTabKey.SETTINGS) {
+  if (activeGroup.value === ProfileTabKey.SETTINGS) {
     return ['主题面板', '实验偏好'];
   }
   return [groupsText.value, `权限 ${permissionCount.value}`];
@@ -1416,29 +1584,23 @@ const settingsSections = computed(() => [
   }
 ]);
 
-const activeSections = computed(() => {
-  if (activeTab.value === ProfileTabKey.ACCOUNT) return accountSections.value;
-  if (activeTab.value === ProfileTabKey.ARTICLES) return articlesSections.value;
-  if (activeTab.value === ProfileTabKey.SETTINGS) return settingsSections.value;
-  return profileSections.value;
-});
-
 watch(
-  () => route.query.tab,
-  (nextTab) => {
-    const raw = typeof nextTab === 'string' ? nextTab : '';
-    const normalized = normalizeTab(raw);
-    if (raw === normalized) return;
-    router.replace({ path: '/profile', query: { tab: normalized } });
-  },
-  { immediate: true }
+  () => route.hash,
+  (nextHash) => {
+    const group = tryResolveGroupKey(String(nextHash || '').replace(/^#/, ''));
+    if (!group || group === activeGroup.value) return;
+    activeGroup.value = group;
+    nextTick(() => {
+      scrollToGroup(group, false);
+    });
+  }
 );
 
 watch(
-  () => activeTab.value,
-  async (tab) => {
-    if (tab === ProfileTabKey.ACCOUNT) {
-      await loadAccountProfile();
+  () => activeGroup.value,
+  async (group) => {
+    if (group === ProfileTabKey.ACCOUNT) {
+      await ensureAccountSectionReady();
       if (!captcha.captchaId) {
         await refreshCaptcha();
       }
@@ -1459,8 +1621,15 @@ onMounted(async () => {
     return;
   }
 
-  if (activeTab.value === ProfileTabKey.ACCOUNT) {
-    await loadAccountProfile();
+  const initialGroup = resolveInitialGroupFromRoute();
+  activeGroup.value = initialGroup;
+  await replaceRouteHash(initialGroup);
+  await nextTick();
+  setupGroupObserver();
+  scrollToGroup(initialGroup, false);
+
+  if (initialGroup === ProfileTabKey.ACCOUNT) {
+    await ensureAccountSectionReady();
     if (!captcha.captchaId) {
       await refreshCaptcha();
     }
@@ -1468,6 +1637,10 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  if (groupObserver) {
+    groupObserver.disconnect();
+    groupObserver = null;
+  }
   if (bindCooldownTimer) {
     window.clearInterval(bindCooldownTimer);
     bindCooldownTimer = 0;
@@ -1509,62 +1682,66 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   padding: 10px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 228px minmax(0, 1fr);
+  gap: 12px;
 }
 
-.profile-top-tabs {
+.profile-anchor-nav {
   --liquid-bg: rgba(9, 18, 30, 0.52);
   --liquid-border: rgba(145, 178, 203, 0.3);
-  --liquid-shadow: 0 10px 22px rgba(4, 8, 14, 0.24);
-  border-radius: 999px;
-  padding: 7px;
-  display: flex;
+  --liquid-shadow: 0 14px 26px rgba(4, 8, 14, 0.24);
+  border-radius: 15px;
+  padding: 14px 12px;
+  display: grid;
   gap: 8px;
-  align-items: center;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
+  align-content: start;
+  min-height: 0;
+  position: relative;
 }
 
-.profile-top-tabs::-webkit-scrollbar {
-  display: none;
+.anchor-line {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 32px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(96, 208, 236, 0), rgba(96, 208, 236, 0.54), rgba(96, 208, 236, 0));
 }
 
-.tab-btn {
+.anchor-btn {
   border: 0;
-  border-radius: 999px;
-  min-height: 44px;
-  min-width: 128px;
-  padding: 0 14px;
-  display: inline-flex;
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  color: rgba(221, 236, 250, 0.92);
-  background: rgba(152, 186, 212, 0.12);
+  gap: 9px;
+  color: rgba(210, 229, 247, 0.9);
+  background: rgba(150, 186, 212, 0.12);
   box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.2);
-  flex-shrink: 0;
   text-align: left;
+  position: relative;
 }
 
-.tab-btn:hover {
+.anchor-btn:hover {
   background: rgba(168, 199, 223, 0.2);
 }
 
-.tab-btn:focus-visible {
+.anchor-btn:focus-visible {
   outline: 2px solid rgba(98, 219, 245, 0.75);
   outline-offset: 2px;
 }
 
-.tab-btn.active {
+.anchor-btn.active {
   background: linear-gradient(145deg, rgba(63, 176, 209, 0.3), rgba(56, 121, 191, 0.28));
   box-shadow: inset 0 0 0 1px rgba(89, 201, 233, 0.56);
   color: rgba(240, 248, 255, 0.98);
 }
 
-.tab-icon {
-  width: 24px;
-  height: 24px;
+.anchor-dot {
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -1573,34 +1750,40 @@ onBeforeUnmount(() => {
   color: rgba(184, 237, 252, 0.96);
   box-shadow: inset 0 0 0 1px rgba(97, 209, 239, 0.34);
   flex-shrink: 0;
+  margin-left: 1px;
 }
 
-.tab-icon i {
-  font-size: 12px;
+.anchor-dot i {
+  font-size: 11px;
 }
 
-.tab-copy {
+.anchor-copy {
   display: grid;
-  gap: 1px;
+  gap: 0;
+  min-width: 0;
 }
 
-.tab-title {
+.anchor-title {
   font-size: 13px;
-  font-weight: 620;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-.tab-caption {
+.anchor-caption {
   font-size: 11px;
   color: rgba(182, 208, 231, 0.86);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .profile-content-panel {
   min-height: 0;
   overflow: auto;
-  padding-right: 4px;
+  padding-right: 6px;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 14px;
 }
 
 .profile-content-panel::-webkit-scrollbar {
@@ -1616,6 +1799,34 @@ onBeforeUnmount(() => {
   margin: 2px 2px 3px;
   color: rgba(192, 216, 239, 0.95);
   font-size: 12px;
+}
+
+.profile-group {
+  display: grid;
+  gap: 9px;
+}
+
+.group-header {
+  display: grid;
+  gap: 3px;
+  margin: 2px 2px 0;
+}
+
+.group-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(138, 212, 236, 0.92);
+}
+
+.group-title {
+  font-size: clamp(17px, 2vw, 21px);
+  color: rgba(234, 245, 255, 0.96);
+}
+
+.group-caption {
+  font-size: 12px;
+  color: rgba(174, 202, 228, 0.88);
 }
 
 .overview-grid {
@@ -1997,13 +2208,33 @@ select.field-input:focus-visible,
 @media (max-width: 1060px) {
   .profile-stage {
     padding: 9px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .tab-btn {
-    min-width: 122px;
+  .profile-anchor-nav {
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
   }
 
-  .tab-caption {
+  .profile-anchor-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .anchor-line {
+    display: none;
+  }
+
+  .anchor-btn {
+    min-width: 132px;
+  }
+
+  .anchor-caption {
     display: none;
   }
 
@@ -2019,25 +2250,26 @@ select.field-input:focus-visible,
     gap: 8px;
   }
 
-  .profile-top-tabs {
+  .profile-anchor-nav {
     padding: 6px;
     gap: 6px;
   }
 
-  .tab-btn {
-    min-width: 98px;
-    min-height: 40px;
-    padding: 0 11px;
-    gap: 7px;
+  .anchor-btn {
+    min-width: 102px;
+    min-height: 42px;
+    padding: 6px 8px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
   }
 
-  .tab-icon {
-    width: 21px;
-    height: 21px;
+  .anchor-copy {
+    gap: 2px;
   }
 
-  .tab-title {
-    font-size: 12px;
+  .anchor-title {
+    font-size: 11px;
   }
 
   .profile-content-panel {

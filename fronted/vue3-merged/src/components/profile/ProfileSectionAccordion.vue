@@ -51,10 +51,6 @@ defineEmits(['toggle', 'avatar-click']);
   align-items: start;
 }
 
-.section-accordion :deep(.section-item.open) {
-  grid-column: 1 / -1;
-}
-
 @media (max-width: 1060px) {
   .section-accordion {
     grid-template-columns: 1fr;

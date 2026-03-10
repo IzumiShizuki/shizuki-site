@@ -5,6 +5,8 @@ export const ProfileTabKey = Object.freeze({
   SETTINGS: 'settings'
 });
 
+export const ProfileGroupKey = ProfileTabKey;
+
 const TAB_VALUES = Object.freeze([
   ProfileTabKey.PROFILE,
   ProfileTabKey.ACCOUNT,
@@ -45,6 +47,11 @@ const TAB_SECTION_MAP = Object.freeze({
 
 export function isProfileTabKey(tabKey) {
   return TAB_VALUES.includes(tabKey);
+}
+
+export function normalizeProfileTabKey(raw, fallback = ProfileTabKey.PROFILE) {
+  const normalized = String(raw || '').trim().toLowerCase();
+  return isProfileTabKey(normalized) ? normalized : fallback;
 }
 
 export function createProfileAccordionState(initial = {}) {

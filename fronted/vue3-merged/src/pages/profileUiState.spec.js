@@ -5,6 +5,7 @@ import {
   buildSectionSummary,
   createProfileAccordionState,
   getTabOpenSection,
+  normalizeProfileTabKey,
   toggleProfileAccordion
 } from './profileUiState';
 
@@ -57,5 +58,11 @@ describe('profileUiState', () => {
         nickname: 'Izumi'
       })
     ).toBe('当前昵称：Izumi');
+  });
+
+  it('normalizes profile tab key with fallback', () => {
+    expect(normalizeProfileTabKey('ACCOUNT')).toBe(ProfileTabKey.ACCOUNT);
+    expect(normalizeProfileTabKey('unknown')).toBe(ProfileTabKey.PROFILE);
+    expect(normalizeProfileTabKey('', ProfileTabKey.SETTINGS)).toBe(ProfileTabKey.SETTINGS);
   });
 });
