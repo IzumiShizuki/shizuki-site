@@ -2,7 +2,6 @@
   <section class="route-page profile-page motion-managed">
     <div class="profile-stage liquid-material">
       <aside class="profile-anchor-nav liquid-material" aria-label="个人分组导航">
-        <span class="anchor-line" aria-hidden="true"></span>
         <button
           v-for="group in navGroups"
           :key="group.key"
@@ -10,15 +9,13 @@
           :class="{ active: activeGroup === group.key }"
           type="button"
           :aria-label="group.label"
+          :title="group.label"
           @click="navigateToGroup(group.key)"
         >
           <span class="anchor-dot" aria-hidden="true">
             <i :class="group.icon"></i>
           </span>
-          <span class="anchor-copy">
-            <span class="anchor-title">{{ group.label }}</span>
-            <span class="anchor-caption">{{ group.caption }}</span>
-          </span>
+          <span class="sr-only">{{ group.label }}</span>
         </button>
       </aside>
 
@@ -613,7 +610,14 @@ const captcha = reactive({
   expiresInSec: 0
 });
 
-const accordionState = reactive(createProfileAccordionState());
+const accordionState = reactive(
+  createProfileAccordionState({
+    [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.OVERVIEW,
+    [ProfileTabKey.ACCOUNT]: ProfileSectionKey.ACCOUNT.ACCOUNT_INFO,
+    [ProfileTabKey.ARTICLES]: ProfileSectionKey.ARTICLES.WORKSPACE,
+    [ProfileTabKey.SETTINGS]: ProfileSectionKey.SETTINGS.APPEARANCE
+  })
+);
 
 const placeholderCaptcha =
   '<svg xmlns="http://www.w3.org/2000/svg" width="156" height="46"><rect width="100%" height="100%" fill="#1a2537"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#d2deef" font-size="11">刷新验证码</text></svg>';
@@ -845,6 +849,8 @@ function forceOpenSection(tabKey, sectionKey) {
 
 function toggleGroupSection(groupKey, sectionKey) {
   const normalizedGroup = normalizeGroupKey(groupKey);
+  const current = getTabOpenSection(accordionState, normalizedGroup);
+  if (current === sectionKey) return;
   const nextState = toggleProfileAccordion(accordionState, normalizedGroup, sectionKey);
   applyAccordionState(nextState);
 
@@ -1682,45 +1688,37 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   padding: 10px;
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
 }
 
 .profile-anchor-nav {
   --liquid-bg: rgba(9, 18, 30, 0.52);
   --liquid-border: rgba(145, 178, 203, 0.3);
   --liquid-shadow: 0 14px 26px rgba(4, 8, 14, 0.24);
-  border-radius: 15px;
-  padding: 14px 12px;
+  border-radius: 999px;
+  padding: 10px 8px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   align-content: start;
-  min-height: 0;
-  position: relative;
-}
-
-.anchor-line {
-  position: absolute;
-  top: 18px;
-  bottom: 18px;
-  left: 32px;
-  width: 1px;
-  background: linear-gradient(180deg, rgba(96, 208, 236, 0), rgba(96, 208, 236, 0.54), rgba(96, 208, 236, 0));
+  justify-items: center;
+  align-self: start;
+  width: 64px;
 }
 
 .anchor-btn {
   border: 0;
-  border-radius: 12px;
-  min-height: 48px;
-  padding: 8px 10px;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  border-radius: 999px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
   align-items: center;
-  gap: 9px;
+  justify-content: center;
   color: rgba(210, 229, 247, 0.9);
   background: rgba(150, 186, 212, 0.12);
   box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.2);
-  text-align: left;
   position: relative;
 }
 
@@ -1737,11 +1735,12 @@ onBeforeUnmount(() => {
   background: linear-gradient(145deg, rgba(63, 176, 209, 0.3), rgba(56, 121, 191, 0.28));
   box-shadow: inset 0 0 0 1px rgba(89, 201, 233, 0.56);
   color: rgba(240, 248, 255, 0.98);
+  transform: translateY(-1px) scale(1.04);
 }
 
 .anchor-dot {
-  width: 20px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -1749,38 +1748,29 @@ onBeforeUnmount(() => {
   background: rgba(67, 184, 219, 0.2);
   color: rgba(184, 237, 252, 0.96);
   box-shadow: inset 0 0 0 1px rgba(97, 209, 239, 0.34);
-  flex-shrink: 0;
-  margin-left: 1px;
 }
 
 .anchor-dot i {
-  font-size: 11px;
+  font-size: 14px;
 }
 
-.anchor-copy {
-  display: grid;
-  gap: 0;
-  min-width: 0;
-}
-
-.anchor-title {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.anchor-caption {
-  font-size: 11px;
-  color: rgba(182, 208, 231, 0.86);
-  white-space: nowrap;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .profile-content-panel {
   min-height: 0;
   overflow: auto;
   padding-right: 6px;
+  padding-bottom: 20px;
   display: grid;
   align-content: start;
   gap: 14px;
@@ -2210,9 +2200,12 @@ select.field-input:focus-visible,
     padding: 9px;
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
   }
 
   .profile-anchor-nav {
+    width: auto;
+    border-radius: 999px;
     padding: 8px;
     display: flex;
     align-items: center;
@@ -2226,16 +2219,9 @@ select.field-input:focus-visible,
     display: none;
   }
 
-  .anchor-line {
-    display: none;
-  }
-
   .anchor-btn {
-    min-width: 132px;
-  }
-
-  .anchor-caption {
-    display: none;
+    width: 42px;
+    height: 42px;
   }
 
   .quick-grid {
@@ -2256,20 +2242,17 @@ select.field-input:focus-visible,
   }
 
   .anchor-btn {
-    min-width: 102px;
-    min-height: 42px;
-    padding: 6px 8px;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    text-align: center;
+    width: 38px;
+    height: 38px;
   }
 
-  .anchor-copy {
-    gap: 2px;
+  .anchor-dot {
+    width: 28px;
+    height: 28px;
   }
 
-  .anchor-title {
-    font-size: 11px;
+  .anchor-dot i {
+    font-size: 12px;
   }
 
   .profile-content-panel {
