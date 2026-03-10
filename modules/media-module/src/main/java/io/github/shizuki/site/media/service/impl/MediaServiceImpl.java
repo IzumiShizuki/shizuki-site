@@ -120,6 +120,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -178,6 +179,9 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_EVENT_DEFAULT_COLLECT_UPSERT_DONE = "MUSIC_DEFAULT_COLLECT_UPSERT_DONE";
     private static final String LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_OK = "MUSIC_DEFAULT_COLLECT_CLOUD_ENQUEUE_OK";
     private static final String LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL = "MUSIC_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL";
+    private static final String LOG_KEY_REQUEST_ID = "request_id";
+    private static final String LOG_KEY_TRACE_ID = "trace_id";
+    private static final String MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING = "MUSIC_SEARCH_API_KEY_MISSING";
     private static final String SOURCE_ONLY_OBJECT_CODE = "__source_only__";
     private static final int TRACK_METADATA_JSON_MAX_LENGTH = 4096;
     private static final Set<String> TRACK_METADATA_ALLOWED_KEYS = Set.of(
@@ -305,9 +309,14 @@ public class MediaServiceImpl implements MediaService {
         if (assetKind == AssetKindEnum.AUDIO) {
             long total = resolveQuotaValue(MUSIC_UPLOAD_QUOTA_CODE, currentLoginUserGroups(), 104857600L);
             long used = loadUploadUsedBytes(userId);
-            if (used >= total) {
+            if (!isUnlimitedQuota(total) && used >= total) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Music upload quota exhausted",
-                    Map.of("music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED", "total", total, "used", used, "remaining", 0));
+                    Map.of(
+                        "music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED",
+                        "total", total,
+                        "used", used,
+                        "remaining", quotaRemaining(total, used)
+                    ));
             }
         }
 
@@ -356,14 +365,24 @@ public class MediaServiceImpl implements MediaService {
         if (assetKind == AssetKindEnum.AUDIO) {
             long total = resolveQuotaValue(MUSIC_UPLOAD_QUOTA_CODE, currentLoginUserGroups(), 104857600L);
             long used = loadUploadUsedBytes(userId);
-            if (used >= total) {
+            if (!isUnlimitedQuota(total) && used >= total) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Music upload quota exhausted",
-                    Map.of("music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED", "total", total, "used", used, "remaining", 0));
+                    Map.of(
+                        "music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED",
+                        "total", total,
+                        "used", used,
+                        "remaining", quotaRemaining(total, used)
+                    ));
             }
             long next = used + Math.max(0L, file.getSize());
-            if (next > total) {
+            if (!isUnlimitedQuota(total) && next > total) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Music upload quota exhausted",
-                    Map.of("music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED", "total", total, "used", used, "remaining", Math.max(0L, total - used)));
+                    Map.of(
+                        "music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED",
+                        "total", total,
+                        "used", used,
+                        "remaining", quotaRemaining(total, used)
+                    ));
             }
         }
 
@@ -435,9 +454,14 @@ public class MediaServiceImpl implements MediaService {
             long total = resolveQuotaValue(MUSIC_UPLOAD_QUOTA_CODE, currentLoginUserGroups(), 104857600L);
             long used = loadUploadUsedBytes(userId);
             long next = used + objectSizeBytes;
-            if (next > total) {
+            if (!isUnlimitedQuota(total) && next > total) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Music upload quota exhausted",
-                    Map.of("music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED", "total", total, "used", used, "remaining", Math.max(0L, total - used)));
+                    Map.of(
+                        "music_error_code", "MUSIC_UPLOAD_QUOTA_EXHAUSTED",
+                        "total", total,
+                        "used", used,
+                        "remaining", quotaRemaining(total, used)
+                    ));
             }
         }
 
@@ -855,6 +879,9 @@ public class MediaServiceImpl implements MediaService {
         int trackCollectLimit = safeLimit + 1;
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
         String queryDigest = hashQueryFingerprint(normalizedQuery);
+        String searchId = UUID.randomUUID().toString();
+        String requestId = readString(MDC.get(LOG_KEY_REQUEST_ID), "-");
+        String traceId = readString(MDC.get(LOG_KEY_TRACE_ID), "-");
 
         List<String> selectedProviders = resolveSearchProviders(providers, userId);
         boolean includePlaylists = "all".equals(normalizedType) || "playlist".equals(normalizedType);
@@ -863,23 +890,30 @@ public class MediaServiceImpl implements MediaService {
         long startMs = System.currentTimeMillis();
 
         LOGGER.info(
-            "{} userId={} queryLength={} queryHash={} type={} providers={} page={} limit={} playlistMatch={}",
+            "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} query_length={} providers={} page={} limit={} playlist_match={}",
             LOG_EVENT_SEARCH_STAGE_START,
+            searchId,
+            requestId,
+            traceId,
             userId,
-            normalizedQuery.length(),
-            queryDigest,
             normalizedType,
+            queryDigest,
+            normalizedQuery.length(),
             selectedProviders,
             safePage,
             safeLimit,
             includePlaylists ? "real" : "off"
         );
         LOGGER.info(
-            "{} userId={} queryLength={} type={} providers={} page={} limit={}",
+            "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} query_length={} providers={} page={} limit={}",
             LOG_EVENT_SEARCH_START,
+            searchId,
+            requestId,
+            traceId,
             userId,
-            normalizedQuery.length(),
             normalizedType,
+            queryDigest,
+            normalizedQuery.length(),
             selectedProviders,
             safePage,
             safeLimit
@@ -893,6 +927,31 @@ public class MediaServiceImpl implements MediaService {
 
         TuneHubApiContext apiContext = resolveTuneHubApiContext(false);
         boolean tuneHubReady = StringUtils.hasText(apiContext.apiKey());
+        boolean allSelectedRequireTuneHub = !selectedProviders.isEmpty()
+            && selectedProviders.stream().allMatch(TUNEHUB_PLAYLIST_PLATFORMS::contains);
+
+        if (allSelectedRequireTuneHub && !tuneHubReady) {
+            LOGGER.warn(
+                "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider=all stage=precheck result=fail reason=no_api_key duration_ms=1 row_count=0 mapped_count=0 dedupe_dropped=0 partial=true",
+                LOG_EVENT_SEARCH_PROVIDER_FAIL,
+                searchId,
+                requestId,
+                traceId,
+                userId,
+                normalizedType,
+                queryDigest
+            );
+            throw new BusinessException(
+                ErrorCode.FORBIDDEN,
+                "TuneHub API key missing",
+                Map.of(
+                    "music_error_code", MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING,
+                    "providers", selectedProviders,
+                    "request_id", requestId,
+                    "trace_id", traceId
+                )
+            );
+        }
 
         for (String provider : selectedProviders) {
             long providerStartMs = System.currentTimeMillis();
@@ -932,23 +991,58 @@ public class MediaServiceImpl implements MediaService {
                     providerTrackMapped = mappedCount;
                     providerRowCount = items.size();
                     providerDedupeDropped = Math.max(0, providerRowCount - mappedCount);
-                    LOGGER.info("{} provider={} rowCount={} mappedCount={} dedupeDropped={} totalTrackCount={}",
-                        LOG_EVENT_SEARCH_PROVIDER_RESULT, "spotify", providerRowCount, mappedCount, providerDedupeDropped, tracks.size());
+                    LOGGER.info(
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=track_fetch result=ok reason=- duration_ms={} row_count={} mapped_count={} dedupe_dropped={} total_track_count={} partial={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
+                        "spotify",
+                        Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        providerRowCount,
+                        mappedCount,
+                        providerDedupeDropped,
+                        tracks.size(),
+                        false
+                    );
                 } catch (Exception ex) {
                     failedProviders.add("spotify");
                     LOGGER.warn(
-                        "{} provider={} reason={}",
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=track_fetch result=fail reason={} duration_ms={} row_count={} mapped_count={} dedupe_dropped={} partial=true",
                         LOG_EVENT_SEARCH_PROVIDER_FAIL,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
                         "spotify",
-                        sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
+                        sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")),
+                        Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        providerRowCount,
+                        providerTrackMapped,
+                        providerDedupeDropped
                     );
                 } finally {
                     LOGGER.info(
-                        "{} provider={} durationMs={} mappedTrackCount={} failed={}",
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=provider_done result={} reason={} duration_ms={} row_count={} mapped_count={} dedupe_dropped={} partial={}",
                         LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
                         "spotify",
+                        failedProviders.contains("spotify") ? "fail" : "ok",
+                        failedProviders.contains("spotify") ? "provider_error" : "-",
                         Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        providerRowCount,
                         providerTrackMapped,
+                        providerDedupeDropped,
                         failedProviders.contains("spotify")
                     );
                 }
@@ -961,8 +1055,14 @@ public class MediaServiceImpl implements MediaService {
             if (!tuneHubReady) {
                 failedProviders.add(provider);
                 LOGGER.info(
-                    "{} provider={} durationMs={} mappedTrackCount={} failed=true reason=no_api_key",
+                    "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=provider_done result=fail reason=no_api_key duration_ms={} row_count=0 mapped_count={} dedupe_dropped=0 partial=true",
                     LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                    searchId,
+                    requestId,
+                    traceId,
+                    userId,
+                    normalizedType,
+                    queryDigest,
                     provider,
                     Math.max(1L, System.currentTimeMillis() - providerStartMs),
                     providerTrackMapped
@@ -1011,24 +1111,59 @@ public class MediaServiceImpl implements MediaService {
                     }
                     providerTrackMapped = mappedCount;
                     providerDedupeDropped = Math.max(0, providerRowCount - mappedCount);
-                    LOGGER.info("{} provider={} rowCount={} mappedCount={} dedupeDropped={} totalTrackCount={}",
-                        LOG_EVENT_SEARCH_PROVIDER_RESULT, provider, providerRowCount, mappedCount, providerDedupeDropped, tracks.size());
+                    LOGGER.info(
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=track_fetch result=ok reason=- duration_ms={} row_count={} mapped_count={} dedupe_dropped={} total_track_count={} partial={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
+                        provider,
+                        Math.max(1L, System.currentTimeMillis() - trackFetchStartMs),
+                        providerRowCount,
+                        mappedCount,
+                        providerDedupeDropped,
+                        tracks.size(),
+                        false
+                    );
                 } catch (Exception ex) {
                     failedProviders.add(provider);
                     LOGGER.warn(
-                        "{} provider={} reason={}",
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=track_fetch result=fail reason={} duration_ms={} row_count={} mapped_count={} dedupe_dropped={} partial=true",
                         LOG_EVENT_SEARCH_PROVIDER_FAIL,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
                         provider,
-                        sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
+                        sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")),
+                        Math.max(1L, System.currentTimeMillis() - trackFetchStartMs),
+                        providerRowCount,
+                        providerTrackMapped,
+                        providerDedupeDropped
                     );
                 } finally {
                     LOGGER.info(
-                        "{} provider={} stage={} durationMs={} mappedCount={} failed={}",
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage={} result={} reason={} duration_ms={} row_count={} mapped_count={} dedupe_dropped={} partial={}",
                         LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
                         provider,
                         "track_fetch",
+                        failedProviders.contains(provider) ? "fail" : "ok",
+                        failedProviders.contains(provider) ? "track_fetch_error" : "-",
                         Math.max(1L, System.currentTimeMillis() - trackFetchStartMs),
+                        providerRowCount,
                         providerTrackMapped,
+                        providerDedupeDropped,
                         failedProviders.contains(provider)
                     );
                 }
@@ -1069,27 +1204,50 @@ public class MediaServiceImpl implements MediaService {
                 } catch (Exception ex) {
                     failedProviders.add(provider);
                     LOGGER.warn(
-                        "{} provider={} reason={}",
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=playlist_fetch result=fail reason={} duration_ms={} row_count=0 mapped_count=0 dedupe_dropped=0 partial=true",
                         LOG_EVENT_SEARCH_PROVIDER_FAIL,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
                         provider,
-                        sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
+                        sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")),
+                        Math.max(1L, System.currentTimeMillis() - playlistSearchStartMs)
                     );
                 } finally {
                     LOGGER.info(
-                        "{} provider={} strategy={} matchedCount={} durationMs={}",
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=playlist_fetch result={} strategy={} matched_count={} duration_ms={} partial={}",
                         LOG_EVENT_SEARCH_STAGE_PLAYLIST_MATCH_DONE,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
                         provider,
+                        failedProviders.contains(provider) ? "fail" : "ok",
                         "real",
                         playlistMatchedCount,
-                        Math.max(1L, System.currentTimeMillis() - playlistSearchStartMs)
+                        Math.max(1L, System.currentTimeMillis() - playlistSearchStartMs),
+                        failedProviders.contains(provider)
                     );
                 }
             }
 
             LOGGER.info(
-                "{} provider={} durationMs={} rowCount={} mappedTrackCount={} dedupeDropped={} failed={}",
+                "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=provider_done result={} reason={} duration_ms={} row_count={} mapped_count={} dedupe_dropped={} partial={}",
                 LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                searchId,
+                requestId,
+                traceId,
+                userId,
+                normalizedType,
+                queryDigest,
                 provider,
+                failedProviders.contains(provider) ? "fail" : "ok",
+                failedProviders.contains(provider) ? "provider_error" : "-",
                 Math.max(1L, System.currentTimeMillis() - providerStartMs),
                 providerRowCount,
                 providerTrackMapped,
@@ -1177,11 +1335,17 @@ public class MediaServiceImpl implements MediaService {
         long costMs = Math.max(1L, System.currentTimeMillis() - startMs);
 
         LOGGER.info(
-            "{} userId={} type={} providers={} playlistCount={} trackCount={} artistCount={} partial={} costMs={}",
+            "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} providers={} result={} reason={} playlist_count={} track_count={} artist_count={} partial={} cost_ms={}",
             LOG_EVENT_SEARCH_DONE,
+            searchId,
+            requestId,
+            traceId,
             userId,
             normalizedType,
+            queryDigest,
             selectedProviders,
+            partial ? "partial" : "ok",
+            partial ? "provider_partial_failure" : "-",
             playlists.size(),
             tracks.size(),
             artists.size(),
@@ -1189,11 +1353,14 @@ public class MediaServiceImpl implements MediaService {
             costMs
         );
         LOGGER.info(
-            "{} userId={} queryHash={} type={} partial={} costMs={} playlistCount={} trackCount={} artistCount={}",
+            "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} partial={} cost_ms={} playlist_count={} track_count={} artist_count={}",
             LOG_EVENT_SEARCH_STAGE_DONE,
+            searchId,
+            requestId,
+            traceId,
             userId,
-            queryDigest,
             normalizedType,
+            queryDigest,
             partial,
             costMs,
             playlists.size(),
@@ -1464,11 +1631,11 @@ public class MediaServiceImpl implements MediaService {
             MUSIC_PICK_QUOTA_CODE,
             total,
             used,
-            Math.max(0L, total - used),
+            quotaRemaining(total, used),
             keyStatus != null && keyStatus.keyBound(),
             uploadTotal,
             uploadUsed,
-            Math.max(0L, uploadTotal - uploadUsed)
+            quotaRemaining(uploadTotal, uploadUsed)
         );
     }
 
@@ -1545,7 +1712,7 @@ public class MediaServiceImpl implements MediaService {
                     provider,
                     cachedTrack,
                     true,
-                    new MusicPickQuotaResponse(cachedTotal, cachedUsed, Math.max(0L, cachedTotal - cachedUsed))
+                    new MusicPickQuotaResponse(cachedTotal, cachedUsed, quotaRemaining(cachedTotal, cachedUsed))
                 );
             }
             if (hasOssObjectCache(cache)) {
@@ -1568,14 +1735,14 @@ public class MediaServiceImpl implements MediaService {
                     provider,
                     cachedTrack,
                     true,
-                    new MusicPickQuotaResponse(cachedTotal, cachedUsed, Math.max(0L, cachedTotal - cachedUsed))
+                    new MusicPickQuotaResponse(cachedTotal, cachedUsed, quotaRemaining(cachedTotal, cachedUsed))
                 );
             }
         }
 
         long total = resolveQuotaValue(MUSIC_PICK_QUOTA_CODE, currentLoginUserGroups(), 5L);
         long used = loadPickUsedCount(userId);
-        if (used >= total) {
+        if (!isUnlimitedQuota(total) && used >= total) {
             UserMusicGateway.ApiKeyStatus keyStatus = userMusicClient.getApiKeyStatus(userId, provider);
             if (keyStatus == null || !keyStatus.keyBound()) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Music API key required",
@@ -1583,7 +1750,7 @@ public class MediaServiceImpl implements MediaService {
             }
             // 首版只校验已绑定。后续可在此调用 provider API 并使用明文 key：
             // String apiKey = userMusicClient.getApiKeyPlaintext(userId, provider);
-        } else {
+        } else if (!isUnlimitedQuota(total)) {
             increasePickUsedCount(userId, 1L);
             used += 1L;
         }
@@ -1611,7 +1778,7 @@ public class MediaServiceImpl implements MediaService {
             provider,
             returnedTrack,
             false,
-            new MusicPickQuotaResponse(total, used, Math.max(0L, total - used))
+            new MusicPickQuotaResponse(total, used, quotaRemaining(total, used))
         );
     }
 
@@ -2988,7 +3155,19 @@ public class MediaServiceImpl implements MediaService {
 
     private long resolveQuotaValue(String quotaCode, Set<String> groups, long fallback) {
         Long resolved = userMusicClient.resolveQuota(quotaCode, groups, fallback);
-        return resolved == null ? fallback : resolved;
+        long value = resolved == null ? fallback : resolved;
+        return value < 0 ? -1L : value;
+    }
+
+    private boolean isUnlimitedQuota(long total) {
+        return total < 0;
+    }
+
+    private long quotaRemaining(long total, long used) {
+        if (isUnlimitedQuota(total)) {
+            return -1L;
+        }
+        return Math.max(0L, total - Math.max(0L, used));
     }
 
     private long loadPickUsedCount(Long userId) {

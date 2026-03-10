@@ -2,7 +2,7 @@
   <section class="panel-grid">
     <header class="panel-head">
       <h2>分组配额策略</h2>
-      <p class="helper-text">以分组 x 配额项矩阵管理，直接编辑数值并保存。</p>
+      <p class="helper-text">以分组 x 配额项矩阵管理，直接编辑数值并保存（支持 -1 表示无限）。</p>
     </header>
 
     <div class="inline-actions">
@@ -58,7 +58,7 @@
               <input
                 class="field-input quota-input"
                 type="number"
-                min="0"
+                min="-1"
                 :value="readCellValue(row, code)"
                 @change="$emit('updateCell', { groupCode: row.groupCode, quotaCode: code, value: $event.target.value })"
               />

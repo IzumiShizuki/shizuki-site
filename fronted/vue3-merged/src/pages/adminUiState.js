@@ -74,7 +74,8 @@ export function upsertQuotaCell(rows, groupCode, quotaCode, rawValue) {
   const normalizedGroupCode = String(groupCode || '').toUpperCase();
   const normalizedQuotaCode = String(quotaCode || '').trim();
   const numeric = Number(rawValue);
-  const safeValue = Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : 0;
+  const floored = Number.isFinite(numeric) ? Math.floor(numeric) : 0;
+  const safeValue = floored === -1 ? -1 : (floored >= 0 ? floored : 0);
   return rows.map((row) => {
     if (row.groupCode !== normalizedGroupCode) return row;
     return {
@@ -93,7 +94,8 @@ export function buildQuotaPayloadForGroup(row, quotaCodes) {
   return normalizeCodeList(quotaCodes, false).map((quotaCode) => {
     const existingPolicyId = String(row.policyIds?.[quotaCode] || '').trim();
     const valueRaw = row.values?.[quotaCode];
-    const value = Number.isFinite(Number(valueRaw)) ? Math.floor(Number(valueRaw)) : 0;
+    const floored = Number.isFinite(Number(valueRaw)) ? Math.floor(Number(valueRaw)) : 0;
+    const value = floored === -1 ? -1 : (floored >= 0 ? floored : 0);
     return {
       policyId: existingPolicyId || `policy-${groupCode.toLowerCase()}-${quotaCode}`,
       groupCode,

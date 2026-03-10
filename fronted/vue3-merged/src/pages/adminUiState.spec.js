@@ -51,4 +51,18 @@ describe('adminUiState', () => {
       value: 12
     });
   });
+
+  it('supports -1 as unlimited quota value', () => {
+    const matrix = buildQuotaMatrix(
+      [{ groupCode: 'USER', displayName: '用户', status: 'ACTIVE', builtIn: 1 }],
+      ['music_song_pick_total'],
+      [{ policyId: 'user-music-pick', groupCode: 'USER', quotaCode: 'music_song_pick_total', value: 5 }]
+    );
+
+    const updatedRows = upsertQuotaCell(matrix.rows, 'USER', 'music_song_pick_total', -1);
+    const payload = buildQuotaPayloadForGroup(updatedRows[0], matrix.quotaCodes);
+
+    expect(updatedRows[0].values.music_song_pick_total).toBe(-1);
+    expect(payload[0].value).toBe(-1);
+  });
 });

@@ -1127,8 +1127,8 @@ public class UserServiceImpl implements UserService {
             || request.getValue() == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "policy_id/group_code/quota_code/value are required");
         }
-        if (request.getValue() < 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "quota value cannot be negative");
+        if (request.getValue() < -1) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "quota value must be -1 or non-negative");
         }
     }
 
