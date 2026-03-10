@@ -102,10 +102,7 @@
 
           <transition name="profile-popover">
             <section v-if="profileMenuOpen" class="profile-popover liquid-material" @click.stop>
-              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('profile')">个人</button>
-              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('account')">账号</button>
-              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('articles')">文章</button>
-              <button class="popover-item ripple-trigger" type="button" @click="openProfileTab('settings')">设置</button>
+              <button class="popover-item ripple-trigger" type="button" @click="openProfileHome">进入个人页面</button>
               <button v-if="isAdmin" class="popover-item ripple-trigger" type="button" @click="openAdminTab('overview')">管理后台</button>
               <button class="popover-item ripple-trigger danger" type="button" @click="requestLogout">登出</button>
             </section>
@@ -282,9 +279,9 @@ function openAuthorTab(tabKey) {
   emit('open-author', tabKey);
 }
 
-function openProfileTab(tabKey) {
+function openProfileHome() {
   closeProfileMenus();
-  emit('open-profile', tabKey);
+  emit('open-profile');
 }
 
 function openAdminTab(tabKey) {

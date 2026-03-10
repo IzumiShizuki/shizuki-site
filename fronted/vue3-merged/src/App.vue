@@ -145,53 +145,66 @@
               <button class="picker-close ripple-trigger" @click="backgroundPickerVisible = false">关闭</button>
             </header>
 
-            <div class="picker-status">
-              <button class="scope-btn ripple-trigger" :disabled="wallpaperLoading" @click="refreshBackgroundLibrary">
-                {{ wallpaperLoading ? '刷新中...' : '刷新壁纸库' }}
+            <section class="picker-acquire">
+              <button
+                class="scope-btn ghost ripple-trigger picker-acquire-toggle"
+                @click="wallpaperAcquireCollapsed = !wallpaperAcquireCollapsed"
+              >
+                {{ wallpaperAcquireCollapsed ? '展开获取壁纸' : '收起获取壁纸' }}
               </button>
-              <span v-if="backgroundEmergencyFallbackUsed" class="route-bg-note">当前使用紧急占位背景</span>
-              <span v-if="wallpaperErrorHint" class="route-bg-note">{{ wallpaperErrorHint }}</span>
-              <span v-if="importState.hint" class="route-bg-note">{{ importState.hint }}</span>
-            </div>
 
-            <div v-if="auth.isAuthenticated.value" class="picker-import-grid">
-              <section class="import-card">
-                <h4>本地包导入</h4>
-                <input type="file" accept=".zip,image/*,video/*" @change="onPackageFileChange" />
-                <input v-model.trim="importState.packageTitle" class="field-input-lite" type="text" placeholder="壁纸标题（可选）" />
-                <select v-model="importState.packageVisibility" class="field-input-lite">
-                  <option value="PRIVATE">私有</option>
-                  <option value="PUBLIC">公开</option>
-                </select>
-                <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.packageFile" @click="submitPackageImport">
-                  上传并导入
-                </button>
-              </section>
-
-              <section class="import-card">
-                <h4>Workshop 导入</h4>
-                <input
-                  v-model.trim="importState.workshopUrl"
-                  class="field-input-lite"
-                  type="url"
-                  placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=..."
-                />
-                <input v-model.trim="importState.workshopTitle" class="field-input-lite" type="text" placeholder="标题覆盖（可选）" />
-                <select v-model="importState.workshopVisibility" class="field-input-lite">
-                  <option value="PRIVATE">私有</option>
-                  <option value="PUBLIC">公开</option>
-                </select>
-                <div class="import-actions">
-                  <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="submitWorkshopImport">
-                    创建导入任务
-                  </button>
-                  <button class="scope-btn ghost ripple-trigger" :disabled="!importState.workshopUrl" @click="openWorkshopPreviewWindow">
-                    小窗预览
-                  </button>
+              <transition name="picker-acquire-collapse">
+                <div v-show="!wallpaperAcquireCollapsed" class="picker-acquire-body">
+                  <div class="picker-status">
+                    <button class="scope-btn ripple-trigger" :disabled="wallpaperLoading" @click="refreshBackgroundLibrary">
+                      {{ wallpaperLoading ? '刷新中...' : '刷新壁纸库' }}
+                    </button>
+                  <span v-if="backgroundEmergencyFallbackUsed" class="route-bg-note">当前使用紧急占位背景</span>
+                  <span v-if="wallpaperErrorHint" class="route-bg-note">{{ wallpaperErrorHint }}</span>
+                  <span v-if="importState.hint" class="route-bg-note">{{ importState.hint }}</span>
                 </div>
-              </section>
-            </div>
-            <p v-else class="route-bg-note">登录后可上传本地包或导入 Workshop 资源。</p>
+
+                <div v-if="auth.isAuthenticated.value" class="picker-import-grid">
+                  <section class="import-card">
+                    <h4>本地包导入</h4>
+                    <input type="file" accept=".zip,image/*,video/*" @change="onPackageFileChange" />
+                    <input v-model.trim="importState.packageTitle" class="field-input-lite" type="text" placeholder="壁纸标题（可选）" />
+                    <select v-model="importState.packageVisibility" class="field-input-lite">
+                      <option value="PRIVATE">私有</option>
+                      <option value="PUBLIC">公开</option>
+                    </select>
+                    <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.packageFile" @click="submitPackageImport">
+                      上传并导入
+                    </button>
+                  </section>
+
+                  <section class="import-card">
+                    <h4>Workshop 导入</h4>
+                    <input
+                      v-model.trim="importState.workshopUrl"
+                      class="field-input-lite"
+                      type="url"
+                      placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=..."
+                    />
+                    <input v-model.trim="importState.workshopTitle" class="field-input-lite" type="text" placeholder="标题覆盖（可选）" />
+                    <select v-model="importState.workshopVisibility" class="field-input-lite">
+                      <option value="PRIVATE">私有</option>
+                      <option value="PUBLIC">公开</option>
+                    </select>
+                    <div class="import-actions">
+                      <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="submitWorkshopImport">
+                        创建导入任务
+                      </button>
+                      <button class="scope-btn ghost ripple-trigger" :disabled="!importState.workshopUrl" @click="openWorkshopPreviewWindow">
+                        小窗预览
+                      </button>
+                    </div>
+                  </section>
+                </div>
+                <p v-else class="route-bg-note">登录后可上传本地包或导入 Workshop 资源。</p>
+                </div>
+              </transition>
+            </section>
 
             <div class="picker-tabs">
               <button
@@ -388,6 +401,7 @@ const clickRipples = ref([]);
 const videoFailed = ref(false);
 const backgroundPickerVisible = ref(false);
 const backgroundItems = ref([]);
+const wallpaperAcquireCollapsed = ref(true);
 const backgroundEmergencyFallbackUsed = ref(false);
 const wallpaperLoading = ref(false);
 const wallpaperErrorHint = ref('');
@@ -1540,15 +1554,20 @@ function openAuth(redirectPath) {
 }
 
 function openProfile(tabKey = 'profile') {
+  const normalizedTab = typeof tabKey === 'string' ? tabKey.trim().toLowerCase() : '';
+  const supportedHashTab = ['profile', 'account', 'articles', 'settings'].includes(normalizedTab) ? normalizedTab : '';
+  const targetHash = supportedHashTab ? `#${supportedHashTab}` : '';
+  const redirectPath = `/profile${targetHash}`;
   if (!auth.isAuthenticated.value) {
-    const redirect = tabKey ? `/profile?tab=${encodeURIComponent(tabKey)}` : '/profile';
-    openAuth(redirect);
+    openAuth(redirectPath);
     return;
   }
-  const nextQuery = tabKey ? { tab: tabKey } : {};
-  const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';
-  if (route.path === '/profile' && currentTab === (tabKey || '')) return;
-  router.push({ path: '/profile', query: nextQuery });
+  const hasLegacyTab = Object.prototype.hasOwnProperty.call(route.query || {}, 'tab');
+  if (route.path === '/profile' && route.hash === targetHash && !hasLegacyTab) return;
+
+  const nextQuery = { ...(route.query || {}) };
+  delete nextQuery.tab;
+  router.push({ path: '/profile', query: nextQuery, hash: targetHash });
 }
 
 function openAdmin(tabKey = 'overview') {
@@ -1702,6 +1721,10 @@ function onGlobalHotkey(event) {
 }
 
 watch([subtitleVisible, lyricOffset], persistExtra, { deep: true });
+watch(backgroundPickerVisible, (opened) => {
+  if (!opened) return;
+  wallpaperAcquireCollapsed.value = true;
+});
 watch(activeBackgroundId, () => {
   videoFailed.value = false;
   l2dRenderFailed.value = false;
@@ -2368,6 +2391,40 @@ onBeforeUnmount(() => {
 .route-bg-note {
   color: rgba(28, 32, 40, 0.82);
   font-size: 12px;
+}
+
+.picker-acquire {
+  display: grid;
+  gap: 8px;
+}
+
+.picker-acquire-toggle {
+  justify-self: start;
+}
+
+.picker-acquire-body {
+  display: grid;
+  gap: 8px;
+}
+
+.picker-acquire-collapse-enter-active,
+.picker-acquire-collapse-leave-active {
+  overflow: hidden;
+  transition: opacity 0.18s ease, transform 0.18s ease, max-height 0.18s ease;
+}
+
+.picker-acquire-collapse-enter-from,
+.picker-acquire-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+  max-height: 0;
+}
+
+.picker-acquire-collapse-enter-to,
+.picker-acquire-collapse-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 520px;
 }
 
 .wallpaper-audio {
