@@ -52,7 +52,7 @@
           <span class="item-label">唤起AI对话</span>
         </div>
 
-        <div class="menu-item-stack ripple-trigger">
+        <div class="menu-item-stack ripple-trigger" @click="openProjectGithub">
           <div class="github-style-box liquid-material">
             <i class="fab fa-github"></i>
           </div>
@@ -166,6 +166,7 @@ const emit = defineEmits([
   'open-auth',
   'logout'
 ]);
+const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
 const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl } = toRefs(props);
 const menuRootRef = ref(null);
@@ -250,6 +251,11 @@ function selectMainRoute(routeKey) {
 
 function openBackgroundPicker() {
   emit('open-background-picker');
+}
+
+function openProjectGithub() {
+  if (typeof window === 'undefined') return;
+  window.open(PROJECT_GITHUB_URL, '_blank', 'noopener,noreferrer');
 }
 
 function closeProfileMenus() {

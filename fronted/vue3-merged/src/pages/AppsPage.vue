@@ -3,7 +3,7 @@
     <header class="page-header">
       <p class="eyebrow">Apps</p>
       <h1>轻应用中心</h1>
-      <p>这里只做管理：说明、是否加入悬浮球、以及“使用”按钮。真正功能在可拖拽/可缩放的小窗中打开。</p>
+      <p>这里可以做轻应用管理，也可以直接在本页打开更完整的页面模式；悬浮球和“使用”按钮仍走小窗模式。</p>
       <p v-if="syncHint" class="sync-hint">{{ syncHint }}</p>
     </header>
 
@@ -40,9 +40,54 @@
             <button class="action-btn ripple-trigger" :disabled="!isEnabled(app.code)" @click="useApp(app.code)">
               使用
             </button>
+            <button class="action-btn ripple-trigger" :disabled="!isEnabled(app.code)" @click="openAppInPage(app.code)">
+              页面打开
+            </button>
           </div>
         </article>
       </div>
+    </section>
+
+    <section class="config-block liquid-material">
+      <header class="block-head">
+        <h2>页面模式</h2>
+        <span>{{ activePageApp ? `当前：${activePageApp.title}` : '未打开' }}</span>
+      </header>
+      <p class="empty-hint">适合长时间操作：本区会展示更完整的应用内容，不受小窗尺寸限制。</p>
+
+      <article v-if="activePageApp && activePageComponent" class="page-mode-shell">
+        <header class="page-mode-head">
+          <div class="page-mode-title">
+            <i :class="activePageApp.iconClass" aria-hidden="true"></i>
+            <strong>{{ activePageApp.title }}</strong>
+          </div>
+
+          <div v-if="activePageTabItems.length" class="page-mode-tabs" role="tablist" :aria-label="`${activePageApp.title} tabs`">
+            <button
+              v-for="item in activePageTabItems"
+              :key="`page_tab_${activePageCode}_${item.value}`"
+              class="tab-btn ripple-trigger"
+              :class="{ active: activePageTabCode === item.value }"
+              type="button"
+              role="tab"
+              :aria-selected="activePageTabCode === item.value"
+              :title="item.label"
+              :aria-label="item.label"
+              @click="setActivePageTab(item.value)"
+            >
+              <i :class="item.iconClass" aria-hidden="true"></i>
+            </button>
+          </div>
+
+          <button class="tab-btn ripple-trigger" type="button" title="关闭页面模式" aria-label="关闭页面模式" @click="closePageMode">
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <section class="page-mode-body">
+          <component :is="activePageComponent" :window-id="activePageWindowId" />
+        </section>
+      </article>
     </section>
 
     <section class="config-block liquid-material">
@@ -89,6 +134,27 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import BalanceLedgerWindow from '../components/lightapps/balance/BalanceLedgerWindow.vue';
+import {
+  BALANCE_SECTION_ITEMS,
+  releaseBalanceWindowState,
+  resolveBalanceWindowState,
+  setBalanceWindowSection
+} from '../components/lightapps/balance/balanceWindowState';
+import PomodoroWindow from '../components/lightapps/pomodoro/PomodoroWindow.vue';
+import {
+  POMODORO_MODE_ITEMS,
+  releasePomodoroWindowState,
+  resolvePomodoroWindowState,
+  setPomodoroWindowMode
+} from '../components/lightapps/pomodoro/pomodoroWindowState';
+import TimePrismTodoSuiteWindow from '../components/lightapps/timeprism/TimePrismTodoSuiteWindow.vue';
+import {
+  releaseTimePrismSuiteSession,
+  resolveTimePrismSuiteSession,
+  setSuiteActiveModule,
+  TIMEPRISM_MODULE_ITEMS
+} from '../components/lightapps/timeprism/timePrismSuiteState';
 import { useAuthSession } from '../composables/useAuthSession';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { LIGHT_APPS_CATALOG, getLightAppByCode, isKnownLightAppCode } from '../utils/lightAppsCatalog';
@@ -105,9 +171,22 @@ import {
 
 const catalog = LIGHT_APPS_CATALOG;
 const appState = ref(createDefaultLightAppsState());
+const activePageCode = ref('');
 const syncHint = ref('');
 
 const auth = useAuthSession();
+
+const PAGE_WINDOW_IDS = Object.freeze({
+  'timeprism-todo': 910001,
+  'pomodoro-timer': 910002,
+  'balance-ledger': 910003
+});
+
+const PAGE_COMPONENT_MAP = Object.freeze({
+  'timeprism-todo': TimePrismTodoSuiteWindow,
+  'pomodoro-timer': PomodoroWindow,
+  'balance-ledger': BalanceLedgerWindow
+});
 
 let syncTimer = 0;
 let syncHintTimer = 0;
@@ -116,6 +195,52 @@ let remoteHydrating = false;
 const enabledApps = computed(() => {
   const enabledSet = new Set(appState.value.enabled_codes);
   return catalog.filter((item) => enabledSet.has(item.code));
+});
+
+const activePageApp = computed(() => getLightAppByCode(activePageCode.value));
+
+const activePageWindowId = computed(() => PAGE_WINDOW_IDS[activePageCode.value] || 0);
+
+const activePageComponent = computed(() => PAGE_COMPONENT_MAP[activePageCode.value] || null);
+
+const activePageTabItems = computed(() => {
+  if (activePageCode.value === 'timeprism-todo') {
+    return TIMEPRISM_MODULE_ITEMS.map((item) => ({
+      value: item.code,
+      label: item.label,
+      iconClass: item.iconClass
+    }));
+  }
+  if (activePageCode.value === 'pomodoro-timer') {
+    return POMODORO_MODE_ITEMS.map((item) => ({
+      value: item.mode,
+      label: item.label,
+      iconClass: item.iconClass
+    }));
+  }
+  if (activePageCode.value === 'balance-ledger') {
+    return BALANCE_SECTION_ITEMS.map((item) => ({
+      value: item.code,
+      label: item.label,
+      iconClass: item.iconClass
+    }));
+  }
+  return [];
+});
+
+const activePageTabCode = computed(() => {
+  const windowId = activePageWindowId.value;
+  if (!windowId) return '';
+  if (activePageCode.value === 'timeprism-todo') {
+    return resolveTimePrismSuiteSession(windowId).activeModule;
+  }
+  if (activePageCode.value === 'pomodoro-timer') {
+    return resolvePomodoroWindowState(windowId).mode;
+  }
+  if (activePageCode.value === 'balance-ledger') {
+    return resolveBalanceWindowState(windowId).section;
+  }
+  return '';
 });
 
 function showHint(message) {
@@ -354,6 +479,44 @@ function useApp(code) {
   openLightAppWindow(code, { source: 'apps_center' });
 }
 
+function openAppInPage(code) {
+  const app = getLightAppByCode(code);
+  if (!app || !isEnabled(code)) return;
+  activePageCode.value = code;
+  const windowId = PAGE_WINDOW_IDS[code];
+  if (code === 'timeprism-todo') {
+    resolveTimePrismSuiteSession(windowId);
+  } else if (code === 'pomodoro-timer') {
+    resolvePomodoroWindowState(windowId);
+  } else if (code === 'balance-ledger') {
+    resolveBalanceWindowState(windowId);
+  }
+}
+
+function closePageMode() {
+  activePageCode.value = '';
+}
+
+function setActivePageTab(tabCode) {
+  const windowId = activePageWindowId.value;
+  if (!windowId) return;
+
+  if (activePageCode.value === 'timeprism-todo') {
+    const session = resolveTimePrismSuiteSession(windowId);
+    setSuiteActiveModule(session, tabCode);
+    return;
+  }
+
+  if (activePageCode.value === 'pomodoro-timer') {
+    setPomodoroWindowMode(windowId, tabCode);
+    return;
+  }
+
+  if (activePageCode.value === 'balance-ledger') {
+    setBalanceWindowSection(windowId, tabCode);
+  }
+}
+
 onMounted(async () => {
   await hydrateState();
 });
@@ -367,6 +530,9 @@ onBeforeUnmount(() => {
     window.clearTimeout(syncHintTimer);
     syncHintTimer = 0;
   }
+  releaseTimePrismSuiteSession(PAGE_WINDOW_IDS['timeprism-todo']);
+  releasePomodoroWindowState(PAGE_WINDOW_IDS['pomodoro-timer']);
+  releaseBalanceWindowState(PAGE_WINDOW_IDS['balance-ledger']);
 });
 </script>
 
@@ -485,7 +651,7 @@ onBeforeUnmount(() => {
 
 .card-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -553,6 +719,68 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.page-mode-shell {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(10, 16, 28, 0.34);
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.page-mode-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-mode-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(237, 244, 255, 0.96);
+}
+
+.page-mode-tabs {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.tab-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(20, 28, 45, 0.56);
+  color: rgba(236, 243, 255, 0.95);
+}
+
+.tab-btn.active {
+  border-color: rgba(var(--accent-rgb), 0.62);
+  background: rgba(var(--accent-rgb), 0.22);
+  color: rgba(244, 248, 255, 0.98);
+}
+
+.page-mode-body {
+  min-height: 66vh;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 10px;
+  overflow: auto;
+}
+
+.page-mode-body :deep(.lightapp-window) {
+  min-height: calc(66vh - 22px);
+}
+
 @media (max-width: 980px) {
   .slot-item {
     grid-template-columns: 1fr;
@@ -560,6 +788,16 @@ onBeforeUnmount(() => {
 
   .card-actions {
     grid-template-columns: 1fr;
+  }
+
+  .page-mode-head {
+    grid-template-columns: 1fr;
+    justify-items: flex-start;
+  }
+
+  .page-mode-tabs {
+    justify-self: flex-start;
+    flex-wrap: wrap;
   }
 }
 </style>
