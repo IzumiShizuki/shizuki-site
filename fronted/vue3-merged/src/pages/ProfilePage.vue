@@ -697,8 +697,7 @@ function setupGroupObserver() {
     groupObserver = null;
   }
 
-  const rootEl = profileContentPanel.value;
-  if (!rootEl) return;
+  const rootEl = profileContentPanel.value?.closest('.route-content') || null;
 
   groupObserver = new IntersectionObserver(
     (entries) => {
@@ -852,8 +851,6 @@ function forceOpenSection(tabKey, sectionKey) {
 
 function toggleGroupSection(groupKey, sectionKey) {
   const normalizedGroup = normalizeGroupKey(groupKey);
-  const current = getTabOpenSection(accordionState, normalizedGroup);
-  if (current === sectionKey) return;
   const nextState = toggleProfileAccordion(accordionState, normalizedGroup, sectionKey);
   applyAccordionState(nextState);
 
@@ -1664,7 +1661,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .profile-page {
-  height: 100%;
+  min-height: 100%;
   color: rgba(232, 241, 252, 0.95);
   font-family: var(--font-ui);
   animation: page-enter 0.32s ease;
@@ -1686,8 +1683,7 @@ onBeforeUnmount(() => {
   --liquid-bg: linear-gradient(155deg, rgba(8, 17, 28, 0.58), rgba(6, 12, 21, 0.54));
   --liquid-border: rgba(155, 188, 214, 0.24);
   --liquid-shadow: 0 16px 34px rgba(3, 8, 15, 0.22);
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   border-radius: 16px;
   padding: 10px;
   display: grid;
@@ -1708,7 +1704,7 @@ onBeforeUnmount(() => {
   justify-items: center;
   align-self: start;
   position: sticky;
-  top: 10px;
+  top: 6px;
   z-index: 7;
   width: 64px;
   height: fit-content;
@@ -1787,23 +1783,14 @@ onBeforeUnmount(() => {
 }
 
 .profile-content-panel {
-  min-height: 0;
-  overflow: auto;
-  padding-right: 6px;
+  min-height: 100%;
+  overflow: visible;
+  padding-right: 0;
   padding-bottom: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   scroll-padding-top: 182px;
-}
-
-.profile-content-panel::-webkit-scrollbar {
-  width: 8px;
-}
-
-.profile-content-panel::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(116, 157, 194, 0.36);
 }
 
 .state-tip {
@@ -1817,6 +1804,8 @@ onBeforeUnmount(() => {
   top: 0;
   z-index: 6;
   padding-top: 2px;
+  padding-bottom: 8px;
+  background: linear-gradient(180deg, rgba(8, 16, 27, 0.9), rgba(8, 16, 27, 0));
 }
 
 .profile-group {
@@ -2290,7 +2279,6 @@ select.field-input:focus-visible,
 
   .profile-content-panel {
     scroll-padding-top: 0;
-    padding-right: 0;
   }
 
   .profile-hero-sticky {
