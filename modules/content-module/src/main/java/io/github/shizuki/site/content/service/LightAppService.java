@@ -2,6 +2,8 @@ package io.github.shizuki.site.content.service;
 
 import io.github.shizuki.site.content.dto.LightAppProjectResponse;
 import io.github.shizuki.site.content.dto.LightAppProjectUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppPomodoroResponse;
+import io.github.shizuki.site.content.dto.LightAppPomodoroUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppScheduleResponse;
 import io.github.shizuki.site.content.dto.LightAppScheduleUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppTaskColumnResponse;
@@ -23,6 +25,14 @@ public interface LightAppService {
     LightAppProjectResponse updateProject(Long projectId, LightAppProjectUpsertRequest request);
 
     void deleteProject(Long projectId);
+
+    List<LightAppPomodoroResponse> listPomodoros();
+
+    LightAppPomodoroResponse createPomodoro(LightAppPomodoroUpsertRequest request);
+
+    LightAppPomodoroResponse updatePomodoro(Long pomodoroId, LightAppPomodoroUpsertRequest request);
+
+    void deletePomodoro(Long pomodoroId);
 
     List<LightAppTodoResponse> listTodos();
 

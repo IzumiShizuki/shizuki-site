@@ -107,6 +107,25 @@ function normalizeSchedule(raw) {
   };
 }
 
+function normalizePomodoro(raw) {
+  const source = toObject(raw);
+  return {
+    pomodoroId: toNumber(source.pomodoroId ?? source.pomodoro_id, 0),
+    title: toText(source.title, ''),
+    focusMinutes: toNumber(source.focusMinutes ?? source.focus_minutes, 25),
+    shortBreakMinutes: toNumber(source.shortBreakMinutes ?? source.short_break_minutes, 5),
+    longBreakMinutes: toNumber(source.longBreakMinutes ?? source.long_break_minutes, 15),
+    longBreakEvery: toNumber(source.longBreakEvery ?? source.long_break_every, 4),
+    autoStartNext: toBoolean(source.autoStartNext ?? source.auto_start_next, false),
+    ringtoneType: toText(source.ringtoneType ?? source.ringtone_type, 'BUILTIN').toUpperCase() || 'BUILTIN',
+    ringtoneName: toText(source.ringtoneName ?? source.ringtone_name, ''),
+    ringtoneCode: toText(source.ringtoneCode ?? source.ringtone_code, ''),
+    ringtoneAssetId: toNumber(source.ringtoneAssetId ?? source.ringtone_asset_id, 0) || null,
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
 export async function listLightAppProjects(authorizedFetch) {
   ensureAuthorizedFetch(authorizedFetch);
   const raw = unwrap(await authorizedFetch('/api/v1/light-apps/projects', { method: 'GET' }));
@@ -139,6 +158,43 @@ export async function deleteLightAppProject(projectId, authorizedFetch) {
   ensureAuthorizedFetch(authorizedFetch);
   return unwrap(
     await authorizedFetch(`/api/v1/light-apps/projects/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function listLightAppPomodoros(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/pomodoros', { method: 'GET' }));
+  return normalizeList(raw, normalizePomodoro, 'pomodoroId');
+}
+
+export async function createLightAppPomodoro(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/pomodoros', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizePomodoro(raw);
+}
+
+export async function updateLightAppPomodoro(pomodoroId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/pomodoros/${encodeURIComponent(pomodoroId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizePomodoro(raw);
+}
+
+export async function deleteLightAppPomodoro(pomodoroId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/pomodoros/${encodeURIComponent(pomodoroId)}`, {
       method: 'DELETE'
     })
   );

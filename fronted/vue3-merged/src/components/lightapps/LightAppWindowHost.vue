@@ -9,11 +9,48 @@
         @pointerdown="focusById(win.id)"
       >
         <header class="window-header" @pointerdown="startDrag($event, win)">
-          <div class="window-title">
-            <i :class="win.iconClass" aria-hidden="true"></i>
-            <span>{{ win.title }}</span>
-            <small v-if="win.pinned" class="pin-hint">主页固定</small>
+          <div class="window-left">
+            <div class="window-title">
+              <i :class="win.iconClass" aria-hidden="true"></i>
+              <span>{{ win.title }}</span>
+              <small v-if="win.pinned" class="pin-hint">主页固定</small>
+            </div>
+
+            <div v-if="win.code === 'timeprism-todo'" class="window-app-actions" role="tablist" aria-label="TimePrism modules">
+              <button
+                v-for="module in TIMEPRISM_MODULE_ITEMS"
+                :key="`timeprism_${win.id}_${module.code}`"
+                class="icon-btn app-switch-btn ripple-trigger"
+                :class="{ active: currentTimePrismModule(win.id) === module.code }"
+                type="button"
+                role="tab"
+                :aria-selected="currentTimePrismModule(win.id) === module.code"
+                :title="module.label"
+                :aria-label="module.label"
+                @click.stop="setTimePrismModule(win.id, module.code)"
+              >
+                <i :class="module.iconClass" aria-hidden="true"></i>
+              </button>
+            </div>
+
+            <div v-else-if="win.code === 'pomodoro-timer'" class="window-app-actions" role="tablist" aria-label="Pomodoro modes">
+              <button
+                v-for="item in POMODORO_MODE_ITEMS"
+                :key="`pomodoro_${win.id}_${item.mode}`"
+                class="icon-btn app-switch-btn ripple-trigger"
+                :class="{ active: currentPomodoroMode(win.id) === item.mode }"
+                type="button"
+                role="tab"
+                :aria-selected="currentPomodoroMode(win.id) === item.mode"
+                :title="item.label"
+                :aria-label="item.label"
+                @click.stop="setPomodoroMode(win.id, item.mode)"
+              >
+                <i :class="item.iconClass" aria-hidden="true"></i>
+              </button>
+            </div>
           </div>
+
           <div class="window-actions">
             <button class="icon-btn ripple-trigger" :title="win.pinned ? '取消固定' : '固定到主页'" @click.stop="togglePinned(win.id)">
               <i :class="win.pinned ? 'fas fa-thumbtack' : 'fas fa-thumbtack fa-rotate-90'" aria-hidden="true"></i>
@@ -64,7 +101,19 @@ import {
   toggleWindowPinned
 } from '../../utils/lightAppWindowRuntime';
 import PomodoroWindow from './pomodoro/PomodoroWindow.vue';
+import {
+  POMODORO_MODE_ITEMS,
+  releasePomodoroWindowState,
+  resolvePomodoroWindowState,
+  setPomodoroWindowMode
+} from './pomodoro/pomodoroWindowState';
 import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
+import {
+  TIMEPRISM_MODULE_ITEMS,
+  releaseTimePrismSuiteSession,
+  resolveTimePrismSuiteSession,
+  setSuiteActiveModule
+} from './timeprism/timePrismSuiteState';
 
 const props = defineProps({
   isHomeRoute: {
@@ -129,6 +178,7 @@ function focusById(windowId) {
 }
 
 function closeById(windowId) {
+  releaseWindowLinkedState(windowId);
   replaceState(closeWindow(state, windowId));
 }
 
@@ -245,12 +295,42 @@ function handleResize() {
   replaceState(next);
 }
 
+function currentTimePrismModule(windowId) {
+  return resolveTimePrismSuiteSession(windowId).activeModule;
+}
+
+function setTimePrismModule(windowId, moduleCode) {
+  const session = resolveTimePrismSuiteSession(windowId);
+  setSuiteActiveModule(session, moduleCode);
+}
+
+function currentPomodoroMode(windowId) {
+  return resolvePomodoroWindowState(windowId).mode;
+}
+
+function setPomodoroMode(windowId, mode) {
+  setPomodoroWindowMode(windowId, mode);
+}
+
+function releaseWindowLinkedState(windowId) {
+  const target = state.windows.find((item) => item.id === Number(windowId));
+  if (!target) return;
+  if (target.code === 'timeprism-todo') {
+    releaseTimePrismSuiteSession(windowId);
+  } else if (target.code === 'pomodoro-timer') {
+    releasePomodoroWindowState(windowId);
+  }
+}
+
 onMounted(() => {
   window.addEventListener(LIGHT_APP_WINDOW_OPEN_EVENT, openFromEvent);
   window.addEventListener('resize', handleResize);
 });
 
 onBeforeUnmount(() => {
+  state.windows.forEach((item) => {
+    releaseWindowLinkedState(item.id);
+  });
   window.removeEventListener(LIGHT_APP_WINDOW_OPEN_EVENT, openFromEvent);
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('pointermove', onPointerMove);
@@ -342,6 +422,14 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
+.window-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
 .window-title {
   display: flex;
   align-items: center;
@@ -365,6 +453,14 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.26);
 }
 
+.window-app-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
+}
+
 .window-actions {
   display: flex;
   align-items: center;
@@ -378,6 +474,12 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.42);
   background: rgba(255, 255, 255, 0.32);
   color: rgba(34, 41, 56, 0.84);
+}
+
+.app-switch-btn.active {
+  border-color: rgba(var(--accent-rgb), 0.56);
+  background: rgba(var(--accent-rgb), 0.2);
+  color: rgba(34, 41, 56, 0.96);
 }
 
 .window-body {
@@ -438,7 +540,17 @@ onBeforeUnmount(() => {
   }
 
   .window-title span {
-    max-width: 132px;
+    max-width: 118px;
+  }
+
+  .window-app-actions {
+    gap: 3px;
+    padding-left: 6px;
+  }
+
+  .app-switch-btn {
+    width: 26px;
+    height: 26px;
   }
 }
 

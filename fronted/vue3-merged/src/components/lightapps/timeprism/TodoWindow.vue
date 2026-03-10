@@ -1,8 +1,14 @@
 <template>
   <section class="lightapp-window">
     <div class="top-toolbar">
-      <button class="action-btn ripple-trigger" type="button" @click="toggleCreateForm">
-        {{ showCreateForm ? '收起添加区' : '添加待办' }}
+      <button
+        class="icon-btn toolbar-btn ripple-trigger"
+        type="button"
+        :title="showCreateForm ? '收起添加区' : '添加待办'"
+        :aria-label="showCreateForm ? '收起添加区' : '添加待办'"
+        @click="toggleCreateForm"
+      >
+        <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
       </button>
       <span class="toolbar-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
     </div>
@@ -22,8 +28,14 @@
           <option value="HIGH">高</option>
         </select>
         <input v-model="draft.dueAt" type="datetime-local" />
-        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim()">
-          {{ saving ? '添加中...' : '添加' }}
+        <button
+          class="icon-btn ripple-trigger"
+          type="submit"
+          :title="saving ? '添加中' : '添加待办'"
+          :aria-label="saving ? '添加中' : '添加待办'"
+          :disabled="saving || !draft.title.trim()"
+        >
+          <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
         </button>
       </form>
     </Transition>
@@ -544,7 +556,6 @@ if (suiteContext?.projectVersion) {
 }
 
 .chip-btn,
-.action-btn,
 .icon-btn {
   border: 1px solid var(--la-border);
   background: var(--la-btn-bg);
@@ -664,6 +675,11 @@ if (suiteContext?.projectVersion) {
   justify-content: center;
 }
 
+.toolbar-btn {
+  width: 32px;
+  height: 32px;
+}
+
 .empty-hint {
   margin: 0;
   text-align: center;
@@ -730,8 +746,7 @@ if (suiteContext?.projectVersion) {
     grid-template-columns: 1fr;
   }
 
-  .chip-btn,
-  .action-btn {
+  .chip-btn {
     min-height: 32px;
   }
 

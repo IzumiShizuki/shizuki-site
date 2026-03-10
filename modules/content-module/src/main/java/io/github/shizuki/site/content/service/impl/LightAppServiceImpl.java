@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.site.content.dto.LightAppPomodoroResponse;
+import io.github.shizuki.site.content.dto.LightAppPomodoroUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppProjectResponse;
 import io.github.shizuki.site.content.dto.LightAppProjectUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppScheduleResponse;
@@ -17,11 +19,13 @@ import io.github.shizuki.site.content.dto.LightAppTaskUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoReorderRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoResponse;
 import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
+import io.github.shizuki.site.content.entity.LightAppPomodoroTemplateEntity;
 import io.github.shizuki.site.content.entity.LightAppProjectEntity;
 import io.github.shizuki.site.content.entity.LightAppScheduleEventEntity;
 import io.github.shizuki.site.content.entity.LightAppTaskColumnEntity;
 import io.github.shizuki.site.content.entity.LightAppTaskEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoEntity;
+import io.github.shizuki.site.content.mapper.LightAppPomodoroTemplateMapper;
 import io.github.shizuki.site.content.mapper.LightAppProjectMapper;
 import io.github.shizuki.site.content.mapper.LightAppScheduleEventMapper;
 import io.github.shizuki.site.content.mapper.LightAppTaskColumnMapper;
@@ -49,6 +53,8 @@ public class LightAppServiceImpl implements LightAppService {
     private static final int MAX_UPCOMING_DAYS = 30;
     private static final int DEFAULT_UPCOMING_DAYS = 7;
     private static final int MAX_UPCOMING_SIZE = 50;
+    private static final String RINGTONE_TYPE_BUILTIN = "BUILTIN";
+    private static final String RINGTONE_TYPE_UPLOAD = "UPLOAD";
 
     private static final List<DefaultTaskColumn> DEFAULT_TASK_COLUMNS = List.of(
         new DefaultTaskColumn("todo", "待处理", 10),
@@ -56,6 +62,7 @@ public class LightAppServiceImpl implements LightAppService {
         new DefaultTaskColumn("done", "已完成", 30)
     );
 
+    private final LightAppPomodoroTemplateMapper pomodoroTemplateMapper;
     private final LightAppProjectMapper projectMapper;
     private final LightAppTodoMapper todoMapper;
     private final LightAppTaskMapper taskMapper;
@@ -63,12 +70,14 @@ public class LightAppServiceImpl implements LightAppService {
     private final LightAppScheduleEventMapper scheduleEventMapper;
 
     public LightAppServiceImpl(
+        LightAppPomodoroTemplateMapper pomodoroTemplateMapper,
         LightAppProjectMapper projectMapper,
         LightAppTodoMapper todoMapper,
         LightAppTaskMapper taskMapper,
         LightAppTaskColumnMapper taskColumnMapper,
         LightAppScheduleEventMapper scheduleEventMapper
     ) {
+        this.pomodoroTemplateMapper = pomodoroTemplateMapper;
         this.projectMapper = projectMapper;
         this.todoMapper = todoMapper;
         this.taskMapper = taskMapper;
@@ -138,6 +147,52 @@ public class LightAppServiceImpl implements LightAppService {
         scheduleEventMapper.update(schedulePatch, new LambdaUpdateWrapper<LightAppScheduleEventEntity>()
             .eq(LightAppScheduleEventEntity::getUserId, userId)
             .eq(LightAppScheduleEventEntity::getProjectId, projectId));
+    }
+
+    @Override
+    public List<LightAppPomodoroResponse> listPomodoros() {
+        Long userId = requireLoginUserId();
+        return pomodoroTemplateMapper.selectList(new LambdaQueryWrapper<LightAppPomodoroTemplateEntity>()
+                .eq(LightAppPomodoroTemplateEntity::getUserId, userId)
+                .orderByAsc(LightAppPomodoroTemplateEntity::getSortNum)
+                .orderByDesc(LightAppPomodoroTemplateEntity::getUpdatedAt)
+                .orderByDesc(LightAppPomodoroTemplateEntity::getId))
+            .stream()
+            .map(this::toPomodoroResponse)
+            .toList();
+    }
+
+    @Override
+    @Transactional
+    public LightAppPomodoroResponse createPomodoro(LightAppPomodoroUpsertRequest request) {
+        Long userId = requireLoginUserId();
+        LightAppPomodoroTemplateEntity entity = new LightAppPomodoroTemplateEntity();
+        entity.setUserId(userId);
+        applyPomodoroUpsert(entity, request, userId);
+        entity.setSortNum(resolveSortNum(request.getSortNum(), pomodoroTemplateMapper.selectMaxSortNumByUserId(userId)));
+        pomodoroTemplateMapper.insert(entity);
+        return toPomodoroResponse(requirePomodoro(userId, entity.getId()));
+    }
+
+    @Override
+    @Transactional
+    public LightAppPomodoroResponse updatePomodoro(Long pomodoroId, LightAppPomodoroUpsertRequest request) {
+        Long userId = requireLoginUserId();
+        LightAppPomodoroTemplateEntity entity = requirePomodoro(userId, pomodoroId);
+        applyPomodoroUpsert(entity, request, userId);
+        if (request.getSortNum() != null) {
+            entity.setSortNum(request.getSortNum());
+        }
+        pomodoroTemplateMapper.updateById(entity);
+        return toPomodoroResponse(requirePomodoro(userId, pomodoroId));
+    }
+
+    @Override
+    @Transactional
+    public void deletePomodoro(Long pomodoroId) {
+        Long userId = requireLoginUserId();
+        LightAppPomodoroTemplateEntity entity = requirePomodoro(userId, pomodoroId);
+        pomodoroTemplateMapper.deleteById(entity.getId());
     }
 
     @Override
@@ -484,6 +539,17 @@ public class LightAppServiceImpl implements LightAppService {
         return entity;
     }
 
+    private LightAppPomodoroTemplateEntity requirePomodoro(Long userId, Long pomodoroId) {
+        LightAppPomodoroTemplateEntity entity = pomodoroTemplateMapper.selectOne(new LambdaQueryWrapper<LightAppPomodoroTemplateEntity>()
+            .eq(LightAppPomodoroTemplateEntity::getId, pomodoroId)
+            .eq(LightAppPomodoroTemplateEntity::getUserId, userId)
+            .last("LIMIT 1"));
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Pomodoro template not found");
+        }
+        return entity;
+    }
+
     private LightAppTodoEntity requireTodo(Long userId, Long todoId) {
         LightAppTodoEntity entity = todoMapper.selectOne(new LambdaQueryWrapper<LightAppTodoEntity>()
             .eq(LightAppTodoEntity::getId, todoId)
@@ -556,6 +622,65 @@ public class LightAppServiceImpl implements LightAppService {
             return "#6aa9ff";
         }
         return normalized;
+    }
+
+    private void applyPomodoroUpsert(LightAppPomodoroTemplateEntity entity, LightAppPomodoroUpsertRequest request, Long userId) {
+        entity.setTitle(normalizeRequiredText(request.getTitle(), "title"));
+        entity.setFocusMinutes(normalizePomodoroMinutes(request.getFocusMinutes(), 5, 120, "focus_minutes"));
+        entity.setShortBreakMinutes(normalizePomodoroMinutes(request.getShortBreakMinutes(), 1, 60, "short_break_minutes"));
+        entity.setLongBreakMinutes(normalizePomodoroMinutes(request.getLongBreakMinutes(), 5, 90, "long_break_minutes"));
+        entity.setLongBreakEvery(normalizePomodoroMinutes(request.getLongBreakEvery(), 2, 12, "long_break_every"));
+        entity.setAutoStartNext(Boolean.TRUE.equals(request.getAutoStartNext()));
+
+        String ringtoneType = normalizeRingtoneType(request.getRingtoneType());
+        String ringtoneName = normalizeOptionalText(request.getRingtoneName());
+        String ringtoneCode = normalizeOptionalText(request.getRingtoneCode());
+        Long ringtoneAssetId = request.getRingtoneAssetId();
+        if (ringtoneAssetId != null && ringtoneAssetId <= 0) {
+            ringtoneAssetId = null;
+        }
+
+        if (RINGTONE_TYPE_UPLOAD.equals(ringtoneType)) {
+            if (ringtoneAssetId == null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "ringtone_asset_id is required when ringtone_type is UPLOAD");
+            }
+            ringtoneCode = null;
+            if (ringtoneName == null) {
+                ringtoneName = "Uploaded Ringtone";
+            }
+        } else {
+            if (!StringUtils.hasText(ringtoneCode)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "ringtone_code is required when ringtone_type is BUILTIN");
+            }
+            ringtoneAssetId = null;
+        }
+
+        entity.setUserId(userId);
+        entity.setRingtoneTypeCode(ringtoneType);
+        entity.setRingtoneName(ringtoneName);
+        entity.setRingtoneCode(ringtoneCode);
+        entity.setRingtoneAssetId(ringtoneAssetId);
+    }
+
+    private int normalizePomodoroMinutes(Integer value, int min, int max, String fieldName) {
+        if (value == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " is required");
+        }
+        if (value < min || value > max) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " out of range");
+        }
+        return value;
+    }
+
+    private String normalizeRingtoneType(String rawType) {
+        String normalized = String.valueOf(rawType == null ? "" : rawType).trim().toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return RINGTONE_TYPE_BUILTIN;
+        }
+        if (RINGTONE_TYPE_BUILTIN.equals(normalized) || RINGTONE_TYPE_UPLOAD.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported ringtone_type: " + rawType);
     }
 
     private String normalizePriority(String rawPriority) {
@@ -654,6 +779,27 @@ public class LightAppServiceImpl implements LightAppService {
             unique.put(code, new ColumnInput(code, title, sortNum, Boolean.TRUE.equals(item.getEnabled())));
         }
         return new ArrayList<>(unique.values());
+    }
+
+    private LightAppPomodoroResponse toPomodoroResponse(LightAppPomodoroTemplateEntity entity) {
+        String ringtoneType = RINGTONE_TYPE_UPLOAD.equalsIgnoreCase(String.valueOf(entity.getRingtoneTypeCode()))
+            ? RINGTONE_TYPE_UPLOAD
+            : RINGTONE_TYPE_BUILTIN;
+        return new LightAppPomodoroResponse(
+            entity.getId(),
+            entity.getTitle(),
+            entity.getFocusMinutes() == null ? 25 : entity.getFocusMinutes(),
+            entity.getShortBreakMinutes() == null ? 5 : entity.getShortBreakMinutes(),
+            entity.getLongBreakMinutes() == null ? 15 : entity.getLongBreakMinutes(),
+            entity.getLongBreakEvery() == null ? 4 : entity.getLongBreakEvery(),
+            Boolean.TRUE.equals(entity.getAutoStartNext()),
+            ringtoneType,
+            entity.getRingtoneName(),
+            entity.getRingtoneCode(),
+            entity.getRingtoneAssetId(),
+            entity.getSortNum() == null ? 0 : entity.getSortNum(),
+            entity.getUpdatedAt()
+        );
     }
 
     private LightAppProjectResponse toProjectResponse(LightAppProjectEntity entity) {

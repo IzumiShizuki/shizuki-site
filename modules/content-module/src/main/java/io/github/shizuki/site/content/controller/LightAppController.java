@@ -3,6 +3,8 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.site.content.dto.LightAppProjectResponse;
 import io.github.shizuki.site.content.dto.LightAppProjectUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppPomodoroResponse;
+import io.github.shizuki.site.content.dto.LightAppPomodoroUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppScheduleResponse;
 import io.github.shizuki.site.content.dto.LightAppScheduleUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppTaskColumnResponse;
@@ -62,6 +64,32 @@ public class LightAppController {
     @Operation(summary = "删除项目")
     public ApiResponse<Void> deleteProject(@PathVariable("project_id") Long projectId) {
         lightAppService.deleteProject(projectId);
+        return ApiResponse.success(null);
+    }
+
+    @GetMapping("/pomodoros")
+    @Operation(summary = "查询番茄钟模板列表")
+    public ApiResponse<List<LightAppPomodoroResponse>> listPomodoros() {
+        return ApiResponse.success(lightAppService.listPomodoros());
+    }
+
+    @PostMapping("/pomodoros")
+    @Operation(summary = "创建番茄钟模板")
+    public ApiResponse<LightAppPomodoroResponse> createPomodoro(@Valid @RequestBody LightAppPomodoroUpsertRequest request) {
+        return ApiResponse.success(lightAppService.createPomodoro(request));
+    }
+
+    @PutMapping("/pomodoros/{pomodoro_id}")
+    @Operation(summary = "更新番茄钟模板")
+    public ApiResponse<LightAppPomodoroResponse> updatePomodoro(@PathVariable("pomodoro_id") Long pomodoroId,
+                                                                @Valid @RequestBody LightAppPomodoroUpsertRequest request) {
+        return ApiResponse.success(lightAppService.updatePomodoro(pomodoroId, request));
+    }
+
+    @DeleteMapping("/pomodoros/{pomodoro_id}")
+    @Operation(summary = "删除番茄钟模板")
+    public ApiResponse<Void> deletePomodoro(@PathVariable("pomodoro_id") Long pomodoroId) {
+        lightAppService.deletePomodoro(pomodoroId);
         return ApiResponse.success(null);
     }
 

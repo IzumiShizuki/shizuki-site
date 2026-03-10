@@ -4,8 +4,10 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
+import io.github.shizuki.site.content.dto.LightAppPomodoroUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoReorderRequest;
 import io.github.shizuki.site.content.entity.LightAppTodoEntity;
+import io.github.shizuki.site.content.mapper.LightAppPomodoroTemplateMapper;
 import io.github.shizuki.site.content.mapper.LightAppProjectMapper;
 import io.github.shizuki.site.content.mapper.LightAppScheduleEventMapper;
 import io.github.shizuki.site.content.mapper.LightAppTaskColumnMapper;
@@ -25,6 +27,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class LightAppServiceImplTest {
+
+    @Mock
+    private LightAppPomodoroTemplateMapper pomodoroTemplateMapper;
 
     @Mock
     private LightAppProjectMapper projectMapper;
@@ -75,5 +80,22 @@ class LightAppServiceImplTest {
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class, () -> lightAppService.reorderTodos(request));
         Assertions.assertEquals(ErrorCode.NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void shouldRejectUploadRingtoneWithoutAssetId() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+
+        LightAppPomodoroUpsertRequest request = new LightAppPomodoroUpsertRequest();
+        request.setTitle("测试模板");
+        request.setFocusMinutes(25);
+        request.setShortBreakMinutes(5);
+        request.setLongBreakMinutes(15);
+        request.setLongBreakEvery(4);
+        request.setRingtoneType("UPLOAD");
+        request.setRingtoneName("custom.mp3");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class, () -> lightAppService.createPomodoro(request));
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
     }
 }

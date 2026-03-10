@@ -1,11 +1,23 @@
 <template>
   <section class="lightapp-window">
     <div class="top-toolbar">
-      <button class="action-btn ripple-trigger" type="button" @click="toggleCreateForm">
-        {{ showCreateForm ? '收起添加区' : '添加任务' }}
+      <button
+        class="icon-btn toolbar-btn ripple-trigger"
+        type="button"
+        :title="showCreateForm ? '收起添加区' : '添加任务'"
+        :aria-label="showCreateForm ? '收起添加区' : '添加任务'"
+        @click="toggleCreateForm"
+      >
+        <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
       </button>
-      <button class="action-btn ripple-trigger" type="button" @click="toggleColumnEditor">
-        {{ showColumnEditor ? '关闭列配置' : '列配置' }}
+      <button
+        class="icon-btn toolbar-btn ripple-trigger"
+        type="button"
+        :title="showColumnEditor ? '关闭列配置' : '列配置'"
+        :aria-label="showColumnEditor ? '关闭列配置' : '列配置'"
+        @click="toggleColumnEditor"
+      >
+        <i :class="showColumnEditor ? 'fas fa-sliders' : 'fas fa-table-columns'" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -23,8 +35,14 @@
             {{ column.title }}
           </option>
         </select>
-        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim()">
-          {{ saving ? '新增中...' : '新增' }}
+        <button
+          class="icon-btn ripple-trigger"
+          type="submit"
+          :title="saving ? '新增中' : '新增任务'"
+          :aria-label="saving ? '新增中' : '新增任务'"
+          :disabled="saving || !draft.title.trim()"
+        >
+          <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
         </button>
       </form>
     </Transition>
@@ -32,7 +50,16 @@
     <section v-if="showColumnEditor" class="column-editor liquid-material">
       <header>
         <h4>列配置</h4>
-        <button class="action-btn ripple-trigger" @click="saveColumns" :disabled="saving">保存列配置</button>
+        <button
+          class="icon-btn ripple-trigger"
+          type="button"
+          title="保存列配置"
+          aria-label="保存列配置"
+          :disabled="saving"
+          @click="saveColumns"
+        >
+          <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-floppy-disk'" aria-hidden="true"></i>
+        </button>
       </header>
       <ul class="column-editor-list">
         <li v-for="(column, index) in columnDrafts" :key="`${column.columnCode}_${index}`">
@@ -45,7 +72,9 @@
           </button>
         </li>
       </ul>
-      <button class="action-btn ripple-trigger" @click="appendColumnDraft">新增列</button>
+      <button class="icon-btn ripple-trigger" type="button" title="新增列" aria-label="新增列" @click="appendColumnDraft">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+      </button>
     </section>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
@@ -557,7 +586,6 @@ if (suiteContext?.projectVersion) {
   padding: 8px 10px;
 }
 
-.action-btn,
 .icon-btn {
   border: 1px solid var(--la-border);
   background: var(--la-btn-bg);
@@ -666,6 +694,11 @@ if (suiteContext?.projectVersion) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.toolbar-btn {
+  width: 32px;
+  height: 32px;
 }
 
 .icon-btn:disabled {

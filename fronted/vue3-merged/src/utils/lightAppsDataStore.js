@@ -143,9 +143,38 @@ function normalizeSchedules(raw) {
     });
 }
 
+function normalizePomodoros(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.pomodoroId ?? source.pomodoro_id);
+      const title = String(source.title || '').trim();
+      if (!id || !title) return null;
+      const ringtoneType = String(source.ringtoneType ?? source.ringtone_type ?? 'BUILTIN').trim().toUpperCase() || 'BUILTIN';
+      return {
+        pomodoroId: id,
+        title,
+        focusMinutes: toNumber(source.focusMinutes ?? source.focus_minutes, 25),
+        shortBreakMinutes: toNumber(source.shortBreakMinutes ?? source.short_break_minutes, 5),
+        longBreakMinutes: toNumber(source.longBreakMinutes ?? source.long_break_minutes, 15),
+        longBreakEvery: toNumber(source.longBreakEvery ?? source.long_break_every, 4),
+        autoStartNext: toBoolean(source.autoStartNext ?? source.auto_start_next),
+        ringtoneType: ringtoneType === 'UPLOAD' ? 'UPLOAD' : 'BUILTIN',
+        ringtoneName: String(source.ringtoneName ?? source.ringtone_name ?? '').trim(),
+        ringtoneCode: String(source.ringtoneCode ?? source.ringtone_code ?? '').trim(),
+        ringtoneAssetId: toNumber(source.ringtoneAssetId ?? source.ringtone_asset_id, 0) || null,
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.pomodoroId - right.pomodoroId);
+}
+
 export function createEmptyLightAppDataStore() {
   return {
     projects: [],
+    pomodoros: [],
     todos: [],
     tasks: [],
     taskColumns: DEFAULT_TASK_COLUMNS.map((item) => ({ ...item })),
@@ -157,6 +186,7 @@ export function normalizeLightAppDataStore(input) {
   const source = toObject(input);
   return {
     projects: normalizeProjects(source.projects),
+    pomodoros: normalizePomodoros(source.pomodoros),
     todos: normalizeTodos(source.todos),
     tasks: normalizeTasks(source.tasks),
     taskColumns: normalizeTaskColumns(source.taskColumns || source.task_columns),

@@ -1,9 +1,18 @@
+import { reactive } from 'vue';
+
 export const TIMEPRISM_SUITE_CONTEXT_KEY = Symbol('timeprism-suite-context');
 
 export const TIMEPRISM_MODULE_TODO = 'todo';
 export const TIMEPRISM_MODULE_BOARD = 'board';
 export const TIMEPRISM_MODULE_SCHEDULE = 'schedule';
 export const TIMEPRISM_MODULE_PROJECTS = 'projects';
+
+export const TIMEPRISM_MODULE_ITEMS = Object.freeze([
+  { code: TIMEPRISM_MODULE_TODO, label: 'Todo', iconClass: 'fas fa-list-check' },
+  { code: TIMEPRISM_MODULE_BOARD, label: 'Task Board', iconClass: 'fas fa-columns' },
+  { code: TIMEPRISM_MODULE_SCHEDULE, label: 'Schedule', iconClass: 'fas fa-calendar-days' },
+  { code: TIMEPRISM_MODULE_PROJECTS, label: 'Projects', iconClass: 'fas fa-folder-tree' }
+]);
 
 export const TODO_VIEW_ALL = 'ALL';
 export const TODO_VIEW_OPEN = 'OPEN';
@@ -17,6 +26,8 @@ const MODULE_CODES = Object.freeze([
   TIMEPRISM_MODULE_SCHEDULE,
   TIMEPRISM_MODULE_PROJECTS
 ]);
+
+const suiteSessionByWindowId = new Map();
 
 const TODO_VIEW_FILTERS = Object.freeze([TODO_VIEW_ALL, TODO_VIEW_OPEN, TODO_VIEW_DONE]);
 
@@ -52,6 +63,27 @@ export function createTimePrismSuiteSessionState(seed = {}) {
     selectedProjectIds: normalizeProjectFilterIds(seed.selectedProjectIds),
     projectVersion: Number.isInteger(Number(seed.projectVersion)) ? Number(seed.projectVersion) : 0
   };
+}
+
+function normalizeWindowId(windowId) {
+  const normalized = Number(windowId);
+  if (!Number.isInteger(normalized) || normalized <= 0) {
+    return 0;
+  }
+  return normalized;
+}
+
+export function resolveTimePrismSuiteSession(windowId) {
+  const key = normalizeWindowId(windowId);
+  if (!suiteSessionByWindowId.has(key)) {
+    suiteSessionByWindowId.set(key, reactive(createTimePrismSuiteSessionState()));
+  }
+  return suiteSessionByWindowId.get(key);
+}
+
+export function releaseTimePrismSuiteSession(windowId) {
+  const key = normalizeWindowId(windowId);
+  suiteSessionByWindowId.delete(key);
 }
 
 export function setSuiteActiveModule(state, code) {

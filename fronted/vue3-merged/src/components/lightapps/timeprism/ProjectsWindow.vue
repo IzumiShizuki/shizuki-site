@@ -1,8 +1,14 @@
 <template>
   <section class="lightapp-window">
     <div class="top-toolbar">
-      <button class="action-btn ripple-trigger" type="button" @click="toggleForm">
-        {{ showForm ? '收起添加区' : '添加项目' }}
+      <button
+        class="icon-btn toolbar-btn ripple-trigger"
+        type="button"
+        :title="showForm ? '收起添加区' : '添加项目'"
+        :aria-label="showForm ? '收起添加区' : '添加项目'"
+        @click="toggleForm"
+      >
+        <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
       </button>
       <span class="toolbar-hint">共 {{ projects.length }} 个项目</span>
     </div>
@@ -12,17 +18,25 @@
         <input v-model.trim="draft.name" type="text" placeholder="项目名称，例如：春季学习计划" />
         <input v-model.trim="draft.description" type="text" placeholder="描述（可选）" />
         <input v-model="draft.color" type="color" />
-        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.name.trim()">
-          {{ saving ? '保存中...' : editingId ? '更新项目' : '创建项目' }}
+        <button
+          class="icon-btn ripple-trigger"
+          type="submit"
+          :title="saving ? '保存中' : editingId ? '更新项目' : '创建项目'"
+          :aria-label="saving ? '保存中' : editingId ? '更新项目' : '创建项目'"
+          :disabled="saving || !draft.name.trim()"
+        >
+          <i :class="saving ? 'fas fa-spinner fa-spin' : editingId ? 'fas fa-check' : 'fas fa-plus'" aria-hidden="true"></i>
         </button>
         <button
           v-if="editingId"
-          class="action-btn ripple-trigger"
+          class="icon-btn ripple-trigger"
           type="button"
+          title="取消编辑"
+          aria-label="取消编辑"
           :disabled="saving"
           @click="cancelEditing"
         >
-          取消
+          <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
       </form>
     </Transition>
@@ -381,7 +395,6 @@ onMounted(() => {
   padding: 8px 10px;
 }
 
-.action-btn,
 .icon-btn {
   border: 1px solid var(--la-border);
   background: var(--la-btn-bg);
@@ -463,6 +476,11 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.toolbar-btn {
+  width: 32px;
+  height: 32px;
 }
 
 .error-text {

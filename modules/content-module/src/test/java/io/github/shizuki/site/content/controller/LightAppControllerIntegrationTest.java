@@ -3,6 +3,7 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.content.dto.LightAppProjectResponse;
+import io.github.shizuki.site.content.dto.LightAppPomodoroResponse;
 import io.github.shizuki.site.content.dto.LightAppScheduleResponse;
 import io.github.shizuki.site.content.dto.LightAppTaskColumnResponse;
 import io.github.shizuki.site.content.dto.LightAppTaskResponse;
@@ -42,6 +43,60 @@ class LightAppControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].project_id").value(1))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].project_code").value("p_abc"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].name").value("学习计划"));
+    }
+
+    @Test
+    void shouldListPomodorosSuccessfully() throws Exception {
+        Mockito.when(lightAppService.listPomodoros())
+            .thenReturn(List.of(
+                new LightAppPomodoroResponse(
+                    1L,
+                    "高强度学习",
+                    25,
+                    5,
+                    15,
+                    4,
+                    false,
+                    "BUILTIN",
+                    "Soft Bell",
+                    "soft-bell",
+                    null,
+                    10,
+                    null
+                )
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/pomodoros"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].pomodoro_id").value(1))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("高强度学习"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].ringtone_type").value("BUILTIN"));
+    }
+
+    @Test
+    void shouldCreatePomodoroSuccessfully() throws Exception {
+        Mockito.when(lightAppService.createPomodoro(ArgumentMatchers.any()))
+            .thenReturn(new LightAppPomodoroResponse(5L, "考试冲刺", 30, 5, 20, 4, true, "BUILTIN", "Soft Bell", "soft-bell", null, 20, null));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/pomodoros")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "考试冲刺",
+                      "focus_minutes": 30,
+                      "short_break_minutes": 5,
+                      "long_break_minutes": 20,
+                      "long_break_every": 4,
+                      "auto_start_next": true,
+                      "ringtone_type": "BUILTIN",
+                      "ringtone_code": "soft-bell"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.pomodoro_id").value(5))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.focus_minutes").value(30));
     }
 
     @Test
@@ -164,6 +219,21 @@ class LightAppControllerIntegrationTest {
                 .content("""
                     {
                       "title": "周会"
+                    }
+                    """))
+            .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenCreatePomodoroMissingTitle() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/pomodoros")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "focus_minutes": 25,
+                      "short_break_minutes": 5,
+                      "long_break_minutes": 15,
+                      "long_break_every": 4
                     }
                     """))
             .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));

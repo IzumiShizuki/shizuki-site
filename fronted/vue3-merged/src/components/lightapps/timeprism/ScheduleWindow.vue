@@ -1,8 +1,14 @@
 <template>
   <section class="lightapp-window">
     <div class="top-toolbar">
-      <button class="action-btn ripple-trigger" type="button" @click="toggleCreateForm">
-        {{ showCreateForm ? '收起添加区' : '添加日程' }}
+      <button
+        class="icon-btn toolbar-btn ripple-trigger"
+        type="button"
+        :title="showCreateForm ? '收起添加区' : '添加日程'"
+        :aria-label="showCreateForm ? '收起添加区' : '添加日程'"
+        @click="toggleCreateForm"
+      >
+        <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -18,8 +24,14 @@
         <input v-model="draft.startAt" type="datetime-local" />
         <input v-model="draft.endAt" type="datetime-local" />
         <label class="all-day-check"><input v-model="draft.allDay" type="checkbox" /> 全天</label>
-        <button class="action-btn ripple-trigger" type="submit" :disabled="saving || !draft.title.trim() || !draft.startAt">
-          {{ saving ? '添加中...' : '添加' }}
+        <button
+          class="icon-btn ripple-trigger"
+          type="submit"
+          :title="saving ? '添加中' : '添加日程'"
+          :aria-label="saving ? '添加中' : '添加日程'"
+          :disabled="saving || !draft.title.trim() || !draft.startAt"
+        >
+          <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
         </button>
       </form>
     </Transition>
@@ -29,7 +41,9 @@
     <section class="upcoming-panel liquid-material">
       <header>
         <h4>近期 {{ upcomingDays }} 天</h4>
-        <button class="chip-btn ripple-trigger" @click="reloadUpcoming">刷新</button>
+        <button class="icon-btn ripple-trigger" type="button" title="刷新近期日程" aria-label="刷新近期日程" @click="reloadUpcoming">
+          <i class="fas fa-rotate-right" aria-hidden="true"></i>
+        </button>
       </header>
       <ul v-if="upcomingItems.length" class="upcoming-list">
         <li v-for="item in upcomingItems" :key="`upcoming_${item.scheduleId}`">
@@ -426,8 +440,6 @@ if (suiteContext?.projectVersion) {
   color: var(--la-muted);
 }
 
-.action-btn,
-.chip-btn,
 .icon-btn {
   border: 1px solid var(--la-border);
   background: var(--la-btn-bg);
@@ -522,6 +534,11 @@ if (suiteContext?.projectVersion) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.toolbar-btn {
+  width: 32px;
+  height: 32px;
 }
 
 .error-text {

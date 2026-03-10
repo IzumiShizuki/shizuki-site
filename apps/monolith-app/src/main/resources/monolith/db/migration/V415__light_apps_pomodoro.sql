@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS CTN_LA_POMODORO_TEMPLATE (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'CTN_LA_POMODORO_TEMPLATE.id 自增长ID',
+    user_id BIGINT NOT NULL COMMENT 'CTN_LA_POMODORO_TEMPLATE.user_id 用户ID',
+    title_text VARCHAR(120) NOT NULL COMMENT 'CTN_LA_POMODORO_TEMPLATE.title_text 模板标题',
+    focus_minutes INT NOT NULL DEFAULT 25 COMMENT 'CTN_LA_POMODORO_TEMPLATE.focus_minutes 专注时长（分钟）',
+    short_break_minutes INT NOT NULL DEFAULT 5 COMMENT 'CTN_LA_POMODORO_TEMPLATE.short_break_minutes 短休息时长（分钟）',
+    long_break_minutes INT NOT NULL DEFAULT 15 COMMENT 'CTN_LA_POMODORO_TEMPLATE.long_break_minutes 长休息时长（分钟）',
+    long_break_every INT NOT NULL DEFAULT 4 COMMENT 'CTN_LA_POMODORO_TEMPLATE.long_break_every 长休息间隔（轮）',
+    auto_start_next_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_POMODORO_TEMPLATE.auto_start_next_flag 自动开始下一段',
+    ringtone_type_code VARCHAR(16) NOT NULL DEFAULT 'BUILTIN' COMMENT 'CTN_LA_POMODORO_TEMPLATE.ringtone_type_code 铃声类型 BUILTIN/UPLOAD',
+    ringtone_name_text VARCHAR(120) NULL COMMENT 'CTN_LA_POMODORO_TEMPLATE.ringtone_name_text 铃声名称',
+    ringtone_code VARCHAR(64) NULL COMMENT 'CTN_LA_POMODORO_TEMPLATE.ringtone_code 内置铃声编码',
+    ringtone_asset_id BIGINT NULL COMMENT 'CTN_LA_POMODORO_TEMPLATE.ringtone_asset_id 上传铃声资产ID',
+    sort_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_POMODORO_TEMPLATE.sort_num 排序值',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'CTN_LA_POMODORO_TEMPLATE.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'CTN_LA_POMODORO_TEMPLATE.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'CTN_LA_POMODORO_TEMPLATE.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'CTN_LA_POMODORO_TEMPLATE.version_num 版本号',
+    CONSTRAINT PK_CTN_LA_POMODORO_TEMPLATE PRIMARY KEY (id),
+    KEY IX_CTN_LA_POMODORO_TEMPLATE_1 (user_id, sort_num, update_time),
+    KEY IX_CTN_LA_POMODORO_TEMPLATE_2 (user_id, ringtone_type_code)
+);

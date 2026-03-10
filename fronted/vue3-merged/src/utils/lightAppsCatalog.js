@@ -10,7 +10,7 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
   {
     code: 'pomodoro-timer',
     title: 'Pomodoro Timer',
-    summary: '番茄钟专注计时，支持专注/休息循环、自定义时长与本地统计。',
+    summary: '番茄钟模板化专注计时，支持标题模板、内置/上传铃声与登录后云端同步。',
     iconClass: 'fas fa-clock',
     source: 'Shizuki',
     floatingAble: true
