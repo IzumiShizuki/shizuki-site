@@ -14,6 +14,14 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
     iconClass: 'fas fa-clock',
     source: 'Shizuki',
     floatingAble: true
+  },
+  {
+    code: 'balance-ledger',
+    title: 'Balance Ledger',
+    summary: '余额与负债总览、收支记录、定期扣费与多币种汇率换算。',
+    iconClass: 'fas fa-wallet',
+    source: 'Shizuki',
+    floatingAble: true
   }
 ]);
 

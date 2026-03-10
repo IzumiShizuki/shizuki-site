@@ -171,6 +171,217 @@ function normalizePomodoros(raw) {
     .sort((left, right) => left.sortNum - right.sortNum || left.pomodoroId - right.pomodoroId);
 }
 
+function normalizeTodoRecurringRules(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.ruleId ?? source.rule_id);
+      const title = String(source.title || '').trim();
+      if (!id || !title) return null;
+      return {
+        ruleId: id,
+        projectId: toNumber(source.projectId ?? source.project_id, 0) || null,
+        title,
+        detail: String(source.detail || '').trim(),
+        priority: String(source.priority || 'MEDIUM').trim().toUpperCase() || 'MEDIUM',
+        cronExpr: String(source.cronExpr ?? source.cron_expr ?? '').trim(),
+        timeZoneId: String(source.timeZoneId ?? source.time_zone_id ?? 'Asia/Shanghai').trim() || 'Asia/Shanghai',
+        startAt: source.startAt || source.start_at || '',
+        endAt: source.endAt || source.end_at || '',
+        enabled: toBoolean(source.enabled, true),
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.ruleId - right.ruleId);
+}
+
+function normalizeTaskRecurringRules(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.ruleId ?? source.rule_id);
+      const title = String(source.title || '').trim();
+      if (!id || !title) return null;
+      return {
+        ruleId: id,
+        projectId: toNumber(source.projectId ?? source.project_id, 0) || null,
+        columnCode: String(source.columnCode ?? source.column_code ?? 'todo').trim().toLowerCase() || 'todo',
+        title,
+        detail: String(source.detail || '').trim(),
+        cronExpr: String(source.cronExpr ?? source.cron_expr ?? '').trim(),
+        timeZoneId: String(source.timeZoneId ?? source.time_zone_id ?? 'Asia/Shanghai').trim() || 'Asia/Shanghai',
+        startAt: source.startAt || source.start_at || '',
+        endAt: source.endAt || source.end_at || '',
+        enabled: toBoolean(source.enabled, true),
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.ruleId - right.ruleId);
+}
+
+function normalizeScheduleRecurringRules(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.ruleId ?? source.rule_id);
+      const title = String(source.title || '').trim();
+      if (!id || !title) return null;
+      return {
+        ruleId: id,
+        projectId: toNumber(source.projectId ?? source.project_id, 0) || null,
+        title,
+        detail: String(source.detail || '').trim(),
+        durationMinutes: toNumber(source.durationMinutes ?? source.duration_minutes, 60),
+        allDay: toBoolean(source.allDay ?? source.all_day, false),
+        location: String(source.location || '').trim(),
+        status: String(source.status || 'ACTIVE').trim().toUpperCase() || 'ACTIVE',
+        cronExpr: String(source.cronExpr ?? source.cron_expr ?? '').trim(),
+        timeZoneId: String(source.timeZoneId ?? source.time_zone_id ?? 'Asia/Shanghai').trim() || 'Asia/Shanghai',
+        startAt: source.startAt || source.start_at || '',
+        endAt: source.endAt || source.end_at || '',
+        enabled: toBoolean(source.enabled, true),
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.ruleId - right.ruleId);
+}
+
+function normalizeBalanceAccounts(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.accountId ?? source.account_id);
+      const accountName = String(source.accountName ?? source.account_name ?? '').trim();
+      if (!id || !accountName) return null;
+      return {
+        accountId: id,
+        channelCode: String(source.channelCode ?? source.channel_code ?? '').trim(),
+        channelName: String(source.channelName ?? source.channel_name ?? '').trim(),
+        accountName,
+        currencyCode: String(source.currencyCode ?? source.currency_code ?? 'CNY').trim().toUpperCase() || 'CNY',
+        balanceAmount: toNumber(source.balanceAmount ?? source.balance_amount, 0),
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.accountId - right.accountId);
+}
+
+function normalizeBalanceTransactions(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.transactionId ?? source.transaction_id);
+      if (!id) return null;
+      return {
+        transactionId: id,
+        accountId: toNumber(source.accountId ?? source.account_id, 0) || null,
+        direction: String(source.direction || 'EXPENSE').trim().toUpperCase() || 'EXPENSE',
+        amount: toNumber(source.amount, 0),
+        currencyCode: String(source.currencyCode ?? source.currency_code ?? 'CNY').trim().toUpperCase() || 'CNY',
+        category: String(source.category || '').trim(),
+        note: String(source.note || '').trim(),
+        occurredAt: source.occurredAt || source.occurred_at || '',
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.occurredAt || '') || 0;
+      const rightTime = Date.parse(right.occurredAt || '') || 0;
+      return rightTime - leftTime || right.sortNum - left.sortNum || right.transactionId - left.transactionId;
+    });
+}
+
+function normalizeBalanceDebts(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.debtId ?? source.debt_id);
+      const title = String(source.title || '').trim();
+      if (!id || !title) return null;
+      return {
+        debtId: id,
+        title,
+        creditor: String(source.creditor || '').trim(),
+        amount: toNumber(source.amount, 0),
+        currencyCode: String(source.currencyCode ?? source.currency_code ?? 'CNY').trim().toUpperCase() || 'CNY',
+        occurredAt: source.occurredAt || source.occurred_at || '',
+        dueAt: source.dueAt || source.due_at || '',
+        status: String(source.status || 'OPEN').trim().toUpperCase() || 'OPEN',
+        note: String(source.note || '').trim(),
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.debtId - right.debtId);
+}
+
+function normalizeBalanceRecurringCharges(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.recurringChargeId ?? source.recurring_charge_id);
+      const title = String(source.title || '').trim();
+      if (!id || !title) return null;
+      return {
+        recurringChargeId: id,
+        accountId: toNumber(source.accountId ?? source.account_id, 0) || null,
+        title,
+        amount: toNumber(source.amount, 0),
+        currencyCode: String(source.currencyCode ?? source.currency_code ?? 'CNY').trim().toUpperCase() || 'CNY',
+        category: String(source.category || '').trim(),
+        note: String(source.note || '').trim(),
+        cronExpr: String(source.cronExpr ?? source.cron_expr ?? '').trim(),
+        timeZoneId: String(source.timeZoneId ?? source.time_zone_id ?? 'Asia/Shanghai').trim() || 'Asia/Shanghai',
+        startAt: source.startAt || source.start_at || '',
+        endAt: source.endAt || source.end_at || '',
+        lastTriggerAt: source.lastTriggerAt || source.last_trigger_at || '',
+        enabled: toBoolean(source.enabled, true),
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.recurringChargeId - right.recurringChargeId);
+}
+
+function normalizeBalanceFxRates(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      return {
+        baseCurrency: String(source.baseCurrency ?? source.base_currency ?? 'CNY').trim().toUpperCase() || 'CNY',
+        quoteCurrency: String(source.quoteCurrency ?? source.quote_currency ?? 'CNY').trim().toUpperCase() || 'CNY',
+        rate: toNumber(source.rate, 1),
+        provider: String(source.provider || '').trim(),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter((item) => item.quoteCurrency)
+    .sort((left, right) => left.quoteCurrency.localeCompare(right.quoteCurrency));
+}
+
+function normalizeBalanceOverview(raw) {
+  const source = toObject(raw);
+  return {
+    baseCurrency: String(source.baseCurrency ?? source.base_currency ?? 'CNY').trim().toUpperCase() || 'CNY',
+    totalBalance: toNumber(source.totalBalance ?? source.total_balance, 0),
+    totalDebt: toNumber(source.totalDebt ?? source.total_debt, 0),
+    netAsset: toNumber(source.netAsset ?? source.net_asset, 0),
+    calculatedAt: source.calculatedAt || source.calculated_at || ''
+  };
+}
+
 export function createEmptyLightAppDataStore() {
   return {
     projects: [],
@@ -178,7 +389,16 @@ export function createEmptyLightAppDataStore() {
     todos: [],
     tasks: [],
     taskColumns: DEFAULT_TASK_COLUMNS.map((item) => ({ ...item })),
-    schedules: []
+    schedules: [],
+    todoRecurringRules: [],
+    taskRecurringRules: [],
+    scheduleRecurringRules: [],
+    balanceAccounts: [],
+    balanceTransactions: [],
+    balanceDebts: [],
+    balanceRecurringCharges: [],
+    balanceFxRates: [],
+    balanceOverview: normalizeBalanceOverview({})
   };
 }
 
@@ -190,7 +410,16 @@ export function normalizeLightAppDataStore(input) {
     todos: normalizeTodos(source.todos),
     tasks: normalizeTasks(source.tasks),
     taskColumns: normalizeTaskColumns(source.taskColumns || source.task_columns),
-    schedules: normalizeSchedules(source.schedules)
+    schedules: normalizeSchedules(source.schedules),
+    todoRecurringRules: normalizeTodoRecurringRules(source.todoRecurringRules || source.todo_recurring_rules),
+    taskRecurringRules: normalizeTaskRecurringRules(source.taskRecurringRules || source.task_recurring_rules),
+    scheduleRecurringRules: normalizeScheduleRecurringRules(source.scheduleRecurringRules || source.schedule_recurring_rules),
+    balanceAccounts: normalizeBalanceAccounts(source.balanceAccounts || source.balance_accounts),
+    balanceTransactions: normalizeBalanceTransactions(source.balanceTransactions || source.balance_transactions),
+    balanceDebts: normalizeBalanceDebts(source.balanceDebts || source.balance_debts),
+    balanceRecurringCharges: normalizeBalanceRecurringCharges(source.balanceRecurringCharges || source.balance_recurring_charges),
+    balanceFxRates: normalizeBalanceFxRates(source.balanceFxRates || source.balance_fx_rates),
+    balanceOverview: normalizeBalanceOverview(source.balanceOverview || source.balance_overview)
   };
 }
 

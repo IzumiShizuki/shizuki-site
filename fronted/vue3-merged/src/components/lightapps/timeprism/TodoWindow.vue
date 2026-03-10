@@ -10,6 +10,15 @@
       >
         <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
       </button>
+      <button
+        class="icon-btn toolbar-btn ripple-trigger"
+        type="button"
+        :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
+        :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
+        @click="toggleRecurringPanel"
+      >
+        <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
+      </button>
       <span class="toolbar-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
     </div>
 
@@ -38,6 +47,58 @@
           <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
         </button>
       </form>
+    </Transition>
+
+    <Transition name="panel-collapse">
+      <section v-if="showRecurringPanel" class="recurring-panel liquid-material">
+        <header>
+          <h4>Todo 周期规则</h4>
+          <button
+            class="icon-btn ripple-trigger"
+            type="button"
+            :title="recurringSaving ? '保存中' : '新增规则'"
+            :aria-label="recurringSaving ? '保存中' : '新增规则'"
+            :disabled="recurringSaving || !recurringDraft.title.trim() || !recurringDraft.cronExpr.trim()"
+            @click="createRecurringRule"
+          >
+            <i :class="recurringSaving ? 'fas fa-spinner fa-spin' : 'fas fa-plus'" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="recurring-form">
+          <input v-model.trim="recurringDraft.title" type="text" placeholder="规则标题，例如：每日站会纪要" />
+          <select v-model="recurringDraft.projectId">
+            <option value="">无项目</option>
+            <option v-for="item in projects" :key="`todo_rule_project_${item.projectId}`" :value="String(item.projectId)">
+              {{ item.name }}
+            </option>
+          </select>
+          <select v-model="recurringDraft.priority">
+            <option value="LOW">低</option>
+            <option value="MEDIUM">中</option>
+            <option value="HIGH">高</option>
+          </select>
+          <input v-model.trim="recurringDraft.cronExpr" type="text" placeholder="Cron，例如：0 0 9 * * *" />
+          <input v-model.trim="recurringDraft.timeZoneId" type="text" placeholder="时区，例如：Asia/Shanghai" />
+        </div>
+
+        <ul v-if="todoRecurringRules.length" class="recurring-list">
+          <li v-for="rule in todoRecurringRules" :key="`todo_rule_${rule.ruleId}`">
+            <div>
+              <p>{{ rule.title }}</p>
+              <small>{{ rule.cronExpr }} · {{ rule.timeZoneId }} · {{ rule.priority }}</small>
+            </div>
+            <div class="todo-actions">
+              <button class="icon-btn ripple-trigger" type="button" :title="rule.enabled ? '停用' : '启用'" @click="toggleRecurringRule(rule)">
+                <i :class="rule.enabled ? 'fas fa-pause' : 'fas fa-play'" aria-hidden="true"></i>
+              </button>
+              <button class="icon-btn ripple-trigger" type="button" title="删除" @click="removeRecurringRule(rule.ruleId)">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+              </button>
+            </div>
+          </li>
+        </ul>
+        <p v-else class="empty-hint">暂无周期规则</p>
+      </section>
     </Transition>
 
     <div class="todo-toolbar">
@@ -110,11 +171,15 @@ import { computed, inject, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppTodo,
+  createLightAppTodoRecurringRule,
   deleteLightAppTodo,
+  deleteLightAppTodoRecurringRule,
   listLightAppProjects,
   listLightAppTodos,
+  listLightAppTodoRecurringRules,
   reorderLightAppTodos,
-  updateLightAppTodo
+  updateLightAppTodo,
+  updateLightAppTodoRecurringRule
 } from '../../../services/lightAppsApi';
 import {
   createLocalEntityId,
@@ -140,15 +205,27 @@ const todos = ref([]);
 const projects = ref([]);
 const viewFilter = ref(TODO_VIEW_ALL);
 const saving = ref(false);
+const recurringSaving = ref(false);
 const errorText = ref('');
 const showCreateForm = ref(false);
+const showRecurringPanel = ref(false);
 const localProjectFilters = ref([]);
+const todoRecurringRules = ref([]);
 
 const draft = reactive({
   title: '',
   projectId: '',
   priority: 'MEDIUM',
   dueAt: ''
+});
+
+const recurringDraft = reactive({
+  title: '',
+  projectId: '',
+  detail: '',
+  priority: 'MEDIUM',
+  cronExpr: '0 0 9 * * *',
+  timeZoneId: 'Asia/Shanghai'
 });
 
 const selectedProjectIds = computed(() => {
@@ -265,6 +342,102 @@ function toggleCreateForm() {
   showCreateForm.value = !showCreateForm.value;
 }
 
+function toggleRecurringPanel() {
+  showRecurringPanel.value = !showRecurringPanel.value;
+}
+
+async function createRecurringRule() {
+  if (!recurringDraft.title.trim() || !recurringDraft.cronExpr.trim()) return;
+  errorText.value = '';
+  recurringSaving.value = true;
+  try {
+    await auth.ensureReady();
+    const payload = {
+      projectId: recurringDraft.projectId ? Number(recurringDraft.projectId) : null,
+      title: recurringDraft.title.trim(),
+      detail: recurringDraft.detail.trim() || null,
+      priority: recurringDraft.priority,
+      cronExpr: recurringDraft.cronExpr.trim(),
+      timeZoneId: recurringDraft.timeZoneId.trim() || 'Asia/Shanghai',
+      enabled: true
+    };
+
+    if (auth.isAuthenticated.value) {
+      await createLightAppTodoRecurringRule(payload, auth.authorizedFetch);
+      await refreshRemoteTodos();
+    } else {
+      const nextId = createLocalEntityId();
+      const maxSort = todoRecurringRules.value.reduce((max, item) => Math.max(max, Number(item.sortNum) || 0), 0);
+      const nextRules = normalizeRecurringRules([
+        ...todoRecurringRules.value,
+        {
+          ruleId: nextId,
+          ...payload,
+          sortNum: maxSort + 10,
+          updatedAt: new Date().toISOString()
+        }
+      ]);
+      persistGuestTodos(todos.value, nextRules);
+    }
+
+    recurringDraft.title = '';
+    recurringDraft.detail = '';
+    recurringDraft.projectId = '';
+    recurringDraft.priority = 'MEDIUM';
+    recurringDraft.cronExpr = '0 0 9 * * *';
+    recurringDraft.timeZoneId = 'Asia/Shanghai';
+  } catch (error) {
+    errorText.value = error?.message || '周期规则创建失败';
+  } finally {
+    recurringSaving.value = false;
+  }
+}
+
+async function toggleRecurringRule(rule) {
+  errorText.value = '';
+  recurringSaving.value = true;
+  try {
+    await auth.ensureReady();
+    const nextEnabled = !Boolean(rule.enabled);
+    if (auth.isAuthenticated.value) {
+      await updateLightAppTodoRecurringRule(
+        rule.ruleId,
+        buildRecurringPayload(rule, { enabled: nextEnabled }),
+        auth.authorizedFetch
+      );
+      await refreshRemoteTodos();
+      return;
+    }
+    const nextRules = normalizeRecurringRules(
+      todoRecurringRules.value.map((item) => (item.ruleId === rule.ruleId ? { ...item, enabled: nextEnabled } : item))
+    );
+    persistGuestTodos(todos.value, nextRules);
+  } catch (error) {
+    errorText.value = error?.message || '周期规则更新失败';
+  } finally {
+    recurringSaving.value = false;
+  }
+}
+
+async function removeRecurringRule(ruleId) {
+  errorText.value = '';
+  recurringSaving.value = true;
+  try {
+    await auth.ensureReady();
+    if (auth.isAuthenticated.value) {
+      await deleteLightAppTodoRecurringRule(ruleId, auth.authorizedFetch);
+      await refreshRemoteTodos();
+      return;
+    }
+    const nextRules = normalizeRecurringRules(todoRecurringRules.value.filter((item) => item.ruleId !== ruleId));
+    persistGuestTodos(todos.value, nextRules);
+  } catch (error) {
+    errorText.value = error?.message || '周期规则删除失败';
+  } finally {
+    recurringSaving.value = false;
+  }
+}
+
 function priorityLabel(priority) {
   if (priority === 'HIGH') return '高优先级';
   if (priority === 'LOW') return '低优先级';
@@ -292,12 +465,49 @@ function buildTodoPayload(item, overrides = {}) {
   };
 }
 
-function persistGuestTodos(nextTodos) {
+function buildRecurringPayload(item, overrides = {}) {
+  return {
+    projectId: overrides.projectId ?? item.projectId ?? null,
+    title: overrides.title ?? item.title,
+    detail: overrides.detail ?? (item.detail || null),
+    priority: overrides.priority ?? (item.priority || 'MEDIUM'),
+    cronExpr: overrides.cronExpr ?? item.cronExpr,
+    timeZoneId: overrides.timeZoneId ?? (item.timeZoneId || 'Asia/Shanghai'),
+    startAt: overrides.startAt ?? (item.startAt || null),
+    endAt: overrides.endAt ?? (item.endAt || null),
+    enabled: overrides.enabled ?? Boolean(item.enabled),
+    sortNum: overrides.sortNum ?? item.sortNum ?? 0
+  };
+}
+
+function normalizeRecurringRules(input) {
+  return (Array.isArray(input) ? input : [])
+    .map((item) => ({
+      ruleId: Number(item.ruleId ?? item.rule_id) || 0,
+      projectId: Number(item.projectId ?? item.project_id) || null,
+      title: String(item.title || '').trim(),
+      detail: String(item.detail || '').trim(),
+      priority: String(item.priority || 'MEDIUM').trim().toUpperCase() || 'MEDIUM',
+      cronExpr: String(item.cronExpr ?? item.cron_expr ?? '').trim(),
+      timeZoneId: String(item.timeZoneId ?? item.time_zone_id ?? 'Asia/Shanghai').trim() || 'Asia/Shanghai',
+      startAt: item.startAt || item.start_at || '',
+      endAt: item.endAt || item.end_at || '',
+      enabled: item.enabled !== false,
+      sortNum: Number(item.sortNum ?? item.sort_num) || 0,
+      updatedAt: item.updatedAt || item.updated_at || ''
+    }))
+    .filter((item) => item.ruleId && item.title)
+    .sort((left, right) => left.sortNum - right.sortNum || left.ruleId - right.ruleId);
+}
+
+function persistGuestTodos(nextTodos, nextRules = todoRecurringRules.value) {
   const normalized = sortTodos(nextTodos || []);
   todos.value = normalized;
+  todoRecurringRules.value = Array.isArray(nextRules) ? nextRules.slice() : [];
   updateGuestLightAppData((current) => ({
     ...current,
-    todos: normalized
+    todos: normalized,
+    todoRecurringRules: todoRecurringRules.value
   }));
 }
 
@@ -309,33 +519,39 @@ async function hydrate() {
     const guest = readGuestLightAppData();
     projects.value = (guest.projects || []).slice();
     todos.value = sortTodos(guest.todos || []);
+    todoRecurringRules.value = normalizeRecurringRules(guest.todoRecurringRules || guest.todo_recurring_rules || []);
     return;
   }
 
   try {
-    const [projectList, todoList] = await Promise.all([
+    const [projectList, todoList, recurringList] = await Promise.all([
       listLightAppProjects(auth.authorizedFetch),
-      listLightAppTodos(auth.authorizedFetch)
+      listLightAppTodos(auth.authorizedFetch),
+      listLightAppTodoRecurringRules(auth.authorizedFetch)
     ]);
     projects.value = Array.isArray(projectList) ? projectList : [];
     todos.value = sortTodos(Array.isArray(todoList) ? todoList : []);
-    writeRemoteLightAppCache({ projects: projects.value, todos: todos.value });
+    todoRecurringRules.value = normalizeRecurringRules(recurringList);
+    writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value });
   } catch (error) {
     const cache = readRemoteLightAppCache();
     projects.value = cache.projects || [];
     todos.value = sortTodos(cache.todos || []);
+    todoRecurringRules.value = normalizeRecurringRules(cache.todoRecurringRules || []);
     errorText.value = error?.message || '待办加载失败，已使用缓存数据。';
   }
 }
 
 async function refreshRemoteTodos() {
-  const [projectList, todoList] = await Promise.all([
+  const [projectList, todoList, recurringList] = await Promise.all([
     listLightAppProjects(auth.authorizedFetch),
-    listLightAppTodos(auth.authorizedFetch)
+    listLightAppTodos(auth.authorizedFetch),
+    listLightAppTodoRecurringRules(auth.authorizedFetch)
   ]);
   projects.value = Array.isArray(projectList) ? projectList : [];
   todos.value = sortTodos(Array.isArray(todoList) ? todoList : []);
-  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value });
+  todoRecurringRules.value = normalizeRecurringRules(recurringList);
+  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value });
 }
 
 async function refreshProjectOptionsOnly() {
@@ -348,7 +564,7 @@ async function refreshProjectOptionsOnly() {
 
   const projectList = await listLightAppProjects(auth.authorizedFetch);
   projects.value = Array.isArray(projectList) ? projectList : [];
-  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value });
+  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value });
 }
 
 async function createTodoItem() {
@@ -541,6 +757,70 @@ if (suiteContext?.projectVersion) {
   padding: 8px 10px;
 }
 
+.recurring-panel {
+  --liquid-bg: rgba(var(--glass-rgb), 0.28);
+  --liquid-border: var(--la-border);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.recurring-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recurring-panel h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.recurring-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px 84px minmax(0, 1fr) 150px;
+  gap: 8px;
+}
+
+.recurring-form input,
+.recurring-form select {
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.recurring-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.recurring-list li {
+  border: 1px solid var(--la-border);
+  border-radius: 10px;
+  background: rgba(var(--glass-rgb), 0.22);
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.recurring-list p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.recurring-list small {
+  color: var(--la-muted);
+}
+
 .todo-toolbar {
   display: flex;
   align-items: center;
@@ -718,6 +998,10 @@ if (suiteContext?.projectVersion) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .recurring-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .todo-toolbar {
     gap: 6px;
   }
@@ -743,6 +1027,10 @@ if (suiteContext?.projectVersion) {
 
 @container lightapp-window-body (max-width: 520px) {
   .todo-create {
+    grid-template-columns: 1fr;
+  }
+
+  .recurring-form {
     grid-template-columns: 1fr;
   }
 

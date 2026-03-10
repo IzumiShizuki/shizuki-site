@@ -5,13 +5,30 @@ import io.github.shizuki.site.content.dto.LightAppProjectResponse;
 import io.github.shizuki.site.content.dto.LightAppProjectUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppPomodoroResponse;
 import io.github.shizuki.site.content.dto.LightAppPomodoroUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppBalanceAccountResponse;
+import io.github.shizuki.site.content.dto.LightAppBalanceAccountUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppBalanceDebtResponse;
+import io.github.shizuki.site.content.dto.LightAppBalanceDebtUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppBalanceOverviewResponse;
+import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeResponse;
+import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppBalanceTransactionResponse;
+import io.github.shizuki.site.content.dto.LightAppBalanceTransactionUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppFxRateResponse;
+import io.github.shizuki.site.content.dto.LightAppFxRefreshRequest;
+import io.github.shizuki.site.content.dto.LightAppScheduleRecurringRuleResponse;
+import io.github.shizuki.site.content.dto.LightAppScheduleRecurringRuleUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppScheduleResponse;
 import io.github.shizuki.site.content.dto.LightAppScheduleUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppTaskRecurringRuleResponse;
+import io.github.shizuki.site.content.dto.LightAppTaskRecurringRuleUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppTaskColumnResponse;
 import io.github.shizuki.site.content.dto.LightAppTaskColumnsUpdateRequest;
 import io.github.shizuki.site.content.dto.LightAppTaskMoveRequest;
 import io.github.shizuki.site.content.dto.LightAppTaskResponse;
 import io.github.shizuki.site.content.dto.LightAppTaskUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppTodoRecurringRuleResponse;
+import io.github.shizuki.site.content.dto.LightAppTodoRecurringRuleUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoReorderRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoResponse;
 import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
@@ -65,6 +82,136 @@ public class LightAppController {
     public ApiResponse<Void> deleteProject(@PathVariable("project_id") Long projectId) {
         lightAppService.deleteProject(projectId);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/balance/accounts")
+    @Operation(summary = "查询余额账户列表")
+    public ApiResponse<List<LightAppBalanceAccountResponse>> listBalanceAccounts() {
+        return ApiResponse.success(lightAppService.listBalanceAccounts());
+    }
+
+    @PostMapping("/balance/accounts")
+    @Operation(summary = "创建余额账户")
+    public ApiResponse<LightAppBalanceAccountResponse> createBalanceAccount(@Valid @RequestBody LightAppBalanceAccountUpsertRequest request) {
+        return ApiResponse.success(lightAppService.createBalanceAccount(request));
+    }
+
+    @PutMapping("/balance/accounts/{account_id}")
+    @Operation(summary = "更新余额账户")
+    public ApiResponse<LightAppBalanceAccountResponse> updateBalanceAccount(@PathVariable("account_id") Long accountId,
+                                                                            @Valid @RequestBody LightAppBalanceAccountUpsertRequest request) {
+        return ApiResponse.success(lightAppService.updateBalanceAccount(accountId, request));
+    }
+
+    @DeleteMapping("/balance/accounts/{account_id}")
+    @Operation(summary = "删除余额账户")
+    public ApiResponse<Void> deleteBalanceAccount(@PathVariable("account_id") Long accountId) {
+        lightAppService.deleteBalanceAccount(accountId);
+        return ApiResponse.success(null);
+    }
+
+    @GetMapping("/balance/transactions")
+    @Operation(summary = "查询收支流水")
+    public ApiResponse<List<LightAppBalanceTransactionResponse>> listBalanceTransactions() {
+        return ApiResponse.success(lightAppService.listBalanceTransactions());
+    }
+
+    @PostMapping("/balance/transactions")
+    @Operation(summary = "创建收支流水")
+    public ApiResponse<LightAppBalanceTransactionResponse> createBalanceTransaction(@Valid @RequestBody LightAppBalanceTransactionUpsertRequest request) {
+        return ApiResponse.success(lightAppService.createBalanceTransaction(request));
+    }
+
+    @PutMapping("/balance/transactions/{transaction_id}")
+    @Operation(summary = "更新收支流水")
+    public ApiResponse<LightAppBalanceTransactionResponse> updateBalanceTransaction(@PathVariable("transaction_id") Long transactionId,
+                                                                                    @Valid @RequestBody LightAppBalanceTransactionUpsertRequest request) {
+        return ApiResponse.success(lightAppService.updateBalanceTransaction(transactionId, request));
+    }
+
+    @DeleteMapping("/balance/transactions/{transaction_id}")
+    @Operation(summary = "删除收支流水")
+    public ApiResponse<Void> deleteBalanceTransaction(@PathVariable("transaction_id") Long transactionId) {
+        lightAppService.deleteBalanceTransaction(transactionId);
+        return ApiResponse.success(null);
+    }
+
+    @GetMapping("/balance/debts")
+    @Operation(summary = "查询负债列表")
+    public ApiResponse<List<LightAppBalanceDebtResponse>> listBalanceDebts() {
+        return ApiResponse.success(lightAppService.listBalanceDebts());
+    }
+
+    @PostMapping("/balance/debts")
+    @Operation(summary = "创建负债")
+    public ApiResponse<LightAppBalanceDebtResponse> createBalanceDebt(@Valid @RequestBody LightAppBalanceDebtUpsertRequest request) {
+        return ApiResponse.success(lightAppService.createBalanceDebt(request));
+    }
+
+    @PutMapping("/balance/debts/{debt_id}")
+    @Operation(summary = "更新负债")
+    public ApiResponse<LightAppBalanceDebtResponse> updateBalanceDebt(@PathVariable("debt_id") Long debtId,
+                                                                      @Valid @RequestBody LightAppBalanceDebtUpsertRequest request) {
+        return ApiResponse.success(lightAppService.updateBalanceDebt(debtId, request));
+    }
+
+    @DeleteMapping("/balance/debts/{debt_id}")
+    @Operation(summary = "删除负债")
+    public ApiResponse<Void> deleteBalanceDebt(@PathVariable("debt_id") Long debtId) {
+        lightAppService.deleteBalanceDebt(debtId);
+        return ApiResponse.success(null);
+    }
+
+    @GetMapping("/balance/recurring-charges")
+    @Operation(summary = "查询定期扣费规则")
+    public ApiResponse<List<LightAppBalanceRecurringChargeResponse>> listBalanceRecurringCharges() {
+        return ApiResponse.success(lightAppService.listBalanceRecurringCharges());
+    }
+
+    @PostMapping("/balance/recurring-charges")
+    @Operation(summary = "创建定期扣费规则")
+    public ApiResponse<LightAppBalanceRecurringChargeResponse> createBalanceRecurringCharge(
+        @Valid @RequestBody LightAppBalanceRecurringChargeUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.createBalanceRecurringCharge(request));
+    }
+
+    @PutMapping("/balance/recurring-charges/{recurring_charge_id}")
+    @Operation(summary = "更新定期扣费规则")
+    public ApiResponse<LightAppBalanceRecurringChargeResponse> updateBalanceRecurringCharge(
+        @PathVariable("recurring_charge_id") Long recurringChargeId,
+        @Valid @RequestBody LightAppBalanceRecurringChargeUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.updateBalanceRecurringCharge(recurringChargeId, request));
+    }
+
+    @DeleteMapping("/balance/recurring-charges/{recurring_charge_id}")
+    @Operation(summary = "删除定期扣费规则")
+    public ApiResponse<Void> deleteBalanceRecurringCharge(@PathVariable("recurring_charge_id") Long recurringChargeId) {
+        lightAppService.deleteBalanceRecurringCharge(recurringChargeId);
+        return ApiResponse.success(null);
+    }
+
+    @GetMapping("/balance/overview")
+    @Operation(summary = "查询余额总览")
+    public ApiResponse<LightAppBalanceOverviewResponse> getBalanceOverview(
+        @RequestParam(name = "base_currency", required = false) String baseCurrency
+    ) {
+        return ApiResponse.success(lightAppService.getBalanceOverview(baseCurrency));
+    }
+
+    @GetMapping("/balance/fx-rates")
+    @Operation(summary = "查询汇率")
+    public ApiResponse<List<LightAppFxRateResponse>> listFxRates(
+        @RequestParam(name = "base_currency", required = false) String baseCurrency
+    ) {
+        return ApiResponse.success(lightAppService.listFxRates(baseCurrency));
+    }
+
+    @PostMapping("/balance/fx-rates/refresh")
+    @Operation(summary = "刷新汇率")
+    public ApiResponse<List<LightAppFxRateResponse>> refreshFxRates(@Valid @RequestBody LightAppFxRefreshRequest request) {
+        return ApiResponse.success(lightAppService.refreshFxRates(request.getBaseCurrency()));
     }
 
     @GetMapping("/pomodoros")
@@ -125,6 +272,36 @@ public class LightAppController {
         return ApiResponse.success(lightAppService.reorderTodos(request));
     }
 
+    @GetMapping("/todo-recurring-rules")
+    @Operation(summary = "查询Todo周期规则")
+    public ApiResponse<List<LightAppTodoRecurringRuleResponse>> listTodoRecurringRules() {
+        return ApiResponse.success(lightAppService.listTodoRecurringRules());
+    }
+
+    @PostMapping("/todo-recurring-rules")
+    @Operation(summary = "创建Todo周期规则")
+    public ApiResponse<LightAppTodoRecurringRuleResponse> createTodoRecurringRule(
+        @Valid @RequestBody LightAppTodoRecurringRuleUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.createTodoRecurringRule(request));
+    }
+
+    @PutMapping("/todo-recurring-rules/{rule_id}")
+    @Operation(summary = "更新Todo周期规则")
+    public ApiResponse<LightAppTodoRecurringRuleResponse> updateTodoRecurringRule(
+        @PathVariable("rule_id") Long ruleId,
+        @Valid @RequestBody LightAppTodoRecurringRuleUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.updateTodoRecurringRule(ruleId, request));
+    }
+
+    @DeleteMapping("/todo-recurring-rules/{rule_id}")
+    @Operation(summary = "删除Todo周期规则")
+    public ApiResponse<Void> deleteTodoRecurringRule(@PathVariable("rule_id") Long ruleId) {
+        lightAppService.deleteTodoRecurringRule(ruleId);
+        return ApiResponse.success(null);
+    }
+
     @GetMapping("/tasks")
     @Operation(summary = "查询任务列表")
     public ApiResponse<List<LightAppTaskResponse>> listTasks() {
@@ -155,6 +332,36 @@ public class LightAppController {
     @Operation(summary = "移动任务")
     public ApiResponse<LightAppTaskResponse> moveTask(@Valid @RequestBody LightAppTaskMoveRequest request) {
         return ApiResponse.success(lightAppService.moveTask(request));
+    }
+
+    @GetMapping("/task-recurring-rules")
+    @Operation(summary = "查询Task周期规则")
+    public ApiResponse<List<LightAppTaskRecurringRuleResponse>> listTaskRecurringRules() {
+        return ApiResponse.success(lightAppService.listTaskRecurringRules());
+    }
+
+    @PostMapping("/task-recurring-rules")
+    @Operation(summary = "创建Task周期规则")
+    public ApiResponse<LightAppTaskRecurringRuleResponse> createTaskRecurringRule(
+        @Valid @RequestBody LightAppTaskRecurringRuleUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.createTaskRecurringRule(request));
+    }
+
+    @PutMapping("/task-recurring-rules/{rule_id}")
+    @Operation(summary = "更新Task周期规则")
+    public ApiResponse<LightAppTaskRecurringRuleResponse> updateTaskRecurringRule(
+        @PathVariable("rule_id") Long ruleId,
+        @Valid @RequestBody LightAppTaskRecurringRuleUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.updateTaskRecurringRule(ruleId, request));
+    }
+
+    @DeleteMapping("/task-recurring-rules/{rule_id}")
+    @Operation(summary = "删除Task周期规则")
+    public ApiResponse<Void> deleteTaskRecurringRule(@PathVariable("rule_id") Long ruleId) {
+        lightAppService.deleteTaskRecurringRule(ruleId);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/task-columns")
@@ -201,5 +408,35 @@ public class LightAppController {
         @RequestParam(name = "days", required = false) Integer days
     ) {
         return ApiResponse.success(lightAppService.listUpcomingSchedules(days));
+    }
+
+    @GetMapping("/schedule-recurring-rules")
+    @Operation(summary = "查询Schedule周期规则")
+    public ApiResponse<List<LightAppScheduleRecurringRuleResponse>> listScheduleRecurringRules() {
+        return ApiResponse.success(lightAppService.listScheduleRecurringRules());
+    }
+
+    @PostMapping("/schedule-recurring-rules")
+    @Operation(summary = "创建Schedule周期规则")
+    public ApiResponse<LightAppScheduleRecurringRuleResponse> createScheduleRecurringRule(
+        @Valid @RequestBody LightAppScheduleRecurringRuleUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.createScheduleRecurringRule(request));
+    }
+
+    @PutMapping("/schedule-recurring-rules/{rule_id}")
+    @Operation(summary = "更新Schedule周期规则")
+    public ApiResponse<LightAppScheduleRecurringRuleResponse> updateScheduleRecurringRule(
+        @PathVariable("rule_id") Long ruleId,
+        @Valid @RequestBody LightAppScheduleRecurringRuleUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.updateScheduleRecurringRule(ruleId, request));
+    }
+
+    @DeleteMapping("/schedule-recurring-rules/{rule_id}")
+    @Operation(summary = "删除Schedule周期规则")
+    public ApiResponse<Void> deleteScheduleRecurringRule(@PathVariable("rule_id") Long ruleId) {
+        lightAppService.deleteScheduleRecurringRule(ruleId);
+        return ApiResponse.success(null);
     }
 }

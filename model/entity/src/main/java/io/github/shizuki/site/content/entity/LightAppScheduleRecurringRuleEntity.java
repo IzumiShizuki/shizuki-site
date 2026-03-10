@@ -5,8 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
 import java.time.LocalDateTime;
 
-@TableName("CTN_LA_SCHEDULE_EVENT")
-public class LightAppScheduleEventEntity extends BaseEntity {
+@TableName("CTN_LA_SCHEDULE_RECUR_RULE")
+public class LightAppScheduleRecurringRuleEntity extends BaseEntity {
 
     @TableField("user_id")
     private Long userId;
@@ -14,23 +14,14 @@ public class LightAppScheduleEventEntity extends BaseEntity {
     @TableField("project_id")
     private Long projectId;
 
-    @TableField("recurring_rule_id")
-    private Long recurringRuleId;
-
     @TableField("title_text")
     private String title;
 
     @TableField("detail_text")
     private String detail;
 
-    @TableField("start_datetime")
-    private LocalDateTime startAt;
-
-    @TableField("end_datetime")
-    private LocalDateTime endAt;
-
-    @TableField("recurring_instance_datetime")
-    private LocalDateTime recurringInstanceAt;
+    @TableField("duration_minutes")
+    private Integer durationMinutes;
 
     @TableField("all_day_flag")
     private Boolean allDay;
@@ -40,6 +31,21 @@ public class LightAppScheduleEventEntity extends BaseEntity {
 
     @TableField("status_code")
     private String statusCode;
+
+    @TableField("cron_expr")
+    private String cronExpr;
+
+    @TableField("time_zone_id")
+    private String timeZoneId;
+
+    @TableField("start_datetime")
+    private LocalDateTime startAt;
+
+    @TableField("end_datetime")
+    private LocalDateTime endAt;
+
+    @TableField("enabled_flag")
+    private Boolean enabled;
 
     @TableField("sort_num")
     private Integer sortNum;
@@ -60,14 +66,6 @@ public class LightAppScheduleEventEntity extends BaseEntity {
         this.projectId = projectId;
     }
 
-    public Long getRecurringRuleId() {
-        return recurringRuleId;
-    }
-
-    public void setRecurringRuleId(Long recurringRuleId) {
-        this.recurringRuleId = recurringRuleId;
-    }
-
     public String getTitle() {
         return title;
     }
@@ -84,28 +82,12 @@ public class LightAppScheduleEventEntity extends BaseEntity {
         this.detail = detail;
     }
 
-    public LocalDateTime getStartAt() {
-        return startAt;
+    public Integer getDurationMinutes() {
+        return durationMinutes;
     }
 
-    public void setStartAt(LocalDateTime startAt) {
-        this.startAt = startAt;
-    }
-
-    public LocalDateTime getEndAt() {
-        return endAt;
-    }
-
-    public void setEndAt(LocalDateTime endAt) {
-        this.endAt = endAt;
-    }
-
-    public LocalDateTime getRecurringInstanceAt() {
-        return recurringInstanceAt;
-    }
-
-    public void setRecurringInstanceAt(LocalDateTime recurringInstanceAt) {
-        this.recurringInstanceAt = recurringInstanceAt;
+    public void setDurationMinutes(Integer durationMinutes) {
+        this.durationMinutes = durationMinutes;
     }
 
     public Boolean getAllDay() {
@@ -130,6 +112,46 @@ public class LightAppScheduleEventEntity extends BaseEntity {
 
     public void setStatusCode(String statusCode) {
         this.statusCode = statusCode;
+    }
+
+    public String getCronExpr() {
+        return cronExpr;
+    }
+
+    public void setCronExpr(String cronExpr) {
+        this.cronExpr = cronExpr;
+    }
+
+    public String getTimeZoneId() {
+        return timeZoneId;
+    }
+
+    public void setTimeZoneId(String timeZoneId) {
+        this.timeZoneId = timeZoneId;
+    }
+
+    public LocalDateTime getStartAt() {
+        return startAt;
+    }
+
+    public void setStartAt(LocalDateTime startAt) {
+        this.startAt = startAt;
+    }
+
+    public LocalDateTime getEndAt() {
+        return endAt;
+    }
+
+    public void setEndAt(LocalDateTime endAt) {
+        this.endAt = endAt;
+    }
+
+    public Boolean getEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(Boolean enabled) {
+        this.enabled = enabled;
     }
 
     public Integer getSortNum() {

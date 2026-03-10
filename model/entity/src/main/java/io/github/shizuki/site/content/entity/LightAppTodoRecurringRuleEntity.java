@@ -5,17 +5,14 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
 import java.time.LocalDateTime;
 
-@TableName("CTN_LA_TODO")
-public class LightAppTodoEntity extends BaseEntity {
+@TableName("CTN_LA_TODO_RECUR_RULE")
+public class LightAppTodoRecurringRuleEntity extends BaseEntity {
 
     @TableField("user_id")
     private Long userId;
 
     @TableField("project_id")
     private Long projectId;
-
-    @TableField("recurring_rule_id")
-    private Long recurringRuleId;
 
     @TableField("title_text")
     private String title;
@@ -26,14 +23,20 @@ public class LightAppTodoEntity extends BaseEntity {
     @TableField("priority_code")
     private String priorityCode;
 
-    @TableField("done_flag")
-    private Boolean done;
+    @TableField("cron_expr")
+    private String cronExpr;
 
-    @TableField("due_datetime")
-    private LocalDateTime dueAt;
+    @TableField("time_zone_id")
+    private String timeZoneId;
 
-    @TableField("recurring_instance_datetime")
-    private LocalDateTime recurringInstanceAt;
+    @TableField("start_datetime")
+    private LocalDateTime startAt;
+
+    @TableField("end_datetime")
+    private LocalDateTime endAt;
+
+    @TableField("enabled_flag")
+    private Boolean enabled;
 
     @TableField("sort_num")
     private Integer sortNum;
@@ -52,14 +55,6 @@ public class LightAppTodoEntity extends BaseEntity {
 
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
-    }
-
-    public Long getRecurringRuleId() {
-        return recurringRuleId;
-    }
-
-    public void setRecurringRuleId(Long recurringRuleId) {
-        this.recurringRuleId = recurringRuleId;
     }
 
     public String getTitle() {
@@ -86,28 +81,44 @@ public class LightAppTodoEntity extends BaseEntity {
         this.priorityCode = priorityCode;
     }
 
-    public Boolean getDone() {
-        return done;
+    public String getCronExpr() {
+        return cronExpr;
     }
 
-    public void setDone(Boolean done) {
-        this.done = done;
+    public void setCronExpr(String cronExpr) {
+        this.cronExpr = cronExpr;
     }
 
-    public LocalDateTime getDueAt() {
-        return dueAt;
+    public String getTimeZoneId() {
+        return timeZoneId;
     }
 
-    public void setDueAt(LocalDateTime dueAt) {
-        this.dueAt = dueAt;
+    public void setTimeZoneId(String timeZoneId) {
+        this.timeZoneId = timeZoneId;
     }
 
-    public LocalDateTime getRecurringInstanceAt() {
-        return recurringInstanceAt;
+    public LocalDateTime getStartAt() {
+        return startAt;
     }
 
-    public void setRecurringInstanceAt(LocalDateTime recurringInstanceAt) {
-        this.recurringInstanceAt = recurringInstanceAt;
+    public void setStartAt(LocalDateTime startAt) {
+        this.startAt = startAt;
+    }
+
+    public LocalDateTime getEndAt() {
+        return endAt;
+    }
+
+    public void setEndAt(LocalDateTime endAt) {
+        this.endAt = endAt;
+    }
+
+    public Boolean getEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(Boolean enabled) {
+        this.enabled = enabled;
     }
 
     public Integer getSortNum() {

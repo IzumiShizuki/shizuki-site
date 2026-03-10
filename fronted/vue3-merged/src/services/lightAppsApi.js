@@ -20,6 +20,11 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(normalized) ? normalized : fallback;
 }
 
+function toAmount(value, fallback = 0) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : fallback;
+}
+
 function toBoolean(value, fallback = false) {
   if (value === undefined || value === null) return fallback;
   return Boolean(value);
@@ -122,6 +127,147 @@ function normalizePomodoro(raw) {
     ringtoneCode: toText(source.ringtoneCode ?? source.ringtone_code, ''),
     ringtoneAssetId: toNumber(source.ringtoneAssetId ?? source.ringtone_asset_id, 0) || null,
     sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeRecurringRuleBase(source) {
+  return {
+    cronExpr: toText(source.cronExpr ?? source.cron_expr, ''),
+    timeZoneId: toText(source.timeZoneId ?? source.time_zone_id, 'Asia/Shanghai') || 'Asia/Shanghai',
+    startAt: source.startAt || source.start_at || '',
+    endAt: source.endAt || source.end_at || '',
+    enabled: toBoolean(source.enabled, true),
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeTodoRecurringRule(raw) {
+  const source = toObject(raw);
+  return {
+    ruleId: toNumber(source.ruleId ?? source.rule_id, 0),
+    projectId: toNumber(source.projectId ?? source.project_id, 0) || null,
+    title: toText(source.title, ''),
+    detail: toText(source.detail, ''),
+    priority: toText(source.priority, 'MEDIUM').toUpperCase() || 'MEDIUM',
+    ...normalizeRecurringRuleBase(source)
+  };
+}
+
+function normalizeTaskRecurringRule(raw) {
+  const source = toObject(raw);
+  return {
+    ruleId: toNumber(source.ruleId ?? source.rule_id, 0),
+    projectId: toNumber(source.projectId ?? source.project_id, 0) || null,
+    columnCode: toText(source.columnCode ?? source.column_code, 'todo').toLowerCase() || 'todo',
+    title: toText(source.title, ''),
+    detail: toText(source.detail, ''),
+    ...normalizeRecurringRuleBase(source)
+  };
+}
+
+function normalizeScheduleRecurringRule(raw) {
+  const source = toObject(raw);
+  return {
+    ruleId: toNumber(source.ruleId ?? source.rule_id, 0),
+    projectId: toNumber(source.projectId ?? source.project_id, 0) || null,
+    title: toText(source.title, ''),
+    detail: toText(source.detail, ''),
+    durationMinutes: toNumber(source.durationMinutes ?? source.duration_minutes, 60),
+    allDay: toBoolean(source.allDay ?? source.all_day, false),
+    location: toText(source.location, ''),
+    status: toText(source.status, 'ACTIVE').toUpperCase() || 'ACTIVE',
+    ...normalizeRecurringRuleBase(source)
+  };
+}
+
+function normalizeBalanceAccount(raw) {
+  const source = toObject(raw);
+  return {
+    accountId: toNumber(source.accountId ?? source.account_id, 0),
+    channelCode: toText(source.channelCode ?? source.channel_code, ''),
+    channelName: toText(source.channelName ?? source.channel_name, ''),
+    accountName: toText(source.accountName ?? source.account_name, ''),
+    currencyCode: toText(source.currencyCode ?? source.currency_code, 'CNY').toUpperCase() || 'CNY',
+    balanceAmount: toAmount(source.balanceAmount ?? source.balance_amount, 0),
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeBalanceTransaction(raw) {
+  const source = toObject(raw);
+  return {
+    transactionId: toNumber(source.transactionId ?? source.transaction_id, 0),
+    accountId: toNumber(source.accountId ?? source.account_id, 0) || null,
+    direction: toText(source.direction, 'EXPENSE').toUpperCase() || 'EXPENSE',
+    amount: toAmount(source.amount, 0),
+    currencyCode: toText(source.currencyCode ?? source.currency_code, 'CNY').toUpperCase() || 'CNY',
+    category: toText(source.category, ''),
+    note: toText(source.note, ''),
+    occurredAt: source.occurredAt || source.occurred_at || '',
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeBalanceDebt(raw) {
+  const source = toObject(raw);
+  return {
+    debtId: toNumber(source.debtId ?? source.debt_id, 0),
+    title: toText(source.title, ''),
+    creditor: toText(source.creditor, ''),
+    amount: toAmount(source.amount, 0),
+    currencyCode: toText(source.currencyCode ?? source.currency_code, 'CNY').toUpperCase() || 'CNY',
+    occurredAt: source.occurredAt || source.occurred_at || '',
+    dueAt: source.dueAt || source.due_at || '',
+    status: toText(source.status, 'OPEN').toUpperCase() || 'OPEN',
+    note: toText(source.note, ''),
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeBalanceRecurringCharge(raw) {
+  const source = toObject(raw);
+  return {
+    recurringChargeId: toNumber(source.recurringChargeId ?? source.recurring_charge_id, 0),
+    accountId: toNumber(source.accountId ?? source.account_id, 0) || null,
+    title: toText(source.title, ''),
+    amount: toAmount(source.amount, 0),
+    currencyCode: toText(source.currencyCode ?? source.currency_code, 'CNY').toUpperCase() || 'CNY',
+    category: toText(source.category, ''),
+    note: toText(source.note, ''),
+    cronExpr: toText(source.cronExpr ?? source.cron_expr, ''),
+    timeZoneId: toText(source.timeZoneId ?? source.time_zone_id, 'Asia/Shanghai') || 'Asia/Shanghai',
+    startAt: source.startAt || source.start_at || '',
+    endAt: source.endAt || source.end_at || '',
+    lastTriggerAt: source.lastTriggerAt || source.last_trigger_at || '',
+    enabled: toBoolean(source.enabled, true),
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeBalanceOverview(raw) {
+  const source = toObject(raw);
+  return {
+    baseCurrency: toText(source.baseCurrency ?? source.base_currency, 'CNY').toUpperCase() || 'CNY',
+    totalBalance: toAmount(source.totalBalance ?? source.total_balance, 0),
+    totalDebt: toAmount(source.totalDebt ?? source.total_debt, 0),
+    netAsset: toAmount(source.netAsset ?? source.net_asset, 0),
+    calculatedAt: source.calculatedAt || source.calculated_at || ''
+  };
+}
+
+function normalizeFxRate(raw) {
+  const source = toObject(raw);
+  return {
+    baseCurrency: toText(source.baseCurrency ?? source.base_currency, 'CNY').toUpperCase() || 'CNY',
+    quoteCurrency: toText(source.quoteCurrency ?? source.quote_currency, 'CNY').toUpperCase() || 'CNY',
+    rate: toAmount(source.rate, 1),
+    provider: toText(source.provider, ''),
     updatedAt: source.updatedAt || source.updated_at || ''
   };
 }
@@ -361,4 +507,302 @@ export async function listUpcomingLightAppSchedules(days, authorizedFetch) {
     })
   );
   return normalizeList(raw, normalizeSchedule, 'scheduleId');
+}
+
+export async function listLightAppTodoRecurringRules(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/todo-recurring-rules', { method: 'GET' }));
+  return normalizeList(raw, normalizeTodoRecurringRule, 'ruleId');
+}
+
+export async function createLightAppTodoRecurringRule(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/todo-recurring-rules', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeTodoRecurringRule(raw);
+}
+
+export async function updateLightAppTodoRecurringRule(ruleId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/todo-recurring-rules/${encodeURIComponent(ruleId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeTodoRecurringRule(raw);
+}
+
+export async function deleteLightAppTodoRecurringRule(ruleId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/todo-recurring-rules/${encodeURIComponent(ruleId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function listLightAppTaskRecurringRules(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/task-recurring-rules', { method: 'GET' }));
+  return normalizeList(raw, normalizeTaskRecurringRule, 'ruleId');
+}
+
+export async function createLightAppTaskRecurringRule(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/task-recurring-rules', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeTaskRecurringRule(raw);
+}
+
+export async function updateLightAppTaskRecurringRule(ruleId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/task-recurring-rules/${encodeURIComponent(ruleId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeTaskRecurringRule(raw);
+}
+
+export async function deleteLightAppTaskRecurringRule(ruleId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/task-recurring-rules/${encodeURIComponent(ruleId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function listLightAppScheduleRecurringRules(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/schedule-recurring-rules', { method: 'GET' }));
+  return normalizeList(raw, normalizeScheduleRecurringRule, 'ruleId');
+}
+
+export async function createLightAppScheduleRecurringRule(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/schedule-recurring-rules', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeScheduleRecurringRule(raw);
+}
+
+export async function updateLightAppScheduleRecurringRule(ruleId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/schedule-recurring-rules/${encodeURIComponent(ruleId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeScheduleRecurringRule(raw);
+}
+
+export async function deleteLightAppScheduleRecurringRule(ruleId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/schedule-recurring-rules/${encodeURIComponent(ruleId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function listLightAppBalanceAccounts(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/balance/accounts', { method: 'GET' }));
+  return normalizeList(raw, normalizeBalanceAccount, 'accountId');
+}
+
+export async function createLightAppBalanceAccount(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/accounts', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceAccount(raw);
+}
+
+export async function updateLightAppBalanceAccount(accountId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/accounts/${encodeURIComponent(accountId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceAccount(raw);
+}
+
+export async function deleteLightAppBalanceAccount(accountId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/accounts/${encodeURIComponent(accountId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function listLightAppBalanceTransactions(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/balance/transactions', { method: 'GET' }));
+  return normalizeList(raw, normalizeBalanceTransaction, 'transactionId');
+}
+
+export async function createLightAppBalanceTransaction(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/transactions', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceTransaction(raw);
+}
+
+export async function updateLightAppBalanceTransaction(transactionId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/transactions/${encodeURIComponent(transactionId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceTransaction(raw);
+}
+
+export async function deleteLightAppBalanceTransaction(transactionId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/transactions/${encodeURIComponent(transactionId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function listLightAppBalanceDebts(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/balance/debts', { method: 'GET' }));
+  return normalizeList(raw, normalizeBalanceDebt, 'debtId');
+}
+
+export async function createLightAppBalanceDebt(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/debts', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceDebt(raw);
+}
+
+export async function updateLightAppBalanceDebt(debtId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/debts/${encodeURIComponent(debtId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceDebt(raw);
+}
+
+export async function deleteLightAppBalanceDebt(debtId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/debts/${encodeURIComponent(debtId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function listLightAppBalanceRecurringCharges(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/balance/recurring-charges', { method: 'GET' }));
+  return normalizeList(raw, normalizeBalanceRecurringCharge, 'recurringChargeId');
+}
+
+export async function createLightAppBalanceRecurringCharge(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/recurring-charges', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceRecurringCharge(raw);
+}
+
+export async function updateLightAppBalanceRecurringCharge(recurringChargeId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/recurring-charges/${encodeURIComponent(recurringChargeId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceRecurringCharge(raw);
+}
+
+export async function deleteLightAppBalanceRecurringCharge(recurringChargeId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/balance/recurring-charges/${encodeURIComponent(recurringChargeId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function getLightAppBalanceOverview(baseCurrency, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const normalizedBase = String(baseCurrency || '').trim().toUpperCase();
+  const query = normalizedBase ? { base_currency: normalizedBase } : undefined;
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/overview', {
+      method: 'GET',
+      query
+    })
+  );
+  return normalizeBalanceOverview(raw);
+}
+
+export async function listLightAppFxRates(baseCurrency, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const normalizedBase = String(baseCurrency || '').trim().toUpperCase();
+  const query = normalizedBase ? { base_currency: normalizedBase } : undefined;
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/fx-rates', {
+      method: 'GET',
+      query
+    })
+  );
+  return normalizeList(raw, normalizeFxRate);
+}
+
+export async function refreshLightAppFxRates(baseCurrency, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/fx-rates/refresh', {
+      method: 'POST',
+      body: {
+        baseCurrency: String(baseCurrency || '').trim().toUpperCase() || 'CNY'
+      }
+    })
+  );
+  return normalizeList(raw, normalizeFxRate);
 }

@@ -49,6 +49,23 @@
                 <i :class="item.iconClass" aria-hidden="true"></i>
               </button>
             </div>
+
+            <div v-else-if="win.code === 'balance-ledger'" class="window-app-actions" role="tablist" aria-label="Balance sections">
+              <button
+                v-for="item in BALANCE_SECTION_ITEMS"
+                :key="`balance_${win.id}_${item.code}`"
+                class="icon-btn app-switch-btn ripple-trigger"
+                :class="{ active: currentBalanceSection(win.id) === item.code }"
+                type="button"
+                role="tab"
+                :aria-selected="currentBalanceSection(win.id) === item.code"
+                :title="item.label"
+                :aria-label="item.label"
+                @click.stop="setBalanceSection(win.id, item.code)"
+              >
+                <i :class="item.iconClass" aria-hidden="true"></i>
+              </button>
+            </div>
           </div>
 
           <div class="window-actions">
@@ -107,6 +124,13 @@ import {
   resolvePomodoroWindowState,
   setPomodoroWindowMode
 } from './pomodoro/pomodoroWindowState';
+import BalanceLedgerWindow from './balance/BalanceLedgerWindow.vue';
+import {
+  BALANCE_SECTION_ITEMS,
+  releaseBalanceWindowState,
+  resolveBalanceWindowState,
+  setBalanceWindowSection
+} from './balance/balanceWindowState';
 import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
 import {
   TIMEPRISM_MODULE_ITEMS,
@@ -138,7 +162,8 @@ const interaction = reactive({
 
 const componentMap = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
-  'pomodoro-timer': PomodoroWindow
+  'pomodoro-timer': PomodoroWindow,
+  'balance-ledger': BalanceLedgerWindow
 });
 
 const visibleWindows = computed(() => getVisibleWindows(state, props.isHomeRoute));
@@ -312,6 +337,14 @@ function setPomodoroMode(windowId, mode) {
   setPomodoroWindowMode(windowId, mode);
 }
 
+function currentBalanceSection(windowId) {
+  return resolveBalanceWindowState(windowId).section;
+}
+
+function setBalanceSection(windowId, section) {
+  setBalanceWindowSection(windowId, section);
+}
+
 function releaseWindowLinkedState(windowId) {
   const target = state.windows.find((item) => item.id === Number(windowId));
   if (!target) return;
@@ -319,6 +352,8 @@ function releaseWindowLinkedState(windowId) {
     releaseTimePrismSuiteSession(windowId);
   } else if (target.code === 'pomodoro-timer') {
     releasePomodoroWindowState(windowId);
+  } else if (target.code === 'balance-ledger') {
+    releaseBalanceWindowState(windowId);
   }
 }
 

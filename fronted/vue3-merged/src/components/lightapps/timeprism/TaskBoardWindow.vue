@@ -19,6 +19,15 @@
       >
         <i :class="showColumnEditor ? 'fas fa-sliders' : 'fas fa-table-columns'" aria-hidden="true"></i>
       </button>
+      <button
+        class="icon-btn toolbar-btn ripple-trigger"
+        type="button"
+        :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
+        :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
+        @click="toggleRecurringPanel"
+      >
+        <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
+      </button>
     </div>
 
     <Transition name="panel-collapse">
@@ -45,6 +54,58 @@
           <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
         </button>
       </form>
+    </Transition>
+
+    <Transition name="panel-collapse">
+      <section v-if="showRecurringPanel" class="recurring-panel liquid-material">
+        <header>
+          <h4>Task 周期规则</h4>
+          <button
+            class="icon-btn ripple-trigger"
+            type="button"
+            :title="recurringSaving ? '保存中' : '新增规则'"
+            :aria-label="recurringSaving ? '保存中' : '新增规则'"
+            :disabled="recurringSaving || !recurringDraft.title.trim() || !recurringDraft.cronExpr.trim()"
+            @click="createRecurringRule"
+          >
+            <i :class="recurringSaving ? 'fas fa-spinner fa-spin' : 'fas fa-plus'" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="recurring-form">
+          <input v-model.trim="recurringDraft.title" type="text" placeholder="规则标题，例如：每日进度同步" />
+          <select v-model="recurringDraft.projectId">
+            <option value="">无项目</option>
+            <option v-for="item in projects" :key="`task_rule_project_${item.projectId}`" :value="String(item.projectId)">
+              {{ item.name }}
+            </option>
+          </select>
+          <select v-model="recurringDraft.columnCode">
+            <option v-for="column in enabledColumns" :key="`task_rule_column_${column.columnCode}`" :value="column.columnCode">
+              {{ column.title }}
+            </option>
+          </select>
+          <input v-model.trim="recurringDraft.cronExpr" type="text" placeholder="Cron，例如：0 30 9 * * *" />
+          <input v-model.trim="recurringDraft.timeZoneId" type="text" placeholder="时区，例如：Asia/Shanghai" />
+        </div>
+
+        <ul v-if="taskRecurringRules.length" class="recurring-list">
+          <li v-for="rule in taskRecurringRules" :key="`task_rule_${rule.ruleId}`">
+            <div>
+              <p>{{ rule.title }}</p>
+              <small>{{ rule.columnCode }} · {{ rule.cronExpr }} · {{ rule.timeZoneId }}</small>
+            </div>
+            <div class="card-actions">
+              <button class="icon-btn ripple-trigger" type="button" :title="rule.enabled ? '停用' : '启用'" @click="toggleRecurringRule(rule)">
+                <i :class="rule.enabled ? 'fas fa-pause' : 'fas fa-play'" aria-hidden="true"></i>
+              </button>
+              <button class="icon-btn ripple-trigger" type="button" title="删除" @click="removeRecurringRule(rule.ruleId)">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+              </button>
+            </div>
+          </li>
+        </ul>
+        <p v-else class="empty-hint">暂无周期规则</p>
+      </section>
     </Transition>
 
     <section v-if="showColumnEditor" class="column-editor liquid-material">
@@ -116,12 +177,16 @@ import { computed, inject, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppTask,
+  createLightAppTaskRecurringRule,
   deleteLightAppTask,
+  deleteLightAppTaskRecurringRule,
   listLightAppProjects,
+  listLightAppTaskRecurringRules,
   listLightAppTaskColumns,
   listLightAppTasks,
   moveLightAppTask,
-  updateLightAppTaskColumns
+  updateLightAppTaskColumns,
+  updateLightAppTaskRecurringRule
 } from '../../../services/lightAppsApi';
 import {
   createLocalEntityId,
@@ -139,15 +204,27 @@ const tasks = ref([]);
 const columns = ref([]);
 const projects = ref([]);
 const saving = ref(false);
+const recurringSaving = ref(false);
 const errorText = ref('');
 const showColumnEditor = ref(false);
 const showCreateForm = ref(false);
+const showRecurringPanel = ref(false);
 const columnDrafts = ref([]);
+const taskRecurringRules = ref([]);
 
 const draft = reactive({
   title: '',
   projectId: '',
   columnCode: 'todo'
+});
+
+const recurringDraft = reactive({
+  title: '',
+  projectId: '',
+  columnCode: 'todo',
+  detail: '',
+  cronExpr: '0 0 9 * * *',
+  timeZoneId: 'Asia/Shanghai'
 });
 
 const enabledColumns = computed(() => columns.value.filter((item) => item.enabled));
@@ -202,6 +279,41 @@ function normalizeTasks(input) {
     });
 }
 
+function normalizeRecurringRules(input) {
+  return (Array.isArray(input) ? input : [])
+    .map((item) => ({
+      ruleId: Number(item.ruleId ?? item.rule_id) || 0,
+      projectId: Number(item.projectId ?? item.project_id) || null,
+      columnCode: String(item.columnCode ?? item.column_code ?? 'todo').trim().toLowerCase() || 'todo',
+      title: String(item.title || '').trim(),
+      detail: String(item.detail || '').trim(),
+      cronExpr: String(item.cronExpr ?? item.cron_expr ?? '').trim(),
+      timeZoneId: String(item.timeZoneId ?? item.time_zone_id ?? 'Asia/Shanghai').trim() || 'Asia/Shanghai',
+      startAt: item.startAt || item.start_at || '',
+      endAt: item.endAt || item.end_at || '',
+      enabled: item.enabled !== false,
+      sortNum: Number(item.sortNum ?? item.sort_num) || 0,
+      updatedAt: item.updatedAt || item.updated_at || ''
+    }))
+    .filter((item) => item.ruleId && item.title)
+    .sort((left, right) => left.sortNum - right.sortNum || left.ruleId - right.ruleId);
+}
+
+function buildTaskRecurringPayload(item, overrides = {}) {
+  return {
+    projectId: overrides.projectId ?? item.projectId ?? null,
+    columnCode: overrides.columnCode ?? item.columnCode,
+    title: overrides.title ?? item.title,
+    detail: overrides.detail ?? (item.detail || null),
+    cronExpr: overrides.cronExpr ?? item.cronExpr,
+    timeZoneId: overrides.timeZoneId ?? (item.timeZoneId || 'Asia/Shanghai'),
+    startAt: overrides.startAt ?? (item.startAt || null),
+    endAt: overrides.endAt ?? (item.endAt || null),
+    enabled: overrides.enabled ?? Boolean(item.enabled),
+    sortNum: overrides.sortNum ?? item.sortNum ?? 0
+  };
+}
+
 function cloneColumnDrafts() {
   columnDrafts.value = columns.value.map((item) => ({ ...item }));
 }
@@ -241,12 +353,14 @@ function persistGuest(payload) {
   const next = {
     tasks: normalizeTasks(payload.tasks || tasks.value),
     taskColumns: normalizeColumns(payload.taskColumns || columns.value),
-    projects: payload.projects || projects.value
+    projects: payload.projects || projects.value,
+    taskRecurringRules: normalizeRecurringRules(payload.taskRecurringRules || taskRecurringRules.value)
   };
 
   tasks.value = next.tasks;
   columns.value = next.taskColumns;
   projects.value = next.projects;
+  taskRecurringRules.value = next.taskRecurringRules;
 
   if (!enabledColumns.value.some((item) => item.columnCode === draft.columnCode)) {
     draft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
@@ -256,12 +370,113 @@ function persistGuest(payload) {
     ...current,
     tasks: next.tasks,
     taskColumns: next.taskColumns,
-    projects: next.projects
+    projects: next.projects,
+    taskRecurringRules: next.taskRecurringRules
   }));
 }
 
 function toggleCreateForm() {
   showCreateForm.value = !showCreateForm.value;
+}
+
+function toggleRecurringPanel() {
+  showRecurringPanel.value = !showRecurringPanel.value;
+}
+
+async function createRecurringRule() {
+  if (!recurringDraft.title.trim() || !recurringDraft.cronExpr.trim()) return;
+  errorText.value = '';
+  recurringSaving.value = true;
+  try {
+    await auth.ensureReady();
+    const targetColumn = enabledColumns.value.some((item) => item.columnCode === recurringDraft.columnCode)
+      ? recurringDraft.columnCode
+      : enabledColumns.value[0]?.columnCode || 'todo';
+    const payload = {
+      projectId: recurringDraft.projectId ? Number(recurringDraft.projectId) : null,
+      columnCode: targetColumn,
+      title: recurringDraft.title.trim(),
+      detail: recurringDraft.detail.trim() || null,
+      cronExpr: recurringDraft.cronExpr.trim(),
+      timeZoneId: recurringDraft.timeZoneId.trim() || 'Asia/Shanghai',
+      enabled: true
+    };
+
+    if (auth.isAuthenticated.value) {
+      await createLightAppTaskRecurringRule(payload, auth.authorizedFetch);
+      await refreshRemoteBoard();
+    } else {
+      const nextId = createLocalEntityId();
+      const maxSort = taskRecurringRules.value.reduce((max, item) => Math.max(max, Number(item.sortNum) || 0), 0);
+      persistGuest({
+        taskRecurringRules: [
+          ...taskRecurringRules.value,
+          {
+            ruleId: nextId,
+            ...payload,
+            sortNum: maxSort + 10,
+            updatedAt: new Date().toISOString()
+          }
+        ]
+      });
+    }
+
+    recurringDraft.title = '';
+    recurringDraft.projectId = '';
+    recurringDraft.detail = '';
+    recurringDraft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
+    recurringDraft.cronExpr = '0 0 9 * * *';
+    recurringDraft.timeZoneId = 'Asia/Shanghai';
+  } catch (error) {
+    errorText.value = error?.message || '周期规则创建失败';
+  } finally {
+    recurringSaving.value = false;
+  }
+}
+
+async function toggleRecurringRule(rule) {
+  errorText.value = '';
+  recurringSaving.value = true;
+  try {
+    await auth.ensureReady();
+    const nextEnabled = !Boolean(rule.enabled);
+    if (auth.isAuthenticated.value) {
+      await updateLightAppTaskRecurringRule(
+        rule.ruleId,
+        buildTaskRecurringPayload(rule, { enabled: nextEnabled }),
+        auth.authorizedFetch
+      );
+      await refreshRemoteBoard();
+      return;
+    }
+    persistGuest({
+      taskRecurringRules: taskRecurringRules.value.map((item) => (item.ruleId === rule.ruleId ? { ...item, enabled: nextEnabled } : item))
+    });
+  } catch (error) {
+    errorText.value = error?.message || '周期规则更新失败';
+  } finally {
+    recurringSaving.value = false;
+  }
+}
+
+async function removeRecurringRule(ruleId) {
+  errorText.value = '';
+  recurringSaving.value = true;
+  try {
+    await auth.ensureReady();
+    if (auth.isAuthenticated.value) {
+      await deleteLightAppTaskRecurringRule(ruleId, auth.authorizedFetch);
+      await refreshRemoteBoard();
+      return;
+    }
+    persistGuest({
+      taskRecurringRules: taskRecurringRules.value.filter((item) => item.ruleId !== ruleId)
+    });
+  } catch (error) {
+    errorText.value = error?.message || '周期规则删除失败';
+  } finally {
+    recurringSaving.value = false;
+  }
 }
 
 async function hydrate() {
@@ -273,6 +488,7 @@ async function hydrate() {
     tasks.value = normalizeTasks(guest.tasks || []);
     columns.value = normalizeColumns(guest.taskColumns || guest.task_columns || []);
     projects.value = Array.isArray(guest.projects) ? guest.projects : [];
+    taskRecurringRules.value = normalizeRecurringRules(guest.taskRecurringRules || guest.task_recurring_rules || []);
     if (!columns.value.length) {
       columns.value = [
         { columnCode: 'todo', title: '待处理', sortNum: 10, enabled: true },
@@ -282,45 +498,66 @@ async function hydrate() {
     }
     cloneColumnDrafts();
     draft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
+    recurringDraft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
     return;
   }
 
   try {
-    const [projectList, columnList, taskList] = await Promise.all([
+    const [projectList, columnList, taskList, recurringList] = await Promise.all([
       listLightAppProjects(auth.authorizedFetch),
       listLightAppTaskColumns(auth.authorizedFetch),
-      listLightAppTasks(auth.authorizedFetch)
+      listLightAppTasks(auth.authorizedFetch),
+      listLightAppTaskRecurringRules(auth.authorizedFetch)
     ]);
     projects.value = Array.isArray(projectList) ? projectList : [];
     columns.value = normalizeColumns(columnList);
     tasks.value = normalizeTasks(taskList);
-    writeRemoteLightAppCache({ projects: projects.value, taskColumns: columns.value, tasks: tasks.value });
+    taskRecurringRules.value = normalizeRecurringRules(recurringList);
+    writeRemoteLightAppCache({
+      projects: projects.value,
+      taskColumns: columns.value,
+      tasks: tasks.value,
+      taskRecurringRules: taskRecurringRules.value
+    });
     cloneColumnDrafts();
     draft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
+    recurringDraft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
   } catch (error) {
     const cache = readRemoteLightAppCache();
     projects.value = cache.projects || [];
     columns.value = normalizeColumns(cache.taskColumns || []);
     tasks.value = normalizeTasks(cache.tasks || []);
+    taskRecurringRules.value = normalizeRecurringRules(cache.taskRecurringRules || []);
     cloneColumnDrafts();
     draft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
+    recurringDraft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
     errorText.value = error?.message || '看板加载失败，已回退缓存数据。';
   }
 }
 
 async function refreshRemoteBoard() {
-  const [projectList, columnList, taskList] = await Promise.all([
+  const [projectList, columnList, taskList, recurringList] = await Promise.all([
     listLightAppProjects(auth.authorizedFetch),
     listLightAppTaskColumns(auth.authorizedFetch),
-    listLightAppTasks(auth.authorizedFetch)
+    listLightAppTasks(auth.authorizedFetch),
+    listLightAppTaskRecurringRules(auth.authorizedFetch)
   ]);
   projects.value = Array.isArray(projectList) ? projectList : [];
   columns.value = normalizeColumns(columnList);
   tasks.value = normalizeTasks(taskList);
-  writeRemoteLightAppCache({ projects: projects.value, taskColumns: columns.value, tasks: tasks.value });
+  taskRecurringRules.value = normalizeRecurringRules(recurringList);
+  writeRemoteLightAppCache({
+    projects: projects.value,
+    taskColumns: columns.value,
+    tasks: tasks.value,
+    taskRecurringRules: taskRecurringRules.value
+  });
   cloneColumnDrafts();
   if (!enabledColumns.value.some((item) => item.columnCode === draft.columnCode)) {
     draft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
+  }
+  if (!enabledColumns.value.some((item) => item.columnCode === recurringDraft.columnCode)) {
+    recurringDraft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
   }
 }
 
@@ -334,7 +571,12 @@ async function refreshProjectOptionsOnly() {
 
   const projectList = await listLightAppProjects(auth.authorizedFetch);
   projects.value = Array.isArray(projectList) ? projectList : [];
-  writeRemoteLightAppCache({ projects: projects.value, taskColumns: columns.value, tasks: tasks.value });
+  writeRemoteLightAppCache({
+    projects: projects.value,
+    taskColumns: columns.value,
+    tasks: tasks.value,
+    taskRecurringRules: taskRecurringRules.value
+  });
 }
 
 async function createTaskItem() {
@@ -586,6 +828,68 @@ if (suiteContext?.projectVersion) {
   padding: 8px 10px;
 }
 
+.recurring-panel {
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.recurring-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recurring-panel header h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.recurring-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 130px minmax(0, 1fr) 150px;
+  gap: 8px;
+}
+
+.recurring-form input,
+.recurring-form select {
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.recurring-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.recurring-list li {
+  border: 1px solid var(--la-border);
+  border-radius: 10px;
+  background: rgba(var(--glass-rgb), 0.22);
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.recurring-list p {
+  margin: 0;
+}
+
+.recurring-list small {
+  color: var(--la-muted);
+}
+
 .icon-btn {
   border: 1px solid var(--la-border);
   background: var(--la-btn-bg);
@@ -743,6 +1047,10 @@ if (suiteContext?.projectVersion) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .recurring-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .column-editor-list li {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 86px auto;
   }
@@ -755,6 +1063,10 @@ if (suiteContext?.projectVersion) {
 @container lightapp-window-body (max-width: 560px) {
   .task-create,
   .column-editor-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .recurring-form {
     grid-template-columns: 1fr;
   }
 
