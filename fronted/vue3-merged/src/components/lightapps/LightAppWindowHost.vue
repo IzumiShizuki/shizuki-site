@@ -63,6 +63,7 @@ import {
   setWindowRect,
   toggleWindowPinned
 } from '../../utils/lightAppWindowRuntime';
+import PomodoroWindow from './pomodoro/PomodoroWindow.vue';
 import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
 
 const props = defineProps({
@@ -87,7 +88,8 @@ const interaction = reactive({
 });
 
 const componentMap = Object.freeze({
-  'timeprism-todo': TimePrismTodoSuiteWindow
+  'timeprism-todo': TimePrismTodoSuiteWindow,
+  'pomodoro-timer': PomodoroWindow
 });
 
 const visibleWindows = computed(() => getVisibleWindows(state, props.isHomeRoute));
