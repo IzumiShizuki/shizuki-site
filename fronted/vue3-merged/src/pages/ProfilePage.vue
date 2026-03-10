@@ -2,6 +2,7 @@
   <section class="route-page profile-page motion-managed">
     <div class="profile-stage liquid-material">
       <aside class="profile-anchor-nav liquid-material" aria-label="个人分组导航">
+        <span class="anchor-line" aria-hidden="true"></span>
         <button
           v-for="group in navGroups"
           :key="group.key"
@@ -20,17 +21,19 @@
       </aside>
 
       <section ref="profileContentPanel" class="profile-content-panel">
-        <ProfileHeroCard
-          :avatar-url="avatarPreview"
-          avatar-action-label="查看或修改头像"
-          :eyebrow="heroEyebrow"
-          :title="heroTitle"
-          :subtitle="heroSubtitle"
-          :user-id-text="userIdText"
-          :groups-text="groupsText"
-          :chips="heroChips"
-          @avatar-click="openAvatarActions"
-        />
+        <div class="profile-hero-sticky">
+          <ProfileHeroCard
+            :avatar-url="avatarPreview"
+            avatar-action-label="查看或修改头像"
+            :eyebrow="heroEyebrow"
+            :title="heroTitle"
+            :subtitle="heroSubtitle"
+            :user-id-text="userIdText"
+            :groups-text="groupsText"
+            :chips="heroChips"
+            @avatar-click="openAvatarActions"
+          />
+        </div>
 
         <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
         <section
@@ -612,8 +615,8 @@ const captcha = reactive({
 
 const accordionState = reactive(
   createProfileAccordionState({
-    [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.OVERVIEW,
-    [ProfileTabKey.ACCOUNT]: ProfileSectionKey.ACCOUNT.ACCOUNT_INFO,
+    [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.QUICK_ACTIONS,
+    [ProfileTabKey.ACCOUNT]: ProfileSectionKey.ACCOUNT.AVATAR,
     [ProfileTabKey.ARTICLES]: ProfileSectionKey.ARTICLES.WORKSPACE,
     [ProfileTabKey.SETTINGS]: ProfileSectionKey.SETTINGS.APPEARANCE
   })
@@ -1704,7 +1707,23 @@ onBeforeUnmount(() => {
   align-content: start;
   justify-items: center;
   align-self: start;
+  position: sticky;
+  top: 10px;
+  z-index: 7;
   width: 64px;
+  height: fit-content;
+}
+
+.anchor-line {
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(96, 208, 236, 0), rgba(96, 208, 236, 0.58), rgba(96, 208, 236, 0));
+  pointer-events: none;
 }
 
 .anchor-btn {
@@ -1720,6 +1739,7 @@ onBeforeUnmount(() => {
   background: rgba(150, 186, 212, 0.12);
   box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.2);
   position: relative;
+  z-index: 1;
 }
 
 .anchor-btn:hover {
@@ -1771,9 +1791,10 @@ onBeforeUnmount(() => {
   overflow: auto;
   padding-right: 6px;
   padding-bottom: 20px;
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+  scroll-padding-top: 182px;
 }
 
 .profile-content-panel::-webkit-scrollbar {
@@ -1791,9 +1812,17 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.profile-hero-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  padding-top: 2px;
+}
+
 .profile-group {
   display: grid;
   gap: 9px;
+  scroll-margin-top: 182px;
 }
 
 .group-header {
@@ -2219,6 +2248,10 @@ select.field-input:focus-visible,
     display: none;
   }
 
+  .anchor-line {
+    display: none;
+  }
+
   .anchor-btn {
     width: 42px;
     height: 42px;
@@ -2256,7 +2289,17 @@ select.field-input:focus-visible,
   }
 
   .profile-content-panel {
+    scroll-padding-top: 0;
     padding-right: 0;
+  }
+
+  .profile-hero-sticky {
+    position: relative;
+    top: auto;
+  }
+
+  .profile-group {
+    scroll-margin-top: 8px;
   }
 
   .overview-grid,
