@@ -33,11 +33,9 @@
       </button>
     </div>
 
-    <transition name="section-body">
-      <div v-if="open" class="section-body">
-        <slot />
-      </div>
-    </transition>
+    <div v-show="open" class="section-body">
+      <slot />
+    </div>
   </article>
 </template>
 
@@ -216,17 +214,8 @@ defineEmits(['toggle', 'avatar-click']);
 .section-body {
   padding: 0 16px 16px;
   color: rgba(224, 237, 250, 0.96);
-}
-
-.section-body-enter-active,
-.section-body-leave-active {
-  transition: all 0.24s ease;
-}
-
-.section-body-enter-from,
-.section-body-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
+  display: grid;
+  gap: 8px;
 }
 
 @media (max-width: 860px) {

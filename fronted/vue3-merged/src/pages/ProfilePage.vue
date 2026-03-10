@@ -16,7 +16,10 @@
           <span class="anchor-dot" aria-hidden="true">
             <i :class="group.icon"></i>
           </span>
-          <span class="sr-only">{{ group.label }}</span>
+          <span class="anchor-copy">
+            <span class="anchor-title">{{ group.label }}</span>
+            <span class="anchor-caption">{{ group.caption }}</span>
+          </span>
         </button>
       </aside>
 
@@ -697,7 +700,8 @@ function setupGroupObserver() {
     groupObserver = null;
   }
 
-  const rootEl = profileContentPanel.value?.closest('.route-content') || null;
+  const rootEl = profileContentPanel.value;
+  if (!rootEl) return;
 
   groupObserver = new IntersectionObserver(
     (entries) => {
@@ -1661,7 +1665,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .profile-page {
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   color: rgba(232, 241, 252, 0.95);
   font-family: var(--font-ui);
   animation: page-enter 0.32s ease;
@@ -1683,40 +1688,40 @@ onBeforeUnmount(() => {
   --liquid-bg: linear-gradient(155deg, rgba(8, 17, 28, 0.58), rgba(6, 12, 21, 0.54));
   --liquid-border: rgba(155, 188, 214, 0.24);
   --liquid-shadow: 0 16px 34px rgba(3, 8, 15, 0.22);
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   border-radius: 16px;
   padding: 10px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+  overflow: hidden;
 }
 
 .profile-anchor-nav {
   --liquid-bg: rgba(9, 18, 30, 0.52);
   --liquid-border: rgba(145, 178, 203, 0.3);
   --liquid-shadow: 0 14px 26px rgba(4, 8, 14, 0.24);
-  border-radius: 999px;
-  padding: 10px 8px;
+  border-radius: 16px;
+  padding: 14px 12px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   align-content: start;
-  justify-items: center;
   align-self: start;
   position: sticky;
-  top: 6px;
+  top: 0;
   z-index: 7;
-  width: 64px;
-  height: fit-content;
+  width: 100%;
+  min-height: 0;
 }
 
 .anchor-line {
   position: absolute;
-  top: 24px;
-  bottom: 24px;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
+  top: 20px;
+  bottom: 20px;
+  left: 32px;
+  width: 1px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(96, 208, 236, 0), rgba(96, 208, 236, 0.58), rgba(96, 208, 236, 0));
   pointer-events: none;
@@ -1724,18 +1729,20 @@ onBeforeUnmount(() => {
 
 .anchor-btn {
   border: 0;
-  border-radius: 999px;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  display: inline-flex;
+  border-radius: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
+  gap: 10px;
   color: rgba(210, 229, 247, 0.9);
   background: rgba(150, 186, 212, 0.12);
   box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.2);
   position: relative;
   z-index: 1;
+  text-align: left;
 }
 
 .anchor-btn:hover {
@@ -1751,12 +1758,11 @@ onBeforeUnmount(() => {
   background: linear-gradient(145deg, rgba(63, 176, 209, 0.3), rgba(56, 121, 191, 0.28));
   box-shadow: inset 0 0 0 1px rgba(89, 201, 233, 0.56);
   color: rgba(240, 248, 255, 0.98);
-  transform: translateY(-1px) scale(1.04);
 }
 
 .anchor-dot {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -1767,30 +1773,48 @@ onBeforeUnmount(() => {
 }
 
 .anchor-dot i {
-  font-size: 14px;
+  font-size: 12px;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+.anchor-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.anchor-title {
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.1;
+}
+
+.anchor-caption {
+  font-size: 11px;
+  color: rgba(182, 208, 231, 0.86);
   white-space: nowrap;
-  border: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .profile-content-panel {
-  min-height: 100%;
-  overflow: visible;
-  padding-right: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  padding-right: 6px;
   padding-bottom: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   scroll-padding-top: 182px;
+}
+
+.profile-content-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.profile-content-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(116, 157, 194, 0.36);
 }
 
 .state-tip {
@@ -1805,7 +1829,7 @@ onBeforeUnmount(() => {
   z-index: 6;
   padding-top: 2px;
   padding-bottom: 8px;
-  background: linear-gradient(180deg, rgba(8, 16, 27, 0.9), rgba(8, 16, 27, 0));
+  background: linear-gradient(180deg, rgba(8, 16, 27, 0.95), rgba(8, 16, 27, 0));
 }
 
 .profile-group {
@@ -2219,10 +2243,11 @@ select.field-input:focus-visible,
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 10px;
+    overflow: visible;
   }
 
   .profile-anchor-nav {
-    width: auto;
+    width: 100%;
     border-radius: 999px;
     padding: 8px;
     display: flex;
@@ -2242,8 +2267,10 @@ select.field-input:focus-visible,
   }
 
   .anchor-btn {
-    width: 42px;
-    height: 42px;
+    width: auto;
+    min-width: 124px;
+    min-height: 42px;
+    padding: 6px 10px;
   }
 
   .quick-grid {
@@ -2264,8 +2291,12 @@ select.field-input:focus-visible,
   }
 
   .anchor-btn {
-    width: 38px;
-    height: 38px;
+    min-width: 102px;
+    min-height: 40px;
+    padding: 6px 8px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
   }
 
   .anchor-dot {
@@ -2279,11 +2310,14 @@ select.field-input:focus-visible,
 
   .profile-content-panel {
     scroll-padding-top: 0;
+    padding-right: 0;
   }
 
   .profile-hero-sticky {
     position: relative;
     top: auto;
+    padding-bottom: 0;
+    background: transparent;
   }
 
   .profile-group {
