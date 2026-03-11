@@ -30,6 +30,9 @@ import io.github.shizuki.site.content.dto.LightAppTodoRecurringRuleUpsertRequest
 import io.github.shizuki.site.content.dto.LightAppTodoReorderRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoResponse;
 import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkUpsertRequest;
 import java.util.List;
 
 public interface LightAppService {
@@ -87,6 +90,16 @@ public interface LightAppService {
     LightAppPomodoroResponse updatePomodoro(Long pomodoroId, LightAppPomodoroUpsertRequest request);
 
     void deletePomodoro(Long pomodoroId);
+
+    List<LightAppUrlLinkResponse> listUrlLinks();
+
+    LightAppUrlLinkResponse createUrlLink(LightAppUrlLinkUpsertRequest request);
+
+    LightAppUrlLinkResponse updateUrlLink(Long urlLinkId, LightAppUrlLinkUpsertRequest request);
+
+    void deleteUrlLink(Long urlLinkId);
+
+    LightAppUrlLinkResolveResponse resolveUrlLinkMetadata(String url);
 
     List<LightAppTodoResponse> listTodos();
 

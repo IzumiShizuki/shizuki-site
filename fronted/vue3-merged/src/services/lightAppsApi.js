@@ -272,6 +272,29 @@ function normalizeFxRate(raw) {
   };
 }
 
+function normalizeUrlLink(raw) {
+  const source = toObject(raw);
+  return {
+    urlLinkId: toNumber(source.urlLinkId ?? source.url_link_id, 0),
+    title: toText(source.title, ''),
+    url: toText(source.url, ''),
+    iconMode: toText(source.iconMode ?? source.icon_mode, 'AUTO').toUpperCase() || 'AUTO',
+    iconAssetId: toNumber(source.iconAssetId ?? source.icon_asset_id, 0) || null,
+    faviconUrl: toText(source.faviconUrl ?? source.favicon_url, ''),
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeUrlMetadata(raw) {
+  const source = toObject(raw);
+  return {
+    title: toText(source.title, ''),
+    faviconUrl: toText(source.faviconUrl ?? source.favicon_url, ''),
+    host: toText(source.host || '', '')
+  };
+}
+
 export async function listLightAppProjects(authorizedFetch) {
   ensureAuthorizedFetch(authorizedFetch);
   const raw = unwrap(await authorizedFetch('/api/v1/light-apps/projects', { method: 'GET' }));
@@ -805,4 +828,54 @@ export async function refreshLightAppFxRates(baseCurrency, authorizedFetch) {
     })
   );
   return normalizeList(raw, normalizeFxRate);
+}
+
+export async function listLightAppUrlLinks(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/url-links', { method: 'GET' }));
+  return normalizeList(raw, normalizeUrlLink, 'urlLinkId');
+}
+
+export async function createLightAppUrlLink(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/url-links', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeUrlLink(raw);
+}
+
+export async function updateLightAppUrlLink(urlLinkId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/url-links/${encodeURIComponent(urlLinkId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeUrlLink(raw);
+}
+
+export async function deleteLightAppUrlLink(urlLinkId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/url-links/${encodeURIComponent(urlLinkId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
+export async function resolveLightAppUrlLinkMetadata(url, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/url-links/resolve-metadata', {
+      method: 'POST',
+      body: {
+        url: toText(url, '')
+      }
+    })
+  );
+  return normalizeUrlMetadata(raw);
 }

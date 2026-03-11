@@ -8,6 +8,8 @@ import io.github.shizuki.site.content.dto.LightAppScheduleResponse;
 import io.github.shizuki.site.content.dto.LightAppTaskColumnResponse;
 import io.github.shizuki.site.content.dto.LightAppTaskResponse;
 import io.github.shizuki.site.content.dto.LightAppTodoResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
 import io.github.shizuki.site.content.service.LightAppService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
 import java.time.LocalDateTime;
@@ -97,6 +99,36 @@ class LightAppControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.pomodoro_id").value(5))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.focus_minutes").value(30));
+    }
+
+    @Test
+    void shouldListUrlLinksSuccessfully() throws Exception {
+        Mockito.when(lightAppService.listUrlLinks())
+            .thenReturn(List.of(new LightAppUrlLinkResponse(8L, "LeetCode", "https://leetcode.cn", "AUTO", null, "https://leetcode.cn/favicon.ico", 10, null)));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/url-links"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].url_link_id").value(8))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("LeetCode"));
+    }
+
+    @Test
+    void shouldResolveUrlMetadataSuccessfully() throws Exception {
+        Mockito.when(lightAppService.resolveUrlLinkMetadata(ArgumentMatchers.eq("https://leetcode.cn")))
+            .thenReturn(new LightAppUrlLinkResolveResponse("LeetCode", "https://leetcode.cn/favicon.ico", "leetcode.cn"));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/url-links/resolve-metadata")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "url": "https://leetcode.cn"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.title").value("LeetCode"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.host").value("leetcode.cn"));
     }
 
     @Test

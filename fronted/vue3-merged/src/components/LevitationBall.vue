@@ -28,18 +28,18 @@
         </button>
       </div>
 
-      <div v-if="ui.expanded && ui.pickerOpen" class="picker-panel submenu-panel liquid-material">
+      <div v-if="ui.expanded && ui.panelMode" class="picker-panel submenu-panel liquid-material">
         <button
-          v-for="app in pickerApps"
-          :key="app.code"
+          v-for="item in panelItems"
+          :key="item.key"
           class="picker-item submenu-item ripple-trigger"
           type="button"
-          @click.stop="openByCode(app.code)"
+          @click.stop="onPanelItemClick(item)"
         >
-          <i :class="app.iconClass"></i>
-          <span>{{ app.title }}</span>
+          <i :class="item.iconClass"></i>
+          <span>{{ item.label }}</span>
         </button>
-        <p v-if="!pickerApps.length" class="picker-empty">暂无可选应用</p>
+        <p v-if="!panelItems.length" class="picker-empty">{{ ui.panelMode === 'collection' ? '集合为空' : '暂无可选应用' }}</p>
       </div>
     </div>
   </div>
@@ -50,6 +50,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { getLightAppByCode, LIGHT_APPS_CATALOG } from '../utils/lightAppsCatalog';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
+import { readGuestLightAppData, readRemoteLightAppCache } from '../utils/lightAppsDataStore';
 import { LIGHT_APPS_CHANGED_EVENT, readLightAppsState } from '../utils/lightAppsState';
 
 const router = useRouter();
@@ -61,15 +62,32 @@ const ui = reactive({
   y: 120,
   dragging: false,
   expanded: false,
-  pickerOpen: false,
+  panelMode: '',
   pointerId: 0,
   dragOffsetX: 0,
   dragOffsetY: 0,
   clickStartX: 0,
   clickStartY: 0
 });
+const urlLinks = ref([]);
 
 const activeSlots = computed(() => {
+  const railSlots = Array.isArray(appState.value?.rail_slots) && appState.value.rail_slots.length
+    ? appState.value.rail_slots
+    : [];
+  if (railSlots.length) {
+    return railSlots
+      .map((slot, index) => ({
+        slotIndex: index,
+        enabled: Boolean(slot?.enabled),
+        type: String(slot?.item_kind || 'app').trim().toLowerCase() || 'app',
+        appCode: String(slot?.item_ref || '').trim(),
+        itemRef: String(slot?.item_ref || '').trim()
+      }))
+      .filter((slot) => slot.enabled)
+      .slice(0, 8);
+  }
+
   const slots = Array.isArray(appState.value?.ball_slots) ? appState.value.ball_slots : [];
   return slots
     .map((slot, index) => ({
@@ -86,6 +104,57 @@ const pickerApps = computed(() => {
   const enabledCodes = Array.isArray(appState.value?.enabled_codes) ? appState.value.enabled_codes : [];
   const enabledSet = new Set(enabledCodes);
   return LIGHT_APPS_CATALOG.filter((item) => enabledSet.has(item.code));
+});
+
+const collectionData = computed(() => {
+  const list = Array.isArray(appState.value?.collections) ? appState.value.collections : [];
+  return list.find((item) => String(item?.collection_id || '').trim() === 'default') || { items: [] };
+});
+
+const panelItems = computed(() => {
+  if (ui.panelMode === 'picker') {
+    return pickerApps.value.map((app) => ({
+      key: `app_${app.code}`,
+      kind: 'app',
+      appCode: app.code,
+      iconClass: app.iconClass,
+      label: app.title
+    }));
+  }
+
+  if (ui.panelMode === 'collection') {
+    const items = Array.isArray(collectionData.value.items) ? collectionData.value.items : [];
+    return items
+      .map((entry, index) => {
+        const kind = String(entry?.item_kind || '').trim().toLowerCase();
+        const itemRef = String(entry?.item_ref || '').trim();
+        if (!itemRef) return null;
+        if (kind === 'app') {
+          const app = getLightAppByCode(itemRef);
+          if (!app) return null;
+          return {
+            key: `collection_app_${itemRef}_${index}`,
+            kind: 'app',
+            appCode: itemRef,
+            iconClass: app.iconClass,
+            label: app.title
+          };
+        }
+        if (kind === 'url') {
+          const link = findUrlLink(itemRef);
+          return {
+            key: `collection_url_${itemRef}_${index}`,
+            kind: 'url',
+            urlLinkId: itemRef,
+            iconClass: 'fas fa-link',
+            label: link?.title || '网址快捷项'
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+  return [];
 });
 
 const panelHeight = computed(() => {
@@ -105,10 +174,48 @@ const containerStyle = computed(() => {
 
 function syncState(rawState) {
   appState.value = rawState && typeof rawState === 'object' ? rawState : readLightAppsState();
+  syncUrlLinks();
 }
 
 function onLightAppsChanged(event) {
   syncState(event?.detail);
+}
+
+function syncUrlLinks() {
+  const merged = [
+    ...(readRemoteLightAppCache()?.urlLinks || []),
+    ...(readGuestLightAppData()?.urlLinks || [])
+  ];
+  const dedupe = new Map();
+  merged.forEach((item) => {
+    const id = String(item?.urlLinkId || item?.url_link_id || '').trim();
+    const title = String(item?.title || '').trim();
+    const url = String(item?.url || '').trim();
+    if (!id || !url) return;
+    dedupe.set(id, {
+      urlLinkId: id,
+      title: title || '网址快捷项',
+      url
+    });
+  });
+  urlLinks.value = Array.from(dedupe.values());
+}
+
+function findUrlLink(urlLinkId) {
+  const target = String(urlLinkId || '').trim();
+  if (!target) return null;
+  return urlLinks.value.find((item) => item.urlLinkId === target) || null;
+}
+
+function openUrlLink(urlLinkId) {
+  const link = findUrlLink(urlLinkId);
+  if (!link?.url) {
+    router.push({ path: '/apps' }).catch(() => {});
+    collapseMenu();
+    return;
+  }
+  window.open(link.url, '_blank', 'noopener,noreferrer');
+  collapseMenu();
 }
 
 function clampPosition() {
@@ -125,13 +232,13 @@ function clampPosition() {
 
 function expandMenu() {
   ui.expanded = true;
-  ui.pickerOpen = false;
+  ui.panelMode = '';
   clampPosition();
 }
 
 function collapseMenu() {
   ui.expanded = false;
-  ui.pickerOpen = false;
+  ui.panelMode = '';
   clampPosition();
 }
 
@@ -196,11 +303,18 @@ function onPointerUp(event) {
 
 function slotIcon(slot) {
   if (slot.type === 'picker') return 'fas fa-th-large';
+  if (slot.type === 'collection') return 'fas fa-layer-group';
+  if (slot.type === 'url') return 'fas fa-link';
   return getLightAppByCode(slot.appCode)?.iconClass || 'fas fa-circle';
 }
 
 function slotTitle(slot) {
   if (slot.type === 'picker') return '应用选择器';
+  if (slot.type === 'collection') return '集合';
+  if (slot.type === 'url') {
+    const target = findUrlLink(slot.itemRef || slot.appCode);
+    return target?.title || '网址快捷项';
+  }
   return getLightAppByCode(slot.appCode)?.title || '未绑定应用';
 }
 
@@ -218,7 +332,17 @@ function openByCode(code) {
 
 function triggerSlot(slot) {
   if (slot.type === 'picker') {
-    ui.pickerOpen = !ui.pickerOpen;
+    ui.panelMode = ui.panelMode === 'picker' ? '' : 'picker';
+    return;
+  }
+
+  if (slot.type === 'collection') {
+    ui.panelMode = ui.panelMode === 'collection' ? '' : 'collection';
+    return;
+  }
+
+  if (slot.type === 'url') {
+    openUrlLink(slot.itemRef || slot.appCode);
     return;
   }
 
@@ -229,6 +353,17 @@ function triggerSlot(slot) {
   }
 
   openByCode(slot.appCode);
+}
+
+function onPanelItemClick(item) {
+  if (!item) return;
+  if (item.kind === 'app') {
+    openByCode(item.appCode);
+    return;
+  }
+  if (item.kind === 'url') {
+    openUrlLink(item.urlLinkId);
+  }
 }
 
 function onDocumentPointerDown(event) {
@@ -266,6 +401,7 @@ defineExpose({
 
 onMounted(() => {
   syncState();
+  syncUrlLinks();
   ui.x = Math.max(8, window.innerWidth - 92);
   ui.y = 120;
   clampPosition();

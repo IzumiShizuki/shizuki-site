@@ -35,6 +35,9 @@ import io.github.shizuki.site.content.dto.LightAppTodoRecurringRuleUpsertRequest
 import io.github.shizuki.site.content.dto.LightAppTodoReorderRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoResponse;
 import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkUpsertRequest;
 import io.github.shizuki.site.content.entity.LightAppBalanceAccountEntity;
 import io.github.shizuki.site.content.entity.LightAppBalanceDebtEntity;
 import io.github.shizuki.site.content.entity.LightAppBalanceRecurringChargeEntity;
@@ -49,6 +52,7 @@ import io.github.shizuki.site.content.entity.LightAppTaskColumnEntity;
 import io.github.shizuki.site.content.entity.LightAppTaskEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoRecurringRuleEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoEntity;
+import io.github.shizuki.site.content.entity.LightAppUrlLinkEntity;
 import io.github.shizuki.site.content.mapper.LightAppBalanceAccountMapper;
 import io.github.shizuki.site.content.mapper.LightAppBalanceDebtMapper;
 import io.github.shizuki.site.content.mapper.LightAppBalanceRecurringChargeMapper;
@@ -63,9 +67,11 @@ import io.github.shizuki.site.content.mapper.LightAppTaskColumnMapper;
 import io.github.shizuki.site.content.mapper.LightAppTaskMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoRecurringRuleMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoMapper;
+import io.github.shizuki.site.content.mapper.LightAppUrlLinkMapper;
 import io.github.shizuki.site.content.service.LightAppService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URI;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -79,6 +85,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,10 +111,16 @@ public class LightAppServiceImpl implements LightAppService {
     private static final String DIRECTION_EXPENSE = "EXPENSE";
     private static final String DEBT_STATUS_OPEN = "OPEN";
     private static final String DEBT_STATUS_CLOSED = "CLOSED";
+    private static final String URL_ICON_MODE_AUTO = "AUTO";
+    private static final String URL_ICON_MODE_UPLOAD = "UPLOAD";
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
     private static final String FX_PROVIDER_CODE = "OPEN_ER_API";
     private static final String FX_PROVIDER_URL_TEMPLATE = "https://open.er-api.com/v6/latest/{base}";
     private static final int FX_SCALE = 8;
+    private static final Pattern HTML_TITLE_PATTERN = Pattern.compile("(?is)<title>(.*?)</title>");
+    private static final Pattern HTML_FAVICON_PATTERN = Pattern.compile(
+        "(?is)<link[^>]*rel=[\"'][^\"']*icon[^\"']*[\"'][^>]*href=[\"']([^\"']+)[\"'][^>]*>"
+    );
 
     private static final List<DefaultTaskColumn> DEFAULT_TASK_COLUMNS = List.of(
         new DefaultTaskColumn("todo", "待处理", 10),
@@ -128,6 +142,7 @@ public class LightAppServiceImpl implements LightAppService {
     private final LightAppTaskColumnMapper taskColumnMapper;
     private final LightAppScheduleEventMapper scheduleEventMapper;
     private final LightAppScheduleRecurringRuleMapper scheduleRecurringRuleMapper;
+    private final LightAppUrlLinkMapper urlLinkMapper;
     private final RestClient restClient;
 
     public LightAppServiceImpl(
@@ -145,6 +160,7 @@ public class LightAppServiceImpl implements LightAppService {
         LightAppTaskColumnMapper taskColumnMapper,
         LightAppScheduleEventMapper scheduleEventMapper,
         LightAppScheduleRecurringRuleMapper scheduleRecurringRuleMapper,
+        LightAppUrlLinkMapper urlLinkMapper,
         RestClient.Builder restClientBuilder
     ) {
         this.balanceAccountMapper = balanceAccountMapper;
@@ -161,6 +177,7 @@ public class LightAppServiceImpl implements LightAppService {
         this.taskColumnMapper = taskColumnMapper;
         this.scheduleEventMapper = scheduleEventMapper;
         this.scheduleRecurringRuleMapper = scheduleRecurringRuleMapper;
+        this.urlLinkMapper = urlLinkMapper;
         this.restClient = restClientBuilder.build();
     }
 
@@ -517,6 +534,97 @@ public class LightAppServiceImpl implements LightAppService {
         Long userId = requireLoginUserId();
         LightAppPomodoroTemplateEntity entity = requirePomodoro(userId, pomodoroId);
         pomodoroTemplateMapper.deleteById(entity.getId());
+    }
+
+    @Override
+    public List<LightAppUrlLinkResponse> listUrlLinks() {
+        Long userId = requireLoginUserId();
+        return urlLinkMapper.selectList(new LambdaQueryWrapper<LightAppUrlLinkEntity>()
+                .eq(LightAppUrlLinkEntity::getUserId, userId)
+                .orderByAsc(LightAppUrlLinkEntity::getSortNum)
+                .orderByDesc(LightAppUrlLinkEntity::getUpdatedAt)
+                .orderByDesc(LightAppUrlLinkEntity::getId))
+            .stream()
+            .map(this::toUrlLinkResponse)
+            .toList();
+    }
+
+    @Override
+    @Transactional
+    public LightAppUrlLinkResponse createUrlLink(LightAppUrlLinkUpsertRequest request) {
+        Long userId = requireLoginUserId();
+        LightAppUrlLinkEntity entity = new LightAppUrlLinkEntity();
+        entity.setUserId(userId);
+        applyUrlLinkUpsert(entity, request);
+        entity.setSortNum(resolveSortNum(request.getSortNum(), urlLinkMapper.selectMaxSortNumByUserId(userId)));
+        urlLinkMapper.insert(entity);
+        return toUrlLinkResponse(requireUrlLink(userId, entity.getId()));
+    }
+
+    @Override
+    @Transactional
+    public LightAppUrlLinkResponse updateUrlLink(Long urlLinkId, LightAppUrlLinkUpsertRequest request) {
+        Long userId = requireLoginUserId();
+        LightAppUrlLinkEntity entity = requireUrlLink(userId, urlLinkId);
+        applyUrlLinkUpsert(entity, request);
+        if (request.getSortNum() != null) {
+            entity.setSortNum(request.getSortNum());
+        }
+        urlLinkMapper.updateById(entity);
+        return toUrlLinkResponse(requireUrlLink(userId, urlLinkId));
+    }
+
+    @Override
+    @Transactional
+    public void deleteUrlLink(Long urlLinkId) {
+        Long userId = requireLoginUserId();
+        LightAppUrlLinkEntity entity = requireUrlLink(userId, urlLinkId);
+        urlLinkMapper.deleteById(entity.getId());
+    }
+
+    @Override
+    public LightAppUrlLinkResolveResponse resolveUrlLinkMetadata(String url) {
+        URI normalized = normalizeHttpUrl(url);
+        String host = normalized.getHost() == null ? "" : normalized.getHost().trim().toLowerCase(Locale.ROOT);
+        String fallbackTitle = host.isEmpty() ? normalized.toString() : host;
+        String fallbackFavicon = fallbackFaviconUrl(normalized);
+
+        try {
+            String html = restClient.get()
+                .uri(normalized)
+                .retrieve()
+                .body(String.class);
+
+            if (!StringUtils.hasText(html)) {
+                return new LightAppUrlLinkResolveResponse(fallbackTitle, fallbackFavicon, host);
+            }
+
+            String title = fallbackTitle;
+            Matcher titleMatcher = HTML_TITLE_PATTERN.matcher(html);
+            if (titleMatcher.find()) {
+                String parsed = normalizeOptionalText(titleMatcher.group(1));
+                if (StringUtils.hasText(parsed)) {
+                    title = parsed;
+                }
+            }
+
+            String favicon = fallbackFavicon;
+            Matcher iconMatcher = HTML_FAVICON_PATTERN.matcher(html);
+            if (iconMatcher.find()) {
+                String rawHref = normalizeOptionalText(iconMatcher.group(1));
+                if (StringUtils.hasText(rawHref)) {
+                    try {
+                        favicon = normalized.resolve(rawHref).toString();
+                    } catch (Exception ignored) {
+                        favicon = fallbackFavicon;
+                    }
+                }
+            }
+
+            return new LightAppUrlLinkResolveResponse(title, favicon, host);
+        } catch (Exception ignored) {
+            return new LightAppUrlLinkResolveResponse(fallbackTitle, fallbackFavicon, host);
+        }
     }
 
     @Override
@@ -1018,6 +1126,17 @@ public class LightAppServiceImpl implements LightAppService {
         return entity;
     }
 
+    private LightAppUrlLinkEntity requireUrlLink(Long userId, Long urlLinkId) {
+        LightAppUrlLinkEntity entity = urlLinkMapper.selectOne(new LambdaQueryWrapper<LightAppUrlLinkEntity>()
+            .eq(LightAppUrlLinkEntity::getId, urlLinkId)
+            .eq(LightAppUrlLinkEntity::getUserId, userId)
+            .last("LIMIT 1"));
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Url link not found");
+        }
+        return entity;
+    }
+
     private LightAppTodoEntity requireTodo(Long userId, Long todoId) {
         LightAppTodoEntity entity = todoMapper.selectOne(new LambdaQueryWrapper<LightAppTodoEntity>()
             .eq(LightAppTodoEntity::getId, todoId)
@@ -1090,6 +1209,71 @@ public class LightAppServiceImpl implements LightAppService {
             return "#6aa9ff";
         }
         return normalized;
+    }
+
+    private URI normalizeHttpUrl(String rawUrl) {
+        String normalized = normalizeRequiredText(rawUrl, "url");
+        try {
+            URI uri = URI.create(normalized);
+            String scheme = String.valueOf(uri.getScheme() == null ? "" : uri.getScheme()).toLowerCase(Locale.ROOT);
+            if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "url must use http/https scheme");
+            }
+            if (!StringUtils.hasText(uri.getHost())) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "url host is required");
+            }
+            return uri;
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "url format invalid");
+        }
+    }
+
+    private String fallbackFaviconUrl(URI uri) {
+        String host = uri.getHost();
+        if (!StringUtils.hasText(host)) {
+            return null;
+        }
+        return uri.getScheme() + "://" + host + "/favicon.ico";
+    }
+
+    private String normalizeUrlIconMode(String rawIconMode) {
+        String normalized = String.valueOf(rawIconMode == null ? "" : rawIconMode).trim().toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return URL_ICON_MODE_AUTO;
+        }
+        if (URL_ICON_MODE_AUTO.equals(normalized) || URL_ICON_MODE_UPLOAD.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "icon_mode must be AUTO or UPLOAD");
+    }
+
+    private void applyUrlLinkUpsert(LightAppUrlLinkEntity entity, LightAppUrlLinkUpsertRequest request) {
+        URI normalizedUri = normalizeHttpUrl(request.getUrl());
+        String normalizedTitle = normalizeRequiredText(request.getTitle(), "title");
+        String iconMode = normalizeUrlIconMode(request.getIconMode());
+        Long iconAssetId = request.getIconAssetId();
+        if (iconAssetId != null && iconAssetId <= 0) {
+            iconAssetId = null;
+        }
+        if (URL_ICON_MODE_UPLOAD.equals(iconMode) && iconAssetId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "icon_asset_id is required when icon_mode is UPLOAD");
+        }
+        if (URL_ICON_MODE_AUTO.equals(iconMode)) {
+            iconAssetId = null;
+        }
+
+        String faviconUrl = normalizeOptionalText(request.getFaviconUrl());
+        if (!StringUtils.hasText(faviconUrl)) {
+            faviconUrl = fallbackFaviconUrl(normalizedUri);
+        }
+
+        entity.setTitle(normalizedTitle);
+        entity.setUrl(normalizedUri.toString());
+        entity.setIconMode(iconMode);
+        entity.setIconAssetId(iconAssetId);
+        entity.setFaviconUrl(faviconUrl);
     }
 
     private void applyPomodoroUpsert(LightAppPomodoroTemplateEntity entity, LightAppPomodoroUpsertRequest request, Long userId) {
@@ -2216,6 +2400,22 @@ public class LightAppServiceImpl implements LightAppService {
             entity.getRingtoneName(),
             entity.getRingtoneCode(),
             entity.getRingtoneAssetId(),
+            entity.getSortNum() == null ? 0 : entity.getSortNum(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private LightAppUrlLinkResponse toUrlLinkResponse(LightAppUrlLinkEntity entity) {
+        String iconMode = URL_ICON_MODE_UPLOAD.equalsIgnoreCase(String.valueOf(entity.getIconMode()))
+            ? URL_ICON_MODE_UPLOAD
+            : URL_ICON_MODE_AUTO;
+        return new LightAppUrlLinkResponse(
+            entity.getId(),
+            entity.getTitle(),
+            entity.getUrl(),
+            iconMode,
+            entity.getIconAssetId(),
+            entity.getFaviconUrl(),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             entity.getUpdatedAt()
         );

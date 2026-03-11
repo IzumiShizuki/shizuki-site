@@ -138,6 +138,7 @@ import {
   resolveTimePrismSuiteSession,
   setSuiteActiveModule
 } from './timeprism/timePrismSuiteState';
+import UrlLinksWindow from './url/UrlLinksWindow.vue';
 
 const props = defineProps({
   isHomeRoute: {
@@ -163,7 +164,8 @@ const interaction = reactive({
 const componentMap = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
   'pomodoro-timer': PomodoroWindow,
-  'balance-ledger': BalanceLedgerWindow
+  'balance-ledger': BalanceLedgerWindow,
+  'url-links': UrlLinksWindow
 });
 
 const visibleWindows = computed(() => getVisibleWindows(state, props.isHomeRoute));

@@ -13,17 +13,20 @@ import io.github.shizuki.site.content.mapper.LightAppScheduleEventMapper;
 import io.github.shizuki.site.content.mapper.LightAppTaskColumnMapper;
 import io.github.shizuki.site.content.mapper.LightAppTaskMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoMapper;
+import io.github.shizuki.site.content.mapper.LightAppUrlLinkMapper;
 import io.github.shizuki.site.content.service.impl.LightAppServiceImpl;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.client.RestClient;
 
 @ExtendWith(MockitoExtension.class)
 class LightAppServiceImplTest {
@@ -46,8 +49,22 @@ class LightAppServiceImplTest {
     @Mock
     private LightAppScheduleEventMapper scheduleEventMapper;
 
+    @Mock
+    private LightAppUrlLinkMapper urlLinkMapper;
+
+    @Mock
+    private RestClient.Builder restClientBuilder;
+
+    @Mock
+    private RestClient restClient;
+
     @InjectMocks
     private LightAppServiceImpl lightAppService;
+
+    @BeforeEach
+    void setUp() {
+        Mockito.lenient().when(restClientBuilder.build()).thenReturn(restClient);
+    }
 
     @AfterEach
     void tearDown() {

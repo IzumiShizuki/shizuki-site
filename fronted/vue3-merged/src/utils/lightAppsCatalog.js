@@ -22,6 +22,14 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
     iconClass: 'fas fa-wallet',
     source: 'Shizuki',
     floatingAble: true
+  },
+  {
+    code: 'url-links',
+    title: 'URL Links',
+    summary: '自定义网址轻应用：自动抓取标题与图标，支持上传图标并拖入悬浮栏。',
+    iconClass: 'fas fa-link',
+    source: 'Shizuki',
+    floatingAble: true
   }
 ]);
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_COLLECTION_ID,
   LIGHT_APPS_PREFERENCE_KEY,
-  MAX_BALL_SLOTS,
+  MAX_RAIL_SLOTS,
   applyLightAppsToPreference,
   normalizeLightAppsState,
   readLightAppsPreference
@@ -11,9 +12,9 @@ describe('lightAppsState', () => {
   it('normalizes invalid payload into known defaults', () => {
     const normalized = normalizeLightAppsState({
       enabled_codes: ['unknown-code'],
-      ball_slots: [
-        { enabled: true, type: 'app', app_code: 'unknown-code' },
-        { enabled: true, type: 'picker' }
+      rail_slots: [
+        { enabled: true, item_kind: 'app', item_ref: 'unknown-code' },
+        { enabled: true, item_kind: 'picker' }
       ],
       app_configs: {
         'unknown-code': { foo: 'bar' }
@@ -21,17 +22,18 @@ describe('lightAppsState', () => {
     });
 
     expect(normalized.enabled_codes).toEqual(['timeprism-todo']);
-    expect(normalized.ball_slots).toHaveLength(MAX_BALL_SLOTS);
-    expect(normalized.ball_slots[0]).toEqual({
+    expect(normalized.rail_slots).toHaveLength(MAX_RAIL_SLOTS);
+    expect(normalized.rail_slots[0]).toEqual({
       enabled: true,
-      type: 'app',
-      app_code: 'timeprism-todo'
+      item_kind: 'app',
+      item_ref: 'timeprism-todo'
     });
-    expect(normalized.ball_slots[1]).toEqual({
+    expect(normalized.rail_slots[1]).toEqual({
       enabled: true,
-      type: 'picker',
-      app_code: ''
+      item_kind: 'picker',
+      item_ref: ''
     });
+    expect(normalized.collections[0].collection_id).toBe(DEFAULT_COLLECTION_ID);
     expect(Object.keys(normalized.app_configs)).toHaveLength(0);
   });
 
@@ -56,31 +58,31 @@ describe('lightAppsState', () => {
     });
 
     expect(normalized.enabled_codes).toEqual(['timeprism-todo']);
-    expect(normalized.ball_slots).toHaveLength(MAX_BALL_SLOTS);
-    expect(normalized.ball_slots[0]).toEqual({
+    expect(normalized.rail_slots).toHaveLength(MAX_RAIL_SLOTS);
+    expect(normalized.rail_slots[0]).toEqual({
       enabled: true,
-      type: 'app',
-      app_code: 'timeprism-todo'
+      item_kind: 'app',
+      item_ref: 'timeprism-todo'
     });
-    expect(normalized.ball_slots[1]).toEqual({
+    expect(normalized.rail_slots[1]).toEqual({
       enabled: false,
-      type: 'app',
-      app_code: ''
+      item_kind: 'app',
+      item_ref: ''
     });
-    expect(normalized.ball_slots[2]).toEqual({
+    expect(normalized.rail_slots[2]).toEqual({
       enabled: false,
-      type: 'app',
-      app_code: ''
+      item_kind: 'app',
+      item_ref: ''
     });
-    expect(normalized.ball_slots[3]).toEqual({
+    expect(normalized.rail_slots[3]).toEqual({
       enabled: true,
-      type: 'picker',
-      app_code: ''
+      item_kind: 'picker',
+      item_ref: ''
     });
-    expect(normalized.ball_slots[4]).toEqual({
+    expect(normalized.rail_slots[4]).toEqual({
       enabled: false,
-      type: 'app',
-      app_code: ''
+      item_kind: 'app',
+      item_ref: ''
     });
     expect(normalized.app_configs).toEqual({
       'timeprism-todo': { view: 'todo' }
@@ -99,20 +101,43 @@ describe('lightAppsState', () => {
     });
 
     expect(normalized.enabled_codes).toEqual(['timeprism-todo']);
-    expect(normalized.ball_slots[0]).toEqual({
+    expect(normalized.rail_slots[0]).toEqual({
       enabled: true,
-      type: 'app',
-      app_code: 'timeprism-todo'
+      item_kind: 'app',
+      item_ref: 'timeprism-todo'
     });
-    expect(normalized.ball_slots[1].enabled).toBe(false);
+    expect(normalized.rail_slots[1].enabled).toBe(false);
     expect(normalized.app_configs['timeprism-todo']).toEqual({ foo: 'bar' });
+  });
+
+  it('migrates old ball slots into rail slots', () => {
+    const normalized = normalizeLightAppsState({
+      enabled_codes: ['timeprism-todo', 'pomodoro-timer'],
+      ball_slots: [
+        { enabled: true, type: 'app', app_code: 'pomodoro-timer' },
+        { enabled: true, type: 'picker' }
+      ],
+      collections: []
+    });
+
+    expect(normalized.rail_slots[0]).toEqual({
+      enabled: true,
+      item_kind: 'app',
+      item_ref: 'pomodoro-timer'
+    });
+    expect(normalized.rail_slots[1]).toEqual({
+      enabled: true,
+      item_kind: 'picker',
+      item_ref: ''
+    });
+    expect(normalized.collections[0].collection_id).toBe(DEFAULT_COLLECTION_ID);
   });
 
   it('reads and writes preference payload in snake_case key', () => {
     const state = normalizeLightAppsState({
-      enabled_codes: ['timeprism-schedule'],
-      ball_slots: [
-        { enabled: true, type: 'app', app_code: 'timeprism-schedule' }
+      enabled_codes: ['pomodoro-timer'],
+      rail_slots: [
+        { enabled: true, item_kind: 'app', item_ref: 'pomodoro-timer' }
       ]
     });
 

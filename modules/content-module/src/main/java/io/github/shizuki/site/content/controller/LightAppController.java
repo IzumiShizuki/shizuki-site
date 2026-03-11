@@ -32,6 +32,10 @@ import io.github.shizuki.site.content.dto.LightAppTodoRecurringRuleUpsertRequest
 import io.github.shizuki.site.content.dto.LightAppTodoReorderRequest;
 import io.github.shizuki.site.content.dto.LightAppTodoResponse;
 import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveRequest;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
+import io.github.shizuki.site.content.dto.LightAppUrlLinkUpsertRequest;
 import io.github.shizuki.site.content.service.LightAppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -238,6 +242,40 @@ public class LightAppController {
     public ApiResponse<Void> deletePomodoro(@PathVariable("pomodoro_id") Long pomodoroId) {
         lightAppService.deletePomodoro(pomodoroId);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/url-links")
+    @Operation(summary = "查询自定义网址列表")
+    public ApiResponse<List<LightAppUrlLinkResponse>> listUrlLinks() {
+        return ApiResponse.success(lightAppService.listUrlLinks());
+    }
+
+    @PostMapping("/url-links")
+    @Operation(summary = "创建自定义网址")
+    public ApiResponse<LightAppUrlLinkResponse> createUrlLink(@Valid @RequestBody LightAppUrlLinkUpsertRequest request) {
+        return ApiResponse.success(lightAppService.createUrlLink(request));
+    }
+
+    @PutMapping("/url-links/{url_link_id}")
+    @Operation(summary = "更新自定义网址")
+    public ApiResponse<LightAppUrlLinkResponse> updateUrlLink(@PathVariable("url_link_id") Long urlLinkId,
+                                                              @Valid @RequestBody LightAppUrlLinkUpsertRequest request) {
+        return ApiResponse.success(lightAppService.updateUrlLink(urlLinkId, request));
+    }
+
+    @DeleteMapping("/url-links/{url_link_id}")
+    @Operation(summary = "删除自定义网址")
+    public ApiResponse<Void> deleteUrlLink(@PathVariable("url_link_id") Long urlLinkId) {
+        lightAppService.deleteUrlLink(urlLinkId);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/url-links/resolve-metadata")
+    @Operation(summary = "解析网址元信息")
+    public ApiResponse<LightAppUrlLinkResolveResponse> resolveUrlLinkMetadata(
+        @Valid @RequestBody LightAppUrlLinkResolveRequest request
+    ) {
+        return ApiResponse.success(lightAppService.resolveUrlLinkMetadata(request.getUrl()));
     }
 
     @GetMapping("/todos")

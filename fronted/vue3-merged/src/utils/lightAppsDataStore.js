@@ -382,10 +382,34 @@ function normalizeBalanceOverview(raw) {
   };
 }
 
+function normalizeUrlLinks(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.urlLinkId ?? source.url_link_id, 0);
+      const title = String(source.title || '').trim();
+      const url = String(source.url || '').trim();
+      if (!id || !title || !url) return null;
+      return {
+        urlLinkId: id,
+        title,
+        url,
+        iconMode: String(source.iconMode ?? source.icon_mode ?? 'AUTO').trim().toUpperCase() || 'AUTO',
+        iconAssetId: toNumber(source.iconAssetId ?? source.icon_asset_id, 0) || null,
+        faviconUrl: String(source.faviconUrl ?? source.favicon_url ?? '').trim(),
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.urlLinkId - right.urlLinkId);
+}
+
 export function createEmptyLightAppDataStore() {
   return {
     projects: [],
     pomodoros: [],
+    urlLinks: [],
     todos: [],
     tasks: [],
     taskColumns: DEFAULT_TASK_COLUMNS.map((item) => ({ ...item })),
@@ -407,6 +431,7 @@ export function normalizeLightAppDataStore(input) {
   return {
     projects: normalizeProjects(source.projects),
     pomodoros: normalizePomodoros(source.pomodoros),
+    urlLinks: normalizeUrlLinks(source.urlLinks || source.url_links),
     todos: normalizeTodos(source.todos),
     tasks: normalizeTasks(source.tasks),
     taskColumns: normalizeTaskColumns(source.taskColumns || source.task_columns),
