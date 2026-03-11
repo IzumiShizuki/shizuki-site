@@ -1,23 +1,13 @@
 <template>
   <section class="route-page profile-page motion-managed">
     <div class="profile-stage liquid-material">
-      <aside class="profile-anchor-nav liquid-material" aria-label="个人分组导航">
-        <span class="anchor-line" aria-hidden="true"></span>
-        <button
-          v-for="group in navGroups"
-          :key="group.key"
-          class="anchor-btn ripple-trigger"
-          :class="{ active: activeGroup === group.key }"
-          type="button"
-          :aria-label="group.label"
-          :title="group.label"
-          @click="navigateToGroup(group.key)"
-        >
-          <span class="anchor-dot" aria-hidden="true">
-            <i :class="group.icon"></i>
-          </span>
-          <span class="sr-only">{{ group.label }}</span>
-        </button>
+      <aside class="profile-anchor-nav" aria-label="个人分组导航">
+        <RouteDotRail
+          :items="navGroups"
+          :active-key="activeGroup"
+          aria-label="个人分组导航"
+          @select="navigateToGroup"
+        />
       </aside>
 
       <section ref="profileContentPanel" class="profile-content-panel">
@@ -50,7 +40,7 @@
 
           <ProfileSectionAccordion
             :sections="profileSections"
-            :open-key="accordionState[ProfileTabKey.PROFILE]"
+            :open-keys="accordionState[ProfileTabKey.PROFILE]"
             @toggle="toggleGroupSection(ProfileTabKey.PROFILE, $event)"
           >
             <template #section-overview>
@@ -119,7 +109,7 @@
 
           <ProfileSectionAccordion
             :sections="accountSections"
-            :open-key="accordionState[ProfileTabKey.ACCOUNT]"
+            :open-keys="accordionState[ProfileTabKey.ACCOUNT]"
             :avatar-url="avatarPreview"
             avatar-action-label="查看或修改头像"
             @toggle="toggleGroupSection(ProfileTabKey.ACCOUNT, $event)"
@@ -386,25 +376,78 @@
 
           <ProfileSectionAccordion
             :sections="articlesSections"
-            :open-key="accordionState[ProfileTabKey.ARTICLES]"
+            :open-keys="accordionState[ProfileTabKey.ARTICLES]"
             @toggle="toggleGroupSection(ProfileTabKey.ARTICLES, $event)"
           >
             <template #section-workspace>
               <div class="placeholder-card">
-                <p class="placeholder-title">创作工作台 · Coming Soon</p>
-                <p class="helper-text">已预留草稿管理、发布计划、阅读统计等模块，后续会直接接入真实数据。</p>
-                <div class="inline-actions compact">
-                  <span class="status-chip">草稿 0</span>
-                  <span class="status-chip">已发布 0</span>
-                  <span class="status-chip">收藏 0</span>
+                <p class="placeholder-title">创作工作台</p>
+                <p class="helper-text">同步创作统计并提供快速入口。</p>
+                <div class="inline-actions">
+                  <button class="primary-btn ripple-trigger" type="button" :disabled="!canManagePosts" @click="goToBlogEditor">
+                    新建文章
+                  </button>
+                  <button class="ghost-btn ripple-trigger" type="button" @click="goToBlogList">打开博客页</button>
+                  <button
+                    class="ghost-btn ripple-trigger"
+                    type="button"
+                    :disabled="articlesState.loading || !canManagePosts"
+                    @click="loadProfileArticles(true)"
+                  >
+                    {{ articlesState.loading ? '同步中...' : '刷新数据' }}
+                  </button>
+                </div>
+                <p v-if="!canManagePosts" class="helper-text">当前账号未开通创作权限，无法读取“我的文章”统计。</p>
+                <p v-else-if="articlesState.loading" class="helper-text">正在加载文章统计...</p>
+                <p v-else-if="articlesState.error" class="error-text">{{ articlesState.error }}</p>
+                <div v-else class="article-stats-grid">
+                  <article v-for="card in articleWorkspaceCards" :key="card.key" class="article-stat-card">
+                    <p class="overview-label">{{ card.label }}</p>
+                    <p class="overview-value">{{ card.value }}</p>
+                    <p class="overview-hint">{{ card.hint }}</p>
+                  </article>
                 </div>
               </div>
             </template>
 
             <template #section-archive>
               <div class="placeholder-card">
-                <p class="placeholder-title">归档与历史 · Coming Soon</p>
-                <p class="helper-text">后续将提供浏览记录、点赞时间线、收藏夹筛选和跨设备同步。</p>
+                <p class="placeholder-title">归档与历史</p>
+                <p class="helper-text">按分类汇总，并展示最近发布/更新记录。</p>
+                <p v-if="!canManagePosts" class="helper-text">无创作权限时不展示归档详情。</p>
+                <p v-else-if="articlesState.loading" class="helper-text">正在加载归档数据...</p>
+                <p v-else-if="articlesState.error" class="error-text">{{ articlesState.error }}</p>
+                <template v-else>
+                  <div class="archive-chip-grid">
+                    <span v-for="item in articleCategoryCards" :key="item.categoryCode" class="status-chip">
+                      {{ item.categoryCode }} · {{ item.count }}
+                    </span>
+                    <span v-if="!articleCategoryCards.length" class="helper-text">暂无分类归档数据。</span>
+                  </div>
+
+                  <div class="archive-list-grid">
+                    <article class="archive-list-card">
+                      <p class="music-auth-title">最近发布</p>
+                      <ul v-if="articlesState.recentPublished.length" class="archive-list">
+                        <li v-for="item in articlesState.recentPublished" :key="`pub-${item.postId}`">
+                          <span>{{ item.title }}</span>
+                          <span>{{ formatDateLabel(item.publishedAt) }}</span>
+                        </li>
+                      </ul>
+                      <p v-else class="helper-text">暂无发布记录。</p>
+                    </article>
+                    <article class="archive-list-card">
+                      <p class="music-auth-title">最近更新</p>
+                      <ul v-if="articlesState.recentUpdated.length" class="archive-list">
+                        <li v-for="item in articlesState.recentUpdated" :key="`upd-${item.postId}`">
+                          <span>{{ item.title }}</span>
+                          <span>{{ formatDateLabel(item.updatedAt || item.publishedAt) }}</span>
+                        </li>
+                      </ul>
+                      <p v-else class="helper-text">暂无更新记录。</p>
+                    </article>
+                  </div>
+                </template>
               </div>
             </template>
           </ProfileSectionAccordion>
@@ -424,21 +467,44 @@
 
           <ProfileSectionAccordion
             :sections="settingsSections"
-            :open-key="accordionState[ProfileTabKey.SETTINGS]"
+            :open-keys="accordionState[ProfileTabKey.SETTINGS]"
             @toggle="toggleGroupSection(ProfileTabKey.SETTINGS, $event)"
           >
             <template #section-appearance>
               <div class="placeholder-card">
                 <p class="placeholder-title">外观设置</p>
-                <p class="helper-text">打开外观面板调整主题与背景效果。</p>
-                <button class="primary-btn ripple-trigger" type="button" @click="settingsVisible = true">打开外观设置</button>
+                <p class="helper-text">在此直接调整主题交互色。</p>
+                <AppearanceSettingsContent />
               </div>
             </template>
 
             <template #section-advanced>
               <div class="placeholder-card">
-                <p class="placeholder-title">高级偏好 · Coming Soon</p>
-                <p class="helper-text">用于扩展实验功能、行为偏好和可访问性增强选项。</p>
+                <p class="placeholder-title">高级偏好</p>
+                <p class="helper-text">提供常用偏好开关与外观重置操作。</p>
+                <div class="advanced-pref-grid">
+                  <article class="advanced-pref-card">
+                    <p class="music-auth-title">AI 对话侧栏默认开关</p>
+                    <label class="provider-toggle">
+                      <input
+                        :checked="ui.state.aiPanelOpen"
+                        type="checkbox"
+                        @change="toggleAiPanelDefault($event.target.checked)"
+                      />
+                      <span>{{ ui.state.aiPanelOpen ? '已开启' : '已关闭' }}</span>
+                    </label>
+                  </article>
+                  <article class="advanced-pref-card">
+                    <p class="music-auth-title">外观与背景</p>
+                    <div class="inline-actions compact">
+                      <button class="ghost-btn ripple-trigger" type="button" @click="resetAppearancePreference">恢复默认外观</button>
+                      <button class="ghost-btn ripple-trigger" type="button" @click="clearProfileRouteBackground">
+                        清除当前页背景覆盖
+                      </button>
+                    </div>
+                    <p class="helper-text">仅清除 `profile` 路由背景，不影响全局背景设置。</p>
+                  </article>
+                </div>
               </div>
             </template>
           </ProfileSectionAccordion>
@@ -475,28 +541,30 @@
       accept="image/png,image/jpeg,image/webp"
       @change="onAvatarFileChange"
     />
-
-    <SettingsPanel :visible="settingsVisible" @close="settingsVisible = false" />
   </section>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import RouteDotRail from '../components/common/RouteDotRail.vue';
+import AppearanceSettingsContent from '../components/profile/AppearanceSettingsContent.vue';
 import ProfileAvatarActionSheet from '../components/profile/ProfileAvatarActionSheet.vue';
 import ProfileAvatarCropDialog from '../components/profile/ProfileAvatarCropDialog.vue';
 import ProfileAvatarPreviewDialog from '../components/profile/ProfileAvatarPreviewDialog.vue';
 import ProfileHeroCard from '../components/profile/ProfileHeroCard.vue';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
-import SettingsPanel from '../components/SettingsPanel.vue';
+import { useUiPreferences } from '../composables/useUiPreferences';
+import { listMyPosts } from '../services/blogApi';
 import * as musicApi from '../services/musicApi';
 import { useAuthSession } from '../composables/useAuthSession';
+import { summarizeAuthorPosts } from './profileArticlesState';
 import {
   ProfileSectionKey,
   ProfileTabKey,
   buildSectionSummary,
   createProfileAccordionState,
-  getTabOpenSection,
+  getTabOpenSections,
   normalizeProfileTabKey,
   toggleProfileAccordion
 } from './profileUiState';
@@ -504,8 +572,8 @@ import {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
+const ui = useUiPreferences();
 
-const settingsVisible = ref(false);
 const avatarFileInput = ref(null);
 const profileContentPanel = ref(null);
 const activeGroup = ref(ProfileTabKey.PROFILE);
@@ -516,17 +584,11 @@ const groupRefs = reactive({
   [ProfileTabKey.SETTINGS]: null
 });
 const navGroups = [
-  { key: ProfileTabKey.PROFILE, label: '个人', caption: '概览与快捷入口', icon: 'fas fa-id-card' },
-  { key: ProfileTabKey.ACCOUNT, label: '账号', caption: '绑定与安全', icon: 'fas fa-shield-halved' },
-  { key: ProfileTabKey.ARTICLES, label: '文章', caption: '创作工作台', icon: 'fas fa-newspaper' },
-  { key: ProfileTabKey.SETTINGS, label: '设置', caption: '外观与偏好', icon: 'fas fa-sliders' }
+  { key: ProfileTabKey.PROFILE, label: '个人', icon: 'fas fa-id-card' },
+  { key: ProfileTabKey.ACCOUNT, label: '账号', icon: 'fas fa-shield-halved' },
+  { key: ProfileTabKey.ARTICLES, label: '文章', icon: 'fas fa-newspaper' },
+  { key: ProfileTabKey.SETTINGS, label: '设置', icon: 'fas fa-sliders' }
 ];
-const GROUP_DEFAULT_SECTION = Object.freeze({
-  [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.QUICK_ACTIONS,
-  [ProfileTabKey.ACCOUNT]: ProfileSectionKey.ACCOUNT.AVATAR,
-  [ProfileTabKey.ARTICLES]: ProfileSectionKey.ARTICLES.WORKSPACE,
-  [ProfileTabKey.SETTINGS]: ProfileSectionKey.SETTINGS.APPEARANCE
-});
 const accountSectionLoaded = ref(false);
 
 const MUSIC_PROVIDER_ORDER_DEFAULT = ['netease', 'kuwo', 'qq'];
@@ -583,6 +645,21 @@ const musicTunehubStatus = ref({
   updatedAt: ''
 });
 
+const articlesState = reactive({
+  loaded: false,
+  loading: false,
+  error: '',
+  total: 0,
+  draftCount: 0,
+  publishedCount: 0,
+  otherCount: 0,
+  latestUpdatedAt: '',
+  latestPublishedAt: '',
+  categories: [],
+  recentUpdated: [],
+  recentPublished: []
+});
+
 const account = reactive({
   userId: 0,
   username: '',
@@ -619,14 +696,7 @@ const captcha = reactive({
   expiresInSec: 0
 });
 
-const accordionState = reactive(
-  createProfileAccordionState({
-    [ProfileTabKey.PROFILE]: GROUP_DEFAULT_SECTION[ProfileTabKey.PROFILE],
-    [ProfileTabKey.ACCOUNT]: GROUP_DEFAULT_SECTION[ProfileTabKey.ACCOUNT],
-    [ProfileTabKey.ARTICLES]: GROUP_DEFAULT_SECTION[ProfileTabKey.ARTICLES],
-    [ProfileTabKey.SETTINGS]: GROUP_DEFAULT_SECTION[ProfileTabKey.SETTINGS]
-  })
-);
+const accordionState = reactive(createProfileAccordionState());
 
 const placeholderCaptcha =
   '<svg xmlns="http://www.w3.org/2000/svg" width="156" height="46"><rect width="100%" height="100%" fill="#1a2537"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#d2deef" font-size="11">刷新验证码</text></svg>';
@@ -689,7 +759,6 @@ async function navigateToGroup(groupKey) {
   const normalized = normalizeGroupKey(groupKey);
   activeGroup.value = normalized;
   await replaceRouteHash(normalized);
-  ensureGroupSectionVisible(normalized);
   await nextTick();
   scrollToGroup(normalized, true);
   if (normalized === ProfileTabKey.ACCOUNT) {
@@ -845,29 +914,19 @@ function normalizeAccountView(raw) {
 
 function applyAccordionState(nextState) {
   Object.keys(accordionState).forEach((tabKey) => {
-    accordionState[tabKey] = nextState[tabKey] ?? null;
+    accordionState[tabKey] = Array.isArray(nextState[tabKey]) ? nextState[tabKey] : [];
   });
 }
 
 function forceOpenSection(tabKey, sectionKey) {
+  const normalizedTab = normalizeGroupKey(tabKey);
+  const current = getTabOpenSections(accordionState, normalizedTab) || [];
+  if (current.includes(sectionKey)) return;
   const nextState = createProfileAccordionState({
     ...accordionState,
-    [tabKey]: sectionKey
+    [normalizedTab]: [...current, sectionKey]
   });
   applyAccordionState(nextState);
-}
-
-function ensureGroupSectionVisible(groupKey) {
-  const normalizedGroup = normalizeGroupKey(groupKey);
-  const current = getTabOpenSection(accordionState, normalizedGroup);
-  if (current) return;
-  const fallback = GROUP_DEFAULT_SECTION[normalizedGroup];
-  if (!fallback) return;
-  forceOpenSection(normalizedGroup, fallback);
-}
-
-function ensureAllGroupSectionsVisible() {
-  navGroups.forEach((group) => ensureGroupSectionVisible(group.key));
 }
 
 function toggleGroupSection(groupKey, sectionKey) {
@@ -875,11 +934,11 @@ function toggleGroupSection(groupKey, sectionKey) {
   const nextState = toggleProfileAccordion(accordionState, normalizedGroup, sectionKey);
   applyAccordionState(nextState);
 
-  const openAccountSection = getTabOpenSection(nextState, ProfileTabKey.ACCOUNT);
+  const openAccountSections = getTabOpenSections(nextState, ProfileTabKey.ACCOUNT) || [];
   if (
     normalizedGroup === ProfileTabKey.ACCOUNT &&
-    (openAccountSection === ProfileSectionKey.ACCOUNT.EMAIL_BIND ||
-      openAccountSection === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD) &&
+    (openAccountSections.includes(ProfileSectionKey.ACCOUNT.EMAIL_BIND) ||
+      openAccountSections.includes(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)) &&
     !captcha.captchaId
   ) {
     refreshCaptcha();
@@ -966,6 +1025,101 @@ async function ensureAccountSectionReady() {
   if (ok) {
     accountSectionLoaded.value = true;
   }
+}
+
+function formatDateLabel(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function applyArticlesSummary(summary) {
+  articlesState.total = summary.total;
+  articlesState.draftCount = summary.draftCount;
+  articlesState.publishedCount = summary.publishedCount;
+  articlesState.otherCount = summary.otherCount;
+  articlesState.latestUpdatedAt = summary.latestUpdatedAt;
+  articlesState.latestPublishedAt = summary.latestPublishedAt;
+  articlesState.categories = Array.isArray(summary.categories) ? summary.categories : [];
+  articlesState.recentUpdated = Array.isArray(summary.recentUpdated) ? summary.recentUpdated : [];
+  articlesState.recentPublished = Array.isArray(summary.recentPublished) ? summary.recentPublished : [];
+}
+
+function resetArticlesSummary() {
+  applyArticlesSummary({
+    total: 0,
+    draftCount: 0,
+    publishedCount: 0,
+    otherCount: 0,
+    latestUpdatedAt: '',
+    latestPublishedAt: '',
+    categories: [],
+    recentUpdated: [],
+    recentPublished: []
+  });
+}
+
+async function loadProfileArticles(force = false) {
+  if (articlesState.loading) return;
+  if (articlesState.loaded && !force) return;
+  if (!canManagePosts.value) {
+    resetArticlesSummary();
+    articlesState.error = '';
+    articlesState.loaded = true;
+    return;
+  }
+
+  articlesState.loading = true;
+  articlesState.error = '';
+  try {
+    const payload = await listMyPosts({ pageNo: 1, pageSize: 200 }, auth.authorizedFetch);
+    const posts = Array.isArray(payload?.items) ? payload.items : [];
+    applyArticlesSummary(summarizeAuthorPosts(posts));
+  } catch (error) {
+    resetArticlesSummary();
+    articlesState.error = readErrorMessage(error);
+  } finally {
+    articlesState.loading = false;
+    articlesState.loaded = true;
+  }
+}
+
+async function ensureArticlesSectionReady() {
+  if (articlesState.loaded) return;
+  if (!canManagePosts.value) {
+    resetArticlesSummary();
+    articlesState.error = '';
+    articlesState.loaded = true;
+    return;
+  }
+  await loadProfileArticles();
+}
+
+async function goToBlogEditor() {
+  if (!canManagePosts.value) return;
+  await router.push({ name: 'blog-editor' });
+}
+
+async function goToBlogList() {
+  await router.push({ name: 'blog' });
+}
+
+function toggleAiPanelDefault(nextChecked) {
+  ui.setAiPanelOpen(Boolean(nextChecked));
+  setGlobalHint(`AI 对话侧栏已${ui.state.aiPanelOpen ? '开启' : '关闭'}`);
+}
+
+function resetAppearancePreference() {
+  ui.resetAccent();
+  ui.setAccentMode('solid');
+  ui.setAccentGradientPreset('berry');
+  setGlobalHint('已恢复默认外观');
+}
+
+function clearProfileRouteBackground() {
+  ui.clearRouteBackground('profile');
+  setGlobalHint('已清除个人页路由背景覆盖');
 }
 
 async function loadMusicPreferences() {
@@ -1346,7 +1500,6 @@ async function handleLogout() {
   }
 
   await auth.logout();
-  settingsVisible.value = false;
   router.replace({
     path: '/auth',
     query: {
@@ -1378,6 +1531,12 @@ const groupCount = computed(() => {
 const permissionCount = computed(() => {
   const permissions = Array.isArray(auth.user.value?.permissions) ? auth.user.value.permissions : [];
   return permissions.length;
+});
+const canManagePosts = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  const permissions = Array.isArray(auth.user.value?.permissions) ? auth.user.value.permissions : [];
+  const isAdmin = groups.some((group) => String(group || '').trim().toUpperCase() === 'ADMIN');
+  return isAdmin || permissions.some((code) => String(code || '').trim().toLowerCase() === 'blog.post.write');
 });
 
 const oauthBindingCount = computed(() => account.oauthBindings.length);
@@ -1421,7 +1580,7 @@ const heroTitle = computed(() => {
 
 const heroSubtitle = computed(() => {
   if (activeGroup.value === ProfileTabKey.ACCOUNT) return '账号与绑定集中管理，默认折叠，按需展开。';
-  if (activeGroup.value === ProfileTabKey.ARTICLES) return '先保留高质量结构入口，后续接入真实文章数据。';
+  if (activeGroup.value === ProfileTabKey.ARTICLES) return '创作统计、归档信息与快捷入口集中展示。';
   if (activeGroup.value === ProfileTabKey.SETTINGS) return '保持轻量设置层次，把常用操作放前面。';
   return '个人页展示核心状态与常用入口，减少无关信息占屏。';
 });
@@ -1436,10 +1595,14 @@ const heroChips = computed(() => {
     ];
   }
   if (activeGroup.value === ProfileTabKey.ARTICLES) {
-    return ['草稿入口', '发布入口', '归档入口'];
+    return [
+      `草稿 ${articlesState.draftCount}`,
+      `已发布 ${articlesState.publishedCount}`,
+      canManagePosts.value ? '创作可用' : '无创作权限'
+    ];
   }
   if (activeGroup.value === ProfileTabKey.SETTINGS) {
-    return ['主题面板', '实验偏好'];
+    return ['主题调色', '偏好可配置'];
   }
   return [groupsText.value, `权限 ${permissionCount.value}`];
 });
@@ -1448,14 +1611,14 @@ const profileOverviewCards = computed(() => [
   {
     key: 'blog-count',
     label: '博客数量',
-    value: '0',
-    hint: '统计接口预留中'
+    value: String(articlesState.total || 0),
+    hint: canManagePosts.value ? '来自我的文章统计' : '无创作权限'
   },
   {
     key: 'draft-count',
     label: '草稿箱',
-    value: '0',
-    hint: '内容模块接入后同步'
+    value: String(articlesState.draftCount || 0),
+    hint: canManagePosts.value ? '草稿状态文章' : '未开启创作'
   },
   {
     key: 'group-count',
@@ -1470,6 +1633,35 @@ const profileOverviewCards = computed(() => [
     hint: 'GitHub / LinuxDo'
   }
 ]);
+
+const articleWorkspaceCards = computed(() => [
+  {
+    key: 'total',
+    label: '总文章数',
+    value: String(articlesState.total),
+    hint: '当前可管理文章总数'
+  },
+  {
+    key: 'draft',
+    label: '草稿',
+    value: String(articlesState.draftCount),
+    hint: '可继续编辑'
+  },
+  {
+    key: 'published',
+    label: '已发布',
+    value: String(articlesState.publishedCount),
+    hint: '对外可见文章'
+  },
+  {
+    key: 'latest-updated',
+    label: '最近更新',
+    value: formatDateLabel(articlesState.latestUpdatedAt),
+    hint: '最近一次内容更新'
+  }
+]);
+
+const articleCategoryCards = computed(() => articlesState.categories.slice(0, 10));
 
 const profileRecentRows = computed(() => [
   {
@@ -1583,14 +1775,14 @@ const articlesSections = computed(() => [
     title: '创作工作台',
     icon: 'fas fa-pen-to-square',
     summary: buildSectionSummary(ProfileSectionKey.ARTICLES.WORKSPACE),
-    statusText: '占位'
+    statusText: articlesState.loading ? '同步中' : `${articlesState.draftCount} 草稿`
   },
   {
     key: ProfileSectionKey.ARTICLES.ARCHIVE,
     title: '归档历史',
     icon: 'fas fa-box-archive',
     summary: buildSectionSummary(ProfileSectionKey.ARTICLES.ARCHIVE),
-    statusText: '占位'
+    statusText: articlesState.loading ? '同步中' : `${articlesState.categories.length} 分类`
   }
 ]);
 
@@ -1607,7 +1799,7 @@ const settingsSections = computed(() => [
     title: '高级偏好',
     icon: 'fas fa-flask',
     summary: buildSectionSummary(ProfileSectionKey.SETTINGS.ADVANCED),
-    statusText: '预留'
+    statusText: '可配置'
   }
 ]);
 
@@ -1626,12 +1818,14 @@ watch(
 watch(
   () => activeGroup.value,
   async (group) => {
-    ensureGroupSectionVisible(group);
     if (group === ProfileTabKey.ACCOUNT) {
       await ensureAccountSectionReady();
       if (!captcha.captchaId) {
         await refreshCaptcha();
       }
+    }
+    if (group === ProfileTabKey.ARTICLES) {
+      await ensureArticlesSectionReady();
     }
   }
 );
@@ -1651,7 +1845,6 @@ onMounted(async () => {
 
   const initialGroup = resolveInitialGroupFromRoute();
   activeGroup.value = initialGroup;
-  ensureAllGroupSectionsVisible();
   await replaceRouteHash(initialGroup);
   await nextTick();
   setupGroupObserver();
@@ -1662,6 +1855,9 @@ onMounted(async () => {
     if (!captcha.captchaId) {
       await refreshCaptcha();
     }
+  }
+  if (initialGroup === ProfileTabKey.ARTICLES) {
+    await ensureArticlesSectionReady();
   }
 });
 
@@ -1715,18 +1911,11 @@ onBeforeUnmount(() => {
   grid-template-columns: 88px minmax(0, 1fr);
   gap: 14px;
   align-items: start;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .profile-anchor-nav {
-  --liquid-bg: rgba(9, 18, 30, 0.52);
-  --liquid-border: rgba(145, 178, 203, 0.3);
-  --liquid-shadow: 0 14px 26px rgba(4, 8, 14, 0.24);
-  border-radius: 18px;
-  padding: 14px 8px;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
   justify-content: center;
   align-items: center;
   align-self: stretch;
@@ -1736,85 +1925,19 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
 }
 
-.anchor-line {
-  position: absolute;
-  top: 16px;
-  bottom: 16px;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(96, 208, 236, 0), rgba(96, 208, 236, 0.58), rgba(96, 208, 236, 0));
-  pointer-events: none;
-}
-
-.anchor-btn {
-  border: 0;
-  border-radius: 999px;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(210, 229, 247, 0.9);
-  background: rgba(150, 186, 212, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.2);
-  position: relative;
-  z-index: 1;
-}
-
-.anchor-btn:hover {
-  background: rgba(168, 199, 223, 0.2);
-}
-
-.anchor-btn:focus-visible {
-  outline: 2px solid rgba(98, 219, 245, 0.75);
-  outline-offset: 2px;
-}
-
-.anchor-btn.active {
-  background: linear-gradient(145deg, rgba(63, 176, 209, 0.3), rgba(56, 121, 191, 0.28));
-  box-shadow: inset 0 0 0 1px rgba(89, 201, 233, 0.56);
-  color: rgba(240, 248, 255, 0.98);
-  transform: translateY(-1px) scale(1.05);
-}
-
-.anchor-dot {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(67, 184, 219, 0.2);
-  color: rgba(184, 237, 252, 0.96);
-  box-shadow: inset 0 0 0 1px rgba(97, 209, 239, 0.34);
-}
-
-.anchor-dot i {
-  font-size: 13px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.profile-anchor-nav :deep(.route-dot-rail) {
+  height: 100%;
+  min-height: 100%;
 }
 
 .profile-content-panel {
   min-height: 0;
   height: 100%;
   overflow: auto;
+  position: relative;
+  z-index: 1;
   padding-right: 6px;
   padding-bottom: 20px;
   display: flex;
@@ -1851,6 +1974,8 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 9px;
   scroll-margin-top: 182px;
+  position: relative;
+  z-index: 1;
 }
 
 .group-header {
@@ -2244,6 +2369,78 @@ select.field-input:focus-visible,
   color: rgba(230, 241, 252, 0.95);
 }
 
+.article-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.article-stat-card {
+  border-radius: 12px;
+  background: rgba(8, 14, 24, 0.54);
+  box-shadow: inset 0 0 0 1px rgba(134, 169, 196, 0.24);
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.archive-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.archive-list-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.archive-list-card {
+  border-radius: 12px;
+  background: rgba(8, 14, 24, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(132, 166, 193, 0.22);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.archive-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.archive-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(223, 236, 249, 0.94);
+}
+
+.archive-list li span:last-child {
+  flex-shrink: 0;
+  color: rgba(169, 196, 220, 0.88);
+}
+
+.advanced-pref-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.advanced-pref-card {
+  border-radius: 12px;
+  background: rgba(8, 14, 24, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(132, 166, 193, 0.24);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
 .hidden-file-input {
   position: fixed;
   width: 0;
@@ -2263,27 +2460,9 @@ select.field-input:focus-visible,
 
   .profile-anchor-nav {
     width: 100%;
-    border-radius: 999px;
-    padding: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-  }
-
-  .profile-anchor-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .anchor-line {
-    display: none;
-  }
-
-  .anchor-btn {
-    width: 42px;
-    height: 42px;
+    height: auto;
+    min-height: auto;
+    position: static;
   }
 
   .quick-grid {
@@ -2299,23 +2478,7 @@ select.field-input:focus-visible,
   }
 
   .profile-anchor-nav {
-    padding: 6px;
-    gap: 6px;
-  }
-
-  .anchor-btn {
-    width: 38px;
-    height: 38px;
-    padding: 0;
-  }
-
-  .anchor-dot {
-    width: 28px;
-    height: 28px;
-  }
-
-  .anchor-dot i {
-    font-size: 12px;
+    position: static;
   }
 
   .profile-content-panel {
@@ -2336,7 +2499,10 @@ select.field-input:focus-visible,
 
   .overview-grid,
   .recent-grid,
-  .quick-grid {
+  .quick-grid,
+  .article-stats-grid,
+  .archive-list-grid,
+  .advanced-pref-grid {
     grid-template-columns: 1fr;
   }
 
