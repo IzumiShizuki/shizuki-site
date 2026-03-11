@@ -81,55 +81,55 @@
         提示：默认第 2 块直开 TimePrism Todo，其余槽位默认关闭；需要二级分流时可将任意槽位改为 picker。
       </p>
     </section>
-  </section>
 
-  <Teleport to="body">
-    <Transition name="page-mode-overlay">
-      <section
-        v-if="activePageApp && activePageComponent"
-        class="page-mode-overlay"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="`${activePageApp.title} 页面模式`"
-        @click.self="closePageMode"
-      >
-        <article class="page-mode-shell liquid-material" @click.stop>
-          <header class="page-mode-head">
-            <div class="page-mode-title">
-              <i :class="activePageApp.iconClass" aria-hidden="true"></i>
-              <strong>{{ activePageApp.title }}</strong>
-            </div>
+    <Teleport to="body">
+      <Transition name="page-mode-overlay">
+        <section
+          v-if="activePageApp && activePageComponent"
+          class="page-mode-overlay"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="`${activePageApp.title} 页面模式`"
+          @click.self="closePageMode"
+        >
+          <article class="page-mode-shell liquid-material" @click.stop>
+            <header class="page-mode-head">
+              <div class="page-mode-title">
+                <i :class="activePageApp.iconClass" aria-hidden="true"></i>
+                <strong>{{ activePageApp.title }}</strong>
+              </div>
 
-            <div v-if="activePageTabItems.length" class="page-mode-tabs" role="tablist" :aria-label="`${activePageApp.title} tabs`">
-              <button
-                v-for="item in activePageTabItems"
-                :key="`page_tab_${activePageCode}_${item.value}`"
-                class="tab-btn ripple-trigger"
-                :class="{ active: activePageTabCode === item.value }"
-                type="button"
-                role="tab"
-                :aria-selected="activePageTabCode === item.value"
-                :title="item.label"
-                :aria-label="item.label"
-                @click="setActivePageTab(item.value)"
-              >
-                <i :class="item.iconClass" aria-hidden="true"></i>
+              <div v-if="activePageTabItems.length" class="page-mode-tabs" role="tablist" :aria-label="`${activePageApp.title} tabs`">
+                <button
+                  v-for="item in activePageTabItems"
+                  :key="`page_tab_${activePageCode}_${item.value}`"
+                  class="tab-btn ripple-trigger"
+                  :class="{ active: activePageTabCode === item.value }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activePageTabCode === item.value"
+                  :title="item.label"
+                  :aria-label="item.label"
+                  @click="setActivePageTab(item.value)"
+                >
+                  <i :class="item.iconClass" aria-hidden="true"></i>
+                </button>
+              </div>
+
+              <button class="tab-btn ripple-trigger" type="button" title="关闭页面模式" aria-label="关闭页面模式" @click="closePageMode">
+                <i class="fas fa-xmark" aria-hidden="true"></i>
               </button>
-            </div>
+            </header>
 
-            <button class="tab-btn ripple-trigger" type="button" title="关闭页面模式" aria-label="关闭页面模式" @click="closePageMode">
-              <i class="fas fa-xmark" aria-hidden="true"></i>
-            </button>
-          </header>
-
-          <section class="page-mode-body">
-            <component :is="activePageComponent" :window-id="activePageWindowId" />
-          </section>
-          <p class="page-mode-foot-hint">按 Esc 或点击遮罩空白区域可关闭页面模式</p>
-        </article>
-      </section>
-    </Transition>
-  </Teleport>
+            <section class="page-mode-body">
+              <component :is="activePageComponent" :window-id="activePageWindowId" />
+            </section>
+            <p class="page-mode-foot-hint">按 Esc 或点击遮罩空白区域可关闭页面模式</p>
+          </article>
+        </section>
+      </Transition>
+    </Teleport>
+  </section>
 </template>
 
 <script setup>
@@ -156,6 +156,7 @@ import {
   TIMEPRISM_MODULE_ITEMS
 } from '../components/lightapps/timeprism/timePrismSuiteState';
 import { useAuthSession } from '../composables/useAuthSession';
+import { onBeforeRouteLeave } from 'vue-router';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { LIGHT_APPS_CATALOG, getLightAppByCode, isKnownLightAppCode } from '../utils/lightAppsCatalog';
 import {
@@ -511,6 +512,13 @@ function onOverlayKeydown(event) {
 watch(hasActivePageOverlay, (open) => {
   if (typeof document === 'undefined') return;
   document.body.classList.toggle('apps-page-overlay-open', open);
+});
+
+onBeforeRouteLeave(() => {
+  closePageMode();
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('apps-page-overlay-open');
+  }
 });
 
 function setActivePageTab(tabCode) {
