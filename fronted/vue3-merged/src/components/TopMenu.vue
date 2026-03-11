@@ -61,20 +61,11 @@
 
         <div
           class="menu-item-stack author-info-item ripple-trigger"
-          :class="{ 'route-active': isAuthorRoute, open: authorMenuOpen }"
-          @click.stop="toggleAuthorMenu"
+          :class="{ 'route-active': isAuthorRoute }"
+          @click.stop="openAuthorOverview"
         >
           <div class="author-avatar-box"></div>
           <span class="item-label">作者信息</span>
-
-          <transition name="profile-popover">
-            <section v-if="authorMenuOpen" class="profile-popover liquid-material" @click.stop>
-              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('overview')">作者主页</button>
-              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('journey')">建站经历</button>
-              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('posts')">作者文章</button>
-              <button class="popover-item ripple-trigger" type="button" @click="openAuthorTab('about')">关于本站</button>
-            </section>
-          </transition>
         </div>
 
         <div
@@ -103,7 +94,6 @@
           <transition name="profile-popover">
             <section v-if="profileMenuOpen" class="profile-popover liquid-material" @click.stop>
               <button class="popover-item ripple-trigger" type="button" @click="openProfileHome">进入个人页面</button>
-              <button v-if="isAdmin" class="popover-item ripple-trigger" type="button" @click="openAdminTab('overview')">管理后台</button>
               <button class="popover-item ripple-trigger danger" type="button" @click="requestLogout">登出</button>
             </section>
           </transition>
@@ -167,7 +157,6 @@ const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
 const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl } = toRefs(props);
 const menuRootRef = ref(null);
-const authorMenuOpen = ref(false);
 const profileMenuOpen = ref(false);
 const avatarLoadFailed = ref(false);
 
@@ -256,13 +245,12 @@ function openProjectGithub() {
 }
 
 function closeProfileMenus() {
-  authorMenuOpen.value = false;
   profileMenuOpen.value = false;
 }
 
-function toggleAuthorMenu() {
-  authorMenuOpen.value = !authorMenuOpen.value;
-  if (authorMenuOpen.value) profileMenuOpen.value = false;
+function openAuthorOverview() {
+  closeProfileMenus();
+  emit('open-author', 'overview');
 }
 
 function toggleProfileMenu() {
@@ -271,22 +259,11 @@ function toggleProfileMenu() {
     return;
   }
   profileMenuOpen.value = !profileMenuOpen.value;
-  if (profileMenuOpen.value) authorMenuOpen.value = false;
-}
-
-function openAuthorTab(tabKey) {
-  closeProfileMenus();
-  emit('open-author', tabKey);
 }
 
 function openProfileHome() {
   closeProfileMenus();
   emit('open-profile');
-}
-
-function openAdminTab(tabKey) {
-  closeProfileMenus();
-  emit('open-admin', tabKey);
 }
 
 function openAuth() {

@@ -1,20 +1,14 @@
 <template>
   <section class="route-page author-page motion-managed">
     <div class="dashboard-layout">
-      <aside class="sidebar liquid-material">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          class="side-item ripple-trigger"
-          :class="{ active: activeTab === tab.key }"
-          :title="tab.label"
-          :aria-label="tab.label"
-          type="button"
-          @click="openTab(tab.key)"
-        >
-          <i :class="tab.icon" aria-hidden="true"></i>
-        </button>
-      </aside>
+      <RouteDotRail
+        class="sidebar-dot-rail"
+        :items="tabs"
+        :active-key="activeTab"
+        distribution="mid-sixths"
+        aria-label="作者页面导航"
+        @select="openTab"
+      />
 
       <SubtleScrollArea
         ref="contentPanelRef"
@@ -667,6 +661,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
+import RouteDotRail from '../components/common/RouteDotRail.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
 import {
   AuthorTabKey,
@@ -1618,57 +1613,22 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-layout {
-  position: relative;
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
 }
 
-.sidebar {
-  --liquid-bg: rgba(20, 27, 42, 0.36);
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.22);
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  z-index: 12;
-  border-radius: 999px;
-  padding: 8px;
-  display: inline-flex;
-  flex-wrap: nowrap;
-  gap: 8px;
-  align-items: center;
-  pointer-events: none;
-}
-
-.side-item {
-  pointer-events: auto;
-  border: 0;
-  border-radius: 999px;
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.2);
-  color: rgba(233, 241, 255, 0.92);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
-  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
-}
-
-.side-item i {
-  font-size: 13px;
-}
-
-.side-item.active {
-  background: rgba(var(--accent-rgb), 0.34);
-  color: rgb(var(--accent-strong-rgb));
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.58);
-}
-
-.side-item:hover {
-  transform: translateY(-1px) scale(1.04);
+.sidebar-dot-rail {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  align-self: stretch;
+  height: 100%;
+  min-height: clamp(420px, 70vh, 780px);
+  padding-block: 6px;
 }
 
 .content-panel {
@@ -1679,7 +1639,7 @@ onBeforeUnmount(() => {
   --parallax-y: 0px;
   --journey-progress: 0%;
   border-radius: 14px;
-  padding: 54px 16px 14px;
+  padding: 14px 16px;
   overflow: auto;
   overscroll-behavior: auto;
   perspective: 1200px;
@@ -3030,20 +2990,22 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
-  .sidebar {
-    top: 8px;
-    left: 8px;
-    padding: 6px;
-    gap: 6px;
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
-  .side-item {
-    width: 32px;
-    height: 32px;
+  .sidebar-dot-rail {
+    position: static;
+    top: auto;
+    z-index: 1;
+    min-height: auto;
+    height: auto;
+    padding-block: 0;
   }
 
   .content-panel {
-    padding-top: 50px;
+    padding-top: 12px;
   }
 
   .hero-card {

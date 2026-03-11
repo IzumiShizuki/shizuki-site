@@ -5,6 +5,7 @@
         <RouteDotRail
           :items="navGroups"
           :active-key="activeGroup"
+          distribution="mid-sixths"
           aria-label="个人分组导航"
           @select="navigateToGroup"
         />
@@ -1908,8 +1909,8 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   padding: 10px;
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
   overflow: visible;
 }
@@ -1924,7 +1925,8 @@ onBeforeUnmount(() => {
   z-index: 7;
   width: 100%;
   height: 100%;
-  min-height: 0;
+  min-height: clamp(420px, 70vh, 780px);
+  padding-block: 6px;
 }
 
 .profile-anchor-nav :deep(.route-dot-rail) {

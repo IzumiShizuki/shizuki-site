@@ -30,18 +30,14 @@
       </section>
 
       <div class="dashboard-layout">
-        <aside class="sidebar liquid-material">
-          <button
-            v-for="tab in tabs"
-            :key="tab.key"
-            class="side-item ripple-trigger"
-            :class="{ active: activeTab === tab.key }"
-            type="button"
-            @click="openTab(tab.key)"
-          >
-            {{ tab.label }}
-          </button>
-        </aside>
+        <RouteDotRail
+          class="sidebar-dot-rail"
+          :items="tabs"
+          :active-key="activeTab"
+          distribution="full-sixths"
+          aria-label="管理后台导航"
+          @select="openTab"
+        />
 
         <section class="content-panel liquid-material">
           <AdminUsersPanel
@@ -193,6 +189,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import * as adminApi from '../services/adminApi';
+import RouteDotRail from '../components/common/RouteDotRail.vue';
 import AdminDangerDeleteDialog from '../components/admin/AdminDangerDeleteDialog.vue';
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
@@ -216,12 +213,12 @@ const router = useRouter();
 const auth = useAuthSession();
 
 const tabs = [
-  { key: AdminTabKey.USERS, label: '用户管理' },
-  { key: AdminTabKey.GROUPS, label: '分组目录' },
-  { key: AdminTabKey.PERMISSIONS, label: '分组权限' },
-  { key: AdminTabKey.QUOTA, label: '配额策略' },
-  { key: AdminTabKey.WALLPAPERS, label: '壁纸审核' },
-  { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类' }
+  { key: AdminTabKey.USERS, label: '用户管理', icon: 'fas fa-users' },
+  { key: AdminTabKey.GROUPS, label: '分组目录', icon: 'fas fa-layer-group' },
+  { key: AdminTabKey.PERMISSIONS, label: '分组权限', icon: 'fas fa-key' },
+  { key: AdminTabKey.QUOTA, label: '配额策略', icon: 'fas fa-gauge-high' },
+  { key: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
+  { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
 ];
 
 const booting = ref(true);
@@ -1253,35 +1250,17 @@ h1 {
 .dashboard-layout {
   min-height: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 16px;
 }
 
-.sidebar {
-  --liquid-bg: rgba(20, 27, 42, 0.36);
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.22);
-  border-radius: 14px;
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-  align-content: start;
-}
-
-.side-item {
-  border: 0;
-  border-radius: 10px;
-  min-height: 38px;
-  padding: 0 12px;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.2);
-  color: rgba(233, 241, 255, 0.92);
-}
-
-.side-item.active {
-  background: rgba(var(--accent-rgb), 0.26);
-  color: rgb(var(--accent-strong-rgb));
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.58);
+.sidebar-dot-rail {
+  align-self: stretch;
+  position: sticky;
+  top: 0;
+  min-height: clamp(420px, 70vh, 780px);
+  height: 100%;
+  padding-block: 6px;
 }
 
 .content-panel {
@@ -1402,15 +1381,10 @@ h1 {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .side-item {
-    min-height: 34px;
-    padding: 0 8px;
-    text-align: center;
-    font-size: 12px;
+  .sidebar-dot-rail {
+    position: static;
+    height: auto;
+    min-height: auto;
   }
 }
 
