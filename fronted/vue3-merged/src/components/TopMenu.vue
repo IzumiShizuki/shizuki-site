@@ -21,24 +21,21 @@
       </div>
 
       <div class="nav-section center secondary-nav">
-        <div class="menu-item-stack ripple-trigger" :class="{ active: musicActive }" @click="openAtmosphere('music')">
-          <div class="circle-icon-box liquid-material"><i class="fas fa-music"></i></div>
-          <span class="item-label">音乐</span>
-        </div>
-
-        <div class="menu-item-stack ripple-trigger" :class="{ active: ambientActive }" @click="openAtmosphere('ambient')">
-          <div class="circle-icon-box liquid-material"><i class="fas fa-sliders-h icon-rotated"></i></div>
-          <span class="item-label">白噪音</span>
+        <div class="menu-item-stack ripple-trigger" :class="{ active: menuHubActive }" @click="openAtmosphere">
+          <div class="circle-icon-box liquid-material menu-hub-box">
+            <i class="fas fa-compass-drafting"></i>
+            <span class="menu-status-stack" aria-hidden="true">
+              <span class="menu-status-dot" :class="{ active: musicActive }"></span>
+              <span class="menu-status-dot" :class="{ active: ambientActive }"></span>
+              <span class="menu-status-dot" :class="{ active: effectActive }"></span>
+            </span>
+          </div>
+          <span class="item-label">MENU</span>
         </div>
 
         <div class="menu-item-stack ripple-trigger" @click="openBackgroundPicker">
           <div class="circle-icon-box liquid-material"><i class="far fa-image"></i></div>
           <span class="item-label">变换图片</span>
-        </div>
-
-        <div class="menu-item-stack ripple-trigger" :class="{ active: effectActive }" @click="openAtmosphere('effects')">
-          <div class="circle-icon-box liquid-material"><i class="fas fa-wand-magic-sparkles"></i></div>
-          <span class="item-label">特效</span>
         </div>
       </div>
 
@@ -104,7 +101,7 @@
     <div class="toggle-tab liquid-material ripple-trigger" @click="toggleSwitch">
       <div class="switch-content">
         <span class="bar-line top"></span>
-        <div class="menu-label-text">MENU</div>
+        <span class="switch-core"></span>
         <span class="bar-line bottom"></span>
       </div>
     </div>
@@ -168,10 +165,11 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl } = toRefs(props);
+const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
 const menuRootRef = ref(null);
 const profileMenuOpen = ref(false);
 const avatarLoadFailed = ref(false);
+const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
 
 const mainNavItems = computed(() => {
   const base = [
@@ -252,9 +250,9 @@ function openBackgroundPicker() {
   emit('open-background-picker');
 }
 
-function openAtmosphere(tabKey) {
+function openAtmosphere() {
   closeProfileMenus();
-  emit('open-atmosphere-panel', tabKey);
+  emit('open-atmosphere-panel');
 }
 
 function openProjectGithub() {
@@ -530,6 +528,7 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -560,6 +559,37 @@ onBeforeUnmount(() => {
 .menu-item-stack.active .item-label {
   color: rgb(var(--accent-strong-rgb));
   font-weight: 600;
+}
+
+.menu-hub-box {
+  overflow: visible;
+}
+
+.menu-status-stack {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.menu-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: 0 0 0 1px rgba(18, 24, 35, 0.24);
+  transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.menu-status-dot.active {
+  background: rgb(var(--accent-strong-rgb));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.92),
+    0 0 10px rgba(var(--accent-rgb), 0.36);
+  transform: scale(1.15);
 }
 
 .icon-rotated {
@@ -891,7 +921,7 @@ onBeforeUnmount(() => {
 
 .switch-content {
   position: relative;
-  width: 60px;
+  width: 42px;
   height: 16px;
   display: flex;
   align-items: center;
@@ -902,7 +932,7 @@ onBeforeUnmount(() => {
   position: absolute;
   background: rgba(236, 242, 255, 0.9);
   height: 2px;
-  width: 24px;
+  width: 22px;
   border-radius: 2px;
   transition: all 0.5s cubic-bezier(0.68, -0.6, 0.32, 1.6);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.52);
@@ -916,16 +946,15 @@ onBeforeUnmount(() => {
   transform: translateY(7px);
 }
 
-.menu-label-text {
-  font-size: 10px;
-  font-weight: 800;
-  color: rgba(236, 242, 255, 0.9);
-  letter-spacing: 1px;
-  transition: 0.3s;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 8px rgba(0, 0, 0, 0.34);
-  -webkit-text-stroke: 0.3px rgba(0, 0, 0, 0.44);
+.switch-core {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(236, 242, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.26),
+    0 0 10px rgba(255, 255, 255, 0.22);
+  transition: transform 0.28s ease, opacity 0.28s ease, filter 0.28s ease;
 }
 
 .fixed-nav-wrapper.expanded .bar-line.top {
@@ -940,8 +969,8 @@ onBeforeUnmount(() => {
   width: 20px;
 }
 
-.fixed-nav-wrapper.expanded .menu-label-text {
-  transform: scale(0.6);
+.fixed-nav-wrapper.expanded .switch-core {
+  transform: scale(0.4);
   opacity: 0;
   filter: blur(2px);
 }
@@ -1244,9 +1273,9 @@ onBeforeUnmount(() => {
     transform: translateX(6px);
   }
 
-  .menu-label-text {
-    font-size: 9px;
-    letter-spacing: 0.8px;
+  .switch-core {
+    width: 5px;
+    height: 5px;
   }
 
   .fixed-nav-wrapper.expanded .bar-line.top {

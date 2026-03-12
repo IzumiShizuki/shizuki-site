@@ -144,9 +144,9 @@
 
       <AtmospherePanel
         :visible="atmospherePanelVisible"
-        :active-tab="siteAtmosphere.panelTab"
         :music-track="player.currentTrack.value"
         :music-playing="player.isPlaying.value"
+        :music-library-state="musicLibraryPanelState"
         :ambient-state="siteAtmosphereSnapshot"
         :ambient-library="ambientLibrary"
         :effect-state="siteAtmosphereSnapshot.effect"
@@ -157,11 +157,13 @@
         :upload-hint="ambientUploadHint"
         :mixer-needs-gesture="ambientMixer.needsUserGesture.value"
         @close="closeAtmospherePanel"
-        @set-tab="setAtmospherePanelTab"
         @music-toggle-play="player.togglePlay"
         @music-prev="player.playPrev"
         @music-next="player.playNext"
-        @open-music-library="handleMainRouteSelect('music-library'); closeAtmospherePanel()"
+        @music-refresh="handleAtmosphereMusicRefresh"
+        @music-select-playlist="handleAtmospherePlaylistSelect"
+        @music-play-track="handleAtmospherePlayTrack"
+        @open-music-library="openFullMusicLibrary"
         @ambient-toggle-track="toggleAmbientLibraryTrack"
         @ambient-set-master-volume="applySiteAtmosphereState(setAmbientMasterVolume(siteAtmosphere, $event, { sessionUploads: ambientGuestUploads.value }))"
         @ambient-set-track-volume="setAmbientTrackGain"
@@ -455,6 +457,7 @@ import WallpaperL2dCanvas from './components/WallpaperL2dCanvas.vue';
 import TopMenu from './components/TopMenu.vue';
 import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
+import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { usePlayerEngine } from './composables/usePlayerEngine';
 import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
@@ -582,6 +585,11 @@ const player = usePlayerEngine({
   getAuthorizedFetch: () => (auth.isAuthenticated.value ? auth.authorizedFetch : undefined)
 });
 const ambientMixer = useAmbientMixer();
+const miniMusicLibrary = useMiniMusicLibrary({
+  player,
+  isAuthenticated: auth.isAuthenticated,
+  getAuthorizedFetch: () => auth.authorizedFetch
+});
 const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
 
@@ -650,6 +658,14 @@ const musicMenuActive = computed(() => player.isPlaying.value || Boolean(player.
 const effectMenuActive = computed(
   () => siteAtmosphereSnapshot.value.effect.enabled && siteAtmosphereSnapshot.value.effect.presetId !== 'none'
 );
+const musicLibraryPanelState = computed(() => ({
+  loading: miniMusicLibrary.loading.value,
+  playlistLoading: miniMusicLibrary.playlistLoading.value,
+  errorText: miniMusicLibrary.errorText.value,
+  sections: miniMusicLibrary.sections.value,
+  selectedPlaylist: miniMusicLibrary.selectedPlaylist.value,
+  selectedTracks: miniMusicLibrary.selectedTracks.value
+}));
 const ambientLibrary = computed(() => {
   const builtinItems = resolveBuiltinAmbientCatalog().map((item) => ({
     id: item.id,
@@ -1007,17 +1023,30 @@ async function syncAmbientMixer(snapshot = siteAtmosphereSnapshot.value) {
   await ambientMixer.setTracks(await buildAmbientMixerTracks(snapshot));
 }
 
-function openAtmospherePanel(tabKey = 'ambient') {
-  siteAtmosphere.panelTab = ['music', 'ambient', 'effects'].includes(tabKey) ? tabKey : 'ambient';
+async function openAtmospherePanel() {
   atmospherePanelVisible.value = true;
+  await miniMusicLibrary.ensureReady();
 }
 
 function closeAtmospherePanel() {
   atmospherePanelVisible.value = false;
 }
 
-function setAtmospherePanelTab(tabKey) {
-  siteAtmosphere.panelTab = ['music', 'ambient', 'effects'].includes(tabKey) ? tabKey : 'ambient';
+async function handleAtmosphereMusicRefresh() {
+  await miniMusicLibrary.ensureReady({ force: true });
+}
+
+async function handleAtmospherePlaylistSelect(playlistCode) {
+  await miniMusicLibrary.selectPlaylist(playlistCode);
+}
+
+async function handleAtmospherePlayTrack(index) {
+  await miniMusicLibrary.playTrackAt(index);
+}
+
+function openFullMusicLibrary() {
+  closeAtmospherePanel();
+  handleMainRouteSelect('music-library');
 }
 
 function toggleAmbientLibraryTrack(track) {
@@ -2323,6 +2352,9 @@ watch(
 watch(
   () => auth.isAuthenticated.value,
   async (authenticated, wasAuthenticated) => {
+    if (miniMusicLibrary.initialized.value || atmospherePanelVisible.value) {
+      await miniMusicLibrary.handleAuthChanged();
+    }
     if (authenticated) {
       await loadRemoteSiteAtmospherePreference();
       await syncAmbientMixer();
