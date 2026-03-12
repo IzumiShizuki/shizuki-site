@@ -8,6 +8,7 @@ import io.github.shizuki.site.content.dto.LightAppBalanceAccountResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceAccountUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppBalanceDebtResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceDebtUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceOverviewResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeUpsertRequest;
@@ -33,6 +34,7 @@ import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkUpsertRequest;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface LightAppService {
@@ -53,7 +55,14 @@ public interface LightAppService {
 
     void deleteBalanceAccount(Long accountId);
 
-    List<LightAppBalanceTransactionResponse> listBalanceTransactions();
+    List<LightAppBalanceTransactionResponse> listBalanceTransactions(
+        LocalDateTime fromDatetime,
+        LocalDateTime toDatetime,
+        String timeZone,
+        String channelCode,
+        Long accountId,
+        String direction
+    );
 
     LightAppBalanceTransactionResponse createBalanceTransaction(LightAppBalanceTransactionUpsertRequest request);
 
@@ -78,6 +87,15 @@ public interface LightAppService {
     void deleteBalanceRecurringCharge(Long recurringChargeId);
 
     LightAppBalanceOverviewResponse getBalanceOverview(String baseCurrency);
+
+    LightAppBalanceAnalyticsResponse getBalanceAnalytics(
+        String baseCurrency,
+        LocalDateTime fromDatetime,
+        LocalDateTime toDatetime,
+        String timeZone,
+        String channelCode,
+        Long accountId
+    );
 
     List<LightAppFxRateResponse> listFxRates(String baseCurrency);
 

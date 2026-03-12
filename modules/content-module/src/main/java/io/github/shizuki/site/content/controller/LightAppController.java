@@ -9,6 +9,7 @@ import io.github.shizuki.site.content.dto.LightAppBalanceAccountResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceAccountUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppBalanceDebtResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceDebtUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceOverviewResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeUpsertRequest;
@@ -40,7 +41,9 @@ import io.github.shizuki.site.content.service.LightAppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -116,8 +119,19 @@ public class LightAppController {
 
     @GetMapping("/balance/transactions")
     @Operation(summary = "查询收支流水")
-    public ApiResponse<List<LightAppBalanceTransactionResponse>> listBalanceTransactions() {
-        return ApiResponse.success(lightAppService.listBalanceTransactions());
+    public ApiResponse<List<LightAppBalanceTransactionResponse>> listBalanceTransactions(
+        @RequestParam(name = "from_datetime", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDatetime,
+        @RequestParam(name = "to_datetime", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDatetime,
+        @RequestParam(name = "time_zone", required = false) String timeZone,
+        @RequestParam(name = "channel_code", required = false) String channelCode,
+        @RequestParam(name = "account_id", required = false) Long accountId,
+        @RequestParam(name = "direction", required = false) String direction
+    ) {
+        return ApiResponse.success(
+            lightAppService.listBalanceTransactions(fromDatetime, toDatetime, timeZone, channelCode, accountId, direction)
+        );
     }
 
     @PostMapping("/balance/transactions")
@@ -202,6 +216,23 @@ public class LightAppController {
         @RequestParam(name = "base_currency", required = false) String baseCurrency
     ) {
         return ApiResponse.success(lightAppService.getBalanceOverview(baseCurrency));
+    }
+
+    @GetMapping("/balance/analytics")
+    @Operation(summary = "查询账单统计分析")
+    public ApiResponse<LightAppBalanceAnalyticsResponse> getBalanceAnalytics(
+        @RequestParam(name = "base_currency", required = false) String baseCurrency,
+        @RequestParam(name = "from_datetime", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDatetime,
+        @RequestParam(name = "to_datetime", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDatetime,
+        @RequestParam(name = "time_zone", required = false) String timeZone,
+        @RequestParam(name = "channel_code", required = false) String channelCode,
+        @RequestParam(name = "account_id", required = false) Long accountId
+    ) {
+        return ApiResponse.success(
+            lightAppService.getBalanceAnalytics(baseCurrency, fromDatetime, toDatetime, timeZone, channelCode, accountId)
+        );
     }
 
     @GetMapping("/balance/fx-rates")

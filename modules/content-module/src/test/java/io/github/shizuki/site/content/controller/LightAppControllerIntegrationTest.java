@@ -2,6 +2,13 @@ package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsRange;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsResponse;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsSummary;
+import io.github.shizuki.site.content.dto.LightAppBalanceAssetSnapshot;
+import io.github.shizuki.site.content.dto.LightAppBalanceChannelBreakdownItem;
+import io.github.shizuki.site.content.dto.LightAppBalanceDailyTrendItem;
+import io.github.shizuki.site.content.dto.LightAppBalanceTransactionResponse;
 import io.github.shizuki.site.content.dto.LightAppProjectResponse;
 import io.github.shizuki.site.content.dto.LightAppPomodoroResponse;
 import io.github.shizuki.site.content.dto.LightAppScheduleResponse;
@@ -12,6 +19,7 @@ import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
 import io.github.shizuki.site.content.service.LightAppService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -232,6 +240,111 @@ class LightAppControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].schedule_id").value(7));
+    }
+
+    @Test
+    void shouldListBalanceTransactionsWithFiltersSuccessfully() throws Exception {
+        Mockito.when(lightAppService.listBalanceTransactions(
+                ArgumentMatchers.any(LocalDateTime.class),
+                ArgumentMatchers.any(LocalDateTime.class),
+                ArgumentMatchers.eq("Asia/Shanghai"),
+                ArgumentMatchers.eq("alipay"),
+                ArgumentMatchers.eq(3L),
+                ArgumentMatchers.eq("EXPENSE")
+            ))
+            .thenReturn(List.of(
+                new LightAppBalanceTransactionResponse(
+                    11L,
+                    3L,
+                    "EXPENSE",
+                    new BigDecimal("88.80"),
+                    "CNY",
+                    "餐饮",
+                    "午饭",
+                    LocalDateTime.of(2026, 2, 10, 12, 0),
+                    10,
+                    null
+                )
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/balance/transactions")
+                .param("from_datetime", "2026-01-10T00:00:00")
+                .param("to_datetime", "2026-02-20T23:59:59")
+                .param("time_zone", "Asia/Shanghai")
+                .param("channel_code", "alipay")
+                .param("account_id", "3")
+                .param("direction", "EXPENSE"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].transaction_id").value(11))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].direction").value("EXPENSE"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].amount").value(88.8))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].category").value("餐饮"));
+    }
+
+    @Test
+    void shouldGetBalanceAnalyticsSuccessfully() throws Exception {
+        Mockito.when(lightAppService.getBalanceAnalytics(
+                ArgumentMatchers.eq("CNY"),
+                ArgumentMatchers.any(LocalDateTime.class),
+                ArgumentMatchers.any(LocalDateTime.class),
+                ArgumentMatchers.eq("Asia/Shanghai"),
+                ArgumentMatchers.eq("alipay"),
+                ArgumentMatchers.eq(3L)
+            ))
+            .thenReturn(new LightAppBalanceAnalyticsResponse(
+                "CNY",
+                new LightAppBalanceAnalyticsRange(
+                    LocalDateTime.of(2026, 1, 10, 0, 0),
+                    LocalDateTime.of(2026, 2, 20, 23, 59, 59),
+                    "Asia/Shanghai"
+                ),
+                new LightAppBalanceAnalyticsSummary(
+                    new BigDecimal("1200.0000"),
+                    new BigDecimal("540.5000"),
+                    new BigDecimal("659.5000"),
+                    7,
+                    12,
+                    19
+                ),
+                new LightAppBalanceAssetSnapshot(
+                    new BigDecimal("5200.0000"),
+                    new BigDecimal("1300.0000"),
+                    new BigDecimal("3900.0000")
+                ),
+                List.of(
+                    new LightAppBalanceDailyTrendItem(
+                        "2026-02-19",
+                        new BigDecimal("300.0000"),
+                        new BigDecimal("80.0000"),
+                        new BigDecimal("220.0000")
+                    )
+                ),
+                List.of(
+                    new LightAppBalanceChannelBreakdownItem(
+                        "alipay",
+                        "支付宝",
+                        new BigDecimal("600.0000"),
+                        new BigDecimal("340.5000"),
+                        9
+                    )
+                )
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/balance/analytics")
+                .param("base_currency", "CNY")
+                .param("from_datetime", "2026-01-10T00:00:00")
+                .param("to_datetime", "2026-02-20T23:59:59")
+                .param("time_zone", "Asia/Shanghai")
+                .param("channel_code", "alipay")
+                .param("account_id", "3"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.base_currency").value("CNY"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.summary.income_total").value(1200))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.summary.expense_total").value(540.5))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.summary.tx_count").value(19))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.channel_breakdown[0].channel_code").value("alipay"));
     }
 
     @Test

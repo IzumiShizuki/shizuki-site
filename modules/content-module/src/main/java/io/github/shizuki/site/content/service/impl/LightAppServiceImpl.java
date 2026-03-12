@@ -11,6 +11,12 @@ import io.github.shizuki.site.content.dto.LightAppBalanceAccountResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceAccountUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppBalanceDebtResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceDebtUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsResponse;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsRange;
+import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsSummary;
+import io.github.shizuki.site.content.dto.LightAppBalanceAssetSnapshot;
+import io.github.shizuki.site.content.dto.LightAppBalanceChannelBreakdownItem;
+import io.github.shizuki.site.content.dto.LightAppBalanceDailyTrendItem;
 import io.github.shizuki.site.content.dto.LightAppBalanceOverviewResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceRecurringChargeUpsertRequest;
@@ -73,10 +79,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
 import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -103,6 +112,7 @@ public class LightAppServiceImpl implements LightAppService {
     private static final int FUTURE_MATERIALIZE_DAYS = 14;
     private static final int BALANCE_CATCHUP_DAYS = 30;
     private static final int MAX_RECURRING_OCCURRENCES_PER_PASS = 1000;
+    private static final int DEFAULT_LEDGER_RANGE_DAYS = 30;
     private static final int FX_STALE_HOURS = 6;
     private static final String RINGTONE_TYPE_BUILTIN = "BUILTIN";
     private static final String RINGTONE_TYPE_UPLOAD = "UPLOAD";
@@ -113,6 +123,8 @@ public class LightAppServiceImpl implements LightAppService {
     private static final String DEBT_STATUS_CLOSED = "CLOSED";
     private static final String URL_ICON_MODE_AUTO = "AUTO";
     private static final String URL_ICON_MODE_UPLOAD = "UPLOAD";
+    private static final String CHANNEL_CODE_UNBOUND = "__unbound__";
+    private static final String CHANNEL_NAME_UNBOUND = "未绑定";
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
     private static final String FX_PROVIDER_CODE = "OPEN_ER_API";
     private static final String FX_PROVIDER_URL_TEMPLATE = "https://open.er-api.com/v6/latest/{base}";
@@ -305,14 +317,27 @@ public class LightAppServiceImpl implements LightAppService {
 
     @Override
     @Transactional
-    public List<LightAppBalanceTransactionResponse> listBalanceTransactions() {
+    public List<LightAppBalanceTransactionResponse> listBalanceTransactions(
+        LocalDateTime fromDatetime,
+        LocalDateTime toDatetime,
+        String timeZone,
+        String channelCode,
+        Long accountId,
+        String direction
+    ) {
         Long userId = requireLoginUserId();
         applyRecurringChargesForUser(userId);
-        return balanceTransactionMapper.selectList(new LambdaQueryWrapper<LightAppBalanceTransactionEntity>()
-                .eq(LightAppBalanceTransactionEntity::getUserId, userId)
-                .orderByDesc(LightAppBalanceTransactionEntity::getOccurredAt)
-                .orderByDesc(LightAppBalanceTransactionEntity::getSortNum)
-                .orderByDesc(LightAppBalanceTransactionEntity::getId))
+        LedgerDateRange range = resolveLedgerDateRange(fromDatetime, toDatetime, timeZone);
+        ChannelAccountFilter channelFilter = resolveChannelAccountFilter(userId, channelCode);
+        String normalizedDirection = normalizeOptionalDirection(direction);
+        return balanceTransactionMapper.selectList(buildBalanceTransactionQuery(
+                userId,
+                range.fromInclusive(),
+                range.toInclusive(),
+                channelFilter,
+                accountId,
+                normalizedDirection
+            ))
             .stream()
             .map(this::toBalanceTransactionResponse)
             .toList();
@@ -473,6 +498,140 @@ public class LightAppServiceImpl implements LightAppService {
             totalDebt.setScale(4, RoundingMode.HALF_UP),
             netAsset.setScale(4, RoundingMode.HALF_UP),
             LocalDateTime.now()
+        );
+    }
+
+    @Override
+    @Transactional
+    public LightAppBalanceAnalyticsResponse getBalanceAnalytics(
+        String baseCurrency,
+        LocalDateTime fromDatetime,
+        LocalDateTime toDatetime,
+        String timeZone,
+        String channelCode,
+        Long accountId
+    ) {
+        Long userId = requireLoginUserId();
+        applyRecurringChargesForUser(userId);
+        String targetBaseCurrency = normalizeCurrencyCode(baseCurrency, BASE_CURRENCY_CNY);
+        LedgerDateRange range = resolveLedgerDateRange(fromDatetime, toDatetime, timeZone);
+        ChannelAccountFilter channelFilter = resolveChannelAccountFilter(userId, channelCode);
+
+        List<LightAppBalanceTransactionEntity> txEntities = balanceTransactionMapper.selectList(buildBalanceTransactionQuery(
+            userId,
+            range.fromInclusive(),
+            range.toInclusive(),
+            channelFilter,
+            accountId,
+            null
+        ));
+        List<LightAppBalanceAccountEntity> accountEntities = listBalanceAccountsEntities(userId);
+        Map<Long, LightAppBalanceAccountEntity> accountMap = new LinkedHashMap<>();
+        accountEntities.forEach(item -> accountMap.put(item.getId(), item));
+
+        Map<String, BigDecimal> rates = toRateMap(ensureFxRates(targetBaseCurrency, false));
+        LightAppBalanceOverviewResponse overview = getBalanceOverview(targetBaseCurrency);
+
+        BigDecimal incomeTotal = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+        BigDecimal expenseTotal = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+        int incomeCount = 0;
+        int expenseCount = 0;
+
+        Map<LocalDate, DailyAccumulator> dailyMap = new LinkedHashMap<>();
+        Map<String, ChannelAccumulator> channelMap = new LinkedHashMap<>();
+
+        LocalDate cursorDate = range.fromInclusive().toLocalDate();
+        LocalDate endDate = range.toInclusive().toLocalDate();
+        while (!cursorDate.isAfter(endDate)) {
+            dailyMap.put(cursorDate, new DailyAccumulator());
+            cursorDate = cursorDate.plusDays(1);
+        }
+
+        for (LightAppBalanceTransactionEntity item : txEntities) {
+            BigDecimal normalizedAmount = convertToBase(
+                safeAmount(item.getAmount()),
+                item.getCurrencyCode(),
+                targetBaseCurrency,
+                rates
+            ).setScale(4, RoundingMode.HALF_UP);
+            String normalizedDirection = normalizeDirection(item.getDirectionCode());
+            LocalDate day = item.getOccurredAt() == null
+                ? range.fromInclusive().toLocalDate()
+                : item.getOccurredAt().toLocalDate();
+            DailyAccumulator daily = dailyMap.computeIfAbsent(day, key -> new DailyAccumulator());
+
+            LightAppBalanceAccountEntity account = item.getAccountId() == null ? null : accountMap.get(item.getAccountId());
+            String resolvedChannelCode = account == null
+                ? CHANNEL_CODE_UNBOUND
+                : normalizeRequiredText(account.getChannelCode(), "channel_code").toLowerCase(Locale.ROOT);
+            String resolvedChannelName = account == null
+                ? CHANNEL_NAME_UNBOUND
+                : normalizeRequiredText(account.getChannelName(), "channel_name");
+            ChannelAccumulator channel = channelMap.computeIfAbsent(
+                resolvedChannelCode,
+                key -> new ChannelAccumulator(resolvedChannelCode, resolvedChannelName)
+            );
+
+            if (DIRECTION_INCOME.equals(normalizedDirection)) {
+                incomeTotal = incomeTotal.add(normalizedAmount);
+                incomeCount += 1;
+                daily.income = daily.income.add(normalizedAmount);
+                channel.income = channel.income.add(normalizedAmount);
+            } else {
+                expenseTotal = expenseTotal.add(normalizedAmount);
+                expenseCount += 1;
+                daily.expense = daily.expense.add(normalizedAmount);
+                channel.expense = channel.expense.add(normalizedAmount);
+            }
+            channel.txCount += 1;
+        }
+
+        List<LightAppBalanceDailyTrendItem> dailyTrend = dailyMap.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(entry -> {
+                BigDecimal income = entry.getValue().income.setScale(4, RoundingMode.HALF_UP);
+                BigDecimal expense = entry.getValue().expense.setScale(4, RoundingMode.HALF_UP);
+                return new LightAppBalanceDailyTrendItem(
+                    entry.getKey().toString(),
+                    income,
+                    expense,
+                    income.subtract(expense).setScale(4, RoundingMode.HALF_UP)
+                );
+            })
+            .toList();
+
+        List<LightAppBalanceChannelBreakdownItem> channelBreakdown = channelMap.values().stream()
+            .sorted(Comparator.comparingInt(ChannelAccumulator::getTxCount).reversed().thenComparing(ChannelAccumulator::getChannelCode))
+            .map(item -> new LightAppBalanceChannelBreakdownItem(
+                item.getChannelCode(),
+                item.getChannelName(),
+                item.getIncome().setScale(4, RoundingMode.HALF_UP),
+                item.getExpense().setScale(4, RoundingMode.HALF_UP),
+                item.getTxCount()
+            ))
+            .toList();
+
+        BigDecimal normalizedIncome = incomeTotal.setScale(4, RoundingMode.HALF_UP);
+        BigDecimal normalizedExpense = expenseTotal.setScale(4, RoundingMode.HALF_UP);
+
+        return new LightAppBalanceAnalyticsResponse(
+            targetBaseCurrency,
+            new LightAppBalanceAnalyticsRange(range.fromInclusive(), range.toInclusive(), range.timeZoneId()),
+            new LightAppBalanceAnalyticsSummary(
+                normalizedIncome,
+                normalizedExpense,
+                normalizedIncome.subtract(normalizedExpense).setScale(4, RoundingMode.HALF_UP),
+                incomeCount,
+                expenseCount,
+                txEntities.size()
+            ),
+            new LightAppBalanceAssetSnapshot(
+                safeAmount(overview.totalBalance()),
+                safeAmount(overview.totalDebt()),
+                safeAmount(overview.netAsset())
+            ),
+            dailyTrend,
+            channelBreakdown
         );
     }
 
@@ -1526,6 +1685,94 @@ public class LightAppServiceImpl implements LightAppService {
             .orderByDesc(LightAppBalanceRecurringChargeEntity::getId));
     }
 
+    private LedgerDateRange resolveLedgerDateRange(LocalDateTime fromDatetime, LocalDateTime toDatetime, String rawTimeZoneId) {
+        String timeZoneId = normalizeTimeZoneId(rawTimeZoneId);
+        LocalDate fromDate = fromDatetime == null ? null : fromDatetime.toLocalDate();
+        LocalDate toDate = toDatetime == null ? null : toDatetime.toLocalDate();
+        LocalDate nowDate = ZonedDateTime.now(ZoneId.of(timeZoneId)).toLocalDate();
+
+        if (fromDate == null && toDate == null) {
+            toDate = nowDate;
+            fromDate = nowDate.minusDays(DEFAULT_LEDGER_RANGE_DAYS - 1L);
+        } else if (fromDate == null) {
+            fromDate = toDate.minusDays(DEFAULT_LEDGER_RANGE_DAYS - 1L);
+        } else if (toDate == null) {
+            toDate = fromDate.plusDays(DEFAULT_LEDGER_RANGE_DAYS - 1L);
+        }
+
+        LocalDateTime fromInclusive = LocalDateTime.of(fromDate, LocalTime.MIN);
+        LocalDateTime toInclusive = LocalDateTime.of(toDate, LocalTime.of(23, 59, 59));
+        if (toInclusive.isBefore(fromInclusive)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "to_datetime can not be before from_datetime");
+        }
+        return new LedgerDateRange(fromInclusive, toInclusive, timeZoneId);
+    }
+
+    private ChannelAccountFilter resolveChannelAccountFilter(Long userId, String channelCode) {
+        String normalized = normalizeOptionalText(channelCode);
+        if (!StringUtils.hasText(normalized)) {
+            return new ChannelAccountFilter(false, false, List.of());
+        }
+        String channelCodeFilter = normalized.toLowerCase(Locale.ROOT);
+        if (Objects.equals(channelCodeFilter, CHANNEL_CODE_UNBOUND)) {
+            return new ChannelAccountFilter(true, true, List.of());
+        }
+        List<Long> accountIds = listBalanceAccountsEntities(userId).stream()
+            .filter(item -> channelCodeFilter.equals(String.valueOf(item.getChannelCode() == null ? "" : item.getChannelCode()).toLowerCase(Locale.ROOT)))
+            .map(LightAppBalanceAccountEntity::getId)
+            .filter(Objects::nonNull)
+            .toList();
+        return new ChannelAccountFilter(true, false, accountIds);
+    }
+
+    private String normalizeOptionalDirection(String rawDirection) {
+        String candidate = normalizeOptionalText(rawDirection);
+        if (!StringUtils.hasText(candidate)) {
+            return null;
+        }
+        return normalizeDirection(candidate);
+    }
+
+    private LambdaQueryWrapper<LightAppBalanceTransactionEntity> buildBalanceTransactionQuery(
+        Long userId,
+        LocalDateTime fromInclusive,
+        LocalDateTime toInclusive,
+        ChannelAccountFilter channelFilter,
+        Long accountId,
+        String direction
+    ) {
+        LambdaQueryWrapper<LightAppBalanceTransactionEntity> query = new LambdaQueryWrapper<LightAppBalanceTransactionEntity>()
+            .eq(LightAppBalanceTransactionEntity::getUserId, userId)
+            .ge(fromInclusive != null, LightAppBalanceTransactionEntity::getOccurredAt, fromInclusive)
+            .le(toInclusive != null, LightAppBalanceTransactionEntity::getOccurredAt, toInclusive)
+            .orderByDesc(LightAppBalanceTransactionEntity::getOccurredAt)
+            .orderByDesc(LightAppBalanceTransactionEntity::getSortNum)
+            .orderByDesc(LightAppBalanceTransactionEntity::getId);
+
+        Long normalizedAccountId = accountId;
+        if (normalizedAccountId != null && normalizedAccountId <= 0) {
+            normalizedAccountId = null;
+        }
+
+        if (channelFilter != null && channelFilter.applied()) {
+            if (channelFilter.unboundOnly()) {
+                query.isNull(LightAppBalanceTransactionEntity::getAccountId);
+            } else if (channelFilter.accountIds().isEmpty()) {
+                query.eq(LightAppBalanceTransactionEntity::getId, -1L);
+            } else {
+                query.in(LightAppBalanceTransactionEntity::getAccountId, channelFilter.accountIds());
+            }
+        }
+
+        if (normalizedAccountId != null) {
+            query.eq(LightAppBalanceTransactionEntity::getAccountId, normalizedAccountId);
+        }
+        if (StringUtils.hasText(direction)) {
+            query.eq(LightAppBalanceTransactionEntity::getDirectionCode, direction);
+        }
+        return query;
+    }
+
     private void applyBalanceAccountUpsert(LightAppBalanceAccountEntity entity, LightAppBalanceAccountUpsertRequest request) {
         entity.setChannelCode(normalizeRequiredText(request.getChannelCode(), "channel_code").toLowerCase(Locale.ROOT));
         entity.setChannelName(normalizeRequiredText(request.getChannelName(), "channel_name"));
@@ -2253,6 +2500,58 @@ public class LightAppServiceImpl implements LightAppService {
             return new BigDecimal(String.valueOf(rawValue));
         } catch (NumberFormatException ex) {
             return null;
+        }
+    }
+
+    private record LedgerDateRange(
+        LocalDateTime fromInclusive,
+        LocalDateTime toInclusive,
+        String timeZoneId
+    ) {
+    }
+
+    private record ChannelAccountFilter(
+        boolean applied,
+        boolean unboundOnly,
+        List<Long> accountIds
+    ) {
+    }
+
+    private static final class DailyAccumulator {
+        private BigDecimal income = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+        private BigDecimal expense = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static final class ChannelAccumulator {
+        private final String channelCode;
+        private final String channelName;
+        private BigDecimal income = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+        private BigDecimal expense = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+        private int txCount = 0;
+
+        private ChannelAccumulator(String channelCode, String channelName) {
+            this.channelCode = channelCode;
+            this.channelName = channelName;
+        }
+
+        private String getChannelCode() {
+            return channelCode;
+        }
+
+        private String getChannelName() {
+            return channelName;
+        }
+
+        private BigDecimal getIncome() {
+            return income;
+        }
+
+        private BigDecimal getExpense() {
+            return expense;
+        }
+
+        private int getTxCount() {
+            return txCount;
         }
     }
 

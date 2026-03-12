@@ -121,27 +121,99 @@
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
-    <section v-if="section === BALANCE_SECTION_OVERVIEW" class="overview-grid">
-      <article class="metric-card liquid-material">
-        <p>账户总余额</p>
-        <strong>{{ formatAmount(overview.totalBalance, overview.baseCurrency) }}</strong>
+    <section v-if="section === BALANCE_SECTION_OVERVIEW" class="overview-stack">
+      <div class="metrics-strip">
+        <article class="metric-card liquid-material">
+          <p>账户总余额</p>
+          <strong>{{ formatAmount(overview.totalBalance, overview.baseCurrency) }}</strong>
+        </article>
+        <article class="metric-card liquid-material">
+          <p>总负债</p>
+          <strong>{{ formatAmount(overview.totalDebt, overview.baseCurrency) }}</strong>
+        </article>
+        <article class="metric-card liquid-material">
+          <p>净资产</p>
+          <strong>{{ formatAmount(overview.netAsset, overview.baseCurrency) }}</strong>
+        </article>
+      </div>
+
+      <article class="filters-bar liquid-material">
+        <div class="filters-presets">
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === '7d' }" @click="applyFilterPreset('7d')">7天</button>
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === '30d' }" @click="applyFilterPreset('30d')">30天</button>
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === 'month' }" @click="applyFilterPreset('month')">本月</button>
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === 'custom' }" @click="applyFilterPreset('custom')">自定义</button>
+        </div>
+        <div class="filters-inputs">
+          <input v-model="filterFromDate" type="date" />
+          <span>~</span>
+          <input v-model="filterToDate" type="date" />
+          <select v-model="filterChannelCode">
+            <option value="">全部渠道</option>
+            <option value="__unbound__">未绑定</option>
+            <option v-for="item in channelOptions" :key="`filter_channel_${item.channelCode}`" :value="item.channelCode">{{ item.channelName }}</option>
+          </select>
+        </div>
       </article>
-      <article class="metric-card liquid-material">
-        <p>总负债</p>
-        <strong>{{ formatAmount(overview.totalDebt, overview.baseCurrency) }}</strong>
-      </article>
-      <article class="metric-card liquid-material">
-        <p>净资产</p>
-        <strong>{{ formatAmount(overview.netAsset, overview.baseCurrency) }}</strong>
-      </article>
+
+      <section class="charts-zone">
+        <article class="chart-panel liquid-material">
+          <header>
+            <h4>最近收支趋势</h4>
+            <small>{{ analyticsLoading ? '加载中…' : filteredRangeText }}</small>
+          </header>
+          <div v-if="trendRows.length" class="trend-chart">
+            <div v-for="item in trendRows" :key="`trend_${item.day}`" class="trend-row">
+              <span>{{ item.day.slice(5) }}</span>
+              <div class="trend-bars">
+                <div class="bar is-income" :style="{ width: `${safePercent(item.incomeTotal, trendMaxValue)}%` }"></div>
+                <div class="bar is-expense" :style="{ width: `${safePercent(item.expenseTotal, trendMaxValue)}%` }"></div>
+              </div>
+            </div>
+          </div>
+          <p v-else class="empty-hint">暂无趋势数据</p>
+        </article>
+
+        <article class="chart-panel liquid-material">
+          <header>
+            <h4>渠道收支占比</h4>
+            <small>{{ analyticsLoading ? '加载中…' : `${analytics.summary.txCount} 笔` }}</small>
+          </header>
+          <div v-if="channelRows.length" class="channel-chart">
+            <div v-for="item in channelRows" :key="`channel_${item.channelCode}`" class="channel-row">
+              <span>{{ item.channelName || item.channelCode || '未知渠道' }}</span>
+              <div class="channel-bars">
+                <div class="bar is-income" :style="{ width: `${safePercent(item.incomeTotal, channelMaxValue)}%` }"></div>
+                <div class="bar is-expense" :style="{ width: `${safePercent(item.expenseTotal, channelMaxValue)}%` }"></div>
+              </div>
+            </div>
+          </div>
+          <p v-else class="empty-hint">暂无渠道数据</p>
+        </article>
+
+        <article class="chart-panel liquid-material asset-panel">
+          <header>
+            <h4>资产构成</h4>
+            <small>{{ overview.baseCurrency }}</small>
+          </header>
+          <div class="asset-donut-wrap">
+            <div class="asset-donut" :style="{ background: assetChartGradient }"></div>
+            <ul class="asset-legend">
+              <li><i class="dot balance"></i>余额 {{ formatAmount(assetChart.totalBalance, overview.baseCurrency) }}</li>
+              <li><i class="dot debt"></i>负债 {{ formatAmount(assetChart.totalDebt, overview.baseCurrency) }}</li>
+              <li><i class="dot net"></i>净资产 {{ formatAmount(assetChart.netAsset, overview.baseCurrency) }}</li>
+            </ul>
+          </div>
+        </article>
+      </section>
 
       <article class="overview-panel liquid-material">
         <header>
           <h4>最新收支</h4>
-          <span>{{ transactions.length }}</span>
+          <span>{{ filteredTransactions.length }}</span>
         </header>
-        <ul v-if="transactions.length" class="compact-list">
-          <li v-for="item in transactions.slice(0, 8)" :key="`overview_transaction_${item.transactionId}`">
+        <ul v-if="filteredTransactions.length" class="compact-list">
+          <li v-for="item in filteredTransactions.slice(0, 8)" :key="`overview_transaction_${item.transactionId}`">
             <span>{{ formatDateTime(item.occurredAt) }}</span>
             <strong :class="item.direction === 'INCOME' ? 'is-income' : 'is-expense'">
               {{ item.direction === 'INCOME' ? '+' : '-' }}{{ formatAmount(item.amount, item.currencyCode) }}
@@ -187,8 +259,37 @@
       <p v-if="!accounts.length" class="empty-hint">暂无账户渠道</p>
     </ul>
 
-    <ul v-else-if="section === BALANCE_SECTION_TRANSACTIONS" class="list-grid">
-      <li v-for="item in transactions" :key="`transaction_${item.transactionId}`" class="list-item liquid-material">
+    <section v-else-if="section === BALANCE_SECTION_TRANSACTIONS" class="ledger-records">
+      <article class="filters-bar liquid-material">
+        <div class="filters-presets">
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === '7d' }" @click="applyFilterPreset('7d')">7天</button>
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === '30d' }" @click="applyFilterPreset('30d')">30天</button>
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === 'month' }" @click="applyFilterPreset('month')">本月</button>
+          <button class="filter-chip ripple-trigger" type="button" :class="{ active: filterPreset === 'custom' }" @click="applyFilterPreset('custom')">自定义</button>
+        </div>
+        <div class="filters-inputs">
+          <input v-model="filterFromDate" type="date" />
+          <span>~</span>
+          <input v-model="filterToDate" type="date" />
+          <select v-model="filterChannelCode">
+            <option value="">全部渠道</option>
+            <option value="__unbound__">未绑定</option>
+            <option v-for="item in channelOptions" :key="`tx_filter_channel_${item.channelCode}`" :value="item.channelCode">{{ item.channelName }}</option>
+          </select>
+        </div>
+      </article>
+
+      <article class="ledger-summary liquid-material">
+        <p>{{ filteredRangeText }}</p>
+        <div class="ledger-summary-grid">
+          <span>总支出 {{ formatAmount(analytics.summary.expenseTotal, analytics.baseCurrency) }}（{{ analytics.summary.expenseCount }} 笔）</span>
+          <span>总收入 {{ formatAmount(analytics.summary.incomeTotal, analytics.baseCurrency) }}（{{ analytics.summary.incomeCount }} 笔）</span>
+          <span>净流入 {{ formatAmount(analytics.summary.netFlow, analytics.baseCurrency) }}（共 {{ analytics.summary.txCount }} 笔）</span>
+        </div>
+      </article>
+
+      <ul class="list-grid">
+      <li v-for="item in filteredTransactions" :key="`transaction_${item.transactionId}`" class="list-item liquid-material">
         <div class="list-main">
           <p>{{ item.category || '未分类' }}</p>
           <small>{{ accountName(item.accountId) }} · {{ formatDateTime(item.occurredAt) }}</small>
@@ -205,8 +306,9 @@
           </button>
         </div>
       </li>
-      <p v-if="!transactions.length" class="empty-hint">暂无收支记录</p>
-    </ul>
+      <p v-if="!filteredTransactions.length" class="empty-hint">暂无收支记录</p>
+      </ul>
+    </section>
 
     <ul v-else-if="section === BALANCE_SECTION_DEBTS" class="list-grid">
       <li v-for="item in debts" :key="`debt_${item.debtId}`" class="list-item liquid-material">
@@ -265,6 +367,7 @@ import {
   deleteLightAppBalanceDebt,
   deleteLightAppBalanceRecurringCharge,
   deleteLightAppBalanceTransaction,
+  getLightAppBalanceAnalytics,
   getLightAppBalanceOverview,
   listLightAppBalanceAccounts,
   listLightAppBalanceDebts,
@@ -277,6 +380,12 @@ import {
   updateLightAppBalanceRecurringCharge,
   updateLightAppBalanceTransaction
 } from '../../../services/lightAppsApi';
+import {
+  buildLedgerRangeQuery,
+  buildLocalBalanceAnalytics,
+  normalizeLedgerFilter,
+  resolvePresetRange
+} from './balanceAnalyticsUtils';
 import {
   createLocalEntityId,
   readGuestLightAppData,
@@ -327,13 +436,46 @@ const overview = ref({
   netAsset: 0,
   calculatedAt: ''
 });
+const analytics = ref({
+  baseCurrency: 'CNY',
+  range: {
+    fromDatetime: '',
+    toDatetime: '',
+    timeZone: 'Asia/Shanghai'
+  },
+  summary: {
+    incomeTotal: 0,
+    expenseTotal: 0,
+    netFlow: 0,
+    incomeCount: 0,
+    expenseCount: 0,
+    txCount: 0
+  },
+  assetSnapshot: {
+    totalBalance: 0,
+    totalDebt: 0,
+    netAsset: 0
+  },
+  dailyTrend: [],
+  channelBreakdown: []
+});
 
 const baseCurrency = ref('CNY');
 const showCreateForm = ref(false);
 const editingId = ref(0);
 const saving = ref(false);
 const refreshingFx = ref(false);
+const analyticsLoading = ref(false);
 const errorText = ref('');
+
+const filterPreset = ref('30d');
+const filterFromDate = ref('');
+const filterToDate = ref('');
+const filterChannelCode = ref('');
+const filterAccountId = ref('');
+const filterDirection = ref('');
+
+let filterRefreshTimer = 0;
 
 const accountDraft = reactive({
   channelName: '',
@@ -395,6 +537,117 @@ const currencyOptions = computed(() => {
   return Array.from(new Set([...seed, ...dynamic].map((item) => String(item || '').trim().toUpperCase()).filter(Boolean))).sort();
 });
 
+const channelOptions = computed(() => {
+  const map = new Map();
+  accounts.value.forEach((item) => {
+    const code = String(item?.channelCode || '').trim().toLowerCase();
+    const name = String(item?.channelName || item?.channelCode || '').trim();
+    if (!code) return;
+    if (!map.has(code)) {
+      map.set(code, {
+        channelCode: code,
+        channelName: name || code
+      });
+    }
+  });
+  return Array.from(map.values()).sort((left, right) => left.channelName.localeCompare(right.channelName));
+});
+
+const normalizedFilter = computed(() => normalizeLedgerFilter({
+  preset: filterPreset.value,
+  fromDate: filterFromDate.value,
+  toDate: filterToDate.value,
+  timeZone: 'Asia/Shanghai',
+  channelCode: filterChannelCode.value,
+  accountId: filterAccountId.value,
+  direction: filterDirection.value
+}));
+
+const ledgerRangeQuery = computed(() => buildLedgerRangeQuery(normalizedFilter.value));
+
+const filteredTransactions = computed(() => {
+  const range = ledgerRangeQuery.value;
+  const startTs = Date.parse(range.fromDatetime || '');
+  const endTs = Date.parse(range.toDatetime || '');
+  const hasRange = Number.isFinite(startTs) && Number.isFinite(endTs) && endTs >= startTs;
+  const filter = normalizedFilter.value;
+
+  return transactions.value.filter((item) => {
+    const ts = Date.parse(item?.occurredAt || '');
+    if (hasRange && (!Number.isFinite(ts) || ts < startTs || ts > endTs)) {
+      return false;
+    }
+    if (filter.direction && String(item?.direction || '').toUpperCase() !== filter.direction) {
+      return false;
+    }
+    if (filter.accountId && Number(item?.accountId || 0) !== Number(filter.accountId)) {
+      return false;
+    }
+    if (filter.channelCode) {
+      if (filter.channelCode === '__unbound__') {
+        return !item?.accountId;
+      }
+      const account = accounts.value.find((entry) => Number(entry.accountId) === Number(item?.accountId || 0));
+      const channelCode = String(account?.channelCode || '').trim().toLowerCase();
+      if (channelCode !== filter.channelCode) {
+        return false;
+      }
+    }
+    return true;
+  });
+});
+
+const filteredRangeText = computed(() => {
+  const filter = normalizedFilter.value;
+  const channelText = filter.channelCode
+    ? (filter.channelCode === '__unbound__'
+      ? '未绑定渠道'
+      : (channelOptions.value.find((item) => item.channelCode === filter.channelCode)?.channelName || filter.channelCode))
+    : '全部渠道';
+  return `${filter.fromDate || '-'} ~ ${filter.toDate || '-'} · ${channelText}`;
+});
+
+const trendRows = computed(() => Array.isArray(analytics.value?.dailyTrend) ? analytics.value.dailyTrend : []);
+const trendMaxValue = computed(() =>
+  Math.max(
+    1,
+    ...trendRows.value.map((item) => Math.max(Math.abs(Number(item?.incomeTotal || 0)), Math.abs(Number(item?.expenseTotal || 0))))
+  )
+);
+
+const channelRows = computed(() => Array.isArray(analytics.value?.channelBreakdown) ? analytics.value.channelBreakdown : []);
+const channelMaxValue = computed(() =>
+  Math.max(1, ...channelRows.value.map((item) => Math.max(Math.abs(Number(item?.incomeTotal || 0)), Math.abs(Number(item?.expenseTotal || 0)))))
+);
+
+const assetChart = computed(() => {
+  const snapshot = analytics.value?.assetSnapshot || {};
+  const totalBalance = Math.max(0, Number(snapshot.totalBalance || 0));
+  const totalDebt = Math.max(0, Number(snapshot.totalDebt || 0));
+  const netAsset = Math.max(0, Number(snapshot.netAsset || 0));
+  const total = Math.max(1, totalBalance + totalDebt + netAsset);
+  return {
+    totalBalance,
+    totalDebt,
+    netAsset,
+    balanceRate: (totalBalance / total) * 100,
+    debtRate: (totalDebt / total) * 100,
+    netAssetRate: (netAsset / total) * 100
+  };
+});
+
+const assetChartGradient = computed(() => {
+  const balanceRate = Math.max(0, Number(assetChart.value.balanceRate || 0));
+  const debtRate = Math.max(0, Number(assetChart.value.debtRate || 0));
+  const firstStop = Math.min(100, balanceRate);
+  const secondStop = Math.min(100, firstStop + debtRate);
+  return `conic-gradient(
+    rgba(98, 163, 255, 0.9) 0% ${firstStop}%,
+    rgba(228, 111, 143, 0.9) ${firstStop}% ${secondStop}%,
+    rgba(112, 198, 147, 0.9) ${secondStop}% 100%
+  )`;
+});
+
 const canSubmitCurrentSection = computed(() => {
   if (section.value === BALANCE_SECTION_ACCOUNTS) {
     return !!accountDraft.channelName.trim() && !!accountDraft.channelCode.trim() && !!accountDraft.accountName.trim();
@@ -443,6 +696,80 @@ function formatAmount(amount, currency) {
   const safe = Number.isFinite(normalized) ? normalized : 0;
   const code = String(currency || baseCurrency.value || 'CNY').toUpperCase();
   return `${safe.toFixed(2)} ${code}`;
+}
+
+function applyFilterPreset(preset) {
+  const normalized = String(preset || '30d').trim().toLowerCase() || '30d';
+  filterPreset.value = normalized;
+  if (normalized === 'custom') return;
+  const range = resolvePresetRange(normalized, new Date());
+  filterFromDate.value = range.fromDate;
+  filterToDate.value = range.toDate;
+}
+
+function safePercent(value, max) {
+  const numerator = Number(value);
+  const denominator = Number(max);
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, (numerator / denominator) * 100));
+}
+
+async function refreshAnalyticsData() {
+  analyticsLoading.value = true;
+  try {
+    await auth.ensureReady();
+    const range = ledgerRangeQuery.value;
+    const filter = normalizedFilter.value;
+    const payload = {
+      baseCurrency: baseCurrency.value,
+      fromDatetime: range.fromDatetime,
+      toDatetime: range.toDatetime,
+      timeZone: range.timeZone,
+      channelCode: filter.channelCode || '',
+      accountId: filter.accountId || null
+    };
+    if (auth.isAuthenticated.value) {
+      analytics.value = await getLightAppBalanceAnalytics(payload, auth.authorizedFetch);
+      return;
+    }
+    analytics.value = buildLocalBalanceAnalytics({
+      ...payload,
+      direction: filter.direction || '',
+      accounts: accounts.value,
+      transactions: transactions.value,
+      debts: debts.value,
+      fxRates: fxRates.value
+    });
+  } catch (error) {
+    analytics.value = buildLocalBalanceAnalytics({
+      baseCurrency: baseCurrency.value,
+      fromDatetime: ledgerRangeQuery.value.fromDatetime,
+      toDatetime: ledgerRangeQuery.value.toDatetime,
+      timeZone: ledgerRangeQuery.value.timeZone,
+      channelCode: normalizedFilter.value.channelCode || '',
+      accountId: normalizedFilter.value.accountId || null,
+      direction: normalizedFilter.value.direction || '',
+      accounts: accounts.value,
+      transactions: transactions.value,
+      debts: debts.value,
+      fxRates: fxRates.value
+    });
+    errorText.value = error?.message || '账单统计加载失败';
+  } finally {
+    analyticsLoading.value = false;
+  }
+}
+
+function queueAnalyticsRefresh() {
+  if (filterRefreshTimer) {
+    window.clearTimeout(filterRefreshTimer);
+  }
+  filterRefreshTimer = window.setTimeout(() => {
+    filterRefreshTimer = 0;
+    void refreshAnalyticsData();
+  }, 220);
 }
 
 function sortBySortNumAndId(items, key) {
@@ -537,6 +864,8 @@ function persistGuest(patch = {}) {
     balanceFxRates: fxRates.value,
     balanceOverview: overview.value
   }));
+
+  void refreshAnalyticsData();
 }
 
 async function loadRemoteAll() {
@@ -568,6 +897,8 @@ async function loadRemoteAll() {
     balanceOverview: overview.value,
     balanceFxRates: fxRates.value
   });
+
+  await refreshAnalyticsData();
 }
 
 async function hydrate() {
@@ -596,6 +927,7 @@ async function hydrate() {
     }
     baseCurrency.value = String(overview.value.baseCurrency || 'CNY').toUpperCase();
     rebuildGuestOverview();
+    await refreshAnalyticsData();
     return;
   }
 
@@ -618,6 +950,7 @@ async function hydrate() {
     };
     baseCurrency.value = overview.value.baseCurrency || 'CNY';
     errorText.value = error?.message || '余额轻应用加载失败，已回退本地缓存。';
+    await refreshAnalyticsData();
   }
 }
 
@@ -1085,10 +1418,12 @@ async function refreshFx() {
         balanceFxRates: fxRates.value,
         balanceOverview: overview.value
       });
+      await refreshAnalyticsData();
       return;
     }
     baseCurrency.value = targetBase;
     rebuildGuestOverview();
+    await refreshAnalyticsData();
   } catch (error) {
     errorText.value = error?.message || '刷新汇率失败';
   } finally {
@@ -1125,6 +1460,28 @@ watch(
 );
 
 watch(
+  () => filterPreset.value,
+  (preset) => {
+    if (String(preset || '').toLowerCase() === 'custom') return;
+    applyFilterPreset(preset);
+    queueAnalyticsRefresh();
+  }
+);
+
+watch(
+  () => [
+    filterFromDate.value,
+    filterToDate.value,
+    filterChannelCode.value,
+    filterAccountId.value,
+    filterDirection.value
+  ],
+  () => {
+    queueAnalyticsRefresh();
+  }
+);
+
+watch(
   () => baseCurrency.value,
   async (current, previous) => {
     const normalized = String(current || 'CNY').toUpperCase();
@@ -1138,16 +1495,19 @@ watch(
           balanceOverview: overview.value,
           balanceFxRates: fxRates.value
         });
+        await refreshAnalyticsData();
       } catch (error) {
         errorText.value = error?.message || '切换基准币失败';
       }
       return;
     }
     rebuildGuestOverview();
+    await refreshAnalyticsData();
   }
 );
 
 onMounted(async () => {
+  applyFilterPreset('30d');
   registerBalanceSectionChangeHandler(props.windowId, (nextSection) => {
     section.value = nextSection;
     showCreateForm.value = false;
@@ -1157,6 +1517,10 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  if (filterRefreshTimer) {
+    window.clearTimeout(filterRefreshTimer);
+    filterRefreshTimer = 0;
+  }
   registerBalanceSectionChangeHandler(props.windowId, null);
 });
 </script>
@@ -1253,19 +1617,44 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.overview-grid {
+.overview-stack {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.metrics-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(141, 169, 214, 0.6) rgba(255, 255, 255, 0.18);
+}
+
+.metrics-strip::-webkit-scrollbar {
+  height: 6px;
+}
+
+.metrics-strip::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.metrics-strip::-webkit-scrollbar-thumb {
+  background: rgba(141, 169, 214, 0.66);
+  border-radius: 999px;
 }
 
 .metric-card {
   --liquid-bg: var(--la-panel-bg);
   --liquid-border: var(--la-border);
   border-radius: 12px;
-  padding: 10px;
+  padding: 10px 12px;
   display: grid;
   gap: 4px;
+  min-width: 180px;
+  flex: 1 0 180px;
 }
 
 .metric-card p {
@@ -1276,6 +1665,212 @@ onBeforeUnmount(() => {
 
 .metric-card strong {
   font-size: 16px;
+  letter-spacing: 0.2px;
+}
+
+.filters-bar {
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filters-presets {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  background: rgba(var(--glass-rgb), 0.28);
+  color: var(--la-text);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1;
+  transition:
+    border-color 160ms ease,
+    background-color 180ms ease,
+    transform 140ms ease;
+}
+
+.filter-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(178, 206, 248, 0.72);
+  background: rgba(var(--glass-rgb), 0.4);
+}
+
+.filter-chip.active {
+  border-color: rgba(118, 176, 250, 0.82);
+  background: rgba(120, 178, 248, 0.26);
+  color: rgba(33, 62, 112, 0.95);
+}
+
+.filters-inputs {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filters-inputs span {
+  color: var(--la-muted);
+  font-size: 12px;
+}
+
+.filters-inputs input,
+.filters-inputs select {
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
+  border-radius: 9px;
+  padding: 6px 9px;
+  min-height: 32px;
+}
+
+.filters-inputs input:focus,
+.filters-inputs select:focus {
+  outline: none;
+  border-color: rgba(139, 185, 248, 0.82);
+  box-shadow: 0 0 0 2px rgba(144, 190, 252, 0.18);
+}
+
+.charts-zone {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.chart-panel {
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  min-height: 194px;
+}
+
+.chart-panel header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chart-panel h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.chart-panel small {
+  color: var(--la-muted);
+  font-size: 11px;
+}
+
+.trend-chart,
+.channel-chart {
+  display: grid;
+  gap: 6px;
+}
+
+.trend-row,
+.channel-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.trend-row span,
+.channel-row span {
+  color: var(--la-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trend-bars,
+.channel-bars {
+  display: grid;
+  gap: 4px;
+}
+
+.bar {
+  height: 7px;
+  border-radius: 999px;
+  min-width: 0;
+}
+
+.bar.is-income {
+  background: linear-gradient(90deg, rgba(90, 186, 122, 0.66), rgba(54, 150, 88, 0.94));
+}
+
+.bar.is-expense {
+  background: linear-gradient(90deg, rgba(238, 125, 153, 0.72), rgba(212, 91, 125, 0.94));
+}
+
+.asset-panel {
+  grid-template-rows: auto 1fr;
+}
+
+.asset-donut-wrap {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.asset-donut {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 0 0 11px rgba(255, 255, 255, 0.7);
+}
+
+.asset-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  color: var(--la-muted);
+  font-size: 12px;
+}
+
+.asset-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.balance {
+  background: rgba(98, 163, 255, 0.95);
+}
+
+.dot.debt {
+  background: rgba(228, 111, 143, 0.95);
+}
+
+.dot.net {
+  background: rgba(112, 198, 147, 0.95);
 }
 
 .overview-panel {
@@ -1285,7 +1880,6 @@ onBeforeUnmount(() => {
   padding: 10px;
   display: grid;
   gap: 8px;
-  grid-column: span 3;
 }
 
 .overview-panel header {
@@ -1322,6 +1916,40 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
   font-size: 11px;
   color: var(--la-muted);
+}
+
+.ledger-records {
+  display: grid;
+  gap: 10px;
+}
+
+.ledger-summary {
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 7px;
+}
+
+.ledger-summary > p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--la-muted);
+}
+
+.ledger-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ledger-summary-grid span {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 7px 9px;
+  font-size: 12px;
 }
 
 .list-grid {
@@ -1421,22 +2049,39 @@ onBeforeUnmount(() => {
     grid-column: span 2;
   }
 
-  .overview-grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
+  .charts-zone {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .overview-panel {
-    grid-column: span 1;
+  .filters-inputs {
+    margin-left: 0;
+  }
+
+  .asset-donut-wrap {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .ledger-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 760px) {
+  .charts-zone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .list-item {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .list-actions {
     justify-content: flex-end;
+  }
+
+  .ledger-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

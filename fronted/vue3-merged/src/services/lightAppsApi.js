@@ -35,6 +35,23 @@ function toText(value, fallback = '') {
   return normalized || fallback;
 }
 
+function compactQuery(rawQuery) {
+  const source = toObject(rawQuery);
+  const next = {};
+  Object.entries(source).forEach(([key, value]) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) return;
+      next[key] = value;
+      return;
+    }
+    const text = String(value).trim();
+    if (!text) return;
+    next[key] = text;
+  });
+  return Object.keys(next).length ? next : undefined;
+}
+
 function normalizeList(raw, itemMapper, idKey) {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -258,6 +275,69 @@ function normalizeBalanceOverview(raw) {
     totalDebt: toAmount(source.totalDebt ?? source.total_debt, 0),
     netAsset: toAmount(source.netAsset ?? source.net_asset, 0),
     calculatedAt: source.calculatedAt || source.calculated_at || ''
+  };
+}
+
+function normalizeBalanceAnalyticsRange(raw) {
+  const source = toObject(raw);
+  return {
+    fromDatetime: source.fromDatetime || source.from_datetime || '',
+    toDatetime: source.toDatetime || source.to_datetime || '',
+    timeZone: toText(source.timeZone ?? source.time_zone, 'Asia/Shanghai') || 'Asia/Shanghai'
+  };
+}
+
+function normalizeBalanceAnalyticsSummary(raw) {
+  const source = toObject(raw);
+  return {
+    incomeTotal: toAmount(source.incomeTotal ?? source.income_total, 0),
+    expenseTotal: toAmount(source.expenseTotal ?? source.expense_total, 0),
+    netFlow: toAmount(source.netFlow ?? source.net_flow, 0),
+    incomeCount: toNumber(source.incomeCount ?? source.income_count, 0),
+    expenseCount: toNumber(source.expenseCount ?? source.expense_count, 0),
+    txCount: toNumber(source.txCount ?? source.tx_count, 0)
+  };
+}
+
+function normalizeBalanceAssetSnapshot(raw) {
+  const source = toObject(raw);
+  return {
+    totalBalance: toAmount(source.totalBalance ?? source.total_balance, 0),
+    totalDebt: toAmount(source.totalDebt ?? source.total_debt, 0),
+    netAsset: toAmount(source.netAsset ?? source.net_asset, 0)
+  };
+}
+
+function normalizeBalanceDailyTrendItem(raw) {
+  const source = toObject(raw);
+  return {
+    day: toText(source.day, ''),
+    incomeTotal: toAmount(source.incomeTotal ?? source.income_total, 0),
+    expenseTotal: toAmount(source.expenseTotal ?? source.expense_total, 0),
+    netFlow: toAmount(source.netFlow ?? source.net_flow, 0)
+  };
+}
+
+function normalizeBalanceChannelBreakdownItem(raw) {
+  const source = toObject(raw);
+  return {
+    channelCode: toText(source.channelCode ?? source.channel_code, ''),
+    channelName: toText(source.channelName ?? source.channel_name, ''),
+    incomeTotal: toAmount(source.incomeTotal ?? source.income_total, 0),
+    expenseTotal: toAmount(source.expenseTotal ?? source.expense_total, 0),
+    txCount: toNumber(source.txCount ?? source.tx_count, 0)
+  };
+}
+
+function normalizeBalanceAnalytics(raw) {
+  const source = toObject(raw);
+  return {
+    baseCurrency: toText(source.baseCurrency ?? source.base_currency, 'CNY').toUpperCase() || 'CNY',
+    range: normalizeBalanceAnalyticsRange(source.range),
+    summary: normalizeBalanceAnalyticsSummary(source.summary),
+    assetSnapshot: normalizeBalanceAssetSnapshot(source.assetSnapshot ?? source.asset_snapshot),
+    dailyTrend: normalizeList(source.dailyTrend ?? source.daily_trend, normalizeBalanceDailyTrendItem),
+    channelBreakdown: normalizeList(source.channelBreakdown ?? source.channel_breakdown, normalizeBalanceChannelBreakdownItem)
   };
 }
 
@@ -680,9 +760,21 @@ export async function deleteLightAppBalanceAccount(accountId, authorizedFetch) {
   );
 }
 
-export async function listLightAppBalanceTransactions(authorizedFetch) {
+export async function listLightAppBalanceTransactions(filtersOrFetch, maybeAuthorizedFetch) {
+  const hasFilters = typeof filtersOrFetch === 'object' && filtersOrFetch !== null && typeof maybeAuthorizedFetch === 'function';
+  const filters = hasFilters ? filtersOrFetch : {};
+  const authorizedFetch = hasFilters ? maybeAuthorizedFetch : filtersOrFetch;
   ensureAuthorizedFetch(authorizedFetch);
-  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/balance/transactions', { method: 'GET' }));
+  const rawAccountId = Number(filters.accountId ?? filters.account_id);
+  const query = compactQuery({
+    from_datetime: filters.fromDatetime || filters.from_datetime || '',
+    to_datetime: filters.toDatetime || filters.to_datetime || '',
+    time_zone: filters.timeZone || filters.time_zone || '',
+    channel_code: filters.channelCode || filters.channel_code || '',
+    account_id: Number.isInteger(rawAccountId) && rawAccountId > 0 ? rawAccountId : undefined,
+    direction: filters.direction || ''
+  });
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/balance/transactions', { method: 'GET', query }));
   return normalizeList(raw, normalizeBalanceTransaction, 'transactionId');
 }
 
@@ -802,6 +894,27 @@ export async function getLightAppBalanceOverview(baseCurrency, authorizedFetch) 
     })
   );
   return normalizeBalanceOverview(raw);
+}
+
+export async function getLightAppBalanceAnalytics(filters, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const source = toObject(filters);
+  const rawAccountId = Number(source.accountId ?? source.account_id);
+  const query = compactQuery({
+    base_currency: toText(source.baseCurrency ?? source.base_currency, '').toUpperCase(),
+    from_datetime: source.fromDatetime || source.from_datetime || '',
+    to_datetime: source.toDatetime || source.to_datetime || '',
+    time_zone: source.timeZone || source.time_zone || '',
+    channel_code: source.channelCode || source.channel_code || '',
+    account_id: Number.isInteger(rawAccountId) && rawAccountId > 0 ? rawAccountId : undefined
+  });
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/balance/analytics', {
+      method: 'GET',
+      query
+    })
+  );
+  return normalizeBalanceAnalytics(raw);
 }
 
 export async function listLightAppFxRates(baseCurrency, authorizedFetch) {
