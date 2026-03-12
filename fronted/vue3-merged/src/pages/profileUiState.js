@@ -56,21 +56,21 @@ export function normalizeProfileTabKey(raw, fallback = ProfileTabKey.PROFILE) {
 
 export function createProfileAccordionState(initial = {}) {
   return {
-    [ProfileTabKey.PROFILE]:
-      isValidSection(ProfileTabKey.PROFILE, initial[ProfileTabKey.PROFILE]) ? initial[ProfileTabKey.PROFILE] : null,
-    [ProfileTabKey.ACCOUNT]:
-      isValidSection(ProfileTabKey.ACCOUNT, initial[ProfileTabKey.ACCOUNT]) ? initial[ProfileTabKey.ACCOUNT] : null,
-    [ProfileTabKey.ARTICLES]:
-      isValidSection(ProfileTabKey.ARTICLES, initial[ProfileTabKey.ARTICLES]) ? initial[ProfileTabKey.ARTICLES] : null,
-    [ProfileTabKey.SETTINGS]:
-      isValidSection(ProfileTabKey.SETTINGS, initial[ProfileTabKey.SETTINGS]) ? initial[ProfileTabKey.SETTINGS] : null
+    [ProfileTabKey.PROFILE]: normalizeOpenSectionList(ProfileTabKey.PROFILE, initial[ProfileTabKey.PROFILE]),
+    [ProfileTabKey.ACCOUNT]: normalizeOpenSectionList(ProfileTabKey.ACCOUNT, initial[ProfileTabKey.ACCOUNT]),
+    [ProfileTabKey.ARTICLES]: normalizeOpenSectionList(ProfileTabKey.ARTICLES, initial[ProfileTabKey.ARTICLES]),
+    [ProfileTabKey.SETTINGS]: normalizeOpenSectionList(ProfileTabKey.SETTINGS, initial[ProfileTabKey.SETTINGS])
   };
 }
 
-export function getTabOpenSection(state, tabKey) {
+export function getTabOpenSections(state, tabKey) {
   if (!isProfileTabKey(tabKey)) return null;
-  const value = state?.[tabKey];
-  return isValidSection(tabKey, value) ? value : null;
+  return normalizeOpenSectionList(tabKey, state?.[tabKey]);
+}
+
+export function getTabOpenSection(state, tabKey) {
+  const sections = getTabOpenSections(state, tabKey);
+  return Array.isArray(sections) && sections.length ? sections[0] : null;
 }
 
 export function toggleProfileAccordion(state, tabKey, sectionKey) {
@@ -80,10 +80,16 @@ export function toggleProfileAccordion(state, tabKey, sectionKey) {
   if (!isValidSection(tabKey, sectionKey)) {
     return { ...state };
   }
-  const current = getTabOpenSection(state, tabKey);
+  const current = getTabOpenSections(state, tabKey) || [];
+  const currentSet = new Set(current);
+  if (currentSet.has(sectionKey)) {
+    currentSet.delete(sectionKey);
+  } else {
+    currentSet.add(sectionKey);
+  }
   return {
     ...createProfileAccordionState(state),
-    [tabKey]: current === sectionKey ? null : sectionKey
+    [tabKey]: normalizeOpenSectionList(tabKey, Array.from(currentSet))
   };
 }
 
@@ -126,4 +132,18 @@ function isValidSection(tabKey, sectionKey) {
   if (!isProfileTabKey(tabKey)) return false;
   if (typeof sectionKey !== 'string' || !sectionKey) return false;
   return TAB_SECTION_MAP[tabKey].has(sectionKey);
+}
+
+function normalizeOpenSectionList(tabKey, rawValue) {
+  if (!isProfileTabKey(tabKey)) return [];
+  const source = Array.isArray(rawValue) ? rawValue : [rawValue];
+  const seen = new Set();
+  const normalized = [];
+  source.forEach((item) => {
+    const key = String(item || '').trim();
+    if (!isValidSection(tabKey, key) || seen.has(key)) return;
+    seen.add(key);
+    normalized.push(key);
+  });
+  return normalized;
 }

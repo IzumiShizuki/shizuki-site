@@ -69,6 +69,6 @@ retry "${UPLOAD_RETRIES}" sshpass -p "${REMOTE_PASS}" rsync -az --delete --parti
 
 echo "[2/2] Rebuilding and deploying containers ..."
 sshpass -p "${REMOTE_PASS}" ssh "${SSH_OPTS[@]}" "${REMOTE_USER}@${REMOTE_HOST}" \
-  "set -e; cd ${REMOTE_DEPLOY_DIR}; docker compose -f docker-compose.server.yml --env-file .env.server up -d --build; docker compose -f docker-compose.server.yml --env-file .env.server ps"
+  "set -e; cd ${REMOTE_DEPLOY_DIR}; if [ ! -s ../resouces/yaml/common-config.yaml ]; then echo '[ERROR] ../resouces/yaml/common-config.yaml is missing or empty' >&2; exit 1; fi; docker compose -f docker-compose.server.yml --env-file .env.server up -d --build; docker compose -f docker-compose.server.yml --env-file .env.server ps"
 
 echo "Update code + redeploy finished."

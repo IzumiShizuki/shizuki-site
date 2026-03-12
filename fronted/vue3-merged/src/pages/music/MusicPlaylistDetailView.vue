@@ -12,11 +12,11 @@
         <h1>{{ profile.name || '未命名歌单' }}</h1>
         <p class="hero-desc">{{ profile.description || '暂无简介' }}</p>
         <p class="hero-stats">
-          已显示 {{ visibleTracks.length }} / 已加载 {{ allTracks.length }} / 总计 {{ totalTrackCount }} 首
+          已显示 {{ renderTracks.length }} / 已加载 {{ allTracks.length }} / 总计 {{ totalTrackCount }} 首
         </p>
 
         <div class="hero-actions">
-          <button class="hero-btn primary ripple-trigger" type="button" @click="playAll" :disabled="!visibleTracks.length">
+          <button class="hero-btn primary ripple-trigger" type="button" @click="playAll" :disabled="!renderTracks.length">
             <i class="fas fa-play"></i>
             播放全部
           </button>
@@ -50,10 +50,10 @@
         <span>操作</span>
       </header>
 
-      <div v-if="!visibleTracks.length && !music.currentPlaylistLoading.value" class="empty-state">该歌单暂无可播放曲目</div>
+      <div v-if="!renderTracks.length && !music.currentPlaylistLoading.value" class="empty-state">该歌单暂无可播放曲目</div>
 
       <article
-        v-for="(item, index) in visibleTracks"
+        v-for="(item, index) in renderTracks"
         :key="`playlist-track-${resolveTrackId(item) || index}`"
         class="table-row search-track-row ripple-trigger"
         :class="{ active: resolveTrackId(item) === currentPlayingTrackId }"
@@ -124,6 +124,11 @@ const music = useMusicLibraryContext();
 const profile = computed(() => music.currentPlaylistProfile.value || { name: '', description: '', cover: '' });
 const allTracks = computed(() => (Array.isArray(music.currentPlaylistAllTracks?.value) ? music.currentPlaylistAllTracks.value : []));
 const visibleTracks = computed(() => (Array.isArray(music.currentPlaylistTracks.value) ? music.currentPlaylistTracks.value : []));
+const renderTracks = computed(() => {
+  if (visibleTracks.value.length > 0) return visibleTracks.value;
+  if (!allTracks.value.length) return [];
+  return allTracks.value.slice(0, Math.min(allTracks.value.length, 100));
+});
 const currentPlayingTrackId = computed(() => resolveTrackId(music.player.currentTrack.value));
 const collectPlaylistTargets = computed(() =>
   (Array.isArray(music.collectPlaylistTargets?.value) ? music.collectPlaylistTargets.value : [])
@@ -181,7 +186,7 @@ function resolveRawIndexByTrackId(trackId) {
 }
 
 function playTrack(filteredIndex) {
-  const row = visibleTracks.value[filteredIndex];
+  const row = renderTracks.value[filteredIndex];
   if (!row) return;
   const rawIndex = resolveRawIndexByTrackId(resolveTrackId(row));
   if (rawIndex < 0) return;
@@ -189,7 +194,7 @@ function playTrack(filteredIndex) {
 }
 
 function playAll() {
-  if (!visibleTracks.value.length) return;
+  if (!renderTracks.value.length) return;
   playTrack(0);
 }
 

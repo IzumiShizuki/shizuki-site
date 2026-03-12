@@ -120,59 +120,7 @@ class MediaServiceImplTest {
                 "image/png"
             ));
 
-        MediaStorageProperties mediaStorageProperties = new MediaStorageProperties();
-        mediaStorageProperties.setPublicBucket("shizuki-public");
-        mediaStorageProperties.setPrivateBucket("shizuki-private");
-        mediaStorageProperties.setPublicBaseUrl("https://cdn.example.com");
-        mediaStorageProperties.setSignExpireSeconds(600L);
-        mediaStorageProperties.setAllowedContentTypes(Set.of(
-            "image/png",
-            "image/jpeg",
-            "image/webp",
-            "image/gif",
-            "image/apng",
-            "application/zip",
-            "application/x-zip-compressed",
-            "audio/mpeg",
-            "audio/wav",
-            "audio/ogg"
-        ));
-
-        OssProperties ossProperties = new OssProperties();
-        ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
-        TuneHubMusicProperties tuneHubMusicProperties = new TuneHubMusicProperties();
-        tuneHubMusicProperties.setDefaultApiKey("th_test_default_key");
-        MusicListenCacheProperties listenCacheProperties = new MusicListenCacheProperties();
-
-        mediaService = new MediaServiceImpl(
-            objectStorageClient,
-            mediaStorageProperties,
-            ossProperties,
-            mediaAssetMapper,
-            mediaAssetGroupAclMapper,
-            mediaAssetReportMapper,
-            mediaL2dPackageMapper,
-            musicPlaylistMapper,
-            musicPlaylistProfileMapper,
-            musicPickUsageMapper,
-            musicProviderConfigMapper,
-            musicProviderGuideMapper,
-            musicUploadUsageMapper,
-            musicTrackCacheMapper,
-            userMusicPlaylistMapper,
-            userMusicPlaylistTrackMapper,
-            userMusicPlaylistCollectMapper,
-            l2dZipValidator,
-            assetSecurityInspector,
-            userMusicClient,
-            spotifyMusicClient,
-            tuneHubMusicProvider,
-            musicTrackCacheUploadPublisher,
-            tuneHubMusicProperties,
-            listenCacheProperties,
-            new com.fasterxml.jackson.databind.ObjectMapper(),
-            new TransactionTemplate(new NoOpTransactionManager())
-        );
+        mediaService = buildMediaService("th_test_default_key");
     }
 
     @AfterEach
@@ -615,6 +563,22 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldThrowForbiddenWhenAllTuneHubProvidersMissingApiKey() {
+        MediaServiceImpl serviceWithoutApiKey = buildMediaService("");
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> serviceWithoutApiKey.searchMusic("樱花", "track", "netease,kuwo,qq", 1, 10)
+        );
+
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, exception.getErrorCode());
+        Assertions.assertEquals("MUSIC_SEARCH_API_KEY_MISSING", exception.getDetails().get("music_error_code"));
+        Object providers = exception.getDetails().get("providers");
+        Assertions.assertTrue(providers instanceof List<?>);
+        Assertions.assertEquals(List.of("netease", "kuwo", "qq"), providers);
+    }
+
+    @Test
     void shouldLoadVirtualPlaylistBundleWithPlaylistSourceSummary() {
         Mockito.when(tuneHubMusicProvider.loadVirtualPlaylistTracks("th_test_default_key", "netease", "playlist", "2400142669"))
             .thenReturn(
@@ -702,6 +666,62 @@ class MediaServiceImplTest {
         entity.setVisibilityCode(visibilityCode);
         entity.setAuditStatus(auditStatus);
         return entity;
+    }
+
+    private MediaServiceImpl buildMediaService(String defaultApiKey) {
+        MediaStorageProperties mediaStorageProperties = new MediaStorageProperties();
+        mediaStorageProperties.setPublicBucket("shizuki-public");
+        mediaStorageProperties.setPrivateBucket("shizuki-private");
+        mediaStorageProperties.setPublicBaseUrl("https://cdn.example.com");
+        mediaStorageProperties.setSignExpireSeconds(600L);
+        mediaStorageProperties.setAllowedContentTypes(Set.of(
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif",
+            "image/apng",
+            "application/zip",
+            "application/x-zip-compressed",
+            "audio/mpeg",
+            "audio/wav",
+            "audio/ogg"
+        ));
+
+        OssProperties ossProperties = new OssProperties();
+        ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
+        TuneHubMusicProperties tuneHubMusicProperties = new TuneHubMusicProperties();
+        tuneHubMusicProperties.setDefaultApiKey(defaultApiKey);
+        MusicListenCacheProperties listenCacheProperties = new MusicListenCacheProperties();
+
+        return new MediaServiceImpl(
+            objectStorageClient,
+            mediaStorageProperties,
+            ossProperties,
+            mediaAssetMapper,
+            mediaAssetGroupAclMapper,
+            mediaAssetReportMapper,
+            mediaL2dPackageMapper,
+            musicPlaylistMapper,
+            musicPlaylistProfileMapper,
+            musicPickUsageMapper,
+            musicProviderConfigMapper,
+            musicProviderGuideMapper,
+            musicUploadUsageMapper,
+            musicTrackCacheMapper,
+            userMusicPlaylistMapper,
+            userMusicPlaylistTrackMapper,
+            userMusicPlaylistCollectMapper,
+            l2dZipValidator,
+            assetSecurityInspector,
+            userMusicClient,
+            spotifyMusicClient,
+            tuneHubMusicProvider,
+            musicTrackCacheUploadPublisher,
+            tuneHubMusicProperties,
+            listenCacheProperties,
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            new TransactionTemplate(new NoOpTransactionManager())
+        );
     }
 
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {

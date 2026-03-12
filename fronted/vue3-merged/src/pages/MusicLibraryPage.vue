@@ -316,7 +316,13 @@ const currentPlaylistAllTracks = computed(() => {
 });
 
 const currentPlaylistTracks = computed(() => {
-  return currentPlaylistAllTracks.value.slice(0, Math.max(0, Number(playlistBrowseVisibleCount.value || 0)));
+  const all = currentPlaylistAllTracks.value;
+  if (!all.length) return [];
+  const visible = Math.max(0, Number(playlistBrowseVisibleCount.value || 0));
+  if (visible <= 0) {
+    return all.slice(0, Math.min(all.length, PLAYLIST_BROWSE_INITIAL_VISIBLE));
+  }
+  return all.slice(0, visible);
 });
 const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length < currentPlaylistAllTracks.value.length);
 const currentPlaylistLoading = computed(() => Boolean(playlistBrowseLoading.value));
@@ -654,7 +660,7 @@ function setSearchPlaylistRowCapacity(nextCapacity) {
 function resetPlaylistBrowseVisibleCount(totalCount = 0) {
   const safeTotal = Number.isFinite(Number(totalCount)) ? Math.max(0, Number(totalCount)) : 0;
   playlistBrowseVisibleCount.value = safeTotal > 0
-    ? Math.min(safeTotal, PLAYLIST_BROWSE_INITIAL_VISIBLE)
+    ? Math.max(1, Math.min(safeTotal, PLAYLIST_BROWSE_INITIAL_VISIBLE))
     : PLAYLIST_BROWSE_INITIAL_VISIBLE;
 }
 
@@ -783,7 +789,9 @@ async function loadHomeData() {
   homeLoading.value = true;
   homeError.value = '';
   try {
-    const payload = await musicApi.getMusicLibraryHome();
+    const payload = await musicApi.getMusicLibraryHome(
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
     const featuredPlaylists = Array.isArray(payload?.featuredPlaylists || payload?.featured_playlists)
       ? (payload.featuredPlaylists || payload.featured_playlists).map((item) => normalizePlaylistSummary(item, DEFAULT_PLAYLIST_CODE))
       : [];
@@ -868,6 +876,7 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
     searchLoadingMoreError.value = '';
   }
   searchError.value = '';
+  const searchAuthorizedFetch = auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
   try {
     if (!append && isAllType) {
       const [playlistsResponse, tracksResponse, artistsResponse] = await Promise.allSettled([
@@ -876,19 +885,19 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
           providers,
           page: 1,
           limit: allPlaylistLimit
-        }),
+        }, searchAuthorizedFetch),
         musicApi.searchMusic(keyword, {
           type: 'track',
           providers,
           page: 1,
           limit: allTrackLimit
-        }),
+        }, searchAuthorizedFetch),
         musicApi.searchMusic(keyword, {
           type: 'artist',
           providers,
           page: 1,
           limit: allArtistLimit
-        })
+        }, searchAuthorizedFetch)
       ]);
 
       const playlistsPayload = playlistsResponse.status === 'fulfilled' ? playlistsResponse.value : null;
@@ -970,7 +979,7 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       providers,
       page: targetPage,
       limit: SEARCH_PAGE_SIZE
-    });
+    }, searchAuthorizedFetch);
     const normalized = {
       query: String(payload?.query || keyword),
       type: String(payload?.type || type || 'all'),
@@ -1105,12 +1114,13 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
   searchSectionLoading.value = { ...searchSectionLoading.value, [section]: true };
   searchSectionError.value = { ...searchSectionError.value, [section]: '' };
   try {
+    const searchAuthorizedFetch = auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
     const payload = await musicApi.searchMusic(criteria.keyword, {
       type: criteria.type,
       providers: criteria.providers,
       page: nextPage,
       limit: sectionLimit
-    });
+    }, searchAuthorizedFetch);
     const parsedHasMore = parseSearchHasMore(payload);
     const playlists = Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [];
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [];
@@ -1484,6 +1494,18 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
     playlistBrowseProfile.value = profile;
     playlistBrowseTracks.value = tracks;
     resetPlaylistBrowseVisibleCount(tracks.length);
+    // Keep this lightweight line log for runtime troubleshooting in browser console.
+    // eslint-disable-next-line no-console
+    console.info('[MUSIC_FRONT_PLAYLIST_BUNDLE_LOADED]', {
+      playlistCode,
+      loadedTracks: tracks.length,
+      visibleTracks: playlistBrowseVisibleCount.value,
+      firstTrack: tracks[0] ? {
+        trackId: tracks[0].trackId,
+        provider: tracks[0].provider,
+        title: tracks[0].title
+      } : null
+    });
   } catch (error) {
     playlistBrowseProfile.value = normalizePlaylistSummary(
       { playlistCode, name: '歌单加载失败', description: '', cover: '' },
@@ -1913,7 +1935,7 @@ watch(
 watch(
   () => auth.isAuthenticated.value,
   async () => {
-    await Promise.all([loadSidebarData(), loadTunehubStatus(), loadSpotifyBindingStatus()]);
+    await Promise.all([loadHomeData(), loadSidebarData(), loadTunehubStatus(), loadSpotifyBindingStatus()]);
     await ensureCurrentRoutePlaylistLoaded();
   }
 );

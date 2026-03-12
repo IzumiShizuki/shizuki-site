@@ -4,40 +4,40 @@ import {
   ProfileTabKey,
   buildSectionSummary,
   createProfileAccordionState,
-  getTabOpenSection,
+  getTabOpenSections,
   normalizeProfileTabKey,
   toggleProfileAccordion
 } from './profileUiState';
 
 describe('profileUiState', () => {
-  it('toggles accordion section in single-open mode', () => {
+  it('toggles accordion section in multi-open mode', () => {
     const state = createProfileAccordionState();
     const next = toggleProfileAccordion(state, ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.AVATAR);
 
-    expect(next.account).toBe(ProfileSectionKey.ACCOUNT.AVATAR);
+    expect(next.account).toEqual([ProfileSectionKey.ACCOUNT.AVATAR]);
 
-    const replaced = toggleProfileAccordion(next, ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.EMAIL_BIND);
-    expect(replaced.account).toBe(ProfileSectionKey.ACCOUNT.EMAIL_BIND);
+    const expanded = toggleProfileAccordion(next, ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.EMAIL_BIND);
+    expect(expanded.account).toEqual([ProfileSectionKey.ACCOUNT.AVATAR, ProfileSectionKey.ACCOUNT.EMAIL_BIND]);
   });
 
   it('collapses section when toggled again', () => {
     const state = createProfileAccordionState({
-      [ProfileTabKey.ACCOUNT]: ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD
+      [ProfileTabKey.ACCOUNT]: [ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD]
     });
     const next = toggleProfileAccordion(state, ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD);
-    expect(next.account).toBeNull();
+    expect(next.account).toEqual([]);
   });
 
   it('keeps state isolated across tabs', () => {
     const state = createProfileAccordionState({
-      [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.OVERVIEW,
-      [ProfileTabKey.ARTICLES]: ProfileSectionKey.ARTICLES.WORKSPACE
+      [ProfileTabKey.PROFILE]: [ProfileSectionKey.PROFILE.OVERVIEW],
+      [ProfileTabKey.ARTICLES]: [ProfileSectionKey.ARTICLES.WORKSPACE]
     });
     const next = toggleProfileAccordion(state, ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.OAUTH_BIND);
 
-    expect(getTabOpenSection(next, ProfileTabKey.PROFILE)).toBe(ProfileSectionKey.PROFILE.OVERVIEW);
-    expect(getTabOpenSection(next, ProfileTabKey.ARTICLES)).toBe(ProfileSectionKey.ARTICLES.WORKSPACE);
-    expect(getTabOpenSection(next, ProfileTabKey.ACCOUNT)).toBe(ProfileSectionKey.ACCOUNT.OAUTH_BIND);
+    expect(getTabOpenSections(next, ProfileTabKey.PROFILE)).toEqual([ProfileSectionKey.PROFILE.OVERVIEW]);
+    expect(getTabOpenSections(next, ProfileTabKey.ARTICLES)).toEqual([ProfileSectionKey.ARTICLES.WORKSPACE]);
+    expect(getTabOpenSections(next, ProfileTabKey.ACCOUNT)).toEqual([ProfileSectionKey.ACCOUNT.OAUTH_BIND]);
   });
 
   it('builds section summaries from payload', () => {

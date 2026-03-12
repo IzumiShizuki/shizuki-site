@@ -3636,6 +3636,28 @@ public class MediaServiceImpl implements MediaService {
 
     private MusicPlaylistBundleResponse buildUserPlaylistBundle(UserMusicPlaylistEntity playlist, boolean ownerView) {
         List<MusicTrackResponse> tracks = listUserPlaylistTracks(playlist.getPlaylistCode(), ownerView);
+        long missingTrackId = tracks.stream()
+            .filter(item -> !StringUtils.hasText(readString(item.trackId(), "")))
+            .count();
+        long missingAudio = tracks.stream()
+            .filter(item -> !StringUtils.hasText(readString(item.audio(), "")))
+            .count();
+        long tunehubResolvable = tracks.stream()
+            .filter(item -> {
+                String provider = readString(item.provider(), "").toLowerCase(Locale.ROOT);
+                return TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)
+                    && StringUtils.hasText(readString(item.trackId(), ""));
+            })
+            .count();
+        LOGGER.info(
+            "MUSIC_USER_PLAYLIST_BUNDLE_STATS playlistCode={} ownerView={} total={} missingTrackId={} missingAudio={} tunehubResolvable={}",
+            readString(playlist.getPlaylistCode(), ""),
+            ownerView,
+            tracks.size(),
+            missingTrackId,
+            missingAudio,
+            tunehubResolvable
+        );
         return new MusicPlaylistBundleResponse(
             toPlaylistSummary(playlist, tracks.size()),
             tracks
@@ -3670,19 +3692,73 @@ public class MediaServiceImpl implements MediaService {
 
     private MusicTrackResponse toPlaylistTrackResponse(UserMusicPlaylistTrackEntity entity) {
         Map<String, Object> metadata = readTrackMetadata(entity.getMetadataJson());
+        String trackId = readString(entity.getTrackId(), "");
+        if (!StringUtils.hasText(trackId)) {
+            trackId = readMetadataString(metadata, "trackId", "track_id", "id", "songId", "song_id");
+        }
+        String provider = readString(entity.getProviderCode(), "");
+        if (!StringUtils.hasText(provider)) {
+            provider = readMetadataString(metadata, "provider", "providerCode", "provider_code");
+        }
+        if (!StringUtils.hasText(provider)) {
+            provider = "local";
+        }
+        String title = readString(entity.getTitle(), readMetadataString(metadata, "title", "name"));
+        String artist = readString(entity.getArtist(), readMetadataString(metadata, "artist", "artists"));
+        String coverUrl = readString(
+            entity.getCoverUrl(),
+            readMetadataString(metadata, "cover", "coverUrl", "cover_url", "picUrl", "pic_url")
+        );
+        String audioUrl = readString(
+            entity.getAudioUrl(),
+            readMetadataString(
+                metadata,
+                "audio",
+                "audioUrl",
+                "audio_url",
+                "sourceAudioUrl",
+                "source_audio_url",
+                "sourceUrl",
+                "source_url"
+            )
+        );
+        String lyricUrl = readString(
+            entity.getLyricUrl(),
+            readMetadataString(metadata, "lyric", "lyricUrl", "lyric_url")
+        );
         return new MusicTrackResponse(
-            readString(entity.getTrackId(), ""),
-            readString(entity.getProviderCode(), "local"),
-            readString(entity.getTitle(), "Unknown"),
-            readString(entity.getArtist(), ""),
-            readString(entity.getCoverUrl(), ""),
-            readString(entity.getAudioUrl(), ""),
-            readString(entity.getLyricUrl(), ""),
+            trackId,
+            provider,
+            readString(title, "Unknown"),
+            artist,
+            coverUrl,
+            audioUrl,
+            lyricUrl,
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             Boolean.TRUE.equals(entity.getEnabledFlag()),
             "",
             metadata
         );
+    }
+
+    private String readMetadataString(Map<String, Object> metadata, String... keys) {
+        if (metadata == null || metadata.isEmpty() || keys == null || keys.length == 0) {
+            return "";
+        }
+        for (String key : keys) {
+            if (!StringUtils.hasText(key) || !metadata.containsKey(key)) {
+                continue;
+            }
+            Object raw = metadata.get(key);
+            if (raw == null) {
+                continue;
+            }
+            String normalized = readString(String.valueOf(raw), "");
+            if (StringUtils.hasText(normalized)) {
+                return normalized;
+            }
+        }
+        return "";
     }
 
     private UserMusicPlaylistEntity loadUserPlaylistByCode(String playlistCode) {

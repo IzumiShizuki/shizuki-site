@@ -18,10 +18,10 @@ export async function getDefaultPlaylistBundle() {
   return unwrapApiResponse(response);
 }
 
-export async function getMusicLibraryHome() {
-  const response = await httpRequest('/api/v1/music/library/home', {
-    method: 'GET'
-  });
+export async function getMusicLibraryHome(authorizedFetch) {
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/library/home', { method: 'GET' })
+    : await httpRequest('/api/v1/music/library/home', { method: 'GET' });
   return unwrapApiResponse(response);
 }
 

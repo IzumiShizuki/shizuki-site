@@ -8,6 +8,8 @@ cp .env.server.example .env.server
 # edit .env.server with real DB/Redis/JWT values
 # required: SHIZUKI_MUSIC_SECURITY_KEY_ENCRYPTION_MASTER_KEY must be base64 of 32 bytes
 # example generation: openssl rand -base64 32
+# music search key now comes from: ../resouces/yaml/common-config.yaml
+# field: shizuki.music.tunehub.default-api-key
 # if OSS is not configured yet, keep OSS_VALIDATE_BUCKETS_ON_STARTUP=false
 ```
 
@@ -23,6 +25,8 @@ docker compose -f docker-compose.server.yml --env-file .env.server up -d --build
 docker compose -f docker-compose.server.yml --env-file .env.server ps
 docker logs -f shizuki-site-backend
 docker logs -f shizuki-site-frontend
+# quick check yaml mount is visible in backend container
+docker exec shizuki-site-backend sh -lc 'ls -l /app/resouces/yaml && sed -n "1,140p" /app/resouces/yaml/common-config.yaml'
 ```
 
 ## 4) Access
@@ -30,6 +34,8 @@ docker logs -f shizuki-site-frontend
 - Frontend: `http://<server-ip>:5173`
 - Backend API: `http://<server-ip>:8080`
 - Health: `http://<server-ip>:8080/actuator/health`
+- Music search verify:
+  - `curl "http://<server-ip>:8080/api/v1/music/search?q=%E6%A8%B1%E8%8A%B1&type=track&providers=netease,kuwo,qq&page=1&limit=10"`
 
 ## 5) Domain (recommended)
 

@@ -595,10 +595,13 @@ export function usePlayerEngine(options = {}) {
       try {
         await audioElement.play();
         isPlaying.value = true;
+        return true;
       } catch {
         isPlaying.value = false;
+        return false;
       }
     }
+    return true;
   }
 
   async function togglePlay() {
@@ -891,9 +894,10 @@ export function usePlayerEngine(options = {}) {
     }
 
     const safeIndex = Math.max(0, Math.min(tracks.value.length - 1, Number.isFinite(Number(startIndex)) ? Number(startIndex) : 0));
-    await selectTrackByIndex(safeIndex, autoPlay, { resolveIfMissing: true });
+    const selected = await selectTrackByIndex(safeIndex, autoPlay, { resolveIfMissing: true });
     resetRandomQueue(tracks.value[safeIndex]?.id || '');
-    return true;
+    if (!autoPlay) return true;
+    return selected === true;
   }
 
   async function enqueueExternalTrack(rawTrack, autoPlay = false, options = {}) {
@@ -921,7 +925,8 @@ export function usePlayerEngine(options = {}) {
       lyricResolveAttempted.value = new Set();
       randomQueue.value = [];
       if (autoPlay) {
-        await selectTrackByIndex(0, true);
+        const selected = await selectTrackByIndex(0, true);
+        return selected === true;
       }
       return true;
     }
@@ -932,7 +937,8 @@ export function usePlayerEngine(options = {}) {
       next[existingIndex] = { ...next[existingIndex], ...normalized };
       tracks.value = next;
       if (autoPlay) {
-        await selectTrackByIndex(existingIndex, true);
+        const selected = await selectTrackByIndex(existingIndex, true);
+        return selected === true;
       }
     } else {
       tracks.value = [...tracks.value, normalized].map((item, idx) => ({
@@ -940,7 +946,8 @@ export function usePlayerEngine(options = {}) {
         sort: idx + 1
       }));
       if (autoPlay) {
-        await selectTrackByIndex(tracks.value.length - 1, true);
+        const selected = await selectTrackByIndex(tracks.value.length - 1, true);
+        return selected === true;
       }
     }
 

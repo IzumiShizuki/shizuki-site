@@ -9,7 +9,7 @@
       :status-text="section.statusText || ''"
       :avatar-url="section.avatarUrl || avatarUrl || ''"
       :avatar-action-label="avatarActionLabel"
-      :open="openKey === section.key"
+      :open="isSectionOpen(section.key)"
       @toggle="$emit('toggle', section.key)"
       @avatar-click="$emit('avatar-click', section.key)"
     >
@@ -21,14 +21,14 @@
 <script setup>
 import ProfileSectionItem from './ProfileSectionItem.vue';
 
-defineProps({
+const props = defineProps({
   sections: {
     type: Array,
     default: () => []
   },
-  openKey: {
-    type: String,
-    default: null
+  openKeys: {
+    type: Array,
+    default: () => []
   },
   avatarUrl: {
     type: String,
@@ -41,6 +41,10 @@ defineProps({
 });
 
 defineEmits(['toggle', 'avatar-click']);
+
+function isSectionOpen(sectionKey) {
+  return Array.isArray(props.openKeys) && props.openKeys.includes(sectionKey);
+}
 </script>
 
 <style scoped>
