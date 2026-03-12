@@ -565,6 +565,7 @@ import {
   ProfileTabKey,
   buildSectionSummary,
   createProfileAccordionState,
+  ensureProfileTabHasOpenSection,
   getTabOpenSections,
   normalizeProfileTabKey,
   toggleProfileAccordion
@@ -590,6 +591,12 @@ const navGroups = [
   { key: ProfileTabKey.ARTICLES, label: '文章', icon: 'fas fa-newspaper' },
   { key: ProfileTabKey.SETTINGS, label: '设置', icon: 'fas fa-sliders' }
 ];
+const GROUP_DEFAULT_SECTION = Object.freeze({
+  [ProfileTabKey.PROFILE]: ProfileSectionKey.PROFILE.QUICK_ACTIONS,
+  [ProfileTabKey.ACCOUNT]: ProfileSectionKey.ACCOUNT.AVATAR,
+  [ProfileTabKey.ARTICLES]: ProfileSectionKey.ARTICLES.WORKSPACE,
+  [ProfileTabKey.SETTINGS]: ProfileSectionKey.SETTINGS.APPEARANCE
+});
 const accountSectionLoaded = ref(false);
 
 const MUSIC_PROVIDER_ORDER_DEFAULT = ['netease', 'kuwo', 'qq'];
@@ -705,6 +712,8 @@ const placeholderCaptcha =
 let bindCooldownTimer = 0;
 let changePwdCooldownTimer = 0;
 let groupObserver = null;
+let groupObserverReady = false;
+let groupObserverResumeTimer = 0;
 
 function normalizeGroupKey(raw, fallback = ProfileTabKey.PROFILE) {
   return normalizeProfileTabKey(raw, fallback);
@@ -756,8 +765,35 @@ function scrollToGroup(groupKey, smooth = true) {
   });
 }
 
+function suspendGroupObserver(durationMs = 420) {
+  groupObserverReady = false;
+  if (typeof window === 'undefined') return;
+  if (groupObserverResumeTimer) {
+    window.clearTimeout(groupObserverResumeTimer);
+    groupObserverResumeTimer = 0;
+  }
+  groupObserverResumeTimer = window.setTimeout(() => {
+    groupObserverReady = true;
+    groupObserverResumeTimer = 0;
+  }, Math.max(0, Number(durationMs) || 0));
+}
+
+function ensureGroupSectionVisible(groupKey) {
+  const normalizedGroup = normalizeGroupKey(groupKey);
+  const fallbackSectionKey = GROUP_DEFAULT_SECTION[normalizedGroup];
+  if (!fallbackSectionKey) return;
+  const nextState = ensureProfileTabHasOpenSection(accordionState, normalizedGroup, fallbackSectionKey);
+  applyAccordionState(nextState);
+}
+
+function ensureAllGroupSectionsVisible() {
+  navGroups.forEach((group) => ensureGroupSectionVisible(group.key));
+}
+
 async function navigateToGroup(groupKey) {
   const normalized = normalizeGroupKey(groupKey);
+  suspendGroupObserver();
+  ensureGroupSectionVisible(normalized);
   activeGroup.value = normalized;
   await replaceRouteHash(normalized);
   await nextTick();
@@ -779,6 +815,7 @@ function setupGroupObserver() {
 
   groupObserver = new IntersectionObserver(
     (entries) => {
+      if (!groupObserverReady) return;
       const visibleEntries = entries.filter((entry) => entry.isIntersecting && entry.intersectionRatio > 0);
       if (!visibleEntries.length) return;
 
@@ -932,7 +969,10 @@ function forceOpenSection(tabKey, sectionKey) {
 
 function toggleGroupSection(groupKey, sectionKey) {
   const normalizedGroup = normalizeGroupKey(groupKey);
-  const nextState = toggleProfileAccordion(accordionState, normalizedGroup, sectionKey);
+  let nextState = toggleProfileAccordion(accordionState, normalizedGroup, sectionKey);
+  if (!(getTabOpenSections(nextState, normalizedGroup) || []).length) {
+    nextState = ensureProfileTabHasOpenSection(nextState, normalizedGroup, GROUP_DEFAULT_SECTION[normalizedGroup]);
+  }
   applyAccordionState(nextState);
 
   const openAccountSections = getTabOpenSections(nextState, ProfileTabKey.ACCOUNT) || [];
@@ -992,7 +1032,7 @@ async function refreshCaptcha() {
 }
 
 async function loadAccountProfile() {
-  if (!auth.isAuthenticated.value) return;
+  if (!auth.isAuthenticated.value) return false;
   accountLoading.value = true;
   clearErrors();
   let success = false;
@@ -1010,8 +1050,8 @@ async function loadAccountProfile() {
     profileForm.nickname = payload.nickname || auth.user.value?.nickname || '';
     bindEmailForm.email = payload.email || '';
     changePasswordForm.email = payload.email || '';
-    await loadMusicAuthorizationState();
     success = true;
+    void loadMusicAuthorizationState();
   } catch (error) {
     setGlobalHint(readErrorMessage(error));
   } finally {
@@ -1809,6 +1849,8 @@ watch(
   (nextHash) => {
     const group = tryResolveGroupKey(String(nextHash || '').replace(/^#/, ''));
     if (!group || group === activeGroup.value) return;
+    suspendGroupObserver();
+    ensureGroupSectionVisible(group);
     activeGroup.value = group;
     nextTick(() => {
       scrollToGroup(group, false);
@@ -1819,6 +1861,7 @@ watch(
 watch(
   () => activeGroup.value,
   async (group) => {
+    ensureGroupSectionVisible(group);
     if (group === ProfileTabKey.ACCOUNT) {
       await ensureAccountSectionReady();
       if (!captcha.captchaId) {
@@ -1846,9 +1889,11 @@ onMounted(async () => {
 
   const initialGroup = resolveInitialGroupFromRoute();
   activeGroup.value = initialGroup;
+  ensureAllGroupSectionsVisible();
   await replaceRouteHash(initialGroup);
   await nextTick();
   setupGroupObserver();
+  suspendGroupObserver();
   scrollToGroup(initialGroup, false);
 
   if (initialGroup === ProfileTabKey.ACCOUNT) {
@@ -1866,6 +1911,11 @@ onBeforeUnmount(() => {
   if (groupObserver) {
     groupObserver.disconnect();
     groupObserver = null;
+  }
+  groupObserverReady = false;
+  if (groupObserverResumeTimer) {
+    window.clearTimeout(groupObserverResumeTimer);
+    groupObserverResumeTimer = 0;
   }
   if (bindCooldownTimer) {
     window.clearInterval(bindCooldownTimer);
@@ -1912,7 +1962,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 116px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .profile-anchor-nav {

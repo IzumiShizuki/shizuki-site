@@ -33,11 +33,9 @@
       </button>
     </div>
 
-    <transition name="section-collapse">
-      <div v-show="open" class="section-body">
-        <slot />
-      </div>
-    </transition>
+    <div v-show="open" class="section-body">
+      <slot />
+    </div>
   </article>
 </template>
 
@@ -83,6 +81,8 @@ defineEmits(['toggle', 'avatar-click']);
   --liquid-shadow: 0 16px 30px rgba(4, 9, 16, 0.2);
   border-radius: 16px;
   overflow: hidden;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .section-head {
@@ -218,24 +218,6 @@ defineEmits(['toggle', 'avatar-click']);
   color: rgba(224, 237, 250, 0.96);
   display: grid;
   gap: 8px;
-}
-
-.section-collapse-enter-active,
-.section-collapse-leave-active {
-  overflow: hidden;
-  transition: opacity 0.2s ease, max-height 0.24s ease;
-}
-
-.section-collapse-enter-from,
-.section-collapse-leave-to {
-  opacity: 0;
-  max-height: 0;
-}
-
-.section-collapse-enter-to,
-.section-collapse-leave-from {
-  opacity: 1;
-  max-height: 1200px;
 }
 
 @media (max-width: 860px) {

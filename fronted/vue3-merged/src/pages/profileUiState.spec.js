@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ensureProfileTabHasOpenSection,
   ProfileSectionKey,
   ProfileTabKey,
   buildSectionSummary,
@@ -38,6 +39,31 @@ describe('profileUiState', () => {
     expect(getTabOpenSections(next, ProfileTabKey.PROFILE)).toEqual([ProfileSectionKey.PROFILE.OVERVIEW]);
     expect(getTabOpenSections(next, ProfileTabKey.ARTICLES)).toEqual([ProfileSectionKey.ARTICLES.WORKSPACE]);
     expect(getTabOpenSections(next, ProfileTabKey.ACCOUNT)).toEqual([ProfileSectionKey.ACCOUNT.OAUTH_BIND]);
+  });
+
+  it('restores a fallback section when the target tab is empty', () => {
+    const state = createProfileAccordionState({
+      [ProfileTabKey.PROFILE]: [],
+      [ProfileTabKey.ACCOUNT]: [ProfileSectionKey.ACCOUNT.AVATAR]
+    });
+
+    const next = ensureProfileTabHasOpenSection(state, ProfileTabKey.PROFILE, ProfileSectionKey.PROFILE.QUICK_ACTIONS);
+
+    expect(getTabOpenSections(next, ProfileTabKey.PROFILE)).toEqual([ProfileSectionKey.PROFILE.QUICK_ACTIONS]);
+    expect(getTabOpenSections(next, ProfileTabKey.ACCOUNT)).toEqual([ProfileSectionKey.ACCOUNT.AVATAR]);
+  });
+
+  it('keeps multi-open state when the target tab already has visible sections', () => {
+    const state = createProfileAccordionState({
+      [ProfileTabKey.ACCOUNT]: [ProfileSectionKey.ACCOUNT.AVATAR, ProfileSectionKey.ACCOUNT.EMAIL_BIND]
+    });
+
+    const next = ensureProfileTabHasOpenSection(state, ProfileTabKey.ACCOUNT, ProfileSectionKey.ACCOUNT.ACCOUNT_INFO);
+
+    expect(getTabOpenSections(next, ProfileTabKey.ACCOUNT)).toEqual([
+      ProfileSectionKey.ACCOUNT.AVATAR,
+      ProfileSectionKey.ACCOUNT.EMAIL_BIND
+    ]);
   });
 
   it('builds section summaries from payload', () => {

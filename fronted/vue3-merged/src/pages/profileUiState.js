@@ -93,6 +93,24 @@ export function toggleProfileAccordion(state, tabKey, sectionKey) {
   };
 }
 
+export function ensureProfileTabHasOpenSection(state, tabKey, fallbackSectionKey) {
+  const normalizedState = createProfileAccordionState(state);
+  if (!isProfileTabKey(tabKey)) {
+    return normalizedState;
+  }
+  if (!isValidSection(tabKey, fallbackSectionKey)) {
+    return normalizedState;
+  }
+  const current = getTabOpenSections(normalizedState, tabKey) || [];
+  if (current.length > 0) {
+    return normalizedState;
+  }
+  return {
+    ...normalizedState,
+    [tabKey]: [fallbackSectionKey]
+  };
+}
+
 export function buildSectionSummary(sectionKey, payload = {}) {
   switch (sectionKey) {
     case ProfileSectionKey.PROFILE.OVERVIEW: {

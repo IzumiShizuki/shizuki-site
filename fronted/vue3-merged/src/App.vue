@@ -47,6 +47,7 @@
           :class="{
             'route-content-home': isHomeRoute,
             'route-content-blog': isBlogRoute,
+            'route-content-profile': isProfileRoute,
             'route-content-music-player': isMusicPlayerDetailRoute,
             'route-content-music-shell': isMusicLibraryRoute && !isMusicPlayerDetailRoute
           }"
@@ -397,6 +398,7 @@ const currentRouteKey = computed(() => {
 const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] || '主页');
 const isHomeRoute = computed(() => currentRouteKey.value === 'home');
 const isBlogRoute = computed(() => currentRouteKey.value === 'blog');
+const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
@@ -2444,6 +2446,18 @@ onBeforeUnmount(() => {
 }
 
 .route-content.route-content-blog > .route-page-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.route-content.route-content-profile {
+  display: flex;
+  overflow: hidden;
+}
+
+.route-content.route-content-profile > .route-page-view {
   flex: 1;
   min-width: 0;
   min-height: 0;
