@@ -309,6 +309,49 @@
             </button>
           </header>
 
+          <section class="effect-summary-card">
+            <div class="effect-stage" :style="{ '--cover-bg': activeEffectPreset.cover }">
+              <div class="cover-gloss"></div>
+              <span
+                class="effect-preview effect-preview-stage"
+                :class="`effect-preview-${activeEffectPreset.id}`"
+                :style="activeEffectPreviewVars"
+              >
+                <span
+                  v-for="(token, index) in activeEffectPreviewTokens"
+                  :key="`${activeEffectPreset.id}-preview-${index}`"
+                  class="effect-particle"
+                  :class="`effect-particle-${token.kind}`"
+                  :style="token.style"
+                ></span>
+              </span>
+              <span class="card-tag effect-stage-tag">{{ effectStrength.enabled ? '实时预览' : '当前关闭' }}</span>
+            </div>
+
+            <div class="effect-summary-grid">
+              <article class="effect-stat-card">
+                <p class="mini-label">当前特效</p>
+                <strong>{{ activeEffectPreset.label }}</strong>
+                <small>{{ activeEffectPreset.title }}</small>
+              </article>
+              <article class="effect-stat-card">
+                <p class="mini-label">当前强度</p>
+                <strong>{{ effectStrength.label }}</strong>
+                <small>{{ effectStrength.percent }}%</small>
+              </article>
+              <article class="effect-stat-card">
+                <p class="mini-label">粒子密度</p>
+                <strong>{{ effectStrength.densityPercent }}%</strong>
+                <small>{{ effectState.density.toFixed(2) }}</small>
+              </article>
+              <article class="effect-stat-card">
+                <p class="mini-label">透明度</p>
+                <strong>{{ effectStrength.opacityPercent }}%</strong>
+                <small>{{ Math.round(effectState.opacity * 100) }}%</small>
+              </article>
+            </div>
+          </section>
+
           <p v-if="reducedMotion" class="inline-note warning">系统启用了“减少动态”，特效会自动降级或暂停。</p>
 
           <div class="range-grid">
@@ -345,13 +388,31 @@
             >
               <button class="cover-button ripple-trigger" type="button" :style="{ '--cover-bg': preset.cover }" @click="emit('effect-select-preset', preset.id)">
                 <div class="cover-gloss"></div>
-                <span class="effect-preview" :class="`effect-preview-${preset.id}`"></span>
+                <span
+                  class="effect-preview effect-preview-stage"
+                  :class="`effect-preview-${preset.id}`"
+                  :style="resolvePreviewVarsForCard(preset.id)"
+                >
+                  <span
+                    v-for="(token, index) in resolvePreviewTokensForCard(preset.id)"
+                    :key="`${preset.id}-card-${index}`"
+                    class="effect-particle"
+                    :class="`effect-particle-${token.kind}`"
+                    :style="token.style"
+                  ></span>
+                </span>
               </button>
               <div class="card-copy">
                 <div class="card-headline">
                   <strong>{{ preset.label }}</strong>
+                  <span v-if="effectState.presetId === preset.id" class="effect-badge">{{ effectStrength.label }} · {{ effectStrength.percent }}%</span>
                 </div>
                 <p>{{ preset.description }}</p>
+                <div class="effect-meta-row">
+                  <span class="effect-meta-pill">
+                    {{ effectState.presetId === preset.id ? `强度 ${effectStrength.densityPercent}% / 透明 ${effectStrength.opacityPercent}%` : '点击切换并查看预览' }}
+                  </span>
+                </div>
               </div>
             </article>
           </div>
@@ -363,6 +424,12 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import { findEffectPresetById } from '../utils/atmosphereCatalog';
+import {
+  resolveEffectPreviewTokens,
+  resolveEffectPreviewVars,
+  resolveEffectStrength
+} from '../utils/atmosphereEffectPreview';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -465,6 +532,10 @@ const lyricWindow = computed(() => {
     key: String(context.key || `${prev}__${current}__${next}`)
   };
 });
+const activeEffectPreset = computed(() => findEffectPresetById(props.effectState?.presetId));
+const effectStrength = computed(() => resolveEffectStrength(props.effectState));
+const activeEffectPreviewTokens = computed(() => resolveEffectPreviewTokens(activeEffectPreset.value.id));
+const activeEffectPreviewVars = computed(() => resolveEffectPreviewVars(props.effectState, { active: true }));
 
 const groupedLibrary = computed(() => {
   const groups = [
@@ -511,6 +582,22 @@ function resolveTrackSourceLabel(track) {
   if (track?.source === 'builtin') return '内置音源';
   if (track?.source === 'asset') return '账户上传';
   return '本次会话';
+}
+
+function resolvePreviewTokensForCard(presetId) {
+  return resolveEffectPreviewTokens(presetId);
+}
+
+function resolvePreviewVarsForCard(presetId) {
+  return resolveEffectPreviewVars(
+    {
+      ...props.effectState,
+      presetId
+    },
+    {
+      active: props.effectState?.presetId === presetId
+    }
+  );
 }
 </script>
 
@@ -1022,8 +1109,7 @@ input[type='range'] {
   place-items: center;
 }
 
-.cover-button i,
-.effect-preview {
+.cover-button i {
   position: relative;
   z-index: 1;
 }
@@ -1083,15 +1169,78 @@ input[type='range'] {
   min-height: 132px;
 }
 
+.effect-summary-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr);
+  gap: 12px;
+}
+
+.effect-stage {
+  position: relative;
+  min-height: 176px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: var(--cover-bg);
+  overflow: hidden;
+}
+
+.effect-stage-tag {
+  bottom: auto;
+  top: 10px;
+}
+
+.effect-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.effect-stat-card,
+.effect-meta-row {
+  display: grid;
+  gap: 4px;
+}
+
+.effect-stat-card {
+  min-height: 84px;
+  align-content: start;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.28);
+  padding: 12px;
+}
+
+.effect-stat-card strong {
+  color: rgba(26, 32, 42, 0.92);
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.effect-stat-card small,
+.effect-meta-pill {
+  color: rgba(60, 73, 89, 0.7);
+}
+
 .effect-preview {
-  width: 78px;
-  height: 78px;
-  border-radius: 999px;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .effect-preview-none {
-  border: 1px dashed rgba(255, 255, 255, 0.56);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+}
+
+.effect-preview-stage::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(15, 18, 24, 0.08));
 }
 
 .effect-preview-sakura {
@@ -1119,6 +1268,77 @@ input[type='range'] {
     radial-gradient(circle at 26% 28%, rgba(255, 232, 129, 0.96), transparent 18%),
     radial-gradient(circle at 64% 52%, rgba(255, 219, 108, 0.84), transparent 16%),
     radial-gradient(circle at 42% 72%, rgba(255, 235, 151, 0.7), transparent 12%);
+}
+
+.effect-particle {
+  position: absolute;
+  left: var(--preview-x);
+  top: var(--preview-y);
+  opacity: calc(var(--preview-opacity) * var(--effect-preview-opacity-scale, 1));
+  animation-delay: var(--preview-delay);
+  animation-duration: calc(var(--preview-duration) * var(--effect-preview-drift-scale, 1));
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+  transform-origin: center;
+}
+
+.effect-particle-petal {
+  width: calc(var(--preview-size) * 0.72 * var(--effect-preview-density-scale, 1));
+  height: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  border-radius: 72% 42% 66% 44%;
+  background: linear-gradient(180deg, rgba(255, 247, 251, 0.92), rgba(255, 182, 211, 0.92));
+  box-shadow: 0 6px 16px rgba(228, 125, 169, 0.26);
+  transform: rotate(var(--preview-rotate));
+  animation-name: effect-preview-petal;
+}
+
+.effect-particle-flake {
+  width: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  height: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.96), rgba(215, 234, 255, 0.82));
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.22);
+  animation-name: effect-preview-float;
+}
+
+.effect-particle-streak {
+  width: 2px;
+  height: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(226, 238, 255, 0.96), rgba(255, 255, 255, 0));
+  transform: rotate(var(--preview-rotate));
+  animation-name: effect-preview-rain;
+}
+
+.effect-particle-glow {
+  width: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  height: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 239, 148, 0.98), rgba(255, 213, 104, 0.38) 58%, rgba(255, 213, 104, 0) 74%);
+  filter: blur(var(--preview-blur));
+  box-shadow: 0 0 18px rgba(255, 221, 115, 0.34);
+  animation-name: effect-preview-glow;
+}
+
+.effect-particle-quiet {
+  width: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  height: calc(var(--preview-size) * var(--effect-preview-density-scale, 1));
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 72%);
+  filter: blur(var(--preview-blur));
+  animation-name: effect-preview-quiet;
+}
+
+.effect-badge,
+.effect-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
 }
 
 .hidden-input {
@@ -1150,7 +1370,59 @@ input[type='range'] {
   }
 }
 
+@keyframes effect-preview-petal {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--preview-rotate));
+  }
+  50% {
+    transform: translate3d(10px, 14px, 0) rotate(calc(var(--preview-rotate) + 10deg));
+  }
+}
+
+@keyframes effect-preview-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(4px, 16px, 0);
+  }
+}
+
+@keyframes effect-preview-rain {
+  0% {
+    transform: translate3d(0, -10px, 0) rotate(var(--preview-rotate));
+  }
+  100% {
+    transform: translate3d(-8px, 26px, 0) rotate(var(--preview-rotate));
+  }
+}
+
+@keyframes effect-preview-glow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.94);
+  }
+  50% {
+    transform: translate3d(6px, -10px, 0) scale(1.08);
+  }
+}
+
+@keyframes effect-preview-quiet {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.36;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.62;
+  }
+}
+
 @media (max-width: 900px) {
+  .effect-summary-card,
   .music-layout,
   .range-grid,
   .mix-row {
@@ -1199,6 +1471,10 @@ input[type='range'] {
   .vinyl-disc {
     width: 176px;
     height: 176px;
+  }
+
+  .effect-summary-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
