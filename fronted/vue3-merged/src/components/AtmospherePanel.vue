@@ -4,44 +4,44 @@
       <section class="atmo-panel liquid-material" @click.stop>
         <header class="atmo-header">
           <div class="atmo-head-main">
-            <p class="eyebrow">Menu Atmosphere Hub</p>
+            <p class="eyebrow">Atmosphere System</p>
             <h2>氛围面板</h2>
-            <p class="head-copy">音乐、环境音和特效在同一页同时操作，界面基线对齐站内浅色毛玻璃面板。</p>
+            <p class="head-copy">把音乐、环境音和背景特效拆成独立卡片切换，不再整页堆叠。</p>
           </div>
-
-          <div class="section-strip">
-            <button
-              v-for="anchor in sectionAnchors"
-              :key="anchor.key"
-              class="section-chip ripple-trigger"
-              type="button"
-              @click="scrollToSection(anchor.key)"
-            >
-              <i :class="anchor.icon" aria-hidden="true"></i>
-              <span>{{ anchor.label }}</span>
-            </button>
-          </div>
-
           <button class="close-btn ripple-trigger" type="button" @click="emit('close')">关闭</button>
         </header>
 
-        <div class="panel-layout">
-          <section ref="musicSectionRef" class="overview-card music-zone">
-            <header class="block-head">
-              <div>
-                <p class="section-kicker">Mini Music Library</p>
-                <h3>歌单与歌曲列表</h3>
-              </div>
-              <div class="block-actions">
-                <button class="soft-btn ripple-trigger" type="button" @click="emit('music-refresh')">刷新</button>
-                <button class="soft-btn primary ripple-trigger" type="button" @click="emit('open-music-library')">完整音乐库</button>
-              </div>
-            </header>
+        <div class="route-strip">
+          <button
+            v-for="tab in tabs"
+            :key="tab.key"
+            class="route-tab ripple-trigger"
+            :class="{ active: activeTab === tab.key }"
+            type="button"
+            @click="emit('set-tab', tab.key)"
+          >
+            <i :class="tab.icon" aria-hidden="true"></i>
+            <span>{{ tab.label }}</span>
+          </button>
+        </div>
 
-            <p v-if="musicLibraryState?.errorText" class="inline-note warning">{{ musicLibraryState.errorText }}</p>
-            <p v-else-if="!isAuthenticated" class="inline-note">未登录时只展示默认/精选歌单；登录后会补充红心、创建和收藏歌单。</p>
+        <section v-if="activeTab === 'music'" class="panel-body music-body">
+          <div class="music-layout">
+            <section class="music-library-card">
+              <header class="block-head">
+                <div>
+                  <p class="section-kicker">Mini Music Library</p>
+                  <h3>歌单与歌曲列表</h3>
+                </div>
+                <div class="block-actions">
+                  <button class="soft-btn ripple-trigger" type="button" @click="emit('music-refresh')">刷新</button>
+                  <button class="soft-btn primary ripple-trigger" type="button" @click="emit('open-music-library')">完整音乐库</button>
+                </div>
+              </header>
 
-            <div class="playlist-group-stack">
+              <p v-if="musicLibraryState?.errorText" class="inline-note warning">{{ musicLibraryState.errorText }}</p>
+              <p v-else-if="!isAuthenticated" class="inline-note">未登录时只展示默认/精选歌单；登录后会补充红心、创建和收藏歌单。</p>
+
               <section v-for="group in musicGroups" :key="group.key" class="playlist-group">
                 <div class="group-head">
                   <div>
@@ -73,67 +73,70 @@
                   </button>
                 </div>
               </section>
-            </div>
 
-            <section class="track-sheet">
-              <header class="track-head">
-                <div>
-                  <p class="mini-label">Playlist Tracks</p>
-                  <h4>{{ currentPlaylist.name || '歌单曲目' }}</h4>
+              <section class="track-sheet">
+                <header class="track-head">
+                  <div>
+                    <p class="mini-label">Playlist Tracks</p>
+                    <h4>{{ currentPlaylist.name || '歌单曲目' }}</h4>
+                  </div>
+                  <span class="count-pill">{{ currentTracks.length }}</span>
+                </header>
+
+                <p v-if="musicLibraryState?.playlistLoading" class="inline-note">歌单加载中...</p>
+                <p v-else-if="!currentTracks.length" class="empty-note">当前歌单没有可展示的曲目。</p>
+
+                <div v-else class="track-list">
+                  <article
+                    v-for="(track, index) in currentTracks"
+                    :key="`${track.trackId}-${index}`"
+                    class="track-row ripple-trigger"
+                    role="button"
+                    tabindex="0"
+                    @click="emit('music-play-track', index)"
+                    @keydown.enter.prevent="emit('music-play-track', index)"
+                    @keydown.space.prevent="emit('music-play-track', index)"
+                  >
+                    <span class="track-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                    <div class="track-cover">
+                      <img v-if="track.cover" :src="track.cover" :alt="track.title" />
+                      <div v-else class="track-cover-fallback"><i class="fas fa-music"></i></div>
+                    </div>
+                    <div class="track-copy">
+                      <strong>{{ track.title }}</strong>
+                      <small>{{ track.artist || '未知歌手' }}</small>
+                    </div>
+                    <span class="track-duration">{{ track.durationLabel || '--:--' }}</span>
+                    <button class="row-action ripple-trigger" type="button" @click.stop="emit('music-play-track', index)">
+                      播放
+                    </button>
+                  </article>
                 </div>
-                <span class="count-pill">{{ currentTracks.length }}</span>
-              </header>
-
-              <p v-if="musicLibraryState?.playlistLoading" class="inline-note">歌单加载中...</p>
-              <p v-else-if="!currentTracks.length" class="empty-note">当前歌单没有可展示的曲目。</p>
-
-              <div v-else class="track-list">
-                <article
-                  v-for="(track, index) in currentTracks"
-                  :key="`${track.trackId}-${index}`"
-                  class="track-row ripple-trigger"
-                  role="button"
-                  tabindex="0"
-                  @click="emit('music-play-track', index)"
-                  @keydown.enter.prevent="emit('music-play-track', index)"
-                  @keydown.space.prevent="emit('music-play-track', index)"
-                >
-                  <span class="track-index">{{ String(index + 1).padStart(2, '0') }}</span>
-                  <div class="track-cover">
-                    <img v-if="track.cover" :src="track.cover" :alt="track.title" />
-                    <div v-else class="track-cover-fallback"><i class="fas fa-music"></i></div>
-                  </div>
-                  <div class="track-copy">
-                    <strong>{{ track.title }}</strong>
-                    <small>{{ track.artist || '未知歌手' }}</small>
-                  </div>
-                  <span class="track-duration">{{ track.durationLabel || '--:--' }}</span>
-                  <button class="row-action ripple-trigger" type="button" @click.stop="emit('music-play-track', index)">
-                    播放
-                  </button>
-                </article>
-              </div>
+              </section>
             </section>
-          </section>
 
-          <aside class="side-stack">
-            <section class="overview-card summary-card">
+            <aside class="music-now-card">
               <header class="block-head compact">
                 <div>
                   <p class="section-kicker">Now Playing</p>
-                  <h3>当前播放</h3>
+                  <h3>正在播放</h3>
                 </div>
               </header>
 
-              <div class="summary-track">
-                <div class="summary-cover">
-                  <img v-if="musicTrack?.cover" :src="musicTrack.cover" alt="music-cover" />
-                  <div v-else class="playlist-fallback"><i class="fas fa-music"></i></div>
-                </div>
-                <div class="summary-copy">
-                  <strong>{{ musicTrack?.title || '当前未播放音乐' }}</strong>
-                  <span>{{ musicTrack?.artist || '可以在左侧歌单中快速切歌。' }}</span>
-                </div>
+              <button class="vinyl-button ripple-trigger" type="button" @click="emit('music-toggle-play')">
+                <span class="vinyl-disc" :class="{ spinning: musicPlaying }">
+                  <span class="vinyl-rings"></span>
+                  <span class="vinyl-cover">
+                    <img v-if="musicTrack?.cover" :src="musicTrack.cover" alt="vinyl-cover" />
+                    <span v-else class="playlist-fallback"><i class="fas fa-music"></i></span>
+                  </span>
+                  <span class="vinyl-hole"></span>
+                </span>
+              </button>
+
+              <div class="music-now-copy">
+                <strong>{{ musicTrack?.title || '当前未播放音乐' }}</strong>
+                <span>{{ musicTrack?.artist || '切换到歌单中的曲目即可播放。' }}</span>
               </div>
 
               <div class="summary-actions">
@@ -147,198 +150,212 @@
                   <i class="fas fa-forward-step"></i>
                 </button>
               </div>
-            </section>
 
-            <section ref="ambientSectionRef" class="overview-card ambient-zone">
-              <header class="block-head compact">
-                <div>
-                  <p class="section-kicker">Ambient Mixer</p>
-                  <h3>环境音 / 白噪音</h3>
-                </div>
-                <div class="block-actions">
-                  <button class="soft-btn ripple-trigger" type="button" @click="emit('ambient-mute-all')">全部静音</button>
-                  <button class="soft-btn primary ripple-trigger" type="button" @click="openUploadPicker">
-                    {{ uploading ? '上传中...' : isAuthenticated ? '上传环境音' : '临时上传' }}
-                  </button>
-                </div>
-                <input ref="uploadInputRef" class="hidden-input" type="file" accept="audio/*" @change="onUploadChange" />
-              </header>
-
-              <label class="range-group">
-                <span>总音量 {{ Math.round((ambientState?.ambient?.masterVolume || 0) * 100) }}%</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  :value="ambientState?.ambient?.masterVolume || 0"
-                  @input="emit('ambient-set-master-volume', Number($event.target.value))"
-                />
-              </label>
-
-              <p v-if="mixerNeedsGesture" class="inline-note warning">
-                浏览器需要一次用户手势来恢复环境音播放。
-                <button class="inline-link" type="button" @click="emit('resume-ambient')">恢复播放</button>
-              </p>
-              <p v-if="uploadHint" class="inline-note">{{ uploadHint }}</p>
-
-              <section class="mix-card">
-                <div class="group-head">
-                  <div>
-                    <p class="mini-label">Current Mix</p>
-                    <h4>正在混音的轨道</h4>
+              <section class="lyrics-box">
+                <header class="lyrics-head">
+                  <p class="mini-label">Live Lyrics</p>
+                  <span>{{ musicPlaying ? '播放中' : '暂停中' }}</span>
+                </header>
+                <transition name="lyric-switch" mode="out-in">
+                  <div class="lyrics-triplet" :key="lyricWindow.key">
+                    <p class="lyric-line prev">{{ lyricWindow.prev }}</p>
+                    <p class="lyric-line current">{{ lyricWindow.current }}</p>
+                    <p class="lyric-line next">{{ lyricWindow.next }}</p>
                   </div>
-                  <div class="preset-actions">
-                    <input v-model.trim="presetName" class="preset-input" type="text" maxlength="24" placeholder="保存当前预设" />
-                    <button class="soft-btn ripple-trigger" type="button" @click="savePreset">保存预设</button>
-                  </div>
-                </div>
-
-                <div v-if="enabledTracks.length" class="mix-list">
-                  <article v-for="track in enabledTracks" :key="track.trackId" class="mix-row">
-                    <div class="mix-copy">
-                      <strong>{{ track.title }}</strong>
-                      <small>{{ resolveTrackSourceLabel(track) }}</small>
-                    </div>
-                    <label class="mix-slider">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        :value="track.volume"
-                        @input="emit('ambient-set-track-volume', { trackId: track.trackId, volume: Number($event.target.value) })"
-                      />
-                    </label>
-                    <button class="row-action ripple-trigger" type="button" @click="emit('ambient-toggle-track', track)">关闭</button>
-                  </article>
-                </div>
-                <p v-else class="empty-note">还没有激活的环境音。可以直接叠加多轨。</p>
-
-                <div v-if="ambientState?.ambient?.presets?.length" class="preset-list">
-                  <button
-                    v-for="preset in ambientState.ambient.presets"
-                    :key="preset.id"
-                    class="preset-chip ripple-trigger"
-                    type="button"
-                    @click="emit('ambient-apply-preset', preset.id)"
-                  >
-                    <span>{{ preset.name }}</span>
-                    <i class="fas fa-trash-can" aria-hidden="true" @click.stop="emit('ambient-delete-preset', preset.id)"></i>
-                  </button>
-                </div>
+                </transition>
               </section>
+            </aside>
+          </div>
+        </section>
 
-              <section v-for="group in groupedLibrary" :key="group.key" class="playlist-group">
-                <div class="group-head">
-                  <div>
-                    <p class="mini-label">{{ group.caption }}</p>
-                    <h4>{{ group.label }}</h4>
-                  </div>
+        <section v-else-if="activeTab === 'ambient'" class="panel-body ambient-body">
+          <header class="block-head">
+            <div>
+              <p class="section-kicker">Ambient Mixer</p>
+              <h3>环境音 / 白噪音</h3>
+            </div>
+            <div class="block-actions">
+              <button class="soft-btn ripple-trigger" type="button" @click="emit('ambient-mute-all')">全部静音</button>
+              <button class="soft-btn primary ripple-trigger" type="button" @click="openUploadPicker">
+                {{ uploading ? '上传中...' : isAuthenticated ? '上传环境音' : '临时上传' }}
+              </button>
+              <input ref="uploadInputRef" class="hidden-input" type="file" accept="audio/*" @change="onUploadChange" />
+            </div>
+          </header>
+
+          <label class="range-group">
+            <span>总音量 {{ Math.round((ambientState?.ambient?.masterVolume || 0) * 100) }}%</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              :value="ambientState?.ambient?.masterVolume || 0"
+              @input="emit('ambient-set-master-volume', Number($event.target.value))"
+            />
+          </label>
+
+          <p v-if="mixerNeedsGesture" class="inline-note warning">
+            浏览器需要一次用户手势来恢复环境音播放。
+            <button class="inline-link" type="button" @click="emit('resume-ambient')">恢复播放</button>
+          </p>
+          <p v-if="uploadHint" class="inline-note">{{ uploadHint }}</p>
+
+          <section class="mix-card">
+            <div class="group-head">
+              <div>
+                <p class="mini-label">Current Mix</p>
+                <h4>正在混音的轨道</h4>
+              </div>
+              <div class="preset-actions">
+                <input v-model.trim="presetName" class="preset-input" type="text" maxlength="24" placeholder="保存当前预设" />
+                <button class="soft-btn ripple-trigger" type="button" @click="savePreset">保存预设</button>
+              </div>
+            </div>
+
+            <div v-if="enabledTracks.length" class="mix-list">
+              <article v-for="track in enabledTracks" :key="track.trackId" class="mix-row">
+                <div class="mix-copy">
+                  <strong>{{ track.title }}</strong>
+                  <small>{{ resolveTrackSourceLabel(track) }}</small>
                 </div>
-                <div class="library-grid">
-                  <article
-                    v-for="item in group.items"
-                    :key="item.id"
-                    class="ambient-card"
-                    :class="{ active: Boolean(activeTrackMap[item.id]?.enabled) }"
-                  >
-                    <button class="cover-button ripple-trigger" type="button" :style="{ '--cover-bg': item.cover }" @click="emit('ambient-toggle-track', item)">
-                      <div class="cover-gloss"></div>
-                      <i :class="item.icon" aria-hidden="true"></i>
-                      <span class="card-tag">{{ item.categoryLabel }}</span>
-                    </button>
-                    <div class="card-copy">
-                      <div class="card-headline">
-                        <strong>{{ item.label }}</strong>
-                        <button
-                          v-if="item.source !== 'builtin'"
-                          class="icon-link"
-                          type="button"
-                          title="移除"
-                          @click="emit('ambient-remove-track', item.id)"
-                        >
-                          <i class="fas fa-xmark"></i>
-                        </button>
-                      </div>
-                      <p>{{ item.description }}</p>
-                      <label v-if="activeTrackMap[item.id]" class="card-slider">
-                        <span>音量 {{ Math.round(activeTrackMap[item.id].volume * 100) }}%</span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          :value="activeTrackMap[item.id].volume"
-                          @input="emit('ambient-set-track-volume', { trackId: item.id, volume: Number($event.target.value) })"
-                        />
-                      </label>
-                    </div>
-                  </article>
-                </div>
-              </section>
-            </section>
-
-            <section ref="effectsSectionRef" class="overview-card effects-zone">
-              <header class="block-head compact">
-                <div>
-                  <p class="section-kicker">Scene Effects</p>
-                  <h3>背景前景特效</h3>
-                </div>
-                <button class="soft-btn primary ripple-trigger" type="button" @click="emit('effect-toggle-enabled', !effectState.enabled)">
-                  {{ effectState.enabled ? '关闭特效' : '开启特效' }}
-                </button>
-              </header>
-
-              <p v-if="reducedMotion" class="inline-note warning">系统启用了“减少动态”，特效会自动降级或暂停。</p>
-
-              <div class="range-grid">
-                <label class="range-group">
-                  <span>密度 {{ effectState.density.toFixed(2) }}</span>
-                  <input
-                    type="range"
-                    min="0.4"
-                    max="1.8"
-                    step="0.01"
-                    :value="effectState.density"
-                    @input="emit('effect-set-density', Number($event.target.value))"
-                  />
-                </label>
-                <label class="range-group">
-                  <span>透明度 {{ Math.round(effectState.opacity * 100) }}%</span>
+                <label class="mix-slider">
                   <input
                     type="range"
                     min="0"
                     max="1"
                     step="0.01"
-                    :value="effectState.opacity"
-                    @input="emit('effect-set-opacity', Number($event.target.value))"
+                    :value="track.volume"
+                    @input="emit('ambient-set-track-volume', { trackId: track.trackId, volume: Number($event.target.value) })"
                   />
                 </label>
-              </div>
+                <button class="row-action ripple-trigger" type="button" @click="emit('ambient-toggle-track', track)">关闭</button>
+              </article>
+            </div>
+            <p v-else class="empty-note">还没有激活的环境音。可以直接叠加多轨。</p>
 
-              <div class="library-grid effect-grid">
-                <article
-                  v-for="preset in effectPresets"
-                  :key="preset.id"
-                  class="ambient-card effect-card"
-                  :class="{ active: effectState.presetId === preset.id }"
-                >
-                  <button class="cover-button ripple-trigger" type="button" :style="{ '--cover-bg': preset.cover }" @click="emit('effect-select-preset', preset.id)">
-                    <div class="cover-gloss"></div>
-                    <span class="effect-preview" :class="`effect-preview-${preset.id}`"></span>
-                  </button>
-                  <div class="card-copy">
-                    <div class="card-headline">
-                      <strong>{{ preset.label }}</strong>
-                    </div>
-                    <p>{{ preset.description }}</p>
-                  </div>
-                </article>
+            <div v-if="ambientState?.ambient?.presets?.length" class="preset-list">
+              <button
+                v-for="preset in ambientState.ambient.presets"
+                :key="preset.id"
+                class="preset-chip ripple-trigger"
+                type="button"
+                @click="emit('ambient-apply-preset', preset.id)"
+              >
+                <span>{{ preset.name }}</span>
+                <i class="fas fa-trash-can" aria-hidden="true" @click.stop="emit('ambient-delete-preset', preset.id)"></i>
+              </button>
+            </div>
+          </section>
+
+          <section v-for="group in groupedLibrary" :key="group.key" class="playlist-group">
+            <div class="group-head">
+              <div>
+                <p class="mini-label">{{ group.caption }}</p>
+                <h4>{{ group.label }}</h4>
               </div>
-            </section>
-          </aside>
-        </div>
+            </div>
+            <div class="library-grid">
+              <article
+                v-for="item in group.items"
+                :key="item.id"
+                class="ambient-card"
+                :class="{ active: Boolean(activeTrackMap[item.id]?.enabled) }"
+              >
+                <button class="cover-button ripple-trigger" type="button" :style="{ '--cover-bg': item.cover }" @click="emit('ambient-toggle-track', item)">
+                  <div class="cover-gloss"></div>
+                  <i :class="item.icon" aria-hidden="true"></i>
+                  <span class="card-tag">{{ item.categoryLabel }}</span>
+                </button>
+                <div class="card-copy">
+                  <div class="card-headline">
+                    <strong>{{ item.label }}</strong>
+                    <button
+                      v-if="item.source !== 'builtin'"
+                      class="icon-link"
+                      type="button"
+                      title="移除"
+                      @click="emit('ambient-remove-track', item.id)"
+                    >
+                      <i class="fas fa-xmark"></i>
+                    </button>
+                  </div>
+                  <p>{{ item.description }}</p>
+                  <label v-if="activeTrackMap[item.id]" class="card-slider">
+                    <span>音量 {{ Math.round(activeTrackMap[item.id].volume * 100) }}%</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      :value="activeTrackMap[item.id].volume"
+                      @input="emit('ambient-set-track-volume', { trackId: item.id, volume: Number($event.target.value) })"
+                    />
+                  </label>
+                </div>
+              </article>
+            </div>
+          </section>
+        </section>
+
+        <section v-else class="panel-body effects-body">
+          <header class="block-head">
+            <div>
+              <p class="section-kicker">Scene Effects</p>
+              <h3>背景特效</h3>
+            </div>
+            <button class="soft-btn primary ripple-trigger" type="button" @click="emit('effect-toggle-enabled', !effectState.enabled)">
+              {{ effectState.enabled ? '关闭特效' : '开启特效' }}
+            </button>
+          </header>
+
+          <p v-if="reducedMotion" class="inline-note warning">系统启用了“减少动态”，特效会自动降级或暂停。</p>
+
+          <div class="range-grid">
+            <label class="range-group">
+              <span>密度 {{ effectState.density.toFixed(2) }}</span>
+              <input
+                type="range"
+                min="0.4"
+                max="1.8"
+                step="0.01"
+                :value="effectState.density"
+                @input="emit('effect-set-density', Number($event.target.value))"
+              />
+            </label>
+            <label class="range-group">
+              <span>透明度 {{ Math.round(effectState.opacity * 100) }}%</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                :value="effectState.opacity"
+                @input="emit('effect-set-opacity', Number($event.target.value))"
+              />
+            </label>
+          </div>
+
+          <div class="library-grid effect-grid">
+            <article
+              v-for="preset in effectPresets"
+              :key="preset.id"
+              class="ambient-card effect-card"
+              :class="{ active: effectState.presetId === preset.id }"
+            >
+              <button class="cover-button ripple-trigger" type="button" :style="{ '--cover-bg': preset.cover }" @click="emit('effect-select-preset', preset.id)">
+                <div class="cover-gloss"></div>
+                <span class="effect-preview" :class="`effect-preview-${preset.id}`"></span>
+              </button>
+              <div class="card-copy">
+                <div class="card-headline">
+                  <strong>{{ preset.label }}</strong>
+                </div>
+                <p>{{ preset.description }}</p>
+              </div>
+            </article>
+          </div>
+        </section>
       </section>
     </div>
   </transition>
@@ -349,8 +366,14 @@ import { computed, ref } from 'vue';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
+  activeTab: { type: String, default: 'music' },
   musicTrack: { type: Object, default: null },
   musicPlaying: { type: Boolean, default: false },
+  lyricLine: { type: String, default: '' },
+  lyricContext: {
+    type: Object,
+    default: () => ({ prev: '', current: '', next: '', key: 'empty' })
+  },
   musicLibraryState: {
     type: Object,
     default: () => ({
@@ -383,6 +406,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'close',
+  'set-tab',
   'music-toggle-play',
   'music-prev',
   'music-next',
@@ -408,11 +432,7 @@ const emit = defineEmits([
 
 const uploadInputRef = ref(null);
 const presetName = ref('');
-const musicSectionRef = ref(null);
-const ambientSectionRef = ref(null);
-const effectsSectionRef = ref(null);
-
-const sectionAnchors = [
+const tabs = [
   { key: 'music', label: '音乐', icon: 'fas fa-music' },
   { key: 'ambient', label: '环境音', icon: 'fas fa-sliders-h' },
   { key: 'effects', label: '特效', icon: 'fas fa-wand-magic-sparkles' }
@@ -433,6 +453,18 @@ const enabledTracks = computed(() =>
 const musicGroups = computed(() => (Array.isArray(props.musicLibraryState?.sections) ? props.musicLibraryState.sections : []));
 const currentPlaylist = computed(() => props.musicLibraryState?.selectedPlaylist || { playlistCode: 'default_public', name: '默认歌单' });
 const currentTracks = computed(() => (Array.isArray(props.musicLibraryState?.selectedTracks) ? props.musicLibraryState.selectedTracks : []));
+const lyricWindow = computed(() => {
+  const context = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
+  const current = String(context.current || props.lyricLine || '纯音乐，无歌词').trim() || '纯音乐，无歌词';
+  const prev = String(context.prev || '').trim();
+  const next = String(context.next || '').trim();
+  return {
+    prev: prev || ' ',
+    current,
+    next: next || ' ',
+    key: String(context.key || `${prev}__${current}__${next}`)
+  };
+});
 
 const groupedLibrary = computed(() => {
   const groups = [
@@ -453,18 +485,6 @@ const groupedLibrary = computed(() => {
 
   return groups.filter((group) => group.items.length);
 });
-
-function scrollToSection(sectionKey) {
-  const refMap = {
-    music: musicSectionRef,
-    ambient: ambientSectionRef,
-    effects: effectsSectionRef
-  };
-  refMap[sectionKey]?.value?.scrollIntoView?.({
-    behavior: 'smooth',
-    block: 'start'
-  });
-}
 
 function openUploadPicker() {
   if (props.uploading) return;
@@ -501,34 +521,31 @@ function resolveTrackSourceLabel(track) {
   z-index: 1200;
   display: grid;
   place-items: center;
-  padding: 14px;
-  background:
-    radial-gradient(circle at 12% 10%, rgba(115, 182, 220, 0.22), transparent 34%),
-    radial-gradient(circle at 88% 82%, rgba(255, 207, 170, 0.18), transparent 38%),
-    rgba(8, 12, 18, 0.42);
-  backdrop-filter: blur(6px) saturate(120%);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  padding: 12px;
+  background: rgba(8, 12, 18, 0.38);
+  backdrop-filter: blur(5px) saturate(118%);
+  -webkit-backdrop-filter: blur(5px) saturate(118%);
 }
 
 .atmo-panel {
-  --liquid-bg: rgba(var(--glass-rgb), 0.4);
-  --liquid-border: rgba(255, 255, 255, 0.48);
-  --liquid-shadow: 0 18px 42px rgba(8, 12, 20, 0.24);
-  width: min(1380px, calc(100vw - 20px));
-  max-height: calc(100dvh - 20px);
-  border-radius: 24px;
-  padding: 16px;
+  --liquid-bg: rgba(var(--glass-rgb), 0.38);
+  --liquid-border: rgba(255, 255, 255, 0.46);
+  --liquid-shadow: 0 18px 44px rgba(8, 12, 20, 0.28);
+  width: min(980px, calc(100vw - 18px));
+  max-height: min(84vh, 760px);
+  border-radius: 22px;
+  padding: 14px;
   overflow: auto;
-  color: rgba(24, 30, 40, 0.9);
   display: grid;
-  gap: 16px;
+  gap: 12px;
+  color: rgba(28, 34, 42, 0.88);
 }
 
 .atmo-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 12px;
-  align-items: start;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .atmo-head-main {
@@ -543,16 +560,6 @@ function resolveTrackSourceLabel(track) {
   margin: 0;
 }
 
-.head-copy,
-.card-copy p,
-.summary-copy span,
-.mix-copy small,
-.inline-note,
-.empty-note {
-  margin: 0;
-  color: rgba(46, 57, 72, 0.72);
-}
-
 .eyebrow,
 .section-kicker,
 .mini-label {
@@ -560,181 +567,181 @@ function resolveTrackSourceLabel(track) {
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(82, 104, 132, 0.74);
+  color: rgba(85, 100, 122, 0.72);
 }
 
-.section-strip,
-.block-actions,
-.summary-actions,
-.preset-actions,
-.preset-list {
+.head-copy,
+.inline-note,
+.empty-note,
+.playlist-copy small,
+.track-copy small,
+.music-now-copy span,
+.card-copy p,
+.mix-copy small,
+.lyric-line {
+  margin: 0;
+  color: rgba(54, 66, 82, 0.72);
+}
+
+.route-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
 }
 
-.section-strip {
-  justify-content: flex-end;
-}
-
-.section-chip,
+.route-tab,
 .close-btn,
 .soft-btn,
+.row-action,
 .preset-chip,
-.inline-link,
-.row-action {
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 12px;
+.inline-link {
+  border: 0;
+  border-radius: 10px;
+  min-height: 34px;
   background: rgba(255, 255, 255, 0.34);
-  color: rgba(24, 30, 40, 0.84);
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  color: rgba(27, 31, 40, 0.78);
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
-.section-chip,
+.route-tab,
 .soft-btn,
 .row-action {
-  min-height: 36px;
   padding: 0 12px;
 }
 
-.section-chip {
+.route-tab {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.close-btn {
-  min-width: 64px;
-  min-height: 36px;
-  padding: 0 14px;
-}
-
+.route-tab.active,
 .soft-btn.primary {
-  background: rgba(var(--accent-strong-rgb), 0.9);
-  color: rgba(248, 245, 255, 0.96);
-  border-color: rgba(var(--accent-strong-rgb), 0.9);
+  background: rgba(var(--accent-strong-rgb), 0.86);
+  color: rgba(248, 238, 255, 0.94);
 }
 
-.section-chip:hover,
+.route-tab:hover,
 .soft-btn:hover,
 .close-btn:hover,
 .row-action:hover,
 .preset-chip:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(17, 24, 36, 0.08);
+  box-shadow: 0 10px 22px rgba(8, 12, 20, 0.08);
 }
 
-.panel-layout {
+.close-btn {
+  min-width: 62px;
+  padding: 0 12px;
+}
+
+.panel-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.95fr);
-  gap: 16px;
+  gap: 12px;
+}
+
+.music-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) 300px;
+  gap: 12px;
   align-items: start;
 }
 
-.side-stack {
-  display: grid;
-  gap: 16px;
-}
-
-.overview-card,
-.mix-card,
-.track-sheet {
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
+.music-library-card,
+.music-now-card,
+.mix-card {
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
-}
-
-.music-zone,
-.ambient-zone,
-.effects-zone,
-.summary-card {
-  padding: 14px;
+  padding: 12px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .block-head,
 .group-head,
-.track-head {
+.track-head,
+.lyrics-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .block-head.compact {
   align-items: center;
 }
 
+.block-actions,
+.summary-actions,
+.preset-actions,
+.preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.playlist-group {
+  display: grid;
+  gap: 10px;
+}
+
 .count-pill {
-  min-height: 28px;
+  min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.46);
-  color: rgba(37, 47, 61, 0.72);
+  background: rgba(255, 255, 255, 0.42);
+  color: rgba(47, 58, 74, 0.72);
   font-size: 12px;
-}
-
-.playlist-group-stack,
-.playlist-group {
-  display: grid;
-  gap: 12px;
 }
 
 .playlist-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .playlist-card {
   border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.34);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.32);
   padding: 10px;
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 10px;
   text-align: left;
   color: inherit;
 }
 
 .playlist-card.active {
-  border-color: rgba(var(--accent-strong-rgb), 0.7);
-  background: rgba(var(--accent-strong-rgb), 0.12);
-  box-shadow: 0 16px 28px rgba(var(--accent-rgb), 0.12);
+  border-color: rgba(var(--accent-strong-rgb), 0.68);
+  background: rgba(var(--accent-rgb), 0.12);
+  box-shadow: 0 16px 26px rgba(var(--accent-rgb), 0.12);
 }
 
 .playlist-cover,
-.summary-cover,
 .track-cover {
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.4);
 }
 
 .playlist-cover {
-  width: 72px;
-  height: 72px;
-}
-
-.summary-cover {
-  width: 76px;
-  height: 76px;
+  width: 64px;
+  height: 64px;
 }
 
 .track-cover {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
 }
 
 .playlist-cover img,
-.summary-cover img,
 .track-cover img,
 .playlist-fallback,
 .track-cover-fallback {
@@ -747,29 +754,34 @@ function resolveTrackSourceLabel(track) {
 
 .playlist-fallback,
 .track-cover-fallback {
-  background: linear-gradient(155deg, rgba(131, 186, 225, 0.4), rgba(255, 226, 194, 0.42));
-  color: rgba(47, 62, 84, 0.76);
+  background: linear-gradient(155deg, rgba(135, 191, 228, 0.38), rgba(255, 230, 197, 0.4));
+  color: rgba(45, 60, 79, 0.72);
 }
 
 .playlist-copy,
 .track-copy,
-.summary-copy,
+.music-now-copy,
 .mix-copy,
 .card-copy {
   display: grid;
-  gap: 5px;
+  gap: 4px;
 }
 
-.playlist-copy small,
-.track-copy small {
-  color: rgba(65, 78, 95, 0.66);
-  line-height: 1.5;
+.playlist-copy strong,
+.track-copy strong,
+.music-now-copy strong,
+.mix-copy strong,
+.card-headline strong {
+  color: rgba(24, 30, 40, 0.9);
 }
 
 .track-sheet {
-  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.22);
+  padding: 12px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .track-list {
@@ -779,46 +791,148 @@ function resolveTrackSourceLabel(track) {
 
 .track-row {
   display: grid;
-  grid-template-columns: 28px 42px minmax(0, 1fr) 52px auto;
+  grid-template-columns: 28px 40px minmax(0, 1fr) 52px auto;
   gap: 10px;
   align-items: center;
-  border-radius: 16px;
-  padding: 10px 12px;
+  border-radius: 14px;
+  padding: 10px;
   background: rgba(255, 255, 255, 0.32);
   outline: none;
 }
 
 .track-row:focus-visible {
-  box-shadow: 0 0 0 2px rgba(var(--accent-strong-rgb), 0.4);
+  box-shadow: 0 0 0 2px rgba(var(--accent-strong-rgb), 0.42);
 }
 
 .track-index,
 .track-duration {
   font-size: 12px;
-  color: rgba(70, 83, 102, 0.68);
+  color: rgba(71, 82, 98, 0.68);
 }
 
-.track-copy strong,
-.playlist-copy strong,
-.summary-copy strong,
-.mix-copy strong,
-.card-headline strong {
-  color: rgba(24, 30, 40, 0.9);
+.music-now-card {
+  align-content: start;
 }
 
-.summary-track {
+.vinyl-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
+  place-items: center;
+}
+
+.vinyl-disc {
+  width: 206px;
+  height: 206px;
+  border-radius: 50%;
+  position: relative;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(54, 58, 68, 0.1) 0 10%, transparent 10%),
+    radial-gradient(circle at 50% 50%, rgba(22, 24, 31, 0.92) 0 42%, rgba(8, 10, 15, 0.98) 42% 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 18px 28px rgba(12, 16, 22, 0.16);
+}
+
+.vinyl-disc.spinning {
+  animation: atmosphere-vinyl-spin 9s linear infinite;
+}
+
+.vinyl-rings {
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.02) 0 2px,
+      rgba(0, 0, 0, 0.06) 2px 5px
+    );
+  opacity: 0.55;
+}
+
+.vinyl-cover {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.vinyl-cover img,
+.vinyl-cover .playlist-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  object-fit: cover;
+}
+
+.vinyl-hole {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(12, 15, 22, 0.9);
+  position: absolute;
+  z-index: 2;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.38);
 }
 
 .summary-actions {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
-.inline-note.warning {
-  color: rgba(114, 80, 22, 0.92);
+.lyrics-box {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.3);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.lyrics-head span {
+  font-size: 12px;
+  color: rgba(77, 88, 104, 0.66);
+}
+
+.lyrics-triplet {
+  display: grid;
+  gap: 8px;
+  min-height: 106px;
+  align-content: center;
+}
+
+.lyric-line {
+  line-height: 1.6;
+  text-align: center;
+}
+
+.lyric-line.current {
+  color: rgba(31, 39, 52, 0.92);
+  font-weight: 700;
+}
+
+.lyric-line.prev,
+.lyric-line.next {
+  opacity: 0.72;
+}
+
+.lyric-switch-enter-active,
+.lyric-switch-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.lyric-switch-enter-from,
+.lyric-switch-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .range-group,
@@ -839,22 +953,6 @@ input[type='range'] {
   accent-color: rgb(var(--accent-strong-rgb));
 }
 
-.mix-card {
-  padding: 12px;
-  display: grid;
-  gap: 12px;
-}
-
-.preset-input {
-  min-width: 180px;
-  min-height: 36px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.36);
-  color: rgba(24, 30, 40, 0.84);
-  padding: 0 12px;
-}
-
 .mix-list {
   display: grid;
   gap: 8px;
@@ -870,6 +968,16 @@ input[type='range'] {
   background: rgba(255, 255, 255, 0.32);
 }
 
+.preset-input {
+  min-width: 180px;
+  min-height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.34);
+  color: rgba(24, 30, 40, 0.84);
+  padding: 0 12px;
+}
+
 .preset-chip {
   min-height: 34px;
   padding: 0 12px;
@@ -881,7 +989,7 @@ input[type='range'] {
 .library-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .ambient-card {
@@ -891,11 +999,11 @@ input[type='range'] {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.38);
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .ambient-card.active {
-  border-color: rgba(var(--accent-strong-rgb), 0.65);
+  border-color: rgba(var(--accent-strong-rgb), 0.64);
   box-shadow: 0 16px 26px rgba(var(--accent-rgb), 0.12);
   transform: translateY(-2px);
 }
@@ -905,7 +1013,7 @@ input[type='range'] {
   border-radius: 16px;
   padding: 0;
   width: 100%;
-  min-height: 144px;
+  min-height: 136px;
   background: var(--cover-bg);
   position: relative;
   overflow: hidden;
@@ -1033,31 +1141,26 @@ input[type='range'] {
   opacity: 0;
 }
 
-@media (max-width: 1120px) {
-  .panel-layout {
-    grid-template-columns: 1fr;
+@keyframes atmosphere-vinyl-spin {
+  from {
+    transform: rotate(0deg);
   }
-
-  .side-stack {
-    display: grid;
-    gap: 16px;
+  to {
+    transform: rotate(360deg);
   }
 }
 
-@media (max-width: 860px) {
-  .atmo-header,
-  .block-head,
-  .group-head,
-  .track-head,
-  .mix-row,
-  .range-grid {
+@media (max-width: 900px) {
+  .music-layout,
+  .range-grid,
+  .mix-row {
     grid-template-columns: 1fr;
   }
 
-  .atmo-header,
   .block-head,
   .group-head,
-  .track-head {
+  .track-head,
+  .lyrics-head {
     display: grid;
   }
 
@@ -1067,7 +1170,7 @@ input[type='range'] {
   }
 
   .track-row {
-    grid-template-columns: 28px 42px minmax(0, 1fr);
+    grid-template-columns: 28px 40px minmax(0, 1fr);
   }
 
   .track-duration,
@@ -1076,23 +1179,26 @@ input[type='range'] {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 680px) {
   .atmo-panel {
     width: calc(100vw - 12px);
     max-height: calc(100dvh - 12px);
+    border-radius: 18px;
     padding: 12px;
-    border-radius: 20px;
   }
 
-  .playlist-card,
-  .summary-track {
-    grid-template-columns: 60px minmax(0, 1fr);
+  .playlist-card {
+    grid-template-columns: 56px minmax(0, 1fr);
   }
 
-  .playlist-cover,
-  .summary-cover {
-    width: 60px;
-    height: 60px;
+  .playlist-cover {
+    width: 56px;
+    height: 56px;
+  }
+
+  .vinyl-disc {
+    width: 176px;
+    height: 176px;
   }
 }
 </style>

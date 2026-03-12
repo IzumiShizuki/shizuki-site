@@ -122,8 +122,11 @@
 
       <AtmospherePanel
         :visible="atmospherePanelVisible"
+        :active-tab="siteAtmosphere.panelTab"
         :music-track="player.currentTrack.value"
         :music-playing="player.isPlaying.value"
+        :lyric-line="player.currentLyricLine.value"
+        :lyric-context="player.lyricContext.value"
         :music-library-state="musicLibraryPanelState"
         :ambient-state="siteAtmosphereSnapshot"
         :ambient-library="ambientLibrary"
@@ -135,6 +138,7 @@
         :upload-hint="ambientUploadHint"
         :mixer-needs-gesture="ambientMixer.needsUserGesture.value"
         @close="closeAtmospherePanel"
+        @set-tab="setAtmospherePanelTab"
         @music-toggle-play="player.togglePlay"
         @music-prev="player.playPrev"
         @music-next="player.playNext"
@@ -813,6 +817,14 @@ async function openAtmospherePanel() {
 
 function closeAtmospherePanel() {
   atmospherePanelVisible.value = false;
+}
+
+async function setAtmospherePanelTab(tabKey) {
+  const normalized = ['music', 'ambient', 'effects'].includes(String(tabKey || '').trim()) ? String(tabKey).trim() : 'music';
+  siteAtmosphere.panelTab = normalized;
+  if (normalized === 'music') {
+    await miniMusicLibrary.ensureReady();
+  }
 }
 
 async function handleAtmosphereMusicRefresh() {
