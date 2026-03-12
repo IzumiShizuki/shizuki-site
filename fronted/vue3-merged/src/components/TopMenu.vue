@@ -101,7 +101,7 @@
     <div class="toggle-tab liquid-material ripple-trigger" @click="toggleSwitch">
       <div class="switch-content">
         <span class="bar-line top"></span>
-        <span class="switch-core"></span>
+        <div class="menu-label-text">MENU</div>
         <span class="bar-line bottom"></span>
       </div>
     </div>
@@ -921,7 +921,7 @@ onBeforeUnmount(() => {
 
 .switch-content {
   position: relative;
-  width: 42px;
+  width: 60px;
   height: 16px;
   display: flex;
   align-items: center;
@@ -932,7 +932,7 @@ onBeforeUnmount(() => {
   position: absolute;
   background: rgba(236, 242, 255, 0.9);
   height: 2px;
-  width: 22px;
+  width: 24px;
   border-radius: 2px;
   transition: all 0.5s cubic-bezier(0.68, -0.6, 0.32, 1.6);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.52);
@@ -946,15 +946,16 @@ onBeforeUnmount(() => {
   transform: translateY(7px);
 }
 
-.switch-core {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(236, 242, 255, 0.92);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.26),
-    0 0 10px rgba(255, 255, 255, 0.22);
-  transition: transform 0.28s ease, opacity 0.28s ease, filter 0.28s ease;
+.menu-label-text {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(236, 242, 255, 0.9);
+  letter-spacing: 1px;
+  transition: 0.3s;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.8),
+    0 0 8px rgba(0, 0, 0, 0.34);
+  -webkit-text-stroke: 0.3px rgba(0, 0, 0, 0.44);
 }
 
 .fixed-nav-wrapper.expanded .bar-line.top {
@@ -969,8 +970,8 @@ onBeforeUnmount(() => {
   width: 20px;
 }
 
-.fixed-nav-wrapper.expanded .switch-core {
-  transform: scale(0.4);
+.fixed-nav-wrapper.expanded .menu-label-text {
+  transform: scale(0.6);
   opacity: 0;
   filter: blur(2px);
 }
@@ -1273,9 +1274,9 @@ onBeforeUnmount(() => {
     transform: translateX(6px);
   }
 
-  .switch-core {
-    width: 5px;
-    height: 5px;
+  .menu-label-text {
+    font-size: 9px;
+    letter-spacing: 0.8px;
   }
 
   .fixed-nav-wrapper.expanded .bar-line.top {
