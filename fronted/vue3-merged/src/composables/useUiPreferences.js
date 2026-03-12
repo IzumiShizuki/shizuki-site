@@ -79,8 +79,36 @@ function applyAccentVariables() {
   const [r, g, b] = tuple;
   const strong = [clamp(r * 0.86), clamp(g * 0.84), clamp(b * 0.92)];
   const soft = [clamp(r + (255 - r) * 0.42), clamp(g + (255 - g) * 0.42), clamp(b + (255 - b) * 0.38)];
+  const lifted = [clamp(r + (255 - r) * 0.18), clamp(g + (255 - g) * 0.18), clamp(b + (255 - b) * 0.16)];
   const gradientStart = hexToRgbTuple(state.accentGradientStartHex) || [233, 75, 197];
   const gradientEnd = hexToRgbTuple(state.accentGradientEndHex) || [157, 107, 255];
+  const fillSoft = state.accentMode === 'gradient'
+    ? `linear-gradient(135deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.18), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.14))`
+    : `linear-gradient(145deg, rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.16), rgba(${r}, ${g}, ${b}, 0.12))`;
+  const fill = state.accentMode === 'gradient'
+    ? `linear-gradient(135deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.28), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.22))`
+    : `linear-gradient(145deg, rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.24), rgba(${r}, ${g}, ${b}, 0.18))`;
+  const fillStrong = state.accentMode === 'gradient'
+    ? 'var(--accent-gradient)'
+    : `linear-gradient(145deg, rgba(${strong[0]}, ${strong[1]}, ${strong[2]}, 0.96), rgba(${r}, ${g}, ${b}, 0.86))`;
+  const fillHover = state.accentMode === 'gradient'
+    ? `linear-gradient(135deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 1), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.94))`
+    : `linear-gradient(145deg, rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.98), rgba(${r}, ${g}, ${b}, 0.92))`;
+  const border = state.accentMode === 'gradient'
+    ? `rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.58)`
+    : `rgba(${r}, ${g}, ${b}, 0.42)`;
+  const borderStrong = state.accentMode === 'gradient'
+    ? `rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.76)`
+    : `rgba(${strong[0]}, ${strong[1]}, ${strong[2]}, 0.72)`;
+  const shadow = state.accentMode === 'gradient'
+    ? `0 12px 24px rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.28), 0 0 18px rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.16)`
+    : `0 12px 24px rgba(${r}, ${g}, ${b}, 0.24), 0 0 14px rgba(${r}, ${g}, ${b}, 0.12)`;
+  const focusRing = state.accentMode === 'gradient'
+    ? `0 0 0 3px rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.24)`
+    : `0 0 0 3px rgba(${r}, ${g}, ${b}, 0.22)`;
+  const glow = state.accentMode === 'gradient'
+    ? `0 0 18px rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.22)`
+    : `0 0 18px rgba(${r}, ${g}, ${b}, 0.22)`;
 
   const root = document.documentElement;
   root.style.setProperty('--accent-hex', normalizeHex(state.accentHex) || DEFAULT_ACCENT_HEX);
@@ -93,27 +121,46 @@ function applyAccentVariables() {
     '--accent-gradient',
     `linear-gradient(135deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.94), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.9))`
   );
+  root.style.setProperty('--accent-mode-fill-soft', fillSoft);
   root.style.setProperty(
     '--accent-mode-fill',
-    state.accentMode === 'gradient' ? 'var(--accent-gradient)' : `rgba(${r}, ${g}, ${b}, 0.24)`
+    fill
   );
   root.style.setProperty(
     '--accent-mode-fill-strong',
-    state.accentMode === 'gradient' ? 'var(--accent-gradient)' : `rgba(${r}, ${g}, ${b}, 0.3)`
+    fillStrong
+  );
+  root.style.setProperty(
+    '--accent-mode-fill-hover',
+    fillHover
   );
   root.style.setProperty(
     '--accent-mode-border',
-    state.accentMode === 'gradient'
-      ? `rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.66)`
-      : `rgba(${r}, ${g}, ${b}, 0.42)`
+    border
+  );
+  root.style.setProperty(
+    '--accent-mode-border-strong',
+    borderStrong
   );
   root.style.setProperty(
     '--accent-mode-shadow',
-    state.accentMode === 'gradient'
-      ? `0 10px 22px rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.28)`
-      : `0 10px 22px rgba(${r}, ${g}, ${b}, 0.24)`
+    shadow
+  );
+  root.style.setProperty(
+    '--accent-mode-focus-ring',
+    focusRing
+  );
+  root.style.setProperty(
+    '--accent-mode-glow',
+    glow
   );
   root.style.setProperty('--accent-mode-text', 'rgba(255, 255, 255, 0.96)');
+  root.style.setProperty(
+    '--accent-mode-text-muted',
+    state.accentMode === 'gradient'
+      ? 'rgba(255, 244, 252, 0.84)'
+      : `rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.84)`
+  );
   root.style.setProperty(
     '--accent-press-overlay',
     state.accentMode === 'gradient' ? 'rgba(255, 255, 255, 0.1)' : `rgba(${r}, ${g}, ${b}, 0.14)`

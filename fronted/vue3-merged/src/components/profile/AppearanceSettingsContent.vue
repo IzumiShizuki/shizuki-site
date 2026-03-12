@@ -245,17 +245,17 @@ function gradientPreviewStyle(startHex, endHex) {
 }
 
 .mode-btn {
-  border: 1px solid rgba(151, 184, 210, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 11px;
   height: 38px;
-  background: rgba(145, 182, 210, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   color: rgba(216, 234, 249, 0.9);
 }
 
 .mode-btn.active {
-  border-color: rgba(94, 207, 237, 0.65);
-  box-shadow: inset 0 0 0 1px rgba(82, 194, 225, 0.26);
-  background: linear-gradient(145deg, rgba(66, 177, 210, 0.28), rgba(53, 117, 186, 0.24));
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
   color: rgba(241, 249, 255, 0.98);
 }
 
@@ -269,21 +269,22 @@ function gradientPreviewStyle(startHex, endHex) {
 
 .preset-btn,
 .gradient-btn {
-  border: 1px solid rgba(148, 182, 207, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 12px;
   min-height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background: rgba(146, 183, 210, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   color: rgba(225, 238, 250, 0.92);
 }
 
 .preset-btn.active,
 .gradient-btn.active {
-  box-shadow: inset 0 0 0 1px rgba(80, 200, 232, 0.65);
-  background: linear-gradient(145deg, rgba(66, 177, 210, 0.24), rgba(50, 111, 178, 0.2));
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
 }
 
 .swatch {
@@ -321,8 +322,8 @@ function gradientPreviewStyle(startHex, endHex) {
   width: 100%;
   height: 38px;
   border-radius: 10px;
-  border: 1px solid rgba(146, 181, 208, 0.34);
-  background: rgba(142, 178, 205, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
   padding: 4px;
 }
 
@@ -339,11 +340,11 @@ function gradientPreviewStyle(startHex, endHex) {
 
 .hex-wrap input,
 .gradient-input-grid input {
-  border: 1px solid rgba(146, 181, 208, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 10px;
   height: 38px;
   padding: 0 10px;
-  background: rgba(142, 178, 205, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   color: rgba(227, 239, 250, 0.94);
 }
 
@@ -363,11 +364,11 @@ function gradientPreviewStyle(startHex, endHex) {
 }
 
 .apply-btn {
-  border: 1px solid rgba(95, 206, 236, 0.34);
+  border: 1px solid var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
   border-radius: 10px;
   min-width: 80px;
   height: 38px;
-  background: linear-gradient(145deg, rgba(66, 177, 210, 0.34), rgba(55, 118, 188, 0.3));
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
   color: rgba(241, 249, 255, 0.98);
 }
 
@@ -378,8 +379,8 @@ function gradientPreviewStyle(startHex, endHex) {
 .hex-wrap input:focus-visible,
 .gradient-input-grid input:focus-visible,
 .picker-field input[type='color']:focus-visible {
-  outline: 2px solid rgba(95, 214, 244, 0.7);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.22));
 }
 
 .error-text {

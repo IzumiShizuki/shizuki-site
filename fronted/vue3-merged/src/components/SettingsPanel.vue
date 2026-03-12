@@ -98,8 +98,8 @@ function resetDefault() {
 
 .close-btn:focus-visible,
 .reset-btn:focus-visible {
-  outline: 2px solid rgba(95, 214, 244, 0.7);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.22));
 }
 
 .panel-footer {
