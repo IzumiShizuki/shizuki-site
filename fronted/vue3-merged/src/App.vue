@@ -38,6 +38,7 @@
           playsinline
         ></video>
         <div class="bg-fx" :class="{ 'bg-fx-home': isHomeRoute }"></div>
+        <SceneEffectLayer :effect="siteAtmosphereSnapshot.effect" :is-home-route="isHomeRoute" :reduced-motion="reducedMotion" />
       </div>
 
       <TopMenu
@@ -47,6 +48,9 @@
         :is-admin="isAdminUser"
         :display-name="authDisplayName"
         :avatar-url="authAvatarUrl"
+        :music-active="musicMenuActive"
+        :ambient-active="ambientMenuActive"
+        :effect-active="effectMenuActive"
         @toggle-menu="toggleMenu"
         @toggle-ai-chat="toggleAiChat"
         @select-main-route="handleMainRouteSelect"
@@ -56,6 +60,7 @@
         @open-auth="openAuth"
         @logout="handleLogout"
         @open-background-picker="backgroundPickerVisible = true"
+        @open-atmosphere-panel="openAtmospherePanel"
       />
 
       <section class="workspace-shell" :class="{ expanded: menuExpanded, 'with-ai-panel': sidebarAiColumnMounted }">
@@ -136,6 +141,42 @@
           <span v-for="(level, index) in ringLevels" :key="`ring-${index}`" class="ring-seg" :style="ringSegStyle(level, index)"></span>
         </div>
       </div>
+
+      <AtmospherePanel
+        :visible="atmospherePanelVisible"
+        :active-tab="siteAtmosphere.panelTab"
+        :music-track="player.currentTrack.value"
+        :music-playing="player.isPlaying.value"
+        :ambient-state="siteAtmosphereSnapshot"
+        :ambient-library="ambientLibrary"
+        :effect-state="siteAtmosphereSnapshot.effect"
+        :effect-presets="ambientEffectPresets"
+        :is-authenticated="auth.isAuthenticated.value"
+        :reduced-motion="reducedMotion"
+        :uploading="ambientUploading"
+        :upload-hint="ambientUploadHint"
+        :mixer-needs-gesture="ambientMixer.needsUserGesture.value"
+        @close="closeAtmospherePanel"
+        @set-tab="setAtmospherePanelTab"
+        @music-toggle-play="player.togglePlay"
+        @music-prev="player.playPrev"
+        @music-next="player.playNext"
+        @open-music-library="handleMainRouteSelect('music-library'); closeAtmospherePanel()"
+        @ambient-toggle-track="toggleAmbientLibraryTrack"
+        @ambient-set-master-volume="applySiteAtmosphereState(setAmbientMasterVolume(siteAtmosphere, $event, { sessionUploads: ambientGuestUploads.value }))"
+        @ambient-set-track-volume="setAmbientTrackGain"
+        @ambient-save-preset="saveCurrentAmbientPreset"
+        @ambient-apply-preset="applySavedAmbientPreset"
+        @ambient-delete-preset="deleteSavedAmbientPreset"
+        @ambient-mute-all="muteAllAmbientTracks"
+        @ambient-remove-track="removeAmbientLibraryTrack"
+        @ambient-upload="handleAmbientUpload"
+        @resume-ambient="ambientMixer.resumeFromGesture()"
+        @effect-toggle-enabled="toggleEffectEnabled"
+        @effect-select-preset="selectEffectPreset"
+        @effect-set-density="siteAtmosphere.effect.density = $event"
+        @effect-set-opacity="siteAtmosphere.effect.opacity = $event"
+      />
 
       <transition name="picker-fade">
         <div v-if="backgroundPickerVisible" class="bg-picker-mask" @click.self="backgroundPickerVisible = false">
@@ -405,11 +446,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref,
 import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import AiDialog from './components/AiDialog.vue';
+import AtmospherePanel from './components/AtmospherePanel.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
+import SceneEffectLayer from './components/SceneEffectLayer.vue';
 import WallpaperL2dCanvas from './components/WallpaperL2dCanvas.vue';
 import TopMenu from './components/TopMenu.vue';
+import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { usePlayerEngine } from './composables/usePlayerEngine';
@@ -417,8 +461,28 @@ import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
 import * as wallpaperApi from './services/wallpaperApi';
+import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
 import { refreshAosManager } from './utils/aosManager';
+import { fileToDataUrl, uploadAmbientAudioAsset, validateAmbientAudioFile } from './utils/ambientAudioUpload';
 import { runtimeGuards } from './utils/runtimeGuards';
+import {
+  applyAmbientPreset,
+  createDefaultSiteAtmosphereState,
+  deleteAmbientPreset,
+  normalizeSiteAtmosphereState,
+  readAmbientGuestUploadsFromSession,
+  readSiteAtmosphereFromStorage,
+  readSiteAtmospherePreference,
+  removeAmbientTrack,
+  saveAmbientPreset,
+  setAmbientAllEnabled,
+  setAmbientMasterVolume,
+  setAmbientTrackVolume,
+  toggleAmbientTrack,
+  upsertAmbientTrack,
+  writeAmbientGuestUploadsToSession,
+  writeSiteAtmosphereToStorage
+} from './utils/siteAtmosphereState';
 import { recordWindowDiag } from './utils/windowLifecycleDiag';
 
 const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
@@ -436,9 +500,11 @@ const wallpaperLoading = ref(false);
 const wallpaperErrorHint = ref('');
 const bgTab = ref('all');
 const backgroundApplyTarget = ref('route');
+const atmospherePanelVisible = ref(false);
 const subtitleVisible = ref(true);
 const lyricOffset = ref({ x: 0, y: 0 });
 const isMobileViewport = ref(false);
+const reducedMotion = ref(false);
 const pageVisible = ref(typeof document === 'undefined' ? true : !document.hidden);
 const windowFocused = ref(typeof document === 'undefined' ? true : document.hasFocus());
 const barLevels = ref(Array.from({ length: 44 }, () => 0));
@@ -450,6 +516,11 @@ const wallpaperBgvRef = ref(null);
 const wallpaperCustomValuesById = reactive({});
 const packageDropActive = ref(false);
 const packageDragDepth = ref(0);
+const ambientUploading = ref(false);
+const ambientUploadHint = ref('');
+const ambientGuestUploads = ref({});
+const siteAtmosphere = reactive(createDefaultSiteAtmosphereState());
+const pendingPreferencePatches = reactive({});
 
 const importState = reactive({
   packageVisibility: 'PRIVATE',
@@ -498,9 +569,11 @@ let lastVisualizerFrameAt = 0;
 let sidebarAiCloseTimer = 0;
 let wallpaperImportPollTimer = 0;
 let wallpaperPreferenceSaveTimer = 0;
+let reducedMotionMediaQuery = null;
 const AI_SIDEBAR_EXIT_MS = 260;
 const VISUALIZER_TARGET_FPS = 30;
 const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
+const ambientAssetDownloadCache = new Map();
 
 const route = useRoute();
 const router = useRouter();
@@ -508,6 +581,7 @@ const auth = useAuthSession();
 const player = usePlayerEngine({
   getAuthorizedFetch: () => (auth.isAuthenticated.value ? auth.authorizedFetch : undefined)
 });
+const ambientMixer = useAmbientMixer();
 const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
 
@@ -566,6 +640,51 @@ const activeVisualizerStyle = computed(() => {
   if (style) return style;
   return player.visualizerMode.value === 'ring' ? 'ring-halo' : 'bars-neon';
 });
+const siteAtmosphereSnapshot = computed(() =>
+  normalizeSiteAtmosphereState(siteAtmosphere, {
+    sessionUploads: ambientGuestUploads.value
+  })
+);
+const ambientMenuActive = computed(() => siteAtmosphereSnapshot.value.ambient.tracks.some((item) => item.enabled));
+const musicMenuActive = computed(() => player.isPlaying.value || Boolean(player.currentTrack.value?.title));
+const effectMenuActive = computed(
+  () => siteAtmosphereSnapshot.value.effect.enabled && siteAtmosphereSnapshot.value.effect.presetId !== 'none'
+);
+const ambientLibrary = computed(() => {
+  const builtinItems = resolveBuiltinAmbientCatalog().map((item) => ({
+    id: item.id,
+    trackId: item.id,
+    label: item.label,
+    title: item.label,
+    description: item.description,
+    category: item.category,
+    categoryLabel: item.category === 'noise' ? '内置噪声' : '内置场景',
+    source: 'builtin',
+    icon: item.icon,
+    cover: item.cover
+  }));
+
+  const uploadItems = siteAtmosphereSnapshot.value.ambient.tracks
+    .filter((track) => track.source !== 'builtin')
+    .map((track) => ({
+      id: track.trackId,
+      trackId: track.trackId,
+      label: track.title,
+      title: track.title,
+      description: track.source === 'asset' ? '已上传到账户，可全站继承播放。' : '当前浏览器会话内可用的临时环境音。',
+      category: 'upload',
+      categoryLabel: track.source === 'asset' ? '账户上传' : '临时上传',
+      source: track.source,
+      icon: 'fas fa-wave-square',
+      cover:
+        track.source === 'asset'
+          ? 'linear-gradient(140deg, rgba(168, 196, 247, 0.94), rgba(46, 74, 122, 0.94))'
+          : 'linear-gradient(140deg, rgba(244, 202, 160, 0.94), rgba(118, 67, 44, 0.94))'
+    }));
+
+  return [...builtinItems, ...uploadItems];
+});
+const ambientEffectPresets = EFFECT_PRESET_DEFINITIONS;
 const barsVisualizerClass = computed(() => (activeVisualizerStyle.value.startsWith('bars-') ? activeVisualizerStyle.value : 'bars-neon'));
 const ringVisualizerClass = computed(() => (activeVisualizerStyle.value.startsWith('ring-') ? activeVisualizerStyle.value : 'ring-halo'));
 const interactionAllowed = computed(
@@ -716,6 +835,343 @@ function toBoolean(input, fallback = false) {
     if (normalized === 'false') return false;
   }
   return fallback;
+}
+
+function applySiteAtmosphereState(nextState) {
+  const normalized = normalizeSiteAtmosphereState(nextState, {
+    sessionUploads: ambientGuestUploads.value
+  });
+  siteAtmosphere.panelTab = normalized.panelTab;
+  siteAtmosphere.effect.enabled = normalized.effect.enabled;
+  siteAtmosphere.effect.presetId = normalized.effect.presetId;
+  siteAtmosphere.effect.density = normalized.effect.density;
+  siteAtmosphere.effect.opacity = normalized.effect.opacity;
+  siteAtmosphere.ambient.masterVolume = normalized.ambient.masterVolume;
+  siteAtmosphere.ambient.tracks = normalized.ambient.tracks;
+  siteAtmosphere.ambient.presets = normalized.ambient.presets;
+}
+
+function queueAccountPreferencePatch(key, value) {
+  if (!auth.isAuthenticated.value || !key) return;
+  pendingPreferencePatches[key] = value;
+  if (wallpaperPreferenceSaveTimer) {
+    window.clearTimeout(wallpaperPreferenceSaveTimer);
+  }
+  wallpaperPreferenceSaveTimer = window.setTimeout(async () => {
+    try {
+      const current = await auth.getPreference();
+      const source = current && typeof current === 'object' ? { ...current } : {};
+      Object.entries(pendingPreferencePatches).forEach(([patchKey, patchValue]) => {
+        source[patchKey] = patchValue;
+      });
+      Object.keys(pendingPreferencePatches).forEach((patchKey) => {
+        delete pendingPreferencePatches[patchKey];
+      });
+      await auth.updatePreference(source);
+    } catch {
+      // ignore remote sync failure
+    } finally {
+      wallpaperPreferenceSaveTimer = 0;
+    }
+  }, 650);
+}
+
+function buildSiteAtmospherePreferencePayload() {
+  return normalizeSiteAtmosphereState(siteAtmosphere, {
+    sessionUploads: ambientGuestUploads.value
+  });
+}
+
+async function loadRemoteSiteAtmospherePreference() {
+  if (!auth.isAuthenticated.value) return;
+  try {
+    const payload = await auth.getPreference();
+    applySiteAtmosphereState(readSiteAtmospherePreference(payload, ambientGuestUploads.value));
+  } catch {
+    // keep local cache when remote preference unavailable
+  }
+}
+
+function updateReducedMotionPreference() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    reducedMotion.value = false;
+    return;
+  }
+  reducedMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function bindReducedMotionPreference() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+  reducedMotionMediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  updateReducedMotionPreference();
+  const handler = updateReducedMotionPreference;
+  reducedMotionMediaQuery.__handler__ = handler;
+  if (typeof reducedMotionMediaQuery.addEventListener === 'function') {
+    reducedMotionMediaQuery.addEventListener('change', handler);
+    return;
+  }
+  if (typeof reducedMotionMediaQuery.addListener === 'function') {
+    reducedMotionMediaQuery.addListener(handler);
+  }
+}
+
+function unbindReducedMotionPreference() {
+  if (!reducedMotionMediaQuery || !reducedMotionMediaQuery.__handler__) return;
+  const handler = reducedMotionMediaQuery.__handler__;
+  if (typeof reducedMotionMediaQuery.removeEventListener === 'function') {
+    reducedMotionMediaQuery.removeEventListener('change', handler);
+  } else if (typeof reducedMotionMediaQuery.removeListener === 'function') {
+    reducedMotionMediaQuery.removeListener(handler);
+  }
+  reducedMotionMediaQuery = null;
+}
+
+async function resolveAmbientAssetDownloadUrl(assetId) {
+  const normalizedId = Number(assetId);
+  if (!Number.isInteger(normalizedId) || normalizedId <= 0) return '';
+  const cached = ambientAssetDownloadCache.get(normalizedId);
+  if (cached && cached.expireAt > Date.now()) {
+    return cached.url;
+  }
+  if (!auth.isAuthenticated.value) return '';
+
+  const payload = await auth.authorizedFetch(`/api/v1/assets/${encodeURIComponent(normalizedId)}/download-url`, {
+    method: 'GET'
+  });
+  const data = payload && typeof payload === 'object' && payload.data ? payload.data : payload;
+  const url = String(data?.downloadUrl || data?.download_url || data?.publicUrl || data?.public_url || '').trim();
+  const expireSeconds = Math.max(30, Number(data?.expireSeconds ?? data?.expire_seconds) || 300);
+  if (url) {
+    ambientAssetDownloadCache.set(normalizedId, {
+      url,
+      expireAt: Date.now() + Math.max(30, expireSeconds - 5) * 1000
+    });
+  }
+  return url;
+}
+
+async function buildAmbientMixerTracks(snapshot = siteAtmosphereSnapshot.value) {
+  const enabledTracks = snapshot.ambient.tracks.filter((track) => Boolean(track.enabled));
+  const resolved = [];
+  for (const track of enabledTracks) {
+    if (track.source === 'builtin') {
+      const builtin = findBuiltinAmbientById(track.trackId);
+      if (!builtin) continue;
+      if (builtin.kind === 'noise') {
+        resolved.push({
+          trackId: track.trackId,
+          kind: 'noise',
+          noiseType: builtin.noiseType,
+          volume: track.volume
+        });
+        continue;
+      }
+      if (builtin.audioUrl) {
+        resolved.push({
+          trackId: track.trackId,
+          kind: 'media',
+          audioUrl: builtin.audioUrl,
+          volume: track.volume
+        });
+      }
+      continue;
+    }
+
+    if (track.source === 'guest') {
+      const guestCode = String(track.guestCode || '').trim() || track.trackId.replace(/^guest:/i, '');
+      const guestMeta = ambientGuestUploads.value?.[guestCode];
+      if (!guestMeta?.dataUrl) continue;
+      resolved.push({
+        trackId: track.trackId,
+        kind: 'media',
+        audioUrl: guestMeta.dataUrl,
+        volume: track.volume
+      });
+      continue;
+    }
+
+    const url = await resolveAmbientAssetDownloadUrl(track.assetId);
+    if (!url) continue;
+    resolved.push({
+      trackId: track.trackId,
+      kind: 'media',
+      audioUrl: url,
+      volume: track.volume
+    });
+  }
+  return resolved;
+}
+
+async function syncAmbientMixer(snapshot = siteAtmosphereSnapshot.value) {
+  ambientMixer.setMasterVolume(snapshot.ambient.masterVolume);
+  await ambientMixer.setTracks(await buildAmbientMixerTracks(snapshot));
+}
+
+function openAtmospherePanel(tabKey = 'ambient') {
+  siteAtmosphere.panelTab = ['music', 'ambient', 'effects'].includes(tabKey) ? tabKey : 'ambient';
+  atmospherePanelVisible.value = true;
+}
+
+function closeAtmospherePanel() {
+  atmospherePanelVisible.value = false;
+}
+
+function setAtmospherePanelTab(tabKey) {
+  siteAtmosphere.panelTab = ['music', 'ambient', 'effects'].includes(tabKey) ? tabKey : 'ambient';
+}
+
+function toggleAmbientLibraryTrack(track) {
+  applySiteAtmosphereState(
+    toggleAmbientTrack(siteAtmosphere, track, {
+      sessionUploads: ambientGuestUploads.value
+    })
+  );
+}
+
+function setAmbientTrackGain(payload) {
+  if (!payload || typeof payload !== 'object') return;
+  applySiteAtmosphereState(
+    setAmbientTrackVolume(siteAtmosphere, String(payload.trackId || '').trim(), payload.volume, {
+      sessionUploads: ambientGuestUploads.value
+    })
+  );
+}
+
+function muteAllAmbientTracks() {
+  applySiteAtmosphereState(
+    setAmbientAllEnabled(siteAtmosphere, false, {
+      sessionUploads: ambientGuestUploads.value
+    })
+  );
+}
+
+function persistAmbientGuestUploads() {
+  writeAmbientGuestUploadsToSession(ambientGuestUploads.value);
+}
+
+function removeAmbientLibraryTrack(trackId) {
+  const normalizedTrackId = String(trackId || '').trim();
+  if (!normalizedTrackId) return;
+  if (normalizedTrackId.startsWith('guest:')) {
+    const guestCode = normalizedTrackId.replace(/^guest:/i, '');
+    if (ambientGuestUploads.value?.[guestCode]) {
+      const nextUploads = { ...ambientGuestUploads.value };
+      delete nextUploads[guestCode];
+      ambientGuestUploads.value = nextUploads;
+      persistAmbientGuestUploads();
+    }
+  }
+  applySiteAtmosphereState(
+    removeAmbientTrack(siteAtmosphere, normalizedTrackId, {
+      sessionUploads: ambientGuestUploads.value
+    })
+  );
+}
+
+function saveCurrentAmbientPreset(name) {
+  applySiteAtmosphereState(
+    saveAmbientPreset(siteAtmosphere, name, {
+      sessionUploads: ambientGuestUploads.value
+    })
+  );
+}
+
+function applySavedAmbientPreset(presetId) {
+  applySiteAtmosphereState(
+    applyAmbientPreset(siteAtmosphere, presetId, {
+      sessionUploads: ambientGuestUploads.value
+    })
+  );
+}
+
+function deleteSavedAmbientPreset(presetId) {
+  applySiteAtmosphereState(
+    deleteAmbientPreset(siteAtmosphere, presetId, {
+      sessionUploads: ambientGuestUploads.value
+    })
+  );
+}
+
+async function handleAmbientUpload(file) {
+  ambientUploadHint.value = '';
+  ambientUploading.value = true;
+  try {
+    const contentType = validateAmbientAudioFile(file);
+    if (auth.isAuthenticated.value) {
+      const uploaded = await uploadAmbientAudioAsset(file, auth.authorizedFetch);
+      if (uploaded.downloadUrl) {
+        ambientAssetDownloadCache.set(uploaded.assetId, {
+          url: uploaded.downloadUrl,
+          expireAt: Date.now() + 290 * 1000
+        });
+      }
+      applySiteAtmosphereState(
+        upsertAmbientTrack(
+          siteAtmosphere,
+          {
+            trackId: `asset:${uploaded.assetId}`,
+            source: 'asset',
+            assetId: uploaded.assetId,
+            enabled: true,
+            volume: 0.72,
+            title: uploaded.title
+          },
+          {
+            sessionUploads: ambientGuestUploads.value
+          }
+        )
+      );
+      ambientUploadHint.value = '环境音上传成功，已加入当前混音。';
+      return;
+    }
+
+    const dataUrl = await fileToDataUrl(file);
+    const guestCode = `ambient_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    ambientGuestUploads.value = {
+      ...ambientGuestUploads.value,
+      [guestCode]: {
+        code: guestCode,
+        title: String(file.name || '临时环境音').trim() || '临时环境音',
+        dataUrl,
+        contentType,
+        size: Math.max(0, Number(file.size || 0) || 0)
+      }
+    };
+    persistAmbientGuestUploads();
+    applySiteAtmosphereState(
+      upsertAmbientTrack(
+        siteAtmosphere,
+        {
+          trackId: `guest:${guestCode}`,
+          source: 'guest',
+          enabled: true,
+          volume: 0.72,
+          title: ambientGuestUploads.value[guestCode].title
+        },
+        {
+          sessionUploads: ambientGuestUploads.value
+        }
+      )
+    );
+    ambientUploadHint.value = '临时环境音已保存到当前浏览器会话。';
+  } catch (error) {
+    ambientUploadHint.value = error?.message || '环境音上传失败';
+  } finally {
+    ambientUploading.value = false;
+  }
+}
+
+function toggleEffectEnabled(nextValue) {
+  const enabled = Boolean(nextValue);
+  if (enabled && siteAtmosphere.effect.presetId === 'none') {
+    siteAtmosphere.effect.presetId = 'sakura';
+  }
+  siteAtmosphere.effect.enabled = enabled && siteAtmosphere.effect.presetId !== 'none';
+}
+
+function selectEffectPreset(presetId) {
+  siteAtmosphere.effect.presetId = String(presetId || 'none').trim() || 'none';
+  siteAtmosphere.effect.enabled = siteAtmosphere.effect.presetId !== 'none';
 }
 
 function formatPercent(value) {
@@ -993,22 +1449,7 @@ function buildWallpaperPreferencePayload() {
 }
 
 function queueWallpaperPreferenceSync() {
-  if (!auth.isAuthenticated.value) return;
-  if (wallpaperPreferenceSaveTimer) {
-    window.clearTimeout(wallpaperPreferenceSaveTimer);
-  }
-  wallpaperPreferenceSaveTimer = window.setTimeout(async () => {
-    try {
-      const current = await auth.getPreference();
-      const source = current && typeof current === 'object' ? { ...current } : {};
-      source.home_wallpaper = buildWallpaperPreferencePayload();
-      await auth.updatePreference(source);
-    } catch {
-      // ignore remote sync failure
-    } finally {
-      wallpaperPreferenceSaveTimer = 0;
-    }
-  }, 650);
+  queueAccountPreferencePatch('home_wallpaper', buildWallpaperPreferencePayload());
 }
 
 function isSupportedPackageFile(file) {
@@ -1720,6 +2161,9 @@ function onGlobalPointerDown(event) {
   if (shouldRunVisualizer.value && audioCtx?.state === 'suspended') {
     audioCtx.resume().catch(() => {});
   }
+  if (ambientMixer.needsUserGesture.value || ambientMixer.suspended.value) {
+    ambientMixer.resumeFromGesture().catch(() => {});
+  }
 
   const trigger = target.closest('.ripple-trigger');
   if (!trigger) return;
@@ -1857,6 +2301,39 @@ watch(
   }
 );
 watch(
+  () => [
+    siteAtmosphere.panelTab,
+    siteAtmosphere.effect.enabled,
+    siteAtmosphere.effect.presetId,
+    siteAtmosphere.effect.density,
+    siteAtmosphere.effect.opacity,
+    siteAtmosphere.ambient.masterVolume,
+    JSON.stringify(siteAtmosphere.ambient.tracks || []),
+    JSON.stringify(siteAtmosphere.ambient.presets || []),
+    JSON.stringify(ambientGuestUploads.value || {})
+  ],
+  async () => {
+    const snapshot = buildSiteAtmospherePreferencePayload();
+    writeSiteAtmosphereToStorage(snapshot);
+    queueAccountPreferencePatch('site_atmosphere', snapshot);
+    await syncAmbientMixer(snapshot);
+  },
+  { immediate: true }
+);
+watch(
+  () => auth.isAuthenticated.value,
+  async (authenticated, wasAuthenticated) => {
+    if (authenticated) {
+      await loadRemoteSiteAtmospherePreference();
+      await syncAmbientMixer();
+      return;
+    }
+    if (wasAuthenticated) {
+      ambientAssetDownloadCache.clear();
+    }
+  }
+);
+watch(
   () => route.fullPath,
   async () => {
     await nextTick();
@@ -1927,11 +2404,15 @@ watch(
 onMounted(async () => {
   await auth.ensureReady();
   ui.initializeUiPreferences();
+  ambientGuestUploads.value = readAmbientGuestUploadsFromSession();
+  applySiteAtmosphereState(readSiteAtmosphereFromStorage());
   loadPersistedExtra();
   await loadRemoteWallpaperPreference();
+  await loadRemoteSiteAtmospherePreference();
   await loadBackgroundLibrary();
   applyWallpaperCustomVariables();
   applyWallpaperAudioState();
+  bindReducedMotionPreference();
   updateViewportMode();
   recordWindowDiag('app.guard.state', runtimeGuards);
 
@@ -1965,6 +2446,7 @@ onBeforeUnmount(() => {
     sidebarAiCloseTimer = 0;
   }
 
+  unbindReducedMotionPreference();
   window.removeEventListener('resize', updateViewportMode);
   document.removeEventListener('visibilitychange', onVisibilityChange);
   window.removeEventListener('blur', onWindowBlur);
@@ -1988,6 +2470,7 @@ onBeforeUnmount(() => {
     analyser = null;
     freqData = null;
   }
+  ambientMixer.destroy().catch(() => {});
 });
 </script>
 

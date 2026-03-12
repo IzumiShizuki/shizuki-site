@@ -21,12 +21,12 @@
       </div>
 
       <div class="nav-section center secondary-nav">
-        <div class="menu-item-stack ripple-trigger">
+        <div class="menu-item-stack ripple-trigger" :class="{ active: musicActive }" @click="openAtmosphere('music')">
           <div class="circle-icon-box liquid-material"><i class="fas fa-music"></i></div>
           <span class="item-label">音乐</span>
         </div>
 
-        <div class="menu-item-stack ripple-trigger">
+        <div class="menu-item-stack ripple-trigger" :class="{ active: ambientActive }" @click="openAtmosphere('ambient')">
           <div class="circle-icon-box liquid-material"><i class="fas fa-sliders-h icon-rotated"></i></div>
           <span class="item-label">白噪音</span>
         </div>
@@ -36,7 +36,7 @@
           <span class="item-label">变换图片</span>
         </div>
 
-        <div class="menu-item-stack ripple-trigger">
+        <div class="menu-item-stack ripple-trigger" :class="{ active: effectActive }" @click="openAtmosphere('effects')">
           <div class="circle-icon-box liquid-material"><i class="fas fa-wand-magic-sparkles"></i></div>
           <span class="item-label">特效</span>
         </div>
@@ -139,6 +139,18 @@ const props = defineProps({
   avatarUrl: {
     type: String,
     default: ''
+  },
+  musicActive: {
+    type: Boolean,
+    default: false
+  },
+  ambientActive: {
+    type: Boolean,
+    default: false
+  },
+  effectActive: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -146,6 +158,7 @@ const emit = defineEmits([
   'toggle-menu',
   'toggle-ai-chat',
   'select-main-route',
+  'open-atmosphere-panel',
   'open-background-picker',
   'open-profile',
   'open-admin',
@@ -237,6 +250,11 @@ function selectMainRoute(routeKey) {
 
 function openBackgroundPicker() {
   emit('open-background-picker');
+}
+
+function openAtmosphere(tabKey) {
+  closeProfileMenus();
+  emit('open-atmosphere-panel', tabKey);
 }
 
 function openProjectGithub() {
@@ -529,6 +547,19 @@ onBeforeUnmount(() => {
   transform: translateY(-3px);
   box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
   color: var(--icon-hover-color);
+}
+
+.menu-item-stack.active .circle-icon-box {
+  --liquid-bg: var(--menu-active-bg);
+  color: rgb(var(--accent-strong-rgb));
+  box-shadow:
+    0 0 0 1px var(--menu-active-border),
+    var(--menu-active-shadow);
+}
+
+.menu-item-stack.active .item-label {
+  color: rgb(var(--accent-strong-rgb));
+  font-weight: 600;
 }
 
 .icon-rotated {
