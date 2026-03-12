@@ -122,9 +122,6 @@
         :play-mode="player.playMode.value"
         :volume="player.volume.value"
         :detail-layout="isPlayerDetailRoute"
-        :playlist-options="collectPlaylistTargets"
-        :can-collect="auth.isAuthenticated.value"
-        :can-collect-default-public="isAdminUser"
         @toggle-play="player.togglePlay"
         @prev="player.playPrev"
         @next="player.playNext"
@@ -132,11 +129,25 @@
         @cycle-mode="player.cyclePlayMode"
         @set-volume="player.setVolume"
         @select-track="handleSelectTrackFromDock"
-        @collect-track="handleCollectTrackToPlaylist"
-        @collect-default-public-track="handleCollectTrackToDefaultPublic"
+        @open-collect-dialog="openCollectDialog()"
         @open-player-detail="enterPlayerDetail"
       />
     </div>
+
+    <MusicCollectTrackDialog
+      :visible="collectDialogVisible"
+      :track="collectDialogTrack"
+      :playlist-options="collectPlaylistTargets"
+      :can-collect="auth.isAuthenticated.value"
+      :can-collect-default-public="isAdminUser"
+      :busy="collectDialogBusy"
+      :error-text="collectDialogError"
+      @close="closeCollectDialog"
+      @collect="handleCollectDialogSelect"
+      @collect-default-public="handleCollectDialogDefaultPublic"
+      @require-login="requestMusicLogin"
+      @create-playlist="handleCreatePlaylist"
+    />
 
     <MusicCreatePlaylistDialog
       :visible="createDialogVisible"
@@ -153,6 +164,7 @@ import { computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, provid
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import MusicLibraryDock from '../components/music/MusicLibraryDock.vue';
 import MusicCreatePlaylistDialog from '../components/music/MusicCreatePlaylistDialog.vue';
+import MusicCollectTrackDialog from '../components/music/MusicCollectTrackDialog.vue';
 import MusicLeftSidebar from '../components/music/MusicLeftSidebar.vue';
 import MusicRightPanel from '../components/music/MusicRightPanel.vue';
 import MusicSearchToolbar from '../components/music/MusicSearchToolbar.vue';
@@ -275,6 +287,10 @@ const committedSearch = ref({
 const createDialogVisible = ref(false);
 const createDialogSubmitting = ref(false);
 const createDialogError = ref('');
+const collectDialogVisible = ref(false);
+const collectDialogTrack = ref(null);
+const collectDialogError = ref('');
+const collectDialogBusy = ref(false);
 const playlistBrowseVisibleCount = ref(PLAYLIST_BROWSE_INITIAL_VISIBLE);
 const playlistBrowseAutoLoadLocked = ref(false);
 const playlistBrowseLoading = ref(false);
@@ -1599,18 +1615,18 @@ async function handleSelectTrackFromDock(index) {
 async function collectTrackToPlaylist(trackInput, rawPlaylistCode, options = {}) {
   if (!auth.isAuthenticated.value) {
     goLogin();
-    return;
+    return false;
   }
   const playlistCode = String(rawPlaylistCode || '').trim();
   if (!playlistCode) {
     window.alert('请选择一个目标歌单');
-    return;
+    return false;
   }
 
   const currentTrack = trackInput || player.currentTrack.value;
   if (!currentTrack) {
     window.alert('当前没有可收藏的歌曲');
-    return;
+    return false;
   }
 
   try {
@@ -1625,28 +1641,26 @@ async function collectTrackToPlaylist(trackInput, rawPlaylistCode, options = {})
     if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === playlistCode) {
       await ensureCurrentRoutePlaylistLoaded({ force: true });
     }
+    return true;
   } catch (error) {
     window.alert(parseErrorMessage(error, '收藏歌曲失败，请稍后重试'));
+    return false;
   }
-}
-
-async function handleCollectTrackToPlaylist(rawPlaylistCode) {
-  await collectTrackToPlaylist(player.currentTrack.value, rawPlaylistCode);
 }
 
 async function collectTrackToDefaultPublic(trackInput) {
   if (!auth.isAuthenticated.value) {
     goLogin();
-    return;
+    return false;
   }
   if (!isAdminUser.value) {
     window.alert('仅管理员可写入默认收藏夹');
-    return;
+    return false;
   }
   const currentTrack = trackInput || player.currentTrack.value;
   if (!currentTrack) {
     window.alert('当前没有可收藏的歌曲');
-    return;
+    return false;
   }
   try {
     await musicApi.upsertAdminDefaultPlaylistTrack(
@@ -1657,13 +1671,64 @@ async function collectTrackToDefaultPublic(trackInput) {
     if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === DEFAULT_PLAYLIST_CODE) {
       await ensureCurrentRoutePlaylistLoaded({ force: true });
     }
+    return true;
   } catch (error) {
     window.alert(parseErrorMessage(error, '加入默认收藏夹失败，请稍后重试'));
+    return false;
   }
 }
 
-async function handleCollectTrackToDefaultPublic() {
-  await collectTrackToDefaultPublic(player.currentTrack.value);
+function openCollectDialog(trackInput) {
+  if (!auth.isAuthenticated.value) {
+    requestMusicLogin();
+    return;
+  }
+  const currentTrack = trackInput || player.currentTrack.value;
+  if (!currentTrack) {
+    window.alert('当前没有可收藏的歌曲');
+    return;
+  }
+  collectDialogTrack.value = currentTrack;
+  collectDialogError.value = '';
+  collectDialogVisible.value = true;
+}
+
+function closeCollectDialog() {
+  collectDialogVisible.value = false;
+  collectDialogError.value = '';
+  collectDialogTrack.value = null;
+}
+
+async function handleCollectDialogSelect(playlistCode) {
+  collectDialogBusy.value = true;
+  try {
+    const ok = await collectTrackToPlaylist(collectDialogTrack.value, playlistCode, { silent: true });
+    if (ok) {
+      collectDialogVisible.value = false;
+      return;
+    }
+    collectDialogError.value = '收藏失败，请稍后重试';
+  } catch (error) {
+    collectDialogError.value = parseErrorMessage(error, '收藏歌曲失败，请稍后重试');
+  } finally {
+    collectDialogBusy.value = false;
+  }
+}
+
+async function handleCollectDialogDefaultPublic() {
+  collectDialogBusy.value = true;
+  try {
+    const ok = await collectTrackToDefaultPublic(collectDialogTrack.value);
+    if (ok) {
+      collectDialogVisible.value = false;
+      return;
+    }
+    collectDialogError.value = '加入默认收藏夹失败，请稍后重试';
+  } catch (error) {
+    collectDialogError.value = parseErrorMessage(error, '加入默认收藏夹失败，请稍后重试');
+  } finally {
+    collectDialogBusy.value = false;
+  }
 }
 
 function isTrackLiked(trackId) {
@@ -1759,6 +1824,7 @@ async function handleCreatePlaylist() {
     return;
   }
   createDialogError.value = '';
+  collectDialogVisible.value = false;
   createDialogVisible.value = true;
 }
 
@@ -1877,6 +1943,7 @@ const musicContext = Object.freeze({
   toggleCollectCurrentPlaylist,
   collectTrackToPlaylist,
   collectTrackToDefaultPublic,
+  openCollectDialog,
   toggleTrackLike,
   isTrackLiked
 });

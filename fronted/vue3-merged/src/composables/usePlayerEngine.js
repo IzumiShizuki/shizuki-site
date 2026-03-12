@@ -381,8 +381,9 @@ export function usePlayerEngine(options = {}) {
   function readLyricTrackTexts(track) {
     const metadata = track?.metadata && typeof track.metadata === 'object' ? track.metadata : {};
     const metadataTracks = coerceLyricTracks(metadata?.lyricTracks || metadata?.lyric_tracks || metadata?.lyrics || metadata?.lrcTracks);
+    const metadataPlain = pickFirstNonBlankString(metadata?.lyricText, metadata?.lyric_text);
     return {
-      original: pickFirstNonBlankString(track?.lyricText, metadataTracks.original),
+      original: pickFirstNonBlankString(track?.lyricText, metadataPlain, metadataTracks.original),
       translation: pickFirstNonBlankString(track?.translationLyricText, metadataTracks.translation),
       furigana: pickFirstNonBlankString(track?.furiganaLyricText, metadataTracks.furigana)
     };

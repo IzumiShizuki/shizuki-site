@@ -86,11 +86,8 @@
           </button>
           <TrackCollectButton
             :track="item"
-            :playlist-options="collectPlaylistTargets"
             :can-collect="music.authState.value.isAuthenticated"
-            :can-collect-default-public="music.authState.value.isAdmin"
-            @collect="handleCollectTrack"
-            @collect-default-public="handleCollectDefaultPublic"
+            @open="handleOpenCollectDialog"
             @require-login="handleRequireCollectLogin"
           />
         </span>
@@ -132,9 +129,6 @@ const renderTracks = computed(() => {
   return allTracks.value.slice(0, Math.min(allTracks.value.length, 100));
 });
 const currentPlayingTrackId = computed(() => resolveTrackId(music.player.currentTrack.value));
-const collectPlaylistTargets = computed(() =>
-  (Array.isArray(music.collectPlaylistTargets?.value) ? music.collectPlaylistTargets.value : [])
-);
 const totalTrackCount = computed(() => {
   const profileCount = Number(profile.value?.trackCount || 0);
   if (Number.isFinite(profileCount) && profileCount > 0) {
@@ -198,17 +192,10 @@ async function enqueueTrackNext(trackItem) {
   }
 }
 
-function handleCollectTrack(payload) {
-  const track = payload?.track || null;
-  const playlistCode = String(payload?.playlistCode || '').trim();
-  if (!playlistCode) return;
-  if (typeof music.collectTrackToPlaylist !== 'function') return;
-  music.collectTrackToPlaylist(track, playlistCode);
-}
-
-function handleCollectDefaultPublic(track) {
-  if (typeof music.collectTrackToDefaultPublic !== 'function') return;
-  music.collectTrackToDefaultPublic(track || null);
+function handleOpenCollectDialog(track) {
+  if (typeof music.openCollectDialog === 'function') {
+    music.openCollectDialog(track || null);
+  }
 }
 
 function handleRequireCollectLogin() {

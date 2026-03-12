@@ -33,7 +33,7 @@
         <button class="mode-btn ripple-trigger" type="button" title="播放列表" @click="toggleQueue">
           <i class="fas fa-list"></i>
         </button>
-        <button class="mode-btn ripple-trigger" :class="{ active: collectOpen }" type="button" title="收藏到歌单" @click="toggleCollectPanel">
+        <button class="mode-btn ripple-trigger" type="button" title="收藏到歌单" @click="emit('open-collect-dialog')">
           <i class="fas fa-heart"></i>
         </button>
         <i class="fas fa-volume-low volume-icon"></i>
@@ -65,39 +65,6 @@
       </div>
     </section>
 
-    <section v-if="collectOpen" class="dock-collect liquid-material" @click.stop>
-      <header class="collect-head">
-        <p>收藏到歌单</p>
-        <button class="queue-close ripple-trigger" type="button" @click="collectOpen = false">
-          <i class="fas fa-xmark"></i>
-        </button>
-      </header>
-
-      <div class="collect-body">
-        <button
-          v-if="canCollectDefaultPublic"
-          class="collect-item collect-default ripple-trigger"
-          type="button"
-          @click="handleCollectToDefaultPublic"
-        >
-          <span class="collect-name">加入默认收藏夹（云端）</span>
-        </button>
-        <button
-          v-for="item in playlistOptions"
-          :key="`collect-playlist-${item.playlistCode || item.playlist_code || item.name}`"
-          class="collect-item ripple-trigger"
-          type="button"
-          @click="handleCollectToPlaylist(item.playlistCode || item.playlist_code)"
-        >
-          <span class="collect-name">{{ item.name || '未命名歌单' }}</span>
-          <span class="collect-meta">{{ Number(item.trackCount || item.track_count || 0) }} 首</span>
-        </button>
-        <button v-if="!canCollect" class="collect-login ripple-trigger" type="button" @click="handleCollectLogin">
-          登录后可收藏到歌单
-        </button>
-        <p v-else-if="!playlistOptions.length && !canCollectDefaultPublic" class="collect-empty">暂无可收藏歌单</p>
-      </div>
-    </section>
   </footer>
 </template>
 
@@ -116,10 +83,7 @@ const props = defineProps({
   isPlaying: { type: Boolean, default: false },
   playMode: { type: String, default: 'sequential' },
   volume: { type: Number, default: 0.8 },
-  detailLayout: { type: Boolean, default: false },
-  playlistOptions: { type: Array, default: () => [] },
-  canCollect: { type: Boolean, default: false },
-  canCollectDefaultPublic: { type: Boolean, default: false }
+  detailLayout: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -130,13 +94,11 @@ const emit = defineEmits([
   'cycle-mode',
   'set-volume',
   'select-track',
-  'collect-track',
-  'collect-default-public-track',
-  'open-player-detail'
+  'open-player-detail',
+  'open-collect-dialog'
 ]);
 const rootRef = ref(null);
 const queueOpen = ref(false);
-const collectOpen = ref(false);
 
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
@@ -176,35 +138,12 @@ function onVolume(event) {
 }
 
 function toggleQueue() {
-  collectOpen.value = false;
   queueOpen.value = !queueOpen.value;
 }
 
 function handleSelectTrack(index) {
   emit('select-track', index);
   queueOpen.value = false;
-}
-
-function toggleCollectPanel() {
-  queueOpen.value = false;
-  collectOpen.value = !collectOpen.value;
-}
-
-function handleCollectLogin() {
-  emit('collect-track', '');
-  collectOpen.value = false;
-}
-
-function handleCollectToPlaylist(playlistCode) {
-  const code = String(playlistCode || '').trim();
-  if (!code) return;
-  emit('collect-track', code);
-  collectOpen.value = false;
-}
-
-function handleCollectToDefaultPublic() {
-  emit('collect-default-public-track');
-  collectOpen.value = false;
 }
 
 function handleRootClick() {
@@ -214,10 +153,9 @@ function handleRootClick() {
 
 useDismissiblePopover({
   rootRef,
-  enabled: () => queueOpen.value || collectOpen.value,
+  enabled: () => queueOpen.value,
   onDismiss: () => {
     queueOpen.value = false;
-    collectOpen.value = false;
   }
 });
 </script>

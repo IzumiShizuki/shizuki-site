@@ -119,11 +119,8 @@
               </button>
               <TrackCollectButton
                 :track="item"
-                :playlist-options="collectPlaylistTargets"
                 :can-collect="music.authState.value.isAuthenticated"
-                :can-collect-default-public="music.authState.value.isAdmin"
-                @collect="handleCollectTrack"
-                @collect-default-public="handleCollectDefaultPublic"
+                @open="handleOpenCollectDialog"
                 @require-login="handleRequireCollectLogin"
               />
             </span>
@@ -323,11 +320,8 @@
             </button>
             <TrackCollectButton
               :track="item"
-              :playlist-options="collectPlaylistTargets"
               :can-collect="music.authState.value.isAuthenticated"
-              :can-collect-default-public="music.authState.value.isAdmin"
-              @collect="handleCollectTrack"
-              @collect-default-public="handleCollectDefaultPublic"
+              @open="handleOpenCollectDialog"
               @require-login="handleRequireCollectLogin"
             />
           </span>
@@ -488,9 +482,6 @@ const filteredTracks = computed(() => {
 
 const spotifyPlaceholderPlaylists = computed(() => SPOTIFY_PLACEHOLDER);
 const filteredPodcastCards = computed(() => PODCAST_PLACEHOLDER);
-const collectPlaylistTargets = computed(() =>
-  (Array.isArray(music.collectPlaylistTargets?.value) ? music.collectPlaylistTargets.value : [])
-);
 const userCollectedPlaylists = computed(() =>
   (Array.isArray(music.collectedPlaylists?.value) ? music.collectedPlaylists.value : [])
 );
@@ -622,17 +613,10 @@ function handleOpenPlaylist(playlistCode) {
   }, delay);
 }
 
-function handleCollectTrack(payload) {
-  const track = payload?.track || null;
-  const playlistCode = String(payload?.playlistCode || '').trim();
-  if (!playlistCode) return;
-  if (typeof music.collectTrackToPlaylist !== 'function') return;
-  music.collectTrackToPlaylist(track, playlistCode);
-}
-
-function handleCollectDefaultPublic(track) {
-  if (typeof music.collectTrackToDefaultPublic !== 'function') return;
-  music.collectTrackToDefaultPublic(track || null);
+function handleOpenCollectDialog(track) {
+  if (typeof music.openCollectDialog === 'function') {
+    music.openCollectDialog(track || null);
+  }
 }
 
 function handleRequireCollectLogin() {

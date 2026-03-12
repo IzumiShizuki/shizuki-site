@@ -22,6 +22,12 @@
           <h1>{{ track?.title || '暂无播放曲目' }}</h1>
           <p class="sub">{{ track?.artist || '未知歌手' }}</p>
           <p v-if="albumText" class="album">{{ albumText }}</p>
+          <div class="meta-actions">
+            <button class="meta-collect-btn ripple-trigger" type="button" title="收藏到歌单" @click="music.openCollectDialog?.(track)">
+              <i class="fas fa-folder-plus"></i>
+              收藏到歌单
+            </button>
+          </div>
         </header>
 
         <section class="lyric-scroll-shell">
@@ -33,7 +39,7 @@
               :key="`lyric-row-${index}-${row.time}`"
               :ref="(el) => setLyricRowRef(el, index)"
               class="lyric-row ripple-trigger"
-              :class="{ active: index === activeLyricIndex }"
+              :class="{ active: row.time === activeLyricTime }"
               type="button"
               @click="seekToLyricRow(row.time)"
             >
@@ -109,6 +115,7 @@ const track = computed(() => music.player.currentTrack.value);
 const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
 const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
 const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
+const currentTimeSec = computed(() => Number(music.player.currentTime?.value || 0));
 const availableLyricModes = computed(() =>
   Array.isArray(music.player.availableLyricModes?.value) && music.player.availableLyricModes.value.length
     ? music.player.availableLyricModes.value
@@ -187,6 +194,28 @@ const renderedRows = computed(() => {
       sub
     };
   });
+});
+
+const activeScrollIndex = computed(() => {
+  const list = renderedRows.value;
+  if (!list.length) return -1;
+  if (activeLyricIndex.value >= 0 && activeLyricIndex.value < list.length) {
+    return activeLyricIndex.value;
+  }
+  const now = currentTimeSec.value;
+  let idx = -1;
+  for (let i = 0; i < list.length; i += 1) {
+    if (Number(list[i].time || 0) <= now) idx = i;
+    else break;
+  }
+  if (idx < 0) idx = 0;
+  return idx;
+});
+
+const activeLyricTime = computed(() => {
+  const idx = activeScrollIndex.value;
+  if (idx < 0) return null;
+  return Number(renderedRows.value[idx]?.time || 0);
 });
 
 const coverStyle = computed(() => {
@@ -290,7 +319,7 @@ watch(
   async () => {
     lyricRowRefs.value = [];
     await nextTick();
-    const idx = activeLyricIndex.value;
+    const idx = activeScrollIndex.value;
     if (idx >= 0) {
       scrollToLyricIndex(idx, 'auto');
     }
@@ -309,7 +338,7 @@ watch(
 );
 
 watch(
-  () => activeLyricIndex.value,
+  () => activeScrollIndex.value,
   async (nextIndex) => {
     if (nextIndex < 0) return;
     if (Date.now() < autoFollowSuspendUntil) return;
@@ -439,6 +468,30 @@ onBeforeUnmount(() => {
   margin: 4px 0 0;
   color: rgba(160, 175, 205, 0.86);
   font-size: 13px;
+}
+
+.meta-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.meta-collect-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(236, 244, 255, 0.96);
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.meta-collect-btn:hover {
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
 }
 
 .lyric-scroll-shell {
