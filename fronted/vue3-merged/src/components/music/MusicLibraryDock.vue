@@ -102,8 +102,10 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
+import { useDismissiblePopover } from '../../composables/useDismissiblePopover';
 
 const props = defineProps({
   track: { type: Object, default: null },
@@ -149,8 +151,8 @@ const progress = computed(() => {
   return Math.max(0, Math.min(1, props.currentTime / props.duration));
 });
 
-const playedText = computed(() => formatTime(props.currentTime));
-const durationText = computed(() => formatTime(props.duration));
+const playedText = computed(() => formatMediaTime(props.currentTime));
+const durationText = computed(() => formatMediaTime(props.duration));
 
 const modeLabel = computed(() => {
   if (props.playMode === 'random') return '随机';
@@ -162,12 +164,6 @@ const modeIconClass = computed(() => {
   if (props.playMode === 'single') return 'fa-repeat-1';
   return 'fa-repeat';
 });
-
-function formatTime(sec) {
-  if (!Number.isFinite(sec) || sec < 0) return '00:00';
-  const t = Math.floor(sec);
-  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-}
 
 function onSeek(event) {
   const raw = Number(event?.target?.value);
@@ -216,23 +212,12 @@ function handleRootClick() {
   emit('open-player-detail');
 }
 
-function onDocumentPointerDown(event) {
-  if (!queueOpen.value && !collectOpen.value) return;
-  const root = rootRef.value;
-  const target = event?.target;
-  if (!root || !(target instanceof Element)) return;
-  if (root.contains(target)) return;
-  queueOpen.value = false;
-  collectOpen.value = false;
-}
-
-if (typeof document !== 'undefined') {
-  document.addEventListener('pointerdown', onDocumentPointerDown, true);
-}
-
-onBeforeUnmount(() => {
-  if (typeof document !== 'undefined') {
-    document.removeEventListener('pointerdown', onDocumentPointerDown, true);
+useDismissiblePopover({
+  rootRef,
+  enabled: () => queueOpen.value || collectOpen.value,
+  onDismiss: () => {
+    queueOpen.value = false;
+    collectOpen.value = false;
   }
 });
 </script>

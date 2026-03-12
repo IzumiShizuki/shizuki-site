@@ -100,6 +100,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import SubtleScrollArea from '../../components/SubtleScrollArea.vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
+import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 
 const music = useMusicLibraryContext();
@@ -196,13 +197,6 @@ const coverStyle = computed(() => {
   };
 });
 
-function formatTime(sec) {
-  const value = Number(sec);
-  if (!Number.isFinite(value) || value < 0) return '00:00';
-  const rounded = Math.floor(value);
-  return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`;
-}
-
 function setLyricMode(mode) {
   music.player.setLyricRenderMode?.(mode);
   modePanelOpen.value = false;
@@ -243,7 +237,7 @@ function seekToCenterLyric() {
 
 function revealCenterTime(time) {
   centerLyricTime.value = Number.isFinite(Number(time)) ? Number(time) : 0;
-  centerTimeText.value = formatTime(centerLyricTime.value);
+  centerTimeText.value = formatMediaTime(centerLyricTime.value);
   centerTimeVisible.value = true;
   if (centerTimeHideTimer) {
     window.clearTimeout(centerTimeHideTimer);

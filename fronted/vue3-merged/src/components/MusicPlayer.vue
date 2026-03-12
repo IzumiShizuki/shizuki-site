@@ -168,6 +168,8 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useDismissiblePopover } from '../composables/useDismissiblePopover';
+import { formatMediaTime } from '../utils/mediaTime';
 import { safeCssUrl } from '../utils/url';
 import {
   MUSIC_PLAYER_PEEK_MODE,
@@ -300,22 +302,16 @@ const progressPercent = computed(() => {
   return Math.max(0, Math.min(1, props.currentTime / props.duration));
 });
 
-const playedText = computed(() => formatTime(props.currentTime));
+const playedText = computed(() => formatMediaTime(props.currentTime));
 const remainText = computed(() => {
   const remain = Number.isFinite(props.duration) ? Math.max(0, props.duration - props.currentTime) : 0;
-  return formatTime(remain);
+  return formatMediaTime(remain);
 });
 
 const previewTimeText = computed(() => {
   const total = Number.isFinite(props.duration) ? props.duration : 0;
-  return formatTime(total * previewPercent.value);
+  return formatMediaTime(total * previewPercent.value);
 });
-
-function formatTime(sec) {
-  if (!Number.isFinite(sec) || sec < 0) return '00:00';
-  const t = Math.floor(sec);
-  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-}
 
 function stopPeekRevealAnimation() {
   if (peekRevealTimer) {
@@ -432,20 +428,9 @@ function selectVisualizerStyle(styleKey) {
   emit('set-visualizer-style', styleKey);
 }
 
-function onDocumentPointerDown(e) {
-  const canDismissExpanded = props.isExpanded && !props.isPinned;
-  const canDismissPeek = !props.isExpanded && isPeekEligible.value && peekState.value === MUSIC_PLAYER_PEEK_STATE.REVEALED;
-  if (!canDismissExpanded && !canDismissPeek) return;
-
-  const root = rootRef.value;
-  if (!root) return;
-  const target = e.target;
-  if (!(target instanceof Element)) return;
-  if (root.contains(target)) return;
-  if (target.closest('.global-bars') || target.closest('.global-ring') || target.closest('.global-lyric-bar')) return;
-  if (target.closest('.top-menu-root') || target.closest('.ai-dialog-shell')) return;
-
+function dismissPlayerShell() {
   vizMenuOpen.value = false;
+  const canDismissExpanded = props.isExpanded && !props.isPinned;
   if (canDismissExpanded) {
     emit('set-expanded', false);
     return;
@@ -462,11 +447,25 @@ watch(
   { immediate: true }
 );
 
-document.addEventListener('pointerdown', onDocumentPointerDown, true);
+useDismissiblePopover({
+  rootRef,
+  enabled: () => {
+    const canDismissExpanded = props.isExpanded && !props.isPinned;
+    const canDismissPeek = !props.isExpanded && isPeekEligible.value && peekState.value === MUSIC_PLAYER_PEEK_STATE.REVEALED;
+    return canDismissExpanded || canDismissPeek;
+  },
+  shouldIgnoreEvent: (event) => {
+    const target = event?.target;
+    if (!(target instanceof Element)) return false;
+    if (target.closest('.global-bars') || target.closest('.global-ring') || target.closest('.global-lyric-bar')) return true;
+    if (target.closest('.top-menu-root') || target.closest('.ai-dialog-shell')) return true;
+    return false;
+  },
+  onDismiss: dismissPlayerShell
+});
 
 onBeforeUnmount(() => {
   stopPeekRevealAnimation();
-  document.removeEventListener('pointerdown', onDocumentPointerDown, true);
 });
 </script>
 

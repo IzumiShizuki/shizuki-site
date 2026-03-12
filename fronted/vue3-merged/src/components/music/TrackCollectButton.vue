@@ -41,7 +41,8 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useDismissiblePopover } from '../../composables/useDismissiblePopover';
 
 const props = defineProps({
   track: { type: Object, default: null },
@@ -93,23 +94,10 @@ function collectDefaultPublic() {
   close();
 }
 
-function onDocumentPointerDown(event) {
-  if (!open.value) return;
-  const root = rootRef.value;
-  const target = event?.target;
-  if (!root || !(target instanceof Element)) return;
-  if (root.contains(target)) return;
-  close();
-}
-
-if (typeof document !== 'undefined') {
-  document.addEventListener('pointerdown', onDocumentPointerDown, true);
-}
-
-onBeforeUnmount(() => {
-  if (typeof document !== 'undefined') {
-    document.removeEventListener('pointerdown', onDocumentPointerDown, true);
-  }
+useDismissiblePopover({
+  rootRef,
+  enabled: () => open.value,
+  onDismiss: close
 });
 </script>
 
@@ -194,4 +182,3 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 </style>
-

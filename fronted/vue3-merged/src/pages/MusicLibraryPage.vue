@@ -168,6 +168,7 @@ import {
   readMusicSearchHistory,
   recordMusicSearchHistory
 } from '../utils/musicSearchHistory';
+import { formatMediaTime } from '../utils/mediaTime';
 import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
 
@@ -454,7 +455,7 @@ function normalizeApiTrack(raw, index = 0) {
     || metadata?.duration_label
     || ''
   ).trim();
-  const durationLabel = durationLabelRaw || (durationSec != null ? formatDurationBySec(durationSec) : '--:--');
+  const durationLabel = durationLabelRaw || (durationSec != null ? formatMediaTime(durationSec, { fallback: '--:--' }) : '--:--');
   return {
     id,
     trackId: id,
@@ -531,7 +532,7 @@ function normalizeSearchTrack(raw, index = 0) {
     cover: String(raw?.cover || '').trim(),
     durationSec: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec)) ? Number(raw.durationSec ?? raw.duration_sec) : null,
     durationLabel: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec))
-      ? formatDurationBySec(Number(raw.durationSec ?? raw.duration_sec))
+      ? formatMediaTime(Number(raw.durationSec ?? raw.duration_sec), { fallback: '--:--' })
       : '--:--',
     audio: '',
     lyric: ''
@@ -544,13 +545,6 @@ function normalizeSearchArtist(raw) {
     hitCount: Number.isFinite(Number(raw?.hitCount ?? raw?.hit_count)) ? Number(raw.hitCount ?? raw.hit_count) : 0,
     providers: Array.isArray(raw?.providers) ? raw.providers.map((item) => String(item || '').trim()).filter(Boolean) : []
   };
-}
-
-function formatDurationBySec(seconds) {
-  const safe = Math.max(0, Number(seconds || 0));
-  const minute = Math.floor(safe / 60);
-  const second = Math.floor(safe % 60);
-  return `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
 }
 
 function createEmptySearchResult(type = 'all', query = '') {

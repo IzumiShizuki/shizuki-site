@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 import { parseLrc } from '../utils/lrc';
+import { formatMediaTime } from '../utils/mediaTime';
 
 const STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const DEFAULT_PLAYLIST_CODE = 'default_public';
@@ -736,11 +737,7 @@ export function usePlayerEngine(options = {}) {
   }
 
   function formatDuration(sec) {
-    if (!Number.isFinite(sec) || sec <= 0) return '--:--';
-    const t = Math.floor(sec);
-    const mm = String(Math.floor(t / 60)).padStart(2, '0');
-    const ss = String(t % 60).padStart(2, '0');
-    return `${mm}:${ss}`;
+    return formatMediaTime(sec, { fallback: '--:--' });
   }
 
   function hydrateTrackDurations() {

@@ -109,8 +109,9 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue';
+import { computed, ref, toRefs, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useDismissiblePopover } from '../composables/useDismissiblePopover';
 
 const props = defineProps({
   menuExpanded: {
@@ -292,15 +293,6 @@ function requestLogout() {
   emit('logout');
 }
 
-function onGlobalPointerDown(event) {
-  const root = menuRootRef.value;
-  if (!root) return;
-  const target = event.target;
-  if (!(target instanceof Node)) return;
-  if (root.contains(target)) return;
-  closeProfileMenus();
-}
-
 watch(
   () => avatarUrl.value,
   () => {
@@ -320,12 +312,9 @@ watch(
   }
 );
 
-onMounted(() => {
-  window.addEventListener('pointerdown', onGlobalPointerDown, true);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('pointerdown', onGlobalPointerDown, true);
+useDismissiblePopover({
+  rootRef: menuRootRef,
+  onDismiss: closeProfileMenus
 });
 </script>
 

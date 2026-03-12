@@ -118,6 +118,8 @@
 import { computed } from 'vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
+import { formatMediaTime } from '../../utils/mediaTime';
+import { safeCssUrl } from '../../utils/url';
 
 const music = useMusicLibraryContext();
 
@@ -160,10 +162,7 @@ function resolveDurationLabel(trackItem) {
   if (direct) return direct;
   const durationSec = Number(trackItem?.durationSec ?? trackItem?.metadata?.durationSec ?? trackItem?.metadata?.duration_sec);
   if (Number.isFinite(durationSec) && durationSec > 0) {
-    const total = Math.floor(durationSec);
-    const mm = String(Math.floor(total / 60)).padStart(2, '0');
-    const ss = String(total % 60).padStart(2, '0');
-    return `${mm}:${ss}`;
+    return formatMediaTime(durationSec);
   }
   return '--:--';
 }
@@ -173,12 +172,6 @@ function trackCoverStyle(trackItem) {
   return {
     backgroundImage: cover ? `url('${cover}')` : 'none'
   };
-}
-
-function safeCssUrl(rawUrl) {
-  const raw = String(rawUrl || '').trim();
-  if (!raw) return '';
-  return encodeURI(raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 }
 
 function resolveRawIndexByTrackId(trackId) {

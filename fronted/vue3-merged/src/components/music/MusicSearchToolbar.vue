@@ -73,7 +73,8 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useDismissiblePopover } from '../../composables/useDismissiblePopover';
 
 const props = defineProps({
   keyword: { type: String, default: '' },
@@ -135,23 +136,11 @@ function clearHistory() {
   emit('clear-history');
 }
 
-function handleDocumentPointerDown(event) {
-  const root = toolbarRoot.value;
-  if (!root || root.contains(event.target)) {
-    return;
-  }
-  historyPanelVisible.value = false;
-}
-
-onMounted(() => {
-  if (typeof document !== 'undefined') {
-    document.addEventListener('pointerdown', handleDocumentPointerDown, true);
-  }
-});
-
-onBeforeUnmount(() => {
-  if (typeof document !== 'undefined') {
-    document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
+useDismissiblePopover({
+  rootRef: toolbarRoot,
+  enabled: () => showHistoryPanel.value,
+  onDismiss: () => {
+    historyPanelVisible.value = false;
   }
 });
 </script>
