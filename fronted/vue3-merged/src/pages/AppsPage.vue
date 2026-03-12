@@ -67,14 +67,28 @@
           <header class="block-head">
             <h3>Url Links 网址项</h3>
             <div class="block-head-actions">
+              <button
+                class="icon-btn ripple-trigger"
+                type="button"
+                :title="isUrlSourceIconMode ? '切换为详情模式' : '切换为图标模式'"
+                :aria-label="isUrlSourceIconMode ? '切换为详情模式' : '切换为图标模式'"
+                @click="toggleUrlSourceViewMode"
+              >
+                <i :class="isUrlSourceIconMode ? 'fas fa-list' : 'fas fa-table-cells-large'" aria-hidden="true"></i>
+              </button>
               <button class="icon-btn ripple-trigger" type="button" title="打开网址管理器" @click="openUrlManager">
                 <i class="fas fa-link" aria-hidden="true"></i>
               </button>
             </div>
           </header>
 
-          <ul class="url-source-list">
-            <li v-for="item in urlLinks" :key="`url_source_${item.urlLinkId}`" class="url-source-item">
+          <ul class="url-source-list" :class="{ 'icon-mode': isUrlSourceIconMode }">
+            <li
+              v-for="item in urlLinks"
+              :key="`url_source_${item.urlLinkId}`"
+              class="url-source-item"
+              :class="{ 'icon-mode': isUrlSourceIconMode }"
+            >
               <button
                 class="url-source-icon ripple-trigger"
                 type="button"
@@ -89,8 +103,8 @@
 
               <button class="url-source-main" type="button" @click="openUrlLink(item.urlLinkId)">
                 <div>
-                  <p>{{ item.title }}</p>
-                  <small>{{ item.url }}</small>
+                  <p :title="item.title">{{ isUrlSourceIconMode ? toCompactTitle(item.title) : item.title }}</p>
+                  <small v-if="!isUrlSourceIconMode">{{ item.url }}</small>
                 </div>
               </button>
 
@@ -231,6 +245,7 @@ const appState = ref(createDefaultLightAppsState());
 const activePageCode = ref('');
 const syncHint = ref('');
 const urlLinks = ref([]);
+const urlSourceViewMode = ref('detail');
 
 const railEditorRef = ref(null);
 
@@ -258,6 +273,7 @@ const activePageApp = computed(() => getLightAppByCode(activePageCode.value));
 const activePageWindowId = computed(() => PAGE_WINDOW_IDS[activePageCode.value] || 0);
 const activePageComponent = computed(() => PAGE_COMPONENT_MAP[activePageCode.value] || null);
 const hasActivePageOverlay = computed(() => Boolean(activePageApp.value && activePageComponent.value));
+const isUrlSourceIconMode = computed(() => urlSourceViewMode.value === 'icon');
 
 const activePageTabItems = computed(() => {
   if (activePageCode.value === 'timeprism-todo') {
@@ -297,6 +313,17 @@ function showHint(message) {
     syncHint.value = '';
     syncHintTimer = 0;
   }, 2200);
+}
+
+function toggleUrlSourceViewMode() {
+  urlSourceViewMode.value = isUrlSourceIconMode.value ? 'detail' : 'icon';
+}
+
+function toCompactTitle(value) {
+  const title = String(value || '').trim();
+  if (!title) return '网址';
+  if (title.length <= 4) return title;
+  return `${title.slice(0, 4)}..`;
 }
 
 function isEnabled(code) {
@@ -1296,6 +1323,11 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.url-source-list.icon-mode {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
 .url-source-item {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
@@ -1305,6 +1337,13 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   padding: 8px;
+}
+
+.url-source-item.icon-mode {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 6px;
 }
 
 .url-source-icon {
@@ -1327,6 +1366,17 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 
+.url-source-item.icon-mode .url-source-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.url-source-item.icon-mode .url-source-icon img,
+.url-source-item.icon-mode .url-source-icon i {
+  width: 20px;
+  height: 20px;
+}
+
 .url-source-main {
   border: 0;
   background: transparent;
@@ -1335,9 +1385,22 @@ onBeforeUnmount(() => {
   color: inherit;
 }
 
+.url-source-item.icon-mode .url-source-main {
+  width: 100%;
+  text-align: center;
+}
+
 .url-source-main p {
   margin: 0;
   color: rgba(240, 246, 255, 0.95);
+}
+
+.url-source-item.icon-mode .url-source-main p {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
 }
 
 .url-source-main small {
@@ -1347,6 +1410,12 @@ onBeforeUnmount(() => {
 .url-source-actions {
   display: inline-flex;
   gap: 6px;
+}
+
+.url-source-item.icon-mode .url-source-actions {
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .url-empty {

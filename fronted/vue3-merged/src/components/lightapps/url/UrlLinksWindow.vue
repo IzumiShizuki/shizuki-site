@@ -1,16 +1,27 @@
 <template>
   <section class="lightapp-window url-links-window">
     <div class="top-toolbar">
-      <button
-        class="icon-btn toolbar-btn ripple-trigger"
-        type="button"
-        :title="showForm ? '收起添加区' : '添加网址'"
-        :aria-label="showForm ? '收起添加区' : '添加网址'"
-        @click="toggleForm"
-      >
-        <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
-      </button>
       <span class="toolbar-hint">共 {{ links.length }} 个网址</span>
+      <div class="toolbar-actions">
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="isIconMode ? '切换为详情模式' : '切换为图标模式'"
+          :aria-label="isIconMode ? '切换为详情模式' : '切换为图标模式'"
+          @click="toggleViewMode"
+        >
+          <i :class="isIconMode ? 'fas fa-list' : 'fas fa-table-cells-large'" aria-hidden="true"></i>
+        </button>
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showForm ? '收起添加区' : '添加网址'"
+          :aria-label="showForm ? '收起添加区' : '添加网址'"
+          @click="toggleForm"
+        >
+          <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
 
     <Transition name="panel-collapse">
@@ -63,14 +74,14 @@
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
     <p v-if="hintText" class="info-text">{{ hintText }}</p>
 
-    <ul v-if="links.length" class="url-list">
-      <li v-for="item in links" :key="item.urlLinkId" class="url-item">
+    <ul v-if="links.length" class="url-list" :class="{ 'icon-mode': isIconMode }">
+      <li v-for="item in links" :key="item.urlLinkId" class="url-item" :class="{ 'icon-mode': isIconMode }">
         <button class="url-main" type="button" @click="openUrl(item.url)">
           <img v-if="item.faviconUrl" :src="item.faviconUrl" alt="" />
           <i v-else class="fas fa-link" aria-hidden="true"></i>
           <div>
-            <p>{{ item.title }}</p>
-            <small>{{ item.url }}</small>
+            <p :title="item.title">{{ isIconMode ? toCompactTitle(item.title) : item.title }}</p>
+            <small v-if="!isIconMode">{{ item.url }}</small>
           </div>
         </button>
         <div class="url-actions">
@@ -88,7 +99,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppUrlLink,
@@ -115,6 +126,7 @@ const hintText = ref('');
 const saving = ref(false);
 const uploading = ref(false);
 const showForm = ref(false);
+const viewMode = ref('detail');
 const editingId = ref(0);
 const uploadInputRef = ref(null);
 
@@ -182,6 +194,19 @@ function toggleForm() {
     resetDraft();
   }
   showForm.value = !showForm.value;
+}
+
+const isIconMode = computed(() => viewMode.value === 'icon');
+
+function toggleViewMode() {
+  viewMode.value = isIconMode.value ? 'detail' : 'icon';
+}
+
+function toCompactTitle(value) {
+  const title = String(value || '').trim();
+  if (!title) return '网址';
+  if (title.length <= 4) return title;
+  return `${title.slice(0, 4)}..`;
 }
 
 function cancelEditing() {
@@ -550,12 +575,19 @@ onMounted(async () => {
 .top-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
 .toolbar-hint {
   color: rgba(46, 56, 72, 0.82);
   font-size: 12px;
+}
+
+.toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .url-form {
@@ -622,6 +654,11 @@ onMounted(async () => {
   gap: 8px;
 }
 
+.url-list.icon-mode {
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+}
+
 .url-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -631,6 +668,13 @@ onMounted(async () => {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.34);
   background: rgba(255, 255, 255, 0.22);
+}
+
+.url-item.icon-mode {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 6px;
 }
 
 .url-main {
@@ -644,6 +688,14 @@ onMounted(async () => {
   color: inherit;
 }
 
+.url-item.icon-mode .url-main {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  gap: 6px;
+  width: 100%;
+}
+
 .url-main img,
 .url-main i {
   width: 20px;
@@ -652,9 +704,24 @@ onMounted(async () => {
   object-fit: cover;
 }
 
+.url-item.icon-mode .url-main img,
+.url-item.icon-mode .url-main i {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+}
+
 .url-main p {
   margin: 0;
   color: rgba(36, 45, 62, 0.96);
+}
+
+.url-item.icon-mode .url-main p {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
 }
 
 .url-main small {
@@ -664,6 +731,11 @@ onMounted(async () => {
 .url-actions {
   display: inline-flex;
   gap: 6px;
+}
+
+.url-item.icon-mode .url-actions {
+  width: 100%;
+  justify-content: center;
 }
 
 @media (max-width: 980px) {
