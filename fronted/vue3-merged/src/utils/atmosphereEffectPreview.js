@@ -1,5 +1,7 @@
 const MIN_EFFECT_DENSITY = 0.4;
 const MAX_EFFECT_DENSITY = 1.8;
+const MIN_EFFECT_RATE = 0.4;
+const MAX_EFFECT_RATE = 1.8;
 
 function clampNumber(value, min, max) {
   const numeric = Number(value);
@@ -70,9 +72,15 @@ export function resolveEffectStrength(effectState) {
   const enabled = Boolean(effectState?.enabled) && presetId !== 'none';
   const density = clampNumber(effectState?.density, MIN_EFFECT_DENSITY, MAX_EFFECT_DENSITY);
   const opacity = clampNumber(effectState?.opacity, 0, 1);
+  const fallSpeed = clampNumber(effectState?.fallSpeed, MIN_EFFECT_RATE, MAX_EFFECT_RATE);
+  const spawnRate = clampNumber(effectState?.spawnRate, MIN_EFFECT_RATE, MAX_EFFECT_RATE);
   const densityPercent = Math.round(((density - MIN_EFFECT_DENSITY) / (MAX_EFFECT_DENSITY - MIN_EFFECT_DENSITY)) * 100);
   const opacityPercent = Math.round(opacity * 100);
-  const percent = enabled ? Math.round(densityPercent * 0.58 + opacityPercent * 0.42) : 0;
+  const fallSpeedPercent = Math.round(((fallSpeed - MIN_EFFECT_RATE) / (MAX_EFFECT_RATE - MIN_EFFECT_RATE)) * 100);
+  const spawnRatePercent = Math.round(((spawnRate - MIN_EFFECT_RATE) / (MAX_EFFECT_RATE - MIN_EFFECT_RATE)) * 100);
+  const percent = enabled
+    ? Math.round(densityPercent * 0.36 + opacityPercent * 0.24 + fallSpeedPercent * 0.18 + spawnRatePercent * 0.22)
+    : 0;
   let label = '关闭';
   if (enabled && percent >= 68) label = '强';
   else if (enabled && percent >= 34) label = '中';
@@ -82,23 +90,34 @@ export function resolveEffectStrength(effectState) {
     percent,
     label,
     densityPercent,
-    opacityPercent
+    opacityPercent,
+    fallSpeedPercent,
+    spawnRatePercent
   };
 }
 
-export function resolveEffectPreviewTokens(presetId) {
+export function resolveEffectPreviewTokens(presetId, effectState = null) {
   const normalized = String(presetId || 'none').trim() || 'none';
-  return EFFECT_PREVIEW_TOKENS[normalized] || EFFECT_PREVIEW_TOKENS.none;
+  const tokens = EFFECT_PREVIEW_TOKENS[normalized] || EFFECT_PREVIEW_TOKENS.none;
+  if (!effectState || normalized === 'none') return tokens;
+  const spawnRate = clampNumber(effectState.spawnRate, MIN_EFFECT_RATE, MAX_EFFECT_RATE);
+  const normalizedSpawn = (spawnRate - MIN_EFFECT_RATE) / (MAX_EFFECT_RATE - MIN_EFFECT_RATE);
+  const visibleCount = Math.max(2, Math.min(tokens.length, Math.round(tokens.length * (0.34 + normalizedSpawn * 0.9))));
+  return tokens.slice(0, visibleCount);
 }
 
 export function resolveEffectPreviewVars(effectState, options = {}) {
   const active = Boolean(options.active);
   const density = clampNumber(effectState?.density, MIN_EFFECT_DENSITY, MAX_EFFECT_DENSITY);
   const opacity = clampNumber(effectState?.opacity, 0, 1);
+  const fallSpeed = clampNumber(effectState?.fallSpeed, MIN_EFFECT_RATE, MAX_EFFECT_RATE);
+  const spawnRate = clampNumber(effectState?.spawnRate, MIN_EFFECT_RATE, MAX_EFFECT_RATE);
   const normalizedDensity = (density - MIN_EFFECT_DENSITY) / (MAX_EFFECT_DENSITY - MIN_EFFECT_DENSITY);
+  const normalizedFallSpeed = (fallSpeed - MIN_EFFECT_RATE) / (MAX_EFFECT_RATE - MIN_EFFECT_RATE);
+  const normalizedSpawnRate = (spawnRate - MIN_EFFECT_RATE) / (MAX_EFFECT_RATE - MIN_EFFECT_RATE);
   const densityScale = active ? 0.82 + normalizedDensity * 0.72 : 0.94;
-  const opacityScale = active ? 0.4 + opacity * 0.78 : 0.74;
-  const driftScale = active ? 0.9 + normalizedDensity * 0.38 : 0.96;
+  const opacityScale = active ? 0.38 + opacity * 0.76 + normalizedSpawnRate * 0.12 : 0.74;
+  const driftScale = active ? 1.18 - normalizedFallSpeed * 0.48 : 0.96;
   return {
     '--effect-preview-density-scale': densityScale.toFixed(3),
     '--effect-preview-opacity-scale': opacityScale.toFixed(3),

@@ -23,7 +23,9 @@ describe('siteAtmosphereState', () => {
           enabled: 1,
           preset_id: 'unknown',
           density: 99,
-          opacity: -1
+          opacity: -1,
+          fall_speed: 99,
+          spawn_rate: -3
         },
         ambient: {
           master_volume: 2,
@@ -50,6 +52,8 @@ describe('siteAtmosphereState', () => {
     expect(normalized.effect.presetId).toBe('none');
     expect(normalized.effect.density).toBe(1.8);
     expect(normalized.effect.opacity).toBe(0);
+    expect(normalized.effect.fallSpeed).toBe(1.8);
+    expect(normalized.effect.spawnRate).toBe(0.4);
     expect(normalized.ambient.masterVolume).toBe(1);
     expect(normalized.ambient.tracks).toHaveLength(2);
     expect(normalized.ambient.tracks[0].trackId).toBe('rain');
@@ -64,7 +68,9 @@ describe('siteAtmosphereState', () => {
         enabled: true,
         presetId: 'sakura',
         density: 0.86,
-        opacity: 0.58
+        opacity: 0.58,
+        fallSpeed: 1.22,
+        spawnRate: 1.44
       }
     });
 
@@ -75,6 +81,8 @@ describe('siteAtmosphereState', () => {
     const readBack = readSiteAtmospherePreference(merged);
     expect(readBack.effect.enabled).toBe(true);
     expect(readBack.panelTab).toBe('effects');
+    expect(readBack.effect.fallSpeed).toBe(1.22);
+    expect(readBack.effect.spawnRate).toBe(1.44);
   });
 
   it('restores guest uploads from session-backed data and sanitizes broken entries', () => {

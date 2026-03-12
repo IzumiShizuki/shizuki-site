@@ -161,6 +161,8 @@
         @effect-select-preset="selectEffectPreset"
         @effect-set-density="siteAtmosphere.effect.density = $event"
         @effect-set-opacity="siteAtmosphere.effect.opacity = $event"
+        @effect-set-fall-speed="siteAtmosphere.effect.fallSpeed = $event"
+        @effect-set-spawn-rate="siteAtmosphere.effect.spawnRate = $event"
       />
 
       <BackgroundPickerDialog
@@ -651,6 +653,8 @@ function applySiteAtmosphereState(nextState) {
   siteAtmosphere.effect.presetId = normalized.effect.presetId;
   siteAtmosphere.effect.density = normalized.effect.density;
   siteAtmosphere.effect.opacity = normalized.effect.opacity;
+  siteAtmosphere.effect.fallSpeed = normalized.effect.fallSpeed;
+  siteAtmosphere.effect.spawnRate = normalized.effect.spawnRate;
   siteAtmosphere.ambient.masterVolume = normalized.ambient.masterVolume;
   siteAtmosphere.ambient.tracks = normalized.ambient.tracks;
   siteAtmosphere.ambient.presets = normalized.ambient.presets;
@@ -2133,6 +2137,8 @@ watch(
     siteAtmosphere.effect.presetId,
     siteAtmosphere.effect.density,
     siteAtmosphere.effect.opacity,
+    siteAtmosphere.effect.fallSpeed,
+    siteAtmosphere.effect.spawnRate,
     siteAtmosphere.ambient.masterVolume,
     JSON.stringify(siteAtmosphere.ambient.tracks || []),
     JSON.stringify(siteAtmosphere.ambient.presets || []),

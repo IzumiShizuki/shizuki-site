@@ -336,27 +336,32 @@
               </article>
               <article class="effect-stat-card">
                 <p class="mini-label">当前强度</p>
-                <strong>{{ effectStrength.label }}</strong>
-                <small>{{ effectStrength.percent }}%</small>
-              </article>
-              <article class="effect-stat-card">
-                <p class="mini-label">粒子密度</p>
                 <strong>{{ effectStrength.densityPercent }}%</strong>
-                <small>{{ effectState.density.toFixed(2) }}</small>
+                <small>{{ effectStrength.label }} · {{ effectStrength.percent }}%</small>
               </article>
               <article class="effect-stat-card">
                 <p class="mini-label">透明度</p>
                 <strong>{{ effectStrength.opacityPercent }}%</strong>
                 <small>{{ Math.round(effectState.opacity * 100) }}%</small>
               </article>
+              <article class="effect-stat-card">
+                <p class="mini-label">下落速度</p>
+                <strong>{{ effectStrength.fallSpeedPercent }}%</strong>
+                <small>{{ effectState.fallSpeed.toFixed(2) }}</small>
+              </article>
+              <article class="effect-stat-card">
+                <p class="mini-label">生成速度</p>
+                <strong>{{ effectStrength.spawnRatePercent }}%</strong>
+                <small>{{ effectState.spawnRate.toFixed(2) }}</small>
+              </article>
             </div>
           </section>
 
           <p v-if="reducedMotion" class="inline-note warning">系统启用了“减少动态”，特效会自动降级或暂停。</p>
 
-          <div class="range-grid">
+          <div class="range-grid effect-control-grid">
             <label class="range-group">
-              <span>密度 {{ effectState.density.toFixed(2) }}</span>
+              <span>强度 {{ effectState.density.toFixed(2) }}</span>
               <input
                 type="range"
                 min="0.4"
@@ -375,6 +380,28 @@
                 step="0.01"
                 :value="effectState.opacity"
                 @input="emit('effect-set-opacity', Number($event.target.value))"
+              />
+            </label>
+            <label class="range-group">
+              <span>下落速度 {{ effectState.fallSpeed.toFixed(2) }}</span>
+              <input
+                type="range"
+                min="0.4"
+                max="1.8"
+                step="0.01"
+                :value="effectState.fallSpeed"
+                @input="emit('effect-set-fall-speed', Number($event.target.value))"
+              />
+            </label>
+            <label class="range-group">
+              <span>生成速度 {{ effectState.spawnRate.toFixed(2) }}</span>
+              <input
+                type="range"
+                min="0.4"
+                max="1.8"
+                step="0.01"
+                :value="effectState.spawnRate"
+                @input="emit('effect-set-spawn-rate', Number($event.target.value))"
               />
             </label>
           </div>
@@ -410,7 +437,11 @@
                 <p>{{ preset.description }}</p>
                 <div class="effect-meta-row">
                   <span class="effect-meta-pill">
-                    {{ effectState.presetId === preset.id ? `强度 ${effectStrength.densityPercent}% / 透明 ${effectStrength.opacityPercent}%` : '点击切换并查看预览' }}
+                    {{
+                      effectState.presetId === preset.id
+                        ? `强度 ${effectStrength.densityPercent}% / 透明 ${effectStrength.opacityPercent}% / 速度 ${effectStrength.fallSpeedPercent}% / 生成 ${effectStrength.spawnRatePercent}%`
+                        : '点击切换并查看预览'
+                    }}
                   </span>
                 </div>
               </div>
@@ -461,7 +492,7 @@ const props = defineProps({
   ambientLibrary: { type: Array, default: () => [] },
   effectState: {
     type: Object,
-    default: () => ({ enabled: false, presetId: 'none', density: 1, opacity: 0.7 })
+    default: () => ({ enabled: false, presetId: 'none', density: 1, opacity: 0.7, fallSpeed: 1, spawnRate: 1 })
   },
   effectPresets: { type: Array, default: () => [] },
   isAuthenticated: { type: Boolean, default: false },
@@ -494,7 +525,9 @@ const emit = defineEmits([
   'effect-toggle-enabled',
   'effect-select-preset',
   'effect-set-density',
-  'effect-set-opacity'
+  'effect-set-opacity',
+  'effect-set-fall-speed',
+  'effect-set-spawn-rate'
 ]);
 
 const uploadInputRef = ref(null);
@@ -534,7 +567,7 @@ const lyricWindow = computed(() => {
 });
 const activeEffectPreset = computed(() => findEffectPresetById(props.effectState?.presetId));
 const effectStrength = computed(() => resolveEffectStrength(props.effectState));
-const activeEffectPreviewTokens = computed(() => resolveEffectPreviewTokens(activeEffectPreset.value.id));
+const activeEffectPreviewTokens = computed(() => resolveEffectPreviewTokens(activeEffectPreset.value.id, props.effectState));
 const activeEffectPreviewVars = computed(() => resolveEffectPreviewVars(props.effectState, { active: true }));
 
 const groupedLibrary = computed(() => {
@@ -585,17 +618,29 @@ function resolveTrackSourceLabel(track) {
 }
 
 function resolvePreviewTokensForCard(presetId) {
-  return resolveEffectPreviewTokens(presetId);
+  return resolveEffectPreviewTokens(
+    presetId,
+    props.effectState?.presetId === presetId ? props.effectState : null
+  );
 }
 
 function resolvePreviewVarsForCard(presetId) {
+  const isActive = props.effectState?.presetId === presetId;
   return resolveEffectPreviewVars(
+    isActive
+      ? {
+          ...props.effectState,
+          presetId
+        }
+      : {
+          presetId,
+          density: 1,
+          opacity: 0.7,
+          fallSpeed: 1,
+          spawnRate: 1
+        },
     {
-      ...props.effectState,
-      presetId
-    },
-    {
-      active: props.effectState?.presetId === presetId
+      active: isActive
     }
   );
 }
@@ -1163,6 +1208,10 @@ input[type='range'] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.effect-control-grid {
+  align-items: start;
 }
 
 .effect-grid .cover-button {

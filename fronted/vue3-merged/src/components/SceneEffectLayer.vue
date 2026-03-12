@@ -63,7 +63,8 @@ function rebuildParticles() {
     renderState.value.presetId,
     Number(canvasRef.value.style.width.replace('px', '')) || window.innerWidth || 1,
     Number(canvasRef.value.style.height.replace('px', '')) || window.innerHeight || 1,
-    count
+    count,
+    renderState.value
   );
 }
 
@@ -136,7 +137,7 @@ function animate(timestamp) {
   const dt = lastFrameAt ? Math.min(48, timestamp - lastFrameAt) : 16;
   lastFrameAt = timestamp;
 
-  particles = stepSceneEffectParticles(renderState.value.presetId, particles, dt, width, height);
+  particles = stepSceneEffectParticles(renderState.value.presetId, particles, dt, width, height, renderState.value);
   clearCanvas();
   particles.forEach((particle) => drawParticle(context2d, renderState.value.presetId, particle, renderState.value.opacity));
   rafId = window.requestAnimationFrame(animate);

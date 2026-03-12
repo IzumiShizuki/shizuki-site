@@ -4,7 +4,9 @@ import {
   DEFAULT_AMBIENT_TRACK_VOLUME,
   DEFAULT_ATMOSPHERE_TAB,
   DEFAULT_EFFECT_DENSITY,
+  DEFAULT_EFFECT_FALL_SPEED,
   DEFAULT_EFFECT_OPACITY,
+  DEFAULT_EFFECT_SPAWN_RATE,
   EFFECT_PRESET_ID_SET,
   findBuiltinAmbientById
 } from './atmosphereCatalog';
@@ -24,6 +26,12 @@ function clampUnit(value, fallback) {
 function clampDensity(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return DEFAULT_EFFECT_DENSITY;
+  return Math.max(0.4, Math.min(1.8, Number(numeric.toFixed(2))));
+}
+
+function clampEffectRate(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
   return Math.max(0.4, Math.min(1.8, Number(numeric.toFixed(2))));
 }
 
@@ -123,7 +131,9 @@ export function createDefaultSiteAtmosphereState() {
       enabled: false,
       presetId: 'none',
       density: DEFAULT_EFFECT_DENSITY,
-      opacity: DEFAULT_EFFECT_OPACITY
+      opacity: DEFAULT_EFFECT_OPACITY,
+      fallSpeed: DEFAULT_EFFECT_FALL_SPEED,
+      spawnRate: DEFAULT_EFFECT_SPAWN_RATE
     },
     ambient: {
       masterVolume: DEFAULT_AMBIENT_MASTER_VOLUME,
@@ -190,7 +200,9 @@ export function normalizeSiteAtmosphereState(input, options = {}) {
         ? String(effectInput.presetId || effectInput.preset_id).trim()
         : 'none',
       density: clampDensity(effectInput.density),
-      opacity: clampUnit(effectInput.opacity, defaults.effect.opacity)
+      opacity: clampUnit(effectInput.opacity, defaults.effect.opacity),
+      fallSpeed: clampEffectRate(effectInput.fallSpeed ?? effectInput.fall_speed, defaults.effect.fallSpeed),
+      spawnRate: clampEffectRate(effectInput.spawnRate ?? effectInput.spawn_rate, defaults.effect.spawnRate)
     },
     ambient: {
       masterVolume: clampUnit(ambientInput.masterVolume ?? ambientInput.master_volume, defaults.ambient.masterVolume),

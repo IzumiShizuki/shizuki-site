@@ -10,6 +10,8 @@ export const DEFAULT_AMBIENT_MASTER_VOLUME = 0.65;
 export const DEFAULT_AMBIENT_TRACK_VOLUME = 0.72;
 export const DEFAULT_EFFECT_DENSITY = 1;
 export const DEFAULT_EFFECT_OPACITY = 0.7;
+export const DEFAULT_EFFECT_FALL_SPEED = 1;
+export const DEFAULT_EFFECT_SPAWN_RATE = 1;
 export const DEFAULT_ATMOSPHERE_TAB = 'ambient';
 
 export const BUILTIN_AMBIENT_DEFINITIONS = [
