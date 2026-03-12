@@ -136,42 +136,69 @@ function normalizeCollections(input) {
     ? input
     : Object.values(toObject(input));
 
-  const normalized = source
-    .map((raw) => {
-      const item = toObject(raw);
-      const collectionId = String(item.collection_id || item.collectionId || DEFAULT_COLLECTION_ID).trim() || DEFAULT_COLLECTION_ID;
-      const title = String(item.title || '').trim() || '集合';
-      const dedup = new Set();
-      const items = (Array.isArray(item.items) ? item.items : [])
-        .map((entry) => normalizeCollectionItem(entry))
-        .filter((entry) => {
-          if (!entry) return false;
-          const key = `${entry.item_kind}:${entry.item_ref}`;
-          if (dedup.has(key)) return false;
-          dedup.add(key);
-          return true;
-        });
-      return {
+  const normalizeCollectionItems = (rawItems) => {
+    const dedup = new Set();
+    return (Array.isArray(rawItems) ? rawItems : [])
+      .map((entry) => normalizeCollectionItem(entry))
+      .filter((entry) => {
+        if (!entry) return false;
+        const key = `${entry.item_kind}:${entry.item_ref}`;
+        if (dedup.has(key)) return false;
+        dedup.add(key);
+        return true;
+      });
+  };
+
+  const mergedById = new Map();
+  source.forEach((raw) => {
+    const item = toObject(raw);
+    const collectionId = String(item.collection_id || item.collectionId || '').trim();
+    if (!collectionId) return;
+
+    const title = String(item.title || '').trim() || '集合';
+    const nextItems = normalizeCollectionItems(item.items);
+    const current = mergedById.get(collectionId);
+    if (!current) {
+      mergedById.set(collectionId, {
         collection_id: collectionId,
         title,
-        items
-      };
-    })
-    .filter((item) => item.collection_id === DEFAULT_COLLECTION_ID)
-    .slice(0, 1);
+        items: nextItems
+      });
+      return;
+    }
 
-  if (normalized.length) {
-    return normalized;
+    const dedup = new Set(current.items.map((entry) => `${entry.item_kind}:${entry.item_ref}`));
+    nextItems.forEach((entry) => {
+      const key = `${entry.item_kind}:${entry.item_ref}`;
+      if (dedup.has(key)) return;
+      dedup.add(key);
+      current.items.push(entry);
+    });
+    if (!String(current.title || '').trim() && title) {
+      current.title = title;
+    }
+  });
+
+  const normalized = Array.from(mergedById.values());
+  if (normalized.length === 0) {
+    return [{ ...DEFAULT_COLLECTION, items: [] }];
   }
-
-  return [{ ...DEFAULT_COLLECTION, items: [] }];
+  return normalized;
 }
 
-function normalizeRailSlots(input, enabledCodes) {
+function normalizeRailSlots(input, enabledCodes, collections = []) {
   const source = Array.isArray(input) ? input : [];
   const normalized = [];
   const usedAppCodes = new Set();
   const dedupeKeys = new Set();
+  const collectionIds = new Set(
+    (Array.isArray(collections) ? collections : [])
+      .map((entry) => String(entry?.collection_id || '').trim())
+      .filter(Boolean)
+  );
+  const fallbackCollectionId = (Array.isArray(collections) ? collections : [])
+    .map((entry) => String(entry?.collection_id || '').trim())
+    .find(Boolean) || DEFAULT_COLLECTION_ID;
 
   for (let i = 0; i < MAX_RAIL_SLOTS; i += 1) {
     const fallback = DEFAULT_RAIL_SLOT_BLUEPRINT[i] || { enabled: false, item_kind: 'app', item_ref: '' };
@@ -201,7 +228,12 @@ function normalizeRailSlots(input, enabledCodes) {
     } else if (itemKind === 'picker') {
       itemRef = '';
     } else if (itemKind === 'collection') {
-      itemRef = DEFAULT_COLLECTION_ID;
+      itemRef = String(raw.item_ref || raw.itemRef || raw.collection_id || raw.collectionId || '').trim();
+      if (!enabled) {
+        itemRef = '';
+      } else if (!itemRef || !collectionIds.has(itemRef)) {
+        itemRef = fallbackCollectionId;
+      }
     } else if (itemKind === 'url') {
       itemRef = String(raw.item_ref || raw.itemRef || raw.url_link_id || raw.urlLinkId || '').trim();
       if (!enabled || !itemRef) {
@@ -290,10 +322,11 @@ function buildRailSlotsFromLegacy(input, enabledCodes) {
           item_ref: item.app_code || item.appCode || ''
         };
       }),
-      enabledCodes
+      enabledCodes,
+      [{ ...DEFAULT_COLLECTION, items: [] }]
     );
   }
-  return normalizeRailSlots([], enabledCodes);
+  return normalizeRailSlots([], enabledCodes, [{ ...DEFAULT_COLLECTION, items: [] }]);
 }
 
 function buildSlotsFromFloatingCodes(floatingCodes, enabledCodes) {
@@ -306,7 +339,8 @@ function buildSlotsFromFloatingCodes(floatingCodes, enabledCodes) {
       }
       return { enabled: true, item_kind: 'app', item_ref: code };
     }),
-    enabledCodes
+    enabledCodes,
+    [{ ...DEFAULT_COLLECTION, items: [] }]
   );
 }
 
@@ -327,12 +361,13 @@ function fromLegacyState(source) {
 
 export function createDefaultLightAppsState() {
   const enabledCodes = resolveEnabledCodes(DEFAULT_ENABLED_CODES);
-  const railSlots = normalizeRailSlots(DEFAULT_RAIL_SLOT_BLUEPRINT, enabledCodes);
+  const collections = [{ ...DEFAULT_COLLECTION, items: [] }];
+  const railSlots = normalizeRailSlots(DEFAULT_RAIL_SLOT_BLUEPRINT, enabledCodes, collections);
   return {
     enabled_codes: enabledCodes,
     rail_slots: railSlots,
     ball_slots: normalizeBallSlotsFromRail(railSlots),
-    collections: [{ ...DEFAULT_COLLECTION, items: [] }],
+    collections,
     app_configs: {}
   };
 }
@@ -349,12 +384,12 @@ export function normalizeLightAppsState(input) {
   }
 
   const enabledCodes = resolveEnabledCodes(source.enabled_codes || source.enabledCodes);
+  const collections = normalizeCollections(source.collections);
   const rawRailSlots = source.rail_slots || source.railSlots;
   const railSlots = rawRailSlots
-    ? normalizeRailSlots(rawRailSlots, enabledCodes)
+    ? normalizeRailSlots(rawRailSlots, enabledCodes, collections)
     : buildRailSlotsFromLegacy(source.ball_slots || source.ballSlots || source.floating_slots || source.floatingSlots, enabledCodes);
   const appConfigs = normalizeConfigs(source.app_configs || source.appConfigs || source.configs, enabledCodes);
-  const collections = normalizeCollections(source.collections);
 
   return {
     enabled_codes: enabledCodes,

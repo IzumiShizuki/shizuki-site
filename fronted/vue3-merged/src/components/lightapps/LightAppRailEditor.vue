@@ -35,32 +35,69 @@
       </li>
     </ul>
 
-    <section class="collection-zone" @dragover.prevent @drop="onCollectionDrop">
-      <button class="collection-toggle ripple-trigger" type="button" @click="collectionOpen = !collectionOpen">
-        <i class="fas fa-layer-group" aria-hidden="true"></i>
-        <span>{{ collectionTitle }}</span>
-        <small>{{ collectionItems.length }}</small>
-      </button>
+    <section class="collection-zone">
+      <header class="collection-zone-head">
+        <h4>文件夹</h4>
+        <span>{{ normalizedCollections.length }}</span>
+      </header>
 
-      <Transition name="panel-collapse">
-        <div v-if="collectionOpen" class="collection-panel">
+      <div
+        v-for="collection in normalizedCollections"
+        :key="`collection_folder_${collection.collection_id}`"
+        class="collection-folder"
+        @dragover.prevent
+        @drop="onCollectionDrop(collection.collection_id, $event)"
+      >
+        <div class="collection-folder-head">
           <button
-            v-for="(item, index) in collectionItems"
-            :key="`collection_${index}_${item.item_kind}_${item.item_ref}`"
-            class="collection-item ripple-trigger"
+            class="collection-toggle ripple-trigger"
             type="button"
             draggable="true"
-            :title="collectionItemLabel(item)"
-            @click="emit('open-collection-item', item)"
-            @dragstart="onCollectionDragStart(index, item, $event)"
-            @dragend="onCollectionDragEnd(index, $event)"
+            :title="`拖拽 ${collection.title} 到右栏`"
+            @click="toggleCollection(collection.collection_id)"
+            @dragstart="onCollectionCardDragStart(collection.collection_id, $event)"
           >
-            <i :class="collectionItemIcon(item)" aria-hidden="true"></i>
-            <span>{{ collectionItemLabel(item) }}</span>
+            <i class="fas fa-folder" aria-hidden="true"></i>
+            <span>{{ collection.title }}</span>
+            <small>{{ collection.items.length }}</small>
           </button>
-          <p v-if="!collectionItems.length" class="collection-empty">拖入应用或网址</p>
+          <button class="collection-rename-btn ripple-trigger" type="button" title="重命名" @click="startRename(collection)">
+            <i class="fas fa-pen" aria-hidden="true"></i>
+          </button>
         </div>
-      </Transition>
+
+        <div v-if="renameTargetId === collection.collection_id" class="collection-rename-row">
+          <input
+            v-model.trim="renameDraft"
+            type="text"
+            maxlength="80"
+            placeholder="集合名称"
+            @keydown.enter.prevent="commitRename(collection.collection_id)"
+            @keydown.esc.prevent="cancelRename"
+            @blur="commitRename(collection.collection_id)"
+          />
+        </div>
+
+        <Transition name="panel-collapse">
+          <div v-if="isCollectionOpen(collection.collection_id)" class="collection-panel">
+            <button
+              v-for="(item, index) in collection.items"
+              :key="`collection_item_${collection.collection_id}_${index}_${item.item_kind}_${item.item_ref}`"
+              class="collection-item ripple-trigger"
+              type="button"
+              draggable="true"
+              :title="collectionItemLabel(item)"
+              @click="emit('open-collection-item', { collectionId: collection.collection_id, item })"
+              @dragstart="onCollectionItemDragStart(collection.collection_id, index, item, $event)"
+              @dragend="onCollectionItemDragEnd(collection.collection_id, index, $event)"
+            >
+              <i :class="collectionItemIcon(item)" aria-hidden="true"></i>
+              <span>{{ collectionItemLabel(item) }}</span>
+            </button>
+            <p v-if="!collection.items.length" class="collection-empty">拖入应用或网址</p>
+          </div>
+        </Transition>
+      </div>
     </section>
   </aside>
 </template>
@@ -94,10 +131,13 @@ const emit = defineEmits([
   'add-to-collection',
   'remove-collection-item',
   'open-slot',
-  'open-collection-item'
+  'open-collection-item',
+  'rename-collection'
 ]);
 
-const collectionOpen = ref(false);
+const openCollectionIds = ref(new Set());
+const renameTargetId = ref('');
+const renameDraft = ref('');
 
 const normalizedSlots = computed(() => {
   const source = Array.isArray(props.railSlots) ? props.railSlots : [];
@@ -113,18 +153,36 @@ const normalizedSlots = computed(() => {
   return next;
 });
 
+const normalizedCollections = computed(() => {
+  const source = Array.isArray(props.collections) ? props.collections : [];
+  const mapped = source
+    .map((raw) => ({
+      collection_id: String(raw?.collection_id || '').trim(),
+      title: String(raw?.title || '').trim() || '集合',
+      items: Array.isArray(raw?.items) ? raw.items : []
+    }))
+    .filter((entry) => entry.collection_id);
+
+  if (mapped.length) {
+    return mapped;
+  }
+
+  return [{
+    collection_id: 'default',
+    title: '集合',
+    items: []
+  }];
+});
+
 const maxSlots = MAX_SLOTS;
 
 const activeCount = computed(() => normalizedSlots.value.filter((item) => item.enabled && item.item_ref).length);
 
-const activeCollection = computed(() => {
-  const list = Array.isArray(props.collections) ? props.collections : [];
-  return list.find((item) => String(item?.collection_id || '').trim() === 'default') || { title: '集合', items: [] };
-});
-
-const collectionTitle = computed(() => String(activeCollection.value.title || '集合').trim() || '集合');
-
-const collectionItems = computed(() => (Array.isArray(activeCollection.value.items) ? activeCollection.value.items : []));
+function findCollectionById(collectionId) {
+  const targetId = String(collectionId || '').trim();
+  if (!targetId) return null;
+  return normalizedCollections.value.find((entry) => entry.collection_id === targetId) || null;
+}
 
 function findUrlLink(ref) {
   const target = String(ref || '').trim();
@@ -133,21 +191,21 @@ function findUrlLink(ref) {
 
 function slotIcon(slot) {
   if (slot.item_kind === 'picker') return 'fas fa-th-large';
-  if (slot.item_kind === 'collection') return 'fas fa-layer-group';
+  if (slot.item_kind === 'collection') return 'fas fa-folder';
   if (slot.item_kind === 'url') return 'fas fa-link';
   return getLightAppByCode(slot.item_ref)?.iconClass || 'fas fa-circle';
 }
 
 function slotLabel(slot) {
   if (slot.item_kind === 'picker') return '选择';
-  if (slot.item_kind === 'collection') return collectionTitle.value;
+  if (slot.item_kind === 'collection') return findCollectionById(slot.item_ref)?.title || '集合';
   if (slot.item_kind === 'url') return findUrlLink(slot.item_ref)?.title || '网址';
   return getLightAppByCode(slot.item_ref)?.title || '应用';
 }
 
 function slotTitle(slot) {
   if (slot.item_kind === 'picker') return '应用选择器';
-  if (slot.item_kind === 'collection') return '集合';
+  if (slot.item_kind === 'collection') return findCollectionById(slot.item_ref)?.title || '集合';
   if (slot.item_kind === 'url') return findUrlLink(slot.item_ref)?.url || '网址快捷项';
   return getLightAppByCode(slot.item_ref)?.title || '轻应用';
 }
@@ -208,10 +266,13 @@ function onSlotDrop(index, event) {
   });
 }
 
-function onCollectionDrop(event) {
+function onCollectionDrop(collectionId, event) {
   const payload = parseDropData(event);
   if (!payload) return;
-  emit('add-to-collection', payload);
+  emit('add-to-collection', {
+    targetCollectionId: collectionId,
+    payload
+  });
 }
 
 function onSlotDragStart(index, slot, event) {
@@ -230,21 +291,84 @@ function onSlotDragEnd(index, event) {
   }
 }
 
-function onCollectionDragStart(index, item, event) {
+function onCollectionCardDragStart(collectionId, event) {
+  setDragData(
+    event,
+    toDragPayload('collection', collectionId, {
+      type: 'collection-card',
+      collectionId
+    })
+  );
+}
+
+function onCollectionItemDragStart(collectionId, index, item, event) {
   setDragData(
     event,
     toDragPayload(item.item_kind, item.item_ref, {
-      type: 'collection',
+      type: 'collection-item',
+      collectionId,
       index
     })
   );
 }
 
-function onCollectionDragEnd(index, event) {
+function onCollectionItemDragEnd(collectionId, index, event) {
   if (event?.dataTransfer?.dropEffect === 'none') {
-    emit('remove-collection-item', index);
+    emit('remove-collection-item', { collectionId, index });
   }
 }
+
+function isCollectionOpen(collectionId) {
+  return openCollectionIds.value.has(collectionId);
+}
+
+function toggleCollection(collectionId) {
+  const next = new Set(openCollectionIds.value);
+  if (next.has(collectionId)) {
+    next.delete(collectionId);
+  } else {
+    next.add(collectionId);
+  }
+  openCollectionIds.value = next;
+}
+
+function startRename(collection) {
+  renameTargetId.value = collection.collection_id;
+  renameDraft.value = collection.title;
+}
+
+function cancelRename() {
+  renameTargetId.value = '';
+  renameDraft.value = '';
+}
+
+function commitRename(collectionId) {
+  if (renameTargetId.value !== collectionId) return;
+  const title = String(renameDraft.value || '').trim();
+  if (title) {
+    emit('rename-collection', {
+      collectionId,
+      title
+    });
+  }
+  cancelRename();
+}
+
+defineExpose({
+  focusCollection(collectionId, forceOpen = true) {
+    const targetId = String(collectionId || '').trim();
+    if (!targetId) return;
+    const exists = normalizedCollections.value.some((entry) => entry.collection_id === targetId);
+    if (!exists) return;
+    if (forceOpen) {
+      const next = new Set(openCollectionIds.value);
+      next.add(targetId);
+      openCollectionIds.value = next;
+      return;
+    }
+    toggleCollection(targetId);
+  }
+});
 </script>
 
 <style scoped>
@@ -352,15 +476,49 @@ function onCollectionDragEnd(index, event) {
   gap: 8px;
 }
 
+.collection-zone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.collection-zone-head h4 {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(232, 241, 255, 0.95);
+}
+
+.collection-zone-head span {
+  font-size: 11px;
+  color: rgba(204, 216, 239, 0.76);
+}
+
+.collection-folder {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 6px;
+  display: grid;
+  gap: 6px;
+}
+
+.collection-folder-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 26px;
+  gap: 6px;
+  align-items: center;
+}
+
 .collection-toggle {
   width: 100%;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
   color: rgba(239, 245, 255, 0.95);
-  min-height: 34px;
+  min-height: 30px;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 0 10px;
@@ -377,6 +535,31 @@ function onCollectionDragEnd(index, event) {
   opacity: 0.74;
 }
 
+.collection-rename-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(232, 242, 255, 0.9);
+}
+
+.collection-rename-row input {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(236, 244, 255, 0.94);
+  padding: 0 8px;
+  outline: none;
+}
+
+.collection-rename-row input:focus {
+  border-color: rgba(var(--accent-rgb), 0.58);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2);
+}
+
 .collection-panel {
   display: grid;
   gap: 6px;
@@ -387,7 +570,7 @@ function onCollectionDragEnd(index, event) {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.18);
   color: rgba(237, 245, 255, 0.95);
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 10px;
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);

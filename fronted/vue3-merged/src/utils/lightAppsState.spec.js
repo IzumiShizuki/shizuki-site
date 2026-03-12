@@ -133,6 +133,57 @@ describe('lightAppsState', () => {
     expect(normalized.collections[0].collection_id).toBe(DEFAULT_COLLECTION_ID);
   });
 
+  it('keeps multiple collections and preserves collection slot target', () => {
+    const normalized = normalizeLightAppsState({
+      enabled_codes: ['timeprism-todo', 'url-links'],
+      rail_slots: [
+        { enabled: true, item_kind: 'collection', item_ref: 'folder_links' },
+        { enabled: true, item_kind: 'url', item_ref: '101' }
+      ],
+      collections: [
+        {
+          collection_id: 'folder_links',
+          title: 'Links Folder',
+          items: [{ item_kind: 'url', item_ref: '101' }]
+        },
+        {
+          collection_id: 'folder_apps',
+          title: 'Apps Folder',
+          items: [{ item_kind: 'app', item_ref: 'timeprism-todo' }]
+        }
+      ]
+    });
+
+    expect(normalized.collections).toHaveLength(2);
+    expect(normalized.rail_slots[0]).toEqual({
+      enabled: true,
+      item_kind: 'collection',
+      item_ref: 'folder_links'
+    });
+  });
+
+  it('falls back invalid collection slot ref to first available collection', () => {
+    const normalized = normalizeLightAppsState({
+      enabled_codes: ['timeprism-todo'],
+      rail_slots: [
+        { enabled: true, item_kind: 'collection', item_ref: 'missing_folder' }
+      ],
+      collections: [
+        {
+          collection_id: 'folder_a',
+          title: 'Folder A',
+          items: [{ item_kind: 'app', item_ref: 'timeprism-todo' }]
+        }
+      ]
+    });
+
+    expect(normalized.rail_slots[0]).toEqual({
+      enabled: true,
+      item_kind: 'collection',
+      item_ref: 'folder_a'
+    });
+  });
+
   it('reads and writes preference payload in snake_case key', () => {
     const state = normalizeLightAppsState({
       enabled_codes: ['pomodoro-timer'],

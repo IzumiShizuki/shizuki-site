@@ -15,9 +15,18 @@
 
     <Transition name="panel-collapse">
       <form v-if="showForm" class="url-form" @submit.prevent="submitLink">
-        <input v-model.trim="draft.title" type="text" placeholder="标题，例如：力扣" />
-        <input v-model.trim="draft.url" type="url" placeholder="https://leetcode.cn" @blur="resolveMetadata" />
-        <input v-model.trim="draft.faviconUrl" type="url" placeholder="图标 URL（可选）" />
+        <label class="url-input-wrap">
+          <i class="fas fa-tag" aria-hidden="true"></i>
+          <input v-model.trim="draft.title" type="text" placeholder="标题，例如：力扣" />
+        </label>
+        <label class="url-input-wrap">
+          <i class="fas fa-link" aria-hidden="true"></i>
+          <input v-model.trim="draft.url" type="url" placeholder="https://leetcode.cn" @blur="resolveMetadata" />
+        </label>
+        <label class="url-input-wrap">
+          <i class="fas fa-image" aria-hidden="true"></i>
+          <input v-model.trim="draft.faviconUrl" type="url" placeholder="图标 URL（可选）" />
+        </label>
 
         <div class="form-actions">
           <button class="icon-btn ripple-trigger" type="button" title="解析标题与图标" :disabled="saving" @click="resolveMetadata">
@@ -554,6 +563,40 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
+}
+
+.url-input-wrap {
+  min-height: 34px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  color: rgba(206, 217, 238, 0.84);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.url-input-wrap:focus-within {
+  border-color: rgba(var(--accent-rgb), 0.46);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.url-input-wrap i {
+  font-size: 12px;
+}
+
+.url-input-wrap input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: rgba(233, 242, 255, 0.94);
+  font-size: 13px;
 }
 
 .form-actions {

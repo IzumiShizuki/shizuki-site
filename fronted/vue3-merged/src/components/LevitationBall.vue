@@ -63,6 +63,7 @@ const ui = reactive({
   dragging: false,
   expanded: false,
   panelMode: '',
+  panelCollectionId: '',
   pointerId: 0,
   dragOffsetX: 0,
   dragOffsetY: 0,
@@ -106,10 +107,24 @@ const pickerApps = computed(() => {
   return LIGHT_APPS_CATALOG.filter((item) => enabledSet.has(item.code));
 });
 
-const collectionData = computed(() => {
-  const list = Array.isArray(appState.value?.collections) ? appState.value.collections : [];
-  return list.find((item) => String(item?.collection_id || '').trim() === 'default') || { items: [] };
-});
+const collections = computed(() =>
+  (Array.isArray(appState.value?.collections) ? appState.value.collections : [])
+    .map((item) => ({
+      collectionId: String(item?.collection_id || '').trim(),
+      title: String(item?.title || '').trim() || '集合',
+      items: Array.isArray(item?.items) ? item.items : []
+    }))
+    .filter((item) => item.collectionId)
+);
+
+function resolveCollectionById(collectionId) {
+  const targetId = String(collectionId || '').trim();
+  if (targetId) {
+    const matched = collections.value.find((item) => item.collectionId === targetId);
+    if (matched) return matched;
+  }
+  return collections.value[0] || { collectionId: '', title: '集合', items: [] };
+}
 
 const panelItems = computed(() => {
   if (ui.panelMode === 'picker') {
@@ -123,7 +138,8 @@ const panelItems = computed(() => {
   }
 
   if (ui.panelMode === 'collection') {
-    const items = Array.isArray(collectionData.value.items) ? collectionData.value.items : [];
+    const activeCollection = resolveCollectionById(ui.panelCollectionId);
+    const items = Array.isArray(activeCollection.items) ? activeCollection.items : [];
     return items
       .map((entry, index) => {
         const kind = String(entry?.item_kind || '').trim().toLowerCase();
@@ -174,6 +190,10 @@ const containerStyle = computed(() => {
 
 function syncState(rawState) {
   appState.value = rawState && typeof rawState === 'object' ? rawState : readLightAppsState();
+  if (ui.panelMode === 'collection') {
+    const active = resolveCollectionById(ui.panelCollectionId);
+    ui.panelCollectionId = String(active.collectionId || '');
+  }
   syncUrlLinks();
 }
 
@@ -239,6 +259,7 @@ function expandMenu() {
 function collapseMenu() {
   ui.expanded = false;
   ui.panelMode = '';
+  ui.panelCollectionId = '';
   clampPosition();
 }
 
@@ -303,14 +324,16 @@ function onPointerUp(event) {
 
 function slotIcon(slot) {
   if (slot.type === 'picker') return 'fas fa-th-large';
-  if (slot.type === 'collection') return 'fas fa-layer-group';
+  if (slot.type === 'collection') return 'fas fa-folder';
   if (slot.type === 'url') return 'fas fa-link';
   return getLightAppByCode(slot.appCode)?.iconClass || 'fas fa-circle';
 }
 
 function slotTitle(slot) {
   if (slot.type === 'picker') return '应用选择器';
-  if (slot.type === 'collection') return '集合';
+  if (slot.type === 'collection') {
+    return resolveCollectionById(slot.itemRef || slot.appCode).title || '集合';
+  }
   if (slot.type === 'url') {
     const target = findUrlLink(slot.itemRef || slot.appCode);
     return target?.title || '网址快捷项';
@@ -337,7 +360,15 @@ function triggerSlot(slot) {
   }
 
   if (slot.type === 'collection') {
-    ui.panelMode = ui.panelMode === 'collection' ? '' : 'collection';
+    const collectionId = String(slot.itemRef || slot.appCode || '').trim();
+    const activeCollection = resolveCollectionById(collectionId);
+    if (ui.panelMode === 'collection' && ui.panelCollectionId === activeCollection.collectionId) {
+      ui.panelMode = '';
+      ui.panelCollectionId = '';
+      return;
+    }
+    ui.panelMode = 'collection';
+    ui.panelCollectionId = String(activeCollection.collectionId || '');
     return;
   }
 

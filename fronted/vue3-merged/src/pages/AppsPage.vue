@@ -15,18 +15,17 @@
             class="app-card"
             :class="{ enabled: isEnabled(app.code), floating: isInRailSlots(app.code) }"
           >
-            <button
-              class="card-drag-handle ripple-trigger"
-              type="button"
-              draggable="true"
-              :title="`拖拽 ${app.title} 到右栏`"
-              @dragstart="onAppDragStart(app, $event)"
-            >
-              <i class="fas fa-grip-lines" aria-hidden="true"></i>
-            </button>
-
             <div class="card-head">
-              <i :class="app.iconClass" aria-hidden="true"></i>
+              <button
+                class="card-icon-drag ripple-trigger"
+                type="button"
+                draggable="true"
+                :title="`拖拽 ${app.title} 到右栏`"
+                @dragstart="onAppDragStart(app, $event)"
+                @click="useApp(app.code)"
+              >
+                <i :class="app.iconClass" aria-hidden="true"></i>
+              </button>
               <div>
                 <h3>{{ app.title }}</h3>
                 <p>{{ app.summary }}</p>
@@ -66,7 +65,7 @@
 
         <section class="url-source-block liquid-material">
           <header class="block-head">
-            <h3>自定义网址</h3>
+            <h3>Url Links 网址项</h3>
             <div class="block-head-actions">
               <button class="icon-btn ripple-trigger" type="button" title="打开网址管理器" @click="openUrlManager">
                 <i class="fas fa-link" aria-hidden="true"></i>
@@ -74,28 +73,21 @@
             </div>
           </header>
 
-          <form class="url-quick-form" @submit.prevent="createQuickUrlLink">
-            <input v-model.trim="quickUrl" type="url" placeholder="输入网址，例如 https://leetcode.cn" />
-            <button class="icon-btn ripple-trigger" type="submit" :disabled="quickSaving || !isValidUrl(quickUrl)">
-              <i :class="quickSaving ? 'fas fa-spinner fa-spin' : 'fas fa-plus'" aria-hidden="true"></i>
-            </button>
-          </form>
-
           <ul class="url-source-list">
             <li v-for="item in urlLinks" :key="`url_source_${item.urlLinkId}`" class="url-source-item">
               <button
-                class="url-source-drag ripple-trigger"
+                class="url-source-icon ripple-trigger"
                 type="button"
                 draggable="true"
                 :title="`拖拽 ${item.title} 到右栏`"
                 @dragstart="onUrlDragStart(item, $event)"
+                @click="openUrlLink(item.urlLinkId)"
               >
-                <i class="fas fa-grip-lines" aria-hidden="true"></i>
+                <img v-if="item.faviconUrl" :src="item.faviconUrl" alt="" />
+                <i v-else class="fas fa-link" aria-hidden="true"></i>
               </button>
 
               <button class="url-source-main" type="button" @click="openUrlLink(item.urlLinkId)">
-                <img v-if="item.faviconUrl" :src="item.faviconUrl" alt="" />
-                <i v-else class="fas fa-link" aria-hidden="true"></i>
                 <div>
                   <p>{{ item.title }}</p>
                   <small>{{ item.url }}</small>
@@ -109,9 +101,12 @@
                 <button class="icon-btn ripple-trigger" type="button" title="加入集合" @click="addPaletteToCollection('url', String(item.urlLinkId))">
                   <i class="fas fa-layer-group" aria-hidden="true"></i>
                 </button>
+                <button class="icon-btn ripple-trigger" type="button" title="由此链接生成集合" @click="createCollectionFromUrl(item.urlLinkId)">
+                  <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                </button>
               </div>
             </li>
-            <li v-if="!urlLinks.length" class="url-empty">还没有自定义网址，先在上方输入并创建。</li>
+            <li v-if="!urlLinks.length" class="url-empty">还没有网址项，请点击上方链接图标在 `url-links` 中创建。</li>
           </ul>
         </section>
       </section>
@@ -128,6 +123,7 @@
         @remove-collection-item="removeCollectionItem"
         @open-slot="openSlot"
         @open-collection-item="openCollectionItem"
+        @rename-collection="renameCollection"
       />
     </div>
 
@@ -208,21 +204,17 @@ import {
 } from '../components/lightapps/timeprism/timePrismSuiteState';
 import UrlLinksWindow from '../components/lightapps/url/UrlLinksWindow.vue';
 import { useAuthSession } from '../composables/useAuthSession';
-import {
-  createLightAppUrlLink,
-  listLightAppUrlLinks,
-  resolveLightAppUrlLinkMetadata
-} from '../services/lightAppsApi';
+import { listLightAppUrlLinks } from '../services/lightAppsApi';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { LIGHT_APPS_CATALOG, getLightAppByCode, isKnownLightAppCode } from '../utils/lightAppsCatalog';
 import {
   createLocalEntityId,
   readGuestLightAppData,
   readRemoteLightAppCache,
-  updateGuestLightAppData,
   writeRemoteLightAppCache
 } from '../utils/lightAppsDataStore';
 import {
+  DEFAULT_COLLECTION_ID,
   applyLightAppsToPreference,
   createDefaultLightAppsState,
   notifyLightAppsChanged,
@@ -238,8 +230,6 @@ const catalog = LIGHT_APPS_CATALOG;
 const appState = ref(createDefaultLightAppsState());
 const activePageCode = ref('');
 const syncHint = ref('');
-const quickUrl = ref('');
-const quickSaving = ref(false);
 const urlLinks = ref([]);
 
 const railEditorRef = ref(null);
@@ -416,17 +406,119 @@ function queueRemotePreferenceSync() {
   }, 720);
 }
 
-function defaultCollection(state) {
-  const list = Array.isArray(state.collections) ? state.collections : [];
-  return list.find((item) => String(item?.collection_id || '').trim() === 'default') || { collection_id: 'default', title: '集合', items: [] };
+const DEFAULT_COLLECTION_TITLE = '集合';
+
+function normalizeCollectionItems(items) {
+  const dedup = new Set();
+  return (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      item_kind: String(item?.item_kind || '').trim().toLowerCase(),
+      item_ref: String(item?.item_ref || '').trim()
+    }))
+    .filter((item) => {
+      if (!item.item_ref) return false;
+      if (!['app', 'url'].includes(item.item_kind)) return false;
+      const key = `${item.item_kind}:${item.item_ref}`;
+      if (dedup.has(key)) return false;
+      dedup.add(key);
+      return true;
+    });
 }
 
-function setCollectionItems(state, items) {
-  const target = defaultCollection(state);
+function normalizeCollections(collectionsInput) {
+  const source = Array.isArray(collectionsInput) ? collectionsInput : [];
+  const dedupIds = new Set();
+  const normalized = source
+    .map((entry) => ({
+      collection_id: String(entry?.collection_id || '').trim(),
+      title: String(entry?.title || '').trim() || DEFAULT_COLLECTION_TITLE,
+      items: normalizeCollectionItems(entry?.items)
+    }))
+    .filter((entry) => {
+      if (!entry.collection_id) return false;
+      if (dedupIds.has(entry.collection_id)) return false;
+      dedupIds.add(entry.collection_id);
+      return true;
+    });
+
+  if (normalized.length) return normalized;
   return [{
-    ...target,
-    items
+    collection_id: DEFAULT_COLLECTION_ID,
+    title: DEFAULT_COLLECTION_TITLE,
+    items: []
   }];
+}
+
+function cloneCollections(state) {
+  return normalizeCollections(state?.collections).map((entry) => ({
+    collection_id: entry.collection_id,
+    title: entry.title,
+    items: normalizeCollectionItems(entry.items)
+  }));
+}
+
+function cleanupCollections(collectionsInput) {
+  const normalized = normalizeCollections(collectionsInput).map((entry) => ({
+    ...entry,
+    items: normalizeCollectionItems(entry.items)
+  }));
+  const nonEmpty = normalized.filter((entry) => entry.items.length > 0);
+  if (nonEmpty.length) return nonEmpty;
+  return [{
+    collection_id: DEFAULT_COLLECTION_ID,
+    title: DEFAULT_COLLECTION_TITLE,
+    items: []
+  }];
+}
+
+function findCollectionIndex(collections, collectionId) {
+  const targetId = String(collectionId || '').trim();
+  if (!targetId) return -1;
+  return collections.findIndex((entry) => entry.collection_id === targetId);
+}
+
+function resolveCollectionId(collectionsInput, preferredId = '') {
+  const collections = normalizeCollections(collectionsInput);
+  const preferred = String(preferredId || '').trim();
+  if (preferred && collections.some((entry) => entry.collection_id === preferred)) {
+    return preferred;
+  }
+  return collections[0]?.collection_id || DEFAULT_COLLECTION_ID;
+}
+
+function toUniqueCollectionTitle(collectionsInput, rawTitle, excludeCollectionId = '') {
+  const collections = normalizeCollections(collectionsInput);
+  const base = String(rawTitle || '').trim() || DEFAULT_COLLECTION_TITLE;
+  const normalizedBase = base.toLowerCase();
+  const reserved = new Set(
+    collections
+      .filter((entry) => entry.collection_id !== excludeCollectionId)
+      .map((entry) => String(entry.title || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+  if (!reserved.has(normalizedBase)) return base;
+  let nextIndex = 2;
+  while (reserved.has(`${normalizedBase} (${nextIndex})`)) {
+    nextIndex += 1;
+  }
+  return `${base} (${nextIndex})`;
+}
+
+function createCollectionId(collectionsInput) {
+  const collections = normalizeCollections(collectionsInput);
+  const existing = new Set(collections.map((entry) => entry.collection_id));
+  let nextId = `col_${createLocalEntityId()}`;
+  while (existing.has(nextId)) {
+    nextId = `col_${createLocalEntityId()}`;
+  }
+  return nextId;
+}
+
+function withCollections(state, collections, cleanupEmpty = true) {
+  return {
+    ...state,
+    collections: cleanupEmpty ? cleanupCollections(collections) : normalizeCollections(collections)
+  };
 }
 
 function removeAppRefsFromState(code, state) {
@@ -437,16 +529,15 @@ function removeAppRefsFromState(code, state) {
     return slot;
   }));
 
-  const collection = defaultCollection(state);
-  const nextCollectionItems = (Array.isArray(collection.items) ? collection.items : []).filter(
-    (item) => !(item.item_kind === 'app' && item.item_ref === code)
-  );
+  const nextCollections = cloneCollections(state).map((entry) => ({
+    ...entry,
+    items: entry.items.filter((item) => !(item.item_kind === 'app' && item.item_ref === code))
+  }));
 
-  return {
+  return withCollections({
     ...state,
     rail_slots: slots,
-    collections: setCollectionItems(state, nextCollectionItems)
-  };
+  }, nextCollections, true);
 }
 
 function toggleEnabled(code) {
@@ -578,10 +669,14 @@ function handleAssignSlot({ slotIndex, payload }) {
     nextState.enabled_codes = [...nextState.enabled_codes, normalizedPayload.item_ref];
   }
 
+  const collectionId = normalizedPayload.item_kind === 'collection'
+    ? resolveCollectionId(nextState.collections, normalizedPayload.item_ref)
+    : '';
+
   nextState.rail_slots[targetIndex] = {
     enabled: true,
     item_kind: normalizedPayload.item_kind,
-    item_ref: normalizedPayload.item_kind === 'collection' ? 'default' : normalizedPayload.item_ref
+    item_ref: normalizedPayload.item_kind === 'collection' ? collectionId : normalizedPayload.item_ref
   };
 
   if (normalizedPayload.source?.type === 'slot') {
@@ -595,12 +690,22 @@ function handleAssignSlot({ slotIndex, payload }) {
     }
   }
 
-  if (normalizedPayload.source?.type === 'collection') {
+  if (normalizedPayload.source?.type === 'collection-item' || normalizedPayload.source?.type === 'collection') {
+    const sourceCollectionId = String(
+      normalizedPayload.source.collectionId || normalizedPayload.source.collection_id || ''
+    ).trim();
     const fromIndex = Number(normalizedPayload.source.index);
     if (Number.isInteger(fromIndex) && fromIndex >= 0) {
-      const collection = defaultCollection(nextState);
-      const nextItems = (Array.isArray(collection.items) ? collection.items : []).filter((_, index) => index !== fromIndex);
-      nextState.collections = setCollectionItems(nextState, nextItems);
+      const nextCollections = cloneCollections(nextState);
+      const targetCollectionId = resolveCollectionId(nextCollections, sourceCollectionId);
+      const collectionIndex = findCollectionIndex(nextCollections, targetCollectionId);
+      if (collectionIndex >= 0) {
+        nextCollections[collectionIndex] = {
+          ...nextCollections[collectionIndex],
+          items: nextCollections[collectionIndex].items.filter((_, index) => index !== fromIndex)
+        };
+        nextState = withCollections(nextState, nextCollections, true);
+      }
     }
   }
 
@@ -623,62 +728,123 @@ function clearSlot(index) {
   });
 }
 
-function addToCollection(payload) {
-  const normalizedPayload = normalizePayload(payload);
+function addToCollection(input) {
+  const normalizedPayload = normalizePayload(input?.payload || input);
   if (!normalizedPayload) return;
   if (!['app', 'url'].includes(normalizedPayload.item_kind)) return;
 
   let nextState = {
     ...appState.value,
     enabled_codes: appState.value.enabled_codes.slice(),
-    collections: (appState.value.collections || []).map((item) => ({ ...item, items: Array.isArray(item.items) ? item.items.slice() : [] }))
+    collections: cloneCollections(appState.value)
   };
 
   if (normalizedPayload.item_kind === 'app' && !nextState.enabled_codes.includes(normalizedPayload.item_ref)) {
     nextState.enabled_codes = [...nextState.enabled_codes, normalizedPayload.item_ref];
   }
 
-  const collection = defaultCollection(nextState);
-  const current = Array.isArray(collection.items) ? collection.items : [];
+  const targetCollectionId = resolveCollectionId(nextState.collections, input?.targetCollectionId);
+  const targetCollectionIndex = findCollectionIndex(nextState.collections, targetCollectionId);
+  if (targetCollectionIndex < 0) return;
+
+  const current = Array.isArray(nextState.collections[targetCollectionIndex].items)
+    ? nextState.collections[targetCollectionIndex].items
+    : [];
   const key = `${normalizedPayload.item_kind}:${normalizedPayload.item_ref}`;
   const dedupe = new Set(current.map((item) => `${item.item_kind}:${item.item_ref}`));
-  if (dedupe.has(key)) {
-    persistState(nextState);
+  let nextItems = current;
+  if (!dedupe.has(key)) {
+    nextItems = [
+      ...current,
+      {
+        item_kind: normalizedPayload.item_kind,
+        item_ref: normalizedPayload.item_ref
+      }
+    ];
+  }
+
+  nextState.collections[targetCollectionIndex] = {
+    ...nextState.collections[targetCollectionIndex],
+    items: normalizeCollectionItems(nextItems)
+  };
+
+  if (normalizedPayload.source?.type === 'collection-item' || normalizedPayload.source?.type === 'collection') {
+    const sourceCollectionId = String(
+      normalizedPayload.source.collectionId || normalizedPayload.source.collection_id || ''
+    ).trim();
+    const fromIndex = Number(normalizedPayload.source.index);
+    if (Number.isInteger(fromIndex) && fromIndex >= 0) {
+      const sourceId = resolveCollectionId(nextState.collections, sourceCollectionId);
+      const sourceIndex = findCollectionIndex(nextState.collections, sourceId);
+      if (sourceIndex >= 0) {
+        nextState.collections[sourceIndex] = {
+          ...nextState.collections[sourceIndex],
+          items: nextState.collections[sourceIndex].items.filter((_, index) => index !== fromIndex)
+        };
+      }
+    }
+  }
+
+  persistState(withCollections(nextState, nextState.collections, true));
+}
+
+function removeCollectionItem(payload) {
+  const targetCollectionId = String(payload?.collectionId || payload?.collection_id || '').trim();
+  const targetIndex = Number(payload?.index);
+  if (!Number.isInteger(targetIndex) || targetIndex < 0) return;
+
+  const nextCollections = cloneCollections(appState.value);
+  const collectionId = resolveCollectionId(nextCollections, targetCollectionId);
+  const collectionIndex = findCollectionIndex(nextCollections, collectionId);
+  if (collectionIndex < 0) return;
+
+  nextCollections[collectionIndex] = {
+    ...nextCollections[collectionIndex],
+    items: nextCollections[collectionIndex].items.filter((_, itemIndex) => itemIndex !== targetIndex)
+  };
+  persistState(withCollections(appState.value, nextCollections, true));
+}
+
+function createCollectionFromUrl(urlLinkId) {
+  const link = findUrlLink(urlLinkId);
+  if (!link) {
+    showHint('链接不存在或已失效。');
     return;
   }
 
-  const nextItems = [
-    ...current,
-    {
-      item_kind: normalizedPayload.item_kind,
-      item_ref: normalizedPayload.item_ref
-    }
-  ];
-  nextState.collections = setCollectionItems(nextState, nextItems);
+  const nextCollections = cloneCollections(appState.value);
+  const title = toUniqueCollectionTitle(nextCollections, link.title || '网址集合');
+  const collectionId = createCollectionId(nextCollections);
+  nextCollections.push({
+    collection_id: collectionId,
+    title,
+    items: [{
+      item_kind: 'url',
+      item_ref: String(link.urlLinkId)
+    }]
+  });
 
-  if (normalizedPayload.source?.type === 'collection') {
-    const fromIndex = Number(normalizedPayload.source.index);
-    if (Number.isInteger(fromIndex) && fromIndex >= 0 && fromIndex < current.length) {
-      nextState.collections = setCollectionItems(
-        nextState,
-        nextItems.filter((_, index) => index !== fromIndex)
-      );
-    }
-  }
-
-  persistState(nextState);
+  persistState(withCollections(appState.value, nextCollections, true));
+  railEditorRef.value?.focusCollection?.(collectionId, true);
+  showHint('已创建集合文件夹。');
 }
 
-function removeCollectionItem(index) {
-  const targetIndex = Number(index);
-  if (!Number.isInteger(targetIndex) || targetIndex < 0) return;
-  const collection = defaultCollection(appState.value);
-  const current = Array.isArray(collection.items) ? collection.items : [];
-  const nextItems = current.filter((_, itemIndex) => itemIndex !== targetIndex);
-  persistState({
-    ...appState.value,
-    collections: setCollectionItems(appState.value, nextItems)
-  });
+function renameCollection(payload) {
+  const collectionId = String(payload?.collectionId || payload?.collection_id || '').trim();
+  const nextTitleRaw = String(payload?.title || '').trim();
+  if (!collectionId || !nextTitleRaw) return;
+
+  const nextCollections = cloneCollections(appState.value);
+  const targetIndex = findCollectionIndex(nextCollections, collectionId);
+  if (targetIndex < 0) return;
+
+  const uniqueTitle = toUniqueCollectionTitle(nextCollections, nextTitleRaw, collectionId);
+  nextCollections[targetIndex] = {
+    ...nextCollections[targetIndex],
+    title: uniqueTitle
+  };
+
+  persistState(withCollections(appState.value, nextCollections, false));
 }
 
 function assignPaletteToFirstSlot(itemKind, itemRef) {
@@ -717,7 +883,8 @@ function openSlot(slot) {
     return;
   }
   if (slot.item_kind === 'collection') {
-    showHint('集合请在下方展开后选择。');
+    railEditorRef.value?.focusCollection?.(slot.item_ref, true);
+    showHint('已定位到对应文件夹。');
     return;
   }
   if (slot.item_kind === 'picker') {
@@ -725,7 +892,8 @@ function openSlot(slot) {
   }
 }
 
-function openCollectionItem(item) {
+function openCollectionItem(payload) {
+  const item = payload?.item || payload;
   if (!item) return;
   if (item.item_kind === 'app') {
     useApp(item.item_ref);
@@ -807,99 +975,6 @@ function openUrlLink(urlLinkId) {
     return;
   }
   window.open(item.url, '_blank', 'noopener,noreferrer');
-}
-
-function isValidUrl(value) {
-  try {
-    const url = new URL(String(value || '').trim());
-    return ['http:', 'https:'].includes(url.protocol);
-  } catch {
-    return false;
-  }
-}
-
-function inferHostMeta(rawUrl) {
-  try {
-    const url = new URL(rawUrl);
-    const host = url.hostname || rawUrl;
-    return {
-      title: host,
-      faviconUrl: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`
-    };
-  } catch {
-    return {
-      title: rawUrl,
-      faviconUrl: ''
-    };
-  }
-}
-
-async function createQuickUrlLink() {
-  const targetUrl = String(quickUrl.value || '').trim();
-  if (!isValidUrl(targetUrl)) return;
-
-  quickSaving.value = true;
-  try {
-    await auth.ensureReady();
-
-    if (auth.isAuthenticated.value) {
-      let metadata = inferHostMeta(targetUrl);
-      try {
-        const resolved = await resolveLightAppUrlLinkMetadata(targetUrl, auth.authorizedFetch);
-        metadata = {
-          title: String(resolved?.title || metadata.title || '').trim() || metadata.title,
-          faviconUrl: String(resolved?.faviconUrl || metadata.faviconUrl || '').trim()
-        };
-      } catch {
-        // keep fallback metadata
-      }
-
-      await createLightAppUrlLink(
-        {
-          title: metadata.title,
-          url: targetUrl,
-          iconMode: 'AUTO',
-          faviconUrl: metadata.faviconUrl || null
-        },
-        auth.authorizedFetch
-      );
-      await hydrateUrlLinks();
-      notifyLightAppsChanged(appState.value);
-      quickUrl.value = '';
-      return;
-    }
-
-    const guest = readGuestLightAppData();
-    const current = Array.isArray(guest.urlLinks) ? guest.urlLinks.slice() : [];
-    const nextId = createLocalEntityId();
-    const maxSort = current.reduce((max, item) => Math.max(max, Number(item.sortNum) || 0), 0);
-    const metadata = inferHostMeta(targetUrl);
-    const nextList = [
-      ...current,
-      {
-        urlLinkId: nextId,
-        title: metadata.title,
-        url: targetUrl,
-        iconMode: 'AUTO',
-        iconAssetId: null,
-        faviconUrl: metadata.faviconUrl,
-        sortNum: maxSort + 10,
-        updatedAt: new Date().toISOString()
-      }
-    ];
-
-    updateGuestLightAppData((data) => ({
-      ...data,
-      urlLinks: nextList
-    }));
-    urlLinks.value = nextList;
-    notifyLightAppsChanged(appState.value);
-    quickUrl.value = '';
-  } catch (error) {
-    showHint(error?.message || '网址创建失败');
-  } finally {
-    quickSaving.value = false;
-  }
 }
 
 async function runBallRailAnimation(direction) {
@@ -1098,27 +1173,36 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1px rgba(151, 221, 190, 0.4);
 }
 
-.card-drag-handle {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.18);
-  color: rgba(238, 244, 255, 0.82);
-}
-
 .card-head {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-columns: 30px minmax(0, 1fr);
   gap: 8px;
 }
 
-.card-head i {
-  font-size: 18px;
-  margin-top: 3px;
+.card-icon-drag {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(234, 242, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.card-icon-drag:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.2);
+}
+
+.card-icon-drag i {
+  font-size: 16px;
 }
 
 .card-head h3 {
@@ -1204,12 +1288,6 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
-.url-quick-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
-
 .url-source-list {
   list-style: none;
   margin: 0;
@@ -1229,30 +1307,32 @@ onBeforeUnmount(() => {
   padding: 8px;
 }
 
-.url-source-drag {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+.url-source-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.16);
-  color: rgba(232, 241, 255, 0.84);
+  color: rgba(232, 241, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.url-source-icon img,
+.url-source-icon i {
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  object-fit: cover;
 }
 
 .url-source-main {
   border: 0;
   background: transparent;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 8px;
+  display: block;
   text-align: left;
   color: inherit;
-}
-
-.url-source-main img,
-.url-source-main i {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
 }
 
 .url-source-main p {
