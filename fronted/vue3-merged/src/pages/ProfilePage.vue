@@ -1,15 +1,14 @@
 <template>
   <section class="route-page profile-page motion-managed profile-no-motion">
     <div class="profile-stage liquid-material">
-      <aside class="profile-anchor-nav" aria-label="个人分组导航">
-        <RouteDotRail
-          :items="navGroups"
-          :active-key="activeGroup"
-          distribution="mid-sixths"
-          aria-label="个人分组导航"
-          @select="navigateToGroup"
-        />
-      </aside>
+      <RouteDotRail
+        class="profile-anchor-nav sidebar-dot-rail"
+        :items="navGroups"
+        :active-key="activeGroup"
+        distribution="mid-sixths"
+        aria-label="个人分组导航"
+        @select="navigateToGroup"
+      />
 
       <section class="profile-content-panel">
         <div class="profile-hero-shell">
@@ -1852,10 +1851,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .profile-page {
-  height: auto;
-  min-height: 100%;
-  overflow: visible;
-  padding-bottom: 24px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   color: rgba(232, 241, 252, 0.95);
   font-family: var(--font-ui);
 }
@@ -1873,48 +1871,57 @@ onBeforeUnmount(() => {
   --liquid-bg: linear-gradient(155deg, rgba(8, 17, 28, 0.58), rgba(6, 12, 21, 0.54));
   --liquid-border: rgba(155, 188, 214, 0.24);
   --liquid-shadow: 0 16px 34px rgba(3, 8, 15, 0.22);
-  min-height: max-content;
+  position: relative;
+  min-height: 0;
+  height: 100%;
   border-radius: 16px;
-  padding: 14px;
+  padding: 0 0 0 132px;
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-  overflow: visible;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
   background:
     radial-gradient(circle at top right, rgba(74, 186, 222, 0.14), transparent 28%),
     radial-gradient(circle at bottom left, rgba(111, 145, 220, 0.12), transparent 32%);
 }
 
 .profile-anchor-nav {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  align-self: start;
-  position: sticky;
-  top: 12px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
   z-index: 7;
-  width: 100%;
+  width: 116px;
   height: auto;
-  min-height: clamp(320px, 52vh, 560px);
-  padding-block: 4px;
+  min-height: 0;
+  padding-block: 6px;
 }
 
 .profile-anchor-nav :deep(.route-dot-rail) {
-  height: auto;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .profile-content-panel {
   min-height: 0;
-  height: auto;
-  overflow: visible;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: auto;
   position: relative;
   z-index: 1;
-  padding-bottom: 12px;
+  padding: 14px 16px 22px;
   display: grid;
   gap: 18px;
   align-content: start;
+}
+
+.profile-content-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.profile-content-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(116, 157, 194, 0.36);
 }
 
 .state-tip {
@@ -2433,6 +2440,7 @@ select.field-input:focus-visible,
     height: auto;
     min-height: auto;
     position: static;
+    padding-block: 0;
   }
 
   .quick-grid {
@@ -2453,6 +2461,7 @@ select.field-input:focus-visible,
 
   .profile-content-panel {
     min-height: 0;
+    padding: 12px 12px 20px;
   }
 
   .profile-hero-shell {
