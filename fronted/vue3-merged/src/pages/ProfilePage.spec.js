@@ -184,6 +184,14 @@ function findSectionToggle(wrapper, groupKey, label) {
   return button;
 }
 
+function findGroup(wrapper, groupKey) {
+  const group = wrapper.find(`.profile-group[data-group-key="${groupKey}"]`);
+  if (!group.exists()) {
+    throw new Error(`Group not found: ${groupKey}`);
+  }
+  return group;
+}
+
 describe('ProfilePage immediate account expansion', () => {
   beforeEach(() => {
     mocked.listMyPosts.mockReset().mockResolvedValue({ items: [] });
@@ -208,13 +216,19 @@ describe('ProfilePage immediate account expansion', () => {
 
     const wrapper = await mountProfilePage();
     expect(wrapper.classes()).toContain('profile-no-motion');
+    const profileGroup = findGroup(wrapper, 'profile');
+    const accountGroup = findGroup(wrapper, 'account');
     const accountInfoToggle = findSectionToggle(wrapper, 'account', '账号信息');
 
+    expect(profileGroup.isVisible()).toBe(true);
+    expect(accountGroup.isVisible()).toBe(false);
     expect(accountInfoToggle.attributes('aria-expanded')).toBe('false');
 
     await findQuickAction(wrapper, '查看账号信息').trigger('click');
     await flushPromises();
 
+    expect(profileGroup.isVisible()).toBe(false);
+    expect(accountGroup.isVisible()).toBe(true);
     expect(accountInfoToggle.attributes('aria-expanded')).toBe('true');
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
 
@@ -243,11 +257,13 @@ describe('ProfilePage immediate account expansion', () => {
     });
 
     const wrapper = await mountProfilePage();
+    const accountGroup = findGroup(wrapper, 'account');
     const emailBindToggle = findSectionToggle(wrapper, 'account', '邮箱绑定');
 
     await findQuickAction(wrapper, '绑定邮箱').trigger('click');
     await flushPromises();
 
+    expect(accountGroup.isVisible()).toBe(true);
     expect(emailBindToggle.attributes('aria-expanded')).toBe('true');
     expect(mocked.auth.createImageCaptcha).not.toHaveBeenCalled();
 
@@ -284,6 +300,7 @@ describe('ProfilePage immediate account expansion', () => {
     });
 
     const wrapper = await mountProfilePage();
+    const accountGroup = findGroup(wrapper, 'account');
     const emailBindToggle = findSectionToggle(wrapper, 'account', '邮箱绑定');
     const changePasswordToggle = findSectionToggle(wrapper, 'account', '修改密码');
 
@@ -291,6 +308,7 @@ describe('ProfilePage immediate account expansion', () => {
     await findQuickAction(wrapper, '修改密码').trigger('click');
     await flushPromises();
 
+    expect(accountGroup.isVisible()).toBe(true);
     expect(emailBindToggle.attributes('aria-expanded')).toBe('true');
     expect(changePasswordToggle.attributes('aria-expanded')).toBe('true');
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);

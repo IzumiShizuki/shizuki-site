@@ -11,8 +11,8 @@
         />
       </aside>
 
-      <section ref="profileContentPanel" class="profile-content-panel">
-        <div class="profile-hero-sticky">
+      <section class="profile-content-panel">
+        <div class="profile-hero-shell">
           <ProfileHeroCard
             :avatar-url="avatarPreview"
             avatar-action-label="查看或修改头像"
@@ -28,9 +28,10 @@
 
         <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
         <section
+          v-show="isActiveGroup(ProfileTabKey.PROFILE)"
           :id="ProfileTabKey.PROFILE"
-          :ref="(el) => setGroupRef(ProfileTabKey.PROFILE, el)"
           :data-group-key="ProfileTabKey.PROFILE"
+          :data-active="isActiveGroup(ProfileTabKey.PROFILE) ? 'true' : 'false'"
           class="profile-group"
         >
           <header class="group-header">
@@ -95,9 +96,10 @@
         </section>
 
         <section
+          v-show="isActiveGroup(ProfileTabKey.ACCOUNT)"
           :id="ProfileTabKey.ACCOUNT"
-          :ref="(el) => setGroupRef(ProfileTabKey.ACCOUNT, el)"
           :data-group-key="ProfileTabKey.ACCOUNT"
+          :data-active="isActiveGroup(ProfileTabKey.ACCOUNT) ? 'true' : 'false'"
           class="profile-group"
         >
           <header class="group-header">
@@ -364,9 +366,10 @@
         </section>
 
         <section
+          v-show="isActiveGroup(ProfileTabKey.ARTICLES)"
           :id="ProfileTabKey.ARTICLES"
-          :ref="(el) => setGroupRef(ProfileTabKey.ARTICLES, el)"
           :data-group-key="ProfileTabKey.ARTICLES"
+          :data-active="isActiveGroup(ProfileTabKey.ARTICLES) ? 'true' : 'false'"
           class="profile-group"
         >
           <header class="group-header">
@@ -455,9 +458,10 @@
         </section>
 
         <section
+          v-show="isActiveGroup(ProfileTabKey.SETTINGS)"
           :id="ProfileTabKey.SETTINGS"
-          :ref="(el) => setGroupRef(ProfileTabKey.SETTINGS, el)"
           :data-group-key="ProfileTabKey.SETTINGS"
+          :data-active="isActiveGroup(ProfileTabKey.SETTINGS) ? 'true' : 'false'"
           class="profile-group"
         >
           <header class="group-header">
@@ -546,7 +550,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
 import AppearanceSettingsContent from '../components/profile/AppearanceSettingsContent.vue';
@@ -577,14 +581,7 @@ const auth = useAuthSession();
 const ui = useUiPreferences();
 
 const avatarFileInput = ref(null);
-const profileContentPanel = ref(null);
 const activeGroup = ref(ProfileTabKey.PROFILE);
-const groupRefs = reactive({
-  [ProfileTabKey.PROFILE]: null,
-  [ProfileTabKey.ACCOUNT]: null,
-  [ProfileTabKey.ARTICLES]: null,
-  [ProfileTabKey.SETTINGS]: null
-});
 const navGroups = [
   { key: ProfileTabKey.PROFILE, label: '个人', icon: 'fas fa-id-card' },
   { key: ProfileTabKey.ACCOUNT, label: '账号', icon: 'fas fa-shield-halved' },
@@ -711,9 +708,6 @@ const placeholderCaptcha =
 
 let bindCooldownTimer = 0;
 let changePwdCooldownTimer = 0;
-let groupObserver = null;
-let groupObserverReady = false;
-let groupObserverResumeTimer = 0;
 let accountSectionLoadPromise = null;
 let articlesSectionLoadPromise = null;
 let captchaPromise = null;
@@ -754,34 +748,6 @@ async function replaceRouteHash(groupKey) {
   await router.replace({ path: '/profile', query: nextQuery, hash: targetHash });
 }
 
-function setGroupRef(groupKey, element) {
-  groupRefs[groupKey] = element || null;
-}
-
-function scrollToGroup(groupKey, smooth = true) {
-  const normalized = normalizeGroupKey(groupKey);
-  const target = groupRefs[normalized];
-  if (!target || typeof target.scrollIntoView !== 'function') return;
-  target.scrollIntoView({
-    behavior: smooth ? 'smooth' : 'auto',
-    block: 'start',
-    inline: 'nearest'
-  });
-}
-
-function suspendGroupObserver(durationMs = 420) {
-  groupObserverReady = false;
-  if (typeof window === 'undefined') return;
-  if (groupObserverResumeTimer) {
-    window.clearTimeout(groupObserverResumeTimer);
-    groupObserverResumeTimer = 0;
-  }
-  groupObserverResumeTimer = window.setTimeout(() => {
-    groupObserverReady = true;
-    groupObserverResumeTimer = 0;
-  }, Math.max(0, Number(durationMs) || 0));
-}
-
 function ensureGroupSectionVisible(groupKey) {
   const normalizedGroup = normalizeGroupKey(groupKey);
   const fallbackSectionKey = GROUP_DEFAULT_SECTION[normalizedGroup];
@@ -790,53 +756,11 @@ function ensureGroupSectionVisible(groupKey) {
   applyAccordionState(nextState);
 }
 
-function ensureAllGroupSectionsVisible() {
-  navGroups.forEach((group) => ensureGroupSectionVisible(group.key));
-}
-
 async function navigateToGroup(groupKey) {
   const normalized = normalizeGroupKey(groupKey);
-  suspendGroupObserver();
   ensureGroupSectionVisible(normalized);
   activeGroup.value = normalized;
   await replaceRouteHash(normalized);
-  await nextTick();
-  scrollToGroup(normalized, false);
-}
-
-function setupGroupObserver() {
-  if (typeof window === 'undefined' || typeof IntersectionObserver !== 'function') return;
-  if (groupObserver) {
-    groupObserver.disconnect();
-    groupObserver = null;
-  }
-
-  const rootEl = profileContentPanel.value;
-  if (!rootEl) return;
-
-  groupObserver = new IntersectionObserver(
-    (entries) => {
-      if (!groupObserverReady) return;
-      const visibleEntries = entries.filter((entry) => entry.isIntersecting && entry.intersectionRatio > 0);
-      if (!visibleEntries.length) return;
-
-      visibleEntries.sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-      const candidate = tryResolveGroupKey(visibleEntries[0]?.target?.dataset?.groupKey);
-      if (!candidate || candidate === activeGroup.value) return;
-      activeGroup.value = candidate;
-    },
-    {
-      root: rootEl,
-      threshold: [0.2, 0.35, 0.55, 0.72],
-      rootMargin: '-18% 0px -50% 0px'
-    }
-  );
-
-  navGroups.forEach((group) => {
-    const target = groupRefs[group.key];
-    if (!target) return;
-    groupObserver.observe(target);
-  });
 }
 
 function normalizeRedirectPath(path) {
@@ -1564,8 +1488,8 @@ async function openAccountSection(sectionKey) {
 }
 
 async function openSettingsAppearance() {
-  await navigateToGroup(ProfileTabKey.SETTINGS);
   forceOpenSection(ProfileTabKey.SETTINGS, ProfileSectionKey.SETTINGS.APPEARANCE);
+  await navigateToGroup(ProfileTabKey.SETTINGS);
 }
 
 async function handleLogout() {
@@ -1878,17 +1802,17 @@ const settingsSections = computed(() => [
   }
 ]);
 
+function isActiveGroup(groupKey) {
+  return activeGroup.value === normalizeGroupKey(groupKey);
+}
+
 watch(
   () => route.hash,
   (nextHash) => {
     const group = tryResolveGroupKey(String(nextHash || '').replace(/^#/, ''));
-    if (!group || group === activeGroup.value) return;
-    suspendGroupObserver();
+    if (!group) return;
     ensureGroupSectionVisible(group);
     activeGroup.value = group;
-    nextTick(() => {
-      scrollToGroup(group, false);
-    });
   }
 );
 
@@ -1919,25 +1843,12 @@ onMounted(async () => {
   }
 
   const initialGroup = resolveInitialGroupFromRoute();
+  ensureGroupSectionVisible(initialGroup);
   activeGroup.value = initialGroup;
-  ensureAllGroupSectionsVisible();
   await replaceRouteHash(initialGroup);
-  await nextTick();
-  setupGroupObserver();
-  suspendGroupObserver();
-  scrollToGroup(initialGroup, false);
 });
 
 onBeforeUnmount(() => {
-  if (groupObserver) {
-    groupObserver.disconnect();
-    groupObserver = null;
-  }
-  groupObserverReady = false;
-  if (groupObserverResumeTimer) {
-    window.clearTimeout(groupObserverResumeTimer);
-    groupObserverResumeTimer = 0;
-  }
   if (bindCooldownTimer) {
     window.clearInterval(bindCooldownTimer);
     bindCooldownTimer = 0;
@@ -1971,57 +1882,44 @@ onBeforeUnmount(() => {
   --liquid-bg: linear-gradient(155deg, rgba(8, 17, 28, 0.58), rgba(6, 12, 21, 0.54));
   --liquid-border: rgba(155, 188, 214, 0.24);
   --liquid-shadow: 0 16px 34px rgba(3, 8, 15, 0.22);
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   border-radius: 16px;
   padding: 10px;
   display: grid;
   grid-template-columns: 116px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .profile-anchor-nav {
   display: flex;
   justify-content: center;
   align-items: center;
-  align-self: stretch;
+  align-self: start;
   position: sticky;
-  top: 0;
+  top: 12px;
   z-index: 7;
   width: 100%;
-  height: 100%;
-  min-height: clamp(420px, 70vh, 780px);
-  padding-block: 6px;
+  height: auto;
+  min-height: clamp(320px, 52vh, 560px);
+  padding-block: 4px;
 }
 
 .profile-anchor-nav :deep(.route-dot-rail) {
-  height: 100%;
+  height: auto;
   min-height: 100%;
 }
 
 .profile-content-panel {
-  min-height: 0;
-  height: 100%;
-  overflow: auto;
+  min-height: 100%;
+  height: auto;
+  overflow: visible;
   position: relative;
   z-index: 1;
-  padding-right: 6px;
-  padding-bottom: 20px;
-  display: flex;
-  flex-direction: column;
+  padding-bottom: 12px;
+  display: grid;
   gap: 14px;
-  scroll-padding-top: 182px;
-}
-
-.profile-content-panel::-webkit-scrollbar {
-  width: 8px;
-}
-
-.profile-content-panel::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(116, 157, 194, 0.36);
 }
 
 .state-tip {
@@ -2030,19 +1928,16 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.profile-hero-sticky {
-  position: sticky;
-  top: 0;
+.profile-hero-shell {
+  position: relative;
   z-index: 6;
   padding-top: 2px;
-  padding-bottom: 8px;
-  background: linear-gradient(180deg, rgba(8, 16, 27, 0.95), rgba(8, 16, 27, 0));
+  padding-bottom: 2px;
 }
 
 .profile-group {
   display: grid;
   gap: 9px;
-  scroll-margin-top: 182px;
   position: relative;
   z-index: 1;
 }
@@ -2551,19 +2446,11 @@ select.field-input:focus-visible,
   }
 
   .profile-content-panel {
-    scroll-padding-top: 0;
-    padding-right: 0;
+    min-height: 0;
   }
 
-  .profile-hero-sticky {
-    position: relative;
-    top: auto;
+  .profile-hero-shell {
     padding-bottom: 0;
-    background: transparent;
-  }
-
-  .profile-group {
-    scroll-margin-top: 8px;
   }
 
   .overview-grid,
