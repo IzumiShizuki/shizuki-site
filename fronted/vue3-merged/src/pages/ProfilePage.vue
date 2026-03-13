@@ -1,5 +1,5 @@
 <template>
-  <section class="route-page profile-page motion-managed">
+  <section class="route-page profile-page motion-managed profile-no-motion">
     <div class="profile-stage liquid-material">
       <aside class="profile-anchor-nav" aria-label="个人分组导航">
         <RouteDotRail
@@ -801,7 +801,7 @@ async function navigateToGroup(groupKey) {
   activeGroup.value = normalized;
   await replaceRouteHash(normalized);
   await nextTick();
-  scrollToGroup(normalized, true);
+  scrollToGroup(normalized, false);
 }
 
 function setupGroupObserver() {
@@ -1956,19 +1956,15 @@ onBeforeUnmount(() => {
   min-height: 0;
   color: rgba(232, 241, 252, 0.95);
   font-family: var(--font-ui);
-  animation: page-enter 0.32s ease;
 }
 
-@keyframes page-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.profile-no-motion,
+.profile-no-motion *,
+.profile-no-motion *::before,
+.profile-no-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
 }
 
 .profile-stage {

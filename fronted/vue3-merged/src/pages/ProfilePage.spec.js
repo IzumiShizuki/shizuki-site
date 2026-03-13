@@ -207,6 +207,7 @@ describe('ProfilePage immediate account expansion', () => {
     });
 
     const wrapper = await mountProfilePage();
+    expect(wrapper.classes()).toContain('profile-no-motion');
     const accountInfoToggle = findSectionToggle(wrapper, 'account', '账号信息');
 
     expect(accountInfoToggle.attributes('aria-expanded')).toBe('false');
