@@ -714,6 +714,10 @@ let changePwdCooldownTimer = 0;
 let groupObserver = null;
 let groupObserverReady = false;
 let groupObserverResumeTimer = 0;
+let accountSectionLoadPromise = null;
+let articlesSectionLoadPromise = null;
+let captchaPromise = null;
+let accountSectionFollowUpId = 0;
 
 function normalizeGroupKey(raw, fallback = ProfileTabKey.PROFILE) {
   return normalizeProfileTabKey(raw, fallback);
@@ -798,9 +802,6 @@ async function navigateToGroup(groupKey) {
   await replaceRouteHash(normalized);
   await nextTick();
   scrollToGroup(normalized, true);
-  if (normalized === ProfileTabKey.ACCOUNT) {
-    await ensureAccountSectionReady();
-  }
 }
 
 function setupGroupObserver() {
@@ -982,7 +983,7 @@ function toggleGroupSection(groupKey, sectionKey) {
       openAccountSections.includes(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)) &&
     !captcha.captchaId
   ) {
-    refreshCaptcha();
+    void ensureCaptchaReady();
   }
 }
 
@@ -1031,6 +1032,20 @@ async function refreshCaptcha() {
   }
 }
 
+async function ensureCaptchaReady() {
+  if (captcha.captchaId) return captcha;
+  if (captchaPromise) return captchaPromise;
+  captchaPromise = (async () => {
+    await refreshCaptcha();
+    return captcha;
+  })();
+  try {
+    return await captchaPromise;
+  } finally {
+    captchaPromise = null;
+  }
+}
+
 async function loadAccountProfile() {
   if (!auth.isAuthenticated.value) return false;
   accountLoading.value = true;
@@ -1061,10 +1076,19 @@ async function loadAccountProfile() {
 }
 
 async function ensureAccountSectionReady() {
-  if (accountSectionLoaded.value) return;
-  const ok = await loadAccountProfile();
-  if (ok) {
-    accountSectionLoaded.value = true;
+  if (accountSectionLoaded.value) return true;
+  if (accountSectionLoadPromise) return accountSectionLoadPromise;
+  accountSectionLoadPromise = (async () => {
+    const ok = await loadAccountProfile();
+    if (ok) {
+      accountSectionLoaded.value = true;
+    }
+    return ok;
+  })();
+  try {
+    return await accountSectionLoadPromise;
+  } finally {
+    accountSectionLoadPromise = null;
   }
 }
 
@@ -1102,39 +1126,43 @@ function resetArticlesSummary() {
 }
 
 async function loadProfileArticles(force = false) {
-  if (articlesState.loading) return;
-  if (articlesState.loaded && !force) return;
+  if (articlesState.loading) return false;
+  if (articlesState.loaded && !force) return true;
   if (!canManagePosts.value) {
     resetArticlesSummary();
     articlesState.error = '';
     articlesState.loaded = true;
-    return;
+    return true;
   }
 
   articlesState.loading = true;
   articlesState.error = '';
+  let success = false;
   try {
     const payload = await listMyPosts({ pageNo: 1, pageSize: 200 }, auth.authorizedFetch);
     const posts = Array.isArray(payload?.items) ? payload.items : [];
     applyArticlesSummary(summarizeAuthorPosts(posts));
+    articlesState.loaded = true;
+    success = true;
   } catch (error) {
     resetArticlesSummary();
     articlesState.error = readErrorMessage(error);
+    articlesState.loaded = false;
   } finally {
     articlesState.loading = false;
-    articlesState.loaded = true;
   }
+  return success;
 }
 
 async function ensureArticlesSectionReady() {
-  if (articlesState.loaded) return;
-  if (!canManagePosts.value) {
-    resetArticlesSummary();
-    articlesState.error = '';
-    articlesState.loaded = true;
-    return;
+  if (articlesState.loaded) return true;
+  if (articlesSectionLoadPromise) return articlesSectionLoadPromise;
+  articlesSectionLoadPromise = loadProfileArticles();
+  try {
+    return await articlesSectionLoadPromise;
+  } finally {
+    articlesSectionLoadPromise = null;
   }
-  await loadProfileArticles();
 }
 
 async function goToBlogEditor() {
@@ -1515,18 +1543,24 @@ function handleSectionAvatarClick() {
   openAvatarActions();
 }
 
+function sectionNeedsCaptcha(sectionKey) {
+  return sectionKey === ProfileSectionKey.ACCOUNT.EMAIL_BIND || sectionKey === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD;
+}
+
+function queueAccountSectionFollowUp(sectionKey) {
+  const followUpId = ++accountSectionFollowUpId;
+  void (async () => {
+    const ready = await ensureAccountSectionReady();
+    if (!ready || !sectionNeedsCaptcha(sectionKey)) return;
+    if (followUpId !== accountSectionFollowUpId) return;
+    await ensureCaptchaReady();
+  })();
+}
+
 async function openAccountSection(sectionKey) {
-  await ensureAccountSectionReady();
   forceOpenSection(ProfileTabKey.ACCOUNT, sectionKey);
   await navigateToGroup(ProfileTabKey.ACCOUNT);
-  if (
-    sectionKey === ProfileSectionKey.ACCOUNT.EMAIL_BIND ||
-    sectionKey === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD
-  ) {
-    if (!captcha.captchaId) {
-      await refreshCaptcha();
-    }
-  }
+  queueAccountSectionFollowUp(sectionKey);
 }
 
 async function openSettingsAppearance() {
@@ -1860,16 +1894,13 @@ watch(
 
 watch(
   () => activeGroup.value,
-  async (group) => {
+  (group) => {
     ensureGroupSectionVisible(group);
     if (group === ProfileTabKey.ACCOUNT) {
-      await ensureAccountSectionReady();
-      if (!captcha.captchaId) {
-        await refreshCaptcha();
-      }
+      void ensureAccountSectionReady();
     }
     if (group === ProfileTabKey.ARTICLES) {
-      await ensureArticlesSectionReady();
+      void ensureArticlesSectionReady();
     }
   }
 );
@@ -1895,16 +1926,6 @@ onMounted(async () => {
   setupGroupObserver();
   suspendGroupObserver();
   scrollToGroup(initialGroup, false);
-
-  if (initialGroup === ProfileTabKey.ACCOUNT) {
-    await ensureAccountSectionReady();
-    if (!captcha.captchaId) {
-      await refreshCaptcha();
-    }
-  }
-  if (initialGroup === ProfileTabKey.ARTICLES) {
-    await ensureArticlesSectionReady();
-  }
 });
 
 onBeforeUnmount(() => {
