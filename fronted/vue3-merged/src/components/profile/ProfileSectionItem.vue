@@ -12,9 +12,10 @@
       </button>
 
       <button
+        v-if="collapsible"
         class="head-toggle ripple-trigger"
         type="button"
-        :aria-expanded="collapsible ? (open ? 'true' : 'false') : 'true'"
+        :aria-expanded="open ? 'true' : 'false'"
         :aria-pressed="focused ? 'true' : 'false'"
         @click="$emit('toggle')"
       >
@@ -29,9 +30,24 @@
         </div>
         <div class="head-meta">
           <span v-if="statusText" class="status-chip">{{ statusText }}</span>
-          <span v-if="collapsible" class="chevron" :class="{ open }"><i class="fas fa-angle-down"></i></span>
+          <span class="chevron" :class="{ open }"><i class="fas fa-angle-down"></i></span>
         </div>
       </button>
+
+      <div v-else class="head-static">
+        <div class="head-main">
+          <div class="section-title-row">
+            <span v-if="icon" class="section-icon" aria-hidden="true">
+              <i :class="icon"></i>
+            </span>
+            <p class="section-title">{{ title }}</p>
+          </div>
+          <p class="section-summary">{{ summary }}</p>
+        </div>
+        <div class="head-meta">
+          <span v-if="statusText" class="status-chip">{{ statusText }}</span>
+        </div>
+      </div>
     </div>
 
     <div v-show="open" class="section-body">
@@ -129,9 +145,27 @@ defineEmits(['toggle', 'avatar-click']);
     box-shadow 0.18s ease;
 }
 
+.head-static {
+  flex: 1;
+  min-width: 0;
+  color: rgba(236, 244, 255, 0.95);
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+  border-radius: 14px;
+}
+
 .section-item.focused .head-toggle {
   background: linear-gradient(145deg, rgba(52, 134, 182, 0.18), rgba(66, 178, 211, 0.1));
   box-shadow: inset 0 0 0 1px rgba(87, 199, 230, 0.2);
+}
+
+.section-item.focused .head-static {
+  background: linear-gradient(145deg, rgba(52, 134, 182, 0.18), rgba(66, 178, 211, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(87, 199, 230, 0.2);
+  padding: 10px 12px;
+  margin: -10px -12px;
 }
 
 .head-toggle:focus-visible,
@@ -206,6 +240,7 @@ defineEmits(['toggle', 'avatar-click']);
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .status-chip {

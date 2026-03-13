@@ -11,28 +11,30 @@
       />
 
       <section class="profile-content-panel">
-        <div class="profile-hero-shell">
-          <ProfileHeroCard
-            :avatar-url="avatarPreview"
-            avatar-action-label="查看或修改头像"
-            :eyebrow="heroEyebrow"
-            :title="heroTitle"
-            :subtitle="heroSubtitle"
-            :user-id-text="userIdText"
-            :groups-text="groupsText"
-            :chips="heroChips"
-            @avatar-click="openAvatarActions"
-          />
-        </div>
+        <div class="profile-scroll-frame">
+          <div class="profile-hero-shell">
+            <ProfileHeroCard
+              :avatar-url="avatarPreview"
+              avatar-action-label="查看或修改头像"
+              :eyebrow="heroEyebrow"
+              :title="heroTitle"
+              :subtitle="heroSubtitle"
+              :user-id-text="userIdText"
+              :groups-text="groupsText"
+              :chips="heroChips"
+              @avatar-click="openAvatarActions"
+            />
+          </div>
 
-        <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
-        <section
-          v-show="isActiveGroup(ProfileTabKey.PROFILE)"
-          :id="ProfileTabKey.PROFILE"
-          :data-group-key="ProfileTabKey.PROFILE"
-          :data-active="isActiveGroup(ProfileTabKey.PROFILE) ? 'true' : 'false'"
-          class="profile-group"
-        >
+          <div class="profile-scroll-body">
+            <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
+            <section
+              v-show="isActiveGroup(ProfileTabKey.PROFILE)"
+              :id="ProfileTabKey.PROFILE"
+              :data-group-key="ProfileTabKey.PROFILE"
+              :data-active="isActiveGroup(ProfileTabKey.PROFILE) ? 'true' : 'false'"
+              class="profile-group"
+            >
           <header class="group-header">
             <p class="group-eyebrow">Profile</p>
             <h3 class="group-title">个人概览</h3>
@@ -93,15 +95,15 @@
               </div>
             </template>
           </ProfileSectionAccordion>
-        </section>
+            </section>
 
-        <section
-          v-show="isActiveGroup(ProfileTabKey.ACCOUNT)"
-          :id="ProfileTabKey.ACCOUNT"
-          :data-group-key="ProfileTabKey.ACCOUNT"
-          :data-active="isActiveGroup(ProfileTabKey.ACCOUNT) ? 'true' : 'false'"
-          class="profile-group"
-        >
+            <section
+              v-show="isActiveGroup(ProfileTabKey.ACCOUNT)"
+              :id="ProfileTabKey.ACCOUNT"
+              :data-group-key="ProfileTabKey.ACCOUNT"
+              :data-active="isActiveGroup(ProfileTabKey.ACCOUNT) ? 'true' : 'false'"
+              class="profile-group"
+            >
           <header class="group-header">
             <p class="group-eyebrow">Account</p>
             <h3 class="group-title">账号与安全</h3>
@@ -364,15 +366,15 @@
               </div>
             </template>
           </ProfileSectionAccordion>
-        </section>
+            </section>
 
-        <section
-          v-show="isActiveGroup(ProfileTabKey.ARTICLES)"
-          :id="ProfileTabKey.ARTICLES"
-          :data-group-key="ProfileTabKey.ARTICLES"
-          :data-active="isActiveGroup(ProfileTabKey.ARTICLES) ? 'true' : 'false'"
-          class="profile-group"
-        >
+            <section
+              v-show="isActiveGroup(ProfileTabKey.ARTICLES)"
+              :id="ProfileTabKey.ARTICLES"
+              :data-group-key="ProfileTabKey.ARTICLES"
+              :data-active="isActiveGroup(ProfileTabKey.ARTICLES) ? 'true' : 'false'"
+              class="profile-group"
+            >
           <header class="group-header">
             <p class="group-eyebrow">Articles</p>
             <h3 class="group-title">创作与归档</h3>
@@ -457,15 +459,15 @@
               </div>
             </template>
           </ProfileSectionAccordion>
-        </section>
+            </section>
 
-        <section
-          v-show="isActiveGroup(ProfileTabKey.SETTINGS)"
-          :id="ProfileTabKey.SETTINGS"
-          :data-group-key="ProfileTabKey.SETTINGS"
-          :data-active="isActiveGroup(ProfileTabKey.SETTINGS) ? 'true' : 'false'"
-          class="profile-group"
-        >
+            <section
+              v-show="isActiveGroup(ProfileTabKey.SETTINGS)"
+              :id="ProfileTabKey.SETTINGS"
+              :data-group-key="ProfileTabKey.SETTINGS"
+              :data-active="isActiveGroup(ProfileTabKey.SETTINGS) ? 'true' : 'false'"
+              class="profile-group"
+            >
           <header class="group-header">
             <p class="group-eyebrow">Settings</p>
             <h3 class="group-title">外观与偏好</h3>
@@ -516,7 +518,9 @@
               </div>
             </template>
           </ProfileSectionAccordion>
-        </section>
+            </section>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -1905,41 +1909,62 @@ onBeforeUnmount(() => {
 .profile-content-panel {
   min-height: 0;
   height: 100%;
-  overflow: auto;
-  overscroll-behavior: auto;
+  overflow: hidden;
   position: relative;
   z-index: 1;
-  padding: 14px 16px 22px;
+  border-radius: 18px;
+  background:
+    linear-gradient(160deg, rgba(11, 21, 35, 0.82), rgba(8, 15, 26, 0.74)),
+    radial-gradient(circle at top right, rgba(80, 198, 230, 0.12), transparent 34%);
+  box-shadow:
+    inset 0 0 0 1px rgba(154, 189, 216, 0.16),
+    0 16px 28px rgba(3, 8, 15, 0.18);
+}
+
+.profile-scroll-frame {
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: auto;
   display: grid;
-  gap: 18px;
   align-content: start;
 }
 
-.profile-content-panel::-webkit-scrollbar {
+.profile-scroll-frame::-webkit-scrollbar {
   width: 8px;
 }
 
-.profile-content-panel::-webkit-scrollbar-thumb {
+.profile-scroll-frame::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(116, 157, 194, 0.36);
 }
 
 .state-tip {
-  margin: 2px 2px 3px;
+  margin: 2px 2px 1px;
   color: rgba(192, 216, 239, 0.95);
   font-size: 12px;
 }
 
 .profile-hero-shell {
-  position: relative;
-  z-index: 6;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  padding: 14px 16px 10px;
+  background:
+    linear-gradient(180deg, rgba(9, 18, 31, 0.98) 0%, rgba(9, 18, 31, 0.92) 68%, rgba(9, 18, 31, 0) 100%);
+  backdrop-filter: blur(12px);
+}
+
+.profile-scroll-body {
+  display: grid;
+  gap: 16px;
+  padding: 0 16px 22px;
+  align-content: start;
 }
 
 .profile-group {
   display: grid;
-  gap: 9px;
+  gap: 11px;
   position: relative;
   z-index: 1;
 }
@@ -1947,7 +1972,7 @@ onBeforeUnmount(() => {
 .group-header {
   display: grid;
   gap: 3px;
-  margin: 2px 2px 4px;
+  margin: 2px 2px 2px;
 }
 
 .group-eyebrow {
@@ -2461,11 +2486,14 @@ select.field-input:focus-visible,
 
   .profile-content-panel {
     min-height: 0;
-    padding: 12px 12px 20px;
   }
 
   .profile-hero-shell {
-    padding-bottom: 0;
+    padding: 12px 12px 8px;
+  }
+
+  .profile-scroll-body {
+    padding: 0 12px 20px;
   }
 
   .overview-grid,
