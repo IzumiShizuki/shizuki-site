@@ -89,7 +89,9 @@ const railClassName = computed(() => {
 
 .route-dot-rail.distribution-mid-sixths {
   display: grid;
+  grid-template-columns: 1fr;
   grid-template-rows: repeat(6, minmax(0, 1fr));
+  justify-content: center;
   justify-items: center;
   align-items: center;
   gap: 0;
@@ -119,6 +121,7 @@ const railClassName = computed(() => {
 .route-dot-rail.distribution-mid-sixths .dot-rail-line {
   top: calc(100% / 6);
   bottom: calc(100% / 6);
+  z-index: 0;
 }
 
 .route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(1) {
