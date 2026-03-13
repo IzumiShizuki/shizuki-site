@@ -42,7 +42,8 @@
 
           <ProfileSectionAccordion
             :sections="profileSections"
-            :open-keys="accordionState[ProfileTabKey.PROFILE]"
+            :focus-key="sectionFocus[ProfileTabKey.PROFILE]"
+            :collapsible="false"
             @toggle="toggleGroupSection(ProfileTabKey.PROFILE, $event)"
           >
             <template #section-overview>
@@ -112,7 +113,8 @@
 
           <ProfileSectionAccordion
             :sections="accountSections"
-            :open-keys="accordionState[ProfileTabKey.ACCOUNT]"
+            :focus-key="sectionFocus[ProfileTabKey.ACCOUNT]"
+            :collapsible="false"
             :avatar-url="avatarPreview"
             avatar-action-label="查看或修改头像"
             @toggle="toggleGroupSection(ProfileTabKey.ACCOUNT, $event)"
@@ -380,7 +382,8 @@
 
           <ProfileSectionAccordion
             :sections="articlesSections"
-            :open-keys="accordionState[ProfileTabKey.ARTICLES]"
+            :focus-key="sectionFocus[ProfileTabKey.ARTICLES]"
+            :collapsible="false"
             @toggle="toggleGroupSection(ProfileTabKey.ARTICLES, $event)"
           >
             <template #section-workspace>
@@ -472,7 +475,8 @@
 
           <ProfileSectionAccordion
             :sections="settingsSections"
-            :open-keys="accordionState[ProfileTabKey.SETTINGS]"
+            :focus-key="sectionFocus[ProfileTabKey.SETTINGS]"
+            :collapsible="false"
             @toggle="toggleGroupSection(ProfileTabKey.SETTINGS, $event)"
           >
             <template #section-appearance>
@@ -568,11 +572,7 @@ import {
   ProfileSectionKey,
   ProfileTabKey,
   buildSectionSummary,
-  createProfileAccordionState,
-  ensureProfileTabHasOpenSection,
-  getTabOpenSections,
-  normalizeProfileTabKey,
-  toggleProfileAccordion
+  normalizeProfileTabKey
 } from './profileUiState';
 
 const route = useRoute();
@@ -701,7 +701,12 @@ const captcha = reactive({
   expiresInSec: 0
 });
 
-const accordionState = reactive(createProfileAccordionState());
+const sectionFocus = reactive({
+  [ProfileTabKey.PROFILE]: GROUP_DEFAULT_SECTION[ProfileTabKey.PROFILE],
+  [ProfileTabKey.ACCOUNT]: GROUP_DEFAULT_SECTION[ProfileTabKey.ACCOUNT],
+  [ProfileTabKey.ARTICLES]: GROUP_DEFAULT_SECTION[ProfileTabKey.ARTICLES],
+  [ProfileTabKey.SETTINGS]: GROUP_DEFAULT_SECTION[ProfileTabKey.SETTINGS]
+});
 
 const placeholderCaptcha =
   '<svg xmlns="http://www.w3.org/2000/svg" width="156" height="46"><rect width="100%" height="100%" fill="#1a2537"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#d2deef" font-size="11">刷新验证码</text></svg>';
@@ -752,8 +757,9 @@ function ensureGroupSectionVisible(groupKey) {
   const normalizedGroup = normalizeGroupKey(groupKey);
   const fallbackSectionKey = GROUP_DEFAULT_SECTION[normalizedGroup];
   if (!fallbackSectionKey) return;
-  const nextState = ensureProfileTabHasOpenSection(accordionState, normalizedGroup, fallbackSectionKey);
-  applyAccordionState(nextState);
+  if (!sectionFocus[normalizedGroup]) {
+    sectionFocus[normalizedGroup] = fallbackSectionKey;
+  }
 }
 
 async function navigateToGroup(groupKey) {
@@ -875,38 +881,21 @@ function normalizeAccountView(raw) {
   };
 }
 
-function applyAccordionState(nextState) {
-  Object.keys(accordionState).forEach((tabKey) => {
-    accordionState[tabKey] = Array.isArray(nextState[tabKey]) ? nextState[tabKey] : [];
-  });
+function focusGroupSection(groupKey, sectionKey) {
+  const normalizedGroup = normalizeGroupKey(groupKey);
+  const nextSectionKey = String(sectionKey || '').trim();
+  if (!nextSectionKey) return;
+  sectionFocus[normalizedGroup] = nextSectionKey;
 }
 
 function forceOpenSection(tabKey, sectionKey) {
-  const normalizedTab = normalizeGroupKey(tabKey);
-  const current = getTabOpenSections(accordionState, normalizedTab) || [];
-  if (current.includes(sectionKey)) return;
-  const nextState = createProfileAccordionState({
-    ...accordionState,
-    [normalizedTab]: [...current, sectionKey]
-  });
-  applyAccordionState(nextState);
+  focusGroupSection(tabKey, sectionKey);
 }
 
 function toggleGroupSection(groupKey, sectionKey) {
   const normalizedGroup = normalizeGroupKey(groupKey);
-  let nextState = toggleProfileAccordion(accordionState, normalizedGroup, sectionKey);
-  if (!(getTabOpenSections(nextState, normalizedGroup) || []).length) {
-    nextState = ensureProfileTabHasOpenSection(nextState, normalizedGroup, GROUP_DEFAULT_SECTION[normalizedGroup]);
-  }
-  applyAccordionState(nextState);
-
-  const openAccountSections = getTabOpenSections(nextState, ProfileTabKey.ACCOUNT) || [];
-  if (
-    normalizedGroup === ProfileTabKey.ACCOUNT &&
-    (openAccountSections.includes(ProfileSectionKey.ACCOUNT.EMAIL_BIND) ||
-      openAccountSections.includes(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)) &&
-    !captcha.captchaId
-  ) {
+  focusGroupSection(normalizedGroup, sectionKey);
+  if (normalizedGroup === ProfileTabKey.ACCOUNT && sectionNeedsCaptcha(sectionKey) && !captcha.captchaId) {
     void ensureCaptchaReady();
   }
 }
@@ -1863,8 +1852,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .profile-page {
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  padding-bottom: 24px;
   color: rgba(232, 241, 252, 0.95);
   font-family: var(--font-ui);
 }
@@ -1882,14 +1873,17 @@ onBeforeUnmount(() => {
   --liquid-bg: linear-gradient(155deg, rgba(8, 17, 28, 0.58), rgba(6, 12, 21, 0.54));
   --liquid-border: rgba(155, 188, 214, 0.24);
   --liquid-shadow: 0 16px 34px rgba(3, 8, 15, 0.22);
-  min-height: 100%;
+  min-height: max-content;
   border-radius: 16px;
-  padding: 10px;
+  padding: 14px;
   display: grid;
-  grid-template-columns: 116px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
   overflow: visible;
+  background:
+    radial-gradient(circle at top right, rgba(74, 186, 222, 0.14), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(111, 145, 220, 0.12), transparent 32%);
 }
 
 .profile-anchor-nav {
@@ -1912,14 +1906,15 @@ onBeforeUnmount(() => {
 }
 
 .profile-content-panel {
-  min-height: 100%;
+  min-height: 0;
   height: auto;
   overflow: visible;
   position: relative;
   z-index: 1;
   padding-bottom: 12px;
   display: grid;
-  gap: 14px;
+  gap: 18px;
+  align-content: start;
 }
 
 .state-tip {
@@ -1945,7 +1940,7 @@ onBeforeUnmount(() => {
 .group-header {
   display: grid;
   gap: 3px;
-  margin: 2px 2px 0;
+  margin: 2px 2px 4px;
 }
 
 .group-eyebrow {
@@ -2004,18 +1999,27 @@ onBeforeUnmount(() => {
 
 .quick-btn {
   border: 0;
-  border-radius: 12px;
-  min-height: 42px;
-  padding: 0 12px;
+  border-radius: 14px;
+  min-height: 48px;
+  padding: 10px 12px;
   font-size: 12px;
   color: rgba(229, 239, 251, 0.96);
-  background: rgba(150, 185, 211, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.24);
+  background:
+    linear-gradient(145deg, rgba(21, 47, 75, 0.78), rgba(17, 32, 53, 0.66)),
+    radial-gradient(circle at top right, rgba(87, 198, 229, 0.16), transparent 42%);
+  box-shadow:
+    inset 0 0 0 1px rgba(147, 181, 207, 0.2),
+    0 10px 18px rgba(3, 8, 15, 0.16);
+  text-align: left;
 }
 
 .quick-btn:hover {
-  background: linear-gradient(145deg, rgba(61, 173, 207, 0.3), rgba(56, 120, 189, 0.26));
-  box-shadow: inset 0 0 0 1px rgba(85, 199, 232, 0.44);
+  background:
+    linear-gradient(145deg, rgba(36, 84, 127, 0.9), rgba(30, 65, 101, 0.74)),
+    radial-gradient(circle at top right, rgba(104, 217, 242, 0.18), transparent 42%);
+  box-shadow:
+    inset 0 0 0 1px rgba(85, 199, 232, 0.38),
+    0 14px 22px rgba(3, 8, 15, 0.22);
 }
 
 .recent-grid {
@@ -2318,13 +2322,15 @@ select.field-input:focus-visible,
 
 .placeholder-card {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 13px;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
   background:
-    linear-gradient(140deg, rgba(9, 18, 30, 0.58), rgba(8, 15, 25, 0.48)),
-    radial-gradient(circle at 90% 10%, rgba(63, 176, 208, 0.12), transparent 40%);
-  box-shadow: inset 0 0 0 1px rgba(137, 169, 196, 0.2);
+    linear-gradient(142deg, rgba(10, 20, 33, 0.72), rgba(7, 15, 26, 0.62)),
+    radial-gradient(circle at 90% 10%, rgba(82, 197, 228, 0.16), transparent 42%);
+  box-shadow:
+    inset 0 0 0 1px rgba(137, 169, 196, 0.18),
+    0 16px 28px rgba(4, 9, 16, 0.16);
 }
 
 .placeholder-title {
@@ -2415,7 +2421,7 @@ select.field-input:focus-visible,
 
 @media (max-width: 1060px) {
   .profile-stage {
-    padding: 9px;
+    padding: 10px;
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 10px;
@@ -2438,7 +2444,7 @@ select.field-input:focus-visible,
   .profile-stage {
     padding: 8px;
     border-radius: 14px;
-    gap: 8px;
+    gap: 10px;
   }
 
   .profile-anchor-nav {

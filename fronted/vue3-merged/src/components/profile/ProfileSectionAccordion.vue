@@ -3,13 +3,16 @@
     <ProfileSectionItem
       v-for="section in sections"
       :key="section.key"
+      :section-key="section.key"
       :title="section.title"
       :summary="section.summary"
       :icon="section.icon || ''"
       :status-text="section.statusText || ''"
       :avatar-url="section.avatarUrl || avatarUrl || ''"
       :avatar-action-label="avatarActionLabel"
-      :open="isSectionOpen(section.key)"
+      :open="collapsible ? isSectionOpen(section.key) : true"
+      :collapsible="collapsible"
+      :focused="section.key === focusKey"
       @toggle="$emit('toggle', section.key)"
       @avatar-click="$emit('avatar-click', section.key)"
     >
@@ -29,6 +32,14 @@ const props = defineProps({
   openKeys: {
     type: Array,
     default: () => []
+  },
+  collapsible: {
+    type: Boolean,
+    default: true
+  },
+  focusKey: {
+    type: String,
+    default: ''
   },
   avatarUrl: {
     type: String,
@@ -50,8 +61,8 @@ function isSectionOpen(sectionKey) {
 <style scoped>
 .section-accordion {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
   align-items: start;
 }
 
