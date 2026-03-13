@@ -8,7 +8,8 @@ public record LightAppBalanceAnalyticsResponse(
     LightAppBalanceAnalyticsSummary summary,
     LightAppBalanceAssetSnapshot assetSnapshot,
     List<LightAppBalanceDailyTrendItem> dailyTrend,
-    List<LightAppBalanceChannelBreakdownItem> channelBreakdown
+    List<LightAppBalanceChannelBreakdownItem> channelBreakdown,
+    List<LightAppBalanceCategoryBreakdownItem> expenseCategoryBreakdown,
+    List<LightAppBalanceCategoryBreakdownItem> incomeCategoryBreakdown
 ) {
 }
-

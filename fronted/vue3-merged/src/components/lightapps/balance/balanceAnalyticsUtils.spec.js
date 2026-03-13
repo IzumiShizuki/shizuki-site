@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCategoryBreakdownRows,
   buildLedgerRangeQuery,
   buildLocalBalanceAnalytics,
   normalizeLedgerFilter,
+  resolveSavingsAlert,
   resolvePresetRange
 } from './balanceAnalyticsUtils';
 
@@ -71,8 +73,45 @@ describe('balanceAnalyticsUtils', () => {
     expect(analytics.summary.txCount).toBe(2);
     expect(analytics.channelBreakdown).toHaveLength(1);
     expect(analytics.channelBreakdown[0].channelCode).toBe('alipay');
+    expect(analytics.expenseCategoryBreakdown).toHaveLength(1);
+    expect(analytics.expenseCategoryBreakdown[0].categoryName).toBe('其他');
+    expect(analytics.incomeCategoryBreakdown).toHaveLength(1);
+    expect(analytics.incomeCategoryBreakdown[0].categoryName).toBe('其他');
     expect(analytics.dailyTrend.find((item) => item.day === '2026-01-12')?.incomeTotal).toBe(0);
     expect(analytics.assetSnapshot.netAsset).toBe(1100);
   });
-});
 
+  it('builds top category rows and merges overflow into 其他', () => {
+    const rows = buildCategoryBreakdownRows([
+      { categoryName: 'A', amountTotal: 10, txCount: 1 },
+      { categoryName: 'B', amountTotal: 9, txCount: 1 },
+      { categoryName: 'C', amountTotal: 8, txCount: 1 },
+      { categoryName: 'D', amountTotal: 7, txCount: 1 },
+      { categoryName: 'E', amountTotal: 6, txCount: 1 },
+      { categoryName: 'F', amountTotal: 5, txCount: 1 }
+    ], 5);
+    expect(rows).toHaveLength(5);
+    const otherRow = rows.find((item) => item.categoryName === '其他');
+    expect(otherRow).toBeTruthy();
+    expect(otherRow?.amountTotal).toBe(11);
+  });
+
+  it('resolves savings alert states', () => {
+    expect(resolveSavingsAlert({ incomeTotal: 100, expenseTotal: 30 })).toMatchObject({
+      state: 'ok',
+      expensePercent: 30,
+      savingsRate: 70
+    });
+    expect(resolveSavingsAlert({ incomeTotal: 100, expenseTotal: 100 })).toMatchObject({
+      state: 'ok',
+      expensePercent: 100,
+      savingsRate: 0
+    });
+    expect(resolveSavingsAlert({ incomeTotal: 100, expenseTotal: 130 })).toMatchObject({
+      state: 'over',
+      overspendRate: 30
+    });
+    expect(resolveSavingsAlert({ incomeTotal: 0, expenseTotal: 20 }).state).toBe('over');
+    expect(resolveSavingsAlert({ incomeTotal: 0, expenseTotal: 0 }).state).toBe('neutral');
+  });
+});

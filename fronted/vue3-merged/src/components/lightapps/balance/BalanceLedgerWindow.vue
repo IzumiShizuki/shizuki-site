@@ -56,7 +56,18 @@
           <select v-model="transactionDraft.currencyCode">
             <option v-for="item in currencyOptions" :key="`transaction_currency_${item}`" :value="item">{{ item }}</option>
           </select>
-          <input v-model.trim="transactionDraft.category" type="text" placeholder="分类，例如：餐饮/工资" />
+          <select v-model="transactionCategoryPreset">
+            <option v-for="item in transactionPresetCategories" :key="`transaction_category_${transactionDraft.direction}_${item}`" :value="item">
+              {{ item }}
+            </option>
+            <option :value="CUSTOM_CATEGORY_VALUE">自定义分类</option>
+          </select>
+          <input
+            v-if="isTransactionCategoryCustom"
+            v-model.trim="transactionDraft.category"
+            type="text"
+            placeholder="请输入自定义分类"
+          />
           <input v-model="transactionDraft.occurredAt" type="datetime-local" />
           <input v-model.trim="transactionDraft.note" type="text" placeholder="备注（可选）" class="span-2" />
         </template>
@@ -174,35 +185,55 @@
           <p v-else class="empty-hint">暂无趋势数据</p>
         </article>
 
-        <article class="chart-panel liquid-material">
+        <article class="chart-panel liquid-material donut-panel">
           <header>
-            <h4>渠道收支占比</h4>
-            <small>{{ analyticsLoading ? '加载中…' : `${analytics.summary.txCount} 笔` }}</small>
+            <h4>各支出占比</h4>
+            <small>{{ analytics.summary.expenseCount }} 笔</small>
           </header>
-          <div v-if="channelRows.length" class="channel-chart">
-            <div v-for="item in channelRows" :key="`channel_${item.channelCode}`" class="channel-row">
-              <span>{{ item.channelName || item.channelCode || '未知渠道' }}</span>
-              <div class="channel-bars">
-                <div class="bar is-income" :style="{ width: `${safePercent(item.incomeTotal, channelMaxValue)}%` }"></div>
-                <div class="bar is-expense" :style="{ width: `${safePercent(item.expenseTotal, channelMaxValue)}%` }"></div>
+          <div v-if="expenseCategoryRows.length" class="category-donut-wrap">
+            <div class="category-donut" :style="{ background: expenseCategoryGradient }"></div>
+            <div class="category-legend">
+              <div v-for="(item, index) in expenseCategoryRows" :key="`expense_category_${item.categoryName}_${index}`" class="category-legend-item">
+                <i class="dot" :style="{ backgroundColor: DONUT_PALETTE_EXPENSE[index % DONUT_PALETTE_EXPENSE.length] }"></i>
+                <span class="category-name">{{ item.categoryName }}</span>
+                <small>{{ Number(item.ratioPercent || 0).toFixed(1) }}%</small>
               </div>
             </div>
           </div>
-          <p v-else class="empty-hint">暂无渠道数据</p>
+          <p v-else class="empty-hint">暂无支出分类数据</p>
         </article>
 
-        <article class="chart-panel liquid-material asset-panel">
+        <article class="chart-panel liquid-material donut-panel">
           <header>
-            <h4>资产构成</h4>
-            <small>{{ overview.baseCurrency }}</small>
+            <h4>各收入占比</h4>
+            <small>{{ analytics.summary.incomeCount }} 笔</small>
           </header>
-          <div class="asset-donut-wrap">
-            <div class="asset-donut" :style="{ background: assetChartGradient }"></div>
-            <ul class="asset-legend">
-              <li><i class="dot balance"></i>余额 {{ formatAmount(assetChart.totalBalance, overview.baseCurrency) }}</li>
-              <li><i class="dot debt"></i>负债 {{ formatAmount(assetChart.totalDebt, overview.baseCurrency) }}</li>
-              <li><i class="dot net"></i>净资产 {{ formatAmount(assetChart.netAsset, overview.baseCurrency) }}</li>
-            </ul>
+          <div v-if="incomeCategoryRows.length" class="category-donut-wrap">
+            <div class="category-donut" :style="{ background: incomeCategoryGradient }"></div>
+            <div class="category-legend">
+              <div v-for="(item, index) in incomeCategoryRows" :key="`income_category_${item.categoryName}_${index}`" class="category-legend-item">
+                <i class="dot" :style="{ backgroundColor: DONUT_PALETTE_INCOME[index % DONUT_PALETTE_INCOME.length] }"></i>
+                <span class="category-name">{{ item.categoryName }}</span>
+                <small>{{ Number(item.ratioPercent || 0).toFixed(1) }}%</small>
+              </div>
+            </div>
+          </div>
+          <p v-else class="empty-hint">暂无收入分类数据</p>
+        </article>
+
+        <article class="chart-panel liquid-material savings-panel">
+          <header>
+            <h4>储蓄预警图</h4>
+            <small>{{ analytics.baseCurrency }}</small>
+          </header>
+          <div class="savings-visual">
+            <div class="savings-bar" :style="savingsAlertBarStyle"></div>
+            <p class="savings-text">{{ savingsAlertText }}</p>
+            <div class="savings-meta">
+              <span>收入 {{ formatAmount(savingsAlert.incomeTotal, analytics.baseCurrency) }}</span>
+              <span>支出 {{ formatAmount(savingsAlert.expenseTotal, analytics.baseCurrency) }}</span>
+              <span>净流入 {{ formatAmount(savingsAlert.netFlow, analytics.baseCurrency) }}</span>
+            </div>
           </div>
         </article>
       </section>
@@ -288,8 +319,19 @@
         </div>
       </article>
 
+      <p v-if="editingTransactionItem" class="editing-hint liquid-material">
+        正在修改：{{ editingTransactionItem.category || '未分类' }} ·
+        {{ formatDateTime(editingTransactionItem.occurredAt) }}
+      </p>
+
       <ul class="list-grid">
-      <li v-for="item in filteredTransactions" :key="`transaction_${item.transactionId}`" class="list-item liquid-material">
+      <li
+        v-for="item in filteredTransactions"
+        :key="`transaction_${item.transactionId}`"
+        class="list-item liquid-material transaction-item"
+        :class="{ 'is-editing': Number(item.transactionId) === Number(editingId) && editingId > 0 }"
+        @click="handleTransactionRowClick(item, $event)"
+      >
         <div class="list-main">
           <p>{{ item.category || '未分类' }}</p>
           <small>{{ accountName(item.accountId) }} · {{ formatDateTime(item.occurredAt) }}</small>
@@ -297,11 +339,14 @@
         <strong :class="item.direction === 'INCOME' ? 'is-income' : 'is-expense'">
           {{ item.direction === 'INCOME' ? '+' : '-' }}{{ formatAmount(item.amount, item.currencyCode) }}
         </strong>
-        <div class="list-actions">
-          <button class="icon-btn ripple-trigger" type="button" title="编辑" @click="startEditTransaction(item)">
+        <div class="list-actions" @click.stop>
+          <button class="text-btn ripple-trigger" type="button" title="修改" @click.stop="startEditTransaction(item)">
+            修改
+          </button>
+          <button class="icon-btn ripple-trigger" type="button" title="编辑" @click.stop="startEditTransaction(item)">
             <i class="fas fa-pen" aria-hidden="true"></i>
           </button>
-          <button class="icon-btn ripple-trigger" type="button" title="删除" @click="removeTransaction(item.transactionId)">
+          <button class="icon-btn ripple-trigger" type="button" title="删除" @click.stop="removeTransaction(item.transactionId)">
             <i class="fas fa-trash" aria-hidden="true"></i>
           </button>
         </div>
@@ -381,9 +426,11 @@ import {
   updateLightAppBalanceTransaction
 } from '../../../services/lightAppsApi';
 import {
+  buildCategoryBreakdownRows,
   buildLedgerRangeQuery,
   buildLocalBalanceAnalytics,
   normalizeLedgerFilter,
+  resolveSavingsAlert,
   resolvePresetRange
 } from './balanceAnalyticsUtils';
 import {
@@ -424,6 +471,35 @@ const section = computed({
   }
 });
 
+const CUSTOM_CATEGORY_VALUE = '__custom__';
+const DEFAULT_CATEGORY_NAME = '其他';
+const EXPENSE_CATEGORY_OPTIONS = ['餐饮', '出行', '娱乐', '购物', '居家', '医疗', '教育', '其他'];
+const INCOME_CATEGORY_OPTIONS = ['工资', '红包', '奖金', '理财', '副业', '报销', '退款', '其他'];
+const DONUT_PALETTE_EXPENSE = [
+  '#f08ca2',
+  '#f6a7a0',
+  '#f8bc7e',
+  '#f4ce64',
+  '#f1db8d',
+  '#efb0bb',
+  '#d897a6',
+  '#c67f8f',
+  '#bc7186',
+  '#9d5e72'
+];
+const DONUT_PALETTE_INCOME = [
+  '#79c493',
+  '#61b985',
+  '#95cf7e',
+  '#84c46e',
+  '#7cb7a5',
+  '#7eb6c7',
+  '#8cb6d9',
+  '#6aa6cb',
+  '#5f98bc',
+  '#5086aa'
+];
+
 const accounts = ref([]);
 const transactions = ref([]);
 const debts = ref([]);
@@ -457,7 +533,9 @@ const analytics = ref({
     netAsset: 0
   },
   dailyTrend: [],
-  channelBreakdown: []
+  channelBreakdown: [],
+  expenseCategoryBreakdown: [],
+  incomeCategoryBreakdown: []
 });
 
 const baseCurrency = ref('CNY');
@@ -553,6 +631,43 @@ const channelOptions = computed(() => {
   return Array.from(map.values()).sort((left, right) => left.channelName.localeCompare(right.channelName));
 });
 
+const transactionPresetCategories = computed(() =>
+  transactionDraft.direction === 'INCOME' ? INCOME_CATEGORY_OPTIONS : EXPENSE_CATEGORY_OPTIONS
+);
+
+const transactionCategoryPreset = computed({
+  get() {
+    const normalized = normalizeDraftCategory(transactionDraft.category);
+    if (!normalized) return DEFAULT_CATEGORY_NAME;
+    if (transactionPresetCategories.value.includes(normalized)) {
+      return normalized;
+    }
+    return CUSTOM_CATEGORY_VALUE;
+  },
+  set(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+      transactionDraft.category = DEFAULT_CATEGORY_NAME;
+      return;
+    }
+    if (normalized === CUSTOM_CATEGORY_VALUE) {
+      const current = normalizeDraftCategory(transactionDraft.category);
+      if (!current || transactionPresetCategories.value.includes(current)) {
+        transactionDraft.category = '';
+      }
+      return;
+    }
+    transactionDraft.category = normalized;
+  }
+});
+
+const isTransactionCategoryCustom = computed(() => transactionCategoryPreset.value === CUSTOM_CATEGORY_VALUE);
+
+const editingTransactionItem = computed(() => {
+  if (section.value !== BALANCE_SECTION_TRANSACTIONS || editingId.value <= 0) return null;
+  return transactions.value.find((item) => Number(item.transactionId) === Number(editingId.value)) || null;
+});
+
 const normalizedFilter = computed(() => normalizeLedgerFilter({
   preset: filterPreset.value,
   fromDate: filterFromDate.value,
@@ -615,37 +730,46 @@ const trendMaxValue = computed(() =>
   )
 );
 
-const channelRows = computed(() => Array.isArray(analytics.value?.channelBreakdown) ? analytics.value.channelBreakdown : []);
-const channelMaxValue = computed(() =>
-  Math.max(1, ...channelRows.value.map((item) => Math.max(Math.abs(Number(item?.incomeTotal || 0)), Math.abs(Number(item?.expenseTotal || 0)))))
+const expenseCategoryRows = computed(() =>
+  buildCategoryBreakdownRows(analytics.value?.expenseCategoryBreakdown || [], 10)
 );
 
-const assetChart = computed(() => {
-  const snapshot = analytics.value?.assetSnapshot || {};
-  const totalBalance = Math.max(0, Number(snapshot.totalBalance || 0));
-  const totalDebt = Math.max(0, Number(snapshot.totalDebt || 0));
-  const netAsset = Math.max(0, Number(snapshot.netAsset || 0));
-  const total = Math.max(1, totalBalance + totalDebt + netAsset);
+const incomeCategoryRows = computed(() =>
+  buildCategoryBreakdownRows(analytics.value?.incomeCategoryBreakdown || [], 10)
+);
+
+const expenseCategoryGradient = computed(() => buildCategoryDonutGradient(expenseCategoryRows.value, DONUT_PALETTE_EXPENSE));
+const incomeCategoryGradient = computed(() => buildCategoryDonutGradient(incomeCategoryRows.value, DONUT_PALETTE_INCOME));
+
+const savingsAlert = computed(() => resolveSavingsAlert(analytics.value?.summary || {}));
+
+const savingsAlertBarStyle = computed(() => {
+  if (savingsAlert.value.state === 'over') {
+    return {
+      background: 'linear-gradient(90deg, rgba(38, 38, 44, 0.95), rgba(24, 24, 28, 0.95))'
+    };
+  }
+  if (savingsAlert.value.state === 'neutral') {
+    return {
+      background: 'linear-gradient(90deg, rgba(138, 146, 158, 0.6), rgba(168, 176, 188, 0.6))'
+    };
+  }
+  const expensePercent = Math.max(0, Math.min(100, Number(savingsAlert.value.expensePercent || 0)));
   return {
-    totalBalance,
-    totalDebt,
-    netAsset,
-    balanceRate: (totalBalance / total) * 100,
-    debtRate: (totalDebt / total) * 100,
-    netAssetRate: (netAsset / total) * 100
+    background: `linear-gradient(90deg,
+      rgba(231, 103, 134, 0.92) 0% ${expensePercent}%,
+      rgba(86, 182, 118, 0.92) ${expensePercent}% 100%)`
   };
 });
 
-const assetChartGradient = computed(() => {
-  const balanceRate = Math.max(0, Number(assetChart.value.balanceRate || 0));
-  const debtRate = Math.max(0, Number(assetChart.value.debtRate || 0));
-  const firstStop = Math.min(100, balanceRate);
-  const secondStop = Math.min(100, firstStop + debtRate);
-  return `conic-gradient(
-    rgba(98, 163, 255, 0.9) 0% ${firstStop}%,
-    rgba(228, 111, 143, 0.9) ${firstStop}% ${secondStop}%,
-    rgba(112, 198, 147, 0.9) ${secondStop}% 100%
-  )`;
+const savingsAlertText = computed(() => {
+  if (savingsAlert.value.state === 'over') {
+    return `支出超额 ${Number(savingsAlert.value.overspendRate || 0).toFixed(2)}%`;
+  }
+  if (savingsAlert.value.state === 'neutral') {
+    return '暂无收支数据';
+  }
+  return `本期储蓄率 ${Number(savingsAlert.value.savingsRate || 0).toFixed(2)}%`;
 });
 
 const canSubmitCurrentSection = computed(() => {
@@ -663,6 +787,44 @@ const canSubmitCurrentSection = computed(() => {
   }
   return false;
 });
+
+function normalizeDraftCategory(value) {
+  const normalized = String(value || '').trim();
+  return normalized || '';
+}
+
+function resolvePresetCategoriesByDirection(direction) {
+  return String(direction || '').trim().toUpperCase() === 'INCOME'
+    ? INCOME_CATEGORY_OPTIONS
+    : EXPENSE_CATEGORY_OPTIONS;
+}
+
+function normalizeTransactionCategoryForSave() {
+  const category = normalizeDraftCategory(transactionDraft.category);
+  return category || DEFAULT_CATEGORY_NAME;
+}
+
+function buildCategoryDonutGradient(rows, palette) {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  if (!normalizedRows.length) {
+    return 'conic-gradient(rgba(159, 169, 184, 0.55) 0 100%)';
+  }
+  let cursor = 0;
+  const segments = normalizedRows.map((item, index) => {
+    const color = palette[index % palette.length];
+    const rawRatio = Math.max(0, Number(item?.ratioPercent || 0));
+    const next = index === normalizedRows.length - 1
+      ? 100
+      : Math.min(100, cursor + rawRatio);
+    const segment = `${color} ${cursor.toFixed(4)}% ${next.toFixed(4)}%`;
+    cursor = next;
+    return segment;
+  });
+  if (cursor < 100) {
+    segments.push(`rgba(210, 217, 229, 0.72) ${cursor.toFixed(4)}% 100%`);
+  }
+  return `conic-gradient(${segments.join(',')})`;
+}
 
 function toIsoString(input) {
   const source = String(input || '').trim();
@@ -974,7 +1136,7 @@ function resetTransactionDraft() {
   transactionDraft.direction = 'EXPENSE';
   transactionDraft.amount = '';
   transactionDraft.currencyCode = baseCurrency.value || 'CNY';
-  transactionDraft.category = '';
+  transactionDraft.category = DEFAULT_CATEGORY_NAME;
   transactionDraft.note = '';
   transactionDraft.occurredAt = '';
 }
@@ -1032,7 +1194,7 @@ function buildTransactionPayloadFromDraft() {
     direction: String(transactionDraft.direction || 'EXPENSE').trim().toUpperCase() || 'EXPENSE',
     amount: Number(transactionDraft.amount) || 0,
     currencyCode: String(transactionDraft.currencyCode || 'CNY').trim().toUpperCase() || 'CNY',
-    category: String(transactionDraft.category || '').trim() || null,
+    category: normalizeTransactionCategoryForSave(),
     note: String(transactionDraft.note || '').trim() || null,
     occurredAt: toIsoString(transactionDraft.occurredAt)
   };
@@ -1371,9 +1533,18 @@ function startEditTransaction(item) {
   transactionDraft.direction = item.direction || 'EXPENSE';
   transactionDraft.amount = Number(item.amount) || 0;
   transactionDraft.currencyCode = item.currencyCode || baseCurrency.value || 'CNY';
-  transactionDraft.category = item.category || '';
+  transactionDraft.category = normalizeDraftCategory(item.category) || DEFAULT_CATEGORY_NAME;
   transactionDraft.note = item.note || '';
   transactionDraft.occurredAt = toLocalInput(item.occurredAt);
+}
+
+function handleTransactionRowClick(item, event) {
+  if (!item) return;
+  const target = event?.target;
+  if (target && typeof target.closest === 'function' && target.closest('.list-actions')) {
+    return;
+  }
+  startEditTransaction(item);
 }
 
 function startEditDebt(item) {
@@ -1456,6 +1627,22 @@ watch(
     const account = accounts.value.find((item) => item.accountId === Number(value));
     if (!account) return;
     recurringDraft.currencyCode = account.currencyCode || recurringDraft.currencyCode;
+  }
+);
+
+watch(
+  () => transactionDraft.direction,
+  (next, prev) => {
+    const currentCategory = normalizeDraftCategory(transactionDraft.category);
+    if (!currentCategory) {
+      transactionDraft.category = DEFAULT_CATEGORY_NAME;
+      return;
+    }
+    const previousPreset = resolvePresetCategoriesByDirection(prev);
+    const nextPreset = resolvePresetCategoriesByDirection(next);
+    if (previousPreset.includes(currentCategory) && !nextPreset.includes(currentCategory)) {
+      transactionDraft.category = DEFAULT_CATEGORY_NAME;
+    }
   }
 );
 
@@ -1623,49 +1810,39 @@ onBeforeUnmount(() => {
 }
 
 .metrics-strip {
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(141, 169, 214, 0.6) rgba(255, 255, 255, 0.18);
-}
-
-.metrics-strip::-webkit-scrollbar {
-  height: 6px;
-}
-
-.metrics-strip::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-}
-
-.metrics-strip::-webkit-scrollbar-thumb {
-  background: rgba(141, 169, 214, 0.66);
-  border-radius: 999px;
+  align-items: stretch;
+  min-width: 0;
 }
 
 .metric-card {
   --liquid-bg: var(--la-panel-bg);
   --liquid-border: var(--la-border);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: clamp(7px, 1.2vw, 10px) clamp(8px, 1.5vw, 12px);
   display: grid;
   gap: 4px;
-  min-width: 180px;
-  flex: 1 0 180px;
+  min-width: 0;
 }
 
 .metric-card p {
   margin: 0;
-  font-size: 12px;
+  font-size: clamp(10px, 1.2vw, 12px);
   color: var(--la-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-card strong {
-  font-size: 16px;
+  font-size: clamp(12px, 1.8vw, 16px);
   letter-spacing: 0.2px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .filters-bar {
@@ -1744,7 +1921,7 @@ onBeforeUnmount(() => {
 
 .charts-zone {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1776,21 +1953,20 @@ onBeforeUnmount(() => {
 }
 
 .trend-chart,
-.channel-chart {
+.category-legend,
+.savings-meta {
   display: grid;
   gap: 6px;
 }
 
-.trend-row,
-.channel-row {
+.trend-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   align-items: center;
 }
 
-.trend-row span,
-.channel-row span {
+.trend-row span {
   color: var(--la-muted);
   font-size: 12px;
   white-space: nowrap;
@@ -1799,8 +1975,7 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
-.trend-bars,
-.channel-bars {
+.trend-bars {
   display: grid;
   gap: 4px;
 }
@@ -1819,39 +1994,42 @@ onBeforeUnmount(() => {
   background: linear-gradient(90deg, rgba(238, 125, 153, 0.72), rgba(212, 91, 125, 0.94));
 }
 
-.asset-panel {
-  grid-template-rows: auto 1fr;
+.donut-panel {
+  min-height: 208px;
 }
 
-.asset-donut-wrap {
+.category-donut-wrap {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
+  min-height: 0;
 }
 
-.asset-donut {
-  width: 92px;
-  height: 92px;
+.category-donut {
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  box-shadow: inset 0 0 0 11px rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    inset 0 0 0 11px rgba(250, 252, 255, 0.74),
+    0 6px 14px rgba(15, 25, 40, 0.12);
 }
 
-.asset-legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-  color: var(--la-muted);
-  font-size: 12px;
-}
-
-.asset-legend li {
+.category-legend-item {
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 12px;
+  color: var(--la-muted);
+}
+
+.category-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dot {
@@ -1861,16 +2039,40 @@ onBeforeUnmount(() => {
   display: inline-block;
 }
 
-.dot.balance {
-  background: rgba(98, 163, 255, 0.95);
+.savings-panel {
+  min-height: 208px;
 }
 
-.dot.debt {
-  background: rgba(228, 111, 143, 0.95);
+.savings-visual {
+  display: grid;
+  gap: 10px;
 }
 
-.dot.net {
-  background: rgba(112, 198, 147, 0.95);
+.savings-bar {
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+
+.savings-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.savings-meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.savings-meta span {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--la-muted);
 }
 
 .overview-panel {
@@ -1981,6 +2183,18 @@ onBeforeUnmount(() => {
   --liquid-bg: rgba(var(--glass-rgb), 0.34);
 }
 
+.transaction-item {
+  cursor: pointer;
+}
+
+.transaction-item.is-editing {
+  --liquid-border: rgba(120, 176, 246, 0.78);
+  --liquid-bg: rgba(167, 203, 248, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(120, 176, 246, 0.42),
+    0 8px 18px rgba(30, 60, 104, 0.18);
+}
+
 .list-main p {
   margin: 0;
   font-weight: 600;
@@ -1995,6 +2209,27 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.text-btn {
+  border: 1px solid var(--la-border);
+  background: var(--la-btn-bg);
+  color: var(--la-text);
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 1;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.text-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(189, 213, 252, 0.62);
+  background: rgba(var(--glass-rgb), 0.4);
 }
 
 .is-income {
@@ -2014,6 +2249,16 @@ onBeforeUnmount(() => {
 .error-text {
   margin: 0;
   color: var(--la-danger);
+}
+
+.editing-hint {
+  --liquid-bg: rgba(146, 194, 250, 0.26);
+  --liquid-border: rgba(134, 190, 248, 0.56);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin: 0;
+  font-size: 12px;
+  color: rgba(35, 55, 88, 0.9);
 }
 
 .panel-collapse-enter-active,
@@ -2057,17 +2302,33 @@ onBeforeUnmount(() => {
     margin-left: 0;
   }
 
-  .asset-donut-wrap {
+  .category-donut-wrap {
     grid-template-columns: minmax(0, 1fr);
-    justify-items: start;
+    justify-items: center;
+  }
+
+  .savings-meta {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .ledger-summary-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .metrics-strip {
+    gap: 8px;
+  }
 }
 
 @media (max-width: 760px) {
+  .metrics-strip {
+    gap: 7px;
+  }
+
+  .metric-card {
+    border-radius: 10px;
+  }
+
   .charts-zone {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -15,6 +15,7 @@ import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsRange;
 import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsSummary;
 import io.github.shizuki.site.content.dto.LightAppBalanceAssetSnapshot;
+import io.github.shizuki.site.content.dto.LightAppBalanceCategoryBreakdownItem;
 import io.github.shizuki.site.content.dto.LightAppBalanceChannelBreakdownItem;
 import io.github.shizuki.site.content.dto.LightAppBalanceDailyTrendItem;
 import io.github.shizuki.site.content.dto.LightAppBalanceOverviewResponse;
@@ -125,6 +126,7 @@ public class LightAppServiceImpl implements LightAppService {
     private static final String URL_ICON_MODE_UPLOAD = "UPLOAD";
     private static final String CHANNEL_CODE_UNBOUND = "__unbound__";
     private static final String CHANNEL_NAME_UNBOUND = "未绑定";
+    private static final String TRANSACTION_CATEGORY_OTHER = "其他";
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
     private static final String FX_PROVIDER_CODE = "OPEN_ER_API";
     private static final String FX_PROVIDER_URL_TEMPLATE = "https://open.er-api.com/v6/latest/{base}";
@@ -539,6 +541,8 @@ public class LightAppServiceImpl implements LightAppService {
 
         Map<LocalDate, DailyAccumulator> dailyMap = new LinkedHashMap<>();
         Map<String, ChannelAccumulator> channelMap = new LinkedHashMap<>();
+        Map<String, CategoryAccumulator> expenseCategoryMap = new LinkedHashMap<>();
+        Map<String, CategoryAccumulator> incomeCategoryMap = new LinkedHashMap<>();
 
         LocalDate cursorDate = range.fromInclusive().toLocalDate();
         LocalDate endDate = range.toInclusive().toLocalDate();
@@ -571,17 +575,30 @@ public class LightAppServiceImpl implements LightAppService {
                 resolvedChannelCode,
                 key -> new ChannelAccumulator(resolvedChannelCode, resolvedChannelName)
             );
+            String resolvedCategoryName = normalizeAnalyticsCategory(item.getCategory());
 
             if (DIRECTION_INCOME.equals(normalizedDirection)) {
                 incomeTotal = incomeTotal.add(normalizedAmount);
                 incomeCount += 1;
                 daily.income = daily.income.add(normalizedAmount);
                 channel.income = channel.income.add(normalizedAmount);
+                CategoryAccumulator incomeCategory = incomeCategoryMap.computeIfAbsent(
+                    resolvedCategoryName,
+                    CategoryAccumulator::new
+                );
+                incomeCategory.amount = incomeCategory.amount.add(normalizedAmount);
+                incomeCategory.txCount += 1;
             } else {
                 expenseTotal = expenseTotal.add(normalizedAmount);
                 expenseCount += 1;
                 daily.expense = daily.expense.add(normalizedAmount);
                 channel.expense = channel.expense.add(normalizedAmount);
+                CategoryAccumulator expenseCategory = expenseCategoryMap.computeIfAbsent(
+                    resolvedCategoryName,
+                    CategoryAccumulator::new
+                );
+                expenseCategory.amount = expenseCategory.amount.add(normalizedAmount);
+                expenseCategory.txCount += 1;
             }
             channel.txCount += 1;
         }
@@ -613,6 +630,14 @@ public class LightAppServiceImpl implements LightAppService {
 
         BigDecimal normalizedIncome = incomeTotal.setScale(4, RoundingMode.HALF_UP);
         BigDecimal normalizedExpense = expenseTotal.setScale(4, RoundingMode.HALF_UP);
+        List<LightAppBalanceCategoryBreakdownItem> expenseCategoryBreakdown = toCategoryBreakdownList(
+            expenseCategoryMap,
+            normalizedExpense
+        );
+        List<LightAppBalanceCategoryBreakdownItem> incomeCategoryBreakdown = toCategoryBreakdownList(
+            incomeCategoryMap,
+            normalizedIncome
+        );
 
         return new LightAppBalanceAnalyticsResponse(
             targetBaseCurrency,
@@ -631,7 +656,9 @@ public class LightAppServiceImpl implements LightAppService {
                 safeAmount(overview.netAsset())
             ),
             dailyTrend,
-            channelBreakdown
+            channelBreakdown,
+            expenseCategoryBreakdown,
+            incomeCategoryBreakdown
         );
     }
 
@@ -1733,6 +1760,43 @@ public class LightAppServiceImpl implements LightAppService {
         return normalizeDirection(candidate);
     }
 
+    private String normalizeAnalyticsCategory(String rawCategory) {
+        String normalized = normalizeOptionalText(rawCategory);
+        if (!StringUtils.hasText(normalized)) {
+            return TRANSACTION_CATEGORY_OTHER;
+        }
+        return normalized;
+    }
+
+    private List<LightAppBalanceCategoryBreakdownItem> toCategoryBreakdownList(
+        Map<String, CategoryAccumulator> categoryMap,
+        BigDecimal totalAmount
+    ) {
+        BigDecimal safeTotalAmount = safeAmount(totalAmount);
+        return categoryMap.values().stream()
+            .sorted(
+                Comparator.comparing(CategoryAccumulator::getAmount)
+                    .reversed()
+                    .thenComparing(CategoryAccumulator::getCategoryName)
+            )
+            .map(item -> {
+                BigDecimal normalizedAmount = safeAmount(item.getAmount());
+                BigDecimal ratioPercent = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+                if (safeTotalAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    ratioPercent = normalizedAmount
+                        .multiply(BigDecimal.valueOf(100))
+                        .divide(safeTotalAmount, 4, RoundingMode.HALF_UP);
+                }
+                return new LightAppBalanceCategoryBreakdownItem(
+                    item.getCategoryName(),
+                    normalizedAmount,
+                    ratioPercent,
+                    item.getTxCount()
+                );
+            })
+            .toList();
+    }
+
     private LambdaQueryWrapper<LightAppBalanceTransactionEntity> buildBalanceTransactionQuery(
         Long userId,
         LocalDateTime fromInclusive,
@@ -2548,6 +2612,28 @@ public class LightAppServiceImpl implements LightAppService {
 
         private BigDecimal getExpense() {
             return expense;
+        }
+
+        private int getTxCount() {
+            return txCount;
+        }
+    }
+
+    private static final class CategoryAccumulator {
+        private final String categoryName;
+        private BigDecimal amount = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+        private int txCount = 0;
+
+        private CategoryAccumulator(String categoryName) {
+            this.categoryName = categoryName;
+        }
+
+        private String getCategoryName() {
+            return categoryName;
+        }
+
+        private BigDecimal getAmount() {
+            return amount;
         }
 
         private int getTxCount() {

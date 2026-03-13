@@ -1,6 +1,7 @@
 const DEFAULT_TIME_ZONE = 'Asia/Shanghai';
 const DEFAULT_BASE_CURRENCY = 'CNY';
 const CHANNEL_CODE_UNBOUND = '__unbound__';
+const CATEGORY_OTHER = '其他';
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -69,6 +70,11 @@ function normalizeDirection(direction) {
   if (!value) return '';
   if (value === 'INCOME' || value === 'EXPENSE') return value;
   return '';
+}
+
+function normalizeCategoryName(category) {
+  const value = String(category || '').trim();
+  return value || CATEGORY_OTHER;
 }
 
 export function resolvePresetRange(preset, now = new Date()) {
@@ -154,7 +160,112 @@ export function buildEmptyAnalytics(baseCurrency, range) {
       netAsset: 0
     },
     dailyTrend: [],
-    channelBreakdown: []
+    channelBreakdown: [],
+    expenseCategoryBreakdown: [],
+    incomeCategoryBreakdown: []
+  };
+}
+
+export function buildCategoryBreakdownRows(rawRows, maxPieces = 10) {
+  const rows = (Array.isArray(rawRows) ? rawRows : [])
+    .map((item) => ({
+      categoryName: normalizeCategoryName(item?.categoryName ?? item?.category_name),
+      amountTotal: Math.max(0, toAmount(item?.amountTotal ?? item?.amount_total)),
+      txCount: Math.max(0, toAmount(item?.txCount ?? item?.tx_count))
+    }))
+    .filter((item) => item.amountTotal > 0);
+
+  if (!rows.length) return [];
+  rows.sort((left, right) => right.amountTotal - left.amountTotal || left.categoryName.localeCompare(right.categoryName));
+
+  const limit = Math.max(2, Math.min(10, Number(maxPieces) || 10));
+  let merged = rows;
+  if (rows.length > limit) {
+    const head = rows.slice(0, limit - 1);
+    const tail = rows.slice(limit - 1);
+    const tailAmount = tail.reduce((sum, item) => sum + item.amountTotal, 0);
+    const tailCount = tail.reduce((sum, item) => sum + item.txCount, 0);
+    merged = [...head, { categoryName: CATEGORY_OTHER, amountTotal: tailAmount, txCount: tailCount }];
+  }
+
+  const grouped = new Map();
+  merged.forEach((item) => {
+    const key = normalizeCategoryName(item.categoryName);
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.amountTotal += item.amountTotal;
+      existing.txCount += item.txCount;
+      return;
+    }
+    grouped.set(key, { ...item });
+  });
+
+  const collapsed = Array.from(grouped.values())
+    .sort((left, right) => right.amountTotal - left.amountTotal || left.categoryName.localeCompare(right.categoryName));
+  const totalAmount = collapsed.reduce((sum, item) => sum + item.amountTotal, 0);
+  return collapsed.map((item) => ({
+    categoryName: item.categoryName,
+    amountTotal: Number(item.amountTotal.toFixed(4)),
+    txCount: Math.round(item.txCount),
+    ratioPercent: totalAmount > 0 ? Number(((item.amountTotal / totalAmount) * 100).toFixed(4)) : 0
+  }));
+}
+
+export function resolveSavingsAlert(summary) {
+  const source = summary && typeof summary === 'object' ? summary : {};
+  const incomeTotal = Math.max(0, toAmount(source.incomeTotal ?? source.income_total));
+  const expenseTotal = Math.max(0, toAmount(source.expenseTotal ?? source.expense_total));
+  const netFlow = Number((incomeTotal - expenseTotal).toFixed(4));
+
+  if (incomeTotal <= 0 && expenseTotal <= 0) {
+    return {
+      state: 'neutral',
+      incomeTotal,
+      expenseTotal,
+      netFlow,
+      expenseRatio: 0,
+      expensePercent: 0,
+      savingsRate: 0,
+      overspendRate: 0
+    };
+  }
+
+  if (incomeTotal <= 0) {
+    return {
+      state: 'over',
+      incomeTotal,
+      expenseTotal,
+      netFlow,
+      expenseRatio: 1,
+      expensePercent: 100,
+      savingsRate: 0,
+      overspendRate: 100
+    };
+  }
+
+  const expenseRatio = expenseTotal / incomeTotal;
+  if (expenseRatio > 1) {
+    return {
+      state: 'over',
+      incomeTotal,
+      expenseTotal,
+      netFlow,
+      expenseRatio: Number(expenseRatio.toFixed(6)),
+      expensePercent: 100,
+      savingsRate: 0,
+      overspendRate: Number(((expenseRatio - 1) * 100).toFixed(2))
+    };
+  }
+
+  return {
+    state: 'ok',
+    incomeTotal,
+    expenseTotal,
+    netFlow,
+    expenseRatio: Number(expenseRatio.toFixed(6)),
+    expensePercent: Number((expenseRatio * 100).toFixed(2)),
+    savingsRate: Number(((1 - expenseRatio) * 100).toFixed(2)),
+    overspendRate: 0
   };
 }
 
@@ -200,6 +311,8 @@ export function buildLocalBalanceAnalytics(payload) {
   }
 
   const channelMap = new Map();
+  const expenseCategoryMap = new Map();
+  const incomeCategoryMap = new Map();
   const filteredTx = [];
 
   txList.forEach((item) => {
@@ -236,10 +349,30 @@ export function buildLocalBalanceAnalytics(payload) {
       result.summary.incomeTotal += normalizedAmount;
       result.summary.incomeCount += 1;
       daily.income += normalizedAmount;
+
+      const categoryName = normalizeCategoryName(item?.category);
+      const category = incomeCategoryMap.get(categoryName) || {
+        categoryName,
+        amountTotal: 0,
+        txCount: 0
+      };
+      category.amountTotal += normalizedAmount;
+      category.txCount += 1;
+      incomeCategoryMap.set(categoryName, category);
     } else {
       result.summary.expenseTotal += normalizedAmount;
       result.summary.expenseCount += 1;
       daily.expense += normalizedAmount;
+
+      const categoryName = normalizeCategoryName(item?.category);
+      const category = expenseCategoryMap.get(categoryName) || {
+        categoryName,
+        amountTotal: 0,
+        txCount: 0
+      };
+      category.amountTotal += normalizedAmount;
+      category.txCount += 1;
+      expenseCategoryMap.set(categoryName, category);
     }
     if (day) {
       dailyMap.set(day, daily);
@@ -286,6 +419,9 @@ export function buildLocalBalanceAnalytics(payload) {
       expenseTotal: Number(item.expenseTotal.toFixed(4)),
       txCount: item.txCount
     }));
+
+  result.expenseCategoryBreakdown = buildCategoryBreakdownRows(Array.from(expenseCategoryMap.values()));
+  result.incomeCategoryBreakdown = buildCategoryBreakdownRows(Array.from(incomeCategoryMap.values()));
 
   const totalBalance = accountList.reduce(
     (sum, item) => sum + convertToBase(item?.balanceAmount || item?.balance_amount, item?.currencyCode || item?.currency_code, baseCurrency, rateMap),

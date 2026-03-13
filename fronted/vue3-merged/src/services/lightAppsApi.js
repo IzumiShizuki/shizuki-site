@@ -329,6 +329,16 @@ function normalizeBalanceChannelBreakdownItem(raw) {
   };
 }
 
+function normalizeBalanceCategoryBreakdownItem(raw) {
+  const source = toObject(raw);
+  return {
+    categoryName: toText(source.categoryName ?? source.category_name, '其他') || '其他',
+    amountTotal: toAmount(source.amountTotal ?? source.amount_total, 0),
+    ratioPercent: toAmount(source.ratioPercent ?? source.ratio_percent, 0),
+    txCount: toNumber(source.txCount ?? source.tx_count, 0)
+  };
+}
+
 function normalizeBalanceAnalytics(raw) {
   const source = toObject(raw);
   return {
@@ -337,7 +347,15 @@ function normalizeBalanceAnalytics(raw) {
     summary: normalizeBalanceAnalyticsSummary(source.summary),
     assetSnapshot: normalizeBalanceAssetSnapshot(source.assetSnapshot ?? source.asset_snapshot),
     dailyTrend: normalizeList(source.dailyTrend ?? source.daily_trend, normalizeBalanceDailyTrendItem),
-    channelBreakdown: normalizeList(source.channelBreakdown ?? source.channel_breakdown, normalizeBalanceChannelBreakdownItem)
+    channelBreakdown: normalizeList(source.channelBreakdown ?? source.channel_breakdown, normalizeBalanceChannelBreakdownItem),
+    expenseCategoryBreakdown: normalizeList(
+      source.expenseCategoryBreakdown ?? source.expense_category_breakdown,
+      normalizeBalanceCategoryBreakdownItem
+    ),
+    incomeCategoryBreakdown: normalizeList(
+      source.incomeCategoryBreakdown ?? source.income_category_breakdown,
+      normalizeBalanceCategoryBreakdownItem
+    )
   };
 }
 

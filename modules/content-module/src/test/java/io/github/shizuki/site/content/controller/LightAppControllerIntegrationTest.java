@@ -6,6 +6,7 @@ import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsRange;
 import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsResponse;
 import io.github.shizuki.site.content.dto.LightAppBalanceAnalyticsSummary;
 import io.github.shizuki.site.content.dto.LightAppBalanceAssetSnapshot;
+import io.github.shizuki.site.content.dto.LightAppBalanceCategoryBreakdownItem;
 import io.github.shizuki.site.content.dto.LightAppBalanceChannelBreakdownItem;
 import io.github.shizuki.site.content.dto.LightAppBalanceDailyTrendItem;
 import io.github.shizuki.site.content.dto.LightAppBalanceTransactionResponse;
@@ -328,6 +329,22 @@ class LightAppControllerIntegrationTest {
                         new BigDecimal("340.5000"),
                         9
                     )
+                ),
+                List.of(
+                    new LightAppBalanceCategoryBreakdownItem(
+                        "餐饮",
+                        new BigDecimal("240.5000"),
+                        new BigDecimal("44.4958"),
+                        4
+                    )
+                ),
+                List.of(
+                    new LightAppBalanceCategoryBreakdownItem(
+                        "工资",
+                        new BigDecimal("900.0000"),
+                        new BigDecimal("75.0000"),
+                        3
+                    )
                 )
             ));
 
@@ -344,7 +361,9 @@ class LightAppControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.summary.income_total").value(1200))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.summary.expense_total").value(540.5))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.summary.tx_count").value(19))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.channel_breakdown[0].channel_code").value("alipay"));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.channel_breakdown[0].channel_code").value("alipay"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.expense_category_breakdown[0].category_name").value("餐饮"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.income_category_breakdown[0].category_name").value("工资"));
     }
 
     @Test
