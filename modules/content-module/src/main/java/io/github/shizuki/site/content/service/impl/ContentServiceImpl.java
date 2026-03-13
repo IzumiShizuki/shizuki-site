@@ -496,6 +496,7 @@ public class ContentServiceImpl implements ContentService {
         normalized.put("name", readStringField(source, normalized.get("name").toString(), "name"));
         normalized.put("quote", readStringField(source, normalized.get("quote").toString(), "quote"));
         normalized.put("avatar_url", readStringField(source, normalized.get("avatar_url").toString(), "avatar_url", "avatarUrl"));
+        normalized.put("cover_image_url", readStringField(source, normalized.get("cover_image_url").toString(), "cover_image_url", "coverImageUrl"));
         return normalized;
     }
 
@@ -531,6 +532,7 @@ public class ContentServiceImpl implements ContentService {
             row.put("year", StringUtils.hasText(year) ? year : "未定");
             row.put("title", StringUtils.hasText(title) ? title : "持续迭代");
             row.put("description", StringUtils.hasText(description) ? description : "继续完善作者主页与站点表达。");
+            row.put("image_url", readStringField(map, "/images/katanegai.jpg", "image_url", "imageUrl"));
             row.put("stack", normalizeStringList(map.get("stack"), List.of("Shizuki Site")));
             normalized.add(row);
         }
@@ -543,6 +545,9 @@ public class ContentServiceImpl implements ContentService {
         normalized.put("mission", readStringField(source, normalized.get("mission").toString(), "mission"));
         normalized.put("focus", normalizeStringList(source.get("focus"), castStringList(normalized.get("focus"))));
         normalized.put("music", normalizeStringList(source.get("music"), castStringList(normalized.get("music"))));
+        normalized.put("intro_image_url", readStringField(source, normalized.get("intro_image_url").toString(), "intro_image_url", "introImageUrl"));
+        normalized.put("mission_image_url", readStringField(source, normalized.get("mission_image_url").toString(), "mission_image_url", "missionImageUrl"));
+        normalized.put("links_image_url", readStringField(source, normalized.get("links_image_url").toString(), "links_image_url", "linksImageUrl"));
         normalized.put("links", normalizeLinks(source.get("links")));
         return normalized;
     }
@@ -626,6 +631,7 @@ public class ContentServiceImpl implements ContentService {
         hero.put("name", "Shizuki");
         hero.put("quote", "愿你终将与热爱相逢");
         hero.put("avatar_url", "/images/katanegai.jpg");
+        hero.put("cover_image_url", "/images/katanegai.jpg");
         return hero;
     }
 
@@ -650,6 +656,7 @@ public class ContentServiceImpl implements ContentService {
         phase1.put("year", "2024");
         phase1.put("title", "确定 Shizuki Site 长期方向");
         phase1.put("description", "明确学习陪伴、内容沉淀、作品展示三条主线，搭建基础技术架构。");
+        phase1.put("image_url", "/images/katanegai.jpg");
         phase1.put("stack", List.of("Spring Boot", "Vue3", "MySQL"));
         journey.add(phase1);
 
@@ -657,6 +664,7 @@ public class ContentServiceImpl implements ContentService {
         phase2.put("year", "2025");
         phase2.put("title", "完成博客与音乐模块一期");
         phase2.put("description", "打通博客阅读/编辑流程与音乐播放器链路，开始文档化沉淀。");
+        phase2.put("image_url", "/images/katanegai.jpg");
         phase2.put("stack", List.of("Markdown", "Flyway", "Vite"));
         journey.add(phase2);
 
@@ -664,6 +672,7 @@ public class ContentServiceImpl implements ContentService {
         phase3.put("year", "2026");
         phase3.put("title", "完善作者主页与展示能力");
         phase3.put("description", "升级作者介绍、建站经历和关于模块，提升站点表达与可维护性。");
+        phase3.put("image_url", "/images/katanegai.jpg");
         phase3.put("stack", List.of("Vue3", "Spring Boot", "Beads"));
         journey.add(phase3);
 
@@ -679,6 +688,9 @@ public class ContentServiceImpl implements ContentService {
         about.put("mission", "持续构建一个可陪伴、可沉淀、可展示的个人站点。");
         about.put("focus", List.of("博客写作", "工程化实践", "图形与交互体验"));
         about.put("music", List.of("初音未来", "日语流行", "游戏原声"));
+        about.put("intro_image_url", "/images/katanegai.jpg");
+        about.put("mission_image_url", "/images/katanegai.jpg");
+        about.put("links_image_url", "/images/katanegai.jpg");
         about.put("links", defaultLinks());
         return about;
     }

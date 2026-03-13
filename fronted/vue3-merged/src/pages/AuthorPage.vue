@@ -139,15 +139,35 @@
               >
                 <i class="fas fa-pen"></i>
               </button>
-              <aside class="journey-sticky-axis" aria-hidden="true">
-                <span class="journey-axis-line"></span>
-                <span class="journey-axis-progress"></span>
-                <span class="journey-axis-year">{{ journey[motionState.activeJourneyIndex]?.year || journey[0]?.year || 'Now' }}</span>
+              <aside class="journey-sticky-axis">
+                <div class="journey-axis-head">
+                  <span class="journey-axis-month">{{ activeJourneyItem?.monthLabel || '01月' }}</span>
+                  <div class="journey-axis-date">
+                    <span class="journey-axis-day">第 {{ activeJourneyItem?.dayLabel || '01' }} 日</span>
+                    <span class="journey-axis-year">{{ activeJourneyItem?.yearLabel || 'Now' }}</span>
+                  </div>
+                </div>
+                <div class="journey-axis-body">
+                  <div class="journey-axis-rail-wrap" aria-hidden="true">
+                    <span class="journey-axis-line"></span>
+                    <span class="journey-axis-progress"></span>
+                  </div>
+                  <div class="journey-axis-month-list">
+                    <span
+                      v-for="tick in journeyMonthTicks"
+                      :key="`journey-axis-${tick.monthNumber}`"
+                      class="journey-axis-month-tick"
+                      :class="{ 'is-active': tick.isActive, 'is-passed': tick.isPassed }"
+                    >
+                      {{ tick.label }}
+                    </span>
+                  </div>
+                </div>
               </aside>
 
               <div ref="journeyTimelineRef" class="journey-storyline">
                 <article
-                  v-for="(item, index) in journey"
+                  v-for="(item, index) in journeyTimelineItems"
                   :key="`journey-${index}-${item.title}`"
                   class="timeline-item journey-scene author-card reveal-node"
                   :class="{ 'is-active': motionState.activeJourneyIndex === index }"
@@ -155,11 +175,16 @@
                   :style="staggerStyle(index)"
                 >
                   <span class="timeline-node journey-scene-node" aria-hidden="true"></span>
+                  <div class="journey-scene-marker">
+                    <p class="journey-scene-month">{{ item.monthLabel }}</p>
+                    <p class="journey-scene-day">{{ item.dayLabel }}日</p>
+                    <p class="journey-scene-year">{{ item.yearLabel }}</p>
+                  </div>
                   <div class="journey-scene-media">
                     <img v-if="item.imageUrl" class="journey-scene-image" :src="item.imageUrl" :alt="`${item.title} cover`" />
                   </div>
                   <div class="journey-scene-copy">
-                    <p class="journey-scene-year">{{ item.year }}</p>
+                    <p class="journey-scene-period">{{ item.dateLabel }}</p>
                     <h3>{{ item.title }}</h3>
                     <p class="line-text">{{ item.description }}</p>
                     <div class="chip-row">
@@ -262,6 +287,10 @@
           :title="sectionImageCropTitle"
           :description="sectionImageCropDescription"
           :aspect-ratio="sectionImageCropAspectRatio"
+          :max-output-width="sectionImageCropMaxOutputWidth"
+          :max-output-height="sectionImageCropMaxOutputHeight"
+          :output-mime-type="sectionImageOutputMimeType"
+          :output-quality="sectionImageOutputQuality"
           :submitting="editState.uploadingAvatar"
           @close="closeSectionImageCropDialog"
           @confirm="handleSectionImageCropConfirm"
@@ -417,8 +446,8 @@
                   <article v-for="(item, index) in editForm.journey" :key="`journey-row-${index}`" class="nested-card">
                     <div class="field-grid two-col">
                       <label class="field-block">
-                        <span>年份</span>
-                        <input v-model.trim="item.year" type="text" :disabled="editState.loading" />
+                        <span>时间（支持 YYYY-MM-DD）</span>
+                        <input v-model.trim="item.year" type="text" :disabled="editState.loading" placeholder="例如 2026-03-12" />
                       </label>
                       <label class="field-block">
                         <span>标题</span>
@@ -711,6 +740,8 @@ const SKILL_ICON_RULES = [
 
 const SKILL_FALLBACK_ICONS = ['fas fa-code', 'fas fa-cubes', 'fas fa-bolt', 'fas fa-layer-group', 'fas fa-compass-drafting', 'fas fa-brain'];
 const SKILL_FALLBACK_TONES = ['tone-cyan', 'tone-blue', 'tone-violet', 'tone-gold', 'tone-rose', 'tone-mint'];
+const JOURNEY_MONTH_LABELS = Object.freeze(Array.from({ length: 12 }, (_, index) => `${String(index + 1).padStart(2, '0')}月`));
+const AUTHOR_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 
 const loading = ref(false);
 const loadError = ref('');
@@ -786,12 +817,51 @@ const skillNodes = computed(() => {
   const source = deduped.length ? deduped : ['Java', 'Vue3', 'Spring Boot', 'MySQL', 'Redis', 'OpenAI'];
   return source.slice(0, 14).map((label, index) => resolveSkillNode(label, index));
 });
+const journeyTimelineItems = computed(() => {
+  const source = Array.isArray(journey.value) ? journey.value : [];
+  return source.map((item, index) => ({
+    ...item,
+    ...resolveJourneyPeriod(item?.year, index, source.length)
+  }));
+});
+const activeJourneyItem = computed(() => {
+  const source = journeyTimelineItems.value;
+  if (!source.length) return null;
+  const safeIndex = clampNumber(motionState.activeJourneyIndex, 0, source.length - 1);
+  return source[safeIndex] || source[0];
+});
+const journeyMonthTicks = computed(() => {
+  const activeMonth = activeJourneyItem.value?.monthNumber || 1;
+  return JOURNEY_MONTH_LABELS.map((label, index) => ({
+    label,
+    monthNumber: index + 1,
+    isActive: index + 1 === activeMonth,
+    isPassed: index + 1 < activeMonth
+  }));
+});
 
 const sectionImageCropAspectRatio = computed(() => {
   const targetPath = sectionImageCropTargetPath.value;
   if (targetPath === 'hero.avatarUrl') return 1;
   if (targetPath === 'hero.coverImageUrl') return 16 / 9;
   return 0;
+});
+const sectionImageCropMaxOutputWidth = computed(() => {
+  const targetPath = sectionImageCropTargetPath.value;
+  if (targetPath === 'hero.avatarUrl') return 1024;
+  if (targetPath === 'hero.coverImageUrl') return 1920;
+  return 1600;
+});
+const sectionImageCropMaxOutputHeight = computed(() => {
+  const targetPath = sectionImageCropTargetPath.value;
+  if (targetPath === 'hero.avatarUrl') return 1024;
+  if (targetPath === 'hero.coverImageUrl') return 1080;
+  return 1600;
+});
+const sectionImageOutputMimeType = computed(() => 'image/webp');
+const sectionImageOutputQuality = computed(() => {
+  if (sectionImageCropTargetPath.value === 'hero.avatarUrl') return 0.9;
+  return 0.88;
 });
 
 const sectionImageCropTitle = computed(() => {
@@ -930,8 +1000,8 @@ async function handleSectionImageFileChange(event) {
     editState.error = '图片文件仅支持 png/jpeg/webp/gif';
     return;
   }
-  if (Number(file.size || 0) > 8 * 1024 * 1024) {
-    editState.error = '原始图片不能超过 8MB';
+  if (Number(file.size || 0) > AUTHOR_IMAGE_MAX_BYTES) {
+    editState.error = '原始图片不能超过 50MB';
     return;
   }
 
@@ -960,16 +1030,17 @@ function closeSectionImageCropDialog() {
 async function handleSectionImageCropConfirm(payload) {
   const targetPath = sectionImageCropTargetPath.value || pendingSectionImagePath.value;
   const blob = payload?.blob;
+  const mimeType = String(payload?.mimeType || blob?.type || 'image/webp').trim().toLowerCase() || 'image/webp';
   if (!blob || !targetPath) {
     closeSectionImageCropDialog();
     return;
   }
 
-  const file = new File([blob], buildSectionImageFileName(sectionImageCropSourceName.value, targetPath), {
-    type: 'image/png'
+  const file = new File([blob], buildSectionImageFileName(sectionImageCropSourceName.value, targetPath, mimeType), {
+    type: mimeType
   });
-  if (Number(file.size || 0) > 8 * 1024 * 1024) {
-    editState.error = '裁剪后图片超过 8MB，请缩小截取范围后重试';
+  if (Number(file.size || 0) > AUTHOR_IMAGE_MAX_BYTES) {
+    editState.error = '裁剪后图片超过 50MB，请缩小截取范围后重试';
     return;
   }
 
@@ -989,13 +1060,17 @@ async function handleSectionImageCropConfirm(payload) {
     editState.success = '图片裁剪上传成功，已自动回填 URL';
     closeSectionImageCropDialog();
   } catch (error) {
-    editState.error = readErrorMessage(error, '图片上传失败');
+    const message = readErrorMessage(error, '图片上传失败');
+    editState.error =
+      Number(error?.status || 0) === 413 || message.includes('413')
+        ? '图片过大，超过上传限制。已改为压缩上传，但这张图仍然过大，请缩小分辨率后重试'
+        : message;
   } finally {
     editState.uploadingAvatar = false;
   }
 }
 
-function buildSectionImageFileName(sourceName, targetPath) {
+function buildSectionImageFileName(sourceName, targetPath, mimeType = '') {
   const rawSource = String(sourceName || '').trim() || 'section-image';
   const sourceBase = rawSource.replace(/\.[^.]+$/u, '');
   const pathLeaf = String(targetPath || '')
@@ -1004,7 +1079,20 @@ function buildSectionImageFileName(sourceName, targetPath) {
     .toLowerCase();
   const rawBase = pathLeaf || sourceBase;
   const safeBase = rawBase.replace(/[^a-z0-9_-]+/giu, '-').replace(/^-+|-+$/g, '');
-  return `${safeBase || 'section-image'}-${Date.now()}.png`;
+  const extension = resolveSectionImageExtension(mimeType, rawSource);
+  return `${safeBase || 'section-image'}-${Date.now()}${extension}`;
+}
+
+function resolveSectionImageExtension(mimeType, sourceName = '') {
+  const normalizedMimeType = String(mimeType || '').trim().toLowerCase();
+  if (normalizedMimeType === 'image/webp') return '.webp';
+  if (normalizedMimeType === 'image/jpeg') return '.jpg';
+  if (normalizedMimeType === 'image/png') return '.png';
+  const originalExt = String(sourceName || '').trim().match(/(\.[^.]+)$/u)?.[1]?.toLowerCase();
+  if (['.webp', '.jpg', '.jpeg', '.png', '.gif'].includes(originalExt)) {
+    return originalExt === '.jpeg' ? '.jpg' : originalExt;
+  }
+  return '.webp';
 }
 
 function readReducedMotionPreference() {
@@ -1047,6 +1135,52 @@ function resolveSkillNode(label, index) {
     icon: SKILL_FALLBACK_ICONS[index % SKILL_FALLBACK_ICONS.length],
     tone: SKILL_FALLBACK_TONES[index % SKILL_FALLBACK_TONES.length]
   };
+}
+
+function resolveJourneyPeriod(rawValue, index, totalCount) {
+  const source = String(rawValue || '').trim();
+  const fallbackMonth = resolveJourneyFallbackMonth(index, totalCount);
+  const periodMatch = source.match(/(\d{4})\s*[-/.年]\s*(\d{1,2})(?:\s*[-/.月]\s*(\d{1,2}))?\s*日?/u);
+  const yearMatch = source.match(/(\d{4})/u);
+  const yearLabel = periodMatch?.[1] || yearMatch?.[1] || source || 'Now';
+  const yearNumber = Number(yearMatch?.[1] || periodMatch?.[1] || new Date().getFullYear());
+  const parsedMonth = Number(periodMatch?.[2] || NaN);
+  const monthNumber = clampNumber(Number.isFinite(parsedMonth) ? parsedMonth : fallbackMonth, 1, 12);
+  const maxDay = getJourneyMonthDayCount(yearNumber, monthNumber);
+  const parsedDay = Number(periodMatch?.[3] || NaN);
+  const dayNumber = clampNumber(Number.isFinite(parsedDay) ? parsedDay : resolveJourneyFallbackDay(index, totalCount, maxDay), 1, maxDay);
+  const monthLabel = JOURNEY_MONTH_LABELS[monthNumber - 1];
+  const dayLabel = String(dayNumber).padStart(2, '0');
+  return {
+    yearNumber,
+    yearLabel,
+    monthNumber,
+    monthLabel,
+    dayNumber,
+    dayLabel,
+    dateLabel: `${yearLabel}-${String(monthNumber).padStart(2, '0')}-${dayLabel}`,
+    periodLabel: `${monthLabel} ${dayLabel} · ${yearLabel}`
+  };
+}
+
+function resolveJourneyFallbackMonth(index, totalCount) {
+  const safeTotal = Math.max(1, Number(totalCount) || 0);
+  if (safeTotal === 1) return 1;
+  const ratio = index / Math.max(1, safeTotal - 1);
+  return clampNumber(Math.round(ratio * 11) + 1, 1, 12);
+}
+
+function resolveJourneyFallbackDay(index, totalCount, maxDay) {
+  const safeTotal = Math.max(1, Number(totalCount) || 0);
+  if (safeTotal === 1) return 1;
+  const ratio = index / Math.max(1, safeTotal - 1);
+  return clampNumber(Math.round(ratio * (Math.max(1, maxDay) - 1)) + 1, 1, Math.max(1, maxDay));
+}
+
+function getJourneyMonthDayCount(yearNumber, monthNumber) {
+  const safeYear = Number.isFinite(yearNumber) ? yearNumber : new Date().getFullYear();
+  const safeMonth = clampNumber(Number(monthNumber) || 1, 1, 12);
+  return new Date(safeYear, safeMonth, 0).getDate();
 }
 
 function resolveContentPanelElement() {
@@ -1165,7 +1299,7 @@ function updateJourneyProgressFromRatios(totalCount) {
 function syncJourneyProgressByScroll() {
   if (activeTab.value !== AuthorTabKey.JOURNEY) return;
   const panel = resolveContentPanelElement();
-  const total = journey.value.length;
+  const total = journeyTimelineItems.value.length;
   if (!(panel instanceof HTMLElement) || total <= 0) {
     motionState.activeJourneyIndex = -1;
     motionState.journeyProgress = 0;
@@ -1613,21 +1747,24 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-layout {
+  position: relative;
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: 116px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  padding-left: 132px;
+  overflow: hidden;
 }
 
 .sidebar-dot-rail {
-  position: sticky;
+  position: absolute;
+  left: 0;
   top: 0;
+  bottom: 0;
   z-index: 6;
-  align-self: stretch;
-  height: 100%;
-  min-height: clamp(420px, 70vh, 780px);
+  width: 116px;
+  height: auto;
+  min-height: 0;
   padding-block: 6px;
 }
 
@@ -1639,6 +1776,8 @@ onBeforeUnmount(() => {
   --parallax-y: 0px;
   --journey-progress: 0%;
   border-radius: 14px;
+  min-height: 0;
+  height: 100%;
   padding: 14px 16px;
   overflow: auto;
   overscroll-behavior: auto;
@@ -2469,8 +2608,8 @@ onBeforeUnmount(() => {
 .journey-stage {
   position: relative;
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 16px;
 }
 
 .journey-sticky-axis {
@@ -2480,25 +2619,69 @@ onBeforeUnmount(() => {
   height: calc(100dvh - 240px);
   min-height: 220px;
   display: grid;
-  justify-items: center;
+  grid-template-rows: auto minmax(0, 1fr);
   align-content: start;
+  gap: 14px;
+}
+
+.journey-axis-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
   gap: 10px;
+}
+
+.journey-axis-date {
+  display: grid;
+  gap: 2px;
+}
+
+.journey-axis-month {
+  font-size: clamp(24px, 3.2vw, 34px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: rgba(244, 248, 255, 0.96);
+}
+
+.journey-axis-day {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(220, 229, 245, 0.76);
+}
+
+.journey-axis-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+
+.journey-axis-rail-wrap {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  justify-items: center;
 }
 
 .journey-axis-line,
 .journey-axis-progress {
+  position: absolute;
+  inset: 0 auto 0 50%;
   width: 4px;
   border-radius: 999px;
+  transform: translateX(-50%);
 }
 
 .journey-axis-line {
-  height: 100%;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
 }
 
 .journey-axis-progress {
-  position: absolute;
   top: 0;
+  bottom: auto;
   height: var(--journey-progress);
   background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.95), rgba(var(--accent-rgb), 0.6));
   box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.46);
@@ -2506,11 +2689,34 @@ onBeforeUnmount(() => {
 }
 
 .journey-axis-year {
-  margin-top: 8px;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(var(--accent-soft-rgb), 0.94);
+}
+
+.journey-axis-month-list {
+  min-height: 0;
+  display: grid;
+  align-content: space-between;
+  gap: 6px;
+}
+
+.journey-axis-month-tick {
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: rgba(196, 208, 231, 0.42);
+  transition: color 200ms ease, transform 200ms ease;
+}
+
+.journey-axis-month-tick.is-passed {
+  color: rgba(215, 226, 247, 0.74);
+}
+
+.journey-axis-month-tick.is-active {
+  color: rgba(var(--accent-soft-rgb), 0.98);
+  transform: translateX(4px);
 }
 
 .journey-storyline {
@@ -2519,28 +2725,64 @@ onBeforeUnmount(() => {
   gap: 14px;
 }
 
+.journey-storyline::before {
+  content: '';
+  position: absolute;
+  left: 48px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.18), rgba(var(--accent-rgb), 0.72), rgba(var(--accent-rgb), 0.16));
+  z-index: 1;
+  pointer-events: none;
+}
+
 .journey-scene {
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(160px, 260px) minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-}
-
-.journey-scene::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.76), rgba(var(--accent-rgb), 0.16));
+  grid-template-columns: 72px minmax(160px, 240px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  z-index: 0;
 }
 
 .journey-scene-node {
-  left: -7px;
-  top: 20px;
+  left: 42px;
+  top: 22px;
+  z-index: 2;
+}
+
+.journey-scene-marker {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 4px;
+  padding-top: 8px;
+  padding-right: 12px;
+}
+
+.journey-scene-day,
+.journey-scene-month,
+.journey-scene-year,
+.journey-scene-period {
+  margin: 0;
+}
+
+.journey-scene-month {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 700;
+  color: rgba(244, 248, 255, 0.96);
+}
+
+.journey-scene-day {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(217, 228, 246, 0.76);
 }
 
 .journey-scene-media {
@@ -2558,13 +2800,20 @@ onBeforeUnmount(() => {
 .journey-scene-copy {
   display: grid;
   gap: 4px;
+  padding-top: 2px;
 }
 
 .journey-scene-year {
-  margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: rgba(var(--accent-soft-rgb), 0.92);
+}
+
+.journey-scene-period {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(213, 224, 244, 0.7);
 }
 
 .journey-scene.is-active {
@@ -2993,18 +3242,23 @@ onBeforeUnmount(() => {
   .dashboard-layout {
     grid-template-columns: 1fr;
     gap: 10px;
+    padding-left: 0;
+    overflow: visible;
   }
 
   .sidebar-dot-rail {
     position: static;
     top: auto;
+    bottom: auto;
     z-index: 1;
+    width: auto;
     min-height: auto;
     height: auto;
     padding-block: 0;
   }
 
   .content-panel {
+    height: auto;
     padding-top: 12px;
   }
 
@@ -3076,23 +3330,76 @@ onBeforeUnmount(() => {
   .journey-sticky-axis {
     position: relative;
     top: auto;
-    min-height: 12px;
-    height: 12px;
+    min-height: 0;
+    height: auto;
     width: 100%;
+    gap: 10px;
+  }
+
+  .journey-axis-head {
+    grid-template-columns: auto auto;
+    align-items: end;
+    gap: 10px;
+  }
+
+  .journey-axis-month {
+    font-size: 22px;
+  }
+
+  .journey-axis-day {
+    font-size: 11px;
+  }
+
+  .journey-axis-body {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .journey-axis-rail-wrap {
+    min-height: 3px;
+    height: 3px;
   }
 
   .journey-axis-line,
   .journey-axis-progress {
+    inset: 50% 0 auto 0;
     width: 100%;
     height: 3px !important;
+    transform: translateY(-50%);
+  }
+
+  .journey-axis-month-list {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    align-content: start;
+    gap: 8px 10px;
   }
 
   .journey-axis-year {
-    margin-top: 18px;
+    margin-top: 0;
   }
 
   .journey-scene {
     grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .journey-storyline::before {
+    left: 20px;
+  }
+
+  .journey-scene-node {
+    left: 14px;
+    top: 18px;
+  }
+
+  .journey-scene-marker {
+    padding-top: 0;
+    padding-left: 28px;
+    gap: 2px;
+  }
+
+  .journey-scene-month {
+    font-size: 18px;
   }
 
   .about-manifesto,

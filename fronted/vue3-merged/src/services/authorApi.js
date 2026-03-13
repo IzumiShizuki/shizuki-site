@@ -1,5 +1,7 @@
 import { httpRequest, normalizeApiData } from './httpClient';
 
+const AUTHOR_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
+
 function unwrapApiResponse(response) {
   return normalizeApiData(response);
 }
@@ -67,8 +69,8 @@ export async function uploadAuthorAvatar(file, authorizedFetch) {
   if (!allowedTypes.has(contentType)) {
     throw new Error('头像图片必须是 png/jpeg/webp/gif');
   }
-  if (Number(file.size || 0) > 8 * 1024 * 1024) {
-    throw new Error('头像图片大小需 <= 8MB');
+  if (Number(file.size || 0) > AUTHOR_UPLOAD_MAX_BYTES) {
+    throw new Error('图片大小需 <= 50MB');
   }
 
   const fileName = sanitizeAssetName(file.name || 'author-avatar.png');
@@ -107,18 +109,26 @@ export async function uploadAuthorAvatar(file, authorizedFetch) {
       throw new Error(`direct upload failed (${directResult.status})`);
     }
   } catch (error) {
-    const relayPayload = unwrapApiResponse(
-      await request('/api/v1/assets/upload-relay', {
-        method: 'POST',
-        body: (() => {
-          const formData = new FormData();
-          formData.append('file', file, file.name || fileName);
-          formData.append('asset_kind', 'STATIC_IMAGE');
-          formData.append('visibility', 'PUBLIC');
-          return formData;
-        })()
-      })
-    );
+    let relayPayload;
+    try {
+      relayPayload = unwrapApiResponse(
+        await request('/api/v1/assets/upload-relay', {
+          method: 'POST',
+          body: (() => {
+            const formData = new FormData();
+            formData.append('file', file, file.name || fileName);
+            formData.append('asset_kind', 'STATIC_IMAGE');
+            formData.append('visibility', 'PUBLIC');
+            return formData;
+          })()
+        })
+      );
+    } catch (relayError) {
+      if (Number(relayError?.status || 0) === 413) {
+        throw new Error('图片过大，超过服务端上传限制，请缩小尺寸或继续压缩后重试');
+      }
+      throw relayError;
+    }
 
     bucket = String(relayPayload?.bucket || '').trim();
     key = String(relayPayload?.key || '').trim();

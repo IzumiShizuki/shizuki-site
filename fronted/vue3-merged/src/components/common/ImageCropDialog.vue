@@ -86,6 +86,14 @@ const props = defineProps({
   maxOutputHeight: {
     type: Number,
     default: 1920
+  },
+  outputMimeType: {
+    type: String,
+    default: 'image/webp'
+  },
+  outputQuality: {
+    type: Number,
+    default: 0.9
   }
 });
 
@@ -96,6 +104,18 @@ const previewUrl = ref('');
 const confirming = ref(false);
 
 const normalizedSource = computed(() => String(props.sourceUrl || '').trim());
+const normalizedOutputMimeType = computed(() => {
+  const source = String(props.outputMimeType || '').trim().toLowerCase();
+  if (['image/png', 'image/jpeg', 'image/webp'].includes(source)) {
+    return source;
+  }
+  return 'image/webp';
+});
+const normalizedOutputQuality = computed(() => {
+  const quality = Number(props.outputQuality);
+  if (!Number.isFinite(quality)) return 0.9;
+  return Math.min(0.96, Math.max(0.4, quality));
+});
 
 const resolvedStencilProps = computed(() => {
   const ratio = Number(props.aspectRatio);
@@ -136,7 +156,7 @@ function onCropChange() {
     return;
   }
   const normalizedCanvas = normalizeCanvasSize(canvas);
-  previewUrl.value = normalizedCanvas.toDataURL('image/png');
+  previewUrl.value = normalizedCanvas.toDataURL(normalizedOutputMimeType.value, normalizedOutputQuality.value);
 }
 
 async function confirmCrop() {
@@ -148,13 +168,14 @@ async function confirmCrop() {
       throw new Error('裁剪结果不可用');
     }
     const normalizedCanvas = normalizeCanvasSize(canvas);
-    const blob = await canvasToBlob(normalizedCanvas);
+    const blob = await canvasToBlob(normalizedCanvas, normalizedOutputMimeType.value, normalizedOutputQuality.value);
     if (!blob) {
       throw new Error('裁剪结果不可用');
     }
     emit('confirm', {
       blob,
-      previewUrl: normalizedCanvas.toDataURL('image/png')
+      mimeType: normalizedOutputMimeType.value,
+      previewUrl: normalizedCanvas.toDataURL(normalizedOutputMimeType.value, normalizedOutputQuality.value)
     });
   } finally {
     confirming.value = false;
@@ -182,14 +203,14 @@ function normalizeCanvasSize(canvas) {
   return normalized;
 }
 
-function canvasToBlob(canvas) {
+function canvasToBlob(canvas, mimeType, quality) {
   return new Promise((resolve) => {
     canvas.toBlob(
       (blob) => {
         resolve(blob || null);
       },
-      'image/png',
-      0.96
+      mimeType,
+      quality
     );
   });
 }
