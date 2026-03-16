@@ -43,6 +43,7 @@ export function createDefaultAuthorEditForm() {
       school: '',
       major: '',
       role: '',
+      activityStatus: '',
       labels: []
     },
     skills: [],
@@ -86,6 +87,9 @@ export function buildEditFormFromProfile(profilePayload) {
       school: normalizeString(identity.school),
       major: normalizeString(identity.major),
       role: normalizeString(identity.role),
+      activityStatus: normalizeString(
+        identity.activityStatus ?? identity.activity_status ?? identity.currentStatus ?? identity.current_status
+      ),
       labels: normalizeStringList(identity.labels)
     },
     skills: normalizeStringList(profileJson.skills),
@@ -129,6 +133,9 @@ export function buildProfileJsonFromEditForm(formInput) {
       school: normalizeString(identity.school),
       major: normalizeString(identity.major),
       role: normalizeString(identity.role),
+      current_status: normalizeString(
+        identity.activityStatus ?? identity.activity_status ?? identity.currentStatus ?? identity.current_status
+      ),
       labels: normalizeStringList(identity.labels)
     },
     skills: normalizeStringList(form.skills),

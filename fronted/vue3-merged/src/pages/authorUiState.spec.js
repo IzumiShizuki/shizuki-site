@@ -29,6 +29,9 @@ describe('authorUiState', () => {
           avatar_url: 'https://example.com/avatar.png',
           cover_image_url: 'https://example.com/cover.png'
         },
+        identity: {
+          current_status: '上班中'
+        },
         skills: ['Vue3', 'Vue3', 'Spring Boot'],
         journey: [
           {
@@ -52,6 +55,7 @@ describe('authorUiState', () => {
     expect(normalized.profileJson.hero.name).toBe('Shizuki Updated');
     expect(normalized.profileJson.hero.avatarUrl).toBe('https://example.com/avatar.png');
     expect(normalized.profileJson.hero.coverImageUrl).toBe('https://example.com/cover.png');
+    expect(normalized.profileJson.identity.activityStatus).toBe('上班中');
     expect(normalized.profileJson.skills).toEqual(['Vue3', 'Spring Boot']);
     expect(normalized.profileJson.journey[0].title).toBe('Author module');
     expect(normalized.profileJson.journey[0].imageUrl).toBe('https://example.com/journey.png');

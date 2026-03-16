@@ -30,6 +30,7 @@ export function createDefaultAuthorProfileJson() {
       school: '中国计量大学',
       major: '计算机科学与技术',
       role: '大一学生 / 独立开发者',
+      activityStatus: '学习中',
       labels: ['学习陪伴', '内容沉淀', '图形渲染']
     },
     skills: ['Java', 'Vue3', 'Spring Boot', 'MySQL', 'OpenGL', 'Vulkan', 'Markdown'],
@@ -114,6 +115,10 @@ function normalizeAuthorProfileJson(raw, fallback) {
       school: normalizeString(identityRaw.school, fallback.identity.school),
       major: normalizeString(identityRaw.major, fallback.identity.major),
       role: normalizeString(identityRaw.role, fallback.identity.role),
+      activityStatus: normalizeString(
+        identityRaw.activityStatus ?? identityRaw.activity_status ?? identityRaw.currentStatus ?? identityRaw.current_status,
+        fallback.identity.activityStatus
+      ),
       labels: normalizeStringList(identityRaw.labels, fallback.identity.labels)
     },
     skills: normalizeStringList(source.skills, fallback.skills),

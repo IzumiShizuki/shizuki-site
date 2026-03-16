@@ -506,6 +506,17 @@ public class ContentServiceImpl implements ContentService {
         normalized.put("school", readStringField(source, normalized.get("school").toString(), "school"));
         normalized.put("major", readStringField(source, normalized.get("major").toString(), "major"));
         normalized.put("role", readStringField(source, normalized.get("role").toString(), "role"));
+        normalized.put(
+            "current_status",
+            readStringField(
+                source,
+                normalized.get("current_status").toString(),
+                "current_status",
+                "currentStatus",
+                "activity_status",
+                "activityStatus"
+            )
+        );
         normalized.put("labels", normalizeStringList(source.get("labels"), castStringList(normalized.get("labels"))));
         return normalized;
     }
@@ -641,6 +652,7 @@ public class ContentServiceImpl implements ContentService {
         identity.put("school", "中国计量大学");
         identity.put("major", "计算机科学与技术");
         identity.put("role", "大一学生 / 独立开发者");
+        identity.put("current_status", "学习中");
         identity.put("labels", List.of("学习陪伴", "内容沉淀", "图形渲染"));
         return identity;
     }

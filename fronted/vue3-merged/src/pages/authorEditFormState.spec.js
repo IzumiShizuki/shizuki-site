@@ -23,6 +23,7 @@ describe('authorEditFormState', () => {
           school: 'CJLU',
           major: 'CS',
           role: 'Student',
+          current_status: '学习中',
           labels: ['A', 'B']
         },
         skills: ['Vue3', 'Spring Boot'],
@@ -52,6 +53,7 @@ describe('authorEditFormState', () => {
     expect(form.hero.avatarUrl).toBe('https://example.com/a.png');
     expect(form.hero.coverImageUrl).toBe('https://example.com/cover.png');
     expect(form.identity.birthYear).toBe('2006');
+    expect(form.identity.activityStatus).toBe('学习中');
     expect(form.skills).toEqual(['Vue3', 'Spring Boot']);
     expect(form.about.introText).toBe('line-1\nline-2');
     expect(form.journey[0].imageUrl).toBe('https://example.com/journey.png');
@@ -73,6 +75,7 @@ describe('authorEditFormState', () => {
         school: ' CJLU ',
         major: ' CS ',
         role: ' Student ',
+        activityStatus: ' 上班中 ',
         labels: ['Vue3', 'Vue3', 'Spring Boot', '']
       },
       skills: ['Java', 'Java', 'Vue3'],
@@ -109,6 +112,7 @@ describe('authorEditFormState', () => {
     expect(profileJson.hero.avatar_url).toBe('https://example.com/avatar.png');
     expect(profileJson.hero.cover_image_url).toBe('https://example.com/cover.png');
     expect(profileJson.identity.birth_year).toBe('2006');
+    expect(profileJson.identity.current_status).toBe('上班中');
     expect(profileJson.identity.labels).toEqual(['Vue3', 'Spring Boot']);
     expect(profileJson.skills).toEqual(['Java', 'Vue3']);
     expect(profileJson.journey[0].image_url).toBe('https://example.com/journey.png');

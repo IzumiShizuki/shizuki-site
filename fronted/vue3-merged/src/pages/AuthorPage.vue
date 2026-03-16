@@ -88,27 +88,60 @@
                 <div class="story-hero-side">
                   <article class="story-side-panel reveal-line" :style="staggerStyle(7)">
                     <div class="story-side-head">
-                      <p class="story-side-kicker">当前动态</p>
+                      <p class="story-side-kicker">状态面板</p>
                       <span class="story-side-live">
                         <span class="story-live-dot" aria-hidden="true"></span>
                         Live
                       </span>
                     </div>
-                    <h3>{{ overviewHeroJourney.title }}</h3>
-                    <p class="story-side-meta-line">
-                      <span>{{ overviewHeroJourney.dateLabel }}</span>
-                      <span>{{ identity.role || '独立开发者' }}</span>
-                    </p>
-                    <p class="line-text story-side-copy">{{ about.mission }}</p>
-                    <div v-if="overviewHeroJourney.stack.length" class="chip-row story-side-chip-row">
-                      <span v-for="stack in overviewHeroJourney.stack" :key="`hero-side-stack-${stack}`" class="chip">
-                        {{ stack }}
-                      </span>
+                    <div class="status-panel-block">
+                      <p class="story-mini-kicker">最新时间线</p>
+                      <h3>{{ overviewHeroJourney.title }}</h3>
+                      <p class="story-side-meta-line">
+                        <span>{{ overviewHeroJourney.dateLabel }}</span>
+                        <span>{{ identity.role || '独立开发者' }}</span>
+                      </p>
+                      <div v-if="overviewHeroJourney.stack.length" class="chip-row story-side-chip-row">
+                        <span v-for="stack in overviewHeroJourney.stack" :key="`hero-side-stack-${stack}`" class="chip">
+                          {{ stack }}
+                        </span>
+                      </div>
                     </div>
+
+                    <div class="status-panel-block">
+                      <p class="story-mini-kicker">我的状态</p>
+                      <p class="story-status-text">{{ currentActivityStatus }}</p>
+
+                      <div v-if="isAdminUser" class="quick-status-editor">
+                        <label class="field-inline">
+                          <span>快捷状态</span>
+                          <select v-model="quickStatusChoice" :disabled="quickStatusSaving" class="status-select">
+                            <option v-for="option in QUICK_STATUS_PRESET_OPTIONS" :key="`status-opt-${option}`" :value="option">
+                              {{ option }}
+                            </option>
+                            <option :value="QUICK_STATUS_CUSTOM_VALUE">自定义...</option>
+                          </select>
+                        </label>
+                        <label v-if="quickStatusChoice === QUICK_STATUS_CUSTOM_VALUE" class="field-inline">
+                          <span>自定义状态</span>
+                          <input
+                            v-model.trim="quickStatusCustomInput"
+                            :disabled="quickStatusSaving"
+                            type="text"
+                            maxlength="30"
+                            placeholder="例如：上班ing"
+                            class="status-input"
+                          />
+                        </label>
+                        <button class="mini-btn ripple-trigger" type="button" :disabled="quickStatusSaving" @click="saveQuickActivityStatus">
+                          {{ quickStatusSaving ? '保存中...' : '保存状态' }}
+                        </button>
+                        <p v-if="quickStatusError" class="error-text quick-status-error">{{ quickStatusError }}</p>
+                      </div>
+                    </div>
+
                     <div v-if="overviewHeroHighlightTags.length" class="chip-row story-side-chip-row subtle">
-                      <span v-for="tag in overviewHeroHighlightTags" :key="`hero-side-tag-${tag}`" class="chip">
-                        {{ tag }}
-                      </span>
+                      <span v-for="tag in overviewHeroHighlightTags" :key="`hero-side-tag-${tag}`" class="chip">{{ tag }}</span>
                     </div>
                   </article>
 
@@ -469,6 +502,10 @@
                     <label class="field-block">
                       <span>当前角色</span>
                       <input v-model.trim="editForm.identity.role" type="text" :disabled="editState.loading" />
+                    </label>
+                    <label class="field-block">
+                      <span>我的状态</span>
+                      <input v-model.trim="editForm.identity.activityStatus" type="text" :disabled="editState.loading" placeholder="例如：上班ing" />
                     </label>
                   </div>
                   <div class="field-block">
@@ -850,6 +887,8 @@ const SKILL_ICON_RULES = [
 
 const SKILL_FALLBACK_ICONS = ['fas fa-code', 'fas fa-cubes', 'fas fa-bolt', 'fas fa-layer-group', 'fas fa-compass-drafting', 'fas fa-brain'];
 const SKILL_FALLBACK_TONES = ['tone-cyan', 'tone-blue', 'tone-violet', 'tone-gold', 'tone-rose', 'tone-mint'];
+const QUICK_STATUS_CUSTOM_VALUE = '__custom__';
+const QUICK_STATUS_PRESET_OPTIONS = Object.freeze(['睡觉中', '上班中', '学习中', '休息中']);
 const JOURNEY_MONTH_LABELS = Object.freeze(Array.from({ length: 12 }, (_, index) => `${String(index + 1).padStart(2, '0')}月`));
 const AUTHOR_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 const JOURNEY_IMAGE_PATH_PATTERN = /^journey\.\d+\.imageUrl$/u;
@@ -925,6 +964,10 @@ const sectionImageCropVisible = ref(false);
 const sectionImageCropSourceUrl = ref('');
 const sectionImageCropSourceName = ref('section-image.png');
 const sectionImageCropTargetPath = ref('');
+const quickStatusChoice = ref('');
+const quickStatusCustomInput = ref('');
+const quickStatusSaving = ref(false);
+const quickStatusError = ref('');
 const motionState = reactive(createAuthorMotionState({ reducedMotion: readReducedMotionPreference() }));
 
 const editState = reactive({
@@ -967,19 +1010,21 @@ const identity = computed(() => authorProfile.value.profileJson.identity);
 const skills = computed(() => authorProfile.value.profileJson.skills);
 const journey = computed(() => authorProfile.value.profileJson.journey);
 const about = computed(() => authorProfile.value.profileJson.about);
+const currentActivityStatus = computed(() => {
+  const status = String(identity.value.activityStatus || '').trim();
+  return status || '学习中';
+});
 const overviewHeroFacts = computed(() => {
   return [
     { label: '学校', value: identity.value.school || '持续前进中' },
     { label: '专业', value: identity.value.major || '持续探索中' },
     { label: '角色', value: identity.value.role || '独立开发者' },
-    {
-      label: '最近更新',
-      value: activeJourneyItem.value?.dateLabel || activeJourneyItem.value?.monthLabel || '持续更新'
-    }
+    { label: '我的状态', value: currentActivityStatus.value }
   ];
 });
+const latestJourneyItem = computed(() => journeyTimelineItems.value[0] || null);
 const overviewHeroJourney = computed(() => {
-  const item = activeJourneyItem.value;
+  const item = latestJourneyItem.value;
   return {
     title: String(item?.title || identity.value.role || '正在构建新的内容').trim(),
     dateLabel: String(item?.dateLabel || item?.monthLabel || '持续更新').trim(),
@@ -1007,7 +1052,7 @@ const overviewHeroSignals = computed(() => {
   const signals = [
     String(overviewHeroJourney.value.dateLabel || '').trim(),
     String(overviewHeroJourney.value.title || '').trim(),
-    String(identity.value.role || '').trim(),
+    currentActivityStatus.value,
     ...overviewHeroHighlightTags.value
   ].filter(Boolean);
   return [...new Set(signals)].slice(0, 6);
@@ -1031,10 +1076,18 @@ const skillNodes = computed(() => {
 });
 const journeyTimelineItems = computed(() => {
   const source = Array.isArray(journey.value) ? journey.value : [];
-  return source.map((item, index) => ({
-    ...item,
-    ...resolveJourneyPeriod(item?.year, index, source.length)
-  }));
+  return source
+    .map((item, index) => ({
+      ...item,
+      sourceOrder: index,
+      ...resolveJourneyPeriod(item?.year, index, source.length)
+    }))
+    .sort((left, right) => {
+      const rightSort = resolveJourneySortValue(right);
+      const leftSort = resolveJourneySortValue(left);
+      if (rightSort !== leftSort) return rightSort - leftSort;
+      return left.sourceOrder - right.sourceOrder;
+    });
 });
 const activeJourneyItem = computed(() => {
   const source = journeyTimelineItems.value;
@@ -1113,6 +1166,71 @@ function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
+}
+
+function normalizeActivityStatus(raw, fallback = '学习中') {
+  const text = String(raw || '').trim();
+  if (!text) return fallback;
+  return text.slice(0, 30);
+}
+
+function resolveQuickStatusChoice(status) {
+  const normalized = normalizeActivityStatus(status, '');
+  return QUICK_STATUS_PRESET_OPTIONS.includes(normalized) ? normalized : QUICK_STATUS_CUSTOM_VALUE;
+}
+
+function resolveQuickStatusValueToSave() {
+  const candidate =
+    quickStatusChoice.value === QUICK_STATUS_CUSTOM_VALUE ? quickStatusCustomInput.value : quickStatusChoice.value;
+  return normalizeActivityStatus(candidate, '');
+}
+
+function syncQuickStatusEditor() {
+  const current = currentActivityStatus.value;
+  const nextChoice = resolveQuickStatusChoice(current);
+  quickStatusChoice.value = nextChoice || QUICK_STATUS_CUSTOM_VALUE;
+  quickStatusCustomInput.value = nextChoice === QUICK_STATUS_CUSTOM_VALUE ? current : '';
+  quickStatusError.value = '';
+}
+
+async function saveQuickActivityStatus() {
+  if (!isAdminUser.value || quickStatusSaving.value) return;
+  const nextStatus = resolveQuickStatusValueToSave();
+  if (!nextStatus) {
+    quickStatusError.value = '请先填写状态内容';
+    return;
+  }
+
+  quickStatusSaving.value = true;
+  quickStatusError.value = '';
+  try {
+    const currentProfileJson = authorProfile.value?.profileJson || {};
+    const nextIdentity = {
+      ...(currentProfileJson.identity || {}),
+      current_status: nextStatus
+    };
+    const payload = await updateAdminAuthorProfile(
+      {
+        enabled: authorProfile.value?.enabled !== false,
+        profileJson: {
+          ...currentProfileJson,
+          identity: nextIdentity
+        }
+      },
+      auth.authorizedFetch
+    );
+
+    authorProfile.value = normalizeAuthorProfilePayload(payload);
+    applyEditFormFromProfile(authorProfile.value);
+    writeAuthorProfileCache(authorProfile.value);
+    editState.success = '状态已更新';
+    cacheNotice.value = '';
+    refreshActiveTabMotion();
+  } catch (error) {
+    quickStatusError.value = readErrorMessage(error, '状态更新失败');
+  } finally {
+    quickStatusSaving.value = false;
+  }
 }
 
 function resolveSectionImageRule(path) {
@@ -1405,6 +1523,13 @@ function resolveJourneyPeriod(rawValue, index, totalCount) {
   };
 }
 
+function resolveJourneySortValue(item) {
+  const year = Number(item?.yearNumber || 0);
+  const month = Number(item?.monthNumber || 1);
+  const day = Number(item?.dayNumber || 1);
+  return year * 10000 + month * 100 + day;
+}
+
 function resolveJourneyFallbackMonth(index, totalCount) {
   const safeTotal = Math.max(1, Number(totalCount) || 0);
   if (safeTotal === 1) return 1;
@@ -1693,6 +1818,7 @@ function buildEditFormState(profilePayload) {
       school: String(source.identity?.school || '').trim(),
       major: String(source.identity?.major || '').trim(),
       role: String(source.identity?.role || '').trim(),
+      activityStatus: String(source.identity?.activityStatus || '').trim(),
       labels: Array.isArray(source.identity?.labels) ? [...source.identity.labels] : []
     },
     skills: Array.isArray(source.skills) ? [...source.skills] : [],
@@ -1716,6 +1842,7 @@ function buildEditFormState(profilePayload) {
 function applyEditFormFromProfile(profilePayload) {
   suppressDirtyTracking = true;
   editForm.value = buildEditFormState(profilePayload);
+  syncQuickStatusEditor();
   resetTagInputs();
   editState.error = '';
   editState.success = '';
@@ -1857,7 +1984,7 @@ function commitJourneyStackInput(item) {
 }
 
 function addJourneyRow() {
-  editForm.value.journey.push(createJourneyRow());
+  editForm.value.journey.unshift(createJourneyRow());
 }
 
 function removeJourneyRow(index) {
@@ -1929,6 +2056,21 @@ function readErrorMessage(error, fallback) {
   const message = String(error?.message || '').trim();
   return message || fallback;
 }
+
+watch(quickStatusChoice, (nextChoice) => {
+  if (nextChoice !== QUICK_STATUS_CUSTOM_VALUE) {
+    quickStatusCustomInput.value = '';
+  }
+  if (quickStatusError.value) {
+    quickStatusError.value = '';
+  }
+});
+
+watch(quickStatusCustomInput, () => {
+  if (quickStatusError.value) {
+    quickStatusError.value = '';
+  }
+});
 
 watch(
   () => route.query.tab,
@@ -2816,11 +2958,31 @@ onBeforeUnmount(() => {
     rgba(14, 20, 32, 0.1);
 }
 
+.status-panel-block {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.status-panel-block:last-of-type {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
 .story-side-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.story-mini-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(210, 223, 246, 0.74);
 }
 
 .story-side-panel h3 {
@@ -2863,6 +3025,51 @@ onBeforeUnmount(() => {
 }
 
 .story-side-copy {
+  margin: 0;
+}
+
+.story-status-text {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+  color: rgba(246, 251, 255, 0.97);
+}
+
+.quick-status-editor {
+  margin-top: 2px;
+  display: grid;
+  gap: 8px;
+}
+
+.field-inline {
+  display: grid;
+  gap: 6px;
+}
+
+.field-inline > span {
+  font-size: 12px;
+  color: rgba(203, 219, 244, 0.84);
+}
+
+.status-select,
+.status-input {
+  width: 100%;
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(9, 14, 24, 0.52);
+  color: rgba(236, 244, 255, 0.96);
+  padding: 0 10px;
+}
+
+.status-select:focus,
+.status-input:focus {
+  outline: none;
+  border-color: rgba(var(--accent-rgb), 0.6);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.22);
+}
+
+.quick-status-error {
   margin: 0;
 }
 
