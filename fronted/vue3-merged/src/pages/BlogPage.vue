@@ -1149,6 +1149,16 @@ async function relayMarkdownText(markdownText) {
   return relayPostMarkdown(file, auth.authorizedFetch);
 }
 
+function applyRelayedMarkdownLocation(relay) {
+  const bucket = normalizeString(relay?.bucket ?? relay?.bucketName ?? relay?.bucket_name);
+  const key = normalizeString(relay?.key ?? relay?.objectKey ?? relay?.object_key);
+  if (!bucket || !key) {
+    throw new Error('Markdown 中转上传未返回有效存储位置');
+  }
+  writerState.editor.markdownBucket = bucket;
+  writerState.editor.markdownKey = key;
+}
+
 async function ensureEditorMarkdownRelayed() {
   const markdownText = normalizeMarkdownForEditor(writerState.editor.markdown);
   if (!markdownText.trim()) {
@@ -1164,8 +1174,7 @@ async function ensureEditorMarkdownRelayed() {
     return;
   }
   const relay = await relayMarkdownText(markdownText);
-  writerState.editor.markdownBucket = normalizeString(relay?.bucketName ?? relay?.bucket_name);
-  writerState.editor.markdownKey = normalizeString(relay?.objectKey ?? relay?.object_key);
+  applyRelayedMarkdownLocation(relay);
   writerState.editor.lastRelayedSignature = signature;
 }
 
@@ -1273,8 +1282,7 @@ async function handleMarkdownFileUpload(event) {
     writerState.editor.markdown = normalizeMarkdownForEditor(text);
     writerState.editor.lastRelayedSignature = '';
     const relay = await relayPostMarkdown(file, auth.authorizedFetch);
-    writerState.editor.markdownBucket = normalizeString(relay?.bucketName ?? relay?.bucket_name);
-    writerState.editor.markdownKey = normalizeString(relay?.objectKey ?? relay?.object_key);
+    applyRelayedMarkdownLocation(relay);
     writerState.editor.lastRelayedSignature = buildMarkdownSignature(writerState.editor.markdown);
     writerState.notice = 'Markdown 文件已上传并同步到编辑区';
   } catch (error) {
@@ -2335,26 +2343,29 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: var(--blog-gap);
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-inline-end: 2px;
   min-width: 0;
   max-width: 100%;
 }
 
 .editor-view.meta-expanded .editor-meta {
-  max-height: calc(100% - clamp(118px, 14vh, 170px));
+  max-height: min(58vh, 640px);
 }
 
 .editor-view.meta-expanded .editor-meta-body {
-  max-height: calc(100% - 46px);
+  max-height: min(50vh, 560px);
 }
 
 .editor-view.meta-expanded .editor-body {
-  flex: 0 1 0;
-  min-height: 0;
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  gap: 0;
+  flex: 1 1 clamp(220px, 28vh, 480px);
+  min-height: clamp(220px, 28vh, 480px);
+  max-height: none;
+  opacity: 1;
+  pointer-events: auto;
+  gap: var(--blog-gap);
 }
 
 .editor-topbar {
@@ -2363,32 +2374,41 @@ onBeforeUnmount(() => {
   --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
   padding: var(--blog-panel-padding);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
 }
 
 .editor-topbar-main {
+  grid-column: 2;
   min-width: 0;
   display: grid;
   gap: 3px;
+  justify-items: center;
+  text-align: center;
 }
 
 .editor-topbar-main h3 {
   font-size: 14px;
   color: rgba(239, 245, 255, 0.96);
+  margin: 0;
+  line-height: 1.2;
 }
 
 .editor-topbar-mode {
   font-size: 12px;
   color: rgba(211, 223, 248, 0.9);
+  line-height: 1.2;
 }
 
 .editor-topbar-actions {
+  grid-column: 3;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .editor-exit-btn {
@@ -2425,6 +2445,8 @@ onBeforeUnmount(() => {
 .editor-meta-head h3 {
   font-size: 13px;
   color: rgba(231, 239, 255, 0.95);
+  margin: 0;
+  line-height: 1.2;
 }
 
 .editor-meta-toggle {
@@ -2931,19 +2953,23 @@ onBeforeUnmount(() => {
 
 @container blog-center (max-width: 760px) {
   .editor-topbar {
-    flex-wrap: wrap;
-    align-items: center;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    justify-items: stretch;
   }
 
   .editor-topbar-main {
-    order: 3;
+    grid-column: 1;
+    grid-row: 2;
     width: 100%;
     justify-items: start;
     text-align: left;
   }
 
   .editor-topbar-actions {
-    margin-inline-start: auto;
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
   }
 }
 
@@ -2966,14 +2992,23 @@ onBeforeUnmount(() => {
   }
 
   .editor-topbar {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    justify-items: stretch;
   }
 
   .editor-topbar-actions {
+    grid-column: 1;
+    grid-row: 1;
     width: 100%;
     flex-wrap: wrap;
     justify-content: flex-end;
+    justify-self: stretch;
+  }
+
+  .editor-topbar-main {
+    grid-column: 1;
+    grid-row: 2;
   }
 
   .editor-body {

@@ -34,6 +34,15 @@
             <i class="fas" :class="music.isCurrentPlaylistCollected.value ? 'fa-folder-minus' : 'fa-folder-plus'"></i>
             {{ music.isCurrentPlaylistCollected.value ? '取消收藏' : '收藏歌单' }}
           </button>
+          <button
+            v-if="music.canDeleteCurrentPlaylist?.value"
+            class="hero-btn danger ripple-trigger"
+            type="button"
+            @click="music.deleteCurrentPlaylist"
+          >
+            <i class="fas fa-trash-can"></i>
+            删除歌单
+          </button>
         </div>
       </div>
     </header>
@@ -90,6 +99,15 @@
             @open="handleOpenCollectDialog"
             @require-login="handleRequireCollectLogin"
           />
+          <button
+            v-if="music.canRemoveTracksFromCurrentPlaylist?.value"
+            class="track-action-btn ripple-trigger"
+            type="button"
+            title="从歌单移除"
+            @click.stop="removeTrack(item)"
+          >
+            <i class="fas fa-trash-can"></i>
+          </button>
         </span>
       </article>
 
@@ -190,6 +208,11 @@ async function enqueueTrackNext(trackItem) {
   if (!success) {
     window.alert('当前曲目暂不可加入“下一首播放”');
   }
+}
+
+async function removeTrack(trackItem) {
+  const ok = await music.removeTrackFromCurrentPlaylist?.(trackItem);
+  if (!ok) return;
 }
 
 function handleOpenCollectDialog(track) {
@@ -300,6 +323,12 @@ function handleRequireCollectLogin() {
   box-shadow:
     0 0 0 1px rgba(var(--accent-rgb), 0.3),
     0 8px 16px rgba(var(--accent-rgb), 0.2);
+}
+
+.hero-btn.danger {
+  border-color: rgba(255, 126, 150, 0.34);
+  background: rgba(255, 126, 150, 0.14);
+  color: rgba(255, 225, 231, 0.96);
 }
 
 .state-text {

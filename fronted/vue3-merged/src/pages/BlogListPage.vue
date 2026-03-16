@@ -350,10 +350,84 @@
               <button type="button" class="mini-btn ripple-trigger" :disabled="whisperState.submitting" @click="resetWhisperForm">
                 清空
               </button>
+              <button
+                v-if="canReviewWhispers"
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="whisperState.submitting"
+                @click="toggleAdminWhisperView"
+              >
+                {{ adminWhisperState.open ? '收起收件箱' : '查看收到的悄悄话' }}
+              </button>
             </div>
             <p v-if="whisperState.error" class="error-text">{{ whisperState.error }}</p>
             <p v-if="whisperState.notice" class="side-tip">{{ whisperState.notice }}</p>
           </form>
+          <section v-if="canReviewWhispers && adminWhisperState.open" class="whisper-admin-block liquid-material">
+            <div class="whisper-admin-head">
+              <div class="whisper-admin-head-main">
+                <h3>悄悄话收件箱</h3>
+                <p>仅管理员可见，默认展示最新留言。</p>
+              </div>
+              <div class="whisper-admin-actions">
+                <button
+                  type="button"
+                  class="mini-btn ripple-trigger"
+                  :disabled="adminWhisperState.loading"
+                  @click="loadAdminWhispers()"
+                >
+                  {{ adminWhisperState.loading ? '刷新中...' : '刷新' }}
+                </button>
+              </div>
+            </div>
+            <p v-if="adminWhisperState.error" class="error-text">{{ adminWhisperState.error }}</p>
+            <p v-else-if="adminWhisperState.loading && !adminWhisperState.items.length" class="side-tip">正在加载悄悄话...</p>
+            <p v-else-if="!adminWhisperState.items.length" class="side-tip">暂时还没有收到新的悄悄话。</p>
+            <div v-else class="whisper-admin-list">
+              <article
+                v-for="item in adminWhisperState.items"
+                :key="`admin-whisper-${item.whisperId}`"
+                class="whisper-admin-item"
+              >
+                <div class="whisper-admin-meta">
+                  <strong>{{ item.nickname || '匿名访客' }}</strong>
+                  <span>{{ formatDateTime(item.createdAt) }}</span>
+                </div>
+                <p class="whisper-admin-content">{{ item.content || '未提供内容' }}</p>
+                <div class="whisper-admin-extra">
+                  <span class="whisper-admin-status">{{ item.status }}</span>
+                  <span v-if="item.remark">{{ item.remark }}</span>
+                  <button
+                    v-if="item.postId"
+                    type="button"
+                    class="mini-btn ripple-trigger whisper-admin-link"
+                    @click="openPostDetail(item.postId)"
+                  >
+                    {{ item.postTitle || `文章 #${item.postId}` }}
+                  </button>
+                </div>
+              </article>
+            </div>
+            <div v-if="adminWhisperPageCount > 1" class="whisper-admin-pagination">
+              <button
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="adminWhisperState.loading || adminWhisperState.pageNo <= 1"
+                @click="goToAdminWhisperPage(adminWhisperState.pageNo - 1)"
+              >
+                上一页
+              </button>
+              <span>第 {{ adminWhisperState.pageNo }} / {{ adminWhisperPageCount }} 页 · 共 {{ adminWhisperState.total }} 条</span>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="adminWhisperState.loading || adminWhisperState.pageNo >= adminWhisperPageCount"
+                @click="goToAdminWhisperPage(adminWhisperState.pageNo + 1)"
+              >
+                下一页
+              </button>
+            </div>
+          </section>
         </SubtleScrollArea>
       </section>
     </div>
@@ -389,7 +463,7 @@ import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
-import { getPostSidebar, listPosts, submitPostWhisper } from '../services/blogApi';
+import { getPostSidebar, listAdminWhispers, listPosts, submitPostWhisper } from '../services/blogApi';
 import { listBlogCategoryMetas, updateBlogCategoryMeta, uploadBlogCategoryCover } from '../services/adminApi';
 
 const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
@@ -429,6 +503,16 @@ const whisperState = reactive({
     remark: '',
     postId: ''
   }
+});
+
+const adminWhisperState = reactive({
+  open: false,
+  loading: false,
+  error: '',
+  items: [],
+  total: 0,
+  pageNo: 1,
+  pageSize: 12
 });
 
 const filters = reactive({
@@ -480,7 +564,11 @@ const permissionCodes = computed(() => {
 
 const canWrite = computed(() => groupCodes.value.includes('ADMIN') || permissionCodes.value.includes('blog.post.write'));
 const canManageCategories = computed(() => groupCodes.value.includes('ADMIN'));
+const canReviewWhispers = computed(() => groupCodes.value.includes('ADMIN'));
 const pageCount = computed(() => Math.max(1, Math.ceil(Math.max(0, listState.total) / listState.pageSize)));
+const adminWhisperPageCount = computed(() =>
+  Math.max(1, Math.ceil(Math.max(0, adminWhisperState.total) / adminWhisperState.pageSize))
+);
 const viewportZone = computed(() => {
   if (isMobileLike.value) return 'mobile';
   if (isNarrowDesktop.value) return 'narrow';
@@ -633,6 +721,19 @@ function normalizeCategoryMetaItem(raw) {
   };
 }
 
+function normalizeAdminWhisper(raw) {
+  return {
+    whisperId: Number(raw?.whisperId ?? raw?.whisper_id) || 0,
+    status: normalizeString(raw?.status, 'CREATED'),
+    postId: Number(raw?.postId ?? raw?.post_id) || 0,
+    postTitle: normalizeString(raw?.postTitle ?? raw?.post_title) || '未关联文章',
+    content: normalizeString(raw?.content),
+    nickname: normalizeString(raw?.nickname),
+    remark: normalizeString(raw?.remark),
+    createdAt: raw?.createdAt ?? raw?.created_at ?? null
+  };
+}
+
 function normalizeErrorMessage(error, fallback) {
   const detail = normalizeString(error?.detail).trim();
   if (detail) return detail;
@@ -646,6 +747,14 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) return '-';
   if (date.getFullYear() <= 0) return '-';
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  if (date.getFullYear() <= 0) return '-';
+  return `${formatDate(value)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function resolveSummary(value) {
@@ -834,6 +943,46 @@ function resetWhisperForm() {
   whisperState.notice = '';
 }
 
+async function loadAdminWhispers(options = {}) {
+  if (!canReviewWhispers.value) return;
+  const nextPageNo = Math.max(1, Number(options.pageNo ?? adminWhisperState.pageNo) || 1);
+  adminWhisperState.loading = true;
+  adminWhisperState.error = '';
+  try {
+    const payload = await listAdminWhispers(
+      {
+        pageNo: nextPageNo,
+        pageSize: adminWhisperState.pageSize
+      },
+      auth.authorizedFetch
+    );
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    adminWhisperState.items = items.map(normalizeAdminWhisper).filter((item) => item.whisperId > 0);
+    adminWhisperState.total = Math.max(0, Number(payload?.total) || adminWhisperState.items.length);
+    adminWhisperState.pageNo = nextPageNo;
+  } catch (error) {
+    adminWhisperState.items = [];
+    adminWhisperState.total = 0;
+    adminWhisperState.error = normalizeErrorMessage(error, '加载悄悄话收件箱失败');
+  } finally {
+    adminWhisperState.loading = false;
+  }
+}
+
+async function toggleAdminWhisperView() {
+  adminWhisperState.open = !adminWhisperState.open;
+  if (!adminWhisperState.open) {
+    return;
+  }
+  await loadAdminWhispers({ pageNo: 1 });
+}
+
+function goToAdminWhisperPage(pageNo) {
+  const target = Math.max(1, Math.min(adminWhisperPageCount.value, Number(pageNo) || 1));
+  if (target === adminWhisperState.pageNo && adminWhisperState.items.length) return;
+  loadAdminWhispers({ pageNo: target });
+}
+
 async function submitWhisper() {
   whisperState.error = '';
   whisperState.notice = '';
@@ -857,6 +1006,9 @@ async function submitWhisper() {
     );
     whisperState.notice = '已发送给作者，感谢你的留言。';
     whisperState.form.content = '';
+    if (canReviewWhispers.value && adminWhisperState.open) {
+      await loadAdminWhispers({ pageNo: 1 });
+    }
   } catch (error) {
     whisperState.error = normalizeErrorMessage(error, '发送悄悄话失败');
   } finally {
@@ -1683,6 +1835,106 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.whisper-admin-block {
+  margin-top: 6px;
+  display: grid;
+  gap: 10px;
+}
+
+.whisper-admin-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.whisper-admin-head-main {
+  display: grid;
+  gap: 4px;
+}
+
+.whisper-admin-head-main h3 {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.whisper-admin-head-main p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(205, 218, 245, 0.84);
+}
+
+.whisper-admin-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.whisper-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.whisper-admin-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.whisper-admin-meta,
+.whisper-admin-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.whisper-admin-meta strong {
+  font-size: 14px;
+  color: rgba(242, 246, 255, 0.98);
+}
+
+.whisper-admin-meta span,
+.whisper-admin-extra span {
+  font-size: 12px;
+  color: rgba(205, 218, 245, 0.84);
+}
+
+.whisper-admin-content {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: rgba(236, 243, 255, 0.94);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.whisper-admin-status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.18);
+  color: rgba(232, 242, 255, 0.94);
+}
+
+.whisper-admin-link {
+  max-width: 100%;
+}
+
+.whisper-admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.whisper-admin-pagination span {
+  font-size: 12px;
+  color: rgba(205, 218, 245, 0.84);
 }
 
 .error-text {

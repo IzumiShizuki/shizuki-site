@@ -157,10 +157,22 @@
                   <span>{{ musicPlaying ? '播放中' : '暂停中' }}</span>
                 </header>
                 <transition name="lyric-switch" mode="out-in">
-                  <div class="lyrics-triplet" :key="lyricWindow.key">
-                    <p class="lyric-line prev">{{ lyricWindow.prev }}</p>
-                    <p class="lyric-line current">{{ lyricWindow.current }}</p>
-                    <p class="lyric-line next">{{ lyricWindow.next }}</p>
+                  <div class="lyrics-groups" :key="`${activeLyricTime}-${lyricRenderMode}`">
+                    <div
+                      v-for="(group, index) in lyricGroups"
+                      :key="`atm-lyric-${index}-${group.time}`"
+                      class="lyric-group"
+                      :class="{ current: group.time === activeLyricTime, compact: group.lines.length > 1 }"
+                    >
+                      <p
+                        v-for="(line, lineIndex) in group.lines"
+                        :key="`atm-lyric-line-${index}-${lineIndex}-${line.kind}`"
+                        class="lyric-line"
+                        :class="[group.time === activeLyricTime ? 'current' : 'next', line.kind]"
+                      >
+                        {{ line.text }}
+                      </p>
+                    </div>
                   </div>
                 </transition>
               </section>
@@ -455,6 +467,7 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import { buildLyricDisplayGroups } from '../utils/lyricDisplayGroups';
 import { findEffectPresetById } from '../utils/atmosphereCatalog';
 import {
   resolveEffectPreviewTokens,
@@ -472,6 +485,10 @@ const props = defineProps({
     type: Object,
     default: () => ({ prev: '', current: '', next: '', key: 'empty' })
   },
+  lyricTimeline: { type: Array, default: () => [] },
+  lyricEntryIndex: { type: Number, default: -1 },
+  lyricRenderMode: { type: String, default: 'original' },
+  currentTime: { type: Number, default: 0 },
   musicLibraryState: {
     type: Object,
     default: () => ({
@@ -553,18 +570,17 @@ const enabledTracks = computed(() =>
 const musicGroups = computed(() => (Array.isArray(props.musicLibraryState?.sections) ? props.musicLibraryState.sections : []));
 const currentPlaylist = computed(() => props.musicLibraryState?.selectedPlaylist || { playlistCode: 'default_public', name: '默认歌单' });
 const currentTracks = computed(() => (Array.isArray(props.musicLibraryState?.selectedTracks) ? props.musicLibraryState.selectedTracks : []));
-const lyricWindow = computed(() => {
-  const context = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
-  const current = String(context.current || props.lyricLine || '纯音乐，无歌词').trim() || '纯音乐，无歌词';
-  const prev = String(context.prev || '').trim();
-  const next = String(context.next || '').trim();
-  return {
-    prev: prev || ' ',
-    current,
-    next: next || ' ',
-    key: String(context.key || `${prev}__${current}__${next}`)
-  };
-});
+const lyricDisplay = computed(() =>
+  buildLyricDisplayGroups({
+    timeline: props.lyricTimeline,
+    currentTime: props.currentTime,
+    entryIndex: Number(props.lyricEntryIndex),
+    mode: String(props.lyricRenderMode || 'original'),
+    fallbackText: props.lyricLine || '纯音乐，无歌词'
+  })
+);
+const lyricGroups = computed(() => lyricDisplay.value.groups);
+const activeLyricTime = computed(() => lyricDisplay.value.activeTime);
 const activeEffectPreset = computed(() => findEffectPresetById(props.effectState?.presetId));
 const effectStrength = computed(() => resolveEffectStrength(props.effectState));
 const activeEffectPreviewTokens = computed(() => resolveEffectPreviewTokens(activeEffectPreset.value.id, props.effectState));
@@ -1034,11 +1050,16 @@ function resolvePreviewVarsForCard(presetId) {
   color: rgba(77, 88, 104, 0.66);
 }
 
-.lyrics-triplet {
+.lyrics-groups {
   display: grid;
   gap: 8px;
   min-height: 106px;
   align-content: center;
+}
+
+.lyric-group {
+  display: grid;
+  gap: 0;
 }
 
 .lyric-line {
@@ -1046,14 +1067,22 @@ function resolvePreviewVarsForCard(presetId) {
   text-align: center;
 }
 
-.lyric-line.current {
+.lyric-group.current .lyric-line.original {
   color: rgba(31, 39, 52, 0.92);
   font-weight: 700;
 }
 
-.lyric-line.prev,
-.lyric-line.next {
+.lyric-group.current .lyric-line.translation,
+.lyric-group.current .lyric-line.furigana {
+  color: rgba(31, 39, 52, 0.72);
+}
+
+.lyric-group:not(.current) .lyric-line {
   opacity: 0.72;
+}
+
+.lyric-group.compact .lyric-line + .lyric-line {
+  margin-top: -4px;
 }
 
 .lyric-switch-enter-active,

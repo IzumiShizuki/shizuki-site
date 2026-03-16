@@ -53,17 +53,31 @@
         </button>
       </div>
 
-      <button
+      <div
         v-for="item in createdPlaylists"
         :key="item.playlistCode"
-        class="list-item ripple-trigger"
+        class="list-item-row"
         :class="{ selected: selectedPlaylistCode === item.playlistCode }"
-        type="button"
-        @click="emit('select-playlist', item.playlistCode)"
       >
-        <i class="fas fa-record-vinyl"></i>
-        <span>{{ item.name }}</span>
-      </button>
+        <button
+          class="list-item ripple-trigger"
+          :class="{ selected: selectedPlaylistCode === item.playlistCode }"
+          type="button"
+          @click="emit('select-playlist', item.playlistCode)"
+        >
+          <i class="fas fa-record-vinyl"></i>
+          <span>{{ item.name }}</span>
+        </button>
+        <button
+          v-if="canDeletePlaylist(item)"
+          class="delete-btn ripple-trigger"
+          type="button"
+          title="删除歌单"
+          @click.stop="emit('delete-playlist', item)"
+        >
+          <i class="fas fa-trash-can"></i>
+        </button>
+      </div>
 
       <p v-if="!createdPlaylists.length" class="empty-tip">暂无自建歌单</p>
     </section>
@@ -96,11 +110,12 @@ defineProps({
   collectedPlaylists: { type: Array, default: () => [] },
   selectedPlaylistCode: { type: String, default: '' },
   canCreate: { type: Boolean, default: false },
+  canDeletePlaylist: { type: Function, default: () => false },
   isMobile: { type: Boolean, default: false },
   drawerOpen: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'close-drawer']);
+const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'delete-playlist', 'close-drawer']);
 </script>
 
 <style scoped>
@@ -147,7 +162,8 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
 }
 
 .drawer-close,
-.create-btn {
+.create-btn,
+.delete-btn {
   width: 30px;
   height: 30px;
   border-radius: 9px;
@@ -194,6 +210,18 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   padding: 0 10px;
   font-size: 13px;
   text-align: left;
+  position: relative;
+}
+
+.list-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.list-item-row .list-item {
+  width: 100%;
 }
 
 .nav-item.active,
@@ -209,6 +237,18 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   width: 16px;
   text-align: center;
   opacity: 0.9;
+}
+
+.list-item span {
+  flex: 1;
+  min-width: 0;
+}
+
+.delete-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  opacity: 0.82;
 }
 
 .empty-tip {

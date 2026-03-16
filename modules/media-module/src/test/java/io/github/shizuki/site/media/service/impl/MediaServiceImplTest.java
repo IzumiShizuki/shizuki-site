@@ -44,11 +44,13 @@ import io.github.shizuki.site.media.service.security.AssetInspectionResult;
 import io.github.shizuki.site.media.service.security.AssetSecurityInspector;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockMultipartFile;
@@ -302,6 +304,65 @@ class MediaServiceImplTest {
         );
 
         Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
+
+    @Test
+    void shouldAutoApproveAdminAuthorProfileImageAsset() {
+        LoginUserContext.set(new LoginUser(3L, Set.of("ADMIN"), Set.of()));
+        Mockito.when(objectStorageClient.objectExists("shizuki-public", "assets/user-3/profile/avatar.webp"))
+            .thenReturn(true);
+        Mockito.doAnswer(invocation -> {
+            MediaAssetEntity entity = invocation.getArgument(0);
+            entity.setId(701L);
+            return 1;
+        }).when(mediaAssetMapper).insert(Mockito.any(MediaAssetEntity.class));
+
+        io.github.shizuki.site.media.dto.AssetCreateRequest request = new io.github.shizuki.site.media.dto.AssetCreateRequest();
+        request.setBucket("shizuki-public");
+        request.setKey("assets/user-3/profile/avatar.webp");
+        request.setAssetType("image");
+        request.setAssetKind("STATIC_IMAGE");
+        request.setContentType("image/webp");
+        request.setVisibility("PUBLIC");
+        request.setMetadata(Map.of(
+            "usage", "author_profile_image",
+            "target_path", "hero.avatarUrl"
+        ));
+
+        io.github.shizuki.site.media.dto.AssetCreateResponse response = mediaService.createAsset(request);
+
+        Assertions.assertEquals("APPROVED", response.auditStatus());
+        ArgumentCaptor<MediaAssetEntity> captor = ArgumentCaptor.forClass(MediaAssetEntity.class);
+        Mockito.verify(mediaAssetMapper).insert(captor.capture());
+        Assertions.assertEquals("APPROVED", captor.getValue().getAuditStatus());
+    }
+
+    @Test
+    void shouldKeepPublicImagePendingAuditForNonAdminUser() {
+        LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
+        Mockito.when(objectStorageClient.objectExists("shizuki-public", "assets/user-3/profile/avatar.webp"))
+            .thenReturn(true);
+        Mockito.doAnswer(invocation -> {
+            MediaAssetEntity entity = invocation.getArgument(0);
+            entity.setId(702L);
+            return 1;
+        }).when(mediaAssetMapper).insert(Mockito.any(MediaAssetEntity.class));
+
+        io.github.shizuki.site.media.dto.AssetCreateRequest request = new io.github.shizuki.site.media.dto.AssetCreateRequest();
+        request.setBucket("shizuki-public");
+        request.setKey("assets/user-3/profile/avatar.webp");
+        request.setAssetType("image");
+        request.setAssetKind("STATIC_IMAGE");
+        request.setContentType("image/webp");
+        request.setVisibility("PUBLIC");
+        request.setMetadata(Map.of(
+            "usage", "author_profile_image",
+            "target_path", "hero.avatarUrl"
+        ));
+
+        io.github.shizuki.site.media.dto.AssetCreateResponse response = mediaService.createAsset(request);
+
+        Assertions.assertEquals("PENDING_AUDIT", response.auditStatus());
     }
 
     @Test

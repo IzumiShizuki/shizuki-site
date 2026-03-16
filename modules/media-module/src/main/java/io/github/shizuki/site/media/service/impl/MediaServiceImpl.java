@@ -6,6 +6,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.common.core.resilience.RetrySpec;
+import io.github.shizuki.common.core.resilience.SpringRetryExecutor;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
@@ -154,6 +156,10 @@ public class MediaServiceImpl implements MediaService {
     private static final Set<String> AUDIO_TYPES = Set.of(
         "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/flac", "audio/aac", "audio/mp4"
     );
+    private static final Set<String> ADMIN_FORCE_APPROVED_PUBLIC_IMAGE_USAGES = Set.of(
+        "author_avatar",
+        "author_profile_image"
+    );
     private static final String MUSIC_PICK_QUOTA_CODE = "music_song_pick_total";
     private static final String MUSIC_UPLOAD_QUOTA_CODE = "music_upload_bytes_total";
     private static final String DEFAULT_PLAYLIST_CODE = "default_public";
@@ -184,6 +190,9 @@ public class MediaServiceImpl implements MediaService {
     private static final String MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING = "MUSIC_SEARCH_API_KEY_MISSING";
     private static final String SOURCE_ONLY_OBJECT_CODE = "__source_only__";
     private static final int TRACK_METADATA_JSON_MAX_LENGTH = 4096;
+    private static final int TUNEHUB_PARSE_RETRY_MAX_ATTEMPTS = 3;
+    private static final long TUNEHUB_PARSE_RETRY_INITIAL_BACKOFF_MS = 120L;
+    private static final long TUNEHUB_PARSE_RETRY_MAX_BACKOFF_MS = 700L;
     private static final Set<String> TRACK_METADATA_ALLOWED_KEYS = Set.of(
         "album",
         "durationSec",
@@ -194,7 +203,10 @@ public class MediaServiceImpl implements MediaService {
         "intro",
         "description",
         "lyricTextAvailable",
-        "coverSource"
+        "coverSource",
+        "sourceAudioUrl",
+        "persistentAudioUrl",
+        "audioStorage"
     );
 
     private final ObjectStorageClient objectStorageClient;
@@ -222,6 +234,7 @@ public class MediaServiceImpl implements MediaService {
     private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private final TuneHubMusicProperties tuneHubMusicProperties;
     private final MusicListenCacheProperties musicListenCacheProperties;
+    private final SpringRetryExecutor retryExecutor;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     @Autowired(required = false)
@@ -266,6 +279,7 @@ public class MediaServiceImpl implements MediaService {
                             MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher,
                             TuneHubMusicProperties tuneHubMusicProperties,
                             MusicListenCacheProperties musicListenCacheProperties,
+                            SpringRetryExecutor retryExecutor,
                             ObjectMapper objectMapper,
                             TransactionTemplate transactionTemplate) {
         this.objectStorageClient = objectStorageClient;
@@ -293,6 +307,7 @@ public class MediaServiceImpl implements MediaService {
         this.musicTrackCacheUploadPublisher = musicTrackCacheUploadPublisher;
         this.tuneHubMusicProperties = tuneHubMusicProperties;
         this.musicListenCacheProperties = musicListenCacheProperties;
+        this.retryExecutor = retryExecutor;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
     }
@@ -472,6 +487,7 @@ public class MediaServiceImpl implements MediaService {
         }
         final L2dValidationResult persistedL2dValidation = l2dValidation;
         final Set<String> persistedAllowedGroups = normalizedAllowedGroups;
+        final String auditStatus = resolveCreateAssetAuditStatus(assetKind, visibility, normalizedMetadata);
 
         MediaAssetEntity persisted = transactionTemplate.execute(status -> {
             MediaAssetEntity asset = new MediaAssetEntity();
@@ -488,7 +504,7 @@ public class MediaServiceImpl implements MediaService {
             asset.setContentTypeText(request.getContentType());
             asset.setObjectHash(inspectionResult == null ? null : inspectionResult.objectHash());
             asset.setMetadataJson(writeJson(normalizedMetadata));
-            asset.setAuditStatus(AssetAuditStatusEnum.PENDING_AUDIT.name());
+            asset.setAuditStatus(auditStatus);
             asset.setCreatedAt(LocalDateTime.now());
             asset.setUpdatedAt(LocalDateTime.now());
             mediaAssetMapper.insert(asset);
@@ -1422,7 +1438,7 @@ public class MediaServiceImpl implements MediaService {
                 TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
                 if (StringUtils.hasText(lyricApiContext.apiKey())) {
                     try {
-                        TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                        TuneHubMusicProvider.ParseTrackResult parsedLyric = parseSingleTrackWithRetry(
                             lyricApiContext.apiKey(),
                             provider,
                             trackId,
@@ -1484,7 +1500,7 @@ public class MediaServiceImpl implements MediaService {
                 TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
                 if (StringUtils.hasText(lyricApiContext.apiKey())) {
                     try {
-                        TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                        TuneHubMusicProvider.ParseTrackResult parsedLyric = parseSingleTrackWithRetry(
                             lyricApiContext.apiKey(),
                             provider,
                             trackId,
@@ -1538,7 +1554,7 @@ public class MediaServiceImpl implements MediaService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "TuneHub API key missing");
         }
 
-        TuneHubMusicProvider.ParseTrackResult parsed = tuneHubMusicProvider.parseSingleTrack(
+        TuneHubMusicProvider.ParseTrackResult parsed = parseSingleTrackWithRetry(
             apiContext.apiKey(),
             provider,
             trackId,
@@ -1916,20 +1932,32 @@ public class MediaServiceImpl implements MediaService {
         int fallbackSort = 1;
         for (AdminMusicTrackUpsertRequest track : request.getTracks()) {
             int currentSort = track.getSort() == null ? fallbackSort++ : Math.max(0, track.getSort());
+            String provider = normalizeTrackProvider(track.getProvider());
+            String trackId = readString(track.getTrackId(), "track-" + currentSort);
+            PersistedPlaylistTrackSnapshot snapshot = persistPlaylistTrackSnapshot(
+                provider,
+                trackId,
+                readString(track.getTitle(), trackId),
+                readString(track.getArtist(), "未知歌手"),
+                readString(track.getCover(), ""),
+                readString(track.getAudio(), ""),
+                readString(track.getLyric(), ""),
+                sanitizeTrackMetadata(track.getMetadata())
+            );
             MusicPlaylistEntity entity = new MusicPlaylistEntity();
-            entity.setTrackId(readString(track.getTrackId(), "track-" + currentSort));
-            entity.setProviderCode(readString(track.getProvider(), "local"));
-            entity.setTitle(readString(track.getTitle(), "Unknown"));
-            entity.setArtist(readString(track.getArtist(), "未知歌手"));
-            entity.setCoverUrl(readString(track.getCover(), ""));
-            entity.setAudioUrl(readString(track.getAudio(), ""));
-            entity.setLyricUrl(readString(track.getLyric(), ""));
+            entity.setTrackId(trackId);
+            entity.setProviderCode(provider);
+            entity.setTitle(readString(snapshot.title(), "Unknown"));
+            entity.setArtist(readString(snapshot.artist(), "未知歌手"));
+            entity.setCoverUrl(readString(snapshot.coverUrl(), ""));
+            entity.setAudioUrl(readString(snapshot.audioUrl(), ""));
+            entity.setLyricUrl(readString(snapshot.lyricUrl(), ""));
             validateHttpUrlIfPresent(entity.getCoverUrl(), "cover");
             validateHttpUrlIfPresent(entity.getAudioUrl(), "audio");
             validateHttpUrlIfPresent(entity.getLyricUrl(), "lyric");
             entity.setSortNum(currentSort);
             entity.setEnabledFlag(track.getEnabled() == null ? true : track.getEnabled());
-            entity.setMetadataJson(writeJson(sanitizeTrackMetadata(track.getMetadata())));
+            entity.setMetadataJson(writeJson(snapshot.metadata()));
             entity.setCreatedAt(LocalDateTime.now());
             entity.setUpdatedAt(LocalDateTime.now());
             musicPlaylistMapper.insert(entity);
@@ -1974,6 +2002,16 @@ public class MediaServiceImpl implements MediaService {
         validateHttpUrlIfPresent(cover, "cover");
         validateHttpUrlIfPresent(audio, "audio");
         validateHttpUrlIfPresent(lyric, "lyric");
+        PersistedPlaylistTrackSnapshot snapshot = persistPlaylistTrackSnapshot(
+            provider,
+            trackId,
+            title,
+            artist,
+            cover,
+            audio,
+            lyric,
+            sanitizeTrackMetadata(request.getMetadata())
+        );
 
         MusicPlaylistEntity entity = musicPlaylistMapper.selectOne(
             new LambdaQueryWrapper<MusicPlaylistEntity>()
@@ -1992,22 +2030,20 @@ public class MediaServiceImpl implements MediaService {
         int nextSort = request.getSort() == null
             ? (created ? resolveNextDefaultPlaylistTrackSort() : Math.max(0, entity.getSortNum() == null ? 0 : entity.getSortNum()))
             : Math.max(0, request.getSort());
-        entity.setTitle(title);
-        entity.setArtist(artist);
-        entity.setCoverUrl(cover);
-        entity.setAudioUrl(audio);
-        entity.setLyricUrl(lyric);
+        entity.setTitle(readString(snapshot.title(), title));
+        entity.setArtist(readString(snapshot.artist(), artist));
+        entity.setCoverUrl(readString(snapshot.coverUrl(), cover));
+        entity.setAudioUrl(readString(snapshot.audioUrl(), audio));
+        entity.setLyricUrl(readString(snapshot.lyricUrl(), lyric));
         entity.setSortNum(nextSort);
         entity.setEnabledFlag(request.getEnabled() == null ? true : request.getEnabled());
-        entity.setMetadataJson(writeJson(sanitizeTrackMetadata(request.getMetadata())));
+        entity.setMetadataJson(writeJson(snapshot.metadata()));
         entity.setUpdatedAt(LocalDateTime.now());
         if (created) {
             musicPlaylistMapper.insert(entity);
         } else {
             musicPlaylistMapper.updateById(entity);
         }
-
-        ensureDefaultPlaylistTrackCloudPersist(provider, trackId, title, artist, audio);
         LOGGER.info(
             "{} provider={} trackId={} created={} enabled={} sort={}",
             LOG_EVENT_DEFAULT_COLLECT_UPSERT_DONE,
@@ -2016,6 +2052,24 @@ public class MediaServiceImpl implements MediaService {
             created,
             Boolean.TRUE.equals(entity.getEnabledFlag()),
             entity.getSortNum()
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeAdminDefaultPlaylistTrack(String provider, String trackId) {
+        String normalizedProvider = normalizeTrackProvider(provider);
+        String normalizedTrackId = readString(trackId, "");
+        if (!StringUtils.hasText(normalizedTrackId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
+        }
+        musicPlaylistMapper.delete(
+            new LambdaQueryWrapper<MusicPlaylistEntity>()
+                .eq(MusicPlaylistEntity::getProviderCode, normalizedProvider)
+                .eq(MusicPlaylistEntity::getTrackId, normalizedTrackId)
         );
     }
 
@@ -2299,6 +2353,16 @@ public class MediaServiceImpl implements MediaService {
         validateHttpUrlIfPresent(cover, "cover");
         validateHttpUrlIfPresent(audio, "audio");
         validateHttpUrlIfPresent(lyric, "lyric");
+        PersistedPlaylistTrackSnapshot snapshot = persistPlaylistTrackSnapshot(
+            provider,
+            trackId,
+            title,
+            artist,
+            cover,
+            audio,
+            lyric,
+            sanitizeTrackMetadata(request.getMetadata())
+        );
 
         UserMusicPlaylistTrackEntity entity = userMusicPlaylistTrackMapper.selectOne(
             new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
@@ -2316,14 +2380,14 @@ public class MediaServiceImpl implements MediaService {
             entity.setCreatedAt(LocalDateTime.now());
             created = true;
         }
-        entity.setTitle(title);
-        entity.setArtist(artist);
-        entity.setCoverUrl(cover);
-        entity.setAudioUrl(audio);
-        entity.setLyricUrl(lyric);
+        entity.setTitle(readString(snapshot.title(), title));
+        entity.setArtist(readString(snapshot.artist(), artist));
+        entity.setCoverUrl(readString(snapshot.coverUrl(), cover));
+        entity.setAudioUrl(readString(snapshot.audioUrl(), audio));
+        entity.setLyricUrl(readString(snapshot.lyricUrl(), lyric));
         entity.setSortNum(request.getSort() == null ? (created ? resolveNextPlaylistTrackSort(playlist.getPlaylistCode()) : entity.getSortNum()) : Math.max(0, request.getSort()));
         entity.setEnabledFlag(request.getEnabled() == null ? true : request.getEnabled());
-        entity.setMetadataJson(writeJson(sanitizeTrackMetadata(request.getMetadata())));
+        entity.setMetadataJson(writeJson(snapshot.metadata()));
         entity.setUpdatedAt(LocalDateTime.now());
         if (created) {
             userMusicPlaylistTrackMapper.insert(entity);
@@ -2789,6 +2853,31 @@ public class MediaServiceImpl implements MediaService {
             return defaultOrder;
         }
         return merged;
+    }
+
+    private String resolveCreateAssetAuditStatus(AssetKindEnum assetKind,
+                                                 AssetVisibilityEnum visibility,
+                                                 Map<String, Object> metadata) {
+        if (visibility != AssetVisibilityEnum.PUBLIC) {
+            return AssetAuditStatusEnum.APPROVED.name();
+        }
+        if (shouldForceApprovePublicImageAsset(assetKind, metadata)) {
+            return AssetAuditStatusEnum.APPROVED.name();
+        }
+        return AssetAuditStatusEnum.PENDING_AUDIT.name();
+    }
+
+    private boolean shouldForceApprovePublicImageAsset(AssetKindEnum assetKind, Map<String, Object> metadata) {
+        if (assetKind != AssetKindEnum.STATIC_IMAGE && assetKind != AssetKindEnum.ANIMATED_IMAGE) {
+            return false;
+        }
+        boolean isAdmin = currentLoginUserGroups().stream().anyMatch(group -> "ADMIN".equalsIgnoreCase(group));
+        if (!isAdmin || metadata == null || metadata.isEmpty()) {
+            return false;
+        }
+        Object usageValue = metadata.get("usage");
+        String usage = usageValue == null ? "" : String.valueOf(usageValue).trim().toLowerCase(Locale.ROOT);
+        return ADMIN_FORCE_APPROVED_PUBLIC_IMAGE_USAGES.contains(usage);
     }
 
     private boolean isProviderEnabled(Map<String, Boolean> enabledMap, String providerCode) {
@@ -3266,6 +3355,166 @@ public class MediaServiceImpl implements MediaService {
         return !TrackUrlExpiryPolicy.isExpired(url);
     }
 
+    private PersistedPlaylistTrackSnapshot persistPlaylistTrackSnapshot(String provider,
+                                                                       String trackId,
+                                                                       String title,
+                                                                       String artist,
+                                                                       String coverUrl,
+                                                                       String audioUrl,
+                                                                       String lyricUrl,
+                                                                       Map<String, Object> rawMetadata) {
+        String normalizedProvider = readString(provider, "");
+        String normalizedTrackId = readString(trackId, "");
+        String resolvedTitle = readString(title, normalizedTrackId);
+        String resolvedArtist = readString(artist, "");
+        String resolvedCoverUrl = readString(coverUrl, "");
+        String resolvedLyricUrl = readString(lyricUrl, "");
+        String resolvedSourceAudioUrl = readString(audioUrl, "");
+        Map<String, Object> mergedMetadata = new LinkedHashMap<>();
+        if (rawMetadata != null && !rawMetadata.isEmpty()) {
+            mergedMetadata.putAll(rawMetadata);
+        }
+
+        MusicTrackCacheEntity cache = loadTrackCache(normalizedProvider, normalizedTrackId);
+        String persistentAudioUrl = "";
+        if (hasOssObjectCache(cache)) {
+            persistentAudioUrl = readString(cache.getPublicUrl(), "");
+            resolvedSourceAudioUrl = readString(cache.getSourceUrl(), resolvedSourceAudioUrl);
+        } else if (cache != null && canReuseCachedSourceAudio(cache.getSourceUrl())) {
+            resolvedSourceAudioUrl = readString(cache.getSourceUrl(), resolvedSourceAudioUrl);
+        }
+
+        boolean shouldParse = !StringUtils.hasText(resolvedSourceAudioUrl) || !StringUtils.hasText(resolvedCoverUrl);
+        if (shouldParse && StringUtils.hasText(normalizedProvider) && StringUtils.hasText(normalizedTrackId)) {
+            TuneHubMusicProvider.ParseTrackResult parsed = tryParseTrackForPersistence(
+                normalizedProvider,
+                normalizedTrackId,
+                resolvedTitle,
+                resolvedArtist
+            );
+            if (parsed != null) {
+                resolvedSourceAudioUrl = readString(parsed.audioUrl(), resolvedSourceAudioUrl);
+                resolvedCoverUrl = readString(parsed.cover(), resolvedCoverUrl);
+            }
+        }
+
+        if (StringUtils.hasText(resolvedSourceAudioUrl)) {
+            try {
+                validateHttpUrlIfPresent(resolvedSourceAudioUrl, "audio");
+                upsertTrackSourceCache(normalizedProvider, normalizedTrackId, resolvedSourceAudioUrl);
+                if (!StringUtils.hasText(persistentAudioUrl)) {
+                    MusicTrackCacheEntity ossCache = cacheTrackToOss(
+                        normalizedProvider,
+                        normalizedTrackId,
+                        resolvedTitle,
+                        resolvedArtist,
+                        resolvedSourceAudioUrl
+                    );
+                    persistentAudioUrl = readString(ossCache == null ? null : ossCache.getPublicUrl(), "");
+                    if (!StringUtils.hasText(persistentAudioUrl)) {
+                        musicTrackCacheUploadPublisher.publish(
+                            normalizedProvider,
+                            normalizedTrackId,
+                            resolvedSourceAudioUrl,
+                            resolvedTitle,
+                            resolvedArtist
+                        );
+                    }
+                }
+            } catch (Exception exception) {
+                LOGGER.warn(
+                    "MUSIC_PLAYLIST_TRACK_PERSIST_FAIL provider={} trackId={} reason={}",
+                    normalizedProvider,
+                    normalizedTrackId,
+                    sanitizeLogMessage(readString(exception.getMessage(), "unknown_error"))
+                );
+            }
+        }
+
+        String finalAudioUrl = StringUtils.hasText(persistentAudioUrl) ? persistentAudioUrl : resolvedSourceAudioUrl;
+        if (StringUtils.hasText(resolvedSourceAudioUrl)) {
+            mergedMetadata.put("sourceAudioUrl", resolvedSourceAudioUrl);
+        }
+        if (StringUtils.hasText(finalAudioUrl)) {
+            mergedMetadata.put("persistentAudioUrl", finalAudioUrl);
+            mergedMetadata.put("audioStorage", StringUtils.hasText(persistentAudioUrl) ? "oss" : "source");
+        }
+        if (!StringUtils.hasText(resolvedCoverUrl) && StringUtils.hasText(readString(cache == null ? null : cache.getPublicUrl(), ""))) {
+            resolvedCoverUrl = readString(cache.getPublicUrl(), resolvedCoverUrl);
+        }
+
+        return new PersistedPlaylistTrackSnapshot(
+            resolvedTitle,
+            resolvedArtist,
+            resolvedCoverUrl,
+            finalAudioUrl,
+            resolvedLyricUrl,
+            sanitizeTrackMetadata(mergedMetadata)
+        );
+    }
+
+    private TuneHubMusicProvider.ParseTrackResult tryParseTrackForPersistence(String provider,
+                                                                              String trackId,
+                                                                              String title,
+                                                                              String artist) {
+        String normalizedProvider = normalizeSourceProvider(provider);
+        if (!StringUtils.hasText(normalizedProvider)) {
+            return null;
+        }
+        TuneHubApiContext apiContext = resolveTuneHubApiContext(false);
+        if (!StringUtils.hasText(apiContext.apiKey())) {
+            return null;
+        }
+        try {
+            return parseSingleTrackWithRetry(apiContext.apiKey(), normalizedProvider, trackId, tuneHubMusicProperties.getDefaultQuality());
+        } catch (Exception exception) {
+            LOGGER.warn(
+                "MUSIC_PLAYLIST_TRACK_PARSE_FAIL provider={} trackId={} title={} artist={} reason={}",
+                normalizedProvider,
+                trackId,
+                sanitizeLogMessage(title),
+                sanitizeLogMessage(artist),
+                sanitizeLogMessage(readString(exception.getMessage(), "unknown_error"))
+            );
+            return null;
+        }
+    }
+
+    private TuneHubMusicProvider.ParseTrackResult parseSingleTrackWithRetry(String apiKey,
+                                                                            String provider,
+                                                                            String trackId,
+                                                                            String quality) {
+        RetrySpec retrySpec = RetrySpec.exponentialJitter(
+            TUNEHUB_PARSE_RETRY_MAX_ATTEMPTS,
+            TUNEHUB_PARSE_RETRY_INITIAL_BACKOFF_MS,
+            TUNEHUB_PARSE_RETRY_MAX_BACKOFF_MS
+        );
+        try {
+            return retryExecutor.execute(
+                retrySpec,
+                Set.of(RetryableTuneHubParseException.class),
+                () -> {
+                    try {
+                        return tuneHubMusicProvider.parseSingleTrack(apiKey, provider, trackId, quality);
+                    } catch (BusinessException exception) {
+                        if (exception.getErrorCode() == ErrorCode.INTERNAL_ERROR) {
+                            throw new RetryableTuneHubParseException(exception);
+                        }
+                        throw exception;
+                    } catch (RuntimeException exception) {
+                        throw new RetryableTuneHubParseException(exception);
+                    }
+                }
+            );
+        } catch (RetryableTuneHubParseException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof BusinessException businessException) {
+                throw businessException;
+            }
+            throw exception;
+        }
+    }
+
     private void ensureDefaultPlaylistTrackCloudPersist(String provider,
                                                         String trackId,
                                                         String title,
@@ -3294,7 +3543,7 @@ public class MediaServiceImpl implements MediaService {
                 return;
             }
             try {
-                TuneHubMusicProvider.ParseTrackResult parsed = tuneHubMusicProvider.parseSingleTrack(
+                TuneHubMusicProvider.ParseTrackResult parsed = parseSingleTrackWithRetry(
                     apiContext.apiKey(),
                     normalizedProvider,
                     trackId,
@@ -3713,6 +3962,8 @@ public class MediaServiceImpl implements MediaService {
             entity.getAudioUrl(),
             readMetadataString(
                 metadata,
+                "persistentAudioUrl",
+                "persistent_audio_url",
                 "audio",
                 "audioUrl",
                 "audio_url",
@@ -3726,6 +3977,17 @@ public class MediaServiceImpl implements MediaService {
             entity.getLyricUrl(),
             readMetadataString(metadata, "lyric", "lyricUrl", "lyric_url")
         );
+        MusicTrackCacheEntity cache = StringUtils.hasText(provider) && StringUtils.hasText(trackId)
+            ? loadTrackCache(provider, trackId)
+            : null;
+        if (hasOssObjectCache(cache)) {
+            audioUrl = readString(cache.getPublicUrl(), audioUrl);
+        } else if (!StringUtils.hasText(audioUrl) || !canReuseCachedSourceAudio(audioUrl)) {
+            String cachedSource = readString(cache == null ? null : cache.getSourceUrl(), "");
+            if (canReuseCachedSourceAudio(cachedSource)) {
+                audioUrl = cachedSource;
+            }
+        }
         return new MusicTrackResponse(
             trackId,
             provider,
@@ -3947,13 +4209,41 @@ public class MediaServiceImpl implements MediaService {
      */
     private MusicTrackResponse toPlaylistResponse(MusicPlaylistEntity entity) {
         Map<String, Object> metadata = readTrackMetadata(entity.getMetadataJson());
+        String provider = readString(entity.getProviderCode(), "");
+        String trackId = readString(entity.getTrackId(), "");
+        String audioUrl = readString(
+            entity.getAudioUrl(),
+            readMetadataString(
+                metadata,
+                "persistentAudioUrl",
+                "persistent_audio_url",
+                "audio",
+                "audioUrl",
+                "audio_url",
+                "sourceAudioUrl",
+                "source_audio_url",
+                "sourceUrl",
+                "source_url"
+            )
+        );
+        MusicTrackCacheEntity cache = StringUtils.hasText(provider) && StringUtils.hasText(trackId)
+            ? loadTrackCache(provider, trackId)
+            : null;
+        if (hasOssObjectCache(cache)) {
+            audioUrl = readString(cache.getPublicUrl(), audioUrl);
+        } else if (!StringUtils.hasText(audioUrl) || !canReuseCachedSourceAudio(audioUrl)) {
+            String cachedSource = readString(cache == null ? null : cache.getSourceUrl(), "");
+            if (canReuseCachedSourceAudio(cachedSource)) {
+                audioUrl = cachedSource;
+            }
+        }
         return new MusicTrackResponse(
-            entity.getTrackId(),
-            entity.getProviderCode(),
+            trackId,
+            provider,
             entity.getTitle(),
             entity.getArtist(),
             entity.getCoverUrl(),
-            entity.getAudioUrl(),
+            audioUrl,
             entity.getLyricUrl(),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             Boolean.TRUE.equals(entity.getEnabledFlag()),
@@ -4103,6 +4393,21 @@ public class MediaServiceImpl implements MediaService {
             case "audio/mp4" -> "m4a";
             default -> assetKind == AssetKindEnum.AUDIO ? "mp3" : "png";
         };
+    }
+
+    private record PersistedPlaylistTrackSnapshot(String title,
+                                                 String artist,
+                                                 String coverUrl,
+                                                 String audioUrl,
+                                                 String lyricUrl,
+                                                 Map<String, Object> metadata) {
+    }
+
+    private static final class RetryableTuneHubParseException extends RuntimeException {
+
+        private RetryableTuneHubParseException(Throwable cause) {
+            super(cause);
+        }
     }
 
     private record TuneHubApiContext(String apiKey,

@@ -24,11 +24,13 @@
           :collected-playlists="collectedPlaylists"
           :selected-playlist-code="selectedPlaylistCode"
           :can-create="auth.isAuthenticated.value"
+          :can-delete-playlist="canDeletePlaylistSummary"
           :is-mobile="isMobileViewport"
           :drawer-open="ui.leftDrawerOpen.value"
           @select-nav="handleSelectNav"
           @select-playlist="openPlaylistDetail"
           @create-playlist="handleCreatePlaylist"
+          @delete-playlist="deleteCreatedPlaylist"
           @close-drawer="ui.setLeftDrawerOpen(false)"
         />
 
@@ -75,6 +77,11 @@
           :track="player.currentTrack.value"
           :lyric-line="player.currentLyricLine.value"
           :lyric-context="player.lyricContext.value"
+          :lyric-timeline="player.lyricTimeline.value"
+          :lyric-entry-index="player.currentLyricEntryIndex.value"
+          :lyric-render-mode="player.lyricRenderMode.value"
+          :available-lyric-modes="player.availableLyricModes.value"
+          :current-time="player.currentTime.value"
           :volume="player.volume.value"
           :eq-levels="ui.eqLevels.value"
           :is-mobile="isMobileViewport"
@@ -92,6 +99,7 @@
           :spotify-error="spotifyError"
           @set-volume="handleSetVolume"
           @set-eq-level="handleSetEqLevel"
+          @set-lyric-mode="player.setLyricRenderMode"
           @close-drawer="ui.setRightDrawerOpen(false)"
           @update:expanded-provider="ui.setExpandedProvider($event)"
           @update:tunehub-key-input="tunehubKeyInput = $event"
@@ -323,6 +331,9 @@ const currentPlaylistProfile = computed(() => {
     name: String(raw.name || '默认歌单'),
     description: String(raw.description || ''),
     cover: String(raw.cover || ''),
+    playlistType: String(raw.playlistType || raw.playlist_type || '').trim(),
+    ownerUserId: Number(raw.ownerUserId || raw.owner_user_id || 0),
+    isPublic: Boolean(raw.isPublic ?? raw.is_public),
     trackCount: Number(raw.trackCount || raw.track_count || 0)
   };
 });
@@ -415,6 +426,23 @@ const collectedCodes = computed(() => {
 const isCurrentPlaylistCollected = computed(() => {
   if (!auth.isAuthenticated.value) return false;
   return collectedCodes.value.has(currentPlaylistProfile.value.playlistCode);
+});
+
+const currentUserId = computed(() => Number(auth.user.value?.userId || auth.user.value?.user_id || 0));
+const isCurrentPlaylistOwnedByUser = computed(() => {
+  if (!auth.isAuthenticated.value) return false;
+  return currentUserId.value > 0 && currentPlaylistProfile.value.ownerUserId === currentUserId.value;
+});
+const canDeleteCurrentPlaylist = computed(() => {
+  const type = String(currentPlaylistProfile.value.playlistType || '').trim().toUpperCase();
+  return isCurrentPlaylistOwnedByUser.value && type === 'CUSTOM';
+});
+const canRemoveTracksFromCurrentPlaylist = computed(() => {
+  const type = String(currentPlaylistProfile.value.playlistType || '').trim().toUpperCase();
+  if (isCurrentPlaylistOwnedByUser.value && type === 'CUSTOM') {
+    return true;
+  }
+  return isAdminUser.value && currentPlaylistProfile.value.playlistCode === DEFAULT_PLAYLIST_CODE;
 });
 
 const likedPlaylistCode = computed(() => {
@@ -1818,6 +1846,105 @@ async function reloadCurrentPlaylist() {
   await ensureCurrentRoutePlaylistLoaded({ force: true });
 }
 
+async function deleteCurrentPlaylist() {
+  const playlistCode = String(currentPlaylistProfile.value.playlistCode || '').trim();
+  const playlistName = String(currentPlaylistProfile.value.name || '未命名歌单').trim() || '未命名歌单';
+  if (!playlistCode || !canDeleteCurrentPlaylist.value) return;
+  if (!window.confirm(`确认删除歌单“${playlistName}”吗？此操作不可撤销。`)) {
+    return;
+  }
+
+  try {
+    await musicApi.deleteMyMusicPlaylist(playlistCode, auth.authorizedFetch);
+    if (String(player.playlistProfile.value?.playlistCode || '').trim() === playlistCode) {
+      await player.loadPlaylistByCode(DEFAULT_PLAYLIST_CODE, {
+        authorizedFetch: auth.isAuthenticated.value ? auth.authorizedFetch : undefined,
+        autoPlay: false
+      });
+    }
+    await loadSidebarData();
+    ui.setSelectedPlaylistCode(DEFAULT_PLAYLIST_CODE);
+    router.push({ name: 'music-library' });
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '删除歌单失败，请稍后重试'));
+  }
+}
+
+function canDeletePlaylistSummary(playlist) {
+  const playlistCode = String(playlist?.playlistCode || '').trim();
+  const playlistType = String(playlist?.playlistType || '').trim().toUpperCase();
+  const ownerUserId = Number(playlist?.ownerUserId || 0);
+  return playlistCode
+    && playlistType === 'CUSTOM'
+    && currentUserId.value > 0
+    && ownerUserId === currentUserId.value;
+}
+
+async function deleteCreatedPlaylist(playlistInput) {
+  const playlist = playlistInput && typeof playlistInput === 'object' ? playlistInput : null;
+  const playlistCode = String(playlist?.playlistCode || '').trim();
+  const playlistName = String(playlist?.name || '未命名歌单').trim() || '未命名歌单';
+  if (!playlistCode || !canDeletePlaylistSummary(playlist)) return;
+  if (!window.confirm(`确认删除歌单“${playlistName}”吗？此操作不可撤销。`)) {
+    return;
+  }
+  try {
+    await musicApi.deleteMyMusicPlaylist(playlistCode, auth.authorizedFetch);
+    if (String(player.playlistProfile.value?.playlistCode || '').trim() === playlistCode) {
+      await player.loadPlaylistByCode(DEFAULT_PLAYLIST_CODE, {
+        authorizedFetch: auth.isAuthenticated.value ? auth.authorizedFetch : undefined,
+        autoPlay: false
+      });
+    }
+    await loadSidebarData();
+    if (currentPlaylistProfile.value.playlistCode === playlistCode) {
+      ui.setSelectedPlaylistCode(DEFAULT_PLAYLIST_CODE);
+      router.push({ name: 'music-library' });
+    }
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '删除歌单失败，请稍后重试'));
+  }
+}
+
+async function removeTrackFromCurrentPlaylist(trackInput) {
+  const playlistCode = String(currentPlaylistProfile.value.playlistCode || '').trim();
+  const provider = String(trackInput?.provider || trackInput?.providerCode || trackInput?.provider_code || '').trim();
+  const trackId = String(trackInput?.trackId || trackInput?.track_id || trackInput?.id || '').trim();
+  if (!playlistCode || !provider || !trackId || !canRemoveTracksFromCurrentPlaylist.value) return false;
+
+  try {
+    if (isAdminUser.value && playlistCode === DEFAULT_PLAYLIST_CODE) {
+      await musicApi.deleteAdminDefaultPlaylistTrack(provider, trackId, auth.authorizedFetch);
+      await ensureCurrentRoutePlaylistLoaded({ force: true });
+    } else {
+      const payload = await musicApi.deleteMyMusicPlaylistTrack(
+        playlistCode,
+        provider,
+        trackId,
+        auth.authorizedFetch
+      );
+      playlistBrowseProfile.value = normalizePlaylistSummary(payload?.profile || payload?.playlist, playlistCode);
+      playlistBrowseTracks.value = Array.isArray(payload?.tracks)
+        ? payload.tracks.map((item, index) => normalizeApiTrack(item, index))
+        : [];
+      playlistBrowseVisibleCount.value = Math.min(
+        Math.max(PLAYLIST_BROWSE_INITIAL_VISIBLE, playlistBrowseVisibleCount.value),
+        Math.max(playlistBrowseTracks.value.length, PLAYLIST_BROWSE_INITIAL_VISIBLE)
+      );
+    }
+    if (playlistCode === likedPlaylistCode.value) {
+      const next = new Set(likedTrackIds.value);
+      next.delete(trackId);
+      likedTrackIds.value = next;
+    }
+    await loadSidebarData();
+    return true;
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '移除歌曲失败，请稍后重试'));
+    return false;
+  }
+}
+
 async function handleCreatePlaylist() {
   if (!auth.isAuthenticated.value) {
     goLogin();
@@ -1920,6 +2047,9 @@ const musicContext = Object.freeze({
   currentPlaylistHasMore,
   currentPlaylistLoading,
   currentPlaylistError,
+  canDeleteCurrentPlaylist,
+  canRemoveTracksFromCurrentPlaylist,
+  canDeletePlaylistSummary,
   collectingPlaylist,
   isCurrentPlaylistCollected,
   requestMusicLogin,
@@ -1930,6 +2060,9 @@ const musicContext = Object.freeze({
   loadMoreMusicSearchSection,
   retryMusicSearchLoadMore,
   reloadCurrentPlaylist,
+  deleteCurrentPlaylist,
+  deleteCreatedPlaylist,
+  removeTrackFromCurrentPlaylist,
   loadMoreCurrentPlaylistTracks,
   openPlaylistDetail,
   backToMainList,

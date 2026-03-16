@@ -22,29 +22,20 @@
           <h1>{{ track?.title || '暂无播放曲目' }}</h1>
           <p class="sub">{{ track?.artist || '未知歌手' }}</p>
           <p v-if="albumText" class="album">{{ albumText }}</p>
-          <div class="meta-actions">
-            <button class="meta-collect-btn ripple-trigger" type="button" title="收藏到歌单" @click="music.openCollectDialog?.(track)">
-              <i class="fas fa-folder-plus"></i>
-              收藏到歌单
-            </button>
-          </div>
         </header>
 
         <section class="lyric-scroll-shell">
-          <div class="lyric-center-guide" aria-hidden="true"></div>
-
           <SubtleScrollArea class="lyric-scroll" ref="lyricListRef" @scroll.passive="handleLyricScroll">
             <button
               v-for="(row, index) in renderedRows"
               :key="`lyric-row-${index}-${row.time}`"
               :ref="(el) => setLyricRowRef(el, index)"
               class="lyric-row ripple-trigger"
-              :class="{ active: row.time === activeLyricTime }"
+              :class="{ active: row.time === activeLyricTime, prelude: row.isPrelude, compact: row.lines.length > 1 }"
               type="button"
               @click="seekToLyricRow(row.time)"
             >
-              <p class="line-main">{{ row.main || '...' }}</p>
-              <p v-if="row.sub" class="line-sub">{{ row.sub }}</p>
+              {{ formatLyricRowText(row) }}
             </button>
           </SubtleScrollArea>
 
@@ -75,20 +66,20 @@
         <transition name="side-pop">
           <div v-if="showLyricModeControls && modePanelOpen" class="lyric-mode-stack liquid-material">
             <button
-              v-if="availableLyricModes.includes('original_translation')"
+              v-if="availableLyricModes.includes('translation')"
               class="mode-btn ripple-trigger"
-              :class="{ active: lyricMode === 'original_translation' }"
+              :class="{ active: lyricMode === 'translation' }"
               type="button"
-              @click="setLyricMode('original_translation')"
+              @click="setLyricMode('translation')"
             >
               译
             </button>
             <button
-              v-if="availableLyricModes.includes('original_furigana')"
+              v-if="availableLyricModes.includes('furigana')"
               class="mode-btn ripple-trigger"
-              :class="{ active: lyricMode === 'original_furigana' }"
+              :class="{ active: lyricMode === 'furigana' }"
               type="button"
-              @click="setLyricMode('original_furigana')"
+              @click="setLyricMode('furigana')"
             >
               音
             </button>
@@ -112,7 +103,7 @@ import { safeCssUrl } from '../../utils/url';
 const music = useMusicLibraryContext();
 
 const track = computed(() => music.player.currentTrack.value);
-const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
+const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original'));
 const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
 const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
 const currentTimeSec = computed(() => Number(music.player.currentTime?.value || 0));
@@ -136,8 +127,8 @@ const playModeIcon = computed(() => {
 });
 const activeLyricModeLabel = computed(() => {
   if (lyricMode.value === 'original') return '原文';
-  if (lyricMode.value === 'original_furigana') return '原文+注音';
-  return '原文+翻译';
+  if (lyricMode.value === 'furigana') return '音标';
+  return '译文';
 });
 const albumText = computed(() => {
   const metadata = track.value?.metadata && typeof track.value.metadata === 'object' ? track.value.metadata : {};
@@ -171,27 +162,35 @@ const renderedRows = computed(() => {
     }
     return lines.map((line, idx) => ({
       time: idx * 4,
-      main: line,
-      sub: ''
+      lines: [{ text: line, kind: 'original' }],
+      isPrelude: false
     }));
   }
 
   return rows.map((item) => {
-    const main = String(item?.original || '').trim() || '...';
+    const time = Number(item?.time || 0);
+    const original = String(item?.original || '').trim();
     const translation = String(item?.translation || '').trim();
     const furigana = String(item?.furigana || '').trim();
+    const lines = [];
 
-    let sub = '';
-    if (lyricMode.value === 'original_translation') {
-      sub = translation;
-    } else if (lyricMode.value === 'original_furigana') {
-      sub = furigana || translation;
+    if (original) {
+      lines.push({ text: original, kind: 'original' });
+    }
+    if (lyricMode.value === 'translation' && translation) {
+      lines.push({ text: translation, kind: 'translation' });
+    }
+    if (lyricMode.value === 'furigana' && furigana) {
+      lines.push({ text: furigana, kind: 'furigana' });
+    }
+    if (!lines.length) {
+      lines.push({ text: '...', kind: 'original' });
     }
 
     return {
-      time: Number(item?.time || 0),
-      main,
-      sub
+      time,
+      lines,
+      isPrelude: time < 0
     };
   });
 });
@@ -199,8 +198,11 @@ const renderedRows = computed(() => {
 const activeScrollIndex = computed(() => {
   const list = renderedRows.value;
   if (!list.length) return -1;
-  if (activeLyricIndex.value >= 0 && activeLyricIndex.value < list.length) {
-    return activeLyricIndex.value;
+  const timeline = lyricTimeline.value;
+  if (activeLyricIndex.value >= 0 && activeLyricIndex.value < timeline.length) {
+    const activeTime = Number(timeline[activeLyricIndex.value]?.time || 0);
+    const flattenedIndex = list.findIndex((item) => Number(item.time || 0) === activeTime);
+    if (flattenedIndex >= 0) return flattenedIndex;
   }
   const now = currentTimeSec.value;
   let idx = -1;
@@ -314,6 +316,14 @@ function toggleModePanel() {
   modePanelOpen.value = !modePanelOpen.value;
 }
 
+function formatLyricRowText(row) {
+  const lines = Array.isArray(row?.lines) ? row.lines : [];
+  return lines
+    .map((line) => String(line?.text || '...').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
 watch(
   () => renderedRows.value.length,
   async () => {
@@ -400,18 +410,22 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(360px, 500px) minmax(0, 1fr) 86px;
   gap: 28px;
   overflow: hidden;
+  align-items: start;
 }
 
 .vinyl-column {
   display: grid;
+  min-height: 0;
+  align-self: stretch;
 }
 
 .vinyl-stage {
   position: relative;
   display: grid;
-  place-items: center;
-  padding-top: 10px;
+  place-items: start center;
+  padding-top: 72px;
   padding-left: 14px;
+  min-height: 0;
 }
 
 .vinyl-disc {
@@ -449,6 +463,8 @@ onBeforeUnmount(() => {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
   padding-left: 28px;
+  min-height: 0;
+  align-self: stretch;
 }
 
 .track-meta h1 {
@@ -470,30 +486,6 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
-.meta-actions {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.meta-collect-btn {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(236, 244, 255, 0.96);
-  padding: 8px 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.meta-collect-btn:hover {
-  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-}
-
 .lyric-scroll-shell {
   position: relative;
   border-radius: 14px;
@@ -501,31 +493,20 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, rgba(18, 24, 36, 0.74), rgba(14, 18, 28, 0.7));
   min-height: 0;
   overflow: hidden;
-}
-
-.lyric-center-guide {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 52px;
-  transform: translateY(-50%);
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  pointer-events: none;
-  z-index: 1;
+  height: clamp(340px, calc(100vh - var(--music-bottom-dock-height, 124px) - 240px), 720px);
+  max-height: 100%;
 }
 
 .lyric-scroll {
   position: relative;
   z-index: 2;
   height: 100%;
-  max-height: none;
+  max-height: 100%;
   min-height: 0;
   overflow-y: auto;
   padding: 150px 32px;
   display: grid;
-  gap: 14px;
+  gap: 18px;
   scroll-behavior: smooth;
 }
 
@@ -534,7 +515,11 @@ onBeforeUnmount(() => {
   background: transparent;
   color: rgba(188, 199, 220, 0.88);
   text-align: left;
-  padding: 8px 2px;
+  padding: 2px 2px;
+  white-space: pre-line;
+  line-height: 1.12;
+  font-size: 30px;
+  font-weight: 600;
   transition:
     transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 300ms ease,
@@ -542,37 +527,21 @@ onBeforeUnmount(() => {
     text-shadow 300ms ease;
 }
 
-.lyric-row .line-main,
-.lyric-row .line-sub {
-  margin: 0;
-  line-height: 1.35;
+.lyric-row.compact {
+  line-height: 0.4;
 }
 
-.lyric-row .line-main {
-  font-size: 30px;
-  font-weight: 600;
-}
-
-.lyric-row .line-sub {
-  margin-top: 2px;
-  font-size: 24px;
-  color: rgba(168, 182, 208, 0.82);
+.lyric-row.prelude {
+  opacity: 0.78;
+  margin-bottom: 10px;
 }
 
 .lyric-row.active {
   transform: translateY(-8px);
   color: rgba(248, 251, 255, 0.99);
   text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.25);
-}
-
-.lyric-row.active .line-main {
   font-size: 34px;
   font-weight: 700;
-}
-
-.lyric-row.active .line-sub {
-  font-size: 28px;
-  color: rgba(232, 240, 255, 0.95);
 }
 
 .center-time-pill {
@@ -598,7 +567,7 @@ onBeforeUnmount(() => {
   align-content: start;
   justify-items: center;
   gap: 12px;
-  padding-top: 10px;
+  padding-top: 16px;
 }
 
 .mode-icon-btn,
@@ -758,6 +727,10 @@ onBeforeUnmount(() => {
     padding-right: 24px;
   }
 
+  .lyric-scroll-shell {
+    height: clamp(320px, calc(100vh - var(--music-bottom-dock-height, 124px) - 220px), 640px);
+  }
+
   .lyric-row .line-main {
     font-size: 26px;
   }
@@ -766,11 +739,11 @@ onBeforeUnmount(() => {
     font-size: 30px;
   }
 
-  .lyric-row .line-sub {
+  .lyric-row .line-main.secondary {
     font-size: 21px;
   }
 
-  .lyric-row.active .line-sub {
+  .lyric-row.active .line-main.secondary {
     font-size: 24px;
   }
 }
@@ -793,7 +766,8 @@ onBeforeUnmount(() => {
 
   .vinyl-stage {
     position: static;
-    padding-top: 20px;
+    place-items: start center;
+    padding-top: 44px;
   }
 
   .side-column {
@@ -805,7 +779,7 @@ onBeforeUnmount(() => {
 
   .lyric-scroll {
     min-height: 0;
-    max-height: none;
+    max-height: 100%;
     padding-top: 120px;
     padding-bottom: 120px;
   }

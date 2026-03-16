@@ -19,14 +19,38 @@
     </article>
 
     <article class="lyric-card" :class="{ 'lyric-card--expanded': !expandedProviderKey }">
-      <p class="label">实时歌词</p>
-      <transition name="lyric-soft" mode="out-in">
-        <div :key="lyricTransitionKey" class="lyric-triplet">
-          <p class="line prev">{{ lyricDisplay.prev }}</p>
-          <p class="line current">{{ lyricDisplay.current }}</p>
-          <p class="line next">{{ lyricDisplay.next }}</p>
+      <div class="lyric-card-head">
+        <p class="label">实时歌词</p>
+        <div v-if="availableModes.length > 1" class="lyric-mode-tabs">
+          <button
+            v-for="mode in availableModes"
+            :key="`right-lyric-mode-${mode}`"
+            class="lyric-mode-tab ripple-trigger"
+            :class="{ active: mode === effectiveLyricMode }"
+            type="button"
+            @click="emit('set-lyric-mode', mode)"
+          >
+            {{ lyricModeLabel(mode) }}
+          </button>
         </div>
-      </transition>
+      </div>
+      <div class="lyric-live-list">
+        <div
+          v-for="(group, index) in liveLyricGroups"
+          :key="`right-lyric-group-${index}-${group.time}`"
+          class="lyric-live-group"
+          :class="{ current: group.time === activeLyricTime }"
+        >
+          <p
+            v-for="(line, lineIndex) in group.lines"
+            :key="`right-lyric-line-${index}-${lineIndex}-${line.kind}`"
+            class="line"
+            :class="{ secondary: line.kind !== 'original' }"
+          >
+            {{ line.text }}
+          </p>
+        </div>
+      </div>
     </article>
 
     <section class="control-panel">
@@ -233,6 +257,11 @@ const props = defineProps({
     type: Object,
     default: () => ({ prev: '', current: '', next: '' })
   },
+  lyricTimeline: { type: Array, default: () => [] },
+  lyricEntryIndex: { type: Number, default: -1 },
+  lyricRenderMode: { type: String, default: 'original' },
+  availableLyricModes: { type: Array, default: () => ['original'] },
+  currentTime: { type: Number, default: 0 },
   volume: { type: Number, default: 0.8 },
   eqLevels: { type: Array, default: () => [0.66, 0.52, 0.74] },
   isMobile: { type: Boolean, default: false },
@@ -254,6 +283,7 @@ const props = defineProps({
 const emit = defineEmits([
   'set-volume',
   'set-eq-level',
+  'set-lyric-mode',
   'close-drawer',
   'update:expandedProvider',
   'update:tunehubKeyInput',
@@ -343,6 +373,12 @@ const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spot
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
 let lastLyricDebugMode = '';
 
+function lyricModeLabel(mode) {
+  if (mode === 'translation') return '译';
+  if (mode === 'furigana') return '音';
+  return '原';
+}
+
 function lyricDebugEnabled() {
   if (typeof window === 'undefined') return false;
   try {
@@ -380,34 +416,81 @@ function extractInlineLyricPreview(track) {
   return String(first || '').trim();
 }
 
-const lyricDisplay = computed(() => {
-  const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
-  const inlinePreview = extractInlineLyricPreview(props.track);
-  const timelineLine = String(raw.current || props.lyricLine || '').trim();
-  const current = String(timelineLine || inlinePreview || '').trim() || '纯音乐，无歌词';
-  const renderMode = timelineLine ? 'timeline' : inlinePreview ? 'raw-fallback' : 'empty';
-  if (lyricDebugEnabled() && renderMode !== lastLyricDebugMode) {
-    lastLyricDebugMode = renderMode;
-    // eslint-disable-next-line no-console
-    console.info('[MUSIC_LYRIC_DEBUG] render_mode', {
-      mode: renderMode,
-      timelineLength: timelineLine.length,
-      fallbackLength: inlinePreview.length
-    });
+function resolveActiveTimelineIndex(timeline, currentTime, entryIndex) {
+  if (Number.isInteger(entryIndex) && entryIndex >= 0 && entryIndex < timeline.length) {
+    return entryIndex;
   }
-  return {
-    prev: String(raw.prev || '').trim(),
-    current,
-    next: String(raw.next || '').trim()
-  };
+  const now = Number(currentTime || 0);
+  let fallbackIndex = -1;
+  for (let i = 0; i < timeline.length; i += 1) {
+    if (Number(timeline[i]?.time || 0) <= now) {
+      fallbackIndex = i;
+    } else {
+      break;
+    }
+  }
+  return fallbackIndex >= 0 ? fallbackIndex : 0;
+}
+
+const effectiveLyricMode = computed(() => {
+  const modes = Array.isArray(props.availableLyricModes) ? props.availableLyricModes : ['original'];
+  const raw = String(props.lyricRenderMode || 'original');
+  return modes.includes(raw) ? raw : modes[0] || 'original';
 });
 
-const lyricTransitionKey = computed(() => {
-  const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
-  if (typeof raw.key === 'string' && raw.key.trim()) {
-    return raw.key.trim();
+const availableModes = computed(() => {
+  const modes = Array.isArray(props.availableLyricModes) ? props.availableLyricModes : [];
+  return modes.length ? modes : ['original'];
+});
+
+function buildLiveLyricGroups() {
+  const timeline = Array.isArray(props.lyricTimeline) ? props.lyricTimeline : [];
+  if (!timeline.length) {
+    const inlinePreview = extractInlineLyricPreview(props.track);
+    const text = String(props.lyricLine || inlinePreview || '').trim() || '纯音乐，无歌词';
+    return [{ time: 0, lines: [{ text, kind: 'original' }] }];
   }
-  return `${lyricDisplay.value.prev}|${lyricDisplay.value.current}|${lyricDisplay.value.next}`;
+
+  const groups = timeline.map((item) => {
+    const time = Number(item?.time || 0);
+    const original = String(item?.original || '').trim();
+    const translation = String(item?.translation || '').trim();
+    const furigana = String(item?.furigana || '').trim();
+    const lines = [];
+    if (original) {
+      lines.push({ text: original, kind: 'original' });
+    }
+    if (effectiveLyricMode.value === 'translation' && translation) {
+      lines.push({ text: translation, kind: 'translation' });
+    }
+    if (effectiveLyricMode.value === 'furigana' && furigana) {
+      lines.push({ text: furigana, kind: 'furigana' });
+    }
+    if (!lines.length) {
+      lines.push({ text: original || translation || furigana || '...', kind: 'original' });
+    }
+    return { time, lines };
+  });
+
+  const activeIndex = resolveActiveTimelineIndex(timeline, props.currentTime, Number(props.lyricEntryIndex));
+  if (effectiveLyricMode.value !== 'original') {
+    const currentGroup = groups[activeIndex];
+    const nextGroup = groups[activeIndex + 1];
+    return nextGroup ? [currentGroup, nextGroup] : [currentGroup];
+  }
+  const sliceStart = Math.max(0, activeIndex - 1);
+  const sliceEnd = Math.min(groups.length, activeIndex + 3);
+  return groups.slice(sliceStart, sliceEnd);
+}
+
+const liveLyricGroups = computed(() => buildLiveLyricGroups());
+const activeLyricTime = computed(() => {
+  const timeline = Array.isArray(props.lyricTimeline) ? props.lyricTimeline : [];
+  if (!timeline.length) {
+    return Number(liveLyricGroups.value[0]?.time || 0);
+  }
+  const activeIndex = resolveActiveTimelineIndex(timeline, props.currentTime, Number(props.lyricEntryIndex));
+  return Number(timeline[activeIndex]?.time || 0);
 });
 
 const tunehubStatusText = computed(() => {
@@ -535,57 +618,73 @@ function onEqInput(event, index) {
   text-transform: uppercase;
 }
 
-.lyric-triplet {
-  margin-top: 6px;
+.lyric-card-head {
   display: grid;
+  gap: 8px;
+}
+
+.lyric-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.lyric-mode-tab {
+  min-width: 34px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(231, 238, 252, 0.88);
+  font-size: 11px;
+}
+
+.lyric-mode-tab.active {
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+}
+
+.lyric-live-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.lyric-live-group {
+  display: grid;
+  gap: 0;
 }
 
 .lyric-card .line {
   margin: 0;
-  transition: opacity 280ms ease, transform 320ms ease, filter 300ms ease;
-}
-
-.lyric-card .line.prev,
-.lyric-card .line.next {
+  line-height: 1.22;
   font-size: 12px;
   color: rgba(183, 195, 220, 0.78);
-  opacity: 0.68;
-  transform: translateY(0);
-  filter: blur(0.2px);
+  opacity: 0.78;
+  transition: opacity 260ms ease, transform 280ms ease, color 260ms ease;
 }
 
-.lyric-card .line.current {
-  font-size: 15px;
-  line-height: 1.55;
-  font-weight: 700;
+.lyric-card .line.secondary {
+  font-size: 11px;
+  color: rgba(170, 183, 210, 0.84);
+  margin-top: -1px;
+}
+
+.lyric-live-group.current .line {
   color: rgba(248, 251, 255, 0.98);
   text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.2);
   opacity: 1;
 }
 
-.lyric-soft-enter-active,
-.lyric-soft-leave-active {
-  transition: opacity 320ms ease, transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 320ms ease;
+.lyric-live-group.current .line:first-child {
+  font-size: 15px;
+  font-weight: 700;
+  transform: translateY(-2px);
 }
 
-.lyric-soft-enter-from {
-  opacity: 0;
-  transform: translateY(10px) scale(0.98);
-  filter: blur(4px);
-}
-
-.lyric-soft-leave-to {
-  opacity: 0;
-  transform: translateY(-8px) scale(0.99);
-  filter: blur(4px);
-}
-
-.lyric-soft-enter-to,
-.lyric-soft-leave-from {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  filter: blur(0);
+.lyric-live-group.current .line.secondary {
+  font-size: 14px;
 }
 
 .control-panel {
@@ -839,8 +938,6 @@ function onEqInput(event, index) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lyric-soft-enter-active,
-  .lyric-soft-leave-active,
   .lyric-card .line {
     transition-duration: 1ms !important;
     transition-delay: 0ms !important;

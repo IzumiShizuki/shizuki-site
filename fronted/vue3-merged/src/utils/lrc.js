@@ -6,14 +6,17 @@ export function parseLrc(lrcText) {
 
   const lines = normalized.split(/\r?\n/);
   const entries = [];
+  const untimedPrelude = [];
 
   for (const rawLine of lines) {
     if (!rawLine) continue;
     const text = rawLine.replace(TIME_TAG, '').trim();
     TIME_TAG.lastIndex = 0;
 
+    let matched = false;
     let match = TIME_TAG.exec(rawLine);
     while (match) {
+      matched = true;
       const minRaw = match[1] || match[3];
       const secRaw = match[2] || match[4];
       const min = Number.parseInt(minRaw, 10);
@@ -23,6 +26,20 @@ export function parseLrc(lrcText) {
       }
       match = TIME_TAG.exec(rawLine);
     }
+
+    if (!matched && text) {
+      untimedPrelude.push(text);
+    }
+  }
+
+  if (entries.length && untimedPrelude.length) {
+    const offsetBase = untimedPrelude.length * 0.01;
+    untimedPrelude.forEach((text, index) => {
+      entries.push({
+        time: -offsetBase + index * 0.01,
+        text
+      });
+    });
   }
 
   entries.sort((a, b) => a.time - b.time);

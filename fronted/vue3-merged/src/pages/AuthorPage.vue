@@ -706,6 +706,15 @@ import {
   createEmptyJourneyRow,
   createEmptyLinkRow
 } from './authorEditFormState';
+import {
+  beginAdminProfileRequest,
+  beginPublicProfileRequest,
+  createAuthorProfileSyncState,
+  invalidateAdminProfileRequests,
+  invalidatePublicProfileRequests,
+  shouldApplyAdminProfileResponse,
+  shouldApplyPublicProfileResponse
+} from './authorProfileSyncState';
 import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
 import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
@@ -759,6 +768,7 @@ const sectionImageCropSourceUrl = ref('');
 const sectionImageCropSourceName = ref('section-image.png');
 const sectionImageCropTargetPath = ref('');
 const motionState = reactive(createAuthorMotionState({ reducedMotion: readReducedMotionPreference() }));
+const profileSyncState = reactive(createAuthorProfileSyncState());
 
 const editState = reactive({
   loading: false,
@@ -919,11 +929,14 @@ function createSafeSectionKey(sectionKey) {
 
 async function refreshSectionEditor() {
   if (!isAdminUser.value) return;
+  invalidatePublicProfileRequests(profileSyncState);
+  const requestRevision = beginAdminProfileRequest(profileSyncState);
   editState.loading = true;
   editState.error = '';
   editState.success = '';
   try {
     const payload = await getAdminAuthorProfile(auth.authorizedFetch);
+    if (!shouldApplyAdminProfileResponse(profileSyncState, requestRevision)) return;
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
     writeAuthorProfileCache(authorProfile.value);
@@ -1048,7 +1061,7 @@ async function handleSectionImageCropConfirm(payload) {
   editState.error = '';
   editState.success = '';
   try {
-    const uploadPayload = await uploadAuthorAvatar(file, auth.authorizedFetch);
+    const uploadPayload = await uploadAuthorAvatar(file, auth.authorizedFetch, { targetPath });
     const url = String(uploadPayload?.url || '').trim();
     if (!url) {
       throw new Error('图片 URL 为空');
@@ -1502,6 +1515,7 @@ function applyCachedPublicProfile() {
 }
 
 async function loadPublicProfile() {
+  const requestRevision = beginPublicProfileRequest(profileSyncState);
   loading.value = true;
   loadError.value = '';
   cacheNotice.value = '';
@@ -1512,8 +1526,11 @@ async function loadPublicProfile() {
   try {
     await auth.ensureReady();
     const payload = await getAuthorProfile(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
+    if (!shouldApplyPublicProfileResponse(profileSyncState, requestRevision)) return;
     authorProfile.value = normalizeAuthorProfilePayload(payload);
-    applyEditFormFromProfile(authorProfile.value);
+    if (!sectionEditorOpen.value || !editState.dirty) {
+      applyEditFormFromProfile(authorProfile.value);
+    }
     writeAuthorProfileCache(authorProfile.value);
     cacheNotice.value = '';
     refreshActiveTabMotion();
@@ -1560,6 +1577,8 @@ function validateEditForm(form) {
 async function saveAdminProfile() {
   if (!isAdminUser.value) return;
 
+  invalidatePublicProfileRequests(profileSyncState);
+  invalidateAdminProfileRequests(profileSyncState);
   const validationError = validateEditForm(editForm.value);
   if (validationError) {
     editState.error = validationError;
@@ -1572,6 +1591,12 @@ async function saveAdminProfile() {
   editState.success = '';
   try {
     const profileJson = buildProfileJsonFromEditForm(editForm.value);
+    const expectedProfile = normalizeAuthorProfilePayload({
+      authorCode: authorProfile.value.authorCode,
+      enabled: editForm.value.enabled !== false,
+      profileJson,
+      updatedAt: authorProfile.value.updatedAt
+    });
     const payload = await updateAdminAuthorProfile(
       {
         enabled: editForm.value.enabled !== false,
@@ -1579,8 +1604,14 @@ async function saveAdminProfile() {
       },
       auth.authorizedFetch
     );
+    const normalizedPayload = normalizeAuthorProfilePayload(payload);
+    if (!isAuthorProfilePersistedAsExpected(normalizedPayload, expectedProfile)) {
+      editState.error = '后台返回的仍是旧值，修改尚未确认写入。请重启后端或确认当前连接的服务已更新。';
+      editState.success = '';
+      return;
+    }
 
-    authorProfile.value = normalizeAuthorProfilePayload(payload);
+    authorProfile.value = normalizedPayload;
     applyEditFormFromProfile(authorProfile.value);
     writeAuthorProfileCache(authorProfile.value);
     editState.success = '作者资料已保存';
@@ -1686,6 +1717,18 @@ function readErrorMessage(error, fallback) {
   if (detail) return detail;
   const message = String(error?.message || '').trim();
   return message || fallback;
+}
+
+function isAuthorProfilePersistedAsExpected(actualProfile, expectedProfile) {
+  const actual = normalizeAuthorProfilePayload(actualProfile);
+  const expected = normalizeAuthorProfilePayload(expectedProfile);
+  return JSON.stringify({
+    enabled: actual.enabled,
+    profileJson: actual.profileJson
+  }) === JSON.stringify({
+    enabled: expected.enabled,
+    profileJson: expected.profileJson
+  });
 }
 
 watch(

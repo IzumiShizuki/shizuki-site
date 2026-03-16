@@ -1,6 +1,7 @@
 package io.github.shizuki.site.content.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +17,7 @@ import io.github.shizuki.site.content.dto.AuthorProfileResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
@@ -370,7 +372,11 @@ public class ContentServiceImpl implements ContentService {
         } else {
             authorProfileMapper.updateById(entity);
         }
-        AuthorProfileResponse response = toAuthorProfileResponse(entity);
+        AuthorProfileResponse response = readPersistedAuthorProfileResponse(
+            entity.getId(),
+            normalizedProfileJson,
+            entity.getEnabledFlag()
+        );
         refreshAuthorProfileSnapshot(response);
         return response;
     }
@@ -450,6 +456,29 @@ public class ContentServiceImpl implements ContentService {
             readProfileJson(entity.getProfileJson()),
             entity.getUpdatedAt()
         );
+    }
+
+    private AuthorProfileResponse readPersistedAuthorProfileResponse(Long entityId,
+                                                                     Map<String, Object> expectedProfileJson,
+                                                                     Integer expectedEnabledFlag) {
+        AuthorProfileEntity persisted = null;
+        if (entityId != null && entityId > 0) {
+            persisted = authorProfileMapper.selectById(entityId);
+        }
+        if (persisted == null) {
+            persisted = findAuthorProfileEntity(DEFAULT_AUTHOR_CODE);
+        }
+        if (persisted == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "author profile save verification failed");
+        }
+
+        AuthorProfileResponse response = toAuthorProfileResponse(persisted);
+        boolean expectedEnabled = expectedEnabledFlag == null || expectedEnabledFlag == 1;
+        Map<String, Object> expectedNormalizedProfileJson = normalizeProfileJson(expectedProfileJson);
+        if (response.enabled() != expectedEnabled || !Objects.equals(response.profileJson(), expectedNormalizedProfileJson)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "author profile save verification failed");
+        }
+        return response;
     }
 
     private String normalizeAuthorCode(String authorCode) {
@@ -1294,6 +1323,26 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    @Override
+    public PageResponse<AuthorWhisperItemResponse> listAuthorWhispers(long pageNo, long pageSize) {
+        long normalizedPageNo = Math.max(1L, pageNo);
+        long normalizedPageSize = Math.max(1L, Math.min(pageSize, 100L));
+
+        Page<ContentReportEntity> page = new Page<>(normalizedPageNo, normalizedPageSize);
+        LambdaQueryWrapper<ContentReportEntity> query = new LambdaQueryWrapper<ContentReportEntity>()
+            .eq(ContentReportEntity::getTargetType, REPORT_TARGET_AUTHOR_WHISPER)
+            .orderByDesc(ContentReportEntity::getCreatedAt)
+            .orderByDesc(ContentReportEntity::getId);
+
+        Page<ContentReportEntity> reportPage = contentReportMapper.selectPage(page, query);
+        List<ContentReportEntity> records = reportPage.getRecords() == null ? List.of() : reportPage.getRecords();
+        Map<Long, String> postTitleMap = loadWhisperPostTitleMap(records);
+        List<AuthorWhisperItemResponse> items = records.stream()
+            .map(report -> mapAuthorWhisper(report, postTitleMap))
+            .toList();
+        return PageResponse.of(items, reportPage.getTotal(), normalizedPageNo, normalizedPageSize);
+    }
+
     private String buildWhisperReason(String content, String nickname, String remark) {
         String normalizedNickname = trimToEmpty(nickname);
         String normalizedRemark = trimToEmpty(remark);
@@ -1312,6 +1361,78 @@ public class ContentServiceImpl implements ContentService {
             return payload;
         }
         return payload.substring(0, 255);
+    }
+
+    private Map<Long, String> loadWhisperPostTitleMap(List<ContentReportEntity> reports) {
+        Set<Long> postIds = reports.stream()
+            .map(ContentReportEntity::getTargetId)
+            .filter(Objects::nonNull)
+            .filter(postId -> postId > 0)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return postMapper.selectBatchIds(postIds).stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(
+                PostEntity::getId,
+                post -> normalizePostTitle(post.getTitle()),
+                (left, right) -> left,
+                LinkedHashMap::new
+            ));
+    }
+
+    private AuthorWhisperItemResponse mapAuthorWhisper(ContentReportEntity report, Map<Long, String> postTitleMap) {
+        ParsedAuthorWhisper parsed = parseAuthorWhisperReason(report == null ? null : report.getReason());
+        Long postId = report == null || report.getTargetId() == null || report.getTargetId() <= 0 ? null : report.getTargetId();
+        return new AuthorWhisperItemResponse(
+            report == null ? 0L : report.getId(),
+            readString(report == null ? null : report.getStatus(), REPORT_STATUS_CREATED),
+            postId,
+            postId == null ? "" : readString(postTitleMap.get(postId), ""),
+            parsed.content(),
+            parsed.nickname(),
+            parsed.remark(),
+            report == null ? null : report.getCreatedAt()
+        );
+    }
+
+    private ParsedAuthorWhisper parseAuthorWhisperReason(String reason) {
+        String normalizedReason = trimToEmpty(reason);
+        if (!StringUtils.hasText(normalizedReason)) {
+            return new ParsedAuthorWhisper("", "", "");
+        }
+
+        Map<String, String> sections = new LinkedHashMap<>();
+        for (String segment : normalizedReason.split("\\s\\|\\s")) {
+            int separatorIndex = segment.indexOf('=');
+            if (separatorIndex <= 0) {
+                continue;
+            }
+            String key = trimToEmpty(segment.substring(0, separatorIndex)).toLowerCase(Locale.ROOT);
+            String value = trimToEmpty(segment.substring(separatorIndex + 1));
+            if (StringUtils.hasText(key) && !sections.containsKey(key)) {
+                sections.put(key, value);
+            }
+        }
+
+        String content = trimToEmpty(sections.get("content"));
+        if (!StringUtils.hasText(content)) {
+            content = normalizedReason;
+        }
+        return new ParsedAuthorWhisper(
+            content,
+            trimToEmpty(sections.get("nickname")),
+            trimToEmpty(sections.get("remark"))
+        );
+    }
+
+    private record ParsedAuthorWhisper(
+        String content,
+        String nickname,
+        String remark
+    ) {
     }
 
     private String trimToEmpty(String value) {

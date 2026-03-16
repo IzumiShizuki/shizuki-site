@@ -230,6 +230,18 @@ export async function upsertAdminDefaultPlaylistTrack(payload, authorizedFetch) 
   return unwrapApiResponse(response);
 }
 
+export async function deleteAdminDefaultPlaylistTrack(provider, trackId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/music/default-playlist/tracks', {
+    method: 'DELETE',
+    query: {
+      provider,
+      track_id: trackId
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function listAdminProviders(authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/admin/music/providers', {

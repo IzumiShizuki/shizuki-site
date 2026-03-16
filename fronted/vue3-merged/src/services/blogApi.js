@@ -76,6 +76,15 @@ function normalizeWhisperPayload(payload = {}) {
   };
 }
 
+function normalizeRelayPayload(payload = {}) {
+  return {
+    bucket: String(payload.bucket || payload.bucket_name || payload.bucketName || '').trim(),
+    key: String(payload.key || payload.object_key || payload.objectKey || '').trim(),
+    contentType: String(payload.contentType || payload.content_type || '').trim(),
+    sizeBytes: Number(payload.sizeBytes ?? payload.size_bytes ?? 0) || 0
+  };
+}
+
 export async function submitPostWhisper(payload = {}, authorizedFetch) {
   const requestPayload = {
     method: 'POST',
@@ -150,7 +159,7 @@ export async function relayPostMarkdown(file, authorizedFetch) {
     method: 'POST',
     body: formData
   });
-  return unwrapApiResponse(response);
+  return normalizeRelayPayload(unwrapApiResponse(response) || {});
 }
 
 function normalizeAssetUrl(raw) {
@@ -313,6 +322,18 @@ export async function unpublishMyPost(postId, authorizedFetch) {
   const id = normalizePostId(postId);
   const response = await request(`/api/v1/me/posts/${id}/unpublish`, {
     method: 'POST'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function listAdminWhispers(query = {}, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/posts/whispers', {
+    method: 'GET',
+    query: {
+      page_no: Number.isFinite(Number(query.pageNo)) ? Number(query.pageNo) : 1,
+      page_size: Number.isFinite(Number(query.pageSize)) ? Number(query.pageSize) : 20
+    }
   });
   return unwrapApiResponse(response);
 }

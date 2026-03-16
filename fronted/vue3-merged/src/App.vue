@@ -48,6 +48,7 @@
             'route-content-home': isHomeRoute,
             'route-content-blog': isBlogRoute,
             'route-content-profile': isProfileRoute,
+            'route-content-author': isAuthorRoute,
             'route-content-music-player': isMusicPlayerDetailRoute,
             'route-content-music-shell': isMusicLibraryRoute && !isMusicPlayerDetailRoute
           }"
@@ -71,6 +72,9 @@
         :tracks="player.tracks.value"
         :lyric-line="player.currentLyricLine.value"
         :lyric-context="player.lyricContext.value"
+        :lyric-timeline="player.lyricTimeline.value"
+        :lyric-entry-index="player.currentLyricEntryIndex.value"
+        :lyric-render-mode="player.lyricRenderMode.value"
         :current-time="player.currentTime.value"
         :duration="player.duration.value"
         :is-playing="player.isPlaying.value"
@@ -107,7 +111,23 @@
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
         >
-          <span>{{ player.currentLyricLine.value || '纯音乐，无歌词' }}</span>
+          <div class="global-lyric-groups">
+            <div
+              v-for="(group, index) in globalLyricGroups"
+              :key="`global-lyric-${index}-${group.time}`"
+              class="global-lyric-group"
+              :class="{ current: group.time === globalActiveLyricTime, compact: group.lines.length > 1 }"
+            >
+              <span
+                v-for="(line, lineIndex) in group.lines"
+                :key="`global-lyric-line-${index}-${lineIndex}-${line.kind}`"
+                class="global-lyric-line"
+                :class="[line.kind]"
+              >
+                {{ line.text }}
+              </span>
+            </div>
+          </div>
         </div>
       </transition>
 
@@ -128,6 +148,10 @@
         :music-playing="player.isPlaying.value"
         :lyric-line="player.currentLyricLine.value"
         :lyric-context="player.lyricContext.value"
+        :lyric-timeline="player.lyricTimeline.value"
+        :lyric-entry-index="player.currentLyricEntryIndex.value"
+        :lyric-render-mode="player.lyricRenderMode.value"
+        :current-time="player.currentTime.value"
         :music-library-state="musicLibraryPanelState"
         :ambient-state="siteAtmosphereSnapshot"
         :ambient-library="ambientLibrary"
@@ -268,6 +292,7 @@ import {
   writeAmbientGuestUploadsToSession,
   writeSiteAtmosphereToStorage
 } from './utils/siteAtmosphereState';
+import { buildLyricDisplayGroups } from './utils/lyricDisplayGroups';
 import { recordWindowDiag } from './utils/windowLifecycleDiag';
 
 const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
@@ -401,10 +426,11 @@ const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] ||
 const isHomeRoute = computed(() => currentRouteKey.value === 'home');
 const isBlogRoute = computed(() => currentRouteKey.value === 'blog');
 const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
+const isAuthorRoute = computed(() => currentRouteKey.value === 'author');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
-const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall && !isBlogRoute.value);
+const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall);
 const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
 const authAvatarUrl = computed(() => String(auth.user.value?.avatarUrl || '').trim());
 const isAdminUser = computed(() => {
@@ -449,6 +475,17 @@ const musicLibraryPanelState = computed(() => ({
   selectedPlaylist: miniMusicLibrary.selectedPlaylist.value,
   selectedTracks: miniMusicLibrary.selectedTracks.value
 }));
+const globalLyricDisplay = computed(() =>
+  buildLyricDisplayGroups({
+    timeline: player.lyricTimeline.value,
+    currentTime: player.currentTime.value,
+    entryIndex: Number(player.currentLyricEntryIndex.value),
+    mode: String(player.lyricRenderMode.value || 'original'),
+    fallbackText: player.currentLyricLine.value || '纯音乐，无歌词'
+  })
+);
+const globalLyricGroups = computed(() => globalLyricDisplay.value.groups);
+const globalActiveLyricTime = computed(() => globalLyricDisplay.value.activeTime);
 const ambientLibrary = computed(() => {
   const builtinItems = resolveBuiltinAmbientCatalog().map((item) => ({
     id: item.id,
@@ -2238,6 +2275,9 @@ watch(
 
 onMounted(async () => {
   await auth.ensureReady();
+  await player.restorePersistedSession({
+    authorizedFetch: auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+  });
   ui.initializeUiPreferences();
   ambientGuestUploads.value = readAmbientGuestUploadsFromSession();
   applySiteAtmosphereState(readSiteAtmosphereFromStorage());
@@ -2470,6 +2510,18 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
+.route-content.route-content-author {
+  display: flex;
+  overflow: hidden;
+}
+
+.route-content.route-content-author > .route-page-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
 .route-content.route-content-music-player {
   background: transparent;
   border: 0;
@@ -2542,6 +2594,45 @@ onBeforeUnmount(() => {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
   cursor: grab;
   user-select: none;
+  padding: 10px 18px;
+}
+
+.global-lyric-groups {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  text-align: center;
+}
+
+.global-lyric-group {
+  display: grid;
+  gap: 0;
+}
+
+.global-lyric-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.global-lyric-group.current .global-lyric-line.original {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.global-lyric-group.current .global-lyric-line.translation,
+.global-lyric-group.current .global-lyric-line.furigana {
+  font-size: 13px;
+  opacity: 0.88;
+}
+
+.global-lyric-group:not(.current) .global-lyric-line {
+  font-size: 13px;
+  opacity: 0.68;
+}
+
+.global-lyric-group.compact .global-lyric-line + .global-lyric-line {
+  margin-top: -2px;
 }
 
 .global-bars {

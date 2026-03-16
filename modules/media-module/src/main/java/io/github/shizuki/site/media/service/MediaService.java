@@ -230,6 +230,14 @@ public interface MediaService {
     void upsertAdminDefaultPlaylistTrack(AdminMusicTrackUpsertRequest request);
 
     /**
+     * 从默认歌单移除单曲。
+     *
+     * @param provider provider 编码
+     * @param trackId 曲目 ID
+     */
+    void removeAdminDefaultPlaylistTrack(String provider, String trackId);
+
+    /**
      * 管理端查询 provider 配置。
      *
      * @return provider 配置列表

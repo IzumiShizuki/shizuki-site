@@ -22,11 +22,13 @@ import java.util.List;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * 音乐模块管理员接口。
@@ -81,6 +83,20 @@ public class AdminMusicController {
         mediaService.upsertAdminDefaultPlaylistTrack(
             request == null ? new AdminMusicTrackUpsertRequest() : request
         );
+        return ApiResponse.success(null);
+    }
+
+    @DeleteMapping("/default-playlist/tracks")
+    @AuditLog(action = "music.admin.default-playlist.track.remove", resource = "music_playlist")
+    @Operation(summary = "从默认歌单移除单曲", description = "管理员按 provider + track_id 从默认歌单移除单曲")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "删除成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "参数错误",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    public ApiResponse<Void> removeDefaultPlaylistTrack(@RequestParam("provider") String provider,
+                                                        @RequestParam("track_id") String trackId) {
+        mediaService.removeAdminDefaultPlaylistTrack(provider, trackId);
         return ApiResponse.success(null);
     }
 

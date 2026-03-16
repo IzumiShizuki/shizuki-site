@@ -1,6 +1,8 @@
 package io.github.shizuki.site.content.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.shizuki.common.core.error.BusinessException;
+import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
@@ -105,6 +107,23 @@ class ContentServiceImplAuthorProfileTest {
         existing.setCreatedAt(LocalDateTime.of(2026, 3, 13, 18, 0));
 
         Mockito.when(authorProfileMapper.selectOne(Mockito.any())).thenReturn(existing);
+        Mockito.when(authorProfileMapper.selectById(100L)).thenAnswer(invocation -> {
+            AuthorProfileEntity persisted = new AuthorProfileEntity();
+            persisted.setId(existing.getId());
+            persisted.setAuthorCode(existing.getAuthorCode());
+            persisted.setEnabledFlag(existing.getEnabledFlag());
+            persisted.setProfileJson(existing.getProfileJson());
+            persisted.setCreatedAt(existing.getCreatedAt());
+            persisted.setUpdatedAt(existing.getUpdatedAt());
+            return persisted;
+        });
+        Mockito.when(authorProfileMapper.updateById(Mockito.any())).thenAnswer(invocation -> {
+            AuthorProfileEntity updated = invocation.getArgument(0);
+            existing.setProfileJson(updated.getProfileJson());
+            existing.setEnabledFlag(updated.getEnabledFlag());
+            existing.setUpdatedAt(updated.getUpdatedAt());
+            return 1;
+        });
 
         AuthorProfileUpsertRequest request = new AuthorProfileUpsertRequest();
         request.setEnabled(true);
@@ -131,6 +150,40 @@ class ContentServiceImplAuthorProfileTest {
         Assertions.assertEquals("https://cdn.example.com/intro-image.webp", about.get("intro_image_url"));
         Assertions.assertEquals("https://cdn.example.com/mission-image.webp", about.get("mission_image_url"));
         Assertions.assertEquals("https://cdn.example.com/links-image.webp", about.get("links_image_url"));
+    }
+
+    @Test
+    void shouldFailWhenReadBackAuthorProfileDoesNotMatchSavedPayload() {
+        AuthorProfileEntity existing = new AuthorProfileEntity();
+        existing.setId(100L);
+        existing.setAuthorCode("shizuki");
+        existing.setEnabledFlag(1);
+        existing.setProfileJson("{}");
+        existing.setCreatedAt(LocalDateTime.of(2026, 3, 13, 18, 0));
+
+        AuthorProfileEntity stalePersisted = new AuthorProfileEntity();
+        stalePersisted.setId(100L);
+        stalePersisted.setAuthorCode("shizuki");
+        stalePersisted.setEnabledFlag(1);
+        stalePersisted.setProfileJson("{}");
+        stalePersisted.setCreatedAt(existing.getCreatedAt());
+        stalePersisted.setUpdatedAt(LocalDateTime.of(2026, 3, 13, 18, 1));
+
+        Mockito.when(authorProfileMapper.selectOne(Mockito.any())).thenReturn(existing);
+        Mockito.when(authorProfileMapper.selectById(100L)).thenReturn(stalePersisted);
+        Mockito.when(authorProfileMapper.updateById(Mockito.any())).thenReturn(1);
+
+        AuthorProfileUpsertRequest request = new AuthorProfileUpsertRequest();
+        request.setEnabled(true);
+        request.setProfileJson(buildProfileJson());
+
+        BusinessException error = Assertions.assertThrows(
+            BusinessException.class,
+            () -> contentService.upsertAdminAuthorProfile(request)
+        );
+
+        Assertions.assertEquals(ErrorCode.INTERNAL_ERROR, error.getErrorCode());
+        Assertions.assertEquals("author profile save verification failed", error.getMessage());
     }
 
     private Map<String, Object> buildProfileJson() {

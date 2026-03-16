@@ -38,10 +38,22 @@
 
       <div class="lyrics-window">
         <transition name="lyric-switch" mode="out-in">
-          <div class="lyrics-triplet" :key="lyricContext?.key || 'empty'">
-            <div class="lyric prev">{{ lyricContext?.prev || '' }}</div>
-            <div class="lyric current">{{ lyricContext?.current || (lyricLine || '纯音乐，无歌词') }}</div>
-            <div class="lyric next">{{ lyricContext?.next || '' }}</div>
+          <div class="lyrics-groups" :key="`${activeLyricTime}-${lyricRenderMode}`">
+            <div
+              v-for="(group, index) in lyricGroups"
+              :key="`player-lyric-${index}-${group.time}`"
+              class="lyric-group"
+              :class="{ current: group.time === activeLyricTime, compact: group.lines.length > 1 }"
+            >
+              <div
+                v-for="(line, lineIndex) in group.lines"
+                :key="`player-lyric-line-${index}-${lineIndex}-${line.kind}`"
+                class="lyric"
+                :class="[line.kind, group.time === activeLyricTime ? 'current' : 'next']"
+              >
+                {{ line.text }}
+              </div>
+            </div>
           </div>
         </transition>
       </div>
@@ -169,6 +181,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useDismissiblePopover } from '../composables/useDismissiblePopover';
+import { buildLyricDisplayGroups } from '../utils/lyricDisplayGroups';
 import { formatMediaTime } from '../utils/mediaTime';
 import { safeCssUrl } from '../utils/url';
 import {
@@ -188,6 +201,9 @@ const props = defineProps({
     type: Object,
     default: () => ({ prev: '', current: '', next: '', key: 'empty' })
   },
+  lyricTimeline: { type: Array, default: () => [] },
+  lyricEntryIndex: { type: Number, default: -1 },
+  lyricRenderMode: { type: String, default: 'original' },
   currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 },
   isPlaying: { type: Boolean, default: false },
@@ -312,6 +328,19 @@ const previewTimeText = computed(() => {
   const total = Number.isFinite(props.duration) ? props.duration : 0;
   return formatMediaTime(total * previewPercent.value);
 });
+
+const lyricDisplay = computed(() =>
+  buildLyricDisplayGroups({
+    timeline: props.lyricTimeline,
+    currentTime: props.currentTime,
+    entryIndex: Number(props.lyricEntryIndex),
+    mode: String(props.lyricRenderMode || 'original'),
+    fallbackText: props.lyricLine || '纯音乐，无歌词'
+  })
+);
+
+const lyricGroups = computed(() => lyricDisplay.value.groups);
+const activeLyricTime = computed(() => lyricDisplay.value.activeTime);
 
 function stopPeekRevealAnimation() {
   if (peekRevealTimer) {
@@ -756,11 +785,16 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
-.lyrics-triplet {
+.lyrics-groups {
   display: grid;
-  gap: 3px;
+  gap: 8px;
   width: 100%;
   text-align: center;
+}
+
+.lyric-group {
+  display: grid;
+  gap: 0;
 }
 
 .lyric {
@@ -769,16 +803,26 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
-.lyric.prev,
-.lyric.next {
+.lyric-group.current .lyric.original {
+  font-size: 14px;
+  color: rgba(25, 27, 36, 0.82);
+  font-weight: 600;
+}
+
+.lyric-group.current .lyric.translation,
+.lyric-group.current .lyric.furigana {
+  font-size: 12px;
+  color: rgba(25, 27, 36, 0.62);
+}
+
+.lyric-group.next .lyric,
+.lyric-group:not(.current) .lyric {
   font-size: 12px;
   color: rgba(25, 27, 36, 0.4);
 }
 
-.lyric.current {
-  font-size: 14px;
-  color: rgba(25, 27, 36, 0.82);
-  font-weight: 600;
+.lyric-group.compact .lyric + .lyric {
+  margin-top: -2px;
 }
 
 .progress-row {

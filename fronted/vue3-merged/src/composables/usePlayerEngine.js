@@ -8,7 +8,7 @@ const DEFAULT_PLAYLIST_CODE = 'default_public';
 const MODE_ORDER = ['sequential', 'random', 'single'];
 const VISUALIZER_STYLES = ['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
-const LYRIC_RENDER_MODES = ['original', 'original_translation', 'original_furigana'];
+const LYRIC_RENDER_MODES = ['original', 'translation', 'furigana'];
 
 function loadPersistedState() {
   try {
@@ -207,12 +207,15 @@ function getDefaultStyleByMode(mode) {
 
 export function usePlayerEngine(options = {}) {
   const persisted = loadPersistedState();
+  const persistedPlaylistCode = typeof persisted.playlistCode === 'string' && persisted.playlistCode.trim()
+    ? persisted.playlistCode.trim()
+    : DEFAULT_PLAYLIST_CODE;
   const tracks = ref([]);
   const playlistLoading = ref(false);
   const playlistError = ref('');
   const playlistProfile = ref(
     normalizePlaylistProfile({
-      playlistCode: DEFAULT_PLAYLIST_CODE,
+      playlistCode: persistedPlaylistCode,
       name: '默认歌单',
       description: '全站共通默认歌单',
       cover: ''
@@ -234,10 +237,11 @@ export function usePlayerEngine(options = {}) {
   const currentTime = ref(0);
   const duration = ref(0);
   const isPlaying = ref(false);
+  const resumePlaybackOnRestore = ref(Boolean(persisted.wasPlaying));
   const lyricRenderMode = ref(
     LYRIC_RENDER_MODES.includes(String(persisted.lyricRenderMode || ''))
       ? String(persisted.lyricRenderMode)
-      : 'original_translation'
+      : 'original'
   );
   const currentLyricLine = ref('');
   const lyricEntries = ref([]);
@@ -245,7 +249,7 @@ export function usePlayerEngine(options = {}) {
   const currentLyricIndex = ref(-1);
   const currentLyricEntryIndex = ref(-1);
   const lyricResolveAttempted = ref(new Set());
-  const playbackResolveAttempted = ref(new Set());
+  const playbackResolveAttempts = ref(new Map());
 
   const audioElement = new Audio();
   audioElement.preload = 'metadata';
@@ -339,8 +343,8 @@ export function usePlayerEngine(options = {}) {
       || lyricTimeline.value.some((item) => Boolean(String(item?.translation || '').trim()));
     const hasFurigana = Boolean(String(trackTexts.furigana || '').trim())
       || lyricTimeline.value.some((item) => Boolean(String(item?.furigana || '').trim()));
-    if (hasTranslation) baseModes.push('original_translation');
-    if (hasFurigana) baseModes.push('original_furigana');
+    if (hasTranslation) baseModes.push('translation');
+    if (hasFurigana) baseModes.push('furigana');
     return baseModes;
   });
 
@@ -584,6 +588,12 @@ export function usePlayerEngine(options = {}) {
     }
 
     currentTrackId.value = track.id;
+    {
+      const resolveKey = buildResolveKey(track);
+      if (resolveKey) {
+        playbackResolveAttempts.value.delete(resolveKey);
+      }
+    }
     currentTime.value = 0;
     duration.value = 0;
     audioElement.src = track.audio;
@@ -821,6 +831,7 @@ export function usePlayerEngine(options = {}) {
     const normalizedCode = String(playlistCode || '').trim() || DEFAULT_PLAYLIST_CODE;
     const previousCode = playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE;
     const authorizedFetch = typeof options?.authorizedFetch === 'function' ? options.authorizedFetch : null;
+    const autoPlay = options?.autoPlay === true;
 
     playlistLoading.value = true;
     playlistError.value = '';
@@ -831,7 +842,7 @@ export function usePlayerEngine(options = {}) {
       playlistProfile.value = profile;
       tracks.value = normalizedTracks;
       lyricResolveAttempted.value = new Set();
-      playbackResolveAttempted.value = new Set();
+      playbackResolveAttempts.value = new Map();
       hydrateTrackDurations();
     } catch (error) {
       tracks.value = [];
@@ -859,7 +870,7 @@ export function usePlayerEngine(options = {}) {
       currentLyricEntryIndex.value = -1;
       currentLyricLine.value = '';
       lyricResolveAttempted.value = new Set();
-      playbackResolveAttempted.value = new Set();
+      playbackResolveAttempts.value = new Map();
       randomQueue.value = [];
       return;
     }
@@ -867,8 +878,25 @@ export function usePlayerEngine(options = {}) {
     const canReuseCurrentTrack = normalizedCode === previousCode;
     const persistedIndex = canReuseCurrentTrack ? tracks.value.findIndex((item) => item.id === currentTrackId.value) : -1;
     const initialIndex = persistedIndex >= 0 ? persistedIndex : 0;
-    await selectTrackByIndex(initialIndex, false);
+    await selectTrackByIndex(initialIndex, autoPlay, { resolveIfMissing: autoPlay });
     resetRandomQueue(tracks.value[initialIndex]?.id || '');
+  }
+
+  async function restorePersistedSession(options = {}) {
+    const authorizedFetch = typeof options?.authorizedFetch === 'function' ? options.authorizedFetch : null;
+    const autoPlay = resumePlaybackOnRestore.value;
+    resumePlaybackOnRestore.value = false;
+    const targetPlaylistCode = playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE;
+    await loadPlaylistByCode(targetPlaylistCode, {
+      authorizedFetch,
+      autoPlay
+    });
+    if (!tracks.value.length && playlistError.value && targetPlaylistCode !== DEFAULT_PLAYLIST_CODE) {
+      await loadPlaylistByCode(DEFAULT_PLAYLIST_CODE, {
+        authorizedFetch,
+        autoPlay: false
+      });
+    }
   }
 
   async function replaceQueueWithTracks(rawTracks, startIndex = 0, autoPlay = true, source = {}) {
@@ -879,7 +907,7 @@ export function usePlayerEngine(options = {}) {
 
     tracks.value = normalized.map((item, idx) => ({ ...item, sort: idx + 1 }));
     lyricResolveAttempted.value = new Set();
-    playbackResolveAttempted.value = new Set();
+    playbackResolveAttempts.value = new Map();
 
     const sourceCode = String(source?.sourceCode || source?.playlistCode || playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE).trim();
     if (sourceCode) {
@@ -1029,11 +1057,12 @@ export function usePlayerEngine(options = {}) {
     }
     const current = tracks.value[idx];
     const resolveKey = buildResolveKey(current);
-    if (!resolveKey || playbackResolveAttempted.value.has(resolveKey)) {
+    const attemptCount = playbackResolveAttempts.value.get(resolveKey) || 0;
+    if (!resolveKey || attemptCount >= 2) {
       isPlaying.value = false;
       return;
     }
-    playbackResolveAttempted.value.add(resolveKey);
+    playbackResolveAttempts.value.set(resolveKey, attemptCount + 1);
     const previousAudio = String(current?.audio || '').trim();
     const resolved = await resolveTrackPlayback(idx, { force: true });
     const nextAudio = String(resolved?.audio || '').trim();
@@ -1047,6 +1076,7 @@ export function usePlayerEngine(options = {}) {
       await loadTrackLyric(resolved);
       await audioElement.play();
       isPlaying.value = true;
+      playbackResolveAttempts.value.delete(resolveKey);
     } catch {
       isPlaying.value = false;
     }
@@ -1057,7 +1087,19 @@ export function usePlayerEngine(options = {}) {
   });
 
   watch(
-    [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle, lyricRenderMode],
+    () => [
+      playMode.value,
+      currentTrackId.value,
+      volume.value,
+      isPlayerExpanded.value,
+      isPinned.value,
+      listOpen.value,
+      visualizerMode.value,
+      visualizerStyle.value,
+      lyricRenderMode.value,
+      isPlaying.value,
+      String(playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE)
+    ],
     () => {
       savePersistedState({
         playMode: playMode.value,
@@ -1068,7 +1110,9 @@ export function usePlayerEngine(options = {}) {
         listOpen: listOpen.value,
         visualizerMode: visualizerMode.value,
         visualizerStyle: visualizerStyle.value,
-        lyricRenderMode: lyricRenderMode.value
+        lyricRenderMode: lyricRenderMode.value,
+        playlistCode: String(playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE),
+        wasPlaying: Boolean(isPlaying.value)
       });
     }
   );
@@ -1136,6 +1180,7 @@ export function usePlayerEngine(options = {}) {
     playlistError,
     playlistProfile,
     loadPlaylistByCode,
+    restorePersistedSession,
     reloadPlaylist: () => loadPlaylistByCode(playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE),
     replaceQueueWithTracks,
     enqueueExternalTrack,
