@@ -1,5 +1,6 @@
 package io.github.shizuki.site.media.service.impl;
 
+import io.github.shizuki.common.core.resilience.SpringRetryExecutor;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
@@ -294,6 +295,7 @@ class MediaServiceImplTest {
             musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,
             listenCacheProperties,
+            new SpringRetryExecutor(),
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager())
         );
@@ -780,6 +782,7 @@ class MediaServiceImplTest {
             musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,
             listenCacheProperties,
+            new SpringRetryExecutor(),
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager())
         );
