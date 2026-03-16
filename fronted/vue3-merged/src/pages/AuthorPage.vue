@@ -45,38 +45,88 @@
               </div>
 
               <div class="story-hero-main">
-                <div class="story-hero-intro">
-                  <div class="story-avatar-stack">
-                    <span class="story-avatar-ring" aria-hidden="true"></span>
-                    <img class="story-avatar" :src="hero.avatarUrl" :alt="hero.name" />
-                    <span class="story-status-badge" :class="{ off: !authorProfile.enabled }">
-                      {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
-                    </span>
-                  </div>
-                  <div class="story-hero-copy">
-                    <p class="story-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
-                    <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
-                    <p class="story-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
-                    <div class="chip-row reveal-line" :style="staggerStyle(4)">
-                      <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
+                <div class="story-hero-primary">
+                  <div class="story-hero-intro">
+                    <div class="story-avatar-stack">
+                      <span class="story-avatar-ring" aria-hidden="true"></span>
+                      <img class="story-avatar" :src="hero.avatarUrl" :alt="hero.name" />
+                      <span class="story-status-badge" :class="{ off: !authorProfile.enabled }">
+                        {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
+                      </span>
+                    </div>
+                    <div class="story-hero-copy">
+                      <p class="story-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
+                      <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
+                      <p class="story-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
+                      <div class="chip-row reveal-line" :style="staggerStyle(4)">
+                        <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
+                      </div>
                     </div>
                   </div>
+
+                  <div class="story-hero-facts reveal-line" :style="staggerStyle(5)">
+                    <article v-for="fact in overviewHeroFacts" :key="`hero-fact-${fact.label}`" class="hero-fact-card">
+                      <span class="hero-fact-label">{{ fact.label }}</span>
+                      <strong class="hero-fact-value">{{ fact.value }}</strong>
+                    </article>
+                  </div>
+
+                  <article class="story-hero-preview reveal-line" :style="staggerStyle(6)">
+                    <span class="story-preview-kicker">首屏摘要</span>
+                    <p class="story-preview-title">{{ overviewHeroJourney.title }}</p>
+                    <p v-for="(line, index) in overviewHeroNarrative" :key="`hero-narrative-${index}`" class="story-preview-text">
+                      {{ line }}
+                    </p>
+                    <div v-if="overviewHeroSignals.length" class="story-signal-row" aria-label="作者动态摘要">
+                      <span v-for="(signal, index) in overviewHeroSignals" :key="`hero-signal-${signal}-${index}`" class="story-signal-pill">
+                        {{ signal }}
+                      </span>
+                    </div>
+                  </article>
                 </div>
 
-                <div class="story-skill-ribbon reveal-line" :style="staggerStyle(5)">
-                  <div class="skill-focus-frame" aria-label="学习内容展示栏">
-                    <div class="skill-focus-list">
-                      <article
-                        v-for="(item, index) in skillNodes"
-                        :key="`skill-focus-${item.label}-${index}`"
-                        class="skill-focus-item"
-                        :class="item.tone"
-                      >
-                        <span class="skill-node-icon" aria-hidden="true">
-                          <i :class="item.icon"></i>
-                        </span>
-                        <span class="skill-node-label">{{ item.label }}</span>
-                      </article>
+                <div class="story-hero-side">
+                  <article class="story-side-panel reveal-line" :style="staggerStyle(7)">
+                    <div class="story-side-head">
+                      <p class="story-side-kicker">当前动态</p>
+                      <span class="story-side-live">
+                        <span class="story-live-dot" aria-hidden="true"></span>
+                        Live
+                      </span>
+                    </div>
+                    <h3>{{ overviewHeroJourney.title }}</h3>
+                    <p class="story-side-meta-line">
+                      <span>{{ overviewHeroJourney.dateLabel }}</span>
+                      <span>{{ identity.role || '独立开发者' }}</span>
+                    </p>
+                    <p class="line-text story-side-copy">{{ about.mission }}</p>
+                    <div v-if="overviewHeroJourney.stack.length" class="chip-row story-side-chip-row">
+                      <span v-for="stack in overviewHeroJourney.stack" :key="`hero-side-stack-${stack}`" class="chip">
+                        {{ stack }}
+                      </span>
+                    </div>
+                    <div v-if="overviewHeroHighlightTags.length" class="chip-row story-side-chip-row subtle">
+                      <span v-for="tag in overviewHeroHighlightTags" :key="`hero-side-tag-${tag}`" class="chip">
+                        {{ tag }}
+                      </span>
+                    </div>
+                  </article>
+
+                  <div class="story-skill-ribbon reveal-line" :style="staggerStyle(8)">
+                    <div class="skill-focus-frame" aria-label="学习内容展示栏">
+                      <div class="skill-focus-list">
+                        <article
+                          v-for="(item, index) in skillNodes"
+                          :key="`skill-focus-${item.label}-${index}`"
+                          class="skill-focus-item"
+                          :class="item.tone"
+                        >
+                          <span class="skill-node-icon" aria-hidden="true">
+                            <i :class="item.icon"></i>
+                          </span>
+                          <span class="skill-node-label">{{ item.label }}</span>
+                        </article>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -84,7 +134,7 @@
             </section>
 
             <section class="story-free-layout">
-              <article class="author-card story-identity-ribbon reveal-node" :style="staggerStyle(6)">
+              <article class="author-card story-identity-ribbon reveal-node" :style="staggerStyle(9)">
                 <h3>身份坐标</h3>
                 <div class="identity-track">
                   <div class="identity-unit">
@@ -106,14 +156,14 @@
                 </div>
               </article>
 
-              <article class="author-card story-notes reveal-node" :style="staggerStyle(7)">
+              <article class="author-card story-notes reveal-node" :style="staggerStyle(10)">
                 <h3>碎碎念频道</h3>
                 <p v-for="(line, index) in about.intro" :key="`intro-${index}`" class="line-text">
                   {{ line }}
                 </p>
               </article>
 
-              <article class="author-card story-focus-panel reveal-node" :style="staggerStyle(8)">
+              <article class="author-card story-focus-panel reveal-node" :style="staggerStyle(11)">
                 <h3>当前关注</h3>
                 <p class="line-text"><strong>目标：</strong>{{ about.mission }}</p>
                 <p class="mini-title">关注方向</p>
@@ -917,6 +967,51 @@ const identity = computed(() => authorProfile.value.profileJson.identity);
 const skills = computed(() => authorProfile.value.profileJson.skills);
 const journey = computed(() => authorProfile.value.profileJson.journey);
 const about = computed(() => authorProfile.value.profileJson.about);
+const overviewHeroFacts = computed(() => {
+  return [
+    { label: '学校', value: identity.value.school || '持续前进中' },
+    { label: '专业', value: identity.value.major || '持续探索中' },
+    { label: '角色', value: identity.value.role || '独立开发者' },
+    {
+      label: '最近更新',
+      value: activeJourneyItem.value?.dateLabel || activeJourneyItem.value?.monthLabel || '持续更新'
+    }
+  ];
+});
+const overviewHeroJourney = computed(() => {
+  const item = activeJourneyItem.value;
+  return {
+    title: String(item?.title || identity.value.role || '正在构建新的内容').trim(),
+    dateLabel: String(item?.dateLabel || item?.monthLabel || '持续更新').trim(),
+    description: String(item?.description || about.value.mission || '').trim(),
+    stack: Array.isArray(item?.stack) ? item.stack.filter(Boolean).slice(0, 4) : []
+  };
+});
+const overviewHeroNarrative = computed(() => {
+  const lines = Array.isArray(about.value.intro) ? about.value.intro.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  if (lines.length) return lines.slice(0, 2);
+  const fallback = String(about.value.mission || '').trim();
+  return fallback ? [fallback] : ['持续记录、持续学习、持续表达。'];
+});
+const overviewHeroHighlightTags = computed(() => {
+  const tags = [
+    ...(Array.isArray(about.value.focus) ? about.value.focus : []),
+    ...(Array.isArray(about.value.music) ? about.value.music : []),
+    ...(Array.isArray(identity.value.labels) ? identity.value.labels : [])
+  ]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+  return [...new Set(tags.map((item) => item))].slice(0, 6);
+});
+const overviewHeroSignals = computed(() => {
+  const signals = [
+    String(overviewHeroJourney.value.dateLabel || '').trim(),
+    String(overviewHeroJourney.value.title || '').trim(),
+    String(identity.value.role || '').trim(),
+    ...overviewHeroHighlightTags.value
+  ].filter(Boolean);
+  return [...new Set(signals)].slice(0, 6);
+});
 const skillNodes = computed(() => {
   const rawList = Array.isArray(skills.value) ? skills.value : [];
   const deduped = [];
@@ -2446,11 +2541,27 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   min-height: 280px;
-  padding: 20px;
+  padding: 18px 18px 20px;
   display: grid;
   gap: 14px;
   isolation: isolate;
+  background:
+    linear-gradient(135deg, rgba(61, 84, 128, 0.2), rgba(24, 33, 49, 0.12) 46%, rgba(83, 126, 176, 0.18) 100%),
+    rgba(18, 25, 39, 0.22);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 16px 34px rgba(7, 12, 20, 0.22);
   transform: translate3d(calc(var(--parallax-x) * 0.24), calc(var(--parallax-y) * 0.18), 0);
+}
+
+.story-hero-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 36%, rgba(0, 0, 0, 0.06)),
+    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 34%);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .story-hero-cover {
@@ -2459,8 +2570,8 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.35;
-  filter: contrast(1.08) saturate(1.16);
+  opacity: 0.52;
+  filter: brightness(1.12) contrast(1.02) saturate(1.12);
   z-index: 0;
 }
 
@@ -2514,12 +2625,21 @@ onBeforeUnmount(() => {
   align-items: stretch;
 }
 
+.story-hero-primary,
+.story-hero-side {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
 .story-hero-intro {
   min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 18px;
   align-items: center;
+  padding: 8px 4px 0;
 }
 
 .story-avatar-stack {
@@ -2586,6 +2706,174 @@ onBeforeUnmount(() => {
   margin-top: 6px;
 }
 
+.story-hero-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hero-fact-card,
+.story-hero-preview,
+.story-side-panel {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(15, 22, 34, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.hero-fact-card {
+  min-height: 78px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.hero-fact-label,
+.story-preview-kicker,
+.story-side-kicker {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(207, 221, 245, 0.72);
+}
+
+.hero-fact-value {
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(248, 251, 255, 0.96);
+}
+
+.story-hero-preview {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.story-hero-preview::after,
+.story-side-panel::after,
+.skill-focus-frame::after {
+  content: '';
+  position: absolute;
+  inset: -20% auto -20% -36%;
+  width: 28%;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  transform: translateX(-160%) rotate(16deg);
+  animation: story-sweep 9.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  pointer-events: none;
+}
+
+.story-preview-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+  color: rgba(248, 251, 255, 0.97);
+}
+
+.story-preview-text {
+  margin: 0;
+  color: rgba(224, 233, 248, 0.86);
+  line-height: 1.6;
+}
+
+.story-signal-row {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.story-signal-pill {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(236, 245, 255, 0.92);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 5px 10px;
+  animation: float-pill 7.2s ease-in-out infinite;
+}
+
+.story-signal-pill:nth-child(2n) {
+  animation-delay: -2.1s;
+}
+
+.story-signal-pill:nth-child(3n) {
+  animation-delay: -4.2s;
+}
+
+.story-side-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 16px;
+  display: grid;
+  gap: 8px;
+  background:
+    linear-gradient(145deg, rgba(30, 42, 64, 0.28), rgba(17, 25, 38, 0.16)),
+    rgba(14, 20, 32, 0.1);
+}
+
+.story-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.story-side-panel h3 {
+  margin: 0;
+  font-size: 19px;
+  color: rgba(248, 251, 255, 0.98);
+}
+
+.story-side-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(245, 249, 255, 0.84);
+}
+
+.story-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(127, 255, 198, 0.9);
+  box-shadow: 0 0 0 0 rgba(127, 255, 198, 0.44);
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+.story-side-meta-line {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: rgba(212, 224, 246, 0.74);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.story-side-copy {
+  margin: 0;
+}
+
+.story-side-chip-row {
+  margin-top: 2px;
+}
+
+.story-side-chip-row.subtle .chip {
+  opacity: 0.9;
+}
+
 .story-hero-stage:hover .story-avatar {
   transform: translateY(-2px) scale(1.03);
   box-shadow: 0 18px 36px rgba(72, 149, 255, 0.34);
@@ -2605,13 +2893,23 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
+  background: rgba(15, 22, 34, 0.18);
   width: 100%;
   min-height: 132px;
   height: 132px;
   max-height: 132px;
   padding: 10px;
   transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.skill-focus-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+    radial-gradient(circle at 18% 20%, rgba(132, 189, 255, 0.14), rgba(132, 189, 255, 0) 38%);
+  pointer-events: none;
 }
 
 .skill-focus-frame:hover,
@@ -2623,7 +2921,8 @@ onBeforeUnmount(() => {
 }
 
 .skill-focus-list {
-  position: static;
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: grid;
@@ -2641,7 +2940,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 4px 6px;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
-  background: rgba(9, 16, 28, 0.18);
+  background: rgba(9, 16, 28, 0.12);
   border-radius: 6px;
 }
 
@@ -2699,7 +2998,7 @@ onBeforeUnmount(() => {
 
 .story-free-layout {
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.84fr);
   gap: 12px;
 }
 
@@ -2717,7 +3016,7 @@ onBeforeUnmount(() => {
 .identity-unit {
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   padding: 10px;
   display: grid;
   gap: 6px;
@@ -2751,6 +3050,39 @@ onBeforeUnmount(() => {
 
 .focus-cloud .chip:nth-child(3n) {
   animation-delay: -4.1s;
+}
+
+@keyframes story-sweep {
+  0%,
+  16% {
+    transform: translateX(-160%) rotate(16deg);
+  }
+  48%,
+  100% {
+    transform: translateX(420%) rotate(16deg);
+  }
+}
+
+@keyframes float-pill {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pulse-live {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(127, 255, 198, 0.34);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px rgba(127, 255, 198, 0);
+  }
 }
 
 .journey-stage {
@@ -3353,6 +3685,8 @@ onBeforeUnmount(() => {
   .story-orb,
   .avatar-aurora-ring,
   .story-avatar-ring,
+  .story-live-dot,
+  .story-signal-pill,
   .mission-sweep,
   .about-goal-sweep,
   .skill-slide-track,
@@ -3361,6 +3695,13 @@ onBeforeUnmount(() => {
   .timeline-item.is-active .timeline-node,
   .is-reveal-ready.is-revealed {
     animation: none !important;
+  }
+
+  .story-hero-preview::after,
+  .story-side-panel::after,
+  .skill-focus-frame::after {
+    animation: none !important;
+    opacity: 0 !important;
   }
 
   .hero-stage,
@@ -3434,10 +3775,24 @@ onBeforeUnmount(() => {
     text-align: center;
   }
 
+  .story-hero-primary,
+  .story-hero-side {
+    width: 100%;
+  }
+
   .story-hero-intro {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
+  }
+
+  .story-hero-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .story-side-panel,
+  .story-hero-preview {
+    text-align: left;
   }
 
   .story-free-layout {
