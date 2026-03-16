@@ -24,6 +24,7 @@ const props = defineProps({
   isAdmin: { type: Boolean, default: false },
   displayName: { type: String, default: '' },
   avatarUrl: { type: String, default: '' },
+  authorAvatarUrl: { type: String, default: '' },
   musicActive: { type: Boolean, default: false },
   ambientActive: { type: Boolean, default: false },
   effectActive: { type: Boolean, default: false }

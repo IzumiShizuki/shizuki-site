@@ -16,7 +16,7 @@
               ref="cropperRef"
               class="image-cropper"
               :src="normalizedSource"
-              :stencil-component="RectangleStencil"
+              :stencil-component="resolvedStencilComponent"
               :stencil-props="resolvedStencilProps"
               :resize-image="resizeImageOptions"
               :image-restriction="'stencil'"
@@ -27,7 +27,7 @@
           </div>
           <aside class="image-crop-preview-panel">
             <p class="preview-title">预览</p>
-            <div class="preview-rect">
+            <div class="preview-rect" :class="{ round: resolvedPreviewShape === 'circle' }" :style="previewRectStyle">
               <img v-if="previewUrl" :src="previewUrl" alt="crop-preview" />
             </div>
             <p class="helper-text">{{ sourceName || 'image.png' }}</p>
@@ -47,7 +47,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Cropper, RectangleStencil } from 'vue-advanced-cropper';
+import { CircleStencil, Cropper, RectangleStencil } from 'vue-advanced-cropper';
 import 'vue-advanced-cropper/dist/style.css';
 
 const props = defineProps({
@@ -94,6 +94,14 @@ const props = defineProps({
   outputQuality: {
     type: Number,
     default: 0.9
+  },
+  stencilShape: {
+    type: String,
+    default: 'rect'
+  },
+  previewShape: {
+    type: String,
+    default: ''
   }
 });
 
@@ -116,19 +124,46 @@ const normalizedOutputQuality = computed(() => {
   if (!Number.isFinite(quality)) return 0.9;
   return Math.min(0.96, Math.max(0.4, quality));
 });
+const normalizedStencilShape = computed(() => (String(props.stencilShape || '').trim().toLowerCase() === 'circle' ? 'circle' : 'rect'));
+const resolvedPreviewShape = computed(() => {
+  const previewShape = String(props.previewShape || '').trim().toLowerCase();
+  if (previewShape === 'circle') return 'circle';
+  return normalizedStencilShape.value === 'circle' ? 'circle' : 'rect';
+});
+const resolvedStencilComponent = computed(() => (normalizedStencilShape.value === 'circle' ? CircleStencil : RectangleStencil));
 
 const resolvedStencilProps = computed(() => {
+  const base = {
+    movable: true,
+    resizable: true
+  };
+  if (normalizedStencilShape.value === 'circle') {
+    return base;
+  }
   const ratio = Number(props.aspectRatio);
   if (Number.isFinite(ratio) && ratio > 0) {
     return {
+      ...base,
       aspectRatio: ratio,
-      movable: true,
-      resizable: true
+    };
+  }
+  return base;
+});
+
+const previewRectStyle = computed(() => {
+  if (resolvedPreviewShape.value === 'circle') {
+    return {
+      aspectRatio: '1 / 1'
+    };
+  }
+  const ratio = Number(props.aspectRatio);
+  if (Number.isFinite(ratio) && ratio > 0) {
+    return {
+      aspectRatio: String(ratio)
     };
   }
   return {
-    movable: true,
-    resizable: true
+    aspectRatio: '16 / 10'
   };
 });
 
@@ -292,10 +327,13 @@ function canvasToBlob(canvas, mimeType, quality) {
 
 .preview-rect {
   width: 100%;
-  aspect-ratio: 16 / 10;
   border-radius: 10px;
   overflow: hidden;
   background: rgba(8, 14, 24, 0.5);
+}
+
+.preview-rect.round {
+  border-radius: 999px;
 }
 
 .preview-rect img {

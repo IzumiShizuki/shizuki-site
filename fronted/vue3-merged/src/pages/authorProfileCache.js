@@ -1,5 +1,6 @@
 const AUTHOR_PROFILE_CACHE_KEY = 'shizuki.authorProfile.cache.v1';
 const AUTHOR_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+const AUTHOR_PROFILE_CACHE_UPDATED_EVENT = 'shizuki:author-profile-cache-updated';
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]';
@@ -15,6 +16,21 @@ function normalizePositiveNumber(value, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
   return Math.round(numeric);
+}
+
+function dispatchAuthorProfileCacheUpdated(payload) {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  try {
+    window.dispatchEvent(
+      new CustomEvent(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, {
+        detail: {
+          payload: isPlainObject(payload) ? payload : null
+        }
+      })
+    );
+  } catch {
+    // ignore event dispatch failures
+  }
 }
 
 export function readAuthorProfileCache(options = {}) {
@@ -75,6 +91,7 @@ export function writeAuthorProfileCache(payload, options = {}) {
 
   try {
     storage.setItem(key, JSON.stringify(cacheData));
+    dispatchAuthorProfileCacheUpdated(payload);
   } catch {
     // ignore storage quota and permission failures
   }
@@ -86,12 +103,14 @@ export function clearAuthorProfileCache(options = {}) {
   const key = String(options.key || AUTHOR_PROFILE_CACHE_KEY);
   try {
     storage.removeItem(key);
+    dispatchAuthorProfileCacheUpdated(null);
   } catch {
     // ignore storage failures
   }
 }
 
 export {
+  AUTHOR_PROFILE_CACHE_UPDATED_EVENT,
   AUTHOR_PROFILE_CACHE_KEY,
   AUTHOR_PROFILE_CACHE_TTL_MS
 };

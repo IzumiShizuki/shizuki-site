@@ -27,7 +27,7 @@
           <p v-if="cacheNotice" class="state-tip">{{ cacheNotice }}</p>
 
           <div v-if="activeTab === 'overview'" class="content-block overview-motion-root overview-story-root">
-            <section class="story-hero-stage author-card reveal-node" :style="staggerStyle(0)">
+            <section class="story-hero-stage author-card reveal-node" :style="[staggerStyle(0), resolveSectionImageDisplayStyle('hero.coverImageUrl')]">
               <button
                 v-if="canEditCurrentTab"
                 class="inline-edit-fab ripple-trigger"
@@ -181,7 +181,13 @@
                     <p class="journey-scene-year">{{ item.yearLabel }}</p>
                   </div>
                   <div class="journey-scene-media">
-                    <img v-if="item.imageUrl" class="journey-scene-image" :src="item.imageUrl" :alt="`${item.title} cover`" />
+                  <img
+                    v-if="item.imageUrl"
+                    class="journey-scene-image"
+                    :style="resolveSectionImageDisplayStyle(`journey.${index}.imageUrl`)"
+                    :src="item.imageUrl"
+                    :alt="`${item.title} cover`"
+                  />
                   </div>
                   <div class="journey-scene-copy">
                     <p class="journey-scene-period">{{ item.dateLabel }}</p>
@@ -217,7 +223,13 @@
               >
                 <i class="fas fa-pen"></i>
               </button>
-              <img v-if="about.introImageUrl" class="about-hero-image" :src="about.introImageUrl" alt="about intro image" />
+              <img
+                v-if="about.introImageUrl"
+                class="about-hero-image"
+                :style="resolveSectionImageDisplayStyle('about.introImageUrl')"
+                :src="about.introImageUrl"
+                alt="about intro image"
+              />
               <div class="about-manifesto-copy">
                 <h2>关于本站</h2>
                 <p
@@ -234,7 +246,13 @@
             <section class="about-flow-grid">
               <article class="author-card about-goal-stage reveal-node" :style="staggerStyle(3)">
                 <span class="about-goal-sweep" aria-hidden="true"></span>
-                <img v-if="about.missionImageUrl" class="about-section-image" :src="about.missionImageUrl" alt="about mission image" />
+                <img
+                  v-if="about.missionImageUrl"
+                  class="about-section-image"
+                  :style="resolveSectionImageDisplayStyle('about.missionImageUrl')"
+                  :src="about.missionImageUrl"
+                  alt="about mission image"
+                />
                 <h3>长期目标</h3>
                 <p class="line-text">{{ about.mission }}</p>
               </article>
@@ -252,7 +270,13 @@
               </article>
 
               <article class="author-card about-links-stage reveal-node" :style="staggerStyle(5)">
-                <img v-if="about.linksImageUrl" class="about-section-image" :src="about.linksImageUrl" alt="about links image" />
+                <img
+                  v-if="about.linksImageUrl"
+                  class="about-section-image"
+                  :style="resolveSectionImageDisplayStyle('about.linksImageUrl')"
+                  :src="about.linksImageUrl"
+                  alt="about links image"
+                />
                 <h3>站点外链</h3>
                 <div class="link-list">
                   <button
@@ -287,6 +311,8 @@
           :title="sectionImageCropTitle"
           :description="sectionImageCropDescription"
           :aspect-ratio="sectionImageCropAspectRatio"
+          :stencil-shape="sectionImageCropStencilShape"
+          :preview-shape="sectionImageCropPreviewShape"
           :max-output-width="sectionImageCropMaxOutputWidth"
           :max-output-height="sectionImageCropMaxOutputHeight"
           :output-mime-type="sectionImageOutputMimeType"
@@ -347,7 +373,12 @@
                       {{ editState.uploadingAvatar ? '上传中...' : '上传头像并回填' }}
                     </button>
                   </div>
-                  <img class="avatar-preview" :src="editForm.hero.avatarUrl || hero.avatarUrl" alt="avatar preview" />
+                  <img
+                    class="avatar-preview"
+                    :style="resolveSectionImagePreviewStyle('hero.avatarUrl')"
+                    :src="editForm.hero.avatarUrl || hero.avatarUrl"
+                    alt="avatar preview"
+                  />
                   <label class="field-block">
                     <span>主视觉背景图 URL</span>
                     <input v-model.trim="editForm.hero.coverImageUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
@@ -362,7 +393,12 @@
                       {{ editState.uploadingAvatar ? '上传中...' : '上传背景图并回填' }}
                     </button>
                   </div>
-                  <img class="section-image-preview" :src="editForm.hero.coverImageUrl || editForm.hero.avatarUrl || hero.avatarUrl" alt="hero cover preview" />
+                  <img
+                    class="section-image-preview"
+                    :style="resolveSectionImagePreviewStyle('hero.coverImageUrl')"
+                    :src="editForm.hero.coverImageUrl || editForm.hero.avatarUrl || hero.avatarUrl"
+                    alt="hero cover preview"
+                  />
                 </section>
 
                 <section class="form-section">
@@ -472,7 +508,13 @@
                         {{ editState.uploadingAvatar ? '上传中...' : '上传图片并回填' }}
                       </button>
                     </div>
-                    <img v-if="item.imageUrl" class="section-image-preview" :src="item.imageUrl" :alt="`${item.title || 'journey'} preview`" />
+                    <img
+                      v-if="item.imageUrl"
+                      class="section-image-preview"
+                      :style="resolveSectionImagePreviewStyle(`journey.${index}.imageUrl`)"
+                      :src="item.imageUrl"
+                      :alt="`${item.title || 'journey'} preview`"
+                    />
                     <div class="field-block">
                       <span>技术栈（回车添加）</span>
                       <div class="tag-editor">
@@ -562,9 +604,27 @@
                     </button>
                   </div>
                   <div class="editor-preview-grid">
-                    <img v-if="editForm.about.introImageUrl" class="section-image-preview" :src="editForm.about.introImageUrl" alt="about intro preview" />
-                    <img v-if="editForm.about.missionImageUrl" class="section-image-preview" :src="editForm.about.missionImageUrl" alt="about mission preview" />
-                    <img v-if="editForm.about.linksImageUrl" class="section-image-preview" :src="editForm.about.linksImageUrl" alt="about links preview" />
+                    <img
+                      v-if="editForm.about.introImageUrl"
+                      class="section-image-preview"
+                      :style="resolveSectionImagePreviewStyle('about.introImageUrl')"
+                      :src="editForm.about.introImageUrl"
+                      alt="about intro preview"
+                    />
+                    <img
+                      v-if="editForm.about.missionImageUrl"
+                      class="section-image-preview"
+                      :style="resolveSectionImagePreviewStyle('about.missionImageUrl')"
+                      :src="editForm.about.missionImageUrl"
+                      alt="about mission preview"
+                    />
+                    <img
+                      v-if="editForm.about.linksImageUrl"
+                      class="section-image-preview"
+                      :style="resolveSectionImagePreviewStyle('about.linksImageUrl')"
+                      :src="editForm.about.linksImageUrl"
+                      alt="about links preview"
+                    />
                   </div>
                   <div class="field-block">
                     <span>碎碎念（每行一条）</span>
@@ -742,6 +802,63 @@ const SKILL_FALLBACK_ICONS = ['fas fa-code', 'fas fa-cubes', 'fas fa-bolt', 'fas
 const SKILL_FALLBACK_TONES = ['tone-cyan', 'tone-blue', 'tone-violet', 'tone-gold', 'tone-rose', 'tone-mint'];
 const JOURNEY_MONTH_LABELS = Object.freeze(Array.from({ length: 12 }, (_, index) => `${String(index + 1).padStart(2, '0')}月`));
 const AUTHOR_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
+const JOURNEY_IMAGE_PATH_PATTERN = /^journey\.\d+\.imageUrl$/u;
+const DEFAULT_SECTION_IMAGE_RULE = Object.freeze({
+  aspectRatio: 16 / 10,
+  maxOutputWidth: 1600,
+  maxOutputHeight: 1000,
+  stencilShape: 'rect',
+  previewShape: 'rect',
+  title: '裁剪图片',
+  description: '拖动和缩放图片，选择要保留的范围后上传并回填。'
+});
+const SECTION_IMAGE_RULES = Object.freeze({
+  'hero.avatarUrl': Object.freeze({
+    aspectRatio: 1,
+    maxOutputWidth: 1024,
+    maxOutputHeight: 1024,
+    stencilShape: 'circle',
+    previewShape: 'circle',
+    title: '裁剪头像',
+    description: '拖动和缩放头像范围，裁剪比例会与菜单和作者页头像的最终显示比例一致。'
+  }),
+  'hero.coverImageUrl': Object.freeze({
+    aspectRatio: 16 / 7,
+    maxOutputWidth: 1920,
+    maxOutputHeight: 840,
+    stencilShape: 'rect',
+    previewShape: 'rect',
+    title: '裁剪主视觉背景图',
+    description: '建议选择横向舞台画面，裁剪比例会与作者页主视觉背景的最终展示比例保持一致。'
+  }),
+  'about.introImageUrl': Object.freeze({
+    aspectRatio: 5 / 4,
+    maxOutputWidth: 1280,
+    maxOutputHeight: 1024,
+    stencilShape: 'rect',
+    previewShape: 'rect',
+    title: '裁剪简介图片',
+    description: '简介图会以竖向展示卡显示，裁剪比例已经和最终生效比例对齐。'
+  }),
+  'about.missionImageUrl': Object.freeze({
+    aspectRatio: 16 / 9,
+    maxOutputWidth: 1600,
+    maxOutputHeight: 900,
+    stencilShape: 'rect',
+    previewShape: 'rect',
+    title: '裁剪目标图片',
+    description: '目标图会以横向内容卡显示，裁剪比例已经和最终生效比例对齐。'
+  }),
+  'about.linksImageUrl': Object.freeze({
+    aspectRatio: 16 / 9,
+    maxOutputWidth: 1600,
+    maxOutputHeight: 900,
+    stencilShape: 'rect',
+    previewShape: 'rect',
+    title: '裁剪外链图片',
+    description: '外链图会以横向内容卡显示，裁剪比例已经和最终生效比例对齐。'
+  })
+});
 
 const loading = ref(false);
 const loadError = ref('');
@@ -840,23 +957,21 @@ const journeyMonthTicks = computed(() => {
   }));
 });
 
+const activeSectionImageRule = computed(() => resolveSectionImageRule(sectionImageCropTargetPath.value));
 const sectionImageCropAspectRatio = computed(() => {
-  const targetPath = sectionImageCropTargetPath.value;
-  if (targetPath === 'hero.avatarUrl') return 1;
-  if (targetPath === 'hero.coverImageUrl') return 16 / 9;
-  return 0;
+  return activeSectionImageRule.value.aspectRatio;
+});
+const sectionImageCropStencilShape = computed(() => {
+  return activeSectionImageRule.value.stencilShape || 'rect';
+});
+const sectionImageCropPreviewShape = computed(() => {
+  return activeSectionImageRule.value.previewShape || sectionImageCropStencilShape.value;
 });
 const sectionImageCropMaxOutputWidth = computed(() => {
-  const targetPath = sectionImageCropTargetPath.value;
-  if (targetPath === 'hero.avatarUrl') return 1024;
-  if (targetPath === 'hero.coverImageUrl') return 1920;
-  return 1600;
+  return activeSectionImageRule.value.maxOutputWidth;
 });
 const sectionImageCropMaxOutputHeight = computed(() => {
-  const targetPath = sectionImageCropTargetPath.value;
-  if (targetPath === 'hero.avatarUrl') return 1024;
-  if (targetPath === 'hero.coverImageUrl') return 1080;
-  return 1600;
+  return activeSectionImageRule.value.maxOutputHeight;
 });
 const sectionImageOutputMimeType = computed(() => 'image/webp');
 const sectionImageOutputQuality = computed(() => {
@@ -865,17 +980,11 @@ const sectionImageOutputQuality = computed(() => {
 });
 
 const sectionImageCropTitle = computed(() => {
-  return sectionImageCropTargetPath.value === 'hero.avatarUrl' ? '裁剪头像' : '裁剪图片';
+  return activeSectionImageRule.value.title || '裁剪图片';
 });
 
 const sectionImageCropDescription = computed(() => {
-  if (sectionImageCropTargetPath.value === 'hero.coverImageUrl') {
-    return '建议选择横向区域，确认后会自动上传并回填封面 URL。';
-  }
-  if (sectionImageCropTargetPath.value === 'hero.avatarUrl') {
-    return '拖动和缩放头像范围，确认后会自动上传并回填头像 URL。';
-  }
-  return '拖动和缩放图片，选择要保留的范围后上传并回填。';
+  return activeSectionImageRule.value.description || DEFAULT_SECTION_IMAGE_RULE.description;
 });
 
 const contentPanelStyle = computed(() => {
@@ -909,6 +1018,44 @@ function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
+}
+
+function resolveSectionImageRule(path) {
+  const normalizedPath = String(path || '').trim();
+  if (!normalizedPath) return DEFAULT_SECTION_IMAGE_RULE;
+  if (JOURNEY_IMAGE_PATH_PATTERN.test(normalizedPath)) {
+    return {
+      ...DEFAULT_SECTION_IMAGE_RULE,
+      aspectRatio: 3 / 2,
+      maxOutputWidth: 1440,
+      maxOutputHeight: 960,
+      title: '裁剪经历图片',
+      description: '经历图会以 3:2 内容图展示，当前裁剪框已经与最终显示比例对齐。'
+    };
+  }
+  return SECTION_IMAGE_RULES[normalizedPath] || DEFAULT_SECTION_IMAGE_RULE;
+}
+
+function resolveSectionImagePreviewStyle(path) {
+  const rule = resolveSectionImageRule(path);
+  const style = {
+    aspectRatio: String(rule.aspectRatio || DEFAULT_SECTION_IMAGE_RULE.aspectRatio)
+  };
+  if ((rule.previewShape || rule.stencilShape) === 'circle') {
+    style.borderRadius = '999px';
+  }
+  return style;
+}
+
+function resolveSectionImageDisplayStyle(path) {
+  const rule = resolveSectionImageRule(path);
+  const style = {
+    aspectRatio: String(rule.aspectRatio || DEFAULT_SECTION_IMAGE_RULE.aspectRatio)
+  };
+  if ((rule.previewShape || rule.stencilShape) === 'circle') {
+    style.borderRadius = '999px';
+  }
+  return style;
 }
 
 function createSafeSectionKey(sectionKey) {
@@ -1048,7 +1195,7 @@ async function handleSectionImageCropConfirm(payload) {
   editState.error = '';
   editState.success = '';
   try {
-    const uploadPayload = await uploadAuthorAvatar(file, auth.authorizedFetch);
+    const uploadPayload = await uploadAuthorAvatar(file, auth.authorizedFetch, { targetPath });
     const url = String(uploadPayload?.url || '').trim();
     if (!url) {
       throw new Error('图片 URL 为空');
@@ -2195,7 +2342,8 @@ onBeforeUnmount(() => {
 
 .about-section-image {
   width: 100%;
-  height: 138px;
+  height: auto;
+  display: block;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2786,12 +2934,13 @@ onBeforeUnmount(() => {
 }
 
 .journey-scene-media {
-  min-height: 144px;
+  min-height: 0;
 }
 
 .journey-scene-image {
   width: 100%;
-  height: 160px;
+  height: auto;
+  display: block;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -2847,11 +2996,13 @@ onBeforeUnmount(() => {
 
 .about-hero-image {
   width: 100%;
-  height: 100%;
-  min-height: 190px;
+  height: auto;
+  min-height: 0;
+  display: block;
   object-fit: cover;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.18);
+  align-self: start;
 }
 
 .about-manifesto-copy {
@@ -2968,6 +3119,8 @@ onBeforeUnmount(() => {
 .section-image-preview {
   width: 100%;
   max-height: 180px;
+  height: auto;
+  display: block;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -3186,8 +3339,10 @@ onBeforeUnmount(() => {
 
 .avatar-preview {
   width: 96px;
-  height: 96px;
-  border-radius: 12px;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  display: block;
+  border-radius: 999px;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.08);

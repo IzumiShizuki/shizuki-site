@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  AUTHOR_PROFILE_CACHE_UPDATED_EVENT,
   AUTHOR_PROFILE_CACHE_KEY,
   clearAuthorProfileCache,
   readAuthorProfileCache,
@@ -44,5 +45,20 @@ describe('authorProfileCache', () => {
     writeAuthorProfileCache({ authorCode: 'shizuki' }, { storage });
     clearAuthorProfileCache({ storage });
     expect(readAuthorProfileCache({ storage })).toBeNull();
+  });
+
+  it('dispatches cache update events on write and clear', () => {
+    const storage = createMemoryStorage();
+    const listener = vi.fn();
+    window.addEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, listener);
+
+    writeAuthorProfileCache({ authorCode: 'shizuki' }, { storage });
+    clearAuthorProfileCache({ storage });
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener.mock.calls[0][0]?.detail?.payload).toEqual({ authorCode: 'shizuki' });
+    expect(listener.mock.calls[1][0]?.detail?.payload).toBeNull();
+
+    window.removeEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, listener);
   });
 });

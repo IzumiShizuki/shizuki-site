@@ -61,7 +61,9 @@
           :class="{ 'route-active': isAuthorRoute }"
           @click.stop="openAuthorOverview"
         >
-          <div class="author-avatar-box"></div>
+          <div class="author-avatar-box">
+            <img class="author-avatar-image" :src="resolvedAuthorAvatarUrl" alt="author-avatar" @error="onAuthorAvatarError" />
+          </div>
           <span class="item-label">作者信息</span>
         </div>
 
@@ -138,6 +140,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  authorAvatarUrl: {
+    type: String,
+    default: ''
+  },
   musicActive: {
     type: Boolean,
     default: false
@@ -166,10 +172,11 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
+const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
 const menuRootRef = ref(null);
 const profileMenuOpen = ref(false);
 const avatarLoadFailed = ref(false);
+const authorAvatarLoadFailed = ref(false);
 const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
 
 const mainNavItems = computed(() => {
@@ -230,12 +237,24 @@ const resolvedAvatarUrl = computed(() => {
   return source;
 });
 
+const resolvedAuthorAvatarUrl = computed(() => {
+  const source = String(authorAvatarUrl.value || '').trim();
+  if (!source || authorAvatarLoadFailed.value) {
+    return '/images/katanegai.jpg';
+  }
+  return source;
+});
+
 function toggleSwitch() {
   emit('toggle-menu');
 }
 
 function onAvatarError() {
   avatarLoadFailed.value = true;
+}
+
+function onAuthorAvatarError() {
+  authorAvatarLoadFailed.value = true;
 }
 
 function toggleAiChat() {
@@ -297,6 +316,13 @@ watch(
   () => avatarUrl.value,
   () => {
     avatarLoadFailed.value = false;
+  }
+);
+
+watch(
+  () => authorAvatarUrl.value,
+  () => {
+    authorAvatarLoadFailed.value = false;
   }
 );
 
@@ -407,6 +433,7 @@ useDismissiblePopover({
 .menu-item-stack:active .icon-minimal,
 .menu-item-stack:active .circle-icon-box,
 .menu-item-stack:active .github-style-box,
+.menu-item-stack:active .author-avatar-box,
 .menu-item-stack:active .avatar-box,
 .menu-item-stack.ai-chat-item:active .pill-btn-box {
   animation: press-wobble 280ms ease;
@@ -663,12 +690,18 @@ useDismissiblePopover({
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background-image: url('/images/katanegai.jpg');
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
+  background: rgba(10, 16, 25, 0.64);
   border: 2px solid rgba(255, 255, 255, 0.86);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.author-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .author-info-item:hover .author-avatar-box {

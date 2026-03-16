@@ -58,7 +58,7 @@ export async function updateAdminAuthorProfile(payload, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
-export async function uploadAuthorAvatar(file, authorizedFetch) {
+export async function uploadAuthorAvatar(file, authorizedFetch, options = {}) {
   const request = requireAuthorizedFetch(authorizedFetch);
   if (!(file instanceof File)) {
     throw new Error('请选择头像图片');
@@ -71,6 +71,14 @@ export async function uploadAuthorAvatar(file, authorizedFetch) {
   }
   if (Number(file.size || 0) > AUTHOR_UPLOAD_MAX_BYTES) {
     throw new Error('图片大小需 <= 50MB');
+  }
+
+  const normalizedTargetPath = String(options?.targetPath || '').trim();
+  const metadata = {
+    usage: 'author_profile_image'
+  };
+  if (normalizedTargetPath) {
+    metadata.targetPath = normalizedTargetPath;
   }
 
   const fileName = sanitizeAssetName(file.name || 'author-avatar.png');
@@ -148,9 +156,7 @@ export async function uploadAuthorAvatar(file, authorizedFetch) {
         assetKind: 'STATIC_IMAGE',
         contentType: uploadContentType,
         visibility: 'PUBLIC',
-        metadata: {
-          usage: 'author_avatar'
-        }
+        metadata
       }
     })
   );

@@ -26,6 +26,7 @@
         :is-admin="isAdminUser"
         :display-name="authDisplayName"
         :avatar-url="authAvatarUrl"
+        :author-avatar-url="authorMenuAvatarUrl"
         :music-active="musicMenuActive"
         :ambient-active="ambientMenuActive"
         :effect-active="effectMenuActive"
@@ -241,10 +242,13 @@ import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
 import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
+import { readAuthorProfileCache, writeAuthorProfileCache, AUTHOR_PROFILE_CACHE_UPDATED_EVENT } from './pages/authorProfileCache';
+import { normalizeAuthorProfilePayload } from './pages/authorUiState';
 import { usePlayerEngine } from './composables/usePlayerEngine';
 import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
+import { getAuthorProfile } from './services/authorApi';
 import * as wallpaperApi from './services/wallpaperApi';
 import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
 import { refreshAosManager } from './utils/aosManager';
@@ -407,6 +411,7 @@ const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
 const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall && !isBlogRoute.value);
 const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
 const authAvatarUrl = computed(() => String(auth.user.value?.avatarUrl || '').trim());
+const authorMenuAvatarUrl = ref('/images/katanegai.jpg');
 const isAdminUser = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
   return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
@@ -1884,6 +1889,42 @@ function closeAiChat() {
   aiChatActive.value = false;
 }
 
+function applyAuthorMenuAvatar(payload) {
+  const normalized = normalizeAuthorProfilePayload(payload);
+  const nextUrl = String(normalized?.profileJson?.hero?.avatarUrl || '').trim();
+  authorMenuAvatarUrl.value = nextUrl || '/images/katanegai.jpg';
+}
+
+function syncAuthorMenuAvatarFromCache() {
+  const cached = readAuthorProfileCache();
+  if (!cached) {
+    authorMenuAvatarUrl.value = '/images/katanegai.jpg';
+    return false;
+  }
+  applyAuthorMenuAvatar(cached);
+  return true;
+}
+
+async function refreshAuthorMenuAvatar() {
+  try {
+    const payload = await getAuthorProfile(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
+    const normalized = normalizeAuthorProfilePayload(payload);
+    applyAuthorMenuAvatar(normalized);
+    writeAuthorProfileCache(normalized);
+  } catch {
+    syncAuthorMenuAvatarFromCache();
+  }
+}
+
+function handleAuthorProfileCacheUpdated(event) {
+  const payload = event?.detail?.payload;
+  if (payload && typeof payload === 'object') {
+    applyAuthorMenuAvatar(payload);
+    return;
+  }
+  syncAuthorMenuAvatarFromCache();
+}
+
 function handleMainRouteSelect(routeKey) {
   const nextPath = routePathByKey[routeKey] || '/';
   if (route.path === nextPath) return;
@@ -2238,6 +2279,8 @@ watch(
 
 onMounted(async () => {
   await auth.ensureReady();
+  syncAuthorMenuAvatarFromCache();
+  void refreshAuthorMenuAvatar();
   ui.initializeUiPreferences();
   ambientGuestUploads.value = readAmbientGuestUploadsFromSession();
   applySiteAtmosphereState(readSiteAtmosphereFromStorage());
@@ -2258,6 +2301,7 @@ onMounted(async () => {
   window.addEventListener('pagehide', onPageHide);
   window.addEventListener('pageshow', onPageShow);
   window.addEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
+  window.addEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, handleAuthorProfileCacheUpdated);
 
   if (!runtimeGuards.disableGlobalPointerHooks) {
     window.addEventListener('keydown', onGlobalHotkey);
@@ -2289,6 +2333,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', onPageHide);
   window.removeEventListener('pageshow', onPageShow);
   window.removeEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
+  window.removeEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, handleAuthorProfileCacheUpdated);
   window.removeEventListener('keydown', onGlobalHotkey);
   window.removeEventListener('pointerdown', onGlobalPointerDown, true);
   window.removeEventListener('pointermove', onGlobalPointerMove, true);
