@@ -1,5 +1,5 @@
 <template>
-  <article class="section-item liquid-material" :class="{ open }">
+  <article class="section-item liquid-material" :class="{ open, focused }" :data-section-key="sectionKey">
     <div class="section-head">
       <button
         v-if="avatarUrl"
@@ -12,9 +12,11 @@
       </button>
 
       <button
+        v-if="collapsible"
         class="head-toggle ripple-trigger"
         type="button"
         :aria-expanded="open ? 'true' : 'false'"
+        :aria-pressed="focused ? 'true' : 'false'"
         @click="$emit('toggle')"
       >
         <div class="head-main">
@@ -31,6 +33,21 @@
           <span class="chevron" :class="{ open }"><i class="fas fa-angle-down"></i></span>
         </div>
       </button>
+
+      <div v-else class="head-static">
+        <div class="head-main">
+          <div class="section-title-row">
+            <span v-if="icon" class="section-icon" aria-hidden="true">
+              <i :class="icon"></i>
+            </span>
+            <p class="section-title">{{ title }}</p>
+          </div>
+          <p class="section-summary">{{ summary }}</p>
+        </div>
+        <div class="head-meta">
+          <span v-if="statusText" class="status-chip">{{ statusText }}</span>
+        </div>
+      </div>
     </div>
 
     <div v-show="open" class="section-body">
@@ -41,6 +58,10 @@
 
 <script setup>
 defineProps({
+  sectionKey: {
+    type: String,
+    default: ''
+  },
   title: {
     type: String,
     required: true
@@ -68,6 +89,14 @@ defineProps({
   open: {
     type: Boolean,
     default: false
+  },
+  focused: {
+    type: Boolean,
+    default: false
+  },
+  collapsible: {
+    type: Boolean,
+    default: true
   }
 });
 
@@ -83,6 +112,12 @@ defineEmits(['toggle', 'avatar-click']);
   overflow: hidden;
   isolation: isolate;
   transform: translateZ(0);
+}
+
+.section-item.focused {
+  box-shadow:
+    0 0 0 1px rgba(93, 214, 243, 0.42),
+    0 20px 38px rgba(4, 9, 16, 0.26);
 }
 
 .section-head {
@@ -104,6 +139,33 @@ defineEmits(['toggle', 'avatar-click']);
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+  border-radius: 14px;
+  transition:
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.head-static {
+  flex: 1;
+  min-width: 0;
+  color: rgba(236, 244, 255, 0.95);
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+  border-radius: 14px;
+}
+
+.section-item.focused .head-toggle {
+  background: linear-gradient(145deg, rgba(52, 134, 182, 0.18), rgba(66, 178, 211, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(87, 199, 230, 0.2);
+}
+
+.section-item.focused .head-static {
+  background: linear-gradient(145deg, rgba(52, 134, 182, 0.18), rgba(66, 178, 211, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(87, 199, 230, 0.2);
+  padding: 10px 12px;
+  margin: -10px -12px;
 }
 
 .head-toggle:focus-visible,
@@ -171,15 +233,14 @@ defineEmits(['toggle', 'avatar-click']);
 .section-summary {
   color: rgba(184, 208, 232, 0.86);
   font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
 }
 
 .head-meta {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .status-chip {
@@ -214,7 +275,7 @@ defineEmits(['toggle', 'avatar-click']);
 }
 
 .section-body {
-  padding: 0 16px 16px;
+  padding: 2px 16px 16px;
   color: rgba(224, 237, 250, 0.96);
   display: grid;
   gap: 8px;

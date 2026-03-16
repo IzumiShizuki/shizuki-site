@@ -192,6 +192,14 @@ function findGroup(wrapper, groupKey) {
   return group;
 }
 
+function findSectionCard(wrapper, sectionKey) {
+  const card = wrapper.find(`.section-item[data-section-key="${sectionKey}"]`);
+  if (!card.exists()) {
+    throw new Error(`Section card not found: ${sectionKey}`);
+  }
+  return card;
+}
+
 describe('ProfilePage immediate account expansion', () => {
   beforeEach(() => {
     mocked.listMyPosts.mockReset().mockResolvedValue({ items: [] });
@@ -218,18 +226,18 @@ describe('ProfilePage immediate account expansion', () => {
     expect(wrapper.classes()).toContain('profile-no-motion');
     const profileGroup = findGroup(wrapper, 'profile');
     const accountGroup = findGroup(wrapper, 'account');
-    const accountInfoToggle = findSectionToggle(wrapper, 'account', '账号信息');
+    const accountInfoCard = findSectionCard(wrapper, 'account-info');
 
     expect(profileGroup.isVisible()).toBe(true);
     expect(accountGroup.isVisible()).toBe(false);
-    expect(accountInfoToggle.attributes('aria-expanded')).toBe('false');
+    expect(accountInfoCard.classes()).not.toContain('focused');
 
     await findQuickAction(wrapper, '查看账号信息').trigger('click');
     await flushPromises();
 
     expect(profileGroup.isVisible()).toBe(false);
     expect(accountGroup.isVisible()).toBe(true);
-    expect(accountInfoToggle.attributes('aria-expanded')).toBe('true');
+    expect(accountInfoCard.classes()).toContain('focused');
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
 
     accountDeferred.resolve({
@@ -258,13 +266,13 @@ describe('ProfilePage immediate account expansion', () => {
 
     const wrapper = await mountProfilePage();
     const accountGroup = findGroup(wrapper, 'account');
-    const emailBindToggle = findSectionToggle(wrapper, 'account', '邮箱绑定');
+    const emailBindCard = findSectionCard(wrapper, 'email-bind');
 
     await findQuickAction(wrapper, '绑定邮箱').trigger('click');
     await flushPromises();
 
     expect(accountGroup.isVisible()).toBe(true);
-    expect(emailBindToggle.attributes('aria-expanded')).toBe('true');
+    expect(emailBindCard.classes()).toContain('focused');
     expect(mocked.auth.createImageCaptcha).not.toHaveBeenCalled();
 
     accountDeferred.resolve({
@@ -280,7 +288,7 @@ describe('ProfilePage immediate account expansion', () => {
     await flushPromises();
 
     expect(mocked.auth.createImageCaptcha).toHaveBeenCalledTimes(1);
-    expect(emailBindToggle.attributes('aria-expanded')).toBe('true');
+    expect(emailBindCard.classes()).toContain('focused');
 
     captchaDeferred.resolve({
       captchaId: 'captcha-1',
@@ -289,7 +297,7 @@ describe('ProfilePage immediate account expansion', () => {
     });
     await flushPromises();
 
-    expect(emailBindToggle.attributes('aria-expanded')).toBe('true');
+    expect(emailBindCard.classes()).toContain('focused');
     wrapper.unmount();
   });
 
@@ -301,16 +309,16 @@ describe('ProfilePage immediate account expansion', () => {
 
     const wrapper = await mountProfilePage();
     const accountGroup = findGroup(wrapper, 'account');
-    const emailBindToggle = findSectionToggle(wrapper, 'account', '邮箱绑定');
-    const changePasswordToggle = findSectionToggle(wrapper, 'account', '修改密码');
+    const emailBindCard = findSectionCard(wrapper, 'email-bind');
+    const changePasswordCard = findSectionCard(wrapper, 'change-password');
 
     await findQuickAction(wrapper, '绑定邮箱').trigger('click');
     await findQuickAction(wrapper, '修改密码').trigger('click');
     await flushPromises();
 
     expect(accountGroup.isVisible()).toBe(true);
-    expect(emailBindToggle.attributes('aria-expanded')).toBe('true');
-    expect(changePasswordToggle.attributes('aria-expanded')).toBe('true');
+    expect(emailBindCard.classes()).not.toContain('focused');
+    expect(changePasswordCard.classes()).toContain('focused');
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
 
     accountDeferred.resolve({

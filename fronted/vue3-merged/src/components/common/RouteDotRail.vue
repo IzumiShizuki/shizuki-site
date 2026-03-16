@@ -88,10 +88,15 @@ const railClassName = computed(() => {
 }
 
 .route-dot-rail.distribution-mid-sixths {
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  justify-content: center;
+  justify-items: center;
+  align-items: center;
   gap: 0;
-  padding-top: clamp(96px, 33.333%, 256px);
-  padding-bottom: clamp(48px, 16.667%, 140px);
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .route-dot-rail.distribution-full-sixths {
@@ -114,8 +119,25 @@ const railClassName = computed(() => {
 }
 
 .route-dot-rail.distribution-mid-sixths .dot-rail-line {
-  top: clamp(52px, 16.667%, 126px);
-  bottom: clamp(24px, 8.334%, 76px);
+  top: calc(100% / 6);
+  bottom: calc(100% / 6);
+  z-index: 0;
+}
+
+.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(1) {
+  grid-row: 2;
+}
+
+.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(2) {
+  grid-row: 3;
+}
+
+.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(3) {
+  grid-row: 4;
+}
+
+.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(4) {
+  grid-row: 5;
 }
 
 .route-dot-rail.distribution-full-sixths .dot-rail-line {
