@@ -45,6 +45,10 @@ describe('authorEditFormState', () => {
           mission_image_url: 'https://example.com/about-mission.png',
           links_image_url: 'https://example.com/about-links.png',
           links: [{ label: 'Blog', url: '/#/blog' }]
+        },
+        site: {
+          browser_title: 'Shizuki Site',
+          favicon_url: 'https://example.com/favicon.png'
         }
       }
     });
@@ -59,6 +63,8 @@ describe('authorEditFormState', () => {
     expect(form.journey[0].imageUrl).toBe('https://example.com/journey.png');
     expect(form.about.introImageUrl).toBe('https://example.com/about-intro.png');
     expect(form.about.links[0]).toEqual({ label: 'Blog', url: '/#/blog' });
+    expect(form.site.browserTitle).toBe('Shizuki Site');
+    expect(form.site.faviconUrl).toBe('https://example.com/favicon.png');
   });
 
   it('maps edit form to snake_case profile json', () => {
@@ -106,6 +112,10 @@ describe('authorEditFormState', () => {
           { label: ' Blog ', url: ' /#/blog ' },
           { label: '', url: '' }
         ]
+      },
+      site: {
+        browserTitle: ' Shizuki Site ',
+        faviconUrl: ' https://example.com/favicon.png '
       }
     });
 
@@ -121,6 +131,8 @@ describe('authorEditFormState', () => {
     expect(profileJson.about.mission_image_url).toBe('https://example.com/about-mission.png');
     expect(profileJson.about.links_image_url).toBe('https://example.com/about-links.png');
     expect(profileJson.about.links).toEqual([{ label: 'Blog', url: '/#/blog' }]);
+    expect(profileJson.site.browser_title).toBe('Shizuki Site');
+    expect(profileJson.site.favicon_url).toBe('https://example.com/favicon.png');
     expect(profileJson.journey).toHaveLength(1);
     expect(profileJson.journey[0].title).toBe('Author');
   });

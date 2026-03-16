@@ -5,8 +5,8 @@
         class="sidebar-dot-rail"
         :items="tabs"
         :active-key="activeTab"
-        distribution="mid-sixths"
-        aria-label="作者页面导航"
+        :distribution="routeRailDistribution"
+        aria-label="关于网站导航"
         @select="openTab"
       />
 
@@ -20,7 +20,7 @@
         @pointerleave="resetParallax"
         @scroll.passive="handleContentScroll"
       >
-        <p v-if="loading" class="state-tip">正在同步作者主页资料...</p>
+        <p v-if="loading" class="state-tip">正在同步关于网站资料...</p>
         <p v-else-if="loadError" class="error-text">{{ loadError }}</p>
 
         <template v-else>
@@ -32,7 +32,7 @@
                 v-if="canEditCurrentTab"
                 class="inline-edit-fab ripple-trigger"
                 type="button"
-                title="编辑作者主页"
+                title="编辑网站主页"
                 @click="openSectionEditor(AuthorTabKey.OVERVIEW)"
               >
                 <i class="fas fa-pen"></i>
@@ -285,10 +285,83 @@
             </section>
           </div>
 
+          <div v-else-if="activeTab === AuthorTabKey.SITE_SETTINGS" class="content-block site-settings-root">
+            <article class="author-card site-settings-card">
+              <h2>站点设置</h2>
+              <p v-if="!isAdminUser" class="line-text">仅管理员可见与可编辑。</p>
+
+              <template v-else>
+                <p class="line-text">可修改浏览器标签页标题与网站图标，保存后会立即生效。</p>
+                <div class="field-grid two-col">
+                  <label class="field-block">
+                    <span>浏览器标题</span>
+                    <input
+                      v-model.trim="editForm.site.browserTitle"
+                      type="text"
+                      maxlength="80"
+                      :disabled="editState.loading"
+                      placeholder="例如：Shizuki Site"
+                    />
+                  </label>
+                  <label class="field-block">
+                    <span>网站图标 URL</span>
+                    <input
+                      v-model.trim="editForm.site.faviconUrl"
+                      type="text"
+                      :disabled="editState.loading || editState.uploadingAvatar"
+                      placeholder="https://..."
+                    />
+                  </label>
+                </div>
+
+                <div class="inline-actions compact">
+                  <button
+                    class="mini-btn ripple-trigger"
+                    type="button"
+                    :disabled="editState.loading || editState.uploadingAvatar"
+                    @click="triggerSectionImageUpload('site.faviconUrl')"
+                  >
+                    {{ editState.uploadingAvatar ? '上传中...' : '上传网站图标并回填' }}
+                  </button>
+                </div>
+
+                <div class="site-settings-preview">
+                  <img
+                    class="site-favicon-preview"
+                    :style="resolveSectionImagePreviewStyle('site.faviconUrl')"
+                    :src="editForm.site.faviconUrl || siteProfile.faviconUrl || hero.avatarUrl"
+                    alt="site favicon preview"
+                  />
+                  <div class="site-settings-preview-copy">
+                    <p class="mini-title">浏览器预览</p>
+                    <p class="line-text">{{ editForm.site.browserTitle || siteProfile.browserTitle || DEFAULT_SITE_BROWSER_TITLE }}</p>
+                  </div>
+                </div>
+
+                <footer class="site-settings-actions">
+                  <div class="inline-actions compact">
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="refreshSectionEditor">
+                      {{ editState.loading ? '同步中...' : '刷新后台值' }}
+                    </button>
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="resetEditProfile">
+                      重置
+                    </button>
+                    <button class="mini-btn ripple-trigger primary" type="button" :disabled="editState.loading" @click="saveAdminProfile">
+                      {{ editState.loading ? '保存中...' : '保存站点设置' }}
+                    </button>
+                  </div>
+                  <p v-if="editState.dirty" class="state-tip">你有未保存的修改。</p>
+                  <p v-if="editState.error" class="error-text">{{ editState.error }}</p>
+                  <p v-if="editState.success" class="state-tip">{{ editState.success }}</p>
+                </footer>
+              </template>
+            </article>
+          </div>
+
           <div v-else-if="activeTab === 'posts'" class="content-block">
             <article class="author-card">
-              <h2>作者文章</h2>
-              <p class="line-text">作者文章列表继续复用博客模块接口，本页先提供统一入口。</p>
+              <h2>站点文章</h2>
+              <p class="line-text">文章列表继续复用博客模块接口，这里提供统一入口。</p>
               <div class="inline-actions compact">
                 <button class="mini-btn ripple-trigger" type="button" @click="openBlogList">前往博客列表</button>
               </div>
@@ -301,7 +374,7 @@
                 v-if="canEditCurrentTab"
                 class="inline-edit-fab ripple-trigger"
                 type="button"
-                title="编辑关于本站"
+                title="编辑关于网站"
                 @click="openSectionEditor(AuthorTabKey.ABOUT)"
               >
                 <i class="fas fa-pen"></i>
@@ -314,7 +387,7 @@
                 alt="about intro image"
               />
               <div class="about-manifesto-copy">
-                <h2>关于本站</h2>
+                <h2>关于网站</h2>
                 <p
                   v-for="(line, index) in about.intro"
                   :key="`about-intro-${index}`"
@@ -422,7 +495,7 @@
                   <h3>基础设置</h3>
                   <label class="editor-switch">
                     <input v-model="editForm.enabled" type="checkbox" :disabled="editState.loading" />
-                    <span>启用作者主页公开展示</span>
+                    <span>启用关于网站公开展示</span>
                   </label>
                 </section>
 
@@ -649,7 +722,7 @@
 
               <div v-else class="editor-layout">
                 <section class="form-section">
-                  <h3>关于本站内容</h3>
+                  <h3>关于网站内容</h3>
                   <div class="field-grid two-col">
                     <label class="field-block">
                       <span>简介卡片图片 URL</span>
@@ -856,15 +929,17 @@ import {
 import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
 import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
+const AUTHOR_ADMIN_ROUTE_KEY = '__author-admin-route__';
+const DEFAULT_SITE_BROWSER_TITLE = 'Levitation + Menu';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
 
 const baseTabs = [
-  { key: AuthorTabKey.OVERVIEW, label: '作者主页', icon: 'fas fa-user-astronaut' },
+  { key: AuthorTabKey.OVERVIEW, label: '网站主页', icon: 'fas fa-user-astronaut' },
   { key: AuthorTabKey.JOURNEY, label: '建站经历', icon: 'fas fa-route' },
-  { key: AuthorTabKey.POSTS, label: '作者文章', icon: 'fas fa-feather-pointed' },
-  { key: AuthorTabKey.ABOUT, label: '关于本站', icon: 'fas fa-compass-drafting' }
+  { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed' },
+  { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting' }
 ];
 
 const SKILL_ICON_RULES = [
@@ -946,6 +1021,15 @@ const SECTION_IMAGE_RULES = Object.freeze({
     previewShape: 'rect',
     title: '裁剪外链图片',
     description: '外链图会以横向内容卡显示，裁剪比例已经和最终生效比例对齐。'
+  }),
+  'site.faviconUrl': Object.freeze({
+    aspectRatio: 1,
+    maxOutputWidth: 512,
+    maxOutputHeight: 512,
+    stencilShape: 'rect',
+    previewShape: 'rect',
+    title: '裁剪网站图标',
+    description: '网站图标建议使用 1:1 比例，保存后会立即更新浏览器标签页图标。'
   })
 });
 
@@ -997,7 +1081,16 @@ const isAdminUser = computed(() => {
 });
 
 const tabs = computed(() => {
-  return [...baseTabs];
+  const items = [...baseTabs];
+  if (isAdminUser.value) {
+    items.push({ key: AuthorTabKey.SITE_SETTINGS, label: '站点设置', icon: 'fas fa-browser' });
+    items.push({ key: AUTHOR_ADMIN_ROUTE_KEY, label: '管理后台', icon: 'fas fa-user-shield' });
+  }
+  return items;
+});
+
+const routeRailDistribution = computed(() => {
+  return tabs.value.length >= 6 ? 'full-sixths' : 'mid-sixths';
 });
 
 const activeTab = computed(() => {
@@ -1010,6 +1103,7 @@ const identity = computed(() => authorProfile.value.profileJson.identity);
 const skills = computed(() => authorProfile.value.profileJson.skills);
 const journey = computed(() => authorProfile.value.profileJson.journey);
 const about = computed(() => authorProfile.value.profileJson.about);
+const siteProfile = computed(() => authorProfile.value.profileJson.site);
 const currentActivityStatus = computed(() => {
   const status = String(identity.value.activityStatus || '').trim();
   return status || '学习中';
@@ -1150,8 +1244,8 @@ const canEditCurrentTab = computed(() => {
 
 const sectionEditorTitle = computed(() => {
   if (sectionEditorSection.value === AuthorTabKey.JOURNEY) return '编辑建站经历';
-  if (sectionEditorSection.value === AuthorTabKey.ABOUT) return '编辑关于本站';
-  return '编辑作者主页';
+  if (sectionEditorSection.value === AuthorTabKey.ABOUT) return '编辑关于网站';
+  return '编辑网站主页';
 });
 
 function normalizeTab(raw) {
@@ -1159,10 +1253,17 @@ function normalizeTab(raw) {
   if (normalized === AuthorTabKey.EDIT) {
     return AuthorTabKey.OVERVIEW;
   }
+  if (normalized === AuthorTabKey.SITE_SETTINGS && !isAdminUser.value) {
+    return AuthorTabKey.OVERVIEW;
+  }
   return normalized;
 }
 
 function openTab(tabKey) {
+  if (tabKey === AUTHOR_ADMIN_ROUTE_KEY) {
+    router.push({ path: '/admin' });
+    return;
+  }
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
@@ -1289,7 +1390,7 @@ async function refreshSectionEditor() {
     writeAuthorProfileCache(authorProfile.value);
     refreshActiveTabMotion();
   } catch (error) {
-    editState.error = readErrorMessage(error, '读取管理员作者资料失败');
+    editState.error = readErrorMessage(error, '读取管理员网站资料失败');
   } finally {
     editState.loading = false;
   }
@@ -1835,6 +1936,10 @@ function buildEditFormState(profilePayload) {
         Array.isArray(source.about?.links) && source.about.links.length
           ? source.about.links.map(normalizeLinkRow)
           : [createLinkRow()]
+    },
+    site: {
+      browserTitle: String(source.site?.browserTitle || '').trim(),
+      faviconUrl: String(source.site?.faviconUrl || '').trim()
     }
   };
 }
@@ -1889,9 +1994,9 @@ async function loadPublicProfile() {
   } catch (error) {
     if (hadCache) {
       loadError.value = '';
-      cacheNotice.value = `已显示缓存，后台刷新失败：${readErrorMessage(error, '加载作者资料失败')}`;
+      cacheNotice.value = `已显示缓存，后台刷新失败：${readErrorMessage(error, '加载关于网站资料失败')}`;
     } else {
-      loadError.value = readErrorMessage(error, '加载作者资料失败');
+      loadError.value = readErrorMessage(error, '加载关于网站资料失败');
     }
   } finally {
     loading.value = false;
@@ -1952,11 +2057,11 @@ async function saveAdminProfile() {
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
     writeAuthorProfileCache(authorProfile.value);
-    editState.success = '作者资料已保存';
+    editState.success = '网站资料已保存';
     cacheNotice.value = '';
     refreshActiveTabMotion();
   } catch (error) {
-    editState.error = readErrorMessage(error, '保存作者资料失败');
+    editState.error = readErrorMessage(error, '保存网站资料失败');
   } finally {
     editState.loading = false;
   }
@@ -2085,9 +2190,12 @@ watch(
 
 watch(
   activeTab,
-  () => {
+  (nextTab, previousTab) => {
     if (!canEditCurrentTab.value && sectionEditorOpen.value) {
       closeSectionEditor();
+    }
+    if (nextTab === AuthorTabKey.SITE_SETTINGS && isAdminUser.value && previousTab !== AuthorTabKey.SITE_SETTINGS) {
+      void refreshSectionEditor();
     }
     refreshActiveTabMotion();
   }
@@ -2172,6 +2280,46 @@ onBeforeUnmount(() => {
 .content-block {
   display: grid;
   gap: 12px;
+}
+
+.site-settings-card {
+  display: grid;
+  gap: 12px;
+}
+
+.site-settings-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(7, 12, 21, 0.44);
+}
+
+.site-favicon-preview {
+  width: 68px;
+  height: 68px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 10px 22px rgba(4, 8, 15, 0.32);
+}
+
+.site-settings-preview-copy .mini-title {
+  margin: 0 0 4px;
+}
+
+.site-settings-preview-copy .line-text {
+  margin: 0;
+}
+
+.site-settings-actions {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .inline-edit-fab {
@@ -4130,6 +4278,11 @@ onBeforeUnmount(() => {
 
   .field-grid.two-col {
     grid-template-columns: 1fr;
+  }
+
+  .site-settings-preview {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
 
   .editor-preview-grid {

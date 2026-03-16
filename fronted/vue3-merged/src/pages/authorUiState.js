@@ -3,6 +3,7 @@ export const AuthorTabKey = Object.freeze({
   JOURNEY: 'journey',
   POSTS: 'posts',
   ABOUT: 'about',
+  SITE_SETTINGS: 'site-settings',
   EDIT: 'edit'
 });
 
@@ -69,6 +70,10 @@ export function createDefaultAuthorProfileJson() {
         { label: '博客列表', url: '/#/blog' },
         { label: '项目首页', url: '/#/' }
       ]
+    },
+    site: {
+      browserTitle: 'Levitation + Menu',
+      faviconUrl: '/images/katanegai.jpg'
     }
   };
 }
@@ -101,6 +106,7 @@ function normalizeAuthorProfileJson(raw, fallback) {
   const heroRaw = toPlainObject(source.hero);
   const identityRaw = toPlainObject(source.identity);
   const aboutRaw = toPlainObject(source.about);
+  const siteRaw = toPlainObject(source.site);
 
   return {
     hero: {
@@ -132,6 +138,10 @@ function normalizeAuthorProfileJson(raw, fallback) {
       missionImageUrl: normalizeString(aboutRaw.missionImageUrl ?? aboutRaw.mission_image_url, fallback.about.missionImageUrl),
       linksImageUrl: normalizeString(aboutRaw.linksImageUrl ?? aboutRaw.links_image_url, fallback.about.linksImageUrl),
       links: normalizeLinkList(aboutRaw.links, fallback.about.links)
+    },
+    site: {
+      browserTitle: normalizeString(siteRaw.browserTitle ?? siteRaw.browser_title, fallback.site.browserTitle),
+      faviconUrl: normalizeString(siteRaw.faviconUrl ?? siteRaw.favicon_url, fallback.site.faviconUrl)
     }
   };
 }

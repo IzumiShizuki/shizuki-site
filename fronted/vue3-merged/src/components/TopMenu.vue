@@ -64,7 +64,7 @@
           <div class="author-avatar-box">
             <img class="author-avatar-image" :src="resolvedAuthorAvatarUrl" alt="author-avatar" @error="onAuthorAvatarError" />
           </div>
-          <span class="item-label">作者信息</span>
+          <span class="item-label">关于网站</span>
         </div>
 
         <div

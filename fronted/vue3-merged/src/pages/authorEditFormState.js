@@ -57,6 +57,10 @@ export function createDefaultAuthorEditForm() {
       missionImageUrl: '',
       linksImageUrl: '',
       links: [createEmptyLinkRow()]
+    },
+    site: {
+      browserTitle: '',
+      faviconUrl: ''
     }
   };
 }
@@ -69,6 +73,7 @@ export function buildEditFormFromProfile(profilePayload) {
   const hero = toObject(profileJson.hero);
   const identity = toObject(profileJson.identity);
   const about = toObject(profileJson.about);
+  const site = toObject(profileJson.site);
 
   const journey = normalizeJourneyRows(profileJson.journey);
   const links = normalizeLinks(about.links);
@@ -103,6 +108,10 @@ export function buildEditFormFromProfile(profilePayload) {
       missionImageUrl: normalizeString(about.missionImageUrl ?? about.mission_image_url),
       linksImageUrl: normalizeString(about.linksImageUrl ?? about.links_image_url),
       links: links.length ? links : defaultForm.about.links
+    },
+    site: {
+      browserTitle: normalizeString(site.browserTitle ?? site.browser_title),
+      faviconUrl: normalizeString(site.faviconUrl ?? site.favicon_url)
     }
   };
 }
@@ -112,6 +121,7 @@ export function buildProfileJsonFromEditForm(formInput) {
   const hero = toObject(form.hero);
   const identity = toObject(form.identity);
   const about = toObject(form.about);
+  const site = toObject(form.site);
   const journeyRows = normalizeJourneyRows(form.journey).map((row) => ({
     year: normalizeString(row.year),
     title: normalizeString(row.title),
@@ -149,6 +159,10 @@ export function buildProfileJsonFromEditForm(formInput) {
       mission_image_url: normalizeString(about.missionImageUrl ?? about.mission_image_url),
       links_image_url: normalizeString(about.linksImageUrl ?? about.links_image_url),
       links: normalizeLinks(about.links)
+    },
+    site: {
+      browser_title: normalizeString(site.browserTitle ?? site.browser_title),
+      favicon_url: normalizeString(site.faviconUrl ?? site.favicon_url)
     }
   };
 }

@@ -119,6 +119,8 @@ class ContentServiceImplAuthorProfileTest {
         Assertions.assertTrue(savedJson.contains("cover_image_url"));
         Assertions.assertTrue(savedJson.contains("journey-image.webp"));
         Assertions.assertTrue(savedJson.contains("intro-image.webp"));
+        Assertions.assertTrue(savedJson.contains("browser_title"));
+        Assertions.assertTrue(savedJson.contains("favicon_url"));
 
         Map<String, Object> hero = castMap(response.profileJson().get("hero"));
         Assertions.assertEquals("https://cdn.example.com/author-cover.webp", hero.get("cover_image_url"));
@@ -131,6 +133,10 @@ class ContentServiceImplAuthorProfileTest {
         Assertions.assertEquals("https://cdn.example.com/intro-image.webp", about.get("intro_image_url"));
         Assertions.assertEquals("https://cdn.example.com/mission-image.webp", about.get("mission_image_url"));
         Assertions.assertEquals("https://cdn.example.com/links-image.webp", about.get("links_image_url"));
+
+        Map<String, Object> site = castMap(response.profileJson().get("site"));
+        Assertions.assertEquals("Shizuki Site", site.get("browser_title"));
+        Assertions.assertEquals("https://cdn.example.com/favicon.webp", site.get("favicon_url"));
     }
 
     private Map<String, Object> buildProfileJson() {
@@ -171,6 +177,10 @@ class ContentServiceImplAuthorProfileTest {
         profileJson.put("skills", List.of("Java", "Vue3"));
         profileJson.put("journey", List.of(journeyItem));
         profileJson.put("about", about);
+        profileJson.put("site", Map.of(
+            "browser_title", "Shizuki Site",
+            "favicon_url", "https://cdn.example.com/favicon.webp"
+        ));
         return profileJson;
     }
 

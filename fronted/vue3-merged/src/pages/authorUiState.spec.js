@@ -10,12 +10,14 @@ describe('authorUiState', () => {
   it('normalizes unknown tab to overview', () => {
     expect(normalizeAuthorTabKey('unknown')).toBe(AuthorTabKey.OVERVIEW);
     expect(normalizeAuthorTabKey(AuthorTabKey.ABOUT)).toBe(AuthorTabKey.ABOUT);
+    expect(normalizeAuthorTabKey(AuthorTabKey.SITE_SETTINGS)).toBe(AuthorTabKey.SITE_SETTINGS);
   });
 
   it('provides stable default profile payload', () => {
     const fallback = createDefaultAuthorProfilePayload();
     expect(fallback.authorCode).toBe('shizuki');
     expect(fallback.profileJson.hero.name).toBe('Shizuki');
+    expect(fallback.profileJson.site.browserTitle).toBe('Levitation + Menu');
     expect(Array.isArray(fallback.profileJson.skills)).toBe(true);
   });
 
@@ -47,6 +49,10 @@ describe('authorUiState', () => {
           mission_image_url: 'https://example.com/about-mission.png',
           links_image_url: 'https://example.com/about-links.png',
           links: [{ label: 'Blog', url: '/#/blog' }]
+        },
+        site: {
+          browser_title: 'Shizuki Site',
+          favicon_url: 'https://example.com/favicon.png'
         }
       }
     });
@@ -61,5 +67,7 @@ describe('authorUiState', () => {
     expect(normalized.profileJson.journey[0].imageUrl).toBe('https://example.com/journey.png');
     expect(normalized.profileJson.about.introImageUrl).toBe('https://example.com/about-intro.png');
     expect(normalized.profileJson.about.links[0].label).toBe('Blog');
+    expect(normalized.profileJson.site.browserTitle).toBe('Shizuki Site');
+    expect(normalized.profileJson.site.faviconUrl).toBe('https://example.com/favicon.png');
   });
 });

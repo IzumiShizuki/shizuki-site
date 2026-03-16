@@ -391,8 +391,10 @@ const routeLabelMap = {
   'auth-callback': '登录回调',
   profile: '个人页面',
   admin: '管理后台',
-  author: '作者介绍'
+  author: '关于网站'
 };
+const DEFAULT_BROWSER_TITLE = 'Levitation + Menu';
+const DEFAULT_FAVICON_URL = '/images/katanegai.jpg';
 
 const currentRouteKey = computed(() => {
   const name = typeof route.name === 'string' ? route.name : 'home';
@@ -1889,16 +1891,32 @@ function closeAiChat() {
   aiChatActive.value = false;
 }
 
+function applySiteMetaToDocument(siteMeta) {
+  if (typeof document === 'undefined') return;
+  const title = String(siteMeta?.browserTitle || '').trim() || DEFAULT_BROWSER_TITLE;
+  const faviconUrl = String(siteMeta?.faviconUrl || '').trim() || DEFAULT_FAVICON_URL;
+  document.title = title;
+  let iconLink = document.querySelector('link[rel="icon"]');
+  if (!(iconLink instanceof HTMLLinkElement)) {
+    iconLink = document.createElement('link');
+    iconLink.setAttribute('rel', 'icon');
+    document.head.appendChild(iconLink);
+  }
+  iconLink.setAttribute('href', faviconUrl);
+}
+
 function applyAuthorMenuAvatar(payload) {
   const normalized = normalizeAuthorProfilePayload(payload);
   const nextUrl = String(normalized?.profileJson?.hero?.avatarUrl || '').trim();
   authorMenuAvatarUrl.value = nextUrl || '/images/katanegai.jpg';
+  applySiteMetaToDocument(normalized?.profileJson?.site);
 }
 
 function syncAuthorMenuAvatarFromCache() {
   const cached = readAuthorProfileCache();
   if (!cached) {
     authorMenuAvatarUrl.value = '/images/katanegai.jpg';
+    applySiteMetaToDocument(null);
     return false;
   }
   applyAuthorMenuAvatar(cached);
@@ -1989,7 +2007,7 @@ function openAdmin(tabKey = 'overview') {
 }
 
 function openAuthor(tabKey = 'overview') {
-  if (tabKey === 'edit' && !isAdminUser.value) {
+  if ((tabKey === 'edit' || tabKey === 'site-settings') && !isAdminUser.value) {
     tabKey = 'overview';
   }
   const nextQuery = tabKey ? { tab: tabKey } : {};

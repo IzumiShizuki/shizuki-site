@@ -487,6 +487,7 @@ public class ContentServiceImpl implements ContentService {
         normalized.put("skills", normalizeStringList(raw.get("skills"), defaultSkills()));
         normalized.put("journey", normalizeJourneySection(raw.get("journey")));
         normalized.put("about", normalizeAboutSection(toMap(raw.get("about"))));
+        normalized.put("site", normalizeSiteSection(toMap(raw.get("site"))));
         return normalized;
     }
 
@@ -563,6 +564,16 @@ public class ContentServiceImpl implements ContentService {
         return normalized;
     }
 
+    private Map<String, Object> normalizeSiteSection(Map<String, Object> source) {
+        Map<String, Object> normalized = defaultSiteSection();
+        normalized.put(
+            "browser_title",
+            readStringField(source, normalized.get("browser_title").toString(), "browser_title", "browserTitle")
+        );
+        normalized.put("favicon_url", readStringField(source, normalized.get("favicon_url").toString(), "favicon_url", "faviconUrl"));
+        return normalized;
+    }
+
     private List<Map<String, Object>> normalizeLinks(Object raw) {
         List<Map<String, Object>> fallback = defaultLinks();
         if (!(raw instanceof List<?> source) || source.isEmpty()) {
@@ -633,6 +644,7 @@ public class ContentServiceImpl implements ContentService {
         profile.put("skills", defaultSkills());
         profile.put("journey", defaultJourneySection());
         profile.put("about", defaultAboutSection());
+        profile.put("site", defaultSiteSection());
         return profile;
     }
 
@@ -705,6 +717,13 @@ public class ContentServiceImpl implements ContentService {
         about.put("links_image_url", "/images/katanegai.jpg");
         about.put("links", defaultLinks());
         return about;
+    }
+
+    private Map<String, Object> defaultSiteSection() {
+        Map<String, Object> site = new LinkedHashMap<>();
+        site.put("browser_title", "Levitation + Menu");
+        site.put("favicon_url", "/images/katanegai.jpg");
+        return site;
     }
 
     private List<Map<String, Object>> defaultLinks() {
