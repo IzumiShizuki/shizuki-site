@@ -166,4 +166,44 @@ describe('authorEditFormState', () => {
     expect(profileJson.journey.map((item) => item.title)).toEqual(['A', 'B']);
     expect(profileJson.about.links.map((item) => item.label)).toEqual(['L1', 'L2']);
   });
+
+  it('strips signed storage query params before saving image fields', () => {
+    const profileJson = buildProfileJsonFromEditForm({
+      hero: {
+        avatarUrl: 'https://cdn.example.com/assets/hero/avatar.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo',
+        coverImageUrl: 'https://cdn.example.com/assets/hero/cover.webp?x-oss-signature=test&x-oss-expires=900'
+      },
+      journey: [
+        {
+          year: '2026',
+          title: 'Author page',
+          description: 'Normalize image urls',
+          imageUrl: 'https://cdn.example.com/assets/journey/scene.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo',
+          stack: ['Vue3']
+        }
+      ],
+      about: {
+        introText: 'intro',
+        mission: 'mission',
+        focus: ['focus'],
+        music: ['music'],
+        introImageUrl: 'https://cdn.example.com/assets/about/intro.webp?x-oss-signature=test&x-oss-expires=900',
+        missionImageUrl: 'https://cdn.example.com/assets/about/mission.webp?width=960',
+        linksImageUrl: 'https://cdn.example.com/assets/about/links.webp?x-amz-signature=test&x-amz-expires=900',
+        links: [{ label: 'Blog', url: '/#/blog' }]
+      },
+      site: {
+        browserTitle: 'Shizuki Site',
+        faviconUrl: 'https://cdn.example.com/assets/site/favicon.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
+      }
+    });
+
+    expect(profileJson.hero.avatar_url).toBe('https://cdn.example.com/assets/hero/avatar.webp');
+    expect(profileJson.hero.cover_image_url).toBe('https://cdn.example.com/assets/hero/cover.webp');
+    expect(profileJson.journey[0].image_url).toBe('https://cdn.example.com/assets/journey/scene.webp');
+    expect(profileJson.about.intro_image_url).toBe('https://cdn.example.com/assets/about/intro.webp');
+    expect(profileJson.about.mission_image_url).toBe('https://cdn.example.com/assets/about/mission.webp?width=960');
+    expect(profileJson.about.links_image_url).toBe('https://cdn.example.com/assets/about/links.webp');
+    expect(profileJson.site.favicon_url).toBe('https://cdn.example.com/assets/site/favicon.webp');
+  });
 });

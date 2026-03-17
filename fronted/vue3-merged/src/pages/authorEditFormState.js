@@ -1,3 +1,5 @@
+import { normalizePermanentPublicAssetUrl } from '../utils/publicAssetUrl';
+
 const EMPTY_JOURNEY_ROW = Object.freeze({
   year: '',
   title: '',
@@ -84,8 +86,8 @@ export function buildEditFormFromProfile(profilePayload) {
       greeting: normalizeString(hero.greeting),
       name: normalizeString(hero.name),
       quote: normalizeString(hero.quote),
-      avatarUrl: normalizeString(hero.avatarUrl ?? hero.avatar_url),
-      coverImageUrl: normalizeString(hero.coverImageUrl ?? hero.cover_image_url)
+      avatarUrl: normalizeImageUrl(hero.avatarUrl ?? hero.avatar_url),
+      coverImageUrl: normalizeImageUrl(hero.coverImageUrl ?? hero.cover_image_url)
     },
     identity: {
       birthYear: normalizeString(identity.birthYear ?? identity.birth_year),
@@ -104,14 +106,14 @@ export function buildEditFormFromProfile(profilePayload) {
       mission: normalizeString(about.mission),
       focus: normalizeStringList(about.focus),
       music: normalizeStringList(about.music),
-      introImageUrl: normalizeString(about.introImageUrl ?? about.intro_image_url),
-      missionImageUrl: normalizeString(about.missionImageUrl ?? about.mission_image_url),
-      linksImageUrl: normalizeString(about.linksImageUrl ?? about.links_image_url),
+      introImageUrl: normalizeImageUrl(about.introImageUrl ?? about.intro_image_url),
+      missionImageUrl: normalizeImageUrl(about.missionImageUrl ?? about.mission_image_url),
+      linksImageUrl: normalizeImageUrl(about.linksImageUrl ?? about.links_image_url),
       links: links.length ? links : defaultForm.about.links
     },
     site: {
       browserTitle: normalizeString(site.browserTitle ?? site.browser_title),
-      faviconUrl: normalizeString(site.faviconUrl ?? site.favicon_url)
+      faviconUrl: normalizeImageUrl(site.faviconUrl ?? site.favicon_url)
     }
   };
 }
@@ -135,8 +137,8 @@ export function buildProfileJsonFromEditForm(formInput) {
       greeting: normalizeString(hero.greeting),
       name: normalizeString(hero.name),
       quote: normalizeString(hero.quote),
-      avatar_url: normalizeString(hero.avatarUrl ?? hero.avatar_url),
-      cover_image_url: normalizeString(hero.coverImageUrl ?? hero.cover_image_url)
+      avatar_url: normalizeImageUrl(hero.avatarUrl ?? hero.avatar_url),
+      cover_image_url: normalizeImageUrl(hero.coverImageUrl ?? hero.cover_image_url)
     },
     identity: {
       birth_year: normalizeString(identity.birthYear ?? identity.birth_year),
@@ -155,14 +157,14 @@ export function buildProfileJsonFromEditForm(formInput) {
       mission: normalizeString(about.mission),
       focus: normalizeStringList(about.focus),
       music: normalizeStringList(about.music),
-      intro_image_url: normalizeString(about.introImageUrl ?? about.intro_image_url),
-      mission_image_url: normalizeString(about.missionImageUrl ?? about.mission_image_url),
-      links_image_url: normalizeString(about.linksImageUrl ?? about.links_image_url),
+      intro_image_url: normalizeImageUrl(about.introImageUrl ?? about.intro_image_url),
+      mission_image_url: normalizeImageUrl(about.missionImageUrl ?? about.mission_image_url),
+      links_image_url: normalizeImageUrl(about.linksImageUrl ?? about.links_image_url),
       links: normalizeLinks(about.links)
     },
     site: {
       browser_title: normalizeString(site.browserTitle ?? site.browser_title),
-      favicon_url: normalizeString(site.faviconUrl ?? site.favicon_url)
+      favicon_url: normalizeImageUrl(site.faviconUrl ?? site.favicon_url)
     }
   };
 }
@@ -206,7 +208,7 @@ function normalizeJourneyRows(raw) {
       const year = normalizeString(row.year);
       const title = normalizeString(row.title);
       const description = normalizeString(row.description);
-      const imageUrl = normalizeString(row.imageUrl ?? row.image_url);
+      const imageUrl = normalizeImageUrl(row.imageUrl ?? row.image_url);
       const stack = normalizeStringList(row.stack);
       if (!year && !title && !description && !imageUrl && !stack.length) return null;
       return { year, title, description, imageUrl, stack };
@@ -238,6 +240,10 @@ function normalizeStringList(raw) {
 function normalizeString(value) {
   if (value == null) return '';
   return String(value).trim();
+}
+
+function normalizeImageUrl(value) {
+  return normalizePermanentPublicAssetUrl(normalizeString(value));
 }
 
 function toObject(value) {

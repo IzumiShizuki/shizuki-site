@@ -1,3 +1,5 @@
+import { normalizePermanentPublicAssetUrl } from '../utils/publicAssetUrl';
+
 export const AuthorTabKey = Object.freeze({
   OVERVIEW: 'overview',
   JOURNEY: 'journey',
@@ -113,8 +115,8 @@ function normalizeAuthorProfileJson(raw, fallback) {
       greeting: normalizeString(heroRaw.greeting, fallback.hero.greeting),
       name: normalizeString(heroRaw.name, fallback.hero.name),
       quote: normalizeString(heroRaw.quote, fallback.hero.quote),
-      avatarUrl: normalizeString(heroRaw.avatarUrl ?? heroRaw.avatar_url, fallback.hero.avatarUrl),
-      coverImageUrl: normalizeString(heroRaw.coverImageUrl ?? heroRaw.cover_image_url, fallback.hero.coverImageUrl)
+      avatarUrl: normalizeImageUrl(heroRaw.avatarUrl ?? heroRaw.avatar_url, fallback.hero.avatarUrl),
+      coverImageUrl: normalizeImageUrl(heroRaw.coverImageUrl ?? heroRaw.cover_image_url, fallback.hero.coverImageUrl)
     },
     identity: {
       birthYear: normalizeString(identityRaw.birthYear ?? identityRaw.birth_year, fallback.identity.birthYear),
@@ -134,14 +136,14 @@ function normalizeAuthorProfileJson(raw, fallback) {
       mission: normalizeString(aboutRaw.mission, fallback.about.mission),
       focus: normalizeStringList(aboutRaw.focus, fallback.about.focus),
       music: normalizeStringList(aboutRaw.music, fallback.about.music),
-      introImageUrl: normalizeString(aboutRaw.introImageUrl ?? aboutRaw.intro_image_url, fallback.about.introImageUrl),
-      missionImageUrl: normalizeString(aboutRaw.missionImageUrl ?? aboutRaw.mission_image_url, fallback.about.missionImageUrl),
-      linksImageUrl: normalizeString(aboutRaw.linksImageUrl ?? aboutRaw.links_image_url, fallback.about.linksImageUrl),
+      introImageUrl: normalizeImageUrl(aboutRaw.introImageUrl ?? aboutRaw.intro_image_url, fallback.about.introImageUrl),
+      missionImageUrl: normalizeImageUrl(aboutRaw.missionImageUrl ?? aboutRaw.mission_image_url, fallback.about.missionImageUrl),
+      linksImageUrl: normalizeImageUrl(aboutRaw.linksImageUrl ?? aboutRaw.links_image_url, fallback.about.linksImageUrl),
       links: normalizeLinkList(aboutRaw.links, fallback.about.links)
     },
     site: {
       browserTitle: normalizeString(siteRaw.browserTitle ?? siteRaw.browser_title, fallback.site.browserTitle),
-      faviconUrl: normalizeString(siteRaw.faviconUrl ?? siteRaw.favicon_url, fallback.site.faviconUrl)
+      faviconUrl: normalizeImageUrl(siteRaw.faviconUrl ?? siteRaw.favicon_url, fallback.site.faviconUrl)
     }
   };
 }
@@ -159,7 +161,7 @@ function normalizeJourneyList(raw, fallback) {
         year: normalizeString(row.year, '未定'),
         title: title || '持续迭代',
         description: description || '继续完善作者主页与站点表达。',
-        imageUrl: normalizeString(row.imageUrl ?? row.image_url, normalizeString(fallbackRow.imageUrl)),
+        imageUrl: normalizeImageUrl(row.imageUrl ?? row.image_url, normalizeString(fallbackRow.imageUrl)),
         stack: normalizeStringList(row.stack, ['Shizuki Site'])
       };
     })
@@ -195,6 +197,10 @@ function normalizeStringList(raw, fallback = []) {
 
 function normalizeString(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeImageUrl(value, fallback = '') {
+  return normalizePermanentPublicAssetUrl(normalizeString(value, fallback));
 }
 
 function toPlainObject(value) {

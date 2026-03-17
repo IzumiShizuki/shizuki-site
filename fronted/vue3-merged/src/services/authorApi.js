@@ -1,3 +1,4 @@
+import { normalizePermanentPublicAssetUrl } from '../utils/publicAssetUrl';
 import { httpRequest, normalizeApiData } from './httpClient';
 
 const AUTHOR_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
@@ -14,7 +15,7 @@ function requireAuthorizedFetch(authorizedFetch) {
 }
 
 function normalizeAssetUrl(raw) {
-  return String(raw || '').trim();
+  return normalizePermanentPublicAssetUrl(String(raw || '').trim());
 }
 
 function sanitizeAssetName(raw, fallback = 'author-avatar.png') {
