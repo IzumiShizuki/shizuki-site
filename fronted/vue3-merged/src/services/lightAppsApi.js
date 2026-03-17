@@ -411,6 +411,31 @@ function normalizeUrlLink(raw) {
   };
 }
 
+function normalizeWhiteboardSummary(raw) {
+  const source = toObject(raw);
+  return {
+    whiteboardId: toNumber(source.whiteboardId ?? source.whiteboard_id, 0),
+    title: toText(source.title, ''),
+    boardKind: toText(source.boardKind ?? source.board_kind, 'DRAWING').toUpperCase() || 'DRAWING',
+    thumbnailAssetId: toNumber(source.thumbnailAssetId ?? source.thumbnail_asset_id, 0) || null,
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeWhiteboard(raw) {
+  const source = toObject(raw);
+  return {
+    whiteboardId: toNumber(source.whiteboardId ?? source.whiteboard_id, 0),
+    title: toText(source.title, ''),
+    boardKind: toText(source.boardKind ?? source.board_kind, 'DRAWING').toUpperCase() || 'DRAWING',
+    documentJson: toText(source.documentJson ?? source.document_json, '{}') || '{}',
+    thumbnailAssetId: toNumber(source.thumbnailAssetId ?? source.thumbnail_asset_id, 0) || null,
+    sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
 function normalizeUrlMetadata(raw) {
   const source = toObject(raw);
   return {
@@ -1036,4 +1061,51 @@ export async function resolveLightAppUrlLinkMetadata(url, authorizedFetch) {
     })
   );
   return normalizeUrlMetadata(raw);
+}
+
+export async function listLightAppWhiteboards(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/light-apps/whiteboards', { method: 'GET' }));
+  return normalizeList(raw, normalizeWhiteboardSummary, 'whiteboardId');
+}
+
+export async function createLightAppWhiteboard(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/whiteboards', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeWhiteboard(raw);
+}
+
+export async function getLightAppWhiteboard(whiteboardId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/whiteboards/${encodeURIComponent(whiteboardId)}`, {
+      method: 'GET'
+    })
+  );
+  return normalizeWhiteboard(raw);
+}
+
+export async function updateLightAppWhiteboard(whiteboardId, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/whiteboards/${encodeURIComponent(whiteboardId)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeWhiteboard(raw);
+}
+
+export async function deleteLightAppWhiteboard(whiteboardId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  return unwrap(
+    await authorizedFetch(`/api/v1/light-apps/whiteboards/${encodeURIComponent(whiteboardId)}`, {
+      method: 'DELETE'
+    })
+  );
 }

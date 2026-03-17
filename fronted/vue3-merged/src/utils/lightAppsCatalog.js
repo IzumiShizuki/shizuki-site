@@ -30,6 +30,14 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
     iconClass: 'fas fa-link',
     source: 'Shizuki',
     floatingAble: true
+  },
+  {
+    code: 'board-canvas',
+    title: 'Board Canvas',
+    summary: '飞书画板风格白板：流程图/思维导图/便签绘制，支持 Mermaid 双向与 PNG 导出。',
+    iconClass: 'fas fa-diagram-project',
+    source: 'Shizuki',
+    floatingAble: true
   }
 ]);
 

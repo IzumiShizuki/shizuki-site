@@ -217,6 +217,7 @@ import {
   TIMEPRISM_MODULE_ITEMS
 } from '../components/lightapps/timeprism/timePrismSuiteState';
 import UrlLinksWindow from '../components/lightapps/url/UrlLinksWindow.vue';
+import BoardCanvasWindow from '../components/lightapps/board/BoardCanvasWindow.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { listLightAppUrlLinks } from '../services/lightAppsApi';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
@@ -255,14 +256,16 @@ const PAGE_WINDOW_IDS = Object.freeze({
   'timeprism-todo': 910001,
   'pomodoro-timer': 910002,
   'balance-ledger': 910003,
-  'url-links': 910004
+  'url-links': 910004,
+  'board-canvas': 910005
 });
 
 const PAGE_COMPONENT_MAP = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
   'pomodoro-timer': PomodoroWindow,
   'balance-ledger': BalanceLedgerWindow,
-  'url-links': UrlLinksWindow
+  'url-links': UrlLinksWindow,
+  'board-canvas': BoardCanvasWindow
 });
 
 let syncTimer = 0;

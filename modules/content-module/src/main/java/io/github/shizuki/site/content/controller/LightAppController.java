@@ -37,6 +37,9 @@ import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveRequest;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardSummaryResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardUpsertRequest;
 import io.github.shizuki.site.content.service.LightAppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -307,6 +310,40 @@ public class LightAppController {
         @Valid @RequestBody LightAppUrlLinkResolveRequest request
     ) {
         return ApiResponse.success(lightAppService.resolveUrlLinkMetadata(request.getUrl()));
+    }
+
+    @GetMapping("/whiteboards")
+    @Operation(summary = "查询画板列表")
+    public ApiResponse<List<LightAppWhiteboardSummaryResponse>> listWhiteboards() {
+        return ApiResponse.success(lightAppService.listWhiteboards());
+    }
+
+    @PostMapping("/whiteboards")
+    @Operation(summary = "创建画板")
+    public ApiResponse<LightAppWhiteboardResponse> createWhiteboard(@Valid @RequestBody LightAppWhiteboardUpsertRequest request) {
+        return ApiResponse.success(lightAppService.createWhiteboard(request));
+    }
+
+    @GetMapping("/whiteboards/{whiteboard_id}")
+    @Operation(summary = "查询画板详情")
+    public ApiResponse<LightAppWhiteboardResponse> getWhiteboard(@PathVariable("whiteboard_id") Long whiteboardId) {
+        return ApiResponse.success(lightAppService.getWhiteboard(whiteboardId));
+    }
+
+    @PutMapping("/whiteboards/{whiteboard_id}")
+    @Operation(summary = "更新画板")
+    public ApiResponse<LightAppWhiteboardResponse> updateWhiteboard(
+        @PathVariable("whiteboard_id") Long whiteboardId,
+        @Valid @RequestBody LightAppWhiteboardUpsertRequest request
+    ) {
+        return ApiResponse.success(lightAppService.updateWhiteboard(whiteboardId, request));
+    }
+
+    @DeleteMapping("/whiteboards/{whiteboard_id}")
+    @Operation(summary = "删除画板")
+    public ApiResponse<Void> deleteWhiteboard(@PathVariable("whiteboard_id") Long whiteboardId) {
+        lightAppService.deleteWhiteboard(whiteboardId);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/todos")

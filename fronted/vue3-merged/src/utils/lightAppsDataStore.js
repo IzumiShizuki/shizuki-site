@@ -432,11 +432,33 @@ function normalizeUrlLinks(raw) {
     .sort((left, right) => left.sortNum - right.sortNum || left.urlLinkId - right.urlLinkId);
 }
 
+function normalizeWhiteboards(raw) {
+  return toArray(raw)
+    .map((item) => {
+      const source = toObject(item);
+      const id = toNumber(source.whiteboardId ?? source.whiteboard_id, 0);
+      const title = String(source.title || '').trim();
+      if (!id || !title) return null;
+      return {
+        whiteboardId: id,
+        title,
+        boardKind: String(source.boardKind ?? source.board_kind ?? 'DRAWING').trim().toUpperCase() || 'DRAWING',
+        documentJson: String(source.documentJson ?? source.document_json ?? '{}').trim() || '{}',
+        thumbnailAssetId: toNumber(source.thumbnailAssetId ?? source.thumbnail_asset_id, 0) || null,
+        sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
+        updatedAt: source.updatedAt || source.updated_at || ''
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortNum - right.sortNum || left.whiteboardId - right.whiteboardId);
+}
+
 export function createEmptyLightAppDataStore() {
   return {
     projects: [],
     pomodoros: [],
     urlLinks: [],
+    whiteboards: [],
     todos: [],
     tasks: [],
     taskColumns: DEFAULT_TASK_COLUMNS.map((item) => ({ ...item })),
@@ -459,6 +481,7 @@ export function normalizeLightAppDataStore(input) {
     projects: normalizeProjects(source.projects),
     pomodoros: normalizePomodoros(source.pomodoros),
     urlLinks: normalizeUrlLinks(source.urlLinks || source.url_links),
+    whiteboards: normalizeWhiteboards(source.whiteboards || source.whiteboard_list),
     todos: normalizeTodos(source.todos),
     tasks: normalizeTasks(source.tasks),
     taskColumns: normalizeTaskColumns(source.taskColumns || source.task_columns),

@@ -18,6 +18,8 @@ import io.github.shizuki.site.content.dto.LightAppTaskResponse;
 import io.github.shizuki.site.content.dto.LightAppTodoResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardSummaryResponse;
 import io.github.shizuki.site.content.service.LightAppService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
 import java.math.BigDecimal;
@@ -138,6 +140,68 @@ class LightAppControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.title").value("LeetCode"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.host").value("leetcode.cn"));
+    }
+
+    @Test
+    void shouldListWhiteboardsSuccessfully() throws Exception {
+        Mockito.when(lightAppService.listWhiteboards())
+            .thenReturn(List.of(
+                new LightAppWhiteboardSummaryResponse(3L, "系统设计图", "FLOWCHART", null, 20, null)
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/whiteboards"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].whiteboard_id").value(3))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].board_kind").value("FLOWCHART"));
+    }
+
+    @Test
+    void shouldCreateWhiteboardSuccessfully() throws Exception {
+        Mockito.when(lightAppService.createWhiteboard(ArgumentMatchers.any()))
+            .thenReturn(new LightAppWhiteboardResponse(
+                5L,
+                "每日复盘",
+                "MINDMAP",
+                "{\"k\":\"v\"}",
+                null,
+                10,
+                null
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/whiteboards")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "每日复盘",
+                      "board_kind": "MINDMAP",
+                      "document_json": "{\\\"k\\\":\\\"v\\\"}"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.whiteboard_id").value(5))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.title").value("每日复盘"));
+    }
+
+    @Test
+    void shouldGetWhiteboardSuccessfully() throws Exception {
+        Mockito.when(lightAppService.getWhiteboard(ArgumentMatchers.eq(9L)))
+            .thenReturn(new LightAppWhiteboardResponse(
+                9L,
+                "流程梳理",
+                "FLOWCHART",
+                "{\"name\":\"demo\"}",
+                88L,
+                30,
+                null
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/whiteboards/9"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.whiteboard_id").value(9))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.thumbnail_asset_id").value(88));
     }
 
     @Test

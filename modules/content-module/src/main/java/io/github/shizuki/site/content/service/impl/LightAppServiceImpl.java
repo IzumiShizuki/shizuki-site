@@ -45,6 +45,9 @@ import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardSummaryResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardUpsertRequest;
 import io.github.shizuki.site.content.entity.LightAppBalanceAccountEntity;
 import io.github.shizuki.site.content.entity.LightAppBalanceDebtEntity;
 import io.github.shizuki.site.content.entity.LightAppBalanceRecurringChargeEntity;
@@ -60,6 +63,7 @@ import io.github.shizuki.site.content.entity.LightAppTaskEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoRecurringRuleEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoEntity;
 import io.github.shizuki.site.content.entity.LightAppUrlLinkEntity;
+import io.github.shizuki.site.content.entity.LightAppWhiteboardEntity;
 import io.github.shizuki.site.content.mapper.LightAppBalanceAccountMapper;
 import io.github.shizuki.site.content.mapper.LightAppBalanceDebtMapper;
 import io.github.shizuki.site.content.mapper.LightAppBalanceRecurringChargeMapper;
@@ -75,6 +79,7 @@ import io.github.shizuki.site.content.mapper.LightAppTaskMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoRecurringRuleMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoMapper;
 import io.github.shizuki.site.content.mapper.LightAppUrlLinkMapper;
+import io.github.shizuki.site.content.mapper.LightAppWhiteboardMapper;
 import io.github.shizuki.site.content.service.LightAppService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -124,6 +129,9 @@ public class LightAppServiceImpl implements LightAppService {
     private static final String DEBT_STATUS_CLOSED = "CLOSED";
     private static final String URL_ICON_MODE_AUTO = "AUTO";
     private static final String URL_ICON_MODE_UPLOAD = "UPLOAD";
+    private static final String BOARD_KIND_DRAWING = "DRAWING";
+    private static final String BOARD_KIND_FLOWCHART = "FLOWCHART";
+    private static final String BOARD_KIND_MINDMAP = "MINDMAP";
     private static final String CHANNEL_CODE_UNBOUND = "__unbound__";
     private static final String CHANNEL_NAME_UNBOUND = "未绑定";
     private static final String TRANSACTION_CATEGORY_OTHER = "其他";
@@ -165,6 +173,7 @@ public class LightAppServiceImpl implements LightAppService {
     private final LightAppScheduleEventMapper scheduleEventMapper;
     private final LightAppScheduleRecurringRuleMapper scheduleRecurringRuleMapper;
     private final LightAppUrlLinkMapper urlLinkMapper;
+    private final LightAppWhiteboardMapper whiteboardMapper;
     private final RestClient restClient;
 
     public LightAppServiceImpl(
@@ -183,6 +192,7 @@ public class LightAppServiceImpl implements LightAppService {
         LightAppScheduleEventMapper scheduleEventMapper,
         LightAppScheduleRecurringRuleMapper scheduleRecurringRuleMapper,
         LightAppUrlLinkMapper urlLinkMapper,
+        LightAppWhiteboardMapper whiteboardMapper,
         RestClient.Builder restClientBuilder
     ) {
         this.balanceAccountMapper = balanceAccountMapper;
@@ -200,6 +210,7 @@ public class LightAppServiceImpl implements LightAppService {
         this.scheduleEventMapper = scheduleEventMapper;
         this.scheduleRecurringRuleMapper = scheduleRecurringRuleMapper;
         this.urlLinkMapper = urlLinkMapper;
+        this.whiteboardMapper = whiteboardMapper;
         this.restClient = restClientBuilder.build();
     }
 
@@ -822,6 +833,58 @@ public class LightAppServiceImpl implements LightAppService {
     }
 
     @Override
+    public List<LightAppWhiteboardSummaryResponse> listWhiteboards() {
+        Long userId = requireLoginUserId();
+        return whiteboardMapper.selectList(new LambdaQueryWrapper<LightAppWhiteboardEntity>()
+                .eq(LightAppWhiteboardEntity::getUserId, userId)
+                .orderByAsc(LightAppWhiteboardEntity::getSortNum)
+                .orderByDesc(LightAppWhiteboardEntity::getUpdatedAt)
+                .orderByDesc(LightAppWhiteboardEntity::getId))
+            .stream()
+            .map(this::toWhiteboardSummaryResponse)
+            .toList();
+    }
+
+    @Override
+    @Transactional
+    public LightAppWhiteboardResponse createWhiteboard(LightAppWhiteboardUpsertRequest request) {
+        Long userId = requireLoginUserId();
+        LightAppWhiteboardEntity entity = new LightAppWhiteboardEntity();
+        entity.setUserId(userId);
+        applyWhiteboardUpsert(entity, request);
+        entity.setSortNum(resolveSortNum(request.getSortNum(), whiteboardMapper.selectMaxSortNumByUserId(userId)));
+        whiteboardMapper.insert(entity);
+        return toWhiteboardResponse(requireWhiteboard(userId, entity.getId()));
+    }
+
+    @Override
+    public LightAppWhiteboardResponse getWhiteboard(Long whiteboardId) {
+        Long userId = requireLoginUserId();
+        return toWhiteboardResponse(requireWhiteboard(userId, whiteboardId));
+    }
+
+    @Override
+    @Transactional
+    public LightAppWhiteboardResponse updateWhiteboard(Long whiteboardId, LightAppWhiteboardUpsertRequest request) {
+        Long userId = requireLoginUserId();
+        LightAppWhiteboardEntity entity = requireWhiteboard(userId, whiteboardId);
+        applyWhiteboardUpsert(entity, request);
+        if (request.getSortNum() != null) {
+            entity.setSortNum(request.getSortNum());
+        }
+        whiteboardMapper.updateById(entity);
+        return toWhiteboardResponse(requireWhiteboard(userId, whiteboardId));
+    }
+
+    @Override
+    @Transactional
+    public void deleteWhiteboard(Long whiteboardId) {
+        Long userId = requireLoginUserId();
+        LightAppWhiteboardEntity entity = requireWhiteboard(userId, whiteboardId);
+        whiteboardMapper.deleteById(entity.getId());
+    }
+
+    @Override
     public List<LightAppTodoResponse> listTodos() {
         Long userId = requireLoginUserId();
         materializeTodoRecurringInstances(userId);
@@ -1329,6 +1392,17 @@ public class LightAppServiceImpl implements LightAppService {
         return entity;
     }
 
+    private LightAppWhiteboardEntity requireWhiteboard(Long userId, Long whiteboardId) {
+        LightAppWhiteboardEntity entity = whiteboardMapper.selectOne(new LambdaQueryWrapper<LightAppWhiteboardEntity>()
+            .eq(LightAppWhiteboardEntity::getId, whiteboardId)
+            .eq(LightAppWhiteboardEntity::getUserId, userId)
+            .last("LIMIT 1"));
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Whiteboard not found");
+        }
+        return entity;
+    }
+
     private LightAppTodoEntity requireTodo(Long userId, Long todoId) {
         LightAppTodoEntity entity = todoMapper.selectOne(new LambdaQueryWrapper<LightAppTodoEntity>()
             .eq(LightAppTodoEntity::getId, todoId)
@@ -1466,6 +1540,28 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setIconMode(iconMode);
         entity.setIconAssetId(iconAssetId);
         entity.setFaviconUrl(faviconUrl);
+    }
+
+    private String normalizeBoardKind(String rawBoardKind) {
+        String normalized = String.valueOf(rawBoardKind == null ? "" : rawBoardKind).trim().toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return BOARD_KIND_DRAWING;
+        }
+        if (BOARD_KIND_DRAWING.equals(normalized) || BOARD_KIND_FLOWCHART.equals(normalized) || BOARD_KIND_MINDMAP.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "board_kind must be DRAWING/FLOWCHART/MINDMAP");
+    }
+
+    private void applyWhiteboardUpsert(LightAppWhiteboardEntity entity, LightAppWhiteboardUpsertRequest request) {
+        entity.setTitle(normalizeRequiredText(request.getTitle(), "title"));
+        entity.setBoardKindCode(normalizeBoardKind(request.getBoardKind()));
+        entity.setDocumentJson(normalizeRequiredText(request.getDocumentJson(), "document_json"));
+        Long thumbnailAssetId = request.getThumbnailAssetId();
+        if (thumbnailAssetId != null && thumbnailAssetId <= 0) {
+            thumbnailAssetId = null;
+        }
+        entity.setThumbnailAssetId(thumbnailAssetId);
     }
 
     private void applyPomodoroUpsert(LightAppPomodoroTemplateEntity entity, LightAppPomodoroUpsertRequest request, Long userId) {
@@ -3088,6 +3184,29 @@ public class LightAppServiceImpl implements LightAppService {
             iconMode,
             entity.getIconAssetId(),
             entity.getFaviconUrl(),
+            entity.getSortNum() == null ? 0 : entity.getSortNum(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private LightAppWhiteboardSummaryResponse toWhiteboardSummaryResponse(LightAppWhiteboardEntity entity) {
+        return new LightAppWhiteboardSummaryResponse(
+            entity.getId(),
+            entity.getTitle(),
+            normalizeBoardKind(entity.getBoardKindCode()),
+            entity.getThumbnailAssetId(),
+            entity.getSortNum() == null ? 0 : entity.getSortNum(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private LightAppWhiteboardResponse toWhiteboardResponse(LightAppWhiteboardEntity entity) {
+        return new LightAppWhiteboardResponse(
+            entity.getId(),
+            entity.getTitle(),
+            normalizeBoardKind(entity.getBoardKindCode()),
+            entity.getDocumentJson(),
+            entity.getThumbnailAssetId(),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             entity.getUpdatedAt()
         );

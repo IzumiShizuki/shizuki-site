@@ -34,6 +34,9 @@ import io.github.shizuki.site.content.dto.LightAppTodoUpsertRequest;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResolveResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkResponse;
 import io.github.shizuki.site.content.dto.LightAppUrlLinkUpsertRequest;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardSummaryResponse;
+import io.github.shizuki.site.content.dto.LightAppWhiteboardUpsertRequest;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -118,6 +121,16 @@ public interface LightAppService {
     void deleteUrlLink(Long urlLinkId);
 
     LightAppUrlLinkResolveResponse resolveUrlLinkMetadata(String url);
+
+    List<LightAppWhiteboardSummaryResponse> listWhiteboards();
+
+    LightAppWhiteboardResponse createWhiteboard(LightAppWhiteboardUpsertRequest request);
+
+    LightAppWhiteboardResponse getWhiteboard(Long whiteboardId);
+
+    LightAppWhiteboardResponse updateWhiteboard(Long whiteboardId, LightAppWhiteboardUpsertRequest request);
+
+    void deleteWhiteboard(Long whiteboardId);
 
     List<LightAppTodoResponse> listTodos();
 

@@ -140,6 +140,7 @@ import {
 } from './timeprism/timePrismSuiteState';
 import { emitTimePrismFocusItem } from './timeprism/timePrismFocusBus';
 import UrlLinksWindow from './url/UrlLinksWindow.vue';
+import BoardCanvasWindow from './board/BoardCanvasWindow.vue';
 
 const props = defineProps({
   isHomeRoute: {
@@ -166,7 +167,8 @@ const componentMap = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
   'pomodoro-timer': PomodoroWindow,
   'balance-ledger': BalanceLedgerWindow,
-  'url-links': UrlLinksWindow
+  'url-links': UrlLinksWindow,
+  'board-canvas': BoardCanvasWindow
 });
 
 const visibleWindows = computed(() => getVisibleWindows(state, props.isHomeRoute));

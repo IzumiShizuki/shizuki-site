@@ -26,6 +26,7 @@ import io.github.shizuki.site.content.mapper.LightAppTaskMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoRecurringRuleMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoMapper;
 import io.github.shizuki.site.content.mapper.LightAppUrlLinkMapper;
+import io.github.shizuki.site.content.mapper.LightAppWhiteboardMapper;
 import io.github.shizuki.site.content.service.impl.LightAppServiceImpl;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -88,6 +89,9 @@ class LightAppServiceImplTest {
 
     @Mock
     private LightAppUrlLinkMapper urlLinkMapper;
+
+    @Mock
+    private LightAppWhiteboardMapper whiteboardMapper;
 
     @Mock
     private RestClient.Builder restClientBuilder;
