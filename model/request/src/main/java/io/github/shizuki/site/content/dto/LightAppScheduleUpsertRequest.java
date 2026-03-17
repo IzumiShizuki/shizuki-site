@@ -38,6 +38,33 @@ public class LightAppScheduleUpsertRequest {
     @Schema(description = "状态 ACTIVE/CANCELLED")
     private String status;
 
+    @Schema(description = "是否显示在日历")
+    private Boolean showOnCalendar;
+
+    @Schema(description = "时间精度 DAY/MINUTE", example = "MINUTE")
+    private String timePrecision;
+
+    @Schema(description = "时间模式（日程固定为RANGE）", example = "RANGE")
+    private String timingMode;
+
+    @Schema(description = "范围开始时间")
+    private LocalDateTime rangeStartAt;
+
+    @Schema(description = "是否启用提醒")
+    private Boolean reminderEnabled;
+
+    @Schema(description = "开始提醒提前量")
+    private Integer startRemindValue;
+
+    @Schema(description = "开始提醒单位 MINUTE/DAY")
+    private String startRemindUnit;
+
+    @Schema(description = "截止提醒提前量")
+    private Integer deadlineRemindValue;
+
+    @Schema(description = "截止提醒单位 MINUTE/DAY")
+    private String deadlineRemindUnit;
+
     @Schema(description = "排序值")
     private Integer sortNum;
 
@@ -103,6 +130,78 @@ public class LightAppScheduleUpsertRequest {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public Boolean getShowOnCalendar() {
+        return showOnCalendar;
+    }
+
+    public void setShowOnCalendar(Boolean showOnCalendar) {
+        this.showOnCalendar = showOnCalendar;
+    }
+
+    public String getTimePrecision() {
+        return timePrecision;
+    }
+
+    public void setTimePrecision(String timePrecision) {
+        this.timePrecision = timePrecision;
+    }
+
+    public String getTimingMode() {
+        return timingMode;
+    }
+
+    public void setTimingMode(String timingMode) {
+        this.timingMode = timingMode;
+    }
+
+    public LocalDateTime getRangeStartAt() {
+        return rangeStartAt;
+    }
+
+    public void setRangeStartAt(LocalDateTime rangeStartAt) {
+        this.rangeStartAt = rangeStartAt;
+    }
+
+    public Boolean getReminderEnabled() {
+        return reminderEnabled;
+    }
+
+    public void setReminderEnabled(Boolean reminderEnabled) {
+        this.reminderEnabled = reminderEnabled;
+    }
+
+    public Integer getStartRemindValue() {
+        return startRemindValue;
+    }
+
+    public void setStartRemindValue(Integer startRemindValue) {
+        this.startRemindValue = startRemindValue;
+    }
+
+    public String getStartRemindUnit() {
+        return startRemindUnit;
+    }
+
+    public void setStartRemindUnit(String startRemindUnit) {
+        this.startRemindUnit = startRemindUnit;
+    }
+
+    public Integer getDeadlineRemindValue() {
+        return deadlineRemindValue;
+    }
+
+    public void setDeadlineRemindValue(Integer deadlineRemindValue) {
+        this.deadlineRemindValue = deadlineRemindValue;
+    }
+
+    public String getDeadlineRemindUnit() {
+        return deadlineRemindUnit;
+    }
+
+    public void setDeadlineRemindUnit(String deadlineRemindUnit) {
+        this.deadlineRemindUnit = deadlineRemindUnit;
     }
 
     public Integer getSortNum() {

@@ -207,6 +207,7 @@
       />
 
       <LightAppWindowHost :is-home-route="isHomeRoute" />
+      <TimePrismReminderHost />
       <LevitationBall v-if="showLevitationBall" ref="levitationRef" />
 
       <div class="click-ripple-layer" aria-hidden="true">
@@ -237,6 +238,7 @@ import BackgroundPickerDialog from './components/app/BackgroundPickerDialog.vue'
 import AppMenuBar from './components/app/AppMenuBar.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
+import TimePrismReminderHost from './components/lightapps/timeprism/TimePrismReminderHost.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
 import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';

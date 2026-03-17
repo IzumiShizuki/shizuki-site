@@ -6,12 +6,14 @@ export const TIMEPRISM_MODULE_TODO = 'todo';
 export const TIMEPRISM_MODULE_BOARD = 'board';
 export const TIMEPRISM_MODULE_SCHEDULE = 'schedule';
 export const TIMEPRISM_MODULE_PROJECTS = 'projects';
+export const TIMEPRISM_MODULE_CALENDAR = 'calendar';
 
 export const TIMEPRISM_MODULE_ITEMS = Object.freeze([
   { code: TIMEPRISM_MODULE_TODO, label: 'Todo', iconClass: 'fas fa-list-check' },
   { code: TIMEPRISM_MODULE_BOARD, label: 'Task Board', iconClass: 'fas fa-columns' },
   { code: TIMEPRISM_MODULE_SCHEDULE, label: 'Schedule', iconClass: 'fas fa-calendar-days' },
-  { code: TIMEPRISM_MODULE_PROJECTS, label: 'Projects', iconClass: 'fas fa-folder-tree' }
+  { code: TIMEPRISM_MODULE_PROJECTS, label: 'Projects', iconClass: 'fas fa-folder-tree' },
+  { code: TIMEPRISM_MODULE_CALENDAR, label: 'Calendar', iconClass: 'fas fa-calendar' }
 ]);
 
 export const TODO_VIEW_ALL = 'ALL';
@@ -24,7 +26,8 @@ const MODULE_CODES = Object.freeze([
   TIMEPRISM_MODULE_TODO,
   TIMEPRISM_MODULE_BOARD,
   TIMEPRISM_MODULE_SCHEDULE,
-  TIMEPRISM_MODULE_PROJECTS
+  TIMEPRISM_MODULE_PROJECTS,
+  TIMEPRISM_MODULE_CALENDAR
 ]);
 
 const suiteSessionByWindowId = new Map();

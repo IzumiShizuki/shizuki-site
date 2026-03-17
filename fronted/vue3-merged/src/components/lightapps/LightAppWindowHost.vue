@@ -138,6 +138,7 @@ import {
   resolveTimePrismSuiteSession,
   setSuiteActiveModule
 } from './timeprism/timePrismSuiteState';
+import { emitTimePrismFocusItem } from './timeprism/timePrismFocusBus';
 import UrlLinksWindow from './url/UrlLinksWindow.vue';
 
 const props = defineProps({
@@ -305,7 +306,20 @@ function openFromEvent(event) {
   if (!code) return;
   const app = getLightAppByCode(code);
   if (!app) return;
-  replaceState(openOrFocusWindow(state, app, viewport()));
+  const next = openOrFocusWindow(state, app, viewport());
+  replaceState(next);
+
+  if (code === 'timeprism-todo') {
+    const windowId = next.windows.find((item) => item.code === code)?.id;
+    const moduleCode = String(event?.detail?.moduleCode || '').trim().toLowerCase();
+    if (windowId && moduleCode) {
+      setSuiteActiveModule(resolveTimePrismSuiteSession(windowId), moduleCode);
+    }
+    const focusItemId = Number(event?.detail?.focusItemId) || 0;
+    if (focusItemId > 0 && moduleCode) {
+      emitTimePrismFocusItem({ moduleCode, itemId: focusItemId });
+    }
+  }
 }
 
 function handleResize() {

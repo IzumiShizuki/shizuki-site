@@ -12,6 +12,15 @@ public record LightAppScheduleResponse(
     boolean allDay,
     String location,
     String status,
+    boolean showOnCalendar,
+    String timePrecision,
+    String timingMode,
+    LocalDateTime rangeStartAt,
+    boolean reminderEnabled,
+    Integer startRemindValue,
+    String startRemindUnit,
+    Integer deadlineRemindValue,
+    String deadlineRemindUnit,
     int sortNum,
     LocalDateTime updatedAt
 ) {

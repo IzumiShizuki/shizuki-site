@@ -4,6 +4,16 @@ const MIN_WIDTH = 300;
 const MIN_HEIGHT = 220;
 const EDGE_PADDING = 12;
 const BASE_Z_INDEX = 2400;
+const WINDOW_PRESETS = Object.freeze({
+  'timeprism-todo': {
+    widthRatio: 0.58,
+    heightRatio: 0.76,
+    minWidth: 760,
+    minHeight: 520,
+    maxWidthRatio: 0.86,
+    maxHeightRatio: 0.9
+  }
+});
 
 function clamp(value, min, max) {
   if (value < min) return min;
@@ -17,10 +27,25 @@ function withFallbackViewport(viewport) {
   return { width, height };
 }
 
-function resolveInitialRect(viewport, index) {
+function resolveInitialRect(viewport, index, code) {
   const view = withFallbackViewport(viewport);
-  const width = clamp(Math.round(view.width * 0.34), MIN_WIDTH, Math.max(MIN_WIDTH, Math.min(DEFAULT_WIDTH, view.width - EDGE_PADDING * 2)));
-  const height = clamp(Math.round(view.height * 0.46), MIN_HEIGHT, Math.max(MIN_HEIGHT, Math.min(DEFAULT_HEIGHT, view.height - EDGE_PADDING * 2)));
+  const preset = WINDOW_PRESETS[String(code || '').trim()] || null;
+  const widthRatio = Number(preset?.widthRatio) > 0 ? Number(preset.widthRatio) : 0.34;
+  const heightRatio = Number(preset?.heightRatio) > 0 ? Number(preset.heightRatio) : 0.46;
+  const maxWidthRatio = Number(preset?.maxWidthRatio) > 0 ? Number(preset.maxWidthRatio) : 0.68;
+  const maxHeightRatio = Number(preset?.maxHeightRatio) > 0 ? Number(preset.maxHeightRatio) : 0.76;
+  const presetMinWidth = Number(preset?.minWidth) > 0 ? Number(preset.minWidth) : MIN_WIDTH;
+  const presetMinHeight = Number(preset?.minHeight) > 0 ? Number(preset.minHeight) : MIN_HEIGHT;
+  const width = clamp(
+    Math.round(view.width * widthRatio),
+    Math.max(MIN_WIDTH, presetMinWidth),
+    Math.max(Math.max(MIN_WIDTH, presetMinWidth), Math.min(Math.round(view.width * maxWidthRatio), view.width - EDGE_PADDING * 2))
+  );
+  const height = clamp(
+    Math.round(view.height * heightRatio),
+    Math.max(MIN_HEIGHT, presetMinHeight),
+    Math.max(Math.max(MIN_HEIGHT, presetMinHeight), Math.min(Math.round(view.height * maxHeightRatio), view.height - EDGE_PADDING * 2))
+  );
 
   const cascadeOffset = index * 24;
   const x = clamp(EDGE_PADDING + cascadeOffset, EDGE_PADDING, Math.max(EDGE_PADDING, view.width - width - EDGE_PADDING));
@@ -68,7 +93,7 @@ export function openOrFocusWindow(state, appMeta, viewport) {
     return next;
   }
 
-  const rect = resolveInitialRect(viewport, next.windows.length);
+  const rect = resolveInitialRect(viewport, next.windows.length, code);
   next.nextZIndex += 1;
   next.windows.push({
     id: next.nextId,

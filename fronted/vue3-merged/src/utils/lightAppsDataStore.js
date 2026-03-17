@@ -62,6 +62,15 @@ function normalizeTodos(raw) {
         priority: String(source.priority || 'MEDIUM').trim().toUpperCase() || 'MEDIUM',
         done: toBoolean(source.done),
         dueAt: source.dueAt || source.due_at || '',
+        showOnCalendar: toBoolean(source.showOnCalendar ?? source.show_on_calendar, true),
+        timePrecision: String(source.timePrecision ?? source.time_precision ?? 'MINUTE').trim().toUpperCase() || 'MINUTE',
+        timingMode: String(source.timingMode ?? source.timing_mode ?? 'DEADLINE').trim().toUpperCase() || 'DEADLINE',
+        rangeStartAt: source.rangeStartAt || source.range_start_at || '',
+        reminderEnabled: toBoolean(source.reminderEnabled ?? source.reminder_enabled, false),
+        startRemindValue: toNumber(source.startRemindValue ?? source.start_remind_value, 0) || null,
+        startRemindUnit: String(source.startRemindUnit ?? source.start_remind_unit ?? '').trim().toUpperCase(),
+        deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
+        deadlineRemindUnit: String(source.deadlineRemindUnit ?? source.deadline_remind_unit ?? '').trim().toUpperCase(),
         sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
         updatedAt: source.updatedAt || source.updated_at || ''
       };
@@ -84,6 +93,15 @@ function normalizeTasks(raw) {
         title,
         detail: String(source.detail || '').trim(),
         dueAt: source.dueAt || source.due_at || '',
+        showOnCalendar: toBoolean(source.showOnCalendar ?? source.show_on_calendar, true),
+        timePrecision: String(source.timePrecision ?? source.time_precision ?? 'MINUTE').trim().toUpperCase() || 'MINUTE',
+        timingMode: String(source.timingMode ?? source.timing_mode ?? 'DEADLINE').trim().toUpperCase() || 'DEADLINE',
+        rangeStartAt: source.rangeStartAt || source.range_start_at || '',
+        reminderEnabled: toBoolean(source.reminderEnabled ?? source.reminder_enabled, false),
+        startRemindValue: toNumber(source.startRemindValue ?? source.start_remind_value, 0) || null,
+        startRemindUnit: String(source.startRemindUnit ?? source.start_remind_unit ?? '').trim().toUpperCase(),
+        deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
+        deadlineRemindUnit: String(source.deadlineRemindUnit ?? source.deadline_remind_unit ?? '').trim().toUpperCase(),
         sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
         updatedAt: source.updatedAt || source.updated_at || ''
       };
@@ -131,6 +149,15 @@ function normalizeSchedules(raw) {
         allDay: toBoolean(source.allDay ?? source.all_day),
         location: String(source.location || '').trim(),
         status: String(source.status || 'ACTIVE').trim().toUpperCase() || 'ACTIVE',
+        showOnCalendar: toBoolean(source.showOnCalendar ?? source.show_on_calendar, true),
+        timePrecision: String(source.timePrecision ?? source.time_precision ?? 'MINUTE').trim().toUpperCase() || 'MINUTE',
+        timingMode: String(source.timingMode ?? source.timing_mode ?? 'RANGE').trim().toUpperCase() || 'RANGE',
+        rangeStartAt: source.rangeStartAt || source.range_start_at || source.startAt || source.start_at || '',
+        reminderEnabled: toBoolean(source.reminderEnabled ?? source.reminder_enabled, false),
+        startRemindValue: toNumber(source.startRemindValue ?? source.start_remind_value, 0) || null,
+        startRemindUnit: String(source.startRemindUnit ?? source.start_remind_unit ?? '').trim().toUpperCase(),
+        deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
+        deadlineRemindUnit: String(source.deadlineRemindUnit ?? source.deadline_remind_unit ?? '').trim().toUpperCase(),
         sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
         updatedAt: source.updatedAt || source.updated_at || ''
       };

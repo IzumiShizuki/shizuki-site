@@ -143,7 +143,26 @@ class LightAppControllerIntegrationTest {
     @Test
     void shouldCreateTodoSuccessfully() throws Exception {
         Mockito.when(lightAppService.createTodo(ArgumentMatchers.any()))
-            .thenReturn(new LightAppTodoResponse(2L, 1L, "打卡", "desc", "MEDIUM", false, null, 20, null));
+            .thenReturn(new LightAppTodoResponse(
+                2L,
+                1L,
+                "打卡",
+                "desc",
+                "MEDIUM",
+                false,
+                null,
+                true,
+                "MINUTE",
+                "DEADLINE",
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                20,
+                null
+            ));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/todos")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -165,8 +184,46 @@ class LightAppControllerIntegrationTest {
     void shouldReorderTodosSuccessfully() throws Exception {
         Mockito.when(lightAppService.reorderTodos(ArgumentMatchers.any()))
             .thenReturn(List.of(
-                new LightAppTodoResponse(2L, null, "A", null, "LOW", false, null, 10, null),
-                new LightAppTodoResponse(3L, null, "B", null, "MEDIUM", false, null, 20, null)
+                new LightAppTodoResponse(
+                    2L,
+                    null,
+                    "A",
+                    null,
+                    "LOW",
+                    false,
+                    null,
+                    true,
+                    "MINUTE",
+                    "DEADLINE",
+                    null,
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    10,
+                    null
+                ),
+                new LightAppTodoResponse(
+                    3L,
+                    null,
+                    "B",
+                    null,
+                    "MEDIUM",
+                    false,
+                    null,
+                    true,
+                    "MINUTE",
+                    "DEADLINE",
+                    null,
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    20,
+                    null
+                )
             ));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/todos/reorder")
@@ -187,7 +244,25 @@ class LightAppControllerIntegrationTest {
     @Test
     void shouldMoveTaskSuccessfully() throws Exception {
         Mockito.when(lightAppService.moveTask(ArgumentMatchers.any()))
-            .thenReturn(new LightAppTaskResponse(9L, 1L, "doing", "接口联调", "", null, 30, null));
+            .thenReturn(new LightAppTaskResponse(
+                9L,
+                1L,
+                "doing",
+                "接口联调",
+                "",
+                null,
+                true,
+                "MINUTE",
+                "DEADLINE",
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                30,
+                null
+            ));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/tasks/move")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -232,6 +307,15 @@ class LightAppControllerIntegrationTest {
                     false,
                     "线上",
                     "ACTIVE",
+                    true,
+                    "MINUTE",
+                    "RANGE",
+                    LocalDateTime.of(2026, 3, 10, 10, 0),
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
                     10,
                     null
                 )

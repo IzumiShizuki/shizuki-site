@@ -83,6 +83,15 @@ function normalizeTodo(raw) {
     priority: toText(source.priority, 'MEDIUM').toUpperCase() || 'MEDIUM',
     done: toBoolean(source.done, false),
     dueAt: source.dueAt || source.due_at || '',
+    showOnCalendar: toBoolean(source.showOnCalendar ?? source.show_on_calendar, true),
+    timePrecision: toText(source.timePrecision ?? source.time_precision, 'MINUTE').toUpperCase() || 'MINUTE',
+    timingMode: toText(source.timingMode ?? source.timing_mode, 'DEADLINE').toUpperCase() || 'DEADLINE',
+    rangeStartAt: source.rangeStartAt || source.range_start_at || '',
+    reminderEnabled: toBoolean(source.reminderEnabled ?? source.reminder_enabled, false),
+    startRemindValue: toNumber(source.startRemindValue ?? source.start_remind_value, 0) || null,
+    startRemindUnit: toText(source.startRemindUnit ?? source.start_remind_unit, '').toUpperCase(),
+    deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
+    deadlineRemindUnit: toText(source.deadlineRemindUnit ?? source.deadline_remind_unit, '').toUpperCase(),
     sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
     updatedAt: source.updatedAt || source.updated_at || ''
   };
@@ -97,6 +106,15 @@ function normalizeTask(raw) {
     title: toText(source.title, ''),
     detail: toText(source.detail, ''),
     dueAt: source.dueAt || source.due_at || '',
+    showOnCalendar: toBoolean(source.showOnCalendar ?? source.show_on_calendar, true),
+    timePrecision: toText(source.timePrecision ?? source.time_precision, 'MINUTE').toUpperCase() || 'MINUTE',
+    timingMode: toText(source.timingMode ?? source.timing_mode, 'DEADLINE').toUpperCase() || 'DEADLINE',
+    rangeStartAt: source.rangeStartAt || source.range_start_at || '',
+    reminderEnabled: toBoolean(source.reminderEnabled ?? source.reminder_enabled, false),
+    startRemindValue: toNumber(source.startRemindValue ?? source.start_remind_value, 0) || null,
+    startRemindUnit: toText(source.startRemindUnit ?? source.start_remind_unit, '').toUpperCase(),
+    deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
+    deadlineRemindUnit: toText(source.deadlineRemindUnit ?? source.deadline_remind_unit, '').toUpperCase(),
     sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
     updatedAt: source.updatedAt || source.updated_at || ''
   };
@@ -124,6 +142,15 @@ function normalizeSchedule(raw) {
     allDay: toBoolean(source.allDay ?? source.all_day, false),
     location: toText(source.location, ''),
     status: toText(source.status, 'ACTIVE').toUpperCase() || 'ACTIVE',
+    showOnCalendar: toBoolean(source.showOnCalendar ?? source.show_on_calendar, true),
+    timePrecision: toText(source.timePrecision ?? source.time_precision, 'MINUTE').toUpperCase() || 'MINUTE',
+    timingMode: toText(source.timingMode ?? source.timing_mode, 'RANGE').toUpperCase() || 'RANGE',
+    rangeStartAt: source.rangeStartAt || source.range_start_at || source.startAt || source.start_at || '',
+    reminderEnabled: toBoolean(source.reminderEnabled ?? source.reminder_enabled, false),
+    startRemindValue: toNumber(source.startRemindValue ?? source.start_remind_value, 0) || null,
+    startRemindUnit: toText(source.startRemindUnit ?? source.start_remind_unit, '').toUpperCase(),
+    deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
+    deadlineRemindUnit: toText(source.deadlineRemindUnit ?? source.deadline_remind_unit, '').toUpperCase(),
     sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
     updatedAt: source.updatedAt || source.updated_at || ''
   };

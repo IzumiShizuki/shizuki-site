@@ -33,6 +33,7 @@
     <Transition name="panel-collapse">
       <form v-if="showCreateForm" class="task-create" @submit.prevent="createTaskItem">
         <input v-model.trim="draft.title" type="text" placeholder="新增看板任务，例如：完成接口联调" />
+        <input v-model.trim="draft.detail" type="text" placeholder="任务详情（可选）" />
         <select v-model="draft.projectId">
           <option value="">无项目</option>
           <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
@@ -44,14 +45,45 @@
             {{ column.title }}
           </option>
         </select>
+        <input v-model="draft.dueAt" type="datetime-local" />
+        <select v-model="draft.timingMode">
+          <option value="DEADLINE">截止任务</option>
+          <option value="RANGE">范围任务</option>
+        </select>
+        <input v-if="draft.timingMode === 'RANGE'" v-model="draft.rangeStartAt" type="datetime-local" />
+        <select v-model="draft.timePrecision">
+          <option value="MINUTE">分钟级</option>
+          <option value="DAY">日级</option>
+        </select>
+        <label class="toggle-check"><input v-model="draft.showOnCalendar" type="checkbox" /> 显示日历</label>
+        <label class="toggle-check"><input v-model="draft.reminderEnabled" type="checkbox" /> 启用提醒</label>
+        <input
+          v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'"
+          v-model.number="draft.startRemindValue"
+          type="number"
+          min="1"
+          placeholder="起始提前"
+        />
+        <select v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'" v-model="draft.startRemindUnit">
+          <option value="MINUTE">分钟</option>
+          <option value="DAY">天</option>
+        </select>
+        <input v-if="draft.reminderEnabled" v-model.number="draft.deadlineRemindValue" type="number" min="1" placeholder="截止提前" />
+        <select v-if="draft.reminderEnabled" v-model="draft.deadlineRemindUnit">
+          <option value="MINUTE">分钟</option>
+          <option value="DAY">天</option>
+        </select>
         <button
           class="icon-btn ripple-trigger"
           type="submit"
-          :title="saving ? '新增中' : '新增任务'"
-          :aria-label="saving ? '新增中' : '新增任务'"
+          :title="saving ? '处理中' : editingTaskId ? '保存修改' : '新增任务'"
+          :aria-label="saving ? '处理中' : editingTaskId ? '保存修改' : '新增任务'"
           :disabled="saving || !draft.title.trim()"
         >
           <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
+        </button>
+        <button v-if="editingTaskId" class="icon-btn ripple-trigger" type="button" title="取消编辑" @click="cancelTaskEdit">
+          <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
       </form>
     </Transition>
@@ -63,12 +95,15 @@
           <button
             class="icon-btn ripple-trigger"
             type="button"
-            :title="recurringSaving ? '保存中' : '新增规则'"
-            :aria-label="recurringSaving ? '保存中' : '新增规则'"
+            :title="recurringSaving ? '保存中' : editingRecurringRuleId ? '保存规则' : '新增规则'"
+            :aria-label="recurringSaving ? '保存中' : editingRecurringRuleId ? '保存规则' : '新增规则'"
             :disabled="recurringSaving || !recurringDraft.title.trim() || !recurringDraft.cronExpr.trim()"
             @click="createRecurringRule"
           >
-            <i :class="recurringSaving ? 'fas fa-spinner fa-spin' : 'fas fa-plus'" aria-hidden="true"></i>
+            <i :class="recurringSaving ? 'fas fa-spinner fa-spin' : editingRecurringRuleId ? 'fas fa-floppy-disk' : 'fas fa-plus'" aria-hidden="true"></i>
+          </button>
+          <button v-if="editingRecurringRuleId" class="icon-btn ripple-trigger" type="button" title="取消编辑" @click="cancelRecurringEdit">
+            <i class="fas fa-xmark" aria-hidden="true"></i>
           </button>
         </header>
         <div class="recurring-form">
@@ -95,6 +130,9 @@
               <small>{{ rule.columnCode }} · {{ rule.cronExpr }} · {{ rule.timeZoneId }}</small>
             </div>
             <div class="card-actions">
+              <button class="icon-btn ripple-trigger" type="button" title="编辑" @click="editRecurringRule(rule)">
+                <i class="fas fa-pen" aria-hidden="true"></i>
+              </button>
               <button class="icon-btn ripple-trigger" type="button" :title="rule.enabled ? '停用' : '启用'" @click="toggleRecurringRule(rule)">
                 <i :class="rule.enabled ? 'fas fa-pause' : 'fas fa-play'" aria-hidden="true"></i>
               </button>
@@ -154,6 +192,9 @@
               <template v-if="item.dueAt"> · {{ formatDateTime(item.dueAt) }}</template>
             </small>
             <div class="card-actions">
+              <button class="icon-btn ripple-trigger" title="编辑" @click="startTaskEdit(item)">
+                <i class="fas fa-pen"></i>
+              </button>
               <button class="icon-btn ripple-trigger" :disabled="isFirstColumn(column.columnCode)" @click="moveTaskCard(item, 'left')">
                 <i class="fas fa-arrow-left"></i>
               </button>
@@ -173,7 +214,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted, reactive, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppTask,
@@ -185,6 +226,7 @@ import {
   listLightAppTaskColumns,
   listLightAppTasks,
   moveLightAppTask,
+  updateLightAppTask,
   updateLightAppTaskColumns,
   updateLightAppTaskRecurringRule
 } from '../../../services/lightAppsApi';
@@ -195,7 +237,8 @@ import {
   updateGuestLightAppData,
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
-import { TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
+import { TIMEPRISM_MODULE_BOARD, TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
+import { TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
@@ -211,11 +254,24 @@ const showCreateForm = ref(false);
 const showRecurringPanel = ref(false);
 const columnDrafts = ref([]);
 const taskRecurringRules = ref([]);
+const editingTaskId = ref(0);
+const editingRecurringRuleId = ref(0);
 
 const draft = reactive({
   title: '',
+  detail: '',
   projectId: '',
-  columnCode: 'todo'
+  columnCode: 'todo',
+  dueAt: '',
+  showOnCalendar: true,
+  timePrecision: 'MINUTE',
+  timingMode: 'DEADLINE',
+  rangeStartAt: '',
+  reminderEnabled: false,
+  startRemindValue: null,
+  startRemindUnit: 'MINUTE',
+  deadlineRemindValue: null,
+  deadlineRemindUnit: 'MINUTE'
 });
 
 const recurringDraft = reactive({
@@ -269,6 +325,15 @@ function normalizeTasks(input) {
       title: String(item.title || '').trim(),
       detail: String(item.detail || '').trim(),
       dueAt: item.dueAt || item.due_at || '',
+      showOnCalendar: item.showOnCalendar !== false,
+      timePrecision: String(item.timePrecision ?? item.time_precision ?? 'MINUTE').trim().toUpperCase() || 'MINUTE',
+      timingMode: String(item.timingMode ?? item.timing_mode ?? 'DEADLINE').trim().toUpperCase() || 'DEADLINE',
+      rangeStartAt: item.rangeStartAt || item.range_start_at || '',
+      reminderEnabled: Boolean(item.reminderEnabled ?? item.reminder_enabled),
+      startRemindValue: normalizePositiveInteger(item.startRemindValue ?? item.start_remind_value),
+      startRemindUnit: String(item.startRemindUnit ?? item.start_remind_unit ?? '').trim().toUpperCase(),
+      deadlineRemindValue: normalizePositiveInteger(item.deadlineRemindValue ?? item.deadline_remind_value),
+      deadlineRemindUnit: String(item.deadlineRemindUnit ?? item.deadline_remind_unit ?? '').trim().toUpperCase(),
       sortNum: Number(item.sortNum ?? item.sort_num) || 0,
       updatedAt: item.updatedAt || item.updated_at || ''
     }))
@@ -333,6 +398,28 @@ function formatDateTime(iso) {
   ).padStart(2, '0')}`;
 }
 
+function parseIsoFromInput(value) {
+  const source = String(value || '').trim();
+  if (!source) return '';
+  const ts = Date.parse(source);
+  if (!Number.isFinite(ts)) return '';
+  return new Date(ts).toISOString();
+}
+
+function toInputDateTime(value) {
+  const ts = Date.parse(value || '');
+  if (!Number.isFinite(ts)) return '';
+  const date = new Date(ts);
+  const pad = (num) => String(num).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function normalizePositiveInteger(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.round(num);
+}
+
 function isFirstColumn(columnCode) {
   const list = enabledColumns.value;
   return list.length ? list[0].columnCode === columnCode : true;
@@ -377,10 +464,80 @@ function persistGuest(payload) {
 
 function toggleCreateForm() {
   showCreateForm.value = !showCreateForm.value;
+  if (!showCreateForm.value) {
+    cancelTaskEdit();
+  }
 }
 
 function toggleRecurringPanel() {
   showRecurringPanel.value = !showRecurringPanel.value;
+  if (!showRecurringPanel.value) {
+    cancelRecurringEdit();
+  }
+}
+
+function resetTaskDraft() {
+  draft.title = '';
+  draft.detail = '';
+  draft.projectId = '';
+  draft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
+  draft.dueAt = '';
+  draft.showOnCalendar = true;
+  draft.timePrecision = 'MINUTE';
+  draft.timingMode = 'DEADLINE';
+  draft.rangeStartAt = '';
+  draft.reminderEnabled = false;
+  draft.startRemindValue = null;
+  draft.startRemindUnit = 'MINUTE';
+  draft.deadlineRemindValue = null;
+  draft.deadlineRemindUnit = 'MINUTE';
+}
+
+function startTaskEdit(item) {
+  if (!item) return;
+  editingTaskId.value = Number(item.taskId) || 0;
+  draft.title = item.title || '';
+  draft.detail = item.detail || '';
+  draft.projectId = item.projectId ? String(item.projectId) : '';
+  draft.columnCode = item.columnCode || enabledColumns.value[0]?.columnCode || 'todo';
+  draft.dueAt = toInputDateTime(item.dueAt);
+  draft.showOnCalendar = item.showOnCalendar !== false;
+  draft.timePrecision = item.timePrecision || 'MINUTE';
+  draft.timingMode = item.timingMode || 'DEADLINE';
+  draft.rangeStartAt = toInputDateTime(item.rangeStartAt);
+  draft.reminderEnabled = Boolean(item.reminderEnabled);
+  draft.startRemindValue = normalizePositiveInteger(item.startRemindValue);
+  draft.startRemindUnit = item.startRemindUnit || 'MINUTE';
+  draft.deadlineRemindValue = normalizePositiveInteger(item.deadlineRemindValue);
+  draft.deadlineRemindUnit = item.deadlineRemindUnit || 'MINUTE';
+  showCreateForm.value = true;
+}
+
+function cancelTaskEdit() {
+  editingTaskId.value = 0;
+  resetTaskDraft();
+}
+
+function editRecurringRule(rule) {
+  if (!rule) return;
+  editingRecurringRuleId.value = Number(rule.ruleId) || 0;
+  recurringDraft.title = rule.title || '';
+  recurringDraft.projectId = rule.projectId ? String(rule.projectId) : '';
+  recurringDraft.columnCode = rule.columnCode || enabledColumns.value[0]?.columnCode || 'todo';
+  recurringDraft.detail = rule.detail || '';
+  recurringDraft.cronExpr = rule.cronExpr || '';
+  recurringDraft.timeZoneId = rule.timeZoneId || 'Asia/Shanghai';
+  showRecurringPanel.value = true;
+}
+
+function cancelRecurringEdit() {
+  editingRecurringRuleId.value = 0;
+  recurringDraft.title = '';
+  recurringDraft.projectId = '';
+  recurringDraft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
+  recurringDraft.detail = '';
+  recurringDraft.cronExpr = '0 0 9 * * *';
+  recurringDraft.timeZoneId = 'Asia/Shanghai';
 }
 
 async function createRecurringRule() {
@@ -403,30 +560,33 @@ async function createRecurringRule() {
     };
 
     if (auth.isAuthenticated.value) {
-      await createLightAppTaskRecurringRule(payload, auth.authorizedFetch);
+      if (editingRecurringRuleId.value) {
+        await updateLightAppTaskRecurringRule(editingRecurringRuleId.value, payload, auth.authorizedFetch);
+      } else {
+        await createLightAppTaskRecurringRule(payload, auth.authorizedFetch);
+      }
       await refreshRemoteBoard();
     } else {
-      const nextId = createLocalEntityId();
       const maxSort = taskRecurringRules.value.reduce((max, item) => Math.max(max, Number(item.sortNum) || 0), 0);
       persistGuest({
-        taskRecurringRules: [
-          ...taskRecurringRules.value,
-          {
-            ruleId: nextId,
-            ...payload,
-            sortNum: maxSort + 10,
-            updatedAt: new Date().toISOString()
-          }
-        ]
+        taskRecurringRules: editingRecurringRuleId.value
+          ? taskRecurringRules.value.map((item) =>
+              item.ruleId === editingRecurringRuleId.value
+                ? { ...item, ...payload, updatedAt: new Date().toISOString() }
+                : item
+            )
+          : [
+              ...taskRecurringRules.value,
+              {
+                ruleId: createLocalEntityId(),
+                ...payload,
+                sortNum: maxSort + 10,
+                updatedAt: new Date().toISOString()
+              }
+            ]
       });
     }
-
-    recurringDraft.title = '';
-    recurringDraft.projectId = '';
-    recurringDraft.detail = '';
-    recurringDraft.columnCode = enabledColumns.value[0]?.columnCode || 'todo';
-    recurringDraft.cronExpr = '0 0 9 * * *';
-    recurringDraft.timeZoneId = 'Asia/Shanghai';
+    cancelRecurringEdit();
   } catch (error) {
     errorText.value = error?.message || '周期规则创建失败';
   } finally {
@@ -585,47 +745,90 @@ async function createTaskItem() {
 
   errorText.value = '';
   saving.value = true;
+  const targetColumn = enabledColumns.value.some((item) => item.columnCode === draft.columnCode)
+    ? draft.columnCode
+    : enabledColumns.value[0]?.columnCode || 'todo';
+  const parsedDueAt = parseIsoFromInput(draft.dueAt);
+  const parsedRangeStartAt = parseIsoFromInput(draft.rangeStartAt);
+  const timingMode = (draft.timingMode || 'DEADLINE').toUpperCase();
 
   try {
     await auth.ensureReady();
-    const targetColumn = enabledColumns.value.some((item) => item.columnCode === draft.columnCode)
-      ? draft.columnCode
-      : enabledColumns.value[0]?.columnCode || 'todo';
+    const payload = {
+      projectId: draft.projectId ? Number(draft.projectId) : null,
+      title,
+      detail: draft.detail.trim() || null,
+      columnCode: targetColumn,
+      dueAt: parsedDueAt || null,
+      showOnCalendar: draft.showOnCalendar !== false,
+      timePrecision: (draft.timePrecision || 'MINUTE').toUpperCase(),
+      timingMode,
+      rangeStartAt: timingMode === 'RANGE' ? parsedRangeStartAt || null : null,
+      reminderEnabled: Boolean(draft.reminderEnabled),
+      startRemindValue: draft.reminderEnabled && timingMode === 'RANGE' ? normalizePositiveInteger(draft.startRemindValue) : null,
+      startRemindUnit: draft.reminderEnabled && timingMode === 'RANGE' ? draft.startRemindUnit : null,
+      deadlineRemindValue: draft.reminderEnabled ? normalizePositiveInteger(draft.deadlineRemindValue) : null,
+      deadlineRemindUnit: draft.reminderEnabled ? draft.deadlineRemindUnit : null
+    };
 
     if (auth.isAuthenticated.value) {
-      await createLightAppTask(
-        {
-          projectId: draft.projectId ? Number(draft.projectId) : null,
-          title,
-          columnCode: targetColumn,
-          sortNum: nextSortForColumn(targetColumn)
-        },
-        auth.authorizedFetch
-      );
+      if (editingTaskId.value) {
+        const current = tasks.value.find((item) => item.taskId === editingTaskId.value);
+        await updateLightAppTask(
+          editingTaskId.value,
+          {
+            ...payload,
+            sortNum: current?.sortNum ?? 0
+          },
+          auth.authorizedFetch
+        );
+      } else {
+        await createLightAppTask(
+          {
+            ...payload,
+            sortNum: nextSortForColumn(targetColumn)
+          },
+          auth.authorizedFetch
+        );
+      }
       await refreshRemoteBoard();
     } else {
-      const nextId = createLocalEntityId();
-      persistGuest({
-        tasks: [
-          ...tasks.value,
-          {
-            taskId: nextId,
-            projectId: draft.projectId ? Number(draft.projectId) : null,
-            columnCode: targetColumn,
-            title,
-            detail: '',
-            dueAt: '',
-            sortNum: nextSortForColumn(targetColumn),
-            updatedAt: new Date().toISOString()
-          }
-        ]
-      });
+      if (editingTaskId.value) {
+        persistGuest({
+          tasks: tasks.value.map((item) => {
+            if (item.taskId !== editingTaskId.value) return item;
+            return {
+              ...item,
+              ...payload,
+              detail: payload.detail || '',
+              dueAt: payload.dueAt || '',
+              rangeStartAt: payload.rangeStartAt || '',
+              updatedAt: new Date().toISOString()
+            };
+          })
+        });
+      } else {
+        const nextId = createLocalEntityId();
+        persistGuest({
+          tasks: [
+            ...tasks.value,
+            {
+              taskId: nextId,
+              ...payload,
+              detail: payload.detail || '',
+              dueAt: payload.dueAt || '',
+              rangeStartAt: payload.rangeStartAt || '',
+              sortNum: nextSortForColumn(targetColumn),
+              updatedAt: new Date().toISOString()
+            }
+          ]
+        });
+      }
     }
-
-    draft.title = '';
+    cancelTaskEdit();
     showCreateForm.value = false;
   } catch (error) {
-    errorText.value = error?.message || '任务创建失败';
+    errorText.value = error?.message || (editingTaskId.value ? '任务更新失败' : '任务创建失败');
   } finally {
     saving.value = false;
   }
@@ -771,7 +974,22 @@ async function saveColumns() {
 
 onMounted(() => {
   hydrate();
+  window.addEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
+});
+
+function handleFocusItemEvent(event) {
+  const moduleCode = String(event?.detail?.moduleCode || '').trim().toLowerCase();
+  if (moduleCode !== TIMEPRISM_MODULE_BOARD) return;
+  const itemId = Number(event?.detail?.itemId) || 0;
+  if (itemId <= 0) return;
+  const target = tasks.value.find((item) => item.taskId === itemId);
+  if (!target) return;
+  startTaskEdit(target);
+}
 
 if (suiteContext?.projectVersion) {
   watch(
@@ -814,7 +1032,7 @@ if (suiteContext?.projectVersion) {
 
 .task-create {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px 130px 80px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 8px;
 }
 
@@ -826,6 +1044,18 @@ if (suiteContext?.projectVersion) {
   color: var(--la-text);
   border-radius: 10px;
   padding: 8px 10px;
+}
+
+.toggle-check {
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-muted);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
 }
 
 .recurring-panel {

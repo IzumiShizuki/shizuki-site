@@ -128,6 +128,14 @@ public class LightAppServiceImpl implements LightAppService {
     private static final String CHANNEL_NAME_UNBOUND = "未绑定";
     private static final String TRANSACTION_CATEGORY_OTHER = "其他";
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
+    private static final String TIME_PRECISION_MINUTE = "MINUTE";
+    private static final String TIME_PRECISION_DAY = "DAY";
+    private static final String TIMING_MODE_DEADLINE = "DEADLINE";
+    private static final String TIMING_MODE_RANGE = "RANGE";
+    private static final String REMIND_UNIT_MINUTE = "MINUTE";
+    private static final String REMIND_UNIT_DAY = "DAY";
+    private static final int MAX_REMIND_DAY_OFFSET = 365;
+    private static final int MAX_REMIND_MINUTE_OFFSET = 43200;
     private static final String FX_PROVIDER_CODE = "OPEN_ER_API";
     private static final String FX_PROVIDER_URL_TEMPLATE = "https://open.er-api.com/v6/latest/{base}";
     private static final int FX_SCALE = 8;
@@ -838,7 +846,7 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setDetail(normalizeOptionalText(request.getDetail()));
         entity.setPriorityCode(normalizePriority(request.getPriority()));
         entity.setDone(Boolean.TRUE.equals(request.getDone()));
-        entity.setDueAt(request.getDueAt());
+        applyTodoTemporalFields(entity, request);
         entity.setSortNum(resolveSortNum(request.getSortNum(), todoMapper.selectMaxSortNumByUserId(userId)));
         todoMapper.insert(entity);
         return toTodoResponse(requireTodo(userId, entity.getId()));
@@ -854,7 +862,7 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setDetail(normalizeOptionalText(request.getDetail()));
         entity.setPriorityCode(normalizePriority(request.getPriority()));
         entity.setDone(Boolean.TRUE.equals(request.getDone()));
-        entity.setDueAt(request.getDueAt());
+        applyTodoTemporalFields(entity, request);
         if (request.getSortNum() != null) {
             entity.setSortNum(request.getSortNum());
         }
@@ -977,7 +985,7 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setTitle(normalizeRequiredText(request.getTitle(), "title"));
         entity.setDetail(normalizeOptionalText(request.getDetail()));
         entity.setColumnCode(resolveColumnCode(userId, request.getColumnCode(), false));
-        entity.setDueAt(request.getDueAt());
+        applyTaskTemporalFields(entity, request);
         entity.setSortNum(resolveSortNum(request.getSortNum(), taskMapper.selectMaxSortNumByUserId(userId)));
         taskMapper.insert(entity);
         return toTaskResponse(requireTask(userId, entity.getId()));
@@ -993,7 +1001,7 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setTitle(normalizeRequiredText(request.getTitle(), "title"));
         entity.setDetail(normalizeOptionalText(request.getDetail()));
         entity.setColumnCode(resolveColumnCode(userId, request.getColumnCode(), false));
-        entity.setDueAt(request.getDueAt());
+        applyTaskTemporalFields(entity, request);
         if (request.getSortNum() != null) {
             entity.setSortNum(request.getSortNum());
         }
@@ -1170,11 +1178,10 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setProjectId(normalizeProjectId(userId, request.getProjectId()));
         entity.setTitle(normalizeRequiredText(request.getTitle(), "title"));
         entity.setDetail(normalizeOptionalText(request.getDetail()));
-        entity.setStartAt(request.getStartAt());
-        entity.setEndAt(normalizeEndAt(request.getStartAt(), request.getEndAt()));
         entity.setAllDay(Boolean.TRUE.equals(request.getAllDay()));
         entity.setLocation(normalizeOptionalText(request.getLocation()));
         entity.setStatusCode(normalizeScheduleStatus(request.getStatus()));
+        applyScheduleTemporalFields(entity, request);
         entity.setSortNum(resolveSortNum(request.getSortNum(), scheduleEventMapper.selectMaxSortNumByUserId(userId)));
         scheduleEventMapper.insert(entity);
         return toScheduleResponse(requireSchedule(userId, entity.getId()));
@@ -1188,11 +1195,10 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setProjectId(normalizeProjectId(userId, request.getProjectId()));
         entity.setTitle(normalizeRequiredText(request.getTitle(), "title"));
         entity.setDetail(normalizeOptionalText(request.getDetail()));
-        entity.setStartAt(request.getStartAt());
-        entity.setEndAt(normalizeEndAt(request.getStartAt(), request.getEndAt()));
         entity.setAllDay(Boolean.TRUE.equals(request.getAllDay()));
         entity.setLocation(normalizeOptionalText(request.getLocation()));
         entity.setStatusCode(normalizeScheduleStatus(request.getStatus()));
+        applyScheduleTemporalFields(entity, request);
         if (request.getSortNum() != null) {
             entity.setSortNum(request.getSortNum());
         }
@@ -1537,14 +1543,268 @@ public class LightAppServiceImpl implements LightAppService {
         return "ACTIVE";
     }
 
-    private LocalDateTime normalizeEndAt(LocalDateTime startAt, LocalDateTime endAt) {
+    private void applyTodoTemporalFields(LightAppTodoEntity entity, LightAppTodoUpsertRequest request) {
+        String timePrecision = normalizeTimePrecision(request.getTimePrecision());
+        String timingMode = normalizeTimingMode(request.getTimingMode());
+        LocalDateTime dueAt = request.getDueAt();
+        LocalDateTime rangeStartAt = request.getRangeStartAt();
+
+        if (TIMING_MODE_RANGE.equals(timingMode)) {
+            if (rangeStartAt == null || dueAt == null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "range_start_at and due_at are required when timing_mode is RANGE");
+            }
+            if (rangeStartAt.isAfter(dueAt)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "range_start_at can not be after due_at");
+            }
+        } else {
+            rangeStartAt = null;
+        }
+
+        if (TIME_PRECISION_DAY.equals(timePrecision)) {
+            if (rangeStartAt != null) {
+                rangeStartAt = toDayStart(rangeStartAt);
+            }
+            if (dueAt != null) {
+                dueAt = toDayEnd(dueAt);
+            }
+        }
+
+        ReminderConfig reminder = normalizeReminderConfig(
+            request.getReminderEnabled(),
+            timePrecision,
+            timingMode,
+            rangeStartAt != null,
+            dueAt != null,
+            request.getStartRemindValue(),
+            request.getStartRemindUnit(),
+            request.getDeadlineRemindValue(),
+            request.getDeadlineRemindUnit()
+        );
+
+        entity.setDueAt(dueAt);
+        entity.setShowOnCalendar(request.getShowOnCalendar() == null || Boolean.TRUE.equals(request.getShowOnCalendar()));
+        entity.setTimePrecisionCode(timePrecision);
+        entity.setTimingModeCode(timingMode);
+        entity.setRangeStartAt(rangeStartAt);
+        entity.setReminderEnabled(reminder.enabled());
+        entity.setStartRemindValue(reminder.startRemindValue());
+        entity.setStartRemindUnitCode(reminder.startRemindUnit());
+        entity.setDeadlineRemindValue(reminder.deadlineRemindValue());
+        entity.setDeadlineRemindUnitCode(reminder.deadlineRemindUnit());
+    }
+
+    private void applyTaskTemporalFields(LightAppTaskEntity entity, LightAppTaskUpsertRequest request) {
+        String timePrecision = normalizeTimePrecision(request.getTimePrecision());
+        String timingMode = normalizeTimingMode(request.getTimingMode());
+        LocalDateTime dueAt = request.getDueAt();
+        LocalDateTime rangeStartAt = request.getRangeStartAt();
+
+        if (TIMING_MODE_RANGE.equals(timingMode)) {
+            if (rangeStartAt == null || dueAt == null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "range_start_at and due_at are required when timing_mode is RANGE");
+            }
+            if (rangeStartAt.isAfter(dueAt)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "range_start_at can not be after due_at");
+            }
+        } else {
+            rangeStartAt = null;
+        }
+
+        if (TIME_PRECISION_DAY.equals(timePrecision)) {
+            if (rangeStartAt != null) {
+                rangeStartAt = toDayStart(rangeStartAt);
+            }
+            if (dueAt != null) {
+                dueAt = toDayEnd(dueAt);
+            }
+        }
+
+        ReminderConfig reminder = normalizeReminderConfig(
+            request.getReminderEnabled(),
+            timePrecision,
+            timingMode,
+            rangeStartAt != null,
+            dueAt != null,
+            request.getStartRemindValue(),
+            request.getStartRemindUnit(),
+            request.getDeadlineRemindValue(),
+            request.getDeadlineRemindUnit()
+        );
+
+        entity.setDueAt(dueAt);
+        entity.setShowOnCalendar(request.getShowOnCalendar() == null || Boolean.TRUE.equals(request.getShowOnCalendar()));
+        entity.setTimePrecisionCode(timePrecision);
+        entity.setTimingModeCode(timingMode);
+        entity.setRangeStartAt(rangeStartAt);
+        entity.setReminderEnabled(reminder.enabled());
+        entity.setStartRemindValue(reminder.startRemindValue());
+        entity.setStartRemindUnitCode(reminder.startRemindUnit());
+        entity.setDeadlineRemindValue(reminder.deadlineRemindValue());
+        entity.setDeadlineRemindUnitCode(reminder.deadlineRemindUnit());
+    }
+
+    private void applyScheduleTemporalFields(LightAppScheduleEventEntity entity, LightAppScheduleUpsertRequest request) {
+        LocalDateTime startAt = request.getStartAt();
+        if (startAt == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "start_at is required");
+        }
+        LocalDateTime endAt = request.getEndAt();
         if (endAt == null) {
+            endAt = startAt;
+        }
+        if (endAt.isBefore(startAt)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "end_at can not be before start_at");
+        }
+
+        String timePrecision = normalizeTimePrecision(request.getTimePrecision());
+        String requestedTimingMode = normalizeOptionalText(request.getTimingMode());
+        if (StringUtils.hasText(requestedTimingMode) && !TIMING_MODE_RANGE.equalsIgnoreCase(requestedTimingMode)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "schedule timing_mode must be RANGE");
+        }
+
+        LocalDateTime rangeStartAt = request.getRangeStartAt();
+        if (rangeStartAt == null) {
+            rangeStartAt = startAt;
+        }
+
+        if (TIME_PRECISION_DAY.equals(timePrecision)) {
+            startAt = toDayStart(startAt);
+            endAt = toDayEnd(endAt);
+            rangeStartAt = toDayStart(rangeStartAt);
+        }
+
+        if (rangeStartAt.isAfter(endAt)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "range_start_at can not be after end_at");
+        }
+
+        ReminderConfig reminder = normalizeReminderConfig(
+            request.getReminderEnabled(),
+            timePrecision,
+            TIMING_MODE_RANGE,
+            true,
+            true,
+            request.getStartRemindValue(),
+            request.getStartRemindUnit(),
+            request.getDeadlineRemindValue(),
+            request.getDeadlineRemindUnit()
+        );
+
+        entity.setStartAt(startAt);
+        entity.setEndAt(endAt);
+        entity.setShowOnCalendar(request.getShowOnCalendar() == null || Boolean.TRUE.equals(request.getShowOnCalendar()));
+        entity.setTimePrecisionCode(timePrecision);
+        entity.setTimingModeCode(TIMING_MODE_RANGE);
+        entity.setRangeStartAt(rangeStartAt);
+        entity.setReminderEnabled(reminder.enabled());
+        entity.setStartRemindValue(reminder.startRemindValue());
+        entity.setStartRemindUnitCode(reminder.startRemindUnit());
+        entity.setDeadlineRemindValue(reminder.deadlineRemindValue());
+        entity.setDeadlineRemindUnitCode(reminder.deadlineRemindUnit());
+    }
+
+    private String normalizeTimePrecision(String rawTimePrecision) {
+        String normalized = String.valueOf(rawTimePrecision == null ? "" : rawTimePrecision).trim().toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return TIME_PRECISION_MINUTE;
+        }
+        if (TIME_PRECISION_MINUTE.equals(normalized) || TIME_PRECISION_DAY.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "time_precision must be DAY or MINUTE");
+    }
+
+    private String normalizeTimingMode(String rawTimingMode) {
+        String normalized = String.valueOf(rawTimingMode == null ? "" : rawTimingMode).trim().toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return TIMING_MODE_DEADLINE;
+        }
+        if (TIMING_MODE_DEADLINE.equals(normalized) || TIMING_MODE_RANGE.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "timing_mode must be DEADLINE or RANGE");
+    }
+
+    private ReminderConfig normalizeReminderConfig(
+        Boolean rawReminderEnabled,
+        String timePrecision,
+        String timingMode,
+        boolean hasStartAnchor,
+        boolean hasDeadlineAnchor,
+        Integer startRemindValue,
+        String startRemindUnit,
+        Integer deadlineRemindValue,
+        String deadlineRemindUnit
+    ) {
+        boolean reminderEnabled = Boolean.TRUE.equals(rawReminderEnabled);
+        if (!reminderEnabled) {
+            return ReminderConfig.disabled();
+        }
+        if (!hasDeadlineAnchor) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "deadline remind requires due/end time");
+        }
+
+        ReminderOffset deadlineOffset = normalizeReminderOffset(deadlineRemindValue, deadlineRemindUnit, "deadline_remind", timePrecision);
+        ReminderOffset startOffset = null;
+        if (TIMING_MODE_RANGE.equals(timingMode)) {
+            if (!hasStartAnchor) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "start remind requires range_start_at");
+            }
+            startOffset = normalizeReminderOffset(startRemindValue, startRemindUnit, "start_remind", timePrecision);
+        }
+
+        if (TIMING_MODE_DEADLINE.equals(timingMode) && deadlineOffset == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "deadline_remind is required when reminder_enabled=true");
+        }
+        if (TIMING_MODE_RANGE.equals(timingMode) && deadlineOffset == null && startOffset == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "at least one remind offset is required when reminder_enabled=true");
+        }
+
+        return new ReminderConfig(
+            true,
+            startOffset == null ? null : startOffset.value(),
+            startOffset == null ? null : startOffset.unit(),
+            deadlineOffset == null ? null : deadlineOffset.value(),
+            deadlineOffset == null ? null : deadlineOffset.unit()
+        );
+    }
+
+    private ReminderOffset normalizeReminderOffset(Integer rawValue, String rawUnit, String fieldPrefix, String timePrecision) {
+        String normalizedUnit = normalizeOptionalText(rawUnit);
+        if (rawValue == null && !StringUtils.hasText(normalizedUnit)) {
             return null;
         }
-        if (startAt != null && endAt.isBefore(startAt)) {
-            return null;
+        if (rawValue == null || !StringUtils.hasText(normalizedUnit)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldPrefix + "_value and " + fieldPrefix + "_unit must be provided together");
         }
-        return endAt;
+        if (rawValue <= 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldPrefix + "_value must be > 0");
+        }
+
+        String unit = normalizeReminderUnit(normalizedUnit);
+        if (REMIND_UNIT_DAY.equals(unit) && !TIME_PRECISION_DAY.equals(timePrecision)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "DAY remind unit requires time_precision=DAY");
+        }
+        int maxValue = REMIND_UNIT_DAY.equals(unit) ? MAX_REMIND_DAY_OFFSET : MAX_REMIND_MINUTE_OFFSET;
+        if (rawValue > maxValue) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldPrefix + "_value out of range");
+        }
+        return new ReminderOffset(rawValue, unit);
+    }
+
+    private String normalizeReminderUnit(String rawUnit) {
+        String normalized = String.valueOf(rawUnit == null ? "" : rawUnit).trim().toUpperCase(Locale.ROOT);
+        if (REMIND_UNIT_MINUTE.equals(normalized) || REMIND_UNIT_DAY.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "remind unit must be MINUTE or DAY");
+    }
+
+    private LocalDateTime toDayStart(LocalDateTime value) {
+        return LocalDateTime.of(value.toLocalDate(), LocalTime.MIN);
+    }
+
+    private LocalDateTime toDayEnd(LocalDateTime value) {
+        return LocalDateTime.of(value.toLocalDate(), LocalTime.of(23, 59, 59));
     }
 
     private int resolveUpcomingDays(Integer days) {
@@ -2084,6 +2344,15 @@ public class LightAppServiceImpl implements LightAppService {
                 created.setPriorityCode(normalizePriority(rule.getPriorityCode()));
                 created.setDone(false);
                 created.setDueAt(triggerAt);
+                created.setShowOnCalendar(true);
+                created.setTimePrecisionCode(TIME_PRECISION_MINUTE);
+                created.setTimingModeCode(TIMING_MODE_DEADLINE);
+                created.setRangeStartAt(null);
+                created.setReminderEnabled(false);
+                created.setStartRemindValue(null);
+                created.setStartRemindUnitCode(null);
+                created.setDeadlineRemindValue(null);
+                created.setDeadlineRemindUnitCode(null);
                 created.setRecurringInstanceAt(triggerAt);
                 created.setSortNum(resolveSortNum(null, todoMapper.selectMaxSortNumByUserId(userId)));
                 todoMapper.insert(created);
@@ -2125,6 +2394,15 @@ public class LightAppServiceImpl implements LightAppService {
                 created.setTitle(rule.getTitle());
                 created.setDetail(rule.getDetail());
                 created.setDueAt(triggerAt);
+                created.setShowOnCalendar(true);
+                created.setTimePrecisionCode(TIME_PRECISION_MINUTE);
+                created.setTimingModeCode(TIMING_MODE_DEADLINE);
+                created.setRangeStartAt(null);
+                created.setReminderEnabled(false);
+                created.setStartRemindValue(null);
+                created.setStartRemindUnitCode(null);
+                created.setDeadlineRemindValue(null);
+                created.setDeadlineRemindUnitCode(null);
                 created.setRecurringInstanceAt(triggerAt);
                 created.setSortNum(resolveSortNum(null, taskMapper.selectMaxSortNumByUserId(userId)));
                 taskMapper.insert(created);
@@ -2167,6 +2445,15 @@ public class LightAppServiceImpl implements LightAppService {
                 created.setDetail(rule.getDetail());
                 created.setStartAt(triggerAt);
                 created.setEndAt(triggerAt.plusMinutes(durationMinutes));
+                created.setShowOnCalendar(true);
+                created.setTimePrecisionCode(TIME_PRECISION_MINUTE);
+                created.setTimingModeCode(TIMING_MODE_RANGE);
+                created.setRangeStartAt(triggerAt);
+                created.setReminderEnabled(false);
+                created.setStartRemindValue(null);
+                created.setStartRemindUnitCode(null);
+                created.setDeadlineRemindValue(null);
+                created.setDeadlineRemindUnitCode(null);
                 created.setRecurringInstanceAt(triggerAt);
                 created.setAllDay(Boolean.TRUE.equals(rule.getAllDay()));
                 created.setLocation(rule.getLocation());
@@ -2828,6 +3115,15 @@ public class LightAppServiceImpl implements LightAppService {
             normalizePriority(entity.getPriorityCode()),
             Boolean.TRUE.equals(entity.getDone()),
             entity.getDueAt(),
+            entity.getShowOnCalendar() == null || Boolean.TRUE.equals(entity.getShowOnCalendar()),
+            normalizeTimePrecision(entity.getTimePrecisionCode()),
+            normalizeTimingMode(entity.getTimingModeCode()),
+            entity.getRangeStartAt(),
+            Boolean.TRUE.equals(entity.getReminderEnabled()),
+            entity.getStartRemindValue(),
+            entity.getStartRemindUnitCode() == null ? null : normalizeReminderUnit(entity.getStartRemindUnitCode()),
+            entity.getDeadlineRemindValue(),
+            entity.getDeadlineRemindUnitCode() == null ? null : normalizeReminderUnit(entity.getDeadlineRemindUnitCode()),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             entity.getUpdatedAt()
         );
@@ -2841,6 +3137,15 @@ public class LightAppServiceImpl implements LightAppService {
             entity.getTitle(),
             entity.getDetail(),
             entity.getDueAt(),
+            entity.getShowOnCalendar() == null || Boolean.TRUE.equals(entity.getShowOnCalendar()),
+            normalizeTimePrecision(entity.getTimePrecisionCode()),
+            normalizeTimingMode(entity.getTimingModeCode()),
+            entity.getRangeStartAt(),
+            Boolean.TRUE.equals(entity.getReminderEnabled()),
+            entity.getStartRemindValue(),
+            entity.getStartRemindUnitCode() == null ? null : normalizeReminderUnit(entity.getStartRemindUnitCode()),
+            entity.getDeadlineRemindValue(),
+            entity.getDeadlineRemindUnitCode() == null ? null : normalizeReminderUnit(entity.getDeadlineRemindUnitCode()),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             entity.getUpdatedAt()
         );
@@ -2866,6 +3171,15 @@ public class LightAppServiceImpl implements LightAppService {
             Boolean.TRUE.equals(entity.getAllDay()),
             entity.getLocation(),
             normalizeScheduleStatus(entity.getStatusCode()),
+            entity.getShowOnCalendar() == null || Boolean.TRUE.equals(entity.getShowOnCalendar()),
+            normalizeTimePrecision(entity.getTimePrecisionCode()),
+            TIMING_MODE_RANGE,
+            entity.getRangeStartAt() == null ? entity.getStartAt() : entity.getRangeStartAt(),
+            Boolean.TRUE.equals(entity.getReminderEnabled()),
+            entity.getStartRemindValue(),
+            entity.getStartRemindUnitCode() == null ? null : normalizeReminderUnit(entity.getStartRemindUnitCode()),
+            entity.getDeadlineRemindValue(),
+            entity.getDeadlineRemindUnitCode() == null ? null : normalizeReminderUnit(entity.getDeadlineRemindUnitCode()),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             entity.getUpdatedAt()
         );
@@ -2875,5 +3189,20 @@ public class LightAppServiceImpl implements LightAppService {
     }
 
     private record ColumnInput(String code, String title, int sortNum, boolean enabled) {
+    }
+
+    private record ReminderOffset(Integer value, String unit) {
+    }
+
+    private record ReminderConfig(
+        boolean enabled,
+        Integer startRemindValue,
+        String startRemindUnit,
+        Integer deadlineRemindValue,
+        String deadlineRemindUnit
+    ) {
+        private static ReminderConfig disabled() {
+            return new ReminderConfig(false, null, null, null, null);
+        }
     }
 }

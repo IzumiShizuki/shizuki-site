@@ -13,10 +13,12 @@ import { computed, provide } from 'vue';
 import ProjectsWindow from './ProjectsWindow.vue';
 import ScheduleWindow from './ScheduleWindow.vue';
 import TaskBoardWindow from './TaskBoardWindow.vue';
+import TimePrismCalendarWindow from './TimePrismCalendarWindow.vue';
 import TodoWindow from './TodoWindow.vue';
 import {
   bumpSuiteProjectVersion,
   TIMEPRISM_MODULE_BOARD,
+  TIMEPRISM_MODULE_CALENDAR,
   TIMEPRISM_MODULE_PROJECTS,
   TIMEPRISM_MODULE_SCHEDULE,
   TIMEPRISM_MODULE_TODO,
@@ -38,7 +40,8 @@ const moduleMap = Object.freeze({
   [TIMEPRISM_MODULE_TODO]: TodoWindow,
   [TIMEPRISM_MODULE_BOARD]: TaskBoardWindow,
   [TIMEPRISM_MODULE_SCHEDULE]: ScheduleWindow,
-  [TIMEPRISM_MODULE_PROJECTS]: ProjectsWindow
+  [TIMEPRISM_MODULE_PROJECTS]: ProjectsWindow,
+  [TIMEPRISM_MODULE_CALENDAR]: TimePrismCalendarWindow
 });
 
 const session = resolveTimePrismSuiteSession(props.windowId);

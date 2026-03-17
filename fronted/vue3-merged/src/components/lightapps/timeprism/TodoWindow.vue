@@ -25,6 +25,7 @@
     <Transition name="panel-collapse">
       <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
         <input v-model.trim="draft.title" type="text" placeholder="添加待办，例如：整理算法笔记" />
+        <input v-model.trim="draft.detail" type="text" placeholder="详情（可选）" />
         <select v-model="draft.projectId">
           <option value="">无项目</option>
           <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
@@ -37,14 +38,44 @@
           <option value="HIGH">高</option>
         </select>
         <input v-model="draft.dueAt" type="datetime-local" />
+        <select v-model="draft.timingMode">
+          <option value="DEADLINE">截止任务</option>
+          <option value="RANGE">范围任务</option>
+        </select>
+        <input v-if="draft.timingMode === 'RANGE'" v-model="draft.rangeStartAt" type="datetime-local" />
+        <select v-model="draft.timePrecision">
+          <option value="MINUTE">分钟级</option>
+          <option value="DAY">日级</option>
+        </select>
+        <label class="toggle-check"><input v-model="draft.showOnCalendar" type="checkbox" /> 显示日历</label>
+        <label class="toggle-check"><input v-model="draft.reminderEnabled" type="checkbox" /> 启用提醒</label>
+        <input
+          v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'"
+          v-model.number="draft.startRemindValue"
+          type="number"
+          min="1"
+          placeholder="起始提前"
+        />
+        <select v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'" v-model="draft.startRemindUnit">
+          <option value="MINUTE">分钟</option>
+          <option value="DAY">天</option>
+        </select>
+        <input v-if="draft.reminderEnabled" v-model.number="draft.deadlineRemindValue" type="number" min="1" placeholder="截止提前" />
+        <select v-if="draft.reminderEnabled" v-model="draft.deadlineRemindUnit">
+          <option value="MINUTE">分钟</option>
+          <option value="DAY">天</option>
+        </select>
         <button
           class="icon-btn ripple-trigger"
           type="submit"
-          :title="saving ? '添加中' : '添加待办'"
-          :aria-label="saving ? '添加中' : '添加待办'"
+          :title="saving ? '处理中' : editingTodoId ? '保存修改' : '添加待办'"
+          :aria-label="saving ? '处理中' : editingTodoId ? '保存修改' : '添加待办'"
           :disabled="saving || !draft.title.trim()"
         >
           <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
+        </button>
+        <button v-if="editingTodoId" class="icon-btn ripple-trigger" type="button" title="取消编辑" @click="cancelTodoEdit">
+          <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
       </form>
     </Transition>
@@ -56,12 +87,15 @@
           <button
             class="icon-btn ripple-trigger"
             type="button"
-            :title="recurringSaving ? '保存中' : '新增规则'"
-            :aria-label="recurringSaving ? '保存中' : '新增规则'"
+            :title="recurringSaving ? '保存中' : editingRecurringRuleId ? '保存规则' : '新增规则'"
+            :aria-label="recurringSaving ? '保存中' : editingRecurringRuleId ? '保存规则' : '新增规则'"
             :disabled="recurringSaving || !recurringDraft.title.trim() || !recurringDraft.cronExpr.trim()"
             @click="createRecurringRule"
           >
-            <i :class="recurringSaving ? 'fas fa-spinner fa-spin' : 'fas fa-plus'" aria-hidden="true"></i>
+            <i :class="recurringSaving ? 'fas fa-spinner fa-spin' : editingRecurringRuleId ? 'fas fa-floppy-disk' : 'fas fa-plus'" aria-hidden="true"></i>
+          </button>
+          <button v-if="editingRecurringRuleId" class="icon-btn ripple-trigger" type="button" title="取消编辑" @click="cancelRecurringEdit">
+            <i class="fas fa-xmark" aria-hidden="true"></i>
           </button>
         </header>
         <div class="recurring-form">
@@ -88,6 +122,9 @@
               <small>{{ rule.cronExpr }} · {{ rule.timeZoneId }} · {{ rule.priority }}</small>
             </div>
             <div class="todo-actions">
+              <button class="icon-btn ripple-trigger" type="button" title="编辑" @click="editRecurringRule(rule)">
+                <i class="fas fa-pen" aria-hidden="true"></i>
+              </button>
               <button class="icon-btn ripple-trigger" type="button" :title="rule.enabled ? '停用' : '启用'" @click="toggleRecurringRule(rule)">
                 <i :class="rule.enabled ? 'fas fa-pause' : 'fas fa-play'" aria-hidden="true"></i>
               </button>
@@ -150,6 +187,9 @@
           </small>
         </div>
         <div class="todo-actions">
+          <button class="icon-btn ripple-trigger" title="编辑" @click="startTodoEdit(item)">
+            <i class="fas fa-pen"></i>
+          </button>
           <button class="icon-btn ripple-trigger" title="上移" @click="moveTodo(item.todoId, 'up')">
             <i class="fas fa-arrow-up"></i>
           </button>
@@ -167,7 +207,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted, reactive, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppTodo,
@@ -190,6 +230,7 @@ import {
 } from '../../../utils/lightAppsDataStore';
 import {
   TIMEPRISM_SUITE_CONTEXT_KEY,
+  TIMEPRISM_MODULE_TODO,
   TODO_VIEW_ALL,
   TODO_VIEW_DONE,
   TODO_VIEW_OPEN,
@@ -197,6 +238,7 @@ import {
   filterTodosByViewAndProjects,
   normalizeProjectFilterIds
 } from './timePrismSuiteState';
+import { TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
@@ -211,12 +253,24 @@ const showCreateForm = ref(false);
 const showRecurringPanel = ref(false);
 const localProjectFilters = ref([]);
 const todoRecurringRules = ref([]);
+const editingTodoId = ref(0);
+const editingRecurringRuleId = ref(0);
 
 const draft = reactive({
   title: '',
+  detail: '',
   projectId: '',
   priority: 'MEDIUM',
-  dueAt: ''
+  dueAt: '',
+  showOnCalendar: true,
+  timePrecision: 'MINUTE',
+  timingMode: 'DEADLINE',
+  rangeStartAt: '',
+  reminderEnabled: false,
+  startRemindValue: null,
+  startRemindUnit: 'MINUTE',
+  deadlineRemindValue: null,
+  deadlineRemindUnit: 'MINUTE'
 });
 
 const recurringDraft = reactive({
@@ -258,6 +312,20 @@ function parseIsoFromInput(value) {
   const ts = Date.parse(source);
   if (!Number.isFinite(ts)) return '';
   return new Date(ts).toISOString();
+}
+
+function toInputDateTime(value) {
+  const ts = Date.parse(value || '');
+  if (!Number.isFinite(ts)) return '';
+  const date = new Date(ts);
+  const pad = (num) => String(num).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function normalizePositiveInteger(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.round(num);
 }
 
 function addHexAlpha(color, alpha) {
@@ -340,10 +408,80 @@ function isProjectFilterActive(projectId) {
 
 function toggleCreateForm() {
   showCreateForm.value = !showCreateForm.value;
+  if (!showCreateForm.value) {
+    cancelTodoEdit();
+  }
 }
 
 function toggleRecurringPanel() {
   showRecurringPanel.value = !showRecurringPanel.value;
+  if (!showRecurringPanel.value) {
+    cancelRecurringEdit();
+  }
+}
+
+function resetTodoDraft() {
+  draft.title = '';
+  draft.detail = '';
+  draft.projectId = '';
+  draft.priority = 'MEDIUM';
+  draft.dueAt = '';
+  draft.showOnCalendar = true;
+  draft.timePrecision = 'MINUTE';
+  draft.timingMode = 'DEADLINE';
+  draft.rangeStartAt = '';
+  draft.reminderEnabled = false;
+  draft.startRemindValue = null;
+  draft.startRemindUnit = 'MINUTE';
+  draft.deadlineRemindValue = null;
+  draft.deadlineRemindUnit = 'MINUTE';
+}
+
+function startTodoEdit(item) {
+  if (!item) return;
+  editingTodoId.value = Number(item.todoId) || 0;
+  draft.title = item.title || '';
+  draft.detail = item.detail || '';
+  draft.projectId = item.projectId ? String(item.projectId) : '';
+  draft.priority = item.priority || 'MEDIUM';
+  draft.dueAt = toInputDateTime(item.dueAt);
+  draft.showOnCalendar = item.showOnCalendar !== false;
+  draft.timePrecision = item.timePrecision || 'MINUTE';
+  draft.timingMode = item.timingMode || 'DEADLINE';
+  draft.rangeStartAt = toInputDateTime(item.rangeStartAt);
+  draft.reminderEnabled = Boolean(item.reminderEnabled);
+  draft.startRemindValue = normalizePositiveInteger(item.startRemindValue);
+  draft.startRemindUnit = item.startRemindUnit || 'MINUTE';
+  draft.deadlineRemindValue = normalizePositiveInteger(item.deadlineRemindValue);
+  draft.deadlineRemindUnit = item.deadlineRemindUnit || 'MINUTE';
+  showCreateForm.value = true;
+}
+
+function cancelTodoEdit() {
+  editingTodoId.value = 0;
+  resetTodoDraft();
+}
+
+function editRecurringRule(rule) {
+  if (!rule) return;
+  editingRecurringRuleId.value = Number(rule.ruleId) || 0;
+  recurringDraft.title = rule.title || '';
+  recurringDraft.detail = rule.detail || '';
+  recurringDraft.projectId = rule.projectId ? String(rule.projectId) : '';
+  recurringDraft.priority = rule.priority || 'MEDIUM';
+  recurringDraft.cronExpr = rule.cronExpr || '';
+  recurringDraft.timeZoneId = rule.timeZoneId || 'Asia/Shanghai';
+  showRecurringPanel.value = true;
+}
+
+function cancelRecurringEdit() {
+  editingRecurringRuleId.value = 0;
+  recurringDraft.title = '';
+  recurringDraft.detail = '';
+  recurringDraft.projectId = '';
+  recurringDraft.priority = 'MEDIUM';
+  recurringDraft.cronExpr = '0 0 9 * * *';
+  recurringDraft.timeZoneId = 'Asia/Shanghai';
 }
 
 async function createRecurringRule() {
@@ -363,29 +501,34 @@ async function createRecurringRule() {
     };
 
     if (auth.isAuthenticated.value) {
-      await createLightAppTodoRecurringRule(payload, auth.authorizedFetch);
+      if (editingRecurringRuleId.value) {
+        await updateLightAppTodoRecurringRule(editingRecurringRuleId.value, payload, auth.authorizedFetch);
+      } else {
+        await createLightAppTodoRecurringRule(payload, auth.authorizedFetch);
+      }
       await refreshRemoteTodos();
     } else {
-      const nextId = createLocalEntityId();
       const maxSort = todoRecurringRules.value.reduce((max, item) => Math.max(max, Number(item.sortNum) || 0), 0);
-      const nextRules = normalizeRecurringRules([
-        ...todoRecurringRules.value,
-        {
-          ruleId: nextId,
-          ...payload,
-          sortNum: maxSort + 10,
-          updatedAt: new Date().toISOString()
-        }
-      ]);
+      const nextRules = normalizeRecurringRules(
+        editingRecurringRuleId.value
+          ? todoRecurringRules.value.map((item) =>
+              item.ruleId === editingRecurringRuleId.value
+                ? { ...item, ...payload, updatedAt: new Date().toISOString() }
+                : item
+            )
+          : [
+              ...todoRecurringRules.value,
+              {
+                ruleId: createLocalEntityId(),
+                ...payload,
+                sortNum: maxSort + 10,
+                updatedAt: new Date().toISOString()
+              }
+            ]
+      );
       persistGuestTodos(todos.value, nextRules);
     }
-
-    recurringDraft.title = '';
-    recurringDraft.detail = '';
-    recurringDraft.projectId = '';
-    recurringDraft.priority = 'MEDIUM';
-    recurringDraft.cronExpr = '0 0 9 * * *';
-    recurringDraft.timeZoneId = 'Asia/Shanghai';
+    cancelRecurringEdit();
   } catch (error) {
     errorText.value = error?.message || '周期规则创建失败';
   } finally {
@@ -454,6 +597,10 @@ function formatDateTime(iso) {
 }
 
 function buildTodoPayload(item, overrides = {}) {
+  const timingMode = (overrides.timingMode ?? item.timingMode ?? 'DEADLINE').toUpperCase();
+  const reminderEnabled = Boolean(overrides.reminderEnabled ?? item.reminderEnabled);
+  const startRemindValue = normalizePositiveInteger(overrides.startRemindValue ?? item.startRemindValue);
+  const deadlineRemindValue = normalizePositiveInteger(overrides.deadlineRemindValue ?? item.deadlineRemindValue);
   return {
     projectId: overrides.projectId ?? item.projectId ?? null,
     title: overrides.title ?? item.title,
@@ -461,6 +608,15 @@ function buildTodoPayload(item, overrides = {}) {
     priority: overrides.priority ?? (item.priority || 'MEDIUM'),
     done: overrides.done ?? Boolean(item.done),
     dueAt: overrides.dueAt ?? (item.dueAt || null),
+    showOnCalendar: overrides.showOnCalendar ?? (item.showOnCalendar !== false),
+    timePrecision: (overrides.timePrecision ?? item.timePrecision ?? 'MINUTE').toUpperCase(),
+    timingMode,
+    rangeStartAt: timingMode === 'RANGE' ? overrides.rangeStartAt ?? (item.rangeStartAt || null) : null,
+    reminderEnabled,
+    startRemindValue: reminderEnabled && timingMode === 'RANGE' ? startRemindValue : null,
+    startRemindUnit: reminderEnabled && timingMode === 'RANGE' ? (overrides.startRemindUnit ?? item.startRemindUnit ?? 'MINUTE') : null,
+    deadlineRemindValue: reminderEnabled ? deadlineRemindValue : null,
+    deadlineRemindUnit: reminderEnabled ? (overrides.deadlineRemindUnit ?? item.deadlineRemindUnit ?? 'MINUTE') : null,
     sortNum: overrides.sortNum ?? item.sortNum ?? 0
   };
 }
@@ -573,47 +729,78 @@ async function createTodoItem() {
 
   errorText.value = '';
   saving.value = true;
+  const parsedDueAt = parseIsoFromInput(draft.dueAt);
+  const parsedRangeStartAt = parseIsoFromInput(draft.rangeStartAt);
+  const timingMode = (draft.timingMode || 'DEADLINE').toUpperCase();
 
   try {
     await auth.ensureReady();
+    const payload = {
+      projectId: draft.projectId ? Number(draft.projectId) : null,
+      title,
+      detail: draft.detail.trim() || null,
+      priority: draft.priority,
+      done: false,
+      dueAt: parsedDueAt || null,
+      showOnCalendar: draft.showOnCalendar !== false,
+      timePrecision: (draft.timePrecision || 'MINUTE').toUpperCase(),
+      timingMode,
+      rangeStartAt: timingMode === 'RANGE' ? parsedRangeStartAt || null : null,
+      reminderEnabled: Boolean(draft.reminderEnabled),
+      startRemindValue: draft.reminderEnabled && timingMode === 'RANGE' ? normalizePositiveInteger(draft.startRemindValue) : null,
+      startRemindUnit: draft.reminderEnabled && timingMode === 'RANGE' ? draft.startRemindUnit : null,
+      deadlineRemindValue: draft.reminderEnabled ? normalizePositiveInteger(draft.deadlineRemindValue) : null,
+      deadlineRemindUnit: draft.reminderEnabled ? draft.deadlineRemindUnit : null
+    };
 
     if (auth.isAuthenticated.value) {
-      await createLightAppTodo(
-        {
-          projectId: draft.projectId ? Number(draft.projectId) : null,
-          title,
-          priority: draft.priority,
-          done: false,
-          dueAt: parseIsoFromInput(draft.dueAt) || null
-        },
-        auth.authorizedFetch
-      );
+      if (editingTodoId.value) {
+        const current = todos.value.find((item) => item.todoId === editingTodoId.value);
+        await updateLightAppTodo(editingTodoId.value, {
+          ...payload,
+          done: Boolean(current?.done),
+          sortNum: current?.sortNum ?? 0
+        }, auth.authorizedFetch);
+      } else {
+        await createLightAppTodo(payload, auth.authorizedFetch);
+      }
       await refreshRemoteTodos();
     } else {
-      const nextId = createLocalEntityId();
-      const maxSort = todos.value.reduce((max, item) => Math.max(max, Number(item.sortNum) || 0), 0);
-      persistGuestTodos([
-        {
-          todoId: nextId,
-          projectId: draft.projectId ? Number(draft.projectId) : null,
-          title,
-          detail: '',
-          priority: draft.priority,
-          done: false,
-          dueAt: parseIsoFromInput(draft.dueAt) || '',
-          sortNum: maxSort + 10,
-          updatedAt: new Date().toISOString()
-        },
-        ...todos.value
-      ]);
+      if (editingTodoId.value) {
+        const nextTodos = todos.value.map((item) => {
+          if (item.todoId !== editingTodoId.value) return item;
+          return {
+            ...item,
+            ...payload,
+            detail: payload.detail || '',
+            dueAt: payload.dueAt || '',
+            rangeStartAt: payload.rangeStartAt || '',
+            updatedAt: new Date().toISOString()
+          };
+        });
+        persistGuestTodos(nextTodos);
+      } else {
+        const nextId = createLocalEntityId();
+        const maxSort = todos.value.reduce((max, item) => Math.max(max, Number(item.sortNum) || 0), 0);
+        persistGuestTodos([
+          {
+            todoId: nextId,
+            ...payload,
+            detail: payload.detail || '',
+            dueAt: payload.dueAt || '',
+            rangeStartAt: payload.rangeStartAt || '',
+            done: false,
+            sortNum: maxSort + 10,
+            updatedAt: new Date().toISOString()
+          },
+          ...todos.value
+        ]);
+      }
     }
-
-    draft.title = '';
-    draft.dueAt = '';
-    draft.priority = 'MEDIUM';
+    cancelTodoEdit();
     showCreateForm.value = false;
   } catch (error) {
-    errorText.value = error?.message || '创建待办失败';
+    errorText.value = error?.message || (editingTodoId.value ? '待办更新失败' : '创建待办失败');
   } finally {
     saving.value = false;
   }
@@ -703,7 +890,22 @@ async function moveTodo(todoId, direction) {
 
 onMounted(() => {
   hydrate();
+  window.addEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
+});
+
+function handleFocusItemEvent(event) {
+  const moduleCode = String(event?.detail?.moduleCode || '').trim().toLowerCase();
+  if (moduleCode !== TIMEPRISM_MODULE_TODO) return;
+  const itemId = Number(event?.detail?.itemId) || 0;
+  if (itemId <= 0) return;
+  const target = todos.value.find((item) => item.todoId === itemId);
+  if (!target) return;
+  startTodoEdit(target);
+}
 
 if (suiteContext?.projectVersion) {
   watch(
@@ -744,7 +946,7 @@ if (suiteContext?.projectVersion) {
 
 .todo-create {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) 132px 84px 178px 72px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 8px;
 }
 
@@ -755,6 +957,18 @@ if (suiteContext?.projectVersion) {
   color: var(--la-text);
   border-radius: 10px;
   padding: 8px 10px;
+}
+
+.toggle-check {
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-muted);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
 }
 
 .recurring-panel {
