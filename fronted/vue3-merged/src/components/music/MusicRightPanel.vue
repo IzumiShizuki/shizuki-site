@@ -301,10 +301,10 @@
               <button
                 class="mini-btn ripple-trigger"
                 type="button"
-                :disabled="item.importBusy || !isAuthenticated"
+                :disabled="item.importBusy || !isAuthenticated || !item.importSupported"
                 @click="emit('import-source-playlists', item.provider)"
               >
-                {{ item.importBusy ? '导入中...' : '导入歌单' }}
+                {{ item.importSupported ? (item.importBusy ? '导入中...' : '导入歌单') : '暂不支持导入' }}
               </button>
             </div>
           </div>
@@ -475,7 +475,8 @@ const sourceCards = computed(() => {
       statusText,
       cookieInput: String(cookieMap?.[provider] || ''),
       busy: Boolean(busyMap?.[provider]),
-      importBusy: Boolean(importBusyMap?.[provider])
+      importBusy: Boolean(importBusyMap?.[provider]),
+      importSupported: provider === 'netease'
     };
   });
 });

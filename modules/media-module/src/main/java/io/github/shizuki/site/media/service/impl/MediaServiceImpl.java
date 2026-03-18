@@ -186,6 +186,8 @@ public class MediaServiceImpl implements MediaService {
     private static final String MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING = "MUSIC_SEARCH_API_KEY_MISSING";
     private static final String MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED = "MUSIC_SOURCE_ACCOUNT_REQUIRED";
     private static final String MUSIC_ERROR_CODE_SOURCE_PROVIDER_UNSUPPORTED = "MUSIC_SOURCE_PROVIDER_UNSUPPORTED";
+    private static final String MUSIC_ERROR_CODE_SOURCE_IMPORT_PROVIDER_UNSUPPORTED =
+        "MUSIC_SOURCE_IMPORT_PROVIDER_UNSUPPORTED";
     private static final String SOURCE_MODE_ACCOUNT_FIRST = "account_first";
     private static final String SOURCE_MODE_TUNEHUB_FIRST = "tunehub_first";
     private static final String SOURCE_MODE_ACCOUNT_ONLY = "account_only";
@@ -2506,7 +2508,10 @@ public class MediaServiceImpl implements MediaService {
             throw new BusinessException(
                 ErrorCode.BAD_REQUEST,
                 "Current provider import is not supported yet",
-                Map.of("provider", normalizedProvider)
+                Map.of(
+                    "music_error_code", MUSIC_ERROR_CODE_SOURCE_IMPORT_PROVIDER_UNSUPPORTED,
+                    "provider", normalizedProvider
+                )
             );
         }
 
