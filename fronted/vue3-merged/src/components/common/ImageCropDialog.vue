@@ -260,18 +260,22 @@ function canvasToBlob(canvas, mimeType, quality) {
   place-items: center;
   background: rgba(3, 8, 14, 0.68);
   backdrop-filter: blur(6px);
-  padding: 14px;
+  padding: 10px;
 }
 
 .image-crop-panel {
   --liquid-bg: rgba(16, 24, 36, 0.78);
   --liquid-border: rgba(225, 234, 247, 0.28);
   --liquid-shadow: 0 26px 50px rgba(4, 7, 12, 0.42);
-  width: min(980px, 100%);
+  width: min(900px, 100%);
+  height: min(86vh, 700px);
+  max-height: min(86vh, 700px);
   border-radius: 18px;
-  padding: 16px;
+  padding: 14px;
   display: grid;
-  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  overflow: hidden;
 }
 
 .image-crop-head {
@@ -294,8 +298,10 @@ function canvasToBlob(canvas, mimeType, quality) {
 
 .image-crop-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr) 200px;
   gap: 12px;
+  min-height: 0;
+  align-items: stretch;
 }
 
 .image-crop-main {
@@ -303,7 +309,8 @@ function canvasToBlob(canvas, mimeType, quality) {
   overflow: hidden;
   background: rgba(6, 11, 18, 0.58);
   box-shadow: inset 0 0 0 1px rgba(185, 205, 230, 0.24);
-  min-height: 360px;
+  min-height: 0;
+  height: 100%;
 }
 
 .image-cropper {
@@ -318,6 +325,8 @@ function canvasToBlob(canvas, mimeType, quality) {
   display: grid;
   gap: 8px;
   align-content: start;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .preview-title {
@@ -347,6 +356,11 @@ function canvasToBlob(canvas, mimeType, quality) {
   font-size: 12px;
   text-align: center;
   word-break: break-all;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 .image-crop-actions {
@@ -404,12 +418,46 @@ function canvasToBlob(canvas, mimeType, quality) {
 }
 
 @media (max-width: 860px) {
+  .image-crop-panel {
+    width: min(760px, 100%);
+    height: min(88vh, 620px);
+    max-height: min(88vh, 620px);
+    padding: 12px;
+    border-radius: 14px;
+  }
+
   .image-crop-layout {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .image-crop-main {
-    min-height: 280px;
+    min-height: 0;
+    height: min(45vh, 320px);
+  }
+
+  .image-crop-preview-panel {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'title title'
+      'preview helper';
+    align-items: center;
+    gap: 6px 10px;
+  }
+
+  .preview-title {
+    grid-area: title;
+  }
+
+  .preview-rect {
+    grid-area: preview;
+    width: min(120px, 30vw);
+  }
+
+  .helper-text {
+    grid-area: helper;
+    text-align: left;
+    -webkit-line-clamp: 2;
   }
 }
 </style>

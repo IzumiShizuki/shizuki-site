@@ -5,6 +5,7 @@ import io.github.shizuki.site.content.dto.AuthorProfileResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
 import io.github.shizuki.site.content.dto.AppSummary;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
@@ -142,6 +143,11 @@ public interface ContentService {
      * 提交匿名悄悄话给作者。
      */
     Map<String, Object> submitAuthorWhisper(AuthorWhisperRequest request);
+
+    /**
+     * 管理员分页查询作者悄悄话。
+     */
+    PageResponse<AuthorWhisperItemResponse> listAuthorWhispers(long pageNo, long pageSize);
 
     /**
      * 查询帖子可见性配置。

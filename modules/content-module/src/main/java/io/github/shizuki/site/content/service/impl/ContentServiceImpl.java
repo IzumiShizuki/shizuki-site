@@ -16,6 +16,7 @@ import io.github.shizuki.site.content.dto.AuthorProfileResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
@@ -1325,6 +1326,33 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    @Override
+    public PageResponse<AuthorWhisperItemResponse> listAuthorWhispers(long pageNo, long pageSize) {
+        requireAdmin();
+
+        long normalizedPageNo = pageNo <= 0 ? 1 : pageNo;
+        long normalizedPageSize = Math.max(1L, Math.min(pageSize <= 0 ? 20L : pageSize, 100L));
+
+        List<ContentReportEntity> allWhispers = contentReportMapper.selectList(
+            new LambdaQueryWrapper<ContentReportEntity>()
+                .eq(ContentReportEntity::getTargetType, REPORT_TARGET_AUTHOR_WHISPER)
+                .orderByDesc(ContentReportEntity::getCreatedAt)
+                .orderByDesc(ContentReportEntity::getId)
+        );
+
+        long total = allWhispers.size();
+        int fromIndex = (int) Math.min((normalizedPageNo - 1) * normalizedPageSize, total);
+        int toIndex = (int) Math.min(fromIndex + normalizedPageSize, total);
+        List<ContentReportEntity> pageRows = allWhispers.subList(fromIndex, toIndex);
+
+        Map<Long, String> postTitleMap = resolveWhisperPostTitleMap(pageRows);
+        List<AuthorWhisperItemResponse> items = pageRows.stream()
+            .map(row -> toAuthorWhisperItem(row, postTitleMap))
+            .toList();
+
+        return PageResponse.of(items, total, normalizedPageNo, normalizedPageSize);
+    }
+
     private String buildWhisperReason(String content, String nickname, String remark) {
         String normalizedNickname = trimToEmpty(nickname);
         String normalizedRemark = trimToEmpty(remark);
@@ -1343,6 +1371,81 @@ public class ContentServiceImpl implements ContentService {
             return payload;
         }
         return payload.substring(0, 255);
+    }
+
+    private AuthorWhisperItemResponse toAuthorWhisperItem(ContentReportEntity row, Map<Long, String> postTitleMap) {
+        if (row == null) {
+            return new AuthorWhisperItemResponse(null, REPORT_STATUS_CREATED, 0L, "站点留言", "", "", "", null);
+        }
+        long postId = row.getTargetId() == null || row.getTargetId() <= 0 ? 0L : row.getTargetId();
+        Map<String, String> parsed = parseWhisperReason(row.getReason());
+        String content = readString(parsed.get("content"), "");
+        String nickname = readString(parsed.get("nickname"), "");
+        String remark = readString(parsed.get("remark"), "");
+        String postTitle = postId > 0
+            ? readString(postTitleMap.get(postId), "已删除或不可见文章")
+            : "站点留言";
+        return new AuthorWhisperItemResponse(
+            row.getId(),
+            readString(row.getStatus(), REPORT_STATUS_CREATED),
+            postId,
+            postTitle,
+            content,
+            nickname,
+            remark,
+            row.getCreatedAt()
+        );
+    }
+
+    private Map<Long, String> resolveWhisperPostTitleMap(List<ContentReportEntity> whispers) {
+        if (whispers == null || whispers.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> postIds = whispers.stream()
+            .map(ContentReportEntity::getTargetId)
+            .filter(Objects::nonNull)
+            .filter(id -> id > 0)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        return postMapper.selectBatchIds(postIds).stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(
+                PostEntity::getId,
+                post -> normalizePostTitle(post.getTitle()),
+                (left, right) -> left
+            ));
+    }
+
+    private Map<String, String> parseWhisperReason(String reason) {
+        String raw = trimToEmpty(reason);
+        if (!StringUtils.hasText(raw)) {
+            return Map.of("content", "", "nickname", "", "remark", "");
+        }
+
+        Map<String, String> parsed = new LinkedHashMap<>();
+        String[] sections = raw.split("\\s*\\|\\s*");
+        for (String section : sections) {
+            String normalizedSection = trimToEmpty(section);
+            if (!StringUtils.hasText(normalizedSection)) {
+                continue;
+            }
+            int separatorIndex = normalizedSection.indexOf('=');
+            if (separatorIndex <= 0) {
+                continue;
+            }
+            String key = normalizedSection.substring(0, separatorIndex).trim().toLowerCase(Locale.ROOT);
+            String value = normalizedSection.substring(separatorIndex + 1).trim();
+            if (StringUtils.hasText(key) && !parsed.containsKey(key)) {
+                parsed.put(key, value);
+            }
+        }
+
+        parsed.putIfAbsent("content", raw);
+        parsed.putIfAbsent("nickname", "");
+        parsed.putIfAbsent("remark", "");
+        return parsed;
     }
 
     private String trimToEmpty(String value) {
