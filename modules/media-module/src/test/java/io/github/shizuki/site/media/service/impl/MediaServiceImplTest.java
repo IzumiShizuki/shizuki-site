@@ -8,6 +8,7 @@ import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.config.TuneHubMusicProperties;
+import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
@@ -78,6 +79,7 @@ class MediaServiceImplTest {
     private AssetSecurityInspector assetSecurityInspector;
     private UserMusicGateway userMusicClient;
     private SpotifyMusicProvider spotifyMusicClient;
+    private NeteaseCookieProvider neteaseCookieProvider;
     private TuneHubMusicProvider tuneHubMusicProvider;
     private MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private MediaServiceImpl mediaService;
@@ -103,6 +105,7 @@ class MediaServiceImplTest {
         assetSecurityInspector = Mockito.mock(AssetSecurityInspector.class);
         userMusicClient = Mockito.mock(UserMusicGateway.class);
         spotifyMusicClient = Mockito.mock(SpotifyMusicProvider.class);
+        neteaseCookieProvider = Mockito.mock(NeteaseCookieProvider.class);
         tuneHubMusicProvider = Mockito.mock(TuneHubMusicProvider.class);
         musicTrackCacheUploadPublisher = Mockito.mock(MusicTrackCacheUploadPublisher.class);
         Mockito.when(assetSecurityInspector.inspect(
@@ -288,6 +291,7 @@ class MediaServiceImplTest {
             assetSecurityInspector,
             userMusicClient,
             spotifyMusicClient,
+            neteaseCookieProvider,
             tuneHubMusicProvider,
             musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,
@@ -715,6 +719,7 @@ class MediaServiceImplTest {
             assetSecurityInspector,
             userMusicClient,
             spotifyMusicClient,
+            neteaseCookieProvider,
             tuneHubMusicProvider,
             musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,

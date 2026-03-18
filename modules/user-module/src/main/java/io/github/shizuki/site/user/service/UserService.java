@@ -3,6 +3,7 @@ package io.github.shizuki.site.user.service;
 import io.github.shizuki.site.user.dto.MeResponse;
 import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
+import io.github.shizuki.site.user.dto.MusicSourceAccountStatusResponse;
 import io.github.shizuki.site.user.dto.AdminGroupCreateRequest;
 import io.github.shizuki.site.user.dto.AdminGroupItemResponse;
 import io.github.shizuki.site.user.dto.AdminGroupPageResponse;
@@ -167,4 +168,29 @@ public interface UserService {
      * 内部调用：读取用户音乐 provider API Key 明文。
      */
     String getMusicApiKeyPlaintext(Long userId, String provider);
+
+    /**
+     * 查询当前用户音乐源账号绑定状态列表（cookie 模式）。
+     */
+    List<MusicSourceAccountStatusResponse> listMusicSourceAccountStatus(Long userId);
+
+    /**
+     * 绑定或更新当前用户音乐源账号 Cookie。
+     */
+    MusicSourceAccountStatusResponse upsertMusicSourceAccountCookie(Long userId, String provider, String cookie);
+
+    /**
+     * 删除当前用户音乐源账号 Cookie。
+     */
+    void deleteMusicSourceAccount(Long userId, String provider);
+
+    /**
+     * 查询当前用户音乐源账号 Cookie 状态。
+     */
+    MusicSourceAccountStatusResponse getMusicSourceAccountCookieStatus(Long userId, String provider);
+
+    /**
+     * 内部调用：读取当前用户音乐源账号 Cookie 明文。
+     */
+    String getMusicSourceAccountCookiePlaintext(Long userId, String provider);
 }

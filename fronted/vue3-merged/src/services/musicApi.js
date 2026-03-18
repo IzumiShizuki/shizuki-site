@@ -291,6 +291,41 @@ export async function deleteMusicApiKey(provider, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getMusicSourceAccountStatus(authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/me/music/source-accounts/status', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function upsertMusicSourceAccountCookie(provider, cookie, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/cookie`, {
+    method: 'PUT',
+    body: {
+      cookie: String(cookie || '').trim()
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function deleteMusicSourceAccount(provider, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}`, {
+    method: 'DELETE'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function importMusicSourcePlaylists(provider, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/import-playlists`, {
+    method: 'POST'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function searchSpotifyTracks(query, limit, authorizedFetch) {
   const payload = {
     method: 'GET',

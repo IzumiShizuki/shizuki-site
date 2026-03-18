@@ -90,6 +90,12 @@
           :spotify-searching="spotifySearching"
           :spotify-results="spotifyResults"
           :spotify-error="spotifyError"
+          :source-mode="musicSourceMode"
+          :source-provider-order="musicAccountProviderOrder"
+          :source-accounts="musicSourceAccounts"
+          :source-cookie-inputs="musicSourceCookieInputs"
+          :source-busy-map="musicSourceBusyMap"
+          :source-import-busy-map="musicSourceImportBusyMap"
           @set-volume="handleSetVolume"
           @set-eq-level="handleSetEqLevel"
           @close-drawer="ui.setRightDrawerOpen(false)"
@@ -104,6 +110,12 @@
           @search-spotify="handleSearchSpotify"
           @preview-spotify="handlePreviewSpotify"
           @enqueue-spotify="handleEnqueueSpotify"
+          @update:source-mode="handleUpdateMusicSourceMode"
+          @move-source-provider="handleMoveMusicSourceProvider"
+          @update:source-cookie="handleUpdateMusicSourceCookieInput"
+          @save-source-cookie="handleSaveMusicSourceCookie"
+          @delete-source-cookie="handleDeleteMusicSourceCookie"
+          @import-source-playlists="handleImportMusicSourcePlaylists"
         />
 
       </template>
@@ -209,6 +221,7 @@ const SEARCH_PROVIDER_OPTIONS = [
   { value: 'spotify', label: 'Spotify' }
 ];
 const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
+const SOURCE_ACCOUNT_PROVIDERS = ['netease', 'qqmusic', 'kugou'];
 
 const route = useRoute();
 const router = useRouter();
@@ -243,6 +256,12 @@ const spotifyQuery = ref('');
 const spotifySearching = ref(false);
 const spotifyResults = ref([]);
 const spotifyError = ref('');
+const musicSourceAccounts = ref({});
+const musicSourceCookieInputs = ref({});
+const musicSourceBusyMap = ref({});
+const musicSourceImportBusyMap = ref({});
+const musicSourceMode = ref('tunehub_first');
+const musicAccountProviderOrder = ref(['netease', 'qqmusic', 'kugou']);
 
 const collectingPlaylist = ref(false);
 const likedTrackIds = ref(new Set());
@@ -518,6 +537,46 @@ function normalizeApiKeyStatus(raw) {
     keyBound: Boolean(raw?.keyBound ?? raw?.key_bound),
     keyMask: String(raw?.keyMask || raw?.key_mask || ''),
     updatedAt: String(raw?.updatedAt || raw?.updated_at || '')
+  };
+}
+
+function normalizeSourceModeValue(raw) {
+  const normalized = String(raw || '').trim().toLowerCase();
+  if (['account_first', 'tunehub_first', 'account_only', 'tunehub_only'].includes(normalized)) {
+    return normalized;
+  }
+  return 'tunehub_first';
+}
+
+function normalizeSourceProviderOrder(input) {
+  const source = Array.isArray(input) ? input : [];
+  const result = [];
+  const seen = new Set();
+  source.forEach((item) => {
+    const value = String(item || '').trim().toLowerCase();
+    if (!SOURCE_ACCOUNT_PROVIDERS.includes(value) || seen.has(value)) return;
+    seen.add(value);
+    result.push(value);
+  });
+  SOURCE_ACCOUNT_PROVIDERS.forEach((item) => {
+    if (seen.has(item)) return;
+    seen.add(item);
+    result.push(item);
+  });
+  return result;
+}
+
+function normalizeSourceAccountStatus(raw, fallbackProvider = '') {
+  const provider = String(raw?.provider || fallbackProvider || '').trim().toLowerCase();
+  return {
+    provider,
+    authType: String(raw?.authType || raw?.auth_type || 'cookie'),
+    bound: Boolean(raw?.bound ?? raw?.keyBound ?? raw?.key_bound),
+    mask: String(raw?.mask || raw?.keyMask || raw?.key_mask || ''),
+    status: String(raw?.status || '').trim().toUpperCase() || (Boolean(raw?.bound) ? 'BOUND' : 'UNBOUND'),
+    updatedAt: String(raw?.updatedAt || raw?.updated_at || ''),
+    lastVerifiedAt: String(raw?.lastVerifiedAt || raw?.last_verified_at || ''),
+    expireAt: String(raw?.expireAt || raw?.expire_at || '')
   };
 }
 
@@ -1388,6 +1447,184 @@ async function loadSpotifyBindingStatus() {
   }
 }
 
+async function loadMusicSourcePreference() {
+  if (!auth.isAuthenticated.value) {
+    musicSourceMode.value = 'tunehub_first';
+    musicAccountProviderOrder.value = SOURCE_ACCOUNT_PROVIDERS.slice();
+    return;
+  }
+  try {
+    const payload = await auth.getPreference();
+    const musicNode = payload?.music && typeof payload.music === 'object' ? payload.music : {};
+    const modeRaw = payload?.['music.source_mode'] || musicNode?.source_mode;
+    const orderRaw = payload?.['music.account_provider_order'] || musicNode?.account_provider_order;
+    musicSourceMode.value = normalizeSourceModeValue(modeRaw);
+    musicAccountProviderOrder.value = normalizeSourceProviderOrder(orderRaw);
+  } catch {
+    musicSourceMode.value = 'tunehub_first';
+    musicAccountProviderOrder.value = SOURCE_ACCOUNT_PROVIDERS.slice();
+  }
+}
+
+async function persistMusicSourcePreference() {
+  if (!auth.isAuthenticated.value) return;
+  try {
+    const payload = await auth.getPreference();
+    const nextPreference = payload && typeof payload === 'object' ? { ...payload } : {};
+    const nextMusic = nextPreference.music && typeof nextPreference.music === 'object'
+      ? { ...nextPreference.music }
+      : {};
+    nextMusic.source_mode = musicSourceMode.value;
+    nextMusic.account_provider_order = musicAccountProviderOrder.value.slice();
+    nextPreference.music = nextMusic;
+    nextPreference['music.source_mode'] = musicSourceMode.value;
+    nextPreference['music.account_provider_order'] = musicAccountProviderOrder.value.slice();
+    await auth.updatePreference(nextPreference);
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '保存音乐源策略失败'));
+  }
+}
+
+async function loadMusicSourceAccountsStatus() {
+  if (!auth.isAuthenticated.value) {
+    musicSourceAccounts.value = {};
+    musicSourceCookieInputs.value = {};
+    return;
+  }
+  try {
+    const payload = await musicApi.getMusicSourceAccountStatus(auth.authorizedFetch);
+    const rows = Array.isArray(payload) ? payload : [];
+    const statusMap = {};
+    const inputMap = {};
+    rows.forEach((item) => {
+      const normalized = normalizeSourceAccountStatus(item);
+      if (!normalized.provider) return;
+      statusMap[normalized.provider] = normalized;
+      inputMap[normalized.provider] = '';
+    });
+    SOURCE_ACCOUNT_PROVIDERS.forEach((provider) => {
+      if (!statusMap[provider]) {
+        statusMap[provider] = normalizeSourceAccountStatus({}, provider);
+      }
+      if (!Object.prototype.hasOwnProperty.call(inputMap, provider)) {
+        inputMap[provider] = '';
+      }
+    });
+    musicSourceAccounts.value = statusMap;
+    musicSourceCookieInputs.value = inputMap;
+  } catch {
+    musicSourceAccounts.value = {};
+  }
+}
+
+function handleUpdateMusicSourceMode(mode) {
+  musicSourceMode.value = normalizeSourceModeValue(mode);
+  persistMusicSourcePreference();
+}
+
+function handleMoveMusicSourceProvider(payload) {
+  const provider = String(payload?.provider || '').trim().toLowerCase();
+  const direction = String(payload?.direction || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(provider)) return;
+  const order = normalizeSourceProviderOrder(musicAccountProviderOrder.value);
+  const index = order.indexOf(provider);
+  if (index < 0) return;
+  const delta = direction === 'down' ? 1 : -1;
+  const target = Math.max(0, Math.min(order.length - 1, index + delta));
+  if (target === index) return;
+  const next = order.slice();
+  const [item] = next.splice(index, 1);
+  next.splice(target, 0, item);
+  musicAccountProviderOrder.value = next;
+  persistMusicSourcePreference();
+}
+
+function handleUpdateMusicSourceCookieInput(payload) {
+  const provider = String(payload?.provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(provider)) return;
+  musicSourceCookieInputs.value = {
+    ...musicSourceCookieInputs.value,
+    [provider]: String(payload?.value || '')
+  };
+}
+
+async function handleSaveMusicSourceCookie(provider) {
+  if (!auth.isAuthenticated.value) {
+    goLogin();
+    return;
+  }
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  const cookie = String(musicSourceCookieInputs.value?.[normalizedProvider] || '').trim();
+  if (!cookie) {
+    window.alert('请先输入 Cookie');
+    return;
+  }
+  musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: true };
+  try {
+    const payload = await musicApi.upsertMusicSourceAccountCookie(normalizedProvider, cookie, auth.authorizedFetch);
+    const nextStatus = normalizeSourceAccountStatus(payload, normalizedProvider);
+    musicSourceAccounts.value = {
+      ...musicSourceAccounts.value,
+      [normalizedProvider]: nextStatus
+    };
+    musicSourceCookieInputs.value = {
+      ...musicSourceCookieInputs.value,
+      [normalizedProvider]: ''
+    };
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '保存 Cookie 失败'));
+  } finally {
+    musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: false };
+  }
+}
+
+async function handleDeleteMusicSourceCookie(provider) {
+  if (!auth.isAuthenticated.value) {
+    goLogin();
+    return;
+  }
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: true };
+  try {
+    await musicApi.deleteMusicSourceAccount(normalizedProvider, auth.authorizedFetch);
+    musicSourceAccounts.value = {
+      ...musicSourceAccounts.value,
+      [normalizedProvider]: normalizeSourceAccountStatus({}, normalizedProvider)
+    };
+    musicSourceCookieInputs.value = {
+      ...musicSourceCookieInputs.value,
+      [normalizedProvider]: ''
+    };
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '删除 Cookie 失败'));
+  } finally {
+    musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: false };
+  }
+}
+
+async function handleImportMusicSourcePlaylists(provider) {
+  if (!auth.isAuthenticated.value) {
+    goLogin();
+    return;
+  }
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: true };
+  try {
+    const payload = await musicApi.importMusicSourcePlaylists(normalizedProvider, auth.authorizedFetch);
+    await loadSidebarData();
+    window.alert(
+      `导入完成：歌单 ${Number(payload?.importedPlaylists || 0)} 个，歌曲 ${Number(payload?.importedTracks || 0)} 首`
+    );
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '导入歌单失败'));
+  } finally {
+    musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: false };
+  }
+}
+
 async function handleBindSpotify() {
   if (!auth.isAuthenticated.value) {
     goLogin();
@@ -1996,7 +2233,14 @@ watch(
 watch(
   () => auth.isAuthenticated.value,
   async () => {
-    await Promise.all([loadHomeData(), loadSidebarData(), loadTunehubStatus(), loadSpotifyBindingStatus()]);
+    await Promise.all([
+      loadHomeData(),
+      loadSidebarData(),
+      loadTunehubStatus(),
+      loadSpotifyBindingStatus(),
+      loadMusicSourcePreference(),
+      loadMusicSourceAccountsStatus()
+    ]);
     await ensureCurrentRoutePlaylistLoaded();
   }
 );
@@ -2016,6 +2260,8 @@ onMounted(async () => {
       loadSidebarData(),
       loadTunehubStatus(),
       loadSpotifyBindingStatus(),
+      loadMusicSourcePreference(),
+      loadMusicSourceAccountsStatus(),
       ensureCurrentRoutePlaylistLoaded()
     ]);
 
@@ -2039,6 +2285,8 @@ async function reloadAfterFatalError() {
     loadSidebarData(),
     loadTunehubStatus(),
     loadSpotifyBindingStatus(),
+    loadMusicSourcePreference(),
+    loadMusicSourceAccountsStatus(),
     ensureCurrentRoutePlaylistLoaded({ force: true })
   ]);
 }

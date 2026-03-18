@@ -17,6 +17,7 @@ import io.github.shizuki.site.media.cache.MusicLibraryHomeCacheStore;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
+import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.TuneHubMusicProperties;
@@ -53,6 +54,7 @@ import io.github.shizuki.site.media.dto.MusicLibraryHomeResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistProfileResponse;
+import io.github.shizuki.site.media.dto.MusicSourcePlaylistImportResponse;
 import io.github.shizuki.site.media.dto.PublicHomeRoleResponse;
 import io.github.shizuki.site.media.dto.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.dto.SpotifyTrackResponse;
@@ -182,6 +184,13 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_KEY_REQUEST_ID = "request_id";
     private static final String LOG_KEY_TRACE_ID = "trace_id";
     private static final String MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING = "MUSIC_SEARCH_API_KEY_MISSING";
+    private static final String MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED = "MUSIC_SOURCE_ACCOUNT_REQUIRED";
+    private static final String SOURCE_MODE_ACCOUNT_FIRST = "account_first";
+    private static final String SOURCE_MODE_TUNEHUB_FIRST = "tunehub_first";
+    private static final String SOURCE_MODE_ACCOUNT_ONLY = "account_only";
+    private static final String SOURCE_MODE_TUNEHUB_ONLY = "tunehub_only";
+    private static final List<String> SOURCE_PROVIDER_DEFAULT_ORDER = List.of("netease", "qqmusic", "kugou");
+    private static final Set<String> SOURCE_ACCOUNT_SUPPORTED_PROVIDERS = Set.of("netease", "qqmusic", "kugou");
     private static final String SOURCE_ONLY_OBJECT_CODE = "__source_only__";
     private static final int TRACK_METADATA_JSON_MAX_LENGTH = 4096;
     private static final Set<String> TRACK_METADATA_ALLOWED_KEYS = Set.of(
@@ -218,6 +227,7 @@ public class MediaServiceImpl implements MediaService {
     private final AssetSecurityInspector assetSecurityInspector;
     private final UserMusicGateway userMusicClient;
     private final SpotifyMusicProvider spotifyMusicClient;
+    private final NeteaseCookieProvider neteaseCookieProvider;
     private final TuneHubMusicProvider tuneHubMusicProvider;
     private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private final TuneHubMusicProperties tuneHubMusicProperties;
@@ -262,6 +272,7 @@ public class MediaServiceImpl implements MediaService {
                             AssetSecurityInspector assetSecurityInspector,
                             UserMusicGateway userMusicClient,
                             SpotifyMusicProvider spotifyMusicClient,
+                            NeteaseCookieProvider neteaseCookieProvider,
                             TuneHubMusicProvider tuneHubMusicProvider,
                             MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher,
                             TuneHubMusicProperties tuneHubMusicProperties,
@@ -289,6 +300,7 @@ public class MediaServiceImpl implements MediaService {
         this.assetSecurityInspector = assetSecurityInspector;
         this.userMusicClient = userMusicClient;
         this.spotifyMusicClient = spotifyMusicClient;
+        this.neteaseCookieProvider = neteaseCookieProvider;
         this.tuneHubMusicProvider = tuneHubMusicProvider;
         this.musicTrackCacheUploadPublisher = musicTrackCacheUploadPublisher;
         this.tuneHubMusicProperties = tuneHubMusicProperties;
@@ -926,31 +938,24 @@ public class MediaServiceImpl implements MediaService {
         Set<String> failedProviders = new LinkedHashSet<>();
 
         TuneHubApiContext apiContext = resolveTuneHubApiContext(false);
-        boolean tuneHubReady = StringUtils.hasText(apiContext.apiKey());
-        boolean allSelectedRequireTuneHub = !selectedProviders.isEmpty()
-            && selectedProviders.stream().allMatch(TUNEHUB_PLAYLIST_PLATFORMS::contains);
-
-        if (allSelectedRequireTuneHub && !tuneHubReady) {
-            LOGGER.warn(
-                "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider=all stage=precheck result=fail reason=no_api_key duration_ms=1 row_count=0 mapped_count=0 dedupe_dropped=0 partial=true",
-                LOG_EVENT_SEARCH_PROVIDER_FAIL,
-                searchId,
-                requestId,
-                traceId,
-                userId,
-                normalizedType,
-                queryDigest
-            );
-            throw new BusinessException(
-                ErrorCode.FORBIDDEN,
-                "TuneHub API key missing",
-                Map.of(
-                    "music_error_code", MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING,
-                    "providers", selectedProviders,
-                    "request_id", requestId,
-                    "trace_id", traceId
-                )
-            );
+        SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
+        if (sourcePolicy.accountOnly()) {
+            boolean hasBoundProvider = selectedProviders.stream()
+                .filter(TUNEHUB_PLAYLIST_PLATFORMS::contains)
+                .anyMatch(sourcePolicy.boundProviders()::contains);
+            if (!hasBoundProvider && selectedProviders.stream().anyMatch(TUNEHUB_PLAYLIST_PLATFORMS::contains)) {
+                throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "No bound source account for current mode",
+                    Map.of(
+                        "music_error_code", MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED,
+                        "mode", sourcePolicy.mode(),
+                        "providers", selectedProviders,
+                        "request_id", requestId,
+                        "trace_id", traceId
+                    )
+                );
+            }
         }
 
         for (String provider : selectedProviders) {
@@ -1052,10 +1057,11 @@ public class MediaServiceImpl implements MediaService {
             if (!TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)) {
                 continue;
             }
-            if (!tuneHubReady) {
+
+            if (sourcePolicy.accountOnly() && !sourcePolicy.boundProviders().contains(provider)) {
                 failedProviders.add(provider);
                 LOGGER.info(
-                    "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=provider_done result=fail reason=no_api_key duration_ms={} row_count=0 mapped_count={} dedupe_dropped=0 partial=true",
+                    "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=provider_done result=fail reason=account_not_bound duration_ms={} row_count=0 mapped_count={} dedupe_dropped=0 partial=true",
                     LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
                     searchId,
                     requestId,
@@ -1405,6 +1411,8 @@ public class MediaServiceImpl implements MediaService {
             request != null && Boolean.TRUE.equals(request.getResolveLyric()));
 
         boolean resolveLyric = request != null && Boolean.TRUE.equals(request.getResolveLyric());
+        Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
+        SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
         MusicListenCacheProperties.StorageMode storageMode = musicListenCacheProperties.resolveStorageMode();
         MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
         String cachedSourceAudio = readString(cache == null ? null : cache.getSourceUrl(), "");
@@ -1534,16 +1542,65 @@ public class MediaServiceImpl implements MediaService {
         }
 
         TuneHubApiContext apiContext = resolveTuneHubApiContext();
-        if (!StringUtils.hasText(apiContext.apiKey())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "TuneHub API key missing");
+        boolean canUseNeteaseAccount = canUseNeteaseAccountSource(userId, sourcePolicy, provider);
+        boolean accountFirst = SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode());
+        boolean accountOnly = SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode());
+        if ((accountFirst || accountOnly) && canUseNeteaseAccount) {
+            try {
+                return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, false);
+            } catch (Exception ex) {
+                if (accountOnly) {
+                    throw ex;
+                }
+                LOGGER.warn(
+                    "MUSIC_RESOLVE_PLAYBACK_ACCOUNT_FAIL provider={} trackId={} mode={} reason={}",
+                    provider,
+                    trackId,
+                    sourcePolicy.mode(),
+                    sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
+                );
+            }
         }
 
-        TuneHubMusicProvider.ParseTrackResult parsed = tuneHubMusicProvider.parseSingleTrack(
-            apiContext.apiKey(),
-            provider,
-            trackId,
-            tuneHubMusicProperties.getDefaultQuality()
-        );
+        if (accountOnly && !canUseNeteaseAccount) {
+            throw new BusinessException(
+                ErrorCode.FORBIDDEN,
+                "No bound account source for current provider",
+                Map.of(
+                    "music_error_code", MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED,
+                    "provider", provider,
+                    "mode", sourcePolicy.mode()
+                )
+            );
+        }
+        if (!StringUtils.hasText(apiContext.apiKey())) {
+            if (canUseNeteaseAccount) {
+                return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, true);
+            }
+            throw new BusinessException(
+                ErrorCode.FORBIDDEN,
+                "TuneHub API key missing",
+                Map.of("music_error_code", MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING, "provider", provider)
+            );
+        }
+
+        ParseAttemptResult parseAttempt;
+        try {
+            parseAttempt = parseSingleTrackWithRetry(
+                apiContext.apiKey(),
+                provider,
+                trackId,
+                tuneHubMusicProperties.getDefaultQuality(),
+                2
+            );
+        } catch (Exception ex) {
+            if (canUseNeteaseAccount) {
+                return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, true);
+            }
+            throw ex;
+        }
+        TuneHubMusicProvider.ParseTrackResult parsed = parseAttempt.result();
+        int retryCount = parseAttempt.retryCount();
         long parseDoneMs = System.currentTimeMillis();
 
         String resolvedAudio = readString(parsed.audioUrl(), "");
@@ -1552,7 +1609,6 @@ public class MediaServiceImpl implements MediaService {
         }
         validateHttpUrlIfPresent(resolvedAudio, "audio");
 
-        Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
         boolean shouldCache = musicListenCacheProperties.isEnabled()
             && (!musicListenCacheProperties.isLoginOnly() || userId > 0);
         boolean cacheEnqueued = false;
@@ -1607,7 +1663,12 @@ public class MediaServiceImpl implements MediaService {
             true,
             lyricText,
             buildPlaybackMetadata(
-                Map.of("cacheMode", storageMode.code()),
+                Map.of(
+                    "cacheMode", storageMode.code(),
+                    "resolved_source", "tunehub",
+                    "fallback_applied", false,
+                    "retry_count", retryCount
+                ),
                 lyricText,
                 translationLyricText,
                 furiganaLyricText
@@ -2409,11 +2470,115 @@ public class MediaServiceImpl implements MediaService {
         );
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicSourcePlaylistImportResponse importSourceAccountPlaylists(String provider) {
+        Long userId = requireLoginUserId();
+        String normalizedProvider = normalizeSourceAccountProvider(provider);
+        if (!StringUtils.hasText(normalizedProvider)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported source provider");
+        }
+        String cookie = userMusicClient.getSourceAccountCookiePlaintext(userId, normalizedProvider);
+        if (!StringUtils.hasText(cookie)) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Music source account is not bound",
+                Map.of("music_error_code", MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED, "provider", normalizedProvider)
+            );
+        }
+        if (!"netease".equals(normalizedProvider)) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Current provider import is not supported yet",
+                Map.of("provider", normalizedProvider)
+            );
+        }
+
+        List<NeteaseCookieProvider.PlaylistSummary> sourcePlaylists = neteaseCookieProvider.listUserPlaylists(cookie, 300);
+        int importedPlaylists = 0;
+        int importedTracks = 0;
+        int skippedPlaylists = 0;
+        int failedPlaylists = 0;
+        for (NeteaseCookieProvider.PlaylistSummary sourcePlaylist : sourcePlaylists) {
+            String sourcePlaylistId = readString(sourcePlaylist.sourcePlaylistId(), "");
+            if (!StringUtils.hasText(sourcePlaylistId)) {
+                skippedPlaylists += 1;
+                continue;
+            }
+            try {
+                String playlistCode = buildSourceImportPlaylistCode(normalizedProvider, sourcePlaylistId, userId);
+                UserMusicPlaylistEntity playlist = upsertSourceImportedPlaylist(userId, playlistCode, normalizedProvider, sourcePlaylist);
+
+                List<NeteaseCookieProvider.TrackSummary> sourceTracks =
+                    neteaseCookieProvider.listPlaylistTracks(sourcePlaylistId, cookie, 1000);
+                userMusicPlaylistTrackMapper.delete(
+                    new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+                        .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlist.getPlaylistCode())
+                );
+                int sort = 1;
+                for (NeteaseCookieProvider.TrackSummary sourceTrack : sourceTracks) {
+                    String trackId = readString(sourceTrack.trackId(), "");
+                    if (!StringUtils.hasText(trackId)) {
+                        continue;
+                    }
+                    UserMusicPlaylistTrackEntity trackEntity = new UserMusicPlaylistTrackEntity();
+                    trackEntity.setPlaylistCode(playlist.getPlaylistCode());
+                    trackEntity.setProviderCode(normalizedProvider);
+                    trackEntity.setTrackId(trackId);
+                    trackEntity.setTitle(readString(sourceTrack.title(), trackId));
+                    trackEntity.setArtist(readString(sourceTrack.artist(), "未知歌手"));
+                    trackEntity.setCoverUrl(readString(sourceTrack.cover(), ""));
+                    trackEntity.setAudioUrl("");
+                    trackEntity.setLyricUrl("");
+                    trackEntity.setSortNum(sort++);
+                    trackEntity.setEnabledFlag(true);
+                    trackEntity.setMetadataJson(writeJson(sanitizeTrackMetadata(Map.of(
+                        "provider", normalizedProvider,
+                        "album", readString(sourceTrack.album(), ""),
+                        "durationSec", sourceTrack.durationSec() == null ? 0 : Math.max(0, sourceTrack.durationSec()),
+                        "sourceScene", "account_import",
+                        "playlistCode", playlist.getPlaylistCode()
+                    ))));
+                    trackEntity.setCreatedAt(LocalDateTime.now());
+                    trackEntity.setUpdatedAt(LocalDateTime.now());
+                    userMusicPlaylistTrackMapper.insert(trackEntity);
+                    importedTracks += 1;
+                }
+                importedPlaylists += 1;
+            } catch (Exception ex) {
+                failedPlaylists += 1;
+                LOGGER.warn(
+                    "MUSIC_SOURCE_IMPORT_PLAYLIST_FAIL provider={} sourcePlaylistId={} userId={} reason={}",
+                    normalizedProvider,
+                    sanitizeLogMessage(sourcePlaylistId),
+                    userId,
+                    sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
+                );
+            }
+        }
+        LOGGER.info(
+            "MUSIC_SOURCE_IMPORT_DONE provider={} userId={} importedPlaylists={} importedTracks={} skippedPlaylists={} failedPlaylists={}",
+            normalizedProvider,
+            userId,
+            importedPlaylists,
+            importedTracks,
+            skippedPlaylists,
+            failedPlaylists
+        );
+        return new MusicSourcePlaylistImportResponse(
+            normalizedProvider,
+            importedPlaylists,
+            importedTracks,
+            skippedPlaylists,
+            failedPlaylists
+        );
+    }
+
     private MusicPlaylistBundleResponse loadVirtualTunehubPlaylistBundle(TuneHubVirtualPlaylistRef ref) {
         TuneHubApiContext apiContext = resolveTuneHubApiContext();
-        if (!StringUtils.hasText(apiContext.apiKey())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "TuneHub API key missing");
-        }
         List<MusicTrackResponse> tracks = tuneHubMusicProvider.loadVirtualPlaylistTracks(
             apiContext.apiKey(),
             ref.provider(),
@@ -2553,20 +2718,53 @@ public class MediaServiceImpl implements MediaService {
                 result.add(normalized);
             }
         }
-        if (!result.isEmpty()) {
-            return result;
-        }
-
-        List<String> defaults = resolveTuneHubPlatformOrder(userId);
-        for (String item : defaults) {
-            String normalized = normalizeSearchProvider(item);
-            if (!StringUtils.hasText(normalized) || !seen.add(normalized)) {
-                continue;
+        if (result.isEmpty()) {
+            List<String> defaults = resolveTuneHubPlatformOrder(userId);
+            for (String item : defaults) {
+                String normalized = normalizeSearchProvider(item);
+                if (!StringUtils.hasText(normalized) || !seen.add(normalized)) {
+                    continue;
+                }
+                result.add(normalized);
             }
-            result.add(normalized);
         }
         if (result.isEmpty()) {
-            return List.of("netease", "kuwo", "qq");
+            result = new ArrayList<>(List.of("netease", "kuwo", "qq"));
+        }
+
+        SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
+        if (SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode())) {
+            List<String> filtered = new ArrayList<>();
+            for (String provider : result) {
+                if (!TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)) {
+                    filtered.add(provider);
+                    continue;
+                }
+                if (sourcePolicy.boundProviders().contains(provider)) {
+                    filtered.add(provider);
+                }
+            }
+            result = filtered;
+        }
+        if (SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode())) {
+            List<String> priorityOrder = normalizeTuneHubPlatformOrder(sourcePolicy.providerOrder());
+            Map<String, Integer> rankMap = new LinkedHashMap<>();
+            for (int i = 0; i < priorityOrder.size(); i += 1) {
+                rankMap.put(priorityOrder.get(i), i);
+            }
+            result.sort((left, right) -> {
+                boolean leftBound = sourcePolicy.boundProviders().contains(left);
+                boolean rightBound = sourcePolicy.boundProviders().contains(right);
+                if (leftBound != rightBound) {
+                    return leftBound ? -1 : 1;
+                }
+                int leftRank = rankMap.getOrDefault(left, 99);
+                int rightRank = rankMap.getOrDefault(right, 99);
+                if (leftRank != rightRank) {
+                    return Integer.compare(leftRank, rightRank);
+                }
+                return 0;
+            });
         }
         return result;
     }
@@ -2865,6 +3063,194 @@ public class MediaServiceImpl implements MediaService {
         return result;
     }
 
+    private boolean canUseNeteaseAccountSource(Long userId, SearchSourcePolicy sourcePolicy, String provider) {
+        if (userId == null || userId <= 0) {
+            return false;
+        }
+        if (!"netease".equals(provider)) {
+            return false;
+        }
+        if (sourcePolicy == null || sourcePolicy.boundProviders() == null) {
+            return false;
+        }
+        return sourcePolicy.boundProviders().contains("netease");
+    }
+
+    private MusicTrackResponse resolvePlaybackViaNeteaseAccount(MusicResolvePlaybackRequest request,
+                                                                String trackId,
+                                                                MusicListenCacheProperties.StorageMode storageMode,
+                                                                boolean resolveLyric,
+                                                                Long userId,
+                                                                long startMs,
+                                                                boolean fallbackApplied) {
+        String cookie = userMusicClient.getSourceAccountCookiePlaintext(userId, "netease");
+        if (!StringUtils.hasText(cookie)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Netease cookie not bound");
+        }
+        NeteaseCookieProvider.ResolvedTrack resolved = neteaseCookieProvider.resolveTrack(trackId, cookie, resolveLyric);
+        String resolvedAudio = readString(resolved.audioUrl(), "");
+        if (!StringUtils.hasText(resolvedAudio)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Netease account playback resolve failed");
+        }
+        validateHttpUrlIfPresent(resolvedAudio, "audio");
+
+        boolean shouldCache = musicListenCacheProperties.isEnabled()
+            && (!musicListenCacheProperties.isLoginOnly() || userId > 0);
+        boolean cacheEnqueued = false;
+        if (shouldCache) {
+            upsertTrackSourceCache("netease", trackId, resolvedAudio);
+            if (shouldEnqueueTrackToOss(storageMode, resolvedAudio)) {
+                cacheEnqueued = musicTrackCacheUploadPublisher.publish(
+                    "netease",
+                    trackId,
+                    resolvedAudio,
+                    readString(request == null ? null : request.getTitle(), readString(resolved.title(), "")),
+                    readString(request == null ? null : request.getArtist(), readString(resolved.artist(), ""))
+                );
+            }
+        }
+
+        String resolvedCover = resolvePlaybackCover(
+            readString(request == null ? null : request.getCover(), ""),
+            readString(resolved.cover(), ""),
+            ""
+        );
+        String lyricText = readString(resolved.lyricText(), "");
+        LOGGER.info(
+            "{} provider={} trackId={} source=account_netease lyricSource=account_netease cacheEnqueued={} lyricTextLength={} durationMs={}",
+            LOG_EVENT_RESOLVE_STAGE_DONE,
+            "netease",
+            trackId,
+            cacheEnqueued,
+            lyricText.length(),
+            Math.max(1L, System.currentTimeMillis() - startMs)
+        );
+        return new MusicTrackResponse(
+            trackId,
+            "netease",
+            readString(request == null ? null : request.getTitle(), readString(resolved.title(), trackId)),
+            readString(request == null ? null : request.getArtist(), readString(resolved.artist(), "")),
+            resolvedCover,
+            resolvedAudio,
+            "",
+            0,
+            true,
+            lyricText,
+            buildPlaybackMetadata(
+                Map.of(
+                    "cacheMode", storageMode.code(),
+                    "resolved_source", "netease_account",
+                    "fallback_applied", fallbackApplied,
+                    "retry_count", 0
+                ),
+                lyricText,
+                "",
+                ""
+            )
+        );
+    }
+
+    private ParseAttemptResult parseSingleTrackWithRetry(String apiKey,
+                                                         String provider,
+                                                         String trackId,
+                                                         String quality,
+                                                         int maxRetries) {
+        int attempts = 0;
+        Exception lastException = null;
+        while (attempts <= Math.max(0, maxRetries)) {
+            try {
+                TuneHubMusicProvider.ParseTrackResult result = tuneHubMusicProvider.parseSingleTrack(
+                    apiKey,
+                    provider,
+                    trackId,
+                    quality
+                );
+                return new ParseAttemptResult(result, attempts);
+            } catch (Exception ex) {
+                lastException = ex;
+                attempts += 1;
+            }
+        }
+        if (lastException instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        }
+        throw new BusinessException(ErrorCode.INTERNAL_ERROR, "TuneHub parse failed");
+    }
+
+    private SearchSourcePolicy resolveSearchSourcePolicy(Long userId) {
+        if (userId == null || userId <= 0) {
+            return new SearchSourcePolicy(SOURCE_MODE_TUNEHUB_FIRST, SOURCE_PROVIDER_DEFAULT_ORDER, Set.of());
+        }
+        Map<String, Object> preference = userMusicClient.getPreference(userId);
+        Map<String, Object> musicObject = asObjectMap(preference.get("music"));
+        String sourceMode = normalizeSourceMode(
+            readString(
+                preference.get("music.source_mode"),
+                readString(musicObject.get("source_mode"), SOURCE_MODE_TUNEHUB_FIRST)
+            )
+        );
+        List<String> providerOrder = asSourceProviderList(preference.get("music.account_provider_order"));
+        if (providerOrder.isEmpty()) {
+            providerOrder = asSourceProviderList(musicObject.get("account_provider_order"));
+        }
+        if (providerOrder.isEmpty()) {
+            providerOrder = SOURCE_PROVIDER_DEFAULT_ORDER;
+        }
+        Set<String> boundProviders = new LinkedHashSet<>();
+        List<UserMusicGateway.SourceAccountStatus> statuses = userMusicClient.listSourceAccountStatus(userId);
+        for (UserMusicGateway.SourceAccountStatus status : statuses) {
+            if (status == null || !status.bound()) {
+                continue;
+            }
+            String provider = normalizeSourceAccountProviderToSearch(status.provider());
+            if (!StringUtils.hasText(provider)) {
+                continue;
+            }
+            boundProviders.add(provider);
+        }
+        return new SearchSourcePolicy(sourceMode, providerOrder, boundProviders);
+    }
+
+    private List<String> asSourceProviderList(Object raw) {
+        if (!(raw instanceof List<?> listRaw)) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Object item : listRaw) {
+            String value = normalizeSourceAccountProviderToSearch(item == null ? "" : String.valueOf(item));
+            if (!StringUtils.hasText(value) || !seen.add(value)) {
+                continue;
+            }
+            result.add(value);
+        }
+        return result;
+    }
+
+    private String normalizeSourceAccountProviderToSearch(String provider) {
+        String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
+        if ("qqmusic".equals(normalized) || "qq".equals(normalized)) {
+            return "qq";
+        }
+        if ("netease".equals(normalized) || "kuwo".equals(normalized)) {
+            return normalized;
+        }
+        return "";
+    }
+
+    private String normalizeSourceMode(String mode) {
+        String normalized = readString(mode, SOURCE_MODE_TUNEHUB_FIRST).toLowerCase(Locale.ROOT);
+        if (
+            SOURCE_MODE_ACCOUNT_FIRST.equals(normalized)
+                || SOURCE_MODE_TUNEHUB_FIRST.equals(normalized)
+                || SOURCE_MODE_ACCOUNT_ONLY.equals(normalized)
+                || SOURCE_MODE_TUNEHUB_ONLY.equals(normalized)
+        ) {
+            return normalized;
+        }
+        return SOURCE_MODE_TUNEHUB_FIRST;
+    }
+
     private List<MusicTrackResponse> listDefaultMusicPlaylistFromDb() {
         List<MusicPlaylistEntity> entities = musicPlaylistMapper.selectList(
             new LambdaQueryWrapper<MusicPlaylistEntity>()
@@ -2882,6 +3268,66 @@ public class MediaServiceImpl implements MediaService {
     private String normalizeSourceProvider(String provider) {
         String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
         return TUNEHUB_PLAYLIST_PLATFORMS.contains(normalized) ? normalized : "";
+    }
+
+    private String normalizeSourceAccountProvider(String provider) {
+        String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
+        return SOURCE_ACCOUNT_SUPPORTED_PROVIDERS.contains(normalized) ? normalized : "";
+    }
+
+    private String buildSourceImportPlaylistCode(String provider, String sourcePlaylistId, Long userId) {
+        String raw = "src_" + provider + "_" + sourcePlaylistId + "_u_" + userId;
+        if (raw.length() <= 64) {
+            return raw;
+        }
+        String hash = hashQueryFingerprint(raw);
+        String compact = "src_" + provider + "_" + hash + "_u_" + userId;
+        if (compact.length() <= 64) {
+            return compact;
+        }
+        return compact.substring(0, 64);
+    }
+
+    private UserMusicPlaylistEntity upsertSourceImportedPlaylist(Long userId,
+                                                                 String playlistCode,
+                                                                 String provider,
+                                                                 NeteaseCookieProvider.PlaylistSummary sourcePlaylist) {
+        UserMusicPlaylistEntity existing = userMusicPlaylistMapper.selectOne(
+            new LambdaQueryWrapper<UserMusicPlaylistEntity>()
+                .eq(UserMusicPlaylistEntity::getUserId, userId)
+                .eq(UserMusicPlaylistEntity::getPlaylistCode, playlistCode)
+                .last("LIMIT 1")
+        );
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, Object> metadata = Map.of(
+            "sourceProvider", provider,
+            "sourcePlaylistId", readString(sourcePlaylist.sourcePlaylistId(), ""),
+            "lastSyncTime", now.toString()
+        );
+        if (existing == null) {
+            UserMusicPlaylistEntity entity = new UserMusicPlaylistEntity();
+            entity.setPlaylistCode(playlistCode);
+            entity.setUserId(userId);
+            entity.setPlaylistType(PLAYLIST_TYPE_CUSTOM);
+            entity.setName(readString(sourcePlaylist.name(), "导入歌单"));
+            entity.setDescription(readString(sourcePlaylist.description(), ""));
+            entity.setCoverUrl(readString(sourcePlaylist.cover(), ""));
+            entity.setPublicFlag(false);
+            entity.setSystemReservedFlag(false);
+            entity.setSortNum(resolveNextUserPlaylistSort(userId));
+            entity.setMetadataJson(writeJson(metadata));
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            userMusicPlaylistMapper.insert(entity);
+            return entity;
+        }
+        existing.setName(readString(sourcePlaylist.name(), existing.getName()));
+        existing.setDescription(readString(sourcePlaylist.description(), existing.getDescription()));
+        existing.setCoverUrl(readString(sourcePlaylist.cover(), existing.getCoverUrl()));
+        existing.setMetadataJson(writeJson(metadata));
+        existing.setUpdatedAt(now);
+        userMusicPlaylistMapper.updateById(existing);
+        return existing;
     }
 
     /**
@@ -3973,6 +4419,16 @@ public class MediaServiceImpl implements MediaService {
     }
 
     /**
+     * 读取对象值并转字符串；空白值返回兜底值。
+     */
+    private String readString(Object value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        return readString(String.valueOf(value), fallback);
+    }
+
+    /**
      * 优先以新字段 `asset_kind_code` 解析；兼容历史 `asset_type` 回退读取。
      */
     private AssetKindEnum resolveAssetKind(MediaAssetEntity asset) {
@@ -4108,6 +4564,18 @@ public class MediaServiceImpl implements MediaService {
     private record TuneHubApiContext(String apiKey,
                                      String keySource,
                                      List<String> platformOrder) {
+    }
+
+    private record ParseAttemptResult(TuneHubMusicProvider.ParseTrackResult result,
+                                      int retryCount) {
+    }
+
+    private record SearchSourcePolicy(String mode,
+                                      List<String> providerOrder,
+                                      Set<String> boundProviders) {
+        private boolean accountOnly() {
+            return SOURCE_MODE_ACCOUNT_ONLY.equals(mode);
+        }
     }
 
     private record TuneHubVirtualPlaylistRef(String playlistCode,

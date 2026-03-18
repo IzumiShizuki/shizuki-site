@@ -2,9 +2,12 @@ package io.github.shizuki.site.media.integration;
 
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.dto.MeAccountResponse;
+import io.github.shizuki.site.user.dto.MusicSourceAccountStatusResponse;
 import io.github.shizuki.site.user.dto.OAuthBindingView;
 import io.github.shizuki.site.user.service.UserService;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -72,6 +75,78 @@ public class UserMusicGateway {
         }
     }
 
+    public List<SourceAccountStatus> listSourceAccountStatus(Long userId) {
+        if (userId == null || userId <= 0) {
+            return List.of();
+        }
+        try {
+            List<MusicSourceAccountStatusResponse> rows = userService.listMusicSourceAccountStatus(userId);
+            List<SourceAccountStatus> result = new ArrayList<>();
+            for (MusicSourceAccountStatusResponse item : rows) {
+                if (item == null) {
+                    continue;
+                }
+                result.add(new SourceAccountStatus(
+                    item.getProvider(),
+                    item.getAuthType(),
+                    item.isBound(),
+                    item.getMask(),
+                    item.getStatus()
+                ));
+            }
+            return result;
+        } catch (Exception ex) {
+            LOGGER.warn("Get source account status fallback in monolith mode, userId={}", userId, ex);
+            return List.of();
+        }
+    }
+
+    public SourceAccountStatus getSourceAccountStatus(Long userId, String provider) {
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase();
+        if (userId == null || userId <= 0 || normalizedProvider.isEmpty()) {
+            return new SourceAccountStatus(normalizedProvider, "cookie", false, "", "UNBOUND");
+        }
+        try {
+            MusicSourceAccountStatusResponse item = userService.getMusicSourceAccountCookieStatus(userId, normalizedProvider);
+            if (item == null) {
+                return new SourceAccountStatus(normalizedProvider, "cookie", false, "", "UNBOUND");
+            }
+            return new SourceAccountStatus(
+                item.getProvider(),
+                item.getAuthType(),
+                item.isBound(),
+                item.getMask(),
+                item.getStatus()
+            );
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "Get source account status fallback in monolith mode, userId={}, provider={}",
+                userId,
+                normalizedProvider,
+                ex
+            );
+            return new SourceAccountStatus(normalizedProvider, "cookie", false, "", "UNBOUND");
+        }
+    }
+
+    public String getSourceAccountCookiePlaintext(Long userId, String provider) {
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase();
+        if (userId == null || userId <= 0 || normalizedProvider.isEmpty()) {
+            return "";
+        }
+        try {
+            return userService.getMusicSourceAccountCookiePlaintext(userId, normalizedProvider);
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "Get source account cookie fallback in monolith mode, userId={}, provider={}",
+                userId,
+                normalizedProvider,
+                ex
+            );
+            return "";
+        }
+    }
+
     public boolean hasOAuthBinding(Long userId, String provider) {
         String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase();
         if (userId == null || userId <= 0 || normalizedProvider.isEmpty()) {
@@ -90,5 +165,12 @@ public class UserMusicGateway {
     }
 
     public record ApiKeyStatus(String provider, boolean keyBound, String keyMask) {
+    }
+
+    public record SourceAccountStatus(String provider,
+                                      String authType,
+                                      boolean bound,
+                                      String mask,
+                                      String status) {
     }
 }

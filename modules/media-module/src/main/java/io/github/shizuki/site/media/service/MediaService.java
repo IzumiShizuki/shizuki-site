@@ -28,6 +28,7 @@ import io.github.shizuki.site.media.dto.MusicSearchResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.dto.MusicResolvePlaybackRequest;
 import io.github.shizuki.site.media.dto.PublicHomeRoleResponse;
+import io.github.shizuki.site.media.dto.MusicSourcePlaylistImportResponse;
 import io.github.shizuki.site.media.dto.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.dto.SpotifyTrackResponse;
 import io.github.shizuki.site.media.dto.UploadPolicyRequest;
@@ -324,4 +325,12 @@ public interface MediaService {
      * @param playlistCode 歌单业务编码
      */
     void uncollectPlaylist(String playlistCode);
+
+    /**
+     * 从已绑定音乐源账号导入歌单到站内。
+     *
+     * @param provider 来源平台（netease/qqmusic/kugou）
+     * @return 导入统计
+     */
+    MusicSourcePlaylistImportResponse importSourceAccountPlaylists(String provider);
 }

@@ -218,6 +218,98 @@
           </div>
         </transition>
       </article>
+
+      <article class="integration-card source-mode-card">
+        <header class="integration-head">
+          <h4>音乐源策略</h4>
+        </header>
+        <label class="field-block">
+          <span>优先模式</span>
+          <select
+            class="strategy-select"
+            :value="sourceMode"
+            :disabled="!isAuthenticated"
+            @change="emit('update:source-mode', $event.target.value)"
+          >
+            <option value="account_first">账号优先</option>
+            <option value="tunehub_first">TuneHub 优先</option>
+            <option value="account_only">仅账号源</option>
+            <option value="tunehub_only">仅 TuneHub</option>
+          </select>
+        </label>
+        <div class="order-row">
+          <p>账号源顺序</p>
+          <div class="order-actions">
+            <button
+              v-for="(provider, index) in normalizedSourceProviderOrder"
+              :key="`${provider}-${index}`"
+              class="mini-btn ripple-trigger"
+              type="button"
+              :disabled="!isAuthenticated"
+              @click="emit('move-source-provider', { provider, direction: index === 0 ? 'down' : 'up' })"
+            >
+              {{ providerLabel(provider) }}
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article
+        v-for="item in sourceCards"
+        :key="item.provider"
+        class="integration-card accordion-card"
+        :class="{ expanded: expandedProviderKey === item.provider }"
+      >
+        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider(item.provider)">
+          <div class="summary-main">
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.summary }}</p>
+          </div>
+          <span class="bind-tag" :class="{ ok: item.bound }">{{ item.bound ? '已绑定' : '未绑定' }}</span>
+          <i class="fas" :class="expandedProviderKey === item.provider ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
+        <transition name="provider-expand">
+          <div v-if="expandedProviderKey === item.provider" class="provider-detail">
+            <label class="field-block">
+              <span>Cookie</span>
+              <input
+                :value="item.cookieInput"
+                type="password"
+                :placeholder="`输入 ${item.title} Cookie`"
+                :disabled="!isAuthenticated"
+                @input="emit('update:source-cookie', { provider: item.provider, value: $event.target.value })"
+              />
+            </label>
+            <p class="status-text">{{ item.statusText }}</p>
+            <div class="row-actions">
+              <button
+                class="mini-btn primary ripple-trigger"
+                type="button"
+                :disabled="item.busy || !isAuthenticated"
+                @click="emit('save-source-cookie', item.provider)"
+              >
+                {{ item.busy ? '保存中...' : '保存' }}
+              </button>
+              <button
+                class="mini-btn ripple-trigger"
+                type="button"
+                :disabled="item.busy || !isAuthenticated"
+                @click="emit('delete-source-cookie', item.provider)"
+              >
+                删除
+              </button>
+              <button
+                class="mini-btn ripple-trigger"
+                type="button"
+                :disabled="item.importBusy || !isAuthenticated"
+                @click="emit('import-source-playlists', item.provider)"
+              >
+                {{ item.importBusy ? '导入中...' : '导入歌单' }}
+              </button>
+            </div>
+          </div>
+        </transition>
+      </article>
     </section>
   </aside>
 </template>
@@ -248,7 +340,13 @@ const props = defineProps({
   spotifyQuery: { type: String, default: '' },
   spotifySearching: { type: Boolean, default: false },
   spotifyResults: { type: Array, default: () => [] },
-  spotifyError: { type: String, default: '' }
+  spotifyError: { type: String, default: '' },
+  sourceMode: { type: String, default: 'tunehub_first' },
+  sourceProviderOrder: { type: Array, default: () => ['netease', 'qqmusic', 'kugou'] },
+  sourceAccounts: { type: Object, default: () => ({}) },
+  sourceCookieInputs: { type: Object, default: () => ({}) },
+  sourceBusyMap: { type: Object, default: () => ({}) },
+  sourceImportBusyMap: { type: Object, default: () => ({}) }
 });
 
 const emit = defineEmits([
@@ -265,7 +363,13 @@ const emit = defineEmits([
   'update:spotifyQuery',
   'search-spotify',
   'preview-spotify',
-  'enqueue-spotify'
+  'enqueue-spotify',
+  'update:source-mode',
+  'move-source-provider',
+  'update:source-cookie',
+  'save-source-cookie',
+  'delete-source-cookie',
+  'import-source-playlists'
 ]);
 
 const coverStyle = computed(() => {
@@ -340,6 +444,41 @@ const spotifySummary = computed(() => {
 });
 
 const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spotifyBound);
+const normalizedSourceProviderOrder = computed(() => {
+  const source = Array.isArray(props.sourceProviderOrder) ? props.sourceProviderOrder : [];
+  const next = source.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean);
+  if (!next.length) {
+    return ['netease', 'qqmusic', 'kugou'];
+  }
+  return next;
+});
+const SOURCE_CARD_ORDER = ['netease', 'qqmusic', 'kugou'];
+const sourceCards = computed(() => {
+  const statusMap = props.sourceAccounts && typeof props.sourceAccounts === 'object' ? props.sourceAccounts : {};
+  const cookieMap = props.sourceCookieInputs && typeof props.sourceCookieInputs === 'object' ? props.sourceCookieInputs : {};
+  const busyMap = props.sourceBusyMap && typeof props.sourceBusyMap === 'object' ? props.sourceBusyMap : {};
+  const importBusyMap = props.sourceImportBusyMap && typeof props.sourceImportBusyMap === 'object' ? props.sourceImportBusyMap : {};
+  return SOURCE_CARD_ORDER.map((provider) => {
+    const status = statusMap?.[provider] && typeof statusMap[provider] === 'object' ? statusMap[provider] : {};
+    const bound = Boolean(status?.bound ?? status?.keyBound ?? status?.key_bound);
+    const mask = String(status?.mask || status?.keyMask || status?.key_mask || '').trim();
+    const statusText = !props.isAuthenticated
+      ? '登录后可配置'
+      : bound
+        ? (mask ? `已绑定：${mask}` : '已绑定')
+        : '未绑定';
+    return {
+      provider,
+      title: providerLabel(provider),
+      bound,
+      summary: mask || statusText,
+      statusText,
+      cookieInput: String(cookieMap?.[provider] || ''),
+      busy: Boolean(busyMap?.[provider]),
+      importBusy: Boolean(importBusyMap?.[provider])
+    };
+  });
+});
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
 let lastLyricDebugMode = '';
 
@@ -437,6 +576,14 @@ function onVolumeInput(event) {
 function onEqInput(event, index) {
   const value = Number(event?.target?.value);
   emit('set-eq-level', { index, value: Math.max(0, Math.min(1, value / 100)) });
+}
+
+function providerLabel(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  if (normalized === 'netease') return '网易云';
+  if (normalized === 'qqmusic') return 'QQ 音乐';
+  if (normalized === 'kugou') return '酷狗';
+  return normalized || '未知平台';
 }
 </script>
 
@@ -897,6 +1044,32 @@ function onEqInput(event, index) {
   color: rgba(240, 246, 255, 0.95);
   padding: 8px;
   outline: none;
+}
+
+.strategy-select {
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(240, 246, 255, 0.95);
+  padding: 8px;
+  outline: none;
+}
+
+.order-row {
+  display: grid;
+  gap: 8px;
+}
+
+.order-row p {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(188, 198, 220, 0.84);
+}
+
+.order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .row-actions {

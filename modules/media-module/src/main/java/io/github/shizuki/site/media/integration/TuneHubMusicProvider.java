@@ -203,9 +203,6 @@ public class TuneHubMusicProvider {
                                                               String platform,
                                                               String sourceType,
                                                               String sourceId) {
-        if (!StringUtils.hasText(apiKey)) {
-            return List.of();
-        }
         String normalizedPlatform = normalizePlatformCode(platform);
         String normalizedType = readString(sourceType, "").toLowerCase(Locale.ROOT);
         if (!SUPPORTED_PLATFORMS.contains(normalizedPlatform)) {
@@ -308,9 +305,6 @@ public class TuneHubMusicProvider {
                                                 String keyword,
                                                 int page,
                                                 int limit) {
-        if (!StringUtils.hasText(apiKey)) {
-            return List.of();
-        }
         String normalizedPlatform = normalizePlatformCode(platform);
         if (!SUPPORTED_PLATFORMS.contains(normalizedPlatform)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported tunehub platform");
@@ -347,9 +341,6 @@ public class TuneHubMusicProvider {
                                                         String keyword,
                                                         int page,
                                                         int limit) {
-        if (!StringUtils.hasText(apiKey)) {
-            return List.of();
-        }
         String normalizedPlatform = normalizePlatformCode(platform);
         if (!SUPPORTED_PLATFORMS.contains(normalizedPlatform)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported tunehub platform");
@@ -396,9 +387,6 @@ public class TuneHubMusicProvider {
                                                       String platform,
                                                       String sourceType,
                                                       String sourceId) {
-        if (!StringUtils.hasText(apiKey)) {
-            return null;
-        }
         String normalizedPlatform = normalizePlatformCode(platform);
         String normalizedType = readString(sourceType, "").toLowerCase(Locale.ROOT);
         if (!SUPPORTED_PLATFORMS.contains(normalizedPlatform) || !StringUtils.hasText(sourceId)) {

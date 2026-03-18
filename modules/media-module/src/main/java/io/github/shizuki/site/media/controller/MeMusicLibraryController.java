@@ -8,6 +8,7 @@ import io.github.shizuki.site.media.dto.MeMusicPlaylistTrackUpsertRequest;
 import io.github.shizuki.site.media.dto.MeMusicPlaylistUpdateRequest;
 import io.github.shizuki.site.media.dto.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.dto.MusicPlaylistSummaryResponse;
+import io.github.shizuki.site.media.dto.MusicSourcePlaylistImportResponse;
 import io.github.shizuki.site.media.service.MediaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -103,5 +104,12 @@ public class MeMusicLibraryController {
     public ApiResponse<Void> uncollect(@PathVariable("playlistCode") String playlistCode) {
         mediaService.uncollectPlaylist(playlistCode);
         return ApiResponse.success(null);
+    }
+
+    @PostMapping("/source-accounts/{provider}/import-playlists")
+    @AuditLog(action = "music.me.source-account.import", resource = "user_music_playlist")
+    @Operation(summary = "导入音乐源账号歌单", description = "从指定音乐源账号导入歌单到当前用户音乐库")
+    public ApiResponse<MusicSourcePlaylistImportResponse> importPlaylists(@PathVariable("provider") String provider) {
+        return ApiResponse.success(mediaService.importSourceAccountPlaylists(provider));
     }
 }

@@ -25,6 +25,7 @@ import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MeResponse;
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
+import io.github.shizuki.site.user.dto.MusicSourceAccountStatusResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
 import io.github.shizuki.site.user.dto.OAuthBindingView;
@@ -61,6 +62,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -83,6 +85,9 @@ public class UserServiceImpl implements UserService {
     private static final String GROUP_STATUS_DISABLED = "DISABLED";
     private static final int DEFAULT_GROUP_PAGE_SIZE = 20;
     private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
+    private static final Set<String> SUPPORTED_MUSIC_SOURCE_PROVIDERS = Set.of("netease", "qqmusic", "kugou", "tunehub", "spotify");
+    private static final List<String> DEFAULT_SOURCE_PROVIDER_ORDER = List.of("netease", "qqmusic", "kugou", "tunehub", "spotify");
+    private static final String SOURCE_ACCOUNT_PROVIDER_PREFIX = "music_cookie_";
 
     private final OAuthStateService oAuthStateService;
     private final GitHubOAuthClient gitHubOAuthClient;
@@ -481,6 +486,99 @@ public class UserServiceImpl implements UserService {
             new LambdaQueryWrapper<UserProviderSecretEntity>()
                 .eq(UserProviderSecretEntity::getUserId, checkedUserId)
                 .eq(UserProviderSecretEntity::getProviderCode, normalizedProvider)
+        );
+        if (entity == null) {
+            return "";
+        }
+        return musicApiKeyCryptoService.decrypt(entity.getCipherText());
+    }
+
+    @Override
+    public List<MusicSourceAccountStatusResponse> listMusicSourceAccountStatus(Long userId) {
+        Long checkedUserId = requireValidUserId(userId);
+        List<MusicSourceAccountStatusResponse> result = new ArrayList<>();
+        for (String provider : DEFAULT_SOURCE_PROVIDER_ORDER) {
+            result.add(loadMusicSourceAccountStatus(checkedUserId, provider));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MusicSourceAccountStatusResponse upsertMusicSourceAccountCookie(Long userId, String provider, String cookie) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeSourceAccountProvider(provider);
+        if (!StringUtils.hasText(cookie)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Cookie is required");
+        }
+        String normalizedCookie = cookie.trim();
+        if (normalizedCookie.length() < 8) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Cookie is invalid");
+        }
+
+        String providerCode = toSourceAccountProviderCode(normalizedProvider);
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, checkedUserId)
+                .eq(UserProviderSecretEntity::getProviderCode, providerCode)
+                .last("LIMIT 1")
+        );
+
+        String cipherText = musicApiKeyCryptoService.encrypt(normalizedCookie);
+        String keyMask = maskApiKey(normalizedCookie);
+        LocalDateTime now = LocalDateTime.now();
+        if (entity == null) {
+            entity = new UserProviderSecretEntity();
+            entity.setUserId(checkedUserId);
+            entity.setProviderCode(providerCode);
+            entity.setCipherText(cipherText);
+            entity.setKeyMask(keyMask);
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            userProviderSecretMapper.insert(entity);
+        } else {
+            entity.setCipherText(cipherText);
+            entity.setKeyMask(keyMask);
+            entity.setUpdatedAt(now);
+            userProviderSecretMapper.updateById(entity);
+        }
+        return toMusicSourceAccountStatus(normalizedProvider, entity);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMusicSourceAccount(Long userId, String provider) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeSourceAccountProvider(provider);
+        String providerCode = toSourceAccountProviderCode(normalizedProvider);
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, checkedUserId)
+                .eq(UserProviderSecretEntity::getProviderCode, providerCode)
+                .last("LIMIT 1")
+        );
+        if (entity != null) {
+            userProviderSecretMapper.deleteById(entity.getId());
+        }
+    }
+
+    @Override
+    public MusicSourceAccountStatusResponse getMusicSourceAccountCookieStatus(Long userId, String provider) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeSourceAccountProvider(provider);
+        return loadMusicSourceAccountStatus(checkedUserId, normalizedProvider);
+    }
+
+    @Override
+    public String getMusicSourceAccountCookiePlaintext(Long userId, String provider) {
+        Long checkedUserId = requireValidUserId(userId);
+        String normalizedProvider = normalizeSourceAccountProvider(provider);
+        String providerCode = toSourceAccountProviderCode(normalizedProvider);
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, checkedUserId)
+                .eq(UserProviderSecretEntity::getProviderCode, providerCode)
+                .last("LIMIT 1")
         );
         if (entity == null) {
             return "";
@@ -1169,6 +1267,59 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported provider: " + provider);
         }
         return normalized;
+    }
+
+    private String normalizeSourceAccountProvider(String provider) {
+        if (!StringUtils.hasText(provider)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Provider is required");
+        }
+        String normalized = provider.trim().toLowerCase(Locale.ROOT);
+        if (!SUPPORTED_MUSIC_SOURCE_PROVIDERS.contains(normalized)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported source provider: " + provider);
+        }
+        return normalized;
+    }
+
+    private String toSourceAccountProviderCode(String normalizedProvider) {
+        return SOURCE_ACCOUNT_PROVIDER_PREFIX + normalizedProvider;
+    }
+
+    private MusicSourceAccountStatusResponse loadMusicSourceAccountStatus(Long userId, String provider) {
+        String normalizedProvider = normalizeSourceAccountProvider(provider);
+        String providerCode = toSourceAccountProviderCode(normalizedProvider);
+        UserProviderSecretEntity entity = userProviderSecretMapper.selectOne(
+            new LambdaQueryWrapper<UserProviderSecretEntity>()
+                .eq(UserProviderSecretEntity::getUserId, userId)
+                .eq(UserProviderSecretEntity::getProviderCode, providerCode)
+                .last("LIMIT 1")
+        );
+        return toMusicSourceAccountStatus(normalizedProvider, entity);
+    }
+
+    private MusicSourceAccountStatusResponse toMusicSourceAccountStatus(String provider, UserProviderSecretEntity entity) {
+        if (entity == null) {
+            return new MusicSourceAccountStatusResponse(
+                provider,
+                "cookie",
+                false,
+                null,
+                "UNBOUND",
+                null,
+                null,
+                null
+            );
+        }
+        LocalDateTime updatedAt = entity.getUpdatedAt();
+        return new MusicSourceAccountStatusResponse(
+            provider,
+            "cookie",
+            true,
+            entity.getKeyMask() == null ? "" : entity.getKeyMask(),
+            "BOUND",
+            updatedAt,
+            updatedAt,
+            null
+        );
     }
 
     private String maskApiKey(String apiKey) {
