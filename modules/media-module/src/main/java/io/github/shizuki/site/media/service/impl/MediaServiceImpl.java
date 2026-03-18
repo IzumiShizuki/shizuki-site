@@ -185,6 +185,7 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_KEY_TRACE_ID = "trace_id";
     private static final String MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING = "MUSIC_SEARCH_API_KEY_MISSING";
     private static final String MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED = "MUSIC_SOURCE_ACCOUNT_REQUIRED";
+    private static final String MUSIC_ERROR_CODE_SOURCE_PROVIDER_UNSUPPORTED = "MUSIC_SOURCE_PROVIDER_UNSUPPORTED";
     private static final String SOURCE_MODE_ACCOUNT_FIRST = "account_first";
     private static final String SOURCE_MODE_TUNEHUB_FIRST = "tunehub_first";
     private static final String SOURCE_MODE_ACCOUNT_ONLY = "account_only";
@@ -1543,6 +1544,7 @@ public class MediaServiceImpl implements MediaService {
 
         TuneHubApiContext apiContext = resolveTuneHubApiContext();
         boolean canUseNeteaseAccount = canUseNeteaseAccountSource(userId, sourcePolicy, provider);
+        boolean hasBoundAccountSource = sourcePolicy.boundProviders().contains(provider);
         boolean accountFirst = SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode());
         boolean accountOnly = SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode());
         if ((accountFirst || accountOnly) && canUseNeteaseAccount) {
@@ -1562,12 +1564,23 @@ public class MediaServiceImpl implements MediaService {
             }
         }
 
-        if (accountOnly && !canUseNeteaseAccount) {
+        if (accountOnly && !hasBoundAccountSource) {
             throw new BusinessException(
                 ErrorCode.FORBIDDEN,
                 "No bound account source for current provider",
                 Map.of(
                     "music_error_code", MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED,
+                    "provider", provider,
+                    "mode", sourcePolicy.mode()
+                )
+            );
+        }
+        if (accountOnly && hasBoundAccountSource && !canUseNeteaseAccount) {
+            throw new BusinessException(
+                ErrorCode.FORBIDDEN,
+                "Current account source playback is not supported yet",
+                Map.of(
+                    "music_error_code", MUSIC_ERROR_CODE_SOURCE_PROVIDER_UNSUPPORTED,
                     "provider", provider,
                     "mode", sourcePolicy.mode()
                 )
@@ -3231,6 +3244,9 @@ public class MediaServiceImpl implements MediaService {
         String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
         if ("qqmusic".equals(normalized) || "qq".equals(normalized)) {
             return "qq";
+        }
+        if ("kugou".equals(normalized) || "kuwo".equals(normalized)) {
+            return "kuwo";
         }
         if ("netease".equals(normalized) || "kuwo".equals(normalized)) {
             return normalized;
