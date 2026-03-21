@@ -292,7 +292,7 @@
             <template #section-music-auth>
               <div class="music-auth-grid">
                 <article class="music-auth-card">
-                  <p class="music-auth-title">TuneHub Key</p>
+                  <p class="music-auth-title">TuneHub</p>
                   <p class="helper-text">用于 TuneHub 聚合能力，默认推荐会优先使用该 Key。</p>
                   <div class="stack-form">
                     <input
@@ -318,51 +318,125 @@
                 </article>
 
                 <article class="music-auth-card">
-                  <p class="music-auth-title">推荐顺序（拖拽调整）</p>
-                  <p class="helper-text">按顺序推荐：网易云 / 酷我 / QQ。拖拽卡片即可调整优先级。</p>
-                  <div class="provider-order-list">
-                    <button
-                      v-for="item in musicProviderOrderCards"
-                      :key="item.code"
-                      class="provider-order-item ripple-trigger"
-                      type="button"
-                      draggable="true"
-                      @dragstart="onProviderDragStart(item.code)"
-                      @dragover.prevent="onProviderDragOver(item.code)"
-                      @drop.prevent="onProviderDrop"
-                      @dragend="onProviderDragEnd"
-                    >
-                      <span class="provider-icon" :class="`provider-${item.code}`">{{ item.iconText }}</span>
-                      <span class="provider-name">{{ item.name }}</span>
-                      <label class="provider-toggle">
-                        <input
-                          :checked="musicProviderEnabled[item.code]"
-                          type="checkbox"
-                          @change="toggleMusicProvider(item.code, $event.target.checked)"
-                        />
-                        <span>启用</span>
-                      </label>
-                      <i class="fas fa-grip-vertical"></i>
-                    </button>
-                  </div>
+                  <p class="music-auth-title">Spotify</p>
+                  <p class="helper-text">仅提供账号绑定入口，搜索与试听仍放在音乐页右侧工作区。</p>
                   <div class="inline-actions compact">
-                    <button class="primary-btn ripple-trigger" type="button" :disabled="musicPreferenceBusy" @click="saveMusicPreferences">
-                      {{ musicPreferenceBusy ? '保存中...' : '保存排序' }}
+                    <button class="primary-btn ripple-trigger" type="button" :disabled="spotifyBindBusy" @click="startMusicSpotifyBind">
+                      {{ spotifyBindBusy ? '跳转中...' : spotifyBound ? '重新绑定 Spotify' : '连接 Spotify（可选）' }}
                     </button>
                   </div>
-                  <p v-if="musicPreferenceError" class="error-text">{{ musicPreferenceError }}</p>
+                  <p class="helper-text">{{ spotifyStatusText }}</p>
                 </article>
 
-                <article class="music-auth-card">
-                  <p class="music-auth-title">平台状态</p>
-                  <div class="provider-chip-row">
-                    <span class="provider-chip netease">网易云</span>
-                    <span class="provider-chip kuwo">酷我</span>
-                    <span class="provider-chip qq">QQ 音乐</span>
-                    <span class="provider-chip spotify">Spotify（预览模式）</span>
+                <article class="music-auth-card music-auth-card--wide">
+                  <p class="music-auth-title">账号源策略与排序</p>
+                  <p class="helper-text">统一复用音乐页授权模型，优先模式与账号顺序会同步影响账号源解析。</p>
+                  <label class="field-label" for="music-source-mode-select">优先模式</label>
+                  <select
+                    id="music-source-mode-select"
+                    data-testid="music-source-mode-select"
+                    class="field-input music-source-mode-select"
+                    :value="musicSourceMode"
+                    :disabled="musicPreferenceBusy"
+                    @change="handleUpdateMusicSourceMode($event.target.value)"
+                  >
+                    <option v-for="item in musicSourceModeOptions" :key="item.value" :value="item.value">
+                      {{ item.label }}
+                    </option>
+                  </select>
+                  <div class="music-source-order-list">
+                    <article
+                      v-for="(item, index) in musicSourceAccountCards"
+                      :key="`order-${item.code}`"
+                      class="music-source-order-item"
+                      :data-provider-code="item.code"
+                    >
+                      <div class="music-source-order-main">
+                        <span class="provider-icon" :class="`provider-${item.code}`">{{ item.iconText }}</span>
+                        <div class="music-source-order-copy">
+                          <p class="provider-name">{{ item.name }}</p>
+                          <p class="helper-text">当前第 {{ index + 1 }} 优先级</p>
+                        </div>
+                      </div>
+                      <div class="music-source-order-actions">
+                        <button
+                          class="ghost-btn ripple-trigger move-up-btn"
+                          type="button"
+                          :disabled="musicPreferenceBusy || index === 0"
+                          @click="moveMusicSourceProvider(item.code, 'up')"
+                        >
+                          上移
+                        </button>
+                        <button
+                          class="ghost-btn ripple-trigger move-down-btn"
+                          type="button"
+                          :disabled="musicPreferenceBusy || index === musicSourceAccountCards.length - 1"
+                          @click="moveMusicSourceProvider(item.code, 'down')"
+                        >
+                          下移
+                        </button>
+                      </div>
+                    </article>
                   </div>
-                  <p class="helper-text">Spotify 当前采用最小授权预览模式，不要求用户 OAuth 才能展示基础结果。</p>
                 </article>
+
+                <article
+                  v-for="item in musicSourceAccountCards"
+                  :key="item.code"
+                  class="music-auth-card music-source-provider-card"
+                  :data-provider-code="item.code"
+                >
+                  <div class="music-provider-head">
+                    <div class="music-provider-head-main">
+                      <span class="provider-icon" :class="`provider-${item.code}`">{{ item.iconText }}</span>
+                      <div>
+                        <p class="music-auth-title">{{ item.name }}</p>
+                        <p class="helper-text">{{ item.statusText }}</p>
+                      </div>
+                    </div>
+                    <span class="provider-chip" :class="item.code">{{ item.bound ? '已绑定' : '未绑定' }}</span>
+                  </div>
+                  <label class="field-label" :for="`music-source-cookie-${item.code}`">Cookie</label>
+                  <textarea
+                    :id="`music-source-cookie-${item.code}`"
+                    class="field-input field-textarea"
+                    rows="4"
+                    :placeholder="`粘贴 ${item.name} Cookie`"
+                    :value="musicSourceCookieInputs[item.code] || ''"
+                    @input="updateMusicSourceCookieInput(item.code, $event.target.value)"
+                  ></textarea>
+                  <div class="inline-actions compact wrap">
+                    <button
+                      class="primary-btn ripple-trigger"
+                      type="button"
+                      :disabled="item.busy"
+                      @click="saveMusicSourceCookie(item.code)"
+                    >
+                      {{ item.busy ? '保存中...' : '保存 Cookie' }}
+                    </button>
+                    <button
+                      class="ghost-btn ripple-trigger"
+                      type="button"
+                      :disabled="item.busy"
+                      @click="deleteMusicSourceCookie(item.code)"
+                    >
+                      删除
+                    </button>
+                    <button
+                      v-if="item.supportsPlaylistImport"
+                      class="ghost-btn ripple-trigger"
+                      type="button"
+                      :disabled="item.importBusy"
+                      @click="importMusicSourcePlaylists(item.code)"
+                    >
+                      {{ item.importBusy ? '导入中...' : '导入歌单' }}
+                    </button>
+                  </div>
+                  <p v-if="item.mask" class="helper-text">当前掩码：{{ item.mask }}</p>
+                  <p v-if="item.updatedAtLabel" class="helper-text">最近更新：{{ item.updatedAtLabel }}</p>
+                </article>
+
+                <p v-if="musicPreferenceError" class="error-text music-auth-error">{{ musicPreferenceError }}</p>
               </div>
             </template>
           </ProfileSectionAccordion>
@@ -577,6 +651,16 @@ import {
   buildSectionSummary,
   normalizeProfileTabKey
 } from './profileUiState';
+import {
+  MUSIC_SOURCE_MODE_OPTIONS,
+  SOURCE_ACCOUNT_PROVIDERS,
+  getSourceAccountProviderMeta,
+  getSourceAccountProviderLabel,
+  normalizeApiKeyStatus,
+  normalizeMusicSourceModeValue,
+  normalizeSourceAccountStatus,
+  normalizeSourceProviderOrder
+} from '../utils/musicAuthorizationState';
 
 const route = useRoute();
 const router = useRouter();
@@ -598,13 +682,6 @@ const GROUP_DEFAULT_SECTION = Object.freeze({
   [ProfileTabKey.SETTINGS]: ProfileSectionKey.SETTINGS.APPEARANCE
 });
 const accountSectionLoaded = ref(false);
-
-const MUSIC_PROVIDER_ORDER_DEFAULT = ['netease', 'kuwo', 'qq'];
-const MUSIC_PROVIDER_CATALOG = Object.freeze({
-  netease: { code: 'netease', name: '网易云', iconText: '网' },
-  kuwo: { code: 'kuwo', name: '酷我', iconText: '酷' },
-  qq: { code: 'qq', name: 'QQ 音乐', iconText: 'Q' }
-});
 
 const accountLoading = ref(false);
 const bindEmailSubmitting = ref(false);
@@ -637,13 +714,13 @@ const musicPreferenceError = ref('');
 
 const musicPreferenceSnapshot = ref({});
 const musicPreferenceBusy = ref(false);
-const musicProviderOrder = ref(MUSIC_PROVIDER_ORDER_DEFAULT.slice());
-const musicProviderEnabled = reactive({
-  netease: true,
-  kuwo: true,
-  qq: true
-});
-const musicDragProviderCode = ref('');
+const musicSourceMode = ref('tunehub_first');
+const musicSourceProviderOrder = ref(SOURCE_ACCOUNT_PROVIDERS.slice());
+const musicSourceAccounts = ref({});
+const musicSourceCookieInputs = ref({});
+const musicSourceBusyMap = ref({});
+const musicSourceImportBusyMap = ref({});
+const spotifyBindBusy = ref(false);
 
 const musicTunehubBusy = ref(false);
 const musicTunehubKeyInput = ref('');
@@ -798,53 +875,46 @@ function normalizeMusicPreferencePayload(payload) {
   return { ...payload };
 }
 
-function normalizeMusicProviderOrder(rawOrder) {
-  const seen = new Set();
-  const normalized = [];
-  const source = Array.isArray(rawOrder) ? rawOrder : [];
-  source.forEach((item) => {
-    const code = String(item || '').trim().toLowerCase();
-    if (!MUSIC_PROVIDER_CATALOG[code] || seen.has(code)) return;
-    seen.add(code);
-    normalized.push(code);
-  });
-  MUSIC_PROVIDER_ORDER_DEFAULT.forEach((code) => {
-    if (seen.has(code)) return;
-    normalized.push(code);
-  });
-  return normalized;
-}
-
-function normalizeMusicProviderEnabled(rawEnabled) {
-  const source = rawEnabled && typeof rawEnabled === 'object' && !Array.isArray(rawEnabled) ? rawEnabled : {};
-  return {
-    netease: source.netease !== false,
-    kuwo: source.kuwo !== false,
-    qq: source.qq !== false
-  };
-}
-
-function normalizeApiKeyStatus(raw) {
-  return {
-    keyBound: Boolean(raw?.keyBound ?? raw?.key_bound),
-    keyMask: String(raw?.keyMask || raw?.key_mask || '').trim(),
-    updatedAt: String(raw?.updatedAt || raw?.updated_at || '').trim()
-  };
-}
-
 function applyMusicPreferences(payload) {
   const normalizedPayload = normalizeMusicPreferencePayload(payload);
   musicPreferenceSnapshot.value = normalizedPayload;
 
   const nestedMusic = normalizedPayload.music && typeof normalizedPayload.music === 'object' ? normalizedPayload.music : {};
-  const orderRaw = normalizedPayload['music.provider_order'] || nestedMusic.provider_order;
-  const enabledRaw = normalizedPayload['music.provider_enabled'] || nestedMusic.provider_enabled;
+  const modeRaw = normalizedPayload['music.source_mode'] || nestedMusic.source_mode;
+  const orderRaw = normalizedPayload['music.account_provider_order'] || nestedMusic.account_provider_order;
+  musicSourceMode.value = normalizeMusicSourceModeValue(modeRaw);
+  musicSourceProviderOrder.value = normalizeSourceProviderOrder(orderRaw);
+}
 
-  musicProviderOrder.value = normalizeMusicProviderOrder(orderRaw);
-  const normalizedEnabled = normalizeMusicProviderEnabled(enabledRaw);
-  musicProviderEnabled.netease = normalizedEnabled.netease;
-  musicProviderEnabled.kuwo = normalizedEnabled.kuwo;
-  musicProviderEnabled.qq = normalizedEnabled.qq;
+function buildDefaultMusicSourceAccounts() {
+  const statusMap = {};
+  const inputMap = {};
+  SOURCE_ACCOUNT_PROVIDERS.forEach((provider) => {
+    statusMap[provider] = normalizeSourceAccountStatus({}, provider);
+    inputMap[provider] = '';
+  });
+  return {
+    statusMap,
+    inputMap
+  };
+}
+
+function resetMusicSourceAccounts() {
+  const { statusMap, inputMap } = buildDefaultMusicSourceAccounts();
+  musicSourceAccounts.value = statusMap;
+  musicSourceCookieInputs.value = inputMap;
+}
+
+function applyMusicSourceAccounts(payload) {
+  const rows = Array.isArray(payload) ? payload : [];
+  const { statusMap, inputMap } = buildDefaultMusicSourceAccounts();
+  rows.forEach((item) => {
+    const normalized = normalizeSourceAccountStatus(item);
+    if (!normalized.provider || !Object.prototype.hasOwnProperty.call(statusMap, normalized.provider)) return;
+    statusMap[normalized.provider] = normalized;
+  });
+  musicSourceAccounts.value = statusMap;
+  musicSourceCookieInputs.value = inputMap;
 }
 
 function clearErrors() {
@@ -1108,6 +1178,10 @@ function clearProfileRouteBackground() {
 }
 
 async function loadMusicPreferences() {
+  if (!auth.isAuthenticated.value) {
+    applyMusicPreferences({});
+    return;
+  }
   musicPreferenceError.value = '';
   try {
     const payload = await auth.getPreference();
@@ -1118,28 +1192,23 @@ async function loadMusicPreferences() {
   }
 }
 
-async function saveMusicPreferences() {
+async function saveMusicPreferences(successMessage = '音乐授权策略已更新') {
+  if (!auth.isAuthenticated.value) return;
   musicPreferenceBusy.value = true;
   musicPreferenceError.value = '';
   try {
-    const nextPreference = {
-      ...musicPreferenceSnapshot.value,
-      'music.provider_order': musicProviderOrder.value.slice(),
-      'music.provider_enabled': {
-        netease: Boolean(musicProviderEnabled.netease),
-        kuwo: Boolean(musicProviderEnabled.kuwo),
-        qq: Boolean(musicProviderEnabled.qq)
-      }
-    };
+    const nextPreference = { ...musicPreferenceSnapshot.value };
     const mergedMusic = nextPreference.music && typeof nextPreference.music === 'object' && !Array.isArray(nextPreference.music)
       ? { ...nextPreference.music }
       : {};
-    mergedMusic.provider_order = nextPreference['music.provider_order'];
-    mergedMusic.provider_enabled = nextPreference['music.provider_enabled'];
+    mergedMusic.source_mode = musicSourceMode.value;
+    mergedMusic.account_provider_order = musicSourceProviderOrder.value.slice();
     nextPreference.music = mergedMusic;
+    nextPreference['music.source_mode'] = musicSourceMode.value;
+    nextPreference['music.account_provider_order'] = musicSourceProviderOrder.value.slice();
     await auth.updatePreference(nextPreference);
     musicPreferenceSnapshot.value = nextPreference;
-    setGlobalHint('音乐推荐顺序已保存');
+    setGlobalHint(successMessage);
   } catch (error) {
     musicPreferenceError.value = readErrorMessage(error);
   } finally {
@@ -1198,38 +1267,140 @@ async function deleteMusicTunehubKey() {
 }
 
 async function loadMusicAuthorizationState() {
-  await Promise.all([loadMusicPreferences(), loadMusicTunehubStatus()]);
+  if (!auth.isAuthenticated.value) {
+    applyMusicPreferences({});
+    resetMusicSourceAccounts();
+    musicTunehubStatus.value = {
+      keyBound: false,
+      keyMask: '',
+      updatedAt: ''
+    };
+    return;
+  }
+  await Promise.all([loadMusicPreferences(), loadMusicTunehubStatus(), loadMusicSourceAccountsStatus()]);
 }
 
-function onProviderDragStart(providerCode) {
-  musicDragProviderCode.value = String(providerCode || '').trim();
+async function loadMusicSourceAccountsStatus() {
+  if (!auth.isAuthenticated.value) {
+    resetMusicSourceAccounts();
+    return;
+  }
+  try {
+    const payload = await musicApi.getMusicSourceAccountStatus(auth.authorizedFetch);
+    applyMusicSourceAccounts(payload);
+  } catch (error) {
+    resetMusicSourceAccounts();
+    musicPreferenceError.value = readErrorMessage(error);
+  }
 }
 
-function onProviderDragOver(targetProviderCode) {
-  const sourceCode = String(musicDragProviderCode.value || '').trim();
-  const targetCode = String(targetProviderCode || '').trim();
-  if (!sourceCode || !targetCode || sourceCode === targetCode) return;
-  const current = musicProviderOrder.value.slice();
-  const fromIndex = current.indexOf(sourceCode);
-  const toIndex = current.indexOf(targetCode);
-  if (fromIndex < 0 || toIndex < 0) return;
-  current.splice(fromIndex, 1);
-  current.splice(toIndex, 0, sourceCode);
-  musicProviderOrder.value = current;
+async function handleUpdateMusicSourceMode(mode) {
+  musicSourceMode.value = normalizeMusicSourceModeValue(mode);
+  await saveMusicPreferences('音乐源策略已更新');
 }
 
-function onProviderDrop() {
-  musicDragProviderCode.value = '';
+async function moveMusicSourceProvider(provider, direction) {
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  const delta = String(direction || '').trim().toLowerCase() === 'down' ? 1 : -1;
+  const currentOrder = normalizeSourceProviderOrder(musicSourceProviderOrder.value);
+  const currentIndex = currentOrder.indexOf(normalizedProvider);
+  if (currentIndex < 0) return;
+  const targetIndex = Math.max(0, Math.min(currentOrder.length - 1, currentIndex + delta));
+  if (targetIndex === currentIndex) return;
+  const nextOrder = currentOrder.slice();
+  const [movedItem] = nextOrder.splice(currentIndex, 1);
+  nextOrder.splice(targetIndex, 0, movedItem);
+  musicSourceProviderOrder.value = nextOrder;
+  await saveMusicPreferences('账号源顺序已更新');
 }
 
-function onProviderDragEnd() {
-  musicDragProviderCode.value = '';
+function updateMusicSourceCookieInput(provider, value) {
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  musicSourceCookieInputs.value = {
+    ...musicSourceCookieInputs.value,
+    [normalizedProvider]: String(value || '')
+  };
 }
 
-function toggleMusicProvider(providerCode, checked) {
-  const code = String(providerCode || '').trim().toLowerCase();
-  if (!Object.prototype.hasOwnProperty.call(musicProviderEnabled, code)) return;
-  musicProviderEnabled[code] = Boolean(checked);
+async function saveMusicSourceCookie(provider) {
+  if (!auth.isAuthenticated.value) return;
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  const cookie = String(musicSourceCookieInputs.value?.[normalizedProvider] || '').trim();
+  if (!cookie) {
+    musicPreferenceError.value = '请先输入 Cookie';
+    return;
+  }
+  musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: true };
+  musicPreferenceError.value = '';
+  try {
+    const payload = await musicApi.upsertMusicSourceAccountCookie(normalizedProvider, cookie, auth.authorizedFetch);
+    musicSourceAccounts.value = {
+      ...musicSourceAccounts.value,
+      [normalizedProvider]: normalizeSourceAccountStatus(payload, normalizedProvider)
+    };
+    updateMusicSourceCookieInput(normalizedProvider, '');
+    setGlobalHint(`${getSourceAccountProviderLabel(normalizedProvider)} Cookie 已保存`);
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: false };
+  }
+}
+
+async function deleteMusicSourceCookie(provider) {
+  if (!auth.isAuthenticated.value) return;
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: true };
+  musicPreferenceError.value = '';
+  try {
+    await musicApi.deleteMusicSourceAccount(normalizedProvider, auth.authorizedFetch);
+    musicSourceAccounts.value = {
+      ...musicSourceAccounts.value,
+      [normalizedProvider]: normalizeSourceAccountStatus({}, normalizedProvider)
+    };
+    updateMusicSourceCookieInput(normalizedProvider, '');
+    setGlobalHint(`${getSourceAccountProviderLabel(normalizedProvider)} 授权已移除`);
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: false };
+  }
+}
+
+async function importMusicSourcePlaylists(provider) {
+  if (!auth.isAuthenticated.value) return;
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  const providerMeta = getSourceAccountProviderMeta(normalizedProvider);
+  if (!providerMeta.supportsPlaylistImport) return;
+  musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: true };
+  musicPreferenceError.value = '';
+  try {
+    const payload = await musicApi.importMusicSourcePlaylists(normalizedProvider, auth.authorizedFetch);
+    setGlobalHint(
+      `${providerMeta.name} 导入完成：歌单 ${Number(payload?.importedPlaylists || 0)} 个，歌曲 ${Number(payload?.importedTracks || 0)} 首`
+    );
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: false };
+  }
+}
+
+async function startMusicSpotifyBind() {
+  if (!auth.isAuthenticated.value) return;
+  spotifyBindBusy.value = true;
+  musicPreferenceError.value = '';
+  try {
+    await auth.startOAuthBind('spotify', '/profile#account');
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    spotifyBindBusy.value = false;
+  }
 }
 
 async function sendBindEmailCode() {
@@ -1531,15 +1702,45 @@ const canManagePosts = computed(() => {
 });
 
 const oauthBindingCount = computed(() => account.oauthBindings.length);
-const musicProviderOrderCards = computed(() =>
-  musicProviderOrder.value.map((code) => MUSIC_PROVIDER_CATALOG[code]).filter(Boolean)
+const spotifyBound = computed(() =>
+  account.oauthBindings.some((item) => String(item?.provider || '').trim().toLowerCase() === 'spotify')
+);
+const musicSourceModeOptions = computed(() => MUSIC_SOURCE_MODE_OPTIONS);
+const musicSourceAccountCards = computed(() =>
+  normalizeSourceProviderOrder(musicSourceProviderOrder.value).map((provider) => {
+    const providerMeta = getSourceAccountProviderMeta(provider);
+    const status = musicSourceAccounts.value?.[provider] || normalizeSourceAccountStatus({}, provider);
+    const bound = Boolean(status?.bound);
+    const mask = String(status?.mask || '').trim();
+    const updatedAt = String(status?.updatedAt || '').trim();
+    return {
+      ...providerMeta,
+      bound,
+      mask,
+      statusText: !auth.isAuthenticated.value ? '登录后可配置' : bound ? (mask ? `已绑定：${mask}` : '已绑定') : '未绑定',
+      busy: Boolean(musicSourceBusyMap.value?.[provider]),
+      importBusy: Boolean(musicSourceImportBusyMap.value?.[provider]),
+      updatedAtLabel: updatedAt ? formatDateLabel(updatedAt) : ''
+    };
+  })
+);
+const musicSourceBoundCount = computed(() =>
+  musicSourceAccountCards.value.filter((item) => item.bound).length
+);
+const musicAuthConfiguredCount = computed(() =>
+  Number(musicTunehubStatus.value.keyBound) + Number(spotifyBound.value) + musicSourceBoundCount.value
 );
 const musicTunehubStatusText = computed(() => {
+  if (!auth.isAuthenticated.value) return '登录后可保存 TuneHub Key';
   if (!musicTunehubStatus.value.keyBound) return '状态：未绑定';
   if (musicTunehubStatus.value.keyMask) {
     return `状态：已绑定（${musicTunehubStatus.value.keyMask}）`;
   }
   return '状态：已绑定';
+});
+const spotifyStatusText = computed(() => {
+  if (!auth.isAuthenticated.value) return '登录后可绑定 Spotify';
+  return spotifyBound.value ? '已绑定 Spotify，可在音乐页继续搜索与试听。' : '未绑定 Spotify，可选接入。';
 });
 
 const bindCodeLocked = computed(() => bindCodeSubmitting.value || bindCodeCooldownSec.value > 0);
@@ -1570,7 +1771,7 @@ const heroTitle = computed(() => {
 });
 
 const heroSubtitle = computed(() => {
-  if (activeGroup.value === ProfileTabKey.ACCOUNT) return '账号与绑定集中管理，默认折叠，按需展开。';
+  if (activeGroup.value === ProfileTabKey.ACCOUNT) return '账号、OAuth 与音乐授权集中管理，所有关键配置直接可见。';
   if (activeGroup.value === ProfileTabKey.ARTICLES) return '创作统计、归档信息与快捷入口集中展示。';
   if (activeGroup.value === ProfileTabKey.SETTINGS) return '保持轻量设置层次，把常用操作放前面。';
   return '个人页展示核心状态与常用入口，减少无关信息占屏。';
@@ -1745,9 +1946,9 @@ const accountSections = computed(() => [
     title: '音乐授权与推荐顺序',
     icon: 'fas fa-music',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.MUSIC_AUTH, {
-      tunehubBound: musicTunehubStatus.value.keyBound
+      configuredCount: musicAuthConfiguredCount.value
     }),
-    statusText: musicTunehubStatus.value.keyBound ? '已配置' : '待配置'
+    statusText: musicAuthConfiguredCount.value > 0 ? `${musicAuthConfiguredCount.value} 项` : '待配置'
   },
   {
     key: ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD,
@@ -2170,16 +2371,24 @@ select.field-input:focus-visible,
 
 .music-auth-grid {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  align-items: start;
 }
 
 .music-auth-card {
   border-radius: 13px;
   background: linear-gradient(148deg, rgba(9, 18, 30, 0.56), rgba(8, 15, 25, 0.5));
   box-shadow: inset 0 0 0 1px rgba(141, 173, 200, 0.18);
-  padding: 10px;
+  padding: 12px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  align-content: start;
+}
+
+.music-auth-card--wide,
+.music-auth-error {
+  grid-column: 1 / -1;
 }
 
 .music-auth-title {
@@ -2188,28 +2397,64 @@ select.field-input:focus-visible,
   font-weight: 620;
 }
 
-.provider-order-list {
-  display: grid;
-  gap: 8px;
+.music-provider-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.provider-order-item {
-  border: 0;
+.music-provider-head-main {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.music-source-mode-select {
+  width: 100%;
+}
+
+.field-textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.music-source-order-list {
+  display: grid;
+  gap: 10px;
+}
+
+.music-source-order-item {
   border-radius: 11px;
-  min-height: 44px;
-  padding: 0 10px;
+  padding: 10px;
   background: rgba(146, 182, 208, 0.15);
   color: rgba(232, 242, 252, 0.95);
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  gap: 8px;
-  align-items: center;
-  text-align: left;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
   box-shadow: inset 0 0 0 1px rgba(140, 175, 202, 0.24);
 }
 
-.provider-order-item i {
-  opacity: 0.7;
+.music-source-order-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.music-source-order-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.music-source-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .provider-icon {
@@ -2227,30 +2472,17 @@ select.field-input:focus-visible,
   background: linear-gradient(135deg, rgba(237, 70, 80, 0.94), rgba(255, 120, 120, 0.88));
 }
 
-.provider-icon.provider-kuwo {
-  background: linear-gradient(135deg, rgba(66, 160, 255, 0.9), rgba(101, 126, 255, 0.86));
+.provider-icon.provider-qqmusic {
+  background: linear-gradient(135deg, rgba(53, 185, 98, 0.9), rgba(70, 210, 120, 0.88));
 }
 
-.provider-icon.provider-qq {
-  background: linear-gradient(135deg, rgba(53, 185, 98, 0.9), rgba(70, 210, 120, 0.88));
+.provider-icon.provider-kugou {
+  background: linear-gradient(135deg, rgba(66, 160, 255, 0.9), rgba(101, 126, 255, 0.86));
 }
 
 .provider-name {
   font-size: 13px;
-}
-
-.provider-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: rgba(201, 223, 244, 0.94);
-}
-
-.provider-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  margin: 0;
 }
 
 .provider-chip {
@@ -2268,21 +2500,35 @@ select.field-input:focus-visible,
   background: rgba(237, 70, 80, 0.22);
 }
 
-.provider-chip.kuwo {
-  background: rgba(66, 160, 255, 0.22);
-}
-
-.provider-chip.qq {
+.provider-chip.qqmusic {
   background: rgba(53, 185, 98, 0.22);
 }
 
-.provider-chip.spotify {
+.provider-chip.kugou {
   background: rgba(91, 133, 204, 0.24);
 }
 
 .error-text {
   color: rgba(255, 188, 206, 0.96);
   font-size: 12px;
+}
+
+.music-auth-error {
+  margin: 0;
+}
+
+.inline-actions.compact.wrap {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .music-source-order-item {
+    grid-template-columns: 1fr;
+  }
+
+  .music-source-order-actions {
+    justify-content: flex-start;
+  }
 }
 
 .kv-table,

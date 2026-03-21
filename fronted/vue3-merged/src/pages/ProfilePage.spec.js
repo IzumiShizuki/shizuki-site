@@ -10,7 +10,11 @@ const mocked = vi.hoisted(() => ({
   listMyPosts: vi.fn(),
   getMusicApiKeyStatus: vi.fn(),
   upsertMusicApiKey: vi.fn(),
-  deleteMusicApiKey: vi.fn()
+  deleteMusicApiKey: vi.fn(),
+  getMusicSourceAccountStatus: vi.fn(),
+  upsertMusicSourceAccountCookie: vi.fn(),
+  deleteMusicSourceAccount: vi.fn(),
+  importMusicSourcePlaylists: vi.fn()
 }));
 
 vi.mock('../composables/useAuthSession', () => ({
@@ -28,7 +32,11 @@ vi.mock('../services/blogApi', () => ({
 vi.mock('../services/musicApi', () => ({
   getMusicApiKeyStatus: (...args) => mocked.getMusicApiKeyStatus(...args),
   upsertMusicApiKey: (...args) => mocked.upsertMusicApiKey(...args),
-  deleteMusicApiKey: (...args) => mocked.deleteMusicApiKey(...args)
+  deleteMusicApiKey: (...args) => mocked.deleteMusicApiKey(...args),
+  getMusicSourceAccountStatus: (...args) => mocked.getMusicSourceAccountStatus(...args),
+  upsertMusicSourceAccountCookie: (...args) => mocked.upsertMusicSourceAccountCookie(...args),
+  deleteMusicSourceAccount: (...args) => mocked.deleteMusicSourceAccount(...args),
+  importMusicSourcePlaylists: (...args) => mocked.importMusicSourcePlaylists(...args)
 }));
 
 function createDeferred() {
@@ -200,12 +208,30 @@ function findSectionCard(wrapper, sectionKey) {
   return card;
 }
 
+function createAccountProfile(overrides = {}) {
+  return {
+    userId: 7,
+    username: 'izumi',
+    nickname: 'Izumi',
+    email: 'izumi@example.com',
+    emailVerified: 1,
+    avatarUrl: '',
+    hasPassword: true,
+    oauthBindings: [],
+    ...overrides
+  };
+}
+
 describe('ProfilePage immediate account expansion', () => {
   beforeEach(() => {
     mocked.listMyPosts.mockReset().mockResolvedValue({ items: [] });
     mocked.getMusicApiKeyStatus.mockReset().mockResolvedValue({});
     mocked.upsertMusicApiKey.mockReset().mockResolvedValue({});
     mocked.deleteMusicApiKey.mockReset().mockResolvedValue({});
+    mocked.getMusicSourceAccountStatus.mockReset().mockResolvedValue([]);
+    mocked.upsertMusicSourceAccountCookie.mockReset().mockResolvedValue({});
+    mocked.deleteMusicSourceAccount.mockReset().mockResolvedValue({});
+    mocked.importMusicSourcePlaylists.mockReset().mockResolvedValue({});
     mocked.ui = createUiMock();
   });
 
@@ -240,16 +266,7 @@ describe('ProfilePage immediate account expansion', () => {
     expect(accountInfoCard.classes()).toContain('focused');
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
 
-    accountDeferred.resolve({
-      userId: 7,
-      username: 'izumi',
-      nickname: 'Izumi',
-      email: 'izumi@example.com',
-      emailVerified: 1,
-      avatarUrl: '',
-      hasPassword: true,
-      oauthBindings: []
-    });
+    accountDeferred.resolve(createAccountProfile());
     await flushPromises();
 
     expect(mocked.auth.getPreference).toHaveBeenCalledTimes(1);
@@ -275,16 +292,7 @@ describe('ProfilePage immediate account expansion', () => {
     expect(emailBindCard.classes()).toContain('focused');
     expect(mocked.auth.createImageCaptcha).not.toHaveBeenCalled();
 
-    accountDeferred.resolve({
-      userId: 7,
-      username: 'izumi',
-      nickname: 'Izumi',
-      email: 'izumi@example.com',
-      emailVerified: 1,
-      avatarUrl: '',
-      hasPassword: true,
-      oauthBindings: []
-    });
+    accountDeferred.resolve(createAccountProfile());
     await flushPromises();
 
     expect(mocked.auth.createImageCaptcha).toHaveBeenCalledTimes(1);
@@ -321,19 +329,123 @@ describe('ProfilePage immediate account expansion', () => {
     expect(changePasswordCard.classes()).toContain('focused');
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
 
-    accountDeferred.resolve({
-      userId: 7,
-      username: 'izumi',
-      nickname: 'Izumi',
-      email: 'izumi@example.com',
-      emailVerified: 1,
-      avatarUrl: '',
-      hasPassword: true,
-      oauthBindings: []
-    });
+    accountDeferred.resolve(createAccountProfile());
     await flushPromises();
 
     expect(mocked.auth.createImageCaptcha).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  it('shows music auth section immediately before account data resolves', async () => {
+    const accountDeferred = createDeferred();
+    mocked.auth = createAuthMock({
+      getAccountProfile: vi.fn(() => accountDeferred.promise)
+    });
+
+    const wrapper = await mountProfilePage();
+    const accountGroup = findGroup(wrapper, 'account');
+    const musicAuthCard = findSectionCard(wrapper, 'music-auth');
+
+    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await flushPromises();
+
+    expect(accountGroup.isVisible()).toBe(true);
+    expect(musicAuthCard.classes()).toContain('focused');
+    expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
+
+    accountDeferred.resolve(createAccountProfile());
+    await flushPromises();
+
+    expect(mocked.getMusicSourceAccountStatus).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  it('renders music auth cards from the shared provider model', async () => {
+    mocked.auth = createAuthMock({
+      getAccountProfile: vi.fn().mockResolvedValue(
+        createAccountProfile({
+          oauthBindings: [{ provider: 'spotify', providerLogin: 'izumi_spotify' }]
+        })
+      ),
+      getPreference: vi.fn().mockResolvedValue({
+        'music.source_mode': 'account_first',
+        'music.account_provider_order': ['qqmusic', 'kugou', 'netease']
+      })
+    });
+    mocked.getMusicApiKeyStatus.mockResolvedValue({
+      keyBound: true,
+      keyMask: 'th-***',
+      updatedAt: '2026-03-21T12:00:00Z'
+    });
+    mocked.getMusicSourceAccountStatus.mockResolvedValue([
+      { provider: 'netease', bound: true, mask: 'MUSIC_U=***', status: 'BOUND' },
+      { provider: 'qqmusic', bound: true, mask: 'uin=***', status: 'BOUND' },
+      { provider: 'kugou', bound: false, status: 'UNBOUND' }
+    ]);
+
+    const wrapper = await mountProfilePage();
+    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await flushPromises();
+
+    const musicAuthCard = findSectionCard(wrapper, 'music-auth');
+    const musicText = musicAuthCard.text();
+
+    expect(musicAuthCard.classes()).toContain('focused');
+    expect(mocked.auth.getPreference).toHaveBeenCalled();
+    expect(mocked.getMusicSourceAccountStatus).toHaveBeenCalledTimes(1);
+    expect(musicText).toContain('TuneHub');
+    expect(musicText).toContain('Spotify');
+    expect(musicText).toContain('网易云');
+    expect(musicText).toContain('QQ 音乐');
+    expect(musicText).toContain('酷狗');
+    expect(musicText).not.toContain('酷我');
+    expect(wrapper.get('[data-testid="music-source-mode-select"]').element.value).toBe('account_first');
+    expect(
+      wrapper.findAll('.music-source-order-item .provider-name').map((node) => node.text())
+    ).toEqual(['QQ 音乐', '酷狗', '网易云']);
+    wrapper.unmount();
+  });
+
+  it('persists source mode and provider order updates through preferences', async () => {
+    mocked.auth = createAuthMock({
+      getAccountProfile: vi.fn().mockResolvedValue(createAccountProfile()),
+      getPreference: vi.fn().mockResolvedValue({
+        music: {
+          source_mode: 'tunehub_first',
+          account_provider_order: ['netease', 'qqmusic', 'kugou']
+        }
+      })
+    });
+
+    const wrapper = await mountProfilePage();
+    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await flushPromises();
+
+    await wrapper.get('[data-testid="music-source-mode-select"]').setValue('account_only');
+    await flushPromises();
+
+    expect(mocked.auth.updatePreference).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'music.source_mode': 'account_only',
+        'music.account_provider_order': ['netease', 'qqmusic', 'kugou'],
+        music: expect.objectContaining({
+          source_mode: 'account_only',
+          account_provider_order: ['netease', 'qqmusic', 'kugou']
+        })
+      })
+    );
+
+    await wrapper.get('.music-source-order-item[data-provider-code="qqmusic"] .move-up-btn').trigger('click');
+    await flushPromises();
+
+    expect(mocked.auth.updatePreference).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        'music.account_provider_order': ['qqmusic', 'netease', 'kugou'],
+        music: expect.objectContaining({
+          account_provider_order: ['qqmusic', 'netease', 'kugou']
+        })
+      })
+    );
     wrapper.unmount();
   });
 });

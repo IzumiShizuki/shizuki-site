@@ -84,6 +84,12 @@ describe('profileUiState', () => {
         nickname: 'Izumi'
       })
     ).toBe('当前昵称：Izumi');
+
+    expect(
+      buildSectionSummary(ProfileSectionKey.ACCOUNT.MUSIC_AUTH, {
+        configuredCount: 3
+      })
+    ).toBe('已接入 3 项音乐授权能力');
   });
 
   it('normalizes profile tab key with fallback', () => {

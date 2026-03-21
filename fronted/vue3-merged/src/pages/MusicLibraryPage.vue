@@ -195,6 +195,13 @@ import {
 import { formatMediaTime } from '../utils/mediaTime';
 import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
+import {
+  SOURCE_ACCOUNT_PROVIDERS,
+  normalizeApiKeyStatus,
+  normalizeMusicSourceModeValue,
+  normalizeSourceAccountStatus,
+  normalizeSourceProviderOrder
+} from '../utils/musicAuthorizationState';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
@@ -221,7 +228,6 @@ const SEARCH_PROVIDER_OPTIONS = [
   { value: 'spotify', label: 'Spotify' }
 ];
 const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
-const SOURCE_ACCOUNT_PROVIDERS = ['netease', 'qqmusic', 'kugou'];
 
 const route = useRoute();
 const router = useRouter();
@@ -530,54 +536,6 @@ function toPlaylistTrackUpsertPayload(track, fallbackSort = 0, targetPlaylistCod
     hasActiveSearch: hasActiveSearch.value,
     isPlaylistRoute: isPlaylistRoute.value
   });
-}
-
-function normalizeApiKeyStatus(raw) {
-  return {
-    keyBound: Boolean(raw?.keyBound ?? raw?.key_bound),
-    keyMask: String(raw?.keyMask || raw?.key_mask || ''),
-    updatedAt: String(raw?.updatedAt || raw?.updated_at || '')
-  };
-}
-
-function normalizeSourceModeValue(raw) {
-  const normalized = String(raw || '').trim().toLowerCase();
-  if (['account_first', 'tunehub_first', 'account_only', 'tunehub_only'].includes(normalized)) {
-    return normalized;
-  }
-  return 'tunehub_first';
-}
-
-function normalizeSourceProviderOrder(input) {
-  const source = Array.isArray(input) ? input : [];
-  const result = [];
-  const seen = new Set();
-  source.forEach((item) => {
-    const value = String(item || '').trim().toLowerCase();
-    if (!SOURCE_ACCOUNT_PROVIDERS.includes(value) || seen.has(value)) return;
-    seen.add(value);
-    result.push(value);
-  });
-  SOURCE_ACCOUNT_PROVIDERS.forEach((item) => {
-    if (seen.has(item)) return;
-    seen.add(item);
-    result.push(item);
-  });
-  return result;
-}
-
-function normalizeSourceAccountStatus(raw, fallbackProvider = '') {
-  const provider = String(raw?.provider || fallbackProvider || '').trim().toLowerCase();
-  return {
-    provider,
-    authType: String(raw?.authType || raw?.auth_type || 'cookie'),
-    bound: Boolean(raw?.bound ?? raw?.keyBound ?? raw?.key_bound),
-    mask: String(raw?.mask || raw?.keyMask || raw?.key_mask || ''),
-    status: String(raw?.status || '').trim().toUpperCase() || (Boolean(raw?.bound) ? 'BOUND' : 'UNBOUND'),
-    updatedAt: String(raw?.updatedAt || raw?.updated_at || ''),
-    lastVerifiedAt: String(raw?.lastVerifiedAt || raw?.last_verified_at || ''),
-    expireAt: String(raw?.expireAt || raw?.expire_at || '')
-  };
 }
 
 function normalizeSpotifyResult(raw, index = 0) {
@@ -1458,7 +1416,7 @@ async function loadMusicSourcePreference() {
     const musicNode = payload?.music && typeof payload.music === 'object' ? payload.music : {};
     const modeRaw = payload?.['music.source_mode'] || musicNode?.source_mode;
     const orderRaw = payload?.['music.account_provider_order'] || musicNode?.account_provider_order;
-    musicSourceMode.value = normalizeSourceModeValue(modeRaw);
+    musicSourceMode.value = normalizeMusicSourceModeValue(modeRaw);
     musicAccountProviderOrder.value = normalizeSourceProviderOrder(orderRaw);
   } catch {
     musicSourceMode.value = 'tunehub_first';
@@ -1518,7 +1476,7 @@ async function loadMusicSourceAccountsStatus() {
 }
 
 function handleUpdateMusicSourceMode(mode) {
-  musicSourceMode.value = normalizeSourceModeValue(mode);
+  musicSourceMode.value = normalizeMusicSourceModeValue(mode);
   persistMusicSourcePreference();
 }
 

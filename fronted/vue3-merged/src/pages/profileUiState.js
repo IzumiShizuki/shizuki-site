@@ -131,8 +131,12 @@ export function buildSectionSummary(sectionKey, payload = {}) {
       return payload.oauthBindingCount > 0 ? `已绑定 ${payload.oauthBindingCount} 个平台` : '绑定 GitHub / LinuxDo';
     case ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD:
       return payload.hasPassword ? '通过邮箱验证码修改密码' : '先设置邮箱后再设置密码';
-    case ProfileSectionKey.ACCOUNT.MUSIC_AUTH:
-      return payload.tunehubBound ? 'TuneHub Key 已绑定，可拖拽推荐顺序' : '配置 TuneHub Key 并设置推荐顺序';
+    case ProfileSectionKey.ACCOUNT.MUSIC_AUTH: {
+      const configuredCount = Number(payload.configuredCount || 0);
+      return configuredCount > 0
+        ? `已接入 ${configuredCount} 项音乐授权能力`
+        : '配置 TuneHub、Spotify 与三平台账号源授权';
+    }
     case ProfileSectionKey.ARTICLES.WORKSPACE:
       return '草稿、发布与统计入口';
     case ProfileSectionKey.ARTICLES.ARCHIVE:
