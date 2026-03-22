@@ -222,8 +222,34 @@ function createAccountProfile(overrides = {}) {
   };
 }
 
+let originalScrollIntoView;
+let originalRequestAnimationFrame;
+let originalCancelAnimationFrame;
+let scrollIntoViewCalls = [];
+
 describe('ProfilePage immediate account expansion', () => {
   beforeEach(() => {
+    originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    originalRequestAnimationFrame = window.requestAnimationFrame;
+    originalCancelAnimationFrame = window.cancelAnimationFrame;
+    scrollIntoViewCalls = [];
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(function scrollIntoViewMock() {
+        scrollIntoViewCalls.push(this?.getAttribute?.('data-section-key') || this?.getAttribute?.('data-group-key') || '');
+      })
+    });
+    Object.defineProperty(window, 'requestAnimationFrame', {
+      configurable: true,
+      value: vi.fn((callback) => {
+        callback(0);
+        return 1;
+      })
+    });
+    Object.defineProperty(window, 'cancelAnimationFrame', {
+      configurable: true,
+      value: vi.fn()
+    });
     mocked.listMyPosts.mockReset().mockResolvedValue({ items: [] });
     mocked.getMusicApiKeyStatus.mockReset().mockResolvedValue({});
     mocked.upsertMusicApiKey.mockReset().mockResolvedValue({});
@@ -236,6 +262,22 @@ describe('ProfilePage immediate account expansion', () => {
   });
 
   afterEach(() => {
+    if (originalScrollIntoView) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: originalScrollIntoView
+      });
+    } else {
+      delete HTMLElement.prototype.scrollIntoView;
+    }
+    Object.defineProperty(window, 'requestAnimationFrame', {
+      configurable: true,
+      value: originalRequestAnimationFrame
+    });
+    Object.defineProperty(window, 'cancelAnimationFrame', {
+      configurable: true,
+      value: originalCancelAnimationFrame
+    });
     mocked.auth = null;
     mocked.ui = null;
     document.body.innerHTML = '';
@@ -345,6 +387,7 @@ describe('ProfilePage immediate account expansion', () => {
     const wrapper = await mountProfilePage();
     const accountGroup = findGroup(wrapper, 'account');
     const musicAuthCard = findSectionCard(wrapper, 'music-auth');
+    scrollIntoViewCalls = [];
 
     await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
     await flushPromises();
@@ -352,6 +395,7 @@ describe('ProfilePage immediate account expansion', () => {
     expect(accountGroup.isVisible()).toBe(true);
     expect(musicAuthCard.classes()).toContain('focused');
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
+    expect(scrollIntoViewCalls).toContain('music-auth');
 
     accountDeferred.resolve(createAccountProfile());
     await flushPromises();

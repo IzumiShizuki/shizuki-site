@@ -11,7 +11,7 @@
       />
 
       <section class="profile-content-panel">
-        <div class="profile-scroll-frame">
+        <div ref="profileScrollFrameRef" class="profile-scroll-frame">
           <div class="profile-hero-shell">
             <ProfileHeroCard
               :avatar-url="avatarPreview"
@@ -631,7 +631,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
 import AppearanceSettingsContent from '../components/profile/AppearanceSettingsContent.vue';
@@ -668,6 +668,7 @@ const auth = useAuthSession();
 const ui = useUiPreferences();
 
 const avatarFileInput = ref(null);
+const profileScrollFrameRef = ref(null);
 const activeGroup = ref(ProfileTabKey.PROFILE);
 const navGroups = [
   { key: ProfileTabKey.PROFILE, label: '个人', icon: 'fas fa-id-card' },
@@ -797,6 +798,7 @@ let accountSectionLoadPromise = null;
 let articlesSectionLoadPromise = null;
 let captchaPromise = null;
 let accountSectionFollowUpId = 0;
+let sectionScrollRaf = 0;
 
 function normalizeGroupKey(raw, fallback = ProfileTabKey.PROFILE) {
   return normalizeProfileTabKey(raw, fallback);
@@ -840,6 +842,40 @@ function ensureGroupSectionVisible(groupKey) {
   if (!sectionFocus[normalizedGroup]) {
     sectionFocus[normalizedGroup] = fallbackSectionKey;
   }
+}
+
+function scrollGroupSectionIntoView(groupKey, sectionKey) {
+  const frame = profileScrollFrameRef.value;
+  if (!frame) return;
+
+  const normalizedGroup = normalizeGroupKey(groupKey);
+  const normalizedSectionKey = String(sectionKey || sectionFocus[normalizedGroup] || '').trim();
+  const selector = normalizedSectionKey
+    ? `.profile-group[data-group-key="${normalizedGroup}"] .section-item[data-section-key="${normalizedSectionKey}"]`
+    : `.profile-group[data-group-key="${normalizedGroup}"]`;
+  const target = frame.querySelector(selector) || frame.querySelector(`.profile-group[data-group-key="${normalizedGroup}"]`);
+  if (!target || typeof target.scrollIntoView !== 'function') return;
+  target.scrollIntoView({
+    block: 'start',
+    inline: 'nearest',
+    behavior: 'auto'
+  });
+}
+
+function queueGroupSectionScroll(groupKey, sectionKey) {
+  if (typeof window === 'undefined') return;
+  const normalizedGroup = normalizeGroupKey(groupKey);
+  const normalizedSectionKey = String(sectionKey || sectionFocus[normalizedGroup] || '').trim();
+  if (sectionScrollRaf) {
+    window.cancelAnimationFrame(sectionScrollRaf);
+    sectionScrollRaf = 0;
+  }
+  void nextTick(() => {
+    sectionScrollRaf = window.requestAnimationFrame(() => {
+      sectionScrollRaf = 0;
+      scrollGroupSectionIntoView(normalizedGroup, normalizedSectionKey);
+    });
+  });
 }
 
 async function navigateToGroup(groupKey) {
@@ -968,6 +1004,9 @@ function forceOpenSection(tabKey, sectionKey) {
 function toggleGroupSection(groupKey, sectionKey) {
   const normalizedGroup = normalizeGroupKey(groupKey);
   focusGroupSection(normalizedGroup, sectionKey);
+  if (normalizedGroup === activeGroup.value) {
+    queueGroupSectionScroll(normalizedGroup, sectionKey);
+  }
   if (normalizedGroup === ProfileTabKey.ACCOUNT && sectionNeedsCaptcha(sectionKey) && !captcha.captchaId) {
     void ensureCaptchaReady();
   }
@@ -1924,6 +1963,15 @@ const accountSections = computed(() => [
     statusText: account.username || '未命名'
   },
   {
+    key: ProfileSectionKey.ACCOUNT.MUSIC_AUTH,
+    title: '音乐授权与推荐顺序',
+    icon: 'fas fa-music',
+    summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.MUSIC_AUTH, {
+      configuredCount: musicAuthConfiguredCount.value
+    }),
+    statusText: musicAuthConfiguredCount.value > 0 ? `${musicAuthConfiguredCount.value} 项` : '待配置'
+  },
+  {
     key: ProfileSectionKey.ACCOUNT.EMAIL_BIND,
     title: '邮箱绑定',
     icon: 'fas fa-envelope',
@@ -1940,15 +1988,6 @@ const accountSections = computed(() => [
       oauthBindingCount: oauthBindingCount.value
     }),
     statusText: `${oauthBindingCount.value} 个`
-  },
-  {
-    key: ProfileSectionKey.ACCOUNT.MUSIC_AUTH,
-    title: '音乐授权与推荐顺序',
-    icon: 'fas fa-music',
-    summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.MUSIC_AUTH, {
-      configuredCount: musicAuthConfiguredCount.value
-    }),
-    statusText: musicAuthConfiguredCount.value > 0 ? `${musicAuthConfiguredCount.value} 项` : '待配置'
   },
   {
     key: ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD,
@@ -2006,6 +2045,7 @@ watch(
     if (!group) return;
     ensureGroupSectionVisible(group);
     activeGroup.value = group;
+    queueGroupSectionScroll(group);
   }
 );
 
@@ -2013,6 +2053,7 @@ watch(
   () => activeGroup.value,
   (group) => {
     ensureGroupSectionVisible(group);
+    queueGroupSectionScroll(group);
     if (group === ProfileTabKey.ACCOUNT) {
       void ensureAccountSectionReady();
     }
@@ -2039,6 +2080,7 @@ onMounted(async () => {
   ensureGroupSectionVisible(initialGroup);
   activeGroup.value = initialGroup;
   await replaceRouteHash(initialGroup);
+  queueGroupSectionScroll(initialGroup);
 });
 
 onBeforeUnmount(() => {
@@ -2049,6 +2091,10 @@ onBeforeUnmount(() => {
   if (changePwdCooldownTimer) {
     window.clearInterval(changePwdCooldownTimer);
     changePwdCooldownTimer = 0;
+  }
+  if (sectionScrollRaf) {
+    window.cancelAnimationFrame(sectionScrollRaf);
+    sectionScrollRaf = 0;
   }
   resetAvatarCropSource();
 });
