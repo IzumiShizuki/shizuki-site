@@ -396,23 +396,31 @@
                     </div>
                     <span class="provider-chip" :class="item.code">{{ item.bound ? '已绑定' : '未绑定' }}</span>
                   </div>
-                  <label class="field-label" :for="`music-source-cookie-${item.code}`">Cookie</label>
-                  <textarea
-                    :id="`music-source-cookie-${item.code}`"
-                    class="field-input field-textarea"
-                    rows="4"
-                    :placeholder="`粘贴 ${item.name} Cookie`"
-                    :value="musicSourceCookieInputs[item.code] || ''"
-                    @input="updateMusicSourceCookieInput(item.code, $event.target.value)"
-                  ></textarea>
                   <div class="inline-actions compact wrap">
                     <button
                       class="primary-btn ripple-trigger"
                       type="button"
-                      :disabled="item.busy"
-                      @click="saveMusicSourceCookie(item.code)"
+                      :disabled="item.busy || item.bindBusy"
+                      @click="bindMusicSourceAccount(item.code)"
                     >
-                      {{ item.busy ? '保存中...' : '保存 Cookie' }}
+                      {{ item.bindBusy ? '绑定中...' : item.bound ? '重新绑定' : '一键绑定' }}
+                    </button>
+                    <button
+                      class="ghost-btn ripple-trigger"
+                      type="button"
+                      :disabled="item.bindBusy"
+                      @click="detectMusicSourceHelperStatus"
+                    >
+                      检测助手
+                    </button>
+                    <button
+                      v-if="!musicSourceHelperAvailable"
+                      class="ghost-btn ripple-trigger"
+                      type="button"
+                      :disabled="item.bindBusy"
+                      @click="openMusicSourceHelperGuide"
+                    >
+                      安装助手
                     </button>
                     <button
                       class="ghost-btn ripple-trigger"
@@ -432,6 +440,28 @@
                       {{ item.importBusy ? '导入中...' : '导入歌单' }}
                     </button>
                   </div>
+                  <details class="manual-fallback">
+                    <summary>高级手动绑定</summary>
+                    <label class="field-label" :for="`music-source-cookie-${item.code}`">Cookie</label>
+                    <textarea
+                      :id="`music-source-cookie-${item.code}`"
+                      class="field-input field-textarea"
+                      rows="4"
+                      :placeholder="`粘贴 ${item.name} Cookie`"
+                      :value="musicSourceCookieInputs[item.code] || ''"
+                      @input="updateMusicSourceCookieInput(item.code, $event.target.value)"
+                    ></textarea>
+                    <div class="inline-actions compact wrap">
+                      <button
+                        class="primary-btn ripple-trigger"
+                        type="button"
+                        :disabled="item.busy"
+                        @click="saveMusicSourceCookie(item.code)"
+                      >
+                        {{ item.busy ? '保存中...' : '保存 Cookie' }}
+                      </button>
+                    </div>
+                  </details>
                   <p v-if="item.mask" class="helper-text">当前掩码：{{ item.mask }}</p>
                   <p v-if="item.updatedAtLabel" class="helper-text">最近更新：{{ item.updatedAtLabel }}</p>
                 </article>
@@ -661,6 +691,12 @@ import {
   normalizeSourceAccountStatus,
   normalizeSourceProviderOrder
 } from '../utils/musicAuthorizationState';
+import {
+  detectMusicSourceHelper,
+  openMusicSourceHelperInstallGuide,
+  requestMusicSourceCookies,
+  waitForMusicSourceBind
+} from '../utils/musicSourceBindHelper';
 
 const route = useRoute();
 const router = useRouter();
@@ -721,6 +757,9 @@ const musicSourceAccounts = ref({});
 const musicSourceCookieInputs = ref({});
 const musicSourceBusyMap = ref({});
 const musicSourceImportBusyMap = ref({});
+const musicSourceBindBusyMap = ref({});
+const musicSourceBindSessions = ref({});
+const musicSourceHelperAvailable = ref(false);
 const spotifyBindBusy = ref(false);
 
 const musicTunehubBusy = ref(false);
@@ -939,6 +978,10 @@ function resetMusicSourceAccounts() {
   const { statusMap, inputMap } = buildDefaultMusicSourceAccounts();
   musicSourceAccounts.value = statusMap;
   musicSourceCookieInputs.value = inputMap;
+  musicSourceBusyMap.value = {};
+  musicSourceImportBusyMap.value = {};
+  musicSourceBindBusyMap.value = {};
+  musicSourceBindSessions.value = {};
 }
 
 function applyMusicSourceAccounts(payload) {
@@ -1316,6 +1359,7 @@ async function loadMusicAuthorizationState() {
     };
     return;
   }
+  musicSourceHelperAvailable.value = await detectMusicSourceHelper();
   await Promise.all([loadMusicPreferences(), loadMusicTunehubStatus(), loadMusicSourceAccountsStatus()]);
 }
 
@@ -1331,6 +1375,19 @@ async function loadMusicSourceAccountsStatus() {
     resetMusicSourceAccounts();
     musicPreferenceError.value = readErrorMessage(error);
   }
+}
+
+async function detectMusicSourceHelperStatus() {
+  musicSourceHelperAvailable.value = await detectMusicSourceHelper();
+  if (musicSourceHelperAvailable.value) {
+    setGlobalHint('音乐助手已就绪');
+    return;
+  }
+  musicPreferenceError.value = '未检测到音乐助手，请先安装后再一键绑定';
+}
+
+function openMusicSourceHelperGuide() {
+  openMusicSourceHelperInstallGuide();
 }
 
 async function handleUpdateMusicSourceMode(mode) {
@@ -1386,6 +1443,99 @@ async function saveMusicSourceCookie(provider) {
     musicPreferenceError.value = readErrorMessage(error);
   } finally {
     musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: false };
+  }
+}
+
+async function bindMusicSourceAccount(provider) {
+  if (!auth.isAuthenticated.value) return;
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  musicPreferenceError.value = '';
+  if (!musicSourceHelperAvailable.value) {
+    openMusicSourceHelperGuide();
+    return;
+  }
+
+  musicSourceBindBusyMap.value = {
+    ...musicSourceBindBusyMap.value,
+    [normalizedProvider]: true
+  };
+
+  try {
+    const session = await musicApi.createMusicSourceBindSession(normalizedProvider, auth.authorizedFetch);
+    musicSourceBindSessions.value = {
+      ...musicSourceBindSessions.value,
+      [normalizedProvider]: session
+    };
+    try {
+      window.open(String(session?.loginUrl || ''), '_blank', 'noopener,noreferrer');
+    } catch {
+      // noop
+    }
+
+    const expiresAtMs = Date.parse(String(session?.expiresAt || ''));
+    let completed = false;
+    let lastErrorMessage = '';
+    let lastSubmittedCookie = '';
+
+    while (!completed) {
+      if (Number.isFinite(expiresAtMs) && Date.now() >= expiresAtMs) {
+        break;
+      }
+      try {
+        const helperPayload = await requestMusicSourceCookies(normalizedProvider, 1800);
+        const cookieBundle = String(helperPayload?.cookieBundle || '').trim();
+        if (cookieBundle && cookieBundle !== lastSubmittedCookie) {
+          lastSubmittedCookie = cookieBundle;
+          const payload = await musicApi.completeMusicSourceBindSession(
+            normalizedProvider,
+            String(session?.sessionId || ''),
+            {
+              provider: normalizedProvider,
+              bindToken: String(session?.bindToken || ''),
+              cookieBundle,
+              helperVersion: helperPayload?.helperVersion || ''
+            },
+            auth.authorizedFetch
+          );
+          musicSourceAccounts.value = {
+            ...musicSourceAccounts.value,
+            [normalizedProvider]: normalizeSourceAccountStatus(payload, normalizedProvider)
+          };
+          updateMusicSourceCookieInput(normalizedProvider, '');
+          setGlobalHint(`${getSourceAccountProviderLabel(normalizedProvider)} 已完成绑定`);
+          completed = true;
+          break;
+        }
+      } catch (error) {
+        lastErrorMessage = readErrorMessage(error);
+      }
+      await waitForMusicSourceBind(1800);
+    }
+
+    if (!completed) {
+      try {
+        const bindStatus = await musicApi.getMusicSourceBindSession(
+          normalizedProvider,
+          String(session?.sessionId || ''),
+          auth.authorizedFetch
+        );
+        const failureReason = String(bindStatus?.failureReason || '').trim();
+        if (failureReason) {
+          lastErrorMessage = failureReason;
+        }
+      } catch {
+        // noop
+      }
+      musicPreferenceError.value = lastErrorMessage || '未检测到有效登录态，请确认目标平台已登录后重试';
+    }
+  } catch (error) {
+    musicPreferenceError.value = readErrorMessage(error);
+  } finally {
+    musicSourceBindBusyMap.value = {
+      ...musicSourceBindBusyMap.value,
+      [normalizedProvider]: false
+    };
   }
 }
 
@@ -1752,12 +1902,21 @@ const musicSourceAccountCards = computed(() =>
     const bound = Boolean(status?.bound);
     const mask = String(status?.mask || '').trim();
     const updatedAt = String(status?.updatedAt || '').trim();
+    const bindBusy = Boolean(musicSourceBindBusyMap.value?.[provider]);
+    const helperState = musicSourceHelperAvailable.value ? '助手已就绪' : '助手未安装';
     return {
       ...providerMeta,
       bound,
       mask,
-      statusText: !auth.isAuthenticated.value ? '登录后可配置' : bound ? (mask ? `已绑定：${mask}` : '已绑定') : '未绑定',
+      statusText: !auth.isAuthenticated.value
+        ? '登录后可配置'
+        : bindBusy
+          ? '绑定中：请在新打开页面完成登录'
+          : bound
+            ? (mask ? `已绑定：${mask}` : '已绑定')
+            : helperState,
       busy: Boolean(musicSourceBusyMap.value?.[provider]),
+      bindBusy,
       importBusy: Boolean(musicSourceImportBusyMap.value?.[provider]),
       updatedAtLabel: updatedAt ? formatDateLabel(updatedAt) : ''
     };

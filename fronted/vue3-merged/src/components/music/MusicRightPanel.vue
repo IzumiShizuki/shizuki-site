@@ -270,25 +270,32 @@
         </button>
         <transition name="provider-expand">
           <div v-if="expandedProviderKey === item.provider" class="provider-detail">
-            <label class="field-block">
-              <span>Cookie</span>
-              <input
-                :value="item.cookieInput"
-                type="password"
-                :placeholder="`输入 ${item.title} Cookie`"
-                :disabled="!isAuthenticated"
-                @input="emit('update:source-cookie', { provider: item.provider, value: $event.target.value })"
-              />
-            </label>
             <p class="status-text">{{ item.statusText }}</p>
             <div class="row-actions">
               <button
                 class="mini-btn primary ripple-trigger"
                 type="button"
-                :disabled="item.busy || !isAuthenticated"
-                @click="emit('save-source-cookie', item.provider)"
+                :disabled="item.busy || item.bindBusy || !isAuthenticated"
+                @click="emit('bind-source-account', item.provider)"
               >
-                {{ item.busy ? '保存中...' : '保存' }}
+                {{ item.bindBusy ? '绑定中...' : item.bound ? '重新绑定' : '一键绑定' }}
+              </button>
+              <button
+                class="mini-btn ripple-trigger"
+                type="button"
+                :disabled="item.bindBusy"
+                @click="emit('detect-source-helper')"
+              >
+                检测助手
+              </button>
+              <button
+                v-if="!sourceHelperAvailable"
+                class="mini-btn ripple-trigger"
+                type="button"
+                :disabled="item.bindBusy"
+                @click="emit('open-source-helper-guide')"
+              >
+                安装助手
               </button>
               <button
                 class="mini-btn ripple-trigger"
@@ -307,6 +314,29 @@
                 {{ item.importSupported ? (item.importBusy ? '导入中...' : '导入歌单') : '暂不支持导入' }}
               </button>
             </div>
+            <details class="manual-fallback">
+              <summary>高级手动绑定</summary>
+              <label class="field-block">
+                <span>Cookie</span>
+                <input
+                  :value="item.cookieInput"
+                  type="password"
+                  :placeholder="`输入 ${item.title} Cookie`"
+                  :disabled="!isAuthenticated"
+                  @input="emit('update:source-cookie', { provider: item.provider, value: $event.target.value })"
+                />
+              </label>
+              <div class="row-actions">
+                <button
+                  class="mini-btn primary ripple-trigger"
+                  type="button"
+                  :disabled="item.busy || !isAuthenticated"
+                  @click="emit('save-source-cookie', item.provider)"
+                >
+                  {{ item.busy ? '保存中...' : '保存 Cookie' }}
+                </button>
+              </div>
+            </details>
           </div>
         </transition>
       </article>
@@ -346,7 +376,9 @@ const props = defineProps({
   sourceAccounts: { type: Object, default: () => ({}) },
   sourceCookieInputs: { type: Object, default: () => ({}) },
   sourceBusyMap: { type: Object, default: () => ({}) },
-  sourceImportBusyMap: { type: Object, default: () => ({}) }
+  sourceImportBusyMap: { type: Object, default: () => ({}) },
+  sourceBindBusyMap: { type: Object, default: () => ({}) },
+  sourceHelperAvailable: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -369,7 +401,10 @@ const emit = defineEmits([
   'update:source-cookie',
   'save-source-cookie',
   'delete-source-cookie',
-  'import-source-playlists'
+  'import-source-playlists',
+  'bind-source-account',
+  'detect-source-helper',
+  'open-source-helper-guide'
 ]);
 
 const coverStyle = computed(() => {
@@ -458,15 +493,20 @@ const sourceCards = computed(() => {
   const cookieMap = props.sourceCookieInputs && typeof props.sourceCookieInputs === 'object' ? props.sourceCookieInputs : {};
   const busyMap = props.sourceBusyMap && typeof props.sourceBusyMap === 'object' ? props.sourceBusyMap : {};
   const importBusyMap = props.sourceImportBusyMap && typeof props.sourceImportBusyMap === 'object' ? props.sourceImportBusyMap : {};
+  const bindBusyMap = props.sourceBindBusyMap && typeof props.sourceBindBusyMap === 'object' ? props.sourceBindBusyMap : {};
   return SOURCE_CARD_ORDER.map((provider) => {
     const status = statusMap?.[provider] && typeof statusMap[provider] === 'object' ? statusMap[provider] : {};
     const bound = Boolean(status?.bound ?? status?.keyBound ?? status?.key_bound);
     const mask = String(status?.mask || status?.keyMask || status?.key_mask || '').trim();
+    const bindBusy = Boolean(bindBusyMap?.[provider]);
+    const helperState = props.sourceHelperAvailable ? '助手已就绪' : '助手未安装';
     const statusText = !props.isAuthenticated
       ? '登录后可配置'
-      : bound
-        ? (mask ? `已绑定：${mask}` : '已绑定')
-        : '未绑定';
+      : bindBusy
+        ? '绑定中：请在新打开页面完成登录'
+        : bound
+          ? (mask ? `已绑定：${mask}` : '已绑定')
+          : helperState;
     return {
       provider,
       title: providerLabel(provider),
@@ -475,6 +515,7 @@ const sourceCards = computed(() => {
       statusText,
       cookieInput: String(cookieMap?.[provider] || ''),
       busy: Boolean(busyMap?.[provider]),
+      bindBusy,
       importBusy: Boolean(importBusyMap?.[provider]),
       importSupported: provider === 'netease'
     };

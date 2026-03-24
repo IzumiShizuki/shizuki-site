@@ -96,6 +96,8 @@
           :source-cookie-inputs="musicSourceCookieInputs"
           :source-busy-map="musicSourceBusyMap"
           :source-import-busy-map="musicSourceImportBusyMap"
+          :source-bind-busy-map="musicSourceBindBusyMap"
+          :source-helper-available="musicSourceHelperAvailable"
           @set-volume="handleSetVolume"
           @set-eq-level="handleSetEqLevel"
           @close-drawer="ui.setRightDrawerOpen(false)"
@@ -116,6 +118,9 @@
           @save-source-cookie="handleSaveMusicSourceCookie"
           @delete-source-cookie="handleDeleteMusicSourceCookie"
           @import-source-playlists="handleImportMusicSourcePlaylists"
+          @bind-source-account="handleBindMusicSourceAccount"
+          @detect-source-helper="handleDetectMusicSourceHelper"
+          @open-source-helper-guide="handleOpenMusicSourceHelperGuide"
         />
 
       </template>
@@ -202,6 +207,12 @@ import {
   normalizeSourceAccountStatus,
   normalizeSourceProviderOrder
 } from '../utils/musicAuthorizationState';
+import {
+  detectMusicSourceHelper,
+  openMusicSourceHelperInstallGuide,
+  requestMusicSourceCookies,
+  waitForMusicSourceBind
+} from '../utils/musicSourceBindHelper';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
@@ -266,6 +277,9 @@ const musicSourceAccounts = ref({});
 const musicSourceCookieInputs = ref({});
 const musicSourceBusyMap = ref({});
 const musicSourceImportBusyMap = ref({});
+const musicSourceBindBusyMap = ref({});
+const musicSourceBindSessions = ref({});
+const musicSourceHelperAvailable = ref(false);
 const musicSourceMode = ref('tunehub_first');
 const musicAccountProviderOrder = ref(['netease', 'qqmusic', 'kugou']);
 
@@ -1447,6 +1461,10 @@ async function loadMusicSourceAccountsStatus() {
   if (!auth.isAuthenticated.value) {
     musicSourceAccounts.value = {};
     musicSourceCookieInputs.value = {};
+    musicSourceBusyMap.value = {};
+    musicSourceImportBusyMap.value = {};
+    musicSourceBindBusyMap.value = {};
+    musicSourceBindSessions.value = {};
     return;
   }
   try {
@@ -1472,6 +1490,115 @@ async function loadMusicSourceAccountsStatus() {
     musicSourceCookieInputs.value = inputMap;
   } catch {
     musicSourceAccounts.value = {};
+  }
+}
+
+async function handleDetectMusicSourceHelper() {
+  musicSourceHelperAvailable.value = await detectMusicSourceHelper();
+  if (!musicSourceHelperAvailable.value) {
+    window.alert('未检测到音乐助手，请先安装后再执行一键绑定。');
+  }
+}
+
+function handleOpenMusicSourceHelperGuide() {
+  openMusicSourceHelperInstallGuide();
+}
+
+async function handleBindMusicSourceAccount(provider) {
+  if (!auth.isAuthenticated.value) {
+    goLogin();
+    return;
+  }
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  if (!musicSourceHelperAvailable.value) {
+    handleOpenMusicSourceHelperGuide();
+    return;
+  }
+
+  musicSourceBindBusyMap.value = {
+    ...musicSourceBindBusyMap.value,
+    [normalizedProvider]: true
+  };
+
+  try {
+    const session = await musicApi.createMusicSourceBindSession(normalizedProvider, auth.authorizedFetch);
+    musicSourceBindSessions.value = {
+      ...musicSourceBindSessions.value,
+      [normalizedProvider]: session
+    };
+
+    try {
+      window.open(String(session?.loginUrl || ''), '_blank', 'noopener,noreferrer');
+    } catch {
+      // noop
+    }
+
+    const expiresAtMs = Date.parse(String(session?.expiresAt || ''));
+    let completed = false;
+    let lastErrorMessage = '';
+    let lastSubmittedCookie = '';
+
+    while (!completed) {
+      if (Number.isFinite(expiresAtMs) && Date.now() >= expiresAtMs) {
+        break;
+      }
+      try {
+        const helperPayload = await requestMusicSourceCookies(normalizedProvider, 1800);
+        const cookieBundle = String(helperPayload?.cookieBundle || '').trim();
+        if (cookieBundle && cookieBundle !== lastSubmittedCookie) {
+          lastSubmittedCookie = cookieBundle;
+          const savedStatus = await musicApi.completeMusicSourceBindSession(
+            normalizedProvider,
+            String(session?.sessionId || ''),
+            {
+              provider: normalizedProvider,
+              bindToken: String(session?.bindToken || ''),
+              cookieBundle,
+              helperVersion: helperPayload?.helperVersion || ''
+            },
+            auth.authorizedFetch
+          );
+          musicSourceAccounts.value = {
+            ...musicSourceAccounts.value,
+            [normalizedProvider]: normalizeSourceAccountStatus(savedStatus, normalizedProvider)
+          };
+          musicSourceCookieInputs.value = {
+            ...musicSourceCookieInputs.value,
+            [normalizedProvider]: ''
+          };
+          completed = true;
+          break;
+        }
+      } catch (error) {
+        lastErrorMessage = parseErrorMessage(error, '');
+      }
+      await waitForMusicSourceBind(1800);
+    }
+
+    if (!completed) {
+      try {
+        const bindStatus = await musicApi.getMusicSourceBindSession(
+          normalizedProvider,
+          String(session?.sessionId || ''),
+          auth.authorizedFetch
+        );
+        const failureReason = String(bindStatus?.failureReason || '').trim();
+        if (failureReason) {
+          lastErrorMessage = failureReason;
+        }
+      } catch {
+        // noop
+      }
+      window.alert(lastErrorMessage || '未检测到有效登录态，请确认目标平台已登录后重试。');
+    }
+  } catch (error) {
+    window.alert(parseErrorMessage(error, '发起一键绑定失败'));
+  } finally {
+    musicSourceBindBusyMap.value = {
+      ...musicSourceBindBusyMap.value,
+      [normalizedProvider]: false
+    };
   }
 }
 
@@ -2199,6 +2326,9 @@ watch(
       loadMusicSourcePreference(),
       loadMusicSourceAccountsStatus()
     ]);
+    if (!musicSourceHelperAvailable.value) {
+      musicSourceHelperAvailable.value = await detectMusicSourceHelper();
+    }
     await ensureCurrentRoutePlaylistLoaded();
   }
 );
@@ -2212,6 +2342,7 @@ onMounted(async () => {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', updateViewportMode, { passive: true });
     }
+    musicSourceHelperAvailable.value = await detectMusicSourceHelper();
 
     await Promise.all([
       loadHomeData(),

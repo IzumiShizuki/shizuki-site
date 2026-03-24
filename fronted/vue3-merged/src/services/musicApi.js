@@ -326,6 +326,45 @@ export async function importMusicSourcePlaylists(provider, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function createMusicSourceBindSession(provider, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/bind-sessions`, {
+    method: 'POST'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getMusicSourceBindSession(provider, sessionId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedSessionId = String(sessionId || '').trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required');
+  }
+  const response = await request(
+    `/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/bind-sessions/${encodeURIComponent(normalizedSessionId)}`,
+    {
+      method: 'GET'
+    }
+  );
+  return unwrapApiResponse(response);
+}
+
+export async function completeMusicSourceBindSession(provider, sessionId, payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedSessionId = String(sessionId || '').trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required');
+  }
+  const response = await request(
+    `/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/bind-sessions/${encodeURIComponent(normalizedSessionId)}/complete`,
+    {
+      method: 'POST',
+      body: payload || {}
+    }
+  );
+  return unwrapApiResponse(response);
+}
+
 export async function searchSpotifyTracks(query, limit, authorizedFetch) {
   const payload = {
     method: 'GET',
