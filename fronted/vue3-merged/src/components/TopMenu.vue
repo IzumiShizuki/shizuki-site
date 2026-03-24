@@ -185,7 +185,7 @@ const mainNavItems = computed(() => {
     { key: 'blog', label: '博客', icon: 'far fa-file-alt' },
     { key: 'music-library', label: '音乐库', icon: 'fas fa-music' },
     { key: 'apps', label: '轻应用', icon: 'fas fa-th-large' },
-    { key: 'ai-tavern', label: 'AI酒馆', icon: 'far fa-comment-dots' }
+    { key: 'ai-hub', label: 'AI Hub', icon: 'fas fa-brain' }
   ];
 });
 

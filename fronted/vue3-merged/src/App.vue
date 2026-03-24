@@ -65,7 +65,7 @@
         </aside>
       </section>
 
-      <AiDialog v-if="showMobileAiPanel" :visible="true" mode="sheet" @close="closeAiChat" />
+      <AiDialog v-if="showSheetAiPanel" :visible="true" mode="sheet" @close="closeAiChat" />
 
       <MusicPlayer
         :track="player.currentTrack.value"
@@ -251,6 +251,7 @@ import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
 import { getAuthorProfile } from './services/authorApi';
+import { AI_CHAT_OPEN_EVENT } from './utils/aiChatBus';
 import * as wallpaperApi from './services/wallpaperApi';
 import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
 import { refreshAosManager } from './utils/aosManager';
@@ -388,7 +389,7 @@ const routeLabelMap = {
   'music-library-playlist': '音乐歌单',
   'music-library-player': '播放详情',
   apps: '轻应用',
-  'ai-tavern': 'AI酒馆',
+  'ai-hub': 'AI Hub',
   auth: '登录',
   'auth-callback': '登录回调',
   profile: '个人页面',
@@ -411,7 +412,7 @@ const isBlogRoute = computed(() => currentRouteKey.value === 'blog');
 const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
-const isAiTavernRoute = computed(() => currentRouteKey.value === 'ai-tavern');
+const isAiHubRoute = computed(() => currentRouteKey.value === 'ai-hub');
 const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall && !isBlogRoute.value);
 const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
 const authAvatarUrl = computed(() => String(auth.user.value?.avatarUrl || '').trim());
@@ -426,10 +427,10 @@ const aiChatActive = computed({
   set: (nextValue) => ui.setAiPanelOpen(nextValue)
 });
 
-const canUseSidebarAi = computed(() => !isAiTavernRoute.value && !isMobileViewport.value);
+const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.value);
 const showSidebarAiPanel = computed(() => aiChatActive.value && canUseSidebarAi.value);
 const sidebarAiColumnMounted = computed(() => canUseSidebarAi.value && (showSidebarAiPanel.value || sidebarAiColumnVisible.value));
-const showMobileAiPanel = computed(() => aiChatActive.value && !isAiTavernRoute.value && isMobileViewport.value);
+const showSheetAiPanel = computed(() => aiChatActive.value && (isMobileViewport.value || isAiHubRoute.value));
 const showBarsVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'bars');
 const showRingVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'ring');
 const shouldRunVisualizer = computed(
@@ -1885,12 +1886,15 @@ function toggleMenu() {
 }
 
 function toggleAiChat() {
-  if (isAiTavernRoute.value) return;
   aiChatActive.value = !aiChatActive.value;
 }
 
 function closeAiChat() {
   aiChatActive.value = false;
+}
+
+function handleAiChatOpenEvent() {
+  aiChatActive.value = true;
 }
 
 function applySiteMetaToDocument(siteMeta) {
@@ -2329,6 +2333,7 @@ onMounted(async () => {
   window.addEventListener('pageshow', onPageShow);
   window.addEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
   window.addEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, handleAuthorProfileCacheUpdated);
+  window.addEventListener(AI_CHAT_OPEN_EVENT, handleAiChatOpenEvent);
 
   if (!runtimeGuards.disableGlobalPointerHooks) {
     window.addEventListener('keydown', onGlobalHotkey);
@@ -2361,6 +2366,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pageshow', onPageShow);
   window.removeEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
   window.removeEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, handleAuthorProfileCacheUpdated);
+  window.removeEventListener(AI_CHAT_OPEN_EVENT, handleAiChatOpenEvent);
   window.removeEventListener('keydown', onGlobalHotkey);
   window.removeEventListener('pointerdown', onGlobalPointerDown, true);
   window.removeEventListener('pointermove', onGlobalPointerMove, true);

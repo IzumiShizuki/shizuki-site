@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import AiTavernPage from '../pages/AiTavernPage.vue';
+import AiHubPage from '../pages/AiHubPage.vue';
 import AdminPage from '../pages/AdminPage.vue';
 import AuthorPage from '../pages/AuthorPage.vue';
 import AuthCallbackPage from '../pages/AuthCallbackPage.vue';
@@ -22,7 +22,7 @@ export const routePathByKey = {
   blog: '/blog',
   'music-library': '/music-library',
   apps: '/apps',
-  'ai-tavern': '/ai-tavern',
+  'ai-hub': '/ai-hub',
   auth: '/auth',
   profile: '/profile',
   admin: '/admin',
@@ -52,7 +52,7 @@ const routes = [
     ]
   },
   { path: '/apps', name: 'apps', component: AppsPage },
-  { path: '/ai-tavern', name: 'ai-tavern', component: AiTavernPage },
+  { path: '/ai-hub', alias: '/ai-tavern', name: 'ai-hub', component: AiHubPage },
   { path: '/auth', name: 'auth', component: AuthPage },
   { path: '/auth/callback', name: 'auth-callback', component: AuthCallbackPage },
   { path: '/profile', name: 'profile', component: ProfilePage, meta: { requiresAuth: true } },
