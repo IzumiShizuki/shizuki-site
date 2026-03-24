@@ -173,7 +173,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import mermaid from 'mermaid';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
@@ -492,6 +492,29 @@ async function loadBoardIntoCanvas(boardId) {
   }
 }
 
+async function switchBoard(nextBoardId, options = {}) {
+  const targetBoardId = Number(nextBoardId || 0);
+  if (!targetBoardId) return;
+  const previousBoardId = Number(activeBoardId.value || 0);
+  const shouldFlushPrev = options.flushPrev !== false;
+  const shouldClearBeforeLoad = options.clearBeforeLoad !== false;
+
+  switchingBoard = true;
+  try {
+    if (shouldFlushPrev && previousBoardId > 0 && previousBoardId !== targetBoardId) {
+      await flushBoardById(previousBoardId, true);
+    }
+    activeBoardId.value = targetBoardId;
+    await nextTick();
+    if (shouldClearBeforeLoad && boardBridge?.api?.isReady()) {
+      boardBridge.api.clear();
+    }
+    await loadBoardIntoCanvas(targetBoardId);
+  } finally {
+    switchingBoard = false;
+  }
+}
+
 function schedulePersist(boardId) {
   if (persistTimer) {
     window.clearTimeout(persistTimer);
@@ -602,7 +625,7 @@ async function createBoard() {
     const local = createDefaultLocalBoard(boards.value.length + 1);
     boards.value = sortBoards([...boards.value, local]);
     persistGuestBoards();
-    activeBoardId.value = local.whiteboardId;
+    await switchBoard(local.whiteboardId);
     setInfo('已创建本地画板');
     return;
   }
@@ -621,7 +644,7 @@ async function createBoard() {
     const mapped = mapBoardRecord(created);
     boards.value = sortBoards([...boards.value, mapped]);
     persistRemoteCacheBoards();
-    activeBoardId.value = mapped.whiteboardId;
+    await switchBoard(mapped.whiteboardId);
     setInfo('画板创建成功');
   } catch (error) {
     setError(error?.message || '画板创建失败');
@@ -647,12 +670,14 @@ async function removeBoard() {
       const fallback = createDefaultLocalBoard(1);
       boards.value = [fallback];
     }
-    activeBoardId.value = Number(boards.value[0].whiteboardId);
     if (auth.isAuthenticated.value) {
       persistRemoteCacheBoards();
     } else {
       persistGuestBoards();
     }
+    await switchBoard(Number(boards.value[0].whiteboardId), {
+      flushPrev: false
+    });
     setInfo('画板已删除');
   } catch (error) {
     setError(error?.message || '删除画板失败');
@@ -824,12 +849,16 @@ watch(
   () => activeBoardId.value,
   async (next, prev) => {
     if (!next || Number(next) <= 0) return;
+    if (switchingBoard) return;
     if (Number(prev) > 0 && Number(prev) !== Number(next)) {
       switchingBoard = true;
       await flushBoardById(prev, true);
       switchingBoard = false;
     }
     await loadBoardIntoCanvas(next);
+  },
+  {
+    flush: 'sync'
   }
 );
 
@@ -1040,13 +1069,481 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   overflow: hidden;
-  background: rgba(16, 27, 48, 0.26);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(220, 232, 255, 0.18)),
+    rgba(233, 240, 255, 0.72);
 }
 
-.canvas-host,
-.board-canvas-react-host {
+.canvas-host {
   width: 100%;
   height: 100%;
+}
+
+.canvas-host {
+  position: relative;
+}
+
+:deep(.board-canvas-react-host) {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(235, 242, 255, 0.74)),
+    linear-gradient(90deg, rgba(166, 185, 220, 0.12) 1px, transparent 1px),
+    linear-gradient(rgba(166, 185, 220, 0.12) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+  background-position: 0 0, 0 0, 0 0;
+}
+
+:deep(.board-canvas-react-host__surface) {
+  position: absolute;
+  inset: 0;
+}
+
+:deep(.board-canvas-react-host .tl-container),
+:deep(.board-canvas-react-host .tl-canvas),
+:deep(.board-canvas-react-host .tl-background),
+:deep(.board-canvas-react-host .tl-background__wrapper) {
+  background: transparent !important;
+}
+
+:deep(.board-canvas-react-host .board-snap-indicator .tl-snap-indicator) {
+  stroke: rgba(122, 154, 228, 0.9) !important;
+  stroke-dasharray: 7 5;
+  stroke-linecap: round;
+  stroke-width: calc(1.15px * var(--tl-scale));
+}
+
+:deep(.board-canvas-react-host .board-snap-indicator--gaps .tl-snap-indicator) {
+  stroke: rgba(168, 190, 238, 0.88) !important;
+}
+
+:deep(.board-canvas-react-host .board-snap-indicator .tl-snap-point) {
+  stroke: rgba(122, 154, 228, 0.56) !important;
+  opacity: 0.42;
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay) {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 26;
+}
+
+:deep(.board-canvas-react-host .board-connect-preview) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 25;
+}
+
+:deep(.board-canvas-react-host .board-connect-preview__path) {
+  fill: none;
+  stroke: rgba(105, 152, 255, 0.96);
+  stroke-width: 2.2px;
+  stroke-dasharray: 8 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 6px rgba(80, 123, 216, 0.22));
+}
+
+:deep(.board-canvas-react-host .board-connect-preview__target) {
+  fill: rgba(120, 166, 255, 0.08);
+  stroke: rgba(102, 150, 255, 0.92);
+  stroke-width: 1.8px;
+  stroke-dasharray: 7 5;
+  filter: drop-shadow(0 4px 10px rgba(79, 116, 204, 0.16));
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__button) {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  border-radius: 999px;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__button:hover) {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__button:active) {
+  transform: translate(-50%, -50%) scale(0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__ring),
+:deep(.board-canvas-react-host .board-connect-overlay__core) {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  border-radius: 999px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__ring) {
+  width: 11px;
+  height: 11px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1.4px solid rgba(125, 160, 235, 0.92);
+  box-shadow: 0 1px 4px rgba(73, 98, 145, 0.24);
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__core) {
+  width: 6px;
+  height: 6px;
+  background: rgba(116, 149, 235, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__button:active .board-connect-overlay__ring) {
+  background: rgba(245, 248, 255, 0.98);
+  border-color: rgba(91, 128, 224, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-overlay__button:active .board-connect-overlay__core) {
+  background: rgba(88, 124, 224, 1);
+}
+
+:deep(.board-left-palette-host),
+:deep(.board-right-style-host),
+:deep(.board-zoom-host) {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
+}
+
+:deep(.board-left-palette-host) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 60px 14px 14px;
+}
+
+:deep(.board-canvas-react-host .tlui-menu-zone) {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  z-index: 28;
+}
+
+:deep(.board-canvas-react-host .tlui-menu-zone .tlui-toolbar) {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(122, 130, 148, 0.98), rgba(98, 107, 126, 0.98));
+  backdrop-filter: blur(4px);
+  box-shadow:
+    0 14px 30px rgba(18, 24, 36, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+:deep(.board-canvas-react-host .tlui-menu-zone .tlui-button) {
+  color: rgba(250, 252, 255, 0.98);
+}
+
+:deep(.board-canvas-react-host .tlui-menu-zone .tlui-button:hover) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+:deep(.board-canvas-react-host .tlui-menu-zone .tlui-button__label),
+:deep(.board-canvas-react-host .tlui-menu-zone [data-testid='main-menu.button']) {
+  color: rgba(250, 252, 255, 0.98);
+}
+
+:deep(.board-left-palette) {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 164px;
+  max-width: 164px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(123, 131, 149, 0.98), rgba(97, 107, 126, 0.98));
+  backdrop-filter: blur(4px);
+  box-shadow:
+    0 14px 30px rgba(18, 24, 36, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: auto;
+}
+
+:deep(.board-left-palette__group) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+:deep(.board-left-palette__group--extra) {
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+:deep(.board-left-palette__tool),
+:deep(.board-left-palette__toggle) {
+  width: 100%;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(252, 253, 255, 0.98);
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.14s ease, background-color 0.16s ease, border-color 0.16s ease;
+}
+
+:deep(.board-left-palette__tool:hover),
+:deep(.board-left-palette__toggle:hover) {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(190, 225, 255, 0.62);
+}
+
+:deep(.board-left-palette__tool.is-selected) {
+  background:
+    linear-gradient(180deg, rgba(151, 183, 235, 0.62), rgba(126, 160, 218, 0.72));
+  border-color: rgba(181, 217, 255, 0.82);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 8px 18px rgba(89, 119, 173, 0.18);
+}
+
+:deep(.board-left-palette__tool:active),
+:deep(.board-left-palette__toggle:active) {
+  transform: translateY(0);
+}
+
+:deep(.board-left-palette__tool i),
+:deep(.board-left-palette__toggle i) {
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.95;
+}
+
+:deep(.board-left-palette__tool span),
+:deep(.board-left-palette__toggle span) {
+  white-space: nowrap;
+}
+
+:deep(.board-left-palette__guide) {
+  position: absolute;
+  top: 6px;
+  left: calc(100% + 10px);
+  width: 236px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(166, 216, 255, 0.52);
+  background:
+    linear-gradient(180deg, rgba(115, 124, 143, 0.98), rgba(91, 101, 120, 0.98));
+  box-shadow: 0 14px 28px rgba(10, 16, 26, 0.26);
+}
+
+:deep(.board-left-palette__guide p) {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(243, 248, 255, 0.96);
+}
+
+:deep(.board-left-palette__guide button) {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(240, 246, 255, 0.95);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+:deep(.board-left-palette__guide button:hover) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+:deep(.board-right-style-host) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 14px;
+}
+
+:deep(.board-right-style) {
+  width: 288px;
+  max-width: min(288px, calc(100vw - 48px));
+  max-height: calc(100% - 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(122, 130, 148, 0.98), rgba(98, 107, 126, 0.98));
+  backdrop-filter: blur(4px);
+  box-shadow:
+    0 14px 32px rgba(18, 24, 36, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+:deep(.board-right-style__head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(244, 248, 255, 0.96);
+  font-size: 13px;
+}
+
+:deep(.board-right-style__head strong) {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+:deep(.board-right-style__toggle) {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(250, 252, 255, 0.98);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+:deep(.board-right-style__body) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+:deep(.board-right-style__placeholder) {
+  margin: 0;
+  padding: 12px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(240, 245, 255, 0.92);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+:deep(.board-right-style .tlui-style-panel__wrapper) {
+  margin: 0;
+  max-height: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+:deep(.board-right-style .tlui-style-panel) {
+  width: 100%;
+  max-width: none;
+}
+
+:deep(.board-right-style .tlui-style-panel__section) {
+  border-radius: 10px;
+  overflow: visible;
+}
+
+:deep(.board-zoom-host) {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 14px;
+}
+
+:deep(.board-zoom-panel) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(122, 130, 148, 0.98), rgba(98, 107, 126, 0.98));
+  backdrop-filter: blur(4px);
+  box-shadow:
+    0 12px 28px rgba(18, 24, 36, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: auto;
+}
+
+:deep(.board-zoom-panel__btn),
+:deep(.board-zoom-panel__secondary) {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(252, 253, 255, 0.98);
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.14s ease;
+}
+
+:deep(.board-zoom-panel__btn:hover),
+:deep(.board-zoom-panel__secondary:hover) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(190, 225, 255, 0.62);
+  transform: translateY(-1px);
+}
+
+:deep(.board-zoom-panel__btn:disabled),
+:deep(.board-zoom-panel__secondary:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+:deep(.board-zoom-panel__btn) {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+:deep(.board-zoom-panel__secondary) {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+:deep(.board-zoom-panel__value) {
+  min-width: 52px;
+  text-align: center;
+  color: rgba(241, 246, 255, 0.94);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .canvas-mask {
@@ -1088,6 +1585,16 @@ onBeforeUnmount(() => {
     min-width: 0;
     width: 100%;
   }
+
+  :deep(.board-right-style-host) {
+    padding: 14px 14px 72px;
+    align-items: flex-end;
+  }
+
+  :deep(.board-right-style.is-compact) {
+    width: min(320px, calc(100% - 28px));
+    max-width: min(320px, calc(100% - 28px));
+  }
 }
 
 @container lightapp-window-body (max-width: 620px) {
@@ -1098,6 +1605,63 @@ onBeforeUnmount(() => {
   .canvas-shell {
     min-height: 340px;
     height: clamp(340px, 58vh, 640px);
+  }
+
+  :deep(.board-left-palette-host) {
+    top: auto;
+    padding: 0 10px 10px;
+    align-items: flex-end;
+  }
+
+  :deep(.board-left-palette) {
+    width: calc(100% - 20px);
+    max-width: none;
+    gap: 6px;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    padding: 7px;
+  }
+
+  :deep(.board-left-palette__group),
+  :deep(.board-left-palette__group--extra) {
+    padding-top: 0;
+    border-top: none;
+    flex-direction: row;
+  }
+
+  :deep(.board-left-palette__guide) {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: auto;
+  }
+
+  :deep(.board-left-palette__tool),
+  :deep(.board-left-palette__toggle) {
+    width: auto;
+    min-width: 74px;
+    justify-content: center;
+    padding: 8px 9px;
+  }
+
+  :deep(.board-right-style-host) {
+    padding: 10px 10px 70px;
+  }
+
+  :deep(.board-right-style) {
+    width: calc(100% - 20px);
+    max-width: none;
+  }
+
+  :deep(.board-zoom-host) {
+    padding: 10px 10px 68px;
+  }
+
+  :deep(.board-zoom-panel) {
+    gap: 4px;
+    padding: 7px;
   }
 
   .mermaid-panel textarea {
