@@ -7,6 +7,7 @@ import AuthPage from '../pages/AuthPage.vue';
 import AppsPage from '../pages/AppsPage.vue';
 import BlogListPage from '../pages/BlogListPage.vue';
 import BlogPage from '../pages/BlogPage.vue';
+import BlogPresentationPage from '../pages/BlogPresentationPage.vue';
 import HomePage from '../pages/HomePage.vue';
 import MusicLibraryPage from '../pages/MusicLibraryPage.vue';
 import MusicLibraryHomeView from '../pages/music/MusicLibraryHomeView.vue';
@@ -39,6 +40,7 @@ const routes = [
   { path: '/', name: 'home', component: HomePage },
   { path: '/blog', name: 'blog', component: BlogListPage },
   { path: '/blog/editor/:postId?', name: 'blog-editor', component: BlogPage, meta: { requiresAuth: true } },
+  { path: '/blog/:postId/presentation', name: 'blog-presentation', component: BlogPresentationPage },
   { path: '/blog/:postId', name: 'blog-detail', component: BlogPage },
   {
     path: '/music-library',

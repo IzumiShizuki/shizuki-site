@@ -3,6 +3,7 @@ import {
   detectMarkdownSignals,
   escapeMarkdownPlainText,
   looksLikeMarkdown,
+  parseSlidevDeck,
   renderMarkdownDocument
 } from './blogMarkdown';
 
@@ -35,5 +36,35 @@ describe('blogMarkdown', () => {
     const markdown = '[xss](javascript:alert(1))';
     const rendered = renderMarkdownDocument(markdown);
     expect(rendered.html).not.toContain('href="javascript:');
+  });
+
+  it('parses slidev deck into ordered slides', () => {
+    const deck = [
+      '---',
+      'theme: default',
+      '---',
+      '# Cover',
+      '',
+      'Summary',
+      '',
+      '---',
+      'layout: section',
+      '',
+      '## Deep Dive',
+      '',
+      '- item',
+      '',
+      '---',
+      'Plain fallback title'
+    ].join('\n');
+
+    const slides = parseSlidevDeck(deck);
+
+    expect(slides).toHaveLength(3);
+    expect(slides[0].index).toBe(1);
+    expect(slides[0].title).toBe('Cover');
+    expect(slides[1].title).toBe('Deep Dive');
+    expect(slides[2].title).toBe('Plain fallback title');
+    expect(slides[1].markdown).not.toContain('layout: section');
   });
 });

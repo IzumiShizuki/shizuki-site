@@ -198,30 +198,29 @@ import LightAppRailEditor from '../components/lightapps/LightAppRailEditor.vue';
 import BalanceLedgerWindow from '../components/lightapps/balance/BalanceLedgerWindow.vue';
 import {
   BALANCE_SECTION_ITEMS,
-  releaseBalanceWindowState,
   resolveBalanceWindowState,
   setBalanceWindowSection
 } from '../components/lightapps/balance/balanceWindowState';
 import PomodoroWindow from '../components/lightapps/pomodoro/PomodoroWindow.vue';
 import {
   POMODORO_MODE_ITEMS,
-  releasePomodoroWindowState,
   resolvePomodoroWindowState,
   setPomodoroWindowMode
 } from '../components/lightapps/pomodoro/pomodoroWindowState';
 import TimePrismTodoSuiteWindow from '../components/lightapps/timeprism/TimePrismTodoSuiteWindow.vue';
 import {
-  releaseTimePrismSuiteSession,
   resolveTimePrismSuiteSession,
   setSuiteActiveModule,
   TIMEPRISM_MODULE_ITEMS
 } from '../components/lightapps/timeprism/timePrismSuiteState';
 import UrlLinksWindow from '../components/lightapps/url/UrlLinksWindow.vue';
 import BoardCanvasWindow from '../components/lightapps/board/BoardCanvasWindow.vue';
+import BlogSlidevWindow from '../components/lightapps/blog/BlogSlidevWindow.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { listLightAppUrlLinks } from '../services/lightAppsApi';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { LIGHT_APPS_CATALOG, getLightAppByCode, isKnownLightAppCode } from '../utils/lightAppsCatalog';
+import { LIGHT_APP_SHARED_WINDOW_IDS } from '../utils/lightAppWindowRuntime';
 import {
   createLocalEntityId,
   readGuestLightAppData,
@@ -238,6 +237,7 @@ import {
   readLightAppsState,
   writeLightAppsState
 } from '../utils/lightAppsState';
+import { resolveBlogPresentationWindowState } from '../components/lightapps/blog/blogPresentationWindowState';
 
 const DRAG_MIME = 'application/x-shizuki-lightapp-item';
 
@@ -252,20 +252,13 @@ const railEditorRef = ref(null);
 
 const auth = useAuthSession();
 
-const PAGE_WINDOW_IDS = Object.freeze({
-  'timeprism-todo': 910001,
-  'pomodoro-timer': 910002,
-  'balance-ledger': 910003,
-  'url-links': 910004,
-  'board-canvas': 910005
-});
-
 const PAGE_COMPONENT_MAP = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
   'pomodoro-timer': PomodoroWindow,
   'balance-ledger': BalanceLedgerWindow,
   'url-links': UrlLinksWindow,
-  'board-canvas': BoardCanvasWindow
+  'board-canvas': BoardCanvasWindow,
+  'blog-slidev': BlogSlidevWindow
 });
 
 let syncTimer = 0;
@@ -273,7 +266,7 @@ let syncHintTimer = 0;
 let remoteHydrating = false;
 
 const activePageApp = computed(() => getLightAppByCode(activePageCode.value));
-const activePageWindowId = computed(() => PAGE_WINDOW_IDS[activePageCode.value] || 0);
+const activePageWindowId = computed(() => LIGHT_APP_SHARED_WINDOW_IDS[activePageCode.value] || 0);
 const activePageComponent = computed(() => PAGE_COMPONENT_MAP[activePageCode.value] || null);
 const hasActivePageOverlay = computed(() => Boolean(activePageApp.value && activePageComponent.value));
 const isUrlSourceIconMode = computed(() => urlSourceViewMode.value === 'icon');
@@ -951,13 +944,15 @@ function openAppInPage(code) {
   const app = getLightAppByCode(code);
   if (!app || !isEnabled(code)) return;
   activePageCode.value = code;
-  const windowId = PAGE_WINDOW_IDS[code];
+  const windowId = LIGHT_APP_SHARED_WINDOW_IDS[code];
   if (code === 'timeprism-todo') {
     resolveTimePrismSuiteSession(windowId);
   } else if (code === 'pomodoro-timer') {
     resolvePomodoroWindowState(windowId);
   } else if (code === 'balance-ledger') {
     resolveBalanceWindowState(windowId);
+  } else if (code === 'blog-slidev') {
+    resolveBlogPresentationWindowState(windowId);
   }
 }
 
@@ -1105,10 +1100,6 @@ onBeforeUnmount(() => {
     window.clearTimeout(syncHintTimer);
     syncHintTimer = 0;
   }
-
-  releaseTimePrismSuiteSession(PAGE_WINDOW_IDS['timeprism-todo']);
-  releasePomodoroWindowState(PAGE_WINDOW_IDS['pomodoro-timer']);
-  releaseBalanceWindowState(PAGE_WINDOW_IDS['balance-ledger']);
 
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', onOverlayKeydown);

@@ -212,6 +212,30 @@
                   </button>
                   <div class="detail-action-right">
                     <button
+                      v-if="detailPresentationReady"
+                      type="button"
+                      class="mini-btn ripple-trigger"
+                      @click="openDetailPresentationPreview"
+                    >
+                      预览演示
+                    </button>
+                    <button
+                      v-if="detailPresentationReady"
+                      type="button"
+                      class="mini-btn ripple-trigger"
+                      @click="openDetailPresentationInLightApp"
+                    >
+                      轻应用打开
+                    </button>
+                    <button
+                      v-if="detailPresentationPptReady"
+                      type="button"
+                      class="mini-btn ripple-trigger"
+                      @click="downloadDetailPresentationPpt"
+                    >
+                      下载 PPT
+                    </button>
+                    <button
                       v-if="detailState.post.editable"
                       type="button"
                       class="icon-circle-btn ripple-trigger"
@@ -265,106 +289,43 @@
           <p v-else class="empty-text">请选择一篇文章进入详情。</p>
         </div>
 
-        <div v-else class="editor-view" :class="{ 'meta-expanded': !editorMetaCollapsed }">
+        <div v-else class="editor-view">
           <div class="editor-topbar liquid-material">
             <div class="editor-topbar-main">
               <h3>文章编辑</h3>
               <span class="editor-topbar-mode">{{ editorMode === 'wysiwyg' ? '富文本模式' : 'Markdown 源码模式' }}</span>
             </div>
             <div class="editor-topbar-actions">
-              <button type="button" class="mini-btn ripple-trigger editor-mode-toggle" @click="toggleEditorMode">
-                {{ editorMode === 'wysiwyg' ? '切到源码' : '切到富文本' }}
+              <button
+                type="button"
+                class="mini-btn ripple-trigger editor-topbar-btn"
+                :class="{ active: editorSidebarView === 'info' }"
+                :disabled="editorSidebarView === 'info'"
+                @click="setEditorSidebarView('info')"
+              >
+                文章信息
+              </button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger editor-topbar-btn editor-mode-toggle"
+                :class="{ active: editorSidebarView === 'markdown' }"
+                :disabled="editorSidebarView === 'markdown'"
+                @click="setEditorSidebarView('markdown')"
+              >
+                切换源码
+              </button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger editor-topbar-btn editor-mode-toggle"
+                :class="{ active: editorSidebarView === 'wysiwyg' }"
+                :disabled="editorSidebarView === 'wysiwyg'"
+                @click="setEditorSidebarView('wysiwyg')"
+              >
+                切换富文本
               </button>
               <button type="button" class="mini-btn ripple-trigger editor-exit-btn" @click="exitEditor">退出编辑</button>
             </div>
           </div>
-
-          <section class="editor-meta liquid-material" :class="{ collapsed: editorMetaCollapsed }">
-            <div class="editor-meta-head">
-              <h3>文章信息</h3>
-              <button type="button" class="mini-btn ripple-trigger editor-meta-toggle" @click="toggleEditorMetaCollapsed">
-                <i :class="editorMetaCollapsed ? 'fas fa-angle-down' : 'fas fa-angle-up'"></i>
-                {{ editorMetaCollapsed ? '展开' : '收起' }}
-              </button>
-            </div>
-            <SubtleScrollArea tag="div" class="editor-meta-body" :class="{ collapsed: editorMetaCollapsed }">
-              <div class="editor-grid">
-                <label class="field">
-                  <span>标题</span>
-                  <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
-                </label>
-                <label class="field">
-                  <span>分类</span>
-                  <input v-model.trim="writerState.editor.categoryCode" type="text" class="field-input" placeholder="如：life / game / dev" />
-                </label>
-                <label class="field field-wide">
-                  <span>摘要</span>
-                  <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
-                </label>
-                <label class="field">
-                  <span>Slug（可选）</span>
-                  <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
-                </label>
-                <label class="field">
-                  <span>封面 URL（可选）</span>
-                  <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
-                </label>
-                <label class="field">
-                  <span>可见性</span>
-                  <select v-model="writerState.editor.visibility" class="field-input">
-                    <option value="PUBLIC">PUBLIC</option>
-                    <option value="PRIVATE">PRIVATE</option>
-                    <option value="GROUP">GROUP</option>
-                  </select>
-                </label>
-                <label class="field field-wide">
-                  <span>标签（逗号分隔）</span>
-                  <input v-model.trim="writerState.editor.tagsText" type="text" class="field-input" placeholder="#spring,#vue,#ai" />
-                </label>
-                <label class="field field-wide">
-                  <span>GROUP 分组（仅 GROUP 可见性生效）</span>
-                  <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
-                </label>
-                <label class="field field-wide file-field">
-                  <span>Markdown 文件上传（relay）</span>
-                  <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
-                </label>
-              </div>
-            </SubtleScrollArea>
-          </section>
-
-          <div class="editor-actions">
-            <div class="editor-actions-main">
-              <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
-              <button
-                type="button"
-                class="mini-btn ripple-trigger"
-                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
-                @click="handlePublish"
-              >
-                发布
-              </button>
-              <button
-                type="button"
-                class="mini-btn ripple-trigger"
-                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
-                @click="handleUnpublish"
-              >
-                下线
-              </button>
-            </div>
-            <div class="editor-actions-side">
-              <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
-              <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
-              <span class="editor-status">
-                {{ writerState.editor.statusCode || 'DRAFT' }}
-                <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
-              </span>
-            </div>
-          </div>
-
-          <p v-if="writerState.error" class="error-text">{{ writerState.error }}</p>
-          <p v-if="writerState.notice" class="notice-text">{{ writerState.notice }}</p>
 
           <div class="editor-body">
             <section class="editor-pane editor-pane-full">
@@ -387,7 +348,7 @@
 
       <aside class="right-panel liquid-material">
         <div class="toc-head">
-          <h2>文内目录</h2>
+          <h2>{{ rightPanelTitle }}</h2>
           <button
             v-if="viewMode === 'detail'"
             type="button"
@@ -400,9 +361,137 @@
           </button>
         </div>
 
-        <template v-if="viewMode === 'detail' && detailState.post">
+        <template v-if="viewMode === 'editor' && editorSidebarView === 'info'">
+          <SubtleScrollArea tag="section" class="editor-info-panel">
+            <div class="editor-info-panel-actions">
+              <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
+                @click="handlePublish"
+              >
+                发布
+              </button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
+                @click="handleUnpublish"
+              >
+                下线
+              </button>
+            </div>
+
+            <section class="editor-info-section liquid-material">
+              <div class="editor-info-section-head">
+                <h3>演示文稿</h3>
+                <span class="editor-info-section-status">{{ editorPresentationStatusText }}</span>
+              </div>
+              <div class="editor-info-section-actions">
+                <button
+                  type="button"
+                  class="mini-btn ripple-trigger"
+                  :disabled="writerState.saving || editorPresentationState.generating"
+                  @click="handleGeneratePresentation"
+                >
+                  {{ editorPresentationReady ? '重新生成' : '生成演示文稿' }}
+                </button>
+                <button
+                  type="button"
+                  class="mini-btn ripple-trigger"
+                  :disabled="!editorPresentationReady"
+                  @click="openEditorPresentationPreview"
+                >
+                  在线预览
+                </button>
+                <button
+                  type="button"
+                  class="mini-btn ripple-trigger"
+                  :disabled="!editorPresentationReady"
+                  @click="openEditorPresentationInLightApp"
+                >
+                  轻应用打开
+                </button>
+                <button
+                  type="button"
+                  class="mini-btn ripple-trigger"
+                  :disabled="!editorPresentationPptReady"
+                  @click="downloadEditorPresentationPpt"
+                >
+                  下载 PPT
+                </button>
+              </div>
+              <p v-if="writerState.editor.postId <= 0" class="side-tip">首次生成前会先自动保存草稿。</p>
+              <p v-else-if="editorPresentationState.data?.generatedAt" class="side-tip">
+                最近生成：{{ formatDateTime(editorPresentationState.data.generatedAt) }}
+                <span v-if="editorPresentationState.data?.templateVersion"> · {{ editorPresentationState.data.templateVersion }}</span>
+              </p>
+              <p v-if="editorPresentationState.error" class="error-text editor-meta-message">{{ editorPresentationState.error }}</p>
+            </section>
+
+            <div class="editor-grid">
+              <label class="field field-wide">
+                <span>标题</span>
+                <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
+              </label>
+              <label class="field field-wide">
+                <span>分类</span>
+                <input v-model.trim="writerState.editor.categoryCode" type="text" class="field-input" placeholder="如：life / game / dev" />
+              </label>
+              <label class="field field-wide">
+                <span>摘要</span>
+                <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
+              </label>
+              <label class="field field-wide">
+                <span>Slug（可选）</span>
+                <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
+              </label>
+              <label class="field field-wide">
+                <span>封面 URL（可选）</span>
+                <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
+              </label>
+              <label class="field field-wide">
+                <span>可见性</span>
+                <select v-model="writerState.editor.visibility" class="field-input">
+                  <option value="PUBLIC">PUBLIC</option>
+                  <option value="PRIVATE">PRIVATE</option>
+                  <option value="GROUP">GROUP</option>
+                </select>
+              </label>
+              <label class="field field-wide">
+                <span>标签（逗号分隔）</span>
+                <input v-model.trim="writerState.editor.tagsText" type="text" class="field-input" placeholder="#spring,#vue,#ai" />
+              </label>
+              <label class="field field-wide">
+                <span>GROUP 分组（仅 GROUP 可见性生效）</span>
+                <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
+              </label>
+              <label class="field field-wide file-field">
+                <span>Markdown 文件上传（relay）</span>
+                <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
+              </label>
+            </div>
+
+            <div class="editor-info-panel-footer">
+              <div class="editor-info-panel-footer-actions">
+                <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
+                <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
+              </div>
+              <div class="editor-info-panel-status">
+                <span class="editor-status">
+                  {{ writerState.editor.statusCode || 'DRAFT' }}
+                  <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
+                </span>
+              </div>
+              <p v-if="writerState.error" class="error-text editor-meta-message">{{ writerState.error }}</p>
+              <p v-if="writerState.notice" class="notice-text editor-meta-message">{{ writerState.notice }}</p>
+            </div>
+          </SubtleScrollArea>
+        </template>
+        <template v-else-if="showTocPanel">
           <div class="toc-body">
-            <div class="toc-metrics">
+            <div v-if="viewMode === 'detail' && detailState.post" class="toc-metrics">
               <p>L{{ activeLine }} / {{ detailLineCount }}</p>
               <p>{{ detailWordCount }} 字 · {{ detailReadingMinutes }} 分钟</p>
               <p>已读 {{ progressPercent }}%</p>
@@ -421,19 +510,20 @@
                   'has-next-sibling': heading.hasNextSibling
                 }"
                 :style="tocIndentStyle(heading)"
-                @click="scrollToHeading(heading.id)"
+                @click="handleTocItemClick(heading.id)"
               >
                 <span class="toc-branch" aria-hidden="true"></span>
                 <span class="toc-icon" aria-hidden="true">
                   <i :class="resolveTocIcon(heading.level, heading.id === activeHeadingId)"></i>
                 </span>
+                <span class="toc-level-badge">H{{ heading.level }}</span>
                 <span class="toc-label">{{ heading.text }}</span>
               </button>
-              <p v-if="!visibleTocTreeHeadings.length" class="side-tip">当前文章暂无可展示目录。</p>
+              <p v-if="!visibleTocTreeHeadings.length" class="side-tip">当前内容暂无可展示目录。</p>
             </SubtleScrollArea>
           </div>
         </template>
-        <p v-else class="side-tip toc-empty">进入文章详情后，这里会显示 TOC 与阅读信息。</p>
+        <p v-else class="side-tip toc-empty">进入文章详情或写文编辑后，这里会显示目录。</p>
       </aside>
     </div>
 
@@ -479,8 +569,13 @@ import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createMyPost,
+  generateMyPostPresentation,
+  getMyPostPresentation,
+  getMyPostPresentationPptDownloadUrl,
   getMyPostDetail,
   getPostDetail,
+  getPostPresentation,
+  getPostPresentationPptDownloadUrl,
   getPostSidebar,
   getPostMarkdown,
   listMyPosts,
@@ -491,6 +586,7 @@ import {
   updateMyPost
 } from '../services/blogApi';
 import { escapeMarkdownPlainText, normalizeMarkdownForEditor, renderMarkdownDocument } from '../utils/blogMarkdown';
+import { openLightAppWindow } from '../utils/lightAppWindowBus';
 
 const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
 
@@ -575,6 +671,19 @@ const downloadState = reactive({
   open: false
 });
 
+const editorPresentationState = reactive({
+  loading: false,
+  generating: false,
+  error: '',
+  data: null
+});
+
+const detailPresentationState = reactive({
+  loading: false,
+  error: '',
+  data: null
+});
+
 const routeMode = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
   if (name === 'blog-detail') return 'detail';
@@ -586,8 +695,8 @@ const viewMode = ref(routeMode.value);
 const tocMode = ref('all');
 const activeHeadingId = ref('');
 const readingProgress = ref(0);
-const editorMetaCollapsed = ref(false);
 const editorMode = ref('wysiwyg');
+const editorSidebarView = ref('wysiwyg');
 const leftNavHint = ref('');
 
 const articleScrollRef = ref(null);
@@ -599,6 +708,7 @@ const richEditorRef = ref(null);
 
 let headingDomNodes = [];
 let boundScrollRoot = null;
+let editorPresentationPollTimer = 0;
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -703,7 +813,11 @@ function collectCurrentFamilyHeadingIds(headings, activeId) {
 }
 
 const visibleTocHeadings = computed(() => {
-  const headings = Array.isArray(detailState.headings) ? detailState.headings : [];
+  const headings =
+    viewMode.value === 'editor'
+      ? (Array.isArray(editorTocHeadings.value) ? editorTocHeadings.value : [])
+      : (Array.isArray(detailState.headings) ? detailState.headings : []);
+  if (viewMode.value === 'editor') return headings;
   if (tocMode.value === 'all') return headings;
   if (!headings.length) return [];
   const visibleIds = collectCurrentFamilyHeadingIds(headings, activeHeadingId.value);
@@ -822,6 +936,21 @@ const activeLine = computed(() => {
 });
 const progressPercent = computed(() => Math.round(readingProgress.value * 100));
 const showProgressFab = computed(() => viewMode.value === 'detail' && Boolean(detailState.post));
+const editorTocHeadings = computed(() => {
+  const markdown = normalizeMarkdownForEditor(writerState.editor.markdown);
+  if (!markdown.trim()) return [];
+  return renderMarkdownDocument(markdown).headings;
+});
+const showTocPanel = computed(
+  () => (viewMode.value === 'detail' && Boolean(detailState.post)) || (viewMode.value === 'editor' && editorSidebarView.value !== 'info')
+);
+const rightPanelTitle = computed(() => (viewMode.value === 'editor' && editorSidebarView.value === 'info' ? '文章信息' : '文内目录'));
+const editorPresentationReady = computed(() => String(editorPresentationState.data?.status || '') === 'READY');
+const editorPresentationPptReady = computed(() => editorPresentationReady.value && editorPresentationState.data?.pptReady === true);
+const detailPresentationReady = computed(() => String(detailPresentationState.data?.status || '') === 'READY');
+const detailPresentationPptReady = computed(() => detailPresentationReady.value && detailPresentationState.data?.pptReady === true);
+const editorPresentationStatusText = computed(() => resolvePresentationStatusText(editorPresentationState.data, editorPresentationState.loading || editorPresentationState.generating));
+const detailPresentationStatusText = computed(() => resolvePresentationStatusText(detailPresentationState.data, detailPresentationState.loading));
 
 const progressRadius = 20;
 const progressCircumference = 2 * Math.PI * progressRadius;
@@ -915,6 +1044,31 @@ function normalizeAuthorPost(raw) {
     readingMinutes: Math.max(1, toSafeInt(raw?.readingMinutes ?? raw?.reading_minutes, 1)),
     likeCount: Math.max(0, toSafeInt(raw?.likeCount ?? raw?.like_count, 0))
   };
+}
+
+function normalizePresentation(raw) {
+  return {
+    postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
+    status: normalizeString(raw?.status, 'NOT_GENERATED').toUpperCase(),
+    slideCount: Math.max(0, toSafeInt(raw?.slideCount ?? raw?.slide_count, 0)),
+    generatedAt: raw?.generatedAt ?? raw?.generated_at ?? null,
+    templateVersion: normalizeString(raw?.templateVersion ?? raw?.template_version),
+    slidevMarkdown: normalizeString(raw?.slidevMarkdown ?? raw?.slidev_markdown),
+    pptReady: Boolean(raw?.pptReady ?? raw?.ppt_ready),
+    errorText: normalizeString(raw?.errorText ?? raw?.error_text)
+  };
+}
+
+function resolvePresentationStatusText(payload, loading = false) {
+  if (loading) return '演示文稿处理中...';
+  const status = String(payload?.status || 'NOT_GENERATED').toUpperCase();
+  if (status === 'READY') {
+    const slideCount = Math.max(0, toSafeInt(payload?.slideCount, 0));
+    return slideCount > 0 ? `已完成 · ${slideCount} 页` : '已完成';
+  }
+  if (status === 'GENERATING') return '生成中';
+  if (status === 'FAILED') return normalizeString(payload?.errorText).trim() || '生成失败';
+  return '未生成';
 }
 
 function parseCodeList(input) {
@@ -1099,6 +1253,7 @@ async function loadPostDetail(postId) {
     activeHeadingId.value = rendered.headings[0]?.id || '';
     readingProgress.value = 0;
     await loadDetailSidebarContext(normalized);
+    void loadDetailPresentation(normalized.postId);
     await nextTick();
     setupReadingScroll();
   } catch (error) {
@@ -1109,9 +1264,178 @@ async function loadPostDetail(postId) {
     detailState.renderedLineCount = 0;
     detailState.error = normalizeErrorMessage(error, '加载文章详情失败');
     resetDetailNavigationState();
+    resetDetailPresentationState();
   } finally {
     detailState.loading = false;
   }
+}
+
+function clearEditorPresentationPollTimer() {
+  if (!editorPresentationPollTimer) return;
+  window.clearTimeout(editorPresentationPollTimer);
+  editorPresentationPollTimer = 0;
+}
+
+function resetEditorPresentationState() {
+  clearEditorPresentationPollTimer();
+  editorPresentationState.loading = false;
+  editorPresentationState.generating = false;
+  editorPresentationState.error = '';
+  editorPresentationState.data = null;
+}
+
+function resetDetailPresentationState() {
+  detailPresentationState.loading = false;
+  detailPresentationState.error = '';
+  detailPresentationState.data = null;
+}
+
+async function loadEditorPresentation(postId, options = {}) {
+  const normalizedPostId = toSafeInt(postId, 0);
+  clearEditorPresentationPollTimer();
+  if (normalizedPostId <= 0) {
+    resetEditorPresentationState();
+    return null;
+  }
+  editorPresentationState.loading = options.silent === true ? editorPresentationState.loading : true;
+  editorPresentationState.error = '';
+  try {
+    const payload = normalizePresentation(await getMyPostPresentation(normalizedPostId, auth.authorizedFetch));
+    editorPresentationState.data = payload;
+    editorPresentationState.generating = payload.status === 'GENERATING';
+    if (payload.status === 'GENERATING') {
+      editorPresentationPollTimer = window.setTimeout(() => {
+        void loadEditorPresentation(normalizedPostId, { silent: true });
+      }, 2500);
+    }
+    return payload;
+  } catch (error) {
+    editorPresentationState.error = normalizeErrorMessage(error, '加载演示文稿状态失败');
+    editorPresentationState.data = null;
+    editorPresentationState.generating = false;
+    return null;
+  } finally {
+    editorPresentationState.loading = false;
+  }
+}
+
+async function loadDetailPresentation(postId) {
+  const normalizedPostId = toSafeInt(postId, 0);
+  if (normalizedPostId <= 0) {
+    resetDetailPresentationState();
+    return null;
+  }
+  detailPresentationState.loading = true;
+  detailPresentationState.error = '';
+  try {
+    const payload = normalizePresentation(await getPostPresentation(normalizedPostId, resolveAuthorizedFetch()));
+    detailPresentationState.data = payload;
+    return payload;
+  } catch (error) {
+    detailPresentationState.error = normalizeErrorMessage(error, '加载演示文稿状态失败');
+    detailPresentationState.data = null;
+    return null;
+  } finally {
+    detailPresentationState.loading = false;
+  }
+}
+
+async function handleGeneratePresentation() {
+  if (!canWrite.value) return;
+  writerState.error = '';
+  writerState.notice = '';
+  editorPresentationState.error = '';
+  try {
+    if (!writerState.editor.postId) {
+      await handleSaveDraft({ silent: true });
+    }
+    const postId = toSafeInt(writerState.editor.postId, 0);
+    if (postId <= 0) {
+      throw new Error('请先保存草稿后再生成演示文稿');
+    }
+    editorPresentationState.generating = true;
+    const payload = normalizePresentation(await generateMyPostPresentation(postId, auth.authorizedFetch));
+    editorPresentationState.data = payload;
+    writerState.notice = payload.status === 'READY' ? '演示文稿已生成' : '演示文稿生成已开始';
+    await loadEditorPresentation(postId, { silent: true });
+  } catch (error) {
+    const message = normalizeErrorMessage(error, '生成演示文稿失败');
+    editorPresentationState.error = message;
+    writerState.error = message;
+  } finally {
+    editorPresentationState.generating = false;
+  }
+}
+
+function openEditorPresentationPreview() {
+  const postId = toSafeInt(writerState.editor.postId, 0);
+  if (postId <= 0 || !editorPresentationReady.value) return;
+  router.push({ name: 'blog-presentation', params: { postId }, query: { scope: 'mine' } });
+}
+
+function openEditorPresentationInLightApp() {
+  const postId = toSafeInt(writerState.editor.postId, 0);
+  if (postId <= 0 || !editorPresentationReady.value) return;
+  openLightAppWindow('blog-slidev', {
+    source: 'blog_editor_presentation',
+    postId,
+    scope: 'mine'
+  });
+}
+
+function openDetailPresentationPreview() {
+  const postId = toSafeInt(detailState.post?.postId, 0);
+  if (postId <= 0 || !detailPresentationReady.value) return;
+  router.push({ name: 'blog-presentation', params: { postId } });
+}
+
+function openDetailPresentationInLightApp() {
+  const postId = toSafeInt(detailState.post?.postId, 0);
+  if (postId <= 0 || !detailPresentationReady.value) return;
+  openLightAppWindow('blog-slidev', {
+    source: 'blog_detail_presentation',
+    postId,
+    scope: 'public'
+  });
+}
+
+async function openPresentationDownloadUrl(loader, postId, onError) {
+  try {
+    const payload = await loader(postId);
+    const url = normalizeString(payload?.downloadUrl ?? payload?.download_url).trim();
+    if (!url) {
+      throw new Error('下载地址为空');
+    }
+    window.open(url, '_blank', 'noopener');
+  } catch (error) {
+    onError(normalizeErrorMessage(error, '获取 PPT 下载地址失败'));
+  }
+}
+
+async function downloadEditorPresentationPpt() {
+  const postId = toSafeInt(writerState.editor.postId, 0);
+  if (postId <= 0 || !editorPresentationPptReady.value) return;
+  await openPresentationDownloadUrl(
+    (id) => getMyPostPresentationPptDownloadUrl(id, auth.authorizedFetch),
+    postId,
+    (message) => {
+      editorPresentationState.error = message;
+      writerState.error = message;
+    }
+  );
+}
+
+async function downloadDetailPresentationPpt() {
+  const postId = toSafeInt(detailState.post?.postId, 0);
+  if (postId <= 0 || !detailPresentationPptReady.value) return;
+  await openPresentationDownloadUrl(
+    (id) => getPostPresentationPptDownloadUrl(id, resolveAuthorizedFetch()),
+    postId,
+    (message) => {
+      detailPresentationState.error = message;
+      detailState.error = message;
+    }
+  );
 }
 
 async function loadMyPosts() {
@@ -1303,12 +1627,13 @@ function resetEditorForm() {
   writerState.editor.markdownKey = '';
   writerState.editor.statusCode = 'DRAFT';
   writerState.editor.lastRelayedSignature = '';
+  resetEditorPresentationState();
 }
 
 function startNewDraft() {
   resetEditorForm();
-  editorMetaCollapsed.value = false;
   editorMode.value = 'wysiwyg';
+  editorSidebarView.value = 'wysiwyg';
   switchViewMode('editor');
 }
 
@@ -1411,6 +1736,7 @@ async function openMinePost(postId, options = {}) {
   try {
     const payload = await getMyPostDetail(normalizedPostId, auth.authorizedFetch);
     applyPostDetailToEditor(payload);
+    await loadEditorPresentation(normalizedPostId);
     if (options.routeSync !== false && routeMode.value !== 'editor') {
       await router.push({ name: 'blog-editor', params: { postId: normalizedPostId } });
       return;
@@ -1438,8 +1764,13 @@ function refreshEditorLayout() {
   editor.refreshLayout();
 }
 
-async function toggleEditorMetaCollapsed() {
-  editorMetaCollapsed.value = !editorMetaCollapsed.value;
+async function setEditorSidebarView(mode) {
+  const normalizedMode = String(mode || '').toLowerCase();
+  const nextView = normalizedMode === 'info' ? 'info' : normalizedMode === 'markdown' ? 'markdown' : 'wysiwyg';
+  editorSidebarView.value = nextView;
+  if (nextView === 'markdown' || nextView === 'wysiwyg') {
+    setEditorMode(nextView);
+  }
   await nextTick();
   refreshEditorLayout();
 }
@@ -1716,6 +2047,16 @@ function scrollToHeading(headingId) {
   });
 }
 
+function handleTocItemClick(headingId) {
+  if (!headingId) return;
+  if (viewMode.value === 'detail') {
+    scrollToHeading(headingId);
+    return;
+  }
+  activeHeadingId.value = String(headingId);
+  richEditorRef.value?.focus?.();
+}
+
 function scrollToTop() {
   const root = resolveScrollRoot();
   if (!root) return;
@@ -1775,17 +2116,30 @@ function handleRichEditorPasteCandidate(clipboardText) {
 }
 
 function handleEditorModeChange(mode) {
-  editorMode.value = String(mode || '').toLowerCase() === 'markdown' ? 'markdown' : 'wysiwyg';
+  const nextMode = String(mode || '').toLowerCase() === 'markdown' ? 'markdown' : 'wysiwyg';
+  editorMode.value = nextMode;
+  if (editorSidebarView.value !== 'info') {
+    editorSidebarView.value = nextMode;
+  }
 }
 
-function toggleEditorMode() {
-  const nextMode = editorMode.value === 'wysiwyg' ? 'markdown' : 'wysiwyg';
+function setEditorMode(mode) {
+  const nextMode = String(mode || '').toLowerCase() === 'markdown' ? 'markdown' : 'wysiwyg';
   const editor = richEditorRef.value;
+  if (editor && typeof editor.applyEditorAction === 'function') {
+    editor.applyEditorAction(nextMode === 'markdown' ? 'mode-markdown' : 'mode-wysiwyg');
+    return;
+  }
   if (editor && typeof editor.setMode === 'function') {
     editor.setMode(nextMode);
     return;
   }
   editorMode.value = nextMode;
+}
+
+function toggleEditorMode() {
+  const nextMode = editorMode.value === 'wysiwyg' ? 'markdown' : 'wysiwyg';
+  setEditorSidebarView(nextMode);
 }
 
 function handleRichEditorReady() {
@@ -1795,8 +2149,71 @@ function handleRichEditorReady() {
   refreshEditorLayout();
 }
 
+function resolveEditorHotkeyScope(target) {
+  const activeTarget =
+    target instanceof HTMLElement ? target : document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (!(activeTarget instanceof HTMLElement)) return '';
+  if (activeTarget.closest('.blog-rich-editor')) return 'editor';
+  if (activeTarget.closest('.editor-info-panel') && activeTarget.closest('input, textarea, select')) return 'meta';
+  return '';
+}
+
+function applyEditorHotkeyAction(action, payload) {
+  const editor = richEditorRef.value;
+  if (!editor || typeof editor.applyEditorAction !== 'function') return false;
+  return editor.applyEditorAction(action, payload);
+}
+
+function handleEditorHotkey(event) {
+  if (viewMode.value !== 'editor' || event.defaultPrevented || event.isComposing) return;
+  const primaryPressed = event.ctrlKey || event.metaKey;
+  if (!primaryPressed) return;
+
+  const scope = resolveEditorHotkeyScope(event.target);
+  if (!scope) return;
+
+  const { code, shiftKey, altKey } = event;
+  if (!shiftKey && !altKey && code === 'KeyS') {
+    event.preventDefault();
+    void handleSaveDraft().catch(() => {});
+    return;
+  }
+
+  if (!shiftKey && !altKey && code === 'Slash') {
+    event.preventDefault();
+    toggleEditorMode();
+    return;
+  }
+
+  if (scope !== 'editor') return;
+
+  const exec = (action, payload) => {
+    event.preventDefault();
+    applyEditorHotkeyAction(action, payload);
+  };
+
+  if (!shiftKey && !altKey && code === 'KeyB') return exec('bold');
+  if (!shiftKey && !altKey && code === 'KeyI') return exec('italic');
+  if (shiftKey && !altKey && code === 'KeyS') return exec('strike');
+  if (!shiftKey && !altKey && code === 'KeyK') return exec('link');
+  if (shiftKey && !altKey && code === 'Digit7') return exec('ordered-list');
+  if (shiftKey && !altKey && code === 'Digit8') return exec('bullet-list');
+  if (shiftKey && !altKey && code === 'Digit9') return exec('task-list');
+  if (altKey && !shiftKey && code === 'Digit0') return exec('paragraph');
+  if (altKey && !shiftKey && /^Digit[1-6]$/.test(code)) {
+    return exec('heading', { level: Number(code.slice(-1)) });
+  }
+  if (altKey && !shiftKey && code === 'KeyQ') return exec('blockquote');
+  if (altKey && !shiftKey && code === 'KeyC') return exec('code-block');
+  if (altKey && !shiftKey && code === 'KeyH') return exec('hr');
+  if (altKey && !shiftKey && code === 'KeyT') return exec('table', { rowCount: 2, columnCount: 2 });
+}
+
 async function syncRouteDrivenView() {
   const mode = routeMode.value;
+  if (mode !== 'editor') {
+    clearEditorPresentationPollTimer();
+  }
   if (mode === 'detail') {
     leftNavHint.value = '';
     const postId = toSafeInt(route.params.postId, 0);
@@ -1815,6 +2232,8 @@ async function syncRouteDrivenView() {
     if (postId > 0) {
       if (writerState.editor.postId !== postId) {
         await openMinePost(postId, { routeSync: false });
+      } else {
+        await loadEditorPresentation(postId, { silent: true });
       }
       return;
     }
@@ -1824,14 +2243,15 @@ async function syncRouteDrivenView() {
       return;
     }
     resetEditorForm();
-    editorMetaCollapsed.value = false;
     editorMode.value = 'wysiwyg';
+    editorSidebarView.value = 'wysiwyg';
     await nextTick();
     refreshEditorLayout();
     return;
   }
 
   resetDetailNavigationState();
+  resetDetailPresentationState();
   leftNavHint.value = '';
   closeDownloadMenu();
   viewMode.value = 'list';
@@ -1845,6 +2265,7 @@ watch(
       return;
     }
     writerState.myPosts = [];
+    resetEditorPresentationState();
     if (viewMode.value === 'editor') {
       viewMode.value = 'list';
     }
@@ -1880,8 +2301,23 @@ watch(
   }
 );
 
+watch(
+  () => [viewMode.value, editorTocHeadings.value],
+  ([mode, headings]) => {
+    if (mode !== 'editor') return;
+    const items = Array.isArray(headings) ? headings : [];
+    const ids = new Set(items.map((item, index) => String(item?.id || `toc-${index}`)));
+    const currentId = String(activeHeadingId.value || '');
+    if (!ids.has(currentId)) {
+      activeHeadingId.value = items[0]?.id ? String(items[0].id) : '';
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(async () => {
   window.addEventListener('pointerdown', handleGlobalPointerDown);
+  window.addEventListener('keydown', handleEditorHotkey, true);
   await auth.ensureReady();
   if (routeMode.value === 'list') {
     await loadPostList();
@@ -1894,7 +2330,9 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', handleGlobalPointerDown);
+  window.removeEventListener('keydown', handleEditorHotkey, true);
   teardownReadingScroll();
+  clearEditorPresentationPollTimer();
 });
 </script>
 
@@ -2340,32 +2778,15 @@ onBeforeUnmount(() => {
   max-width: 100%;
 }
 
-.editor-view.meta-expanded .editor-meta {
-  max-height: calc(100% - clamp(118px, 14vh, 170px));
-}
-
-.editor-view.meta-expanded .editor-meta-body {
-  max-height: calc(100% - 46px);
-}
-
-.editor-view.meta-expanded .editor-body {
-  flex: 0 1 0;
-  min-height: 0;
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  gap: 0;
-}
-
 .editor-topbar {
   --liquid-bg: rgba(16, 24, 38, 0.52);
   --liquid-border: rgba(255, 255, 255, 0.22);
   --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
   padding: var(--blog-panel-padding);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
 }
 
@@ -2373,10 +2794,13 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: grid;
   gap: 3px;
+  align-content: center;
 }
 
 .editor-topbar-main h3 {
+  margin: 0;
   font-size: 14px;
+  line-height: 1.25;
   color: rgba(239, 245, 255, 0.96);
 }
 
@@ -2386,9 +2810,23 @@ onBeforeUnmount(() => {
 }
 
 .editor-topbar-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.editor-topbar-btn.active {
+  border-color: rgba(var(--accent-rgb), 0.46);
+  background: rgba(var(--accent-rgb), 0.2);
+  color: rgba(247, 250, 255, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.12);
+}
+
+.editor-topbar-btn:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .editor-exit-btn {
@@ -2403,48 +2841,73 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   padding: var(--blog-panel-padding);
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: var(--blog-gap);
   min-height: 0;
-  max-height: clamp(180px, 36vh, 420px);
+  overflow: hidden;
+  max-height: clamp(240px, 44vh, 500px);
   min-width: 0;
   max-width: 100%;
+  opacity: 1;
+  transition:
+    max-height 0.22s ease,
+    padding 0.2s ease,
+    opacity 0.18s ease,
+    border-color 0.18s ease,
+    gap 0.18s ease;
 }
 
 .editor-meta.collapsed {
-  padding-bottom: 8px;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: rgba(255, 255, 255, 0);
+  opacity: 0;
+  gap: 0;
+  pointer-events: none;
 }
 
 .editor-meta-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
-.editor-meta-head h3 {
+.editor-meta-title {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.editor-meta-title h3 {
+  margin: 0;
   font-size: 13px;
   color: rgba(231, 239, 255, 0.95);
 }
 
-.editor-meta-toggle {
-  min-width: 84px;
-  display: inline-flex;
+.editor-meta-title span {
+  font-size: 12px;
+  color: rgba(205, 217, 243, 0.84);
+}
+
+.editor-meta-head-actions {
+  min-width: 0;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .editor-meta-body {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  max-height: clamp(150px, 30vh, 320px);
+  max-height: none;
   opacity: 1;
   pointer-events: auto;
-  transition:
-    max-height 0.22s ease,
-    opacity 0.2s ease;
 }
 
 .editor-meta-body.collapsed {
@@ -2480,34 +2943,35 @@ onBeforeUnmount(() => {
   color: rgba(232, 240, 255, 0.92);
 }
 
-.editor-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--blog-gap);
-  align-items: center;
+.editor-meta-foot {
+  display: grid;
+  gap: 8px;
   min-width: 0;
-  max-width: 100%;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.editor-actions-main,
-.editor-actions-side {
+.editor-meta-foot-actions {
   min-width: 0;
-  flex: 1 1 320px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
-.editor-actions-side {
-  justify-content: flex-end;
-}
-
-.editor-actions .mini-btn {
+.editor-meta-head-actions .mini-btn,
+.editor-meta-foot-actions .mini-btn {
   min-height: 32px;
   border-radius: 9px;
   border-color: rgba(255, 255, 255, 0.24);
+}
+
+.editor-meta-status-wrap {
+  min-width: 0;
+}
+
+.editor-meta-message {
+  margin: 0;
 }
 
 .editor-status {
@@ -2516,17 +2980,17 @@ onBeforeUnmount(() => {
 }
 
 .editor-body {
-  flex: 1 0 clamp(280px, 44vh, 640px);
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--blog-gap);
   min-width: 0;
   max-width: 100%;
-  transition:
-    max-height 0.22s ease,
-    opacity 0.2s ease,
-    gap 0.2s ease;
+}
+
+.editor-view.meta-expanded .editor-body {
+  min-height: clamp(260px, 34vh, 520px);
 }
 
 .editor-pane {
@@ -2566,7 +3030,7 @@ onBeforeUnmount(() => {
 .editor-pane-full {
   flex: 1;
   height: auto;
-  min-height: 0;
+  min-height: clamp(420px, 58vh, 960px);
   min-width: 0;
   max-width: 100%;
 }
@@ -2605,6 +3069,76 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
+}
+
+.editor-info-panel {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 2px;
+}
+
+.editor-info-section {
+  --liquid-bg: rgba(14, 20, 34, 0.42);
+  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.editor-info-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editor-info-section-head h3 {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(235, 243, 255, 0.96);
+}
+
+.editor-info-section-status {
+  font-size: 12px;
+  color: rgba(204, 217, 244, 0.9);
+}
+
+.editor-info-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.editor-info-panel-actions,
+.editor-info-panel-footer-actions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.editor-info-panel-actions .mini-btn,
+.editor-info-panel-footer-actions .mini-btn {
+  min-height: 32px;
+  border-radius: 9px;
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.editor-info-panel-footer {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.editor-info-panel-status {
+  min-width: 0;
 }
 
 .toc-metrics {
@@ -2680,6 +3214,15 @@ onBeforeUnmount(() => {
 
 .toc-item .toc-icon i {
   font-size: 11px;
+}
+
+.toc-level-badge {
+  flex: 0 0 auto;
+  min-width: 24px;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  color: rgba(var(--accent-rgb), 0.94);
 }
 
 .toc-item .toc-label {
@@ -2919,31 +3462,31 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .editor-actions-main,
-  .editor-actions-side {
-    flex-basis: 100%;
+  .editor-meta-head-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
-  .editor-actions-side {
-    justify-content: flex-start;
+  .editor-pane-full {
+    min-height: clamp(260px, 34vh, 560px);
   }
 }
 
 @container blog-center (max-width: 760px) {
   .editor-topbar {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
     align-items: center;
   }
 
   .editor-topbar-main {
-    order: 3;
     width: 100%;
     justify-items: start;
     text-align: left;
   }
 
   .editor-topbar-actions {
-    margin-inline-start: auto;
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 
@@ -2961,19 +3504,15 @@ onBeforeUnmount(() => {
     max-height: 280px;
   }
 
-  .editor-actions-side {
-    justify-content: flex-start;
-  }
-
   .editor-topbar {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .editor-topbar-actions {
     width: 100%;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
   }
 
   .editor-body {

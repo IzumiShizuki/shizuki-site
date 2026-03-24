@@ -4,6 +4,14 @@ const MIN_WIDTH = 300;
 const MIN_HEIGHT = 220;
 const EDGE_PADDING = 12;
 const BASE_Z_INDEX = 2400;
+export const LIGHT_APP_SHARED_WINDOW_IDS = Object.freeze({
+  'timeprism-todo': 910001,
+  'pomodoro-timer': 910002,
+  'balance-ledger': 910003,
+  'url-links': 910004,
+  'board-canvas': 910005,
+  'blog-slidev': 910006
+});
 const WINDOW_PRESETS = Object.freeze({
   'timeprism-todo': {
     widthRatio: 0.58,
@@ -12,6 +20,22 @@ const WINDOW_PRESETS = Object.freeze({
     minHeight: 520,
     maxWidthRatio: 0.86,
     maxHeightRatio: 0.9
+  },
+  'board-canvas': {
+    widthRatio: 0.78,
+    heightRatio: 0.82,
+    minWidth: 920,
+    minHeight: 620,
+    maxWidthRatio: 0.94,
+    maxHeightRatio: 0.92
+  },
+  'blog-slidev': {
+    widthRatio: 0.76,
+    heightRatio: 0.84,
+    minWidth: 980,
+    minHeight: 620,
+    maxWidthRatio: 0.94,
+    maxHeightRatio: 0.94
   }
 });
 
@@ -83,6 +107,7 @@ export function openOrFocusWindow(state, appMeta, viewport) {
   const next = cloneState(state);
   const code = String(appMeta?.code || '').trim();
   if (!code) return next;
+  const sharedWindowId = Number(LIGHT_APP_SHARED_WINDOW_IDS[code]) || 0;
 
   const existedIndex = next.windows.findIndex((item) => item.code === code);
   if (existedIndex >= 0) {
@@ -96,7 +121,7 @@ export function openOrFocusWindow(state, appMeta, viewport) {
   const rect = resolveInitialRect(viewport, next.windows.length, code);
   next.nextZIndex += 1;
   next.windows.push({
-    id: next.nextId,
+    id: sharedWindowId || next.nextId,
     code,
     title: String(appMeta?.title || code),
     iconClass: String(appMeta?.iconClass || 'fas fa-window-maximize'),
@@ -108,7 +133,9 @@ export function openOrFocusWindow(state, appMeta, viewport) {
     minimized: false,
     pinned: false
   });
-  next.nextId += 1;
+  if (!sharedWindowId) {
+    next.nextId += 1;
+  }
   return next;
 }
 

@@ -123,6 +123,13 @@ function setMode(mode) {
   editorInstance.changeMode(normalized, false);
 }
 
+function execEditorCommand(command, payload) {
+  if (!editorInstance || typeof editorInstance.exec !== 'function') return false;
+  editorInstance.focus();
+  editorInstance.exec(command, payload);
+  return true;
+}
+
 function setMarkdown(markdown) {
   if (!editorInstance) return;
   const normalized = normalizeMarkdownForEditor(markdown);
@@ -177,6 +184,64 @@ function insertText(text) {
     emitMarkdownUpdate();
   } finally {
     pasteGuard = false;
+  }
+}
+
+function applyEditorAction(action, payload = {}) {
+  if (!editorInstance) return false;
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  switch (normalizedAction) {
+    case 'bold':
+      return execEditorCommand('bold');
+    case 'italic':
+      return execEditorCommand('italic');
+    case 'strike':
+      return execEditorCommand('strike');
+    case 'heading': {
+      const level = Number(payload.level);
+      return execEditorCommand('heading', { level: Number.isFinite(level) ? level : 1 });
+    }
+    case 'paragraph':
+      return execEditorCommand('heading', { level: 0 });
+    case 'blockquote':
+      return execEditorCommand('blockQuote');
+    case 'bullet-list':
+      return execEditorCommand('bulletList');
+    case 'ordered-list':
+      return execEditorCommand('orderedList');
+    case 'task-list':
+      return execEditorCommand('taskList');
+    case 'inline-code':
+      return execEditorCommand('code');
+    case 'code-block':
+      return execEditorCommand('codeBlock');
+    case 'hr':
+      return execEditorCommand('hr');
+    case 'table':
+      return execEditorCommand('table', {
+        rowCount: Number.isFinite(Number(payload.rowCount)) ? Number(payload.rowCount) : 2,
+        columnCount: Number.isFinite(Number(payload.columnCount)) ? Number(payload.columnCount) : 2,
+        data: []
+      });
+    case 'link': {
+      const selectedText = String(editorInstance.getSelectedText?.() || '').trim();
+      const defaultText = String(payload.linkText || selectedText || '');
+      const defaultUrl = String(payload.linkUrl || 'https://');
+      const linkUrl = window.prompt('请输入链接地址', defaultUrl);
+      if (!linkUrl || !linkUrl.trim()) return false;
+      return execEditorCommand('addLink', {
+        linkUrl: linkUrl.trim(),
+        linkText: defaultText || linkUrl.trim()
+      });
+    }
+    case 'mode-markdown':
+      setMode('markdown');
+      return true;
+    case 'mode-wysiwyg':
+      setMode('wysiwyg');
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -264,6 +329,7 @@ defineExpose({
   getMarkdown,
   setMode,
   insertText,
-  refreshLayout
+  refreshLayout,
+  applyEditorAction
 });
 </script>

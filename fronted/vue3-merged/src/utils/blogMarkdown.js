@@ -302,3 +302,36 @@ export function renderMarkdownDocument(input) {
     lineCount: markdown.trim().length ? lines.length : 0
   };
 }
+
+export function parseSlidevDeck(input) {
+  const normalized = normalizeMarkdownForEditor(String(input || ''));
+  const body = normalized.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+  if (!body) return [];
+
+  return body
+    .split(/\n---\n/g)
+    .map((rawSlide) => String(rawSlide || '').trim())
+    .filter(Boolean)
+    .map((rawSlide, index) => {
+      const cleanedSlide = rawSlide
+        .replace(/^layout:\s*[^\n]+\n?/gm, '')
+        .replace(/^class:\s*[^\n]+\n?/gm, '')
+        .trim();
+      const rendered = renderMarkdownDocument(cleanedSlide);
+      const fallbackTitleLine = cleanedSlide
+        .split('\n')
+        .map((line) => String(line || '').trim())
+        .find((line) => line && !line.startsWith('---'));
+      const title =
+        rendered.headings[0]?.text ||
+        extractTextFromInlineMarkdown(fallbackTitleLine || '') ||
+        `Slide ${index + 1}`;
+      return {
+        id: `slide-${index + 1}`,
+        index: index + 1,
+        title,
+        markdown: cleanedSlide,
+        html: rendered.html
+      };
+    });
+}

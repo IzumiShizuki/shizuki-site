@@ -141,6 +141,11 @@ import {
 import { emitTimePrismFocusItem } from './timeprism/timePrismFocusBus';
 import UrlLinksWindow from './url/UrlLinksWindow.vue';
 import BoardCanvasWindow from './board/BoardCanvasWindow.vue';
+import BlogSlidevWindow from './blog/BlogSlidevWindow.vue';
+import {
+  releaseBlogPresentationWindowState,
+  setBlogPresentationWindowEntry
+} from './blog/blogPresentationWindowState';
 
 const props = defineProps({
   isHomeRoute: {
@@ -168,7 +173,8 @@ const componentMap = Object.freeze({
   'pomodoro-timer': PomodoroWindow,
   'balance-ledger': BalanceLedgerWindow,
   'url-links': UrlLinksWindow,
-  'board-canvas': BoardCanvasWindow
+  'board-canvas': BoardCanvasWindow,
+  'blog-slidev': BlogSlidevWindow
 });
 
 const visibleWindows = computed(() => getVisibleWindows(state, props.isHomeRoute));
@@ -310,9 +316,10 @@ function openFromEvent(event) {
   if (!app) return;
   const next = openOrFocusWindow(state, app, viewport());
   replaceState(next);
+  const targetWindowId = next.windows.find((item) => item.code === code)?.id || 0;
 
   if (code === 'timeprism-todo') {
-    const windowId = next.windows.find((item) => item.code === code)?.id;
+    const windowId = targetWindowId;
     const moduleCode = String(event?.detail?.moduleCode || '').trim().toLowerCase();
     if (windowId && moduleCode) {
       setSuiteActiveModule(resolveTimePrismSuiteSession(windowId), moduleCode);
@@ -321,6 +328,14 @@ function openFromEvent(event) {
     if (focusItemId > 0 && moduleCode) {
       emitTimePrismFocusItem({ moduleCode, itemId: focusItemId });
     }
+    return;
+  }
+
+  if (code === 'blog-slidev' && targetWindowId) {
+    setBlogPresentationWindowEntry(targetWindowId, {
+      postId: event?.detail?.postId,
+      scope: event?.detail?.scope
+    });
   }
 }
 
@@ -372,6 +387,8 @@ function releaseWindowLinkedState(windowId) {
     releasePomodoroWindowState(windowId);
   } else if (target.code === 'balance-ledger') {
     releaseBalanceWindowState(windowId);
+  } else if (target.code === 'blog-slidev') {
+    releaseBlogPresentationWindowState(windowId);
   }
 }
 

@@ -38,6 +38,14 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
     iconClass: 'fas fa-diagram-project',
     source: 'Shizuki',
     floatingAble: true
+  },
+  {
+    code: 'blog-slidev',
+    title: 'Blog Slidev',
+    summary: '把博客演示稿做成轻应用：切换公开/我的文章，预览 slides，并直达文章或编辑页。',
+    iconClass: 'fas fa-person-chalkboard',
+    source: 'Blog x LightApp',
+    floatingAble: true
   }
 ]);
 

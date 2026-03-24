@@ -317,6 +317,53 @@ export async function unpublishMyPost(postId, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function generateMyPostPresentation(postId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const id = normalizePostId(postId);
+  const response = await request(`/api/v1/me/posts/${id}/presentation/generate`, {
+    method: 'POST'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getMyPostPresentation(postId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const id = normalizePostId(postId);
+  const response = await request(`/api/v1/me/posts/${id}/presentation`, {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getMyPostPresentationPptDownloadUrl(postId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const id = normalizePostId(postId);
+  const response = await request(`/api/v1/me/posts/${id}/presentation/ppt-download-url`, {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getPostPresentation(postId, authorizedFetch) {
+  const id = normalizePostId(postId);
+  const path = `/api/v1/posts/${id}/presentation`;
+  const response =
+    typeof authorizedFetch === 'function'
+      ? await authorizedFetch(path, { method: 'GET' })
+      : await httpRequest(path, { method: 'GET' });
+  return unwrapApiResponse(response);
+}
+
+export async function getPostPresentationPptDownloadUrl(postId, authorizedFetch) {
+  const id = normalizePostId(postId);
+  const path = `/api/v1/posts/${id}/presentation/ppt-download-url`;
+  const response =
+    typeof authorizedFetch === 'function'
+      ? await authorizedFetch(path, { method: 'GET' })
+      : await httpRequest(path, { method: 'GET' });
+  return unwrapApiResponse(response);
+}
+
 export async function listAdminCategoryPolicies(authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/admin/posts/category-policies', {
