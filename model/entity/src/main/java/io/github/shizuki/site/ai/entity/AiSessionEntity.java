@@ -16,6 +16,24 @@ public class AiSessionEntity extends BaseEntity {
     @TableField("title_text")
     private String title;
 
+    @TableField("session_mode")
+    private String mode;
+
+    @TableField("character_id")
+    private Long characterId;
+
+    @TableField("bound_worldbook_json")
+    private String boundWorldbookJson;
+
+    @TableField("scene_prompt_text")
+    private String scenePrompt;
+
+    @TableField("town_room_code")
+    private String townRoomCode;
+
+    @TableField("actor_code")
+    private String actorCode;
+
     public String getSessionId() {
         return sessionId;
     }
@@ -38,6 +56,54 @@ public class AiSessionEntity extends BaseEntity {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    public Long getCharacterId() {
+        return characterId;
+    }
+
+    public void setCharacterId(Long characterId) {
+        this.characterId = characterId;
+    }
+
+    public String getBoundWorldbookJson() {
+        return boundWorldbookJson;
+    }
+
+    public void setBoundWorldbookJson(String boundWorldbookJson) {
+        this.boundWorldbookJson = boundWorldbookJson;
+    }
+
+    public String getScenePrompt() {
+        return scenePrompt;
+    }
+
+    public void setScenePrompt(String scenePrompt) {
+        this.scenePrompt = scenePrompt;
+    }
+
+    public String getTownRoomCode() {
+        return townRoomCode;
+    }
+
+    public void setTownRoomCode(String townRoomCode) {
+        this.townRoomCode = townRoomCode;
+    }
+
+    public String getActorCode() {
+        return actorCode;
+    }
+
+    public void setActorCode(String actorCode) {
+        this.actorCode = actorCode;
     }
 
 }

@@ -32,7 +32,7 @@ class AiControllerIntegrationTest {
     @Test
     void shouldCreateSessionSuccessfully() throws Exception {
         Mockito.when(aiService.createSession(ArgumentMatchers.any(CreateSessionRequest.class)))
-            .thenReturn(new AiSessionSummary("session-001", "算法训练"));
+            .thenReturn(new AiSessionSummary("session-001", "算法训练", "normal", null, List.of(), null, null, null));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-sessions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -50,7 +50,7 @@ class AiControllerIntegrationTest {
     @Test
     void shouldListSessionsSuccessfully() throws Exception {
         Mockito.when(aiService.listSessions())
-            .thenReturn(List.of(new AiSessionSummary("session-001", "算法训练")));
+            .thenReturn(List.of(new AiSessionSummary("session-001", "算法训练", "normal", null, List.of(), null, null, null)));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/ai-sessions"))
             .andExpect(MockMvcResultMatchers.status().isOk())

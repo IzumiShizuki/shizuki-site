@@ -94,23 +94,23 @@ const featureCards = [
   },
   {
     kicker: 'Normal Chat',
-    status: '下一步',
-    tone: 'queued',
+    status: '当前可用',
+    tone: 'ready',
     title: '普通对话模式',
     description: '共享聊天壳层，优先落地 normal / tavern 双模式会话的普通模式部分。',
     points: ['承接基础会话', '为角色卡、世界书绑定留接口', '作为后续权限与配额整合基础'],
-    action: '',
-    actionLabel: '等待接入'
+    action: 'open-normal-chat',
+    actionLabel: '进入普通对话'
   },
   {
     kicker: 'Tavern Mode',
-    status: '待接入',
-    tone: 'queued',
+    status: '当前可用',
+    tone: 'ready',
     title: '酒馆模式',
     description: '强调角色人格、设定和沉浸感，而不是普通问答式聊天。',
     points: ['角色卡与世界书管理会先补齐', '保留独立模式语义', '后续接入记忆隔离与设定注入'],
-    action: '',
-    actionLabel: '等待接入'
+    action: 'open-tavern-chat',
+    actionLabel: '进入酒馆模式'
   },
   {
     kicker: 'AI Town',
@@ -168,12 +168,20 @@ const roadmapStages = [
 ];
 
 function handleOpenQuickChat() {
-  openAiChat('ai-hub');
+  openAiChat({ source: 'ai-hub', preferredMode: 'quick_chat' });
 }
 
 function handleCardAction(action) {
   if (action === 'open-quick-chat') {
     handleOpenQuickChat();
+    return;
+  }
+  if (action === 'open-normal-chat') {
+    openAiChat({ source: 'ai-hub', preferredMode: 'normal' });
+    return;
+  }
+  if (action === 'open-tavern-chat') {
+    openAiChat({ source: 'ai-hub', preferredMode: 'tavern' });
   }
 }
 </script>

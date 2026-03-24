@@ -18,6 +18,13 @@ public class SendMessageRequest {
     @Schema(description = "前端维护的上下文消息列表，后端不持久化")
     private List<ContextMessage> context;
 
+    @Schema(description = "是否启用记忆增强", example = "false")
+    private Boolean memoryEnabled;
+
+    @Size(max = 128)
+    @Schema(description = "记忆作用域 ID", example = "session-001")
+    private String scopeId;
+
     public String getMessage() {
         return message;
     }
@@ -32,6 +39,22 @@ public class SendMessageRequest {
 
     public void setContext(List<ContextMessage> context) {
         this.context = context;
+    }
+
+    public Boolean getMemoryEnabled() {
+        return memoryEnabled;
+    }
+
+    public void setMemoryEnabled(Boolean memoryEnabled) {
+        this.memoryEnabled = memoryEnabled;
+    }
+
+    public String getScopeId() {
+        return scopeId;
+    }
+
+    public void setScopeId(String scopeId) {
+        this.scopeId = scopeId;
     }
 
     @Schema(description = "上下文消息")

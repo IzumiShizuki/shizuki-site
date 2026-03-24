@@ -61,11 +61,11 @@
         </main>
 
         <aside v-if="sidebarAiColumnMounted" class="ai-side-column">
-          <AiDialog :visible="showSidebarAiPanel" mode="sidebar" @close="closeAiChat" />
+          <AiDialog :visible="showSidebarAiPanel" mode="sidebar" :chat-mode="activeAiChatMode" @close="closeAiChat" />
         </aside>
       </section>
 
-      <AiDialog v-if="showSheetAiPanel" :visible="true" mode="sheet" @close="closeAiChat" />
+      <AiDialog v-if="showSheetAiPanel" :visible="true" mode="sheet" :chat-mode="activeAiChatMode" @close="closeAiChat" />
 
       <MusicPlayer
         :track="player.currentTrack.value"
@@ -399,6 +399,12 @@ const routeLabelMap = {
 const DEFAULT_BROWSER_TITLE = 'Levitation + Menu';
 const DEFAULT_FAVICON_URL = '/images/katanegai.jpg';
 
+function normalizeAiChatMode(raw) {
+  const normalized = String(raw || '').trim().toLowerCase();
+  if (normalized === 'normal' || normalized === 'tavern') return normalized;
+  return 'quick_chat';
+}
+
 const currentRouteKey = computed(() => {
   const name = typeof route.name === 'string' ? route.name : 'home';
   if (name.startsWith('blog')) return 'blog';
@@ -426,6 +432,7 @@ const aiChatActive = computed({
   get: () => ui.state.aiPanelOpen,
   set: (nextValue) => ui.setAiPanelOpen(nextValue)
 });
+const activeAiChatMode = ref('quick_chat');
 
 const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.value);
 const showSidebarAiPanel = computed(() => aiChatActive.value && canUseSidebarAi.value);
@@ -1886,14 +1893,20 @@ function toggleMenu() {
 }
 
 function toggleAiChat() {
-  aiChatActive.value = !aiChatActive.value;
+  if (!aiChatActive.value) {
+    activeAiChatMode.value = 'quick_chat';
+    aiChatActive.value = true;
+    return;
+  }
+  aiChatActive.value = false;
 }
 
 function closeAiChat() {
   aiChatActive.value = false;
 }
 
-function handleAiChatOpenEvent() {
+function handleAiChatOpenEvent(event) {
+  activeAiChatMode.value = normalizeAiChatMode(event?.detail?.preferredMode);
   aiChatActive.value = true;
 }
 
