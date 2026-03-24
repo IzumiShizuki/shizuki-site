@@ -7,7 +7,9 @@ import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
+import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -92,5 +94,24 @@ public class MyPostController {
     @Operation(summary = "下线文章")
     public ApiResponse<AuthorPostItemResponse> unpublish(@PathVariable("post_id") Long postId) {
         return ApiResponse.success(contentService.unpublishMyPost(postId));
+    }
+
+    @PostMapping("/{post_id}/presentation/generate")
+    @AuditLog(action = "post.presentation.generate", resource = "post")
+    @Operation(summary = "生成文章演示文稿")
+    public ApiResponse<PostPresentationResponse> generatePresentation(@PathVariable("post_id") Long postId) {
+        return ApiResponse.success(contentService.generateMyPostPresentation(postId));
+    }
+
+    @GetMapping("/{post_id}/presentation")
+    @Operation(summary = "查询我的文章演示文稿")
+    public ApiResponse<PostPresentationResponse> presentation(@PathVariable("post_id") Long postId) {
+        return ApiResponse.success(contentService.getMyPostPresentation(postId));
+    }
+
+    @GetMapping("/{post_id}/presentation/ppt-download-url")
+    @Operation(summary = "查询我的文章演示文稿 PPT 下载地址")
+    public ApiResponse<PostPresentationDownloadResponse> presentationDownload(@PathVariable("post_id") Long postId) {
+        return ApiResponse.success(contentService.getMyPostPresentationDownload(postId));
     }
 }

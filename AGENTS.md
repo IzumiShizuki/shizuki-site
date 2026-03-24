@@ -47,3 +47,22 @@ bd sync               # Sync with git
   - `user.email = 29301481@qq.com`
 - Commit message format must be:
   - ``fix|feat : 具体内容（简要说明做了什么）``
+
+
+<!-- BEGIN BEADS INTEGRATION -->
+## Issue Tracking
+
+Use `bd` for task tracking in this project.
+
+Run `bd prime` for workflow context. Editor integrations such as `bd setup codex` can keep this lightweight while still injecting the current workflow.
+
+**Quick reference:**
+- `bd ready --json` - Find unblocked work
+- `bd create "Title" --description="Context" --type task --priority 2 --json` - Create issue
+- `bd update <id> --status in_progress --json` - Claim work
+- `bd close <id> --reason "Done" --json` - Complete work
+- `bd sync` - Sync issue state with git
+
+For full workflow details: `bd prime`
+
+<!-- END BEADS INTEGRATION -->

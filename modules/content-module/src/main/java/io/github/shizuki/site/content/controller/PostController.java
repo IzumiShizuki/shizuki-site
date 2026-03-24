@@ -6,6 +6,8 @@ import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
+import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
@@ -113,6 +115,20 @@ public class PostController {
             .contentType(MediaType.parseMediaType("text/markdown; charset=utf-8"))
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
             .body(payload);
+    }
+
+    @GetMapping("/{post_id}/presentation")
+    @RateLimit(key = "posts.presentation.detail", limit = 120, windowSeconds = 60)
+    @Operation(summary = "查询帖子演示文稿", description = "返回已发布且当前用户可访问的帖子演示文稿信息")
+    public ApiResponse<PostPresentationResponse> presentation(@PathVariable("post_id") Long postId) {
+        return ApiResponse.success(contentService.getPublishedPostPresentation(postId));
+    }
+
+    @GetMapping("/{post_id}/presentation/ppt-download-url")
+    @RateLimit(key = "posts.presentation.download", limit = 120, windowSeconds = 60)
+    @Operation(summary = "查询帖子演示文稿 PPT 下载地址", description = "返回已发布且当前用户可访问的演示文稿 PPT 下载地址")
+    public ApiResponse<PostPresentationDownloadResponse> presentationDownloadUrl(@PathVariable("post_id") Long postId) {
+        return ApiResponse.success(contentService.getPublishedPostPresentationDownload(postId));
     }
 
     /**

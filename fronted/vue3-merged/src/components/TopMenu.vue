@@ -172,7 +172,7 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, aiChatActive, isAuthenticated, isAdmin, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
+const { menuExpanded, aiChatActive, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
 const menuRootRef = ref(null);
 const profileMenuOpen = ref(false);
 const avatarLoadFailed = ref(false);
@@ -180,18 +180,13 @@ const authorAvatarLoadFailed = ref(false);
 const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
 
 const mainNavItems = computed(() => {
-  const base = [
+  return [
     { key: 'home', label: '主页', icon: 'fas fa-home' },
     { key: 'blog', label: '博客', icon: 'far fa-file-alt' },
     { key: 'music-library', label: '音乐库', icon: 'fas fa-music' },
     { key: 'apps', label: '轻应用', icon: 'fas fa-th-large' },
     { key: 'ai-tavern', label: 'AI酒馆', icon: 'far fa-comment-dots' }
   ];
-
-  if (isAdmin.value) {
-    base.push({ key: 'admin', label: '管理后台', icon: 'fas fa-user-shield' });
-  }
-  return base;
 });
 
 const activeMainRoute = computed(() => {

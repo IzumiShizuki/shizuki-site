@@ -1992,8 +1992,15 @@ function openProfile(tabKey = 'profile') {
 }
 
 function openAdmin(tabKey = 'overview') {
+  const rawTab = String(tabKey || '').trim().toLowerCase();
+  const normalizedAdminTab = ['users', 'groups', 'permissions', 'quota', 'wallpapers', 'blog-categories'].includes(
+    rawTab.startsWith('admin:') ? rawTab.slice('admin:'.length) : rawTab
+  )
+    ? rawTab.startsWith('admin:') ? rawTab.slice('admin:'.length) : rawTab
+    : 'users';
+  const authorAdminTab = `admin:${normalizedAdminTab}`;
   if (!auth.isAuthenticated.value) {
-    const redirect = tabKey ? `/admin?tab=${encodeURIComponent(tabKey)}` : '/admin';
+    const redirect = `/author?tab=${encodeURIComponent(authorAdminTab)}`;
     openAuth(redirect);
     return;
   }
@@ -2002,10 +2009,10 @@ function openAdmin(tabKey = 'overview') {
     return;
   }
 
-  const nextQuery = tabKey ? { tab: tabKey } : {};
+  const nextQuery = { tab: authorAdminTab };
   const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';
-  if (route.path === '/admin' && currentTab === (tabKey || '')) return;
-  router.push({ path: '/admin', query: nextQuery });
+  if (route.path === '/author' && currentTab === authorAdminTab) return;
+  router.push({ path: '/author', query: nextQuery });
 }
 
 function openAuthor(tabKey = 'overview') {

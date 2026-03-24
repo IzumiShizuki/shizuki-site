@@ -4,6 +4,8 @@ import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
+import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
+import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -103,5 +105,65 @@ class MyPostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.group_options[0]").value("ADMIN"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.category_defaults[0].category_code").value("game"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.category_defaults[0].enabled").value(true));
+    }
+
+    @Test
+    void shouldGeneratePresentationSuccessfully() throws Exception {
+        Mockito.when(contentService.generateMyPostPresentation(ArgumentMatchers.eq(12L)))
+            .thenReturn(new PostPresentationResponse(
+                12L,
+                "GENERATING",
+                0,
+                null,
+                "v1",
+                "",
+                false,
+                ""
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/me/posts/12/presentation/generate"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.post_id").value(12))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("GENERATING"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.ppt_ready").value(false));
+    }
+
+    @Test
+    void shouldReturnMyPresentationSuccessfully() throws Exception {
+        Mockito.when(contentService.getMyPostPresentation(ArgumentMatchers.eq(12L)))
+            .thenReturn(new PostPresentationResponse(
+                12L,
+                "READY",
+                5,
+                LocalDateTime.of(2026, 3, 24, 9, 30),
+                "v1",
+                "# Deck",
+                true,
+                ""
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/me/posts/12/presentation"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.post_id").value(12))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("READY"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.slide_count").value(5))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.ppt_ready").value(true));
+    }
+
+    @Test
+    void shouldReturnMyPresentationDownloadSuccessfully() throws Exception {
+        Mockito.when(contentService.getMyPostPresentationDownload(ArgumentMatchers.eq(12L)))
+            .thenReturn(new PostPresentationDownloadResponse(
+                "https://example.com/presentation.pptx",
+                "presentation.pptx"
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/me/posts/12/presentation/ppt-download-url"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.download_url").value("https://example.com/presentation.pptx"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.file_name").value("presentation.pptx"));
     }
 }

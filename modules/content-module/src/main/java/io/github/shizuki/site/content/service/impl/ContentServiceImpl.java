@@ -26,6 +26,8 @@ import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.dto.PostCategoryMetaUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
+import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
@@ -39,6 +41,7 @@ import io.github.shizuki.site.content.entity.PostCategoryPolicyEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyGroupEntity;
 import io.github.shizuki.site.content.entity.PostEntity;
 import io.github.shizuki.site.content.entity.PostGroupAclEntity;
+import io.github.shizuki.site.content.entity.PostPresentationEntity;
 import io.github.shizuki.site.content.entity.PostTagEntity;
 import io.github.shizuki.site.content.mapper.AppGroupAclMapper;
 import io.github.shizuki.site.content.mapper.AppMapper;
@@ -49,10 +52,15 @@ import io.github.shizuki.site.content.mapper.PostCategoryPolicyGroupMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyMapper;
 import io.github.shizuki.site.content.mapper.PostGroupAclMapper;
 import io.github.shizuki.site.content.mapper.PostMapper;
+import io.github.shizuki.site.content.mapper.PostPresentationMapper;
 import io.github.shizuki.site.content.mapper.PostTagMapper;
 import io.github.shizuki.site.content.model.ContentVisibilityEnum;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.AuthorProfileHttpCacheSupport;
+import io.github.shizuki.site.content.support.PostPresentationGeneratorClient;
+import io.github.shizuki.site.content.support.PostPresentationTemplateService;
+import io.github.shizuki.site.content.support.PostPresentationTemplateService.PresentationDeck;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -69,6 +77,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.function.Function;
@@ -76,6 +85,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -93,6 +103,12 @@ public class ContentServiceImpl implements ContentService {
     private static final int AUTHOR_PROFILE_MAX_JSON_LENGTH = 64_000;
     private static final String REPORT_STATUS_CREATED = "CREATED";
     private static final String REPORT_TARGET_AUTHOR_WHISPER = "AUTHOR_WHISPER";
+    private static final String POST_PRESENTATION_STATUS_NOT_GENERATED = "NOT_GENERATED";
+    private static final String POST_PRESENTATION_STATUS_GENERATING = "GENERATING";
+    private static final String POST_PRESENTATION_STATUS_READY = "READY";
+    private static final String POST_PRESENTATION_STATUS_FAILED = "FAILED";
+    private static final String PPT_CONTENT_TYPE =
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
     private static final Pattern ASCII_WORD_PATTERN = Pattern.compile("[A-Za-z0-9_]+(?:'[A-Za-z0-9_]+)?");
     private static final Pattern MARKDOWN_IMAGE_PATTERN = Pattern.compile("!\\[[^\\]]*]\\(([^)\\s]+)(?:\\s+\"[^\"]*\")?\\)");
@@ -108,15 +124,22 @@ public class ContentServiceImpl implements ContentService {
     private final PostCategoryPolicyMapper postCategoryPolicyMapper;
     private final PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper;
     private final PostCategoryMetaMapper postCategoryMetaMapper;
+    private final PostPresentationMapper postPresentationMapper;
     private final AuthorProfileMapper authorProfileMapper;
     private final ObjectStorageClient objectStorageClient;
     private final ObjectMapper objectMapper;
+    private final PostPresentationTemplateService postPresentationTemplateService;
+    private final PostPresentationGeneratorClient postPresentationGeneratorClient;
+    private final Executor postPresentationExecutor;
 
     @Value("${shizuki.blog.storage.private-bucket:${shizuki.media.storage.private-bucket:}}")
     private String blogPrivateBucket;
 
     @Value("${shizuki.blog.storage.max-upload-size:1048576}")
     private long blogMaxUploadSize;
+
+    @Value("${shizuki.blog.presentation.download-expire-seconds:900}")
+    private long presentationDownloadExpireSeconds;
 
     @Value("${shizuki.content.author-profile.cache.ttl-seconds:120}")
     private long authorProfileCacheTtlSeconds;
@@ -133,9 +156,13 @@ public class ContentServiceImpl implements ContentService {
                               PostCategoryPolicyMapper postCategoryPolicyMapper,
                               PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper,
                               PostCategoryMetaMapper postCategoryMetaMapper,
+                              PostPresentationMapper postPresentationMapper,
                               AuthorProfileMapper authorProfileMapper,
                               ObjectStorageClient objectStorageClient,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              PostPresentationTemplateService postPresentationTemplateService,
+                              PostPresentationGeneratorClient postPresentationGeneratorClient,
+                              @Qualifier("postPresentationExecutor") Executor postPresentationExecutor) {
         this.postMapper = postMapper;
         this.appMapper = appMapper;
         this.contentReportMapper = contentReportMapper;
@@ -145,9 +172,13 @@ public class ContentServiceImpl implements ContentService {
         this.postCategoryPolicyMapper = postCategoryPolicyMapper;
         this.postCategoryPolicyGroupMapper = postCategoryPolicyGroupMapper;
         this.postCategoryMetaMapper = postCategoryMetaMapper;
+        this.postPresentationMapper = postPresentationMapper;
         this.authorProfileMapper = authorProfileMapper;
         this.objectStorageClient = objectStorageClient;
         this.objectMapper = objectMapper;
+        this.postPresentationTemplateService = postPresentationTemplateService;
+        this.postPresentationGeneratorClient = postPresentationGeneratorClient;
+        this.postPresentationExecutor = postPresentationExecutor;
     }
 
     @Override
@@ -1239,6 +1270,91 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
+    public PostPresentationResponse generateMyPostPresentation(Long postId) {
+        Long userId = requireLoginUserId();
+        requirePermission("blog.post.write");
+
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        if (!Objects.equals(post.getUserId(), userId) && !currentViewer().admin()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to generate presentation for this post");
+        }
+
+        schedulePresentationGeneration(post);
+        return getMyPostPresentation(postId);
+    }
+
+    @Override
+    public PostPresentationResponse getMyPostPresentation(Long postId) {
+        Long userId = requireLoginUserId();
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        if (!Objects.equals(post.getUserId(), userId) && !currentViewer().admin()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this post presentation");
+        }
+        return buildPostPresentationResponse(post.getId(), findPostPresentation(post.getId()), true);
+    }
+
+    @Override
+    public PostPresentationDownloadResponse getMyPostPresentationDownload(Long postId) {
+        Long userId = requireLoginUserId();
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        if (!Objects.equals(post.getUserId(), userId) && !currentViewer().admin()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this post presentation");
+        }
+        PostPresentationEntity entity = requireReadyPresentation(post.getId());
+        String bucket = readString(entity.getPptBucket(), "").trim();
+        String key = readString(entity.getPptKey(), "").trim();
+        if (!StringUtils.hasText(bucket) || !StringUtils.hasText(key)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Presentation PPT not found");
+        }
+        long expireSeconds = presentationDownloadExpireSeconds <= 0 ? 900L : presentationDownloadExpireSeconds;
+        String fileName = sanitizePresentationFileName(post);
+        return new PostPresentationDownloadResponse(objectStorageClient.generateGetUrl(bucket, key, expireSeconds), fileName);
+    }
+
+    @Override
+    public PostPresentationResponse getPublishedPostPresentation(Long postId) {
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null || !POST_STATUS_PUBLISHED.equalsIgnoreCase(readString(post.getStatusCode(), POST_STATUS_DRAFT))) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        ViewerContext viewer = currentViewer();
+        if (!canAccessPublishedPost(post, viewer)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this post presentation");
+        }
+        return buildPostPresentationResponse(post.getId(), findPostPresentation(post.getId()), true);
+    }
+
+    @Override
+    public PostPresentationDownloadResponse getPublishedPostPresentationDownload(Long postId) {
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null || !POST_STATUS_PUBLISHED.equalsIgnoreCase(readString(post.getStatusCode(), POST_STATUS_DRAFT))) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        ViewerContext viewer = currentViewer();
+        if (!canAccessPublishedPost(post, viewer)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this post presentation");
+        }
+        PostPresentationEntity entity = requireReadyPresentation(post.getId());
+        String bucket = readString(entity.getPptBucket(), "").trim();
+        String key = readString(entity.getPptKey(), "").trim();
+        if (!StringUtils.hasText(bucket) || !StringUtils.hasText(key)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Presentation PPT not found");
+        }
+        long expireSeconds = presentationDownloadExpireSeconds <= 0 ? 900L : presentationDownloadExpireSeconds;
+        String fileName = sanitizePresentationFileName(post);
+        return new PostPresentationDownloadResponse(objectStorageClient.generateGetUrl(bucket, key, expireSeconds), fileName);
+    }
+
+    @Override
     public Map<String, Object> likePost(Long postId) {
         PostEntity post = postMapper.selectById(postId);
         if (post == null) {
@@ -2031,6 +2147,279 @@ public class ContentServiceImpl implements ContentService {
         return loadPostTags(postId, tagCache).stream().anyMatch(tagCode::equals);
     }
 
+    private PostPresentationEntity findPostPresentation(Long postId) {
+        if (postId == null || postId <= 0) {
+            return null;
+        }
+        return postPresentationMapper.selectOne(
+            new LambdaQueryWrapper<PostPresentationEntity>()
+                .eq(PostPresentationEntity::getPostId, postId)
+                .last("LIMIT 1")
+        );
+    }
+
+    private PostPresentationEntity requireReadyPresentation(Long postId) {
+        PostPresentationEntity entity = findPostPresentation(postId);
+        if (entity == null || !POST_PRESENTATION_STATUS_READY.equalsIgnoreCase(readString(entity.getStatusCode(), ""))) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Presentation is not ready");
+        }
+        return entity;
+    }
+
+    private PostPresentationResponse buildPostPresentationResponse(Long postId, PostPresentationEntity entity, boolean includeMarkdown) {
+        if (entity == null) {
+            return new PostPresentationResponse(
+                postId,
+                POST_PRESENTATION_STATUS_NOT_GENERATED,
+                0,
+                null,
+                PostPresentationTemplateService.TEMPLATE_VERSION,
+                "",
+                false,
+                ""
+            );
+        }
+
+        String status = readString(entity.getStatusCode(), POST_PRESENTATION_STATUS_NOT_GENERATED);
+        boolean pptReady = POST_PRESENTATION_STATUS_READY.equalsIgnoreCase(status)
+            && StringUtils.hasText(readString(entity.getPptBucket(), ""))
+            && StringUtils.hasText(readString(entity.getPptKey(), ""));
+        String slidevMarkdown = "";
+        if (includeMarkdown
+            && POST_PRESENTATION_STATUS_READY.equalsIgnoreCase(status)
+            && StringUtils.hasText(readString(entity.getSlidevBucket(), ""))
+            && StringUtils.hasText(readString(entity.getSlidevKey(), ""))) {
+            try {
+                slidevMarkdown = readMarkdownObject(entity.getSlidevBucket(), entity.getSlidevKey());
+            } catch (BusinessException ignored) {
+                slidevMarkdown = "";
+            }
+        }
+
+        return new PostPresentationResponse(
+            postId,
+            status,
+            entity.getSlideCount() == null ? 0 : entity.getSlideCount(),
+            entity.getGeneratedAt(),
+            readString(entity.getTemplateVersion(), PostPresentationTemplateService.TEMPLATE_VERSION),
+            slidevMarkdown,
+            pptReady,
+            readString(entity.getErrorText(), "")
+        );
+    }
+
+    private void schedulePresentationGeneration(PostEntity post) {
+        if (post == null || post.getId() == null || post.getId() <= 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Post is required for presentation generation");
+        }
+        String storageBucket = readString(blogPrivateBucket, "").trim();
+        if (!StringUtils.hasText(storageBucket)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Blog storage bucket is not configured");
+        }
+
+        String markdown = readPostMarkdown(post);
+        if (!StringUtils.hasText(markdown)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Post markdown is empty");
+        }
+
+        PostPresentationEntity existing = findPostPresentation(post.getId());
+        String previousSlidevBucket = existing == null ? "" : readString(existing.getSlidevBucket(), "");
+        String previousSlidevKey = existing == null ? "" : readString(existing.getSlidevKey(), "");
+        String previousPptBucket = existing == null ? "" : readString(existing.getPptBucket(), "");
+        String previousPptKey = existing == null ? "" : readString(existing.getPptKey(), "");
+
+        PostPresentationEntity entity = existing == null ? new PostPresentationEntity() : existing;
+        LocalDateTime now = LocalDateTime.now();
+        if (entity.getId() == null || entity.getId() <= 0) {
+            entity.setPostId(post.getId());
+            entity.setCreatedAt(now);
+        }
+        entity.setStatusCode(POST_PRESENTATION_STATUS_GENERATING);
+        entity.setSlidevBucket(null);
+        entity.setSlidevKey(null);
+        entity.setPptBucket(null);
+        entity.setPptKey(null);
+        entity.setSlideCount(0);
+        entity.setTemplateVersion(PostPresentationTemplateService.TEMPLATE_VERSION);
+        entity.setErrorText("");
+        entity.setGeneratedAt(null);
+        entity.setUpdatedAt(now);
+        if (entity.getId() == null || entity.getId() <= 0) {
+            postPresentationMapper.insert(entity);
+        } else {
+            postPresentationMapper.updateById(entity);
+        }
+
+        PresentationSource source = new PresentationSource(
+            post.getId(),
+            post.getUserId(),
+            readString(post.getTitle(), "未命名文章"),
+            readString(post.getSummary(), ""),
+            readString(post.getCategoryCode(), "uncategorized"),
+            resolvePostPublishTimeForDisplay(post)
+        );
+
+        postPresentationExecutor.execute(() ->
+            generatePostPresentationAsync(source, markdown, previousSlidevBucket, previousSlidevKey, previousPptBucket, previousPptKey)
+        );
+    }
+
+    private void generatePostPresentationAsync(
+        PresentationSource source,
+        String markdown,
+        String previousSlidevBucket,
+        String previousSlidevKey,
+        String previousPptBucket,
+        String previousPptKey
+    ) {
+        String storageBucket = readString(blogPrivateBucket, "").trim();
+        String nextSlidevKey = "";
+        String nextPptKey = "";
+        try {
+            PostEntity templatePost = new PostEntity();
+            templatePost.setId(source.postId());
+            templatePost.setUserId(source.userId());
+            templatePost.setTitle(source.title());
+            templatePost.setSummary(source.summary());
+            templatePost.setCategoryCode(source.categoryCode());
+
+            PresentationDeck deck = postPresentationTemplateService.build(templatePost, markdown, source.publishedAt());
+            String fileBaseName = sanitizePresentationFileBaseName(source.postId(), source.title());
+
+            nextSlidevKey = buildPresentationObjectKey(source.userId(), source.postId(), fileBaseName + ".md");
+            persistTextObject(storageBucket, nextSlidevKey, deck.slidevMarkdown(), "text/markdown; charset=UTF-8");
+
+            PostPresentationGeneratorClient.PresentationRenderResult renderResult =
+                postPresentationGeneratorClient.renderPptx(deck.slidevMarkdown(), fileBaseName);
+            nextPptKey = buildPresentationObjectKey(source.userId(), source.postId(), fileBaseName + ".pptx");
+            persistBinaryObject(storageBucket, nextPptKey, renderResult.pptBytes(), PPT_CONTENT_TYPE);
+
+            PostPresentationEntity entity = requirePresentationEntityForUpdate(source.postId());
+            entity.setStatusCode(POST_PRESENTATION_STATUS_READY);
+            entity.setSlidevBucket(storageBucket);
+            entity.setSlidevKey(nextSlidevKey);
+            entity.setPptBucket(storageBucket);
+            entity.setPptKey(nextPptKey);
+            entity.setSlideCount(renderResult.slideCount() > 0 ? renderResult.slideCount() : deck.slideCount());
+            entity.setTemplateVersion(PostPresentationTemplateService.TEMPLATE_VERSION);
+            entity.setErrorText("");
+            entity.setGeneratedAt(LocalDateTime.now());
+            entity.setUpdatedAt(LocalDateTime.now());
+            postPresentationMapper.updateById(entity);
+
+            deleteStoredObjectQuietly(previousSlidevBucket, previousSlidevKey, storageBucket, nextSlidevKey);
+            deleteStoredObjectQuietly(previousPptBucket, previousPptKey, storageBucket, nextPptKey);
+        } catch (Exception exception) {
+            deleteStoredObjectQuietly(storageBucket, nextSlidevKey, "", "");
+            deleteStoredObjectQuietly(storageBucket, nextPptKey, "", "");
+            try {
+                PostPresentationEntity entity = requirePresentationEntityForUpdate(source.postId());
+                entity.setStatusCode(POST_PRESENTATION_STATUS_FAILED);
+                entity.setSlidevBucket(null);
+                entity.setSlidevKey(null);
+                entity.setPptBucket(null);
+                entity.setPptKey(null);
+                entity.setSlideCount(0);
+                entity.setTemplateVersion(PostPresentationTemplateService.TEMPLATE_VERSION);
+                entity.setErrorText(resolveGenerationErrorMessage(exception));
+                entity.setGeneratedAt(null);
+                entity.setUpdatedAt(LocalDateTime.now());
+                postPresentationMapper.updateById(entity);
+            } catch (Exception ignored) {
+                // ignore secondary failure to keep async task bounded
+            }
+        }
+    }
+
+    private PostPresentationEntity requirePresentationEntityForUpdate(Long postId) {
+        PostPresentationEntity entity = findPostPresentation(postId);
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Presentation state not found");
+        }
+        return entity;
+    }
+
+    private void persistTextObject(String bucket, String key, String content, String contentType) {
+        byte[] bytes = readString(content, "").getBytes(StandardCharsets.UTF_8);
+        persistBinaryObject(bucket, key, bytes, contentType);
+    }
+
+    private void persistBinaryObject(String bucket, String key, byte[] bytes, String contentType) {
+        StorageObjectMetadata metadata = new StorageObjectMetadata();
+        metadata.setContentType(contentType);
+        metadata.setContentLength(bytes == null ? 0L : bytes.length);
+        byte[] payload = bytes == null ? new byte[0] : bytes;
+        objectStorageClient.putObject(bucket, key, new ByteArrayInputStream(payload), metadata);
+    }
+
+    private void deleteStoredObjectQuietly(String bucket, String key, String keepBucket, String keepKey) {
+        String normalizedBucket = readString(bucket, "").trim();
+        String normalizedKey = readString(key, "").trim();
+        if (!StringUtils.hasText(normalizedBucket) || !StringUtils.hasText(normalizedKey)) {
+            return;
+        }
+        if (normalizedBucket.equals(readString(keepBucket, "").trim()) && normalizedKey.equals(readString(keepKey, "").trim())) {
+            return;
+        }
+        try {
+            objectStorageClient.deleteObject(normalizedBucket, normalizedKey);
+        } catch (Exception ignored) {
+            // ignore cleanup failures
+        }
+    }
+
+    private String resolveGenerationErrorMessage(Exception exception) {
+        if (exception instanceof BusinessException businessException) {
+            String detail = readString(businessException.getMessage(), "").trim();
+            return StringUtils.hasText(detail) ? detail : "Presentation generation failed";
+        }
+        String message = readString(exception == null ? "" : exception.getMessage(), "").trim();
+        return StringUtils.hasText(message) ? message : "Presentation generation failed";
+    }
+
+    private String buildPresentationObjectKey(Long userId, Long postId, String fileName) {
+        String safeFileName = sanitizeObjectSegment(fileName);
+        String random = UUID.randomUUID().toString().replace("-", "");
+        return "blog-presentations/user-"
+            + (userId == null || userId <= 0 ? 0 : userId)
+            + "/post-"
+            + (postId == null || postId <= 0 ? 0 : postId)
+            + "/"
+            + System.currentTimeMillis()
+            + "-"
+            + random
+            + "-"
+            + safeFileName;
+    }
+
+    private String sanitizeObjectSegment(String value) {
+        String normalized = readString(value, "")
+            .trim()
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9._-]+", "-")
+            .replaceAll("-+", "-")
+            .replaceAll("^-+|-+$", "");
+        return StringUtils.hasText(normalized) ? normalized : "presentation";
+    }
+
+    private String sanitizePresentationFileBaseName(Long postId, String title) {
+        String normalizedTitle = readString(title, "")
+            .trim()
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9_-]+", "-")
+            .replaceAll("-+", "-")
+            .replaceAll("^-+|-+$", "");
+        if (!StringUtils.hasText(normalizedTitle)) {
+            return "post-" + (postId == null || postId <= 0 ? "presentation" : postId + "-presentation");
+        }
+        return normalizedTitle;
+    }
+
+    private String sanitizePresentationFileName(PostEntity post) {
+        String baseName = sanitizePresentationFileBaseName(post == null ? null : post.getId(), post == null ? "" : post.getTitle());
+        return baseName + ".pptx";
+    }
+
     private PostDetailResponse toPostDetailResponse(PostEntity post, String markdown, boolean editable) {
         ContentVisibilityEnum visibility = normalizeVisibility(post.getVisibility());
         Set<String> allowedGroupCodes = visibility == ContentVisibilityEnum.GROUP ? loadPostAclGroups(post.getId()) : Set.of();
@@ -2302,6 +2691,16 @@ public class ContentServiceImpl implements ContentService {
         Long wordCount,
         Long lineCount,
         Integer readingMinutes
+    ) {
+    }
+
+    private record PresentationSource(
+        Long postId,
+        Long userId,
+        String title,
+        String summary,
+        String categoryCode,
+        LocalDateTime publishedAt
     ) {
     }
 }

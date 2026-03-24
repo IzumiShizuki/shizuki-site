@@ -1,6 +1,25 @@
 name: shizuki-site
 
 services:
+  presentation-generator:
+    build:
+      context: ..
+      dockerfile: Dockerfile.presentation-generator
+    image: shizuki-site/presentation-generator:latest
+    container_name: shizuki-site-presentation-generator
+    restart: unless-stopped
+    environment:
+      PORT: ${PRESENTATION_GENERATOR_PORT:-3210}
+      SLIDEV_EXPORT_TIMEOUT_MS: ${PRESENTATION_GENERATOR_EXPORT_TIMEOUT_MS:-600000}
+      SLIDEV_PAGE_TIMEOUT_MS: ${PRESENTATION_GENERATOR_PAGE_TIMEOUT_MS:-180000}
+      SLIDEV_WAIT_UNTIL: ${PRESENTATION_GENERATOR_WAIT_UNTIL:-load}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3210) + '/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   backend:
     build:
       context: ..
@@ -12,10 +31,16 @@ services:
       - .env.server
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      BLOG_PRESENTATION_GENERATOR_BASE_URL: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:-http://presentation-generator:3210}
+      BLOG_PRESENTATION_CONNECT_TIMEOUT_MS: ${BLOG_PRESENTATION_CONNECT_TIMEOUT_MS:-2000}
+      BLOG_PRESENTATION_READ_TIMEOUT_MS: ${BLOG_PRESENTATION_READ_TIMEOUT_MS:-660000}
     volumes:
       - ../resouces/yaml:/app/resouces/yaml:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      presentation-generator:
+        condition: service_healthy
     ports:
       - "${BACKEND_PORT:-8080}:8080"
 

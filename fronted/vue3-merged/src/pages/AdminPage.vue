@@ -1,6 +1,6 @@
 <template>
-  <section class="route-page admin-page">
-    <header class="page-header">
+  <section class="route-page admin-page" :class="{ 'admin-page--embedded': embedded }">
+    <header v-if="!embedded" class="page-header">
       <p class="eyebrow">Admin Console</p>
       <h1>管理后台</h1>
       <p>以表格和选择器为主完成用户、分组、权限、配额配置，减少手工输入。</p>
@@ -29,8 +29,9 @@
         </article>
       </section>
 
-      <div class="dashboard-layout">
+      <div class="dashboard-layout" :class="{ 'dashboard-layout--embedded': embedded }">
         <RouteDotRail
+          v-if="!embedded"
           class="sidebar-dot-rail"
           :items="tabs"
           :active-key="activeTab"
@@ -39,7 +40,8 @@
           @select="openTab"
         />
 
-        <section class="content-panel liquid-material">
+        <section class="content-panel liquid-material" :class="{ 'content-panel--embedded': embedded }">
+          <p v-if="embedded && globalHint" class="state-tip embedded-hint">{{ globalHint }}</p>
           <AdminUsersPanel
             v-if="activeTab === AdminTabKey.USERS"
             v-model:queryKeyword="usersQuery.keyword"
@@ -208,6 +210,18 @@ import {
   upsertQuotaCell
 } from './adminUiState';
 
+const props = defineProps({
+  embedded: {
+    type: Boolean,
+    default: false
+  },
+  forcedTab: {
+    type: String,
+    default: ''
+  }
+});
+
+const AUTHOR_ADMIN_ROUTE_PREFIX = 'admin:';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
@@ -308,7 +322,7 @@ const unlockDialog = reactive({
 let unlockResolver = null;
 
 const activeTab = computed(() => {
-  const raw = typeof route.query.tab === 'string' ? route.query.tab : '';
+  const raw = props.embedded ? props.forcedTab : (typeof route.query.tab === 'string' ? route.query.tab : '');
   return normalizeTab(raw);
 });
 
@@ -353,6 +367,15 @@ function setCustomQuotaCode(value) {
 function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
+  if (props.embedded) {
+    router.replace({
+      path: '/author',
+      query: {
+        tab: `${AUTHOR_ADMIN_ROUTE_PREFIX}${normalized}`
+      }
+    });
+    return;
+  }
   router.replace({
     path: '/admin',
     query: {
@@ -1137,6 +1160,7 @@ async function withPrivilegeRetry(action) {
 watch(
   () => route.query.tab,
   (nextTab) => {
+    if (props.embedded) return;
     const raw = typeof nextTab === 'string' ? nextTab : '';
     const normalized = normalizeTab(raw);
     if (raw === normalized) return;
@@ -1157,7 +1181,7 @@ onMounted(async () => {
     router.replace({
       path: '/auth',
       query: {
-        redirect: '/admin'
+        redirect: `/author?tab=${AUTHOR_ADMIN_ROUTE_PREFIX}${normalizeTab(props.embedded ? props.forcedTab : route.query.tab)}`
       }
     });
     return;
@@ -1167,6 +1191,15 @@ onMounted(async () => {
       path: '/profile',
       query: {
         reason: 'admin_only'
+      }
+    });
+    return;
+  }
+  if (!props.embedded) {
+    router.replace({
+      path: '/author',
+      query: {
+        tab: `${AUTHOR_ADMIN_ROUTE_PREFIX}${normalizeTab(typeof route.query.tab === 'string' ? route.query.tab : AdminTabKey.USERS)}`
       }
     });
     return;
@@ -1196,6 +1229,11 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-rows: auto auto 1fr;
   gap: 12px;
+}
+
+.admin-page--embedded {
+  min-height: auto;
+  grid-template-rows: auto 1fr;
 }
 
 .page-header {
@@ -1254,6 +1292,10 @@ h1 {
   gap: 16px;
 }
 
+.dashboard-layout--embedded {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .sidebar-dot-rail {
   align-self: stretch;
   position: sticky;
@@ -1271,6 +1313,19 @@ h1 {
   padding: 14px 16px;
   overflow: auto;
   animation: fade-in-up 0.25s ease;
+}
+
+.content-panel--embedded {
+  --liquid-bg: transparent;
+  --liquid-border: transparent;
+  --liquid-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.embedded-hint {
+  margin-bottom: 10px;
 }
 
 .state-tip {

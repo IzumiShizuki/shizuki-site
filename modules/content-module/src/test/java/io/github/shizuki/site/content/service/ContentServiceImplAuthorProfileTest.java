@@ -16,13 +16,17 @@ import io.github.shizuki.site.content.mapper.PostCategoryPolicyGroupMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyMapper;
 import io.github.shizuki.site.content.mapper.PostGroupAclMapper;
 import io.github.shizuki.site.content.mapper.PostMapper;
+import io.github.shizuki.site.content.mapper.PostPresentationMapper;
 import io.github.shizuki.site.content.mapper.PostTagMapper;
 import io.github.shizuki.site.content.service.impl.ContentServiceImpl;
+import io.github.shizuki.site.content.support.PostPresentationGeneratorClient;
+import io.github.shizuki.site.content.support.PostPresentationTemplateService;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,10 +68,19 @@ class ContentServiceImplAuthorProfileTest {
     private PostCategoryMetaMapper postCategoryMetaMapper;
 
     @Mock
+    private PostPresentationMapper postPresentationMapper;
+
+    @Mock
     private AuthorProfileMapper authorProfileMapper;
 
     @Mock
     private ObjectStorageClient objectStorageClient;
+
+    @Mock
+    private PostPresentationGeneratorClient postPresentationGeneratorClient;
+
+    @Mock
+    private Executor postPresentationExecutor;
 
     private ContentServiceImpl contentService;
 
@@ -83,9 +96,13 @@ class ContentServiceImplAuthorProfileTest {
             postCategoryPolicyMapper,
             postCategoryPolicyGroupMapper,
             postCategoryMetaMapper,
+            postPresentationMapper,
             authorProfileMapper,
             objectStorageClient,
-            new ObjectMapper()
+            new ObjectMapper(),
+            new PostPresentationTemplateService(),
+            postPresentationGeneratorClient,
+            postPresentationExecutor
         );
         LoginUserContext.set(new LoginUser(1L, Set.of("ADMIN"), Set.of()));
     }

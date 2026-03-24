@@ -358,6 +358,10 @@
             </article>
           </div>
 
+          <div v-else-if="isAdminConsoleTab" class="content-block admin-console-block">
+            <AdminPage embedded :forced-tab="activeAdminTab" />
+          </div>
+
           <div v-else-if="activeTab === 'posts'" class="content-block">
             <article class="author-card">
               <h2>站点文章</h2>
@@ -908,6 +912,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
+import AdminPage from './AdminPage.vue';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
@@ -926,10 +931,11 @@ import {
   createEmptyJourneyRow,
   createEmptyLinkRow
 } from './authorEditFormState';
+import { AdminTabKey } from './adminUiState';
 import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
 import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
-const AUTHOR_ADMIN_ROUTE_KEY = '__author-admin-route__';
+const AUTHOR_ADMIN_ROUTE_PREFIX = 'admin:';
 const DEFAULT_SITE_BROWSER_TITLE = 'Levitation + Menu';
 const route = useRoute();
 const router = useRouter();
@@ -941,6 +947,15 @@ const baseTabs = [
   { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed' },
   { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting' }
 ];
+const adminTabs = Object.freeze([
+  { tab: AdminTabKey.USERS, label: '后台用户', icon: 'fas fa-users' },
+  { tab: AdminTabKey.GROUPS, label: '后台分组', icon: 'fas fa-layer-group' },
+  { tab: AdminTabKey.PERMISSIONS, label: '后台权限', icon: 'fas fa-key' },
+  { tab: AdminTabKey.QUOTA, label: '后台配额', icon: 'fas fa-gauge-high' },
+  { tab: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
+  { tab: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
+]);
+const ADMIN_TAB_KEYS = new Set(adminTabs.map((item) => item.tab));
 
 const SKILL_ICON_RULES = [
   { pattern: /(c\+\+|cpp|c\/c\+\+|clang|gcc)/i, icon: 'fas fa-code', tone: 'tone-cyan' },
@@ -1084,12 +1099,19 @@ const tabs = computed(() => {
   const items = [...baseTabs];
   if (isAdminUser.value) {
     items.push({ key: AuthorTabKey.SITE_SETTINGS, label: '站点设置', icon: 'fas fa-browser' });
-    items.push({ key: AUTHOR_ADMIN_ROUTE_KEY, label: '管理后台', icon: 'fas fa-user-shield' });
+    items.push(
+      ...adminTabs.map((item) => ({
+        key: `${AUTHOR_ADMIN_ROUTE_PREFIX}${item.tab}`,
+        label: item.label,
+        icon: item.icon
+      }))
+    );
   }
   return items;
 });
 
 const routeRailDistribution = computed(() => {
+  if (tabs.value.length > 6) return 'stack';
   return tabs.value.length >= 6 ? 'full-sixths' : 'mid-sixths';
 });
 
@@ -1097,6 +1119,14 @@ const activeTab = computed(() => {
   const raw = typeof route.query.tab === 'string' ? route.query.tab : '';
   return normalizeTab(raw);
 });
+const activeAdminTab = computed(() => {
+  if (!isAdminUser.value) return '';
+  const raw = String(activeTab.value || '').trim().toLowerCase();
+  if (!raw.startsWith(AUTHOR_ADMIN_ROUTE_PREFIX)) return '';
+  const tab = raw.slice(AUTHOR_ADMIN_ROUTE_PREFIX.length);
+  return ADMIN_TAB_KEYS.has(tab) ? tab : AdminTabKey.USERS;
+});
+const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
 
 const hero = computed(() => authorProfile.value.profileJson.hero);
 const identity = computed(() => authorProfile.value.profileJson.identity);
@@ -1249,7 +1279,15 @@ const sectionEditorTitle = computed(() => {
 });
 
 function normalizeTab(raw) {
-  const normalized = normalizeAuthorTabKey(String(raw || '').trim().toLowerCase());
+  const text = String(raw || '').trim().toLowerCase();
+  if (text.startsWith(AUTHOR_ADMIN_ROUTE_PREFIX)) {
+    if (!isAdminUser.value) {
+      return AuthorTabKey.OVERVIEW;
+    }
+    const adminTab = text.slice(AUTHOR_ADMIN_ROUTE_PREFIX.length);
+    return `${AUTHOR_ADMIN_ROUTE_PREFIX}${ADMIN_TAB_KEYS.has(adminTab) ? adminTab : AdminTabKey.USERS}`;
+  }
+  const normalized = normalizeAuthorTabKey(text);
   if (normalized === AuthorTabKey.EDIT) {
     return AuthorTabKey.OVERVIEW;
   }
@@ -1260,10 +1298,6 @@ function normalizeTab(raw) {
 }
 
 function openTab(tabKey) {
-  if (tabKey === AUTHOR_ADMIN_ROUTE_KEY) {
-    router.push({ path: '/admin' });
-    return;
-  }
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
@@ -2258,6 +2292,23 @@ onBeforeUnmount(() => {
   height: auto;
   min-height: 0;
   padding-block: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(123, 194, 236, 0.48) transparent;
+}
+
+.sidebar-dot-rail::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-dot-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-dot-rail::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(111, 196, 235, 0.62), rgba(84, 155, 221, 0.48));
 }
 
 .content-panel {
@@ -4106,6 +4157,7 @@ onBeforeUnmount(() => {
     min-height: auto;
     height: auto;
     padding-block: 0;
+    overflow: visible;
   }
 
   .content-panel {

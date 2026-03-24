@@ -170,6 +170,11 @@ shizuki:
     storage:
       private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:zhuowang-files}}
       max-upload-size: ${BLOG_MAX_UPLOAD_SIZE:1048576}
+    presentation:
+      generator-base-url: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:}
+      download-expire-seconds: ${BLOG_PRESENTATION_DOWNLOAD_EXPIRE_SECONDS:900}
+      connect-timeout-ms: ${BLOG_PRESENTATION_CONNECT_TIMEOUT_MS:2000}
+      read-timeout-ms: ${BLOG_PRESENTATION_READ_TIMEOUT_MS:660000}
   content:
     author-profile:
       cache:

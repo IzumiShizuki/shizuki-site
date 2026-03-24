@@ -4,6 +4,8 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
+import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
+import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
@@ -181,5 +183,43 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.whisper_id").value(9001))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("CREATED"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.accepted").value(true));
+    }
+
+    @Test
+    void shouldReturnPublishedPresentationSuccessfully() throws Exception {
+        Mockito.when(contentService.getPublishedPostPresentation(ArgumentMatchers.eq(18L)))
+            .thenReturn(new PostPresentationResponse(
+                18L,
+                "READY",
+                4,
+                LocalDateTime.of(2026, 3, 24, 10, 0),
+                "v1",
+                "# Intro",
+                true,
+                ""
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/posts/18/presentation"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.post_id").value(18))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("READY"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.slide_count").value(4))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.ppt_ready").value(true));
+    }
+
+    @Test
+    void shouldReturnPublishedPresentationDownloadSuccessfully() throws Exception {
+        Mockito.when(contentService.getPublishedPostPresentationDownload(ArgumentMatchers.eq(18L)))
+            .thenReturn(new PostPresentationDownloadResponse(
+                "https://example.com/public-presentation.pptx",
+                "public-presentation.pptx"
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/posts/18/presentation/ppt-download-url"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.download_url").value("https://example.com/public-presentation.pptx"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.file_name").value("public-presentation.pptx"));
     }
 }

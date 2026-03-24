@@ -16,6 +16,8 @@ import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.dto.PostCategoryMetaUpsertRequest;
 import io.github.shizuki.site.content.dto.PostContentRelayResponse;
 import io.github.shizuki.site.content.dto.PostDetailResponse;
+import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
+import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
@@ -123,6 +125,31 @@ public interface ContentService {
      * 下线作者文章。
      */
     AuthorPostItemResponse unpublishMyPost(Long postId);
+
+    /**
+     * 为当前作者文章生成演示文稿。
+     */
+    PostPresentationResponse generateMyPostPresentation(Long postId);
+
+    /**
+     * 查询当前作者文章的演示文稿状态与内容。
+     */
+    PostPresentationResponse getMyPostPresentation(Long postId);
+
+    /**
+     * 查询当前作者文章的 PPT 下载地址。
+     */
+    PostPresentationDownloadResponse getMyPostPresentationDownload(Long postId);
+
+    /**
+     * 查询公开文章的演示文稿状态与内容。
+     */
+    PostPresentationResponse getPublishedPostPresentation(Long postId);
+
+    /**
+     * 查询公开文章的 PPT 下载地址。
+     */
+    PostPresentationDownloadResponse getPublishedPostPresentationDownload(Long postId);
 
     /**
      * 点赞帖子。
