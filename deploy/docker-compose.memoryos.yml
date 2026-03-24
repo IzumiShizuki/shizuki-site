@@ -1,0 +1,37 @@
+name: shizuki-memoryos
+
+services:
+  memoryos:
+    build:
+      context: ..
+      dockerfile: Dockerfile.memoryos
+      args:
+        MEMORYOS_REF: ${MEMORYOS_REF:-8688d5128901a88a70a3ba961de8705a6cdab4c0}
+    image: shizuki-site/memoryos:latest
+    container_name: shizuki-memoryos
+    restart: unless-stopped
+    env_file:
+      - .env.memoryos
+    environment:
+      MEMORYOS_PORT: ${MEMORYOS_PORT:-8788}
+      MEMORYOS_DATA_ROOT: /var/lib/memoryos/data
+      HF_ENDPOINT: ${MEMORYOS_HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HOME: /var/lib/memoryos/huggingface
+      SENTENCE_TRANSFORMERS_HOME: /var/lib/memoryos/huggingface
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${MEMORYOS_PORT:-8788}:8788"
+    volumes:
+      - memoryos-data:/var/lib/memoryos
+    mem_limit: 6g
+    cpus: 2.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8788/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  memoryos-data:

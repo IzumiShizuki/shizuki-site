@@ -1,0 +1,33 @@
+FROM m.daocloud.io/docker.io/library/python:3.10-slim
+
+ARG MEMORYOS_REF=8688d5128901a88a70a3ba961de8705a6cdab4c0
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    HF_HOME=/var/lib/memoryos/huggingface
+
+WORKDIR /opt
+
+RUN mkdir -p /opt/MemoryOS
+
+COPY third_party/memoryos-chromadb /opt/MemoryOS/memoryos-chromadb
+
+RUN pip install --upgrade pip \
+    && pip install --retries 20 --timeout 120 torch==2.7.1+cpu --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --retries 20 --timeout 120 -r /opt/MemoryOS/memoryos-chromadb/requirements.txt gunicorn
+
+WORKDIR /app
+
+COPY apps/memoryos-service/app.py /app/app.py
+
+ENV PYTHONPATH=/opt/MemoryOS/memoryos-chromadb:/opt/MemoryOS
+
+EXPOSE 8788
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=5 --start-period=30s \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8788/health', timeout=3)" || exit 1
+
+CMD ["gunicorn", "--bind", "0.0.0.0:8788", "--workers", "1", "--threads", "4", "--timeout", "300", "app:app"]
