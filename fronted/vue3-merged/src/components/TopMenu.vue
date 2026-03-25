@@ -40,13 +40,17 @@
       </div>
 
       <div class="nav-section right secondary-nav">
-        <div class="menu-item-stack ai-chat-item ripple-trigger" @click.stop="toggleAiChat">
+        <div
+          class="menu-item-stack ai-chat-item ripple-trigger"
+          :class="{ disabled: aiChatDisabled }"
+          @click.stop="toggleAiChat"
+        >
           <div class="pill-btn-box liquid-material">
             <i class="fas fa-robot"></i>
             <span>AI Chat</span>
             <span class="ai-chat-dot" :class="{ active: aiChatActive }" aria-hidden="true"></span>
           </div>
-          <span class="item-label">唤起AI对话</span>
+          <span class="item-label">{{ aiChatDisabled ? 'AI Hub 内已禁用' : '唤起AI对话' }}</span>
         </div>
 
         <div class="menu-item-stack ripple-trigger" @click="openProjectGithub">
@@ -124,6 +128,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  aiChatDisabled: {
+    type: Boolean,
+    default: false
+  },
   isAuthenticated: {
     type: Boolean,
     default: false
@@ -172,7 +180,7 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, aiChatActive, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
+const { menuExpanded, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
 const menuRootRef = ref(null);
 const profileMenuOpen = ref(false);
 const avatarLoadFailed = ref(false);
@@ -253,6 +261,9 @@ function onAuthorAvatarError() {
 }
 
 function toggleAiChat() {
+  if (aiChatDisabled.value) {
+    return;
+  }
   emit('toggle-ai-chat');
 }
 
@@ -633,6 +644,31 @@ useDismissiblePopover({
 
 .pill-btn-box:hover i {
   color: var(--icon-hover-color);
+}
+
+.ai-chat-item.disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.ai-chat-item.disabled .pill-btn-box {
+  --liquid-bg: rgba(255, 255, 255, 0.05);
+  color: rgba(210, 220, 238, 0.72);
+}
+
+.ai-chat-item.disabled:hover .pill-btn-box,
+.ai-chat-item.disabled .pill-btn-box:hover {
+  --liquid-bg: rgba(255, 255, 255, 0.05);
+  transform: none;
+  box-shadow: none;
+}
+
+.ai-chat-item.disabled .item-label {
+  color: rgba(219, 228, 245, 0.72);
+}
+
+.ai-chat-item.disabled .ai-chat-dot {
+  opacity: 0.72;
 }
 
 .ai-chat-dot {

@@ -22,6 +22,7 @@
       <AppMenuBar
         :menu-expanded="menuExpanded"
         :ai-chat-active="aiChatActive"
+        :ai-chat-disabled="isAiHubRoute"
         :is-authenticated="auth.isAuthenticated.value"
         :is-admin="isAdminUser"
         :display-name="authDisplayName"
@@ -453,7 +454,7 @@ const activeAiChatPayload = ref(null);
 const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.value);
 const showSidebarAiPanel = computed(() => aiChatActive.value && canUseSidebarAi.value);
 const sidebarAiColumnMounted = computed(() => canUseSidebarAi.value && (showSidebarAiPanel.value || sidebarAiColumnVisible.value));
-const showSheetAiPanel = computed(() => aiChatActive.value && (isMobileViewport.value || isAiHubRoute.value));
+const showSheetAiPanel = computed(() => aiChatActive.value && isMobileViewport.value && !isAiHubRoute.value);
 const showBarsVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'bars');
 const showRingVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'ring');
 const shouldRunVisualizer = computed(
@@ -1909,6 +1910,9 @@ function toggleMenu() {
 }
 
 function toggleAiChat() {
+  if (isAiHubRoute.value) {
+    return;
+  }
   if (!aiChatActive.value) {
     activeAiChatMode.value = 'quick_chat';
     activeAiChatPayload.value = null;
@@ -1923,6 +1927,9 @@ function closeAiChat() {
 }
 
 function handleAiChatOpenEvent(event) {
+  if (isAiHubRoute.value) {
+    return;
+  }
   const detail = event?.detail && typeof event.detail === 'object' ? event.detail : {};
   activeAiChatMode.value = normalizeAiChatMode(detail.preferredMode);
   activeAiChatPayload.value = {
@@ -1931,6 +1938,16 @@ function handleAiChatOpenEvent(event) {
   };
   aiChatActive.value = true;
 }
+
+watch(
+  () => isAiHubRoute.value,
+  (isAiHub) => {
+    if (isAiHub && aiChatActive.value) {
+      aiChatActive.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 function applySiteMetaToDocument(siteMeta) {
   if (typeof document === 'undefined') return;

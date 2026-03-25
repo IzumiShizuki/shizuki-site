@@ -9,20 +9,34 @@
     <button v-if="mode === 'sheet'" class="sheet-backdrop" type="button" aria-label="关闭AI面板" @click="emitClose"></button>
 
     <section class="ai-dialog liquid-material" @click.stop>
-      <header class="ai-dialog-header">
-        <button class="icon-btn ripple-trigger" type="button" title="重置当前模式会话" @click="resetActiveModeSession">
+      <header v-if="showHeader" class="ai-dialog-header">
+        <button
+          v-if="showResetButton"
+          class="icon-btn ripple-trigger"
+          type="button"
+          title="重置当前模式会话"
+          @click="resetActiveModeSession"
+        >
           <i class="fas fa-rotate-right"></i>
         </button>
+        <div v-else class="header-spacer" aria-hidden="true"></div>
         <div class="dialog-title">
           <span>AI 对话</span>
           <small>{{ activeModeMeta.caption }}</small>
         </div>
-        <button class="icon-btn close-btn ripple-trigger" type="button" title="收起" @click="emitClose">
+        <button
+          v-if="showCloseButton"
+          class="icon-btn close-btn ripple-trigger"
+          type="button"
+          title="收起"
+          @click="emitClose"
+        >
           <i class="fas fa-minus"></i>
         </button>
+        <div v-else class="header-spacer" aria-hidden="true"></div>
       </header>
 
-      <nav class="mode-switcher" aria-label="AI chat modes">
+      <nav v-if="visibleChatModeOptions.length" class="mode-switcher" aria-label="AI chat modes">
         <button
           v-for="item in visibleChatModeOptions"
           :key="item.value"
@@ -494,6 +508,23 @@ function normalizeChatMode(value) {
   return 'quick_chat';
 }
 
+function normalizeAllowedModes(input) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  return input
+    .map((item) => normalizeChatMode(item))
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function resolveAllowedChatMode(input, allowedModes) {
+  const normalized = normalizeChatMode(input);
+  if (Array.isArray(allowedModes) && allowedModes.length && !allowedModes.includes(normalized)) {
+    return allowedModes[0];
+  }
+  return normalized;
+}
+
 function parseCsvIds(raw) {
   return String(raw || '')
     .split(',')
@@ -686,11 +717,27 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'sidebar',
-    validator: (value) => value === 'sidebar' || value === 'sheet'
+    validator: (value) => value === 'sidebar' || value === 'sheet' || value === 'embedded'
   },
   chatMode: {
     type: String,
     default: 'quick_chat'
+  },
+  allowedModes: {
+    type: Array,
+    default: () => []
+  },
+  showHeader: {
+    type: Boolean,
+    default: true
+  },
+  showCloseButton: {
+    type: Boolean,
+    default: true
+  },
+  showResetButton: {
+    type: Boolean,
+    default: true
   },
   openPayload: {
     type: Object,
@@ -698,7 +745,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'mode-change']);
 const prefersReducedMotion = useReducedMotion();
 const auth = useAuthSession();
 const isAdminUser = computed(() => {
@@ -719,7 +766,13 @@ const sessionStateByMode = reactive({
 });
 
 const activeState = computed(() => sessionStateByMode[activeChatMode.value]);
-const visibleChatModeOptions = computed(() => CHAT_MODE_OPTIONS.filter((item) => !item.hidden));
+const allowedChatModes = computed(() => {
+  const normalized = normalizeAllowedModes(props.allowedModes);
+  return normalized.length ? normalized : CHAT_MODE_OPTIONS.map((item) => item.value);
+});
+const visibleChatModeOptions = computed(() =>
+  CHAT_MODE_OPTIONS.filter((item) => allowedChatModes.value.includes(item.value) && !item.hidden)
+);
 const activeModeMeta = computed(() => CHAT_MODE_OPTIONS.find((item) => item.value === activeChatMode.value) || CHAT_MODE_OPTIONS[0]);
 const canSendActiveMessage = computed(() => {
   if (!normalizeOptionalText(activeState.value.draft) || activeState.value.pending) {
@@ -768,6 +821,9 @@ const modeSummaryText = computed(() => {
 });
 
 const shellMotion = computed(() => {
+  if (props.mode === 'embedded') {
+    return { opacity: props.visible ? 1 : 0, x: 0, y: 0, scale: 1 };
+  }
   if (prefersReducedMotion.value) {
     return { opacity: props.visible ? 1 : 0, x: 0, y: 0, scale: 1 };
   }
@@ -788,9 +844,17 @@ const shellTransition = computed(() =>
 watch(
   () => props.chatMode,
   (nextValue) => {
-    activeChatMode.value = normalizeChatMode(nextValue);
+    activeChatMode.value = resolveAllowedChatMode(nextValue, allowedChatModes.value);
   },
   { immediate: true }
+);
+
+watch(
+  () => allowedChatModes.value,
+  (nextValue) => {
+    activeChatMode.value = resolveAllowedChatMode(activeChatMode.value, nextValue);
+  },
+  { deep: true, immediate: true }
 );
 
 watch(
@@ -834,6 +898,7 @@ watch(
 watch(
   () => activeChatMode.value,
   async (mode) => {
+    emit('mode-change', mode);
     if ((mode === 'tavern' || mode === 'companion') && auth.isAuthenticated.value) {
       await ensureTavernAssetsLoaded();
     }
@@ -849,7 +914,7 @@ function emitClose() {
 }
 
 function setActiveChatMode(mode) {
-  activeChatMode.value = normalizeChatMode(mode);
+  activeChatMode.value = resolveAllowedChatMode(mode, allowedChatModes.value);
 }
 
 function resetActiveModeSession() {
@@ -870,7 +935,7 @@ function syncStateFromSessionSummary(state, rawSummary) {
 
 function applyOpenPayload(payload) {
   if (!payload || typeof payload !== 'object') return;
-  const nextMode = normalizeChatMode(payload.preferredMode || payload.mode || props.chatMode);
+  const nextMode = resolveAllowedChatMode(payload.preferredMode || payload.mode || props.chatMode, allowedChatModes.value);
   const nextState = createModeState(nextMode);
   const bootstrap = payload.bootstrap && typeof payload.bootstrap === 'object' ? payload.bootstrap : payload;
   const session = bootstrap.session && typeof bootstrap.session === 'object' ? bootstrap.session : null;
@@ -1323,6 +1388,12 @@ function messageRoleLabel(role) {
   z-index: 1750;
 }
 
+.ai-dialog-shell.mode-embedded {
+  height: auto;
+  min-height: 0;
+  pointer-events: auto;
+}
+
 .sheet-backdrop {
   position: absolute;
   inset: 0;
@@ -1360,11 +1431,25 @@ function messageRoleLabel(role) {
   box-shadow: 0 -12px 36px rgba(8, 10, 16, 0.42);
 }
 
+.mode-embedded .ai-dialog {
+  min-height: min(78vh, 880px);
+  height: auto;
+  border-radius: 28px;
+  padding: 18px;
+  gap: 14px;
+  box-shadow: 0 18px 44px rgba(4, 7, 16, 0.3);
+}
+
 .ai-dialog-header {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
+}
+
+.header-spacer {
+  width: 30px;
+  height: 30px;
 }
 
 .dialog-title {
@@ -1911,11 +1996,77 @@ function messageRoleLabel(role) {
   }
 }
 
+@media (min-width: 901px) {
+  .mode-embedded .ai-dialog {
+    display: grid;
+    grid-template-columns: minmax(0, 1.68fr) minmax(300px, 0.92fr);
+    grid-template-areas:
+      'header header'
+      'switch switch'
+      'summary summary'
+      'chat side'
+      'error side'
+      'input side';
+    align-content: start;
+  }
+
+  .mode-embedded .ai-dialog-header {
+    grid-area: header;
+  }
+
+  .mode-embedded .mode-switcher {
+    grid-area: switch;
+    max-width: 420px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mode-embedded .session-summary {
+    grid-area: summary;
+  }
+
+  .mode-embedded .mode-config,
+  .mode-embedded .mode-note {
+    grid-area: side;
+    align-self: stretch;
+    height: 100%;
+  }
+
+  .mode-embedded .mode-note {
+    border-radius: 18px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .mode-embedded .chat-stream {
+    grid-area: chat;
+    min-height: clamp(320px, 44vh, 620px);
+    padding-right: 10px;
+  }
+
+  .mode-embedded .error-banner {
+    grid-area: error;
+  }
+
+  .mode-embedded .chat-input-wrap {
+    grid-area: input;
+  }
+
+  .mode-embedded .chat-bubble {
+    max-width: min(100%, 560px);
+  }
+}
+
 @media (max-width: 900px) {
   .mode-sheet .ai-dialog {
     max-height: 100dvh;
     height: 100dvh;
     border-radius: 0;
+  }
+
+  .mode-embedded .ai-dialog {
+    min-height: 0;
+    padding: 16px;
   }
 
   .mode-switcher,

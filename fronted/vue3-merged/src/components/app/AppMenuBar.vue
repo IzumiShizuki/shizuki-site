@@ -20,6 +20,7 @@ import TopMenu from '../TopMenu.vue';
 const props = defineProps({
   menuExpanded: { type: Boolean, default: false },
   aiChatActive: { type: Boolean, default: false },
+  aiChatDisabled: { type: Boolean, default: false },
   isAuthenticated: { type: Boolean, default: false },
   isAdmin: { type: Boolean, default: false },
   displayName: { type: String, default: '' },
