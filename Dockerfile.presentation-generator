@@ -1,0 +1,17 @@
+FROM m.daocloud.io/docker.io/library/node:20-bookworm-slim
+
+WORKDIR /app
+
+COPY tools/presentation-generator/package.json ./package.json
+COPY tools/presentation-generator/package-lock.json ./package-lock.json
+RUN npm ci \
+    && npx playwright install --with-deps chromium
+
+COPY tools/presentation-generator/server.mjs ./server.mjs
+
+ENV NODE_ENV=production
+ENV PORT=3210
+
+EXPOSE 3210
+
+CMD ["npm", "run", "start"]
