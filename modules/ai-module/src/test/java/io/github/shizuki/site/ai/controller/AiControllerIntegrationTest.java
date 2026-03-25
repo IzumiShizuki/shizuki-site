@@ -5,6 +5,11 @@ import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiTownMapNodeResponse;
+import io.github.shizuki.site.ai.dto.AiTownNpcResponse;
+import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
@@ -185,6 +190,76 @@ class AiControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.entry_id").value(3001))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.keywords[0]").value("图书馆"));
+    }
+
+    @Test
+    void shouldListTownScenesSuccessfully() throws Exception {
+        Mockito.when(aiService.listTownScenes())
+            .thenReturn(List.of(
+                new AiTownSceneSummaryResponse("library", "图书馆", "knowledge", "资料与设定浏览入口", "木书架与暖灯", 2, true)
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/ai-town/scenes"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].scene_code").value("library"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("图书馆"));
+    }
+
+    @Test
+    void shouldGetTownSceneSuccessfully() throws Exception {
+        Mockito.when(aiService.getTownScene("library"))
+            .thenReturn(new AiTownSceneDetailResponse(
+                "library",
+                "图书馆",
+                "knowledge",
+                "资料与设定浏览入口",
+                "木书架与暖灯",
+                true,
+                List.of("资料索引", "夜间氛围"),
+                List.of(new AiTownNpcResponse("librarian", "library", "馆长 Haru", "管理员特殊 NPC", "负责资料整理", true, true, null, List.of()))
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/ai-town/scenes/library"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.scene_code").value("library"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.npcs[0].npc_code").value("librarian"));
+    }
+
+    @Test
+    void shouldGetTownPublicMapSuccessfully() throws Exception {
+        Mockito.when(aiService.getTownPublicMap())
+            .thenReturn(new AiTownPublicMapResponse(
+                List.of(new AiTownMapNodeResponse("library", "图书馆", 18, 26, "amber"))
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/ai-town/public-map"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.scenes[0].scene_code").value("library"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.scenes[0].coord_x").value(18));
+    }
+
+    @Test
+    void shouldCreateAdminTownNpcSessionSuccessfully() throws Exception {
+        Mockito.when(aiService.createAdminTownNpcSession("librarian"))
+            .thenReturn(new AiSessionSummary(
+                "session-town-001",
+                "图书馆 · 馆长 Haru",
+                "town_npc",
+                null,
+                List.of(),
+                "资料与设定浏览入口",
+                "library",
+                "librarian"
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/admin/ai-town/npcs/librarian/sessions"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.session_id").value("session-town-001"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.mode").value("town_npc"));
     }
 
     @Test

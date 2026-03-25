@@ -6,6 +6,9 @@ import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
@@ -90,6 +93,24 @@ public class AiController {
         return ApiResponse.success(aiService.getCharacter(characterId));
     }
 
+    @GetMapping("/ai-town/scenes")
+    @Operation(summary = "查询 AI 小镇公开场景列表")
+    public ApiResponse<List<AiTownSceneSummaryResponse>> listTownScenes() {
+        return ApiResponse.success(aiService.listTownScenes());
+    }
+
+    @GetMapping("/ai-town/scenes/{scene_code}")
+    @Operation(summary = "查询 AI 小镇公开场景详情")
+    public ApiResponse<AiTownSceneDetailResponse> getTownScene(@PathVariable("scene_code") String sceneCode) {
+        return ApiResponse.success(aiService.getTownScene(sceneCode));
+    }
+
+    @GetMapping("/ai-town/public-map")
+    @Operation(summary = "查询 AI 小镇公开地图")
+    public ApiResponse<AiTownPublicMapResponse> getTownPublicMap() {
+        return ApiResponse.success(aiService.getTownPublicMap());
+    }
+
     @PostMapping("/ai-worldbooks")
     @Operation(summary = "创建世界书")
     public ApiResponse<AiWorldbookDetailResponse> createWorldbook(@Valid @RequestBody CreateWorldbookRequest request) {
@@ -128,5 +149,11 @@ public class AiController {
                                                                       @PathVariable("entry_id") Long entryId,
                                                                       @Valid @RequestBody UpsertWorldbookEntryRequest request) {
         return ApiResponse.success(aiService.updateWorldbookEntry(worldbookId, entryId, request));
+    }
+
+    @PostMapping("/admin/ai-town/npcs/{npc_code}/sessions")
+    @Operation(summary = "创建管理员特殊 NPC 会话")
+    public ApiResponse<AiSessionSummary> createAdminTownNpcSession(@PathVariable("npc_code") String npcCode) {
+        return ApiResponse.success(aiService.createAdminTownNpcSession(npcCode));
     }
 }

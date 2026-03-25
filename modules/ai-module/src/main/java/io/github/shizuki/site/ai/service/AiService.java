@@ -3,6 +3,9 @@ package io.github.shizuki.site.ai.service;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
@@ -70,6 +73,26 @@ public interface AiService {
      * 查询世界书详情。
      */
     AiWorldbookDetailResponse getWorldbook(Long worldbookId);
+
+    /**
+     * 查询 AI 小镇公开场景列表。
+     */
+    List<AiTownSceneSummaryResponse> listTownScenes();
+
+    /**
+     * 查询 AI 小镇公开场景详情。
+     */
+    AiTownSceneDetailResponse getTownScene(String sceneCode);
+
+    /**
+     * 查询 AI 小镇公开地图。
+     */
+    AiTownPublicMapResponse getTownPublicMap();
+
+    /**
+     * 为管理员特殊 NPC 创建会话。
+     */
+    AiSessionSummary createAdminTownNpcSession(String npcCode);
 
     /**
      * 更新世界书。

@@ -10,6 +10,11 @@ import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiTownMapNodeResponse;
+import io.github.shizuki.site.ai.dto.AiTownNpcResponse;
+import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
@@ -268,6 +273,59 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
+    public List<AiTownSceneSummaryResponse> listTownScenes() {
+        return AiTownCatalog.listScenes().stream()
+            .map(this::toTownSceneSummary)
+            .toList();
+    }
+
+    @Override
+    public AiTownSceneDetailResponse getTownScene(String sceneCode) {
+        return toTownSceneDetail(loadTownScene(sceneCode));
+    }
+
+    @Override
+    public AiTownPublicMapResponse getTownPublicMap() {
+        return new AiTownPublicMapResponse(
+            AiTownCatalog.listScenes().stream()
+                .map(scene -> new AiTownMapNodeResponse(
+                    scene.sceneCode(),
+                    scene.title(),
+                    scene.coordX(),
+                    scene.coordY(),
+                    scene.tone()
+                ))
+                .toList()
+        );
+    }
+
+    @Override
+    public AiSessionSummary createAdminTownNpcSession(String npcCode) {
+        Long userId = requireLoginUserId();
+        requireAdminRole();
+        AiTownCatalog.NpcDefinition npc = loadTownNpc(npcCode);
+        if (!npc.adminOnly()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "NPC session is only available for admin-only entries");
+        }
+        AiTownCatalog.SceneDefinition scene = loadTownScene(npc.sceneCode());
+
+        CreateSessionRequest request = new CreateSessionRequest();
+        request.setTitle(scene.title() + " · " + npc.displayName());
+        request.setMode("town_npc");
+        request.setCharacterId(normalizePositiveLong(npc.characterId()));
+        request.setWorldbookIds(normalizeWorldbookIds(npc.worldbookIds()));
+        request.setScenePrompt(scene.description() + " " + npc.intro());
+        request.setTownRoomCode(scene.sceneCode());
+        request.setActorCode(npc.npcCode());
+
+        AiSessionSummary summary = createSession(request);
+        if (summary.sessionId() == null || summary.sessionId().isBlank()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Failed to create NPC session for user " + userId);
+        }
+        return summary;
+    }
+
+    @Override
     public AiWorldbookDetailResponse createWorldbook(CreateWorldbookRequest request) {
         Long userId = requireLoginUserId();
         LocalDateTime now = LocalDateTime.now();
@@ -464,6 +522,30 @@ public class AiServiceImpl implements AiService {
         return entity;
     }
 
+    private AiTownCatalog.SceneDefinition loadTownScene(String sceneCode) {
+        String normalized = normalizeCode(sceneCode);
+        if (normalized == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "scene_code is required");
+        }
+        AiTownCatalog.SceneDefinition scene = AiTownCatalog.findScene(normalized);
+        if (scene == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "AI town scene not found");
+        }
+        return scene;
+    }
+
+    private AiTownCatalog.NpcDefinition loadTownNpc(String npcCode) {
+        String normalized = normalizeCode(npcCode);
+        if (normalized == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "npc_code is required");
+        }
+        AiTownCatalog.NpcDefinition npc = AiTownCatalog.findNpc(normalized);
+        if (npc == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "AI town NPC not found");
+        }
+        return npc;
+    }
+
     private AiWorldbookEntryEntity loadOwnedWorldbookEntry(Long worldbookId, Long entryId) {
         if (entryId == null || entryId <= 0) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "entry_id is required");
@@ -596,6 +678,16 @@ public class AiServiceImpl implements AiService {
         return userId != null && userId > 0;
     }
 
+    private void requireAdminRole() {
+        Set<String> groups = LoginUserContext.get().map(loginUser -> loginUser.getGroups()).orElse(Set.of());
+        boolean isAdmin = groups.stream()
+            .map(group -> String.valueOf(group).trim().toUpperCase(Locale.ROOT))
+            .anyMatch("ADMIN"::equals);
+        if (!isAdmin) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Admin required");
+        }
+    }
+
     private String toJson(Map<String, Object> payload) {
         return toJsonValue(payload == null ? Map.of() : payload);
     }
@@ -680,6 +772,47 @@ public class AiServiceImpl implements AiService {
             isEnabled(entity.getEnabled()),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
+        );
+    }
+
+    private AiTownSceneSummaryResponse toTownSceneSummary(AiTownCatalog.SceneDefinition scene) {
+        return new AiTownSceneSummaryResponse(
+            scene.sceneCode(),
+            scene.title(),
+            scene.sceneType(),
+            scene.description(),
+            scene.atmosphereHint(),
+            scene.npcs().size(),
+            true
+        );
+    }
+
+    private AiTownSceneDetailResponse toTownSceneDetail(AiTownCatalog.SceneDefinition scene) {
+        return new AiTownSceneDetailResponse(
+            scene.sceneCode(),
+            scene.title(),
+            scene.sceneType(),
+            scene.description(),
+            scene.atmosphereHint(),
+            true,
+            scene.highlights(),
+            scene.npcs().stream()
+                .map(npc -> toTownNpcResponse(scene.sceneCode(), npc))
+                .toList()
+        );
+    }
+
+    private AiTownNpcResponse toTownNpcResponse(String sceneCode, AiTownCatalog.NpcDefinition npc) {
+        return new AiTownNpcResponse(
+            npc.npcCode(),
+            sceneCode,
+            npc.displayName(),
+            npc.roleLabel(),
+            npc.intro(),
+            npc.adminOnly(),
+            npc.memoryEnabled(),
+            npc.characterId(),
+            normalizeWorldbookIds(npc.worldbookIds())
         );
     }
 

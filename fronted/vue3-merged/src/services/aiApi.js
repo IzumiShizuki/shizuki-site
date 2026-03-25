@@ -53,6 +53,46 @@ export async function getMyAiQuota(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function listAiTownScenes(authorizedFetch) {
+  const request = resolveRequest(authorizedFetch);
+  const response = await request('/api/v1/ai-town/scenes', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAiTownScene(sceneCode, authorizedFetch) {
+  const request = resolveRequest(authorizedFetch);
+  const normalizedSceneCode = String(sceneCode || '').trim();
+  if (!normalizedSceneCode) {
+    throw new Error('sceneCode is required');
+  }
+  const response = await request(`/api/v1/ai-town/scenes/${encodeURIComponent(normalizedSceneCode)}`, {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAiTownPublicMap(authorizedFetch) {
+  const request = resolveRequest(authorizedFetch);
+  const response = await request('/api/v1/ai-town/public-map', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function createAdminTownNpcSession(npcCode, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedNpcCode = String(npcCode || '').trim();
+  if (!normalizedNpcCode) {
+    throw new Error('npcCode is required');
+  }
+  const response = await request(`/api/v1/admin/ai-town/npcs/${encodeURIComponent(normalizedNpcCode)}/sessions`, {
+    method: 'POST'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function createAiCharacter(payload, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/ai-characters', {

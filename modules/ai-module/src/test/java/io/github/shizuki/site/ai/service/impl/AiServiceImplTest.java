@@ -7,6 +7,9 @@ import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
+import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
@@ -298,6 +301,37 @@ class AiServiceImplTest {
 
         Assertions.assertEquals("12:companion:my_home_ai:home", response.get("scope_id"));
         Assertions.assertTrue(String.valueOf(response.get("assistant_message")).contains("12:companion:my_home_ai:home"));
+    }
+
+    @Test
+    void shouldExposeTownScenesAndCreateAdminNpcSession() {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+        AtomicLong sessionSequence = new AtomicLong(300);
+
+        Mockito.doAnswer(invocation -> {
+            AiSessionEntity entity = invocation.getArgument(0);
+            entity.setId(sessionSequence.incrementAndGet());
+            return 1;
+        }).when(aiSessionMapper).insert(ArgumentMatchers.any(AiSessionEntity.class));
+
+        List<AiTownSceneSummaryResponse> scenes = aiService.listTownScenes();
+        AiTownSceneDetailResponse sceneDetail = aiService.getTownScene("library");
+        AiTownPublicMapResponse publicMap = aiService.getTownPublicMap();
+        AiSessionSummary sessionSummary = aiService.createAdminTownNpcSession("librarian");
+
+        Assertions.assertEquals(3, scenes.size());
+        Assertions.assertEquals("library", sceneDetail.sceneCode());
+        Assertions.assertEquals(3, publicMap.scenes().size());
+        Assertions.assertEquals("town_npc", sessionSummary.mode());
+        Assertions.assertEquals("library", sessionSummary.townRoomCode());
+        Assertions.assertEquals("librarian", sessionSummary.actorCode());
+
+        ArgumentCaptor<AiSessionEntity> captor = ArgumentCaptor.forClass(AiSessionEntity.class);
+        Mockito.verify(aiSessionMapper).insert(captor.capture());
+        AiSessionEntity persisted = captor.getValue();
+        Assertions.assertEquals("town_npc", persisted.getMode());
+        Assertions.assertEquals("library", persisted.getTownRoomCode());
+        Assertions.assertEquals("librarian", persisted.getActorCode());
     }
 
     @Test

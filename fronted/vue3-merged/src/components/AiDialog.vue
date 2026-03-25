@@ -24,7 +24,7 @@
 
       <nav class="mode-switcher" aria-label="AI chat modes">
         <button
-          v-for="item in CHAT_MODE_OPTIONS"
+          v-for="item in visibleChatModeOptions"
           :key="item.value"
           class="mode-chip ripple-trigger"
           :class="{ active: activeChatMode === item.value }"
@@ -218,6 +218,42 @@
         </details>
       </section>
 
+      <section v-else-if="activeChatMode === 'town_npc' || activeChatMode === 'companion'" class="mode-config liquid-material scene-mode-config">
+        <div class="config-field config-field-full config-toolbar">
+          <div>
+            <span class="config-title">{{ activeChatMode === 'town_npc' ? 'AI 小镇特殊 NPC 会话' : '自宅 companion 会话' }}</span>
+            <p class="config-helper">
+              {{ activeChatMode === 'town_npc' ? '这里会带上 scene / actor / memory 契约，作用域由后端按场景模式兜底生成。' : '这里保留给管理员专属 companion，会沿用同一套记忆作用域规则。' }}
+            </p>
+          </div>
+        </div>
+
+        <label class="config-field">
+          <span>场景代号</span>
+          <input v-model.trim="activeState.config.townRoomCode" type="text" maxlength="64" placeholder="如 library" />
+        </label>
+
+        <label class="config-field">
+          <span>交互对象</span>
+          <input v-model.trim="activeState.config.actorCode" type="text" maxlength="64" placeholder="如 librarian" />
+        </label>
+
+        <label class="config-field config-field-full">
+          <span>场景提示</span>
+          <textarea
+            v-model.trim="activeState.config.scenePrompt"
+            rows="2"
+            maxlength="600"
+            placeholder="例如：图书馆夜间只保留暖光与检索台。"
+          ></textarea>
+        </label>
+
+        <label class="config-toggle">
+          <input v-model="activeState.config.memoryEnabled" type="checkbox" />
+          <span>启用分层记忆 contract</span>
+        </label>
+      </section>
+
       <section v-else class="mode-note">
         <p>{{ activeModeMeta.note }}</p>
       </section>
@@ -317,6 +353,30 @@ const CHAT_MODE_OPTIONS = [
     placeholder: '对角色说一句话，或描述你想进入的场景...',
     emptyTitle: '酒馆模式已支持基础契约',
     emptyBody: '现在可以直接选择角色、绑定世界书，并在当前面板内创建结构化角色、导入角色卡或新建世界书。'
+  },
+  {
+    value: 'town_npc',
+    label: '小镇 NPC',
+    kicker: 'Town NPC',
+    title: 'AI 小镇特殊 NPC',
+    caption: '管理员特殊 NPC 对话',
+    note: '该模式会携带 scene / actor / memory 契约，并由后端基于场景模式兜底生成 scope_id。',
+    placeholder: '对这个场景角色说一句话...',
+    emptyTitle: '场景模式会话已就位',
+    emptyBody: '从 AI 小镇里点管理员特殊 NPC 入口后，会话会自动带上场景与角色信息。',
+    hidden: true
+  },
+  {
+    value: 'companion',
+    label: '自宅',
+    kicker: 'Companion',
+    title: '自宅 companion',
+    caption: '管理员专属 companion 对话',
+    note: '该模式预留给自宅 companion，会复用与特殊 NPC 相同的记忆作用域规则。',
+    placeholder: '对 companion 说一句话...',
+    emptyTitle: 'companion 模式待完整接入',
+    emptyBody: '后续 bead 会把人格配置、形象位和记忆开关继续接到这个模式。',
+    hidden: true
   }
 ];
 
@@ -334,7 +394,9 @@ function normalizeOptionalText(value) {
 
 function normalizeChatMode(value) {
   const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'normal' || normalized === 'tavern') return normalized;
+  if (normalized === 'normal' || normalized === 'tavern' || normalized === 'town_npc' || normalized === 'companion') {
+    return normalized;
+  }
   return 'quick_chat';
 }
 
@@ -369,7 +431,9 @@ function createModeState(mode) {
       characterId: '',
       worldbookIdsText: '',
       scenePrompt: '',
-      memoryEnabled: mode === 'tavern'
+      townRoomCode: '',
+      actorCode: '',
+      memoryEnabled: mode === 'tavern' || mode === 'town_npc' || mode === 'companion'
     }
   };
 }
@@ -424,7 +488,9 @@ function normalizeSessionSummary(raw = {}) {
     mode: normalizeChatMode(raw.mode),
     characterId: toNumber(raw.characterId ?? raw.character_id),
     worldbookIds,
-    scenePrompt: normalizeOptionalText(raw.scenePrompt ?? raw.scene_prompt)
+    scenePrompt: normalizeOptionalText(raw.scenePrompt ?? raw.scene_prompt),
+    townRoomCode: normalizeOptionalText(raw.townRoomCode ?? raw.town_room_code),
+    actorCode: normalizeOptionalText(raw.actorCode ?? raw.actor_code)
   };
 }
 
@@ -477,7 +543,10 @@ function buildSessionTitle(mode, existingTitle, openingMessage) {
   if (normalizedExisting) return normalizedExisting;
   const normalizedOpening = normalizeOptionalText(openingMessage);
   if (!normalizedOpening) {
-    return mode === 'tavern' ? '酒馆模式会话' : mode === 'normal' ? '普通对话会话' : '快聊会话';
+    if (mode === 'tavern') return '酒馆模式会话';
+    if (mode === 'town_npc') return 'AI 小镇 NPC 会话';
+    if (mode === 'companion') return '自宅 companion 会话';
+    return mode === 'normal' ? '普通对话会话' : '快聊会话';
   }
   return normalizedOpening.slice(0, 24);
 }
@@ -495,6 +564,10 @@ const props = defineProps({
   chatMode: {
     type: String,
     default: 'quick_chat'
+  },
+  openPayload: {
+    type: Object,
+    default: null
   }
 });
 
@@ -508,10 +581,13 @@ const tavernAssets = reactive(createTavernAssetsState());
 const sessionStateByMode = reactive({
   quick_chat: createModeState('quick_chat'),
   normal: createModeState('normal'),
-  tavern: createModeState('tavern')
+  tavern: createModeState('tavern'),
+  town_npc: createModeState('town_npc'),
+  companion: createModeState('companion')
 });
 
 const activeState = computed(() => sessionStateByMode[activeChatMode.value]);
+const visibleChatModeOptions = computed(() => CHAT_MODE_OPTIONS.filter((item) => !item.hidden));
 const activeModeMeta = computed(() => CHAT_MODE_OPTIONS.find((item) => item.value === activeChatMode.value) || CHAT_MODE_OPTIONS[0]);
 const canSendActiveMessage = computed(() => normalizeOptionalText(activeState.value.draft) && !activeState.value.pending);
 const quotaLabel = computed(() => {
@@ -541,6 +617,10 @@ const modeSummaryText = computed(() => {
     parts.push(selectedCharacterSummary.value ? `角色 ${selectedCharacterSummary.value.displayName}` : '角色未绑定');
     parts.push(selectedWorldbookLabels.value.length ? `世界书 ${selectedWorldbookLabels.value.join(' / ')}` : '世界书未绑定');
   }
+  if (activeChatMode.value === 'town_npc' || activeChatMode.value === 'companion') {
+    parts.push(state.config.townRoomCode ? `场景 ${state.config.townRoomCode}` : '场景未绑定');
+    parts.push(state.config.actorCode ? `对象 ${state.config.actorCode}` : '对象未绑定');
+  }
   return parts.join(' · ');
 });
 
@@ -568,6 +648,14 @@ watch(
     activeChatMode.value = normalizeChatMode(nextValue);
   },
   { immediate: true }
+);
+
+watch(
+  () => props.openPayload,
+  (nextValue) => {
+    applyOpenPayload(nextValue);
+  },
+  { deep: true }
 );
 
 watch(
@@ -621,6 +709,42 @@ function syncStateFromSessionSummary(state, rawSummary) {
   if (summary.characterId > 0) state.config.characterId = String(summary.characterId);
   if (summary.worldbookIds.length) state.config.worldbookIdsText = summary.worldbookIds.join(', ');
   if (summary.scenePrompt) state.config.scenePrompt = summary.scenePrompt;
+  if (summary.townRoomCode) state.config.townRoomCode = summary.townRoomCode;
+  if (summary.actorCode) state.config.actorCode = summary.actorCode;
+}
+
+function applyOpenPayload(payload) {
+  if (!payload || typeof payload !== 'object') return;
+  const nextMode = normalizeChatMode(payload.preferredMode || payload.mode || props.chatMode);
+  const nextState = createModeState(nextMode);
+  const bootstrap = payload.bootstrap && typeof payload.bootstrap === 'object' ? payload.bootstrap : payload;
+  const session = bootstrap.session && typeof bootstrap.session === 'object' ? bootstrap.session : null;
+  const config = bootstrap.config && typeof bootstrap.config === 'object' ? bootstrap.config : {};
+
+  if (session) {
+    syncStateFromSessionSummary(nextState, session);
+  }
+  if (config.characterId != null) {
+    nextState.config.characterId = String(config.characterId);
+  }
+  if (Array.isArray(config.worldbookIds)) {
+    nextState.config.worldbookIdsText = parseCsvIds(config.worldbookIds.join(',')).join(', ');
+  }
+  if (normalizeOptionalText(config.scenePrompt)) {
+    nextState.config.scenePrompt = normalizeOptionalText(config.scenePrompt);
+  }
+  if (normalizeOptionalText(config.townRoomCode)) {
+    nextState.config.townRoomCode = normalizeOptionalText(config.townRoomCode);
+  }
+  if (normalizeOptionalText(config.actorCode)) {
+    nextState.config.actorCode = normalizeOptionalText(config.actorCode);
+  }
+  if (typeof config.memoryEnabled === 'boolean') {
+    nextState.config.memoryEnabled = config.memoryEnabled;
+  }
+
+  sessionStateByMode[nextMode] = nextState;
+  activeChatMode.value = nextMode;
 }
 
 function setTavernFeedback(text, tone = 'success') {
@@ -812,6 +936,26 @@ async function ensureSession(state, openingMessage) {
     }
     if (normalizeOptionalText(state.config.scenePrompt)) {
       payload.scenePrompt = normalizeOptionalText(state.config.scenePrompt);
+    }
+  }
+
+  if (state.mode === 'town_npc' || state.mode === 'companion') {
+    const characterId = Number.parseInt(state.config.characterId, 10);
+    const worldbookIds = parseCsvIds(state.config.worldbookIdsText);
+    if (Number.isFinite(characterId) && characterId > 0) {
+      payload.characterId = characterId;
+    }
+    if (worldbookIds.length) {
+      payload.worldbookIds = worldbookIds;
+    }
+    if (normalizeOptionalText(state.config.scenePrompt)) {
+      payload.scenePrompt = normalizeOptionalText(state.config.scenePrompt);
+    }
+    if (normalizeOptionalText(state.config.townRoomCode)) {
+      payload.townRoomCode = normalizeOptionalText(state.config.townRoomCode);
+    }
+    if (normalizeOptionalText(state.config.actorCode)) {
+      payload.actorCode = normalizeOptionalText(state.config.actorCode);
     }
   }
 
