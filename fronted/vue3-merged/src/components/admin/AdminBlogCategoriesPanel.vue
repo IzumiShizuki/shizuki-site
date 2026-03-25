@@ -155,6 +155,14 @@ const props = defineProps({
   allowCreate: {
     type: Boolean,
     default: true
+  },
+  createUploadCategoryCode: {
+    type: String,
+    default: ''
+  },
+  createUploadedCoverUrl: {
+    type: String,
+    default: ''
   }
 });
 
@@ -197,6 +205,17 @@ watch(
     immediate: true,
     deep: true
   }
+);
+
+watch(
+  () => [props.createUploadCategoryCode, props.createUploadedCoverUrl],
+  ([categoryCode, coverUrl]) => {
+    const normalizedCode = normalizeCategoryCode(categoryCode);
+    if (!normalizedCode || normalizedCode !== normalizedCreateCode.value) return;
+    if (!String(coverUrl || '').trim()) return;
+    createDraft.coverImageUrl = String(coverUrl || '').trim();
+  },
+  { immediate: true }
 );
 
 function saveCategory(categoryCode) {

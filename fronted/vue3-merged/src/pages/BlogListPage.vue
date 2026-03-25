@@ -276,8 +276,10 @@
               :loading="categoryMetaLoading"
               :saving="categoryMetaSaving"
               :error="categoryMetaError"
-              :items="categoryMetaItems"
+              :items="categoryPanelItems"
               :uploading-code="categoryMetaUploadingCode"
+              :create-upload-category-code="categoryMetaCreateUploadCode"
+              :create-uploaded-cover-url="categoryMetaCreateUploadUrl"
               :allow-create="true"
               @refresh="reloadCategoryMetas"
               @save="saveCategoryMetaItem"
@@ -467,6 +469,8 @@ const categoryMetaSaving = ref(false);
 const categoryMetaError = ref('');
 const categoryMetaUploadingCode = ref('');
 const categoryMetaItems = ref([]);
+const categoryMetaCreateUploadCode = ref('');
+const categoryMetaCreateUploadUrl = ref('');
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -508,6 +512,40 @@ const categoryTabs = computed(() => {
     tabs.push({ categoryCode: filters.category, count: 0, displayName: filters.category, coverImageUrl: '' });
   }
   return tabs;
+});
+
+const categoryPanelItems = computed(() => {
+  const map = new Map();
+
+  const appendItem = (item, source = 'sidebar') => {
+    const categoryCode = normalizeString(item?.categoryCode).toLowerCase();
+    if (!categoryCode) return;
+    const current = map.get(categoryCode) || {
+      categoryCode,
+      displayName: categoryCode,
+      coverImageUrl: '',
+      sortNum: 1000,
+      enabled: true
+    };
+    const next = {
+      ...current,
+      categoryCode,
+      displayName: normalizeString(item?.displayName).trim() || current.displayName || categoryCode,
+      coverImageUrl: normalizeString(item?.coverImageUrl).trim() || current.coverImageUrl || '',
+      sortNum: Number.isFinite(Number(item?.sortNum)) ? Math.max(0, Math.trunc(Number(item.sortNum))) : current.sortNum,
+      enabled: source === 'meta' ? item?.enabled !== false : current.enabled
+    };
+    map.set(categoryCode, next);
+  };
+
+  (Array.isArray(sidebarState.categories) ? sidebarState.categories : []).forEach((item) => appendItem(item, 'sidebar'));
+  (Array.isArray(categoryMetaItems.value) ? categoryMetaItems.value : []).forEach((item) => appendItem(item, 'meta'));
+
+  return Array.from(map.values()).sort((left, right) => {
+    const sortCompare = Number(left.sortNum || 1000) - Number(right.sortNum || 1000);
+    if (sortCompare !== 0) return sortCompare;
+    return String(left.displayName || left.categoryCode).localeCompare(String(right.displayName || right.categoryCode));
+  });
 });
 
 function resolveAuthorizedFetch() {
@@ -759,6 +797,10 @@ async function saveCategoryMetaItem(payload) {
     } else {
       categoryMetaItems.value.push(normalized);
     }
+    if (categoryMetaCreateUploadCode.value === normalized.categoryCode) {
+      categoryMetaCreateUploadCode.value = '';
+      categoryMetaCreateUploadUrl.value = '';
+    }
     await loadSidebar();
     uiState.actionHint = `分类 ${categoryCode} 已保存`;
   } catch (error) {
@@ -788,13 +830,26 @@ async function uploadCategoryMetaCover(payload) {
       throw new Error('分类图片地址为空');
     }
     const original = categoryMetaItems.value.find((item) => item.categoryCode === categoryCode);
-    await saveCategoryMetaItem({
-      categoryCode,
-      displayName: original?.displayName || categoryCode,
-      coverImageUrl: url,
-      sortNum: original?.sortNum ?? 1000,
-      enabled: original?.enabled !== false
-    });
+    const sidebarOriginal = sidebarState.categories.find((item) => item.categoryCode === categoryCode);
+    if (original || sidebarOriginal) {
+      const nextItem = {
+        categoryCode,
+        displayName: normalizeString(original?.displayName || sidebarOriginal?.displayName || categoryCode),
+        coverImageUrl: url,
+        sortNum: original?.sortNum ?? 1000,
+        enabled: original?.enabled !== false
+      };
+      const index = categoryMetaItems.value.findIndex((item) => item.categoryCode === categoryCode);
+      if (index >= 0) {
+        categoryMetaItems.value[index] = nextItem;
+      } else {
+        categoryMetaItems.value = [...categoryMetaItems.value, nextItem];
+      }
+    } else {
+      categoryMetaCreateUploadCode.value = categoryCode;
+      categoryMetaCreateUploadUrl.value = url;
+    }
+    uiState.actionHint = `分类 ${categoryCode} 图片已上传，点击保存后生效`;
   } catch (error) {
     categoryMetaError.value = normalizeErrorMessage(error, '上传分类图片失败');
   } finally {
