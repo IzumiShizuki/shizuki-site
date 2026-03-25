@@ -4,6 +4,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownMapNodeResponse;
 import io.github.shizuki.site.ai.dto.AiTownNpcResponse;
@@ -190,6 +191,76 @@ class AiControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.entry_id").value(3001))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.keywords[0]").value("图书馆"));
+    }
+
+    @Test
+    void shouldGetAdminCompanionConfigSuccessfully() throws Exception {
+        Mockito.when(aiService.getAdminCompanionConfig())
+            .thenReturn(new AiCompanionConfigResponse(
+                4001L,
+                "my_home_ai",
+                "小春",
+                "温柔、可靠，会记得我的习惯。",
+                20001L,
+                true,
+                List.of(2001L, 2002L),
+                "房间里有落地灯和书桌。",
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/admin/ai-companion/config"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.companion_code").value("my_home_ai"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.display_name").value("小春"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.worldbook_ids[0]").value(2001));
+    }
+
+    @Test
+    void shouldUpdateAdminCompanionConfigSuccessfully() throws Exception {
+        Mockito.when(aiService.updateAdminCompanionConfig(ArgumentMatchers.any()))
+            .thenReturn(new AiCompanionConfigResponse(
+                4001L,
+                "my_home_ai",
+                "小春",
+                "温柔、可靠，会记得我的习惯。",
+                20001L,
+                true,
+                List.of(2001L),
+                "房间里有落地灯和书桌。",
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/admin/ai-companion/config")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "companion_code": "my_home_ai",
+                      "display_name": "小春",
+                      "persona_prompt": "温柔、可靠，会记得我的习惯。",
+                      "avatar_asset_id": 20001,
+                      "worldbook_ids": [2001],
+                      "memory_enabled": true,
+                      "scene_prompt": "房间里有落地灯和书桌。"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.display_name").value("小春"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.memory_enabled").value(true));
+    }
+
+    @Test
+    void shouldCreateAdminCompanionSessionSuccessfully() throws Exception {
+        Mockito.when(aiService.createAdminCompanionSession())
+            .thenReturn(new AiSessionSummary("session-home-001", "自宅 · 小春", "companion", null, List.of(2001L), "自宅 companion", "home", "my_home_ai"));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/admin/ai-companion/sessions"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.session_id").value("session-home-001"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.mode").value("companion"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.actor_code").value("my_home_ai"));
     }
 
     @Test

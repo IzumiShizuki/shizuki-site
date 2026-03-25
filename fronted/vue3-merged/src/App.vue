@@ -61,11 +61,24 @@
         </main>
 
         <aside v-if="sidebarAiColumnMounted" class="ai-side-column">
-          <AiDialog :visible="showSidebarAiPanel" mode="sidebar" :chat-mode="activeAiChatMode" @close="closeAiChat" />
+          <AiDialog
+            :visible="showSidebarAiPanel"
+            mode="sidebar"
+            :chat-mode="activeAiChatMode"
+            :open-payload="activeAiChatPayload"
+            @close="closeAiChat"
+          />
         </aside>
       </section>
 
-      <AiDialog v-if="showSheetAiPanel" :visible="true" mode="sheet" :chat-mode="activeAiChatMode" @close="closeAiChat" />
+      <AiDialog
+        v-if="showSheetAiPanel"
+        :visible="true"
+        mode="sheet"
+        :chat-mode="activeAiChatMode"
+        :open-payload="activeAiChatPayload"
+        @close="closeAiChat"
+      />
 
       <MusicPlayer
         :track="player.currentTrack.value"
@@ -401,7 +414,9 @@ const DEFAULT_FAVICON_URL = '/images/katanegai.jpg';
 
 function normalizeAiChatMode(raw) {
   const normalized = String(raw || '').trim().toLowerCase();
-  if (normalized === 'normal' || normalized === 'tavern') return normalized;
+  if (normalized === 'normal' || normalized === 'tavern' || normalized === 'town_npc' || normalized === 'companion') {
+    return normalized;
+  }
   return 'quick_chat';
 }
 
@@ -433,6 +448,7 @@ const aiChatActive = computed({
   set: (nextValue) => ui.setAiPanelOpen(nextValue)
 });
 const activeAiChatMode = ref('quick_chat');
+const activeAiChatPayload = ref(null);
 
 const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.value);
 const showSidebarAiPanel = computed(() => aiChatActive.value && canUseSidebarAi.value);
@@ -1895,6 +1911,7 @@ function toggleMenu() {
 function toggleAiChat() {
   if (!aiChatActive.value) {
     activeAiChatMode.value = 'quick_chat';
+    activeAiChatPayload.value = null;
     aiChatActive.value = true;
     return;
   }
@@ -1906,7 +1923,12 @@ function closeAiChat() {
 }
 
 function handleAiChatOpenEvent(event) {
-  activeAiChatMode.value = normalizeAiChatMode(event?.detail?.preferredMode);
+  const detail = event?.detail && typeof event.detail === 'object' ? event.detail : {};
+  activeAiChatMode.value = normalizeAiChatMode(detail.preferredMode);
+  activeAiChatPayload.value = {
+    ...detail,
+    openedAt: Date.now()
+  };
   aiChatActive.value = true;
 }
 

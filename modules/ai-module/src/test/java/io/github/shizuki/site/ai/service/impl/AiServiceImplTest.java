@@ -6,6 +6,7 @@ import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
@@ -16,9 +17,11 @@ import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import io.github.shizuki.site.ai.entity.AiCharacterEntity;
+import io.github.shizuki.site.ai.entity.AiCompanionProfileEntity;
 import io.github.shizuki.site.ai.entity.AiMessageEntity;
 import io.github.shizuki.site.ai.entity.AiQuotaUsageEntity;
 import io.github.shizuki.site.ai.entity.AiSessionEntity;
@@ -26,6 +29,7 @@ import io.github.shizuki.site.ai.entity.AiWorldbookEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntryEntity;
 import io.github.shizuki.site.ai.integration.UserQuotaGateway;
 import io.github.shizuki.site.ai.mapper.AiCharacterMapper;
+import io.github.shizuki.site.ai.mapper.AiCompanionProfileMapper;
 import io.github.shizuki.site.ai.mapper.AiMessageMapper;
 import io.github.shizuki.site.ai.mapper.AiQuotaUsageMapper;
 import io.github.shizuki.site.ai.mapper.AiSessionMapper;
@@ -47,6 +51,7 @@ class AiServiceImplTest {
 
     private AiQuotaUsageMapper aiQuotaUsageMapper;
     private AiCharacterMapper aiCharacterMapper;
+    private AiCompanionProfileMapper aiCompanionProfileMapper;
     private AiSessionMapper aiSessionMapper;
     private AiMessageMapper aiMessageMapper;
     private AiWorldbookMapper aiWorldbookMapper;
@@ -59,6 +64,7 @@ class AiServiceImplTest {
     void setUp() {
         aiQuotaUsageMapper = Mockito.mock(AiQuotaUsageMapper.class);
         aiCharacterMapper = Mockito.mock(AiCharacterMapper.class);
+        aiCompanionProfileMapper = Mockito.mock(AiCompanionProfileMapper.class);
         aiSessionMapper = Mockito.mock(AiSessionMapper.class);
         aiMessageMapper = Mockito.mock(AiMessageMapper.class);
         aiWorldbookMapper = Mockito.mock(AiWorldbookMapper.class);
@@ -75,6 +81,7 @@ class AiServiceImplTest {
         aiService = new AiServiceImpl(
             aiQuotaUsageMapper,
             aiCharacterMapper,
+            aiCompanionProfileMapper,
             aiSessionMapper,
             aiMessageMapper,
             aiWorldbookMapper,
@@ -274,7 +281,7 @@ class AiServiceImplTest {
 
     @Test
     void shouldDeriveMemoryScopeForCompanionSession() {
-        LoginUserContext.set(new LoginUser(12L, Set.of("USER"), Set.of()));
+        LoginUserContext.set(new LoginUser(12L, Set.of("ADMIN"), Set.of()));
 
         AiSessionEntity session = new AiSessionEntity();
         session.setId(701L);
@@ -332,6 +339,82 @@ class AiServiceImplTest {
         Assertions.assertEquals("town_npc", persisted.getMode());
         Assertions.assertEquals("library", persisted.getTownRoomCode());
         Assertions.assertEquals("librarian", persisted.getActorCode());
+    }
+
+    @Test
+    void shouldReturnDefaultAdminCompanionConfigWhenProfileMissing() {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+
+        AiCompanionConfigResponse response = aiService.getAdminCompanionConfig();
+
+        Assertions.assertEquals("my_home_ai", response.companionCode());
+        Assertions.assertEquals("自宅 companion", response.displayName());
+        Assertions.assertFalse(response.memoryEnabled());
+        Assertions.assertTrue(response.worldbookIds().isEmpty());
+    }
+
+    @Test
+    void shouldUpsertCompanionConfigAndCreateAdminCompanionSession() {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+        AtomicLong profileSequence = new AtomicLong(700);
+        AtomicLong sessionSequence = new AtomicLong(900);
+
+        Mockito.doAnswer(invocation -> {
+            AiCompanionProfileEntity entity = invocation.getArgument(0);
+            entity.setId(profileSequence.incrementAndGet());
+            return 1;
+        }).when(aiCompanionProfileMapper).insert(ArgumentMatchers.any(AiCompanionProfileEntity.class));
+        Mockito.doAnswer(invocation -> {
+            AiSessionEntity entity = invocation.getArgument(0);
+            entity.setId(sessionSequence.incrementAndGet());
+            return 1;
+        }).when(aiSessionMapper).insert(ArgumentMatchers.any(AiSessionEntity.class));
+
+        AiWorldbookEntity ownedWorldbook = new AiWorldbookEntity();
+        ownedWorldbook.setId(501L);
+        Mockito.when(aiWorldbookMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of(ownedWorldbook));
+
+        UpdateCompanionConfigRequest request = new UpdateCompanionConfigRequest();
+        request.setCompanionCode("my_home_ai");
+        request.setDisplayName("小春");
+        request.setPersonaPrompt("温柔、可靠，会记得我的习惯。");
+        request.setAvatarAssetId(20001L);
+        request.setWorldbookIds(List.of(501L));
+        request.setMemoryEnabled(Boolean.TRUE);
+        request.setScenePrompt("房间里有落地灯和书桌。");
+
+        AiCompanionConfigResponse config = aiService.updateAdminCompanionConfig(request);
+
+        AiCompanionProfileEntity persistedProfile = new AiCompanionProfileEntity();
+        persistedProfile.setId(config.companionProfileId());
+        persistedProfile.setOwnerUserId(66L);
+        persistedProfile.setCompanionCode(config.companionCode());
+        persistedProfile.setDisplayName(config.displayName());
+        persistedProfile.setPersonaJson("""
+            {"persona_prompt":"温柔、可靠，会记得我的习惯。"}
+            """);
+        persistedProfile.setAvatarAssetId(config.avatarAssetId());
+        persistedProfile.setMemoryEnabled(1);
+        persistedProfile.setBoundWorldbookJson("[501]");
+        persistedProfile.setScenePrompt(config.scenePrompt());
+        Mockito.when(aiCompanionProfileMapper.selectOne(ArgumentMatchers.any())).thenReturn(persistedProfile);
+
+        AiSessionSummary summary = aiService.createAdminCompanionSession();
+
+        Assertions.assertEquals("小春", config.displayName());
+        Assertions.assertTrue(config.memoryEnabled());
+        Assertions.assertEquals("companion", summary.mode());
+        Assertions.assertEquals("home", summary.townRoomCode());
+        Assertions.assertEquals("my_home_ai", summary.actorCode());
+        Assertions.assertEquals(List.of(501L), summary.worldbookIds());
+
+        ArgumentCaptor<AiSessionEntity> sessionCaptor = ArgumentCaptor.forClass(AiSessionEntity.class);
+        Mockito.verify(aiSessionMapper).insert(sessionCaptor.capture());
+        AiSessionEntity persistedSession = sessionCaptor.getValue();
+        Assertions.assertEquals("companion", persistedSession.getMode());
+        Assertions.assertEquals("home", persistedSession.getTownRoomCode());
+        Assertions.assertEquals("my_home_ai", persistedSession.getActorCode());
+        Assertions.assertTrue(String.valueOf(persistedSession.getScenePrompt()).contains("人格设定"));
     }
 
     @Test

@@ -59,6 +59,108 @@
       </article>
     </section>
 
+    <section ref="townExplorerRef" class="town-shell liquid-material">
+      <header class="town-head">
+        <div>
+          <p class="eyebrow">AI Town</p>
+          <h2>公开漫游先交付三块场景，管理员特殊 NPC 入口再嵌进同一层。</h2>
+        </div>
+        <button class="town-refresh ripple-trigger" type="button" :disabled="townLoading" @click="loadTownExplorer">
+          {{ townLoading ? '刷新中...' : '刷新场景' }}
+        </button>
+      </header>
+
+      <p v-if="townErrorText" class="town-feedback error">{{ townErrorText }}</p>
+
+      <div class="town-grid">
+        <section class="town-map-card">
+          <div class="town-map-canvas">
+            <button
+              v-for="node in townMap.scenes"
+              :key="node.sceneCode"
+              class="town-map-node ripple-trigger"
+              :class="[`tone-${node.tone}`, { active: node.sceneCode === selectedTownSceneCode }]"
+              type="button"
+              :style="mapNodeStyle(node)"
+              @click="loadTownScene(node.sceneCode)"
+            >
+              <strong>{{ node.title }}</strong>
+              <span>{{ node.sceneCode }}</span>
+            </button>
+          </div>
+
+          <div class="town-scene-list">
+            <button
+              v-for="scene in townScenes"
+              :key="scene.sceneCode"
+              class="town-scene-chip ripple-trigger"
+              :class="{ active: scene.sceneCode === selectedTownSceneCode }"
+              type="button"
+              @click="loadTownScene(scene.sceneCode)"
+            >
+              <strong>{{ scene.title }}</strong>
+              <span>{{ scene.npcCount }} 个展示点</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="town-detail-card">
+          <template v-if="selectedTownScene">
+            <div class="town-detail-topline">
+              <span>{{ selectedTownScene.sceneType }}</span>
+              <small>{{ selectedTownSceneSummary?.publicVisible === false ? '未公开' : '公开浏览中' }}</small>
+            </div>
+            <h3>{{ selectedTownScene.title }}</h3>
+            <p class="town-copy">{{ selectedTownScene.description }}</p>
+            <p v-if="selectedTownScene.atmosphereHint" class="town-atmosphere">{{ selectedTownScene.atmosphereHint }}</p>
+
+            <div class="town-highlight-list">
+              <span v-for="item in selectedTownScene.highlights" :key="item" class="town-highlight">{{ item }}</span>
+            </div>
+
+            <div class="town-npc-grid">
+              <article v-for="npc in selectedTownScene.npcs" :key="npc.npcCode" class="town-npc-card">
+                <div class="town-npc-topline">
+                  <span>{{ npc.roleLabel }}</span>
+                  <small>{{ npc.adminOnly ? 'ADMIN' : '展示' }}</small>
+                </div>
+                <strong>{{ npc.displayName }}</strong>
+                <p>{{ npc.intro }}</p>
+                <button
+                  v-if="npc.adminOnly"
+                  class="town-npc-action ripple-trigger"
+                  type="button"
+                  :disabled="!isAdminUser || townPendingNpcCode === npc.npcCode"
+                  @click="handleOpenTownNpc(npc)"
+                >
+                  {{
+                    townPendingNpcCode === npc.npcCode
+                      ? '创建会话中...'
+                      : isAdminUser
+                        ? '以特殊 NPC 开始对话'
+                        : '仅 ADMIN 可用'
+                  }}
+                </button>
+                <button v-else class="town-npc-action muted" type="button" disabled>
+                  公开展示中
+                </button>
+              </article>
+            </div>
+
+            <p v-if="townActionError" class="town-feedback error">{{ townActionError }}</p>
+            <p v-else class="town-feedback">
+              {{ isAdminUser ? '管理员可以直接从这里创建 town_npc 会话；记忆作用域会由后端按 scene + actor 自动收口。' : '公开用户可以浏览场景和 NPC 展示，特殊 NPC 对话入口仅对 ADMIN 开放。' }}
+            </p>
+          </template>
+
+          <div v-else class="town-empty">
+            <strong>还没有选中场景</strong>
+            <p>左侧地图或场景条目会在接口返回后展示这里的细节。</p>
+          </div>
+        </section>
+      </div>
+    </section>
+
     <section class="roadmap-shell liquid-material">
       <header class="roadmap-head">
         <p class="eyebrow">Phase 1 Map</p>
@@ -79,9 +181,28 @@
 </template>
 
 <script setup>
+import { computed, onMounted, ref } from 'vue';
+import { useAuthSession } from '../composables/useAuthSession';
+import {
+  createAdminTownNpcSession,
+  getAiTownPublicMap,
+  getAiTownScene,
+  listAiTownScenes
+} from '../services/aiApi';
 import { openAiChat } from '../utils/aiChatBus';
 
-const featureCards = [
+const auth = useAuthSession();
+const townExplorerRef = ref(null);
+const townLoading = ref(false);
+const townErrorText = ref('');
+const townActionError = ref('');
+const townPendingNpcCode = ref('');
+const townScenes = ref([]);
+const townMap = ref({ scenes: [] });
+const selectedTownSceneCode = ref('');
+const selectedTownScene = ref(null);
+
+const featureCards = computed(() => [
   {
     kicker: 'Quick Chat',
     status: '当前可用',
@@ -114,23 +235,23 @@ const featureCards = [
   },
   {
     kicker: 'AI Town',
-    status: '待接入',
-    tone: 'planned',
+    status: '当前可逛',
+    tone: 'ready',
     title: 'AI 小镇公开漫游',
-    description: '图书馆、教室、自宅外部三块场景会先作为公开入口出现。',
-    points: ['先做场景切换与 NPC 展示', '管理员特殊 NPC 入口单独预留', '后续再挂接记忆与权限守卫'],
-    action: '',
-    actionLabel: '等待接入'
+    description: '图书馆、教室、自宅外部三块场景已经作为公开入口接到 AI Hub。',
+    points: ['支持公开浏览与场景切换', '支持 NPC 卡片展示', '管理员可从特殊 NPC 卡片直接建会话'],
+    action: 'jump-town',
+    actionLabel: '查看 AI 小镇'
   },
   {
     kicker: 'Home Companion',
-    status: '待接入',
-    tone: 'planned',
+    status: isAdminUser.value ? '当前可用' : '仅 ADMIN',
+    tone: isAdminUser.value ? 'ready' : 'planned',
     title: '自宅 companion',
-    description: '这是管理员专属的高亲密度入口，会和世界书、角色形象、记忆服务一起落地。',
-    points: ['入口独立于 AI 小镇公开漫游', '需要人格配置与记忆开关', '会直连管理员专用 MemoryOS scope'],
-    action: '',
-    actionLabel: '等待接入'
+    description: '管理员专属的高亲密度入口，已经接入人格配置、世界书绑定和记忆开关。',
+    points: ['入口独立于 AI 小镇公开漫游', '支持保存 companion 配置', '通过专属会话创建接口收口到自宅 scope'],
+    action: isAdminUser.value ? 'open-companion-chat' : '',
+    actionLabel: isAdminUser.value ? '进入自宅 companion' : '仅 ADMIN 可用'
   },
   {
     kicker: 'Agent',
@@ -142,7 +263,7 @@ const featureCards = [
     action: '',
     actionLabel: 'Backlog'
   }
-];
+]);
 
 const roadmapStages = [
   {
@@ -182,8 +303,159 @@ function handleCardAction(action) {
   }
   if (action === 'open-tavern-chat') {
     openAiChat({ source: 'ai-hub', preferredMode: 'tavern' });
+    return;
+  }
+  if (action === 'open-companion-chat') {
+    openAiChat({ source: 'ai-hub', preferredMode: 'companion' });
+    return;
+  }
+  if (action === 'jump-town') {
+    townExplorerRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
+
+function toNumber(value) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : 0;
+}
+
+function normalizeOptionalText(value) {
+  const normalized = String(value || '').trim();
+  return normalized || '';
+}
+
+function normalizeTownNpc(raw = {}) {
+  const worldbookIds = Array.isArray(raw.worldbookIds || raw.worldbook_ids)
+    ? (raw.worldbookIds || raw.worldbook_ids)
+        .map((item) => toNumber(item))
+        .filter((item) => item > 0)
+    : [];
+  return {
+    npcCode: normalizeOptionalText(raw.npcCode || raw.npc_code),
+    sceneCode: normalizeOptionalText(raw.sceneCode || raw.scene_code),
+    displayName: normalizeOptionalText(raw.displayName || raw.display_name) || '未命名 NPC',
+    roleLabel: normalizeOptionalText(raw.roleLabel || raw.role_label) || '场景角色',
+    intro: normalizeOptionalText(raw.intro) || '暂无介绍。',
+    adminOnly: raw.adminOnly === true || raw.admin_only === true,
+    memoryEnabled: raw.memoryEnabled === true || raw.memory_enabled === true,
+    characterId: toNumber(raw.characterId ?? raw.character_id),
+    worldbookIds
+  };
+}
+
+function normalizeTownSceneSummary(raw = {}) {
+  return {
+    sceneCode: normalizeOptionalText(raw.sceneCode || raw.scene_code),
+    title: normalizeOptionalText(raw.title) || '未命名场景',
+    sceneType: normalizeOptionalText(raw.sceneType || raw.scene_type) || 'scene',
+    description: normalizeOptionalText(raw.description) || '暂无场景描述。',
+    atmosphereHint: normalizeOptionalText(raw.atmosphereHint || raw.atmosphere_hint) || '',
+    npcCount: toNumber(raw.npcCount ?? raw.npc_count),
+    publicVisible: raw.publicVisible === false || raw.public_visible === false ? false : true
+  };
+}
+
+function normalizeTownSceneDetail(raw = {}) {
+  return {
+    sceneCode: normalizeOptionalText(raw.sceneCode || raw.scene_code),
+    title: normalizeOptionalText(raw.title) || '未命名场景',
+    sceneType: normalizeOptionalText(raw.sceneType || raw.scene_type) || 'scene',
+    description: normalizeOptionalText(raw.description) || '暂无场景描述。',
+    atmosphereHint: normalizeOptionalText(raw.atmosphereHint || raw.atmosphere_hint) || '',
+    publicVisible: raw.publicVisible === false || raw.public_visible === false ? false : true,
+    highlights: Array.isArray(raw.highlights) ? raw.highlights.map((item) => normalizeOptionalText(item)).filter(Boolean) : [],
+    npcs: Array.isArray(raw.npcs) ? raw.npcs.map(normalizeTownNpc) : []
+  };
+}
+
+function normalizeTownMap(raw = {}) {
+  return {
+    scenes: Array.isArray(raw.scenes)
+      ? raw.scenes.map((item) => ({
+          sceneCode: normalizeOptionalText(item.sceneCode || item.scene_code),
+          title: normalizeOptionalText(item.title) || '未命名场景',
+          coordX: toNumber(item.coordX ?? item.coord_x),
+          coordY: toNumber(item.coordY ?? item.coord_y),
+          tone: normalizeOptionalText(item.tone) || 'neutral'
+        }))
+      : []
+  };
+}
+
+function resolveTownError(error) {
+  if (error instanceof Error && normalizeOptionalText(error.message)) {
+    return error.message;
+  }
+  return 'AI 小镇数据加载失败，请稍后再试。';
+}
+
+const isAdminUser = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((groupCode) => String(groupCode || '').trim().toUpperCase() === 'ADMIN');
+});
+
+const selectedTownSceneSummary = computed(() =>
+  townScenes.value.find((item) => item.sceneCode === selectedTownSceneCode.value) || null
+);
+
+async function loadTownScene(sceneCode) {
+  const normalizedSceneCode = normalizeOptionalText(sceneCode);
+  if (!normalizedSceneCode) return;
+  selectedTownSceneCode.value = normalizedSceneCode;
+  selectedTownScene.value = normalizeTownSceneDetail(await getAiTownScene(normalizedSceneCode));
+}
+
+async function loadTownExplorer() {
+  townLoading.value = true;
+  townErrorText.value = '';
+  try {
+    const [sceneListPayload, mapPayload] = await Promise.all([listAiTownScenes(), getAiTownPublicMap()]);
+    townScenes.value = Array.isArray(sceneListPayload) ? sceneListPayload.map(normalizeTownSceneSummary) : [];
+    townMap.value = normalizeTownMap(mapPayload);
+    const defaultSceneCode = selectedTownSceneCode.value || townScenes.value[0]?.sceneCode || 'library';
+    await loadTownScene(defaultSceneCode);
+  } catch (error) {
+    townErrorText.value = resolveTownError(error);
+  } finally {
+    townLoading.value = false;
+  }
+}
+
+async function handleOpenTownNpc(npc) {
+  if (!npc?.npcCode) return;
+  if (!auth.isAuthenticated.value || !isAdminUser.value) {
+    townActionError.value = '只有 ADMIN 可以创建特殊 NPC 会话。';
+    return;
+  }
+  townPendingNpcCode.value = npc.npcCode;
+  townActionError.value = '';
+  try {
+    const session = await createAdminTownNpcSession(npc.npcCode, auth.authorizedFetch);
+    openAiChat({
+      source: 'ai-town',
+      preferredMode: 'town_npc',
+      bootstrap: {
+        session
+      }
+    });
+  } catch (error) {
+    townActionError.value = resolveTownError(error);
+  } finally {
+    townPendingNpcCode.value = '';
+  }
+}
+
+function mapNodeStyle(node) {
+  return {
+    left: `${node.coordX}%`,
+    top: `${node.coordY}%`
+  };
+}
+
+onMounted(async () => {
+  await auth.ensureReady();
+  await loadTownExplorer();
+});
 </script>
 
 <style scoped>
@@ -417,6 +689,248 @@ h1 {
   opacity: 0.54;
 }
 
+.town-shell {
+  --liquid-bg: linear-gradient(155deg, rgba(15, 21, 35, 0.8), rgba(25, 30, 46, 0.56));
+  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-shadow: 0 18px 42px rgba(4, 7, 16, 0.24);
+  margin-top: 18px;
+  border-radius: 24px;
+  padding: 22px;
+}
+
+.town-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.town-head h2 {
+  margin-top: 8px;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.18;
+}
+
+.town-refresh {
+  min-width: 104px;
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: rgba(245, 248, 255, 0.94);
+  font-weight: 700;
+}
+
+.town-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.15fr);
+  gap: 18px;
+}
+
+.town-map-card,
+.town-detail-card {
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 18px;
+}
+
+.town-map-canvas {
+  position: relative;
+  min-height: 320px;
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 18%, rgba(255, 196, 106, 0.14), transparent 30%),
+    radial-gradient(circle at 70% 22%, rgba(114, 199, 255, 0.14), transparent 28%),
+    radial-gradient(circle at 78% 72%, rgba(255, 145, 162, 0.16), transparent 30%),
+    linear-gradient(180deg, rgba(12, 16, 28, 0.92), rgba(17, 22, 36, 0.82));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.town-map-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.36;
+}
+
+.town-map-node {
+  position: absolute;
+  z-index: 1;
+  min-width: 112px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 12, 22, 0.72);
+  color: rgba(246, 249, 255, 0.95);
+  text-align: left;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 16px 26px rgba(3, 6, 14, 0.24);
+}
+
+.town-map-node strong,
+.town-scene-chip strong,
+.town-npc-card strong {
+  display: block;
+}
+
+.town-map-node span,
+.town-scene-chip span,
+.town-npc-topline span,
+.town-npc-topline small {
+  font-size: 11px;
+  color: rgba(215, 223, 240, 0.72);
+}
+
+.town-map-node.active {
+  border-color: rgba(var(--accent-rgb), 0.42);
+  box-shadow: 0 18px 30px rgba(var(--accent-rgb), 0.18);
+}
+
+.town-map-node.tone-amber {
+  background: linear-gradient(135deg, rgba(61, 41, 16, 0.88), rgba(29, 21, 14, 0.78));
+}
+
+.town-map-node.tone-sky {
+  background: linear-gradient(135deg, rgba(18, 40, 58, 0.88), rgba(12, 21, 35, 0.8));
+}
+
+.town-map-node.tone-rose {
+  background: linear-gradient(135deg, rgba(58, 28, 39, 0.88), rgba(28, 17, 28, 0.8));
+}
+
+.town-scene-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.town-scene-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(245, 249, 255, 0.94);
+  text-align: left;
+}
+
+.town-scene-chip.active {
+  border-color: rgba(var(--accent-rgb), 0.38);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.town-detail-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(205, 214, 232, 0.72);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+}
+
+.town-detail-card h3 {
+  margin-top: 10px;
+  font-size: clamp(26px, 2.5vw, 34px);
+}
+
+.town-copy,
+.town-npc-card p {
+  color: rgba(226, 232, 245, 0.8);
+  line-height: 1.7;
+}
+
+.town-atmosphere {
+  margin-top: 10px;
+  color: rgba(239, 244, 255, 0.9);
+}
+
+.town-highlight-list {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.town-highlight {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(239, 244, 255, 0.9);
+  font-size: 12px;
+}
+
+.town-npc-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.town-npc-card {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 15, 27, 0.44);
+  padding: 16px;
+}
+
+.town-npc-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.town-npc-action {
+  margin-top: 14px;
+  min-height: 40px;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: rgba(246, 250, 255, 0.95);
+  font-weight: 700;
+}
+
+.town-npc-action.muted {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(214, 222, 238, 0.72);
+}
+
+.town-feedback {
+  margin: 16px 0 0;
+  color: rgba(214, 222, 238, 0.76);
+  line-height: 1.7;
+}
+
+.town-feedback.error {
+  color: rgba(255, 186, 186, 0.96);
+}
+
+.town-empty {
+  min-height: 320px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 8px;
+  color: rgba(222, 230, 246, 0.76);
+}
+
 .roadmap-shell {
   --liquid-bg: rgba(14, 20, 30, 0.44);
   --liquid-border: rgba(255, 255, 255, 0.12);
@@ -491,6 +1005,14 @@ h1 {
     grid-template-columns: 1fr;
   }
 
+  .town-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .town-npc-grid {
+    grid-template-columns: 1fr;
+  }
+
   .hub-card {
     grid-column: span 12;
     min-height: 0;
@@ -499,14 +1021,24 @@ h1 {
 
 @media (max-width: 640px) {
   .hero-band,
+  .town-shell,
   .roadmap-shell,
   .hub-card {
     border-radius: 20px;
   }
 
   .hero-band,
+  .town-shell,
   .roadmap-shell {
     padding: 18px;
+  }
+
+  .town-head {
+    flex-direction: column;
+  }
+
+  .town-map-canvas {
+    min-height: 280px;
   }
 
   .roadmap-item {

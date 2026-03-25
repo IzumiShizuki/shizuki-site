@@ -93,6 +93,31 @@ export async function createAdminTownNpcSession(npcCode, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function createAdminAiCompanionSession(authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/ai-companion/sessions', {
+    method: 'POST'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAdminAiCompanionConfig(authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/ai-companion/config', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function updateAdminAiCompanionConfig(payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/ai-companion/config', {
+    method: 'PUT',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function createAiCharacter(payload, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/ai-characters', {

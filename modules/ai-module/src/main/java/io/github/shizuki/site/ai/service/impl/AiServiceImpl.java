@@ -6,9 +6,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownMapNodeResponse;
 import io.github.shizuki.site.ai.dto.AiTownNpcResponse;
@@ -21,9 +23,11 @@ import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import io.github.shizuki.site.ai.entity.AiCharacterEntity;
+import io.github.shizuki.site.ai.entity.AiCompanionProfileEntity;
 import io.github.shizuki.site.ai.entity.AiMessageEntity;
 import io.github.shizuki.site.ai.entity.AiQuotaUsageEntity;
 import io.github.shizuki.site.ai.entity.AiSessionEntity;
@@ -31,13 +35,13 @@ import io.github.shizuki.site.ai.entity.AiWorldbookEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntryEntity;
 import io.github.shizuki.site.ai.integration.UserQuotaGateway;
 import io.github.shizuki.site.ai.mapper.AiCharacterMapper;
+import io.github.shizuki.site.ai.mapper.AiCompanionProfileMapper;
 import io.github.shizuki.site.ai.mapper.AiMessageMapper;
 import io.github.shizuki.site.ai.mapper.AiQuotaUsageMapper;
 import io.github.shizuki.site.ai.mapper.AiSessionMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookEntryMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookMapper;
 import io.github.shizuki.site.ai.service.AiService;
-import io.github.shizuki.common.security.context.LoginUserContext;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -55,6 +59,8 @@ public class AiServiceImpl implements AiService {
 
     private static final String DEFAULT_SESSION_MODE = "quick_chat";
     private static final String DEFAULT_VISIBILITY_TYPE = "PRIVATE";
+    private static final String DEFAULT_COMPANION_CODE = "my_home_ai";
+    private static final String DEFAULT_COMPANION_SCENE_CODE = "home";
     private static final int MAX_LIST_SESSIONS = 50;
     private static final int MAX_LIST_CHARACTERS = 100;
     private static final int MAX_LIST_WORLDBOOKS = 100;
@@ -64,6 +70,7 @@ public class AiServiceImpl implements AiService {
 
     private final AiQuotaUsageMapper aiQuotaUsageMapper;
     private final AiCharacterMapper aiCharacterMapper;
+    private final AiCompanionProfileMapper aiCompanionProfileMapper;
     private final AiSessionMapper aiSessionMapper;
     private final AiMessageMapper aiMessageMapper;
     private final AiWorldbookMapper aiWorldbookMapper;
@@ -74,6 +81,7 @@ public class AiServiceImpl implements AiService {
 
     public AiServiceImpl(AiQuotaUsageMapper aiQuotaUsageMapper,
                          AiCharacterMapper aiCharacterMapper,
+                         AiCompanionProfileMapper aiCompanionProfileMapper,
                          AiSessionMapper aiSessionMapper,
                          AiMessageMapper aiMessageMapper,
                          AiWorldbookMapper aiWorldbookMapper,
@@ -83,6 +91,7 @@ public class AiServiceImpl implements AiService {
                          ObjectMapper objectMapper) {
         this.aiQuotaUsageMapper = aiQuotaUsageMapper;
         this.aiCharacterMapper = aiCharacterMapper;
+        this.aiCompanionProfileMapper = aiCompanionProfileMapper;
         this.aiSessionMapper = aiSessionMapper;
         this.aiMessageMapper = aiMessageMapper;
         this.aiWorldbookMapper = aiWorldbookMapper;
@@ -95,6 +104,10 @@ public class AiServiceImpl implements AiService {
     @Override
     public AiSessionSummary createSession(CreateSessionRequest request) {
         String mode = normalizeSessionMode(request.getMode());
+        if ("companion".equals(mode)) {
+            requireLoginUserId();
+            requireAdminRole();
+        }
         Long userId = currentUserIdOrNull();
         String sessionCode = "session-" + UUID.randomUUID();
 
@@ -154,6 +167,9 @@ public class AiServiceImpl implements AiService {
         Long userId = currentUserIdOrNull();
         AiSessionEntity session = isLoggedIn(userId) ? loadOwnedSession(sessionId, userId) : null;
         String sessionMode = session == null ? DEFAULT_SESSION_MODE : normalizeSessionMode(session.getMode());
+        if ("companion".equals(sessionMode)) {
+            requireAdminRole();
+        }
         List<Long> worldbookIds = session == null ? List.of() : parseWorldbookIds(session.getBoundWorldbookJson());
         boolean memoryEnabled = Boolean.TRUE.equals(request.getMemoryEnabled());
 
@@ -323,6 +339,62 @@ public class AiServiceImpl implements AiService {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Failed to create NPC session for user " + userId);
         }
         return summary;
+    }
+
+    @Override
+    public AiCompanionConfigResponse getAdminCompanionConfig() {
+        Long userId = requireLoginUserId();
+        requireAdminRole();
+        return toCompanionConfig(loadExistingCompanionProfile(userId));
+    }
+
+    @Override
+    public AiCompanionConfigResponse updateAdminCompanionConfig(UpdateCompanionConfigRequest request) {
+        Long userId = requireLoginUserId();
+        requireAdminRole();
+        List<Long> worldbookIds = loadOwnedWorldbookIds(request.getWorldbookIds(), userId);
+        LocalDateTime now = LocalDateTime.now();
+
+        AiCompanionProfileEntity entity = loadExistingCompanionProfile(userId);
+        if (entity == null) {
+            entity = new AiCompanionProfileEntity();
+            entity.setOwnerUserId(userId);
+            entity.setCreatedAt(now);
+            entity.setDeleted(0);
+            entity.setVersion(0);
+        }
+
+        entity.setCompanionCode(normalizeCompanionCode(request.getCompanionCode()));
+        entity.setDisplayName(normalizeDisplayName(request.getDisplayName(), "自宅 companion"));
+        entity.setPersonaJson(toJsonValue(Map.of("persona_prompt", normalizeCompanionPersonaPrompt(request.getPersonaPrompt()))));
+        entity.setAvatarAssetId(normalizePositiveLong(request.getAvatarAssetId()));
+        entity.setMemoryEnabled(toFlag(request.getMemoryEnabled(), false));
+        entity.setBoundWorldbookJson(toJsonValue(worldbookIds));
+        entity.setScenePrompt(normalizeCompanionScenePrompt(request.getScenePrompt()));
+        entity.setUpdatedAt(now);
+
+        if (entity.getId() == null) {
+            aiCompanionProfileMapper.insert(entity);
+        } else {
+            aiCompanionProfileMapper.updateById(entity);
+        }
+        return toCompanionConfig(entity);
+    }
+
+    @Override
+    public AiSessionSummary createAdminCompanionSession() {
+        requireLoginUserId();
+        requireAdminRole();
+        AiCompanionConfigResponse config = getAdminCompanionConfig();
+
+        CreateSessionRequest request = new CreateSessionRequest();
+        request.setTitle("自宅 · " + config.displayName());
+        request.setMode("companion");
+        request.setWorldbookIds(config.worldbookIds());
+        request.setScenePrompt(buildCompanionSessionPrompt(config));
+        request.setTownRoomCode(DEFAULT_COMPANION_SCENE_CODE);
+        request.setActorCode(config.companionCode());
+        return createSession(request);
     }
 
     @Override
@@ -775,6 +847,33 @@ public class AiServiceImpl implements AiService {
         );
     }
 
+    private AiCompanionConfigResponse toCompanionConfig(AiCompanionProfileEntity entity) {
+        if (entity == null) {
+            return new AiCompanionConfigResponse(
+                null,
+                DEFAULT_COMPANION_CODE,
+                "自宅 companion",
+                "",
+                null,
+                Boolean.FALSE,
+                List.of(),
+                "",
+                null
+            );
+        }
+        return new AiCompanionConfigResponse(
+            entity.getId(),
+            normalizeCompanionCode(entity.getCompanionCode()),
+            normalizeDisplayName(entity.getDisplayName(), "自宅 companion"),
+            parseCompanionPersonaPrompt(entity.getPersonaJson()),
+            normalizePositiveLong(entity.getAvatarAssetId()),
+            isEnabled(entity.getMemoryEnabled()),
+            parseWorldbookIds(entity.getBoundWorldbookJson()),
+            normalizeOptionalText(entity.getScenePrompt()),
+            entity.getUpdatedAt()
+        );
+    }
+
     private AiTownSceneSummaryResponse toTownSceneSummary(AiTownCatalog.SceneDefinition scene) {
         return new AiTownSceneSummaryResponse(
             scene.sceneCode(),
@@ -832,6 +931,14 @@ public class AiServiceImpl implements AiService {
         return normalized;
     }
 
+    private String normalizeDisplayName(String raw, String fallback) {
+        String normalized = normalizeOptionalText(raw);
+        if (normalized == null) {
+            return fallback;
+        }
+        return normalized.length() > 128 ? normalized.substring(0, 128) : normalized;
+    }
+
     private String normalizeVisibilityType(String raw) {
         String normalized = String.valueOf(raw == null ? DEFAULT_VISIBILITY_TYPE : raw).trim().toUpperCase(Locale.ROOT);
         if (!SUPPORTED_VISIBILITY_TYPES.contains(normalized)) {
@@ -858,6 +965,29 @@ public class AiServiceImpl implements AiService {
             .toList();
     }
 
+    private List<Long> loadOwnedWorldbookIds(List<Long> worldbookIds, Long userId) {
+        List<Long> normalized = normalizeWorldbookIds(worldbookIds);
+        if (normalized.isEmpty()) {
+            return normalized;
+        }
+        List<AiWorldbookEntity> ownedWorldbooks = aiWorldbookMapper.selectList(
+            new QueryWrapper<AiWorldbookEntity>()
+                .select("id")
+                .eq("owner_user_id", userId)
+                .eq("deleted_flag", 0)
+                .in("id", normalized)
+        );
+        List<Long> ownedIds = ownedWorldbooks.stream()
+            .map(AiWorldbookEntity::getId)
+            .filter(id -> id != null && id > 0)
+            .distinct()
+            .toList();
+        if (ownedIds.size() != normalized.size()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "worldbook_ids contain invalid entries");
+        }
+        return normalized;
+    }
+
     private String normalizeOptionalText(String raw) {
         String normalized = String.valueOf(raw == null ? "" : raw).trim();
         return normalized.isEmpty() ? null : normalized;
@@ -869,6 +999,11 @@ public class AiServiceImpl implements AiService {
             return null;
         }
         return normalized.length() > 64 ? normalized.substring(0, 64) : normalized;
+    }
+
+    private String normalizeCompanionCode(String raw) {
+        String normalized = normalizeCode(raw);
+        return normalized == null ? DEFAULT_COMPANION_CODE : normalized;
     }
 
     private String normalizeScopeId(String raw) {
@@ -893,6 +1028,22 @@ public class AiServiceImpl implements AiService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "content is required");
         }
         return normalized.length() > 4000 ? normalized.substring(0, 4000) : normalized;
+    }
+
+    private String normalizeCompanionPersonaPrompt(String raw) {
+        String normalized = normalizeOptionalText(raw);
+        if (normalized == null) {
+            return "";
+        }
+        return normalized.length() > 4000 ? normalized.substring(0, 4000) : normalized;
+    }
+
+    private String normalizeCompanionScenePrompt(String raw) {
+        String normalized = normalizeOptionalText(raw);
+        if (normalized == null) {
+            return null;
+        }
+        return normalized.length() > 2000 ? normalized.substring(0, 2000) : normalized;
     }
 
     private int normalizePriority(Integer value) {
@@ -927,6 +1078,17 @@ public class AiServiceImpl implements AiService {
         } catch (IOException ex) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid worldbook binding json");
         }
+    }
+
+    private String parseCompanionPersonaPrompt(String rawJson) {
+        Map<String, Object> payload = toPayloadMap(rawJson);
+        String personaPrompt = resolveOptionalText(
+            payload.get("persona_prompt"),
+            payload.get("personaPrompt"),
+            payload.get("persona"),
+            payload.get("description")
+        );
+        return personaPrompt == null ? "" : personaPrompt;
     }
 
     private Long toLongOrNull(Object raw) {
@@ -1040,7 +1202,7 @@ public class AiServiceImpl implements AiService {
             return townRoomCode;
         }
         if ("companion".equals(sessionMode)) {
-            return "home";
+            return DEFAULT_COMPANION_SCENE_CODE;
         }
         return null;
     }
@@ -1067,5 +1229,28 @@ public class AiServiceImpl implements AiService {
             return normalized;
         }
         return normalized.substring(0, maxLength) + "...";
+    }
+
+    private String buildCompanionSessionPrompt(AiCompanionConfigResponse config) {
+        List<String> parts = new ArrayList<>();
+        parts.add("自宅 companion：" + config.displayName());
+        String personaPrompt = normalizeOptionalText(config.personaPrompt());
+        if (personaPrompt != null) {
+            parts.add("人格设定：" + personaPrompt);
+        }
+        String scenePrompt = normalizeOptionalText(config.scenePrompt());
+        if (scenePrompt != null) {
+            parts.add("场景补充：" + scenePrompt);
+        }
+        return String.join("；", parts);
+    }
+
+    private AiCompanionProfileEntity loadExistingCompanionProfile(Long userId) {
+        return aiCompanionProfileMapper.selectOne(
+            new QueryWrapper<AiCompanionProfileEntity>()
+                .eq("owner_user_id", userId)
+                .eq("deleted_flag", 0)
+                .last("LIMIT 1")
+        );
     }
 }

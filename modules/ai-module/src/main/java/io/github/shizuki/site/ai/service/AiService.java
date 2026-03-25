@@ -3,6 +3,7 @@ package io.github.shizuki.site.ai.service;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
@@ -12,6 +13,7 @@ import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import java.util.List;
@@ -93,6 +95,21 @@ public interface AiService {
      * 为管理员特殊 NPC 创建会话。
      */
     AiSessionSummary createAdminTownNpcSession(String npcCode);
+
+    /**
+     * 查询管理员自宅 companion 配置。
+     */
+    AiCompanionConfigResponse getAdminCompanionConfig();
+
+    /**
+     * 更新管理员自宅 companion 配置。
+     */
+    AiCompanionConfigResponse updateAdminCompanionConfig(UpdateCompanionConfigRequest request);
+
+    /**
+     * 为管理员自宅 companion 创建会话。
+     */
+    AiSessionSummary createAdminCompanionSession();
 
     /**
      * 更新世界书。

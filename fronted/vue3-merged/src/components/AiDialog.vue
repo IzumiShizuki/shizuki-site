@@ -218,12 +218,12 @@
         </details>
       </section>
 
-      <section v-else-if="activeChatMode === 'town_npc' || activeChatMode === 'companion'" class="mode-config liquid-material scene-mode-config">
+      <section v-else-if="activeChatMode === 'town_npc'" class="mode-config liquid-material scene-mode-config">
         <div class="config-field config-field-full config-toolbar">
           <div>
-            <span class="config-title">{{ activeChatMode === 'town_npc' ? 'AI 小镇特殊 NPC 会话' : '自宅 companion 会话' }}</span>
+            <span class="config-title">AI 小镇特殊 NPC 会话</span>
             <p class="config-helper">
-              {{ activeChatMode === 'town_npc' ? '这里会带上 scene / actor / memory 契约，作用域由后端按场景模式兜底生成。' : '这里保留给管理员专属 companion，会沿用同一套记忆作用域规则。' }}
+              这里会带上 scene / actor / memory 契约，作用域由后端按场景模式兜底生成。
             </p>
           </div>
         </div>
@@ -252,6 +252,97 @@
           <input v-model="activeState.config.memoryEnabled" type="checkbox" />
           <span>启用分层记忆 contract</span>
         </label>
+      </section>
+
+      <section v-else-if="activeChatMode === 'companion'" class="mode-config liquid-material scene-mode-config">
+        <div class="config-field config-field-full config-toolbar">
+          <div>
+            <span class="config-title">自宅 companion 会话</span>
+            <p class="config-helper">
+              companion 配置会单独保存到管理员专属接口，首次发送时自动创建 `/admin/ai-companion/sessions` 会话。
+            </p>
+          </div>
+          <div v-if="auth.isAuthenticated.value && isAdminUser" class="config-toolbar-actions">
+            <button class="toolbar-btn ripple-trigger" type="button" :disabled="companionProfile.loading || companionProfile.saving" @click="ensureCompanionConfigLoaded(true)">
+              {{ companionProfile.loading ? '刷新中...' : '刷新配置' }}
+            </button>
+            <button class="toolbar-btn ripple-trigger" type="button" :disabled="companionProfile.loading || companionProfile.saving" @click="submitSaveCompanionConfig()">
+              {{ companionProfile.saving ? '保存中...' : '保存配置' }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="companionProfile.errorText" class="feedback-banner error">{{ companionProfile.errorText }}</p>
+        <p v-else-if="companionProfile.feedbackText" class="feedback-banner" :class="companionProfile.feedbackTone">{{ companionProfile.feedbackText }}</p>
+
+        <p v-if="!auth.isAuthenticated.value" class="feedback-banner warning">
+          登录后才能进入自宅 companion。
+        </p>
+        <p v-else-if="!isAdminUser" class="feedback-banner warning">
+          自宅 companion 仅对 ADMIN 开放。
+        </p>
+        <template v-else>
+          <label class="config-field">
+            <span>companion 名称</span>
+            <input v-model.trim="activeState.config.displayName" type="text" maxlength="128" placeholder="例如：小春" />
+          </label>
+
+          <label class="config-field">
+            <span>companion 代号</span>
+            <input v-model.trim="activeState.config.companionCode" type="text" maxlength="64" placeholder="例如：my_home_ai" />
+          </label>
+
+          <label class="config-field">
+            <span>形象资源 ID</span>
+            <input v-model.trim="activeState.config.avatarAssetId" type="text" maxlength="20" placeholder="可留空" />
+          </label>
+
+          <div class="config-field config-field-full">
+            <span>绑定世界书</span>
+            <div v-if="tavernAssets.worldbooks.length" class="worldbook-picker">
+              <label
+                v-for="item in tavernAssets.worldbooks"
+                :key="`companion-${item.worldbookId}`"
+                class="worldbook-option"
+                :class="{ active: isWorldbookSelected(item.worldbookId) }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="isWorldbookSelected(item.worldbookId)"
+                  @change="toggleWorldbookSelection(item.worldbookId)"
+                />
+                <span>{{ item.title }}</span>
+              </label>
+            </div>
+            <p v-else-if="tavernAssets.loading" class="picker-empty">世界书加载中...</p>
+            <p v-else class="picker-empty">还没有可绑定的世界书，可先在酒馆模式创建。</p>
+          </div>
+
+          <label class="config-field config-field-full">
+            <span>人格设定</span>
+            <textarea
+              v-model.trim="activeState.config.personaPrompt"
+              rows="3"
+              maxlength="2000"
+              placeholder="例如：温柔、可靠，会记得我的习惯。"
+            ></textarea>
+          </label>
+
+          <label class="config-field config-field-full">
+            <span>自宅场景提示</span>
+            <textarea
+              v-model.trim="activeState.config.scenePrompt"
+              rows="2"
+              maxlength="1000"
+              placeholder="例如：房间里有落地灯和书桌。"
+            ></textarea>
+          </label>
+
+          <label class="config-toggle">
+            <input v-model="activeState.config.memoryEnabled" type="checkbox" />
+            <span>启用 companion 记忆开关</span>
+          </label>
+        </template>
       </section>
 
       <section v-else class="mode-note">
@@ -309,15 +400,18 @@ import { computed, reactive, ref, watch } from 'vue';
 import { motion, useReducedMotion } from 'motion-v';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
+  createAdminAiCompanionSession,
   createAiCharacter,
   createAiSession,
   createAiWorldbook,
   createAiWorldbookEntry,
+  getAdminAiCompanionConfig,
   getMyAiQuota,
   importAiCharacterCard,
   listAiCharacters,
   listAiWorldbooks,
-  sendAiMessage
+  sendAiMessage,
+  updateAdminAiCompanionConfig
 } from '../services/aiApi';
 
 const CHAT_MODE_OPTIONS = [
@@ -372,10 +466,10 @@ const CHAT_MODE_OPTIONS = [
     kicker: 'Companion',
     title: '自宅 companion',
     caption: '管理员专属 companion 对话',
-    note: '该模式预留给自宅 companion，会复用与特殊 NPC 相同的记忆作用域规则。',
+    note: '该模式会加载管理员专属 companion 配置，并通过专用会话接口收口到自宅作用域。',
     placeholder: '对 companion 说一句话...',
-    emptyTitle: 'companion 模式待完整接入',
-    emptyBody: '后续 bead 会把人格配置、形象位和记忆开关继续接到这个模式。',
+    emptyTitle: 'companion 配置已独立接入',
+    emptyBody: '先保存人格、世界书和记忆开关，再从同一个面板里直接开始自宅对话。',
     hidden: true
   }
 ];
@@ -430,6 +524,10 @@ function createModeState(mode) {
     config: {
       characterId: '',
       worldbookIdsText: '',
+      displayName: '',
+      companionCode: '',
+      avatarAssetId: '',
+      personaPrompt: '',
       scenePrompt: '',
       townRoomCode: '',
       actorCode: '',
@@ -473,6 +571,17 @@ function createTavernAssetsState() {
       entryKeywords: '',
       entryContent: ''
     }
+  };
+}
+
+function createCompanionProfileState() {
+  return {
+    loading: false,
+    loaded: false,
+    saving: false,
+    errorText: '',
+    feedbackText: '',
+    feedbackTone: ''
   };
 }
 
@@ -538,6 +647,24 @@ function normalizeWorldbookSummary(raw = {}) {
   };
 }
 
+function normalizeCompanionConfig(raw = {}) {
+  const worldbookIds = Array.isArray(raw.worldbookIds || raw.worldbook_ids)
+    ? (raw.worldbookIds || raw.worldbook_ids)
+        .map((item) => Number.parseInt(item, 10))
+        .filter((item) => Number.isFinite(item) && item > 0)
+    : [];
+  return {
+    companionProfileId: toNumber(raw.companionProfileId ?? raw.companion_profile_id),
+    companionCode: normalizeOptionalText(raw.companionCode || raw.companion_code) || 'my_home_ai',
+    displayName: normalizeOptionalText(raw.displayName || raw.display_name) || '自宅 companion',
+    personaPrompt: normalizeOptionalText(raw.personaPrompt || raw.persona_prompt),
+    avatarAssetId: toNumber(raw.avatarAssetId ?? raw.avatar_asset_id),
+    memoryEnabled: raw.memoryEnabled === true || raw.memory_enabled === true,
+    worldbookIds,
+    scenePrompt: normalizeOptionalText(raw.scenePrompt || raw.scene_prompt)
+  };
+}
+
 function buildSessionTitle(mode, existingTitle, openingMessage) {
   const normalizedExisting = normalizeOptionalText(existingTitle);
   if (normalizedExisting) return normalizedExisting;
@@ -574,10 +701,15 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 const prefersReducedMotion = useReducedMotion();
 const auth = useAuthSession();
+const isAdminUser = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((groupCode) => String(groupCode || '').trim().toUpperCase() === 'ADMIN');
+});
 
 const activeChatMode = ref('quick_chat');
 const quota = ref(null);
 const tavernAssets = reactive(createTavernAssetsState());
+const companionProfile = reactive(createCompanionProfileState());
 const sessionStateByMode = reactive({
   quick_chat: createModeState('quick_chat'),
   normal: createModeState('normal'),
@@ -589,7 +721,15 @@ const sessionStateByMode = reactive({
 const activeState = computed(() => sessionStateByMode[activeChatMode.value]);
 const visibleChatModeOptions = computed(() => CHAT_MODE_OPTIONS.filter((item) => !item.hidden));
 const activeModeMeta = computed(() => CHAT_MODE_OPTIONS.find((item) => item.value === activeChatMode.value) || CHAT_MODE_OPTIONS[0]);
-const canSendActiveMessage = computed(() => normalizeOptionalText(activeState.value.draft) && !activeState.value.pending);
+const canSendActiveMessage = computed(() => {
+  if (!normalizeOptionalText(activeState.value.draft) || activeState.value.pending) {
+    return false;
+  }
+  if (activeChatMode.value === 'companion') {
+    return auth.isAuthenticated.value && isAdminUser.value;
+  }
+  return true;
+});
 const quotaLabel = computed(() => {
   if (!quota.value || !Number.isFinite(quota.value.remaining)) return '';
   return `剩余 ${quota.value.remaining}/${quota.value.total}`;
@@ -620,6 +760,9 @@ const modeSummaryText = computed(() => {
   if (activeChatMode.value === 'town_npc' || activeChatMode.value === 'companion') {
     parts.push(state.config.townRoomCode ? `场景 ${state.config.townRoomCode}` : '场景未绑定');
     parts.push(state.config.actorCode ? `对象 ${state.config.actorCode}` : '对象未绑定');
+  }
+  if (activeChatMode.value === 'companion' && normalizeOptionalText(state.config.displayName)) {
+    parts.push(`companion ${state.config.displayName}`);
   }
   return parts.join(' · ');
 });
@@ -669,11 +812,20 @@ watch(
       tavernAssets.errorText = '';
       tavernAssets.feedbackText = '';
       tavernAssets.feedbackTone = '';
+      companionProfile.loaded = false;
+      companionProfile.loading = false;
+      companionProfile.saving = false;
+      companionProfile.errorText = '';
+      companionProfile.feedbackText = '';
+      companionProfile.feedbackTone = '';
       return;
     }
     await refreshQuota();
-    if (activeChatMode.value === 'tavern') {
+    if (activeChatMode.value === 'tavern' || activeChatMode.value === 'companion') {
       await ensureTavernAssetsLoaded();
+    }
+    if (activeChatMode.value === 'companion') {
+      await ensureCompanionConfigLoaded();
     }
   },
   { immediate: true }
@@ -682,8 +834,11 @@ watch(
 watch(
   () => activeChatMode.value,
   async (mode) => {
-    if (mode === 'tavern' && auth.isAuthenticated.value) {
+    if ((mode === 'tavern' || mode === 'companion') && auth.isAuthenticated.value) {
       await ensureTavernAssetsLoaded();
+    }
+    if (mode === 'companion' && auth.isAuthenticated.value) {
+      await ensureCompanionConfigLoaded();
     }
   },
   { immediate: true }
@@ -758,6 +913,31 @@ function clearTavernFeedback() {
   tavernAssets.feedbackTone = '';
 }
 
+function setCompanionFeedback(text, tone = 'success') {
+  companionProfile.feedbackText = normalizeOptionalText(text);
+  companionProfile.feedbackTone = companionProfile.feedbackText ? tone : '';
+}
+
+function clearCompanionFeedback() {
+  companionProfile.errorText = '';
+  companionProfile.feedbackText = '';
+  companionProfile.feedbackTone = '';
+}
+
+function syncCompanionStateFromConfig(rawConfig) {
+  const config = normalizeCompanionConfig(rawConfig);
+  const state = sessionStateByMode.companion;
+  state.config.displayName = config.displayName;
+  state.config.companionCode = config.companionCode;
+  state.config.avatarAssetId = config.avatarAssetId > 0 ? String(config.avatarAssetId) : '';
+  state.config.personaPrompt = config.personaPrompt;
+  state.config.worldbookIdsText = config.worldbookIds.join(', ');
+  state.config.scenePrompt = config.scenePrompt;
+  state.config.townRoomCode = 'home';
+  state.config.actorCode = config.companionCode;
+  state.config.memoryEnabled = config.memoryEnabled;
+}
+
 async function refreshQuota() {
   if (!auth.isAuthenticated.value) return;
   try {
@@ -787,6 +967,24 @@ async function ensureTavernAssetsLoaded(force = false) {
     tavernAssets.errorText = resolveErrorMessage(error);
   } finally {
     tavernAssets.loading = false;
+  }
+}
+
+async function ensureCompanionConfigLoaded(force = false) {
+  if (!auth.isAuthenticated.value || !isAdminUser.value) return;
+  if (companionProfile.loading) return;
+  if (companionProfile.loaded && !force) return;
+
+  companionProfile.loading = true;
+  clearCompanionFeedback();
+  try {
+    const config = await getAdminAiCompanionConfig(auth.authorizedFetch);
+    syncCompanionStateFromConfig(config);
+    companionProfile.loaded = true;
+  } catch (error) {
+    companionProfile.errorText = resolveErrorMessage(error);
+  } finally {
+    companionProfile.loading = false;
   }
 }
 
@@ -917,8 +1115,66 @@ async function submitCreateWorldbook() {
   }
 }
 
+async function submitSaveCompanionConfig(options = {}) {
+  if (!auth.isAuthenticated.value || !isAdminUser.value) {
+    companionProfile.errorText = '自宅 companion 仅对 ADMIN 开放。';
+    if (options.throwOnError) {
+      throw new Error(companionProfile.errorText);
+    }
+    return null;
+  }
+
+  const displayName = normalizeOptionalText(activeState.value.config.displayName);
+  if (!displayName) {
+    companionProfile.errorText = 'companion 名称不能为空。';
+    if (options.throwOnError) {
+      throw new Error(companionProfile.errorText);
+    }
+    return null;
+  }
+
+  companionProfile.saving = true;
+  clearCompanionFeedback();
+  try {
+    const payload = {
+      companionCode: normalizeOptionalText(activeState.value.config.companionCode) || 'my_home_ai',
+      displayName,
+      personaPrompt: normalizeOptionalText(activeState.value.config.personaPrompt),
+      avatarAssetId: toNumber(activeState.value.config.avatarAssetId) || undefined,
+      worldbookIds: parseCsvIds(activeState.value.config.worldbookIdsText),
+      memoryEnabled: Boolean(activeState.value.config.memoryEnabled),
+      scenePrompt: normalizeOptionalText(activeState.value.config.scenePrompt)
+    };
+    const config = await updateAdminAiCompanionConfig(payload, auth.authorizedFetch);
+    syncCompanionStateFromConfig(config);
+    companionProfile.loaded = true;
+    if (!options.silent) {
+      setCompanionFeedback('companion 配置已保存。');
+    }
+    return config;
+  } catch (error) {
+    companionProfile.errorText = resolveErrorMessage(error);
+    if (options.throwOnError) {
+      throw error;
+    }
+    return null;
+  } finally {
+    companionProfile.saving = false;
+  }
+}
+
 async function ensureSession(state, openingMessage) {
   if (normalizeOptionalText(state.sessionId)) return;
+
+  if (state.mode === 'companion') {
+    if (!auth.isAuthenticated.value || !isAdminUser.value) {
+      throw new Error('自宅 companion 仅对 ADMIN 开放。');
+    }
+    await submitSaveCompanionConfig({ silent: true, throwOnError: true });
+    const summary = await createAdminAiCompanionSession(auth.authorizedFetch);
+    syncStateFromSessionSummary(state, summary);
+    return;
+  }
 
   const payload = {
     title: buildSessionTitle(state.mode, state.title, openingMessage),
@@ -1250,6 +1506,13 @@ function messageRoleLabel(role) {
   align-items: start;
 }
 
+.config-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .config-title {
   color: rgba(246, 250, 255, 0.95);
   font-size: 13px;
@@ -1306,7 +1569,8 @@ function messageRoleLabel(role) {
 }
 
 .mini-action,
-.management-btn {
+.management-btn,
+.toolbar-btn {
   border: 0;
   border-radius: 12px;
   background: rgba(var(--accent-rgb), 0.18);
@@ -1324,14 +1588,21 @@ function messageRoleLabel(role) {
   padding: 11px 14px;
 }
 
+.toolbar-btn {
+  min-width: 96px;
+  padding: 10px 12px;
+}
+
 .mini-action:hover:not(:disabled),
-.management-btn:hover:not(:disabled) {
+.management-btn:hover:not(:disabled),
+.toolbar-btn:hover:not(:disabled) {
   background: rgba(var(--accent-rgb), 0.3);
   transform: translateY(-1px);
 }
 
 .mini-action:disabled,
-.management-btn:disabled {
+.management-btn:disabled,
+.toolbar-btn:disabled {
   cursor: not-allowed;
   opacity: 0.54;
 }
@@ -1348,6 +1619,35 @@ function messageRoleLabel(role) {
 }
 
 .config-feedback.error {
+  background: rgba(255, 110, 110, 0.12);
+  border-color: rgba(255, 120, 120, 0.2);
+  color: rgba(255, 190, 190, 0.96);
+}
+
+.feedback-banner {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(78, 210, 156, 0.12);
+  border: 1px solid rgba(78, 210, 156, 0.18);
+  color: rgba(189, 250, 223, 0.95);
+  font-size: 12px;
+}
+
+.feedback-banner.success {
+  background: rgba(78, 210, 156, 0.12);
+  border-color: rgba(78, 210, 156, 0.18);
+  color: rgba(189, 250, 223, 0.95);
+}
+
+.feedback-banner.warning {
+  background: rgba(255, 196, 92, 0.12);
+  border-color: rgba(255, 196, 92, 0.2);
+  color: rgba(255, 225, 166, 0.96);
+}
+
+.feedback-banner.error {
   background: rgba(255, 110, 110, 0.12);
   border-color: rgba(255, 120, 120, 0.2);
   color: rgba(255, 190, 190, 0.96);

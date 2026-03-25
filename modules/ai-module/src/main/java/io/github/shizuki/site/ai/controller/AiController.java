@@ -5,6 +5,7 @@ import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
@@ -15,6 +16,7 @@ import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import io.github.shizuki.site.ai.service.AiService;
@@ -155,5 +157,23 @@ public class AiController {
     @Operation(summary = "创建管理员特殊 NPC 会话")
     public ApiResponse<AiSessionSummary> createAdminTownNpcSession(@PathVariable("npc_code") String npcCode) {
         return ApiResponse.success(aiService.createAdminTownNpcSession(npcCode));
+    }
+
+    @PostMapping("/admin/ai-companion/sessions")
+    @Operation(summary = "创建管理员自宅 companion 会话")
+    public ApiResponse<AiSessionSummary> createAdminCompanionSession() {
+        return ApiResponse.success(aiService.createAdminCompanionSession());
+    }
+
+    @GetMapping("/admin/ai-companion/config")
+    @Operation(summary = "查询管理员自宅 companion 配置")
+    public ApiResponse<AiCompanionConfigResponse> getAdminCompanionConfig() {
+        return ApiResponse.success(aiService.getAdminCompanionConfig());
+    }
+
+    @PutMapping("/admin/ai-companion/config")
+    @Operation(summary = "更新管理员自宅 companion 配置")
+    public ApiResponse<AiCompanionConfigResponse> updateAdminCompanionConfig(@Valid @RequestBody UpdateCompanionConfigRequest request) {
+        return ApiResponse.success(aiService.updateAdminCompanionConfig(request));
     }
 }
