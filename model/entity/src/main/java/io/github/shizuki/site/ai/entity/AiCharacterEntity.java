@@ -13,6 +13,15 @@ public class AiCharacterEntity extends BaseEntity {
     @TableField("character_type")
     private String typeName;
 
+    @TableField("display_name")
+    private String displayName;
+
+    @TableField("cover_asset_id")
+    private Long coverAssetId;
+
+    @TableField("visibility_type")
+    private String visibilityType;
+
     @TableField("payload_json")
     private String payloadJson;
 
@@ -30,6 +39,30 @@ public class AiCharacterEntity extends BaseEntity {
 
     public void setTypeName(String typeName) {
         this.typeName = typeName;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public Long getCoverAssetId() {
+        return coverAssetId;
+    }
+
+    public void setCoverAssetId(Long coverAssetId) {
+        this.coverAssetId = coverAssetId;
+    }
+
+    public String getVisibilityType() {
+        return visibilityType;
+    }
+
+    public void setVisibilityType(String visibilityType) {
+        this.visibilityType = visibilityType;
     }
 
     public String getPayloadJson() {

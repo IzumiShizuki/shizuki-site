@@ -48,14 +48,76 @@
       </section>
 
       <section v-if="activeChatMode === 'tavern'" class="mode-config liquid-material">
+        <div class="config-field config-field-full config-toolbar">
+          <div>
+            <span class="config-title">角色卡与世界书配置流</span>
+            <p v-if="auth.isAuthenticated.value" class="config-helper">
+              这里已经接上 `character / character_card_png / worldbook` 的管理路径。选择和创建都会直接走后端接口。
+            </p>
+            <p v-else class="config-helper">
+              游客可以继续手动试玩酒馆模式，但角色卡和世界书管理需要登录后才能使用。
+            </p>
+          </div>
+          <button
+            v-if="auth.isAuthenticated.value"
+            class="mini-action ripple-trigger"
+            type="button"
+            :disabled="tavernAssets.loading"
+            @click="ensureTavernAssetsLoaded(true)"
+          >
+            {{ tavernAssets.loading ? '刷新中...' : '刷新资源' }}
+          </button>
+        </div>
+
+        <p v-if="tavernAssets.errorText" class="config-feedback error">{{ tavernAssets.errorText }}</p>
+        <p v-else-if="tavernAssets.feedbackText" class="config-feedback" :class="tavernAssets.feedbackTone">{{ tavernAssets.feedbackText }}</p>
+
         <label class="config-field">
-          <span>角色 ID</span>
-          <input v-model.trim="activeState.config.characterId" type="text" maxlength="20" placeholder="如 1001" />
+          <span>角色选择</span>
+          <select
+            v-if="auth.isAuthenticated.value"
+            v-model="activeState.config.characterId"
+            class="config-select"
+            :disabled="tavernAssets.loading"
+          >
+            <option value="">不绑定角色</option>
+            <option v-for="item in tavernAssets.characters" :key="item.characterId" :value="String(item.characterId)">
+              {{ item.displayName }} · {{ item.characterTypeLabel }}
+            </option>
+          </select>
+          <input v-else v-model.trim="activeState.config.characterId" type="text" maxlength="20" placeholder="如 1001" />
+          <small v-if="selectedCharacterSummary" class="config-inline-tip">
+            已选：{{ selectedCharacterSummary.displayName }} · {{ selectedCharacterSummary.characterTypeLabel }}
+          </small>
         </label>
-        <label class="config-field">
-          <span>世界书 IDs</span>
-          <input v-model.trim="activeState.config.worldbookIdsText" type="text" maxlength="120" placeholder="如 11,12" />
-        </label>
+
+        <div class="config-field">
+          <span>世界书绑定</span>
+          <div v-if="auth.isAuthenticated.value" class="worldbook-picker">
+            <label
+              v-for="item in tavernAssets.worldbooks"
+              :key="item.worldbookId"
+              class="worldbook-option"
+              :class="{ active: isWorldbookSelected(item.worldbookId) }"
+            >
+              <input
+                type="checkbox"
+                :checked="isWorldbookSelected(item.worldbookId)"
+                @change="toggleWorldbookSelection(item.worldbookId)"
+              />
+              <span>{{ item.title }}</span>
+              <small>{{ item.entryCount }} 条 · {{ item.visibilityType }}</small>
+            </label>
+            <p v-if="auth.isAuthenticated.value && !tavernAssets.loading && !tavernAssets.worldbooks.length" class="picker-empty">
+              还没有世界书，下面可以直接创建。
+            </p>
+          </div>
+          <input v-else v-model.trim="activeState.config.worldbookIdsText" type="text" maxlength="120" placeholder="如 11,12" />
+          <small v-if="selectedWorldbookLabels.length" class="config-inline-tip">
+            已绑定：{{ selectedWorldbookLabels.join(' / ') }}
+          </small>
+        </div>
+
         <label class="config-field config-field-full">
           <span>场景设定</span>
           <textarea
@@ -65,10 +127,95 @@
             placeholder="例如：深夜图书馆，落地灯很暖，外面正在下雨。"
           ></textarea>
         </label>
+
         <label class="config-toggle">
           <input v-model="activeState.config.memoryEnabled" type="checkbox" />
           <span>发送时带上记忆开关与 scope_id 契约</span>
         </label>
+
+        <details v-if="auth.isAuthenticated.value" class="management-shell config-field-full" :open="!tavernAssets.characters.length || !tavernAssets.worldbooks.length">
+          <summary>管理角色卡与世界书</summary>
+
+          <div class="management-grid">
+            <form class="management-card liquid-material" @submit.prevent="submitCreateCharacter">
+              <header>
+                <strong>结构化角色</strong>
+                <span>走 `POST /ai-characters`</span>
+              </header>
+              <input
+                v-model.trim="tavernAssets.createCharacterDraft.displayName"
+                type="text"
+                maxlength="128"
+                placeholder="角色显示名，例如：馆长 Haru"
+              />
+              <textarea
+                v-model.trim="tavernAssets.createCharacterDraft.persona"
+                rows="3"
+                maxlength="1200"
+                placeholder="角色设定 / persona"
+              ></textarea>
+              <textarea
+                v-model.trim="tavernAssets.createCharacterDraft.description"
+                rows="2"
+                maxlength="1200"
+                placeholder="补充描述（可选）"
+              ></textarea>
+              <button class="management-btn ripple-trigger" type="submit" :disabled="tavernAssets.saving">
+                创建结构化角色
+              </button>
+            </form>
+
+            <form class="management-card liquid-material" @submit.prevent="submitImportCharacterCard">
+              <header>
+                <strong>导入角色卡</strong>
+                <span>走 `POST /ai-character-cards/import`</span>
+              </header>
+              <input
+                v-model.trim="tavernAssets.importCardDraft.displayName"
+                type="text"
+                maxlength="128"
+                placeholder="角色卡显示名"
+              />
+              <textarea
+                v-model.trim="tavernAssets.importCardDraft.rawCardJson"
+                rows="5"
+                maxlength="4000"
+                placeholder="粘贴角色卡原始 JSON / 元数据"
+              ></textarea>
+              <button class="management-btn ripple-trigger" type="submit" :disabled="tavernAssets.saving">
+                导入角色卡
+              </button>
+            </form>
+
+            <form class="management-card liquid-material" @submit.prevent="submitCreateWorldbook">
+              <header>
+                <strong>创建世界书</strong>
+                <span>走 `POST /ai-worldbooks` + entries</span>
+              </header>
+              <input
+                v-model.trim="tavernAssets.createWorldbookDraft.title"
+                type="text"
+                maxlength="255"
+                placeholder="世界书标题，例如：图书馆设定集"
+              />
+              <input
+                v-model.trim="tavernAssets.createWorldbookDraft.entryKeywords"
+                type="text"
+                maxlength="240"
+                placeholder="首条关键词，逗号分隔，例如：图书馆,夜间"
+              />
+              <textarea
+                v-model.trim="tavernAssets.createWorldbookDraft.entryContent"
+                rows="4"
+                maxlength="2000"
+                placeholder="首条世界书内容（可选）"
+              ></textarea>
+              <button class="management-btn ripple-trigger" type="submit" :disabled="tavernAssets.saving">
+                创建世界书
+              </button>
+            </form>
+          </div>
+        </details>
       </section>
 
       <section v-else class="mode-note">
@@ -125,7 +272,17 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { motion, useReducedMotion } from 'motion-v';
 import { useAuthSession } from '../composables/useAuthSession';
-import { createAiSession, getMyAiQuota, sendAiMessage } from '../services/aiApi';
+import {
+  createAiCharacter,
+  createAiSession,
+  createAiWorldbook,
+  createAiWorldbookEntry,
+  getMyAiQuota,
+  importAiCharacterCard,
+  listAiCharacters,
+  listAiWorldbooks,
+  sendAiMessage
+} from '../services/aiApi';
 
 const CHAT_MODE_OPTIONS = [
   {
@@ -159,7 +316,7 @@ const CHAT_MODE_OPTIONS = [
     note: '酒馆模式与普通对话共享壳层，但额外携带角色、世界书和场景设定契约。',
     placeholder: '对角色说一句话，或描述你想进入的场景...',
     emptyTitle: '酒馆模式已支持基础契约',
-    emptyBody: '现在可以先填角色 ID、世界书 IDs 和场景设定，后续 bead 会把管理页补齐。'
+    emptyBody: '现在可以直接选择角色、绑定世界书，并在当前面板内创建结构化角色、导入角色卡或新建世界书。'
   }
 ];
 
@@ -190,6 +347,15 @@ function parseCsvIds(raw) {
     .slice(0, 20);
 }
 
+function parseKeywordCsv(raw) {
+  return String(raw || '')
+    .split(',')
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index)
+    .slice(0, 12);
+}
+
 function createModeState(mode) {
   return {
     mode,
@@ -216,6 +382,33 @@ function createMessage(role, content, options = {}) {
     content: String(content || ''),
     pending: Boolean(options.pending),
     failed: Boolean(options.failed)
+  };
+}
+
+function createTavernAssetsState() {
+  return {
+    loading: false,
+    loaded: false,
+    saving: false,
+    errorText: '',
+    feedbackText: '',
+    feedbackTone: '',
+    characters: [],
+    worldbooks: [],
+    createCharacterDraft: {
+      displayName: '',
+      persona: '',
+      description: ''
+    },
+    importCardDraft: {
+      displayName: '',
+      rawCardJson: ''
+    },
+    createWorldbookDraft: {
+      title: '',
+      entryKeywords: '',
+      entryContent: ''
+    }
   };
 }
 
@@ -256,6 +449,29 @@ function normalizeQuota(raw = {}) {
   };
 }
 
+function normalizeCharacterSummary(raw = {}) {
+  const characterType = String(raw.characterType || raw.character_type || 'character').trim() || 'character';
+  return {
+    characterId: toNumber(raw.characterId ?? raw.character_id),
+    characterType,
+    characterTypeLabel: characterType === 'character_card_png' ? '导入角色卡' : '结构化角色',
+    displayName: normalizeOptionalText(raw.displayName || raw.display_name) || '未命名角色',
+    coverAssetId: toNumber(raw.coverAssetId ?? raw.cover_asset_id),
+    visibilityType: String(raw.visibilityType || raw.visibility_type || 'PRIVATE').trim().toUpperCase() || 'PRIVATE'
+  };
+}
+
+function normalizeWorldbookSummary(raw = {}) {
+  return {
+    worldbookId: toNumber(raw.worldbookId ?? raw.worldbook_id),
+    worldbookCode: normalizeOptionalText(raw.worldbookCode || raw.worldbook_code),
+    title: normalizeOptionalText(raw.title) || '未命名世界书',
+    visibilityType: String(raw.visibilityType || raw.visibility_type || 'PRIVATE').trim().toUpperCase() || 'PRIVATE',
+    entryCount: toNumber(raw.entryCount ?? raw.entry_count),
+    enabled: raw.enabled === false ? false : raw.enabled_flag === 0 ? false : true
+  };
+}
+
 function buildSessionTitle(mode, existingTitle, openingMessage) {
   const normalizedExisting = normalizeOptionalText(existingTitle);
   if (normalizedExisting) return normalizedExisting;
@@ -288,6 +504,7 @@ const auth = useAuthSession();
 
 const activeChatMode = ref('quick_chat');
 const quota = ref(null);
+const tavernAssets = reactive(createTavernAssetsState());
 const sessionStateByMode = reactive({
   quick_chat: createModeState('quick_chat'),
   normal: createModeState('normal'),
@@ -301,6 +518,17 @@ const quotaLabel = computed(() => {
   if (!quota.value || !Number.isFinite(quota.value.remaining)) return '';
   return `剩余 ${quota.value.remaining}/${quota.value.total}`;
 });
+const selectedCharacterSummary = computed(() => {
+  const characterId = normalizeOptionalText(activeState.value.config.characterId);
+  if (!characterId) return null;
+  return tavernAssets.characters.find((item) => String(item.characterId) === characterId) || null;
+});
+const selectedWorldbookIds = computed(() => parseCsvIds(activeState.value.config.worldbookIdsText));
+const selectedWorldbookLabels = computed(() =>
+  tavernAssets.worldbooks
+    .filter((item) => selectedWorldbookIds.value.includes(item.worldbookId))
+    .map((item) => item.title)
+);
 const modeSummaryText = computed(() => {
   const state = activeState.value;
   const parts = [];
@@ -310,10 +538,8 @@ const modeSummaryText = computed(() => {
     parts.push('首条消息发送时自动创建会话');
   }
   if (activeChatMode.value === 'tavern') {
-    const characterId = normalizeOptionalText(state.config.characterId);
-    const worldbookIds = parseCsvIds(state.config.worldbookIdsText);
-    parts.push(characterId ? `角色 ${characterId}` : '角色未绑定');
-    parts.push(worldbookIds.length ? `世界书 ${worldbookIds.join(', ')}` : '世界书未绑定');
+    parts.push(selectedCharacterSummary.value ? `角色 ${selectedCharacterSummary.value.displayName}` : '角色未绑定');
+    parts.push(selectedWorldbookLabels.value.length ? `世界书 ${selectedWorldbookLabels.value.join(' / ')}` : '世界书未绑定');
   }
   return parts.join(' · ');
 });
@@ -349,9 +575,28 @@ watch(
   async (authenticated) => {
     if (!authenticated) {
       quota.value = null;
+      tavernAssets.characters = [];
+      tavernAssets.worldbooks = [];
+      tavernAssets.loaded = false;
+      tavernAssets.errorText = '';
+      tavernAssets.feedbackText = '';
+      tavernAssets.feedbackTone = '';
       return;
     }
     await refreshQuota();
+    if (activeChatMode.value === 'tavern') {
+      await ensureTavernAssetsLoaded();
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => activeChatMode.value,
+  async (mode) => {
+    if (mode === 'tavern' && auth.isAuthenticated.value) {
+      await ensureTavernAssetsLoaded();
+    }
   },
   { immediate: true }
 );
@@ -378,6 +623,17 @@ function syncStateFromSessionSummary(state, rawSummary) {
   if (summary.scenePrompt) state.config.scenePrompt = summary.scenePrompt;
 }
 
+function setTavernFeedback(text, tone = 'success') {
+  tavernAssets.feedbackText = normalizeOptionalText(text);
+  tavernAssets.feedbackTone = tavernAssets.feedbackText ? tone : '';
+}
+
+function clearTavernFeedback() {
+  tavernAssets.errorText = '';
+  tavernAssets.feedbackText = '';
+  tavernAssets.feedbackTone = '';
+}
+
 async function refreshQuota() {
   if (!auth.isAuthenticated.value) return;
   try {
@@ -385,6 +641,155 @@ async function refreshQuota() {
   } catch (error) {
     quota.value = null;
     console.warn('load ai quota failed', error);
+  }
+}
+
+async function ensureTavernAssetsLoaded(force = false) {
+  if (!auth.isAuthenticated.value) return;
+  if (tavernAssets.loading) return;
+  if (tavernAssets.loaded && !force) return;
+
+  tavernAssets.loading = true;
+  tavernAssets.errorText = '';
+  try {
+    const [characterList, worldbookList] = await Promise.all([
+      listAiCharacters(auth.authorizedFetch),
+      listAiWorldbooks(auth.authorizedFetch)
+    ]);
+    tavernAssets.characters = Array.isArray(characterList) ? characterList.map(normalizeCharacterSummary) : [];
+    tavernAssets.worldbooks = Array.isArray(worldbookList) ? worldbookList.map(normalizeWorldbookSummary) : [];
+    tavernAssets.loaded = true;
+  } catch (error) {
+    tavernAssets.errorText = resolveErrorMessage(error);
+  } finally {
+    tavernAssets.loading = false;
+  }
+}
+
+function isWorldbookSelected(worldbookId) {
+  return selectedWorldbookIds.value.includes(Number(worldbookId));
+}
+
+function toggleWorldbookSelection(worldbookId) {
+  const normalizedId = Number(worldbookId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
+  const ids = parseCsvIds(activeState.value.config.worldbookIdsText);
+  const next = ids.includes(normalizedId) ? ids.filter((item) => item !== normalizedId) : [...ids, normalizedId];
+  activeState.value.config.worldbookIdsText = next.join(', ');
+}
+
+async function submitCreateCharacter() {
+  const displayName = normalizeOptionalText(tavernAssets.createCharacterDraft.displayName);
+  if (!displayName) {
+    tavernAssets.errorText = '角色显示名不能为空。';
+    return;
+  }
+
+  tavernAssets.saving = true;
+  clearTavernFeedback();
+  try {
+    const payload = {
+      displayName,
+      persona: normalizeOptionalText(tavernAssets.createCharacterDraft.persona),
+      description: normalizeOptionalText(tavernAssets.createCharacterDraft.description),
+      visibilityType: 'PRIVATE'
+    };
+    const created = await createAiCharacter(payload, auth.authorizedFetch);
+    await ensureTavernAssetsLoaded(true);
+    if (created?.id) {
+      activeState.value.config.characterId = String(created.id);
+    }
+    tavernAssets.createCharacterDraft.displayName = '';
+    tavernAssets.createCharacterDraft.persona = '';
+    tavernAssets.createCharacterDraft.description = '';
+    setTavernFeedback('结构化角色已创建并自动绑定。');
+  } catch (error) {
+    tavernAssets.errorText = resolveErrorMessage(error);
+  } finally {
+    tavernAssets.saving = false;
+  }
+}
+
+async function submitImportCharacterCard() {
+  const displayName = normalizeOptionalText(tavernAssets.importCardDraft.displayName);
+  const rawCardJson = normalizeOptionalText(tavernAssets.importCardDraft.rawCardJson);
+  if (!displayName || !rawCardJson) {
+    tavernAssets.errorText = '角色卡显示名和原始内容都不能为空。';
+    return;
+  }
+
+  tavernAssets.saving = true;
+  clearTavernFeedback();
+  try {
+    const created = await importAiCharacterCard(
+      {
+        displayName,
+        rawCardJson,
+        visibilityType: 'PRIVATE'
+      },
+      auth.authorizedFetch
+    );
+    await ensureTavernAssetsLoaded(true);
+    if (created?.id) {
+      activeState.value.config.characterId = String(created.id);
+    }
+    tavernAssets.importCardDraft.displayName = '';
+    tavernAssets.importCardDraft.rawCardJson = '';
+    setTavernFeedback('角色卡已导入并自动绑定。');
+  } catch (error) {
+    tavernAssets.errorText = resolveErrorMessage(error);
+  } finally {
+    tavernAssets.saving = false;
+  }
+}
+
+async function submitCreateWorldbook() {
+  const title = normalizeOptionalText(tavernAssets.createWorldbookDraft.title);
+  if (!title) {
+    tavernAssets.errorText = '世界书标题不能为空。';
+    return;
+  }
+
+  tavernAssets.saving = true;
+  clearTavernFeedback();
+  try {
+    const created = await createAiWorldbook(
+      {
+        title,
+        visibilityType: 'PRIVATE',
+        enabled: true
+      },
+      auth.authorizedFetch
+    );
+    const worldbookId = toNumber(created?.worldbookId ?? created?.worldbook_id);
+    const keywords = parseKeywordCsv(tavernAssets.createWorldbookDraft.entryKeywords);
+    const content = normalizeOptionalText(tavernAssets.createWorldbookDraft.entryContent);
+
+    if (worldbookId > 0 && content) {
+      await createAiWorldbookEntry(
+        worldbookId,
+        {
+          keywords,
+          content,
+          priorityNum: 10,
+          enabled: true
+        },
+        auth.authorizedFetch
+      );
+    }
+
+    await ensureTavernAssetsLoaded(true);
+    if (worldbookId > 0 && !isWorldbookSelected(worldbookId)) {
+      toggleWorldbookSelection(worldbookId);
+    }
+    tavernAssets.createWorldbookDraft.title = '';
+    tavernAssets.createWorldbookDraft.entryKeywords = '';
+    tavernAssets.createWorldbookDraft.entryContent = '';
+    setTavernFeedback('世界书已创建并自动绑定到当前酒馆模式。');
+  } catch (error) {
+    tavernAssets.errorText = resolveErrorMessage(error);
+  } finally {
+    tavernAssets.saving = false;
   }
 }
 
@@ -696,6 +1101,24 @@ function messageRoleLabel(role) {
   gap: 6px;
 }
 
+.config-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.config-title {
+  color: rgba(246, 250, 255, 0.95);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.config-helper {
+  margin: 6px 0 0;
+  color: rgba(198, 211, 237, 0.78);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .config-field span,
 .config-toggle span {
   color: rgba(214, 225, 245, 0.82);
@@ -704,6 +1127,9 @@ function messageRoleLabel(role) {
 
 .config-field input,
 .config-field textarea,
+.config-select,
+.management-card input,
+.management-card textarea,
 .chat-input {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -715,6 +1141,10 @@ function messageRoleLabel(role) {
   resize: none;
 }
 
+.config-select {
+  appearance: none;
+}
+
 .config-field-full {
   grid-column: 1 / -1;
 }
@@ -724,6 +1154,143 @@ function messageRoleLabel(role) {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.config-inline-tip {
+  color: rgba(186, 201, 231, 0.74);
+  font-size: 11px;
+}
+
+.mini-action,
+.management-btn {
+  border: 0;
+  border-radius: 12px;
+  background: rgba(var(--accent-rgb), 0.18);
+  color: rgba(247, 251, 255, 0.96);
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.mini-action {
+  min-width: 92px;
+  padding: 10px 12px;
+}
+
+.management-btn {
+  padding: 11px 14px;
+}
+
+.mini-action:hover:not(:disabled),
+.management-btn:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.3);
+  transform: translateY(-1px);
+}
+
+.mini-action:disabled,
+.management-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
+.config-feedback {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(78, 210, 156, 0.12);
+  border: 1px solid rgba(78, 210, 156, 0.18);
+  color: rgba(189, 250, 223, 0.95);
+  font-size: 12px;
+}
+
+.config-feedback.error {
+  background: rgba(255, 110, 110, 0.12);
+  border-color: rgba(255, 120, 120, 0.2);
+  color: rgba(255, 190, 190, 0.96);
+}
+
+.worldbook-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.worldbook-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.worldbook-option.active {
+  border-color: rgba(var(--accent-rgb), 0.36);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.worldbook-option span {
+  font-size: 12px;
+  color: rgba(243, 247, 255, 0.95);
+}
+
+.worldbook-option small {
+  grid-column: 2;
+  color: rgba(184, 198, 228, 0.72);
+  font-size: 11px;
+}
+
+.picker-empty {
+  margin: 0;
+  color: rgba(184, 198, 228, 0.72);
+  font-size: 11px;
+}
+
+.management-shell {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 12px 12px;
+}
+
+.management-shell summary {
+  cursor: pointer;
+  color: rgba(244, 248, 255, 0.94);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.management-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.management-card {
+  --liquid-bg: rgba(255, 255, 255, 0.04);
+  --liquid-border: rgba(255, 255, 255, 0.08);
+  --liquid-shadow: none;
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.management-card header {
+  display: grid;
+  gap: 4px;
+}
+
+.management-card strong {
+  color: rgba(247, 250, 255, 0.95);
+  font-size: 13px;
+}
+
+.management-card span {
+  color: rgba(187, 201, 230, 0.72);
+  font-size: 11px;
 }
 
 .mode-note {
@@ -784,7 +1351,7 @@ function messageRoleLabel(role) {
 }
 
 .chat-bubble {
-  max-width: min(100%, 360px);
+  max-width: min(100%, 420px);
   border-radius: 18px;
   padding: 12px 14px;
   background: rgba(255, 255, 255, 0.07);
@@ -908,12 +1475,15 @@ function messageRoleLabel(role) {
   }
 
   .mode-switcher,
-  .mode-config {
+  .mode-config,
+  .management-grid {
     grid-template-columns: 1fr;
   }
 
+  .config-toolbar,
   .session-summary {
     align-items: flex-start;
+    grid-template-columns: 1fr;
     flex-direction: column;
   }
 

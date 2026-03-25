@@ -1,8 +1,16 @@
 package io.github.shizuki.site.ai.service;
 
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
+import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
+import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import java.util.List;
 import java.util.Map;
 
@@ -37,4 +45,44 @@ public interface AiService {
      * 导入角色卡配置。
      */
     Map<String, Object> importCharacterCard(Map<String, Object> request);
+
+    /**
+     * 查询当前用户角色列表。
+     */
+    List<AiCharacterSummaryResponse> listCharacters();
+
+    /**
+     * 查询角色详情。
+     */
+    AiCharacterDetailResponse getCharacter(Long characterId);
+
+    /**
+     * 创建世界书。
+     */
+    AiWorldbookDetailResponse createWorldbook(CreateWorldbookRequest request);
+
+    /**
+     * 查询当前用户世界书列表。
+     */
+    List<AiWorldbookSummaryResponse> listWorldbooks();
+
+    /**
+     * 查询世界书详情。
+     */
+    AiWorldbookDetailResponse getWorldbook(Long worldbookId);
+
+    /**
+     * 更新世界书。
+     */
+    AiWorldbookDetailResponse updateWorldbook(Long worldbookId, UpdateWorldbookRequest request);
+
+    /**
+     * 创建世界书条目。
+     */
+    AiWorldbookEntryResponse createWorldbookEntry(Long worldbookId, UpsertWorldbookEntryRequest request);
+
+    /**
+     * 更新世界书条目。
+     */
+    AiWorldbookEntryResponse updateWorldbookEntry(Long worldbookId, Long entryId, UpsertWorldbookEntryRequest request);
 }

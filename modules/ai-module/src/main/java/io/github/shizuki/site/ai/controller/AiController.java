@@ -3,9 +3,17 @@ package io.github.shizuki.site.ai.controller;
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
+import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
+import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
+import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import io.github.shizuki.site.ai.service.AiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +23,7 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -67,5 +76,57 @@ public class AiController {
     @Operation(summary = "导入角色卡", description = "导入角色卡内容并落库")
     public ApiResponse<Map<String, Object>> importCharacterCard(@RequestBody Map<String, Object> request) {
         return ApiResponse.success(aiService.importCharacterCard(request));
+    }
+
+    @GetMapping("/ai-characters")
+    @Operation(summary = "查询我的角色列表")
+    public ApiResponse<List<AiCharacterSummaryResponse>> listCharacters() {
+        return ApiResponse.success(aiService.listCharacters());
+    }
+
+    @GetMapping("/ai-characters/{character_id}")
+    @Operation(summary = "查询角色详情")
+    public ApiResponse<AiCharacterDetailResponse> getCharacter(@PathVariable("character_id") Long characterId) {
+        return ApiResponse.success(aiService.getCharacter(characterId));
+    }
+
+    @PostMapping("/ai-worldbooks")
+    @Operation(summary = "创建世界书")
+    public ApiResponse<AiWorldbookDetailResponse> createWorldbook(@Valid @RequestBody CreateWorldbookRequest request) {
+        return ApiResponse.success(aiService.createWorldbook(request));
+    }
+
+    @GetMapping("/ai-worldbooks")
+    @Operation(summary = "查询我的世界书列表")
+    public ApiResponse<List<AiWorldbookSummaryResponse>> listWorldbooks() {
+        return ApiResponse.success(aiService.listWorldbooks());
+    }
+
+    @GetMapping("/ai-worldbooks/{worldbook_id}")
+    @Operation(summary = "查询世界书详情")
+    public ApiResponse<AiWorldbookDetailResponse> getWorldbook(@PathVariable("worldbook_id") Long worldbookId) {
+        return ApiResponse.success(aiService.getWorldbook(worldbookId));
+    }
+
+    @PutMapping("/ai-worldbooks/{worldbook_id}")
+    @Operation(summary = "更新世界书")
+    public ApiResponse<AiWorldbookDetailResponse> updateWorldbook(@PathVariable("worldbook_id") Long worldbookId,
+                                                                  @Valid @RequestBody UpdateWorldbookRequest request) {
+        return ApiResponse.success(aiService.updateWorldbook(worldbookId, request));
+    }
+
+    @PostMapping("/ai-worldbooks/{worldbook_id}/entries")
+    @Operation(summary = "新增世界书条目")
+    public ApiResponse<AiWorldbookEntryResponse> createWorldbookEntry(@PathVariable("worldbook_id") Long worldbookId,
+                                                                      @Valid @RequestBody UpsertWorldbookEntryRequest request) {
+        return ApiResponse.success(aiService.createWorldbookEntry(worldbookId, request));
+    }
+
+    @PutMapping("/ai-worldbooks/{worldbook_id}/entries/{entry_id}")
+    @Operation(summary = "更新世界书条目")
+    public ApiResponse<AiWorldbookEntryResponse> updateWorldbookEntry(@PathVariable("worldbook_id") Long worldbookId,
+                                                                      @PathVariable("entry_id") Long entryId,
+                                                                      @Valid @RequestBody UpsertWorldbookEntryRequest request) {
+        return ApiResponse.success(aiService.updateWorldbookEntry(worldbookId, entryId, request));
     }
 }

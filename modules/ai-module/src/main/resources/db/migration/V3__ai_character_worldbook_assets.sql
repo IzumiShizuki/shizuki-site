@@ -1,0 +1,40 @@
+ALTER TABLE AI_CHARACTER
+    ADD COLUMN display_name VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'AI_CHARACTER.display_name 角色显示名' AFTER character_type,
+    ADD COLUMN cover_asset_id BIGINT NULL COMMENT 'AI_CHARACTER.cover_asset_id 角色封面资源ID' AFTER display_name,
+    ADD COLUMN visibility_type VARCHAR(16) NOT NULL DEFAULT 'PRIVATE' COMMENT 'AI_CHARACTER.visibility_type 可见性 PRIVATE/PUBLIC' AFTER cover_asset_id;
+
+ALTER TABLE AI_CHARACTER
+    ADD KEY IX_AI_CHARACTER_3 (user_id, visibility_type, create_time);
+
+CREATE TABLE IF NOT EXISTS AI_WORLDBOOK (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_WORLDBOOK.id 自增长ID',
+    worldbook_code VARCHAR(64) NOT NULL COMMENT 'AI_WORLDBOOK.worldbook_code 世界书业务编号',
+    owner_user_id BIGINT NOT NULL COMMENT 'AI_WORLDBOOK.owner_user_id 所属用户ID',
+    title_text VARCHAR(255) NOT NULL COMMENT 'AI_WORLDBOOK.title_text 世界书标题',
+    visibility_type VARCHAR(16) NOT NULL DEFAULT 'PRIVATE' COMMENT 'AI_WORLDBOOK.visibility_type 可见性 PRIVATE/PUBLIC',
+    enabled_flag TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'AI_WORLDBOOK.enabled_flag 是否启用',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_WORLDBOOK.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_WORLDBOOK.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_WORLDBOOK.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_WORLDBOOK.version_num 版本号',
+    CONSTRAINT PK_AI_WORLDBOOK PRIMARY KEY (id),
+    CONSTRAINT AK_AI_WORLDBOOK_1 UNIQUE (worldbook_code),
+    KEY IX_AI_WORLDBOOK_1 (owner_user_id, update_time),
+    KEY IX_AI_WORLDBOOK_2 (owner_user_id, visibility_type, enabled_flag)
+) COMMENT='AI世界书主表';
+
+CREATE TABLE IF NOT EXISTS AI_WORLDBOOK_ENTRY (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_WORLDBOOK_ENTRY.id 自增长ID',
+    worldbook_id BIGINT NOT NULL COMMENT 'AI_WORLDBOOK_ENTRY.worldbook_id 世界书ID',
+    keyword_json JSON NOT NULL COMMENT 'AI_WORLDBOOK_ENTRY.keyword_json 触发关键词JSON',
+    content_text TEXT NOT NULL COMMENT 'AI_WORLDBOOK_ENTRY.content_text 条目内容',
+    priority_num INT NOT NULL DEFAULT 0 COMMENT 'AI_WORLDBOOK_ENTRY.priority_num 优先级',
+    enabled_flag TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'AI_WORLDBOOK_ENTRY.enabled_flag 是否启用',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_WORLDBOOK_ENTRY.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_WORLDBOOK_ENTRY.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_WORLDBOOK_ENTRY.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_WORLDBOOK_ENTRY.version_num 版本号',
+    CONSTRAINT PK_AI_WORLDBOOK_ENTRY PRIMARY KEY (id),
+    KEY IX_AI_WORLDBOOK_ENTRY_1 (worldbook_id, priority_num, update_time),
+    CONSTRAINT FK_AI_WORLDBOOK_ENTRY_1 FOREIGN KEY (worldbook_id) REFERENCES AI_WORLDBOOK(id)
+) COMMENT='AI世界书条目表';

@@ -2,11 +2,16 @@ package io.github.shizuki.site.ai.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
 import io.github.shizuki.site.ai.service.AiService;
 import io.github.shizuki.site.ai.support.ApiErrorAssertions;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -89,6 +94,97 @@ class AiControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.quota_code").value("ai_round_total"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.remaining").value(17));
+    }
+
+    @Test
+    void shouldListCharactersSuccessfully() throws Exception {
+        Mockito.when(aiService.listCharacters())
+            .thenReturn(List.of(new AiCharacterSummaryResponse(1001L, "character", "馆长 Haru", 88L, "PRIVATE", LocalDateTime.now())));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/ai-characters"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].character_id").value(1001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].display_name").value("馆长 Haru"));
+    }
+
+    @Test
+    void shouldGetCharacterSuccessfully() throws Exception {
+        Mockito.when(aiService.getCharacter(1001L))
+            .thenReturn(new AiCharacterDetailResponse(
+                1001L,
+                "character_card_png",
+                "馆长 Haru",
+                88L,
+                "PRIVATE",
+                Map.of("persona", "安静而可靠"),
+                LocalDateTime.now(),
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/ai-characters/1001"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.character_id").value(1001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.payload.persona").value("安静而可靠"));
+    }
+
+    @Test
+    void shouldCreateWorldbookSuccessfully() throws Exception {
+        Mockito.when(aiService.createWorldbook(ArgumentMatchers.any()))
+            .thenReturn(new AiWorldbookDetailResponse(
+                2001L,
+                "worldbook-001",
+                "图书馆设定集",
+                "PRIVATE",
+                true,
+                List.of(),
+                LocalDateTime.now(),
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-worldbooks")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "图书馆设定集",
+                      "visibility_type": "PRIVATE",
+                      "enabled": true
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.worldbook_id").value(2001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.title").value("图书馆设定集"));
+    }
+
+    @Test
+    void shouldCreateWorldbookEntrySuccessfully() throws Exception {
+        Mockito.when(aiService.createWorldbookEntry(ArgumentMatchers.eq(2001L), ArgumentMatchers.any()))
+            .thenReturn(new AiWorldbookEntryResponse(
+                3001L,
+                List.of("图书馆", "夜间"),
+                "图书馆夜间会切换到安静模式。",
+                10,
+                true,
+                LocalDateTime.now(),
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-worldbooks/2001/entries")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "keywords": ["图书馆", "夜间"],
+                      "content": "图书馆夜间会切换到安静模式。",
+                      "priority_num": 10,
+                      "enabled": true
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.entry_id").value(3001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.keywords[0]").value("图书馆"));
     }
 
     @Test

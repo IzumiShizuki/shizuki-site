@@ -52,3 +52,116 @@ export async function getMyAiQuota(authorizedFetch) {
   });
   return unwrapApiResponse(response);
 }
+
+export async function createAiCharacter(payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/ai-characters', {
+    method: 'POST',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function importAiCharacterCard(payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/ai-character-cards/import', {
+    method: 'POST',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function listAiCharacters(authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/ai-characters', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAiCharacter(characterId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedId = Number(characterId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    throw new Error('characterId is required');
+  }
+  const response = await request(`/api/v1/ai-characters/${encodeURIComponent(normalizedId)}`, {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function createAiWorldbook(payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/ai-worldbooks', {
+    method: 'POST',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function listAiWorldbooks(authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/ai-worldbooks', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAiWorldbook(worldbookId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedId = Number(worldbookId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    throw new Error('worldbookId is required');
+  }
+  const response = await request(`/api/v1/ai-worldbooks/${encodeURIComponent(normalizedId)}`, {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function updateAiWorldbook(worldbookId, payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedId = Number(worldbookId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    throw new Error('worldbookId is required');
+  }
+  const response = await request(`/api/v1/ai-worldbooks/${encodeURIComponent(normalizedId)}`, {
+    method: 'PUT',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function createAiWorldbookEntry(worldbookId, payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedId = Number(worldbookId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    throw new Error('worldbookId is required');
+  }
+  const response = await request(`/api/v1/ai-worldbooks/${encodeURIComponent(normalizedId)}/entries`, {
+    method: 'POST',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function updateAiWorldbookEntry(worldbookId, entryId, payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedWorldbookId = Number(worldbookId);
+  const normalizedEntryId = Number(entryId);
+  if (!Number.isFinite(normalizedWorldbookId) || normalizedWorldbookId <= 0) {
+    throw new Error('worldbookId is required');
+  }
+  if (!Number.isFinite(normalizedEntryId) || normalizedEntryId <= 0) {
+    throw new Error('entryId is required');
+  }
+  const response = await request(
+    `/api/v1/ai-worldbooks/${encodeURIComponent(normalizedWorldbookId)}/entries/${encodeURIComponent(normalizedEntryId)}`,
+    {
+      method: 'PUT',
+      body: payload || {}
+    }
+  );
+  return unwrapApiResponse(response);
+}

@@ -4,17 +4,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.site.ai.config.AiQuotaProperties;
+import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
+import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
+import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
+import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
+import io.github.shizuki.site.ai.entity.AiCharacterEntity;
 import io.github.shizuki.site.ai.entity.AiMessageEntity;
 import io.github.shizuki.site.ai.entity.AiQuotaUsageEntity;
 import io.github.shizuki.site.ai.entity.AiSessionEntity;
+import io.github.shizuki.site.ai.entity.AiWorldbookEntity;
+import io.github.shizuki.site.ai.entity.AiWorldbookEntryEntity;
 import io.github.shizuki.site.ai.integration.UserQuotaGateway;
 import io.github.shizuki.site.ai.mapper.AiCharacterMapper;
 import io.github.shizuki.site.ai.mapper.AiMessageMapper;
 import io.github.shizuki.site.ai.mapper.AiQuotaUsageMapper;
 import io.github.shizuki.site.ai.mapper.AiSessionMapper;
+import io.github.shizuki.site.ai.mapper.AiWorldbookEntryMapper;
+import io.github.shizuki.site.ai.mapper.AiWorldbookMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +46,8 @@ class AiServiceImplTest {
     private AiCharacterMapper aiCharacterMapper;
     private AiSessionMapper aiSessionMapper;
     private AiMessageMapper aiMessageMapper;
+    private AiWorldbookMapper aiWorldbookMapper;
+    private AiWorldbookEntryMapper aiWorldbookEntryMapper;
     private UserQuotaGateway userQuotaGateway;
 
     private AiServiceImpl aiService;
@@ -43,6 +58,8 @@ class AiServiceImplTest {
         aiCharacterMapper = Mockito.mock(AiCharacterMapper.class);
         aiSessionMapper = Mockito.mock(AiSessionMapper.class);
         aiMessageMapper = Mockito.mock(AiMessageMapper.class);
+        aiWorldbookMapper = Mockito.mock(AiWorldbookMapper.class);
+        aiWorldbookEntryMapper = Mockito.mock(AiWorldbookEntryMapper.class);
         userQuotaGateway = Mockito.mock(UserQuotaGateway.class);
 
         AiQuotaProperties aiQuotaProperties = new AiQuotaProperties();
@@ -57,6 +74,8 @@ class AiServiceImplTest {
             aiCharacterMapper,
             aiSessionMapper,
             aiMessageMapper,
+            aiWorldbookMapper,
+            aiWorldbookEntryMapper,
             aiQuotaProperties,
             userQuotaGateway,
             new ObjectMapper()
@@ -186,5 +205,168 @@ class AiServiceImplTest {
         Assertions.assertEquals("tavern", sessions.get(0).mode());
         Assertions.assertEquals(List.of(8L, 9L), sessions.get(0).worldbookIds());
         Assertions.assertEquals("normal", sessions.get(1).mode());
+    }
+
+    @Test
+    void shouldListAndResolveCharacterMetadata() {
+        LoginUserContext.set(new LoginUser(17L, Set.of("USER"), Set.of()));
+
+        AiCharacterEntity entity = new AiCharacterEntity();
+        entity.setId(301L);
+        entity.setUserId(17L);
+        entity.setTypeName("character_card_png");
+        entity.setDisplayName("馆长 Haru");
+        entity.setCoverAssetId(901L);
+        entity.setVisibilityType("PRIVATE");
+        entity.setPayloadJson("""
+            {"display_name":"馆长 Haru","persona":"安静而可靠"}
+            """);
+
+        Mockito.when(aiCharacterMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of(entity));
+        Mockito.when(aiCharacterMapper.selectOne(ArgumentMatchers.any())).thenReturn(entity);
+
+        List<AiCharacterSummaryResponse> characters = aiService.listCharacters();
+        AiCharacterDetailResponse detail = aiService.getCharacter(301L);
+
+        Assertions.assertEquals(1, characters.size());
+        Assertions.assertEquals("馆长 Haru", characters.get(0).displayName());
+        Assertions.assertEquals("character_card_png", characters.get(0).characterType());
+        Assertions.assertEquals("馆长 Haru", detail.displayName());
+        Assertions.assertEquals("安静而可靠", detail.payload().get("persona"));
+    }
+
+    @Test
+    void shouldBatchWorldbookEntryCountsWhenListingWorldbooks() {
+        LoginUserContext.set(new LoginUser(21L, Set.of("USER"), Set.of()));
+
+        AiWorldbookEntity first = new AiWorldbookEntity();
+        first.setId(501L);
+        first.setWorldbookCode("worldbook-501");
+        first.setTitle("图书馆设定集");
+        first.setVisibilityType("PRIVATE");
+        first.setEnabled(1);
+
+        AiWorldbookEntity second = new AiWorldbookEntity();
+        second.setId(502L);
+        second.setWorldbookCode("worldbook-502");
+        second.setTitle("雨夜设定集");
+        second.setVisibilityType("PUBLIC");
+        second.setEnabled(1);
+
+        Mockito.when(aiWorldbookMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of(first, second));
+        Mockito.when(aiWorldbookEntryMapper.selectMaps(ArgumentMatchers.any())).thenReturn(List.of(
+            Map.of("worldbook_id", 501L, "entry_count", 2L),
+            Map.of("worldbook_id", 502L, "entry_count", 5L)
+        ));
+
+        List<AiWorldbookSummaryResponse> summaries = aiService.listWorldbooks();
+
+        Assertions.assertEquals(2, summaries.size());
+        AiWorldbookSummaryResponse firstSummary = (AiWorldbookSummaryResponse) summaries.get(0);
+        AiWorldbookSummaryResponse secondSummary = (AiWorldbookSummaryResponse) summaries.get(1);
+        Assertions.assertEquals(2, firstSummary.entryCount());
+        Assertions.assertEquals(5, secondSummary.entryCount());
+        Mockito.verify(aiWorldbookEntryMapper, Mockito.never()).selectCount(ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldDeriveMemoryScopeForCompanionSession() {
+        LoginUserContext.set(new LoginUser(12L, Set.of("USER"), Set.of()));
+
+        AiSessionEntity session = new AiSessionEntity();
+        session.setId(701L);
+        session.setSessionId("session-companion");
+        session.setUserId(12L);
+        session.setMode("companion");
+        session.setActorCode("my_home_ai");
+
+        AiQuotaUsageEntity usage = new AiQuotaUsageEntity();
+        usage.setId(901L);
+        usage.setUserId(12L);
+        usage.setQuotaCode("ai_round_total");
+        usage.setTotalRounds(20L);
+        usage.setUsedRounds(0L);
+
+        Mockito.when(aiSessionMapper.selectOne(ArgumentMatchers.any())).thenReturn(session);
+        Mockito.when(aiQuotaUsageMapper.selectOne(ArgumentMatchers.any())).thenReturn(usage);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setMessage("你还记得我上次喜欢的风格吗？");
+        request.setMemoryEnabled(Boolean.TRUE);
+
+        Map<String, Object> response = aiService.sendMessage("session-companion", request);
+
+        Assertions.assertEquals("12:companion:my_home_ai:home", response.get("scope_id"));
+        Assertions.assertTrue(String.valueOf(response.get("assistant_message")).contains("12:companion:my_home_ai:home"));
+    }
+
+    @Test
+    void shouldCreateWorldbookAndManageEntries() {
+        LoginUserContext.set(new LoginUser(21L, Set.of("USER"), Set.of()));
+        AtomicLong worldbookSequence = new AtomicLong(500);
+        AtomicLong entrySequence = new AtomicLong(900);
+
+        Mockito.doAnswer(invocation -> {
+            AiWorldbookEntity entity = invocation.getArgument(0);
+            entity.setId(worldbookSequence.incrementAndGet());
+            return 1;
+        }).when(aiWorldbookMapper).insert(ArgumentMatchers.any(AiWorldbookEntity.class));
+        Mockito.doAnswer(invocation -> {
+            AiWorldbookEntryEntity entity = invocation.getArgument(0);
+            entity.setId(entrySequence.incrementAndGet());
+            return 1;
+        }).when(aiWorldbookEntryMapper).insert(ArgumentMatchers.any(AiWorldbookEntryEntity.class));
+
+        CreateWorldbookRequest createRequest = new CreateWorldbookRequest();
+        createRequest.setTitle("图书馆世界书");
+        createRequest.setVisibilityType("PRIVATE");
+        createRequest.setEnabled(Boolean.TRUE);
+
+        AiWorldbookDetailResponse created = aiService.createWorldbook(createRequest);
+
+        AiWorldbookEntity persistedWorldbook = new AiWorldbookEntity();
+        persistedWorldbook.setId(created.worldbookId());
+        persistedWorldbook.setWorldbookCode(created.worldbookCode());
+        persistedWorldbook.setOwnerUserId(21L);
+        persistedWorldbook.setTitle(created.title());
+        persistedWorldbook.setVisibilityType("PRIVATE");
+        persistedWorldbook.setEnabled(1);
+
+        Mockito.when(aiWorldbookMapper.selectOne(ArgumentMatchers.any())).thenReturn(persistedWorldbook);
+
+        UpsertWorldbookEntryRequest entryRequest = new UpsertWorldbookEntryRequest();
+        entryRequest.setKeywords(List.of("图书馆", "夜间"));
+        entryRequest.setContent("图书馆夜间会切换到安静模式。");
+        entryRequest.setPriorityNum(10);
+        entryRequest.setEnabled(Boolean.TRUE);
+
+        AiWorldbookEntryResponse entry = aiService.createWorldbookEntry(created.worldbookId(), entryRequest);
+
+        Assertions.assertEquals("图书馆世界书", created.title());
+        Assertions.assertEquals(List.of("图书馆", "夜间"), entry.keywords());
+        Assertions.assertEquals(10, entry.priorityNum());
+
+        AiWorldbookEntryEntity persistedEntry = new AiWorldbookEntryEntity();
+        persistedEntry.setId(entry.entryId());
+        persistedEntry.setWorldbookId(created.worldbookId());
+        persistedEntry.setKeywordJson("[\"图书馆\",\"夜间\"]");
+        persistedEntry.setContent("图书馆夜间会切换到安静模式。");
+        persistedEntry.setPriorityNum(10);
+        persistedEntry.setEnabled(1);
+
+        Mockito.when(aiWorldbookEntryMapper.selectOne(ArgumentMatchers.any())).thenReturn(persistedEntry);
+        Mockito.when(aiWorldbookEntryMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of(persistedEntry));
+
+        UpdateWorldbookRequest updateRequest = new UpdateWorldbookRequest();
+        updateRequest.setTitle("图书馆世界书 v2");
+        updateRequest.setVisibilityType("PUBLIC");
+        updateRequest.setEnabled(Boolean.FALSE);
+
+        AiWorldbookDetailResponse updated = aiService.updateWorldbook(created.worldbookId(), updateRequest);
+
+        Assertions.assertEquals("图书馆世界书 v2", updated.title());
+        Assertions.assertEquals("PUBLIC", updated.visibilityType());
+        Assertions.assertFalse(updated.enabled());
+        Assertions.assertEquals(1, updated.entries().size());
     }
 }
