@@ -1,11 +1,12 @@
-FROM m.daocloud.io/docker.io/library/node:20-bookworm-slim
+FROM m.daocloud.io/mcr.microsoft.com/playwright:v1.58.2-noble
 
 WORKDIR /app
 
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 COPY tools/presentation-generator/package.json ./package.json
 COPY tools/presentation-generator/package-lock.json ./package-lock.json
-RUN npm ci \
-    && npx playwright install --with-deps chromium
+RUN npm ci
 
 COPY tools/presentation-generator/server.mjs ./server.mjs
 

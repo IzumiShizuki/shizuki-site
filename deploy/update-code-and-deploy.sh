@@ -8,6 +8,13 @@ REMOTE_APP_DIR="${REMOTE_APP_DIR:-/opt/shizuki-site}"
 REMOTE_DEPLOY_DIR="${REMOTE_DEPLOY_DIR:-${REMOTE_APP_DIR}/deploy}"
 LOCAL_APP_DIR="${LOCAL_APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 UPLOAD_RETRIES="${UPLOAD_RETRIES:-4}"
+DEPLOY_TIMEOUT_SECONDS="${DEPLOY_TIMEOUT_SECONDS:-5400}"
+DEPLOY_POLL_INTERVAL_SECONDS="${DEPLOY_POLL_INTERVAL_SECONDS:-10}"
+
+REMOTE_STATUS_FILE="${REMOTE_DEPLOY_DIR}/.remote-deploy.status"
+REMOTE_LOG_FILE="${REMOTE_DEPLOY_DIR}/.remote-deploy.log"
+REMOTE_PID_FILE="${REMOTE_DEPLOY_DIR}/.remote-deploy.pid"
+REMOTE_RUNNER="${REMOTE_DEPLOY_DIR}/remote-compose-build.sh"
 
 SSH_OPTS=(
   -o StrictHostKeyChecking=no
@@ -48,8 +55,12 @@ retry() {
   done
 }
 
+ssh_run() {
+  sshpass -p "${REMOTE_PASS}" ssh "${SSH_OPTS[@]}" "${REMOTE_USER}@${REMOTE_HOST}" "$@"
+}
+
 echo "[0/2] Checking SSH connectivity ..."
-retry 3 sshpass -p "${REMOTE_PASS}" ssh "${SSH_OPTS[@]}" "${REMOTE_USER}@${REMOTE_HOST}" "echo ok >/dev/null"
+retry 3 ssh_run "echo ok >/dev/null"
 
 echo "[1/2] Uploading local code to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_APP_DIR} ..."
 retry "${UPLOAD_RETRIES}" sshpass -p "${REMOTE_PASS}" rsync -az --delete --partial \
@@ -67,8 +78,40 @@ retry "${UPLOAD_RETRIES}" sshpass -p "${REMOTE_PASS}" rsync -az --delete --parti
   -e "ssh ${SSH_OPTS[*]}" \
   "${LOCAL_APP_DIR}/" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_APP_DIR}/"
 
-echo "[2/2] Rebuilding and deploying containers ..."
-sshpass -p "${REMOTE_PASS}" ssh "${SSH_OPTS[@]}" "${REMOTE_USER}@${REMOTE_HOST}" \
-  "set -e; cd ${REMOTE_DEPLOY_DIR}; if [ ! -s ../resouces/yaml/common-config.yaml ]; then echo '[ERROR] ../resouces/yaml/common-config.yaml is missing or empty' >&2; exit 1; fi; docker compose -f docker-compose.server.yml --env-file .env.server up -d --build; docker compose -f docker-compose.server.yml --env-file .env.server ps"
+echo "[2/2] Starting remote rebuild in background ..."
+ssh_run "set -e; cd ${REMOTE_DEPLOY_DIR}; : > ${REMOTE_LOG_FILE}; echo 'STARTING \$(date '+%Y-%m-%d %H:%M:%S')' > ${REMOTE_STATUS_FILE}; nohup bash ${REMOTE_RUNNER} >/dev/null 2>&1 < /dev/null & echo \$! > ${REMOTE_PID_FILE}"
+
+start_ts="$(date +%s)"
+while true; do
+  now_ts="$(date +%s)"
+  elapsed="$((now_ts - start_ts))"
+  if [ "${elapsed}" -gt "${DEPLOY_TIMEOUT_SECONDS}" ]; then
+    echo "[ERROR] Remote deploy timed out after ${DEPLOY_TIMEOUT_SECONDS}s"
+    ssh_run "tail -n 80 ${REMOTE_LOG_FILE}" || true
+    exit 1
+  fi
+
+  status_line="$(ssh_run "cat ${REMOTE_STATUS_FILE} 2>/dev/null || true" || true)"
+  case "${status_line}" in
+    SUCCESS*)
+      echo "[OK] Remote deploy finished successfully."
+      ssh_run "tail -n 40 ${REMOTE_LOG_FILE}" || true
+      break
+      ;;
+    FAILED*)
+      echo "[ERROR] Remote deploy failed."
+      ssh_run "tail -n 80 ${REMOTE_LOG_FILE}" || true
+      exit 1
+      ;;
+    RUNNING*|STARTING*)
+      echo "[WAIT] ${status_line:-RUNNING} (${elapsed}s)"
+      ;;
+    *)
+      echo "[WAIT] Remote status unavailable yet (${elapsed}s)"
+      ;;
+  esac
+
+  sleep "${DEPLOY_POLL_INTERVAL_SECONDS}"
+done
 
 echo "Update code + redeploy finished."
