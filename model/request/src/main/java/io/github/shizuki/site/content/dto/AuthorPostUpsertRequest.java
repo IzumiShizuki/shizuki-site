@@ -5,10 +5,8 @@ import java.util.Set;
 
 public class AuthorPostUpsertRequest {
 
-    @NotBlank
     private String title;
 
-    @NotBlank
     private String summary;
 
     @NotBlank
@@ -25,10 +23,8 @@ public class AuthorPostUpsertRequest {
 
     private Set<String> tags;
 
-    @NotBlank
     private String markdownBucket;
 
-    @NotBlank
     private String markdownKey;
 
     public String getTitle() {

@@ -86,6 +86,47 @@ class MyPostControllerIntegrationTest {
     }
 
     @Test
+    void shouldAllowCreateDraftWithoutTitleAndSummaryValidationFailure() throws Exception {
+        Mockito.when(contentService.createMyPost(ArgumentMatchers.any()))
+            .thenReturn(new AuthorPostItemResponse(
+                20L,
+                "",
+                "",
+                "life",
+                "",
+                null,
+                "PUBLIC",
+                "DRAFT",
+                List.of(),
+                20L,
+                3L,
+                1,
+                0L,
+                null,
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/me/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "",
+                      "summary": "",
+                      "categoryCode": "life",
+                      "visibility": "PUBLIC",
+                      "tags": [],
+                      "allowedGroupCodes": [],
+                      "markdownBucket": "blog-private",
+                      "markdownKey": "blog-posts/user-1/test.md"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.post_id").value(20))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status_code").value("DRAFT"));
+    }
+
+    @Test
     void shouldReturnCategoryPoliciesSuccessfully() throws Exception {
         Mockito.when(contentService.getMyPostCategoryPolicies())
             .thenReturn(new PostEditorPolicyResponse(

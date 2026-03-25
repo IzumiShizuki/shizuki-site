@@ -437,7 +437,22 @@
               </label>
               <label class="field field-wide">
                 <span>分类</span>
-                <input v-model.trim="writerState.editor.categoryCode" type="text" class="field-input" placeholder="如：life / game / dev" />
+                <input
+                  v-model.trim="writerState.editor.categoryCode"
+                  type="text"
+                  class="field-input"
+                  list="blog-category-options"
+                  placeholder="从后端分类中选择或输入新分类"
+                />
+                <datalist id="blog-category-options">
+                  <option
+                    v-for="category in categoryOptions.filter((item) => item.code)"
+                    :key="`editor-category-${category.code}`"
+                    :value="category.code"
+                  >
+                    {{ category.label }}
+                  </option>
+                </datalist>
               </label>
               <label class="field field-wide">
                 <span>摘要</span>
@@ -590,12 +605,7 @@ import { openLightAppWindow } from '../utils/lightAppWindowBus';
 
 const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
 
-const DEFAULT_CATEGORY_OPTIONS = [
-  { code: '', label: '全部' },
-  { code: 'life', label: 'life' },
-  { code: 'dev', label: 'dev' },
-  { code: 'game', label: 'game' }
-];
+const ROOT_CATEGORY_OPTION = Object.freeze({ code: '', label: '全部' });
 
 const auth = useAuthSession();
 const route = useRoute();
@@ -727,19 +737,34 @@ const loadingAny = computed(() => listState.loading || detailState.loading || wr
 const leftNavMode = computed(() => (routeMode.value === 'editor' ? 'write' : 'read'));
 
 const categoryOptions = computed(() => {
-  const dynamicCodes = new Set();
+  const optionMap = new Map();
+
+  const appendOption = (code, label) => {
+    const normalizedCode = normalizeString(code).toLowerCase();
+    if (!normalizedCode) return;
+    if (optionMap.has(normalizedCode)) return;
+    optionMap.set(normalizedCode, {
+      code: normalizedCode,
+      label: normalizeString(label) || normalizedCode
+    });
+  };
+
+  detailNavState.categories.forEach((item) => {
+    appendOption(item.categoryCode, item.displayName || item.categoryCode);
+  });
   listState.items.forEach((post) => {
-    if (post.categoryCode) dynamicCodes.add(post.categoryCode);
+    appendOption(post.categoryCode, post.categoryCode);
   });
   writerState.myPosts.forEach((post) => {
-    if (post.categoryCode) dynamicCodes.add(post.categoryCode);
+    appendOption(post.categoryCode, post.categoryCode);
   });
+  appendOption(writerState.editor.categoryCode, writerState.editor.categoryCode);
+  appendOption(filters.category, filters.category);
 
-  const dynamic = Array.from(dynamicCodes)
-    .filter((code) => !DEFAULT_CATEGORY_OPTIONS.some((item) => item.code === code))
-    .sort((a, b) => a.localeCompare(b))
-    .map((code) => ({ code, label: code }));
-  return [...DEFAULT_CATEGORY_OPTIONS, ...dynamic];
+  return [
+    ROOT_CATEGORY_OPTION,
+    ...Array.from(optionMap.values()).sort((a, b) => a.label.localeCompare(b.label))
+  ];
 });
 
 const tagOptions = computed(() => {
@@ -1270,6 +1295,13 @@ async function loadPostDetail(postId) {
   }
 }
 
+async function ensureCategoryCatalogLoaded() {
+  if (detailNavState.loading || detailNavState.categories.length) {
+    return;
+  }
+  await loadDetailSidebarStats();
+}
+
 function clearEditorPresentationPollTimer() {
   if (!editorPresentationPollTimer) return;
   window.clearTimeout(editorPresentationPollTimer);
@@ -1473,6 +1505,15 @@ async function relayMarkdownText(markdownText) {
   return relayPostMarkdown(file, auth.authorizedFetch);
 }
 
+function applyMarkdownRelayResult(relay) {
+  writerState.editor.markdownBucket = normalizeString(
+    relay?.bucketName ?? relay?.bucket_name ?? relay?.bucket
+  );
+  writerState.editor.markdownKey = normalizeString(
+    relay?.objectKey ?? relay?.object_key ?? relay?.key
+  );
+}
+
 async function ensureEditorMarkdownRelayed() {
   const markdownText = normalizeMarkdownForEditor(writerState.editor.markdown);
   if (!markdownText.trim()) {
@@ -1488,8 +1529,7 @@ async function ensureEditorMarkdownRelayed() {
     return;
   }
   const relay = await relayMarkdownText(markdownText);
-  writerState.editor.markdownBucket = normalizeString(relay?.bucketName ?? relay?.bucket_name);
-  writerState.editor.markdownKey = normalizeString(relay?.objectKey ?? relay?.object_key);
+  applyMarkdownRelayResult(relay);
   writerState.editor.lastRelayedSignature = signature;
 }
 
@@ -1597,8 +1637,7 @@ async function handleMarkdownFileUpload(event) {
     writerState.editor.markdown = normalizeMarkdownForEditor(text);
     writerState.editor.lastRelayedSignature = '';
     const relay = await relayPostMarkdown(file, auth.authorizedFetch);
-    writerState.editor.markdownBucket = normalizeString(relay?.bucketName ?? relay?.bucket_name);
-    writerState.editor.markdownKey = normalizeString(relay?.objectKey ?? relay?.object_key);
+    applyMarkdownRelayResult(relay);
     writerState.editor.lastRelayedSignature = buildMarkdownSignature(writerState.editor.markdown);
     writerState.notice = 'Markdown 文件已上传并同步到编辑区';
   } catch (error) {
@@ -2228,6 +2267,7 @@ async function syncRouteDrivenView() {
     leftNavHint.value = '';
     closeDownloadMenu();
     viewMode.value = 'editor';
+    await ensureCategoryCatalogLoaded();
     const postId = toSafeInt(route.params.postId, 0);
     if (postId > 0) {
       if (writerState.editor.postId !== postId) {
@@ -2324,6 +2364,9 @@ onMounted(async () => {
   }
   if (canWrite.value) {
     await loadMyPosts();
+  }
+  if (routeMode.value !== 'detail') {
+    await ensureCategoryCatalogLoaded();
   }
   await syncRouteDrivenView();
 });

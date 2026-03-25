@@ -292,34 +292,44 @@ public class ContentServiceImpl implements ContentService {
             }
         }
 
-        Map<String, PostCategoryMetaEntity> categoryMetaMap = loadCategoryMetaMap(categoryCounter.keySet());
+        Set<String> knownCategoryCodes = new LinkedHashSet<>(collectKnownCategoryCodes());
+        knownCategoryCodes.addAll(categoryCounter.keySet());
+        Map<String, PostCategoryMetaEntity> categoryMetaMap = loadCategoryMetaMap(knownCategoryCodes);
 
-        List<PostSidebarResponse.CategoryStatItem> categories = categoryCounter.entrySet().stream()
-            .filter(entry -> {
-                PostCategoryMetaEntity meta = categoryMetaMap.get(entry.getKey());
+        List<PostSidebarResponse.CategoryStatItem> categories = knownCategoryCodes.stream()
+            .map(this::normalizeDisplayCategory)
+            .distinct()
+            .filter(categoryCode -> {
+                PostCategoryMetaEntity meta = categoryMetaMap.get(categoryCode);
                 return meta == null || meta.getEnabledFlag() == null || meta.getEnabledFlag() == 1;
             })
             .sorted((left, right) -> {
-                PostCategoryMetaEntity leftMeta = categoryMetaMap.get(left.getKey());
-                PostCategoryMetaEntity rightMeta = categoryMetaMap.get(right.getKey());
+                PostCategoryMetaEntity leftMeta = categoryMetaMap.get(left);
+                PostCategoryMetaEntity rightMeta = categoryMetaMap.get(right);
                 int leftSortNum = leftMeta == null || leftMeta.getSortNum() == null ? Integer.MAX_VALUE : leftMeta.getSortNum();
                 int rightSortNum = rightMeta == null || rightMeta.getSortNum() == null ? Integer.MAX_VALUE : rightMeta.getSortNum();
                 int sortCompare = Integer.compare(leftSortNum, rightSortNum);
                 if (sortCompare != 0) {
                     return sortCompare;
                 }
-                int countCompare = Long.compare(right.getValue(), left.getValue());
+                long leftCount = categoryCounter.getOrDefault(left, 0L);
+                long rightCount = categoryCounter.getOrDefault(right, 0L);
+                int countCompare = Long.compare(rightCount, leftCount);
                 if (countCompare != 0) {
                     return countCompare;
                 }
-                return left.getKey().compareTo(right.getKey());
+                return left.compareTo(right);
             })
-            .map(entry -> {
-                String categoryCode = entry.getKey();
+            .map(categoryCode -> {
                 PostCategoryMetaEntity meta = categoryMetaMap.get(categoryCode);
                 String displayName = normalizeCategoryDisplayName(categoryCode, meta);
                 String coverImageUrl = meta == null ? "" : readString(meta.getCoverImageUrl(), "");
-                return new PostSidebarResponse.CategoryStatItem(categoryCode, entry.getValue(), displayName, coverImageUrl);
+                return new PostSidebarResponse.CategoryStatItem(
+                    categoryCode,
+                    categoryCounter.getOrDefault(categoryCode, 0L),
+                    displayName,
+                    coverImageUrl
+                );
             })
             .toList();
 
@@ -890,6 +900,16 @@ public class ContentServiceImpl implements ContentService {
             .filter(StringUtils::hasText)
             .forEach(categories::add);
 
+        postCategoryMetaMapper.selectList(
+                new LambdaQueryWrapper<PostCategoryMetaEntity>()
+                    .select(PostCategoryMetaEntity::getCategoryCode)
+                    .orderByAsc(PostCategoryMetaEntity::getCategoryCode)
+            ).stream()
+            .map(PostCategoryMetaEntity::getCategoryCode)
+            .map(this::normalizeDisplayCategory)
+            .filter(StringUtils::hasText)
+            .forEach(categories::add);
+
         return categories;
     }
 
@@ -1239,6 +1259,8 @@ public class ContentServiceImpl implements ContentService {
         if (!Objects.equals(post.getUserId(), userId) && !currentViewer().admin()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to publish this post");
         }
+
+        validatePostReadyForPublish(post);
 
         post.setStatusCode(POST_STATUS_PUBLISHED);
         if (post.getPublishedAt() == null) {
@@ -2002,9 +2024,6 @@ public class ContentServiceImpl implements ContentService {
     private PreparedPostPayload preparePostPayload(AuthorPostUpsertRequest request, Long updatingPostId) {
         String title = readString(request.getTitle(), "").trim();
         String summary = readString(request.getSummary(), "").trim();
-        if (!StringUtils.hasText(title) || !StringUtils.hasText(summary)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Title and summary are required");
-        }
         if (title.length() > 255) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Title is too long");
         }
@@ -2054,6 +2073,39 @@ public class ContentServiceImpl implements ContentService {
             metrics.lineCount(),
             metrics.readingMinutes()
         );
+    }
+
+    private void validatePostReadyForPublish(PostEntity post) {
+        String title = readString(post.getTitle(), "").trim();
+        String summary = readString(post.getSummary(), "").trim();
+        if (!StringUtils.hasText(title)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Title is required before publishing");
+        }
+        if (!StringUtils.hasText(summary)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Summary is required before publishing");
+        }
+        if (title.length() > 255) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Title is too long");
+        }
+        if (summary.length() > 500) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Summary is too long");
+        }
+
+        normalizeCategoryCode(readString(post.getCategoryCode(), "").trim(), true);
+
+        String markdownBucket = readString(post.getMarkdownBucket(), "").trim();
+        String markdownKey = readString(post.getMarkdownKey(), "").trim();
+        if (!StringUtils.hasText(markdownBucket) || !StringUtils.hasText(markdownKey)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown content is required before publishing");
+        }
+
+        String configuredBucket = readString(blogPrivateBucket, "").trim();
+        if (StringUtils.hasText(configuredBucket) && !configuredBucket.equals(markdownBucket)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown bucket is not allowed");
+        }
+        if (!objectStorageClient.objectExists(markdownBucket, markdownKey)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown object does not exist in storage");
+        }
     }
 
     private String normalizeCategoryCode(String raw, boolean required) {
@@ -2151,11 +2203,18 @@ public class ContentServiceImpl implements ContentService {
         if (postId == null || postId <= 0) {
             return null;
         }
-        return postPresentationMapper.selectOne(
-            new LambdaQueryWrapper<PostPresentationEntity>()
-                .eq(PostPresentationEntity::getPostId, postId)
-                .last("LIMIT 1")
-        );
+        try {
+            return postPresentationMapper.selectOne(
+                new LambdaQueryWrapper<PostPresentationEntity>()
+                    .eq(PostPresentationEntity::getPostId, postId)
+                    .last("LIMIT 1")
+            );
+        } catch (RuntimeException exception) {
+            if (isMissingPresentationTable(exception)) {
+                return null;
+            }
+            throw exception;
+        }
     }
 
     private PostPresentationEntity requireReadyPresentation(Long postId) {
@@ -2222,32 +2281,44 @@ public class ContentServiceImpl implements ContentService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Post markdown is empty");
         }
 
-        PostPresentationEntity existing = findPostPresentation(post.getId());
-        String previousSlidevBucket = existing == null ? "" : readString(existing.getSlidevBucket(), "");
-        String previousSlidevKey = existing == null ? "" : readString(existing.getSlidevKey(), "");
-        String previousPptBucket = existing == null ? "" : readString(existing.getPptBucket(), "");
-        String previousPptKey = existing == null ? "" : readString(existing.getPptKey(), "");
+        PostPresentationEntity existing;
+        String previousSlidevBucket;
+        String previousSlidevKey;
+        String previousPptBucket;
+        String previousPptKey;
+        try {
+            existing = findPostPresentation(post.getId());
+            previousSlidevBucket = existing == null ? "" : readString(existing.getSlidevBucket(), "");
+            previousSlidevKey = existing == null ? "" : readString(existing.getSlidevKey(), "");
+            previousPptBucket = existing == null ? "" : readString(existing.getPptBucket(), "");
+            previousPptKey = existing == null ? "" : readString(existing.getPptKey(), "");
 
-        PostPresentationEntity entity = existing == null ? new PostPresentationEntity() : existing;
-        LocalDateTime now = LocalDateTime.now();
-        if (entity.getId() == null || entity.getId() <= 0) {
-            entity.setPostId(post.getId());
-            entity.setCreatedAt(now);
-        }
-        entity.setStatusCode(POST_PRESENTATION_STATUS_GENERATING);
-        entity.setSlidevBucket(null);
-        entity.setSlidevKey(null);
-        entity.setPptBucket(null);
-        entity.setPptKey(null);
-        entity.setSlideCount(0);
-        entity.setTemplateVersion(PostPresentationTemplateService.TEMPLATE_VERSION);
-        entity.setErrorText("");
-        entity.setGeneratedAt(null);
-        entity.setUpdatedAt(now);
-        if (entity.getId() == null || entity.getId() <= 0) {
-            postPresentationMapper.insert(entity);
-        } else {
-            postPresentationMapper.updateById(entity);
+            PostPresentationEntity entity = existing == null ? new PostPresentationEntity() : existing;
+            LocalDateTime now = LocalDateTime.now();
+            if (entity.getId() == null || entity.getId() <= 0) {
+                entity.setPostId(post.getId());
+                entity.setCreatedAt(now);
+            }
+            entity.setStatusCode(POST_PRESENTATION_STATUS_GENERATING);
+            entity.setSlidevBucket(null);
+            entity.setSlidevKey(null);
+            entity.setPptBucket(null);
+            entity.setPptKey(null);
+            entity.setSlideCount(0);
+            entity.setTemplateVersion(PostPresentationTemplateService.TEMPLATE_VERSION);
+            entity.setErrorText("");
+            entity.setGeneratedAt(null);
+            entity.setUpdatedAt(now);
+            if (entity.getId() == null || entity.getId() <= 0) {
+                postPresentationMapper.insert(entity);
+            } else {
+                postPresentationMapper.updateById(entity);
+            }
+        } catch (RuntimeException exception) {
+            if (isMissingPresentationTable(exception)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Presentation feature is not initialized yet");
+            }
+            throw exception;
         }
 
         PresentationSource source = new PresentationSource(
@@ -2262,6 +2333,23 @@ public class ContentServiceImpl implements ContentService {
         postPresentationExecutor.execute(() ->
             generatePostPresentationAsync(source, markdown, previousSlidevBucket, previousSlidevKey, previousPptBucket, previousPptKey)
         );
+    }
+
+    private boolean isMissingPresentationTable(Throwable exception) {
+        Throwable cursor = exception;
+        while (cursor != null) {
+            String message = readString(cursor.getMessage(), "").toLowerCase(Locale.ROOT);
+            if (message.contains("ctn_post_presentation")
+                && (message.contains("doesn't exist")
+                    || message.contains("does not exist")
+                    || message.contains("not exist")
+                    || message.contains("unknown table")
+                    || message.contains("不存在"))) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
     }
 
     private void generatePostPresentationAsync(
