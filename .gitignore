@@ -2938,3 +2938,7 @@ tmp/
 /resouces/md/
 /.beads/
 /.beads/
+
+# Local presentation generator artifacts
+/tools/presentation-generator/node_modules/
+/tools/presentation-generator/.tmp/

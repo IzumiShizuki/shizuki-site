@@ -1,0 +1,18 @@
+{
+  "name": "presentation-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "install:browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "@slidev/cli": "52.14.1",
+    "@slidev/theme-default": "0.25.0",
+    "playwright-chromium": "1.58.2"
+  }
+}
