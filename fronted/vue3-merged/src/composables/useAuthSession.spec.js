@@ -788,6 +788,126 @@ describe('useAuthSession', () => {
     expect(refreshBody.refresh_token).toBe('refresh-token-1');
   });
 
+  it('prompts for re-login and clears session when account request hits 401 and refresh also fails', async () => {
+    window.location.hash = '#/profile?tab=account';
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'access-token-1',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'refresh-token-1',
+            refresh_expires_in_sec: 2592000,
+            user_id: 18,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 18,
+            nickname: 'Session User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(401, {
+          code: 'TOKEN_EXPIRED',
+          detail: 'Access token expired'
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(401, {
+          code: 'REFRESH_TOKEN_EXPIRED',
+          detail: 'Refresh token expired'
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'session@example.com',
+      password: 'password-123'
+    });
+
+    await expect(auth.getAccountProfile()).rejects.toBeTruthy();
+
+    expect(confirmSpy).toHaveBeenCalledWith('当前登录态已失效，是否前往登录页面重新登录？');
+    expect(auth.isAuthenticated.value).toBe(false);
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(USER_STORAGE_KEY)).toBeNull();
+    expect(window.location.hash).toContain('/auth?');
+    expect(window.location.hash).toContain('reason=session_expired');
+    expect(decodeURIComponent(window.location.hash)).toContain('redirect=/profile?tab=account');
+  });
+
+  it('leaves protected route when re-login prompt is declined after 401 failure', async () => {
+    window.location.hash = '#/profile';
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            result_type: 'TOKEN_ISSUED',
+            access_token: 'access-token-1',
+            token_type: 'Bearer',
+            expires_in_sec: 900,
+            refresh_token: 'refresh-token-1',
+            refresh_expires_in_sec: 2592000,
+            user_id: 19,
+            groups: ['USER']
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            user_id: 19,
+            nickname: 'Decline User',
+            groups: ['USER'],
+            permissions: []
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(401, {
+          code: 'ACCESS_DENIED',
+          detail: 'Access token rejected'
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(401, {
+          code: 'REFRESH_DENIED',
+          detail: 'Refresh token rejected'
+        })
+      );
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    await auth.loginByEmail({
+      email: 'decline@example.com',
+      password: 'password-123'
+    });
+
+    await expect(
+      auth.authorizedFetch('/api/v1/protected/resource', {
+        method: 'GET'
+      })
+    ).rejects.toBeTruthy();
+
+    expect(confirmSpy).toHaveBeenCalledWith('当前登录态已失效，是否前往登录页面重新登录？');
+    expect(auth.isAuthenticated.value).toBe(false);
+    expect(window.location.hash).toBe('#/');
+  });
+
   it('uses single-flight promise for concurrent refresh requests', async () => {
     const fetchMock = vi
       .fn()

@@ -7,6 +7,8 @@ const USER_STORAGE_KEY = 'shizuki.user.v1';
 const OAUTH_PENDING_KEY = 'shizuki.oauth.pending.v1';
 const OAUTH_PENDING_TTL_MS = 10 * 60 * 1000;
 const LEGACY_CLEAR_KEYS = [AUTH_STORAGE_KEY, 'shizuki.session.v1', USER_STORAGE_KEY, 'shizuki.userProfile.v1'];
+const ACCOUNT_REDIRECT_PATH = '/profile?tab=account';
+const PROTECTED_ROUTE_PREFIXES = ['/profile', '/admin', '/blog/editor'];
 
 let sessionSingleton;
 
@@ -37,6 +39,19 @@ function currentRouteFromHash() {
   const hash = String(window.location.hash || '').replace(/^#/, '');
   if (!hash) return '/';
   return hash.startsWith('/') ? hash : `/${hash}`;
+}
+
+function normalizeRouteOnly(path) {
+  const normalized = String(path || '').trim();
+  if (!normalized) return '/';
+  const withoutHash = normalized.replace(/^#/, '');
+  const routePart = withoutHash.split('?')[0] || '/';
+  return routePart.startsWith('/') ? routePart : `/${routePart}`;
+}
+
+function isProtectedRoute(path) {
+  const routeOnly = normalizeRouteOnly(path);
+  return PROTECTED_ROUTE_PREFIXES.some((prefix) => routeOnly === prefix || routeOnly.startsWith(`${prefix}/`));
 }
 
 function toTokenPayload(raw = {}) {
@@ -231,6 +246,7 @@ function createAuthSession() {
 
   let ensurePromise = null;
   let refreshPromise = null;
+  let sessionExpiredPromptPromise = null;
 
   const isAuthenticated = computed(() => Boolean(accessToken.value) && Boolean(user.value?.userId));
 
@@ -303,6 +319,34 @@ function createAuthSession() {
     }
   }
 
+  async function handleSessionExpired(redirectPath = currentRouteFromHash()) {
+    clearSession();
+    if (typeof window === 'undefined') return;
+    if (sessionExpiredPromptPromise) {
+      return sessionExpiredPromptPromise;
+    }
+
+    sessionExpiredPromptPromise = Promise.resolve()
+      .then(() => {
+        const shouldGoToLogin =
+          typeof window.confirm === 'function'
+            ? window.confirm('当前登录态已失效，是否前往登录页面重新登录？')
+            : true;
+        if (shouldGoToLogin) {
+          redirectToAuth('session_expired', redirectPath);
+          return;
+        }
+        if (isProtectedRoute(redirectPath)) {
+          window.location.hash = '/';
+        }
+      })
+      .finally(() => {
+        sessionExpiredPromptPromise = null;
+      });
+
+    return sessionExpiredPromptPromise;
+  }
+
   async function ensureReady() {
     if (ready.value) return;
     if (ensurePromise) return ensurePromise;
@@ -333,8 +377,7 @@ function createAuthSession() {
       try {
         await refreshAccessToken();
       } catch {
-        clearSession();
-        redirectToAuth('session_expired', redirectPath);
+        await handleSessionExpired(redirectPath);
         throw new Error('Session expired');
       }
     }
@@ -343,6 +386,33 @@ function createAuthSession() {
       throw new Error('Login required');
     }
     return accessToken.value;
+  }
+
+  async function performAuthorizedRequest(request, redirectPath = currentRouteFromHash()) {
+    const initialToken = await requireAccessTokenForCall(redirectPath);
+    try {
+      return await request(initialToken);
+    } catch (error) {
+      if (!isUnauthorizedProblem(error)) {
+        throw error;
+      }
+
+      try {
+        await refreshAccessToken();
+      } catch {
+        await handleSessionExpired(redirectPath);
+        throw error;
+      }
+
+      try {
+        return await request(accessToken.value);
+      } catch (retryError) {
+        if (isUnauthorizedProblem(retryError)) {
+          await handleSessionExpired(redirectPath);
+        }
+        throw retryError;
+      }
+    }
   }
 
   async function loginByEmail(payload) {
@@ -569,60 +639,62 @@ function createAuthSession() {
 
   async function getAccountProfile() {
     await ensureReady();
-    const token = await requireAccessTokenForCall('/profile?tab=account');
-    return authApi.getMeAccount(token);
+    return performAuthorizedRequest((token) => authApi.getMeAccount(token), ACCOUNT_REDIRECT_PATH);
   }
 
   async function getPreference() {
     await ensureReady();
-    const token = await requireAccessTokenForCall('/profile?tab=account');
-    return authApi.getMePreferences(token);
+    return performAuthorizedRequest((token) => authApi.getMePreferences(token), ACCOUNT_REDIRECT_PATH);
   }
 
   async function updatePreference(preferenceJson) {
     await ensureReady();
-    const token = await requireAccessTokenForCall('/profile?tab=account');
-    return authApi.updateMePreferences(preferenceJson || {}, token);
+    return performAuthorizedRequest((token) => authApi.updateMePreferences(preferenceJson || {}, token), ACCOUNT_REDIRECT_PATH);
   }
 
   async function updateProfile(payload) {
     await ensureReady();
-    const token = await requireAccessTokenForCall('/profile?tab=account');
-    const result = await authApi.updateMeProfile(payload || {}, token);
+    const result = await performAuthorizedRequest((token) => authApi.updateMeProfile(payload || {}, token), ACCOUNT_REDIRECT_PATH);
     await refreshUserProfile();
     return result;
   }
 
   async function changePasswordByEmail(payload) {
     await ensureReady();
-    const token = await requireAccessTokenForCall('/profile?tab=account');
-    return authApi.changeMePassword(
-      {
-        email: payload.email,
-        emailCode: payload.emailCode,
-        newPassword: payload.newPassword,
-        confirmPassword: payload.confirmPassword
-      },
-      token
+    return performAuthorizedRequest(
+      (token) =>
+        authApi.changeMePassword(
+          {
+            email: payload.email,
+            emailCode: payload.emailCode,
+            newPassword: payload.newPassword,
+            confirmPassword: payload.confirmPassword
+          },
+          token
+        ),
+      ACCOUNT_REDIRECT_PATH
     );
   }
 
   async function bindEmailCredential(payload) {
     await ensureReady();
-    const token = await requireAccessTokenForCall('/profile?tab=account');
-    return authApi.bindEmailCredential(
-      {
-        email: payload.email,
-        password: payload.password,
-        emailCode: payload.emailCode
-      },
-      token
+    return performAuthorizedRequest(
+      (token) =>
+        authApi.bindEmailCredential(
+          {
+            email: payload.email,
+            password: payload.password,
+            emailCode: payload.emailCode
+          },
+          token
+        ),
+      ACCOUNT_REDIRECT_PATH
     );
   }
 
   async function uploadAvatar(file) {
     await ensureReady();
-    const token = await requireAccessTokenForCall('/profile?tab=account');
+    await requireAccessTokenForCall(ACCOUNT_REDIRECT_PATH);
     if (!file) {
       throw new Error('Please select image file');
     }
@@ -636,14 +708,18 @@ function createAuthSession() {
       throw new Error('Avatar image must be <= 2MB');
     }
 
-    const policy = await authApi.createUploadPolicy(
-      {
-        fileName: name,
-        contentType,
-        assetKind: 'STATIC_IMAGE',
-        visibility: 'PUBLIC'
-      },
-      token
+    const policy = await performAuthorizedRequest(
+      (token) =>
+        authApi.createUploadPolicy(
+          {
+            fileName: name,
+            contentType,
+            assetKind: 'STATIC_IMAGE',
+            visibility: 'PUBLIC'
+          },
+          token
+        ),
+      ACCOUNT_REDIRECT_PATH
     );
     const uploadUrl = String(policy?.uploadUrl || policy?.upload_url || '').trim();
     const policyBucket = String(policy?.bucket || '').trim();
@@ -669,13 +745,17 @@ function createAuthSession() {
       }
     } catch (directError) {
       try {
-        const relayPayload = await authApi.uploadRelay(
-          file,
-          {
-            assetKind: 'STATIC_IMAGE',
-            visibility: 'PUBLIC'
-          },
-          token
+        const relayPayload = await performAuthorizedRequest(
+          (token) =>
+            authApi.uploadRelay(
+              file,
+              {
+                assetKind: 'STATIC_IMAGE',
+                visibility: 'PUBLIC'
+              },
+              token
+            ),
+          ACCOUNT_REDIRECT_PATH
         );
         bucket = String(relayPayload?.bucket || '').trim();
         key = String(relayPayload?.key || '').trim();
@@ -691,26 +771,33 @@ function createAuthSession() {
       }
     }
 
-    const created = await authApi.createAsset(
-      {
-        bucket,
-        key,
-        assetType: 'image',
-        assetKind: 'STATIC_IMAGE',
-        contentType: uploadContentType,
-        visibility: 'PUBLIC',
-        metadata: {
-          usage: 'avatar'
-        }
-      },
-      token
+    const created = await performAuthorizedRequest(
+      (token) =>
+        authApi.createAsset(
+          {
+            bucket,
+            key,
+            assetType: 'image',
+            assetKind: 'STATIC_IMAGE',
+            contentType: uploadContentType,
+            visibility: 'PUBLIC',
+            metadata: {
+              usage: 'avatar'
+            }
+          },
+          token
+        ),
+      ACCOUNT_REDIRECT_PATH
     );
     const assetId = toNumber(created?.assetId ?? created?.asset_id);
     if (!assetId) {
       throw new Error('Create avatar asset failed');
     }
 
-    const downloadInfo = await authApi.getAssetDownloadUrl(assetId, token);
+    const downloadInfo = await performAuthorizedRequest(
+      (token) => authApi.getAssetDownloadUrl(assetId, token),
+      ACCOUNT_REDIRECT_PATH
+    );
     const avatarUrl = String(
       downloadInfo?.publicUrl || downloadInfo?.public_url || downloadInfo?.downloadUrl || downloadInfo?.download_url || ''
     ).trim();
@@ -718,7 +805,7 @@ function createAuthSession() {
       throw new Error('Resolve avatar url failed');
     }
 
-    await authApi.updateMeProfile({ avatarUrl }, token);
+    await performAuthorizedRequest((token) => authApi.updateMeProfile({ avatarUrl }, token), ACCOUNT_REDIRECT_PATH);
     await refreshUserProfile();
     return {
       avatarUrl,
@@ -728,47 +815,15 @@ function createAuthSession() {
 
   async function authorizedFetch(path, options = {}) {
     await ensureReady();
-
-    if (!accessToken.value && refreshToken.value) {
-      try {
-        await refreshAccessToken();
-      } catch {
-        clearSession();
-        redirectToAuth('session_expired', currentRouteFromHash());
-        throw new Error('Session expired');
-      }
-    }
-
-    if (!accessToken.value) {
-      redirectToAuth('session_expired', currentRouteFromHash());
-      throw new Error('Login required');
-    }
-
-    try {
-      return await httpRequest(path, {
-        ...options,
-        auth: true,
-        accessToken: accessToken.value
-      });
-    } catch (error) {
-      if (!isUnauthorizedProblem(error)) {
-        throw error;
-      }
-
-      try {
-        await refreshAccessToken();
-      } catch {
-        clearSession();
-        redirectToAuth('session_expired', currentRouteFromHash());
-        throw error;
-      }
-
-      return httpRequest(path, {
-        ...options,
-        auth: true,
-        accessToken: accessToken.value
-      });
-    }
+    return performAuthorizedRequest(
+      (token) =>
+        httpRequest(path, {
+          ...options,
+          auth: true,
+          accessToken: token
+        }),
+      currentRouteFromHash()
+    );
   }
 
   return {

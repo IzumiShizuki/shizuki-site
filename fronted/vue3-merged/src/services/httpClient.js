@@ -184,5 +184,5 @@ export function normalizeApiData(payload) {
 }
 
 export function isUnauthorizedProblem(error) {
-  return error instanceof HttpError && error.status === 401 && error.problemCode === 'UNAUTHORIZED';
+  return error instanceof HttpError && error.status === 401;
 }
