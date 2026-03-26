@@ -299,27 +299,27 @@
               <button
                 type="button"
                 class="mini-btn ripple-trigger editor-topbar-btn"
-                :class="{ active: editorSidebarView === 'info' }"
-                :disabled="editorSidebarView === 'info'"
-                @click="setEditorSidebarView('info')"
+                :class="{ active: editorInfoVisible }"
+                :aria-pressed="editorInfoVisible ? 'true' : 'false'"
+                @click="toggleEditorInfoPanel()"
               >
                 文章信息
               </button>
               <button
                 type="button"
                 class="mini-btn ripple-trigger editor-topbar-btn editor-mode-toggle"
-                :class="{ active: editorSidebarView === 'markdown' }"
-                :disabled="editorSidebarView === 'markdown'"
-                @click="setEditorSidebarView('markdown')"
+                :class="{ active: editorMode === 'markdown' }"
+                :disabled="editorMode === 'markdown'"
+                @click="switchEditorMode('markdown')"
               >
                 切换源码
               </button>
               <button
                 type="button"
                 class="mini-btn ripple-trigger editor-topbar-btn editor-mode-toggle"
-                :class="{ active: editorSidebarView === 'wysiwyg' }"
-                :disabled="editorSidebarView === 'wysiwyg'"
-                @click="setEditorSidebarView('wysiwyg')"
+                :class="{ active: editorMode === 'wysiwyg' }"
+                :disabled="editorMode === 'wysiwyg'"
+                @click="switchEditorMode('wysiwyg')"
               >
                 切换富文本
               </button>
@@ -361,7 +361,7 @@
           </button>
         </div>
 
-        <template v-if="viewMode === 'editor' && editorSidebarView === 'info'">
+        <template v-if="viewMode === 'editor' && editorInfoVisible">
           <SubtleScrollArea tag="section" class="editor-info-panel">
             <div class="editor-info-panel-actions">
               <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
@@ -709,7 +709,7 @@ const tocMode = ref('all');
 const activeHeadingId = ref('');
 const readingProgress = ref(0);
 const editorMode = ref('wysiwyg');
-const editorSidebarView = ref('wysiwyg');
+const editorInfoVisible = ref(false);
 const leftNavHint = ref('');
 
 const articleScrollRef = ref(null);
@@ -962,12 +962,13 @@ const editorTocHeadings = computed(() => {
   return renderMarkdownDocument(markdown).headings;
 });
 const showTocPanel = computed(
-  () => (viewMode.value === 'detail' && Boolean(detailState.post)) || (viewMode.value === 'editor' && editorSidebarView.value !== 'info')
+  () => (viewMode.value === 'detail' && Boolean(detailState.post)) || (viewMode.value === 'editor' && !editorInfoVisible.value)
 );
-const rightPanelTitle = computed(() => (viewMode.value === 'editor' && editorSidebarView.value === 'info' ? '文章信息' : '文内目录'));
+const rightPanelTitle = computed(() => (viewMode.value === 'editor' && editorInfoVisible.value ? '文章信息' : '文内目录'));
 const rightPanelRenderKey = computed(() => {
   const postId = writerState.editor.postId || detailState.post?.postId || 'none';
-  return `${viewMode.value}:${editorSidebarView.value}:${postId}:${tocMode.value}`;
+  const editorRightPanel = editorInfoVisible.value ? 'info' : 'toc';
+  return `${viewMode.value}:${editorRightPanel}:${postId}:${tocMode.value}`;
 });
 const editorPresentationReady = computed(() => String(editorPresentationState.data?.status || '') === 'READY');
 const editorPresentationPptReady = computed(() => editorPresentationReady.value && editorPresentationState.data?.pptReady === true);
@@ -1676,7 +1677,7 @@ async function startNewDraft() {
   await ensureCategoryCatalogLoaded();
   resetEditorForm();
   editorMode.value = 'wysiwyg';
-  editorSidebarView.value = 'wysiwyg';
+  editorInfoVisible.value = false;
   switchViewMode('editor');
 }
 
@@ -1807,13 +1808,15 @@ function refreshEditorLayout() {
   editor.refreshLayout();
 }
 
-async function setEditorSidebarView(mode) {
-  const normalizedMode = String(mode || '').toLowerCase();
-  const nextView = normalizedMode === 'info' ? 'info' : normalizedMode === 'markdown' ? 'markdown' : 'wysiwyg';
-  editorSidebarView.value = nextView;
-  if (nextView === 'markdown' || nextView === 'wysiwyg') {
-    setEditorMode(nextView);
-  }
+async function toggleEditorInfoPanel(forceVisible) {
+  const nextVisible = typeof forceVisible === 'boolean' ? forceVisible : !editorInfoVisible.value;
+  editorInfoVisible.value = nextVisible;
+  await nextTick();
+  refreshEditorLayout();
+}
+
+async function switchEditorMode(mode) {
+  setEditorMode(mode);
   await nextTick();
   refreshEditorLayout();
 }
@@ -2161,13 +2164,11 @@ function handleRichEditorPasteCandidate(clipboardText) {
 function handleEditorModeChange(mode) {
   const nextMode = String(mode || '').toLowerCase() === 'markdown' ? 'markdown' : 'wysiwyg';
   editorMode.value = nextMode;
-  if (editorSidebarView.value !== 'info') {
-    editorSidebarView.value = nextMode;
-  }
 }
 
 function setEditorMode(mode) {
   const nextMode = String(mode || '').toLowerCase() === 'markdown' ? 'markdown' : 'wysiwyg';
+  editorMode.value = nextMode;
   const editor = richEditorRef.value;
   if (editor && typeof editor.applyEditorAction === 'function') {
     editor.applyEditorAction(nextMode === 'markdown' ? 'mode-markdown' : 'mode-wysiwyg');
@@ -2182,7 +2183,7 @@ function setEditorMode(mode) {
 
 function toggleEditorMode() {
   const nextMode = editorMode.value === 'wysiwyg' ? 'markdown' : 'wysiwyg';
-  setEditorSidebarView(nextMode);
+  switchEditorMode(nextMode);
 }
 
 function handleRichEditorReady() {
@@ -2288,7 +2289,7 @@ async function syncRouteDrivenView() {
     }
     resetEditorForm();
     editorMode.value = 'wysiwyg';
-    editorSidebarView.value = 'wysiwyg';
+    editorInfoVisible.value = false;
     await nextTick();
     refreshEditorLayout();
     return;
@@ -2404,7 +2405,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: rgba(239, 244, 255, 0.96);
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--blog-gap);
 }
 
@@ -2465,9 +2466,12 @@ onBeforeUnmount(() => {
 .blog-layout {
   height: 100%;
   min-height: 0;
+  min-block-size: 100%;
   overflow: hidden;
   display: grid;
   grid-template-columns: var(--blog-left-width) minmax(0, 1fr) var(--blog-right-width);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   gap: var(--blog-gap);
 }
 
@@ -2478,6 +2482,7 @@ onBeforeUnmount(() => {
   --liquid-border: rgba(255, 255, 255, 0.2);
   --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.2);
   border-radius: 14px;
+  height: 100%;
   min-height: 0;
 }
 
@@ -3038,6 +3043,7 @@ onBeforeUnmount(() => {
 
 .editor-body {
   flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -3051,7 +3057,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-pane {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -3086,7 +3092,7 @@ onBeforeUnmount(() => {
 
 .editor-pane-full {
   flex: 1;
-  height: auto;
+  height: 100%;
   min-height: clamp(420px, 58vh, 960px);
   min-width: 0;
   max-width: 100%;
