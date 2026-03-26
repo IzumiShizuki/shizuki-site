@@ -334,6 +334,7 @@
               </div>
               <AsyncBlogRichEditor
                 ref="richEditorRef"
+                class="editor-rich-editor"
                 v-model="writerState.editor.markdown"
                 :default-mode="editorMode"
                 placeholder="在这里写 Markdown 内容..."
@@ -2404,8 +2405,8 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   color: rgba(239, 244, 255, 0.96);
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--blog-gap);
 }
 
@@ -2464,6 +2465,7 @@ onBeforeUnmount(() => {
 }
 
 .blog-layout {
+  flex: 1 1 0;
   height: 100%;
   min-height: 0;
   min-block-size: 100%;
@@ -2484,11 +2486,13 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   height: 100%;
   min-height: 0;
+  align-self: stretch;
 }
 
 .left-panel {
   padding: var(--blog-panel-padding);
   display: grid;
+  grid-auto-rows: max-content;
   gap: 12px;
   align-content: start;
   min-width: 0;
@@ -2591,9 +2595,6 @@ onBeforeUnmount(() => {
 }
 
 .detail-nav-list {
-  max-height: 232px;
-  overflow: auto;
-  overscroll-behavior: contain;
   padding-right: 2px;
 }
 
@@ -2648,10 +2649,12 @@ onBeforeUnmount(() => {
 .list-view,
 .detail-view,
 .editor-view {
+  height: 100%;
   min-height: 0;
 }
 
 .list-view {
+  display: block;
 }
 
 .post-list {
@@ -2720,7 +2723,8 @@ onBeforeUnmount(() => {
 
 .detail-view {
   min-height: 0;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .detail-head {
@@ -2801,6 +2805,7 @@ onBeforeUnmount(() => {
 }
 
 .detail-scroll {
+  flex: 1 1 0;
   min-height: 0;
   height: 100%;
   border-radius: 12px;
@@ -3042,7 +3047,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-body {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   height: 100%;
   min-height: 0;
   display: flex;
@@ -3050,10 +3055,6 @@ onBeforeUnmount(() => {
   gap: var(--blog-gap);
   min-width: 0;
   max-width: 100%;
-}
-
-.editor-view.meta-expanded .editor-body {
-  min-height: clamp(260px, 34vh, 520px);
 }
 
 .editor-pane {
@@ -3083,7 +3084,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-rich-editor {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -3091,9 +3092,9 @@ onBeforeUnmount(() => {
 }
 
 .editor-pane-full {
-  flex: 1;
+  flex: 1 1 0;
   height: 100%;
-  min-height: clamp(420px, 58vh, 960px);
+  min-height: 0;
   min-width: 0;
   max-width: 100%;
 }
@@ -3127,6 +3128,7 @@ onBeforeUnmount(() => {
 }
 
 .toc-body {
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   display: grid;
@@ -3135,6 +3137,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-info-panel {
+  height: 100%;
   min-height: 0;
   display: grid;
   align-content: start;
@@ -3215,6 +3218,7 @@ onBeforeUnmount(() => {
 }
 
 .toc-list {
+  height: 100%;
   min-height: 0;
   display: grid;
   gap: 1px;
@@ -3531,7 +3535,7 @@ onBeforeUnmount(() => {
   }
 
   .editor-pane-full {
-    min-height: clamp(260px, 34vh, 560px);
+    min-height: 0;
   }
 }
 
