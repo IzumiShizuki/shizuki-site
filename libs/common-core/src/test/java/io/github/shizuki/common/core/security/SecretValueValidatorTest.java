@@ -19,6 +19,8 @@ class SecretValueValidatorTest {
         Assertions.assertTrue(validator.isInvalid("replace_me"));
         Assertions.assertTrue(validator.isInvalid("CHANGE_ME"));
         Assertions.assertTrue(validator.isInvalid("your_secret"));
+        Assertions.assertTrue(validator.isInvalid("<SECRET>"));
+        Assertions.assertTrue(validator.isInvalid("${SECRET_VALUE}"));
     }
 
     @Test
@@ -29,5 +31,13 @@ class SecretValueValidatorTest {
     @Test
     void shouldTreatNormalSecretAsValid() {
         Assertions.assertFalse(validator.isInvalid("x9mA!2kL-88"));
+    }
+
+    @Test
+    void shouldDetectStructuredPlaceholder() {
+        Assertions.assertTrue(validator.isStructuredPlaceholder("<TOKEN>"));
+        Assertions.assertTrue(validator.isStructuredPlaceholder("${APP_SECRET}"));
+        Assertions.assertFalse(validator.isStructuredPlaceholder("ENC(AES:abc123)"));
+        Assertions.assertFalse(validator.isStructuredPlaceholder("real-secret"));
     }
 }
