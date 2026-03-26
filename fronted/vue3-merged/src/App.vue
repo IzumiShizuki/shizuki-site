@@ -2531,6 +2531,7 @@ onBeforeUnmount(() => {
 }
 
 .route-content {
+  box-sizing: border-box;
   min-height: 0;
   overflow: auto;
   scrollbar-width: thin;
@@ -2579,6 +2580,7 @@ onBeforeUnmount(() => {
 .route-content.route-content-blog {
   display: flex;
   overflow: hidden;
+  height: calc(100dvh - var(--music-top-offset-current) - var(--music-bottom-offset));
 }
 
 .route-content.route-content-blog > .route-page-view {
@@ -2586,6 +2588,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   height: 100%;
+  max-height: 100%;
 }
 
 .route-content.route-content-profile {
