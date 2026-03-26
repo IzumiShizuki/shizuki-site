@@ -3,6 +3,14 @@ management:
     web:
       exposure:
         include: health,info
+logging:
+  level:
+    org.apache.kafka.clients.consumer.ConsumerConfig: WARN
+    org.apache.kafka.clients.producer.ProducerConfig: WARN
+    org.apache.kafka.clients.admin.AdminClientConfig: WARN
+    org.apache.kafka.common.utils.AppInfoParser: WARN
+    "org.springframework.kafka.core.DefaultKafkaConsumerFactory$ExtendedKafkaConsumer": WARN
+    "org.springframework.kafka.core.DefaultKafkaProducerFactory$ExtendedKafkaProducer": WARN
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
