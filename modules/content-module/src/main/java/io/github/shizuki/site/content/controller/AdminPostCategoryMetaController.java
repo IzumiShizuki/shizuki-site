@@ -9,6 +9,8 @@ import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import java.util.Map;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -40,5 +42,13 @@ public class AdminPostCategoryMetaController {
     public ApiResponse<PostCategoryMetaResponse> update(@PathVariable("category_code") String categoryCode,
                                                         @RequestBody PostCategoryMetaUpsertRequest request) {
         return ApiResponse.success(contentService.upsertPostCategoryMeta(categoryCode, request));
+    }
+
+    @DeleteMapping("/{category_code}")
+    @AuditLog(action = "post.category.meta.delete", resource = "post_category_meta")
+    @Operation(summary = "删除博客分类展示元数据")
+    public ApiResponse<Map<String, Object>> delete(@PathVariable("category_code") String categoryCode) {
+        contentService.deletePostCategoryMeta(categoryCode);
+        return ApiResponse.success(Map.of("deleted", true, "category_code", categoryCode));
     }
 }

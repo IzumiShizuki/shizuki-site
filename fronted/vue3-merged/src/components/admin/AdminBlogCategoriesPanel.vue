@@ -121,6 +121,22 @@
             >
               {{ saving ? '保存中...' : '保存' }}
             </button>
+            <button
+              class="ghost-btn ripple-trigger"
+              type="button"
+              :disabled="saving || uploadingCode === item.categoryCode"
+              @click="toggleCategoryEnabled(item.categoryCode)"
+            >
+              {{ drafts[item.categoryCode].enabled ? '禁用' : '启用' }}
+            </button>
+            <button
+              class="danger-btn ripple-trigger"
+              type="button"
+              :disabled="saving || uploadingCode === item.categoryCode"
+              @click="deleteCategory(item.categoryCode)"
+            >
+              删除
+            </button>
           </div>
         </div>
       </article>
@@ -166,7 +182,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['refresh', 'save', 'upload']);
+const emit = defineEmits(['refresh', 'save', 'upload', 'delete']);
 
 const drafts = reactive({});
 const createDraft = reactive(createEmptyDraft());
@@ -226,6 +242,26 @@ function saveCategory(categoryCode) {
     categoryCode: normalizedCode,
     ...draft
   });
+}
+
+function toggleCategoryEnabled(categoryCode) {
+  const normalizedCode = normalizeCategoryCode(categoryCode);
+  const draft = drafts[normalizedCode];
+  if (!normalizedCode || !draft) return;
+  emit('save', {
+    categoryCode: normalizedCode,
+    ...draft,
+    enabled: !draft.enabled
+  });
+}
+
+function deleteCategory(categoryCode) {
+  const normalizedCode = normalizeCategoryCode(categoryCode);
+  if (!normalizedCode) return;
+  if (typeof window !== 'undefined' && !window.confirm(`确认删除分类 ${normalizedCode} 吗？如果仍有文章使用该分类，后端会拒绝删除。`)) {
+    return;
+  }
+  emit('delete', normalizedCode);
 }
 
 function handleCoverFileChange(categoryCode, event) {
@@ -439,6 +475,16 @@ function normalizeCategoryCode(value) {
   border: 1px solid rgba(var(--accent-rgb), 0.62);
   background: rgba(var(--accent-rgb), 0.3);
   color: rgba(246, 250, 255, 0.98);
+}
+
+.danger-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  border: 1px solid rgba(255, 112, 125, 0.55);
+  background: rgba(255, 112, 125, 0.14);
+  color: rgba(255, 213, 218, 0.98);
 }
 
 .upload-btn {

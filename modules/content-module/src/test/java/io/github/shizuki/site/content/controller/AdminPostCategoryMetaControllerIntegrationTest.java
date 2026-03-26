@@ -55,4 +55,15 @@ class AdminPostCategoryMetaControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.category_code").value("game"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.display_name").value("游戏"));
     }
+
+    @Test
+    void shouldDeleteCategoryMetaSuccessfully() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/admin/posts/categories/game"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.deleted").value(true))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.category_code").value("game"));
+
+        Mockito.verify(contentService).deletePostCategoryMeta("game");
+    }
 }

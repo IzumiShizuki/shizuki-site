@@ -284,6 +284,7 @@
               @refresh="reloadCategoryMetas"
               @save="saveCategoryMetaItem"
               @upload="uploadCategoryMetaCover"
+              @delete="deleteCategoryMetaItem"
             />
           </template>
           <template v-else>
@@ -392,7 +393,7 @@ import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPan
 import { useAuthSession } from '../composables/useAuthSession';
 import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
 import { getPostSidebar, listPosts, submitPostWhisper } from '../services/blogApi';
-import { listBlogCategoryMetas, updateBlogCategoryMeta, uploadBlogCategoryCover } from '../services/adminApi';
+import { deleteBlogCategoryMeta, listBlogCategoryMetas, updateBlogCategoryMeta, uploadBlogCategoryCover } from '../services/adminApi';
 
 const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
 const PAGE_SIZE = 10;
@@ -854,6 +855,34 @@ async function uploadCategoryMetaCover(payload) {
     categoryMetaError.value = normalizeErrorMessage(error, '上传分类图片失败');
   } finally {
     categoryMetaUploadingCode.value = '';
+  }
+}
+
+async function deleteCategoryMetaItem(categoryCode) {
+  if (!canManageCategories.value) {
+    uiState.actionHint = '只有管理员可以删除分类';
+    return;
+  }
+  const normalizedCode = normalizeString(categoryCode).toLowerCase();
+  if (!normalizedCode) {
+    categoryMetaError.value = '分类编码不能为空';
+    return;
+  }
+  categoryMetaSaving.value = true;
+  categoryMetaError.value = '';
+  try {
+    await deleteBlogCategoryMeta(normalizedCode, auth.authorizedFetch);
+    categoryMetaItems.value = categoryMetaItems.value.filter((item) => item.categoryCode !== normalizedCode);
+    if (categoryMetaCreateUploadCode.value === normalizedCode) {
+      categoryMetaCreateUploadCode.value = '';
+      categoryMetaCreateUploadUrl.value = '';
+    }
+    await loadSidebar();
+    uiState.actionHint = `分类 ${normalizedCode} 已删除`;
+  } catch (error) {
+    categoryMetaError.value = normalizeErrorMessage(error, '删除分类失败');
+  } finally {
+    categoryMetaSaving.value = false;
   }
 }
 

@@ -174,6 +174,17 @@ export async function updateBlogCategoryMeta(categoryCode, payload, authorizedFe
   return unwrapApiResponse(response);
 }
 
+export async function deleteBlogCategoryMeta(categoryCode, authorizedFetch) {
+  const code = String(categoryCode || '').trim();
+  if (!code) {
+    throw new Error('categoryCode is required');
+  }
+  const response = await authorizedFetch(`/api/v1/admin/posts/categories/${encodeURIComponent(code)}`, {
+    method: 'DELETE'
+  });
+  return unwrapApiResponse(response);
+}
+
 function normalizeAssetUrl(raw) {
   const value = String(raw || '').trim();
   return value;

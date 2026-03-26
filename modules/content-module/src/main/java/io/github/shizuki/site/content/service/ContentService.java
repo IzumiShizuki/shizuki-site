@@ -215,4 +215,9 @@ public interface ContentService {
      * 更新博客分类展示元数据。
      */
     PostCategoryMetaResponse upsertPostCategoryMeta(String categoryCode, PostCategoryMetaUpsertRequest request);
+
+    /**
+     * 删除博客分类展示元数据与策略；若分类仍被文章使用则拒绝删除。
+     */
+    void deletePostCategoryMeta(String categoryCode);
 }

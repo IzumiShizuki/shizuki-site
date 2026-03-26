@@ -1768,6 +1768,40 @@ public class ContentServiceImpl implements ContentService {
         return toPostCategoryMetaResponse(entity);
     }
 
+    @Override
+    public void deletePostCategoryMeta(String categoryCode) {
+        requireAdmin();
+        String normalizedCategory = normalizeCategoryCode(categoryCode, true);
+
+        Long usingCount = postMapper.selectCount(
+            new LambdaQueryWrapper<PostEntity>()
+                .eq(PostEntity::getDeleted, 0)
+                .eq(PostEntity::getCategoryCode, normalizedCategory)
+        );
+        if (usingCount != null && usingCount > 0) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Category is still used by existing posts and cannot be deleted"
+            );
+        }
+
+        PostCategoryMetaEntity meta = postCategoryMetaMapper.selectOne(
+            new LambdaQueryWrapper<PostCategoryMetaEntity>().eq(PostCategoryMetaEntity::getCategoryCode, normalizedCategory)
+        );
+        if (meta != null && meta.getId() != null) {
+            postCategoryMetaMapper.deleteById(meta.getId());
+        }
+
+        clearCategoryPolicyGroups(normalizedCategory);
+
+        PostCategoryPolicyEntity policy = postCategoryPolicyMapper.selectOne(
+            new LambdaQueryWrapper<PostCategoryPolicyEntity>().eq(PostCategoryPolicyEntity::getCategoryCode, normalizedCategory)
+        );
+        if (policy != null && policy.getId() != null) {
+            postCategoryPolicyMapper.deleteById(policy.getId());
+        }
+    }
+
     private boolean canAccessPublishedPost(PostEntity post, ViewerContext viewer) {
         if (post == null || !POST_STATUS_PUBLISHED.equalsIgnoreCase(readString(post.getStatusCode(), POST_STATUS_DRAFT))) {
             return false;
