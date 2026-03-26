@@ -5,9 +5,11 @@ import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownMapNodeResponse;
 import io.github.shizuki.site.ai.dto.AiTownNpcResponse;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewResponse;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
@@ -27,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
@@ -331,6 +334,106 @@ class AiControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.session_id").value("session-town-001"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.mode").value("town_npc"));
+    }
+
+    @Test
+    void shouldImportAdminTownAssetSuccessfully() throws Exception {
+        Mockito.when(aiService.importAdminTownAsset(ArgumentMatchers.any(), ArgumentMatchers.eq("library")))
+            .thenReturn(new AiTownAssetPreviewResponse(
+                7001L,
+                "rpg-import-001",
+                "Map001.json",
+                "rpg_map",
+                "READY",
+                128L,
+                "library",
+                List.of("地图尺寸 20x15", "事件点位 2 个"),
+                Map.of("width", 20, "height", 15),
+                Map.of("map_like", true),
+                LocalDateTime.now()
+            ));
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "Map001.json",
+            "application/json",
+            "{\"width\":20,\"height\":15,\"data\":[1]}".getBytes()
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/admin/ai-town/assets/import-rpgmaker")
+                .file(file)
+                .param("scene_code", "library"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.asset_code").value("rpg-import-001"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.asset_type").value("rpg_map"));
+    }
+
+    @Test
+    void shouldPreviewAdminTownAssetSuccessfully() throws Exception {
+        Mockito.when(aiService.previewAdminTownAsset(ArgumentMatchers.any()))
+            .thenReturn(new AiTownAssetPreviewResponse(
+                7001L,
+                "rpg-import-001",
+                "Map001.json",
+                "rpg_map",
+                "READY",
+                128L,
+                "library",
+                List.of("地图尺寸 20x15"),
+                Map.of("width", 20, "height", 15),
+                Map.of("map_like", true),
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/admin/ai-town/assets/preview")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "asset_code": "rpg-import-001"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.asset_code").value("rpg-import-001"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.attached_scene_code").value("library"));
+    }
+
+    @Test
+    void shouldUpdateAdminMemoryScopeSuccessfully() throws Exception {
+        Mockito.when(aiService.updateAdminMemoryScope(ArgumentMatchers.eq("66:town_npc:librarian:library"), ArgumentMatchers.any()))
+            .thenReturn(new AiMemoryScopeResponse(
+                8101L,
+                "66:town_npc:librarian:library",
+                66L,
+                "town_npc",
+                "librarian",
+                "library",
+                false,
+                "暂停写回",
+                "图书馆偏好",
+                "偏好暖光和书架区域。",
+                List.of("喜欢暖光"),
+                List.of("上次聊到图书馆布局"),
+                List.of("最近一次在图书馆问答"),
+                LocalDateTime.now(),
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/admin/ai-memory/scopes/66:town_npc:librarian:library")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "enabled": false,
+                      "note": "暂停写回",
+                      "query": "图书馆偏好"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.scope_id").value("66:town_npc:librarian:library"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.enabled").value(false))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.summary_highlights[0]").value("喜欢暖光"));
     }
 
     @Test

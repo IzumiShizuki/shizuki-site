@@ -69,7 +69,7 @@
               这里已经接上 `character / character_card_png / worldbook` 的管理路径。选择和创建都会直接走后端接口。
             </p>
             <p v-else class="config-helper">
-              游客可以继续手动试玩酒馆模式，但角色卡和世界书管理需要登录后才能使用。
+              游客只能浏览配置壳层，实际发言和角色卡/世界书管理都需要登录后才能使用。
             </p>
           </div>
           <button
@@ -142,10 +142,9 @@
           ></textarea>
         </label>
 
-        <label class="config-toggle">
-          <input v-model="activeState.config.memoryEnabled" type="checkbox" />
-          <span>发送时带上记忆开关与 scope_id 契约</span>
-        </label>
+        <p class="config-helper config-field-full">
+          一期里普通对话和酒馆模式不会接入 MemoryOS。这里的角色卡、世界书和场景提示只参与当前会话上下文，不生成独立记忆 scope。
+        </p>
 
         <details v-if="auth.isAuthenticated.value" class="management-shell config-field-full" :open="!tavernAssets.characters.length || !tavernAssets.worldbooks.length">
           <summary>管理角色卡与世界书</summary>
@@ -363,6 +362,105 @@
         <p>{{ activeModeMeta.note }}</p>
       </section>
 
+      <section
+        v-if="(activeChatMode === 'town_npc' || activeChatMode === 'companion') && auth.isAuthenticated.value && isAdminUser"
+        class="mode-config liquid-material scene-memory-config"
+      >
+        <div class="config-field config-field-full config-toolbar">
+          <div>
+            <span class="config-title">当前记忆 scope</span>
+            <p class="config-helper">这里是场景模式下的最小管理入口，用来查看快照并切换该 scope 是否参与 MemoryOS 注入。</p>
+          </div>
+          <div class="config-toolbar-actions">
+            <button
+              class="toolbar-btn ripple-trigger"
+              type="button"
+              :disabled="memoryScope.loading || !activeSceneScopeId"
+              @click="ensureMemoryScopeLoaded(activeSceneScopeId, true)"
+            >
+              {{ memoryScope.loading ? '刷新中...' : '刷新快照' }}
+            </button>
+            <button
+              class="toolbar-btn ripple-trigger"
+              type="button"
+              :disabled="memoryScope.saving || !memoryScope.scopeId"
+              @click="submitSaveMemoryScope"
+            >
+              {{ memoryScope.saving ? '保存中...' : '保存 scope' }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="memoryScope.errorText" class="config-feedback error">{{ memoryScope.errorText }}</p>
+        <p v-else-if="!activeSceneScopeId" class="config-helper">发送首条消息后会生成稳定 `scope_id`，届时这里会显示最新快照。</p>
+        <template v-else>
+          <div class="memory-scope-grid">
+            <label class="config-field config-field-full">
+              <span>scope_id</span>
+              <input :value="memoryScope.scopeId || activeSceneScopeId" type="text" readonly />
+            </label>
+
+            <label class="config-toggle">
+              <input v-model="memoryScope.enabled" type="checkbox" />
+              <span>允许该 scope 继续参与记忆注入</span>
+            </label>
+
+            <label class="config-field config-field-full">
+              <span>管理员备注</span>
+              <textarea
+                v-model.trim="memoryScope.note"
+                rows="2"
+                maxlength="500"
+                placeholder="例如：该作用域先暂停写回，只保留查询。"
+              ></textarea>
+            </label>
+
+            <label class="config-field config-field-full">
+              <span>最近检索词</span>
+              <input v-model.trim="memoryScope.lastQuery" type="text" maxlength="240" placeholder="例如：图书馆偏好" />
+            </label>
+          </div>
+
+          <p
+            v-if="!memoryScope.profileSummary && !memoryScope.summaryHighlights.length && !memoryScope.episodicHighlights.length && !memoryScope.journalHighlights.length"
+            class="config-helper"
+          >
+            当前 scope 还没有已保存快照。你可以先保存开关或备注，发送首条场景消息后这里会出现最新记忆摘要。
+          </p>
+
+          <div class="memory-snapshot">
+            <article class="snapshot-card liquid-material">
+              <strong>Profile</strong>
+              <p>{{ memoryScope.profileSummary || '还没有 profile 摘要。' }}</p>
+            </article>
+
+            <article class="snapshot-card liquid-material">
+              <strong>Summary</strong>
+              <ul v-if="memoryScope.summaryHighlights.length" class="snapshot-list">
+                <li v-for="item in memoryScope.summaryHighlights" :key="`summary-${item}`">{{ item }}</li>
+              </ul>
+              <p v-else>暂无 summary 命中。</p>
+            </article>
+
+            <article class="snapshot-card liquid-material">
+              <strong>Episodic</strong>
+              <ul v-if="memoryScope.episodicHighlights.length" class="snapshot-list">
+                <li v-for="item in memoryScope.episodicHighlights" :key="`episodic-${item}`">{{ item }}</li>
+              </ul>
+              <p v-else>暂无 episodic 命中。</p>
+            </article>
+
+            <article class="snapshot-card liquid-material">
+              <strong>Journal</strong>
+              <ul v-if="memoryScope.journalHighlights.length" class="snapshot-list">
+                <li v-for="item in memoryScope.journalHighlights" :key="`journal-${item}`">{{ item }}</li>
+              </ul>
+              <p v-else>暂无 journal 记录。</p>
+            </article>
+          </div>
+        </template>
+      </section>
+
       <div class="chat-stream">
         <div v-if="!activeState.messages.length" class="empty-state">
           <strong>{{ activeModeMeta.emptyTitle }}</strong>
@@ -391,6 +489,7 @@
       </div>
 
       <p v-if="activeState.errorText" class="error-banner">{{ activeState.errorText }}</p>
+      <p v-else-if="authorizationHint" class="feedback-banner warning">{{ authorizationHint }}</p>
 
       <footer class="chat-input-wrap">
         <textarea
@@ -415,6 +514,7 @@ import { motion, useReducedMotion } from 'motion-v';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminAiCompanionSession,
+  getAdminAiMemoryScope,
   createAiCharacter,
   createAiSession,
   createAiWorldbook,
@@ -425,8 +525,10 @@ import {
   listAiCharacters,
   listAiWorldbooks,
   sendAiMessage,
-  updateAdminAiCompanionConfig
+  updateAdminAiCompanionConfig,
+  updateAdminAiMemoryScope
 } from '../services/aiApi';
+import { buildAiCapabilityState, hasAdminGroup } from '../utils/aiAuthorizationState';
 
 const CHAT_MODE_OPTIONS = [
   {
@@ -562,7 +664,7 @@ function createModeState(mode) {
       scenePrompt: '',
       townRoomCode: '',
       actorCode: '',
-      memoryEnabled: mode === 'tavern' || mode === 'town_npc' || mode === 'companion'
+      memoryEnabled: mode === 'town_npc' || mode === 'companion'
     }
   };
 }
@@ -616,6 +718,23 @@ function createCompanionProfileState() {
   };
 }
 
+function createMemoryScopeState() {
+  return {
+    loading: false,
+    saving: false,
+    errorText: '',
+    loadedScopeId: '',
+    scopeId: '',
+    enabled: true,
+    note: '',
+    lastQuery: '',
+    profileSummary: '',
+    summaryHighlights: [],
+    episodicHighlights: [],
+    journalHighlights: []
+  };
+}
+
 function normalizeSessionSummary(raw = {}) {
   const worldbookIds = Array.isArray(raw.worldbookIds || raw.worldbook_ids)
     ? (raw.worldbookIds || raw.worldbook_ids)
@@ -638,6 +757,8 @@ function normalizeSendResponse(raw = {}) {
   return {
     sessionId: String(raw.sessionId || raw.session_id || '').trim(),
     assistantMessage: normalizeOptionalText(raw.assistantMessage ?? raw.assistant_message),
+    scopeId: normalizeOptionalText(raw.scopeId ?? raw.scope_id),
+    memoryEnabled: raw.memoryEnabled === true || raw.memory_enabled === true,
     remainingRounds: raw.remainingRounds ?? raw.remaining_rounds,
     totalRounds: raw.totalRounds ?? raw.total_rounds,
     usedRounds: raw.usedRounds ?? raw.used_rounds
@@ -696,6 +817,25 @@ function normalizeCompanionConfig(raw = {}) {
   };
 }
 
+function normalizeMemoryScopeResponse(raw = {}) {
+  return {
+    scopeId: normalizeOptionalText(raw.scopeId || raw.scope_id),
+    enabled: raw.enabled === false ? false : raw.enabled_flag === 0 ? false : true,
+    note: normalizeOptionalText(raw.note) || '',
+    lastQuery: normalizeOptionalText(raw.lastQuery || raw.last_query) || '',
+    profileSummary: normalizeOptionalText(raw.profileSummary || raw.profile_summary) || '',
+    summaryHighlights: Array.isArray(raw.summaryHighlights || raw.summary_highlights)
+      ? (raw.summaryHighlights || raw.summary_highlights).map((item) => normalizeOptionalText(item)).filter(Boolean)
+      : [],
+    episodicHighlights: Array.isArray(raw.episodicHighlights || raw.episodic_highlights)
+      ? (raw.episodicHighlights || raw.episodic_highlights).map((item) => normalizeOptionalText(item)).filter(Boolean)
+      : [],
+    journalHighlights: Array.isArray(raw.journalHighlights || raw.journal_highlights)
+      ? (raw.journalHighlights || raw.journal_highlights).map((item) => normalizeOptionalText(item)).filter(Boolean)
+      : []
+  };
+}
+
 function buildSessionTitle(mode, existingTitle, openingMessage) {
   const normalizedExisting = normalizeOptionalText(existingTitle);
   if (normalizedExisting) return normalizedExisting;
@@ -748,15 +888,14 @@ const props = defineProps({
 const emit = defineEmits(['close', 'mode-change']);
 const prefersReducedMotion = useReducedMotion();
 const auth = useAuthSession();
-const isAdminUser = computed(() => {
-  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
-  return groups.some((groupCode) => String(groupCode || '').trim().toUpperCase() === 'ADMIN');
-});
+const authGroups = computed(() => (Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : []));
+const isAdminUser = computed(() => hasAdminGroup(authGroups.value));
 
 const activeChatMode = ref('quick_chat');
 const quota = ref(null);
 const tavernAssets = reactive(createTavernAssetsState());
 const companionProfile = reactive(createCompanionProfileState());
+const memoryScope = reactive(createMemoryScopeState());
 const sessionStateByMode = reactive({
   quick_chat: createModeState('quick_chat'),
   normal: createModeState('normal'),
@@ -774,18 +913,34 @@ const visibleChatModeOptions = computed(() =>
   CHAT_MODE_OPTIONS.filter((item) => allowedChatModes.value.includes(item.value) && !item.hidden)
 );
 const activeModeMeta = computed(() => CHAT_MODE_OPTIONS.find((item) => item.value === activeChatMode.value) || CHAT_MODE_OPTIONS[0]);
+const aiCapabilityState = computed(() =>
+  buildAiCapabilityState({
+    authenticated: auth.isAuthenticated.value,
+    groups: authGroups.value,
+    mode: activeChatMode.value
+  })
+);
 const canSendActiveMessage = computed(() => {
-  if (!normalizeOptionalText(activeState.value.draft) || activeState.value.pending) {
+  if (!normalizeOptionalText(activeState.value.draft) || activeState.value.pending || !aiCapabilityState.value.canSendMessage) {
     return false;
-  }
-  if (activeChatMode.value === 'companion') {
-    return auth.isAuthenticated.value && isAdminUser.value;
   }
   return true;
 });
+const authorizationHint = computed(() => aiCapabilityState.value.disabledReason);
 const quotaLabel = computed(() => {
   if (!quota.value || !Number.isFinite(quota.value.remaining)) return '';
+  if (Number(quota.value.total) < 0 || Number(quota.value.remaining) < 0) return '无限额度';
   return `剩余 ${quota.value.remaining}/${quota.value.total}`;
+});
+const activeSceneScopeId = computed(() => {
+  if (activeChatMode.value !== 'town_npc' && activeChatMode.value !== 'companion') return '';
+  if (!auth.isAuthenticated.value || !isAdminUser.value) return '';
+  const state = activeState.value;
+  const userId = toNumber(auth.user.value?.userId);
+  const actorCode = normalizeOptionalText(state.config.actorCode);
+  const sceneCode = normalizeOptionalText(state.config.townRoomCode) || (activeChatMode.value === 'companion' ? 'home' : '');
+  if (!userId || !actorCode || !sceneCode) return '';
+  return `${userId}:${activeChatMode.value}:${actorCode}:${sceneCode}`;
 });
 const selectedCharacterSummary = computed(() => {
   const characterId = normalizeOptionalText(activeState.value.config.characterId);
@@ -882,6 +1037,7 @@ watch(
       companionProfile.errorText = '';
       companionProfile.feedbackText = '';
       companionProfile.feedbackTone = '';
+      resetMemoryScopeState();
       return;
     }
     await refreshQuota();
@@ -905,8 +1061,22 @@ watch(
     if (mode === 'companion' && auth.isAuthenticated.value) {
       await ensureCompanionConfigLoaded();
     }
+    if (mode !== 'town_npc' && mode !== 'companion') {
+      resetMemoryScopeState();
+    }
   },
   { immediate: true }
+);
+
+watch(
+  () => activeSceneScopeId.value,
+  async (scopeId) => {
+    if (!scopeId) {
+      resetMemoryScopeState();
+      return;
+    }
+    await ensureMemoryScopeLoaded(scopeId);
+  }
 );
 
 function emitClose() {
@@ -989,6 +1159,34 @@ function clearCompanionFeedback() {
   companionProfile.feedbackTone = '';
 }
 
+function resetMemoryScopeState() {
+  memoryScope.loading = false;
+  memoryScope.saving = false;
+  memoryScope.errorText = '';
+  memoryScope.loadedScopeId = '';
+  memoryScope.scopeId = '';
+  memoryScope.enabled = true;
+  memoryScope.note = '';
+  memoryScope.lastQuery = '';
+  memoryScope.profileSummary = '';
+  memoryScope.summaryHighlights = [];
+  memoryScope.episodicHighlights = [];
+  memoryScope.journalHighlights = [];
+}
+
+function syncMemoryScopeState(rawScope) {
+  const scope = normalizeMemoryScopeResponse(rawScope);
+  memoryScope.loadedScopeId = scope.scopeId || '';
+  memoryScope.scopeId = scope.scopeId || '';
+  memoryScope.enabled = scope.enabled;
+  memoryScope.note = scope.note;
+  memoryScope.lastQuery = scope.lastQuery;
+  memoryScope.profileSummary = scope.profileSummary;
+  memoryScope.summaryHighlights = scope.summaryHighlights;
+  memoryScope.episodicHighlights = scope.episodicHighlights;
+  memoryScope.journalHighlights = scope.journalHighlights;
+}
+
 function syncCompanionStateFromConfig(rawConfig) {
   const config = normalizeCompanionConfig(rawConfig);
   const state = sessionStateByMode.companion;
@@ -1050,6 +1248,60 @@ async function ensureCompanionConfigLoaded(force = false) {
     companionProfile.errorText = resolveErrorMessage(error);
   } finally {
     companionProfile.loading = false;
+  }
+}
+
+async function ensureMemoryScopeLoaded(scopeId, force = false) {
+  const normalizedScopeId = normalizeOptionalText(scopeId);
+  if (!normalizedScopeId || !auth.isAuthenticated.value || !isAdminUser.value) return;
+  if (memoryScope.loading) return;
+  if (memoryScope.loadedScopeId === normalizedScopeId && !force) return;
+
+  memoryScope.loading = true;
+  memoryScope.errorText = '';
+  try {
+    const scope = await getAdminAiMemoryScope(normalizedScopeId, auth.authorizedFetch);
+    syncMemoryScopeState(scope);
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      memoryScope.loadedScopeId = normalizedScopeId;
+      memoryScope.scopeId = normalizedScopeId;
+      memoryScope.enabled = true;
+      memoryScope.note = '';
+      memoryScope.lastQuery = '';
+      memoryScope.profileSummary = '';
+      memoryScope.summaryHighlights = [];
+      memoryScope.episodicHighlights = [];
+      memoryScope.journalHighlights = [];
+      return;
+    }
+    memoryScope.errorText = resolveErrorMessage(error);
+  } finally {
+    memoryScope.loading = false;
+  }
+}
+
+async function submitSaveMemoryScope() {
+  const normalizedScopeId = normalizeOptionalText(memoryScope.scopeId || activeSceneScopeId.value);
+  if (!normalizedScopeId || !auth.isAuthenticated.value || !isAdminUser.value) return;
+
+  memoryScope.saving = true;
+  memoryScope.errorText = '';
+  try {
+    const scope = await updateAdminAiMemoryScope(
+      normalizedScopeId,
+      {
+        enabled: Boolean(memoryScope.enabled),
+        note: normalizeOptionalText(memoryScope.note) || undefined,
+        query: normalizeOptionalText(memoryScope.lastQuery) || undefined
+      },
+      auth.authorizedFetch
+    );
+    syncMemoryScopeState(scope);
+  } catch (error) {
+    memoryScope.errorText = resolveErrorMessage(error);
+  } finally {
+    memoryScope.saving = false;
   }
 }
 
@@ -1301,10 +1553,14 @@ function resolveErrorMessage(error) {
   return '消息发送失败，请稍后再试。';
 }
 
+function isNotFoundError(error) {
+  return Number(error?.status) === 404;
+}
+
 async function submitActiveMessage() {
   const state = activeState.value;
   const draft = normalizeOptionalText(state.draft);
-  if (!draft || state.pending) return;
+  if (!draft || state.pending || !aiCapabilityState.value.canSendMessage) return;
 
   state.errorText = '';
   const pendingMessage = createMessage('user', draft, { pending: true });
@@ -1341,6 +1597,9 @@ async function submitActiveMessage() {
         used: response.usedRounds,
         remaining: response.remainingRounds
       });
+    }
+    if ((state.mode === 'town_npc' || state.mode === 'companion') && response.scopeId && auth.isAuthenticated.value && isAdminUser.value) {
+      await ensureMemoryScopeLoaded(response.scopeId, true);
     }
   } catch (error) {
     pendingMessage.pending = false;
@@ -1738,6 +1997,47 @@ function messageRoleLabel(role) {
   color: rgba(255, 190, 190, 0.96);
 }
 
+.memory-scope-grid,
+.memory-snapshot {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+}
+
+.memory-snapshot {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.snapshot-card {
+  --liquid-bg: rgba(255, 255, 255, 0.045);
+  --liquid-border: rgba(255, 255, 255, 0.08);
+  --liquid-shadow: none;
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.snapshot-card strong {
+  color: rgba(244, 248, 255, 0.94);
+  font-size: 12px;
+}
+
+.snapshot-card p {
+  margin: 0;
+  color: rgba(202, 214, 236, 0.8);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.snapshot-list {
+  margin: 0;
+  padding-left: 18px;
+  color: rgba(220, 231, 248, 0.84);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .worldbook-picker {
   display: grid;
   gap: 8px;
@@ -2071,7 +2371,8 @@ function messageRoleLabel(role) {
 
   .mode-switcher,
   .mode-config,
-  .management-grid {
+  .management-grid,
+  .memory-snapshot {
     grid-template-columns: 1fr;
   }
 

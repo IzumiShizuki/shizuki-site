@@ -1,0 +1,41 @@
+CREATE TABLE IF NOT EXISTS AI_MEMORY_SCOPE (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_MEMORY_SCOPE.id 自增长ID',
+    scope_id VARCHAR(160) NOT NULL COMMENT 'AI_MEMORY_SCOPE.scope_id 记忆作用域ID',
+    owner_user_id BIGINT NOT NULL COMMENT 'AI_MEMORY_SCOPE.owner_user_id 所属用户ID',
+    domain_type VARCHAR(32) NOT NULL COMMENT 'AI_MEMORY_SCOPE.domain_type 领域类型 town_npc/companion',
+    actor_code VARCHAR(64) NOT NULL COMMENT 'AI_MEMORY_SCOPE.actor_code 对象编码',
+    scene_code VARCHAR(64) NOT NULL COMMENT 'AI_MEMORY_SCOPE.scene_code 场景编码',
+    enabled_flag TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'AI_MEMORY_SCOPE.enabled_flag 是否启用该作用域记忆',
+    note_text VARCHAR(500) NULL COMMENT 'AI_MEMORY_SCOPE.note_text 管理员备注',
+    last_query_text VARCHAR(240) NULL COMMENT 'AI_MEMORY_SCOPE.last_query_text 最近一次管理检索词',
+    last_access_time DATETIME NULL COMMENT 'AI_MEMORY_SCOPE.last_access_time 最近访问时间',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_MEMORY_SCOPE.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_MEMORY_SCOPE.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_MEMORY_SCOPE.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_MEMORY_SCOPE.version_num 版本号',
+    CONSTRAINT PK_AI_MEMORY_SCOPE PRIMARY KEY (id),
+    CONSTRAINT AK_AI_MEMORY_SCOPE_1 UNIQUE (scope_id),
+    KEY IX_AI_MEMORY_SCOPE_1 (owner_user_id, domain_type, actor_code, scene_code),
+    KEY IX_AI_MEMORY_SCOPE_2 (owner_user_id, enabled_flag, update_time)
+) COMMENT='AI管理员记忆作用域配置表';
+
+CREATE TABLE IF NOT EXISTS AI_TOWN_ASSET_IMPORT (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'AI_TOWN_ASSET_IMPORT.id 自增长ID',
+    asset_code VARCHAR(64) NOT NULL COMMENT 'AI_TOWN_ASSET_IMPORT.asset_code 资产导入编码',
+    owner_user_id BIGINT NOT NULL COMMENT 'AI_TOWN_ASSET_IMPORT.owner_user_id 所属用户ID',
+    source_name VARCHAR(255) NOT NULL COMMENT 'AI_TOWN_ASSET_IMPORT.source_name 原始文件名',
+    asset_type VARCHAR(32) NOT NULL COMMENT 'AI_TOWN_ASSET_IMPORT.asset_type 资产类型',
+    parser_status VARCHAR(32) NOT NULL COMMENT 'AI_TOWN_ASSET_IMPORT.parser_status 解析状态',
+    attached_scene_code VARCHAR(64) NULL COMMENT 'AI_TOWN_ASSET_IMPORT.attached_scene_code 挂接场景编码',
+    raw_size_bytes BIGINT NOT NULL DEFAULT 0 COMMENT 'AI_TOWN_ASSET_IMPORT.raw_size_bytes 原始文件大小',
+    metadata_json JSON NOT NULL COMMENT 'AI_TOWN_ASSET_IMPORT.metadata_json 解析元数据JSON',
+    preview_json JSON NOT NULL COMMENT 'AI_TOWN_ASSET_IMPORT.preview_json 预览结构JSON',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'AI_TOWN_ASSET_IMPORT.create_time 创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'AI_TOWN_ASSET_IMPORT.update_time 更新时间',
+    deleted_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'AI_TOWN_ASSET_IMPORT.deleted_flag 删除标记',
+    version_num INT NOT NULL DEFAULT 0 COMMENT 'AI_TOWN_ASSET_IMPORT.version_num 版本号',
+    CONSTRAINT PK_AI_TOWN_ASSET_IMPORT PRIMARY KEY (id),
+    CONSTRAINT AK_AI_TOWN_ASSET_IMPORT_1 UNIQUE (asset_code),
+    KEY IX_AI_TOWN_ASSET_IMPORT_1 (owner_user_id, attached_scene_code, update_time),
+    KEY IX_AI_TOWN_ASSET_IMPORT_2 (owner_user_id, parser_status, update_time)
+) COMMENT='AI小镇RPGMaker资产导入记录表';

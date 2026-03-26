@@ -81,6 +81,27 @@ export async function getAiTownPublicMap(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function importAdminAiTownAsset(formData, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  if (!(formData instanceof FormData)) {
+    throw new Error('formData is required');
+  }
+  const response = await request('/api/v1/admin/ai-town/assets/import-rpgmaker', {
+    method: 'POST',
+    body: formData
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function previewAdminAiTownAsset(payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/ai-town/assets/preview', {
+    method: 'POST',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function createAdminTownNpcSession(npcCode, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const normalizedNpcCode = String(npcCode || '').trim();
@@ -112,6 +133,31 @@ export async function getAdminAiCompanionConfig(authorizedFetch) {
 export async function updateAdminAiCompanionConfig(payload, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/admin/ai-companion/config', {
+    method: 'PUT',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAdminAiMemoryScope(scopeId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedScopeId = String(scopeId || '').trim();
+  if (!normalizedScopeId) {
+    throw new Error('scopeId is required');
+  }
+  const response = await request(`/api/v1/admin/ai-memory/scopes/${encodeURIComponent(normalizedScopeId)}`, {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function updateAdminAiMemoryScope(scopeId, payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedScopeId = String(scopeId || '').trim();
+  if (!normalizedScopeId) {
+    throw new Error('scopeId is required');
+  }
+  const response = await request(`/api/v1/admin/ai-memory/scopes/${encodeURIComponent(normalizedScopeId)}`, {
     method: 'PUT',
     body: payload || {}
   });

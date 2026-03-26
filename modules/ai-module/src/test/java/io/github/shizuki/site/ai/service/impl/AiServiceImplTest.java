@@ -1,13 +1,18 @@
 package io.github.shizuki.site.ai.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.shizuki.common.core.error.BusinessException;
+import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewRequest;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewResponse;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
@@ -17,22 +22,28 @@ import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateAiMemoryScopeRequest;
 import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import io.github.shizuki.site.ai.entity.AiCharacterEntity;
 import io.github.shizuki.site.ai.entity.AiCompanionProfileEntity;
+import io.github.shizuki.site.ai.entity.AiMemoryScopeEntity;
 import io.github.shizuki.site.ai.entity.AiMessageEntity;
 import io.github.shizuki.site.ai.entity.AiQuotaUsageEntity;
 import io.github.shizuki.site.ai.entity.AiSessionEntity;
+import io.github.shizuki.site.ai.entity.AiTownAssetImportEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntryEntity;
+import io.github.shizuki.site.ai.integration.MemoryOsClient;
 import io.github.shizuki.site.ai.integration.UserQuotaGateway;
 import io.github.shizuki.site.ai.mapper.AiCharacterMapper;
 import io.github.shizuki.site.ai.mapper.AiCompanionProfileMapper;
+import io.github.shizuki.site.ai.mapper.AiMemoryScopeMapper;
 import io.github.shizuki.site.ai.mapper.AiMessageMapper;
 import io.github.shizuki.site.ai.mapper.AiQuotaUsageMapper;
 import io.github.shizuki.site.ai.mapper.AiSessionMapper;
+import io.github.shizuki.site.ai.mapper.AiTownAssetImportMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookEntryMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookMapper;
 import java.util.List;
@@ -46,16 +57,20 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
+import org.springframework.mock.web.MockMultipartFile;
 
 class AiServiceImplTest {
 
     private AiQuotaUsageMapper aiQuotaUsageMapper;
     private AiCharacterMapper aiCharacterMapper;
     private AiCompanionProfileMapper aiCompanionProfileMapper;
+    private AiMemoryScopeMapper aiMemoryScopeMapper;
     private AiSessionMapper aiSessionMapper;
     private AiMessageMapper aiMessageMapper;
+    private AiTownAssetImportMapper aiTownAssetImportMapper;
     private AiWorldbookMapper aiWorldbookMapper;
     private AiWorldbookEntryMapper aiWorldbookEntryMapper;
+    private MemoryOsClient memoryOsClient;
     private UserQuotaGateway userQuotaGateway;
 
     private AiServiceImpl aiService;
@@ -65,10 +80,13 @@ class AiServiceImplTest {
         aiQuotaUsageMapper = Mockito.mock(AiQuotaUsageMapper.class);
         aiCharacterMapper = Mockito.mock(AiCharacterMapper.class);
         aiCompanionProfileMapper = Mockito.mock(AiCompanionProfileMapper.class);
+        aiMemoryScopeMapper = Mockito.mock(AiMemoryScopeMapper.class);
         aiSessionMapper = Mockito.mock(AiSessionMapper.class);
         aiMessageMapper = Mockito.mock(AiMessageMapper.class);
+        aiTownAssetImportMapper = Mockito.mock(AiTownAssetImportMapper.class);
         aiWorldbookMapper = Mockito.mock(AiWorldbookMapper.class);
         aiWorldbookEntryMapper = Mockito.mock(AiWorldbookEntryMapper.class);
+        memoryOsClient = Mockito.mock(MemoryOsClient.class);
         userQuotaGateway = Mockito.mock(UserQuotaGateway.class);
 
         AiQuotaProperties aiQuotaProperties = new AiQuotaProperties();
@@ -82,11 +100,14 @@ class AiServiceImplTest {
             aiQuotaUsageMapper,
             aiCharacterMapper,
             aiCompanionProfileMapper,
+            aiMemoryScopeMapper,
             aiSessionMapper,
             aiMessageMapper,
+            aiTownAssetImportMapper,
             aiWorldbookMapper,
             aiWorldbookEntryMapper,
             aiQuotaProperties,
+            memoryOsClient,
             userQuotaGateway,
             new ObjectMapper()
         );
@@ -178,8 +199,16 @@ class AiServiceImplTest {
         Assertions.assertEquals("tavern", response.get("mode"));
         Assertions.assertEquals(1001L, response.get("character_id"));
         Assertions.assertEquals(List.of(11L, 12L), response.get("worldbook_ids"));
-        Assertions.assertEquals(Boolean.TRUE, response.get("memory_enabled"));
+        Assertions.assertEquals(Boolean.FALSE, response.get("memory_enabled"));
+        Assertions.assertNull(response.get("scope_id"));
         Assertions.assertTrue(String.valueOf(response.get("assistant_message")).contains("Tavern mode"));
+        Mockito.verify(memoryOsClient, Mockito.never()).retrieve(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any());
+        Mockito.verify(memoryOsClient, Mockito.never()).record(
+            ArgumentMatchers.anyString(),
+            ArgumentMatchers.anyString(),
+            ArgumentMatchers.anyString(),
+            ArgumentMatchers.anyMap()
+        );
 
         ArgumentCaptor<AiMessageEntity> messageCaptor = ArgumentCaptor.forClass(AiMessageEntity.class);
         Mockito.verify(aiMessageMapper, Mockito.times(2)).insert(messageCaptor.capture());
@@ -188,6 +217,66 @@ class AiServiceImplTest {
         Assertions.assertEquals("assistant", persistedMessages.get(1).getRoleName());
         Mockito.verify(aiSessionMapper).updateById(ArgumentMatchers.any(AiSessionEntity.class));
         Mockito.verify(aiQuotaUsageMapper).updateById(ArgumentMatchers.any(AiQuotaUsageEntity.class));
+    }
+
+    @Test
+    void shouldRejectGuestSendMessageWithZeroQuota() {
+        SendMessageRequest request = new SendMessageRequest();
+        request.setMessage("游客也想发言");
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> aiService.sendMessage("session-guest", request)
+        );
+
+        Assertions.assertEquals(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
+        Mockito.verify(aiSessionMapper, Mockito.never()).selectOne(ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldRejectNonAdminSceneModeSessionCreation() {
+        LoginUserContext.set(new LoginUser(18L, Set.of("USER"), Set.of()));
+
+        CreateSessionRequest request = new CreateSessionRequest();
+        request.setTitle("图书馆管理员会话");
+        request.setMode("town_npc");
+        request.setTownRoomCode("library");
+        request.setActorCode("librarian");
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> aiService.createSession(request)
+        );
+
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, exception.getErrorCode());
+        Mockito.verify(aiSessionMapper, Mockito.never()).insert(ArgumentMatchers.any(AiSessionEntity.class));
+    }
+
+    @Test
+    void shouldRejectNonAdminSceneModeSendMessage() {
+        LoginUserContext.set(new LoginUser(19L, Set.of("USER"), Set.of()));
+
+        AiSessionEntity session = new AiSessionEntity();
+        session.setId(880L);
+        session.setSessionId("session-town-user");
+        session.setUserId(19L);
+        session.setMode("town_npc");
+        session.setTownRoomCode("library");
+        session.setActorCode("librarian");
+        Mockito.when(aiSessionMapper.selectOne(ArgumentMatchers.any())).thenReturn(session);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setMessage("我想偷偷和特殊 NPC 聊天");
+        request.setMemoryEnabled(Boolean.TRUE);
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> aiService.sendMessage("session-town-user", request)
+        );
+
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, exception.getErrorCode());
+        Mockito.verify(aiQuotaUsageMapper, Mockito.never()).selectOne(ArgumentMatchers.any());
+        Mockito.verify(aiMessageMapper, Mockito.never()).insert(ArgumentMatchers.any(AiMessageEntity.class));
     }
 
     @Test
@@ -297,8 +386,24 @@ class AiServiceImplTest {
         usage.setTotalRounds(20L);
         usage.setUsedRounds(0L);
 
+        AtomicLong scopeSequence = new AtomicLong(1200);
         Mockito.when(aiSessionMapper.selectOne(ArgumentMatchers.any())).thenReturn(session);
         Mockito.when(aiQuotaUsageMapper.selectOne(ArgumentMatchers.any())).thenReturn(usage);
+        Mockito.when(aiMemoryScopeMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.doAnswer(invocation -> {
+            AiMemoryScopeEntity entity = invocation.getArgument(0);
+            entity.setId(scopeSequence.incrementAndGet());
+            return 1;
+        }).when(aiMemoryScopeMapper).insert(ArgumentMatchers.any(AiMemoryScopeEntity.class));
+        Mockito.when(memoryOsClient.isConfigured()).thenReturn(true);
+        Mockito.when(memoryOsClient.retrieve(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+            .thenReturn(new MemoryOsClient.MemorySnapshot(
+                "12:companion:my_home_ai:home",
+                "偏好暖光和安静的书桌环境。",
+                List.of("喜欢暖光", "偏好安静空间"),
+                List.of("上次聊到喜欢木质书桌 -> companion 记住了"),
+                List.of("你说想把灯调暖一点 -> companion 回应已记住")
+            ));
 
         SendMessageRequest request = new SendMessageRequest();
         request.setMessage("你还记得我上次喜欢的风格吗？");
@@ -307,7 +412,13 @@ class AiServiceImplTest {
         Map<String, Object> response = aiService.sendMessage("session-companion", request);
 
         Assertions.assertEquals("12:companion:my_home_ai:home", response.get("scope_id"));
-        Assertions.assertTrue(String.valueOf(response.get("assistant_message")).contains("12:companion:my_home_ai:home"));
+        Assertions.assertTrue(String.valueOf(response.get("assistant_message")).contains("profile=偏好暖光和安静的书桌环境"));
+        Mockito.verify(memoryOsClient).record(
+            ArgumentMatchers.eq("12:companion:my_home_ai:home"),
+            ArgumentMatchers.eq("你还记得我上次喜欢的风格吗？"),
+            ArgumentMatchers.contains("scope=12:companion:my_home_ai:home"),
+            ArgumentMatchers.anyMap()
+        );
     }
 
     @Test
@@ -485,5 +596,85 @@ class AiServiceImplTest {
         Assertions.assertEquals("PUBLIC", updated.visibilityType());
         Assertions.assertFalse(updated.enabled());
         Assertions.assertEquals(1, updated.entries().size());
+    }
+
+    @Test
+    void shouldImportTownAssetAndLoadPreview() throws Exception {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+        AtomicLong assetSequence = new AtomicLong(1500);
+
+        Mockito.doAnswer(invocation -> {
+            AiTownAssetImportEntity entity = invocation.getArgument(0);
+            entity.setId(assetSequence.incrementAndGet());
+            return 1;
+        }).when(aiTownAssetImportMapper).insert(ArgumentMatchers.any(AiTownAssetImportEntity.class));
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "Map001.json",
+            "application/json",
+            """
+                {
+                  "width": 20,
+                  "height": 15,
+                  "tilesetId": 3,
+                  "data": [1, 2, 3],
+                  "events": [null, {"id": 1}, {"id": 2}]
+                }
+                """.getBytes()
+        );
+
+        AiTownAssetPreviewResponse imported = aiService.importAdminTownAsset(file, "library");
+
+        Assertions.assertEquals("rpg_map", imported.assetType());
+        Assertions.assertEquals("library", imported.attachedSceneCode());
+        Assertions.assertTrue(imported.previewHighlights().stream().anyMatch(item -> item.contains("地图尺寸 20x15")));
+
+        AiTownAssetImportEntity persisted = new AiTownAssetImportEntity();
+        persisted.setId(imported.assetImportId());
+        persisted.setAssetCode(imported.assetCode());
+        persisted.setOwnerUserId(66L);
+        persisted.setSourceName(imported.sourceName());
+        persisted.setAssetType(imported.assetType());
+        persisted.setParserStatus(imported.parserStatus());
+        persisted.setAttachedSceneCode(imported.attachedSceneCode());
+        persisted.setRawSizeBytes(imported.rawSizeBytes());
+        persisted.setMetadataJson(new ObjectMapper().writeValueAsString(imported.metadata()));
+        persisted.setPreviewJson(new ObjectMapper().writeValueAsString(imported.preview()));
+        persisted.setUpdatedAt(imported.updatedAt());
+        Mockito.when(aiTownAssetImportMapper.selectOne(ArgumentMatchers.any())).thenReturn(persisted);
+
+        AiTownAssetPreviewRequest previewRequest = new AiTownAssetPreviewRequest();
+        previewRequest.setAssetCode(imported.assetCode());
+        AiTownAssetPreviewResponse preview = aiService.previewAdminTownAsset(previewRequest);
+
+        Assertions.assertEquals(imported.assetCode(), preview.assetCode());
+        Assertions.assertEquals("rpg_map", preview.assetType());
+    }
+
+    @Test
+    void shouldUpdateAndReadAdminMemoryScope() {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+        AtomicLong scopeSequence = new AtomicLong(2100);
+
+        Mockito.when(aiMemoryScopeMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+        Mockito.doAnswer(invocation -> {
+            AiMemoryScopeEntity entity = invocation.getArgument(0);
+            entity.setId(scopeSequence.incrementAndGet());
+            return 1;
+        }).when(aiMemoryScopeMapper).insert(ArgumentMatchers.any(AiMemoryScopeEntity.class));
+        Mockito.when(memoryOsClient.isConfigured()).thenReturn(false);
+
+        UpdateAiMemoryScopeRequest request = new UpdateAiMemoryScopeRequest();
+        request.setEnabled(Boolean.FALSE);
+        request.setNote("图书馆作用域先暂停写回");
+        request.setQuery("图书馆偏好");
+
+        AiMemoryScopeResponse response = aiService.updateAdminMemoryScope("66:town_npc:librarian:library", request);
+
+        Assertions.assertEquals("town_npc", response.domainType());
+        Assertions.assertEquals("librarian", response.actorCode());
+        Assertions.assertFalse(response.enabled());
+        Assertions.assertEquals("图书馆作用域先暂停写回", response.note());
     }
 }

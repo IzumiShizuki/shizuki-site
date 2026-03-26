@@ -39,9 +39,17 @@
                 <div class="stage-copy">
                   <span class="stage-kicker">RPGMaker Editor Entry</span>
                   <h2>地图资源编辑入口</h2>
-                  <p>这里负责承接上传、解析、预览和挂接四段链路。当前先把工作区入口放进 AI Hub，后续 bead 会继续接真实上传与解析能力。</p>
+                  <p>这里负责承接上传、解析、预览和挂接四段链路。当前支持 zip/json/image 资源导入，并把最近一次预览挂接到指定小镇场景。</p>
                 </div>
                 <div class="stage-actions">
+                  <button
+                    class="stage-btn ripple-trigger"
+                    type="button"
+                    :disabled="townAssetEditor.refreshing"
+                    @click="loadTownAssetPreview({ sceneCode: townAssetEditor.attachedSceneCode })"
+                  >
+                    {{ townAssetEditor.refreshing ? '读取中...' : '刷新预览' }}
+                  </button>
                   <button class="stage-btn ripple-trigger" type="button" @click="activateTownWorkspace('map')">返回地图</button>
                 </div>
               </div>
@@ -50,29 +58,79 @@
                 <article class="editor-card liquid-material emphasis">
                   <span class="editor-step">01</span>
                   <strong>上传资源</strong>
-                  <p>入口会承接 RPGMaker 地图、角色或素材包上传。本轮先完成工作台落位，不在这里提前塞运行时逻辑。</p>
-                  <span class="editor-tag">上传入口待接入</span>
+                  <p>支持导入 RPGMaker `zip / json / image`。上传后会自动抽取元数据，并把预览挂到你选择的场景。</p>
+                  <label class="editor-file-field">
+                    <span>目标场景</span>
+                    <select v-model="townAssetEditor.attachedSceneCode" class="editor-select">
+                      <option v-for="scene in townScenes" :key="`editor-${scene.sceneCode}`" :value="scene.sceneCode">
+                        {{ scene.title }} · {{ scene.sceneCode }}
+                      </option>
+                    </select>
+                  </label>
+                  <label class="editor-file-field">
+                    <span>选择资源</span>
+                    <input type="file" accept=".zip,.json,.png,.jpg,.jpeg,.webp" @change="handleTownAssetFileChange" />
+                  </label>
+                  <small v-if="townAssetEditor.selectedFileName" class="editor-inline-tip">已选：{{ townAssetEditor.selectedFileName }}</small>
+                  <button class="stage-btn primary ripple-trigger" type="button" :disabled="townAssetEditor.importing" @click="submitTownAssetImport">
+                    {{ townAssetEditor.importing ? '导入中...' : '导入并解析' }}
+                  </button>
                 </article>
 
                 <article class="editor-card liquid-material">
                   <span class="editor-step">02</span>
                   <strong>解析结果</strong>
-                  <p>解析面会显示地图块、点位元数据和素材引用状态，方便确认导入内容是否可挂到 AI 小镇展示层。</p>
-                  <span class="editor-tag">解析 bead 继续实现</span>
+                  <p v-if="townAssetEditor.preview">
+                    类型：{{ townAssetEditor.preview.assetType }} · 状态：{{ townAssetEditor.preview.parserStatus }} · 大小：{{ townAssetEditor.preview.rawSizeBytes }} bytes
+                  </p>
+                  <p v-else>导入后这里会显示资源类型、解析状态和大小，方便确认是否已进入可挂接态。</p>
+                  <span class="editor-tag">{{ townAssetEditor.preview?.assetCode || '等待导入' }}</span>
                 </article>
 
                 <article class="editor-card liquid-material">
                   <span class="editor-step">03</span>
                   <strong>地图预览</strong>
-                  <p>这里将承接预览缩略图、房间排布和入口检查。当前保留预览位，避免下一轮再返工主工作台结构。</p>
-                  <span class="editor-tag">预览面预留</span>
+                  <template v-if="townAssetEditor.preview?.previewHighlights?.length">
+                    <ul class="editor-preview-list">
+                      <li v-for="item in townAssetEditor.preview.previewHighlights" :key="item">{{ item }}</li>
+                    </ul>
+                  </template>
+                  <p v-else>预览会优先展示地图尺寸、事件数量、压缩包样本文件和当前挂接场景。</p>
+                  <span class="editor-tag">{{ townAssetEditor.preview?.attachedSceneCode || townAssetEditor.attachedSceneCode || '未挂接' }}</span>
                 </article>
 
                 <article class="editor-card liquid-material">
                   <span class="editor-step">04</span>
                   <strong>配置挂接</strong>
-                  <p>最终会把解析出来的资源挂到公开漫游地图、场景点位和管理员编辑流。不会在一期实现 RPGMaker 运行时。</p>
-                  <span class="editor-tag">挂接配置预留</span>
+                  <p>
+                    当前挂接目标：{{ townAssetEditor.preview?.attachedSceneCode || townAssetEditor.attachedSceneCode || '未选择' }}。不会在一期实现 RPGMaker 运行时，只做展示挂接。
+                  </p>
+                  <span class="editor-tag">{{ townAssetEditor.preview ? '已挂接预览' : '挂接待确认' }}</span>
+                </article>
+              </div>
+
+              <p v-if="townAssetEditor.errorText" class="feedback-banner error">{{ townAssetEditor.errorText }}</p>
+              <p v-else-if="townAssetEditor.feedbackText" class="feedback-banner">{{ townAssetEditor.feedbackText }}</p>
+
+              <div v-if="townAssetEditor.preview" class="editor-data-grid">
+                <article class="editor-data-card liquid-material">
+                  <strong>元数据</strong>
+                  <dl>
+                    <template v-for="[key, value] in townAssetMetadataEntries" :key="`meta-${key}`">
+                      <dt>{{ key }}</dt>
+                      <dd>{{ Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : value }}</dd>
+                    </template>
+                  </dl>
+                </article>
+
+                <article class="editor-data-card liquid-material">
+                  <strong>预览结构</strong>
+                  <dl>
+                    <template v-for="[key, value] in townAssetPreviewEntries" :key="`preview-${key}`">
+                      <dt>{{ key }}</dt>
+                      <dd>{{ Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : value }}</dd>
+                    </template>
+                  </dl>
                 </article>
               </div>
             </template>
@@ -95,7 +153,7 @@
                     {{ townLoading ? '刷新中...' : '刷新场景' }}
                   </button>
                   <button
-                    v-if="isAdminUser"
+                    v-if="canManageTownAssets"
                     class="stage-btn primary ripple-trigger"
                     type="button"
                     @click="activateTownWorkspace('editor')"
@@ -175,7 +233,7 @@
               </article>
               <article class="side-info-card">
                 <strong>为后续 bead 预留结构</strong>
-                <p>这一层会继续承接 `shizuki-site-gyf` 的真实上传解析预览链路，避免再重做 AI Hub 壳层。</p>
+                <p>这一层已经接上真实上传、解析和预览链路；后续只需要继续细化挂接表现，而不用重做 AI Hub 壳层。</p>
               </article>
             </div>
           </template>
@@ -195,7 +253,7 @@
             <div class="quick-actions">
               <button class="quick-btn ripple-trigger" type="button" @click="jumpToHomeExterior">快速跳到自宅</button>
               <button
-                v-if="isAdminUser"
+                v-if="canManageTownAssets"
                 class="quick-btn ripple-trigger"
                 type="button"
                 @click="activateTownWorkspace('editor')"
@@ -264,15 +322,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import AiDialog from '../components/AiDialog.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminTownNpcSession,
   getAiTownPublicMap,
   getAiTownScene,
-  listAiTownScenes
+  importAdminAiTownAsset,
+  listAiTownScenes,
+  previewAdminAiTownAsset
 } from '../services/aiApi';
+import { buildAiCapabilityState } from '../utils/aiAuthorizationState';
 
 const auth = useAuthSession();
 const activePrimaryMode = ref('town');
@@ -287,6 +348,7 @@ const townScenes = ref([]);
 const townMap = ref({ scenes: [] });
 const selectedTownSceneCode = ref('');
 const selectedTownScene = ref(null);
+const townAssetEditor = reactive(createTownAssetEditorState());
 
 const conversationAllowedModes = ['normal', 'tavern', 'town_npc', 'companion'];
 
@@ -358,6 +420,36 @@ function normalizeTownMap(raw = {}) {
   };
 }
 
+function createTownAssetEditorState() {
+  return {
+    importing: false,
+    refreshing: false,
+    errorText: '',
+    feedbackText: '',
+    selectedFile: null,
+    selectedFileName: '',
+    attachedSceneCode: '',
+    preview: null
+  };
+}
+
+function normalizeTownAssetPreview(raw = {}) {
+  return {
+    assetImportId: toNumber(raw.assetImportId ?? raw.asset_import_id),
+    assetCode: normalizeOptionalText(raw.assetCode || raw.asset_code),
+    sourceName: normalizeOptionalText(raw.sourceName || raw.source_name) || '未命名资源',
+    assetType: normalizeOptionalText(raw.assetType || raw.asset_type) || 'unknown',
+    parserStatus: normalizeOptionalText(raw.parserStatus || raw.parser_status) || 'UNKNOWN',
+    rawSizeBytes: toNumber(raw.rawSizeBytes ?? raw.raw_size_bytes),
+    attachedSceneCode: normalizeOptionalText(raw.attachedSceneCode || raw.attached_scene_code) || '',
+    previewHighlights: Array.isArray(raw.previewHighlights || raw.preview_highlights)
+      ? (raw.previewHighlights || raw.preview_highlights).map((item) => normalizeOptionalText(item)).filter(Boolean)
+      : [],
+    metadata: raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : {},
+    preview: raw.preview && typeof raw.preview === 'object' ? raw.preview : {}
+  };
+}
+
 function resolveTownError(error) {
   if (error instanceof Error && normalizeOptionalText(error.message)) {
     return error.message;
@@ -365,14 +457,21 @@ function resolveTownError(error) {
   return 'AI 小镇数据加载失败，请稍后再试。';
 }
 
-const isAdminUser = computed(() => {
-  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
-  return groups.some((groupCode) => String(groupCode || '').trim().toUpperCase() === 'ADMIN');
-});
+const adminCapability = computed(() =>
+  buildAiCapabilityState({
+    authenticated: auth.isAuthenticated.value,
+    groups: Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [],
+    mode: 'town_npc'
+  })
+);
+const isAdminUser = computed(() => adminCapability.value.isAdmin);
+const canManageTownAssets = computed(() => adminCapability.value.canManageTownAssets);
 
 const selectedTownSceneSummary = computed(() =>
   townScenes.value.find((item) => item.sceneCode === selectedTownSceneCode.value) || null
 );
+const townAssetMetadataEntries = computed(() => Object.entries(townAssetEditor.preview?.metadata || {}).slice(0, 8));
+const townAssetPreviewEntries = computed(() => Object.entries(townAssetEditor.preview?.preview || {}).slice(0, 6));
 
 const currentConversationLabel = computed(() => {
   if (conversationChatMode.value === 'tavern') {
@@ -392,6 +491,10 @@ const canOpenCompanion = computed(() => isAdminUser.value && selectedTownSceneCo
 function activateTownWorkspace(nextSubView = 'map') {
   activePrimaryMode.value = 'town';
   townSubView.value = nextSubView;
+  if (nextSubView === 'editor') {
+    townAssetEditor.attachedSceneCode = selectedTownSceneCode.value || townScenes.value[0]?.sceneCode || 'library';
+    void loadTownAssetPreview({ sceneCode: townAssetEditor.attachedSceneCode, silent: true });
+  }
 }
 
 function activateStandardConversation() {
@@ -420,6 +523,82 @@ async function loadTownScene(sceneCode) {
   if (!normalizedSceneCode) return;
   selectedTownSceneCode.value = normalizedSceneCode;
   selectedTownScene.value = normalizeTownSceneDetail(await getAiTownScene(normalizedSceneCode));
+  if (!townAssetEditor.attachedSceneCode) {
+    townAssetEditor.attachedSceneCode = normalizedSceneCode;
+  }
+}
+
+function handleTownAssetFileChange(event) {
+  const file = event?.target?.files?.[0] || null;
+  townAssetEditor.selectedFile = file;
+  townAssetEditor.selectedFileName = file?.name || '';
+}
+
+async function submitTownAssetImport() {
+  if (!auth.isAuthenticated.value || !canManageTownAssets.value) {
+    townAssetEditor.errorText = '只有 ADMIN 可以上传 RPGMaker 资源。';
+    return;
+  }
+  if (!townAssetEditor.selectedFile) {
+    townAssetEditor.errorText = '请先选择一个 RPGMaker zip/json/image 文件。';
+    return;
+  }
+
+  townAssetEditor.importing = true;
+  townAssetEditor.errorText = '';
+  townAssetEditor.feedbackText = '';
+  try {
+    const formData = new FormData();
+    formData.append('file', townAssetEditor.selectedFile);
+    if (normalizeOptionalText(townAssetEditor.attachedSceneCode)) {
+      formData.append('scene_code', townAssetEditor.attachedSceneCode);
+    }
+    const preview = await importAdminAiTownAsset(formData, auth.authorizedFetch);
+    townAssetEditor.preview = normalizeTownAssetPreview(preview);
+    townAssetEditor.feedbackText = 'RPGMaker 资源已导入并生成预览。';
+    townAssetEditor.selectedFile = null;
+    townAssetEditor.selectedFileName = '';
+  } catch (error) {
+    townAssetEditor.errorText = resolveTownError(error);
+  } finally {
+    townAssetEditor.importing = false;
+  }
+}
+
+async function loadTownAssetPreview(options = {}) {
+  if (!auth.isAuthenticated.value || !canManageTownAssets.value) {
+    return;
+  }
+  const sceneCode = normalizeOptionalText(options.sceneCode || townAssetEditor.attachedSceneCode);
+  const assetCode = normalizeOptionalText(options.assetCode || townAssetEditor.preview?.assetCode);
+  if (!sceneCode && !assetCode) {
+    townAssetEditor.preview = null;
+    return;
+  }
+
+  townAssetEditor.refreshing = true;
+  if (!options.silent) {
+    townAssetEditor.errorText = '';
+  }
+  try {
+    const preview = await previewAdminAiTownAsset(
+      assetCode ? { assetCode } : { sceneCode },
+      auth.authorizedFetch
+    );
+    townAssetEditor.preview = normalizeTownAssetPreview(preview);
+  } catch (error) {
+    const message = resolveTownError(error);
+    if (message.toLowerCase().includes('not found')) {
+      townAssetEditor.preview = null;
+      if (!options.silent) {
+        townAssetEditor.feedbackText = '当前场景还没有已挂接的 RPGMaker 预览。';
+      }
+    } else {
+      townAssetEditor.errorText = message;
+    }
+  } finally {
+    townAssetEditor.refreshing = false;
+  }
 }
 
 async function loadTownExplorer() {
@@ -431,6 +610,9 @@ async function loadTownExplorer() {
     townMap.value = normalizeTownMap(mapPayload);
     const defaultSceneCode = selectedTownSceneCode.value || townScenes.value[0]?.sceneCode || 'library';
     await loadTownScene(defaultSceneCode);
+    if (!townAssetEditor.attachedSceneCode) {
+      townAssetEditor.attachedSceneCode = defaultSceneCode;
+    }
   } catch (error) {
     townErrorText.value = resolveTownError(error);
   } finally {
@@ -924,6 +1106,67 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.editor-file-field {
+  display: grid;
+  gap: 6px;
+}
+
+.editor-file-field span,
+.editor-inline-tip,
+.editor-preview-list,
+.editor-data-card dt,
+.editor-data-card dd {
+  color: rgba(214, 225, 245, 0.82);
+  font-size: 12px;
+}
+
+.editor-file-field input,
+.editor-select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(7, 13, 22, 0.34);
+  color: rgba(246, 250, 255, 0.96);
+}
+
+.editor-select {
+  appearance: none;
+}
+
+.editor-preview-list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.7;
+}
+
+.editor-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.editor-data-card {
+  border-radius: 22px;
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.editor-data-card dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(90px, 120px) minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+.editor-data-card dt,
+.editor-data-card dd {
+  margin: 0;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
 .editor-card.emphasis {
   --liquid-bg: linear-gradient(145deg, rgba(var(--accent-rgb), 0.18), rgba(255, 255, 255, 0.04));
   --liquid-border: rgba(var(--accent-rgb), 0.24);
@@ -966,7 +1209,8 @@ onMounted(async () => {
 
   .mode-switch,
   .scene-rail,
-  .editor-grid {
+  .editor-grid,
+  .editor-data-grid {
     grid-template-columns: 1fr;
   }
 

@@ -3,6 +3,7 @@ package io.github.shizuki.site.ai.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
@@ -11,9 +12,12 @@ import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownMapNodeResponse;
 import io.github.shizuki.site.ai.dto.AiTownNpcResponse;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewRequest;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewResponse;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
@@ -23,36 +27,51 @@ import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateAiMemoryScopeRequest;
 import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import io.github.shizuki.site.ai.entity.AiCharacterEntity;
 import io.github.shizuki.site.ai.entity.AiCompanionProfileEntity;
+import io.github.shizuki.site.ai.entity.AiMemoryScopeEntity;
 import io.github.shizuki.site.ai.entity.AiMessageEntity;
 import io.github.shizuki.site.ai.entity.AiQuotaUsageEntity;
 import io.github.shizuki.site.ai.entity.AiSessionEntity;
+import io.github.shizuki.site.ai.entity.AiTownAssetImportEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntryEntity;
+import io.github.shizuki.site.ai.integration.MemoryOsClient;
 import io.github.shizuki.site.ai.integration.UserQuotaGateway;
 import io.github.shizuki.site.ai.mapper.AiCharacterMapper;
 import io.github.shizuki.site.ai.mapper.AiCompanionProfileMapper;
+import io.github.shizuki.site.ai.mapper.AiMemoryScopeMapper;
 import io.github.shizuki.site.ai.mapper.AiMessageMapper;
 import io.github.shizuki.site.ai.mapper.AiQuotaUsageMapper;
 import io.github.shizuki.site.ai.mapper.AiSessionMapper;
+import io.github.shizuki.site.ai.mapper.AiTownAssetImportMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookEntryMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookMapper;
 import io.github.shizuki.site.ai.service.AiService;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Service
 public class AiServiceImpl implements AiService {
@@ -71,32 +90,41 @@ public class AiServiceImpl implements AiService {
     private final AiQuotaUsageMapper aiQuotaUsageMapper;
     private final AiCharacterMapper aiCharacterMapper;
     private final AiCompanionProfileMapper aiCompanionProfileMapper;
+    private final AiMemoryScopeMapper aiMemoryScopeMapper;
     private final AiSessionMapper aiSessionMapper;
     private final AiMessageMapper aiMessageMapper;
+    private final AiTownAssetImportMapper aiTownAssetImportMapper;
     private final AiWorldbookMapper aiWorldbookMapper;
     private final AiWorldbookEntryMapper aiWorldbookEntryMapper;
     private final AiQuotaProperties aiQuotaProperties;
+    private final MemoryOsClient memoryOsClient;
     private final UserQuotaGateway userQuotaClient;
     private final ObjectMapper objectMapper;
 
     public AiServiceImpl(AiQuotaUsageMapper aiQuotaUsageMapper,
                          AiCharacterMapper aiCharacterMapper,
                          AiCompanionProfileMapper aiCompanionProfileMapper,
+                         AiMemoryScopeMapper aiMemoryScopeMapper,
                          AiSessionMapper aiSessionMapper,
                          AiMessageMapper aiMessageMapper,
+                         AiTownAssetImportMapper aiTownAssetImportMapper,
                          AiWorldbookMapper aiWorldbookMapper,
                          AiWorldbookEntryMapper aiWorldbookEntryMapper,
                          AiQuotaProperties aiQuotaProperties,
+                         MemoryOsClient memoryOsClient,
                          UserQuotaGateway userQuotaClient,
                          ObjectMapper objectMapper) {
         this.aiQuotaUsageMapper = aiQuotaUsageMapper;
         this.aiCharacterMapper = aiCharacterMapper;
         this.aiCompanionProfileMapper = aiCompanionProfileMapper;
+        this.aiMemoryScopeMapper = aiMemoryScopeMapper;
         this.aiSessionMapper = aiSessionMapper;
         this.aiMessageMapper = aiMessageMapper;
+        this.aiTownAssetImportMapper = aiTownAssetImportMapper;
         this.aiWorldbookMapper = aiWorldbookMapper;
         this.aiWorldbookEntryMapper = aiWorldbookEntryMapper;
         this.aiQuotaProperties = aiQuotaProperties;
+        this.memoryOsClient = memoryOsClient;
         this.userQuotaClient = userQuotaClient;
         this.objectMapper = objectMapper;
     }
@@ -104,7 +132,7 @@ public class AiServiceImpl implements AiService {
     @Override
     public AiSessionSummary createSession(CreateSessionRequest request) {
         String mode = normalizeSessionMode(request.getMode());
-        if ("companion".equals(mode)) {
+        if (MEMORY_SCENE_SESSION_MODES.contains(mode)) {
             requireLoginUserId();
             requireAdminRole();
         }
@@ -164,58 +192,56 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public Map<String, Object> sendMessage(String sessionId, SendMessageRequest request) {
-        Long userId = currentUserIdOrNull();
-        AiSessionEntity session = isLoggedIn(userId) ? loadOwnedSession(sessionId, userId) : null;
-        String sessionMode = session == null ? DEFAULT_SESSION_MODE : normalizeSessionMode(session.getMode());
-        if ("companion".equals(sessionMode)) {
+        Long userId = requireLoginUserId();
+        AiSessionEntity session = loadOwnedSession(sessionId, userId);
+        String sessionMode = normalizeSessionMode(session.getMode());
+        if (MEMORY_SCENE_SESSION_MODES.contains(sessionMode)) {
             requireAdminRole();
         }
-        List<Long> worldbookIds = session == null ? List.of() : parseWorldbookIds(session.getBoundWorldbookJson());
+        List<Long> worldbookIds = parseWorldbookIds(session.getBoundWorldbookJson());
         boolean memoryEnabled = Boolean.TRUE.equals(request.getMemoryEnabled());
-
-        Long usedRounds = null;
-        Long remainingRounds = null;
-        Long totalRounds = null;
-        String quotaCode = null;
-
-        if (isLoggedIn(userId)) {
-            long total = resolveTotalQuota();
-            AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
-
-            long next = usage.getUsedRounds() + 1;
-            if (next > usage.getTotalRounds()) {
-                throw new BusinessException(
-                    ErrorCode.FORBIDDEN,
-                    "AI quota exhausted",
-                    Map.of(
-                        "quota_code", usage.getQuotaCode(),
-                        "total", usage.getTotalRounds(),
-                        "used", usage.getUsedRounds(),
-                        "remaining", 0
-                    )
-                );
-            }
-
-            usage.setUsedRounds(next);
-            usage.setUpdatedAt(LocalDateTime.now());
-            aiQuotaUsageMapper.updateById(usage);
-
-            usedRounds = next;
-            remainingRounds = Math.max(0, usage.getTotalRounds() - next);
-            totalRounds = usage.getTotalRounds();
-            quotaCode = usage.getQuotaCode();
-        }
-
         String normalizedMessage = request.getMessage().trim();
         int contextSize = request.getContext() == null ? 0 : request.getContext().size();
-        String scopeId = resolveScopeId(sessionMode, session, userId, request, memoryEnabled);
-        String assistantMessage = buildAssistantReply(sessionMode, session, worldbookIds, normalizedMessage, contextSize, memoryEnabled, scopeId);
 
-        if (session != null) {
-            persistMessage(session.getId(), userId, "user", normalizedMessage);
-            persistMessage(session.getId(), userId, "assistant", assistantMessage);
-            session.setUpdatedAt(LocalDateTime.now());
-            aiSessionMapper.updateById(session);
+        long total = resolveTotalQuota();
+        AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
+        boolean unlimitedQuota = usage.getTotalRounds() != null && usage.getTotalRounds() < 0;
+        long next = usage.getUsedRounds() + 1;
+        if (!unlimitedQuota && next > usage.getTotalRounds()) {
+            throw new BusinessException(
+                ErrorCode.FORBIDDEN,
+                "AI quota exhausted",
+                Map.of(
+                    "quota_code", usage.getQuotaCode(),
+                    "total", usage.getTotalRounds(),
+                    "used", usage.getUsedRounds(),
+                    "remaining", 0
+                )
+            );
+        }
+
+        usage.setUsedRounds(next);
+        usage.setUpdatedAt(LocalDateTime.now());
+        aiQuotaUsageMapper.updateById(usage);
+
+        MemoryConversationContext memoryContext = buildMemoryContext(sessionMode, session, userId, request, memoryEnabled, normalizedMessage);
+        String assistantMessage = buildAssistantReply(
+            sessionMode,
+            session,
+            worldbookIds,
+            normalizedMessage,
+            contextSize,
+            memoryContext.enabled(),
+            memoryContext.scopeId(),
+            memoryContext
+        );
+
+        persistMessage(session.getId(), userId, "user", normalizedMessage);
+        persistMessage(session.getId(), userId, "assistant", assistantMessage);
+        session.setUpdatedAt(LocalDateTime.now());
+        aiSessionMapper.updateById(session);
+        if (memoryContext.shouldPersistRecord()) {
+            writeMemoryRecord(memoryContext, session, normalizedMessage, assistantMessage);
         }
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -224,21 +250,20 @@ public class AiServiceImpl implements AiService {
         response.put("assistant_message", assistantMessage);
         response.put("mode", sessionMode);
         response.put("context_size", contextSize);
-        response.put("memory_enabled", memoryEnabled);
-        response.put("scope_id", scopeId);
-        response.put("quota_applied", isLoggedIn(userId));
-        response.put("character_id", session == null ? null : session.getCharacterId());
+        response.put("memory_enabled", memoryContext.enabled());
+        response.put("scope_id", memoryContext.scopeId());
+        response.put("quota_applied", true);
+        response.put("character_id", session.getCharacterId());
         response.put("worldbook_ids", worldbookIds);
-        response.put("scene_prompt", session == null ? null : session.getScenePrompt());
-        response.put("town_room_code", session == null ? null : session.getTownRoomCode());
-        response.put("actor_code", session == null ? null : session.getActorCode());
-
-        if (isLoggedIn(userId)) {
-            response.put("quota_code", quotaCode);
-            response.put("total_rounds", totalRounds);
-            response.put("used_rounds", usedRounds);
-            response.put("remaining_rounds", remainingRounds);
-        }
+        response.put("scene_prompt", session.getScenePrompt());
+        response.put("town_room_code", session.getTownRoomCode());
+        response.put("actor_code", session.getActorCode());
+        response.put("quota_code", usage.getQuotaCode());
+        response.put("total_rounds", usage.getTotalRounds());
+        response.put("used_rounds", usage.getUsedRounds());
+        response.put("remaining_rounds", unlimitedQuota ? -1 : Math.max(0, usage.getTotalRounds() - usage.getUsedRounds()));
+        response.put("memory_summary_highlights", memoryContext.summaryHighlights());
+        response.put("memory_journal_highlights", memoryContext.journalHighlights());
 
         return response;
     }
@@ -248,12 +273,15 @@ public class AiServiceImpl implements AiService {
         Long userId = requireLoginUserId();
         long total = resolveTotalQuota();
         AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
+        long remaining = usage.getTotalRounds() != null && usage.getTotalRounds() < 0
+            ? -1
+            : Math.max(0, usage.getTotalRounds() - usage.getUsedRounds());
 
         return Map.of(
             "quota_code", usage.getQuotaCode(),
             "total", usage.getTotalRounds(),
             "used", usage.getUsedRounds(),
-            "remaining", Math.max(0, usage.getTotalRounds() - usage.getUsedRounds())
+            "remaining", remaining
         );
     }
 
@@ -313,6 +341,54 @@ public class AiServiceImpl implements AiService {
                 ))
                 .toList()
         );
+    }
+
+    @Override
+    public AiTownAssetPreviewResponse importAdminTownAsset(MultipartFile file, String sceneCode) {
+        Long userId = requireLoginUserId();
+        requireAdminRole();
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "RPGMaker asset file is required");
+        }
+
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Failed to read RPGMaker asset");
+        }
+
+        String attachedSceneCode = normalizeCode(sceneCode);
+        if (attachedSceneCode != null) {
+            loadTownScene(attachedSceneCode);
+        }
+
+        ParsedTownAsset parsed = parseTownAsset(file.getOriginalFilename(), content, attachedSceneCode);
+        LocalDateTime now = LocalDateTime.now();
+        AiTownAssetImportEntity entity = new AiTownAssetImportEntity();
+        entity.setAssetCode("rpg-" + UUID.randomUUID());
+        entity.setOwnerUserId(userId);
+        entity.setSourceName(parsed.sourceName());
+        entity.setAssetType(parsed.assetType());
+        entity.setParserStatus("READY");
+        entity.setAttachedSceneCode(attachedSceneCode);
+        entity.setRawSizeBytes((long) content.length);
+        entity.setMetadataJson(toJsonValue(parsed.metadata()));
+        entity.setPreviewJson(toJsonValue(parsed.preview()));
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        entity.setDeleted(0);
+        entity.setVersion(0);
+        aiTownAssetImportMapper.insert(entity);
+        return toTownAssetPreview(entity, parsed);
+    }
+
+    @Override
+    public AiTownAssetPreviewResponse previewAdminTownAsset(AiTownAssetPreviewRequest request) {
+        Long userId = requireLoginUserId();
+        requireAdminRole();
+        AiTownAssetImportEntity entity = loadTownAssetImport(request, userId);
+        return toTownAssetPreview(entity);
     }
 
     @Override
@@ -395,6 +471,61 @@ public class AiServiceImpl implements AiService {
         request.setTownRoomCode(DEFAULT_COMPANION_SCENE_CODE);
         request.setActorCode(config.companionCode());
         return createSession(request);
+    }
+
+    @Override
+    public AiMemoryScopeResponse getAdminMemoryScope(String scopeId) {
+        requireLoginUserId();
+        requireAdminRole();
+        AiMemoryScopeEntity entity = loadMemoryScope(scopeId);
+        return toMemoryScopeResponse(entity, true, entity == null ? null : entity.getLastQuery(), null);
+    }
+
+    @Override
+    public AiMemoryScopeResponse updateAdminMemoryScope(String scopeId, UpdateAiMemoryScopeRequest request) {
+        Long userId = requireLoginUserId();
+        requireAdminRole();
+        String normalizedScopeId = normalizeScopeId(scopeId);
+        if (normalizedScopeId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "scope_id is required");
+        }
+
+        AiMemoryScopeEntity entity = loadMemoryScope(normalizedScopeId);
+        if (entity == null) {
+            ScopeParts scopeParts = parseScopeParts(normalizedScopeId);
+            entity = new AiMemoryScopeEntity();
+            entity.setScopeId(normalizedScopeId);
+            entity.setOwnerUserId(userId);
+            entity.setDomainType(scopeParts.domainType());
+            entity.setActorCode(scopeParts.actorCode());
+            entity.setSceneCode(scopeParts.sceneCode());
+            entity.setEnabled(toFlag(request == null ? null : request.getEnabled(), true));
+            entity.setCreatedAt(LocalDateTime.now());
+            entity.setDeleted(0);
+            entity.setVersion(0);
+        } else if (entity.getOwnerUserId() != null && !entity.getOwnerUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "This memory scope does not belong to current admin");
+        }
+
+        if (request != null && request.getEnabled() != null) {
+            entity.setEnabled(toFlag(request.getEnabled(), isEnabled(entity.getEnabled())));
+        }
+        if (request != null) {
+            entity.setNote(normalizeMemoryNote(request.getNote()));
+            entity.setLastQuery(normalizeMemoryQuery(request.getQuery()));
+        }
+        entity.setLastAccessedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+
+        if (entity.getId() == null) {
+            aiMemoryScopeMapper.insert(entity);
+        } else {
+            aiMemoryScopeMapper.updateById(entity);
+        }
+
+        boolean includeSnapshot = request == null || request.getIncludeSnapshot() == null || request.getIncludeSnapshot();
+        Integer journalLimit = request == null ? null : request.getJournalLimit();
+        return toMemoryScopeResponse(entity, includeSnapshot, entity.getLastQuery(), journalLimit);
     }
 
     @Override
@@ -594,6 +725,52 @@ public class AiServiceImpl implements AiService {
         return entity;
     }
 
+    private AiMemoryScopeEntity loadMemoryScope(String scopeId) {
+        String normalizedScopeId = normalizeScopeId(scopeId);
+        if (normalizedScopeId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "scope_id is required");
+        }
+        return aiMemoryScopeMapper.selectOne(
+            new LambdaQueryWrapper<AiMemoryScopeEntity>()
+                .eq(AiMemoryScopeEntity::getScopeId, normalizedScopeId)
+                .eq(AiMemoryScopeEntity::getDeleted, 0)
+                .last("LIMIT 1")
+        );
+    }
+
+    private AiTownAssetImportEntity loadTownAssetImport(AiTownAssetPreviewRequest request, Long userId) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "preview request is required");
+        }
+        String assetCode = normalizeCode(request.getAssetCode());
+        String sceneCode = normalizeCode(request.getSceneCode());
+        AiTownAssetImportEntity entity;
+        if (assetCode != null) {
+            entity = aiTownAssetImportMapper.selectOne(
+                new LambdaQueryWrapper<AiTownAssetImportEntity>()
+                    .eq(AiTownAssetImportEntity::getAssetCode, assetCode)
+                    .eq(AiTownAssetImportEntity::getOwnerUserId, userId)
+                    .eq(AiTownAssetImportEntity::getDeleted, 0)
+                    .last("LIMIT 1")
+            );
+        } else if (sceneCode != null) {
+            entity = aiTownAssetImportMapper.selectOne(
+                new LambdaQueryWrapper<AiTownAssetImportEntity>()
+                    .eq(AiTownAssetImportEntity::getOwnerUserId, userId)
+                    .eq(AiTownAssetImportEntity::getAttachedSceneCode, sceneCode)
+                    .eq(AiTownAssetImportEntity::getDeleted, 0)
+                    .orderByDesc(AiTownAssetImportEntity::getUpdatedAt)
+                    .last("LIMIT 1")
+            );
+        } else {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "asset_code or scene_code is required");
+        }
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Town asset preview not found");
+        }
+        return entity;
+    }
+
     private AiTownCatalog.SceneDefinition loadTownScene(String sceneCode) {
         String normalized = normalizeCode(sceneCode);
         if (normalized == null) {
@@ -686,7 +863,8 @@ public class AiServiceImpl implements AiService {
                                        String normalizedMessage,
                                        int contextSize,
                                        boolean memoryEnabled,
-                                       String scopeId) {
+                                       String scopeId,
+                                       MemoryConversationContext memoryContext) {
         String normalized = normalizedMessage;
         if (normalized.length() > 120) {
             normalized = normalized.substring(0, 120);
@@ -707,11 +885,99 @@ public class AiServiceImpl implements AiService {
         }
 
         if ("companion".equals(sessionMode) || "town_npc".equals(sessionMode)) {
+            List<String> memoryHighlights = new ArrayList<>();
+            if (memoryContext != null) {
+                if (normalizeOptionalText(memoryContext.profileSummary()) != null) {
+                    memoryHighlights.add("profile=" + previewText(memoryContext.profileSummary(), 60));
+                }
+                if (!memoryContext.summaryHighlights().isEmpty()) {
+                    memoryHighlights.add("summary=" + previewText(memoryContext.summaryHighlights().get(0), 48));
+                }
+                if (!memoryContext.episodicHighlights().isEmpty()) {
+                    memoryHighlights.add("episodic=" + previewText(memoryContext.episodicHighlights().get(0), 48));
+                }
+                if (!memoryContext.journalHighlights().isEmpty()) {
+                    memoryHighlights.add("journal=" + previewText(memoryContext.journalHighlights().get(0), 48));
+                }
+            }
+            String memoryHint = memoryHighlights.isEmpty() ? "memory_context=empty" : String.join(", ", memoryHighlights);
             return "[Scene mode] mode=" + sessionMode + ", scope=" + (scopeId == null ? "none" : scopeId)
-                + ", memory=" + memoryEnabled + ", focus on: " + focus;
+                + ", memory=" + memoryEnabled + ", " + memoryHint + ", focus on: " + focus;
         }
 
         return "[Quick chat] Context=" + contextSize + ", focus on: " + focus;
+    }
+
+    private MemoryConversationContext buildMemoryContext(String sessionMode,
+                                                         AiSessionEntity session,
+                                                         Long userId,
+                                                         SendMessageRequest request,
+                                                         boolean memoryEnabled,
+                                                         String normalizedMessage) {
+        String scopeId = resolveScopeId(sessionMode, session, userId, request, memoryEnabled);
+        if (!memoryEnabled || scopeId == null || !MEMORY_SCENE_SESSION_MODES.contains(sessionMode) || session == null) {
+            return MemoryConversationContext.disabled(scopeId);
+        }
+
+        AiMemoryScopeEntity scope = upsertMemoryScopeRecord(scopeId, userId, sessionMode, session);
+        scope.setLastQuery(normalizeMemoryQuery(normalizedMessage));
+        scope.setLastAccessedAt(LocalDateTime.now());
+        scope.setUpdatedAt(LocalDateTime.now());
+        aiMemoryScopeMapper.updateById(scope);
+        if (!isEnabled(scope.getEnabled()) || !memoryOsClient.isConfigured()) {
+            return new MemoryConversationContext(
+                scopeId,
+                false,
+                "",
+                List.of(),
+                List.of(),
+                List.of(),
+                false
+            );
+        }
+
+        try {
+            MemoryOsClient.MemorySnapshot snapshot = memoryOsClient.retrieve(scopeId, normalizedMessage, null);
+            return new MemoryConversationContext(
+                scopeId,
+                true,
+                normalizeOptionalText(snapshot.profileSummary()) == null ? "" : snapshot.profileSummary(),
+                limitStrings(snapshot.summaryHighlights(), 3, 160),
+                limitStrings(snapshot.episodicHighlights(), 3, 160),
+                limitStrings(snapshot.journalHighlights(), 3, 160),
+                true
+            );
+        } catch (BusinessException exception) {
+            return new MemoryConversationContext(
+                scopeId,
+                false,
+                "",
+                List.of(),
+                List.of(),
+                List.of(),
+                false
+            );
+        }
+    }
+
+    private void writeMemoryRecord(MemoryConversationContext memoryContext,
+                                   AiSessionEntity session,
+                                   String normalizedMessage,
+                                   String assistantMessage) {
+        try {
+            memoryOsClient.record(
+                memoryContext.scopeId(),
+                normalizedMessage,
+                assistantMessage,
+                Map.of(
+                    "session_mode", normalizeSessionMode(session.getMode()),
+                    "session_id", session.getSessionId(),
+                    "scene_code", normalizeOptionalText(session.getTownRoomCode()) == null ? "" : session.getTownRoomCode(),
+                    "actor_code", normalizeOptionalText(session.getActorCode()) == null ? "" : session.getActorCode()
+                )
+            );
+        } catch (BusinessException ignored) {
+        }
     }
 
     private String resolveScopeId(String sessionMode,
@@ -719,17 +985,13 @@ public class AiServiceImpl implements AiService {
                                   Long userId,
                                   SendMessageRequest request,
                                   boolean memoryEnabled) {
-        String requestedScopeId = normalizeScopeId(request == null ? null : request.getScopeId());
-        if (!memoryEnabled) {
+        if (!memoryEnabled || !MEMORY_SCENE_SESSION_MODES.contains(sessionMode) || session == null || !isLoggedIn(userId)) {
             return null;
-        }
-        if (!MEMORY_SCENE_SESSION_MODES.contains(sessionMode) || session == null || !isLoggedIn(userId)) {
-            return requestedScopeId;
         }
         String actorCode = normalizeScopeSegment(session.getActorCode());
         String sceneCode = resolveScopeSceneCode(sessionMode, session);
         if (actorCode == null || sceneCode == null) {
-            return requestedScopeId;
+            return null;
         }
         return userId + ":" + sessionMode + ":" + actorCode + ":" + sceneCode;
     }
@@ -1252,5 +1514,406 @@ public class AiServiceImpl implements AiService {
                 .eq("deleted_flag", 0)
                 .last("LIMIT 1")
         );
+    }
+
+    private AiMemoryScopeEntity upsertMemoryScopeRecord(String scopeId,
+                                                        Long userId,
+                                                        String sessionMode,
+                                                        AiSessionEntity session) {
+        AiMemoryScopeEntity entity = loadMemoryScope(scopeId);
+        LocalDateTime now = LocalDateTime.now();
+        if (entity == null) {
+            entity = new AiMemoryScopeEntity();
+            entity.setScopeId(scopeId);
+            entity.setOwnerUserId(userId);
+            entity.setDomainType(sessionMode);
+            entity.setActorCode(normalizeCode(session.getActorCode()));
+            entity.setSceneCode(resolveScopeSceneCode(sessionMode, session));
+            entity.setEnabled(1);
+            entity.setCreatedAt(now);
+            entity.setDeleted(0);
+            entity.setVersion(0);
+            entity.setLastAccessedAt(now);
+            entity.setUpdatedAt(now);
+            aiMemoryScopeMapper.insert(entity);
+            return entity;
+        }
+
+        entity.setOwnerUserId(entity.getOwnerUserId() == null ? userId : entity.getOwnerUserId());
+        entity.setDomainType(normalizeOptionalText(entity.getDomainType()) == null ? sessionMode : entity.getDomainType());
+        entity.setActorCode(normalizeOptionalText(entity.getActorCode()) == null ? normalizeCode(session.getActorCode()) : entity.getActorCode());
+        entity.setSceneCode(normalizeOptionalText(entity.getSceneCode()) == null ? resolveScopeSceneCode(sessionMode, session) : entity.getSceneCode());
+        entity.setLastAccessedAt(now);
+        entity.setUpdatedAt(now);
+        aiMemoryScopeMapper.updateById(entity);
+        return entity;
+    }
+
+    private AiMemoryScopeResponse toMemoryScopeResponse(AiMemoryScopeEntity entity,
+                                                        boolean includeSnapshot,
+                                                        String query,
+                                                        Integer journalLimit) {
+        if (entity == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Memory scope not found");
+        }
+
+        String profileSummary = "";
+        List<String> summaryHighlights = List.of();
+        List<String> episodicHighlights = List.of();
+        List<String> journalHighlights = List.of();
+
+        if (includeSnapshot && memoryOsClient.isConfigured()) {
+            String effectiveQuery = normalizeMemoryQuery(query);
+            if (effectiveQuery == null) {
+                effectiveQuery = normalizeMemoryQuery(entity.getLastQuery());
+            }
+            if (effectiveQuery == null) {
+                effectiveQuery = (normalizeOptionalText(entity.getActorCode()) == null ? "" : entity.getActorCode())
+                    + " "
+                    + (normalizeOptionalText(entity.getSceneCode()) == null ? "" : entity.getSceneCode());
+                effectiveQuery = effectiveQuery.trim();
+            }
+            try {
+                MemoryOsClient.MemorySnapshot snapshot = memoryOsClient.retrieve(entity.getScopeId(), effectiveQuery, journalLimit);
+                profileSummary = normalizeOptionalText(snapshot.profileSummary()) == null ? "" : snapshot.profileSummary();
+                summaryHighlights = limitStrings(snapshot.summaryHighlights(), 4, 180);
+                episodicHighlights = limitStrings(snapshot.episodicHighlights(), 4, 180);
+                journalHighlights = limitStrings(snapshot.journalHighlights(), 4, 180);
+            } catch (BusinessException exception) {
+                try {
+                    MemoryOsClient.MemoryProfileSnapshot snapshot = memoryOsClient.getProfile(entity.getScopeId(), true, journalLimit);
+                    profileSummary = normalizeOptionalText(snapshot.profileSummary()) == null ? "" : snapshot.profileSummary();
+                    journalHighlights = limitStrings(snapshot.journalHighlights(), 4, 180);
+                } catch (BusinessException ignored) {
+                }
+            }
+        }
+
+        return new AiMemoryScopeResponse(
+            entity.getId(),
+            entity.getScopeId(),
+            entity.getOwnerUserId(),
+            entity.getDomainType(),
+            entity.getActorCode(),
+            entity.getSceneCode(),
+            isEnabled(entity.getEnabled()),
+            normalizeOptionalText(entity.getNote()),
+            normalizeOptionalText(entity.getLastQuery()),
+            profileSummary,
+            summaryHighlights,
+            episodicHighlights,
+            journalHighlights,
+            entity.getLastAccessedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private AiTownAssetPreviewResponse toTownAssetPreview(AiTownAssetImportEntity entity, ParsedTownAsset parsed) {
+        return new AiTownAssetPreviewResponse(
+            entity.getId(),
+            entity.getAssetCode(),
+            entity.getSourceName(),
+            entity.getAssetType(),
+            entity.getParserStatus(),
+            entity.getRawSizeBytes(),
+            normalizeCode(entity.getAttachedSceneCode()),
+            parsed.previewHighlights(),
+            parsed.metadata(),
+            parsed.preview(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private AiTownAssetPreviewResponse toTownAssetPreview(AiTownAssetImportEntity entity) {
+        return new AiTownAssetPreviewResponse(
+            entity.getId(),
+            entity.getAssetCode(),
+            entity.getSourceName(),
+            entity.getAssetType(),
+            entity.getParserStatus(),
+            entity.getRawSizeBytes(),
+            normalizeCode(entity.getAttachedSceneCode()),
+            limitStrings(parseStringListFromMap(toPayloadMap(entity.getPreviewJson()).get("preview_highlights")), 6, 180),
+            toPayloadMap(entity.getMetadataJson()),
+            toPayloadMap(entity.getPreviewJson()),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private ParsedTownAsset parseTownAsset(String originalFilename, byte[] content, String attachedSceneCode) {
+        String sourceName = normalizeSourceName(originalFilename);
+        String lowerName = sourceName.toLowerCase(Locale.ROOT);
+        if (lowerName.endsWith(".zip")) {
+            return parseZipTownAsset(sourceName, content, attachedSceneCode);
+        }
+        if (lowerName.endsWith(".json")) {
+            return parseJsonTownAsset(sourceName, content, attachedSceneCode);
+        }
+        if (lowerName.endsWith(".png") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".webp")) {
+            return parseImageTownAsset(sourceName, content, attachedSceneCode);
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Only RPGMaker zip/json/image assets are supported");
+    }
+
+    private ParsedTownAsset parseZipTownAsset(String sourceName, byte[] content, String attachedSceneCode) {
+        List<String> sampleEntries = new ArrayList<>();
+        List<String> mapJsonFiles = new ArrayList<>();
+        int jsonEntryCount = 0;
+        int imageEntryCount = 0;
+        Map<String, Object> embeddedMapPreview = Map.of();
+        List<String> previewHighlights = new ArrayList<>();
+
+        try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(content), StandardCharsets.UTF_8)) {
+            ZipEntry entry;
+            while ((entry = zipInputStream.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String entryName = normalizeSourceName(entry.getName());
+                if (sampleEntries.size() < 12) {
+                    sampleEntries.add(entryName);
+                }
+                String lowerName = entryName.toLowerCase(Locale.ROOT);
+                if (lowerName.endsWith(".json")) {
+                    jsonEntryCount += 1;
+                    if (entryName.matches("(?i)(.*/)?Map\\d+\\.json")) {
+                        mapJsonFiles.add(entryName);
+                        if (embeddedMapPreview.isEmpty()) {
+                            embeddedMapPreview = parseJsonPreview(readEntryBytes(zipInputStream));
+                        }
+                    }
+                }
+                if (lowerName.endsWith(".png") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".webp")) {
+                    imageEntryCount += 1;
+                }
+            }
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Failed to parse RPGMaker zip asset");
+        }
+
+        previewHighlights.add("Zip 资产已解析，共 " + (jsonEntryCount + imageEntryCount) + " 个主要文件");
+        if (!mapJsonFiles.isEmpty()) {
+            previewHighlights.add("检测到地图 JSON：" + mapJsonFiles.get(0));
+        }
+        if (attachedSceneCode != null) {
+            previewHighlights.add("当前挂接场景：" + attachedSceneCode);
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("entry_count", jsonEntryCount + imageEntryCount);
+        metadata.put("json_entry_count", jsonEntryCount);
+        metadata.put("image_entry_count", imageEntryCount);
+        metadata.put("map_json_files", mapJsonFiles);
+        metadata.put("sample_entries", sampleEntries);
+        metadata.put("attached_scene_code", attachedSceneCode);
+
+        Map<String, Object> preview = new LinkedHashMap<>();
+        preview.put("source_kind", "zip_bundle");
+        preview.put("attached_scene_code", attachedSceneCode);
+        preview.put("embedded_map_preview", embeddedMapPreview);
+        preview.put("preview_highlights", previewHighlights);
+        preview.put("sample_entries", sampleEntries);
+
+        return new ParsedTownAsset("rpg_bundle", sourceName, metadata, preview, previewHighlights);
+    }
+
+    private ParsedTownAsset parseJsonTownAsset(String sourceName, byte[] content, String attachedSceneCode) {
+        Map<String, Object> preview = parseJsonPreview(content);
+        Map<String, Object> metadata = new LinkedHashMap<>(preview);
+        metadata.remove("preview_highlights");
+        metadata.put("attached_scene_code", attachedSceneCode);
+        List<String> previewHighlights = limitStrings(parseStringListFromMap(preview.get("preview_highlights")), 6, 180);
+        if (attachedSceneCode != null && !previewHighlights.contains("当前挂接场景：" + attachedSceneCode)) {
+            previewHighlights = new ArrayList<>(previewHighlights);
+            previewHighlights.add("当前挂接场景：" + attachedSceneCode);
+        }
+        preview.put("attached_scene_code", attachedSceneCode);
+        preview.put("preview_highlights", previewHighlights);
+        String assetType = Boolean.TRUE.equals(preview.get("map_like")) ? "rpg_map" : "json_asset";
+        return new ParsedTownAsset(assetType, sourceName, metadata, preview, previewHighlights);
+    }
+
+    private ParsedTownAsset parseImageTownAsset(String sourceName, byte[] content, String attachedSceneCode) {
+        List<String> previewHighlights = new ArrayList<>();
+        previewHighlights.add("图像资源已导入，可作为地图参考素材使用");
+        if (attachedSceneCode != null) {
+            previewHighlights.add("当前挂接场景：" + attachedSceneCode);
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("file_extension", sourceName.substring(sourceName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT));
+        metadata.put("raw_size_bytes", content.length);
+        metadata.put("attached_scene_code", attachedSceneCode);
+
+        Map<String, Object> preview = new LinkedHashMap<>();
+        preview.put("source_kind", "image_asset");
+        preview.put("attached_scene_code", attachedSceneCode);
+        preview.put("preview_highlights", previewHighlights);
+
+        return new ParsedTownAsset("tileset_image", sourceName, metadata, preview, previewHighlights);
+    }
+
+    private Map<String, Object> parseJsonPreview(byte[] content) {
+        try {
+            JsonNode root = objectMapper.readTree(content);
+            Map<String, Object> preview = new LinkedHashMap<>();
+            List<String> previewHighlights = new ArrayList<>();
+            preview.put("root_type", root.isArray() ? "array" : "object");
+            if (root.isObject()) {
+                List<String> topLevelKeys = toMapFromJsonNode(root).keySet().stream()
+                    .map(String::valueOf)
+                    .toList();
+                preview.put("top_level_keys", limitStrings(topLevelKeys, 10, 64));
+            }
+            boolean mapLike = root.isObject()
+                && root.path("width").canConvertToInt()
+                && root.path("height").canConvertToInt()
+                && root.path("data").isArray();
+            preview.put("map_like", mapLike);
+            if (mapLike) {
+                int width = root.path("width").asInt(0);
+                int height = root.path("height").asInt(0);
+                int eventCount = countEvents(root.path("events"));
+                preview.put("width", width);
+                preview.put("height", height);
+                preview.put("event_count", eventCount);
+                preview.put("tileset_id", root.path("tilesetId").asInt(0));
+                previewHighlights.add("地图尺寸 " + width + "x" + height);
+                previewHighlights.add("事件点位 " + eventCount + " 个");
+            } else if (root.isArray()) {
+                preview.put("item_count", root.size());
+                previewHighlights.add("JSON 数组条目 " + root.size() + " 个");
+            } else {
+                previewHighlights.add("JSON 对象已解析，可继续挂接到小镇编辑区");
+            }
+            preview.put("preview_highlights", previewHighlights);
+            return preview;
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Invalid RPGMaker json asset");
+        }
+    }
+
+    private byte[] readEntryBytes(InputStream inputStream) throws IOException {
+        return inputStream.readAllBytes();
+    }
+
+    private int countEvents(JsonNode eventsNode) {
+        if (eventsNode == null || eventsNode.isMissingNode() || eventsNode.isNull()) {
+            return 0;
+        }
+        if (eventsNode.isArray()) {
+            int count = 0;
+            for (JsonNode node : eventsNode) {
+                if (node != null && !node.isNull() && !node.isMissingNode()) {
+                    count += 1;
+                }
+            }
+            return count;
+        }
+        if (eventsNode.isObject()) {
+            return eventsNode.size();
+        }
+        return 0;
+    }
+
+    private Map<String, Object> toMapFromJsonNode(JsonNode node) {
+        return objectMapper.convertValue(node, Map.class);
+    }
+
+    private List<String> parseStringListFromMap(Object rawValue) {
+        if (rawValue instanceof List<?> list) {
+            return list.stream()
+                .map(item -> normalizeOptionalText(item == null ? null : String.valueOf(item)))
+                .filter(item -> item != null && !item.isBlank())
+                .toList();
+        }
+        return List.of();
+    }
+
+    private List<String> limitStrings(List<String> rawValues, int maxItems, int maxLength) {
+        if (rawValues == null || rawValues.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> results = new LinkedHashSet<>();
+        for (String rawValue : rawValues) {
+            String normalized = normalizeOptionalText(rawValue);
+            if (normalized == null) {
+                continue;
+            }
+            if (normalized.length() > maxLength) {
+                normalized = normalized.substring(0, maxLength);
+            }
+            results.add(normalized);
+            if (results.size() >= maxItems) {
+                break;
+            }
+        }
+        return List.copyOf(results);
+    }
+
+    private String normalizeSourceName(String raw) {
+        String normalized = normalizeOptionalText(raw);
+        if (normalized == null) {
+            return "unnamed.asset";
+        }
+        return normalized.length() > 255 ? normalized.substring(0, 255) : normalized;
+    }
+
+    private String normalizeMemoryNote(String raw) {
+        String normalized = normalizeOptionalText(raw);
+        if (normalized == null) {
+            return null;
+        }
+        return normalized.length() > 500 ? normalized.substring(0, 500) : normalized;
+    }
+
+    private String normalizeMemoryQuery(String raw) {
+        String normalized = normalizeOptionalText(raw);
+        if (normalized == null) {
+            return null;
+        }
+        return normalized.length() > 240 ? normalized.substring(0, 240) : normalized;
+    }
+
+    private ScopeParts parseScopeParts(String scopeId) {
+        String normalizedScopeId = normalizeScopeId(scopeId);
+        if (normalizedScopeId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "scope_id is required");
+        }
+        String[] segments = normalizedScopeId.split(":");
+        if (segments.length != 4) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "scope_id format is invalid");
+        }
+        return new ScopeParts(segments[1], segments[2], segments[3]);
+    }
+
+    private record ScopeParts(
+        String domainType,
+        String actorCode,
+        String sceneCode
+    ) {
+    }
+
+    private record ParsedTownAsset(
+        String assetType,
+        String sourceName,
+        Map<String, Object> metadata,
+        Map<String, Object> preview,
+        List<String> previewHighlights
+    ) {
+    }
+
+    private record MemoryConversationContext(
+        String scopeId,
+        boolean enabled,
+        String profileSummary,
+        List<String> summaryHighlights,
+        List<String> episodicHighlights,
+        List<String> journalHighlights,
+        boolean shouldPersistRecord
+    ) {
+        private static MemoryConversationContext disabled(String scopeId) {
+            return new MemoryConversationContext(scopeId, false, "", List.of(), List.of(), List.of(), false);
+        }
     }
 }

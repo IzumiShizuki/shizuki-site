@@ -6,7 +6,10 @@ import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewRequest;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewResponse;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
@@ -16,6 +19,7 @@ import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateAiMemoryScopeRequest;
 import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
@@ -31,7 +35,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -113,6 +120,19 @@ public class AiController {
         return ApiResponse.success(aiService.getTownPublicMap());
     }
 
+    @PostMapping("/admin/ai-town/assets/import-rpgmaker")
+    @Operation(summary = "导入 RPGMaker 资产并返回预览")
+    public ApiResponse<AiTownAssetPreviewResponse> importAdminTownAsset(@RequestPart("file") MultipartFile file,
+                                                                        @RequestParam(value = "scene_code", required = false) String sceneCode) {
+        return ApiResponse.success(aiService.importAdminTownAsset(file, sceneCode));
+    }
+
+    @PostMapping("/admin/ai-town/assets/preview")
+    @Operation(summary = "查询已导入 RPGMaker 资产预览")
+    public ApiResponse<AiTownAssetPreviewResponse> previewAdminTownAsset(@Valid @RequestBody AiTownAssetPreviewRequest request) {
+        return ApiResponse.success(aiService.previewAdminTownAsset(request));
+    }
+
     @PostMapping("/ai-worldbooks")
     @Operation(summary = "创建世界书")
     public ApiResponse<AiWorldbookDetailResponse> createWorldbook(@Valid @RequestBody CreateWorldbookRequest request) {
@@ -175,5 +195,18 @@ public class AiController {
     @Operation(summary = "更新管理员自宅 companion 配置")
     public ApiResponse<AiCompanionConfigResponse> updateAdminCompanionConfig(@Valid @RequestBody UpdateCompanionConfigRequest request) {
         return ApiResponse.success(aiService.updateAdminCompanionConfig(request));
+    }
+
+    @GetMapping("/admin/ai-memory/scopes/{scope_id}")
+    @Operation(summary = "查询管理员记忆 scope")
+    public ApiResponse<AiMemoryScopeResponse> getAdminMemoryScope(@PathVariable("scope_id") String scopeId) {
+        return ApiResponse.success(aiService.getAdminMemoryScope(scopeId));
+    }
+
+    @PutMapping("/admin/ai-memory/scopes/{scope_id}")
+    @Operation(summary = "更新管理员记忆 scope")
+    public ApiResponse<AiMemoryScopeResponse> updateAdminMemoryScope(@PathVariable("scope_id") String scopeId,
+                                                                     @Valid @RequestBody UpdateAiMemoryScopeRequest request) {
+        return ApiResponse.success(aiService.updateAdminMemoryScope(scopeId, request));
     }
 }

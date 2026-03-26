@@ -4,20 +4,25 @@ import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewRequest;
+import io.github.shizuki.site.ai.dto.AiTownAssetPreviewResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.dto.AiWorldbookSummaryResponse;
 import io.github.shizuki.site.ai.dto.CreateSessionRequest;
 import io.github.shizuki.site.ai.dto.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.SendMessageRequest;
+import io.github.shizuki.site.ai.dto.UpdateAiMemoryScopeRequest;
 import io.github.shizuki.site.ai.dto.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.dto.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.dto.UpsertWorldbookEntryRequest;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface AiService {
 
@@ -92,6 +97,16 @@ public interface AiService {
     AiTownPublicMapResponse getTownPublicMap();
 
     /**
+     * 导入 RPGMaker 资产并返回解析预览。
+     */
+    AiTownAssetPreviewResponse importAdminTownAsset(MultipartFile file, String sceneCode);
+
+    /**
+     * 查询 RPGMaker 资产预览。
+     */
+    AiTownAssetPreviewResponse previewAdminTownAsset(AiTownAssetPreviewRequest request);
+
+    /**
      * 为管理员特殊 NPC 创建会话。
      */
     AiSessionSummary createAdminTownNpcSession(String npcCode);
@@ -110,6 +125,16 @@ public interface AiService {
      * 为管理员自宅 companion 创建会话。
      */
     AiSessionSummary createAdminCompanionSession();
+
+    /**
+     * 查询管理员记忆 scope。
+     */
+    AiMemoryScopeResponse getAdminMemoryScope(String scopeId);
+
+    /**
+     * 更新管理员记忆 scope。
+     */
+    AiMemoryScopeResponse updateAdminMemoryScope(String scopeId, UpdateAiMemoryScopeRequest request);
 
     /**
      * 更新世界书。
