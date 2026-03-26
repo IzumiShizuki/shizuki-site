@@ -114,7 +114,7 @@
             <h2>分类</h2>
             <div class="chip-group">
               <button
-                v-for="category in categoryOptions"
+                v-for="category in sidebarCategoryOptions"
                 :key="category.code || 'all'"
                 type="button"
                 class="chip-btn ripple-trigger"
@@ -346,7 +346,7 @@
         </div>
       </section>
 
-      <aside class="right-panel liquid-material">
+      <aside :key="rightPanelRenderKey" class="right-panel liquid-material">
         <div class="toc-head">
           <h2>{{ rightPanelTitle }}</h2>
           <button
@@ -437,22 +437,19 @@
               </label>
               <label class="field field-wide">
                 <span>分类</span>
-                <input
-                  v-model.trim="writerState.editor.categoryCode"
-                  type="text"
-                  class="field-input"
-                  list="blog-category-options"
-                  placeholder="从后端分类中选择或输入新分类"
-                />
-                <datalist id="blog-category-options">
+                <select v-model="writerState.editor.categoryCode" class="field-input">
+                  <option v-if="!editorCategoryOptions.length" value="" disabled>暂无可用分类</option>
                   <option
-                    v-for="category in categoryOptions.filter((item) => item.code)"
+                    v-for="category in editorCategoryOptions"
                     :key="`editor-category-${category.code}`"
                     :value="category.code"
+                    :disabled="category.disabled && category.code !== writerState.editor.categoryCode"
                   >
                     {{ category.label }}
                   </option>
-                </datalist>
+                </select>
+                <small v-if="currentEditorCategoryDisabled" class="field-tip">当前分类已禁用；你可以保留当前值，但改选后不能再选回禁用分类。</small>
+                <small v-else-if="!editorCategoryOptions.length" class="field-tip">暂无启用分类，请先在分类管理中启用至少一个分类。</small>
               </label>
               <label class="field field-wide">
                 <span>摘要</span>
@@ -601,6 +598,12 @@ import {
   updateMyPost
 } from '../services/blogApi';
 import { escapeMarkdownPlainText, normalizeMarkdownForEditor, renderMarkdownDocument } from '../utils/blogMarkdown';
+import {
+  buildEditorCategoryOptions,
+  filterEnabledBlogCategories,
+  mergeBlogCategoryCatalog,
+  resolveDefaultBlogCategoryCode
+} from '../utils/blogCategoryCatalog';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 
 const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
@@ -646,7 +649,7 @@ const writerState = reactive({
     postId: null,
     title: '',
     summary: '',
-    categoryCode: 'life',
+    categoryCode: '',
     slugCode: '',
     coverImageUrl: '',
     visibility: 'PUBLIC',
@@ -736,35 +739,27 @@ const canPublish = computed(() => isAdminUser.value || permissionCodes.value.inc
 const loadingAny = computed(() => listState.loading || detailState.loading || writerState.loading || writerState.saving || writerState.publishing);
 const leftNavMode = computed(() => (routeMode.value === 'editor' ? 'write' : 'read'));
 
-const categoryOptions = computed(() => {
-  const optionMap = new Map();
-
-  const appendOption = (code, label) => {
-    const normalizedCode = normalizeString(code).toLowerCase();
-    if (!normalizedCode) return;
-    if (optionMap.has(normalizedCode)) return;
-    optionMap.set(normalizedCode, {
-      code: normalizedCode,
-      label: normalizeString(label) || normalizedCode
+const categoryCatalogItems = computed(() => mergeBlogCategoryCatalog(detailNavState.categories));
+const enabledCategoryCatalogItems = computed(() => filterEnabledBlogCategories(categoryCatalogItems.value));
+const defaultEditorCategoryCode = computed(() => resolveDefaultBlogCategoryCode(categoryCatalogItems.value));
+const sidebarCategoryOptions = computed(() => {
+  const options = enabledCategoryCatalogItems.value.map((item) => ({
+    code: normalizeString(item.categoryCode).toLowerCase(),
+    label: normalizeString(item.displayName || item.categoryCode) || normalizeString(item.categoryCode).toLowerCase()
+  }));
+  if (filters.category && !options.some((item) => item.code === filters.category)) {
+    options.push({
+      code: filters.category,
+      label: filters.category
     });
-  };
-
-  detailNavState.categories.forEach((item) => {
-    appendOption(item.categoryCode, item.displayName || item.categoryCode);
-  });
-  listState.items.forEach((post) => {
-    appendOption(post.categoryCode, post.categoryCode);
-  });
-  writerState.myPosts.forEach((post) => {
-    appendOption(post.categoryCode, post.categoryCode);
-  });
-  appendOption(writerState.editor.categoryCode, writerState.editor.categoryCode);
-  appendOption(filters.category, filters.category);
-
-  return [
-    ROOT_CATEGORY_OPTION,
-    ...Array.from(optionMap.values()).sort((a, b) => a.label.localeCompare(b.label))
-  ];
+  }
+  return [ROOT_CATEGORY_OPTION, ...options];
+});
+const editorCategoryOptions = computed(() => buildEditorCategoryOptions(categoryCatalogItems.value, writerState.editor.categoryCode));
+const currentEditorCategoryDisabled = computed(() => {
+  const currentCode = normalizeString(writerState.editor.categoryCode).toLowerCase();
+  if (!currentCode) return false;
+  return !enabledCategoryCatalogItems.value.some((item) => item.categoryCode === currentCode);
 });
 
 const tagOptions = computed(() => {
@@ -970,6 +965,10 @@ const showTocPanel = computed(
   () => (viewMode.value === 'detail' && Boolean(detailState.post)) || (viewMode.value === 'editor' && editorSidebarView.value !== 'info')
 );
 const rightPanelTitle = computed(() => (viewMode.value === 'editor' && editorSidebarView.value === 'info' ? '文章信息' : '文内目录'));
+const rightPanelRenderKey = computed(() => {
+  const postId = writerState.editor.postId || detailState.post?.postId || 'none';
+  return `${viewMode.value}:${editorSidebarView.value}:${postId}:${tocMode.value}`;
+});
 const editorPresentationReady = computed(() => String(editorPresentationState.data?.status || '') === 'READY');
 const editorPresentationPptReady = computed(() => editorPresentationReady.value && editorPresentationState.data?.pptReady === true);
 const detailPresentationReady = computed(() => String(detailPresentationState.data?.status || '') === 'READY');
@@ -1554,7 +1553,7 @@ function applyPostDetailToEditor(postDetail) {
   writerState.editor.postId = normalized.postId || null;
   writerState.editor.title = normalized.title;
   writerState.editor.summary = normalized.summary;
-  writerState.editor.categoryCode = normalized.categoryCode || 'life';
+  writerState.editor.categoryCode = normalized.categoryCode || defaultEditorCategoryCode.value || '';
   writerState.editor.slugCode = normalized.slugCode;
   writerState.editor.coverImageUrl = normalized.coverImageUrl;
   writerState.editor.visibility = normalized.visibility || 'PUBLIC';
@@ -1572,6 +1571,10 @@ function applyAuthorPostToEditor(post) {
 
 async function handleSaveDraft(options = {}) {
   if (!canWrite.value) return;
+  if (!writerState.editor.categoryCode) {
+    writerState.error = '暂无可用分类，请先在分类管理中启用至少一个分类';
+    return;
+  }
   writerState.saving = true;
   writerState.error = '';
   writerState.notice = '';
@@ -1655,7 +1658,7 @@ function resetEditorForm() {
   writerState.editor.postId = null;
   writerState.editor.title = '';
   writerState.editor.summary = '';
-  writerState.editor.categoryCode = 'life';
+  writerState.editor.categoryCode = defaultEditorCategoryCode.value || '';
   writerState.editor.slugCode = '';
   writerState.editor.coverImageUrl = '';
   writerState.editor.visibility = 'PUBLIC';
@@ -1669,7 +1672,8 @@ function resetEditorForm() {
   resetEditorPresentationState();
 }
 
-function startNewDraft() {
+async function startNewDraft() {
+  await ensureCategoryCatalogLoaded();
   resetEditorForm();
   editorMode.value = 'wysiwyg';
   editorSidebarView.value = 'wysiwyg';
@@ -2318,6 +2322,16 @@ watch(
   () => {
     syncRouteDrivenView();
   }
+);
+
+watch(
+  () => defaultEditorCategoryCode.value,
+  (categoryCode) => {
+    if (viewMode.value !== 'editor' || writerState.editor.postId) return;
+    if (normalizeString(writerState.editor.categoryCode).trim()) return;
+    writerState.editor.categoryCode = categoryCode || '';
+  },
+  { immediate: true }
 );
 
 watch(

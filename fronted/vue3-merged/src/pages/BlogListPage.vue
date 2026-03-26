@@ -269,10 +269,15 @@
         </template>
 
         <SubtleScrollArea v-else-if="uiState.panel === 'categories'" tag="section" class="category-panel liquid-material">
-          <template v-if="canManageCategories">
+          <template v-if="categoryPanelLoading">
+            <h2>{{ canManageCategories ? '分类管理' : '分类总览' }}</h2>
+            <p class="state-tip">正在同步分类目录...</p>
+          </template>
+          <template v-else-if="canManageCategories">
             <h2>分类管理</h2>
             <p>在博客界面直接维护分类，支持新增分类、上传分类图和调整展示信息。</p>
             <AdminBlogCategoriesPanel
+              :key="categoryPanelRenderKey"
               :loading="categoryMetaLoading"
               :saving="categoryMetaSaving"
               :error="categoryMetaError"
@@ -281,7 +286,7 @@
               :create-upload-category-code="categoryMetaCreateUploadCode"
               :create-uploaded-cover-url="categoryMetaCreateUploadUrl"
               :allow-create="true"
-              @refresh="reloadCategoryMetas"
+              @refresh="loadCategoryPanelContext"
               @save="saveCategoryMetaItem"
               @upload="uploadCategoryMetaCover"
               @delete="deleteCategoryMetaItem"
@@ -292,7 +297,7 @@
             <p>这里展示当前可见的全部分类，点击即可按分类筛选并回到主页列表。</p>
             <div class="category-panel-grid">
               <button
-                v-for="item in sidebarState.categories"
+                v-for="item in enabledCategoryCatalogItems"
                 :key="`panel-category-${item.categoryCode}`"
                 type="button"
                 class="category-panel-card ripple-trigger"
@@ -309,7 +314,7 @@
                   <span>{{ item.count }} 篇</span>
                 </div>
               </button>
-              <p v-if="!sidebarState.categories.length && !sidebarState.loading" class="empty-text">暂无可见分类。</p>
+              <p v-if="!enabledCategoryCatalogItems.length && !sidebarState.loading" class="empty-text">暂无可见分类。</p>
             </div>
           </template>
         </SubtleScrollArea>
@@ -394,6 +399,7 @@ import { useAuthSession } from '../composables/useAuthSession';
 import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
 import { getPostSidebar, listPosts, submitPostWhisper } from '../services/blogApi';
 import { deleteBlogCategoryMeta, listBlogCategoryMetas, updateBlogCategoryMeta, uploadBlogCategoryCover } from '../services/adminApi';
+import { filterEnabledBlogCategories, mergeBlogCategoryCatalog } from '../utils/blogCategoryCatalog';
 
 const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
 const PAGE_SIZE = 10;
@@ -472,6 +478,7 @@ const categoryMetaUploadingCode = ref('');
 const categoryMetaItems = ref([]);
 const categoryMetaCreateUploadCode = ref('');
 const categoryMetaCreateUploadUrl = ref('');
+const categoryPanelLoading = ref(false);
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -504,8 +511,12 @@ const visiblePages = computed(() => {
   return Array.from({ length: end - normalizedStart + 1 }, (_, index) => normalizedStart + index);
 });
 
+const categoryCatalogItems = computed(() => mergeBlogCategoryCatalog(sidebarState.categories, categoryMetaItems.value));
+
+const enabledCategoryCatalogItems = computed(() => filterEnabledBlogCategories(categoryCatalogItems.value));
+
 const categoryTabs = computed(() => {
-  const fromSidebar = Array.isArray(sidebarState.categories) ? sidebarState.categories : [];
+  const fromSidebar = enabledCategoryCatalogItems.value;
   const sum = fromSidebar.reduce((acc, item) => acc + Math.max(0, Number(item.count) || 0), 0);
   const allItem = { categoryCode: '', count: sum, displayName: '全部', coverImageUrl: '' };
   const tabs = [allItem, ...fromSidebar];
@@ -515,39 +526,12 @@ const categoryTabs = computed(() => {
   return tabs;
 });
 
-const categoryPanelItems = computed(() => {
-  const map = new Map();
-
-  const appendItem = (item, source = 'sidebar') => {
-    const categoryCode = normalizeString(item?.categoryCode).toLowerCase();
-    if (!categoryCode) return;
-    const current = map.get(categoryCode) || {
-      categoryCode,
-      displayName: categoryCode,
-      coverImageUrl: '',
-      sortNum: 1000,
-      enabled: true
-    };
-    const next = {
-      ...current,
-      categoryCode,
-      displayName: normalizeString(item?.displayName).trim() || current.displayName || categoryCode,
-      coverImageUrl: normalizeString(item?.coverImageUrl).trim() || current.coverImageUrl || '',
-      sortNum: Number.isFinite(Number(item?.sortNum)) ? Math.max(0, Math.trunc(Number(item.sortNum))) : current.sortNum,
-      enabled: source === 'meta' ? item?.enabled !== false : current.enabled
-    };
-    map.set(categoryCode, next);
-  };
-
-  (Array.isArray(sidebarState.categories) ? sidebarState.categories : []).forEach((item) => appendItem(item, 'sidebar'));
-  (Array.isArray(categoryMetaItems.value) ? categoryMetaItems.value : []).forEach((item) => appendItem(item, 'meta'));
-
-  return Array.from(map.values()).sort((left, right) => {
-    const sortCompare = Number(left.sortNum || 1000) - Number(right.sortNum || 1000);
-    if (sortCompare !== 0) return sortCompare;
-    return String(left.displayName || left.categoryCode).localeCompare(String(right.displayName || right.categoryCode));
-  });
-});
+const categoryPanelItems = computed(() => categoryCatalogItems.value);
+const categoryPanelRenderKey = computed(() =>
+  categoryPanelItems.value
+    .map((item) => `${item.categoryCode}:${item.enabled !== false ? '1' : '0'}:${item.count}:${item.displayName}`)
+    .join('|')
+);
 
 function resolveAuthorizedFetch() {
   return auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
@@ -858,6 +842,16 @@ async function uploadCategoryMetaCover(payload) {
   }
 }
 
+async function loadCategoryPanelContext() {
+  categoryPanelLoading.value = true;
+  categoryMetaError.value = '';
+  try {
+    await Promise.all([loadSidebar(), canManageCategories.value ? reloadCategoryMetas() : Promise.resolve()]);
+  } finally {
+    categoryPanelLoading.value = false;
+  }
+}
+
 async function deleteCategoryMetaItem(categoryCode) {
   if (!canManageCategories.value) {
     uiState.actionHint = '只有管理员可以删除分类';
@@ -899,7 +893,7 @@ function setPanel(nextPanel) {
   uiState.panel = normalizePanel(nextPanel);
   uiState.actionHint = '';
   if (uiState.panel === 'categories' && canManageCategories.value) {
-    reloadCategoryMetas();
+    void loadCategoryPanelContext();
   }
   syncRouteQueryFromPanel(uiState.panel);
 }
@@ -1059,18 +1053,27 @@ onMounted(async () => {
   leftPanelCollapsed.value = readPersistedLeftPanelCollapsed();
   await auth.ensureReady();
   syncPanelFromRouteQuery();
-  if (uiState.panel === 'categories' && canManageCategories.value) {
-    await reloadCategoryMetas();
-  }
-  await Promise.all([loadPostList(), loadSidebar()]);
+  await Promise.all([
+    loadPostList(),
+    uiState.panel === 'categories' ? loadCategoryPanelContext() : loadSidebar()
+  ]);
 });
 
 watch(
   () => route.query.panel,
   () => {
     syncPanelFromRouteQuery();
-    if (uiState.panel === 'categories' && canManageCategories.value) {
-      reloadCategoryMetas();
+    if (uiState.panel === 'categories') {
+      void loadCategoryPanelContext();
+    }
+  }
+);
+
+watch(
+  () => canManageCategories.value,
+  (enabled) => {
+    if (enabled && uiState.panel === 'categories') {
+      void loadCategoryPanelContext();
     }
   }
 );

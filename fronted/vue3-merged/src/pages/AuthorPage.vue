@@ -11,6 +11,7 @@
       />
 
       <SubtleScrollArea
+        :key="contentPanelRenderKey"
         ref="contentPanelRef"
         tag="section"
         :contain-overscroll="false"
@@ -359,7 +360,7 @@
           </div>
 
           <div v-else-if="isAdminConsoleTab" class="content-block admin-console-block">
-            <AdminPage embedded :forced-tab="activeAdminTab" />
+            <AdminPage :key="`author-admin-${activeAdminTab}`" embedded :forced-tab="activeAdminTab" />
           </div>
 
           <div v-else-if="activeTab === 'posts'" class="content-block">
@@ -1127,6 +1128,7 @@ const activeAdminTab = computed(() => {
   return ADMIN_TAB_KEYS.has(tab) ? tab : AdminTabKey.USERS;
 });
 const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
+const contentPanelRenderKey = computed(() => `${activeTab.value}:${activeAdminTab.value || 'none'}`);
 
 const hero = computed(() => authorProfile.value.profileJson.hero);
 const identity = computed(() => authorProfile.value.profileJson.identity);

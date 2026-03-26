@@ -60,31 +60,36 @@
     </section>
 
     <p v-if="error" class="error-text">{{ error }}</p>
-    <p v-else-if="loading && !items.length" class="state-tip">正在加载分类配置...</p>
-    <p v-else-if="!items.length" class="state-tip">暂无分类元数据。</p>
+    <p v-else-if="loading && !viewItems.length" class="state-tip">正在加载分类配置...</p>
+    <p v-else-if="!viewItems.length" class="state-tip">暂无分类元数据。</p>
 
     <div v-else class="category-grid">
-      <article v-for="item in items" :key="item.categoryCode" class="category-card liquid-material">
+      <article v-for="itemView in viewItems" :key="itemView.item.categoryCode" class="category-card liquid-material">
         <div class="cover-col">
-          <img v-if="item.coverImageUrl" :src="item.coverImageUrl" :alt="item.displayName || item.categoryCode" loading="lazy" />
+          <img
+            v-if="itemView.draft.coverImageUrl || itemView.item.coverImageUrl"
+            :src="itemView.draft.coverImageUrl || itemView.item.coverImageUrl"
+            :alt="itemView.draft.displayName || itemView.item.displayName || itemView.item.categoryCode"
+            loading="lazy"
+          />
           <div v-else class="cover-empty">无分类图</div>
         </div>
 
         <div class="form-col">
           <label class="field">
             <span>分类编码</span>
-            <input :value="item.categoryCode" class="field-input" type="text" readonly />
+            <input :value="itemView.item.categoryCode" class="field-input" type="text" readonly />
           </label>
 
           <label class="field">
             <span>展示名称</span>
-            <input v-model.trim="drafts[item.categoryCode].displayName" class="field-input" type="text" maxlength="128" />
+            <input v-model.trim="itemView.draft.displayName" class="field-input" type="text" maxlength="128" />
           </label>
 
           <label class="field field-wide">
             <span>图片 URL</span>
             <input
-              v-model.trim="drafts[item.categoryCode].coverImageUrl"
+              v-model.trim="itemView.draft.coverImageUrl"
               class="field-input"
               type="text"
               maxlength="512"
@@ -95,45 +100,45 @@
           <div class="inline-fields">
             <label class="field">
               <span>排序</span>
-              <input v-model.number="drafts[item.categoryCode].sortNum" class="field-input" type="number" min="0" step="1" />
+              <input v-model.number="itemView.draft.sortNum" class="field-input" type="number" min="0" step="1" />
             </label>
             <label class="field checkbox-field">
               <span>启用</span>
-              <input v-model="drafts[item.categoryCode].enabled" type="checkbox" />
+              <input v-model="itemView.draft.enabled" type="checkbox" />
             </label>
           </div>
 
           <div class="actions">
-            <label class="ghost-btn ripple-trigger upload-btn" :class="{ disabled: uploadingCode === item.categoryCode }">
+            <label class="ghost-btn ripple-trigger upload-btn" :class="{ disabled: uploadingCode === itemView.item.categoryCode }">
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif"
-                :disabled="uploadingCode === item.categoryCode"
-                @change="handleCoverFileChange(item.categoryCode, $event)"
+                :disabled="uploadingCode === itemView.item.categoryCode"
+                @change="handleCoverFileChange(itemView.item.categoryCode, $event)"
               />
-              {{ uploadingCode === item.categoryCode ? '上传中...' : '上传图片' }}
+              {{ uploadingCode === itemView.item.categoryCode ? '上传中...' : '上传图片' }}
             </label>
             <button
               class="primary-btn ripple-trigger"
               type="button"
-              :disabled="saving || uploadingCode === item.categoryCode"
-              @click="saveCategory(item.categoryCode)"
+              :disabled="saving || uploadingCode === itemView.item.categoryCode"
+              @click="saveCategory(itemView.item.categoryCode)"
             >
               {{ saving ? '保存中...' : '保存' }}
             </button>
             <button
               class="ghost-btn ripple-trigger"
               type="button"
-              :disabled="saving || uploadingCode === item.categoryCode"
-              @click="toggleCategoryEnabled(item.categoryCode)"
+              :disabled="saving || uploadingCode === itemView.item.categoryCode"
+              @click="toggleCategoryEnabled(itemView.item.categoryCode)"
             >
-              {{ drafts[item.categoryCode].enabled ? '禁用' : '启用' }}
+              {{ itemView.draft.enabled ? '禁用' : '启用' }}
             </button>
             <button
               class="danger-btn ripple-trigger"
               type="button"
-              :disabled="saving || uploadingCode === item.categoryCode"
-              @click="deleteCategory(item.categoryCode)"
+              :disabled="saving || uploadingCode === itemView.item.categoryCode"
+              @click="deleteCategory(itemView.item.categoryCode)"
             >
               删除
             </button>
@@ -188,6 +193,12 @@ const drafts = reactive({});
 const createDraft = reactive(createEmptyDraft());
 
 const normalizedCreateCode = computed(() => normalizeCategoryCode(createDraft.categoryCode));
+const viewItems = computed(() =>
+  (Array.isArray(props.items) ? props.items : []).map((item) => ({
+    item,
+    draft: draftFor(item)
+  }))
+);
 
 function syncDrafts(list) {
   const nextMap = {};
@@ -219,7 +230,8 @@ watch(
   },
   {
     immediate: true,
-    deep: true
+    deep: true,
+    flush: 'sync'
   }
 );
 
@@ -236,7 +248,7 @@ watch(
 
 function saveCategory(categoryCode) {
   const normalizedCode = normalizeCategoryCode(categoryCode);
-  const draft = drafts[normalizedCode];
+  const draft = draftFor({ categoryCode: normalizedCode });
   if (!normalizedCode || !draft) return;
   emit('save', {
     categoryCode: normalizedCode,
@@ -246,7 +258,7 @@ function saveCategory(categoryCode) {
 
 function toggleCategoryEnabled(categoryCode) {
   const normalizedCode = normalizeCategoryCode(categoryCode);
-  const draft = drafts[normalizedCode];
+  const draft = draftFor({ categoryCode: normalizedCode });
   if (!normalizedCode || !draft) return;
   emit('save', {
     categoryCode: normalizedCode,
@@ -295,6 +307,26 @@ function resetCreateDraft() {
   createDraft.coverImageUrl = empty.coverImageUrl;
   createDraft.sortNum = empty.sortNum;
   createDraft.enabled = empty.enabled;
+}
+
+function draftFor(item) {
+  const categoryCode = normalizeCategoryCode(item?.categoryCode);
+  if (!categoryCode) {
+    return createEmptyDraft();
+  }
+  if (!drafts[categoryCode]) {
+    drafts[categoryCode] = createDraftFromItem(item);
+  }
+  return drafts[categoryCode];
+}
+
+function createDraftFromItem(item) {
+  return {
+    displayName: String(item?.displayName || item?.categoryCode || ''),
+    coverImageUrl: String(item?.coverImageUrl || ''),
+    sortNum: Number.isFinite(Number(item?.sortNum)) ? Math.max(0, Math.trunc(Number(item.sortNum))) : 1000,
+    enabled: item?.enabled !== false
+  };
 }
 
 function createEmptyDraft() {
