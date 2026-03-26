@@ -117,6 +117,11 @@ public interface ContentService {
     AuthorPostItemResponse updateMyPost(Long postId, AuthorPostUpsertRequest request);
 
     /**
+     * 删除作者文章。
+     */
+    void deleteMyPost(Long postId);
+
+    /**
      * 发布作者文章。
      */
     AuthorPostItemResponse publishMyPost(Long postId);

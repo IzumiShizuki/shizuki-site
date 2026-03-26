@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -80,6 +81,14 @@ public class MyPostController {
     public ApiResponse<AuthorPostItemResponse> update(@PathVariable("post_id") Long postId,
                                                       @Valid @RequestBody AuthorPostUpsertRequest request) {
         return ApiResponse.success(contentService.updateMyPost(postId, request));
+    }
+
+    @DeleteMapping("/{post_id}")
+    @AuditLog(action = "post.delete", resource = "post")
+    @Operation(summary = "删除文章")
+    public ApiResponse<Void> delete(@PathVariable("post_id") Long postId) {
+        contentService.deleteMyPost(postId);
+        return ApiResponse.success(null);
     }
 
     @PostMapping("/{post_id}/publish")

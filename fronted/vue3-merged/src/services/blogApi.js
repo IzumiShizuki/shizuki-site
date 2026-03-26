@@ -299,6 +299,15 @@ export async function updateMyPost(postId, payload, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function deleteMyPost(postId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const id = normalizePostId(postId);
+  const response = await request(`/api/v1/me/posts/${id}`, {
+    method: 'DELETE'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function publishMyPost(postId, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const id = normalizePostId(postId);

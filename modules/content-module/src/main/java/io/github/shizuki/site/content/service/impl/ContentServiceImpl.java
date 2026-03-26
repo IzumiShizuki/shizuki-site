@@ -88,6 +88,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -1245,6 +1246,38 @@ public class ContentServiceImpl implements ContentService {
         replacePostTags(post.getId(), payload.tags());
 
         return toAuthorPostItemResponse(post);
+    }
+
+    @Override
+    @Transactional
+    public void deleteMyPost(Long postId) {
+        Long userId = requireLoginUserId();
+        requirePermission("blog.post.write");
+
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        if (!Objects.equals(post.getUserId(), userId) && !currentViewer().admin()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to delete this post");
+        }
+
+        String markdownBucket = readString(post.getMarkdownBucket(), "");
+        String markdownKey = readString(post.getMarkdownKey(), "");
+        PostPresentationEntity presentation = findPostPresentation(postId);
+
+        clearPostAcl(postId);
+        clearPostTags(postId);
+        if (presentation != null && presentation.getId() != null && presentation.getId() > 0) {
+            postPresentationMapper.deleteById(presentation.getId());
+        }
+        postMapper.deleteById(postId);
+
+        deleteStoredObjectQuietly(markdownBucket, markdownKey, "", "");
+        if (presentation != null) {
+            deleteStoredObjectQuietly(presentation.getSlidevBucket(), presentation.getSlidevKey(), "", "");
+            deleteStoredObjectQuietly(presentation.getPptBucket(), presentation.getPptKey(), "", "");
+        }
     }
 
     @Override

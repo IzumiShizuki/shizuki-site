@@ -363,13 +363,20 @@
         </div>
 
         <template v-if="viewMode === 'editor' && editorInfoVisible">
-          <SubtleScrollArea tag="section" class="editor-info-panel">
+          <section class="editor-info-shell">
             <div class="editor-info-panel-actions">
-              <button type="button" class="mini-btn ripple-trigger" :disabled="writerState.saving" @click="handleSaveDraft">保存草稿</button>
               <button
                 type="button"
                 class="mini-btn ripple-trigger"
-                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
+                :disabled="writerState.saving || deleteDialogState.submitting"
+                @click="handleSaveDraft"
+              >
+                保存草稿
+              </button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger"
+                :disabled="writerState.publishing || deleteDialogState.submitting || !canPublish || !writerState.editor.postId"
                 @click="handlePublish"
               >
                 发布
@@ -377,130 +384,136 @@
               <button
                 type="button"
                 class="mini-btn ripple-trigger"
-                :disabled="writerState.publishing || !canPublish || !writerState.editor.postId"
+                :disabled="writerState.publishing || deleteDialogState.submitting || !canPublish || !writerState.editor.postId"
                 @click="handleUnpublish"
               >
                 下线
               </button>
+              <button
+                type="button"
+                class="mini-btn ripple-trigger danger-btn"
+                :disabled="writerState.saving || writerState.publishing || deleteDialogState.submitting || !writerState.editor.postId"
+                @click="openDeleteDialog"
+              >
+                删除
+              </button>
             </div>
 
-            <section class="editor-info-section liquid-material">
-              <div class="editor-info-section-head">
-                <h3>演示文稿</h3>
-                <span class="editor-info-section-status">{{ editorPresentationStatusText }}</span>
-              </div>
-              <div class="editor-info-section-actions">
-                <button
-                  type="button"
-                  class="mini-btn ripple-trigger"
-                  :disabled="writerState.saving || editorPresentationState.generating"
-                  @click="handleGeneratePresentation"
-                >
-                  {{ editorPresentationReady ? '重新生成' : '生成演示文稿' }}
-                </button>
-                <button
-                  type="button"
-                  class="mini-btn ripple-trigger"
-                  :disabled="!editorPresentationReady"
-                  @click="openEditorPresentationPreview"
-                >
-                  在线预览
-                </button>
-                <button
-                  type="button"
-                  class="mini-btn ripple-trigger"
-                  :disabled="!editorPresentationReady"
-                  @click="openEditorPresentationInLightApp"
-                >
-                  轻应用打开
-                </button>
-                <button
-                  type="button"
-                  class="mini-btn ripple-trigger"
-                  :disabled="!editorPresentationPptReady"
-                  @click="downloadEditorPresentationPpt"
-                >
-                  下载 PPT
-                </button>
-              </div>
-              <p v-if="writerState.editor.postId <= 0" class="side-tip">首次生成前会先自动保存草稿。</p>
-              <p v-else-if="editorPresentationState.data?.generatedAt" class="side-tip">
-                最近生成：{{ formatDateTime(editorPresentationState.data.generatedAt) }}
-                <span v-if="editorPresentationState.data?.templateVersion"> · {{ editorPresentationState.data.templateVersion }}</span>
-              </p>
-              <p v-if="editorPresentationState.error" class="error-text editor-meta-message">{{ editorPresentationState.error }}</p>
-            </section>
-
-            <div class="editor-grid">
-              <label class="field field-wide">
-                <span>标题</span>
-                <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
-              </label>
-              <label class="field field-wide">
-                <span>分类</span>
-                <select v-model="writerState.editor.categoryCode" class="field-input">
-                  <option v-if="!editorCategoryOptions.length" value="" disabled>暂无可用分类</option>
-                  <option
-                    v-for="category in editorCategoryOptions"
-                    :key="`editor-category-${category.code}`"
-                    :value="category.code"
-                    :disabled="category.disabled && category.code !== writerState.editor.categoryCode"
+            <SubtleScrollArea tag="section" class="editor-info-panel">
+              <section class="editor-info-section liquid-material">
+                <div class="editor-info-section-head">
+                  <h3>演示文稿</h3>
+                  <span class="editor-info-section-status">{{ editorPresentationStatusText }}</span>
+                </div>
+                <div class="editor-info-section-actions">
+                  <button
+                    type="button"
+                    class="mini-btn ripple-trigger"
+                    :disabled="writerState.saving || deleteDialogState.submitting || editorPresentationState.generating"
+                    @click="handleGeneratePresentation"
                   >
-                    {{ category.label }}
-                  </option>
-                </select>
-                <small v-if="currentEditorCategoryDisabled" class="field-tip">当前分类已禁用；你可以保留当前值，但改选后不能再选回禁用分类。</small>
-                <small v-else-if="!editorCategoryOptions.length" class="field-tip">暂无启用分类，请先在分类管理中启用至少一个分类。</small>
-              </label>
-              <label class="field field-wide">
-                <span>摘要</span>
-                <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
-              </label>
-              <label class="field field-wide">
-                <span>Slug（可选）</span>
-                <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
-              </label>
-              <label class="field field-wide">
-                <span>封面 URL（可选）</span>
-                <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
-              </label>
-              <label class="field field-wide">
-                <span>可见性</span>
-                <select v-model="writerState.editor.visibility" class="field-input">
-                  <option value="PUBLIC">PUBLIC</option>
-                  <option value="PRIVATE">PRIVATE</option>
-                  <option value="GROUP">GROUP</option>
-                </select>
-              </label>
-              <label class="field field-wide">
-                <span>标签（逗号分隔）</span>
-                <input v-model.trim="writerState.editor.tagsText" type="text" class="field-input" placeholder="#spring,#vue,#ai" />
-              </label>
-              <label class="field field-wide">
-                <span>GROUP 分组（仅 GROUP 可见性生效）</span>
-                <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
-              </label>
-              <label class="field field-wide file-field">
-                <span>Markdown 文件上传（relay）</span>
-                <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
-              </label>
-            </div>
+                    {{ editorPresentationReady ? '重新生成' : '生成演示文稿' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="mini-btn ripple-trigger"
+                    :disabled="!editorPresentationReady"
+                    @click="openEditorPresentationPreview"
+                  >
+                    在线预览
+                  </button>
+                  <button
+                    type="button"
+                    class="mini-btn ripple-trigger"
+                    :disabled="!editorPresentationReady"
+                    @click="openEditorPresentationInLightApp"
+                  >
+                    轻应用打开
+                  </button>
+                  <button
+                    type="button"
+                    class="mini-btn ripple-trigger"
+                    :disabled="!editorPresentationPptReady"
+                    @click="downloadEditorPresentationPpt"
+                  >
+                    下载 PPT
+                  </button>
+                </div>
+                <p v-if="writerState.editor.postId <= 0" class="side-tip">首次生成前会先自动保存草稿。</p>
+                <p v-else-if="editorPresentationState.data?.generatedAt" class="side-tip">
+                  最近生成：{{ formatDateTime(editorPresentationState.data.generatedAt) }}
+                  <span v-if="editorPresentationState.data?.templateVersion"> · {{ editorPresentationState.data.templateVersion }}</span>
+                </p>
+                <p v-if="editorPresentationState.error" class="error-text editor-meta-message">{{ editorPresentationState.error }}</p>
+              </section>
 
-            <div class="editor-info-panel-footer">
-              <div class="editor-info-panel-footer-actions">
-                <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
-                <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
+              <div class="editor-grid">
+                <label class="field field-wide">
+                  <span>标题</span>
+                  <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
+                </label>
+                <label class="field field-wide">
+                  <span>分类</span>
+                  <select v-model="writerState.editor.categoryCode" class="field-input">
+                    <option v-if="!editorCategoryOptions.length" value="" disabled>暂无可用分类</option>
+                    <option
+                      v-for="category in editorCategoryOptions"
+                      :key="`editor-category-${category.code}`"
+                      :value="category.code"
+                      :disabled="category.disabled && category.code !== writerState.editor.categoryCode"
+                    >
+                      {{ category.label }}
+                    </option>
+                  </select>
+                  <small v-if="currentEditorCategoryDisabled" class="field-tip">当前分类已禁用；你可以保留当前值，但改选后不能再选回禁用分类。</small>
+                  <small v-else-if="!editorCategoryOptions.length" class="field-tip">暂无启用分类，请先在分类管理中启用至少一个分类。</small>
+                </label>
+                <label class="field field-wide">
+                  <span>摘要</span>
+                  <input v-model.trim="writerState.editor.summary" type="text" class="field-input" maxlength="500" />
+                </label>
+                <label class="field field-wide">
+                  <span>Slug（可选）</span>
+                  <input v-model.trim="writerState.editor.slugCode" type="text" class="field-input" />
+                </label>
+                <label class="field field-wide">
+                  <span>封面 URL（可选）</span>
+                  <input v-model.trim="writerState.editor.coverImageUrl" type="text" class="field-input" placeholder="https://..." />
+                </label>
+                <label class="field field-wide">
+                  <span>可见性</span>
+                  <select v-model="writerState.editor.visibility" class="field-input">
+                    <option value="PUBLIC">PUBLIC</option>
+                    <option value="PRIVATE">PRIVATE</option>
+                    <option value="GROUP">GROUP</option>
+                  </select>
+                </label>
+                <label class="field field-wide">
+                  <span>GROUP 分组（仅 GROUP 可见性生效）</span>
+                  <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
+                </label>
+                <label class="field field-wide file-field">
+                  <span>Markdown 文件上传（relay）</span>
+                  <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
+                </label>
               </div>
-              <div class="editor-info-panel-status">
-                <span class="editor-status">
-                  {{ writerState.editor.statusCode || 'DRAFT' }}
-                  <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
-                </span>
+
+              <div class="editor-info-panel-footer">
+                <div class="editor-info-panel-footer-actions">
+                  <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
+                  <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
+                </div>
+                <div class="editor-info-panel-status">
+                  <span class="editor-status">
+                    {{ writerState.editor.statusCode || 'DRAFT' }}
+                    <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
+                  </span>
+                </div>
+                <p v-if="writerState.error" class="error-text editor-meta-message">{{ writerState.error }}</p>
+                <p v-if="writerState.notice" class="notice-text editor-meta-message">{{ writerState.notice }}</p>
               </div>
-              <p v-if="writerState.error" class="error-text editor-meta-message">{{ writerState.error }}</p>
-              <p v-if="writerState.notice" class="notice-text editor-meta-message">{{ writerState.notice }}</p>
-            </div>
-          </SubtleScrollArea>
+            </SubtleScrollArea>
+          </section>
         </template>
         <template v-else-if="showTocPanel">
           <div class="toc-body">
@@ -572,6 +585,22 @@
         </div>
       </section>
     </div>
+
+    <div v-if="deleteDialogState.visible" class="dialog-mask" @click.self="closeDeleteDialog">
+      <section class="paste-dialog liquid-material delete-dialog">
+        <h3>删除文章</h3>
+        <p>删除后将同时移除文章正文、文章信息以及已生成的演示文稿资源，且无法恢复。</p>
+        <p class="delete-dialog-current">
+          当前文章：{{ normalizeString(writerState.editor.title).trim() || '未命名文章' }}
+        </p>
+        <div class="dialog-actions">
+          <button type="button" class="mini-btn ripple-trigger" :disabled="deleteDialogState.submitting" @click="closeDeleteDialog">取消</button>
+          <button type="button" class="mini-btn ripple-trigger danger-btn" :disabled="deleteDialogState.submitting" @click="confirmDeletePost">
+            {{ deleteDialogState.submitting ? '删除中...' : '确认删除' }}
+          </button>
+        </div>
+      </section>
+    </div>
   </section>
 </template>
 
@@ -582,6 +611,7 @@ import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createMyPost,
+  deleteMyPost,
   generateMyPostPresentation,
   getMyPostPresentation,
   getMyPostPresentationPptDownloadUrl,
@@ -679,6 +709,11 @@ const pasteState = reactive({
   dialogVisible: false,
   pendingText: '',
   sessionDecision: ''
+});
+
+const deleteDialogState = reactive({
+  visible: false,
+  submitting: false
 });
 
 const downloadState = reactive({
@@ -1057,9 +1092,13 @@ function normalizeCategoryStat(raw) {
 }
 
 function normalizeAuthorPost(raw) {
+  const title = normalizeString(raw?.title).trim()
+    || normalizeString(raw?.summary).trim()
+    || normalizeString(raw?.slugCode ?? raw?.slug_code).trim()
+    || '未命名文章';
   return {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
-    title: normalizeString(raw?.title),
+    title,
     summary: normalizeString(raw?.summary),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     slugCode: normalizeString(raw?.slugCode ?? raw?.slug_code),
@@ -1632,6 +1671,46 @@ async function handleUnpublish() {
   }
 }
 
+function openDeleteDialog() {
+  if (!writerState.editor.postId || deleteDialogState.submitting) return;
+  writerState.error = '';
+  writerState.notice = '';
+  deleteDialogState.visible = true;
+}
+
+function closeDeleteDialog() {
+  if (deleteDialogState.submitting) return;
+  deleteDialogState.visible = false;
+}
+
+async function confirmDeletePost() {
+  const postId = toSafeInt(writerState.editor.postId, 0);
+  if (postId <= 0 || deleteDialogState.submitting) return;
+  deleteDialogState.submitting = true;
+  writerState.error = '';
+  writerState.notice = '';
+  try {
+    await deleteMyPost(postId, auth.authorizedFetch);
+    deleteDialogState.visible = false;
+    const routeHasPostId = toSafeInt(route.params.postId, 0) > 0;
+    resetEditorForm();
+    editorMode.value = 'wysiwyg';
+    await Promise.all([loadMyPosts(), loadPostList()]);
+    if (routeHasPostId) {
+      await router.replace({ name: 'blog-editor' });
+      await nextTick();
+    }
+    editorInfoVisible.value = true;
+    writerState.notice = '文章已删除';
+    await nextTick();
+    refreshEditorLayout();
+  } catch (error) {
+    writerState.error = normalizeErrorMessage(error, '删除失败');
+  } finally {
+    deleteDialogState.submitting = false;
+  }
+}
+
 async function handleMarkdownFileUpload(event) {
   const file = event?.target?.files?.[0];
   if (!(file instanceof File)) return;
@@ -1657,6 +1736,8 @@ async function handleMarkdownFileUpload(event) {
 function resetEditorForm() {
   writerState.error = '';
   writerState.notice = '';
+  deleteDialogState.visible = false;
+  deleteDialogState.submitting = false;
   writerState.editor.postId = null;
   writerState.editor.title = '';
   writerState.editor.summary = '';
@@ -3136,6 +3217,15 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.editor-info-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
 .editor-info-panel {
   height: 100%;
   min-height: 0;
@@ -3193,6 +3283,12 @@ onBeforeUnmount(() => {
   min-height: 32px;
   border-radius: 9px;
   border-color: rgba(255, 255, 255, 0.24);
+}
+
+.danger-btn {
+  border-color: rgba(255, 132, 152, 0.36);
+  background: rgba(255, 88, 116, 0.18);
+  color: rgba(255, 236, 242, 0.98);
 }
 
 .editor-info-panel-footer {
@@ -3425,6 +3521,10 @@ onBeforeUnmount(() => {
 .paste-dialog p {
   line-height: 1.65;
   color: rgba(219, 229, 248, 0.92);
+}
+
+.delete-dialog-current {
+  font-weight: 600;
 }
 
 .dialog-actions {
