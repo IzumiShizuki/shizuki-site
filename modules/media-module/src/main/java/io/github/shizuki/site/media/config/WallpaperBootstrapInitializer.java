@@ -86,7 +86,8 @@ public class WallpaperBootstrapInitializer implements ApplicationRunner {
             upsertDefaultWallpaperProfile(asset.getId());
             LOGGER.info("WALLPAPER_BOOTSTRAP_DONE owner_user_id={} asset_id={}", ownerUserId, asset.getId());
         } catch (Exception exception) {
-            LOGGER.warn("WALLPAPER_BOOTSTRAP_SKIP reason={}", exception.getMessage(), exception);
+            LOGGER.warn("WALLPAPER_BOOTSTRAP_SKIP reason={}", exception.getMessage());
+            LOGGER.debug("WALLPAPER_BOOTSTRAP_SKIP_DETAIL", exception);
         }
     }
 

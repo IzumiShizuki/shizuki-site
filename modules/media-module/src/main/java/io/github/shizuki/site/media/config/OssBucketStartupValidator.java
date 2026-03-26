@@ -4,6 +4,7 @@ import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.ClientException;
+import io.github.shizuki.common.core.security.SecretValueValidator;
 import io.github.shizuki.common.storage.config.OssProperties;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -24,11 +25,14 @@ public class OssBucketStartupValidator implements ApplicationRunner {
 
     private final MediaStorageProperties mediaStorageProperties;
     private final OssProperties ossProperties;
+    private final SecretValueValidator secretValueValidator;
 
     public OssBucketStartupValidator(MediaStorageProperties mediaStorageProperties,
-                                     OssProperties ossProperties) {
+                                     OssProperties ossProperties,
+                                     SecretValueValidator secretValueValidator) {
         this.mediaStorageProperties = mediaStorageProperties;
         this.ossProperties = ossProperties;
+        this.secretValueValidator = secretValueValidator;
     }
 
     @Override
@@ -36,17 +40,18 @@ public class OssBucketStartupValidator implements ApplicationRunner {
         if (!mediaStorageProperties.isValidateBucketsOnStartup()) {
             return;
         }
-        String endpoint = requireText(ossProperties.getEndpoint(), "shizuki.oss.endpoint");
-        String accessKeyId = requireText(ossProperties.getAccessKeyId(), "shizuki.oss.access-key-id");
-        String accessKeySecret = requireText(ossProperties.getAccessKeySecret(), "shizuki.oss.access-key-secret");
+        String endpoint = requireConfigValue(ossProperties.getEndpoint(), "shizuki.oss.endpoint");
+        String accessKeyId = requireSecretValue(ossProperties.getAccessKeyId(), "shizuki.oss.access-key-id");
+        String accessKeySecret = requireSecretValue(ossProperties.getAccessKeySecret(), "shizuki.oss.access-key-secret");
         Set<String> buckets = collectBuckets();
-        LOGGER.info("OSS_BUCKET_VALIDATE_START endpoint={} buckets={}", endpoint, buckets);
+        LOGGER.debug("OSS_BUCKET_VALIDATE_START endpoint={} bucketCount={}", endpoint, buckets.size());
 
         OSS ossClient = createClient(endpoint, accessKeyId, accessKeySecret);
         try {
             for (String bucket : buckets) {
                 validateBucketExists(ossClient, endpoint, bucket);
             }
+            LOGGER.info("OSS_BUCKET_VALIDATE_DONE endpoint={} bucketCount={}", endpoint, buckets.size());
         } finally {
             try {
                 ossClient.shutdown();
@@ -69,7 +74,7 @@ public class OssBucketStartupValidator implements ApplicationRunner {
                         + "Please create the bucket or fix shizuki.media.storage/public-bucket/private-bucket."
                 );
             }
-            LOGGER.info("OSS_BUCKET_VALIDATE_OK endpoint={} bucket={}", endpoint, bucket);
+            LOGGER.debug("OSS_BUCKET_VALIDATE_OK endpoint={} bucket={}", endpoint, bucket);
         } catch (OSSException | ClientException ex) {
             LOGGER.error(
                 "OSS_BUCKET_VALIDATE_FAIL endpoint={} bucket={} error_type={} error_msg={}",
@@ -87,16 +92,23 @@ public class OssBucketStartupValidator implements ApplicationRunner {
 
     private Set<String> collectBuckets() {
         Set<String> buckets = new LinkedHashSet<>();
-        String privateBucket = requireText(mediaStorageProperties.getPrivateBucket(), "shizuki.media.storage.private-bucket");
-        String publicBucket = requireText(mediaStorageProperties.getPublicBucket(), "shizuki.media.storage.public-bucket");
+        String privateBucket = requireConfigValue(mediaStorageProperties.getPrivateBucket(), "shizuki.media.storage.private-bucket");
+        String publicBucket = requireConfigValue(mediaStorageProperties.getPublicBucket(), "shizuki.media.storage.public-bucket");
         buckets.add(privateBucket);
         buckets.add(publicBucket);
         return buckets;
     }
 
-    private String requireText(String value, String key) {
-        if (!StringUtils.hasText(value)) {
-            throw new IllegalStateException("Startup blocked: missing required config '" + key + "'");
+    private String requireConfigValue(String value, String key) {
+        if (!StringUtils.hasText(value) || secretValueValidator.isStructuredPlaceholder(value)) {
+            throw new IllegalStateException("Startup blocked: missing or placeholder config '" + key + "'");
+        }
+        return value.trim();
+    }
+
+    private String requireSecretValue(String value, String key) {
+        if (secretValueValidator.isInvalid(value)) {
+            throw new IllegalStateException("Startup blocked: missing or invalid secret config '" + key + "'");
         }
         return value.trim();
     }
