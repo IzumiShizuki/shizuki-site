@@ -140,7 +140,7 @@ function createUiMock() {
   };
 }
 
-async function mountProfilePage() {
+async function mountProfilePageWithRouter(initialPath = '/profile') {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -150,7 +150,7 @@ async function mountProfilePage() {
     ]
   });
 
-  await router.push('/profile');
+  await router.push(initialPath);
   await router.isReady();
 
   const wrapper = mount(ProfilePage, {
@@ -169,6 +169,11 @@ async function mountProfilePage() {
   });
 
   await flushPromises();
+  return { wrapper, router };
+}
+
+async function mountProfilePage() {
+  const { wrapper } = await mountProfilePageWithRouter();
   return wrapper;
 }
 
@@ -490,6 +495,30 @@ describe('ProfilePage immediate account expansion', () => {
         })
       })
     );
+    wrapper.unmount();
+  });
+
+  it('keeps logout actions in profile core and account management', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mocked.auth = createAuthMock();
+
+    const { wrapper, router } = await mountProfilePageWithRouter();
+    expect(wrapper.get('[data-testid="profile-core-logout"]').exists()).toBe(true);
+
+    await findQuickAction(wrapper, '查看账号信息').trigger('click');
+    await flushPromises();
+
+    const accountGroup = findGroup(wrapper, 'account');
+    expect(accountGroup.isVisible()).toBe(true);
+
+    await accountGroup.get('[data-testid="profile-account-logout"]').trigger('click');
+    await flushPromises();
+
+    expect(confirmSpy).toHaveBeenCalledWith('确认登出当前账号？');
+    expect(mocked.auth.logout).toHaveBeenCalledTimes(1);
+    expect(router.currentRoute.value.path).toBe('/auth');
+    expect(router.currentRoute.value.query.reason).toBe('signed_out');
+    expect(router.currentRoute.value.query.redirect).toBe('/profile');
     wrapper.unmount();
   });
 });

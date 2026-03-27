@@ -38,7 +38,6 @@
         @open-admin="openAdmin"
         @open-author="openAuthor"
         @open-auth="openAuth"
-        @logout="handleLogout"
         @open-background-picker="backgroundPickerVisible = true"
         @open-atmosphere-panel="openAtmospherePanel"
       />
@@ -2091,19 +2090,6 @@ function handleReorderTracks(payload) {
 
 function openPlayerSettings() {
   openProfile('settings');
-}
-
-async function handleLogout() {
-  await auth.logout();
-  if (route.meta?.requiresAuth || route.path === '/profile' || route.path === '/admin') {
-    router.replace({
-      path: '/auth',
-      query: {
-        reason: 'signed_out',
-        redirect: route.path === '/admin' ? '/admin' : '/profile'
-      }
-    });
-  }
 }
 
 function onGlobalPointerDown(event) {

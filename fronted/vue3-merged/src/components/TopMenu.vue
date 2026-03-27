@@ -1,5 +1,5 @@
 <template>
-  <nav ref="menuRootRef" class="fixed-nav-wrapper top-menu-root motion-managed" :class="{ expanded: menuExpanded }">
+  <nav class="fixed-nav-wrapper top-menu-root motion-managed" :class="{ expanded: menuExpanded }">
     <div class="top-bar liquid-material">
       <div class="nav-section left">
         <div
@@ -86,20 +86,13 @@
         <div
           v-else
           class="menu-item-stack ripple-trigger user-profile-item"
-          :class="{ 'route-active': isProfileRoute, open: profileMenuOpen }"
-          @click.stop="toggleProfileMenu"
+          :class="{ 'route-active': isProfileRoute }"
+          @click.stop="openProfileHome"
         >
           <div class="avatar-box">
             <img class="avatar-image" :src="resolvedAvatarUrl" alt="user-avatar" @error="onAvatarError" />
           </div>
           <span class="item-label">{{ displayName || '个人页面' }}</span>
-
-          <transition name="profile-popover">
-            <section v-if="profileMenuOpen" class="profile-popover liquid-material" @click.stop>
-              <button class="popover-item ripple-trigger" type="button" @click="openProfileHome">进入个人页面</button>
-              <button class="popover-item ripple-trigger danger" type="button" @click="requestLogout">登出</button>
-            </section>
-          </transition>
         </div>
       </div>
     </div>
@@ -117,7 +110,6 @@
 <script setup>
 import { computed, ref, toRefs, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { useDismissiblePopover } from '../composables/useDismissiblePopover';
 
 const props = defineProps({
   menuExpanded: {
@@ -175,14 +167,11 @@ const emit = defineEmits([
   'open-profile',
   'open-admin',
   'open-author',
-  'open-auth',
-  'logout'
+  'open-auth'
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
 const { menuExpanded, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
-const menuRootRef = ref(null);
-const profileMenuOpen = ref(false);
 const avatarLoadFailed = ref(false);
 const authorAvatarLoadFailed = ref(false);
 const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
@@ -268,7 +257,6 @@ function toggleAiChat() {
 }
 
 function selectMainRoute(routeKey) {
-  closeProfileMenus();
   emit('select-main-route', routeKey);
 }
 
@@ -277,7 +265,6 @@ function openBackgroundPicker() {
 }
 
 function openAtmosphere() {
-  closeProfileMenus();
   emit('open-atmosphere-panel');
 }
 
@@ -286,36 +273,20 @@ function openProjectGithub() {
   window.open(PROJECT_GITHUB_URL, '_blank', 'noopener,noreferrer');
 }
 
-function closeProfileMenus() {
-  profileMenuOpen.value = false;
-}
-
 function openAuthorOverview() {
-  closeProfileMenus();
   emit('open-author', 'overview');
 }
 
-function toggleProfileMenu() {
+function openProfileHome() {
   if (!isAuthenticated.value) {
     openAuth();
     return;
   }
-  profileMenuOpen.value = !profileMenuOpen.value;
-}
-
-function openProfileHome() {
-  closeProfileMenus();
   emit('open-profile');
 }
 
 function openAuth() {
-  closeProfileMenus();
   emit('open-auth');
-}
-
-function requestLogout() {
-  closeProfileMenus();
-  emit('logout');
 }
 
 watch(
@@ -331,23 +302,6 @@ watch(
     authorAvatarLoadFailed.value = false;
   }
 );
-
-watch(
-  () => route.fullPath,
-  () => closeProfileMenus()
-);
-
-watch(
-  menuExpanded,
-  (expanded) => {
-    if (!expanded) closeProfileMenus();
-  }
-);
-
-useDismissiblePopover({
-  rootRef: menuRootRef,
-  onDismiss: closeProfileMenus
-});
 </script>
 
 <style scoped>
@@ -816,72 +770,6 @@ useDismissiblePopover({
     0 0 6px rgba(var(--accent-rgb), 0.2);
 }
 
-.author-info-item.open .author-avatar-box,
-.user-profile-item.open .avatar-box {
-  border-color: var(--menu-active-border);
-  box-shadow:
-    0 0 0 1px var(--menu-active-border),
-    var(--menu-active-shadow);
-}
-
-.author-info-item.open,
-.user-profile-item.open {
-  background: var(--menu-active-bg);
-  box-shadow: inset 0 0 0 1px var(--menu-active-border);
-}
-
-.profile-popover {
-  --liquid-bg: rgba(var(--glass-rgb), 0.58);
-  --liquid-border: rgba(255, 255, 255, 0.52);
-  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.3);
-  position: absolute;
-  top: calc(100% + 10px);
-  right: -8px;
-  min-width: 136px;
-  border-radius: 12px;
-  padding: 6px;
-  display: grid;
-  gap: 6px;
-  z-index: 1200;
-}
-
-.popover-item {
-  border: 0;
-  border-radius: 9px;
-  min-height: 30px;
-  padding: 0 10px;
-  text-align: left;
-  font-size: 12px;
-  background: rgba(255, 255, 255, 0.18);
-  color: rgba(236, 242, 255, 0.95);
-}
-
-.popover-item:hover {
-  background: var(--menu-active-bg);
-  color: rgb(var(--accent-strong-rgb));
-}
-
-.popover-item.danger {
-  background: rgba(235, 94, 124, 0.2);
-  color: rgba(255, 230, 238, 0.95);
-}
-
-.popover-item.danger:hover {
-  background: rgba(235, 94, 124, 0.3);
-  color: rgba(255, 240, 244, 0.98);
-}
-
-.profile-popover-enter-active,
-.profile-popover-leave-active {
-  transition: opacity 160ms ease, transform 180ms ease;
-}
-
-.profile-popover-enter-from,
-.profile-popover-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.98);
-}
-
 .fixed-nav-wrapper:not(.expanded) .menu-item-stack {
   opacity: 0;
   transform: translateY(-20px);
@@ -1129,11 +1017,6 @@ useDismissiblePopover({
     padding-bottom: 6px;
   }
 
-  .profile-popover {
-    top: calc(100% + 6px);
-    right: -2px;
-    min-width: 124px;
-  }
 }
 
 @media (max-width: 600px), (orientation: portrait) {
@@ -1237,13 +1120,6 @@ useDismissiblePopover({
     gap: 0;
     background: rgba(10, 16, 26, 0.42);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
-  }
-
-  .profile-popover {
-    top: 0;
-    left: calc(100% + 8px);
-    right: auto;
-    min-width: 128px;
   }
 
   .menu-item-stack.active {

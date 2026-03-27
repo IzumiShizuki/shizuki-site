@@ -91,7 +91,9 @@
                 </div>
               </div>
               <div class="inline-actions compact">
-                <button class="danger-btn ripple-trigger" type="button" @click="handleLogout">安全退出</button>
+                <button data-testid="profile-core-logout" class="danger-btn ripple-trigger" type="button" @click="handleLogout">
+                  安全退出
+                </button>
               </div>
             </template>
           </ProfileSectionAccordion>
@@ -171,6 +173,11 @@
                   </tr>
                 </tbody>
               </table>
+              <div class="inline-actions compact">
+                <button data-testid="profile-account-logout" class="danger-btn ripple-trigger" type="button" @click="handleLogout">
+                  安全退出
+                </button>
+              </div>
             </template>
 
             <template #section-email-bind>

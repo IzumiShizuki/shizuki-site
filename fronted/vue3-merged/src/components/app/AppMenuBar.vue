@@ -10,7 +10,6 @@
     @open-admin="$emit('open-admin')"
     @open-author="$emit('open-author')"
     @open-auth="$emit('open-auth')"
-    @logout="$emit('logout')"
   />
 </template>
 
@@ -40,7 +39,6 @@ defineEmits([
   'open-profile',
   'open-admin',
   'open-author',
-  'open-auth',
-  'logout'
+  'open-auth'
 ]);
 </script>
