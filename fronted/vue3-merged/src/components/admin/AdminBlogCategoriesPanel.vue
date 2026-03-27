@@ -11,52 +11,62 @@
     </header>
 
     <section v-if="allowCreate" class="create-card liquid-material">
-      <h3>新增分类</h3>
-      <div class="field-grid">
-        <label class="field">
-          <span>分类编码</span>
-          <input
-            v-model.trim="createDraft.categoryCode"
-            class="field-input"
-            type="text"
-            maxlength="64"
-            placeholder="例如：notes / design / ai"
-          />
-        </label>
-        <label class="field">
-          <span>展示名称</span>
-          <input v-model.trim="createDraft.displayName" class="field-input" type="text" maxlength="128" placeholder="例如：学习笔记" />
-        </label>
-      </div>
-      <label class="field field-wide">
-        <span>图片 URL</span>
-        <input v-model.trim="createDraft.coverImageUrl" class="field-input" type="text" maxlength="512" placeholder="https://..." />
-      </label>
-      <div class="inline-fields">
-        <label class="field">
-          <span>排序</span>
-          <input v-model.number="createDraft.sortNum" class="field-input" type="number" min="0" step="1" />
-        </label>
-        <label class="field checkbox-field">
-          <span>启用</span>
-          <input v-model="createDraft.enabled" type="checkbox" />
-        </label>
-      </div>
-      <div class="actions">
-        <label class="ghost-btn ripple-trigger upload-btn" :class="{ disabled: uploadingCode === normalizedCreateCode || !normalizedCreateCode }">
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            :disabled="uploadingCode === normalizedCreateCode || !normalizedCreateCode"
-            @change="handleCoverFileChange(normalizedCreateCode, $event)"
-          />
-          {{ uploadingCode === normalizedCreateCode ? '上传中...' : '上传图片' }}
-        </label>
-        <button class="ghost-btn ripple-trigger" type="button" @click="resetCreateDraft">清空</button>
-        <button class="primary-btn ripple-trigger" type="button" :disabled="saving || !normalizedCreateCode" @click="createCategory">
-          {{ saving ? '保存中...' : '新增分类' }}
+      <div class="create-card-head">
+        <div>
+          <h3>新增分类</h3>
+          <p>{{ createFormExpanded ? '填写分类编码、展示名与封面信息。' : '需要新增时再展开表单。' }}</p>
+        </div>
+        <button class="ghost-btn ripple-trigger" type="button" @click="toggleCreateForm">
+          {{ createFormExpanded ? '收起' : '展开' }}
         </button>
       </div>
+      <template v-if="createFormExpanded">
+        <div class="field-grid">
+          <label class="field">
+            <span>分类编码</span>
+            <input
+              v-model.trim="createDraft.categoryCode"
+              class="field-input"
+              type="text"
+              maxlength="64"
+              placeholder="例如：notes / design / ai"
+            />
+          </label>
+          <label class="field">
+            <span>展示名称</span>
+            <input v-model.trim="createDraft.displayName" class="field-input" type="text" maxlength="128" placeholder="例如：学习笔记" />
+          </label>
+        </div>
+        <label class="field field-wide">
+          <span>图片 URL</span>
+          <input v-model.trim="createDraft.coverImageUrl" class="field-input" type="text" maxlength="512" placeholder="https://..." />
+        </label>
+        <div class="inline-fields">
+          <label class="field">
+            <span>排序</span>
+            <input v-model.number="createDraft.sortNum" class="field-input" type="number" min="0" step="1" />
+          </label>
+          <label class="field checkbox-field">
+            <span>启用</span>
+            <input v-model="createDraft.enabled" type="checkbox" />
+          </label>
+        </div>
+        <div class="actions">
+          <label class="ghost-btn ripple-trigger upload-btn" :class="{ disabled: uploadingCode === normalizedCreateCode || !normalizedCreateCode }">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              :disabled="uploadingCode === normalizedCreateCode || !normalizedCreateCode"
+              @change="handleCoverFileChange(normalizedCreateCode, $event)"
+            />
+            {{ uploadingCode === normalizedCreateCode ? '上传中...' : '上传图片' }}
+          </label>
+          <button class="ghost-btn ripple-trigger" type="button" @click="resetCreateDraft">清空</button>
+          <button class="primary-btn ripple-trigger" type="button" :disabled="saving || !normalizedCreateCode" @click="createCategory">
+            {{ saving ? '保存中...' : '新增分类' }}
+          </button>
+        </div>
+      </template>
     </section>
 
     <p v-if="error" class="error-text">{{ error }}</p>
@@ -150,7 +160,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
   loading: {
@@ -191,8 +201,21 @@ const emit = defineEmits(['refresh', 'save', 'upload', 'delete']);
 
 const drafts = reactive({});
 const createDraft = reactive(createEmptyDraft());
+const createFormExpanded = ref(false);
 
 const normalizedCreateCode = computed(() => normalizeCategoryCode(createDraft.categoryCode));
+const hasCreateDraftInput = computed(() => {
+  const sortNum = Number.isFinite(Number(createDraft.sortNum)) ? Math.max(0, Math.trunc(Number(createDraft.sortNum))) : 1000;
+  return Boolean(
+    normalizedCreateCode.value ||
+      String(createDraft.displayName || '').trim() ||
+      String(createDraft.coverImageUrl || '').trim() ||
+      sortNum !== 1000 ||
+      createDraft.enabled === false ||
+      String(props.createUploadCategoryCode || '').trim() ||
+      String(props.createUploadedCoverUrl || '').trim()
+  );
+});
 const viewItems = computed(() =>
   (Array.isArray(props.items) ? props.items : []).map((item) => ({
     item,
@@ -233,6 +256,30 @@ watch(
     deep: true,
     flush: 'sync'
   }
+);
+
+watch(
+  () => (Array.isArray(props.items) ? props.items.length : 0),
+  (count, previousCount) => {
+    if (count <= 0) {
+      createFormExpanded.value = true;
+      return;
+    }
+    if ((previousCount ?? 0) <= 0 && !hasCreateDraftInput.value) {
+      createFormExpanded.value = false;
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => hasCreateDraftInput.value,
+  (hasValue) => {
+    if (hasValue) {
+      createFormExpanded.value = true;
+    }
+  },
+  { immediate: true }
 );
 
 watch(
@@ -298,6 +345,9 @@ function createCategory() {
     sortNum: Number.isFinite(Number(createDraft.sortNum)) ? Math.max(0, Math.trunc(Number(createDraft.sortNum))) : 1000,
     enabled: createDraft.enabled !== false
   });
+  if ((Array.isArray(props.items) ? props.items.length : 0) > 0) {
+    createFormExpanded.value = false;
+  }
 }
 
 function resetCreateDraft() {
@@ -307,6 +357,13 @@ function resetCreateDraft() {
   createDraft.coverImageUrl = empty.coverImageUrl;
   createDraft.sortNum = empty.sortNum;
   createDraft.enabled = empty.enabled;
+  if ((Array.isArray(props.items) ? props.items.length : 0) > 0) {
+    createFormExpanded.value = false;
+  }
+}
+
+function toggleCreateForm() {
+  createFormExpanded.value = !createFormExpanded.value;
 }
 
 function draftFor(item) {
@@ -353,6 +410,7 @@ function normalizeCategoryCode(value) {
   min-height: 0;
   display: grid;
   gap: 12px;
+  align-content: start;
 }
 
 .create-card {
@@ -367,6 +425,19 @@ function normalizeCategoryCode(value) {
 
 .create-card h3 {
   font-size: 14px;
+}
+
+.create-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.create-card-head p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(214, 224, 246, 0.78);
 }
 
 .field-grid {
@@ -402,6 +473,8 @@ function normalizeCategoryCode(value) {
 .category-grid {
   display: grid;
   gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
 }
 
 .category-card {
@@ -413,6 +486,7 @@ function normalizeCategoryCode(value) {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
   gap: 12px;
+  align-content: start;
 }
 
 .cover-col {
@@ -545,6 +619,10 @@ function normalizeCategoryCode(value) {
     grid-template-columns: 1fr;
   }
 
+  .category-grid {
+    grid-template-columns: 1fr;
+  }
+
   .category-card {
     grid-template-columns: 1fr;
   }
@@ -555,6 +633,12 @@ function normalizeCategoryCode(value) {
   }
 
   .inline-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1240px) {
+  .category-grid {
     grid-template-columns: 1fr;
   }
 }
