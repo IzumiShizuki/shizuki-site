@@ -533,6 +533,11 @@ const categoryPanelRenderKey = computed(() =>
     .join('|')
 );
 
+let postListRequestSeq = 0;
+let sidebarRequestSeq = 0;
+let categoryMetaRequestSeq = 0;
+let categoryPanelRequestSeq = 0;
+
 function resolveAuthorizedFetch() {
   return auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
 }
@@ -682,6 +687,7 @@ function resolveCover(url) {
 }
 
 async function loadPostList() {
+  const requestSeq = ++postListRequestSeq;
   listState.loading = true;
   listState.error = '';
   try {
@@ -698,22 +704,27 @@ async function loadPostList() {
       resolveAuthorizedFetch()
     );
     const items = Array.isArray(payload?.items) ? payload.items : [];
+    if (requestSeq !== postListRequestSeq) return;
     listState.items = items.map(normalizePostSummary).filter((item) => item.postId > 0);
     listState.total = Math.max(0, Number(payload?.total) || listState.items.length);
   } catch (error) {
+    if (requestSeq !== postListRequestSeq) return;
     listState.items = [];
     listState.total = 0;
     listState.error = normalizeErrorMessage(error, '加载博客列表失败');
   } finally {
+    if (requestSeq !== postListRequestSeq) return;
     listState.loading = false;
   }
 }
 
 async function loadSidebar() {
+  const requestSeq = ++sidebarRequestSeq;
   sidebarState.loading = true;
   sidebarState.error = '';
   try {
     const payload = await getPostSidebar(resolveAuthorizedFetch());
+    if (requestSeq !== sidebarRequestSeq) return;
     sidebarState.latestPosts = Array.isArray(payload?.latestPosts ?? payload?.latest_posts)
       ? (payload.latestPosts ?? payload.latest_posts).map(normalizeLatestPost).filter((item) => item.postId > 0)
       : [];
@@ -725,31 +736,41 @@ async function loadSidebar() {
       ? payload.archives.map(normalizeArchiveStat).filter((item) => item.month)
       : [];
   } catch (error) {
+    if (requestSeq !== sidebarRequestSeq) return;
     sidebarState.error = normalizeErrorMessage(error, '加载侧栏数据失败');
     sidebarState.latestPosts = [];
     sidebarState.categories = [];
     sidebarState.tags = [];
     sidebarState.archives = [];
   } finally {
+    if (requestSeq !== sidebarRequestSeq) return;
     sidebarState.loading = false;
   }
 }
 
 async function reloadCategoryMetas() {
   if (!canManageCategories.value) return;
+  const requestSeq = ++categoryMetaRequestSeq;
   categoryMetaError.value = '';
   categoryMetaLoading.value = true;
   try {
     const payload = await listBlogCategoryMetas(auth.authorizedFetch);
+    if (requestSeq !== categoryMetaRequestSeq) return;
     categoryMetaItems.value = Array.isArray(payload)
       ? payload.map(normalizeCategoryMetaItem).filter((item) => item.categoryCode)
       : [];
   } catch (error) {
+    if (requestSeq !== categoryMetaRequestSeq) return;
     categoryMetaItems.value = [];
     categoryMetaError.value = normalizeErrorMessage(error, '加载分类管理数据失败');
   } finally {
+    if (requestSeq !== categoryMetaRequestSeq) return;
     categoryMetaLoading.value = false;
   }
+}
+
+async function loadReadPanelContext() {
+  await Promise.all([loadSidebar(), canManageCategories.value ? reloadCategoryMetas() : Promise.resolve()]);
 }
 
 async function saveCategoryMetaItem(payload) {
@@ -843,11 +864,13 @@ async function uploadCategoryMetaCover(payload) {
 }
 
 async function loadCategoryPanelContext() {
+  const requestSeq = ++categoryPanelRequestSeq;
   categoryPanelLoading.value = true;
   categoryMetaError.value = '';
   try {
-    await Promise.all([loadSidebar(), canManageCategories.value ? reloadCategoryMetas() : Promise.resolve()]);
+    await loadReadPanelContext();
   } finally {
+    if (requestSeq !== categoryPanelRequestSeq) return;
     categoryPanelLoading.value = false;
   }
 }
@@ -892,9 +915,6 @@ function setPanel(nextPanel) {
   }
   uiState.panel = normalizePanel(nextPanel);
   uiState.actionHint = '';
-  if (uiState.panel === 'categories' && canManageCategories.value) {
-    void loadCategoryPanelContext();
-  }
   syncRouteQueryFromPanel(uiState.panel);
 }
 
@@ -1055,7 +1075,7 @@ onMounted(async () => {
   syncPanelFromRouteQuery();
   await Promise.all([
     loadPostList(),
-    uiState.panel === 'categories' ? loadCategoryPanelContext() : loadSidebar()
+    uiState.panel === 'categories' ? loadCategoryPanelContext() : loadReadPanelContext()
   ]);
 });
 
@@ -1065,6 +1085,10 @@ watch(
     syncPanelFromRouteQuery();
     if (uiState.panel === 'categories') {
       void loadCategoryPanelContext();
+      return;
+    }
+    if (canManageCategories.value && !categoryMetaItems.value.length && !categoryMetaLoading.value) {
+      void reloadCategoryMetas();
     }
   }
 );
@@ -1074,6 +1098,10 @@ watch(
   (enabled) => {
     if (enabled && uiState.panel === 'categories') {
       void loadCategoryPanelContext();
+      return;
+    }
+    if (enabled && !categoryMetaItems.value.length && !categoryMetaLoading.value) {
+      void reloadCategoryMetas();
     }
   }
 );
