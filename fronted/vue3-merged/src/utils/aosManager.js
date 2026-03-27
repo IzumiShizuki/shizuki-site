@@ -12,6 +12,8 @@ const AOS_TARGET_SELECTOR = [
 const DEFAULT_DURATION = '520';
 const DEFAULT_EASING = 'ease-out-cubic';
 const DEFAULT_OFFSET = '18';
+const AOS_ATTRIBUTE_NAMES = ['data-aos', 'data-aos-duration', 'data-aos-easing', 'data-aos-offset', 'data-aos-once', 'data-aos-delay'];
+const AOS_CLASS_NAMES = ['aos-init', 'aos-animate'];
 
 let observer = null;
 let initialized = false;
@@ -31,9 +33,17 @@ function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+function clearAosState(node) {
+  if (!(node instanceof HTMLElement)) return;
+  AOS_ATTRIBUTE_NAMES.forEach((name) => node.removeAttribute(name));
+  AOS_CLASS_NAMES.forEach((name) => node.classList.remove(name));
+}
+
 function shouldIgnoreNode(node) {
   if (!(node instanceof HTMLElement)) return true;
-  if (node.dataset?.aosIgnore === 'true') return true;
+  if (node.closest('[data-aos-ignore="true"]')) return true;
+  const scrollContainer = node.closest('.subtle-scroll-area');
+  if (scrollContainer && scrollContainer !== node) return true;
   if (node.closest('.click-ripple-layer')) return true;
   if (node.closest('.bg-picker-mask')) return true;
   if (node.closest('.dialog-mask')) return true;
@@ -47,7 +57,10 @@ function applyAosFadeUp(root = document) {
   let visibleOrder = 0;
 
   nodes.forEach((node) => {
-    if (shouldIgnoreNode(node)) return;
+    if (shouldIgnoreNode(node)) {
+      clearAosState(node);
+      return;
+    }
 
     if (!node.hasAttribute('data-aos')) {
       node.setAttribute('data-aos', 'fade-up');
