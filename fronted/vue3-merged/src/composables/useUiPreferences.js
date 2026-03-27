@@ -2,23 +2,30 @@ import { reactive } from 'vue';
 
 const STORAGE_KEY = 'shizuki.uiPreferences.v1';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
-const DEFAULT_ACCENT_HEX = '#C8B4FF';
+const THEME_DEFAULTS_VERSION = 2;
+const LEGACY_DEFAULT_ACCENT_HEX = '#C8B4FF';
+const LEGACY_DEFAULT_GRADIENT_PRESET_ID = 'berry';
+const LEGACY_DEFAULT_GRADIENT_START_HEX = '#E94BC5';
+const LEGACY_DEFAULT_GRADIENT_END_HEX = '#9D6BFF';
+const DEFAULT_ACCENT_HEX = '#F2B39D';
 const DEFAULT_ACCENT_MODE = 'solid';
-const DEFAULT_GRADIENT_PRESET_ID = 'berry';
+const DEFAULT_GRADIENT_PRESET_ID = 'apricot-blush';
 
 const ACCENT_PRESETS = [
-  { name: '淡紫', hex: '#C8B4FF' },
+  { name: '奶杏桃粉', hex: '#F2B39D' },
+  { name: '暖橙', hex: '#FFBF8A' },
   { name: '玫瑰粉', hex: '#F5A4D6' },
+  { name: '淡紫', hex: '#C8B4FF' },
   { name: '薄荷青', hex: '#8FDCC8' },
-  { name: '天空蓝', hex: '#9EC8FF' },
-  { name: '暖橙', hex: '#FFBF8A' }
+  { name: '天空蓝', hex: '#9EC8FF' }
 ];
 
 const GRADIENT_PRESETS = [
-  { id: 'berry', name: '莓果粉紫', startHex: '#E94BC5', endHex: '#9D6BFF' },
+  { id: 'apricot-blush', name: '奶杏桃粉', startHex: '#F6C2A1', endHex: '#EFA0A8' },
+  { id: 'sunset', name: '晚霞粉橙', startHex: '#FF7A8A', endHex: '#FFB168' },
   { id: 'rose', name: '蔷薇奶霓', startHex: '#FF6BAA', endHex: '#C36BFF' },
-  { id: 'mint', name: '薄荷霓虹', startHex: '#58D4C5', endHex: '#7A8CFF' },
-  { id: 'sunset', name: '晚霞粉橙', startHex: '#FF7A8A', endHex: '#FFB168' }
+  { id: 'berry', name: '莓果粉紫', startHex: '#E94BC5', endHex: '#9D6BFF' },
+  { id: 'mint', name: '薄荷霓虹', startHex: '#58D4C5', endHex: '#7A8CFF' }
 ];
 
 function resolveGradientPreset(id) {
@@ -32,6 +39,7 @@ const state = reactive({
   accentGradientId: DEFAULT_GRADIENT_PRESET_ID,
   accentGradientStartHex: resolveGradientPreset(DEFAULT_GRADIENT_PRESET_ID).startHex,
   accentGradientEndHex: resolveGradientPreset(DEFAULT_GRADIENT_PRESET_ID).endHex,
+  themeDefaultsVersion: THEME_DEFAULTS_VERSION,
   globalBackgroundId: '',
   routeBackgroundByKey: {},
   aiPanelOpen: false
@@ -41,6 +49,14 @@ let initialized = false;
 
 function clamp(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function mixTuple(source, target, ratio) {
+  return [
+    clamp(source[0] + (target[0] - source[0]) * ratio),
+    clamp(source[1] + (target[1] - source[1]) * ratio),
+    clamp(source[2] + (target[2] - source[2]) * ratio)
+  ];
 }
 
 function normalizeHex(input) {
@@ -71,6 +87,37 @@ function hexToRgbTuple(hex) {
   ];
 }
 
+function getThemeDefaultsVersion(payload) {
+  const value = Number.parseInt(payload?.themeDefaultsVersion, 10);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isLegacyDefaultThemeSelection(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+
+  const accentHex = normalizeHex(payload.accentHex) || LEGACY_DEFAULT_ACCENT_HEX;
+  const accentMode = normalizeAccentMode(payload.accentMode);
+  const gradientId = String(payload.accentGradientId || LEGACY_DEFAULT_GRADIENT_PRESET_ID).trim().toLowerCase();
+  const gradientStartHex = normalizeHex(payload.accentGradientStartHex) || LEGACY_DEFAULT_GRADIENT_START_HEX;
+  const gradientEndHex = normalizeHex(payload.accentGradientEndHex) || LEGACY_DEFAULT_GRADIENT_END_HEX;
+  const matchesLegacyGradient =
+    gradientStartHex === LEGACY_DEFAULT_GRADIENT_START_HEX &&
+    gradientEndHex === LEGACY_DEFAULT_GRADIENT_END_HEX &&
+    (!gradientId || gradientId === LEGACY_DEFAULT_GRADIENT_PRESET_ID || gradientId === 'custom');
+
+  return accentHex === LEGACY_DEFAULT_ACCENT_HEX && matchesLegacyGradient && ['solid', 'gradient'].includes(accentMode);
+}
+
+function applyThemeDefaults(modeInput = state.accentMode) {
+  const preset = resolveGradientPreset(DEFAULT_GRADIENT_PRESET_ID);
+  state.accentHex = DEFAULT_ACCENT_HEX;
+  state.accentMode = normalizeAccentMode(modeInput);
+  state.accentGradientId = preset.id;
+  state.accentGradientStartHex = preset.startHex;
+  state.accentGradientEndHex = preset.endHex;
+  state.themeDefaultsVersion = THEME_DEFAULTS_VERSION;
+}
+
 function applyAccentVariables() {
   if (typeof document === 'undefined') return;
   const tuple = hexToRgbTuple(state.accentHex) || hexToRgbTuple(DEFAULT_ACCENT_HEX);
@@ -80,8 +127,34 @@ function applyAccentVariables() {
   const strong = [clamp(r * 0.86), clamp(g * 0.84), clamp(b * 0.92)];
   const soft = [clamp(r + (255 - r) * 0.42), clamp(g + (255 - g) * 0.42), clamp(b + (255 - b) * 0.38)];
   const lifted = [clamp(r + (255 - r) * 0.18), clamp(g + (255 - g) * 0.18), clamp(b + (255 - b) * 0.16)];
-  const gradientStart = hexToRgbTuple(state.accentGradientStartHex) || [233, 75, 197];
-  const gradientEnd = hexToRgbTuple(state.accentGradientEndHex) || [157, 107, 255];
+  const gradientStart = hexToRgbTuple(state.accentGradientStartHex) || [246, 194, 161];
+  const gradientEnd = hexToRgbTuple(state.accentGradientEndHex) || [239, 160, 168];
+  const warmCore = mixTuple([r, g, b], [50, 32, 28], 0.68);
+  const warmShade = mixTuple([r, g, b], [20, 12, 10], 0.82);
+  const warmLift = mixTuple(soft, [255, 235, 224], 0.34);
+  const warmBorder = mixTuple([r, g, b], [255, 230, 214], 0.18);
+  const warmBorderStrong = mixTuple(strong, [255, 214, 194], 0.12);
+  const themeSurface = state.accentMode === 'gradient'
+    ? `linear-gradient(155deg, rgba(${mixTuple(gradientStart, [68, 42, 34], 0.56).join(', ')}, 0.7), rgba(${mixTuple(gradientEnd, [22, 14, 12], 0.84).join(', ')}, 0.76))`
+    : `linear-gradient(155deg, rgba(${warmCore.join(', ')}, 0.34), rgba(${warmShade.join(', ')}, 0.84))`;
+  const themeSurfaceElevated = state.accentMode === 'gradient'
+    ? `linear-gradient(145deg, rgba(${mixTuple(gradientStart, [110, 72, 56], 0.44).join(', ')}, 0.32), rgba(${mixTuple(gradientEnd, [36, 22, 18], 0.74).join(', ')}, 0.74))`
+    : `linear-gradient(145deg, rgba(${mixTuple(lifted, [126, 82, 68], 0.36).join(', ')}, 0.28), rgba(${mixTuple([r, g, b], [30, 18, 16], 0.78).join(', ')}, 0.72))`;
+  const themeSurfaceSoft = state.accentMode === 'gradient'
+    ? `rgba(${mixTuple(gradientStart, [255, 236, 224], 0.28).join(', ')}, 0.16)`
+    : `rgba(${warmLift.join(', ')}, 0.16)`;
+  const themeBorder = `rgba(${warmBorder.join(', ')}, 0.24)`;
+  const themeBorderStrong = `rgba(${warmBorderStrong.join(', ')}, 0.34)`;
+  const themeTextPrimary = 'rgba(255, 242, 233, 0.96)';
+  const themeTextSecondary = 'rgba(231, 211, 196, 0.88)';
+  const themeTextTertiary = 'rgba(205, 183, 168, 0.78)';
+  const themeSpotA = state.accentMode === 'gradient'
+    ? `rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.22)`
+    : `rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.2)`;
+  const themeSpotB = state.accentMode === 'gradient'
+    ? `rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.16)`
+    : `rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.16)`;
+  const themeScrim = 'rgba(24, 14, 12, 0.64)';
   const fillSoft = state.accentMode === 'gradient'
     ? `linear-gradient(135deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.18), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.14))`
     : `linear-gradient(145deg, rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.16), rgba(${r}, ${g}, ${b}, 0.12))`;
@@ -121,6 +194,17 @@ function applyAccentVariables() {
     '--accent-gradient',
     `linear-gradient(135deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.94), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.9))`
   );
+  root.style.setProperty('--theme-surface', themeSurface);
+  root.style.setProperty('--theme-surface-elevated', themeSurfaceElevated);
+  root.style.setProperty('--theme-surface-soft', themeSurfaceSoft);
+  root.style.setProperty('--theme-border', themeBorder);
+  root.style.setProperty('--theme-border-strong', themeBorderStrong);
+  root.style.setProperty('--theme-text-primary', themeTextPrimary);
+  root.style.setProperty('--theme-text-secondary', themeTextSecondary);
+  root.style.setProperty('--theme-text-tertiary', themeTextTertiary);
+  root.style.setProperty('--theme-spot-a', themeSpotA);
+  root.style.setProperty('--theme-spot-b', themeSpotB);
+  root.style.setProperty('--theme-scrim', themeScrim);
   root.style.setProperty('--accent-mode-fill-soft', fillSoft);
   root.style.setProperty(
     '--accent-mode-fill',
@@ -179,6 +263,7 @@ function persist() {
         accentGradientId: state.accentGradientId,
         accentGradientStartHex: state.accentGradientStartHex,
         accentGradientEndHex: state.accentGradientEndHex,
+        themeDefaultsVersion: state.themeDefaultsVersion,
         globalBackgroundId: state.globalBackgroundId,
         routeBackgroundByKey: state.routeBackgroundByKey,
         aiPanelOpen: state.aiPanelOpen
@@ -205,11 +290,20 @@ function initializeUiPreferences() {
           state.accentGradientId = preset.id;
           state.accentGradientStartHex = normalizeHex(payload.accentGradientStartHex) || preset.startHex;
           state.accentGradientEndHex = normalizeHex(payload.accentGradientEndHex) || preset.endHex;
+          state.themeDefaultsVersion = getThemeDefaultsVersion(payload);
           if (typeof payload.globalBackgroundId === 'string') state.globalBackgroundId = payload.globalBackgroundId;
           if (payload.routeBackgroundByKey && typeof payload.routeBackgroundByKey === 'object') {
             state.routeBackgroundByKey = { ...payload.routeBackgroundByKey };
           }
           state.aiPanelOpen = Boolean(payload.aiPanelOpen);
+
+          if (state.themeDefaultsVersion < THEME_DEFAULTS_VERSION) {
+            if (isLegacyDefaultThemeSelection(payload)) {
+              applyThemeDefaults(payload.accentMode);
+            } else {
+              state.themeDefaultsVersion = THEME_DEFAULTS_VERSION;
+            }
+          }
         }
       }
 
@@ -241,6 +335,7 @@ function setAccentHex(hexInput) {
   }
 
   state.accentHex = normalized;
+  state.themeDefaultsVersion = THEME_DEFAULTS_VERSION;
   applyAccentVariables();
   persist();
 
@@ -251,13 +346,14 @@ function setAccentHex(hexInput) {
 }
 
 function resetAccent() {
-  state.accentHex = DEFAULT_ACCENT_HEX;
+  applyThemeDefaults(state.accentMode);
   applyAccentVariables();
   persist();
 }
 
 function setAccentMode(modeInput) {
   state.accentMode = normalizeAccentMode(modeInput);
+  state.themeDefaultsVersion = THEME_DEFAULTS_VERSION;
   applyAccentVariables();
   persist();
   return state.accentMode;
@@ -268,6 +364,7 @@ function setAccentGradientPreset(presetId) {
   state.accentGradientId = preset.id;
   state.accentGradientStartHex = preset.startHex;
   state.accentGradientEndHex = preset.endHex;
+  state.themeDefaultsVersion = THEME_DEFAULTS_VERSION;
   applyAccentVariables();
   persist();
   return preset;
@@ -285,6 +382,7 @@ function setAccentGradientCustom(startHexInput, endHexInput) {
   state.accentGradientId = 'custom';
   state.accentGradientStartHex = startHex;
   state.accentGradientEndHex = endHex;
+  state.themeDefaultsVersion = THEME_DEFAULTS_VERSION;
   applyAccentVariables();
   persist();
   return {

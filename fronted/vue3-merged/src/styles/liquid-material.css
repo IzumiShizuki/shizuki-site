@@ -1,12 +1,12 @@
 :root {
-  --glass-rgb: 240, 240, 255;
+  --glass-rgb: 247, 231, 221;
   --glass-bg-alpha: 0.25;
   --glass-border-alpha: 0.4;
   --glass-shadow-alpha: 0.1;
 
-  --glass-bg: rgba(var(--glass-rgb), var(--glass-bg-alpha));
-  --glass-border: rgba(255, 255, 255, var(--glass-border-alpha));
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, var(--glass-shadow-alpha));
+  --glass-bg: var(--theme-surface-soft, rgba(var(--glass-rgb), var(--glass-bg-alpha)));
+  --glass-border: var(--theme-border, rgba(255, 255, 255, var(--glass-border-alpha)));
+  --glass-shadow: 0 8px 32px rgba(22, 12, 10, var(--glass-shadow-alpha));
   --glass-blur: blur(16px) saturate(160%);
 }
 

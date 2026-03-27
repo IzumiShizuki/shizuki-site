@@ -72,9 +72,9 @@ defineEmits(['avatar-click']);
 
 <style scoped>
 .hero-card {
-  --liquid-bg: linear-gradient(144deg, rgba(10, 21, 35, 0.7), rgba(9, 18, 30, 0.62));
-  --liquid-border: rgba(155, 188, 214, 0.24);
-  --liquid-shadow: 0 18px 34px rgba(4, 8, 14, 0.24);
+  --liquid-bg: var(--theme-surface, linear-gradient(144deg, rgba(35, 20, 17, 0.74), rgba(18, 12, 10, 0.66)));
+  --liquid-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --liquid-shadow: 0 18px 34px rgba(18, 9, 8, 0.24);
   border-radius: 20px;
   padding: 18px 18px 16px;
   display: grid;
@@ -90,11 +90,11 @@ defineEmits(['avatar-click']);
 }
 
 .hero-avatar-btn {
-  border: 1px solid rgba(150, 185, 214, 0.32);
+  border: 1px solid var(--theme-border-strong, rgba(255, 214, 194, 0.34));
   background: transparent;
   padding: 3px;
   border-radius: 22px;
-  box-shadow: 0 12px 22px rgba(4, 10, 16, 0.26);
+  box-shadow: 0 12px 22px rgba(18, 9, 8, 0.24);
 }
 
 .hero-avatar {
@@ -103,8 +103,8 @@ defineEmits(['avatar-click']);
   border-radius: 20px;
   object-fit: cover;
   box-shadow:
-    0 8px 18px rgba(5, 10, 18, 0.26),
-    inset 0 0 0 1px rgba(173, 206, 230, 0.32);
+    0 8px 18px rgba(18, 9, 8, 0.24),
+    inset 0 0 0 1px var(--theme-border-strong, rgba(255, 214, 194, 0.34));
 }
 
 .hero-avatar-action {
@@ -113,9 +113,9 @@ defineEmits(['avatar-click']);
   min-height: 28px;
   padding: 0 10px;
   font-size: 11px;
-  color: rgba(213, 233, 248, 0.95);
-  background: rgba(133, 176, 205, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(132, 178, 210, 0.26);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  box-shadow: inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
 }
 
 .hero-main {
@@ -128,20 +128,20 @@ defineEmits(['avatar-click']);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(140, 221, 244, 0.95);
+  color: rgba(var(--accent-rgb), 0.96);
 }
 
 .hero-title {
   font-size: clamp(20px, 2.6vw, 29px);
   line-height: 1.2;
-  color: rgba(242, 248, 255, 0.96);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
 }
 
 .hero-subtitle {
-  color: rgba(188, 210, 232, 0.88);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
   font-size: 13px;
 }
 
@@ -158,14 +158,14 @@ defineEmits(['avatar-click']);
   display: inline-flex;
   align-items: center;
   font-size: 11px;
-  color: rgba(220, 236, 250, 0.95);
-  background: rgba(146, 183, 214, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(142, 182, 215, 0.24);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  box-shadow: inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
 }
 
 .meta-pill.groups {
-  background: rgba(91, 200, 226, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(92, 204, 232, 0.34);
+  background: var(--accent-mode-fill-soft, rgba(var(--accent-rgb), 0.16));
+  box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
 .hero-chips {
@@ -181,12 +181,12 @@ defineEmits(['avatar-click']);
   display: inline-flex;
   align-items: center;
   font-size: 11px;
-  color: rgba(230, 239, 251, 0.95);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .chip.accent {
-  background: rgba(72, 188, 223, 0.2);
-  box-shadow: inset 0 0 0 1px rgba(84, 206, 236, 0.4);
+  background: var(--accent-mode-fill-soft, rgba(var(--accent-rgb), 0.16));
+  box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
 @media (max-width: 860px) {

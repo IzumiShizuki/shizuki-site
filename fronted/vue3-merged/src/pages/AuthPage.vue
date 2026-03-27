@@ -219,7 +219,7 @@ const captcha = reactive({
 });
 
 const placeholderCaptcha =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="48"><rect width="100%" height="100%" fill="#172132"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#d4def1" font-size="11">点击刷新</text></svg>';
+  '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="48"><rect width="100%" height="100%" fill="#2a1916"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#f3e3d7" font-size="11">点击刷新</text></svg>';
 
 let cooldownTimer = 0;
 

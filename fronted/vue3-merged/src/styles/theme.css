@@ -1,15 +1,26 @@
 :root {
-  --accent-hex: #c8b4ff;
-  --accent-rgb: 200, 180, 255;
-  --accent-strong-rgb: 173, 146, 243;
-  --accent-soft-rgb: 228, 220, 255;
-  --accent-gradient-start-rgb: 233, 75, 197;
-  --accent-gradient-end-rgb: 157, 107, 255;
+  --accent-hex: #f2b39d;
+  --accent-rgb: 242, 179, 157;
+  --accent-strong-rgb: 208, 150, 132;
+  --accent-soft-rgb: 247, 211, 195;
+  --accent-gradient-start-rgb: 246, 194, 161;
+  --accent-gradient-end-rgb: 239, 160, 168;
   --accent-gradient: linear-gradient(
     135deg,
     rgba(var(--accent-gradient-start-rgb), 0.94),
     rgba(var(--accent-gradient-end-rgb), 0.9)
   );
+  --theme-surface: linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84));
+  --theme-surface-elevated: linear-gradient(145deg, rgba(156, 108, 92, 0.24), rgba(31, 20, 17, 0.74));
+  --theme-surface-soft: rgba(247, 223, 210, 0.16);
+  --theme-border: rgba(255, 224, 208, 0.24);
+  --theme-border-strong: rgba(255, 210, 190, 0.34);
+  --theme-text-primary: rgba(255, 242, 233, 0.96);
+  --theme-text-secondary: rgba(231, 211, 196, 0.88);
+  --theme-text-tertiary: rgba(205, 183, 168, 0.78);
+  --theme-spot-a: rgba(246, 194, 161, 0.22);
+  --theme-spot-b: rgba(239, 160, 168, 0.16);
+  --theme-scrim: rgba(24, 14, 12, 0.64);
   --accent-gradient-soft: linear-gradient(
     135deg,
     rgba(var(--accent-gradient-start-rgb), 0.24),
@@ -40,6 +51,6 @@
   --accent-mode-focus-ring: 0 0 0 3px rgba(var(--accent-rgb), 0.22);
   --accent-mode-glow: 0 0 18px rgba(var(--accent-rgb), 0.22);
   --accent-mode-text: rgba(255, 255, 255, 0.96);
-  --accent-mode-text-muted: rgba(248, 242, 255, 0.84);
+  --accent-mode-text-muted: rgba(255, 233, 221, 0.84);
   --accent-press-overlay: rgba(var(--accent-rgb), 0.14);
 }

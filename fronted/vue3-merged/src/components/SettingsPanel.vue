@@ -9,7 +9,7 @@
         <AppearanceSettingsContent />
 
         <footer class="panel-footer">
-          <button class="reset-btn ripple-trigger" type="button" @click="resetDefault">恢复默认淡紫</button>
+          <button class="reset-btn ripple-trigger" type="button" @click="resetDefault">恢复默认奶杏桃粉</button>
         </footer>
       </section>
     </div>
@@ -33,7 +33,7 @@ const ui = useUiPreferences();
 function resetDefault() {
   ui.resetAccent();
   ui.setAccentMode('solid');
-  ui.setAccentGradientPreset('berry');
+  ui.setAccentGradientPreset('apricot-blush');
 }
 </script>
 
@@ -46,21 +46,21 @@ function resetDefault() {
   place-items: center;
   padding: 10px;
   background:
-    radial-gradient(circle at 10% 8%, rgba(62, 176, 203, 0.2), transparent 48%),
-    radial-gradient(circle at 88% 94%, rgba(46, 93, 155, 0.18), transparent 42%),
-    rgba(5, 10, 16, 0.62);
+    radial-gradient(circle at 10% 8%, var(--theme-spot-a, rgba(var(--accent-rgb), 0.2)), transparent 48%),
+    radial-gradient(circle at 88% 94%, var(--theme-spot-b, rgba(var(--accent-rgb), 0.16)), transparent 42%),
+    var(--theme-scrim, rgba(24, 14, 12, 0.64));
   backdrop-filter: blur(8px) saturate(120%);
   -webkit-backdrop-filter: blur(8px) saturate(120%);
 }
 
 .settings-panel {
-  --liquid-bg: linear-gradient(155deg, rgba(9, 19, 31, 0.85), rgba(7, 14, 24, 0.82));
-  --liquid-border: rgba(156, 190, 216, 0.3);
-  --liquid-shadow: 0 26px 54px rgba(3, 8, 15, 0.52);
+  --liquid-bg: var(--theme-surface, linear-gradient(155deg, rgba(33, 18, 15, 0.82), rgba(22, 12, 10, 0.8)));
+  --liquid-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
+  --liquid-shadow: 0 26px 54px rgba(18, 9, 8, 0.46);
   width: min(92vw, 640px);
   border-radius: 22px;
   padding: 16px;
-  color: rgba(225, 238, 250, 0.95);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
   max-height: calc(100dvh - 20px);
   overflow: auto;
 }
@@ -71,7 +71,7 @@ function resetDefault() {
 
 .settings-panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(118, 161, 198, 0.36);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.18));
 }
 
 .panel-header {
@@ -84,16 +84,16 @@ function resetDefault() {
 .panel-header h2 {
   font-size: 20px;
   letter-spacing: 0.02em;
-  color: rgba(237, 246, 255, 0.97);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .close-btn {
-  border: 1px solid rgba(162, 194, 218, 0.32);
+  border: 1px solid var(--theme-border-strong, rgba(255, 214, 194, 0.34));
   border-radius: 11px;
   min-width: 64px;
   height: 34px;
-  background: rgba(161, 193, 218, 0.14);
-  color: rgba(210, 231, 247, 0.92);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .close-btn:focus-visible,
@@ -107,12 +107,12 @@ function resetDefault() {
 }
 
 .reset-btn {
-  border: 1px solid rgba(148, 183, 208, 0.3);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
   border-radius: 10px;
   min-width: 138px;
   height: 36px;
-  background: rgba(149, 184, 210, 0.14);
-  color: rgba(214, 233, 248, 0.92);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
 }
 
 .settings-fade-enter-active,

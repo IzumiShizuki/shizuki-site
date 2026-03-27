@@ -32,14 +32,14 @@ defineEmits(['close', 'view', 'edit']);
   z-index: 920;
   display: grid;
   place-items: center;
-  background: rgba(6, 10, 16, 0.46);
+  background: var(--theme-scrim, rgba(24, 14, 12, 0.64));
   backdrop-filter: blur(4px);
 }
 
 .sheet-panel {
-  --liquid-bg: rgba(14, 22, 34, 0.7);
-  --liquid-border: rgba(220, 231, 246, 0.26);
-  --liquid-shadow: 0 26px 44px rgba(3, 6, 10, 0.36);
+  --liquid-bg: var(--theme-surface, linear-gradient(155deg, rgba(35, 20, 17, 0.74), rgba(18, 12, 10, 0.66)));
+  --liquid-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --liquid-shadow: 0 26px 44px rgba(18, 9, 8, 0.36);
   width: min(92vw, 340px);
   border-radius: 16px;
   padding: 16px;
@@ -53,7 +53,7 @@ defineEmits(['close', 'view', 'edit']);
 }
 
 .sheet-desc {
-  color: rgba(206, 220, 239, 0.86);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
   font-size: 12px;
 }
 
@@ -67,8 +67,8 @@ defineEmits(['close', 'view', 'edit']);
   border-radius: 10px;
   min-height: 38px;
   padding: 0 12px;
-  color: rgba(236, 244, 255, 0.95);
-  background: rgba(255, 255, 255, 0.16);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
 }
 
 .sheet-btn.primary {
@@ -77,7 +77,7 @@ defineEmits(['close', 'view', 'edit']);
 }
 
 .sheet-btn.ghost {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(247, 223, 210, 0.1);
 }
 
 .sheet-fade-enter-active,

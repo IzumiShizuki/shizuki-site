@@ -27,7 +27,7 @@
     <template v-if="currentAccentMode === 'solid'">
       <div class="section-block compact">
         <h3>纯色预设</h3>
-        <p>默认是淡紫色。</p>
+        <p>默认是奶杏桃粉，更适合陪学场景。</p>
       </div>
 
       <div class="preset-grid">
@@ -54,7 +54,7 @@
       <div class="custom-row">
         <label for="hex-input">自定义 HEX</label>
         <div class="hex-wrap">
-          <input id="hex-input" v-model.trim="hexInput" type="text" placeholder="#C8B4FF" spellcheck="false" />
+          <input id="hex-input" v-model.trim="hexInput" type="text" placeholder="#F2B39D" spellcheck="false" />
           <button class="apply-btn ripple-trigger" type="button" @click="applyCustomHex">应用</button>
         </div>
       </div>
@@ -91,11 +91,11 @@
         </label>
         <label>
           <span>起始色</span>
-          <input v-model.trim="gradientStartInput" type="text" placeholder="#E94BC5" spellcheck="false" />
+          <input v-model.trim="gradientStartInput" type="text" placeholder="#F6C2A1" spellcheck="false" />
         </label>
         <label>
           <span>结束色</span>
-          <input v-model.trim="gradientEndInput" type="text" placeholder="#9D6BFF" spellcheck="false" />
+          <input v-model.trim="gradientEndInput" type="text" placeholder="#EFA0A8" spellcheck="false" />
         </label>
         <button class="apply-btn ripple-trigger" type="button" @click="applyCustomGradient">应用渐变</button>
       </div>
@@ -227,12 +227,12 @@ function gradientPreviewStyle(startHex, endHex) {
 
 .section-block h3 {
   font-size: 15px;
-  color: rgba(233, 245, 255, 0.95);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .section-block p,
 .helper-text {
-  color: rgba(178, 203, 228, 0.88);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
   line-height: 1.55;
   font-size: 12px;
 }
@@ -245,11 +245,11 @@ function gradientPreviewStyle(startHex, endHex) {
 }
 
 .mode-btn {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
   border-radius: 11px;
   height: 38px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(216, 234, 249, 0.9);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
 }
 
 .mode-btn.active {
@@ -269,15 +269,15 @@ function gradientPreviewStyle(startHex, endHex) {
 
 .preset-btn,
 .gradient-btn {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
   border-radius: 12px;
   min-height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(225, 238, 250, 0.92);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .preset-btn.active,
@@ -291,14 +291,14 @@ function gradientPreviewStyle(startHex, endHex) {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid rgba(214, 231, 246, 0.72);
+  border: 1px solid var(--theme-border-strong, rgba(255, 214, 194, 0.34));
 }
 
 .gradient-swatch {
   width: 26px;
   height: 16px;
   border-radius: 6px;
-  border: 1px solid rgba(201, 224, 244, 0.74);
+  border: 1px solid var(--theme-border-strong, rgba(255, 214, 194, 0.34));
 }
 
 .custom-row {
@@ -315,21 +315,21 @@ function gradientPreviewStyle(startHex, endHex) {
   display: grid;
   gap: 4px;
   font-size: 12px;
-  color: rgba(195, 219, 239, 0.9);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
 }
 
 .picker-field input[type='color'] {
   width: 100%;
   height: 38px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
   padding: 4px;
 }
 
 .custom-row label {
   font-size: 13px;
-  color: rgba(195, 219, 239, 0.9);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
 }
 
 .hex-wrap {
@@ -340,12 +340,12 @@ function gradientPreviewStyle(startHex, endHex) {
 
 .hex-wrap input,
 .gradient-input-grid input {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
   border-radius: 10px;
   height: 38px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(227, 239, 250, 0.94);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .gradient-input-grid {
@@ -360,7 +360,7 @@ function gradientPreviewStyle(startHex, endHex) {
   display: grid;
   gap: 4px;
   font-size: 12px;
-  color: rgba(195, 219, 239, 0.9);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
 }
 
 .apply-btn {

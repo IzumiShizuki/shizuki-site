@@ -20,7 +20,7 @@ body {
   font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
   user-select: none;
   -webkit-user-select: none;
-  color: rgba(238, 243, 255, 0.96);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .ripple-trigger {
@@ -51,6 +51,7 @@ body {
   .hero-btn.primary,
   .ctrl-btn.primary,
   .mini-btn.primary,
+  .quick-btn,
   .apply-btn,
   .search-btn,
   .refresh-btn,
@@ -69,6 +70,7 @@ body {
   .hero-btn.primary,
   .ctrl-btn.primary,
   .mini-btn.primary,
+  .quick-btn,
   .apply-btn,
   .search-btn,
   .refresh-btn,
@@ -85,6 +87,14 @@ body {
   .ghost-btn,
   .oauth-btn,
   .icon-btn,
+  .tab-btn,
+  .action-btn,
+  .switch-btn,
+  .chip-btn,
+  .category-pill,
+  .preset-btn,
+  .gradient-btn,
+  .mode-btn,
   .close-btn,
   .reset-btn,
   .track-action-btn,
@@ -103,6 +113,14 @@ body {
   .ghost-btn,
   .oauth-btn,
   .icon-btn,
+  .tab-btn,
+  .action-btn,
+  .switch-btn,
+  .chip-btn,
+  .category-pill,
+  .preset-btn,
+  .gradient-btn,
+  .mode-btn,
   .close-btn,
   .reset-btn,
   .track-action-btn,
@@ -148,16 +166,190 @@ body {
 :where(
   .field-input,
   .search-input,
-  .field-input-lite
+  .field-input-lite,
+  .field-textarea,
+  .captcha-preview,
+  .music-source-mode-select
+),
+:where(
+  .field-input,
+  .search-input,
+  .field-input-lite,
+  .field-textarea,
+  .captcha-preview,
+  .music-source-mode-select
+):not(:focus-visible) {
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16)) !important;
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+:where(
+  .field-input,
+  .search-input,
+  .field-input-lite,
+  .field-textarea,
+  .music-source-mode-select
 ):focus,
 :where(
   .field-input,
   .search-input,
-  .field-input-lite
+  .field-input-lite,
+  .field-textarea,
+  .music-source-mode-select
 ):focus-visible {
   outline: none;
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
   box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.2)) !important;
+}
+
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) {
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+}
+
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+  .profile-content-panel,
+  .profile-scroll-frame,
+  .overview-card,
+  .recent-item,
+  .music-auth-card,
+  .music-source-order-item,
+  .auth-shell,
+  .hero,
+  .apps-main,
+  .app-card,
+  .url-source-block,
+  .url-source-item,
+  .page-mode-shell,
+  .page-mode-body,
+  .toolbar,
+  .left-panel,
+  .center-panel,
+  .right-panel,
+  .left-switch,
+  .search-panel,
+  .category-strip,
+  .feed-card,
+  .side-card,
+  .category-panel,
+  .whisper-panel,
+  .post-card,
+  .download-menu
+) {
+  background: var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84))) !important;
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+  box-shadow: 0 14px 30px rgba(18, 9, 8, 0.18) !important;
+}
+
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+  .group-header,
+  .page-mode-tabs,
+  .card-icon-drag,
+  .url-source-icon,
+  .mine-item,
+  .mini-btn,
+  .tag-chip,
+  .icon-circle-btn,
+  .download-item,
+  .latest-item,
+  .list-row,
+  .category-panel-card,
+  .sidebar-reopen-btn,
+  .pill-count,
+  .chip-count
+) {
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16)) !important;
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+}
+
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+  .group-eyebrow,
+  .group-caption,
+  .helper-text,
+  .overview-label,
+  .overview-hint,
+  .recent-label,
+  .field-label,
+  .captcha-loading,
+  .toolbar-meta,
+  .policy-block p,
+  .mine-meta,
+  .side-tip,
+  .summary,
+  .meta-row,
+  .card-head p,
+  .card-meta,
+  .url-source-main small,
+  .url-empty,
+  .page-mode-foot-hint,
+  .hero p,
+  .eyebrow,
+  .oauth-title,
+  .state-tip,
+  .latest-text small,
+  .category-panel-card-main span,
+  .whisper-field span,
+  .action-hint,
+  .apps-main-head span,
+  .sync-hint,
+  .strip-meta
+) {
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
+}
+
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+  h1,
+  h2,
+  h3,
+  .group-title,
+  .overview-value,
+  .recent-value,
+  .provider-name,
+  .page-mode-title,
+  .card-head h3,
+  .content-pane h2,
+  .detail-head h2,
+  .side-block h2,
+  .block-head h3,
+  .side-head h3
+) {
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+}
+
+.auth-page .hero {
+  background:
+    radial-gradient(circle at 18% 15%, var(--theme-spot-a, rgba(var(--accent-rgb), 0.22)), transparent 58%),
+    radial-gradient(circle at 80% 84%, var(--theme-spot-b, rgba(var(--accent-rgb), 0.16)), transparent 62%),
+    var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84))) !important;
+}
+
+.apps-route .sync-hint {
+  background: rgba(255, 205, 182, 0.14) !important;
+  border-color: rgba(255, 210, 186, 0.3) !important;
+  color: rgba(255, 231, 217, 0.92) !important;
+}
+
+.top-menu-root {
+  --menu-glass-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --menu-glass-shadow: 0 8px 32px rgba(18, 9, 8, calc(var(--glass-shadow-alpha) * var(--menu-alpha-scale)));
+}
+
+.top-menu-root :is(
+  .item-label,
+  .icon-minimal,
+  .circle-icon-box,
+  .pill-btn-box,
+  .github-style-box,
+  .menu-label-text,
+  .avatar-box.anonymous
+) {
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+}
+
+.top-menu-root :is(.left-pill-group, .author-avatar-box, .avatar-box) {
+  border-color: var(--theme-border-strong, rgba(255, 214, 194, 0.34)) !important;
 }
 
 :root[data-accent-mode='gradient'] :is(
@@ -190,5 +382,5 @@ body {
 
 ::selection {
   background: rgba(var(--accent-rgb), 0.38);
-  color: rgba(21, 16, 35, 0.95);
+  color: rgba(43, 21, 16, 0.95);
 }

@@ -836,7 +836,7 @@ const sectionFocus = reactive({
 });
 
 const placeholderCaptcha =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="156" height="46"><rect width="100%" height="100%" fill="#1a2537"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#d2deef" font-size="11">刷新验证码</text></svg>';
+  '<svg xmlns="http://www.w3.org/2000/svg" width="156" height="46"><rect width="100%" height="100%" fill="#2a1916"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#f3e3d7" font-size="11">刷新验证码</text></svg>';
 
 let bindCooldownTimer = 0;
 let changePwdCooldownTimer = 0;
@@ -1257,7 +1257,7 @@ function toggleAiPanelDefault(nextChecked) {
 function resetAppearancePreference() {
   ui.resetAccent();
   ui.setAccentMode('solid');
-  ui.setAccentGradientPreset('berry');
+  ui.setAccentGradientPreset('apricot-blush');
   setGlobalHint('已恢复默认外观');
 }
 

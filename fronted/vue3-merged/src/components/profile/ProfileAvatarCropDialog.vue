@@ -159,15 +159,15 @@ function canvasToBlob(canvas) {
   z-index: 940;
   display: grid;
   place-items: center;
-  background: rgba(3, 8, 14, 0.68);
+  background: var(--theme-scrim, rgba(24, 14, 12, 0.64));
   backdrop-filter: blur(6px);
   padding: 14px;
 }
 
 .cropper-panel {
-  --liquid-bg: rgba(16, 24, 36, 0.75);
-  --liquid-border: rgba(225, 234, 247, 0.28);
-  --liquid-shadow: 0 26px 50px rgba(4, 7, 12, 0.42);
+  --liquid-bg: var(--theme-surface, linear-gradient(155deg, rgba(35, 20, 17, 0.74), rgba(18, 12, 10, 0.66)));
+  --liquid-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
+  --liquid-shadow: 0 26px 50px rgba(18, 9, 8, 0.42);
   width: min(960px, 100%);
   border-radius: 18px;
   padding: 16px;
@@ -189,7 +189,7 @@ function canvasToBlob(canvas) {
 
 .cropper-desc {
   margin-top: 4px;
-  color: rgba(204, 220, 240, 0.86);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
   font-size: 12px;
 }
 
@@ -202,8 +202,8 @@ function canvasToBlob(canvas) {
 .cropper-main {
   border-radius: 14px;
   overflow: hidden;
-  background: rgba(6, 11, 18, 0.58);
-  box-shadow: inset 0 0 0 1px rgba(185, 205, 230, 0.24);
+  background: rgba(24, 14, 12, 0.58);
+  box-shadow: inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
   min-height: 360px;
 }
 
@@ -213,8 +213,8 @@ function canvasToBlob(canvas) {
 
 .cropper-preview-panel {
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(190, 213, 239, 0.2);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  box-shadow: inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -223,7 +223,7 @@ function canvasToBlob(canvas) {
 
 .preview-title {
   font-size: 12px;
-  color: rgba(219, 233, 250, 0.92);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .preview-circle {
@@ -231,7 +231,7 @@ function canvasToBlob(canvas) {
   height: 144px;
   border-radius: 50%;
   overflow: hidden;
-  background: rgba(8, 14, 24, 0.5);
+  background: rgba(24, 14, 12, 0.5);
   justify-self: center;
 }
 
@@ -242,7 +242,7 @@ function canvasToBlob(canvas) {
 }
 
 .helper-text {
-  color: rgba(206, 220, 239, 0.86);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
   font-size: 12px;
   text-align: center;
   word-break: break-all;
@@ -260,7 +260,7 @@ function canvasToBlob(canvas) {
   border-radius: 10px;
   min-height: 36px;
   padding: 0 14px;
-  color: rgba(242, 247, 255, 0.94);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .primary-btn {
@@ -268,7 +268,7 @@ function canvasToBlob(canvas) {
 }
 
 .ghost-btn {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
 }
 
 .cropper-fade-enter-active,

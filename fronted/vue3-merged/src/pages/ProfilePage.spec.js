@@ -14,7 +14,10 @@ const mocked = vi.hoisted(() => ({
   getMusicSourceAccountStatus: vi.fn(),
   upsertMusicSourceAccountCookie: vi.fn(),
   deleteMusicSourceAccount: vi.fn(),
-  importMusicSourcePlaylists: vi.fn()
+  importMusicSourcePlaylists: vi.fn(),
+  detectMusicSourceHelper: vi.fn(),
+  requestMusicSourceCookies: vi.fn(),
+  openMusicSourceHelperInstallGuide: vi.fn()
 }));
 
 vi.mock('../composables/useAuthSession', () => ({
@@ -37,6 +40,12 @@ vi.mock('../services/musicApi', () => ({
   upsertMusicSourceAccountCookie: (...args) => mocked.upsertMusicSourceAccountCookie(...args),
   deleteMusicSourceAccount: (...args) => mocked.deleteMusicSourceAccount(...args),
   importMusicSourcePlaylists: (...args) => mocked.importMusicSourcePlaylists(...args)
+}));
+
+vi.mock('../utils/musicSourceBindHelper', () => ({
+  detectMusicSourceHelper: (...args) => mocked.detectMusicSourceHelper(...args),
+  requestMusicSourceCookies: (...args) => mocked.requestMusicSourceCookies(...args),
+  openMusicSourceHelperInstallGuide: (...args) => mocked.openMusicSourceHelperInstallGuide(...args)
 }));
 
 function createDeferred() {
@@ -91,11 +100,11 @@ function createAuthMock(overrides = {}) {
 
 function createUiMock() {
   const state = reactive({
-    accentHex: '#C8B4FF',
+    accentHex: '#F2B39D',
     accentMode: 'solid',
-    accentGradientId: 'berry',
-    accentGradientStartHex: '#E94BC5',
-    accentGradientEndHex: '#9D6BFF',
+    accentGradientId: 'apricot-blush',
+    accentGradientStartHex: '#F6C2A1',
+    accentGradientEndHex: '#EFA0A8',
     routeBackgroundByKey: {},
     globalBackgroundId: '',
     aiPanelOpen: false
@@ -104,18 +113,21 @@ function createUiMock() {
   return {
     state,
     ACCENT_PRESETS: [
-      { name: '淡紫', hex: '#C8B4FF' },
+      { name: '奶杏桃粉', hex: '#F2B39D' },
       { name: '薄荷青', hex: '#8FDCC8' }
     ],
     GRADIENT_PRESETS: [
-      { id: 'berry', name: '莓果粉紫', startHex: '#E94BC5', endHex: '#9D6BFF' }
+      { id: 'apricot-blush', name: '奶杏桃粉', startHex: '#F6C2A1', endHex: '#EFA0A8' }
     ],
     setAccentHex: vi.fn((hex) => {
       state.accentHex = hex;
       return { ok: true, normalized: hex };
     }),
     resetAccent: vi.fn(() => {
-      state.accentHex = '#C8B4FF';
+      state.accentHex = '#F2B39D';
+      state.accentGradientId = 'apricot-blush';
+      state.accentGradientStartHex = '#F6C2A1';
+      state.accentGradientEndHex = '#EFA0A8';
     }),
     setAccentMode: vi.fn((mode) => {
       state.accentMode = mode === 'gradient' ? 'gradient' : 'solid';
@@ -123,7 +135,7 @@ function createUiMock() {
     }),
     setAccentGradientPreset: vi.fn((presetId) => {
       state.accentGradientId = presetId;
-      return { id: presetId, startHex: '#E94BC5', endHex: '#9D6BFF' };
+      return { id: presetId, startHex: '#F6C2A1', endHex: '#EFA0A8' };
     }),
     setAccentGradientCustom: vi.fn((startHex, endHex) => {
       state.accentGradientId = 'custom';
@@ -263,6 +275,9 @@ describe('ProfilePage immediate account expansion', () => {
     mocked.upsertMusicSourceAccountCookie.mockReset().mockResolvedValue({});
     mocked.deleteMusicSourceAccount.mockReset().mockResolvedValue({});
     mocked.importMusicSourcePlaylists.mockReset().mockResolvedValue({});
+    mocked.detectMusicSourceHelper.mockReset().mockResolvedValue(false);
+    mocked.requestMusicSourceCookies.mockReset();
+    mocked.openMusicSourceHelperInstallGuide.mockReset();
     mocked.ui = createUiMock();
   });
 

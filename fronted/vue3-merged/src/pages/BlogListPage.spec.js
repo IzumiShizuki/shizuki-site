@@ -65,6 +65,11 @@ function createDeferred() {
   return { promise, resolve, reject };
 }
 
+async function settle() {
+  await flushPromises();
+  await nextTick();
+}
+
 async function mountPage(initialPath = '/blog') {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -104,8 +109,7 @@ async function mountPage(initialPath = '/blog') {
     }
   });
 
-  await flushPromises();
-  await nextTick();
+  await settle();
   return { wrapper, router };
 }
 
@@ -230,8 +234,32 @@ describe('BlogListPage category panel', () => {
     expect(mocked.auth.ensureReady).toHaveBeenCalled();
     expect(mocked.getPostSidebar).toHaveBeenCalledTimes(1);
     expect(mocked.listBlogCategoryMetas).toHaveBeenCalledTimes(1);
-    expect(categoryCodes).toContain('design');
-    expect(categoryCodes).toContain('notes');
+    expect(categoryCodes).toContain('设计');
+    expect(categoryCodes).toContain('笔记');
+  });
+
+  it('shows a loading state until admin auth is ready on direct categories entry', async () => {
+    const authReady = createDeferred();
+    mocked.auth = createAuthMock({
+      ensureReady: vi.fn().mockReturnValue(authReady.promise)
+    });
+
+    const { wrapper } = await mountPage('/blog?panel=categories');
+    mountedWrappers.push(wrapper);
+
+    expect(wrapper.text()).toContain('正在同步分类目录');
+    expect(wrapper.text()).not.toContain('分类总览');
+    expect(wrapper.text()).not.toContain('分类管理');
+
+    authReady.resolve();
+    await settle();
+
+    const categoryCodes = wrapper
+      .findAll('.admin-category-panel-item')
+      .map((node) => node.text().trim());
+
+    expect(wrapper.text()).toContain('分类管理');
+    expect(categoryCodes).toEqual(['dev', 'design', 'notes']);
   });
 
   it('renders every category when opening categories panel directly', async () => {
@@ -243,6 +271,21 @@ describe('BlogListPage category panel', () => {
       .map((node) => node.text().trim());
 
     expect(categoryCodes).toEqual(['dev', 'design', 'notes']);
+  });
+
+  it('reuses preloaded category context when switching from read panel to categories', async () => {
+    const { wrapper, router } = await mountPage('/blog');
+    mountedWrappers.push(wrapper);
+
+    expect(mocked.getPostSidebar).toHaveBeenCalledTimes(1);
+    expect(mocked.listBlogCategoryMetas).toHaveBeenCalledTimes(1);
+
+    await router.push({ name: 'blog', query: { panel: 'categories' } });
+    await settle();
+
+    expect(mocked.getPostSidebar).toHaveBeenCalledTimes(1);
+    expect(mocked.listBlogCategoryMetas).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('分类管理');
   });
 
   it('keeps all categories after sidebar data resolves later than category meta', async () => {
@@ -263,5 +306,24 @@ describe('BlogListPage category panel', () => {
       .map((node) => node.text().trim());
 
     expect(categoryCodes).toEqual(['dev', 'design', 'notes']);
+  });
+
+  it('keeps public users on the category overview', async () => {
+    mocked.auth = createAuthMock({
+      user: ref({
+        userId: 8,
+        nickname: 'Guest',
+        groups: [],
+        permissions: []
+      })
+    });
+
+    const { wrapper } = await mountPage('/blog?panel=categories');
+    mountedWrappers.push(wrapper);
+
+    expect(wrapper.text()).toContain('分类总览');
+    expect(wrapper.text()).not.toContain('分类管理');
+    expect(mocked.listBlogCategoryMetas).not.toHaveBeenCalled();
+    expect(wrapper.findAll('.category-panel-card')).toHaveLength(1);
   });
 });

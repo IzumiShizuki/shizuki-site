@@ -105,9 +105,9 @@ defineEmits(['toggle', 'avatar-click']);
 
 <style scoped>
 .section-item {
-  --liquid-bg: linear-gradient(148deg, rgba(9, 17, 29, 0.58), rgba(8, 14, 24, 0.5));
-  --liquid-border: rgba(165, 190, 214, 0.24);
-  --liquid-shadow: 0 16px 30px rgba(4, 9, 16, 0.2);
+  --liquid-bg: var(--theme-surface, linear-gradient(148deg, rgba(34, 19, 16, 0.72), rgba(18, 12, 10, 0.66)));
+  --liquid-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --liquid-shadow: 0 16px 30px rgba(18, 9, 8, 0.2);
   border-radius: 16px;
   overflow: hidden;
   isolation: isolate;
@@ -116,8 +116,8 @@ defineEmits(['toggle', 'avatar-click']);
 
 .section-item.focused {
   box-shadow:
-    0 0 0 1px rgba(93, 214, 243, 0.42),
-    0 20px 38px rgba(4, 9, 16, 0.26);
+    0 0 0 1px var(--accent-mode-border-strong, rgba(var(--accent-rgb), 0.42)),
+    0 20px 38px rgba(18, 9, 8, 0.24);
 }
 
 .section-head {
@@ -133,7 +133,7 @@ defineEmits(['toggle', 'avatar-click']);
   border: 0;
   padding: 0;
   background: transparent;
-  color: rgba(236, 244, 255, 0.95);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
   text-align: left;
   display: flex;
   justify-content: space-between;
@@ -148,7 +148,7 @@ defineEmits(['toggle', 'avatar-click']);
 .head-static {
   flex: 1;
   min-width: 0;
-  color: rgba(236, 244, 255, 0.95);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
   display: flex;
   justify-content: space-between;
   align-items: start;
@@ -157,27 +157,27 @@ defineEmits(['toggle', 'avatar-click']);
 }
 
 .section-item.focused .head-toggle {
-  background: linear-gradient(145deg, rgba(52, 134, 182, 0.18), rgba(66, 178, 211, 0.1));
-  box-shadow: inset 0 0 0 1px rgba(87, 199, 230, 0.2);
+  background: var(--accent-mode-fill-soft, rgba(var(--accent-rgb), 0.16));
+  box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
 .section-item.focused .head-static {
-  background: linear-gradient(145deg, rgba(52, 134, 182, 0.18), rgba(66, 178, 211, 0.1));
-  box-shadow: inset 0 0 0 1px rgba(87, 199, 230, 0.2);
+  background: var(--accent-mode-fill-soft, rgba(var(--accent-rgb), 0.16));
+  box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   padding: 10px 12px;
   margin: -10px -12px;
 }
 
 .head-toggle:focus-visible,
 .section-avatar-btn:focus-visible {
-  outline: 2px solid rgba(93, 214, 243, 0.72);
+  outline: 2px solid var(--accent-mode-border-strong, rgba(var(--accent-rgb), 0.72));
   outline-offset: 2px;
   border-radius: 12px;
 }
 
 .section-avatar-btn {
-  border: 1px solid rgba(167, 189, 212, 0.28);
-  background: rgba(221, 239, 255, 0.08);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
   padding: 2px;
   border-radius: 11px;
   flex-shrink: 0;
@@ -191,8 +191,8 @@ defineEmits(['toggle', 'avatar-click']);
   border-radius: 11px;
   object-fit: cover;
   box-shadow:
-    0 8px 16px rgba(5, 9, 16, 0.24),
-    inset 0 0 0 1px rgba(184, 206, 229, 0.3);
+    0 8px 16px rgba(18, 9, 8, 0.24),
+    inset 0 0 0 1px var(--theme-border-strong, rgba(255, 214, 194, 0.34));
 }
 
 .head-main {
@@ -214,9 +214,9 @@ defineEmits(['toggle', 'avatar-click']);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(78, 186, 222, 0.18);
-  color: rgba(167, 235, 252, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(130, 214, 239, 0.34);
+  background: var(--accent-mode-fill-soft, rgba(var(--accent-rgb), 0.16));
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
 .section-icon i {
@@ -227,11 +227,11 @@ defineEmits(['toggle', 'avatar-click']);
   font-size: 14px;
   font-weight: 640;
   letter-spacing: 0.01em;
-  color: rgba(236, 244, 254, 0.96);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
 .section-summary {
-  color: rgba(184, 208, 232, 0.86);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
   font-size: 12px;
   line-height: 1.45;
 }
@@ -250,9 +250,9 @@ defineEmits(['toggle', 'avatar-click']);
   display: inline-flex;
   align-items: center;
   font-size: 11px;
-  background: rgba(70, 187, 220, 0.16);
-  color: rgba(198, 238, 250, 0.94);
-  box-shadow: inset 0 0 0 1px rgba(95, 210, 240, 0.34);
+  background: var(--accent-mode-fill-soft, rgba(var(--accent-rgb), 0.16));
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
 .chevron {
@@ -263,9 +263,9 @@ defineEmits(['toggle', 'avatar-click']);
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  color: rgba(188, 214, 238, 0.86);
-  background: rgba(146, 183, 217, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(144, 183, 218, 0.2);
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16));
+  box-shadow: inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
   transform: rotate(0deg);
   transition: transform 0.24s ease;
 }
@@ -276,7 +276,7 @@ defineEmits(['toggle', 'avatar-click']);
 
 .section-body {
   padding: 2px 16px 16px;
-  color: rgba(224, 237, 250, 0.96);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
   display: grid;
   gap: 8px;
 }
