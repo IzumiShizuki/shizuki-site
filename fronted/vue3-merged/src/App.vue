@@ -264,6 +264,7 @@ import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
 import { getAuthorProfile } from './services/authorApi';
+import { resolveAppRouteViewKey } from './utils/routeViewKey';
 import { AI_CHAT_OPEN_EVENT } from './utils/aiChatBus';
 import * as wallpaperApi from './services/wallpaperApi';
 import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
@@ -2007,11 +2008,7 @@ function handleMainRouteSelect(routeKey) {
 }
 
 function resolveRouteViewKey(viewRoute) {
-  const path = String(viewRoute?.path || '');
-  if (path.startsWith('/music-library')) {
-    return 'music-library-shell';
-  }
-  return String(viewRoute?.fullPath || path || 'route');
+  return resolveAppRouteViewKey(viewRoute);
 }
 
 function normalizeRedirectPath(path) {

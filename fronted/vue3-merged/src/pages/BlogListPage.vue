@@ -269,8 +269,8 @@
         </template>
 
         <SubtleScrollArea v-else-if="uiState.panel === 'categories'" tag="section" class="category-panel liquid-material">
-          <template v-if="categoryPanelLoading">
-            <h2>{{ canManageCategories ? '分类管理' : '分类总览' }}</h2>
+          <template v-if="showCategoryPanelLoading">
+            <h2>{{ categoryPanelHeading }}</h2>
             <p class="state-tip">正在同步分类目录...</p>
           </template>
           <template v-else-if="canManageCategories">
@@ -427,6 +427,7 @@ const uiState = reactive({
   panel: 'read',
   actionHint: ''
 });
+const authReady = ref(false);
 
 const whisperState = reactive({
   submitting: false,
@@ -479,6 +480,8 @@ const categoryMetaItems = ref([]);
 const categoryMetaCreateUploadCode = ref('');
 const categoryMetaCreateUploadUrl = ref('');
 const categoryPanelLoading = ref(false);
+const sidebarLoaded = ref(false);
+const categoryMetaLoaded = ref(false);
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -532,11 +535,18 @@ const categoryPanelRenderKey = computed(() =>
     .map((item) => `${item.categoryCode}:${item.enabled !== false ? '1' : '0'}:${item.count}:${item.displayName}`)
     .join('|')
 );
+const categoryPanelHeading = computed(() => {
+  if (!authReady.value) return '分类';
+  return canManageCategories.value ? '分类管理' : '分类总览';
+});
+const showCategoryPanelLoading = computed(() => uiState.panel === 'categories' && (!authReady.value || categoryPanelLoading.value));
 
 let postListRequestSeq = 0;
 let sidebarRequestSeq = 0;
 let categoryMetaRequestSeq = 0;
 let categoryPanelRequestSeq = 0;
+let sidebarLoadPromise = null;
+let categoryMetaLoadPromise = null;
 
 function resolveAuthorizedFetch() {
   return auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
@@ -591,6 +601,8 @@ function syncRouteQueryFromPanel(panel) {
   }
   router.replace({ name: 'blog', query: nextQuery });
 }
+
+syncPanelFromRouteQuery();
 
 function normalizeString(value, fallback = '') {
   return typeof value === 'string' ? value : fallback;
@@ -718,54 +730,88 @@ async function loadPostList() {
   }
 }
 
-async function loadSidebar() {
+async function loadSidebar(options = {}) {
+  const force = options?.force === true;
+  if (!force) {
+    if (sidebarLoaded.value) return;
+    if (sidebarLoadPromise) return sidebarLoadPromise;
+  }
   const requestSeq = ++sidebarRequestSeq;
-  sidebarState.loading = true;
-  sidebarState.error = '';
+  const task = (async () => {
+    sidebarState.loading = true;
+    sidebarState.error = '';
+    try {
+      const payload = await getPostSidebar(resolveAuthorizedFetch());
+      if (requestSeq !== sidebarRequestSeq) return;
+      sidebarState.latestPosts = Array.isArray(payload?.latestPosts ?? payload?.latest_posts)
+        ? (payload.latestPosts ?? payload.latest_posts).map(normalizeLatestPost).filter((item) => item.postId > 0)
+        : [];
+      sidebarState.categories = Array.isArray(payload?.categories)
+        ? payload.categories.map(normalizeCategoryStat).filter((item) => item.categoryCode)
+        : [];
+      sidebarState.tags = Array.isArray(payload?.tags) ? payload.tags.map(normalizeTagStat).filter((item) => item.tagCode) : [];
+      sidebarState.archives = Array.isArray(payload?.archives)
+        ? payload.archives.map(normalizeArchiveStat).filter((item) => item.month)
+        : [];
+      sidebarLoaded.value = true;
+    } catch (error) {
+      if (requestSeq !== sidebarRequestSeq) return;
+      sidebarState.error = normalizeErrorMessage(error, '加载侧栏数据失败');
+      sidebarState.latestPosts = [];
+      sidebarState.categories = [];
+      sidebarState.tags = [];
+      sidebarState.archives = [];
+      sidebarLoaded.value = false;
+    } finally {
+      if (requestSeq !== sidebarRequestSeq) return;
+      sidebarState.loading = false;
+    }
+  })();
+  sidebarLoadPromise = task;
   try {
-    const payload = await getPostSidebar(resolveAuthorizedFetch());
-    if (requestSeq !== sidebarRequestSeq) return;
-    sidebarState.latestPosts = Array.isArray(payload?.latestPosts ?? payload?.latest_posts)
-      ? (payload.latestPosts ?? payload.latest_posts).map(normalizeLatestPost).filter((item) => item.postId > 0)
-      : [];
-    sidebarState.categories = Array.isArray(payload?.categories)
-      ? payload.categories.map(normalizeCategoryStat).filter((item) => item.categoryCode)
-      : [];
-    sidebarState.tags = Array.isArray(payload?.tags) ? payload.tags.map(normalizeTagStat).filter((item) => item.tagCode) : [];
-    sidebarState.archives = Array.isArray(payload?.archives)
-      ? payload.archives.map(normalizeArchiveStat).filter((item) => item.month)
-      : [];
-  } catch (error) {
-    if (requestSeq !== sidebarRequestSeq) return;
-    sidebarState.error = normalizeErrorMessage(error, '加载侧栏数据失败');
-    sidebarState.latestPosts = [];
-    sidebarState.categories = [];
-    sidebarState.tags = [];
-    sidebarState.archives = [];
+    await task;
   } finally {
-    if (requestSeq !== sidebarRequestSeq) return;
-    sidebarState.loading = false;
+    if (sidebarLoadPromise === task) {
+      sidebarLoadPromise = null;
+    }
   }
 }
 
-async function reloadCategoryMetas() {
+async function reloadCategoryMetas(options = {}) {
+  const force = options?.force === true;
   if (!canManageCategories.value) return;
+  if (!force) {
+    if (categoryMetaLoaded.value) return;
+    if (categoryMetaLoadPromise) return categoryMetaLoadPromise;
+  }
   const requestSeq = ++categoryMetaRequestSeq;
-  categoryMetaError.value = '';
-  categoryMetaLoading.value = true;
+  const task = (async () => {
+    categoryMetaError.value = '';
+    categoryMetaLoading.value = true;
+    try {
+      const payload = await listBlogCategoryMetas(auth.authorizedFetch);
+      if (requestSeq !== categoryMetaRequestSeq) return;
+      categoryMetaItems.value = Array.isArray(payload)
+        ? payload.map(normalizeCategoryMetaItem).filter((item) => item.categoryCode)
+        : [];
+      categoryMetaLoaded.value = true;
+    } catch (error) {
+      if (requestSeq !== categoryMetaRequestSeq) return;
+      categoryMetaItems.value = [];
+      categoryMetaError.value = normalizeErrorMessage(error, '加载分类管理数据失败');
+      categoryMetaLoaded.value = false;
+    } finally {
+      if (requestSeq !== categoryMetaRequestSeq) return;
+      categoryMetaLoading.value = false;
+    }
+  })();
+  categoryMetaLoadPromise = task;
   try {
-    const payload = await listBlogCategoryMetas(auth.authorizedFetch);
-    if (requestSeq !== categoryMetaRequestSeq) return;
-    categoryMetaItems.value = Array.isArray(payload)
-      ? payload.map(normalizeCategoryMetaItem).filter((item) => item.categoryCode)
-      : [];
-  } catch (error) {
-    if (requestSeq !== categoryMetaRequestSeq) return;
-    categoryMetaItems.value = [];
-    categoryMetaError.value = normalizeErrorMessage(error, '加载分类管理数据失败');
+    await task;
   } finally {
-    if (requestSeq !== categoryMetaRequestSeq) return;
-    categoryMetaLoading.value = false;
+    if (categoryMetaLoadPromise === task) {
+      categoryMetaLoadPromise = null;
+    }
   }
 }
 
@@ -807,7 +853,8 @@ async function saveCategoryMetaItem(payload) {
       categoryMetaCreateUploadCode.value = '';
       categoryMetaCreateUploadUrl.value = '';
     }
-    await loadSidebar();
+    sidebarLoaded.value = false;
+    await loadSidebar({ force: true });
     uiState.actionHint = `分类 ${categoryCode} 已保存`;
   } catch (error) {
     categoryMetaError.value = normalizeErrorMessage(error, '保存分类失败');
@@ -890,11 +937,13 @@ async function deleteCategoryMetaItem(categoryCode) {
   try {
     await deleteBlogCategoryMeta(normalizedCode, auth.authorizedFetch);
     categoryMetaItems.value = categoryMetaItems.value.filter((item) => item.categoryCode !== normalizedCode);
+    categoryMetaLoaded.value = true;
     if (categoryMetaCreateUploadCode.value === normalizedCode) {
       categoryMetaCreateUploadCode.value = '';
       categoryMetaCreateUploadUrl.value = '';
     }
-    await loadSidebar();
+    sidebarLoaded.value = false;
+    await loadSidebar({ force: true });
     uiState.actionHint = `分类 ${normalizedCode} 已删除`;
   } catch (error) {
     categoryMetaError.value = normalizeErrorMessage(error, '删除分类失败');
@@ -913,9 +962,8 @@ function setPanel(nextPanel) {
     openEditor();
     return;
   }
-  uiState.panel = normalizePanel(nextPanel);
   uiState.actionHint = '';
-  syncRouteQueryFromPanel(uiState.panel);
+  syncRouteQueryFromPanel(nextPanel);
 }
 
 function viewCategory(categoryCode) {
@@ -1072,7 +1120,7 @@ function handleCategoryStripWheel(event) {
 onMounted(async () => {
   leftPanelCollapsed.value = readPersistedLeftPanelCollapsed();
   await auth.ensureReady();
-  syncPanelFromRouteQuery();
+  authReady.value = true;
   await Promise.all([
     loadPostList(),
     uiState.panel === 'categories' ? loadCategoryPanelContext() : loadReadPanelContext()
@@ -1083,24 +1131,14 @@ watch(
   () => route.query.panel,
   () => {
     syncPanelFromRouteQuery();
+    if (!authReady.value) {
+      return;
+    }
     if (uiState.panel === 'categories') {
       void loadCategoryPanelContext();
       return;
     }
-    if (canManageCategories.value && !categoryMetaItems.value.length && !categoryMetaLoading.value) {
-      void reloadCategoryMetas();
-    }
-  }
-);
-
-watch(
-  () => canManageCategories.value,
-  (enabled) => {
-    if (enabled && uiState.panel === 'categories') {
-      void loadCategoryPanelContext();
-      return;
-    }
-    if (enabled && !categoryMetaItems.value.length && !categoryMetaLoading.value) {
+    if (canManageCategories.value && !categoryMetaLoaded.value && !categoryMetaLoading.value) {
       void reloadCategoryMetas();
     }
   }
