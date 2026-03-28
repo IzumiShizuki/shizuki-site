@@ -635,6 +635,7 @@ import {
   mergeBlogCategoryCatalog,
   resolveDefaultBlogCategoryCode
 } from '../utils/blogCategoryCatalog';
+import { shouldSyncEditorRoute } from './blogEditorRouteState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 
 const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
@@ -1610,6 +1611,12 @@ function applyAuthorPostToEditor(post) {
   writerState.editor.statusCode = normalized.statusCode || writerState.editor.statusCode;
 }
 
+async function syncEditorRouteToPost(postId) {
+  const normalizedPostId = toSafeInt(postId, 0);
+  if (!shouldSyncEditorRoute(route.name, route.params.postId, normalizedPostId)) return;
+  await router.replace({ name: 'blog-editor', params: { postId: normalizedPostId } });
+}
+
 async function handleSaveDraft(options = {}) {
   if (!canWrite.value) return;
   if (!writerState.editor.categoryCode) {
@@ -1626,6 +1633,7 @@ async function handleSaveDraft(options = {}) {
       ? await updateMyPost(writerState.editor.postId, payload, auth.authorizedFetch)
       : await createMyPost(payload, auth.authorizedFetch);
     applyAuthorPostToEditor(result);
+    await syncEditorRouteToPost(writerState.editor.postId);
     writerState.notice = options.silent ? '' : '草稿已保存';
     await Promise.all([loadMyPosts(), loadPostList()]);
   } catch (error) {
@@ -1645,6 +1653,7 @@ async function handlePublish() {
     await handleSaveDraft({ silent: true });
     const result = await publishMyPost(writerState.editor.postId, auth.authorizedFetch);
     applyAuthorPostToEditor(result);
+    await syncEditorRouteToPost(writerState.editor.postId);
     writerState.notice = '文章已发布';
     await Promise.all([loadMyPosts(), loadPostList()]);
   } catch (error) {

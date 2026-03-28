@@ -801,13 +801,16 @@ public class ContentServiceImpl implements ContentService {
     }
 
     private List<PostEntity> loadPublishedPostCandidates() {
+        ViewerContext viewer = currentViewer();
         return postMapper.selectList(
             new LambdaQueryWrapper<PostEntity>()
                 .eq(PostEntity::getDeleted, 0)
                 .eq(PostEntity::getStatusCode, POST_STATUS_PUBLISHED)
                 .orderByDesc(PostEntity::getPublishedAt)
                 .orderByDesc(PostEntity::getId)
-        );
+        ).stream()
+            .filter(post -> canAccessPublishedPost(post, viewer))
+            .toList();
     }
 
     private LocalDateTime resolvePostPublishTimeForDisplay(PostEntity post) {
