@@ -7,6 +7,7 @@ const LEGACY_DEFAULT_ACCENT_HEX = '#C8B4FF';
 const LEGACY_DEFAULT_GRADIENT_PRESET_ID = 'berry';
 const LEGACY_DEFAULT_GRADIENT_START_HEX = '#E94BC5';
 const LEGACY_DEFAULT_GRADIENT_END_HEX = '#9D6BFF';
+const DEFAULT_THEME_MODE = 'night';
 const DEFAULT_ACCENT_HEX = '#F2B39D';
 const DEFAULT_ACCENT_MODE = 'solid';
 const DEFAULT_GRADIENT_PRESET_ID = 'apricot-blush';
@@ -34,6 +35,7 @@ function resolveGradientPreset(id) {
 }
 
 const state = reactive({
+  themeMode: DEFAULT_THEME_MODE,
   accentHex: DEFAULT_ACCENT_HEX,
   accentMode: DEFAULT_ACCENT_MODE,
   accentGradientId: DEFAULT_GRADIENT_PRESET_ID,
@@ -77,6 +79,11 @@ function normalizeAccentMode(input) {
   return normalized === 'gradient' ? 'gradient' : 'solid';
 }
 
+function normalizeThemeMode(input) {
+  const normalized = String(input || '').trim().toLowerCase();
+  return normalized === 'day' ? 'day' : 'night';
+}
+
 function hexToRgbTuple(hex) {
   const normalized = normalizeHex(hex);
   if (!normalized) return null;
@@ -109,6 +116,7 @@ function isLegacyDefaultThemeSelection(payload) {
 }
 
 function applyThemeDefaults(modeInput = state.accentMode) {
+  state.themeMode = normalizeThemeMode(state.themeMode);
   const preset = resolveGradientPreset(DEFAULT_GRADIENT_PRESET_ID);
   state.accentHex = DEFAULT_ACCENT_HEX;
   state.accentMode = normalizeAccentMode(modeInput);
@@ -120,6 +128,8 @@ function applyThemeDefaults(modeInput = state.accentMode) {
 
 function applyAccentVariables() {
   if (typeof document === 'undefined') return;
+  const themeMode = normalizeThemeMode(state.themeMode);
+  const isDayMode = themeMode === 'day';
   const tuple = hexToRgbTuple(state.accentHex) || hexToRgbTuple(DEFAULT_ACCENT_HEX);
   if (!tuple) return;
 
@@ -134,27 +144,52 @@ function applyAccentVariables() {
   const warmLift = mixTuple(soft, [255, 235, 224], 0.34);
   const warmBorder = mixTuple([r, g, b], [255, 230, 214], 0.18);
   const warmBorderStrong = mixTuple(strong, [255, 214, 194], 0.12);
-  const themeSurface = state.accentMode === 'gradient'
-    ? `linear-gradient(155deg, rgba(${mixTuple(gradientStart, [68, 42, 34], 0.56).join(', ')}, 0.7), rgba(${mixTuple(gradientEnd, [22, 14, 12], 0.84).join(', ')}, 0.76))`
-    : `linear-gradient(155deg, rgba(${warmCore.join(', ')}, 0.34), rgba(${warmShade.join(', ')}, 0.84))`;
-  const themeSurfaceElevated = state.accentMode === 'gradient'
-    ? `linear-gradient(145deg, rgba(${mixTuple(gradientStart, [110, 72, 56], 0.44).join(', ')}, 0.32), rgba(${mixTuple(gradientEnd, [36, 22, 18], 0.74).join(', ')}, 0.74))`
-    : `linear-gradient(145deg, rgba(${mixTuple(lifted, [126, 82, 68], 0.36).join(', ')}, 0.28), rgba(${mixTuple([r, g, b], [30, 18, 16], 0.78).join(', ')}, 0.72))`;
-  const themeSurfaceSoft = state.accentMode === 'gradient'
-    ? `rgba(${mixTuple(gradientStart, [255, 236, 224], 0.28).join(', ')}, 0.16)`
-    : `rgba(${warmLift.join(', ')}, 0.16)`;
-  const themeBorder = `rgba(${warmBorder.join(', ')}, 0.24)`;
-  const themeBorderStrong = `rgba(${warmBorderStrong.join(', ')}, 0.34)`;
-  const themeTextPrimary = 'rgba(255, 242, 233, 0.96)';
-  const themeTextSecondary = 'rgba(231, 211, 196, 0.88)';
-  const themeTextTertiary = 'rgba(205, 183, 168, 0.78)';
-  const themeSpotA = state.accentMode === 'gradient'
-    ? `rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.22)`
-    : `rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.2)`;
-  const themeSpotB = state.accentMode === 'gradient'
-    ? `rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.16)`
-    : `rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.16)`;
-  const themeScrim = 'rgba(24, 14, 12, 0.64)';
+  const paperBase = state.accentMode === 'gradient'
+    ? mixTuple(gradientStart, [255, 250, 246], 0.82)
+    : mixTuple(lifted, [255, 249, 244], 0.74);
+  const paperShade = state.accentMode === 'gradient'
+    ? mixTuple(gradientEnd, [246, 237, 231], 0.76)
+    : mixTuple(soft, [245, 235, 229], 0.68);
+  const paperLift = state.accentMode === 'gradient'
+    ? mixTuple(gradientStart, [255, 252, 249], 0.88)
+    : mixTuple(warmLift, [255, 252, 249], 0.78);
+  const paperBorder = mixTuple(strong, [88, 60, 50], 0.2);
+  const paperBorderStrong = mixTuple(strong, [66, 44, 38], 0.16);
+  const themeSurface = isDayMode
+    ? `linear-gradient(155deg, rgba(${paperBase.join(', ')}, 0.88), rgba(${paperShade.join(', ')}, 0.78))`
+    : state.accentMode === 'gradient'
+      ? `linear-gradient(155deg, rgba(${mixTuple(gradientStart, [68, 42, 34], 0.56).join(', ')}, 0.7), rgba(${mixTuple(gradientEnd, [22, 14, 12], 0.84).join(', ')}, 0.76))`
+      : `linear-gradient(155deg, rgba(${warmCore.join(', ')}, 0.34), rgba(${warmShade.join(', ')}, 0.84))`;
+  const themeSurfaceElevated = isDayMode
+    ? `linear-gradient(145deg, rgba(${paperLift.join(', ')}, 0.94), rgba(${paperShade.join(', ')}, 0.82))`
+    : state.accentMode === 'gradient'
+      ? `linear-gradient(145deg, rgba(${mixTuple(gradientStart, [110, 72, 56], 0.44).join(', ')}, 0.32), rgba(${mixTuple(gradientEnd, [36, 22, 18], 0.74).join(', ')}, 0.74))`
+      : `linear-gradient(145deg, rgba(${mixTuple(lifted, [126, 82, 68], 0.36).join(', ')}, 0.28), rgba(${mixTuple([r, g, b], [30, 18, 16], 0.78).join(', ')}, 0.72))`;
+  const themeSurfaceSoft = isDayMode
+    ? `rgba(${paperLift.join(', ')}, 0.72)`
+    : state.accentMode === 'gradient'
+      ? `rgba(${mixTuple(gradientStart, [255, 236, 224], 0.28).join(', ')}, 0.16)`
+      : `rgba(${warmLift.join(', ')}, 0.16)`;
+  const themeBorder = isDayMode ? `rgba(${paperBorder.join(', ')}, 0.24)` : `rgba(${warmBorder.join(', ')}, 0.24)`;
+  const themeBorderStrong = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.38)` : `rgba(${warmBorderStrong.join(', ')}, 0.34)`;
+  const themeTextPrimary = isDayMode ? 'rgba(52, 34, 29, 0.96)' : 'rgba(255, 242, 233, 0.96)';
+  const themeTextSecondary = isDayMode ? 'rgba(88, 62, 53, 0.86)' : 'rgba(231, 211, 196, 0.88)';
+  const themeTextTertiary = isDayMode ? 'rgba(121, 90, 79, 0.74)' : 'rgba(205, 183, 168, 0.78)';
+  const themeSpotA = isDayMode
+    ? state.accentMode === 'gradient'
+      ? `rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.16)`
+      : `rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.14)`
+    : state.accentMode === 'gradient'
+      ? `rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.22)`
+      : `rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.2)`;
+  const themeSpotB = isDayMode
+    ? state.accentMode === 'gradient'
+      ? `rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.14)`
+      : `rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.12)`
+    : state.accentMode === 'gradient'
+      ? `rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.16)`
+      : `rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.16)`;
+  const themeScrim = isDayMode ? 'rgba(244, 237, 231, 0.62)' : 'rgba(24, 14, 12, 0.64)';
   const fillSoft = state.accentMode === 'gradient'
     ? `linear-gradient(135deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.18), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.14))`
     : `linear-gradient(145deg, rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.16), rgba(${r}, ${g}, ${b}, 0.12))`;
@@ -182,6 +217,37 @@ function applyAccentVariables() {
   const glow = state.accentMode === 'gradient'
     ? `0 0 18px rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.22)`
     : `0 0 18px rgba(${r}, ${g}, ${b}, 0.22)`;
+  const contrastStrokeColor = isDayMode ? 'rgba(255, 250, 247, 0.92)' : 'rgba(5, 8, 14, 0.82)';
+  const contrastStrokeSoft = isDayMode ? 'rgba(255, 248, 244, 0.74)' : 'rgba(5, 8, 14, 0.54)';
+  const contrastTextShadow = isDayMode
+    ? '0 1px 1px rgba(255, 255, 255, 0.86), 0 0 10px rgba(255, 255, 255, 0.42)'
+    : '0 1px 2px rgba(0, 0, 0, 0.74), 0 0 10px rgba(0, 0, 0, 0.34)';
+  const contrastTextShadowSoft = isDayMode
+    ? '0 1px 1px rgba(255, 255, 255, 0.68), 0 0 6px rgba(255, 255, 255, 0.28)'
+    : '0 1px 1px rgba(0, 0, 0, 0.56), 0 0 6px rgba(0, 0, 0, 0.22)';
+  const contrastIconShadow = isDayMode
+    ? '0 1px 1px rgba(255, 255, 255, 0.82), 0 0 12px rgba(255, 255, 255, 0.32)'
+    : '0 1px 2px rgba(0, 0, 0, 0.78), 0 0 10px rgba(0, 0, 0, 0.26)';
+  const contrastOutlineWidth = isDayMode ? '0.28px' : '0.34px';
+  const contrastOutlineWidthStrong = isDayMode ? '0.42px' : '0.52px';
+  const menuText = isDayMode ? 'rgba(58, 38, 33, 0.96)' : 'rgba(236, 242, 255, 0.92)';
+  const menuTextMuted = isDayMode ? 'rgba(82, 57, 50, 0.88)' : 'rgba(235, 241, 255, 0.9)';
+  const menuTextDisabled = isDayMode ? 'rgba(103, 80, 73, 0.6)' : 'rgba(210, 220, 238, 0.72)';
+  const menuAvatarBorder = isDayMode ? 'rgba(92, 65, 57, 0.28)' : 'rgba(255, 255, 255, 0.86)';
+  const appShellBackdrop = isDayMode
+    ? 'linear-gradient(120deg, #f7ebe2, #f3e8e5, #ece5e8)'
+    : 'linear-gradient(120deg, #1d2230, #211e34, #1b2538)';
+  const wallpaperStageFilter = isDayMode ? 'brightness(0.74) saturate(108%)' : 'brightness(0.64) saturate(118%)';
+  const wallpaperHomeFilter = isDayMode ? 'brightness(1.04) saturate(103%)' : 'brightness(0.82) saturate(112%)';
+  const wallpaperStageOverlayBackground = isDayMode
+    ? 'linear-gradient(180deg, rgba(255, 248, 244, 0.18), rgba(245, 236, 229, 0.34))'
+    : 'linear-gradient(180deg, rgba(8, 11, 18, 0.34), rgba(8, 11, 18, 0.52))';
+  const wallpaperStageOverlayBackdrop = isDayMode ? 'blur(6px) saturate(112%)' : 'blur(7px) saturate(120%)';
+  const wallpaperHomeOverlayBackground = isDayMode
+    ? 'linear-gradient(180deg, rgba(255, 251, 248, 0.06), rgba(248, 241, 236, 0.18))'
+    : 'linear-gradient(180deg, rgba(8, 11, 18, 0.16), rgba(8, 11, 18, 0.42))';
+  const wallpaperHomeOverlayOpacity = isDayMode ? '0.28' : '0.9';
+  const wallpaperHomeOverlayBackdrop = isDayMode ? 'blur(0px) saturate(102%)' : 'blur(1px) saturate(106%)';
 
   const root = document.documentElement;
   root.style.setProperty('--accent-hex', normalizeHex(state.accentHex) || DEFAULT_ACCENT_HEX);
@@ -238,18 +304,45 @@ function applyAccentVariables() {
     '--accent-mode-glow',
     glow
   );
-  root.style.setProperty('--accent-mode-text', 'rgba(255, 255, 255, 0.96)');
+  root.style.setProperty('--accent-mode-text', isDayMode ? 'rgba(52, 34, 29, 0.96)' : 'rgba(255, 255, 255, 0.96)');
   root.style.setProperty(
     '--accent-mode-text-muted',
-    state.accentMode === 'gradient'
-      ? 'rgba(255, 244, 252, 0.84)'
-      : `rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.84)`
+    isDayMode
+      ? 'rgba(76, 52, 44, 0.84)'
+      : state.accentMode === 'gradient'
+        ? 'rgba(255, 244, 252, 0.84)'
+        : `rgba(${soft[0]}, ${soft[1]}, ${soft[2]}, 0.84)`
   );
   root.style.setProperty(
     '--accent-press-overlay',
-    state.accentMode === 'gradient' ? 'rgba(255, 255, 255, 0.1)' : `rgba(${r}, ${g}, ${b}, 0.14)`
+    isDayMode
+      ? 'rgba(255, 255, 255, 0.26)'
+      : state.accentMode === 'gradient'
+        ? 'rgba(255, 255, 255, 0.1)'
+        : `rgba(${r}, ${g}, ${b}, 0.14)`
   );
+  root.style.setProperty('--theme-contrast-stroke-color', contrastStrokeColor);
+  root.style.setProperty('--theme-contrast-stroke-soft', contrastStrokeSoft);
+  root.style.setProperty('--theme-contrast-text-shadow', contrastTextShadow);
+  root.style.setProperty('--theme-contrast-text-shadow-soft', contrastTextShadowSoft);
+  root.style.setProperty('--theme-contrast-icon-shadow', contrastIconShadow);
+  root.style.setProperty('--theme-contrast-outline-width', contrastOutlineWidth);
+  root.style.setProperty('--theme-contrast-outline-width-strong', contrastOutlineWidthStrong);
+  root.style.setProperty('--theme-menu-text', menuText);
+  root.style.setProperty('--theme-menu-text-muted', menuTextMuted);
+  root.style.setProperty('--theme-menu-text-disabled', menuTextDisabled);
+  root.style.setProperty('--theme-menu-avatar-border', menuAvatarBorder);
+  root.style.setProperty('--app-shell-backdrop', appShellBackdrop);
+  root.style.setProperty('--wallpaper-stage-filter', wallpaperStageFilter);
+  root.style.setProperty('--wallpaper-home-filter', wallpaperHomeFilter);
+  root.style.setProperty('--wallpaper-stage-overlay-background', wallpaperStageOverlayBackground);
+  root.style.setProperty('--wallpaper-stage-overlay-backdrop', wallpaperStageOverlayBackdrop);
+  root.style.setProperty('--wallpaper-home-overlay-background', wallpaperHomeOverlayBackground);
+  root.style.setProperty('--wallpaper-home-overlay-opacity', wallpaperHomeOverlayOpacity);
+  root.style.setProperty('--wallpaper-home-overlay-backdrop', wallpaperHomeOverlayBackdrop);
+  root.style.setProperty('color-scheme', isDayMode ? 'light' : 'dark');
   root.setAttribute('data-accent-mode', normalizeAccentMode(state.accentMode));
+  root.setAttribute('data-theme-mode', themeMode);
 }
 
 function persist() {
@@ -258,6 +351,7 @@ function persist() {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
+        themeMode: state.themeMode,
         accentHex: state.accentHex,
         accentMode: state.accentMode,
         accentGradientId: state.accentGradientId,
@@ -284,6 +378,7 @@ function initializeUiPreferences() {
       if (raw) {
         const payload = JSON.parse(raw);
         if (payload && typeof payload === 'object') {
+          state.themeMode = normalizeThemeMode(payload.themeMode);
           if (normalizeHex(payload.accentHex)) state.accentHex = normalizeHex(payload.accentHex);
           state.accentMode = normalizeAccentMode(payload.accentMode);
           const preset = resolveGradientPreset(payload.accentGradientId || DEFAULT_GRADIENT_PRESET_ID);
@@ -343,6 +438,17 @@ function setAccentHex(hexInput) {
     ok: true,
     normalized
   };
+}
+
+function setThemeMode(modeInput) {
+  state.themeMode = normalizeThemeMode(modeInput);
+  applyAccentVariables();
+  persist();
+  return state.themeMode;
+}
+
+function toggleThemeMode() {
+  return setThemeMode(state.themeMode === 'day' ? 'night' : 'day');
 }
 
 function resetAccent() {
@@ -430,6 +536,8 @@ export function useUiPreferences() {
     ACCENT_PRESETS,
     GRADIENT_PRESETS,
     initializeUiPreferences,
+    setThemeMode,
+    toggleThemeMode,
     setAccentHex,
     resetAccent,
     setAccentMode,

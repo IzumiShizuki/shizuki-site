@@ -19,6 +19,7 @@ async function mountTopMenu(props = {}, initialPath = '/') {
   const wrapper = mount(TopMenu, {
     props: {
       menuExpanded: true,
+      themeMode: 'night',
       aiChatActive: false,
       aiChatDisabled: false,
       isAuthenticated: false,
@@ -64,5 +65,17 @@ describe('TopMenu profile entry', () => {
 
     expect(wrapper.emitted('open-auth')).toHaveLength(1);
     expect(wrapper.emitted('open-profile')).toBeUndefined();
+  });
+
+  it('emits theme toggle events and reflects the current mode label', async () => {
+    const { wrapper } = await mountTopMenu({
+      themeMode: 'day'
+    });
+
+    expect(wrapper.get('.theme-toggle-item .item-label').text()).toBe('白天模式');
+
+    await wrapper.get('.theme-toggle-item').trigger('click');
+
+    expect(wrapper.emitted('toggle-theme-mode')).toHaveLength(1);
   });
 });

@@ -33,6 +33,18 @@
           <span class="item-label">MENU</span>
         </div>
 
+        <div
+          class="menu-item-stack ripple-trigger theme-toggle-item"
+          role="button"
+          :aria-label="themeToggleActionLabel"
+          @click="toggleThemeMode"
+        >
+          <div class="circle-icon-box liquid-material theme-toggle-box" :class="themeModeNormalized">
+            <i :class="themeModeIcon"></i>
+          </div>
+          <span class="item-label">{{ themeModeLabel }}</span>
+        </div>
+
         <div class="menu-item-stack ripple-trigger" @click="openBackgroundPicker">
           <div class="circle-icon-box liquid-material"><i class="far fa-image"></i></div>
           <span class="item-label">变换图片</span>
@@ -116,6 +128,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  themeMode: {
+    type: String,
+    default: 'night'
+  },
   aiChatActive: {
     type: Boolean,
     default: false
@@ -160,6 +176,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'toggle-menu',
+  'toggle-theme-mode',
   'toggle-ai-chat',
   'select-main-route',
   'open-atmosphere-panel',
@@ -171,10 +188,14 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
+const { menuExpanded, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
 const avatarLoadFailed = ref(false);
 const authorAvatarLoadFailed = ref(false);
 const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
+const themeModeNormalized = computed(() => (String(themeMode.value || '').trim().toLowerCase() === 'day' ? 'day' : 'night'));
+const themeModeLabel = computed(() => (themeModeNormalized.value === 'day' ? '白天模式' : '夜间模式'));
+const themeModeIcon = computed(() => (themeModeNormalized.value === 'day' ? 'fas fa-sun' : 'fas fa-moon'));
+const themeToggleActionLabel = computed(() => (themeModeNormalized.value === 'day' ? '切换到夜间模式' : '切换到白天模式'));
 
 const mainNavItems = computed(() => {
   return [
@@ -239,6 +260,10 @@ const resolvedAuthorAvatarUrl = computed(() => {
 
 function toggleSwitch() {
   emit('toggle-menu');
+}
+
+function toggleThemeMode() {
+  emit('toggle-theme-mode');
 }
 
 function onAvatarError() {
@@ -402,33 +427,23 @@ watch(
 .left-main-btn.active .icon-minimal {
   color: rgb(var(--accent-strong-rgb));
   transform: scale(1.06);
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.64),
-    1px 0 rgba(0, 0, 0, 0.34),
-    -1px 0 rgba(0, 0, 0, 0.34),
-    0 0 6px rgba(var(--accent-rgb), 0.24);
+  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 2px rgba(0, 0, 0, 0.78));
 }
 
 .left-main-btn.active .item-label {
   color: rgb(var(--accent-strong-rgb));
   font-weight: 600;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.64),
-    1px 0 rgba(0, 0, 0, 0.38),
-    -1px 0 rgba(0, 0, 0, 0.38),
-    0 0 6px rgba(var(--accent-rgb), 0.24);
+  text-shadow: var(--theme-contrast-text-shadow, 0 1px 2px rgba(0, 0, 0, 0.74));
 }
 
 .item-label {
   font-size: 11px;
-  color: rgba(235, 241, 255, 0.9);
+  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9));
   font-weight: 500;
   letter-spacing: 0.5px;
   white-space: nowrap;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.72),
-    1px 0 rgba(0, 0, 0, 0.4),
-    -1px 0 rgba(0, 0, 0, 0.4);
+  text-shadow: var(--theme-contrast-text-shadow, 0 1px 2px rgba(0, 0, 0, 0.74));
+  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.34px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
 }
 
 .left-pill-group {
@@ -480,7 +495,7 @@ watch(
 
 .icon-minimal {
   font-size: 20px;
-  color: rgba(236, 242, 255, 0.92);
+  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   height: 32px;
   width: 32px;
   display: flex;
@@ -488,10 +503,8 @@ watch(
   justify-content: center;
   transition: transform 0.2s, color 0.2s, background-color 0.2s;
   border-radius: 50%;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.72),
-    1px 0 rgba(0, 0, 0, 0.36),
-    -1px 0 rgba(0, 0, 0, 0.36);
+  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 2px rgba(0, 0, 0, 0.78));
+  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.52px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
 }
 
 .icon-minimal:hover {
@@ -509,12 +522,10 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: rgba(236, 242, 255, 0.92);
+  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   transition: all 0.3s ease;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.72),
-    1px 0 rgba(0, 0, 0, 0.34),
-    -1px 0 rgba(0, 0, 0, 0.34);
+  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 2px rgba(0, 0, 0, 0.78));
+  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.52px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
 }
 
 .circle-icon-box:hover {
@@ -555,8 +566,8 @@ watch(
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.42);
-  box-shadow: 0 0 0 1px rgba(18, 24, 35, 0.24);
+  background: color-mix(in srgb, var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9)) 46%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54)) 36%, transparent);
   transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -582,12 +593,10 @@ watch(
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(236, 242, 255, 0.92);
+  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   transition: all 0.3s;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.74),
-    1px 0 rgba(0, 0, 0, 0.34),
-    -1px 0 rgba(0, 0, 0, 0.34);
+  text-shadow: var(--theme-contrast-text-shadow, 0 1px 2px rgba(0, 0, 0, 0.74));
+  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.34px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
 }
 
 .menu-item-stack:hover .pill-btn-box {
@@ -607,7 +616,7 @@ watch(
 
 .ai-chat-item.disabled .pill-btn-box {
   --liquid-bg: rgba(255, 255, 255, 0.05);
-  color: rgba(210, 220, 238, 0.72);
+  color: var(--theme-menu-text-disabled, rgba(210, 220, 238, 0.72));
 }
 
 .ai-chat-item.disabled:hover .pill-btn-box,
@@ -618,7 +627,7 @@ watch(
 }
 
 .ai-chat-item.disabled .item-label {
-  color: rgba(219, 228, 245, 0.72);
+  color: var(--theme-menu-text-disabled, rgba(210, 220, 238, 0.72));
 }
 
 .ai-chat-item.disabled .ai-chat-dot {
@@ -632,7 +641,7 @@ watch(
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border: 1.5px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
   background: transparent;
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -650,13 +659,11 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: rgba(236, 242, 255, 0.92);
+  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   border-radius: 50%;
   transition: transform 0.2s, color 0.2s;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.74),
-    1px 0 rgba(0, 0, 0, 0.36),
-    -1px 0 rgba(0, 0, 0, 0.36);
+  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 2px rgba(0, 0, 0, 0.78));
+  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.52px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
 }
 
 .author-info-item,
@@ -677,7 +684,7 @@ watch(
   border-radius: 50%;
   overflow: hidden;
   background: rgba(10, 16, 25, 0.64);
-  border: 2px solid rgba(255, 255, 255, 0.86);
+  border: 2px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -707,7 +714,7 @@ watch(
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.92);
+  border: 2px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
   position: relative;
   overflow: hidden;
   background: rgba(10, 16, 25, 0.64);
@@ -725,8 +732,8 @@ watch(
   align-items: center;
   justify-content: center;
   filter: saturate(0.72);
-  border-color: rgba(255, 255, 255, 0.82);
-  color: rgba(234, 242, 255, 0.9);
+  border-color: var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
+  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9));
   font-size: 16px;
 }
 
@@ -742,7 +749,7 @@ watch(
   width: 10px;
   height: 10px;
   background: rgb(var(--accent-strong-rgb));
-  border: 1px solid #fff;
+  border: 1px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
   border-radius: 50%;
 }
 
@@ -871,12 +878,12 @@ watch(
 
 .bar-line {
   position: absolute;
-  background: rgba(236, 242, 255, 0.9);
+  background: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   height: 2px;
   width: 24px;
   border-radius: 2px;
   transition: all 0.5s cubic-bezier(0.68, -0.6, 0.32, 1.6);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.52);
+  box-shadow: var(--theme-contrast-icon-shadow, 0 1px 2px rgba(0, 0, 0, 0.78));
 }
 
 .bar-line.top {
@@ -890,25 +897,62 @@ watch(
 .menu-label-text {
   font-size: 10px;
   font-weight: 800;
-  color: rgba(236, 242, 255, 0.9);
+  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   letter-spacing: 1px;
   transition: 0.3s;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 8px rgba(0, 0, 0, 0.34);
-  -webkit-text-stroke: 0.3px rgba(0, 0, 0, 0.44);
+  text-shadow: var(--theme-contrast-text-shadow, 0 1px 2px rgba(0, 0, 0, 0.74));
+  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.34px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
 }
 
 .fixed-nav-wrapper.expanded .bar-line.top {
   transform: translateY(0) rotate(135deg);
-  background-color: rgba(236, 242, 255, 0.92);
+  background-color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   width: 20px;
 }
 
 .fixed-nav-wrapper.expanded .bar-line.bottom {
   transform: translateY(0) rotate(-135deg);
-  background-color: rgba(236, 242, 255, 0.92);
+  background-color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
   width: 20px;
+}
+
+.theme-toggle-box {
+  overflow: hidden;
+}
+
+.theme-toggle-box::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  transition: transform 0.28s ease, opacity 0.28s ease, box-shadow 0.28s ease, background 0.28s ease;
+}
+
+.theme-toggle-box.day::before {
+  background: linear-gradient(180deg, rgba(255, 223, 132, 0.98), rgba(255, 169, 92, 0.88));
+  box-shadow:
+    0 0 0 1px rgba(139, 84, 31, 0.16),
+    0 0 14px rgba(255, 184, 96, 0.36);
+}
+
+.theme-toggle-box.night::before {
+  background: linear-gradient(180deg, rgba(176, 186, 255, 0.96), rgba(111, 121, 208, 0.9));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 14px rgba(126, 143, 255, 0.28);
+}
+
+.theme-toggle-box i {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-toggle-box.day i {
+  color: rgba(92, 51, 20, 0.94);
+}
+
+.theme-toggle-box.night i {
+  color: rgba(246, 248, 255, 0.96);
 }
 
 .fixed-nav-wrapper.expanded .menu-label-text {

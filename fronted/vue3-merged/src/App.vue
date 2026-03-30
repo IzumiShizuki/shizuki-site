@@ -21,6 +21,7 @@
 
       <AppMenuBar
         :menu-expanded="menuExpanded"
+        :theme-mode="ui.state.themeMode"
         :ai-chat-active="aiChatActive"
         :ai-chat-disabled="isAiHubRoute"
         :is-authenticated="auth.isAuthenticated.value"
@@ -32,6 +33,7 @@
         :ambient-active="ambientMenuActive"
         :effect-active="effectMenuActive"
         @toggle-menu="toggleMenu"
+        @toggle-theme-mode="ui.toggleThemeMode()"
         @toggle-ai-chat="toggleAiChat"
         @select-main-route="handleMainRouteSelect"
         @open-profile="openProfile"
@@ -2429,7 +2431,7 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: hidden;
   isolation: isolate;
-  background: linear-gradient(120deg, #1d2230, #211e34, #1b2538);
+  background: var(--app-shell-backdrop, linear-gradient(120deg, #1d2230, #211e34, #1b2538));
 }
 
 .bg-layer {
@@ -2448,13 +2450,13 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: cover;
   object-position: center;
-  filter: brightness(0.64) saturate(118%);
+  filter: var(--wallpaper-stage-filter, brightness(0.64) saturate(118%));
   transition: filter 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .bg-layer.home .bg-image,
 .bg-layer.home .bg-video {
-  filter: brightness(0.98) saturate(108%);
+  filter: var(--wallpaper-home-filter, brightness(0.82) saturate(112%));
 }
 
 .bg-video {
@@ -2465,9 +2467,9 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: linear-gradient(180deg, rgba(8, 11, 18, 0.34), rgba(8, 11, 18, 0.52));
-  backdrop-filter: blur(7px) saturate(120%);
-  -webkit-backdrop-filter: blur(7px) saturate(120%);
+  background: var(--wallpaper-stage-overlay-background, linear-gradient(180deg, rgba(8, 11, 18, 0.34), rgba(8, 11, 18, 0.52)));
+  backdrop-filter: var(--wallpaper-stage-overlay-backdrop, blur(7px) saturate(120%));
+  -webkit-backdrop-filter: var(--wallpaper-stage-overlay-backdrop, blur(7px) saturate(120%));
   opacity: 1;
   transition:
     opacity 360ms ease,
@@ -2476,9 +2478,10 @@ onBeforeUnmount(() => {
 }
 
 .bg-fx.bg-fx-home {
-  opacity: 0;
-  backdrop-filter: blur(0px) saturate(100%);
-  -webkit-backdrop-filter: blur(0px) saturate(100%);
+  background: var(--wallpaper-home-overlay-background, transparent);
+  opacity: var(--wallpaper-home-overlay-opacity, 0);
+  backdrop-filter: var(--wallpaper-home-overlay-backdrop, blur(0px) saturate(100%));
+  -webkit-backdrop-filter: var(--wallpaper-home-overlay-backdrop, blur(0px) saturate(100%));
 }
 
 .workspace-shell {

@@ -23,6 +23,78 @@ body {
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
+:where(
+  .app-shell,
+  .fixed-nav-wrapper,
+  .route-page-view,
+  .settings-panel,
+  .global-lyric-bar,
+  .workspace-shell,
+  .ai-side-column
+) :is(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  button,
+  label,
+  legend,
+  .item-label,
+  .menu-label-text,
+  .helper-text,
+  .error-text,
+  .tag-chip,
+  .pill-count,
+  .chip-count,
+  .eyebrow,
+  .section-title,
+  .panel-title,
+  .card-title,
+  .stat-label,
+  .field-label
+) {
+  text-shadow: var(--theme-contrast-text-shadow, 0 1px 2px rgba(0, 0, 0, 0.74));
+  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.34px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
+}
+
+:where(
+  .app-shell,
+  .fixed-nav-wrapper,
+  .route-page-view,
+  .settings-panel,
+  .global-lyric-bar,
+  .workspace-shell,
+  .ai-side-column
+) :is(
+  p,
+  li,
+  dt,
+  dd,
+  small,
+  strong,
+  figcaption,
+  blockquote,
+  .meta-text,
+  .supporting-text,
+  .description,
+  .hint-text
+) {
+  text-shadow: var(--theme-contrast-text-shadow-soft, 0 1px 1px rgba(0, 0, 0, 0.56));
+}
+
+:where(
+  .app-shell,
+  .fixed-nav-wrapper,
+  .route-page-view,
+  .settings-panel,
+  .workspace-shell
+) :is(i, .fas, .far, .fab, .fa-solid, .fa-regular, .fa-brands) {
+  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 2px rgba(0, 0, 0, 0.78));
+  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.52px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
+}
+
 .ripple-trigger {
   transition:
     transform 0.18s ease,

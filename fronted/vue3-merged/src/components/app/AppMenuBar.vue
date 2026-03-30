@@ -2,6 +2,7 @@
   <TopMenu
     v-bind="props"
     @toggle-menu="$emit('toggle-menu')"
+    @toggle-theme-mode="$emit('toggle-theme-mode')"
     @toggle-ai-chat="$emit('toggle-ai-chat')"
     @select-main-route="$emit('select-main-route', $event)"
     @open-atmosphere-panel="$emit('open-atmosphere-panel')"
@@ -18,6 +19,7 @@ import TopMenu from '../TopMenu.vue';
 
 const props = defineProps({
   menuExpanded: { type: Boolean, default: false },
+  themeMode: { type: String, default: 'night' },
   aiChatActive: { type: Boolean, default: false },
   aiChatDisabled: { type: Boolean, default: false },
   isAuthenticated: { type: Boolean, default: false },
@@ -32,6 +34,7 @@ const props = defineProps({
 
 defineEmits([
   'toggle-menu',
+  'toggle-theme-mode',
   'toggle-ai-chat',
   'select-main-route',
   'open-atmosphere-panel',

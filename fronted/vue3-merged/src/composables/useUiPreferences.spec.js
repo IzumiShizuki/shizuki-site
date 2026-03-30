@@ -15,6 +15,7 @@ function readStoredPreferences() {
 function resetDocumentThemeState() {
   const root = document.documentElement;
   root.removeAttribute('data-accent-mode');
+  root.removeAttribute('data-theme-mode');
   root.removeAttribute('style');
 }
 
@@ -35,15 +36,18 @@ describe('useUiPreferences', () => {
 
     ui.initializeUiPreferences();
 
+    expect(ui.state.themeMode).toBe('night');
     expect(ui.state.accentHex).toBe('#F2B39D');
     expect(ui.state.accentMode).toBe('solid');
     expect(ui.state.accentGradientId).toBe('apricot-blush');
     expect(ui.state.accentGradientStartHex).toBe('#F6C2A1');
     expect(ui.state.accentGradientEndHex).toBe('#EFA0A8');
     expect(document.documentElement.getAttribute('data-accent-mode')).toBe('solid');
+    expect(document.documentElement.getAttribute('data-theme-mode')).toBe('night');
     expect(document.documentElement.style.getPropertyValue('--theme-surface')).not.toBe('');
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({
+        themeMode: 'night',
         accentHex: '#F2B39D',
         accentMode: 'solid',
         accentGradientId: 'apricot-blush',
@@ -78,6 +82,7 @@ describe('useUiPreferences', () => {
     expect(ui.state.accentGradientEndHex).toBe('#EFA0A8');
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({
+        themeMode: 'night',
         accentHex: '#F2B39D',
         accentMode: 'gradient',
         accentGradientId: 'apricot-blush',
@@ -112,6 +117,7 @@ describe('useUiPreferences', () => {
     expect(ui.state.accentGradientEndHex).toBe('#FFB168');
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({
+        themeMode: 'night',
         accentHex: '#8FDCC8',
         accentMode: 'solid',
         accentGradientId: 'sunset',
@@ -138,11 +144,32 @@ describe('useUiPreferences', () => {
     expect(ui.state.accentGradientEndHex).toBe('#EFA0A8');
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({
+        themeMode: 'night',
         accentHex: '#F2B39D',
         accentGradientId: 'apricot-blush',
         accentGradientStartHex: '#F6C2A1',
         accentGradientEndHex: '#EFA0A8',
         themeDefaultsVersion: 2
+      })
+    );
+  });
+
+  it('switches between night and day mode and persists the result', async () => {
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+
+    ui.initializeUiPreferences();
+    const nightSurface = document.documentElement.style.getPropertyValue('--theme-surface');
+
+    ui.toggleThemeMode();
+
+    expect(ui.state.themeMode).toBe('day');
+    expect(document.documentElement.getAttribute('data-theme-mode')).toBe('day');
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light');
+    expect(document.documentElement.style.getPropertyValue('--theme-surface')).not.toBe(nightSurface);
+    expect(readStoredPreferences()).toEqual(
+      expect.objectContaining({
+        themeMode: 'day'
       })
     );
   });
