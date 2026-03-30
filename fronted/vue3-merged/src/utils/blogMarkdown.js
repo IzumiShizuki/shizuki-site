@@ -57,6 +57,68 @@ function isTableDelimiterLine(line) {
   return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(String(line || ''));
 }
 
+function escapeHtmlTableText(input) {
+  return escapeHtml(String(input || '')).replace(/\r?\n/g, '<br />');
+}
+
+function renderSanitizedHtmlTable(tableBlock) {
+  const allowedTags = new Set(['table', 'thead', 'tbody', 'tr', 'th', 'td']);
+  const cleaned = String(tableBlock || '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+
+  const parts = cleaned.match(/<[^>]+>|[^<]+/g) || [];
+  const html = parts
+    .map((part) => {
+      if (!part.startsWith('<')) {
+        if (!part.trim()) return '';
+        return escapeHtmlTableText(part);
+      }
+
+      const tagMatch = part.match(/^<\s*(\/?)\s*([a-z0-9]+)(?:\s[^>]*)?>$/i);
+      if (!tagMatch) return '';
+
+      const isClosing = tagMatch[1] === '/';
+      const tagName = String(tagMatch[2] || '').toLowerCase();
+      if (!allowedTags.has(tagName)) return '';
+      return isClosing ? `</${tagName}>` : `<${tagName}>`;
+    })
+    .join('')
+    .trim();
+
+  return html ? `<div class="md-table-wrap">${html}</div>` : '';
+}
+
+function consumeHtmlTableBlock(lines, startIndex) {
+  const firstLine = String(lines[startIndex] || '').trim();
+  if (!/^<table(?:\s|>)/i.test(firstLine)) {
+    return null;
+  }
+
+  const collected = [];
+  let cursor = startIndex;
+  let closed = false;
+
+  while (cursor < lines.length) {
+    const currentLine = String(lines[cursor] || '');
+    collected.push(currentLine);
+    if (/<\/table>\s*$/i.test(currentLine.trim())) {
+      closed = true;
+      break;
+    }
+    cursor += 1;
+  }
+
+  if (!closed) return null;
+
+  const html = renderSanitizedHtmlTable(collected.join('\n'));
+  if (!html) return null;
+  return {
+    html,
+    nextIndex: cursor
+  };
+}
+
 function restoreCodeTokens(text, codeTokens) {
   return text.replace(/\u0000CODE_(\d+)\u0000/g, (_, index) => {
     const token = codeTokens[Number(index)] || '';
@@ -211,6 +273,14 @@ export function renderMarkdownDocument(input) {
       continue;
     }
 
+    const htmlTableBlock = consumeHtmlTableBlock(lines, index);
+    if (htmlTableBlock) {
+      closeBlockLevelElements();
+      htmlParts.push(htmlTableBlock.html);
+      index = htmlTableBlock.nextIndex;
+      continue;
+    }
+
     const headingMatch = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*$/);
     if (headingMatch) {
       closeBlockLevelElements();
@@ -282,7 +352,7 @@ export function renderMarkdownDocument(input) {
         .map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdown(cell)}</td>`).join('')}</tr>`)
         .join('');
       htmlParts.push(
-        `<table class="md-table"><thead><tr>${headerCellsHtml}</tr></thead><tbody>${bodyRowsHtml}</tbody></table>`
+        `<div class="md-table-wrap"><table class="md-table"><thead><tr>${headerCellsHtml}</tr></thead><tbody>${bodyRowsHtml}</tbody></table></div>`
       );
       index = cursor - 1;
       continue;

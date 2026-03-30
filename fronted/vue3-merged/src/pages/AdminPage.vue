@@ -129,6 +129,18 @@
             @audit="auditPendingWallpaper"
           />
 
+          <AdminBlogWhispersPanel
+            v-else-if="activeTab === AdminTabKey.BLOG_WHISPERS"
+            :loading="whispersLoading"
+            :error="whispersError"
+            :items="whispersPage.items"
+            :page="whispersPage.page"
+            :page-size="whispersPage.pageSize"
+            :total="whispersPage.total"
+            @refresh="reloadBlogWhispers(1)"
+            @page="reloadBlogWhispers"
+          />
+
           <AdminBlogCategoriesPanel
             v-else
             :loading="categoryMetaLoading"
@@ -192,6 +204,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import * as adminApi from '../services/adminApi';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
+import AdminBlogWhispersPanel from '../components/admin/AdminBlogWhispersPanel.vue';
 import AdminDangerDeleteDialog from '../components/admin/AdminDangerDeleteDialog.vue';
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
@@ -199,6 +212,7 @@ import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
 import AdminUsersPanel from '../components/admin/AdminUsersPanel.vue';
 import AdminWallpapersPanel from '../components/admin/AdminWallpapersPanel.vue';
+import { normalizeAdminWhisperPage } from './adminWhispersState';
 import {
   AdminTabKey,
   buildQuotaMatrix,
@@ -232,6 +246,7 @@ const tabs = [
   { key: AdminTabKey.PERMISSIONS, label: '分组权限', icon: 'fas fa-key' },
   { key: AdminTabKey.QUOTA, label: '配额策略', icon: 'fas fa-gauge-high' },
   { key: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
+  { key: AdminTabKey.BLOG_WHISPERS, label: '博客悄悄话', icon: 'fas fa-user-secret' },
   { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
 ];
 
@@ -300,6 +315,15 @@ const wallpapersLoading = ref(false);
 const wallpapersSubmitting = ref(false);
 const wallpapersError = ref('');
 const pendingWallpapers = ref([]);
+
+const whispersLoading = ref(false);
+const whispersError = ref('');
+const whispersPage = reactive({
+  page: 1,
+  pageSize: 20,
+  total: 0,
+  items: []
+});
 
 const uiState = reactive(createAdminUiState());
 
@@ -907,6 +931,32 @@ async function reloadPendingWallpapers() {
   }
 }
 
+async function reloadBlogWhispers(page = 1) {
+  whispersError.value = '';
+  whispersLoading.value = true;
+  try {
+    const payload = await adminApi.listAdminPostWhispers(
+      {
+        pageNo: page,
+        pageSize: whispersPage.pageSize
+      },
+      auth.authorizedFetch
+    );
+    const normalized = normalizeAdminWhisperPage(payload, page, whispersPage.pageSize);
+    whispersPage.items = normalized.items;
+    whispersPage.page = normalized.page;
+    whispersPage.pageSize = normalized.pageSize;
+    whispersPage.total = normalized.total;
+  } catch (error) {
+    whispersPage.items = [];
+    whispersPage.page = 1;
+    whispersPage.total = 0;
+    whispersError.value = readErrorMessage(error);
+  } finally {
+    whispersLoading.value = false;
+  }
+}
+
 async function auditPendingWallpaper(payload) {
   const wallpaperId = toPositiveInt(payload?.wallpaperId, 0);
   if (!wallpaperId) {
@@ -1207,7 +1257,15 @@ onMounted(async () => {
 
   try {
     await reloadOptions();
-    await Promise.all([reloadUsers(1), reloadGroups(1), reloadPermissions(), reloadQuota(), reloadPendingWallpapers(), reloadCategoryMetas()]);
+    await Promise.all([
+      reloadUsers(1),
+      reloadGroups(1),
+      reloadPermissions(),
+      reloadQuota(),
+      reloadPendingWallpapers(),
+      reloadBlogWhispers(1),
+      reloadCategoryMetas()
+    ]);
   } finally {
     booting.value = false;
   }

@@ -19,6 +19,26 @@ describe('profileArticlesState', () => {
     expect(item.publishedAt).toBeTruthy();
   });
 
+  it('falls back to summary or slug when title is empty', () => {
+    expect(
+      normalizeAuthorPostItem({
+        post_id: 10,
+        title: '',
+        summary: 'Summary Title',
+        slug_code: 'summary-title'
+      }).title
+    ).toBe('Summary Title');
+
+    expect(
+      normalizeAuthorPostItem({
+        post_id: 11,
+        title: '',
+        summary: '',
+        slug_code: 'post-slug'
+      }).title
+    ).toBe('post-slug');
+  });
+
   it('builds aggregate summary from author posts', () => {
     const summary = summarizeAuthorPosts([
       {

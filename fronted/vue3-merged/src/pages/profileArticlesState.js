@@ -1,3 +1,5 @@
+import { resolveBlogPostDisplayTitle } from '../utils/blogPostTitle';
+
 const STATUS_DRAFT = 'DRAFT';
 const STATUS_PUBLISHED = 'PUBLISHED';
 
@@ -29,7 +31,7 @@ export function normalizeAuthorPostItem(raw) {
   const updatedAt = normalizeDate(raw?.updatedAt ?? raw?.updated_at);
   return {
     postId: toSafeNumber(raw?.postId ?? raw?.post_id, 0),
-    title: normalizeText(raw?.title, '未命名文章'),
+    title: resolveBlogPostDisplayTitle(raw),
     statusCode,
     categoryCode: normalizeText(raw?.categoryCode ?? raw?.category_code, 'uncategorized').toLowerCase(),
     visibility: normalizeText(raw?.visibility, 'PUBLIC').toUpperCase(),

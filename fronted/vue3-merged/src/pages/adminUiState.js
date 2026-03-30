@@ -3,6 +3,7 @@ export const AdminTabKey = Object.freeze({
   GROUPS: 'groups',
   PERMISSIONS: 'permissions',
   QUOTA: 'quota',
+  BLOG_WHISPERS: 'blog-whispers',
   BLOG_CATEGORIES: 'blog-categories',
   WALLPAPERS: 'wallpapers'
 });

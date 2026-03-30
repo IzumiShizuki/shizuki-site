@@ -38,6 +38,25 @@ describe('blogMarkdown', () => {
     expect(rendered.html).not.toContain('href="javascript:');
   });
 
+  it('renders sanitized raw html tables', () => {
+    const markdown = [
+      '<table class="x" onclick="alert(1)">',
+      '<thead><tr><th scope="col">A</th><th>B</th></tr></thead>',
+      '<tbody><tr><td><strong>1</strong></td><td><script>alert(1)</script>2</td></tr></tbody>',
+      '</table>'
+    ].join('\n');
+
+    const rendered = renderMarkdownDocument(markdown);
+
+    expect(rendered.html).toContain('<div class="md-table-wrap"><table>');
+    expect(rendered.html).toContain('<th>A</th>');
+    expect(rendered.html).toContain('<td>1</td>');
+    expect(rendered.html).toContain('<td>2</td>');
+    expect(rendered.html).not.toContain('onclick=');
+    expect(rendered.html).not.toContain('<script');
+    expect(rendered.html).not.toContain('<strong>');
+  });
+
   it('parses slidev deck into ordered slides', () => {
     const deck = [
       '---',

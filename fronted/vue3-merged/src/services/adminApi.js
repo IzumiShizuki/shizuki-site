@@ -138,6 +138,17 @@ export async function listBlogCategoryMetas(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function listAdminPostWhispers(params, authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/posts/whispers', {
+    method: 'GET',
+    query: {
+      page_no: params?.pageNo,
+      page_size: params?.pageSize
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function listPendingWallpapers(authorizedFetch) {
   const response = await authorizedFetch('/api/v1/admin/home-wallpapers/pending', {
     method: 'GET'

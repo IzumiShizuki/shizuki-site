@@ -159,19 +159,24 @@ function normalizeAssetUrl(raw) {
 
 function sanitizeAssetName(raw, fallback = 'blog-cover.png') {
   const source = String(raw || '').trim();
-  if (!source) return fallback;
+  const fallbackSource = String(fallback || 'blog-cover.png').trim() || 'blog-cover.png';
+  if (!source) return fallbackSource;
   const dotIndex = source.lastIndexOf('.');
   const ext = dotIndex >= 0 ? source.slice(dotIndex).toLowerCase() : '';
   const base = (dotIndex >= 0 ? source.slice(0, dotIndex) : source)
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
+  const fallbackDotIndex = fallbackSource.lastIndexOf('.');
+  const fallbackBase = (fallbackDotIndex >= 0 ? fallbackSource.slice(0, fallbackDotIndex) : fallbackSource)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   const safeExt = ['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext) ? ext : '.png';
-  return `${base || 'blog-cover'}${safeExt}`;
+  return `${base || fallbackBase || 'blog-cover'}${safeExt}`;
 }
 
-export async function uploadBlogCoverImage(file, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+function validateBlogImageFile(file, sizeLimit = 8 * 1024 * 1024) {
   if (!(file instanceof File)) {
     throw new Error('请选择图片文件');
   }
@@ -179,13 +184,22 @@ export async function uploadBlogCoverImage(file, authorizedFetch) {
   const contentType = String(file.type || '').toLowerCase();
   const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
   if (!allowedTypes.has(contentType)) {
-    throw new Error('封面图片必须是 png/jpeg/webp/gif');
+    throw new Error('图片必须是 png/jpeg/webp/gif');
   }
-  if (Number(file.size || 0) > 8 * 1024 * 1024) {
-    throw new Error('封面图片大小需 <= 8MB');
+  if (Number(file.size || 0) > sizeLimit) {
+    throw new Error(`图片大小需 <= ${Math.floor(sizeLimit / 1024 / 1024)}MB`);
   }
+  return {
+    contentType
+  };
+}
 
-  const fileName = sanitizeAssetName(file.name || 'blog-cover.png');
+async function uploadBlogImageAsset(file, authorizedFetch, options = {}) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const { contentType } = validateBlogImageFile(file, options.sizeLimit || 8 * 1024 * 1024);
+  const fileName = sanitizeAssetName(file.name || options.fallbackName || 'blog-image.png', options.fallbackName || 'blog-image.png');
+  const usage = String(options.usage || '').trim() || 'blog_post_image';
+  const visibility = String(options.visibility || 'PUBLIC').trim().toUpperCase();
   const policy = unwrapApiResponse(
     await request('/api/v1/assets/upload-policies', {
       method: 'POST',
@@ -193,7 +207,7 @@ export async function uploadBlogCoverImage(file, authorizedFetch) {
         fileName,
         contentType,
         assetKind: 'STATIC_IMAGE',
-        visibility: 'PUBLIC'
+        visibility
       }
     })
   );
@@ -228,7 +242,7 @@ export async function uploadBlogCoverImage(file, authorizedFetch) {
           const formData = new FormData();
           formData.append('file', file, file.name || fileName);
           formData.append('asset_kind', 'STATIC_IMAGE');
-          formData.append('visibility', 'PUBLIC');
+          formData.append('visibility', visibility);
           return formData;
         })()
       })
@@ -237,7 +251,7 @@ export async function uploadBlogCoverImage(file, authorizedFetch) {
     key = String(relayPayload?.key || '').trim();
     uploadContentType = String(relayPayload?.contentType || relayPayload?.content_type || contentType).trim() || contentType;
     if (!bucket || !key) {
-      throw new Error(`封面上传失败：${error instanceof Error ? error.message : 'unknown'}`);
+      throw new Error(`图片上传失败：${error instanceof Error ? error.message : 'unknown'}`);
     }
   }
 
@@ -250,9 +264,9 @@ export async function uploadBlogCoverImage(file, authorizedFetch) {
         assetType: 'image',
         assetKind: 'STATIC_IMAGE',
         contentType: uploadContentType,
-        visibility: 'PUBLIC',
+        visibility,
         metadata: {
-          usage: 'blog_post_cover'
+          usage
         }
       }
     })
@@ -260,7 +274,7 @@ export async function uploadBlogCoverImage(file, authorizedFetch) {
 
   const assetId = Number(created?.assetId ?? created?.asset_id);
   if (!Number.isFinite(assetId) || assetId <= 0) {
-    throw new Error('创建封面资产失败');
+    throw new Error('创建图片资产失败');
   }
 
   const downloadInfo = unwrapApiResponse(
@@ -272,12 +286,30 @@ export async function uploadBlogCoverImage(file, authorizedFetch) {
     downloadInfo?.publicUrl || downloadInfo?.public_url || downloadInfo?.downloadUrl || downloadInfo?.download_url
   );
   if (!url) {
-    throw new Error('获取封面地址失败');
+    throw new Error('获取图片地址失败');
   }
   return {
     assetId,
     url
   };
+}
+
+export async function uploadBlogCoverImage(file, authorizedFetch) {
+  return uploadBlogImageAsset(file, authorizedFetch, {
+    fallbackName: 'blog-cover.png',
+    usage: 'blog_post_cover',
+    visibility: 'PUBLIC',
+    sizeLimit: 8 * 1024 * 1024
+  });
+}
+
+export async function uploadBlogInlineImage(file, authorizedFetch) {
+  return uploadBlogImageAsset(file, authorizedFetch, {
+    fallbackName: 'blog-inline-image.png',
+    usage: 'blog_post_inline',
+    visibility: 'PUBLIC',
+    sizeLimit: 8 * 1024 * 1024
+  });
 }
 
 export async function createMyPost(payload, authorizedFetch) {

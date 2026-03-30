@@ -26,6 +26,10 @@ const props = defineProps({
   readOnly: {
     type: Boolean,
     default: false
+  },
+  imageUploadHandler: {
+    type: Function,
+    default: null
   }
 });
 
@@ -39,6 +43,14 @@ let editorInstance = null;
 let editorRootElement = null;
 let syncingFromProps = false;
 let pasteGuard = false;
+
+function inferImageExtension(contentType) {
+  const normalized = String(contentType || '').toLowerCase();
+  if (normalized === 'image/jpeg') return 'jpg';
+  if (normalized === 'image/webp') return 'webp';
+  if (normalized === 'image/gif') return 'gif';
+  return 'png';
+}
 
 function normalizeMode(mode) {
   return String(mode || '').toLowerCase() === 'markdown' ? 'markdown' : 'wysiwyg';
@@ -187,6 +199,31 @@ function insertText(text) {
   }
 }
 
+async function handleAddImageBlob(blob, callback) {
+  if (typeof props.imageUploadHandler !== 'function') return true;
+  if (!(blob instanceof Blob)) return true;
+  const contentType = String(blob.type || '').toLowerCase();
+  if (!contentType.startsWith('image/')) return true;
+
+  const file = blob instanceof File
+    ? blob
+    : new File([blob], `blog-inline-${Date.now()}.${inferImageExtension(contentType)}`, {
+        type: contentType || 'image/png'
+      });
+
+  try {
+    const result = await props.imageUploadHandler(file);
+    const url = typeof result === 'string' ? result.trim() : String(result?.url || '').trim();
+    if (!url) {
+      throw new Error('图片上传未返回地址');
+    }
+    callback(url, file.name || 'blog-image');
+  } catch (error) {
+    console.error('[BlogRichEditor] image upload failed', error);
+  }
+  return false;
+}
+
 function applyEditorAction(action, payload = {}) {
   if (!editorInstance) return false;
   const normalizedAction = String(action || '').trim().toLowerCase();
@@ -286,6 +323,10 @@ onMounted(async () => {
     currentMode.value = normalizeMode(nextMode);
     emit('mode-change', currentMode.value);
   });
+
+  if (typeof props.imageUploadHandler === 'function' && typeof editorInstance.addHook === 'function') {
+    editorInstance.addHook('addImageBlobHook', handleAddImageBlob);
+  }
 
   loading.value = false;
   bindPasteListener();

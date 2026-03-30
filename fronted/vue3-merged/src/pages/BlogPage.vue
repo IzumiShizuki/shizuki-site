@@ -265,7 +265,7 @@
                   </div>
                 </div>
                 <div class="detail-title-row">
-                  <h2>{{ detailState.post.title }}</h2>
+                  <h2>{{ detailState.post.displayTitle }}</h2>
                 </div>
                 <p class="detail-summary">{{ resolveSummary(detailState.post.summary) }}</p>
                 <div class="meta-row">
@@ -337,6 +337,7 @@
                 class="editor-rich-editor"
                 v-model="writerState.editor.markdown"
                 :default-mode="editorMode"
+                :image-upload-handler="handleInlineImageUpload"
                 placeholder="在这里写 Markdown 内容..."
                 @ready="handleRichEditorReady"
                 @mode-change="handleEditorModeChange"
@@ -591,7 +592,7 @@
         <h3>删除文章</h3>
         <p>删除后将同时移除文章正文、文章信息以及已生成的演示文稿资源，且无法恢复。</p>
         <p class="delete-dialog-current">
-          当前文章：{{ normalizeString(writerState.editor.title).trim() || '未命名文章' }}
+          当前文章：{{ resolveBlogPostDisplayTitle(writerState.editor) }}
         </p>
         <div class="dialog-actions">
           <button type="button" class="mini-btn ripple-trigger" :disabled="deleteDialogState.submitting" @click="closeDeleteDialog">取消</button>
@@ -625,16 +626,19 @@ import {
   listPosts,
   publishMyPost,
   relayPostMarkdown,
+  uploadBlogInlineImage,
   unpublishMyPost,
   updateMyPost
 } from '../services/blogApi';
 import { escapeMarkdownPlainText, normalizeMarkdownForEditor, renderMarkdownDocument } from '../utils/blogMarkdown';
+import { renderMermaidBlocks } from '../utils/blogMermaid';
 import {
   buildEditorCategoryOptions,
   filterEnabledBlogCategories,
   mergeBlogCategoryCatalog,
   resolveDefaultBlogCategoryCode
 } from '../utils/blogCategoryCatalog';
+import { resolveBlogPostDisplayTitle } from '../utils/blogPostTitle';
 import { shouldSyncEditorRoute } from './blogEditorRouteState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 
@@ -759,6 +763,7 @@ const richEditorRef = ref(null);
 let headingDomNodes = [];
 let boundScrollRoot = null;
 let editorPresentationPollTimer = 0;
+let detailRenderJobToken = 0;
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -1041,7 +1046,7 @@ function normalizeTags(value) {
 function normalizePostSummary(raw) {
   return {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
-    title: normalizeString(raw?.title) || '未命名文章',
+    title: resolveBlogPostDisplayTitle(raw),
     summary: normalizeString(raw?.summary),
     coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
@@ -1059,6 +1064,7 @@ function normalizePostDetail(raw) {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
     title: normalizeString(raw?.title),
     summary: normalizeString(raw?.summary),
+    displayTitle: resolveBlogPostDisplayTitle(raw),
     coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     slugCode: normalizeString(raw?.slugCode ?? raw?.slug_code),
@@ -1078,7 +1084,7 @@ function normalizePostDetail(raw) {
 function normalizeLatestPost(raw) {
   return {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
-    title: normalizeString(raw?.title) || '未命名文章',
+    title: resolveBlogPostDisplayTitle(raw),
     publishedAt: raw?.publishedAt ?? raw?.published_at ?? null
   };
 }
@@ -1093,13 +1099,9 @@ function normalizeCategoryStat(raw) {
 }
 
 function normalizeAuthorPost(raw) {
-  const title = normalizeString(raw?.title).trim()
-    || normalizeString(raw?.summary).trim()
-    || normalizeString(raw?.slugCode ?? raw?.slug_code).trim()
-    || '未命名文章';
   return {
     postId: toSafeInt(raw?.postId ?? raw?.post_id, 0),
-    title,
+    title: resolveBlogPostDisplayTitle(raw),
     summary: normalizeString(raw?.summary),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
     slugCode: normalizeString(raw?.slugCode ?? raw?.slug_code),
@@ -1304,10 +1306,21 @@ function selectDetailCategory(categoryCode) {
   loadDetailRelatedPosts(categoryCode);
 }
 
+async function renderDetailMarkdownEnhancements(renderToken) {
+  await nextTick();
+  if (renderToken !== detailRenderJobToken) return;
+  if (markdownBodyRef.value) {
+    await renderMermaidBlocks(markdownBodyRef.value);
+  }
+  if (renderToken !== detailRenderJobToken) return;
+  setupReadingScroll();
+}
+
 async function loadPostDetail(postId) {
   detailState.loading = true;
   detailState.error = '';
   closeDownloadMenu();
+  const renderToken = ++detailRenderJobToken;
   try {
     const payload = await getPostDetail(postId, resolveAuthorizedFetch());
     const normalized = normalizePostDetail(payload);
@@ -1320,9 +1333,9 @@ async function loadPostDetail(postId) {
     readingProgress.value = 0;
     await loadDetailSidebarContext(normalized);
     void loadDetailPresentation(normalized.postId);
-    await nextTick();
-    setupReadingScroll();
+    await renderDetailMarkdownEnhancements(renderToken);
   } catch (error) {
+    detailRenderJobToken += 1;
     teardownReadingScroll();
     detailState.post = null;
     detailState.renderedHtml = '';
@@ -1742,6 +1755,25 @@ async function handleMarkdownFileUpload(event) {
   }
 }
 
+async function handleInlineImageUpload(file) {
+  if (!(file instanceof File)) {
+    throw new Error('请选择图片文件');
+  }
+
+  writerState.error = '';
+  writerState.notice = '正在上传正文图片...';
+
+  try {
+    const uploaded = await uploadBlogInlineImage(file, auth.authorizedFetch);
+    writerState.notice = '图片已上传并插入正文';
+    return uploaded?.url || '';
+  } catch (error) {
+    writerState.notice = '';
+    writerState.error = normalizeErrorMessage(error, '上传正文图片失败');
+    throw error;
+  }
+}
+
 function resetEditorForm() {
   writerState.error = '';
   writerState.notice = '';
@@ -2009,11 +2041,13 @@ async function downloadCurrentPost(format = 'md') {
   if (!detailState.post?.postId) return;
   try {
     const markdown = await resolveCurrentMarkdownForDownload();
-    const safeBaseName = sanitizeFileSegment(detailState.post.slugCode || detailState.post.title || `post-${detailState.post.postId}`);
+    const safeBaseName = sanitizeFileSegment(
+      detailState.post.slugCode || detailState.post.displayTitle || detailState.post.title || `post-${detailState.post.postId}`
+    );
     const normalizedFormat = String(format || 'md').toLowerCase();
     if (normalizedFormat === 'html') {
       const rendered = renderMarkdownDocument(markdown);
-      const html = wrapMarkdownAsHtmlDocument(detailState.post.title, rendered.html);
+      const html = wrapMarkdownAsHtmlDocument(detailState.post.displayTitle || detailState.post.title, rendered.html);
       downloadTextAsFile(html, `${safeBaseName}.html`, 'text/html;charset=utf-8');
       closeDownloadMenu();
       return;
@@ -3595,10 +3629,25 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.16);
 }
 
+.markdown-body :deep(.md-inline-image) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1em auto;
+  border-radius: 12px;
+}
+
+.markdown-body :deep(.md-table-wrap) {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0.8em 0;
+}
+
 .markdown-body :deep(table) {
   width: 100%;
+  min-width: 320px;
   border-collapse: collapse;
-  margin: 0.8em 0;
+  margin: 0;
 }
 
 .markdown-body :deep(th),
@@ -3606,6 +3655,42 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.18);
   padding: 6px 8px;
   text-align: left;
+}
+
+.markdown-body :deep(.md-mermaid-block) {
+  margin: 1em 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow-x: auto;
+}
+
+.markdown-body :deep(.md-mermaid-block svg) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.markdown-body :deep(.md-mermaid-error) {
+  display: grid;
+  gap: 8px;
+  margin: 1em 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 140, 160, 0.28);
+  background: rgba(255, 124, 146, 0.08);
+  color: rgba(255, 212, 220, 0.95);
+}
+
+.markdown-body :deep(.md-mermaid-error p),
+.markdown-body :deep(.md-mermaid-error pre) {
+  margin: 0;
+}
+
+.markdown-body :deep(.md-mermaid-error pre) {
+  overflow-x: auto;
+  color: rgba(255, 230, 236, 0.88);
 }
 
 .markdown-body :deep(a) {
