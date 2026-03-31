@@ -1,17 +1,19 @@
 <template>
   <section class="lightapp-window">
-    <div class="top-toolbar">
-      <button
-        class="icon-btn toolbar-btn ripple-trigger"
-        type="button"
-        :title="showForm ? '收起添加区' : '添加项目'"
-        :aria-label="showForm ? '收起添加区' : '添加项目'"
-        @click="toggleForm"
-      >
-        <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
-      </button>
-      <span class="toolbar-hint">共 {{ projects.length }} 个项目</span>
-    </div>
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="top-toolbar">
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showForm ? '收起添加区' : '添加项目'"
+          :aria-label="showForm ? '收起添加区' : '添加项目'"
+          @click="toggleForm"
+        >
+          <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+        </button>
+        <span class="toolbar-hint">共 {{ projects.length }} 个项目</span>
+      </div>
+    </LightAppHeaderPortal>
 
     <Transition name="panel-collapse">
       <form v-if="showForm" class="project-form" @submit.prevent="submitProject">
@@ -94,6 +96,14 @@ import {
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
 import { TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+
+const props = defineProps({
+  windowId: {
+    type: [Number, String],
+    default: 0
+  }
+});
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);

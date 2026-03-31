@@ -1,108 +1,110 @@
 <template>
   <section class="lightapp-window board-canvas-window">
-    <header class="canvas-toolbar liquid-material">
-      <div class="toolbar-left">
-        <label class="board-picker">
-          <span>画板</span>
-          <select v-model.number="activeBoardId">
-            <option v-for="item in boards" :key="`board_${item.whiteboardId}`" :value="item.whiteboardId">
-              {{ item.title }}
-            </option>
-          </select>
-        </label>
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="canvas-toolbar">
+        <div class="toolbar-left">
+          <label class="board-picker">
+            <span>画板</span>
+            <select v-model.number="activeBoardId">
+              <option v-for="item in boards" :key="`board_${item.whiteboardId}`" :value="item.whiteboardId">
+                {{ item.title }}
+              </option>
+            </select>
+          </label>
 
-        <div class="toolbar-actions">
-          <button class="icon-btn ripple-trigger" type="button" title="新建画板" :disabled="saving || boardLoading" @click="createBoard">
-            <i class="fas fa-plus" aria-hidden="true"></i>
-          </button>
-          <button
-            class="icon-btn ripple-trigger"
-            type="button"
-            title="重命名画板"
-            :disabled="!activeBoard || saving || boardLoading"
-            @click="openRename"
-          >
-            <i class="fas fa-pen" aria-hidden="true"></i>
-          </button>
-          <button
-            class="icon-btn ripple-trigger danger"
-            type="button"
-            title="删除画板"
-            :disabled="!activeBoard || saving || boardLoading || boards.length <= 1"
-            @click="removeBoard"
-          >
-            <i class="fas fa-trash" aria-hidden="true"></i>
-          </button>
+          <div class="toolbar-actions">
+            <button class="icon-btn ripple-trigger" type="button" title="新建画板" :disabled="saving || boardLoading" @click="createBoard">
+              <i class="fas fa-plus" aria-hidden="true"></i>
+            </button>
+            <button
+              class="icon-btn ripple-trigger"
+              type="button"
+              title="重命名画板"
+              :disabled="!activeBoard || saving || boardLoading"
+              @click="openRename"
+            >
+              <i class="fas fa-pen" aria-hidden="true"></i>
+            </button>
+            <button
+              class="icon-btn ripple-trigger danger"
+              type="button"
+              title="删除画板"
+              :disabled="!activeBoard || saving || boardLoading || boards.length <= 1"
+              @click="removeBoard"
+            >
+              <i class="fas fa-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar-right">
+          <label class="kind-picker">
+            <span>类型</span>
+            <select v-model="activeBoardKind" :disabled="!activeBoard || saving">
+              <option value="DRAWING">自由画板</option>
+              <option value="FLOWCHART">流程图</option>
+              <option value="MINDMAP">思维导图</option>
+            </select>
+          </label>
+
+          <label class="kind-picker compact">
+            <span>背景</span>
+            <select v-model="pngBackground">
+              <option value="white">白底</option>
+              <option value="transparent">透明</option>
+            </select>
+          </label>
+
+          <div class="toolbar-actions">
+            <button
+              class="icon-btn ripple-trigger"
+              type="button"
+              title="导入 Mermaid 文本"
+              :disabled="boardLoading"
+              @click="openImportPanel"
+            >
+              <i class="fas fa-code-branch" aria-hidden="true"></i>
+            </button>
+            <button
+              class="icon-btn ripple-trigger"
+              type="button"
+              title="导入 .mmd / .txt"
+              :disabled="boardLoading"
+              @click="triggerMermaidFile"
+            >
+              <i class="fas fa-file-import" aria-hidden="true"></i>
+            </button>
+            <button
+              class="icon-btn ripple-trigger"
+              type="button"
+              title="导出 Mermaid 文本"
+              :disabled="boardLoading"
+              @click="openExportPanel"
+            >
+              <i class="fas fa-file-export" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn ripple-trigger" type="button" title="导出整板 PNG" :disabled="boardLoading" @click="exportPng('board')">
+              <i class="fas fa-image" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn ripple-trigger" type="button" title="导出视口 PNG" :disabled="boardLoading" @click="exportPng('viewport')">
+              <i class="fas fa-expand" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn ripple-trigger" type="button" title="导出选区 PNG" :disabled="boardLoading" @click="exportPng('selection')">
+              <i class="fas fa-vector-square" aria-hidden="true"></i>
+            </button>
+            <button
+              class="icon-btn ripple-trigger"
+              type="button"
+              title="立即保存"
+              :disabled="!activeBoard || boardLoading || saving"
+              @click="flushCurrentBoard(true)"
+            >
+              <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-floppy-disk'" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
       </div>
-
-      <div class="toolbar-right">
-        <label class="kind-picker">
-          <span>类型</span>
-          <select v-model="activeBoardKind" :disabled="!activeBoard || saving">
-            <option value="DRAWING">自由画板</option>
-            <option value="FLOWCHART">流程图</option>
-            <option value="MINDMAP">思维导图</option>
-          </select>
-        </label>
-
-        <label class="kind-picker compact">
-          <span>背景</span>
-          <select v-model="pngBackground">
-            <option value="white">白底</option>
-            <option value="transparent">透明</option>
-          </select>
-        </label>
-
-        <div class="toolbar-actions">
-          <button
-            class="icon-btn ripple-trigger"
-            type="button"
-            title="导入 Mermaid 文本"
-            :disabled="boardLoading"
-            @click="openImportPanel"
-          >
-            <i class="fas fa-code-branch" aria-hidden="true"></i>
-          </button>
-          <button
-            class="icon-btn ripple-trigger"
-            type="button"
-            title="导入 .mmd / .txt"
-            :disabled="boardLoading"
-            @click="triggerMermaidFile"
-          >
-            <i class="fas fa-file-import" aria-hidden="true"></i>
-          </button>
-          <button
-            class="icon-btn ripple-trigger"
-            type="button"
-            title="导出 Mermaid 文本"
-            :disabled="boardLoading"
-            @click="openExportPanel"
-          >
-            <i class="fas fa-file-export" aria-hidden="true"></i>
-          </button>
-          <button class="icon-btn ripple-trigger" type="button" title="导出整板 PNG" :disabled="boardLoading" @click="exportPng('board')">
-            <i class="fas fa-image" aria-hidden="true"></i>
-          </button>
-          <button class="icon-btn ripple-trigger" type="button" title="导出视口 PNG" :disabled="boardLoading" @click="exportPng('viewport')">
-            <i class="fas fa-expand" aria-hidden="true"></i>
-          </button>
-          <button class="icon-btn ripple-trigger" type="button" title="导出选区 PNG" :disabled="boardLoading" @click="exportPng('selection')">
-            <i class="fas fa-vector-square" aria-hidden="true"></i>
-          </button>
-          <button
-            class="icon-btn ripple-trigger"
-            type="button"
-            title="立即保存"
-            :disabled="!activeBoard || boardLoading || saving"
-            @click="flushCurrentBoard(true)"
-          >
-            <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-floppy-disk'" aria-hidden="true"></i>
-          </button>
-        </div>
-      </div>
-    </header>
+    </LightAppHeaderPortal>
 
     <Transition name="panel-collapse">
       <section v-if="renameState.open" class="rename-panel liquid-material">
@@ -193,6 +195,7 @@ import {
 import { notifyLightAppsChanged, readLightAppsState } from '../../../utils/lightAppsState';
 import { mountBoardCanvas } from './boardCanvasBridge';
 import { parseMermaidTextToGraph } from './boardMermaid';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
 
 const auth = useAuthSession();
 const props = defineProps({

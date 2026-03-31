@@ -1,28 +1,30 @@
 <template>
   <section class="lightapp-window url-links-window">
-    <div class="top-toolbar">
-      <span class="toolbar-hint">共 {{ links.length }} 个网址</span>
-      <div class="toolbar-actions">
-        <button
-          class="icon-btn toolbar-btn ripple-trigger"
-          type="button"
-          :title="isIconMode ? '切换为详情模式' : '切换为图标模式'"
-          :aria-label="isIconMode ? '切换为详情模式' : '切换为图标模式'"
-          @click="toggleViewMode"
-        >
-          <i :class="isIconMode ? 'fas fa-list' : 'fas fa-table-cells-large'" aria-hidden="true"></i>
-        </button>
-        <button
-          class="icon-btn toolbar-btn ripple-trigger"
-          type="button"
-          :title="showForm ? '收起添加区' : '添加网址'"
-          :aria-label="showForm ? '收起添加区' : '添加网址'"
-          @click="toggleForm"
-        >
-          <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
-        </button>
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="top-toolbar">
+        <span class="toolbar-hint">共 {{ links.length }} 个网址</span>
+        <div class="toolbar-actions">
+          <button
+            class="icon-btn toolbar-btn ripple-trigger"
+            type="button"
+            :title="isIconMode ? '切换为详情模式' : '切换为图标模式'"
+            :aria-label="isIconMode ? '切换为详情模式' : '切换为图标模式'"
+            @click="toggleViewMode"
+          >
+            <i :class="isIconMode ? 'fas fa-list' : 'fas fa-table-cells-large'" aria-hidden="true"></i>
+          </button>
+          <button
+            class="icon-btn toolbar-btn ripple-trigger"
+            type="button"
+            :title="showForm ? '收起添加区' : '添加网址'"
+            :aria-label="showForm ? '收起添加区' : '添加网址'"
+            @click="toggleForm"
+          >
+            <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+          </button>
+        </div>
       </div>
-    </div>
+    </LightAppHeaderPortal>
 
     <Transition name="panel-collapse">
       <form v-if="showForm" class="url-form" @submit.prevent="submitLink">
@@ -117,6 +119,14 @@ import {
 } from '../../../utils/lightAppsDataStore';
 import { notifyLightAppsChanged, readLightAppsState } from '../../../utils/lightAppsState';
 import { normalizeApiData } from '../../../services/httpClient';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+
+const props = defineProps({
+  windowId: {
+    type: [Number, String],
+    default: 0
+  }
+});
 
 const auth = useAuthSession();
 

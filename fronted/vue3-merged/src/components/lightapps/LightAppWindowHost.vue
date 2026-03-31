@@ -67,11 +67,7 @@
               </button>
             </div>
 
-            <TodoHeaderActions
-              v-if="showTodoHeaderActions(win)"
-              :window-id="win.id"
-              class="window-context-slot window-toolbar-interactive"
-            />
+            <div :id="headerPortalTargetId(win.id)" class="window-context-slot window-toolbar-interactive"></div>
           </div>
 
           <div class="window-actions">
@@ -140,14 +136,11 @@ import {
 import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
 import {
   TIMEPRISM_MODULE_ITEMS,
-  TIMEPRISM_MODULE_TODO,
   releaseTimePrismSuiteSession,
   resolveTimePrismSuiteSession,
   setSuiteActiveModule
 } from './timeprism/timePrismSuiteState';
-import { releaseTodoWindowHeaderState } from './timeprism/todoWindowHeaderState';
 import { emitTimePrismFocusItem } from './timeprism/timePrismFocusBus';
-import TodoHeaderActions from './timeprism/TodoHeaderActions.vue';
 import UrlLinksWindow from './url/UrlLinksWindow.vue';
 import BoardCanvasWindow from './board/BoardCanvasWindow.vue';
 import BlogSlidevWindow from './blog/BlogSlidevWindow.vue';
@@ -216,6 +209,11 @@ function windowStyle(win) {
     height: win.minimized ? '48px' : `${win.height}px`,
     zIndex: String(win.zIndex)
   };
+}
+
+function headerPortalTargetId(windowId) {
+  const normalized = Number(windowId);
+  return `lightapp-header-portal-${Number.isInteger(normalized) && normalized > 0 ? normalized : 0}`;
 }
 
 function focusById(windowId) {
@@ -371,10 +369,6 @@ function setTimePrismModule(windowId, moduleCode) {
   setSuiteActiveModule(session, moduleCode);
 }
 
-function showTodoHeaderActions(win) {
-  return win?.code === 'timeprism-todo' && currentTimePrismModule(win.id) === TIMEPRISM_MODULE_TODO;
-}
-
 function currentPomodoroMode(windowId) {
   return resolvePomodoroWindowState(windowId).mode;
 }
@@ -396,7 +390,6 @@ function releaseWindowLinkedState(windowId) {
   if (!target) return;
   if (target.code === 'timeprism-todo') {
     releaseTimePrismSuiteSession(windowId);
-    releaseTodoWindowHeaderState(windowId);
   } else if (target.code === 'pomodoro-timer') {
     releasePomodoroWindowState(windowId);
   } else if (target.code === 'balance-ledger') {
@@ -561,6 +554,9 @@ onBeforeUnmount(() => {
 .window-context-slot {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
 }
 
 .window-actions {

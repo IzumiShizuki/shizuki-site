@@ -1,33 +1,35 @@
 <template>
   <section class="lightapp-window">
-    <div class="top-toolbar">
-      <button
-        class="icon-btn toolbar-btn ripple-trigger"
-        type="button"
-        :title="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
-        :aria-label="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
-        @click="toggleCreateForm"
-      >
-        <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
-      </button>
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="top-toolbar">
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
+          :aria-label="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
+          @click="toggleCreateForm"
+        >
+          <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+        </button>
 
-      <span class="toolbar-hint">基准币</span>
-      <select v-model="baseCurrency" class="compact-select">
-        <option v-for="item in currencyOptions" :key="`base_currency_${item}`" :value="item">
-          {{ item }}
-        </option>
-      </select>
-      <button
-        class="icon-btn ripple-trigger"
-        type="button"
-        title="刷新汇率"
-        aria-label="刷新汇率"
-        :disabled="refreshingFx"
-        @click="refreshFx"
-      >
-        <i :class="refreshingFx ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" aria-hidden="true"></i>
-      </button>
-    </div>
+        <span class="toolbar-hint">基准币</span>
+        <select v-model="baseCurrency" class="compact-select">
+          <option v-for="item in currencyOptions" :key="`base_currency_${item}`" :value="item">
+            {{ item }}
+          </option>
+        </select>
+        <button
+          class="icon-btn ripple-trigger"
+          type="button"
+          title="刷新汇率"
+          aria-label="刷新汇率"
+          :disabled="refreshingFx"
+          @click="refreshFx"
+        >
+          <i :class="refreshingFx ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" aria-hidden="true"></i>
+        </button>
+      </div>
+    </LightAppHeaderPortal>
 
     <Transition name="panel-collapse">
       <form v-if="showCreateForm" class="create-form" @submit.prevent="submitBySection">
@@ -451,6 +453,7 @@ import {
   registerBalanceSectionChangeHandler,
   resolveBalanceWindowState
 } from './balanceWindowState';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
 
 const props = defineProps({
   windowId: {

@@ -1,24 +1,26 @@
 <template>
   <section class="lightapp-window calendar-window">
-    <div class="calendar-toolbar">
-      <div class="calendar-month-nav">
-        <button class="icon-btn ripple-trigger" type="button" title="上个月" @click="shiftMonth(-1)">
-          <i class="fas fa-chevron-left" aria-hidden="true"></i>
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="calendar-toolbar">
+        <div class="calendar-month-nav">
+          <button class="icon-btn ripple-trigger" type="button" title="上个月" @click="shiftMonth(-1)">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+          </button>
+          <h4>{{ monthLabel }}</h4>
+          <button class="icon-btn ripple-trigger" type="button" title="下个月" @click="shiftMonth(1)">
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+          </button>
+        </div>
+        <button class="today-btn ripple-trigger" type="button" title="快速跳转到今天" @click="goToday">
+          <i class="fas fa-calendar-day" aria-hidden="true"></i>
+          <span>今天</span>
+          <strong>{{ todayLabel }}</strong>
         </button>
-        <h4>{{ monthLabel }}</h4>
-        <button class="icon-btn ripple-trigger" type="button" title="下个月" @click="shiftMonth(1)">
-          <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        <button class="icon-btn ripple-trigger" type="button" title="刷新" @click="hydrate">
+          <i class="fas fa-rotate-right" aria-hidden="true"></i>
         </button>
       </div>
-      <button class="today-btn ripple-trigger" type="button" title="快速跳转到今天" @click="goToday">
-        <i class="fas fa-calendar-day" aria-hidden="true"></i>
-        <span>今天</span>
-        <strong>{{ todayLabel }}</strong>
-      </button>
-      <button class="icon-btn ripple-trigger" type="button" title="刷新" @click="hydrate">
-        <i class="fas fa-rotate-right" aria-hidden="true"></i>
-      </button>
-    </div>
+    </LightAppHeaderPortal>
     <p class="calendar-gesture-hint">上下滚动或拖动可切换月份，日历始终展示最近 6 周。</p>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
@@ -91,6 +93,14 @@ import {
   resolveCalendarPointerMonthDelta,
   resolveCalendarWheelMonthDelta
 } from './timePrismCalendarState';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+
+const props = defineProps({
+  windowId: {
+    type: [Number, String],
+    default: 0
+  }
+});
 
 const auth = useAuthSession();
 const errorText = ref('');

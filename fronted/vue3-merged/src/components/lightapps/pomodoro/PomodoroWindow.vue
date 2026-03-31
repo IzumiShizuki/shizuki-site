@@ -1,40 +1,42 @@
 <template>
   <section class="lightapp-window pomodoro-window">
-    <header class="template-toolbar liquid-material">
-      <label class="template-picker">
-        <span>模板</span>
-        <select v-model.number="activeTemplateId">
-          <option v-for="item in templates" :key="item.pomodoroId" :value="item.pomodoroId">
-            {{ item.title }}
-          </option>
-        </select>
-      </label>
-      <div class="template-actions">
-        <button class="icon-action-btn ripple-trigger" type="button" title="添加番茄钟" aria-label="添加番茄钟" @click="openCreateForm">
-          <i class="fas fa-plus" aria-hidden="true"></i>
-        </button>
-        <button
-          class="icon-action-btn ripple-trigger"
-          type="button"
-          title="编辑当前模板"
-          aria-label="编辑当前模板"
-          :disabled="!currentTemplate"
-          @click="openEditForm"
-        >
-          <i class="fas fa-pen" aria-hidden="true"></i>
-        </button>
-        <button
-          class="icon-action-btn ripple-trigger danger"
-          type="button"
-          title="删除当前模板"
-          aria-label="删除当前模板"
-          :disabled="!currentTemplate || templates.length <= 1 || saving"
-          @click="removeTemplate"
-        >
-          <i class="fas fa-trash" aria-hidden="true"></i>
-        </button>
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="template-toolbar">
+        <label class="template-picker">
+          <span>模板</span>
+          <select v-model.number="activeTemplateId">
+            <option v-for="item in templates" :key="item.pomodoroId" :value="item.pomodoroId">
+              {{ item.title }}
+            </option>
+          </select>
+        </label>
+        <div class="template-actions">
+          <button class="icon-action-btn ripple-trigger" type="button" title="添加番茄钟" aria-label="添加番茄钟" @click="openCreateForm">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+          </button>
+          <button
+            class="icon-action-btn ripple-trigger"
+            type="button"
+            title="编辑当前模板"
+            aria-label="编辑当前模板"
+            :disabled="!currentTemplate"
+            @click="openEditForm"
+          >
+            <i class="fas fa-pen" aria-hidden="true"></i>
+          </button>
+          <button
+            class="icon-action-btn ripple-trigger danger"
+            type="button"
+            title="删除当前模板"
+            aria-label="删除当前模板"
+            :disabled="!currentTemplate || templates.length <= 1 || saving"
+            @click="removeTemplate"
+          >
+            <i class="fas fa-trash" aria-hidden="true"></i>
+          </button>
+        </div>
       </div>
-    </header>
+    </LightAppHeaderPortal>
 
     <Transition name="panel-collapse">
       <form v-if="showForm" class="template-form liquid-material" @submit.prevent="submitTemplate">
@@ -200,6 +202,7 @@ import {
   registerPomodoroModeChangeHandler,
   resolvePomodoroWindowState
 } from './pomodoroWindowState';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
 
 const auth = useAuthSession();
 const RUNTIME_KEY = 'shizuki.lightapps.pomodoro.runtime.v2';

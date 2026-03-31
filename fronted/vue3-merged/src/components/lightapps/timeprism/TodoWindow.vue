@@ -1,5 +1,28 @@
 <template>
   <section class="lightapp-window">
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="top-toolbar">
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showCreateForm ? '收起添加区' : '添加待办'"
+          :aria-label="showCreateForm ? '收起添加区' : '添加待办'"
+          @click="toggleCreateForm"
+        >
+          <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+        </button>
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
+          :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
+          @click="toggleRecurringPanel"
+        >
+          <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
+        </button>
+      </div>
+    </LightAppHeaderPortal>
+
     <Transition name="panel-collapse">
       <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
         <input v-model.trim="draft.title" class="todo-title-field" type="text" placeholder="添加待办，例如：整理算法笔记" />
@@ -234,10 +257,7 @@ import {
   resolveTaskTimeInputType,
   toTaskInputValue
 } from './taskTimePrecision';
-import {
-  registerTodoWindowHeaderHandlers,
-  resolveTodoWindowHeaderState
-} from './todoWindowHeaderState';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
 
 const props = defineProps({
   windowId: {
@@ -248,7 +268,6 @@ const props = defineProps({
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
-const headerState = resolveTodoWindowHeaderState(props.windowId);
 
 const todos = ref([]);
 const projects = ref([]);
@@ -256,6 +275,8 @@ const viewFilter = ref(TODO_VIEW_ALL);
 const saving = ref(false);
 const recurringSaving = ref(false);
 const errorText = ref('');
+const showCreateForm = ref(false);
+const showRecurringPanel = ref(false);
 const localProjectFilters = ref([]);
 const todoRecurringRules = ref([]);
 const editingTodoId = ref(0);
@@ -291,8 +312,6 @@ const selectedProjectIds = computed(() => {
   const source = suiteContext?.selectedProjectIds?.value ?? localProjectFilters.value;
   return normalizeProjectFilterIds(source);
 });
-const showCreateForm = computed(() => headerState.showCreateForm);
-const showRecurringPanel = computed(() => headerState.showRecurringPanel);
 const isDayTodoPrecision = computed(() => isDayPrecision(draft.timePrecision));
 const todoTimeInputType = computed(() => resolveTaskTimeInputType(draft.timePrecision));
 
@@ -401,15 +420,15 @@ function isProjectFilterActive(projectId) {
 }
 
 function toggleCreateForm() {
-  headerState.showCreateForm = !headerState.showCreateForm;
-  if (!headerState.showCreateForm) {
+  showCreateForm.value = !showCreateForm.value;
+  if (!showCreateForm.value) {
     cancelTodoEdit();
   }
 }
 
 function toggleRecurringPanel() {
-  headerState.showRecurringPanel = !headerState.showRecurringPanel;
-  if (!headerState.showRecurringPanel) {
+  showRecurringPanel.value = !showRecurringPanel.value;
+  if (!showRecurringPanel.value) {
     cancelRecurringEdit();
   }
 }
@@ -448,7 +467,7 @@ function startTodoEdit(item) {
   draft.startRemindUnit = item.startRemindUnit || 'MINUTE';
   draft.deadlineRemindValue = normalizePositiveInteger(item.deadlineRemindValue);
   draft.deadlineRemindUnit = item.deadlineRemindUnit || 'MINUTE';
-  headerState.showCreateForm = true;
+  showCreateForm.value = true;
 }
 
 function cancelTodoEdit() {
@@ -465,7 +484,7 @@ function editRecurringRule(rule) {
   recurringDraft.priority = rule.priority || 'MEDIUM';
   recurringDraft.cronExpr = rule.cronExpr || '';
   recurringDraft.timeZoneId = rule.timeZoneId || 'Asia/Shanghai';
-  headerState.showRecurringPanel = true;
+  showRecurringPanel.value = true;
 }
 
 function cancelRecurringEdit() {
@@ -784,7 +803,7 @@ async function createTodoItem() {
       }
     }
     cancelTodoEdit();
-    headerState.showCreateForm = false;
+    showCreateForm.value = false;
   } catch (error) {
     errorText.value = error?.message || (editingTodoId.value ? '待办更新失败' : '创建待办失败');
   } finally {
@@ -875,16 +894,11 @@ async function moveTodo(todoId, direction) {
 }
 
 onMounted(() => {
-  registerTodoWindowHeaderHandlers(props.windowId, {
-    toggleCreateForm,
-    toggleRecurringPanel
-  });
   hydrate();
   window.addEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
 
 onBeforeUnmount(() => {
-  registerTodoWindowHeaderHandlers(props.windowId, null);
   window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
 
@@ -935,6 +949,17 @@ watch(
   gap: 10px;
   color: var(--la-text);
   min-width: 0;
+}
+
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-btn {
+  flex: 0 0 auto;
 }
 
 .todo-create {

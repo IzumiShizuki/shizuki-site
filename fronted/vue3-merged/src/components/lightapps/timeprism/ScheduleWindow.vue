@@ -1,25 +1,27 @@
 <template>
   <section class="lightapp-window">
-    <div class="top-toolbar">
-      <button
-        class="icon-btn toolbar-btn ripple-trigger"
-        type="button"
-        :title="showCreateForm ? '收起添加区' : '添加日程'"
-        :aria-label="showCreateForm ? '收起添加区' : '添加日程'"
-        @click="toggleCreateForm"
-      >
-        <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
-      </button>
-      <button
-        class="icon-btn toolbar-btn ripple-trigger"
-        type="button"
-        :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
-        :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
-        @click="toggleRecurringPanel"
-      >
-        <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
-      </button>
-    </div>
+    <LightAppHeaderPortal :window-id="props.windowId">
+      <div class="top-toolbar">
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showCreateForm ? '收起添加区' : '添加日程'"
+          :aria-label="showCreateForm ? '收起添加区' : '添加日程'"
+          @click="toggleCreateForm"
+        >
+          <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+        </button>
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
+          :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
+          @click="toggleRecurringPanel"
+        >
+          <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
+        </button>
+      </div>
+    </LightAppHeaderPortal>
 
     <Transition name="panel-collapse">
       <form v-if="showCreateForm" class="event-create" @submit.prevent="createScheduleItem">
@@ -188,6 +190,14 @@ import {
 } from '../../../utils/lightAppsDataStore';
 import { TIMEPRISM_MODULE_SCHEDULE, TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
 import { TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
+import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+
+const props = defineProps({
+  windowId: {
+    type: [Number, String],
+    default: 0
+  }
+});
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
