@@ -1,14 +1,16 @@
 <template>
   <section class="route-page profile-page motion-managed profile-no-motion">
-    <div class="profile-stage liquid-material">
-      <RouteDotRail
-        class="profile-anchor-nav sidebar-dot-rail"
-        :items="navGroups"
-        :active-key="activeGroup"
-        distribution="mid-sixths"
-        aria-label="个人分组导航"
-        @select="navigateToGroup"
-      />
+    <RailScaffold class="profile-stage liquid-material">
+      <template #rail>
+        <RouteDotRail
+          class="profile-anchor-nav sidebar-dot-rail"
+          :items="navGroups"
+          :active-key="activeGroup"
+          distribution="mid-sixths"
+          aria-label="个人分组导航"
+          @select="navigateToGroup"
+        />
+      </template>
 
       <section class="profile-content-panel">
         <div ref="profileScrollFrameRef" class="profile-scroll-frame">
@@ -633,7 +635,7 @@
           </div>
         </div>
       </section>
-    </div>
+    </RailScaffold>
 
     <ProfileAvatarActionSheet
       :visible="avatarActionVisible"
@@ -670,6 +672,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import RailScaffold from '../components/common/RailScaffold.vue';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
 import AppearanceSettingsContent from '../components/profile/AppearanceSettingsContent.vue';
 import ProfileAvatarActionSheet from '../components/profile/ProfileAvatarActionSheet.vue';

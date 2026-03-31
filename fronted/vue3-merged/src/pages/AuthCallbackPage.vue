@@ -1,27 +1,27 @@
 <template>
   <section class="route-page callback-page">
-    <header class="page-header">
-      <p class="eyebrow">OAuth Callback</p>
-      <h1>授权回调处理中</h1>
-      <p>{{ statusText }}</p>
+    <PageIntroHeader eyebrow="OAuth Callback" title="授权回调处理中" :description="statusText">
       <p v-if="errorText" class="error-text">{{ errorText }}</p>
-      <button
-        v-if="retryOauthAvailable"
-        class="retry-btn ripple-trigger"
-        type="button"
-        :disabled="retrySubmitting"
-        @click="restartAuthorization"
-      >
-        {{ retrySubmitting ? '处理中...' : retryActionText }}
-      </button>
-      <button v-if="errorText" class="back-btn ripple-trigger" type="button" @click="goAuthPage">返回登录页</button>
-    </header>
+      <template #actions>
+        <button
+          v-if="retryOauthAvailable"
+          class="retry-btn ripple-trigger"
+          type="button"
+          :disabled="retrySubmitting"
+          @click="restartAuthorization"
+        >
+          {{ retrySubmitting ? '处理中...' : retryActionText }}
+        </button>
+        <button v-if="errorText" class="back-btn ripple-trigger" type="button" @click="goAuthPage">返回登录页</button>
+      </template>
+    </PageIntroHeader>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import PageIntroHeader from '../components/common/PageIntroHeader.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 
 const route = useRoute();

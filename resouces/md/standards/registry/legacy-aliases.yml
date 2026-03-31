@@ -1,0 +1,51 @@
+aliases:
+  - alias: "fronted"
+    canonical: "frontend root"
+    scope: "repository top-level directory"
+    status: "legacy_path_frozen"
+    forbidden_for_new_code: true
+  - alias: "resouces"
+    canonical: "resources root"
+    scope: "repository top-level directory"
+    status: "legacy_path_frozen"
+    forbidden_for_new_code: true
+  - alias: "ball_slots"
+    canonical: "rail_slots"
+    scope: "light apps preference payload"
+    status: "legacy_compat_only"
+    forbidden_for_new_code: true
+  - alias: "ballSlots"
+    canonical: "rail_slots"
+    scope: "frontend legacy runtime payload"
+    status: "legacy_compat_only"
+    forbidden_for_new_code: true
+  - alias: "floatingCodes"
+    canonical: "enabled_codes + rail_slots"
+    scope: "frontend legacy runtime payload"
+    status: "legacy_compat_only"
+    forbidden_for_new_code: true
+  - alias: "picker-panel"
+    canonical: "dock-panel"
+    scope: "levitation ball expanded panel"
+    status: "migrating"
+    forbidden_for_new_code: true
+  - alias: "submenu-panel"
+    canonical: "dock-panel"
+    scope: "levitation ball expanded panel"
+    status: "migrating"
+    forbidden_for_new_code: true
+  - alias: "panelMode"
+    canonical: "panelKind"
+    scope: "levitation ball ui state"
+    status: "migrating"
+    forbidden_for_new_code: true
+  - alias: "panelCollectionId"
+    canonical: "activeCollectionId"
+    scope: "levitation ball ui state"
+    status: "migrating"
+    forbidden_for_new_code: true
+  - alias: "palette-button"
+    canonical: "dock-button"
+    scope: "apps page source metadata"
+    status: "migrating"
+    forbidden_for_new_code: true

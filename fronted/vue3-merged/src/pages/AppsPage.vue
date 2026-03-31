@@ -13,14 +13,14 @@
             v-for="app in catalog"
             :key="app.code"
             class="app-card"
-            :class="{ enabled: isEnabled(app.code), floating: isInRailSlots(app.code) }"
+            :class="{ enabled: isEnabled(app.code), docked: isInRailSlots(app.code) }"
           >
             <div class="card-head">
               <button
                 class="card-icon-drag ripple-trigger"
                 type="button"
                 draggable="true"
-                :title="`拖拽 ${app.title} 到右栏`"
+                :title="`拖拽 ${app.title} 到悬浮栏`"
                 @dragstart="onAppDragStart(app, $event)"
                 @click="useApp(app.code)"
               >
@@ -42,7 +42,7 @@
                 {{ isEnabled(app.code) ? '停用' : '启用' }}
               </button>
               <button class="action-btn ripple-trigger" :disabled="!isEnabled(app.code)" @click="toggleAppInRail(app.code)">
-                {{ isInRailSlots(app.code) ? '移出右栏' : '加入右栏' }}
+                {{ isInRailSlots(app.code) ? '移出悬浮栏' : '加入悬浮栏' }}
               </button>
               <button class="action-btn ripple-trigger" :disabled="!isEnabled(app.code)" @click="useApp(app.code)">
                 使用
@@ -53,10 +53,10 @@
             </div>
 
             <div class="card-mobile-actions">
-              <button class="icon-btn ripple-trigger" :disabled="!isEnabled(app.code)" title="加入右栏" @click="assignPaletteToFirstSlot('app', app.code)">
+              <button class="icon-btn ripple-trigger" :disabled="!isEnabled(app.code)" title="加入悬浮栏" @click="assignToFirstDockSlot('app', app.code)">
                 <i class="fas fa-right-to-bracket" aria-hidden="true"></i>
               </button>
-              <button class="icon-btn ripple-trigger" :disabled="!isEnabled(app.code)" title="加入集合" @click="addPaletteToCollection('app', app.code)">
+              <button class="icon-btn ripple-trigger" :disabled="!isEnabled(app.code)" title="加入集合" @click="addDockItemToCollection('app', app.code)">
                 <i class="fas fa-layer-group" aria-hidden="true"></i>
               </button>
             </div>
@@ -93,7 +93,7 @@
                 class="url-source-icon ripple-trigger"
                 type="button"
                 draggable="true"
-                :title="`拖拽 ${item.title} 到右栏`"
+                :title="`拖拽 ${item.title} 到悬浮栏`"
                 @dragstart="onUrlDragStart(item, $event)"
                 @click="openUrlLink(item.urlLinkId)"
               >
@@ -109,10 +109,10 @@
               </button>
 
               <div class="url-source-actions">
-                <button class="icon-btn ripple-trigger" type="button" title="加入右栏" @click="assignPaletteToFirstSlot('url', String(item.urlLinkId))">
+                <button class="icon-btn ripple-trigger" type="button" title="加入悬浮栏" @click="assignToFirstDockSlot('url', String(item.urlLinkId))">
                   <i class="fas fa-right-to-bracket" aria-hidden="true"></i>
                 </button>
-                <button class="icon-btn ripple-trigger" type="button" title="加入集合" @click="addPaletteToCollection('url', String(item.urlLinkId))">
+                <button class="icon-btn ripple-trigger" type="button" title="加入集合" @click="addDockItemToCollection('url', String(item.urlLinkId))">
                   <i class="fas fa-layer-group" aria-hidden="true"></i>
                 </button>
                 <button class="icon-btn ripple-trigger" type="button" title="由此链接生成集合" @click="createCollectionFromUrl(item.urlLinkId)">
@@ -617,13 +617,13 @@ function toggleAppInRail(code) {
       ...appState.value,
       rail_slots: compactRailSlots(nextSlots)
     });
-    showHint('已移出右栏。');
+    showHint('已移出悬浮栏。');
     return;
   }
 
   const targetIndex = findFirstAvailableSlot(nextSlots);
   if (targetIndex < 0) {
-    showHint('右栏已满（最多 8 槽）。');
+    showHint('悬浮栏已满（最多 8 槽）。');
     return;
   }
 
@@ -637,7 +637,7 @@ function toggleAppInRail(code) {
     ...appState.value,
     rail_slots: compactRailSlots(nextSlots)
   });
-  showHint('已加入右栏。');
+  showHint('已加入悬浮栏。');
 }
 
 function setDragPayload(event, payload) {
@@ -650,7 +650,7 @@ function onAppDragStart(app, event) {
   setDragPayload(event, {
     item_kind: 'app',
     item_ref: app.code,
-    source: { type: 'palette-app' }
+    source: { type: 'dock-catalog-app' }
   });
 }
 
@@ -658,7 +658,7 @@ function onUrlDragStart(item, event) {
   setDragPayload(event, {
     item_kind: 'url',
     item_ref: String(item.urlLinkId),
-    source: { type: 'palette-url' }
+    source: { type: 'dock-catalog-url' }
   });
 }
 
@@ -849,7 +849,7 @@ function createCollectionFromUrl(urlLinkId) {
 
   persistState(withCollections(appState.value, nextCollections, true));
   railEditorRef.value?.focusCollection?.(collectionId, true);
-  showHint('已创建集合文件夹。');
+  showHint('已创建集合。');
 }
 
 function renameCollection(payload) {
@@ -870,11 +870,11 @@ function renameCollection(payload) {
   persistState(withCollections(appState.value, nextCollections, false));
 }
 
-function assignPaletteToFirstSlot(itemKind, itemRef) {
+function assignToFirstDockSlot(itemKind, itemRef) {
   const nextSlots = (appState.value.rail_slots || []).slice();
   const targetIndex = findFirstAvailableSlot(nextSlots);
   if (targetIndex < 0) {
-    showHint('右栏已满（最多 8 槽）。');
+    showHint('悬浮栏已满（最多 8 槽）。');
     return;
   }
   handleAssignSlot({
@@ -882,16 +882,16 @@ function assignPaletteToFirstSlot(itemKind, itemRef) {
     payload: {
       item_kind: itemKind,
       item_ref: itemRef,
-      source: { type: 'palette-button' }
+      source: { type: 'dock-button' }
     }
   });
 }
 
-function addPaletteToCollection(itemKind, itemRef) {
+function addDockItemToCollection(itemKind, itemRef) {
   addToCollection({
     item_kind: itemKind,
     item_ref: itemRef,
-    source: { type: 'palette-button' }
+    source: { type: 'dock-button' }
   });
 }
 
@@ -1190,7 +1190,7 @@ onBeforeUnmount(() => {
   border-color: rgba(var(--accent-rgb), 0.45);
 }
 
-.app-card.floating {
+.app-card.docked {
   box-shadow: 0 0 0 1px rgba(151, 221, 190, 0.4);
 }
 

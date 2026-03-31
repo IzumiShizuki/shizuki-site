@@ -19,7 +19,7 @@
         @l2d-error="handleL2dRenderError"
       />
 
-      <AppMenuBar
+      <TopMenu
         :menu-expanded="menuExpanded"
         :theme-mode="ui.state.themeMode"
         :ai-chat-active="aiChatActive"
@@ -250,7 +250,7 @@ import AiDialog from './components/AiDialog.vue';
 import AtmospherePanel from './components/AtmospherePanel.vue';
 import AppBackgroundStage from './components/app/AppBackgroundStage.vue';
 import BackgroundPickerDialog from './components/app/BackgroundPickerDialog.vue';
-import AppMenuBar from './components/app/AppMenuBar.vue';
+import TopMenu from './components/TopMenu.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
 import TimePrismReminderHost from './components/lightapps/timeprism/TimePrismReminderHost.vue';

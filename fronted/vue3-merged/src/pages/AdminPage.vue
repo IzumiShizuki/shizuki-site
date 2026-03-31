@@ -1,11 +1,12 @@
 <template>
   <section class="route-page admin-page" :class="{ 'admin-page--embedded': embedded }">
-    <header v-if="!embedded" class="page-header">
-      <p class="eyebrow">Admin Console</p>
-      <h1>管理后台</h1>
-      <p>以表格和选择器为主完成用户、分组、权限、配额配置，减少手工输入。</p>
-      <p v-if="globalHint" class="state-tip">{{ globalHint }}</p>
-    </header>
+    <PageIntroHeader
+      v-if="!embedded"
+      eyebrow="Admin Console"
+      title="管理后台"
+      description="以表格和选择器为主完成用户、分组、权限、配额配置，减少手工输入。"
+      :hint="globalHint"
+    />
 
     <div v-if="booting" class="state-tip">正在加载管理数据...</div>
 
@@ -29,16 +30,18 @@
         </article>
       </section>
 
-      <div class="dashboard-layout" :class="{ 'dashboard-layout--embedded': embedded }">
-        <RouteDotRail
-          v-if="!embedded"
-          class="sidebar-dot-rail"
-          :items="tabs"
-          :active-key="activeTab"
-          distribution="full-sixths"
-          aria-label="管理后台导航"
-          @select="openTab"
-        />
+      <RailScaffold class="dashboard-layout" :class="{ 'dashboard-layout--embedded': embedded }">
+        <template #rail>
+          <RouteDotRail
+            v-if="!embedded"
+            class="sidebar-dot-rail"
+            :items="tabs"
+            :active-key="activeTab"
+            distribution="full-sixths"
+            aria-label="管理后台导航"
+            @select="openTab"
+          />
+        </template>
 
         <section class="content-panel liquid-material" :class="{ 'content-panel--embedded': embedded }">
           <p v-if="embedded && globalHint" class="state-tip embedded-hint">{{ globalHint }}</p>
@@ -153,7 +156,7 @@
             @upload="uploadCategoryMetaCover"
           />
         </section>
-      </div>
+      </RailScaffold>
     </template>
 
     <transition name="dialog-fade">
@@ -202,6 +205,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
+import PageIntroHeader from '../components/common/PageIntroHeader.vue';
+import RailScaffold from '../components/common/RailScaffold.vue';
 import * as adminApi from '../services/adminApi';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
 import AdminBlogWhispersPanel from '../components/admin/AdminBlogWhispersPanel.vue';

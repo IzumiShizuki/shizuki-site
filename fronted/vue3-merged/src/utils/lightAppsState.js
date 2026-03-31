@@ -3,8 +3,9 @@ import { LIGHT_APP_CODES, isKnownLightAppCode } from './lightAppsCatalog';
 export const LIGHT_APPS_STORAGE_KEY = 'shizuki.lightApps.v2';
 export const LIGHT_APPS_CHANGED_EVENT = 'shizuki:light-apps-changed';
 export const LIGHT_APPS_PREFERENCE_KEY = 'light_apps';
-export const MAX_BALL_SLOTS = 8;
-export const MAX_RAIL_SLOTS = MAX_BALL_SLOTS;
+export const MAX_DOCK_SLOTS = 8;
+export const MAX_BALL_SLOTS = MAX_DOCK_SLOTS;
+export const MAX_RAIL_SLOTS = MAX_DOCK_SLOTS;
 export const DEFAULT_COLLECTION_ID = 'default';
 
 const TIMEPRISM_TODO_CODE = 'timeprism-todo';
@@ -101,7 +102,7 @@ function pickFallbackAppCode(enabledCodes, usedCodes) {
   return firstEnabled;
 }
 
-function normalizeRailItemKind(rawKind) {
+function normalizeDockItemKind(rawKind) {
   const kind = String(rawKind || '').trim().toLowerCase();
   if (kind === 'picker') return 'picker';
   if (kind === 'url') return 'url';
@@ -111,7 +112,7 @@ function normalizeRailItemKind(rawKind) {
 
 function normalizeCollectionItem(rawItem) {
   const source = toObject(rawItem);
-  const kind = normalizeRailItemKind(source.item_kind || source.itemKind);
+  const kind = normalizeDockItemKind(source.item_kind || source.itemKind);
   if (kind !== 'app' && kind !== 'url') return null;
 
   if (kind === 'app') {
@@ -208,7 +209,7 @@ function normalizeRailSlots(input, enabledCodes, collections = []) {
 
     const legacyType = String(raw.type || '').trim().toLowerCase();
     const rawKind = raw.item_kind || raw.itemKind || (legacyType === 'picker' ? 'picker' : 'app');
-    const itemKind = normalizeRailItemKind(rawKind);
+    const itemKind = normalizeDockItemKind(rawKind);
 
     let itemRef = String(
       raw.item_ref || raw.itemRef || raw.app_code || raw.appCode || fallback.item_ref || fallback.itemRef || ''
@@ -269,7 +270,7 @@ function normalizeRailSlots(input, enabledCodes, collections = []) {
   return normalized;
 }
 
-function normalizeBallSlotsFromRail(railSlots) {
+function buildLegacyBallSlotsFromRail(railSlots) {
   return railSlots.map((slot) => {
     if (!slot?.enabled) {
       return {
@@ -329,7 +330,7 @@ function buildRailSlotsFromLegacy(input, enabledCodes) {
   return normalizeRailSlots([], enabledCodes, [{ ...DEFAULT_COLLECTION, items: [] }]);
 }
 
-function buildSlotsFromFloatingCodes(floatingCodes, enabledCodes) {
+function buildRailSlotsFromLegacyFloatingCodes(floatingCodes, enabledCodes) {
   const codes = uniqueKnownCodes(floatingCodes).filter((code) => enabledCodes.includes(code));
   return normalizeRailSlots(
     DEFAULT_RAIL_SLOT_BLUEPRINT.map((slot, index) => {
@@ -348,12 +349,12 @@ function fromLegacyState(source) {
   const enabledCodes = resolveEnabledCodes(source.enabledCodes || source.enabled_codes);
   const legacyConfigs = source.configs || source.app_configs;
   const legacyFloatingCodes = source.floatingCodes || source.floating_codes;
-  const railSlots = buildSlotsFromFloatingCodes(legacyFloatingCodes, enabledCodes);
+  const railSlots = buildRailSlotsFromLegacyFloatingCodes(legacyFloatingCodes, enabledCodes);
 
   return {
     enabled_codes: enabledCodes,
     rail_slots: railSlots,
-    ball_slots: normalizeBallSlotsFromRail(railSlots),
+    ball_slots: buildLegacyBallSlotsFromRail(railSlots),
     collections: normalizeCollections(source.collections),
     app_configs: normalizeConfigs(legacyConfigs, enabledCodes)
   };
@@ -366,7 +367,8 @@ export function createDefaultLightAppsState() {
   return {
     enabled_codes: enabledCodes,
     rail_slots: railSlots,
-    ball_slots: normalizeBallSlotsFromRail(railSlots),
+    // `ball_slots` remains a derived legacy alias for older payloads.
+    ball_slots: buildLegacyBallSlotsFromRail(railSlots),
     collections,
     app_configs: {}
   };
@@ -394,7 +396,8 @@ export function normalizeLightAppsState(input) {
   return {
     enabled_codes: enabledCodes,
     rail_slots: railSlots,
-    ball_slots: normalizeBallSlotsFromRail(railSlots),
+    // `rail_slots` is the canonical persisted structure; `ball_slots` is compat only.
+    ball_slots: buildLegacyBallSlotsFromRail(railSlots),
     collections,
     app_configs: appConfigs
   };

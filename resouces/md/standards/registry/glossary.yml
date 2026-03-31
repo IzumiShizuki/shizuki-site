@@ -1,0 +1,44 @@
+terms:
+  light_app:
+    canonical_zh: "轻应用"
+    canonical_en: "LightApp"
+    code_prefix: "LightApp"
+    scope: "user-facing tool modules"
+    forbidden_aliases:
+      - "widget"
+      - "小工具"
+  widget:
+    canonical_zh: "小组件"
+    canonical_en: "Widget"
+    code_suffix: "Widget"
+    scope: "home embedded blocks"
+    forbidden_aliases:
+      - "轻应用"
+  app:
+    canonical_zh: "应用"
+    canonical_en: "App"
+    scope: "generic domain term only"
+    note: "不单独作为轻应用命名规范使用"
+  dock:
+    canonical_zh: "悬浮栏"
+    canonical_en: "Floating Dock"
+    scope: "floating entry system"
+  floating_ball:
+    canonical_zh: "悬浮球"
+    canonical_en: "Floating Ball"
+    scope: "dock trigger"
+  panel:
+    canonical_zh: "扩展面板"
+    canonical_en: "Dock Panel"
+    scope: "expanded dock content"
+    forbidden_aliases:
+      - "picker-panel"
+      - "submenu-panel"
+  collection:
+    canonical_zh: "集合"
+    canonical_en: "Collection"
+    scope: "dock grouped container"
+  rail_slot:
+    canonical_zh: "轨道槽位"
+    canonical_en: "Rail Slot"
+    scope: "dock slot"

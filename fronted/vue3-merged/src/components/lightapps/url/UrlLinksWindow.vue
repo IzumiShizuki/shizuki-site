@@ -1,7 +1,6 @@
 <template>
   <section class="lightapp-window url-links-window">
-    <LightAppHeaderPortal :window-id="props.windowId">
-      <div class="top-toolbar">
+    <LightAppTopToolbar :window-id="props.windowId" layout="space-between">
         <span class="toolbar-hint">共 {{ links.length }} 个网址</span>
         <div class="toolbar-actions">
           <button
@@ -23,11 +22,9 @@
             <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
           </button>
         </div>
-      </div>
-    </LightAppHeaderPortal>
+    </LightAppTopToolbar>
 
-    <Transition name="panel-collapse">
-      <form v-if="showForm" class="url-form" @submit.prevent="submitLink">
+    <CollapsiblePanel :visible="showForm" tag="form" class="url-form" @submit.prevent="submitLink">
         <label class="url-input-wrap">
           <i class="fas fa-tag" aria-hidden="true"></i>
           <input v-model.trim="draft.title" type="text" placeholder="标题，例如：力扣" />
@@ -70,8 +67,7 @@
           </button>
           <input ref="uploadInputRef" type="file" accept="image/*" class="hidden-file" @change="onUploadChange" />
         </div>
-      </form>
-    </Transition>
+    </CollapsiblePanel>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
     <p v-if="hintText" class="info-text">{{ hintText }}</p>
@@ -119,7 +115,8 @@ import {
 } from '../../../utils/lightAppsDataStore';
 import { notifyLightAppsChanged, readLightAppsState } from '../../../utils/lightAppsState';
 import { normalizeApiData } from '../../../services/httpClient';
-import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+import CollapsiblePanel from '../CollapsiblePanel.vue';
+import LightAppTopToolbar from '../LightAppTopToolbar.vue';
 
 const props = defineProps({
   windowId: {
@@ -580,13 +577,6 @@ onMounted(async () => {
 .url-links-window {
   display: grid;
   gap: 10px;
-}
-
-.top-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .toolbar-hint {

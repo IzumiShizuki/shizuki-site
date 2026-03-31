@@ -5,7 +5,8 @@ import {
   MAX_RAIL_SLOTS,
   applyLightAppsToPreference,
   normalizeLightAppsState,
-  readLightAppsPreference
+  readLightAppsPreference,
+  writeLightAppsState
 } from './lightAppsState';
 
 describe('lightAppsState', () => {
@@ -198,5 +199,33 @@ describe('lightAppsState', () => {
 
     const readBack = readLightAppsPreference(nextPreference);
     expect(readBack).toEqual(state);
+  });
+
+  it('round-trips canonical rail slots and keeps ball slots as derived legacy data', () => {
+    const state = writeLightAppsState({
+      enabled_codes: ['timeprism-todo', 'url-links'],
+      rail_slots: [
+        { enabled: true, item_kind: 'collection', item_ref: 'folder_links' },
+        { enabled: true, item_kind: 'url', item_ref: '101' }
+      ],
+      collections: [
+        {
+          collection_id: 'folder_links',
+          title: 'Links',
+          items: [{ item_kind: 'url', item_ref: '101' }]
+        }
+      ]
+    });
+
+    expect(state.rail_slots[0]).toEqual({
+      enabled: true,
+      item_kind: 'collection',
+      item_ref: 'folder_links'
+    });
+    expect(state.ball_slots[0]).toEqual({
+      enabled: true,
+      type: 'app',
+      app_code: ''
+    });
   });
 });

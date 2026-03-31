@@ -1,7 +1,6 @@
 <template>
   <section class="lightapp-window">
-    <LightAppHeaderPortal :window-id="props.windowId">
-      <div class="top-toolbar">
+    <LightAppTopToolbar :window-id="props.windowId">
         <button
           class="icon-btn toolbar-btn ripple-trigger"
           type="button"
@@ -12,11 +11,9 @@
           <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
         </button>
         <span class="toolbar-hint">共 {{ projects.length }} 个项目</span>
-      </div>
-    </LightAppHeaderPortal>
+    </LightAppTopToolbar>
 
-    <Transition name="panel-collapse">
-      <form v-if="showForm" class="project-form" @submit.prevent="submitProject">
+    <CollapsiblePanel :visible="showForm" tag="form" class="project-form" @submit.prevent="submitProject">
         <input v-model.trim="draft.name" type="text" placeholder="项目名称，例如：春季学习计划" />
         <input v-model.trim="draft.description" type="text" placeholder="描述（可选）" />
         <input v-model="draft.color" type="color" />
@@ -40,8 +37,7 @@
         >
           <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
-      </form>
-    </Transition>
+    </CollapsiblePanel>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
@@ -96,7 +92,8 @@ import {
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
 import { TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
-import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+import CollapsiblePanel from '../CollapsiblePanel.vue';
+import LightAppTopToolbar from '../LightAppTopToolbar.vue';
 
 const props = defineProps({
   windowId: {
@@ -377,13 +374,6 @@ onMounted(() => {
   min-width: 0;
 }
 
-.top-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .toolbar-hint {
   margin-left: auto;
   color: var(--la-muted);
@@ -504,26 +494,6 @@ onMounted(() => {
   text-align: center;
   color: var(--la-muted);
   padding: 14px 0;
-}
-
-.panel-collapse-enter-active,
-.panel-collapse-leave-active {
-  transition:
-    opacity 160ms ease,
-    transform 180ms ease;
-  transform-origin: top center;
-}
-
-.panel-collapse-enter-from,
-.panel-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-4px) scaleY(0.95);
-}
-
-.panel-collapse-enter-to,
-.panel-collapse-leave-from {
-  opacity: 1;
-  transform: translateY(0) scaleY(1);
 }
 
 @container lightapp-window-body (max-width: 860px) {

@@ -1,7 +1,6 @@
 <template>
   <section class="lightapp-window">
-    <LightAppHeaderPortal :window-id="props.windowId">
-      <div class="top-toolbar">
+    <LightAppTopToolbar :window-id="props.windowId">
         <button
           class="icon-btn toolbar-btn ripple-trigger"
           type="button"
@@ -20,11 +19,9 @@
         >
           <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
         </button>
-      </div>
-    </LightAppHeaderPortal>
+    </LightAppTopToolbar>
 
-    <Transition name="panel-collapse">
-      <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
+    <CollapsiblePanel :visible="showCreateForm" tag="form" class="todo-create" @submit.prevent="createTodoItem">
         <input v-model.trim="draft.title" class="todo-title-field" type="text" placeholder="添加待办，例如：整理算法笔记" />
         <input v-model.trim="draft.detail" class="todo-detail-field" type="text" placeholder="详情（可选）" />
         <select v-model="draft.projectId">
@@ -87,11 +84,9 @@
         <button v-if="editingTodoId" class="icon-btn ripple-trigger todo-cancel-btn" type="button" title="取消编辑" @click="cancelTodoEdit">
           <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
-      </form>
-    </Transition>
+    </CollapsiblePanel>
 
-    <Transition name="panel-collapse">
-      <section v-if="showRecurringPanel" class="recurring-panel liquid-material">
+    <CollapsiblePanel :visible="showRecurringPanel" class="recurring-panel liquid-material">
         <header>
           <h4>Todo 周期规则</h4>
           <button
@@ -145,8 +140,7 @@
           </li>
         </ul>
         <p v-else class="empty-hint">暂无周期规则</p>
-      </section>
-    </Transition>
+    </CollapsiblePanel>
 
     <div class="todo-query-row">
       <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_ALL }" @click="viewFilter = TODO_VIEW_ALL">全部</button>
@@ -257,7 +251,8 @@ import {
   resolveTaskTimeInputType,
   toTaskInputValue
 } from './taskTimePrecision';
-import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+import CollapsiblePanel from '../CollapsiblePanel.vue';
+import LightAppTopToolbar from '../LightAppTopToolbar.vue';
 
 const props = defineProps({
   windowId: {
@@ -951,13 +946,6 @@ watch(
   min-width: 0;
 }
 
-.top-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .toolbar-btn {
   flex: 0 0 auto;
 }
@@ -1221,26 +1209,6 @@ watch(
   margin: 0;
   color: var(--la-danger);
   font-size: 12px;
-}
-
-.panel-collapse-enter-active,
-.panel-collapse-leave-active {
-  transition:
-    opacity 160ms ease,
-    transform 180ms ease;
-  transform-origin: top center;
-}
-
-.panel-collapse-enter-from,
-.panel-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-4px) scaleY(0.95);
-}
-
-.panel-collapse-enter-to,
-.panel-collapse-leave-from {
-  opacity: 1;
-  transform: translateY(0) scaleY(1);
 }
 
 @container lightapp-window-body (max-width: 760px) {

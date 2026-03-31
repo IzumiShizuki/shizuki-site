@@ -28,18 +28,18 @@
         </button>
       </div>
 
-      <div v-if="ui.expanded && ui.panelMode" class="picker-panel submenu-panel liquid-material">
+      <div v-if="ui.expanded && ui.panelKind" class="dock-panel liquid-material">
         <button
-          v-for="item in panelItems"
+          v-for="item in dockPanelItems"
           :key="item.key"
-          class="picker-item submenu-item ripple-trigger"
+          class="dock-panel-item ripple-trigger"
           type="button"
           @click.stop="onPanelItemClick(item)"
         >
           <i :class="item.iconClass"></i>
           <span>{{ item.label }}</span>
         </button>
-        <p v-if="!panelItems.length" class="picker-empty">{{ ui.panelMode === 'collection' ? '集合为空' : '暂无可选应用' }}</p>
+        <p v-if="!dockPanelItems.length" class="dock-panel-empty">{{ ui.panelKind === 'collection' ? '集合为空' : '暂无可选应用' }}</p>
       </div>
     </div>
   </div>
@@ -62,8 +62,8 @@ const ui = reactive({
   y: 120,
   dragging: false,
   expanded: false,
-  panelMode: '',
-  panelCollectionId: '',
+  panelKind: '',
+  activeCollectionId: '',
   pointerId: 0,
   dragOffsetX: 0,
   dragOffsetY: 0,
@@ -101,7 +101,7 @@ const activeSlots = computed(() => {
     .slice(0, 8);
 });
 
-const pickerApps = computed(() => {
+const dockPickerApps = computed(() => {
   const enabledCodes = Array.isArray(appState.value?.enabled_codes) ? appState.value.enabled_codes : [];
   const enabledSet = new Set(enabledCodes);
   return LIGHT_APPS_CATALOG.filter((item) => enabledSet.has(item.code));
@@ -126,9 +126,9 @@ function resolveCollectionById(collectionId) {
   return collections.value[0] || { collectionId: '', title: '集合', items: [] };
 }
 
-const panelItems = computed(() => {
-  if (ui.panelMode === 'picker') {
-    return pickerApps.value.map((app) => ({
+const dockPanelItems = computed(() => {
+  if (ui.panelKind === 'picker') {
+    return dockPickerApps.value.map((app) => ({
       key: `app_${app.code}`,
       kind: 'app',
       appCode: app.code,
@@ -137,8 +137,8 @@ const panelItems = computed(() => {
     }));
   }
 
-  if (ui.panelMode === 'collection') {
-    const activeCollection = resolveCollectionById(ui.panelCollectionId);
+  if (ui.panelKind === 'collection') {
+    const activeCollection = resolveCollectionById(ui.activeCollectionId);
     const items = Array.isArray(activeCollection.items) ? activeCollection.items : [];
     return items
       .map((entry, index) => {
@@ -190,9 +190,9 @@ const containerStyle = computed(() => {
 
 function syncState(rawState) {
   appState.value = rawState && typeof rawState === 'object' ? rawState : readLightAppsState();
-  if (ui.panelMode === 'collection') {
-    const active = resolveCollectionById(ui.panelCollectionId);
-    ui.panelCollectionId = String(active.collectionId || '');
+  if (ui.panelKind === 'collection') {
+    const active = resolveCollectionById(ui.activeCollectionId);
+    ui.activeCollectionId = String(active.collectionId || '');
   }
   syncUrlLinks();
 }
@@ -252,14 +252,14 @@ function clampPosition() {
 
 function expandMenu() {
   ui.expanded = true;
-  ui.panelMode = '';
+  ui.panelKind = '';
   clampPosition();
 }
 
 function collapseMenu() {
   ui.expanded = false;
-  ui.panelMode = '';
-  ui.panelCollectionId = '';
+  ui.panelKind = '';
+  ui.activeCollectionId = '';
   clampPosition();
 }
 
@@ -274,7 +274,7 @@ function toggleMenu() {
 function onContainerClick(event) {
   if (ui.dragging) return;
   const target = event.target;
-  if (target?.closest?.('.menu-block, .picker-item')) return;
+  if (target?.closest?.('.menu-block, .dock-panel-item')) return;
   if (!ui.expanded) {
     expandMenu();
   }
@@ -282,7 +282,7 @@ function onContainerClick(event) {
 
 function onPointerDown(event) {
   const target = event.target;
-  if (target?.closest?.('.menu-block, .picker-panel')) return;
+  if (target?.closest?.('.menu-block, .dock-panel')) return;
 
   ui.dragging = true;
   ui.pointerId = event.pointerId;
@@ -330,7 +330,7 @@ function slotIcon(slot) {
 }
 
 function slotTitle(slot) {
-  if (slot.type === 'picker') return '应用选择器';
+  if (slot.type === 'picker') return '轻应用选择器';
   if (slot.type === 'collection') {
     return resolveCollectionById(slot.itemRef || slot.appCode).title || '集合';
   }
@@ -355,20 +355,20 @@ function openByCode(code) {
 
 function triggerSlot(slot) {
   if (slot.type === 'picker') {
-    ui.panelMode = ui.panelMode === 'picker' ? '' : 'picker';
+    ui.panelKind = ui.panelKind === 'picker' ? '' : 'picker';
     return;
   }
 
   if (slot.type === 'collection') {
     const collectionId = String(slot.itemRef || slot.appCode || '').trim();
     const activeCollection = resolveCollectionById(collectionId);
-    if (ui.panelMode === 'collection' && ui.panelCollectionId === activeCollection.collectionId) {
-      ui.panelMode = '';
-      ui.panelCollectionId = '';
+    if (ui.panelKind === 'collection' && ui.activeCollectionId === activeCollection.collectionId) {
+      ui.panelKind = '';
+      ui.activeCollectionId = '';
       return;
     }
-    ui.panelMode = 'collection';
-    ui.panelCollectionId = String(activeCollection.collectionId || '');
+    ui.panelKind = 'collection';
+    ui.activeCollectionId = String(activeCollection.collectionId || '');
     return;
   }
 
@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
   border-color: rgba(var(--accent-rgb), 0.24);
 }
 
-.picker-panel {
+.dock-panel {
   position: absolute;
   left: calc(100% + 10px);
   top: 6px;
@@ -609,10 +609,10 @@ onBeforeUnmount(() => {
   opacity: 0;
   transform: translate3d(8px, 0, 0) scale(0.94);
   transform-origin: left center;
-  animation: submenu-panel-in 320ms cubic-bezier(0.18, 0.92, 0.24, 1.2) forwards;
+  animation: dock-panel-in 320ms cubic-bezier(0.18, 0.92, 0.24, 1.2) forwards;
 }
 
-@keyframes submenu-panel-in {
+@keyframes dock-panel-in {
   0% {
     opacity: 0;
     transform: translate3d(8px, 0, 0) scale(0.82);
@@ -624,7 +624,7 @@ onBeforeUnmount(() => {
   }
 }
 
-.picker-item {
+.dock-panel-item {
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.18));
   border-radius: 18px;
   background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.3));
@@ -638,13 +638,13 @@ onBeforeUnmount(() => {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.picker-item:hover {
+.dock-panel-item:hover {
   background: var(--theme-floating-surface-hover, rgba(var(--accent-rgb), 0.46));
   color: var(--theme-icon-strong, rgba(255, 255, 255, 1));
   border-color: rgba(var(--accent-rgb), 0.32);
 }
 
-.picker-empty {
+.dock-panel-empty {
   margin: 0;
   font-size: 12px;
   color: var(--theme-text-secondary, rgba(67, 74, 94, 0.82));
@@ -653,7 +653,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 860px) {
-  .picker-panel {
+  .dock-panel {
     left: auto;
     right: calc(100% + 10px);
     transform-origin: right center;

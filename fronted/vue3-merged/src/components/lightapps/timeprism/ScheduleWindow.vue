@@ -1,7 +1,6 @@
 <template>
   <section class="lightapp-window">
-    <LightAppHeaderPortal :window-id="props.windowId">
-      <div class="top-toolbar">
+    <LightAppTopToolbar :window-id="props.windowId">
         <button
           class="icon-btn toolbar-btn ripple-trigger"
           type="button"
@@ -20,11 +19,9 @@
         >
           <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
         </button>
-      </div>
-    </LightAppHeaderPortal>
+    </LightAppTopToolbar>
 
-    <Transition name="panel-collapse">
-      <form v-if="showCreateForm" class="event-create" @submit.prevent="createScheduleItem">
+    <CollapsiblePanel :visible="showCreateForm" tag="form" class="event-create" @submit.prevent="createScheduleItem">
         <input v-model.trim="draft.title" type="text" placeholder="新增日程，例如：周会复盘" />
         <input v-model.trim="draft.detail" type="text" placeholder="详情（可选）" />
         <select v-model="draft.projectId">
@@ -65,11 +62,9 @@
         <button v-if="editingScheduleId" class="icon-btn ripple-trigger" type="button" title="取消编辑" @click="cancelScheduleEdit">
           <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
-      </form>
-    </Transition>
+    </CollapsiblePanel>
 
-    <Transition name="panel-collapse">
-      <section v-if="showRecurringPanel" class="recurring-panel liquid-material">
+    <CollapsiblePanel :visible="showRecurringPanel" class="recurring-panel liquid-material">
         <header>
           <h4>Schedule 周期规则</h4>
           <button
@@ -119,8 +114,7 @@
           </li>
         </ul>
         <p v-else class="empty-hint">暂无周期规则</p>
-      </section>
-    </Transition>
+    </CollapsiblePanel>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
@@ -190,7 +184,8 @@ import {
 } from '../../../utils/lightAppsDataStore';
 import { TIMEPRISM_MODULE_SCHEDULE, TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
 import { TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
-import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+import CollapsiblePanel from '../CollapsiblePanel.vue';
+import LightAppTopToolbar from '../LightAppTopToolbar.vue';
 
 const props = defineProps({
   windowId: {
@@ -849,13 +844,6 @@ if (suiteContext?.projectVersion) {
   min-width: 0;
 }
 
-.top-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .event-create {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
@@ -1053,26 +1041,6 @@ if (suiteContext?.projectVersion) {
   text-align: center;
   color: var(--la-muted);
   padding: 10px 0;
-}
-
-.panel-collapse-enter-active,
-.panel-collapse-leave-active {
-  transition:
-    opacity 160ms ease,
-    transform 180ms ease;
-  transform-origin: top center;
-}
-
-.panel-collapse-enter-from,
-.panel-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-4px) scaleY(0.95);
-}
-
-.panel-collapse-enter-to,
-.panel-collapse-leave-from {
-  opacity: 1;
-  transform: translateY(0) scaleY(1);
 }
 
 @container lightapp-window-body (max-width: 940px) {

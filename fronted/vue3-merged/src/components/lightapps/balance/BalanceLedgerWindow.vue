@@ -1,7 +1,6 @@
 <template>
   <section class="lightapp-window">
-    <LightAppHeaderPortal :window-id="props.windowId">
-      <div class="top-toolbar">
+    <LightAppTopToolbar :window-id="props.windowId">
         <button
           class="icon-btn toolbar-btn ripple-trigger"
           type="button"
@@ -28,11 +27,9 @@
         >
           <i :class="refreshingFx ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" aria-hidden="true"></i>
         </button>
-      </div>
-    </LightAppHeaderPortal>
+    </LightAppTopToolbar>
 
-    <Transition name="panel-collapse">
-      <form v-if="showCreateForm" class="create-form" @submit.prevent="submitBySection">
+    <CollapsiblePanel :visible="showCreateForm" tag="form" class="create-form" @submit.prevent="submitBySection">
         <template v-if="section === BALANCE_SECTION_ACCOUNTS">
           <input v-model.trim="accountDraft.channelName" type="text" placeholder="渠道名称，例如：微信" />
           <input v-model.trim="accountDraft.channelCode" type="text" placeholder="渠道编码，例如：wechat" />
@@ -129,8 +126,7 @@
             <i class="fas fa-xmark" aria-hidden="true"></i>
           </button>
         </div>
-      </form>
-    </Transition>
+    </CollapsiblePanel>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
@@ -453,7 +449,8 @@ import {
   registerBalanceSectionChangeHandler,
   resolveBalanceWindowState
 } from './balanceWindowState';
-import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+import CollapsiblePanel from '../CollapsiblePanel.vue';
+import LightAppTopToolbar from '../LightAppTopToolbar.vue';
 
 const props = defineProps({
   windowId: {
@@ -1732,13 +1729,6 @@ onBeforeUnmount(() => {
   color: var(--la-text);
 }
 
-.top-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .toolbar-hint {
   margin-left: auto;
   color: var(--la-muted);
@@ -2264,30 +2254,6 @@ onBeforeUnmount(() => {
   color: rgba(35, 55, 88, 0.9);
 }
 
-.panel-collapse-enter-active,
-.panel-collapse-leave-active {
-  transition:
-    opacity 220ms ease,
-    transform 240ms cubic-bezier(0.2, 0.88, 0.34, 1),
-    max-height 240ms ease;
-  transform-origin: top center;
-  overflow: hidden;
-}
-
-.panel-collapse-enter-from,
-.panel-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scaleY(0.94);
-  max-height: 0;
-}
-
-.panel-collapse-enter-to,
-.panel-collapse-leave-from {
-  opacity: 1;
-  transform: translateY(0) scaleY(1);
-  max-height: 540px;
-}
-
 @container lightapp-window-body (max-width: 700px) {
   .create-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2351,9 +2317,7 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .icon-btn,
-  .list-item,
-  .panel-collapse-enter-active,
-  .panel-collapse-leave-active {
+  .list-item {
     transition-duration: 80ms !important;
   }
 }

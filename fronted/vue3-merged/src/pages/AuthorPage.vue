@@ -1,14 +1,16 @@
 <template>
   <section class="route-page author-page motion-managed">
-    <div class="dashboard-layout">
-      <RouteDotRail
-        class="sidebar-dot-rail"
-        :items="tabs"
-        :active-key="activeTab"
-        :distribution="routeRailDistribution"
-        aria-label="关于网站导航"
-        @select="openTab"
-      />
+    <RailScaffold class="dashboard-layout">
+      <template #rail>
+        <RouteDotRail
+          class="sidebar-dot-rail"
+          :items="tabs"
+          :active-key="activeTab"
+          :distribution="routeRailDistribution"
+          aria-label="关于网站导航"
+          @select="openTab"
+        />
+      </template>
 
       <SubtleScrollArea
         :key="contentPanelRenderKey"
@@ -905,7 +907,7 @@
           </div>
         </transition>
       </SubtleScrollArea>
-    </div>
+    </RailScaffold>
   </section>
 </template>
 
@@ -916,6 +918,7 @@ import { useAuthSession } from '../composables/useAuthSession';
 import AdminPage from './AdminPage.vue';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
+import RailScaffold from '../components/common/RailScaffold.vue';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
 import {
