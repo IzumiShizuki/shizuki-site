@@ -66,6 +66,12 @@
                 <i :class="item.iconClass" aria-hidden="true"></i>
               </button>
             </div>
+
+            <TodoHeaderActions
+              v-if="showTodoHeaderActions(win)"
+              :window-id="win.id"
+              class="window-context-slot window-toolbar-interactive"
+            />
           </div>
 
           <div class="window-actions">
@@ -134,11 +140,14 @@ import {
 import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
 import {
   TIMEPRISM_MODULE_ITEMS,
+  TIMEPRISM_MODULE_TODO,
   releaseTimePrismSuiteSession,
   resolveTimePrismSuiteSession,
   setSuiteActiveModule
 } from './timeprism/timePrismSuiteState';
+import { releaseTodoWindowHeaderState } from './timeprism/todoWindowHeaderState';
 import { emitTimePrismFocusItem } from './timeprism/timePrismFocusBus';
+import TodoHeaderActions from './timeprism/TodoHeaderActions.vue';
 import UrlLinksWindow from './url/UrlLinksWindow.vue';
 import BoardCanvasWindow from './board/BoardCanvasWindow.vue';
 import BlogSlidevWindow from './blog/BlogSlidevWindow.vue';
@@ -230,7 +239,7 @@ function toggleMinimized(windowId) {
 
 function startDrag(event, win) {
   if (!win || event.button !== 0) return;
-  if (event.target?.closest?.('button')) return;
+  if (event.target?.closest?.('button, input, select, label, .window-toolbar-interactive')) return;
 
   interaction.mode = 'drag';
   interaction.windowId = win.id;
@@ -362,6 +371,10 @@ function setTimePrismModule(windowId, moduleCode) {
   setSuiteActiveModule(session, moduleCode);
 }
 
+function showTodoHeaderActions(win) {
+  return win?.code === 'timeprism-todo' && currentTimePrismModule(win.id) === TIMEPRISM_MODULE_TODO;
+}
+
 function currentPomodoroMode(windowId) {
   return resolvePomodoroWindowState(windowId).mode;
 }
@@ -383,6 +396,7 @@ function releaseWindowLinkedState(windowId) {
   if (!target) return;
   if (target.code === 'timeprism-todo') {
     releaseTimePrismSuiteSession(windowId);
+    releaseTodoWindowHeaderState(windowId);
   } else if (target.code === 'pomodoro-timer') {
     releasePomodoroWindowState(windowId);
   } else if (target.code === 'balance-ledger') {
@@ -431,9 +445,9 @@ onBeforeUnmount(() => {
   min-width: 300px;
   min-height: 48px;
   border-radius: 14px;
-  --liquid-bg: rgba(var(--glass-rgb), 0.3);
-  --liquid-border: rgba(255, 255, 255, 0.44);
-  --liquid-shadow: 0 16px 36px rgba(16, 23, 38, 0.16);
+  --liquid-bg: var(--theme-panel-surface-elevated, rgba(var(--glass-rgb), 0.3));
+  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.44));
+  --liquid-shadow: 0 16px 36px rgba(18, 9, 8, 0.16);
   overflow: hidden;
   transition:
     box-shadow 220ms ease,
@@ -441,8 +455,8 @@ onBeforeUnmount(() => {
 }
 
 .light-window:focus-within {
-  --liquid-shadow: 0 24px 56px rgba(10, 16, 30, 0.24);
-  --liquid-border: rgba(255, 255, 255, 0.5);
+  --liquid-shadow: 0 24px 56px rgba(18, 9, 8, 0.24);
+  --liquid-border: color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.5)) 82%, rgba(var(--accent-rgb), 0.24));
 }
 
 .light-window-stretch-enter-active,
@@ -495,14 +509,14 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.26);
+  border-bottom: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.26));
   cursor: move;
   user-select: none;
   transition: background-color 180ms ease;
 }
 
 .window-header:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.08));
 }
 
 .window-left {
@@ -518,7 +532,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  color: rgba(36, 43, 58, 0.9);
+  color: var(--theme-text-primary, rgba(36, 43, 58, 0.9));
 }
 
 .window-title span {
@@ -541,7 +555,12 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   padding-left: 8px;
-  border-left: 1px solid rgba(255, 255, 255, 0.28);
+  border-left: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.28));
+}
+
+.window-context-slot {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .window-actions {
@@ -554,9 +573,9 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.32);
-  color: rgba(34, 41, 56, 0.84);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.42));
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.32));
+  color: var(--theme-icon-primary, rgba(34, 41, 56, 0.84));
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -566,15 +585,15 @@ onBeforeUnmount(() => {
 
 .icon-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.58);
-  background: rgba(255, 255, 255, 0.44);
-  box-shadow: 0 5px 14px rgba(14, 20, 34, 0.16);
+  border-color: rgba(var(--accent-rgb), 0.28);
+  background: var(--theme-floating-surface-hover, rgba(255, 255, 255, 0.44));
+  box-shadow: 0 5px 14px rgba(18, 9, 8, 0.14);
 }
 
 .app-switch-btn.active {
   border-color: rgba(var(--accent-rgb), 0.56);
   background: rgba(var(--accent-rgb), 0.2);
-  color: rgba(34, 41, 56, 0.96);
+  color: rgb(var(--accent-strong-rgb));
 }
 
 .window-body {

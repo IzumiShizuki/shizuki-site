@@ -1,85 +1,5 @@
 <template>
   <section class="lightapp-window">
-    <div class="top-toolbar">
-      <div class="toolbar-main-row">
-        <button
-          class="icon-btn toolbar-btn ripple-trigger"
-          type="button"
-          :title="showCreateForm ? '收起添加区' : '添加待办'"
-          :aria-label="showCreateForm ? '收起添加区' : '添加待办'"
-          @click="toggleCreateForm"
-        >
-          <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
-        </button>
-        <button
-          class="icon-btn toolbar-btn ripple-trigger"
-          type="button"
-          :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
-          :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
-          @click="toggleRecurringPanel"
-        >
-          <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
-        </button>
-        <span class="toolbar-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
-      </div>
-
-      <div class="toolbar-chip-row">
-        <span class="toolbar-section-label">视图</span>
-        <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_ALL }" @click="viewFilter = TODO_VIEW_ALL">全部</button>
-        <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_OPEN }" @click="viewFilter = TODO_VIEW_OPEN">未完成</button>
-        <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_DONE }" @click="viewFilter = TODO_VIEW_DONE">已完成</button>
-        <template v-if="showProjectToolbarFilters">
-          <span class="toolbar-section-label">项目</span>
-          <button class="chip-btn ripple-trigger" :class="{ active: !selectedProjectIds.length }" @click="clearProjectFilters">
-            全部项目
-          </button>
-          <button
-            class="chip-btn ripple-trigger"
-            :class="{ active: isProjectFilterActive(UNASSIGNED_PROJECT_FILTER_ID) }"
-            @click="toggleProjectFilter(UNASSIGNED_PROJECT_FILTER_ID)"
-          >
-            无项目
-          </button>
-          <button
-            v-for="project in projects"
-            :key="`project_filter_${project.projectId}`"
-            class="chip-btn ripple-trigger project-chip"
-            :class="{ active: isProjectFilterActive(project.projectId) }"
-            :style="projectChipStyle(project.projectId)"
-            @click="toggleProjectFilter(project.projectId)"
-          >
-            <span class="project-chip-dot" :style="{ backgroundColor: projectColor(project.projectId) }"></span>
-            {{ project.name }}
-          </button>
-        </template>
-      </div>
-
-      <div v-if="showCreateForm" class="toolbar-option-row">
-        <span class="toolbar-section-label">编辑</span>
-        <select v-model="draft.projectId">
-          <option value="">无项目</option>
-          <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
-            {{ item.name }}
-          </option>
-        </select>
-        <select v-model="draft.priority">
-          <option value="LOW">低</option>
-          <option value="MEDIUM">中</option>
-          <option value="HIGH">高</option>
-        </select>
-        <select v-model="draft.timingMode">
-          <option value="DEADLINE">截止任务</option>
-          <option value="RANGE">范围任务</option>
-        </select>
-        <select v-model="draft.timePrecision">
-          <option value="MINUTE">分钟级</option>
-          <option value="DAY">日级</option>
-        </select>
-        <label class="toolbar-toggle"><input v-model="draft.showOnCalendar" type="checkbox" /> 日历</label>
-        <label class="toolbar-toggle"><input v-model="draft.reminderEnabled" type="checkbox" /> 提醒</label>
-      </div>
-    </div>
-
     <Transition name="panel-collapse">
       <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
         <input v-model.trim="draft.title" class="todo-title-field" type="text" placeholder="添加待办，例如：整理算法笔记" />
@@ -247,10 +167,6 @@ import {
 import {
   TIMEPRISM_SUITE_CONTEXT_KEY,
   TIMEPRISM_MODULE_TODO,
-  TODO_VIEW_ALL,
-  TODO_VIEW_DONE,
-  TODO_VIEW_OPEN,
-  UNASSIGNED_PROJECT_FILTER_ID,
   filterTodosByViewAndProjects,
   normalizeProjectFilterIds
 } from './timePrismSuiteState';
@@ -263,39 +179,33 @@ import {
   resolveTaskTimeInputType,
   toTaskInputValue
 } from './taskTimePrecision';
+import {
+  registerTodoWindowHeaderHandlers,
+  resolveTodoWindowHeaderState,
+  syncTodoWindowHeaderMeta
+} from './todoWindowHeaderState';
+
+const props = defineProps({
+  windowId: {
+    type: [Number, String],
+    default: 0
+  }
+});
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
+const headerState = resolveTodoWindowHeaderState(props.windowId);
 
 const todos = ref([]);
 const projects = ref([]);
-const viewFilter = ref(TODO_VIEW_ALL);
 const saving = ref(false);
 const recurringSaving = ref(false);
 const errorText = ref('');
-const showCreateForm = ref(false);
-const showRecurringPanel = ref(false);
-const localProjectFilters = ref([]);
 const todoRecurringRules = ref([]);
 const editingTodoId = ref(0);
 const editingRecurringRuleId = ref(0);
 
-const draft = reactive({
-  title: '',
-  detail: '',
-  projectId: '',
-  priority: 'MEDIUM',
-  dueAt: '',
-  showOnCalendar: true,
-  timePrecision: 'MINUTE',
-  timingMode: 'DEADLINE',
-  rangeStartAt: '',
-  reminderEnabled: false,
-  startRemindValue: null,
-  startRemindUnit: 'MINUTE',
-  deadlineRemindValue: null,
-  deadlineRemindUnit: 'MINUTE'
-});
+const draft = headerState.draft;
 
 const recurringDraft = reactive({
   title: '',
@@ -307,9 +217,12 @@ const recurringDraft = reactive({
 });
 
 const selectedProjectIds = computed(() => {
-  const source = suiteContext?.selectedProjectIds?.value ?? localProjectFilters.value;
+  const source = suiteContext?.selectedProjectIds?.value ?? [];
   return normalizeProjectFilterIds(source);
 });
+const viewFilter = computed(() => headerState.viewFilter);
+const showCreateForm = computed(() => headerState.showCreateForm);
+const showRecurringPanel = computed(() => headerState.showRecurringPanel);
 const isDayTodoPrecision = computed(() => isDayPrecision(draft.timePrecision));
 const todoTimeInputType = computed(() => resolveTaskTimeInputType(draft.timePrecision));
 
@@ -319,7 +232,6 @@ const hasUnassignedTodos = computed(() =>
     return !Number.isInteger(projectId) || projectId <= 0;
   })
 );
-const showProjectToolbarFilters = computed(() => projects.value.length || hasUnassignedTodos.value);
 
 const filteredTodos = computed(() => {
   return filterTodosByViewAndProjects(todos.value, viewFilter.value, selectedProjectIds.value);
@@ -369,15 +281,6 @@ function projectColor(projectId) {
   return '#6aa9ff';
 }
 
-function projectChipStyle(projectId) {
-  const chipColor = projectColor(projectId);
-  return {
-    '--project-chip-color': chipColor,
-    '--project-chip-border': addHexAlpha(chipColor, '88'),
-    '--project-chip-bg': addHexAlpha(chipColor, '22')
-  };
-}
-
 function projectBadgeStyle(projectId) {
   const color = projectColor(projectId);
   return {
@@ -387,46 +290,16 @@ function projectBadgeStyle(projectId) {
   };
 }
 
-function applyProjectFilters(nextFilters) {
-  const normalized = normalizeProjectFilterIds(nextFilters);
-  if (suiteContext?.setProjectFilters) {
-    suiteContext.setProjectFilters(normalized);
-    return;
-  }
-  localProjectFilters.value = normalized;
-}
-
-function clearProjectFilters() {
-  applyProjectFilters([]);
-}
-
-function toggleProjectFilter(projectId) {
-  const normalizedProjectId = Number(projectId);
-  if (!Number.isInteger(normalizedProjectId) || normalizedProjectId < 0) return;
-  const active = selectedProjectIds.value.includes(normalizedProjectId);
-  if (active) {
-    applyProjectFilters(selectedProjectIds.value.filter((id) => id !== normalizedProjectId));
-    return;
-  }
-  applyProjectFilters([...selectedProjectIds.value, normalizedProjectId]);
-}
-
-function isProjectFilterActive(projectId) {
-  const normalizedProjectId = Number(projectId);
-  if (!Number.isInteger(normalizedProjectId) || normalizedProjectId < 0) return false;
-  return selectedProjectIds.value.includes(normalizedProjectId);
-}
-
 function toggleCreateForm() {
-  showCreateForm.value = !showCreateForm.value;
-  if (!showCreateForm.value) {
+  headerState.showCreateForm = !headerState.showCreateForm;
+  if (!headerState.showCreateForm) {
     cancelTodoEdit();
   }
 }
 
 function toggleRecurringPanel() {
-  showRecurringPanel.value = !showRecurringPanel.value;
-  if (!showRecurringPanel.value) {
+  headerState.showRecurringPanel = !headerState.showRecurringPanel;
+  if (!headerState.showRecurringPanel) {
     cancelRecurringEdit();
   }
 }
@@ -465,7 +338,7 @@ function startTodoEdit(item) {
   draft.startRemindUnit = item.startRemindUnit || 'MINUTE';
   draft.deadlineRemindValue = normalizePositiveInteger(item.deadlineRemindValue);
   draft.deadlineRemindUnit = item.deadlineRemindUnit || 'MINUTE';
-  showCreateForm.value = true;
+  headerState.showCreateForm = true;
 }
 
 function cancelTodoEdit() {
@@ -482,7 +355,7 @@ function editRecurringRule(rule) {
   recurringDraft.priority = rule.priority || 'MEDIUM';
   recurringDraft.cronExpr = rule.cronExpr || '';
   recurringDraft.timeZoneId = rule.timeZoneId || 'Asia/Shanghai';
-  showRecurringPanel.value = true;
+  headerState.showRecurringPanel = true;
 }
 
 function cancelRecurringEdit() {
@@ -801,7 +674,7 @@ async function createTodoItem() {
       }
     }
     cancelTodoEdit();
-    showCreateForm.value = false;
+    headerState.showCreateForm = false;
   } catch (error) {
     errorText.value = error?.message || (editingTodoId.value ? '待办更新失败' : '创建待办失败');
   } finally {
@@ -892,11 +765,16 @@ async function moveTodo(todoId, direction) {
 }
 
 onMounted(() => {
+  registerTodoWindowHeaderHandlers(props.windowId, {
+    toggleCreateForm,
+    toggleRecurringPanel
+  });
   hydrate();
   window.addEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
 
 onBeforeUnmount(() => {
+  registerTodoWindowHeaderHandlers(props.windowId, null);
   window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
 
@@ -925,6 +803,19 @@ if (suiteContext?.projectVersion) {
 }
 
 watch(
+  [projects, hasUnassignedTodos, openCount, () => todos.value.length],
+  () => {
+    syncTodoWindowHeaderMeta(props.windowId, {
+      projectOptions: projects.value,
+      hasUnassignedTodos: hasUnassignedTodos.value,
+      openCount: openCount.value,
+      totalCount: todos.value.length
+    });
+  },
+  { immediate: true }
+);
+
+watch(
   () => draft.timePrecision,
   (current, previous) => {
     if (!previous || current === previous) return;
@@ -949,47 +840,6 @@ watch(
   min-width: 0;
 }
 
-.top-toolbar {
-  display: grid;
-  gap: 8px;
-}
-
-.toolbar-main-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.toolbar-chip-row,
-.toolbar-option-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-}
-
-.toolbar-chip-row::-webkit-scrollbar,
-.toolbar-option-row::-webkit-scrollbar {
-  height: 5px;
-}
-
-.toolbar-chip-row::-webkit-scrollbar-thumb,
-.toolbar-option-row::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(110, 122, 146, 0.42);
-}
-
-.toolbar-section-label {
-  flex: 0 0 auto;
-  font-size: 11px;
-  color: var(--la-muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .todo-create {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
@@ -997,8 +847,7 @@ watch(
 }
 
 .todo-create input,
-.todo-create select,
-.toolbar-option-row select {
+.todo-create select {
   border: 1px solid var(--la-border);
   background: var(--la-input-bg);
   color: var(--la-text);
@@ -1006,32 +855,9 @@ watch(
   padding: 8px 10px;
 }
 
-.toolbar-chip-row .chip-btn,
-.toolbar-option-row select,
-.project-chip {
-  flex: 0 0 auto;
-}
-
-.toolbar-option-row select {
-  min-width: 112px;
-}
-
 .todo-title-field,
 .todo-detail-field {
   grid-column: span 2;
-}
-
-.toolbar-toggle {
-  border: 1px solid var(--la-border);
-  background: var(--la-input-bg);
-  color: var(--la-muted);
-  border-radius: 10px;
-  padding: 8px 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  flex: 0 0 auto;
 }
 
 .todo-submit-btn,
@@ -1103,46 +929,12 @@ watch(
   color: var(--la-muted);
 }
 
-.chip-btn,
 .icon-btn {
   border: 1px solid var(--la-border);
   background: var(--la-btn-bg);
   color: var(--la-text);
   border-radius: 10px;
   padding: 6px 10px;
-}
-
-.chip-btn.active {
-  border-color: rgba(var(--accent-rgb), 0.58);
-  background: rgba(var(--accent-rgb), 0.24);
-}
-
-.toolbar-hint {
-  margin-left: auto;
-  color: var(--la-muted);
-  font-size: 12px;
-}
-
-.project-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--la-muted);
-  border-color: var(--la-border);
-  background: var(--la-btn-bg);
-}
-
-.project-chip.active {
-  color: var(--project-chip-color);
-  border-color: var(--project-chip-border);
-  background: var(--project-chip-bg);
-}
-
-.project-chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 
 .todo-list {
@@ -1223,11 +1015,6 @@ watch(
   justify-content: center;
 }
 
-.toolbar-btn {
-  width: 32px;
-  height: 32px;
-}
-
 .empty-hint {
   margin: 0;
   text-align: center;
@@ -1270,11 +1057,6 @@ watch(
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .toolbar-hint {
-    margin-left: 0;
-    width: 100%;
-  }
-
   .todo-item {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -1299,16 +1081,8 @@ watch(
     grid-template-columns: 1fr;
   }
 
-  .chip-btn {
-    min-height: 32px;
-  }
-
   .todo-item {
     padding: 8px 10px;
-  }
-
-  .toolbar-option-row {
-    gap: 6px;
   }
 }
 
@@ -1330,11 +1104,6 @@ watch(
   .todo-title-field,
   .todo-detail-field {
     grid-column: auto;
-  }
-
-  .toolbar-hint {
-    margin-left: 0;
-    width: 100%;
   }
 }
 </style>

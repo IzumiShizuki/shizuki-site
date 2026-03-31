@@ -12,7 +12,8 @@ import {
   normalizeProjectFilterIds,
   openTodoWithProjectFilter,
   setSuiteActiveModule,
-  setSuiteProjectFilters
+  setSuiteProjectFilters,
+  toggleSuiteProjectFilter
 } from './timePrismSuiteState';
 
 describe('timePrismSuiteState', () => {
@@ -68,5 +69,15 @@ describe('timePrismSuiteState', () => {
     expect(
       filterTodosByViewAndProjects(todos, TODO_VIEW_OPEN, [UNASSIGNED_PROJECT_FILTER_ID]).map((item) => item.todoId)
     ).toEqual([4]);
+  });
+
+  it('toggles project filters without duplicating ids', () => {
+    const state = createTimePrismSuiteSessionState();
+
+    toggleSuiteProjectFilter(state, 2);
+    toggleSuiteProjectFilter(state, 2);
+    toggleSuiteProjectFilter(state, UNASSIGNED_PROJECT_FILTER_ID);
+
+    expect(state.selectedProjectIds).toEqual([UNASSIGNED_PROJECT_FILTER_ID]);
   });
 });

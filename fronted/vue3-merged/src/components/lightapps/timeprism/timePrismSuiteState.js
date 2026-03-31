@@ -101,6 +101,19 @@ export function setSuiteProjectFilters(state, ids) {
   return state;
 }
 
+export function toggleSuiteProjectFilter(state, projectId) {
+  if (!state || typeof state !== 'object') return state;
+  const normalizedProjectId = Number(projectId);
+  if (!Number.isInteger(normalizedProjectId) || normalizedProjectId < 0) return state;
+  const selected = normalizeProjectFilterIds(state.selectedProjectIds);
+  if (selected.includes(normalizedProjectId)) {
+    state.selectedProjectIds = selected.filter((id) => id !== normalizedProjectId);
+    return state;
+  }
+  state.selectedProjectIds = [...selected, normalizedProjectId];
+  return state;
+}
+
 export function bumpSuiteProjectVersion(state) {
   if (!state || typeof state !== 'object') return state;
   const current = Number(state.projectVersion);
