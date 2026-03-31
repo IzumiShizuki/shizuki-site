@@ -2901,6 +2901,126 @@ select.field-input:focus-visible,
   gap: 8px;
 }
 
+:root[data-theme-mode='day'] .profile-content-panel {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(244, 244, 247, 0.56)),
+    radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.08), transparent 34%);
+  box-shadow:
+    inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24)),
+    0 18px 34px rgba(88, 60, 50, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+:root[data-theme-mode='day'] .profile-scroll-frame::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.28);
+}
+
+:root[data-theme-mode='day'] .profile-hero-shell {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 248, 250, 0.82) 62%, rgba(248, 248, 250, 0) 100%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+:root[data-theme-mode='day'] .state-tip,
+:root[data-theme-mode='day'] .group-caption,
+:root[data-theme-mode='day'] .overview-label,
+:root[data-theme-mode='day'] .overview-hint,
+:root[data-theme-mode='day'] .recent-label,
+:root[data-theme-mode='day'] .field-label,
+:root[data-theme-mode='day'] .helper-text,
+:root[data-theme-mode='day'] .kv-table th,
+:root[data-theme-mode='day'] .simple-table th,
+:root[data-theme-mode='day'] .archive-list li span:last-child {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .group-title,
+:root[data-theme-mode='day'] .overview-value,
+:root[data-theme-mode='day'] .recent-value,
+:root[data-theme-mode='day'] .kv-table td,
+:root[data-theme-mode='day'] .simple-table td,
+:root[data-theme-mode='day'] .archive-list li {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .group-eyebrow {
+  color: rgba(var(--accent-rgb), 0.78);
+}
+
+:root[data-theme-mode='day'] .overview-card,
+:root[data-theme-mode='day'] .recent-item,
+:root[data-theme-mode='day'] .music-auth-card,
+:root[data-theme-mode='day'] .music-source-order-item,
+:root[data-theme-mode='day'] .placeholder-card,
+:root[data-theme-mode='day'] .article-stat-card,
+:root[data-theme-mode='day'] .archive-list-card,
+:root[data-theme-mode='day'] .advanced-pref-card,
+:root[data-theme-mode='day'] .captcha-preview {
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  box-shadow:
+    inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24)),
+    0 12px 24px rgba(88, 60, 50, 0.07);
+}
+
+:root[data-theme-mode='day'] .placeholder-title,
+:root[data-theme-mode='day'] .music-auth-title,
+:root[data-theme-mode='day'] .provider-name {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .quick-btn {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(246, 246, 249, 0.56)),
+    radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.1), transparent 42%);
+  box-shadow:
+    inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24)),
+    0 10px 20px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .quick-btn:hover {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(247, 247, 250, 0.68)),
+    radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.14), transparent 42%);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--accent-rgb), 0.22),
+    0 14px 22px rgba(88, 60, 50, 0.1);
+}
+
+:root[data-theme-mode='day'] .field-input,
+:root[data-theme-mode='day'] select.field-input {
+  background: rgba(255, 255, 255, 0.64);
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  box-shadow: inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
+}
+
+:root[data-theme-mode='day'] .ghost-btn,
+:root[data-theme-mode='day'] .oauth-btn {
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  box-shadow: inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
+}
+
+:root[data-theme-mode='day'] .danger-btn {
+  background: rgba(255, 224, 231, 0.72);
+  color: rgba(116, 54, 67, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(214, 127, 147, 0.24);
+}
+
+:root[data-theme-mode='day'] .status-chip,
+:root[data-theme-mode='day'] .provider-chip {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .avatar-image {
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow:
+    0 10px 20px rgba(88, 60, 50, 0.08),
+    inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24));
+}
+
 .hidden-file-input {
   position: fixed;
   width: 0;

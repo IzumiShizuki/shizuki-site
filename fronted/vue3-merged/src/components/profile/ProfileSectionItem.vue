@@ -281,6 +281,23 @@ defineEmits(['toggle', 'avatar-click']);
   gap: 8px;
 }
 
+:root[data-theme-mode='day'] .section-item {
+  --liquid-bg: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  --liquid-shadow: 0 14px 28px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .section-item.focused {
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.24),
+    0 18px 32px rgba(88, 60, 50, 0.1);
+}
+
+:root[data-theme-mode='day'] .section-avatar {
+  box-shadow:
+    0 8px 16px rgba(88, 60, 50, 0.08),
+    inset 0 0 0 1px var(--theme-border-strong, rgba(255, 214, 194, 0.34));
+}
+
 @media (max-width: 860px) {
   .section-head {
     padding: 13px 14px;

@@ -389,6 +389,25 @@ function gradientPreviewStyle(startHex, endHex) {
   font-size: 12px;
 }
 
+:root[data-theme-mode='day'] .mode-btn,
+:root[data-theme-mode='day'] .preset-btn,
+:root[data-theme-mode='day'] .gradient-btn,
+:root[data-theme-mode='day'] .hex-wrap input,
+:root[data-theme-mode='day'] .gradient-input-grid input,
+:root[data-theme-mode='day'] .picker-field input[type='color'] {
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  box-shadow:
+    inset 0 0 0 1px var(--theme-border, rgba(255, 224, 208, 0.24)),
+    0 8px 16px rgba(88, 60, 50, 0.04);
+}
+
+:root[data-theme-mode='day'] .mode-btn.active,
+:root[data-theme-mode='day'] .preset-btn.active,
+:root[data-theme-mode='day'] .gradient-btn.active {
+  color: rgba(52, 34, 29, 0.96);
+}
+
 @media (max-width: 700px) {
   .preset-grid,
   .gradient-grid,

@@ -189,6 +189,21 @@ defineEmits(['avatar-click']);
   box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
 }
 
+:root[data-theme-mode='day'] .hero-card {
+  --liquid-bg: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  --liquid-shadow: 0 18px 34px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .hero-avatar-btn {
+  box-shadow: 0 10px 22px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .hero-avatar {
+  box-shadow:
+    0 8px 18px rgba(88, 60, 50, 0.08),
+    inset 0 0 0 1px var(--theme-border-strong, rgba(255, 214, 194, 0.34));
+}
+
 @media (max-width: 860px) {
   .hero-card {
     grid-template-columns: 1fr;
