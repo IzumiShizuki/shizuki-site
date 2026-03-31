@@ -217,19 +217,25 @@ function applyAccentVariables() {
   const glow = state.accentMode === 'gradient'
     ? `0 0 18px rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.22)`
     : `0 0 18px rgba(${r}, ${g}, ${b}, 0.22)`;
-  const contrastStrokeColor = isDayMode ? 'rgba(255, 250, 247, 0.92)' : 'rgba(5, 8, 14, 0.82)';
-  const contrastStrokeSoft = isDayMode ? 'rgba(255, 248, 244, 0.74)' : 'rgba(5, 8, 14, 0.54)';
+  const contrastStrokeColor = isDayMode ? 'rgba(255, 252, 248, 0.58)' : 'rgba(5, 8, 14, 0.44)';
+  const contrastStrokeSoft = isDayMode ? 'rgba(255, 252, 248, 0.38)' : 'rgba(5, 8, 14, 0.28)';
   const contrastTextShadow = isDayMode
-    ? '0 1px 1px rgba(255, 255, 255, 0.86), 0 0 10px rgba(255, 255, 255, 0.42)'
-    : '0 1px 2px rgba(0, 0, 0, 0.74), 0 0 10px rgba(0, 0, 0, 0.34)';
+    ? '0 1px 0 rgba(255, 255, 255, 0.22)'
+    : '0 1px 1px rgba(0, 0, 0, 0.24)';
   const contrastTextShadowSoft = isDayMode
-    ? '0 1px 1px rgba(255, 255, 255, 0.68), 0 0 6px rgba(255, 255, 255, 0.28)'
-    : '0 1px 1px rgba(0, 0, 0, 0.56), 0 0 6px rgba(0, 0, 0, 0.22)';
+    ? '0 1px 0 rgba(255, 255, 255, 0.14)'
+    : '0 1px 0 rgba(0, 0, 0, 0.18)';
+  const contrastTextShadowStrong = isDayMode
+    ? '0 1px 0 rgba(255, 255, 255, 0.46), 0 0 1px rgba(255, 255, 255, 0.16)'
+    : '0 1px 1px rgba(0, 0, 0, 0.54), 0 0 1px rgba(0, 0, 0, 0.18)';
   const contrastIconShadow = isDayMode
-    ? '0 1px 1px rgba(255, 255, 255, 0.82), 0 0 12px rgba(255, 255, 255, 0.32)'
-    : '0 1px 2px rgba(0, 0, 0, 0.78), 0 0 10px rgba(0, 0, 0, 0.26)';
-  const contrastOutlineWidth = isDayMode ? '0.28px' : '0.34px';
-  const contrastOutlineWidthStrong = isDayMode ? '0.42px' : '0.52px';
+    ? '0 1px 0 rgba(255, 255, 255, 0.2)'
+    : '0 1px 1px rgba(0, 0, 0, 0.3)';
+  const contrastIconShadowStrong = isDayMode
+    ? '0 1px 0 rgba(255, 255, 255, 0.5), 0 0 1px rgba(255, 255, 255, 0.18)'
+    : '0 1px 1px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.2)';
+  const contrastOutlineWidth = isDayMode ? '0.14px' : '0.18px';
+  const contrastOutlineWidthStrong = isDayMode ? '0.18px' : '0.22px';
   const menuText = isDayMode ? 'rgba(58, 38, 33, 0.96)' : 'rgba(236, 242, 255, 0.92)';
   const menuTextMuted = isDayMode ? 'rgba(82, 57, 50, 0.88)' : 'rgba(235, 241, 255, 0.9)';
   const menuTextDisabled = isDayMode ? 'rgba(103, 80, 73, 0.6)' : 'rgba(210, 220, 238, 0.72)';
@@ -325,7 +331,9 @@ function applyAccentVariables() {
   root.style.setProperty('--theme-contrast-stroke-soft', contrastStrokeSoft);
   root.style.setProperty('--theme-contrast-text-shadow', contrastTextShadow);
   root.style.setProperty('--theme-contrast-text-shadow-soft', contrastTextShadowSoft);
+  root.style.setProperty('--theme-contrast-text-shadow-strong', contrastTextShadowStrong);
   root.style.setProperty('--theme-contrast-icon-shadow', contrastIconShadow);
+  root.style.setProperty('--theme-contrast-icon-shadow-strong', contrastIconShadowStrong);
   root.style.setProperty('--theme-contrast-outline-width', contrastOutlineWidth);
   root.style.setProperty('--theme-contrast-outline-width-strong', contrastOutlineWidthStrong);
   root.style.setProperty('--theme-menu-text', menuText);

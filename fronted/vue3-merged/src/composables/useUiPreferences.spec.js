@@ -45,6 +45,8 @@ describe('useUiPreferences', () => {
     expect(document.documentElement.getAttribute('data-accent-mode')).toBe('solid');
     expect(document.documentElement.getAttribute('data-theme-mode')).toBe('night');
     expect(document.documentElement.style.getPropertyValue('--theme-surface')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-contrast-text-shadow-strong')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-contrast-icon-shadow-strong')).not.toBe('');
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({
         themeMode: 'night',
@@ -160,6 +162,7 @@ describe('useUiPreferences', () => {
 
     ui.initializeUiPreferences();
     const nightSurface = document.documentElement.style.getPropertyValue('--theme-surface');
+    const nightStrongShadow = document.documentElement.style.getPropertyValue('--theme-contrast-text-shadow-strong');
 
     ui.toggleThemeMode();
 
@@ -167,6 +170,7 @@ describe('useUiPreferences', () => {
     expect(document.documentElement.getAttribute('data-theme-mode')).toBe('day');
     expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light');
     expect(document.documentElement.style.getPropertyValue('--theme-surface')).not.toBe(nightSurface);
+    expect(document.documentElement.style.getPropertyValue('--theme-contrast-text-shadow-strong')).not.toBe(nightStrongShadow);
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({
         themeMode: 'day'

@@ -55,8 +55,7 @@ body {
   .stat-label,
   .field-label
 ) {
-  text-shadow: var(--theme-contrast-text-shadow, 0 1px 2px rgba(0, 0, 0, 0.74));
-  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.34px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
+  text-shadow: var(--theme-contrast-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24));
 }
 
 :where(
@@ -81,7 +80,7 @@ body {
   .description,
   .hint-text
 ) {
-  text-shadow: var(--theme-contrast-text-shadow-soft, 0 1px 1px rgba(0, 0, 0, 0.56));
+  text-shadow: var(--theme-contrast-text-shadow-soft, 0 1px 0 rgba(0, 0, 0, 0.18));
 }
 
 :where(
@@ -91,8 +90,7 @@ body {
   .settings-panel,
   .workspace-shell
 ) :is(i, .fas, .far, .fab, .fa-solid, .fa-regular, .fa-brands) {
-  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 2px rgba(0, 0, 0, 0.78));
-  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.52px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54));
+  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 1px rgba(0, 0, 0, 0.3));
 }
 
 .ripple-trigger {
