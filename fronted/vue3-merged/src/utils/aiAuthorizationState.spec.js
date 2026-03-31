@@ -23,4 +23,14 @@ describe('aiAuthorizationState', () => {
     expect(adminCompanion.canSendMessage).toBe(true);
     expect(adminCompanion.canManageMemory).toBe(true);
   });
+
+  it('keeps normal and tavern available for authenticated non-admin users', () => {
+    const normal = buildAiCapabilityState({ authenticated: true, groups: ['USER'], mode: 'normal' });
+    const tavern = buildAiCapabilityState({ authenticated: true, groups: ['USER'], mode: 'tavern' });
+
+    expect(normal.canSendMessage).toBe(true);
+    expect(normal.disabledReason).toBe('');
+    expect(tavern.canSendMessage).toBe(true);
+    expect(tavern.canManageTownAssets).toBe(false);
+  });
 });

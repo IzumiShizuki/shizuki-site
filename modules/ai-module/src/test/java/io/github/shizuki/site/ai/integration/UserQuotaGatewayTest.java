@@ -51,4 +51,14 @@ class UserQuotaGatewayTest {
 
         assertThat(value).isEqualTo(5L);
     }
+
+    @Test
+    void shouldKeepUnlimitedQuotaWhenServiceReturnsMinusOne() {
+        Set<String> groups = Set.of("ADMIN");
+        when(userService.resolveQuota("ai_round_total", groups, 20L)).thenReturn(-1L);
+
+        Long value = userQuotaClient.resolveQuota("ai_round_total", groups, 20L);
+
+        assertThat(value).isEqualTo(-1L);
+    }
 }

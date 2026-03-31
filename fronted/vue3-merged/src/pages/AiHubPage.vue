@@ -322,7 +322,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AiDialog from '../components/AiDialog.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
@@ -350,7 +350,8 @@ const selectedTownSceneCode = ref('');
 const selectedTownScene = ref(null);
 const townAssetEditor = reactive(createTownAssetEditorState());
 
-const conversationAllowedModes = ['normal', 'tavern', 'town_npc', 'companion'];
+const STANDARD_CONVERSATION_MODES = ['normal', 'tavern'];
+const ADMIN_CONVERSATION_MODES = ['town_npc', 'companion'];
 
 function toNumber(value) {
   const normalized = Number(value);
@@ -457,6 +458,26 @@ function resolveTownError(error) {
   return 'AI 小镇数据加载失败，请稍后再试。';
 }
 
+function isAdminOnlyConversationMode(mode) {
+  return ADMIN_CONVERSATION_MODES.includes(normalizeOptionalText(mode));
+}
+
+function resolveConversationMode(mode) {
+  const normalized = normalizeOptionalText(mode);
+  if (STANDARD_CONVERSATION_MODES.includes(normalized) || ADMIN_CONVERSATION_MODES.includes(normalized)) {
+    return normalized;
+  }
+  return 'normal';
+}
+
+function isTownPreviewNotFound(error) {
+  if (Number(error?.status) === 404) {
+    return true;
+  }
+  const message = normalizeOptionalText(error?.message).toLowerCase();
+  return message.includes('not found');
+}
+
 const adminCapability = computed(() =>
   buildAiCapabilityState({
     authenticated: auth.isAuthenticated.value,
@@ -466,6 +487,9 @@ const adminCapability = computed(() =>
 );
 const isAdminUser = computed(() => adminCapability.value.isAdmin);
 const canManageTownAssets = computed(() => adminCapability.value.canManageTownAssets);
+const conversationAllowedModes = computed(() =>
+  isAdminUser.value ? [...STANDARD_CONVERSATION_MODES, ...ADMIN_CONVERSATION_MODES] : [...STANDARD_CONVERSATION_MODES]
+);
 
 const selectedTownSceneSummary = computed(() =>
   townScenes.value.find((item) => item.sceneCode === selectedTownSceneCode.value) || null
@@ -489,6 +513,11 @@ const currentConversationLabel = computed(() => {
 const canOpenCompanion = computed(() => isAdminUser.value && selectedTownSceneCode.value === 'home_gate');
 
 function activateTownWorkspace(nextSubView = 'map') {
+  if (nextSubView === 'editor' && !canManageTownAssets.value) {
+    townSubView.value = 'map';
+    townActionError.value = '只有 ADMIN 可以使用地图编辑器。';
+    return;
+  }
   activePrimaryMode.value = 'town';
   townSubView.value = nextSubView;
   if (nextSubView === 'editor') {
@@ -506,14 +535,32 @@ function activateStandardConversation() {
 }
 
 function openConversationWorkspace(mode, payload = null) {
+  if (isAdminOnlyConversationMode(mode) && !isAdminUser.value) {
+    conversationChatMode.value = 'normal';
+    conversationOpenPayload.value = null;
+    activePrimaryMode.value = 'conversation';
+    return;
+  }
   activePrimaryMode.value = 'conversation';
-  conversationChatMode.value = mode;
+  conversationChatMode.value = resolveConversationMode(mode);
   conversationOpenPayload.value = payload ? { ...payload, openedAt: Date.now() } : null;
 }
 
 function handleConversationModeChange(mode) {
-  conversationChatMode.value = normalizeOptionalText(mode) || 'normal';
+  conversationChatMode.value = resolveConversationMode(mode);
   if (conversationChatMode.value === 'normal' || conversationChatMode.value === 'tavern') {
+    conversationOpenPayload.value = null;
+  }
+}
+
+function resetAdminOnlyWorkspaceState() {
+  if (townSubView.value === 'editor') {
+    townSubView.value = 'map';
+  }
+  if (conversationChatMode.value === 'town_npc' || conversationChatMode.value === 'companion') {
+    conversationChatMode.value = 'normal';
+  }
+  if (isAdminOnlyConversationMode(conversationOpenPayload.value?.preferredMode) || isAdminOnlyConversationMode(conversationOpenPayload.value?.mode)) {
     conversationOpenPayload.value = null;
   }
 }
@@ -523,7 +570,12 @@ async function loadTownScene(sceneCode) {
   if (!normalizedSceneCode) return;
   selectedTownSceneCode.value = normalizedSceneCode;
   selectedTownScene.value = normalizeTownSceneDetail(await getAiTownScene(normalizedSceneCode));
-  if (!townAssetEditor.attachedSceneCode) {
+  if (canManageTownAssets.value) {
+    townAssetEditor.attachedSceneCode = normalizedSceneCode;
+    if (townSubView.value === 'editor') {
+      await loadTownAssetPreview({ sceneCode: normalizedSceneCode, silent: true, preserveFeedback: true });
+    }
+  } else if (!townAssetEditor.attachedSceneCode) {
     townAssetEditor.attachedSceneCode = normalizedSceneCode;
   }
 }
@@ -555,6 +607,16 @@ async function submitTownAssetImport() {
     }
     const preview = await importAdminAiTownAsset(formData, auth.authorizedFetch);
     townAssetEditor.preview = normalizeTownAssetPreview(preview);
+    if (townAssetEditor.preview.attachedSceneCode) {
+      townAssetEditor.attachedSceneCode = townAssetEditor.preview.attachedSceneCode;
+    }
+    await loadTownAssetPreview({
+      assetCode: townAssetEditor.preview.assetCode,
+      sceneCode: townAssetEditor.attachedSceneCode,
+      silent: true,
+      preserveFeedback: true,
+      suppressEmptyFeedback: true
+    });
     townAssetEditor.feedbackText = 'RPGMaker 资源已导入并生成预览。';
     townAssetEditor.selectedFile = null;
     townAssetEditor.selectedFileName = '';
@@ -579,6 +641,9 @@ async function loadTownAssetPreview(options = {}) {
   townAssetEditor.refreshing = true;
   if (!options.silent) {
     townAssetEditor.errorText = '';
+    if (!options.preserveFeedback) {
+      townAssetEditor.feedbackText = '';
+    }
   }
   try {
     const preview = await previewAdminAiTownAsset(
@@ -586,15 +651,17 @@ async function loadTownAssetPreview(options = {}) {
       auth.authorizedFetch
     );
     townAssetEditor.preview = normalizeTownAssetPreview(preview);
+    if (townAssetEditor.preview.attachedSceneCode) {
+      townAssetEditor.attachedSceneCode = townAssetEditor.preview.attachedSceneCode;
+    }
   } catch (error) {
-    const message = resolveTownError(error);
-    if (message.toLowerCase().includes('not found')) {
+    if (isTownPreviewNotFound(error)) {
       townAssetEditor.preview = null;
-      if (!options.silent) {
+      if (!options.silent && !options.suppressEmptyFeedback) {
         townAssetEditor.feedbackText = '当前场景还没有已挂接的 RPGMaker 预览。';
       }
     } else {
-      townAssetEditor.errorText = message;
+      townAssetEditor.errorText = resolveTownError(error);
     }
   } finally {
     townAssetEditor.refreshing = false;
@@ -677,6 +744,17 @@ onMounted(async () => {
   await auth.ensureReady();
   await loadTownExplorer();
 });
+
+watch(
+  () => [auth.isAuthenticated.value, isAdminUser.value],
+  ([authenticated, admin]) => {
+    if (authenticated && admin) {
+      return;
+    }
+    resetAdminOnlyWorkspaceState();
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>

@@ -514,6 +514,7 @@ import { motion, useReducedMotion } from 'motion-v';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminAiCompanionSession,
+  createAdminTownNpcSession,
   getAdminAiMemoryScope,
   createAiCharacter,
   createAiSession,
@@ -590,6 +591,8 @@ const CHAT_MODE_OPTIONS = [
   }
 ];
 
+const ADMIN_ONLY_CHAT_MODES = new Set(['town_npc', 'companion']);
+
 let messageSequence = 0;
 
 function toNumber(value) {
@@ -617,6 +620,14 @@ function normalizeAllowedModes(input) {
   return input
     .map((item) => normalizeChatMode(item))
     .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function isAdminOnlyChatMode(mode) {
+  return ADMIN_ONLY_CHAT_MODES.has(normalizeChatMode(mode));
+}
+
+function filterAllowedModesByRole(modes, isAdmin) {
+  return modes.filter((mode) => isAdmin || !isAdminOnlyChatMode(mode));
 }
 
 function resolveAllowedChatMode(input, allowedModes) {
@@ -905,12 +916,16 @@ const sessionStateByMode = reactive({
 });
 
 const activeState = computed(() => sessionStateByMode[activeChatMode.value]);
-const allowedChatModes = computed(() => {
+const requestedChatModes = computed(() => {
   const normalized = normalizeAllowedModes(props.allowedModes);
   return normalized.length ? normalized : CHAT_MODE_OPTIONS.map((item) => item.value);
 });
+const allowedChatModes = computed(() => {
+  const filtered = filterAllowedModesByRole(requestedChatModes.value, isAdminUser.value);
+  return filtered.length ? filtered : ['quick_chat'];
+});
 const visibleChatModeOptions = computed(() =>
-  CHAT_MODE_OPTIONS.filter((item) => allowedChatModes.value.includes(item.value) && !item.hidden)
+  CHAT_MODE_OPTIONS.filter((item) => allowedChatModes.value.includes(item.value) && (!item.hidden || isAdminUser.value))
 );
 const activeModeMeta = computed(() => CHAT_MODE_OPTIONS.find((item) => item.value === activeChatMode.value) || CHAT_MODE_OPTIONS[0]);
 const aiCapabilityState = computed(() =>
@@ -1482,6 +1497,19 @@ async function submitSaveCompanionConfig(options = {}) {
 
 async function ensureSession(state, openingMessage) {
   if (normalizeOptionalText(state.sessionId)) return;
+
+  if (state.mode === 'town_npc') {
+    if (!auth.isAuthenticated.value || !isAdminUser.value) {
+      throw new Error('AI 小镇特殊 NPC 仅对 ADMIN 开放。');
+    }
+    const actorCode = normalizeOptionalText(state.config.actorCode);
+    if (!actorCode) {
+      throw new Error('请先从 AI 小镇选择一个特殊 NPC。');
+    }
+    const summary = await createAdminTownNpcSession(actorCode, auth.authorizedFetch);
+    syncStateFromSessionSummary(state, summary);
+    return;
+  }
 
   if (state.mode === 'companion') {
     if (!auth.isAuthenticated.value || !isAdminUser.value) {

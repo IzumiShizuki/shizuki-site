@@ -46,10 +46,14 @@ import io.github.shizuki.site.ai.mapper.AiSessionMapper;
 import io.github.shizuki.site.ai.mapper.AiTownAssetImportMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookEntryMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookMapper;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -653,6 +657,96 @@ class AiServiceImplTest {
     }
 
     @Test
+    void shouldImportZipTownAssetWithEmbeddedMapPreview() throws Exception {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+        AtomicLong assetSequence = new AtomicLong(1600);
+
+        Mockito.doAnswer(invocation -> {
+            AiTownAssetImportEntity entity = invocation.getArgument(0);
+            entity.setId(assetSequence.incrementAndGet());
+            return 1;
+        }).when(aiTownAssetImportMapper).insert(ArgumentMatchers.any(AiTownAssetImportEntity.class));
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "TownBundle.zip",
+            "application/zip",
+            buildZipAsset(
+                Map.of(
+                    "data/Map001.json",
+                    """
+                        {
+                          "width": 10,
+                          "height": 8,
+                          "data": [1, 2, 3],
+                          "events": {"1": {"id": 1}}
+                        }
+                        """,
+                    "img/Tilesets/town.png",
+                    "fake-image"
+                )
+            )
+        );
+
+        AiTownAssetPreviewResponse imported = aiService.importAdminTownAsset(file, "library");
+
+        Assertions.assertEquals("rpg_bundle", imported.assetType());
+        Assertions.assertTrue(imported.previewHighlights().stream().anyMatch(item -> item.contains("检测到地图 JSON")));
+        Assertions.assertEquals("library", imported.attachedSceneCode());
+        Assertions.assertTrue(String.valueOf(imported.preview().get("embedded_map_preview")).contains("width=10"));
+    }
+
+    @Test
+    void shouldImportImageTownAssetForAdminPreview() {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+        AtomicLong assetSequence = new AtomicLong(1700);
+
+        Mockito.doAnswer(invocation -> {
+            AiTownAssetImportEntity entity = invocation.getArgument(0);
+            entity.setId(assetSequence.incrementAndGet());
+            return 1;
+        }).when(aiTownAssetImportMapper).insert(ArgumentMatchers.any(AiTownAssetImportEntity.class));
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "tileset.png",
+            "image/png",
+            new byte[] {1, 2, 3, 4}
+        );
+
+        AiTownAssetPreviewResponse imported = aiService.importAdminTownAsset(file, "home_gate");
+
+        Assertions.assertEquals("tileset_image", imported.assetType());
+        Assertions.assertEquals("home_gate", imported.attachedSceneCode());
+        Assertions.assertTrue(imported.previewHighlights().stream().anyMatch(item -> item.contains("当前挂接场景：home_gate")));
+    }
+
+    @Test
+    void shouldLoadPreviewBySceneCodeWhenAssetCodeMissing() throws Exception {
+        LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
+
+        AiTownAssetImportEntity persisted = new AiTownAssetImportEntity();
+        persisted.setId(1701L);
+        persisted.setAssetCode("rpg-scene-latest");
+        persisted.setOwnerUserId(66L);
+        persisted.setSourceName("Map001.json");
+        persisted.setAssetType("rpg_map");
+        persisted.setParserStatus("READY");
+        persisted.setAttachedSceneCode("library");
+        persisted.setRawSizeBytes(256L);
+        persisted.setMetadataJson(new ObjectMapper().writeValueAsString(Map.of("width", 20, "height", 15)));
+        persisted.setPreviewJson(new ObjectMapper().writeValueAsString(Map.of("preview_highlights", List.of("地图尺寸 20x15"))));
+        Mockito.when(aiTownAssetImportMapper.selectOne(ArgumentMatchers.any())).thenReturn(persisted);
+
+        AiTownAssetPreviewRequest request = new AiTownAssetPreviewRequest();
+        request.setSceneCode("library");
+        AiTownAssetPreviewResponse preview = aiService.previewAdminTownAsset(request);
+
+        Assertions.assertEquals("rpg-scene-latest", preview.assetCode());
+        Assertions.assertEquals("library", preview.attachedSceneCode());
+    }
+
+    @Test
     void shouldUpdateAndReadAdminMemoryScope() {
         LoginUserContext.set(new LoginUser(66L, Set.of("ADMIN"), Set.of()));
         AtomicLong scopeSequence = new AtomicLong(2100);
@@ -676,5 +770,17 @@ class AiServiceImplTest {
         Assertions.assertEquals("librarian", response.actorCode());
         Assertions.assertFalse(response.enabled());
         Assertions.assertEquals("图书馆作用域先暂停写回", response.note());
+    }
+
+    private byte[] buildZipAsset(Map<String, String> entries) throws Exception {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream, StandardCharsets.UTF_8)) {
+            for (Map.Entry<String, String> entry : entries.entrySet()) {
+                zipOutputStream.putNextEntry(new ZipEntry(entry.getKey()));
+                zipOutputStream.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
+                zipOutputStream.closeEntry();
+            }
+        }
+        return outputStream.toByteArray();
     }
 }
