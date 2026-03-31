@@ -4,6 +4,27 @@
       <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
         <input v-model.trim="draft.title" class="todo-title-field" type="text" placeholder="添加待办，例如：整理算法笔记" />
         <input v-model.trim="draft.detail" class="todo-detail-field" type="text" placeholder="详情（可选）" />
+        <select v-model="draft.projectId">
+          <option value="">无项目</option>
+          <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
+            {{ item.name }}
+          </option>
+        </select>
+        <select v-model="draft.priority">
+          <option value="LOW">低</option>
+          <option value="MEDIUM">中</option>
+          <option value="HIGH">高</option>
+        </select>
+        <select v-model="draft.timingMode">
+          <option value="DEADLINE">截止任务</option>
+          <option value="RANGE">范围任务</option>
+        </select>
+        <select v-model="draft.timePrecision">
+          <option value="MINUTE">分钟级</option>
+          <option value="DAY">日级</option>
+        </select>
+        <label class="form-toggle"><input v-model="draft.showOnCalendar" type="checkbox" /> 日历</label>
+        <label class="form-toggle"><input v-model="draft.reminderEnabled" type="checkbox" /> 提醒</label>
         <input
           v-model="draft.dueAt"
           :type="todoTimeInputType"
@@ -104,6 +125,36 @@
       </section>
     </Transition>
 
+    <div class="todo-query-row">
+      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_ALL }" @click="viewFilter = TODO_VIEW_ALL">全部</button>
+      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_OPEN }" @click="viewFilter = TODO_VIEW_OPEN">未完成</button>
+      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_DONE }" @click="viewFilter = TODO_VIEW_DONE">已完成</button>
+      <template v-if="showProjectQueryFilters">
+        <button class="chip-btn ripple-trigger" :class="{ active: !selectedProjectIds.length }" @click="clearProjectFilters">
+          全部项目
+        </button>
+        <button
+          class="chip-btn ripple-trigger"
+          :class="{ active: isProjectFilterActive(UNASSIGNED_PROJECT_FILTER_ID) }"
+          @click="toggleProjectFilter(UNASSIGNED_PROJECT_FILTER_ID)"
+        >
+          无项目
+        </button>
+        <button
+          v-for="project in projects"
+          :key="`project_filter_${project.projectId}`"
+          class="chip-btn ripple-trigger project-chip"
+          :class="{ active: isProjectFilterActive(project.projectId) }"
+          :style="projectChipStyle(project.projectId)"
+          @click="toggleProjectFilter(project.projectId)"
+        >
+          <span class="project-chip-dot" :style="{ backgroundColor: projectColor(project.projectId) }"></span>
+          {{ project.name }}
+        </button>
+      </template>
+      <span class="query-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
+    </div>
+
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
     <ul v-if="filteredTodos.length" class="todo-list">
@@ -167,6 +218,10 @@ import {
 import {
   TIMEPRISM_SUITE_CONTEXT_KEY,
   TIMEPRISM_MODULE_TODO,
+  TODO_VIEW_ALL,
+  TODO_VIEW_DONE,
+  TODO_VIEW_OPEN,
+  UNASSIGNED_PROJECT_FILTER_ID,
   filterTodosByViewAndProjects,
   normalizeProjectFilterIds
 } from './timePrismSuiteState';
@@ -181,8 +236,7 @@ import {
 } from './taskTimePrecision';
 import {
   registerTodoWindowHeaderHandlers,
-  resolveTodoWindowHeaderState,
-  syncTodoWindowHeaderMeta
+  resolveTodoWindowHeaderState
 } from './todoWindowHeaderState';
 
 const props = defineProps({
@@ -198,14 +252,31 @@ const headerState = resolveTodoWindowHeaderState(props.windowId);
 
 const todos = ref([]);
 const projects = ref([]);
+const viewFilter = ref(TODO_VIEW_ALL);
 const saving = ref(false);
 const recurringSaving = ref(false);
 const errorText = ref('');
+const localProjectFilters = ref([]);
 const todoRecurringRules = ref([]);
 const editingTodoId = ref(0);
 const editingRecurringRuleId = ref(0);
 
-const draft = headerState.draft;
+const draft = reactive({
+  title: '',
+  detail: '',
+  projectId: '',
+  priority: 'MEDIUM',
+  dueAt: '',
+  showOnCalendar: true,
+  timePrecision: 'MINUTE',
+  timingMode: 'DEADLINE',
+  rangeStartAt: '',
+  reminderEnabled: false,
+  startRemindValue: null,
+  startRemindUnit: 'MINUTE',
+  deadlineRemindValue: null,
+  deadlineRemindUnit: 'MINUTE'
+});
 
 const recurringDraft = reactive({
   title: '',
@@ -217,10 +288,9 @@ const recurringDraft = reactive({
 });
 
 const selectedProjectIds = computed(() => {
-  const source = suiteContext?.selectedProjectIds?.value ?? [];
+  const source = suiteContext?.selectedProjectIds?.value ?? localProjectFilters.value;
   return normalizeProjectFilterIds(source);
 });
-const viewFilter = computed(() => headerState.viewFilter);
 const showCreateForm = computed(() => headerState.showCreateForm);
 const showRecurringPanel = computed(() => headerState.showRecurringPanel);
 const isDayTodoPrecision = computed(() => isDayPrecision(draft.timePrecision));
@@ -232,6 +302,7 @@ const hasUnassignedTodos = computed(() =>
     return !Number.isInteger(projectId) || projectId <= 0;
   })
 );
+const showProjectQueryFilters = computed(() => projects.value.length || hasUnassignedTodos.value);
 
 const filteredTodos = computed(() => {
   return filterTodosByViewAndProjects(todos.value, viewFilter.value, selectedProjectIds.value);
@@ -288,6 +359,45 @@ function projectBadgeStyle(projectId) {
     color,
     backgroundColor: addHexAlpha(color, '22')
   };
+}
+
+function projectChipStyle(projectId) {
+  const chipColor = projectColor(projectId);
+  return {
+    '--project-chip-color': chipColor,
+    '--project-chip-border': addHexAlpha(chipColor, '88'),
+    '--project-chip-bg': addHexAlpha(chipColor, '22')
+  };
+}
+
+function applyProjectFilters(nextFilters) {
+  const normalized = normalizeProjectFilterIds(nextFilters);
+  if (suiteContext?.setProjectFilters) {
+    suiteContext.setProjectFilters(normalized);
+    return;
+  }
+  localProjectFilters.value = normalized;
+}
+
+function clearProjectFilters() {
+  applyProjectFilters([]);
+}
+
+function toggleProjectFilter(projectId) {
+  const normalizedProjectId = Number(projectId);
+  if (!Number.isInteger(normalizedProjectId) || normalizedProjectId < 0) return;
+  const active = selectedProjectIds.value.includes(normalizedProjectId);
+  if (active) {
+    applyProjectFilters(selectedProjectIds.value.filter((id) => id !== normalizedProjectId));
+    return;
+  }
+  applyProjectFilters([...selectedProjectIds.value, normalizedProjectId]);
+}
+
+function isProjectFilterActive(projectId) {
+  const normalizedProjectId = Number(projectId);
+  if (!Number.isInteger(normalizedProjectId) || normalizedProjectId < 0) return false;
+  return selectedProjectIds.value.includes(normalizedProjectId);
 }
 
 function toggleCreateForm() {
@@ -803,19 +913,6 @@ if (suiteContext?.projectVersion) {
 }
 
 watch(
-  [projects, hasUnassignedTodos, openCount, () => todos.value.length],
-  () => {
-    syncTodoWindowHeaderMeta(props.windowId, {
-      projectOptions: projects.value,
-      hasUnassignedTodos: hasUnassignedTodos.value,
-      openCount: openCount.value,
-      totalCount: todos.value.length
-    });
-  },
-  { immediate: true }
-);
-
-watch(
   () => draft.timePrecision,
   (current, previous) => {
     if (!previous || current === previous) return;
@@ -858,6 +955,22 @@ watch(
 .todo-title-field,
 .todo-detail-field {
   grid-column: span 2;
+}
+
+.form-toggle {
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-muted);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+}
+
+.form-toggle input {
+  margin: 0;
 }
 
 .todo-submit-btn,
@@ -929,12 +1042,69 @@ watch(
   color: var(--la-muted);
 }
 
+.todo-query-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.todo-query-row::-webkit-scrollbar {
+  height: 5px;
+}
+
+.todo-query-row::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(110, 122, 146, 0.42);
+}
+
+.chip-btn,
 .icon-btn {
   border: 1px solid var(--la-border);
   background: var(--la-btn-bg);
   color: var(--la-text);
   border-radius: 10px;
   padding: 6px 10px;
+}
+
+.chip-btn {
+  flex: 0 0 auto;
+  min-height: 32px;
+  border-radius: 999px;
+}
+
+.chip-btn.active {
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.24);
+}
+
+.query-hint {
+  margin-left: auto;
+  color: var(--la-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--la-muted);
+  border-color: var(--project-chip-border, var(--la-border));
+  background: var(--project-chip-bg, var(--la-btn-bg));
+}
+
+.project-chip.active {
+  color: var(--project-chip-color, var(--la-text));
+}
+
+.project-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .todo-list {
@@ -1064,6 +1234,10 @@ watch(
   .todo-actions {
     grid-column: 1 / -1;
     justify-content: flex-end;
+  }
+
+  .query-hint {
+    margin-left: 0;
   }
 }
 
