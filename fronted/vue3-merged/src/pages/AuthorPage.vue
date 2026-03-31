@@ -3460,6 +3460,57 @@ onBeforeUnmount(() => {
   animation-delay: -4.1s;
 }
 
+:root[data-theme-mode='day'] .content-panel {
+  --liquid-bg: var(--theme-panel-surface, var(--theme-surface));
+  --liquid-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --liquid-shadow: 0 16px 32px rgba(88, 60, 50, 0.12);
+}
+
+:root[data-theme-mode='day'] .site-settings-preview,
+:root[data-theme-mode='day'] .author-card,
+:root[data-theme-mode='day'] .story-hero-preview,
+:root[data-theme-mode='day'] .story-side-panel,
+:root[data-theme-mode='day'] .hero-fact-card,
+:root[data-theme-mode='day'] .skill-focus-frame,
+:root[data-theme-mode='day'] .identity-unit,
+:root[data-theme-mode='day'] .story-signal-pill,
+:root[data-theme-mode='day'] .story-side-live,
+:root[data-theme-mode='day'] .skill-focus-item,
+:root[data-theme-mode='day'] .link-btn {
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+  box-shadow: 0 10px 22px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .inline-edit-fab {
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  color: var(--theme-icon-primary, rgba(94, 72, 63, 0.92));
+  box-shadow: 0 12px 20px rgba(88, 60, 50, 0.12);
+}
+
+:root[data-theme-mode='day'] .state-tip,
+:root[data-theme-mode='day'] .hero-greeting,
+:root[data-theme-mode='day'] .hero-quote,
+:root[data-theme-mode='day'] .kv-row dt,
+:root[data-theme-mode='day'] .line-text,
+:root[data-theme-mode='day'] .mini-title,
+:root[data-theme-mode='day'] .story-greeting,
+:root[data-theme-mode='day'] .story-quote,
+:root[data-theme-mode='day'] .story-preview-text,
+:root[data-theme-mode='day'] .story-mini-kicker,
+:root[data-theme-mode='day'] .story-side-meta-line,
+:root[data-theme-mode='day'] .field-inline > span,
+:root[data-theme-mode='day'] .identity-label {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .status-select,
+:root[data-theme-mode='day'] .status-input {
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.16));
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+}
+
 @keyframes story-sweep {
   0%,
   16% {

@@ -125,6 +125,7 @@ body {
   .apply-btn,
   .search-btn,
   .refresh-btn,
+  .stage-btn.primary,
   .soft-btn.primary
 ) {
   border-style: solid !important;
@@ -144,6 +145,7 @@ body {
   .apply-btn,
   .search-btn,
   .refresh-btn,
+  .stage-btn.primary,
   .soft-btn.primary
 ):not(:disabled):hover {
   background: var(--accent-mode-fill-hover, var(--accent-mode-fill-strong)) !important;
@@ -165,6 +167,16 @@ body {
   .preset-btn,
   .gradient-btn,
   .mode-btn,
+  .mode-tab,
+  .back-btn,
+  .queue-close,
+  .history-clear-btn,
+  .desc-expand-btn,
+  .pager-load-btn,
+  .pager-retry-btn,
+  .meta-collect-btn,
+  .stage-btn,
+  .npc-action,
   .close-btn,
   .reset-btn,
   .track-action-btn,
@@ -191,6 +203,16 @@ body {
   .preset-btn,
   .gradient-btn,
   .mode-btn,
+  .mode-tab,
+  .back-btn,
+  .queue-close,
+  .history-clear-btn,
+  .desc-expand-btn,
+  .pager-load-btn,
+  .pager-retry-btn,
+  .meta-collect-btn,
+  .stage-btn,
+  .npc-action,
   .close-btn,
   .reset-btn,
   .track-action-btn,
@@ -206,12 +228,15 @@ body {
 
 :is(
   .mode-btn.active,
+  .mode-tab.active,
   .nav-item.active,
   .list-item.selected,
   .chip-btn.active,
   .mini-btn.active,
   .bind-tag.ok,
   .queue-item.active,
+  .table-row.active,
+  .lyric-row.active,
   .track-row.active,
   .playlist-card.opening,
   .switch-btn.active,
@@ -274,11 +299,11 @@ body {
   box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.2)) !important;
 }
 
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) {
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) {
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
 }
 
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
   .profile-content-panel,
   .profile-scroll-frame,
   .overview-card,
@@ -305,14 +330,30 @@ body {
   .category-panel,
   .whisper-panel,
   .post-card,
-  .download-menu
+  .download-menu,
+  .music-fatal-error,
+  .music-left-sidebar,
+  .music-right-panel,
+  .music-search-toolbar,
+  .music-library-dock,
+  .dock-queue,
+  .panel,
+  .playlist-hero,
+  .playlist-table,
+  .music-player-detail-view,
+  .workspace-shell,
+  .workspace-main,
+  .workspace-side,
+  .content-panel,
+  .author-card,
+  .playlist-desc-popover
 ) {
   background: var(--theme-panel-surface, var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84)))) !important;
   border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
   box-shadow: 0 14px 30px rgba(18, 9, 8, 0.18) !important;
 }
 
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
   .group-header,
   .page-mode-tabs,
   .card-icon-drag,
@@ -327,18 +368,71 @@ body {
   .category-panel-card,
   .sidebar-reopen-btn,
   .pill-count,
-  .chip-count
+  .chip-count,
+  .track-card,
+  .lyric-card,
+  .control-panel,
+  .control-chip,
+  .integration-card,
+  .provider-detail,
+  .manual-fallback,
+  .playlist-card,
+  .artist-card,
+  .provider-summary,
+  .nav-item,
+  .list-item,
+  .table-row,
+  .queue-item,
+  .lyric-row,
+  .history-panel,
+  .history-chip,
+  .history-clear-btn,
+  .search-input-wrap,
+  .desc-expand-btn,
+  .pager-load-btn,
+  .pager-retry-btn,
+  .back-btn,
+  .track-action-btn,
+  .dialog-close,
+  .drawer-close,
+  .create-btn,
+  .queue-close,
+  .mode-icon-btn,
+  .mode-pill,
+  .center-time-pill,
+  .lyric-mode-stack,
+  .meta-collect-btn,
+  .scene-chip,
+  .mode-switch,
+  .status-pill,
+  .npc-card,
+  .side-info-card,
+  .side-empty,
+  .highlight-chip,
+  .editor-tag,
+  .editor-card,
+  .editor-data-card,
+  .site-settings-preview,
+  .hero-fact-card,
+  .story-hero-preview,
+  .story-side-panel,
+  .skill-focus-frame,
+  .identity-unit,
+  .story-signal-pill,
+  .story-side-live,
+  .link-btn,
+  .mine-title
 ) {
-  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16)) !important;
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated, rgba(247, 223, 210, 0.16))) !important;
   border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
 }
 
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) .icon-circle-btn {
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) .icon-circle-btn {
   color: var(--theme-icon-primary, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
 }
 
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
   .group-eyebrow,
   .group-caption,
   .helper-text,
@@ -368,12 +462,64 @@ body {
   .action-hint,
   .apps-main-head span,
   .sync-hint,
-  .strip-meta
+  .strip-meta,
+  .mine-meta,
+  .field-tip,
+  .empty-tip,
+  .toolbar-error,
+  .history-title,
+  .desc,
+  .artist-meta,
+  .queue-empty,
+  .hero-type,
+  .hero-desc,
+  .hero-stats,
+  .time,
+  .artist,
+  .queue-meta,
+  .dialog-sub,
+  .collect-meta,
+  .collect-empty,
+  .track-card .artist,
+  .lyric-card .label,
+  .control-head-sub,
+  .control-head-title,
+  .control-value,
+  .range-bound,
+  .control-sub-value,
+  .status-text,
+  .summary-main p,
+  .head-text p,
+  .head-text span,
+  .side-caption,
+  .sub,
+  .album,
+  .line-sub,
+  .hero-fact-label,
+  .story-preview-kicker,
+  .story-side-kicker,
+  .story-greeting,
+  .story-quote,
+  .story-preview-text,
+  .story-mini-kicker,
+  .story-side-meta-line,
+  .field-inline > span,
+  .identity-label,
+  .line-text,
+  .mini-title,
+  .scene-meta-row,
+  .npc-meta,
+  .editor-file-field span,
+  .editor-inline-tip,
+  .editor-preview-list,
+  .editor-data-card dt,
+  .editor-data-card dd,
+  .playlist-desc-popover .body
 ) {
   color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
 }
 
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
   h1,
   h2,
   h3,
@@ -387,9 +533,208 @@ body {
   .detail-head h2,
   .side-block h2,
   .block-head h3,
-  .side-head h3
+  .side-head h3,
+  .brand-text,
+  .title,
+  .queue-name,
+  .dialog-head h3,
+  .collect-name,
+  .provider-head h3,
+  .artist-name,
+  .track-title-text,
+  .panel-head h2,
+  .track-card .title,
+  .stage-copy h2,
+  .side-panel-head h3,
+  .npc-card strong,
+  .side-info-card strong,
+  .editor-card strong,
+  .editor-data-card strong,
+  .site-settings-preview-copy .mini-title,
+  .story-preview-title,
+  .story-status-text,
+  .skill-node-label
 ) {
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+}
+
+:where(.music-library-page, .ai-hub-page, .author-page) :is(
+  .nav-item i,
+  .list-item i,
+  .back-btn,
+  .track-action-btn,
+  .dialog-close,
+  .drawer-close,
+  .create-btn,
+  .queue-close,
+  .mode-icon-btn,
+  .center-time-pill,
+  .play-mode-pill,
+  .mode-btn,
+  .meta-collect-btn,
+  .provider-summary > i,
+  .summary-main i
+) {
+  color: var(--theme-icon-primary, rgba(94, 72, 63, 0.92)) !important;
+}
+
+:where(.music-library-page, .ai-hub-page, .author-page) :is(
+  .search-input-wrap input,
+  .spotify-search-row input,
+  .dialog-field input,
+  .field-block input,
+  .field-block select,
+  .strategy-select,
+  .editor-file-field input,
+  .editor-select,
+  .status-select,
+  .status-input
+) {
+  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16)) !important;
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+:where(.music-library-page, .ai-hub-page, .author-page) :is(
+  .search-input-wrap,
+  .field-block,
+  .dialog-field
+) {
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
+}
+
+:root[data-theme-mode='day'] .music-library-page :is(
+  .music-left-sidebar,
+  .music-right-panel,
+  .music-search-toolbar,
+  .music-library-dock,
+  .dock-queue,
+  .music-fatal-error,
+  .playlist-hero,
+  .playlist-table,
+  .panel,
+  .music-player-detail-view,
+  .playlist-desc-popover
+) {
+  box-shadow: 0 16px 32px rgba(88, 60, 50, 0.12) !important;
+}
+
+:root[data-theme-mode='day'] .music-library-page :is(
+  .track-card,
+  .lyric-card,
+  .control-panel,
+  .control-chip,
+  .integration-card,
+  .provider-detail,
+  .manual-fallback,
+  .playlist-card,
+  .artist-card,
+  .nav-item,
+  .list-item,
+  .table-row,
+  .queue-item,
+  .lyric-row,
+  .history-panel,
+  .history-clear-btn,
+  .desc-expand-btn,
+  .pager-load-btn,
+  .pager-retry-btn,
+  .lyric-mode-stack
+) {
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated)) !important;
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+  box-shadow: 0 12px 24px rgba(88, 60, 50, 0.1) !important;
+}
+
+:root[data-theme-mode='day'] .music-library-page :is(
+  .playlist-card.is-placeholder,
+  .collect-item.login,
+  .empty-state,
+  .queue-empty
+) {
+  background: var(--theme-reader-surface, rgba(255, 253, 250, 0.98)) !important;
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+}
+
+:root[data-theme-mode='day'] .ai-hub-page .workspace-shell {
+  background:
+    radial-gradient(circle at 18% 14%, var(--theme-spot-a, rgba(var(--accent-rgb), 0.16)), transparent 34%),
+    radial-gradient(circle at 82% 20%, var(--theme-spot-b, rgba(var(--accent-rgb), 0.12)), transparent 28%),
+    var(--theme-panel-surface, var(--theme-surface)) !important;
+  box-shadow: 0 20px 40px rgba(88, 60, 50, 0.12) !important;
+}
+
+:root[data-theme-mode='day'] .ai-hub-page .town-map-board {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(246, 184, 92, 0.16), transparent 24%),
+    radial-gradient(circle at 76% 28%, rgba(107, 181, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 78% 72%, rgba(255, 128, 148, 0.12), transparent 22%),
+    linear-gradient(180deg, rgba(255, 251, 247, 0.98), rgba(244, 236, 230, 0.94)) !important;
+  border-color: var(--theme-border-strong, rgba(255, 210, 190, 0.34)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 18px 36px rgba(88, 60, 50, 0.1) !important;
+}
+
+:root[data-theme-mode='day'] .ai-hub-page .map-backdrop {
+  opacity: 0.7 !important;
+  background:
+    linear-gradient(135deg, rgba(128, 114, 104, 0.06) 25%, transparent 25%) 0 0 / 64px 64px,
+    linear-gradient(225deg, rgba(128, 114, 104, 0.04) 25%, transparent 25%) 0 0 / 64px 64px !important;
+}
+
+:root[data-theme-mode='day'] .ai-hub-page .map-gridline {
+  background-image:
+    linear-gradient(rgba(126, 102, 92, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(126, 102, 92, 0.08) 1px, transparent 1px) !important;
+}
+
+:root[data-theme-mode='day'] .ai-hub-page :is(.map-node, .scene-chip) {
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated)) !important;
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96)) !important;
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+  box-shadow: 0 12px 24px rgba(88, 60, 50, 0.1) !important;
+}
+
+:root[data-theme-mode='day'] .ai-hub-page :is(.map-node:hover, .map-node.active, .scene-chip:hover, .scene-chip.active) {
+  background: var(--theme-floating-surface-hover, var(--theme-panel-surface-elevated)) !important;
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
+}
+
+:root[data-theme-mode='day'] .author-page .story-hero-stage {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06) 42%, rgba(var(--accent-rgb), 0.08) 100%),
+    var(--theme-panel-surface, var(--theme-surface)) !important;
+  border-color: var(--theme-border-strong, rgba(255, 210, 190, 0.34)) !important;
+  box-shadow: 0 18px 34px rgba(88, 60, 50, 0.12) !important;
+}
+
+:root[data-theme-mode='day'] .author-page .story-hero-stage::after {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 36%, rgba(153, 120, 108, 0.08)),
+    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 34%) !important;
+}
+
+:root[data-theme-mode='day'] .author-page .story-hero-cover {
+  opacity: 0.26 !important;
+  filter: brightness(1.08) contrast(1.01) saturate(0.94) !important;
+}
+
+:root[data-theme-mode='day'] .author-page :is(
+  .story-hero-preview,
+  .story-side-panel,
+  .hero-fact-card,
+  .skill-focus-frame,
+  .identity-unit,
+  .story-signal-pill,
+  .story-side-live,
+  .skill-focus-item,
+  .site-settings-preview
+) {
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated)) !important;
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
+  box-shadow: 0 10px 22px rgba(88, 60, 50, 0.08) !important;
 }
 
 .auth-page .hero {

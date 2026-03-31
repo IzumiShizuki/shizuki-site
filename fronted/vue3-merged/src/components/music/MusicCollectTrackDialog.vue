@@ -85,14 +85,14 @@ const trackTitle = computed(() => {
   z-index: 1380;
   display: grid;
   place-items: center;
-  background: rgba(6, 10, 18, 0.56);
+  background: var(--theme-scrim, rgba(6, 10, 18, 0.56));
   backdrop-filter: blur(6px);
 }
 
 .dialog-shell {
-  --liquid-bg: linear-gradient(160deg, rgba(18, 22, 33, 0.92), rgba(13, 17, 26, 0.92));
-  --liquid-border: rgba(255, 255, 255, 0.18);
-  --liquid-shadow: 0 20px 36px rgba(5, 8, 14, 0.48);
+  --liquid-bg: var(--theme-panel-surface, linear-gradient(160deg, rgba(18, 22, 33, 0.92), rgba(13, 17, 26, 0.92)));
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.18));
+  --liquid-shadow: 0 20px 36px rgba(18, 9, 8, 0.2);
   width: min(460px, calc(100vw - 24px));
   border-radius: 16px;
   padding: 14px;
@@ -110,22 +110,22 @@ const trackTitle = computed(() => {
 .dialog-head h3 {
   margin: 0;
   font-size: 18px;
-  color: rgba(242, 247, 255, 0.97);
+  color: var(--theme-text-primary, rgba(242, 247, 255, 0.97));
 }
 
 .dialog-sub {
   margin: 6px 0 0;
   font-size: 12px;
-  color: rgba(180, 193, 219, 0.86);
+  color: var(--theme-text-secondary, rgba(180, 193, 219, 0.86));
 }
 
 .dialog-close {
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(237, 243, 255, 0.94);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.12));
+  color: var(--theme-icon-primary, rgba(237, 243, 255, 0.94));
 }
 
 .dialog-body {
@@ -137,16 +137,16 @@ const trackTitle = computed(() => {
 }
 
 .collect-item {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.14));
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.08));
   padding: 10px 12px;
   text-align: left;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  color: rgba(241, 246, 255, 0.96);
+  color: var(--theme-text-primary, rgba(241, 246, 255, 0.96));
 }
 
 .collect-item.primary {
@@ -169,7 +169,7 @@ const trackTitle = computed(() => {
 
 .collect-meta {
   font-size: 11px;
-  color: rgba(180, 193, 219, 0.86);
+  color: var(--theme-text-secondary, rgba(180, 193, 219, 0.86));
 }
 
 .collect-empty {
@@ -178,8 +178,8 @@ const trackTitle = computed(() => {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
-  color: rgba(177, 190, 216, 0.84);
+  border: 1px dashed var(--theme-border, rgba(255, 255, 255, 0.2));
+  color: var(--theme-text-secondary, rgba(177, 190, 216, 0.84));
   font-size: 12px;
 }
 
@@ -198,9 +198,9 @@ const trackTitle = computed(() => {
 .dialog-btn {
   min-height: 34px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(233, 240, 255, 0.94);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.1));
+  color: var(--theme-text-primary, rgba(233, 240, 255, 0.94));
   padding: 0 14px;
 }
 

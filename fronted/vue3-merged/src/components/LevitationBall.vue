@@ -468,7 +468,9 @@ onBeforeUnmount(() => {
 }
 
 .ball-body {
-  --liquid-bg: var(--glass-bg);
+  --liquid-bg: var(--theme-floating-surface, var(--glass-bg));
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.18));
+  --liquid-shadow: 0 16px 28px rgba(18, 9, 8, 0.16);
   position: relative;
   width: 100%;
   height: 100%;
@@ -502,7 +504,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(148, 157, 192, 0.34);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.24)) 88%, transparent);
   pointer-events: none;
 }
 
@@ -522,15 +524,15 @@ onBeforeUnmount(() => {
 }
 
 .float-ball.expanded .ball-body {
-  --liquid-bg: rgba(var(--glass-rgb), 0.34);
+  --liquid-bg: var(--theme-floating-surface, rgba(var(--glass-rgb), 0.34));
   border-radius: 35px;
   overflow: visible;
 }
 
 .ball-icon {
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--theme-floating-ink, rgba(255, 255, 255, 0.88));
   font-size: 18px;
-  opacity: 0.62;
+  opacity: 0.8;
   transition: opacity 0.26s ease, transform 0.26s ease;
 }
 
@@ -566,26 +568,28 @@ onBeforeUnmount(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 0;
-  background: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.2));
+  color: var(--theme-floating-ink, rgba(255, 255, 255, 0.94));
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.1s ease, background-color 0.2s ease, color 0.2s ease;
+  transition: transform 0.1s ease, background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .menu-block:hover {
-  background: rgba(var(--accent-rgb), 0.46);
+  background: var(--theme-floating-surface-hover, rgba(var(--accent-rgb), 0.46));
+  border-color: rgba(var(--accent-rgb), 0.32);
 }
 
 .menu-block.close-block {
-  background: rgba(0, 0, 0, 0.1);
-  color: rgba(0, 0, 0, 0.6);
+  background: var(--theme-floating-close-surface, rgba(0, 0, 0, 0.1));
+  color: var(--theme-icon-muted, rgba(0, 0, 0, 0.6));
 }
 
 .menu-block.close-block:hover {
-  background: rgba(0, 0, 0, 0.22);
+  background: color-mix(in srgb, var(--theme-floating-close-surface, rgba(0, 0, 0, 0.1)) 76%, rgba(var(--accent-rgb), 0.2));
+  border-color: rgba(var(--accent-rgb), 0.24);
 }
 
 .picker-panel {
@@ -595,7 +599,9 @@ onBeforeUnmount(() => {
   min-width: 188px;
   max-width: 240px;
   border-radius: 24px;
-  --liquid-bg: rgba(var(--glass-rgb), 0.34);
+  --liquid-bg: var(--theme-floating-surface, rgba(var(--glass-rgb), 0.34));
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.18));
+  --liquid-shadow: 0 16px 30px rgba(18, 9, 8, 0.16);
   padding: 10px 8px;
   display: flex;
   flex-direction: column;
@@ -619,10 +625,10 @@ onBeforeUnmount(() => {
 }
 
 .picker-item {
-  border: 0;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.18));
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.95);
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.3));
+  color: var(--theme-floating-ink, rgba(255, 255, 255, 0.95));
   min-height: 36px;
   padding: 0 12px;
   display: inline-flex;
@@ -633,14 +639,15 @@ onBeforeUnmount(() => {
 }
 
 .picker-item:hover {
-  background: rgba(var(--accent-rgb), 0.46);
-  color: rgba(255, 255, 255, 1);
+  background: var(--theme-floating-surface-hover, rgba(var(--accent-rgb), 0.46));
+  color: var(--theme-icon-strong, rgba(255, 255, 255, 1));
+  border-color: rgba(var(--accent-rgb), 0.32);
 }
 
 .picker-empty {
   margin: 0;
   font-size: 12px;
-  color: rgba(67, 74, 94, 0.82);
+  color: var(--theme-text-secondary, rgba(67, 74, 94, 0.82));
   padding: 6px;
   text-align: center;
 }

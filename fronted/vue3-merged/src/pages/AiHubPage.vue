@@ -1185,6 +1185,100 @@ onMounted(async () => {
   font-weight: 700;
 }
 
+:root[data-theme-mode='day'] .route-page {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .workspace-shell {
+  --liquid-bg: var(--theme-panel-surface, var(--theme-surface));
+  --liquid-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --liquid-shadow: 0 22px 42px rgba(88, 60, 50, 0.12);
+}
+
+:root[data-theme-mode='day'] .mode-switch,
+:root[data-theme-mode='day'] .workspace-main,
+:root[data-theme-mode='day'] .workspace-side,
+:root[data-theme-mode='day'] .npc-card,
+:root[data-theme-mode='day'] .side-info-card,
+:root[data-theme-mode='day'] .editor-card,
+:root[data-theme-mode='day'] .editor-data-card,
+:root[data-theme-mode='day'] .scene-chip,
+:root[data-theme-mode='day'] .map-node,
+:root[data-theme-mode='day'] .highlight-chip,
+:root[data-theme-mode='day'] .editor-tag,
+:root[data-theme-mode='day'] .side-empty {
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+  box-shadow: 0 12px 24px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .mode-tab {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .mode-tab.active {
+  background: var(--theme-floating-surface-hover, var(--theme-panel-surface-elevated));
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.24),
+    0 10px 22px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .stage-btn,
+:root[data-theme-mode='day'] .npc-action {
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+}
+
+:root[data-theme-mode='day'] .stage-btn.primary {
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+}
+
+:root[data-theme-mode='day'] .stage-btn:hover:not(:disabled),
+:root[data-theme-mode='day'] .npc-action:hover:not(:disabled) {
+  background: var(--theme-floating-surface-hover, var(--theme-panel-surface-elevated));
+}
+
+:root[data-theme-mode='day'] .status-pill {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .status-pill.muted {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .stage-copy p,
+:root[data-theme-mode='day'] .side-panel-head p,
+:root[data-theme-mode='day'] .scene-atmosphere,
+:root[data-theme-mode='day'] .side-tip,
+:root[data-theme-mode='day'] .editor-card p,
+:root[data-theme-mode='day'] .npc-card p,
+:root[data-theme-mode='day'] .side-info-card p,
+:root[data-theme-mode='day'] .editor-file-field span,
+:root[data-theme-mode='day'] .editor-inline-tip,
+:root[data-theme-mode='day'] .editor-preview-list,
+:root[data-theme-mode='day'] .editor-data-card dt,
+:root[data-theme-mode='day'] .editor-data-card dd,
+:root[data-theme-mode='day'] .scene-chip span,
+:root[data-theme-mode='day'] .map-node small,
+:root[data-theme-mode='day'] .scene-meta-row,
+:root[data-theme-mode='day'] .npc-meta {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .editor-file-field input,
+:root[data-theme-mode='day'] .editor-select {
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.16));
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+}
+
+:root[data-theme-mode='day'] .editor-step {
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  color: var(--theme-icon-strong, rgba(72, 52, 46, 0.98));
+}
+
 @media (max-width: 1200px) {
   .workspace-grid {
     grid-template-columns: 1fr;

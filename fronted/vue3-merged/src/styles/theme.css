@@ -27,6 +27,10 @@
   --theme-icon-muted: rgba(210, 220, 238, 0.76);
   --theme-icon-strong: rgba(248, 250, 255, 0.98);
   --theme-divider-soft: rgba(193, 211, 244, 0.24);
+  --theme-floating-surface: linear-gradient(160deg, rgba(18, 24, 38, 0.78), rgba(12, 18, 30, 0.72));
+  --theme-floating-surface-hover: linear-gradient(160deg, rgba(74, 96, 132, 0.3), rgba(24, 32, 48, 0.74));
+  --theme-floating-ink: rgba(244, 248, 255, 0.94);
+  --theme-floating-close-surface: rgba(255, 255, 255, 0.12);
   --theme-contrast-stroke-color: rgba(5, 8, 14, 0.44);
   --theme-contrast-stroke-soft: rgba(5, 8, 14, 0.28);
   --theme-contrast-text-shadow: 0 1px 1px rgba(0, 0, 0, 0.24);

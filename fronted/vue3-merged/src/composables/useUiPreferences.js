@@ -192,6 +192,18 @@ function applyAccentVariables() {
   const themeIconMuted = isDayMode ? 'rgba(125, 99, 88, 0.78)' : 'rgba(210, 220, 238, 0.76)';
   const themeIconStrong = isDayMode ? 'rgba(72, 52, 46, 0.98)' : 'rgba(248, 250, 255, 0.98)';
   const themeDividerSoft = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.16)` : 'rgba(193, 211, 244, 0.24)';
+  const themeFloatingSurface = isDayMode
+    ? `linear-gradient(160deg, rgba(${paperLift.join(', ')}, 0.94), rgba(${paperShade.join(', ')}, 0.84))`
+    : 'linear-gradient(160deg, rgba(18, 24, 38, 0.78), rgba(12, 18, 30, 0.72))';
+  const themeFloatingSurfaceHover = isDayMode
+    ? `linear-gradient(160deg, rgba(${mixTuple(paperLift, gradientStart, 0.16).join(', ')}, 0.98), rgba(${mixTuple(paperShade, gradientEnd, 0.12).join(', ')}, 0.88))`
+    : state.accentMode === 'gradient'
+      ? `linear-gradient(160deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.28), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.22))`
+      : `linear-gradient(160deg, rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.22), rgba(${r}, ${g}, ${b}, 0.18))`;
+  const themeFloatingInk = isDayMode ? 'rgba(86, 64, 56, 0.94)' : 'rgba(244, 248, 255, 0.94)';
+  const themeFloatingCloseSurface = isDayMode
+    ? `rgba(${mixTuple(paperShade, [136, 104, 94], 0.18).join(', ')}, 0.26)`
+    : 'rgba(255, 255, 255, 0.12)';
   const themeSpotA = isDayMode
     ? state.accentMode === 'gradient'
       ? `rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.16)`
@@ -300,6 +312,10 @@ function applyAccentVariables() {
   root.style.setProperty('--theme-icon-muted', themeIconMuted);
   root.style.setProperty('--theme-icon-strong', themeIconStrong);
   root.style.setProperty('--theme-divider-soft', themeDividerSoft);
+  root.style.setProperty('--theme-floating-surface', themeFloatingSurface);
+  root.style.setProperty('--theme-floating-surface-hover', themeFloatingSurfaceHover);
+  root.style.setProperty('--theme-floating-ink', themeFloatingInk);
+  root.style.setProperty('--theme-floating-close-surface', themeFloatingCloseSurface);
   root.style.setProperty('--theme-spot-a', themeSpotA);
   root.style.setProperty('--theme-spot-b', themeSpotB);
   root.style.setProperty('--theme-scrim', themeScrim);
