@@ -1,6 +1,6 @@
 <template>
   <Teleport v-if="portalTarget" :to="portalTarget">
-    <div class="lightapp-header-portal">
+    <div class="lightapp-header-portal" @pointerdown.stop>
       <slot />
     </div>
   </Teleport>

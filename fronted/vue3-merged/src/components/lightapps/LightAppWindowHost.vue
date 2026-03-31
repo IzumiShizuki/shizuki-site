@@ -27,6 +27,7 @@
                 :aria-selected="currentTimePrismModule(win.id) === module.code"
                 :title="module.label"
                 :aria-label="module.label"
+                @pointerdown.stop
                 @click.stop="setTimePrismModule(win.id, module.code)"
               >
                 <i :class="module.iconClass" aria-hidden="true"></i>
@@ -44,6 +45,7 @@
                 :aria-selected="currentPomodoroMode(win.id) === item.mode"
                 :title="item.label"
                 :aria-label="item.label"
+                @pointerdown.stop
                 @click.stop="setPomodoroMode(win.id, item.mode)"
               >
                 <i :class="item.iconClass" aria-hidden="true"></i>
@@ -61,6 +63,7 @@
                 :aria-selected="currentBalanceSection(win.id) === item.code"
                 :title="item.label"
                 :aria-label="item.label"
+                @pointerdown.stop
                 @click.stop="setBalanceSection(win.id, item.code)"
               >
                 <i :class="item.iconClass" aria-hidden="true"></i>
@@ -71,13 +74,13 @@
           </div>
 
           <div class="window-actions">
-            <button class="icon-btn ripple-trigger" :title="win.pinned ? '取消固定' : '固定到主页'" @click.stop="togglePinned(win.id)">
+            <button class="icon-btn ripple-trigger" :title="win.pinned ? '取消固定' : '固定到主页'" @pointerdown.stop @click.stop="togglePinned(win.id)">
               <i :class="win.pinned ? 'fas fa-thumbtack' : 'fas fa-thumbtack fa-rotate-90'" aria-hidden="true"></i>
             </button>
-            <button class="icon-btn ripple-trigger" :title="win.minimized ? '还原' : '最小化'" @click.stop="toggleMinimized(win.id)">
+            <button class="icon-btn ripple-trigger" :title="win.minimized ? '还原' : '最小化'" @pointerdown.stop @click.stop="toggleMinimized(win.id)">
               <i :class="win.minimized ? 'fas fa-up-right-and-down-left-from-center' : 'fas fa-window-minimize'" aria-hidden="true"></i>
             </button>
-            <button class="icon-btn ripple-trigger" title="关闭" @click.stop="closeById(win.id)">
+            <button class="icon-btn ripple-trigger" title="关闭" @pointerdown.stop @click.stop="closeById(win.id)">
               <i class="fas fa-xmark" aria-hidden="true"></i>
             </button>
           </div>
