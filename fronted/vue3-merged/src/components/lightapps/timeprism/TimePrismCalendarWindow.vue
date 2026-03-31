@@ -1,20 +1,25 @@
 <template>
   <section class="lightapp-window calendar-window">
     <div class="calendar-toolbar">
-      <button class="icon-btn ripple-trigger" type="button" title="上个月" @click="shiftMonth(-1)">
-        <i class="fas fa-chevron-left" aria-hidden="true"></i>
-      </button>
-      <h4>{{ monthLabel }}</h4>
-      <button class="icon-btn ripple-trigger" type="button" title="下个月" @click="shiftMonth(1)">
-        <i class="fas fa-chevron-right" aria-hidden="true"></i>
-      </button>
-      <button class="icon-btn ripple-trigger" type="button" title="回到本月" @click="goToday">
+      <div class="calendar-month-nav">
+        <button class="icon-btn ripple-trigger" type="button" title="上个月" @click="shiftMonth(-1)">
+          <i class="fas fa-chevron-left" aria-hidden="true"></i>
+        </button>
+        <h4>{{ monthLabel }}</h4>
+        <button class="icon-btn ripple-trigger" type="button" title="下个月" @click="shiftMonth(1)">
+          <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        </button>
+      </div>
+      <button class="today-btn ripple-trigger" type="button" title="快速跳转到今天" @click="goToday">
         <i class="fas fa-calendar-day" aria-hidden="true"></i>
+        <span>今天</span>
+        <strong>{{ todayLabel }}</strong>
       </button>
       <button class="icon-btn ripple-trigger" type="button" title="刷新" @click="hydrate">
         <i class="fas fa-rotate-right" aria-hidden="true"></i>
       </button>
     </div>
+    <p class="calendar-gesture-hint">上下滚动或拖动可切换月份，日历始终展示最近 6 周。</p>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
@@ -22,7 +27,14 @@
       <span v-for="name in weekdayNames" :key="name">{{ name }}</span>
     </div>
 
-    <section class="calendar-body">
+    <section
+      ref="calendarBodyRef"
+      class="calendar-body"
+      @wheel.prevent="handleCalendarWheel"
+      @pointerdown="handleCalendarPointerDown"
+      @pointerup="handleCalendarPointerUp"
+      @pointercancel="resetCalendarPointerGesture"
+    >
       <article v-for="week in calendarWeeks" :key="week.key" class="calendar-week liquid-material">
         <div class="week-range-layer">
           <span
@@ -36,10 +48,19 @@
           </span>
         </div>
         <div class="week-day-grid">
-          <section v-for="day in week.days" :key="day.isoDate" class="day-cell" :class="{ muted: !day.inCurrentMonth }">
-            <header>{{ day.dayOfMonth }}</header>
+          <section
+            v-for="day in week.days"
+            :key="day.isoDate"
+            class="day-cell"
+            :class="{ muted: !day.inCurrentMonth, today: day.isToday }"
+            :aria-current="day.isToday ? 'date' : undefined"
+          >
+            <header>
+              <span class="day-number">{{ day.dayOfMonth }}</span>
+              <span v-if="day.isToday" class="today-badge">今天</span>
+            </header>
             <ol class="day-item-list">
-              <li v-for="(item, index) in day.singleItems.slice(0, 4)" :key="item.key">
+              <li v-for="(item, index) in day.singleItems" :key="item.key">
                 {{ index + 1 }} {{ item.label }}
               </li>
             </ol>
@@ -51,7 +72,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   listLightAppProjects,
@@ -60,21 +81,43 @@ import {
   listLightAppTodos
 } from '../../../services/lightAppsApi';
 import { readGuestLightAppData, readRemoteLightAppCache, writeRemoteLightAppCache } from '../../../utils/lightAppsDataStore';
+import {
+  buildCalendarWeeks,
+  CALENDAR_WEEKDAY_NAMES,
+  formatCalendarMonthLabel,
+  formatCalendarTodayLabel,
+  normalizeCalendarMonth,
+  parseCalendarDate,
+  resolveCalendarPointerMonthDelta,
+  resolveCalendarWheelMonthDelta
+} from './timePrismCalendarState';
 
 const auth = useAuthSession();
 const errorText = ref('');
-const currentMonth = ref(new Date());
+const today = ref(new Date());
+const currentMonth = ref(normalizeCalendarMonth(today.value));
+const calendarBodyRef = ref(null);
 const todos = ref([]);
 const tasks = ref([]);
 const schedules = ref([]);
 const projects = ref([]);
+const pointerGesture = ref({
+  pointerId: 0,
+  startX: 0,
+  startY: 0
+});
+const wheelGesture = ref({
+  accumulatedY: 0,
+  resetTimer: 0,
+  lastTriggeredAt: 0
+});
 
-const weekdayNames = Object.freeze(['周一', '周二', '周三', '周四', '周五', '周六', '周日']);
+const weekdayNames = CALENDAR_WEEKDAY_NAMES;
 
 const monthLabel = computed(() => {
-  const date = currentMonth.value;
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  return formatCalendarMonthLabel(currentMonth.value);
 });
+const todayLabel = computed(() => formatCalendarTodayLabel(today.value));
 
 const projectMap = computed(() => {
   const map = new Map();
@@ -106,7 +149,7 @@ const calendarEntries = computed(() => {
     const projectId = Number(raw?.projectId) || null;
     const projectName = projectId ? projectMap.value.get(projectId)?.name || `项目#${projectId}` : '无项目';
     entries.push({
-      key: `${sourceType}_${raw?.todoId ?? raw?.taskId ?? raw?.scheduleId ?? Math.random()}`,
+      key: `${sourceType}_${raw?.todoId ?? raw?.taskId ?? raw?.scheduleId ?? `${title}_${raw?.dueAt || raw?.endAt || raw?.rangeStartAt || raw?.startAt || ''}`}`,
       sourceType,
       title,
       projectName,
@@ -124,117 +167,79 @@ const calendarEntries = computed(() => {
 });
 
 const calendarWeeks = computed(() => {
-  const base = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth(), 1);
-  const month = base.getMonth();
-  const gridStart = startOfWeek(base);
-  const weeks = [];
-  for (let weekIndex = 0; weekIndex < 6; weekIndex += 1) {
-    const weekStart = addDays(gridStart, weekIndex * 7);
-    const weekEnd = addDays(weekStart, 6);
-    const days = [];
-    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
-      const dayDate = addDays(weekStart, dayIndex);
-      const isoDate = dateKey(dayDate);
-      const singleItems = calendarEntries.value
-        .filter((item) => !item.isRange && isSameDate(item.start, dayDate))
-        .sort((left, right) => left.start.getTime() - right.start.getTime())
-        .map((item) => ({
-          key: item.key,
-          label: `${item.timePrecision === 'MINUTE' ? `${formatHHmm(item.start)} ` : ''}${item.title}`
-        }));
-      days.push({
-        isoDate,
-        dayOfMonth: dayDate.getDate(),
-        inCurrentMonth: dayDate.getMonth() === month,
-        singleItems
-      });
-    }
-
-    const rangeBars = calendarEntries.value
-      .filter((item) => item.isRange)
-      .map((item) => {
-        const start = maxDate(item.start, weekStart);
-        const end = minDate(item.end, weekEnd);
-        if (!start || !end || start.getTime() > end.getTime()) return null;
-        const startColumn = weekdayColumn(start);
-        const endColumn = weekdayColumn(end) + 1;
-        return {
-          key: `${item.key}_${dateKey(weekStart)}`,
-          startColumn,
-          endColumn,
-          title: item.title,
-          tooltip: `${item.title} · ${item.projectName} · ${formatDateRange(item.start, item.end)}`
-        };
-      })
-      .filter(Boolean);
-
-    weeks.push({
-      key: `week_${dateKey(weekStart)}`,
-      days,
-      rangeBars
-    });
-  }
-  return weeks;
+  return buildCalendarWeeks(currentMonth.value, calendarEntries.value, {
+    today: today.value,
+    maxSingleItems: 4
+  });
 });
-
-function parseDate(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return null;
-  const ts = Date.parse(raw);
-  if (!Number.isFinite(ts)) return null;
-  return new Date(ts);
-}
-
-function dateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function startOfWeek(date) {
-  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const day = target.getDay();
-  const shift = day === 0 ? 6 : day - 1;
-  target.setDate(target.getDate() - shift);
-  return target;
-}
-
-function addDays(date, offset) {
-  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  next.setDate(next.getDate() + offset);
-  return next;
-}
-
-function isSameDate(left, right) {
-  return dateKey(left) === dateKey(right);
-}
-
-function weekdayColumn(date) {
-  const day = date.getDay();
-  return day === 0 ? 7 : day;
-}
-
-function maxDate(left, right) {
-  return left.getTime() >= right.getTime() ? left : right;
-}
-
-function minDate(left, right) {
-  return left.getTime() <= right.getTime() ? left : right;
-}
-
-function formatHHmm(date) {
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-function formatDateRange(startAt, endAt) {
-  return `${dateKey(startAt)} ~ ${dateKey(endAt)}`;
-}
 
 function shiftMonth(offset) {
   const current = currentMonth.value;
-  currentMonth.value = new Date(current.getFullYear(), current.getMonth() + offset, 1);
+  currentMonth.value = normalizeCalendarMonth(new Date(current.getFullYear(), current.getMonth() + offset, 1));
 }
 
 function goToday() {
-  currentMonth.value = new Date();
+  const now = new Date();
+  today.value = now;
+  currentMonth.value = normalizeCalendarMonth(now);
+}
+
+function resetWheelGesture() {
+  if (wheelGesture.value.resetTimer) {
+    window.clearTimeout(wheelGesture.value.resetTimer);
+  }
+  wheelGesture.value.accumulatedY = 0;
+  wheelGesture.value.resetTimer = 0;
+}
+
+function resetCalendarPointerGesture() {
+  pointerGesture.value.pointerId = 0;
+  pointerGesture.value.startX = 0;
+  pointerGesture.value.startY = 0;
+}
+
+function applyCalendarMonthDelta(offset) {
+  if (!offset) return;
+  const now = Date.now();
+  if (now - wheelGesture.value.lastTriggeredAt < 220) return;
+  wheelGesture.value.lastTriggeredAt = now;
+  shiftMonth(offset);
+}
+
+function handleCalendarWheel(event) {
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  wheelGesture.value.accumulatedY += event.deltaY;
+  if (wheelGesture.value.resetTimer) {
+    window.clearTimeout(wheelGesture.value.resetTimer);
+  }
+  wheelGesture.value.resetTimer = window.setTimeout(() => {
+    resetWheelGesture();
+  }, 160);
+  const offset = resolveCalendarWheelMonthDelta(0, wheelGesture.value.accumulatedY);
+  if (!offset) return;
+  resetWheelGesture();
+  applyCalendarMonthDelta(offset);
+}
+
+function handleCalendarPointerDown(event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  pointerGesture.value.pointerId = event.pointerId;
+  pointerGesture.value.startX = event.clientX;
+  pointerGesture.value.startY = event.clientY;
+  event.currentTarget?.setPointerCapture?.(event.pointerId);
+}
+
+function handleCalendarPointerUp(event) {
+  if (pointerGesture.value.pointerId && event.pointerId !== pointerGesture.value.pointerId) return;
+  const offset = resolveCalendarPointerMonthDelta({
+    startX: pointerGesture.value.startX,
+    startY: pointerGesture.value.startY,
+    endX: event.clientX,
+    endY: event.clientY
+  });
+  event.currentTarget?.releasePointerCapture?.(event.pointerId);
+  resetCalendarPointerGesture();
+  applyCalendarMonthDelta(offset);
 }
 
 async function hydrate() {
@@ -279,6 +284,11 @@ async function hydrate() {
 onMounted(() => {
   hydrate();
 });
+
+onBeforeUnmount(() => {
+  resetWheelGesture();
+  resetCalendarPointerGesture();
+});
 </script>
 
 <style scoped>
@@ -290,18 +300,54 @@ onMounted(() => {
   color: var(--la-text);
   display: grid;
   gap: 8px;
+  min-height: 0;
+  height: 100%;
 }
 
 .calendar-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
-.calendar-toolbar h4 {
+.calendar-month-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.calendar-month-nav h4 {
   margin: 0;
   min-width: 112px;
   text-align: center;
+}
+
+.today-btn,
+.icon-btn {
+  border: 1px solid var(--la-border);
+  background: rgba(var(--glass-rgb), 0.28);
+  color: var(--la-text);
+  border-radius: 10px;
+}
+
+.today-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.today-btn strong {
+  font-size: 12px;
+}
+
+.calendar-gesture-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--la-muted);
 }
 
 .weekday-row {
@@ -319,6 +365,17 @@ onMounted(() => {
 .calendar-body {
   display: grid;
   gap: 8px;
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  min-height: 400px;
+  min-height: clamp(400px, calc(100cqh - 124px), 640px);
+  min-width: 0;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.calendar-body:active {
+  cursor: grabbing;
 }
 
 .calendar-week {
@@ -328,6 +385,8 @@ onMounted(() => {
   padding: 8px;
   display: grid;
   gap: 8px;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .week-range-layer {
@@ -358,19 +417,41 @@ onMounted(() => {
   border: 1px solid var(--la-border);
   border-radius: 10px;
   padding: 6px;
-  min-height: 96px;
+  min-height: 0;
   background: var(--la-card-bg);
   display: grid;
   gap: 4px;
+  overflow: hidden;
 }
 
 .day-cell.muted {
   opacity: 0.58;
 }
 
+.day-cell.today {
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.16);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.18);
+}
+
 .day-cell header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 12px;
   color: var(--la-muted);
+}
+
+.day-number {
+  font-weight: 600;
+}
+
+.today-badge {
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(var(--accent-rgb), 0.82);
 }
 
 .day-item-list {
@@ -380,11 +461,52 @@ onMounted(() => {
   display: grid;
   gap: 2px;
   font-size: 11px;
+  align-content: start;
+  overflow: hidden;
+}
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+@container lightapp-window-body (max-width: 760px) {
+  .calendar-toolbar {
+    justify-content: space-between;
+  }
+
+  .calendar-month-nav {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .today-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+@container lightapp-window-body (max-height: 460px) {
+  .calendar-body {
+    min-height: 0;
+  }
+
+  .week-range-item,
+  .day-item-list {
+    font-size: 10px;
+  }
+
+  .day-cell {
+    padding: 4px;
+  }
 }
 
 @media (max-width: 980px) {
   .day-cell {
-    min-height: 74px;
     padding: 5px;
   }
 
