@@ -1,31 +1,61 @@
 <template>
   <section class="lightapp-window">
     <div class="top-toolbar">
-      <button
-        class="icon-btn toolbar-btn ripple-trigger"
-        type="button"
-        :title="showCreateForm ? '收起添加区' : '添加待办'"
-        :aria-label="showCreateForm ? '收起添加区' : '添加待办'"
-        @click="toggleCreateForm"
-      >
-        <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
-      </button>
-      <button
-        class="icon-btn toolbar-btn ripple-trigger"
-        type="button"
-        :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
-        :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
-        @click="toggleRecurringPanel"
-      >
-        <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
-      </button>
-      <span class="toolbar-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
-    </div>
+      <div class="toolbar-main-row">
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showCreateForm ? '收起添加区' : '添加待办'"
+          :aria-label="showCreateForm ? '收起添加区' : '添加待办'"
+          @click="toggleCreateForm"
+        >
+          <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+        </button>
+        <button
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
+          :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
+          @click="toggleRecurringPanel"
+        >
+          <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
+        </button>
+        <span class="toolbar-hint">{{ openCount }} 未完成 / {{ todos.length }} 总计</span>
+      </div>
 
-    <Transition name="panel-collapse">
-      <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
-        <input v-model.trim="draft.title" type="text" placeholder="添加待办，例如：整理算法笔记" />
-        <input v-model.trim="draft.detail" type="text" placeholder="详情（可选）" />
+      <div class="toolbar-chip-row">
+        <span class="toolbar-section-label">视图</span>
+        <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_ALL }" @click="viewFilter = TODO_VIEW_ALL">全部</button>
+        <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_OPEN }" @click="viewFilter = TODO_VIEW_OPEN">未完成</button>
+        <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_DONE }" @click="viewFilter = TODO_VIEW_DONE">已完成</button>
+        <template v-if="showProjectToolbarFilters">
+          <span class="toolbar-section-label">项目</span>
+          <button class="chip-btn ripple-trigger" :class="{ active: !selectedProjectIds.length }" @click="clearProjectFilters">
+            全部项目
+          </button>
+          <button
+            class="chip-btn ripple-trigger"
+            :class="{ active: isProjectFilterActive(UNASSIGNED_PROJECT_FILTER_ID) }"
+            @click="toggleProjectFilter(UNASSIGNED_PROJECT_FILTER_ID)"
+          >
+            无项目
+          </button>
+          <button
+            v-for="project in projects"
+            :key="`project_filter_${project.projectId}`"
+            class="chip-btn ripple-trigger project-chip"
+            :class="{ active: isProjectFilterActive(project.projectId) }"
+            :style="projectChipStyle(project.projectId)"
+            @click="toggleProjectFilter(project.projectId)"
+          >
+            <span class="project-chip-dot" :style="{ backgroundColor: projectColor(project.projectId) }"></span>
+            {{ project.name }}
+          </button>
+        </template>
+      </div>
+
+      <div v-if="showCreateForm" class="toolbar-option-row">
+        <span class="toolbar-section-label">编辑</span>
         <select v-model="draft.projectId">
           <option value="">无项目</option>
           <option v-for="item in projects" :key="item.projectId" :value="String(item.projectId)">
@@ -37,27 +67,34 @@
           <option value="MEDIUM">中</option>
           <option value="HIGH">高</option>
         </select>
+        <select v-model="draft.timingMode">
+          <option value="DEADLINE">截止任务</option>
+          <option value="RANGE">范围任务</option>
+        </select>
+        <select v-model="draft.timePrecision">
+          <option value="MINUTE">分钟级</option>
+          <option value="DAY">日级</option>
+        </select>
+        <label class="toolbar-toggle"><input v-model="draft.showOnCalendar" type="checkbox" /> 日历</label>
+        <label class="toolbar-toggle"><input v-model="draft.reminderEnabled" type="checkbox" /> 提醒</label>
+      </div>
+    </div>
+
+    <Transition name="panel-collapse">
+      <form v-if="showCreateForm" class="todo-create" @submit.prevent="createTodoItem">
+        <input v-model.trim="draft.title" class="todo-title-field" type="text" placeholder="添加待办，例如：整理算法笔记" />
+        <input v-model.trim="draft.detail" class="todo-detail-field" type="text" placeholder="详情（可选）" />
         <input
           v-model="draft.dueAt"
           :type="todoTimeInputType"
           :placeholder="isDayTodoPrecision ? '截止日期' : '截止时间'"
         />
-        <select v-model="draft.timingMode">
-          <option value="DEADLINE">截止任务</option>
-          <option value="RANGE">范围任务</option>
-        </select>
         <input
           v-if="draft.timingMode === 'RANGE'"
           v-model="draft.rangeStartAt"
           :type="todoTimeInputType"
           :placeholder="isDayTodoPrecision ? '开始日期' : '开始时间'"
         />
-        <select v-model="draft.timePrecision">
-          <option value="MINUTE">分钟级</option>
-          <option value="DAY">日级</option>
-        </select>
-        <label class="toggle-check"><input v-model="draft.showOnCalendar" type="checkbox" /> 显示日历</label>
-        <label class="toggle-check"><input v-model="draft.reminderEnabled" type="checkbox" /> 启用提醒</label>
         <input
           v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'"
           v-model.number="draft.startRemindValue"
@@ -75,7 +112,7 @@
           <option value="DAY">天</option>
         </select>
         <button
-          class="icon-btn ripple-trigger"
+          class="icon-btn ripple-trigger todo-submit-btn"
           type="submit"
           :title="saving ? '处理中' : editingTodoId ? '保存修改' : '添加待办'"
           :aria-label="saving ? '处理中' : editingTodoId ? '保存修改' : '添加待办'"
@@ -83,7 +120,7 @@
         >
           <i :class="saving ? 'fas fa-spinner fa-spin' : 'fas fa-check'" aria-hidden="true"></i>
         </button>
-        <button v-if="editingTodoId" class="icon-btn ripple-trigger" type="button" title="取消编辑" @click="cancelTodoEdit">
+        <button v-if="editingTodoId" class="icon-btn ripple-trigger todo-cancel-btn" type="button" title="取消编辑" @click="cancelTodoEdit">
           <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
       </form>
@@ -146,36 +183,6 @@
         <p v-else class="empty-hint">暂无周期规则</p>
       </section>
     </Transition>
-
-    <div class="todo-toolbar">
-      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_ALL }" @click="viewFilter = TODO_VIEW_ALL">全部</button>
-      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_OPEN }" @click="viewFilter = TODO_VIEW_OPEN">未完成</button>
-      <button class="chip-btn ripple-trigger" :class="{ active: viewFilter === TODO_VIEW_DONE }" @click="viewFilter = TODO_VIEW_DONE">已完成</button>
-    </div>
-
-    <div v-if="projects.length || hasUnassignedTodos" class="project-filters">
-      <button class="chip-btn ripple-trigger" :class="{ active: !selectedProjectIds.length }" @click="clearProjectFilters">
-        全部项目
-      </button>
-      <button
-        class="chip-btn ripple-trigger"
-        :class="{ active: isProjectFilterActive(UNASSIGNED_PROJECT_FILTER_ID) }"
-        @click="toggleProjectFilter(UNASSIGNED_PROJECT_FILTER_ID)"
-      >
-        无项目
-      </button>
-      <button
-        v-for="project in projects"
-        :key="`project_filter_${project.projectId}`"
-        class="chip-btn ripple-trigger project-chip"
-        :class="{ active: isProjectFilterActive(project.projectId) }"
-        :style="projectChipStyle(project.projectId)"
-        @click="toggleProjectFilter(project.projectId)"
-      >
-        <span class="project-chip-dot" :style="{ backgroundColor: projectColor(project.projectId) }"></span>
-        {{ project.name }}
-      </button>
-    </div>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
 
@@ -312,6 +319,7 @@ const hasUnassignedTodos = computed(() =>
     return !Number.isInteger(projectId) || projectId <= 0;
   })
 );
+const showProjectToolbarFilters = computed(() => projects.value.length || hasUnassignedTodos.value);
 
 const filteredTodos = computed(() => {
   return filterTodosByViewAndProjects(todos.value, viewFilter.value, selectedProjectIds.value);
@@ -942,20 +950,55 @@ watch(
 }
 
 .top-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
+.toolbar-main-row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.toolbar-chip-row,
+.toolbar-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.toolbar-chip-row::-webkit-scrollbar,
+.toolbar-option-row::-webkit-scrollbar {
+  height: 5px;
+}
+
+.toolbar-chip-row::-webkit-scrollbar-thumb,
+.toolbar-option-row::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(110, 122, 146, 0.42);
+}
+
+.toolbar-section-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--la-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .todo-create {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
   gap: 8px;
 }
 
 .todo-create input,
-.todo-create select {
+.todo-create select,
+.toolbar-option-row select {
   border: 1px solid var(--la-border);
   background: var(--la-input-bg);
   color: var(--la-text);
@@ -963,7 +1006,22 @@ watch(
   padding: 8px 10px;
 }
 
-.toggle-check {
+.toolbar-chip-row .chip-btn,
+.toolbar-option-row select,
+.project-chip {
+  flex: 0 0 auto;
+}
+
+.toolbar-option-row select {
+  min-width: 112px;
+}
+
+.todo-title-field,
+.todo-detail-field {
+  grid-column: span 2;
+}
+
+.toolbar-toggle {
   border: 1px solid var(--la-border);
   background: var(--la-input-bg);
   color: var(--la-muted);
@@ -972,7 +1030,13 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: 34px;
+  flex: 0 0 auto;
+}
+
+.todo-submit-btn,
+.todo-cancel-btn {
+  justify-self: end;
 }
 
 .recurring-panel {
@@ -1037,20 +1101,6 @@ watch(
 
 .recurring-list small {
   color: var(--la-muted);
-}
-
-.todo-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.project-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .chip-btn,
@@ -1220,17 +1270,9 @@ watch(
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .todo-toolbar {
-    gap: 6px;
-  }
-
   .toolbar-hint {
     margin-left: 0;
     width: 100%;
-  }
-
-  .project-filters {
-    gap: 6px;
   }
 
   .todo-item {
@@ -1248,6 +1290,11 @@ watch(
     grid-template-columns: 1fr;
   }
 
+  .todo-title-field,
+  .todo-detail-field {
+    grid-column: auto;
+  }
+
   .recurring-form {
     grid-template-columns: 1fr;
   }
@@ -1260,7 +1307,7 @@ watch(
     padding: 8px 10px;
   }
 
-  .project-filters {
+  .toolbar-option-row {
     gap: 6px;
   }
 }
@@ -1278,6 +1325,11 @@ watch(
 @media (max-width: 960px) {
   .todo-create {
     grid-template-columns: 1fr;
+  }
+
+  .todo-title-field,
+  .todo-detail-field {
+    grid-column: auto;
   }
 
   .toolbar-hint {
