@@ -37,12 +37,21 @@
           <option value="MEDIUM">中</option>
           <option value="HIGH">高</option>
         </select>
-        <input v-model="draft.dueAt" type="datetime-local" />
+        <input
+          v-model="draft.dueAt"
+          :type="todoTimeInputType"
+          :placeholder="isDayTodoPrecision ? '截止日期' : '截止时间'"
+        />
         <select v-model="draft.timingMode">
           <option value="DEADLINE">截止任务</option>
           <option value="RANGE">范围任务</option>
         </select>
-        <input v-if="draft.timingMode === 'RANGE'" v-model="draft.rangeStartAt" type="datetime-local" />
+        <input
+          v-if="draft.timingMode === 'RANGE'"
+          v-model="draft.rangeStartAt"
+          :type="todoTimeInputType"
+          :placeholder="isDayTodoPrecision ? '开始日期' : '开始时间'"
+        />
         <select v-model="draft.timePrecision">
           <option value="MINUTE">分钟级</option>
           <option value="DAY">日级</option>
@@ -183,7 +192,7 @@
             <span class="project-badge" :style="projectBadgeStyle(item.projectId)">
               {{ projectName(item.projectId) }}
             </span>
-            <span v-if="item.dueAt">{{ formatDateTime(item.dueAt) }}</span>
+            <span v-if="item.dueAt">{{ formatTaskDateLabel(item.dueAt, item.timePrecision) }}</span>
           </small>
         </div>
         <div class="todo-actions">
@@ -239,6 +248,14 @@ import {
   normalizeProjectFilterIds
 } from './timePrismSuiteState';
 import { TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
+import {
+  convertTaskInputValue,
+  formatTaskDateLabel,
+  isDayPrecision,
+  parseTaskInputToIso,
+  resolveTaskTimeInputType,
+  toTaskInputValue
+} from './taskTimePrecision';
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
@@ -286,6 +303,8 @@ const selectedProjectIds = computed(() => {
   const source = suiteContext?.selectedProjectIds?.value ?? localProjectFilters.value;
   return normalizeProjectFilterIds(source);
 });
+const isDayTodoPrecision = computed(() => isDayPrecision(draft.timePrecision));
+const todoTimeInputType = computed(() => resolveTaskTimeInputType(draft.timePrecision));
 
 const hasUnassignedTodos = computed(() =>
   todos.value.some((item) => {
@@ -304,22 +323,6 @@ function sortTodos(items) {
   return items
     .slice()
     .sort((left, right) => left.sortNum - right.sortNum || left.todoId - right.todoId);
-}
-
-function parseIsoFromInput(value) {
-  const source = String(value || '').trim();
-  if (!source) return '';
-  const ts = Date.parse(source);
-  if (!Number.isFinite(ts)) return '';
-  return new Date(ts).toISOString();
-}
-
-function toInputDateTime(value) {
-  const ts = Date.parse(value || '');
-  if (!Number.isFinite(ts)) return '';
-  const date = new Date(ts);
-  const pad = (num) => String(num).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function normalizePositiveInteger(value) {
@@ -444,11 +447,11 @@ function startTodoEdit(item) {
   draft.detail = item.detail || '';
   draft.projectId = item.projectId ? String(item.projectId) : '';
   draft.priority = item.priority || 'MEDIUM';
-  draft.dueAt = toInputDateTime(item.dueAt);
   draft.showOnCalendar = item.showOnCalendar !== false;
   draft.timePrecision = item.timePrecision || 'MINUTE';
   draft.timingMode = item.timingMode || 'DEADLINE';
-  draft.rangeStartAt = toInputDateTime(item.rangeStartAt);
+  draft.dueAt = toTaskInputValue(item.dueAt, draft.timePrecision);
+  draft.rangeStartAt = toTaskInputValue(item.rangeStartAt, draft.timePrecision);
   draft.reminderEnabled = Boolean(item.reminderEnabled);
   draft.startRemindValue = normalizePositiveInteger(item.startRemindValue);
   draft.startRemindUnit = item.startRemindUnit || 'MINUTE';
@@ -587,15 +590,6 @@ function priorityLabel(priority) {
   return '中优先级';
 }
 
-function formatDateTime(iso) {
-  const ts = Date.parse(iso || '');
-  if (!Number.isFinite(ts)) return '';
-  const date = new Date(ts);
-  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(
-    date.getMinutes()
-  ).padStart(2, '0')}`;
-}
-
 function buildTodoPayload(item, overrides = {}) {
   const timingMode = (overrides.timingMode ?? item.timingMode ?? 'DEADLINE').toUpperCase();
   const reminderEnabled = Boolean(overrides.reminderEnabled ?? item.reminderEnabled);
@@ -729,8 +723,9 @@ async function createTodoItem() {
 
   errorText.value = '';
   saving.value = true;
-  const parsedDueAt = parseIsoFromInput(draft.dueAt);
-  const parsedRangeStartAt = parseIsoFromInput(draft.rangeStartAt);
+  const precision = (draft.timePrecision || 'MINUTE').toUpperCase();
+  const parsedDueAt = parseTaskInputToIso(draft.dueAt, precision, { boundary: 'end' });
+  const parsedRangeStartAt = parseTaskInputToIso(draft.rangeStartAt, precision, { boundary: 'start' });
   const timingMode = (draft.timingMode || 'DEADLINE').toUpperCase();
 
   try {
@@ -743,7 +738,7 @@ async function createTodoItem() {
       done: false,
       dueAt: parsedDueAt || null,
       showOnCalendar: draft.showOnCalendar !== false,
-      timePrecision: (draft.timePrecision || 'MINUTE').toUpperCase(),
+      timePrecision: precision,
       timingMode,
       rangeStartAt: timingMode === 'RANGE' ? parsedRangeStartAt || null : null,
       reminderEnabled: Boolean(draft.reminderEnabled),
@@ -920,6 +915,15 @@ if (suiteContext?.projectVersion) {
     }
   );
 }
+
+watch(
+  () => draft.timePrecision,
+  (current, previous) => {
+    if (!previous || current === previous) return;
+    draft.dueAt = convertTaskInputValue(draft.dueAt, previous, current, { boundary: 'end' });
+    draft.rangeStartAt = convertTaskInputValue(draft.rangeStartAt, previous, current, { boundary: 'start' });
+  }
+);
 </script>
 
 <style scoped>

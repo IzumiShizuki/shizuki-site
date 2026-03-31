@@ -45,12 +45,21 @@
             {{ column.title }}
           </option>
         </select>
-        <input v-model="draft.dueAt" type="datetime-local" />
+        <input
+          v-model="draft.dueAt"
+          :type="taskTimeInputType"
+          :placeholder="isDayTaskPrecision ? '截止日期' : '截止时间'"
+        />
         <select v-model="draft.timingMode">
           <option value="DEADLINE">截止任务</option>
           <option value="RANGE">范围任务</option>
         </select>
-        <input v-if="draft.timingMode === 'RANGE'" v-model="draft.rangeStartAt" type="datetime-local" />
+        <input
+          v-if="draft.timingMode === 'RANGE'"
+          v-model="draft.rangeStartAt"
+          :type="taskTimeInputType"
+          :placeholder="isDayTaskPrecision ? '开始日期' : '开始时间'"
+        />
         <select v-model="draft.timePrecision">
           <option value="MINUTE">分钟级</option>
           <option value="DAY">日级</option>
@@ -189,7 +198,7 @@
             <p>{{ item.title }}</p>
             <small>
               <template v-if="item.projectId">{{ projectName(item.projectId) }}</template>
-              <template v-if="item.dueAt"> · {{ formatDateTime(item.dueAt) }}</template>
+              <template v-if="item.dueAt"> · {{ formatTaskDateLabel(item.dueAt, item.timePrecision) }}</template>
             </small>
             <div class="card-actions">
               <button class="icon-btn ripple-trigger" title="编辑" @click="startTaskEdit(item)">
@@ -239,6 +248,14 @@ import {
 } from '../../../utils/lightAppsDataStore';
 import { TIMEPRISM_MODULE_BOARD, TIMEPRISM_SUITE_CONTEXT_KEY } from './timePrismSuiteState';
 import { TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
+import {
+  convertTaskInputValue,
+  formatTaskDateLabel,
+  isDayPrecision,
+  parseTaskInputToIso,
+  resolveTaskTimeInputType,
+  toTaskInputValue
+} from './taskTimePrecision';
 
 const auth = useAuthSession();
 const suiteContext = inject(TIMEPRISM_SUITE_CONTEXT_KEY, null);
@@ -284,6 +301,8 @@ const recurringDraft = reactive({
 });
 
 const enabledColumns = computed(() => columns.value.filter((item) => item.enabled));
+const isDayTaskPrecision = computed(() => isDayPrecision(draft.timePrecision));
+const taskTimeInputType = computed(() => resolveTaskTimeInputType(draft.timePrecision));
 
 const tasksByColumn = computed(() => {
   const result = {};
@@ -389,31 +408,6 @@ function projectName(projectId) {
   return matched?.name || `项目#${id}`;
 }
 
-function formatDateTime(iso) {
-  const ts = Date.parse(iso || '');
-  if (!Number.isFinite(ts)) return '';
-  const date = new Date(ts);
-  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(
-    date.getMinutes()
-  ).padStart(2, '0')}`;
-}
-
-function parseIsoFromInput(value) {
-  const source = String(value || '').trim();
-  if (!source) return '';
-  const ts = Date.parse(source);
-  if (!Number.isFinite(ts)) return '';
-  return new Date(ts).toISOString();
-}
-
-function toInputDateTime(value) {
-  const ts = Date.parse(value || '');
-  if (!Number.isFinite(ts)) return '';
-  const date = new Date(ts);
-  const pad = (num) => String(num).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 function normalizePositiveInteger(value) {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return null;
@@ -500,11 +494,11 @@ function startTaskEdit(item) {
   draft.detail = item.detail || '';
   draft.projectId = item.projectId ? String(item.projectId) : '';
   draft.columnCode = item.columnCode || enabledColumns.value[0]?.columnCode || 'todo';
-  draft.dueAt = toInputDateTime(item.dueAt);
   draft.showOnCalendar = item.showOnCalendar !== false;
   draft.timePrecision = item.timePrecision || 'MINUTE';
   draft.timingMode = item.timingMode || 'DEADLINE';
-  draft.rangeStartAt = toInputDateTime(item.rangeStartAt);
+  draft.dueAt = toTaskInputValue(item.dueAt, draft.timePrecision);
+  draft.rangeStartAt = toTaskInputValue(item.rangeStartAt, draft.timePrecision);
   draft.reminderEnabled = Boolean(item.reminderEnabled);
   draft.startRemindValue = normalizePositiveInteger(item.startRemindValue);
   draft.startRemindUnit = item.startRemindUnit || 'MINUTE';
@@ -748,8 +742,9 @@ async function createTaskItem() {
   const targetColumn = enabledColumns.value.some((item) => item.columnCode === draft.columnCode)
     ? draft.columnCode
     : enabledColumns.value[0]?.columnCode || 'todo';
-  const parsedDueAt = parseIsoFromInput(draft.dueAt);
-  const parsedRangeStartAt = parseIsoFromInput(draft.rangeStartAt);
+  const precision = (draft.timePrecision || 'MINUTE').toUpperCase();
+  const parsedDueAt = parseTaskInputToIso(draft.dueAt, precision, { boundary: 'end' });
+  const parsedRangeStartAt = parseTaskInputToIso(draft.rangeStartAt, precision, { boundary: 'start' });
   const timingMode = (draft.timingMode || 'DEADLINE').toUpperCase();
 
   try {
@@ -761,7 +756,7 @@ async function createTaskItem() {
       columnCode: targetColumn,
       dueAt: parsedDueAt || null,
       showOnCalendar: draft.showOnCalendar !== false,
-      timePrecision: (draft.timePrecision || 'MINUTE').toUpperCase(),
+      timePrecision: precision,
       timingMode,
       rangeStartAt: timingMode === 'RANGE' ? parsedRangeStartAt || null : null,
       reminderEnabled: Boolean(draft.reminderEnabled),
@@ -1004,6 +999,15 @@ if (suiteContext?.projectVersion) {
     }
   );
 }
+
+watch(
+  () => draft.timePrecision,
+  (current, previous) => {
+    if (!previous || current === previous) return;
+    draft.dueAt = convertTaskInputValue(draft.dueAt, previous, current, { boundary: 'end' });
+    draft.rangeStartAt = convertTaskInputValue(draft.rangeStartAt, previous, current, { boundary: 'start' });
+  }
+);
 </script>
 
 <style scoped>
