@@ -45,6 +45,15 @@ describe('useUiPreferences', () => {
     expect(document.documentElement.getAttribute('data-accent-mode')).toBe('solid');
     expect(document.documentElement.getAttribute('data-theme-mode')).toBe('night');
     expect(document.documentElement.style.getPropertyValue('--theme-surface')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-panel-surface')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-panel-surface-elevated')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-reader-surface')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-code-surface')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-code-border')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-icon-primary')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-icon-muted')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-icon-strong')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--theme-divider-soft')).not.toBe('');
     expect(document.documentElement.style.getPropertyValue('--theme-contrast-text-shadow-strong')).not.toBe('');
     expect(document.documentElement.style.getPropertyValue('--theme-contrast-icon-shadow-strong')).not.toBe('');
     expect(readStoredPreferences()).toEqual(
@@ -163,6 +172,9 @@ describe('useUiPreferences', () => {
     ui.initializeUiPreferences();
     const nightSurface = document.documentElement.style.getPropertyValue('--theme-surface');
     const nightStrongShadow = document.documentElement.style.getPropertyValue('--theme-contrast-text-shadow-strong');
+    const nightPanelSurface = document.documentElement.style.getPropertyValue('--theme-panel-surface');
+    const nightReaderSurface = document.documentElement.style.getPropertyValue('--theme-reader-surface');
+    const nightIconPrimary = document.documentElement.style.getPropertyValue('--theme-icon-primary');
 
     ui.toggleThemeMode();
 
@@ -170,6 +182,12 @@ describe('useUiPreferences', () => {
     expect(document.documentElement.getAttribute('data-theme-mode')).toBe('day');
     expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light');
     expect(document.documentElement.style.getPropertyValue('--theme-surface')).not.toBe(nightSurface);
+    expect(document.documentElement.style.getPropertyValue('--theme-panel-surface')).not.toBe(nightPanelSurface);
+    expect(document.documentElement.style.getPropertyValue('--theme-reader-surface')).not.toBe(nightReaderSurface);
+    expect(document.documentElement.style.getPropertyValue('--theme-icon-primary')).not.toBe(nightIconPrimary);
+    expect(document.documentElement.style.getPropertyValue('--theme-icon-primary')).not.toBe(
+      document.documentElement.style.getPropertyValue('--theme-text-primary')
+    );
     expect(document.documentElement.style.getPropertyValue('--theme-contrast-text-shadow-strong')).not.toBe(nightStrongShadow);
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({

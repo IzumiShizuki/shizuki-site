@@ -496,7 +496,7 @@ watch(
 
 .icon-minimal {
   font-size: 20px;
-  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
   height: 32px;
   width: 32px;
   display: flex;
@@ -523,7 +523,7 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
   transition: all 0.3s ease;
   text-shadow: var(--theme-contrast-icon-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.6));
   -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.24px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
@@ -601,6 +601,10 @@ watch(
   -webkit-text-stroke: var(--theme-contrast-outline-width, 0.18px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
 }
 
+.pill-btn-box i {
+  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+}
+
 .menu-item-stack:hover .pill-btn-box {
   --liquid-bg: var(--menu-hover-bg);
   transform: translateY(-2px);
@@ -661,7 +665,7 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
   border-radius: 50%;
   transition: transform 0.2s, color 0.2s;
   text-shadow: var(--theme-contrast-icon-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.6));
@@ -735,7 +739,7 @@ watch(
   justify-content: center;
   filter: saturate(0.72);
   border-color: var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
-  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9));
+  color: var(--theme-icon-primary, var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9)));
   font-size: 16px;
 }
 

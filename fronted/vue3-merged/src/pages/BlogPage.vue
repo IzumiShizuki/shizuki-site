@@ -2525,18 +2525,27 @@ onBeforeUnmount(() => {
   --blog-panel-padding: clamp(8px, 0.8vw, 12px);
   --blog-left-width: clamp(200px, 18vw, 248px);
   --blog-right-width: clamp(190px, 20vw, 288px);
+  --blog-panel-surface: var(--theme-panel-surface, var(--theme-surface));
+  --blog-panel-surface-elevated: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  --blog-reader-surface: var(--theme-reader-surface, var(--theme-panel-surface-elevated));
+  --blog-code-surface: var(--theme-code-surface, rgba(5, 10, 18, 0.62));
+  --blog-code-border: var(--theme-code-border, rgba(255, 255, 255, 0.18));
+  --blog-icon-primary: var(--theme-icon-primary, var(--theme-text-primary));
+  --blog-icon-muted: var(--theme-icon-muted, var(--theme-text-secondary));
+  --blog-icon-strong: var(--theme-icon-strong, var(--theme-text-primary));
+  --blog-divider-soft: var(--theme-divider-soft, rgba(255, 255, 255, 0.18));
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  color: rgba(239, 244, 255, 0.96);
+  color: var(--theme-text-primary, rgba(239, 244, 255, 0.96));
   display: flex;
   flex-direction: column;
   gap: var(--blog-gap);
 }
 
 .toolbar {
-  --liquid-bg: rgba(20, 27, 42, 0.34);
-  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-bg: var(--blog-panel-surface);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.2));
   --liquid-shadow: 0 12px 28px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
   padding: var(--blog-panel-padding) calc(var(--blog-panel-padding) + 2px);
@@ -2556,7 +2565,7 @@ onBeforeUnmount(() => {
 
 .toolbar-meta {
   font-size: 12px;
-  color: rgba(214, 223, 245, 0.9);
+  color: var(--theme-text-secondary, rgba(214, 223, 245, 0.9));
   display: flex;
   gap: 10px;
 }
@@ -2566,9 +2575,9 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 36px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(11, 16, 28, 0.42);
-  color: rgba(236, 241, 255, 0.96);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.22));
+  background: var(--blog-panel-surface-elevated);
+  color: var(--theme-text-primary, rgba(236, 241, 255, 0.96));
   padding: 0 12px;
 }
 
@@ -2604,8 +2613,8 @@ onBeforeUnmount(() => {
 .left-panel,
 .center-panel,
 .right-panel {
-  --liquid-bg: rgba(20, 27, 42, 0.34);
-  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-bg: var(--blog-panel-surface);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.2));
   --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.2);
   border-radius: 14px;
   height: 100%;
@@ -2787,8 +2796,8 @@ onBeforeUnmount(() => {
 }
 
 .post-card {
-  --liquid-bg: rgba(17, 24, 40, 0.32);
-  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-bg: var(--blog-panel-surface);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.2));
   --liquid-shadow: 0 12px 26px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
   padding: 12px;
@@ -2806,7 +2815,7 @@ onBeforeUnmount(() => {
 
 .card-head h3 {
   font-size: 17px;
-  color: rgba(242, 247, 255, 0.96);
+  color: var(--theme-text-primary, rgba(242, 247, 255, 0.96));
 }
 
 .visibility {
@@ -2818,7 +2827,7 @@ onBeforeUnmount(() => {
 }
 
 .summary {
-  color: rgba(217, 226, 247, 0.9);
+  color: var(--theme-text-secondary, rgba(217, 226, 247, 0.9));
   line-height: 1.6;
 }
 
@@ -2827,7 +2836,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 8px 12px;
   font-size: 12px;
-  color: rgba(204, 215, 241, 0.88);
+  color: var(--theme-text-secondary, rgba(204, 215, 241, 0.88));
 }
 
 .tag-row {
@@ -2840,9 +2849,9 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(233, 240, 255, 0.94);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.14));
+  color: var(--theme-text-primary, rgba(233, 240, 255, 0.94));
 }
 
 .detail-view {
@@ -2874,9 +2883,9 @@ onBeforeUnmount(() => {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(241, 246, 255, 0.96);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.24));
+  background: var(--blog-panel-surface-elevated);
+  color: var(--blog-icon-primary, rgba(241, 246, 255, 0.96));
   display: inline-grid;
   place-items: center;
   font-size: 15px;
@@ -2887,8 +2896,8 @@ onBeforeUnmount(() => {
 }
 
 .download-menu {
-  --liquid-bg: rgba(13, 19, 32, 0.8);
-  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-bg: var(--blog-panel-surface-elevated);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.2));
   --liquid-shadow: 0 14px 26px rgba(5, 9, 16, 0.24);
   position: absolute;
   top: calc(100% + 6px);
@@ -2907,8 +2916,8 @@ onBeforeUnmount(() => {
   min-height: 30px;
   padding: 0 10px;
   text-align: left;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(236, 244, 255, 0.95);
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.12));
+  color: var(--theme-text-primary, rgba(236, 244, 255, 0.95));
 }
 
 .detail-title-row {
@@ -2924,7 +2933,7 @@ onBeforeUnmount(() => {
 }
 
 .detail-summary {
-  color: rgba(218, 227, 247, 0.9);
+  color: var(--theme-text-secondary, rgba(218, 227, 247, 0.9));
   line-height: 1.65;
 }
 
@@ -2933,8 +2942,8 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: 100%;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(8, 12, 20, 0.36);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
+  background: var(--blog-reader-surface);
   padding: 14px;
 }
 
@@ -2947,8 +2956,8 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(7, 11, 19, 0.52);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
+  background: var(--blog-panel-surface-elevated);
 }
 
 .detail-cover {
@@ -2970,8 +2979,8 @@ onBeforeUnmount(() => {
 }
 
 .editor-topbar {
-  --liquid-bg: rgba(16, 24, 38, 0.52);
-  --liquid-border: rgba(255, 255, 255, 0.22);
+  --liquid-bg: var(--blog-panel-surface-elevated);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.22));
   --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
   padding: var(--blog-panel-padding);
@@ -2992,12 +3001,12 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 14px;
   line-height: 1.25;
-  color: rgba(239, 245, 255, 0.96);
+  color: var(--theme-text-primary, rgba(239, 245, 255, 0.96));
 }
 
 .editor-topbar-mode {
   font-size: 12px;
-  color: rgba(211, 223, 248, 0.9);
+  color: var(--theme-text-secondary, rgba(211, 223, 248, 0.9));
 }
 
 .editor-topbar-actions {
@@ -3026,8 +3035,8 @@ onBeforeUnmount(() => {
 }
 
 .editor-meta {
-  --liquid-bg: rgba(16, 24, 38, 0.34);
-  --liquid-border: rgba(255, 255, 255, 0.2);
+  --liquid-bg: var(--blog-panel-surface);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.2));
   --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.2);
   border-radius: 12px;
   padding: var(--blog-panel-padding);
@@ -3075,12 +3084,12 @@ onBeforeUnmount(() => {
 .editor-meta-title h3 {
   margin: 0;
   font-size: 13px;
-  color: rgba(231, 239, 255, 0.95);
+  color: var(--theme-text-primary, rgba(231, 239, 255, 0.95));
 }
 
 .editor-meta-title span {
   font-size: 12px;
-  color: rgba(205, 217, 243, 0.84);
+  color: var(--theme-text-secondary, rgba(205, 217, 243, 0.84));
 }
 
 .editor-meta-head-actions {
@@ -3123,7 +3132,7 @@ onBeforeUnmount(() => {
 
 .field span {
   font-size: 12px;
-  color: rgba(218, 228, 248, 0.9);
+  color: var(--theme-text-secondary, rgba(218, 228, 248, 0.9));
 }
 
 .field-wide {
@@ -3131,7 +3140,7 @@ onBeforeUnmount(() => {
 }
 
 .file-field input[type='file'] {
-  color: rgba(232, 240, 255, 0.92);
+  color: var(--theme-text-primary, rgba(232, 240, 255, 0.92));
 }
 
 .editor-meta-foot {
@@ -3139,7 +3148,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   min-width: 0;
   padding-top: 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--blog-divider-soft);
 }
 
 .editor-meta-foot-actions {
@@ -3167,7 +3176,7 @@ onBeforeUnmount(() => {
 
 .editor-status {
   font-size: 12px;
-  color: rgba(208, 220, 247, 0.88);
+  color: var(--theme-text-secondary, rgba(208, 220, 247, 0.88));
 }
 
 .editor-body {
@@ -3199,7 +3208,7 @@ onBeforeUnmount(() => {
 
 .editor-pane span {
   font-size: 12px;
-  color: rgba(218, 228, 248, 0.9);
+  color: var(--theme-text-secondary, rgba(218, 228, 248, 0.9));
 }
 
 .editor-mode-toggle {
@@ -3279,8 +3288,8 @@ onBeforeUnmount(() => {
 }
 
 .editor-info-section {
-  --liquid-bg: rgba(14, 20, 34, 0.42);
-  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-bg: var(--blog-panel-surface-elevated);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.14));
   --liquid-shadow: 0 12px 24px rgba(6, 10, 18, 0.14);
   border-radius: 12px;
   padding: 12px;
@@ -3298,12 +3307,12 @@ onBeforeUnmount(() => {
 .editor-info-section-head h3 {
   margin: 0;
   font-size: 13px;
-  color: rgba(235, 243, 255, 0.96);
+  color: var(--theme-text-primary, rgba(235, 243, 255, 0.96));
 }
 
 .editor-info-section-status {
   font-size: 12px;
-  color: rgba(204, 217, 244, 0.9);
+  color: var(--theme-text-secondary, rgba(204, 217, 244, 0.9));
 }
 
 .editor-info-section-actions {
@@ -3339,7 +3348,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   min-width: 0;
   padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--blog-divider-soft);
 }
 
 .editor-info-panel-status {
@@ -3353,7 +3362,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 3px;
   font-size: 12px;
-  color: rgba(207, 220, 247, 0.9);
+  color: var(--theme-text-secondary, rgba(207, 220, 247, 0.9));
 }
 
 .toc-list {
@@ -3369,7 +3378,7 @@ onBeforeUnmount(() => {
   min-height: 30px;
   border-radius: 0;
   background: transparent;
-  color: rgba(222, 234, 255, 0.93);
+  color: var(--theme-text-secondary, rgba(222, 234, 255, 0.93));
   text-align: left;
   font-size: 13px;
   padding: 3px 4px 3px 0;
@@ -3385,7 +3394,7 @@ onBeforeUnmount(() => {
   left: calc(10px + var(--toc-indent));
   top: -4px;
   bottom: -4px;
-  border-left: 1px solid rgba(148, 168, 206, 0.3);
+  border-left: 1px solid var(--blog-divider-soft);
   pointer-events: none;
 }
 
@@ -3394,7 +3403,7 @@ onBeforeUnmount(() => {
   left: calc(10px + var(--toc-indent));
   top: 50%;
   width: 13px;
-  border-top: 1px solid rgba(179, 199, 236, 0.64);
+  border-top: 1px solid var(--blog-divider-soft);
   transform: translateY(-50%);
 }
 
@@ -3405,7 +3414,7 @@ onBeforeUnmount(() => {
   left: 0;
   top: -15px;
   bottom: -15px;
-  border-left: 1px solid rgba(179, 199, 236, 0.5);
+  border-left: 1px solid var(--blog-divider-soft);
 }
 
 .toc-item .toc-icon {
@@ -3415,7 +3424,7 @@ onBeforeUnmount(() => {
   place-items: center;
   flex: 0 0 16px;
   margin-left: calc(var(--toc-indent) + 14px);
-  color: rgba(193, 211, 242, 0.9);
+  color: var(--blog-icon-muted, rgba(193, 211, 242, 0.9));
 }
 
 .toc-item .toc-icon i {
@@ -3441,11 +3450,11 @@ onBeforeUnmount(() => {
 }
 
 .toc-item.ancestor {
-  color: rgba(236, 246, 255, 0.98);
+  color: var(--theme-text-primary, rgba(236, 246, 255, 0.98));
 }
 
 .toc-item.active {
-  color: rgba(255, 255, 255, 0.99);
+  color: var(--theme-text-primary, rgba(255, 255, 255, 0.99));
   font-weight: 740;
   text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.22);
 }
@@ -3459,7 +3468,7 @@ onBeforeUnmount(() => {
 }
 
 .toc-item:hover {
-  color: rgba(246, 252, 255, 0.98);
+  color: var(--theme-text-primary, rgba(246, 252, 255, 0.98));
 }
 
 .toc-empty {
@@ -3468,17 +3477,17 @@ onBeforeUnmount(() => {
 
 .error-text {
   font-size: 13px;
-  color: #ffadb2;
+  color: rgba(165, 70, 86, 0.96);
 }
 
 .notice-text {
   font-size: 13px;
-  color: #99e8c2;
+  color: rgba(56, 120, 85, 0.96);
 }
 
 .empty-text {
   font-size: 13px;
-  color: rgba(208, 220, 246, 0.88);
+  color: var(--theme-text-secondary, rgba(208, 220, 246, 0.88));
 }
 
 .progress-fab {
@@ -3491,8 +3500,8 @@ onBeforeUnmount(() => {
   padding: 0;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  color: rgba(241, 246, 255, 0.96);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.24));
+  color: var(--blog-icon-primary, rgba(241, 246, 255, 0.96));
   z-index: 1200;
   overflow: hidden;
 }
@@ -3501,7 +3510,9 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 30% 30%, rgba(var(--accent-rgb), 0.2), rgba(9, 14, 25, 0.68));
+  background:
+    radial-gradient(circle at 30% 30%, rgba(var(--accent-rgb), 0.22), transparent 68%),
+    var(--blog-panel-surface-elevated);
   z-index: -1;
 }
 
@@ -3513,7 +3524,7 @@ onBeforeUnmount(() => {
 
 .progress-ring-bg {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.18);
+  stroke: var(--blog-divider-soft);
   stroke-width: 4;
 }
 
@@ -3534,21 +3545,21 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgba(241, 246, 255, 0.98);
+  color: var(--theme-text-primary, rgba(241, 246, 255, 0.98));
 }
 
 .dialog-mask {
   position: fixed;
   inset: 0;
-  background: rgba(4, 8, 15, 0.56);
+  background: var(--theme-scrim, rgba(4, 8, 15, 0.56));
   z-index: 1600;
   display: grid;
   place-items: center;
 }
 
 .paste-dialog {
-  --liquid-bg: rgba(20, 27, 42, 0.54);
-  --liquid-border: rgba(255, 255, 255, 0.24);
+  --liquid-bg: var(--blog-panel-surface-elevated);
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.24));
   --liquid-shadow: 0 18px 36px rgba(6, 10, 18, 0.28);
   width: min(92vw, 460px);
   border-radius: 14px;
@@ -3563,7 +3574,7 @@ onBeforeUnmount(() => {
 
 .paste-dialog p {
   line-height: 1.65;
-  color: rgba(219, 229, 248, 0.92);
+  color: var(--theme-text-secondary, rgba(219, 229, 248, 0.92));
 }
 
 .delete-dialog-current {
@@ -3576,7 +3587,7 @@ onBeforeUnmount(() => {
 }
 
 .markdown-body {
-  color: rgba(232, 240, 255, 0.95);
+  color: var(--theme-text-primary, rgba(232, 240, 255, 0.95));
   line-height: 1.72;
   user-select: text;
 }
@@ -3589,7 +3600,7 @@ onBeforeUnmount(() => {
 .markdown-body :deep(h6) {
   margin-top: 1.15em;
   margin-bottom: 0.5em;
-  color: rgba(244, 249, 255, 0.98);
+  color: var(--theme-text-primary, rgba(244, 249, 255, 0.98));
   scroll-margin-top: 12px;
 }
 
@@ -3606,15 +3617,16 @@ onBeforeUnmount(() => {
   margin: 0.75em 0;
   border-left: 3px solid rgba(var(--accent-rgb), 0.62);
   padding-left: 10px;
-  color: rgba(213, 225, 248, 0.9);
+  color: var(--theme-text-secondary, rgba(213, 225, 248, 0.9));
 }
 
 .markdown-body :deep(pre) {
   margin: 0.8em 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(5, 10, 18, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--blog-code-surface);
+  border: 1px solid var(--blog-code-border);
+  color: var(--theme-text-primary, rgba(232, 240, 255, 0.95));
   overflow: auto;
 }
 
@@ -3626,7 +3638,8 @@ onBeforeUnmount(() => {
 .markdown-body :deep(.md-inline-code) {
   border-radius: 6px;
   padding: 0 6px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.16));
+  box-shadow: inset 0 0 0 1px var(--blog-code-border);
 }
 
 .markdown-body :deep(.md-inline-image) {
@@ -3652,7 +3665,7 @@ onBeforeUnmount(() => {
 
 .markdown-body :deep(th),
 .markdown-body :deep(td) {
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--blog-code-border);
   padding: 6px 8px;
   text-align: left;
 }
@@ -3661,7 +3674,8 @@ onBeforeUnmount(() => {
   margin: 1em 0;
   padding: 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--blog-panel-surface-elevated);
+  box-shadow: inset 0 0 0 1px var(--blog-code-border);
   overflow-x: auto;
 }
 
@@ -3678,9 +3692,9 @@ onBeforeUnmount(() => {
   margin: 1em 0;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 140, 160, 0.28);
-  background: rgba(255, 124, 146, 0.08);
-  color: rgba(255, 212, 220, 0.95);
+  border: 1px solid rgba(255, 140, 160, 0.24);
+  background: rgba(255, 124, 146, 0.1);
+  color: var(--theme-text-primary, rgba(255, 212, 220, 0.95));
 }
 
 .markdown-body :deep(.md-mermaid-error p),
@@ -3690,7 +3704,7 @@ onBeforeUnmount(() => {
 
 .markdown-body :deep(.md-mermaid-error pre) {
   overflow-x: auto;
-  color: rgba(255, 230, 236, 0.88);
+  color: var(--theme-text-secondary, rgba(255, 230, 236, 0.88));
 }
 
 .markdown-body :deep(a) {

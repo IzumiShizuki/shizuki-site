@@ -73,6 +73,8 @@ describe('TopMenu profile entry', () => {
     });
 
     expect(wrapper.get('.theme-toggle-item .item-label').text()).toBe('白天模式');
+    expect(wrapper.get('.theme-toggle-box').classes()).toContain('day');
+    expect(wrapper.get('.theme-toggle-box .fa-sun').exists()).toBe(true);
 
     await wrapper.get('.theme-toggle-item').trigger('click');
 

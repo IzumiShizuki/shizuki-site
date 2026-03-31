@@ -307,7 +307,7 @@ body {
   .post-card,
   .download-menu
 ) {
-  background: var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84))) !important;
+  background: var(--theme-panel-surface, var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84)))) !important;
   border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
   box-shadow: 0 14px 30px rgba(18, 9, 8, 0.18) !important;
 }
@@ -332,6 +332,10 @@ body {
   background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16)) !important;
   border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+}
+
+:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) .icon-circle-btn {
+  color: var(--theme-icon-primary, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
 }
 
 :where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route) :is(
@@ -408,14 +412,20 @@ body {
 
 .top-menu-root :is(
   .item-label,
+  .pill-btn-box,
+  .menu-label-text
+) {
+  color: var(--theme-menu-text, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
+}
+
+.top-menu-root :is(
   .icon-minimal,
   .circle-icon-box,
-  .pill-btn-box,
   .github-style-box,
-  .menu-label-text,
-  .avatar-box.anonymous
+  .avatar-box.anonymous,
+  .pill-btn-box i
 ) {
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(255, 242, 233, 0.96))) !important;
 }
 
 .top-menu-root :is(.left-pill-group, .author-avatar-box, .avatar-box) {

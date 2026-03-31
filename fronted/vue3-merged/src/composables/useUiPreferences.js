@@ -170,11 +170,28 @@ function applyAccentVariables() {
     : state.accentMode === 'gradient'
       ? `rgba(${mixTuple(gradientStart, [255, 236, 224], 0.28).join(', ')}, 0.16)`
       : `rgba(${warmLift.join(', ')}, 0.16)`;
+  const themePanelSurface = isDayMode
+    ? `linear-gradient(155deg, rgba(${paperLift.join(', ')}, 0.96), rgba(${paperShade.join(', ')}, 0.88))`
+    : themeSurface;
+  const themePanelSurfaceElevated = isDayMode
+    ? `linear-gradient(145deg, rgba(255, 252, 249, 0.98), rgba(${paperBase.join(', ')}, 0.9))`
+    : themeSurfaceElevated;
+  const themeReaderSurface = isDayMode
+    ? `linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(${paperBase.join(', ')}, 0.94))`
+    : 'linear-gradient(180deg, rgba(18, 26, 40, 0.68), rgba(10, 16, 26, 0.48))';
+  const themeCodeSurface = isDayMode
+    ? `rgba(${mixTuple(paperShade, [255, 248, 243], 0.52).join(', ')}, 0.92)`
+    : 'rgba(5, 10, 18, 0.62)';
+  const themeCodeBorder = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.22)` : 'rgba(255, 255, 255, 0.18)';
   const themeBorder = isDayMode ? `rgba(${paperBorder.join(', ')}, 0.24)` : `rgba(${warmBorder.join(', ')}, 0.24)`;
   const themeBorderStrong = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.38)` : `rgba(${warmBorderStrong.join(', ')}, 0.34)`;
   const themeTextPrimary = isDayMode ? 'rgba(52, 34, 29, 0.96)' : 'rgba(255, 242, 233, 0.96)';
   const themeTextSecondary = isDayMode ? 'rgba(88, 62, 53, 0.86)' : 'rgba(231, 211, 196, 0.88)';
   const themeTextTertiary = isDayMode ? 'rgba(121, 90, 79, 0.74)' : 'rgba(205, 183, 168, 0.78)';
+  const themeIconPrimary = isDayMode ? 'rgba(94, 72, 63, 0.92)' : 'rgba(236, 242, 255, 0.92)';
+  const themeIconMuted = isDayMode ? 'rgba(125, 99, 88, 0.78)' : 'rgba(210, 220, 238, 0.76)';
+  const themeIconStrong = isDayMode ? 'rgba(72, 52, 46, 0.98)' : 'rgba(248, 250, 255, 0.98)';
+  const themeDividerSoft = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.16)` : 'rgba(193, 211, 244, 0.24)';
   const themeSpotA = isDayMode
     ? state.accentMode === 'gradient'
       ? `rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.16)`
@@ -269,11 +286,20 @@ function applyAccentVariables() {
   root.style.setProperty('--theme-surface', themeSurface);
   root.style.setProperty('--theme-surface-elevated', themeSurfaceElevated);
   root.style.setProperty('--theme-surface-soft', themeSurfaceSoft);
+  root.style.setProperty('--theme-panel-surface', themePanelSurface);
+  root.style.setProperty('--theme-panel-surface-elevated', themePanelSurfaceElevated);
+  root.style.setProperty('--theme-reader-surface', themeReaderSurface);
+  root.style.setProperty('--theme-code-surface', themeCodeSurface);
+  root.style.setProperty('--theme-code-border', themeCodeBorder);
   root.style.setProperty('--theme-border', themeBorder);
   root.style.setProperty('--theme-border-strong', themeBorderStrong);
   root.style.setProperty('--theme-text-primary', themeTextPrimary);
   root.style.setProperty('--theme-text-secondary', themeTextSecondary);
   root.style.setProperty('--theme-text-tertiary', themeTextTertiary);
+  root.style.setProperty('--theme-icon-primary', themeIconPrimary);
+  root.style.setProperty('--theme-icon-muted', themeIconMuted);
+  root.style.setProperty('--theme-icon-strong', themeIconStrong);
+  root.style.setProperty('--theme-divider-soft', themeDividerSoft);
   root.style.setProperty('--theme-spot-a', themeSpotA);
   root.style.setProperty('--theme-spot-b', themeSpotB);
   root.style.setProperty('--theme-scrim', themeScrim);
