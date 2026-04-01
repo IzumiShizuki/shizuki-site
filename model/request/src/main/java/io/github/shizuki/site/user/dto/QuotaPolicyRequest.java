@@ -3,7 +3,7 @@ package io.github.shizuki.site.user.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-public class QuotaPolicyDto {
+public class QuotaPolicyRequest {
 
     @NotBlank
     private String policyId;
@@ -25,16 +25,16 @@ public class QuotaPolicyDto {
         this.policyId = policyId;
     }
 
-    public String getQuotaCode() {
-        return quotaCode;
-    }
-
     public String getGroupCode() {
         return groupCode;
     }
 
     public void setGroupCode(String groupCode) {
         this.groupCode = groupCode;
+    }
+
+    public String getQuotaCode() {
+        return quotaCode;
     }
 
     public void setQuotaCode(String quotaCode) {

@@ -3,6 +3,8 @@ package io.github.shizuki.site.ai.controller;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiMessageSendResponse;
+import io.github.shizuki.site.ai.dto.AiQuotaStatusResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
 import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
@@ -78,7 +80,27 @@ class AiControllerIntegrationTest {
                 ArgumentMatchers.eq("session-001"),
                 ArgumentMatchers.any(SendMessageRequest.class)
             ))
-            .thenReturn(Map.of("assistant_message", "你好", "remaining_rounds", 4));
+            .thenReturn(new AiMessageSendResponse(
+                "session-001",
+                "你好",
+                "你好",
+                "normal",
+                0,
+                false,
+                null,
+                true,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                "ai_round_total",
+                20L,
+                16L,
+                4L,
+                List.of(),
+                List.of()
+            ));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-sessions/session-001/messages")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -96,7 +118,7 @@ class AiControllerIntegrationTest {
     @Test
     void shouldGetQuotaSuccessfully() throws Exception {
         Mockito.when(aiService.myQuota())
-            .thenReturn(Map.of("quota_code", "ai_round_total", "total", 20, "used", 3, "remaining", 17));
+            .thenReturn(new AiQuotaStatusResponse("ai_round_total", 20L, 3L, 17L));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/ai-quotas/me"))
             .andExpect(MockMvcResultMatchers.status().isOk())

@@ -5,7 +5,8 @@ import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.annotation.RequireAdminPrivilege;
 import io.github.shizuki.common.security.annotation.RequireGroup;
 import io.github.shizuki.site.user.dto.QuotaPolicyBatchUpsertRequest;
-import io.github.shizuki.site.user.dto.QuotaPolicyDto;
+import io.github.shizuki.site.user.dto.QuotaPolicyRequest;
+import io.github.shizuki.site.user.dto.QuotaPolicyResponse;
 import io.github.shizuki.site.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,7 +51,7 @@ public class AdminQuotaPolicyController {
      */
     @GetMapping
     @Operation(summary = "查询配额策略列表", description = "按策略 ID 排序返回所有分组配额规则")
-    public ApiResponse<List<QuotaPolicyDto>> list() {
+    public ApiResponse<List<QuotaPolicyResponse>> list() {
         return ApiResponse.success(userService.listQuotaPolicies());
     }
 
@@ -65,8 +66,8 @@ public class AdminQuotaPolicyController {
     @RequireAdminPrivilege
     @AuditLog(action = "quota.policy.update", resource = "group_quota_policy")
     @Operation(summary = "更新配额策略", description = "按 policy_id 更新分组配额值")
-    public ApiResponse<QuotaPolicyDto> update(@PathVariable("policy_id") String policyId,
-                                              @Valid @RequestBody QuotaPolicyDto request) {
+    public ApiResponse<QuotaPolicyResponse> update(@PathVariable("policy_id") String policyId,
+                                                   @Valid @RequestBody QuotaPolicyRequest request) {
         return ApiResponse.success(userService.updateQuotaPolicy(policyId, request));
     }
 
@@ -79,7 +80,7 @@ public class AdminQuotaPolicyController {
     @RequireAdminPrivilege
     @AuditLog(action = "quota.policy.batch_upsert", resource = "group_quota_policy")
     @Operation(summary = "批量创建或更新配额策略", description = "按 policy_id 或 group_code+quota_code upsert")
-    public ApiResponse<List<QuotaPolicyDto>> batchUpsert(@Valid @RequestBody QuotaPolicyBatchUpsertRequest request) {
+    public ApiResponse<List<QuotaPolicyResponse>> batchUpsert(@Valid @RequestBody QuotaPolicyBatchUpsertRequest request) {
         return ApiResponse.success(userService.batchUpsertQuotaPolicies(request.getItems()));
     }
 }

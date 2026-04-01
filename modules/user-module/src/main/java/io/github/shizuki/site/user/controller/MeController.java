@@ -5,6 +5,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.site.common.dto.ActionStatusResponse;
 import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MeResponse;
 import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
@@ -98,9 +99,9 @@ public class MeController {
     @PutMapping("/password")
     @AuditLog(action = "auth.password.change", resource = "usr_account")
     @Operation(summary = "修改密码", description = "登录态下通过邮箱验证码修改密码")
-    public ApiResponse<Map<String, String>> updatePassword(@Valid @RequestBody EmailCodePasswordUpdateRequest request) {
+    public ApiResponse<ActionStatusResponse> updatePassword(@Valid @RequestBody EmailCodePasswordUpdateRequest request) {
         authService.changePasswordByEmail(requireLoginUserId(), request);
-        return ApiResponse.success(Map.of("status", "OK"));
+        return ApiResponse.success(new ActionStatusResponse("OK"));
     }
 
     private Long requireLoginUserId() {

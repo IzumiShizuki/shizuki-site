@@ -1,6 +1,7 @@
 package io.github.shizuki.site.user.controller;
 
-import io.github.shizuki.site.user.dto.QuotaPolicyDto;
+import io.github.shizuki.site.user.dto.QuotaPolicyRequest;
+import io.github.shizuki.site.user.dto.QuotaPolicyResponse;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -25,11 +26,7 @@ class AdminQuotaPolicyControllerIntegrationTest {
 
     @Test
     void shouldListQuotaPoliciesSuccessfully() throws Exception {
-        QuotaPolicyDto dto = new QuotaPolicyDto();
-        dto.setPolicyId("user-ai-rounds-user");
-        dto.setGroupCode("USER");
-        dto.setQuotaCode("ai_round_total");
-        dto.setValue(5L);
+        QuotaPolicyResponse dto = new QuotaPolicyResponse("user-ai-rounds-user", "USER", "ai_round_total", 5L);
         Mockito.when(userService.listQuotaPolicies()).thenReturn(List.of(dto));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/admin/group-quota-policies"))
@@ -40,12 +37,8 @@ class AdminQuotaPolicyControllerIntegrationTest {
 
     @Test
     void shouldUpdateQuotaPolicySuccessfully() throws Exception {
-        QuotaPolicyDto dto = new QuotaPolicyDto();
-        dto.setPolicyId("user-ai-rounds-user");
-        dto.setGroupCode("USER");
-        dto.setQuotaCode("ai_round_total");
-        dto.setValue(8L);
-        Mockito.when(userService.updateQuotaPolicy(ArgumentMatchers.eq("user-ai-rounds-user"), ArgumentMatchers.any(QuotaPolicyDto.class)))
+        QuotaPolicyResponse dto = new QuotaPolicyResponse("user-ai-rounds-user", "USER", "ai_round_total", 8L);
+        Mockito.when(userService.updateQuotaPolicy(ArgumentMatchers.eq("user-ai-rounds-user"), ArgumentMatchers.any(QuotaPolicyRequest.class)))
             .thenReturn(dto);
 
         mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/admin/group-quota-policies/user-ai-rounds-user")
@@ -65,11 +58,7 @@ class AdminQuotaPolicyControllerIntegrationTest {
 
     @Test
     void shouldBatchUpsertQuotaPoliciesSuccessfully() throws Exception {
-        QuotaPolicyDto dto = new QuotaPolicyDto();
-        dto.setPolicyId("user-ai-rounds-user");
-        dto.setGroupCode("USER");
-        dto.setQuotaCode("ai_round_total");
-        dto.setValue(9L);
+        QuotaPolicyResponse dto = new QuotaPolicyResponse("user-ai-rounds-user", "USER", "ai_round_total", 9L);
         Mockito.when(userService.batchUpsertQuotaPolicies(ArgumentMatchers.any())).thenReturn(List.of(dto));
 
         mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/admin/group-quota-policies/batch-upsert")

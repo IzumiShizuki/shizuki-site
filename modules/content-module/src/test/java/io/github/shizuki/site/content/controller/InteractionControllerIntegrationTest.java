@@ -2,10 +2,12 @@ package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.content.dto.AppLikeResponse;
+import io.github.shizuki.site.content.dto.ContentReportCreateResponse;
+import io.github.shizuki.site.content.dto.PostLikeResponse;
 import io.github.shizuki.site.content.dto.ReportRequest;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -44,13 +46,14 @@ class InteractionControllerIntegrationTest {
     @Test
     void shouldLikePostSuccessfully() throws Exception {
         Mockito.when(contentService.likePost(ArgumentMatchers.eq(1L)))
-            .thenReturn(Map.of("post_id", 1, "liked", true));
+            .thenReturn(new PostLikeResponse(1L, true, 8L));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/posts/1/likes"))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.post_id").value(1))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.liked").value(true));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.liked").value(true))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.like_count").value(8));
     }
 
     /**
@@ -60,13 +63,14 @@ class InteractionControllerIntegrationTest {
     @Test
     void shouldLikeAppSuccessfully() throws Exception {
         Mockito.when(contentService.likeApp(ArgumentMatchers.eq(2L)))
-            .thenReturn(Map.of("app_id", 2, "liked", true));
+            .thenReturn(new AppLikeResponse(2L, true, 5L));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/apps/2/likes"))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.app_id").value(2))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.liked").value(true));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.liked").value(true))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.like_count").value(5));
     }
 
     /**
@@ -76,7 +80,7 @@ class InteractionControllerIntegrationTest {
     @Test
     void shouldReportSuccessfully() throws Exception {
         Mockito.when(contentService.report(ArgumentMatchers.any(ReportRequest.class)))
-            .thenReturn(Map.of("status", "CREATED"));
+            .thenReturn(new ContentReportCreateResponse(7001L, "POST", 1L, "CREATED"));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/reports")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -89,6 +93,9 @@ class InteractionControllerIntegrationTest {
                     """))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.report_id").value(7001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.target_type").value("POST"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.target_id").value(1))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("CREATED"));
     }
 

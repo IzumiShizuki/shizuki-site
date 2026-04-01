@@ -17,13 +17,13 @@ public class QuotaPolicyBatchUpsertRequest {
      */
     @Valid
     @NotEmpty
-    private List<QuotaPolicyDto> items;
+    private List<QuotaPolicyRequest> items;
 
-    public List<QuotaPolicyDto> getItems() {
+    public List<QuotaPolicyRequest> getItems() {
         return items;
     }
 
-    public void setItems(List<QuotaPolicyDto> items) {
+    public void setItems(List<QuotaPolicyRequest> items) {
         this.items = items;
     }
 }

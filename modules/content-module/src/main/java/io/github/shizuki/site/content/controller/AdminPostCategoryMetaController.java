@@ -3,13 +3,13 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.annotation.RequireGroup;
+import io.github.shizuki.site.content.dto.PostCategoryMetaDeleteResponse;
 import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.dto.PostCategoryMetaUpsertRequest;
 import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
-import java.util.Map;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,8 +47,8 @@ public class AdminPostCategoryMetaController {
     @DeleteMapping("/{category_code}")
     @AuditLog(action = "post.category.meta.delete", resource = "post_category_meta")
     @Operation(summary = "删除博客分类展示元数据")
-    public ApiResponse<Map<String, Object>> delete(@PathVariable("category_code") String categoryCode) {
+    public ApiResponse<PostCategoryMetaDeleteResponse> delete(@PathVariable("category_code") String categoryCode) {
         contentService.deletePostCategoryMeta(categoryCode);
-        return ApiResponse.success(Map.of("deleted", true, "category_code", categoryCode));
+        return ApiResponse.success(new PostCategoryMetaDeleteResponse(true, categoryCode));
     }
 }

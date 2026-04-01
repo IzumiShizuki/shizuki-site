@@ -4,6 +4,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperSubmitResponse;
 import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
@@ -12,7 +13,6 @@ import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -162,12 +162,7 @@ class PostControllerIntegrationTest {
     @Test
     void shouldSubmitWhisperSuccessfully() throws Exception {
         Mockito.when(contentService.submitAuthorWhisper(ArgumentMatchers.any(AuthorWhisperRequest.class)))
-            .thenReturn(Map.of(
-                "whisper_id", 9001L,
-                "status", "CREATED",
-                "target_post_id", 1L,
-                "accepted", true
-            ));
+            .thenReturn(new AuthorWhisperSubmitResponse(9001L, "CREATED", 1L, true));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/posts/whispers")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -182,6 +177,7 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.whisper_id").value(9001))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("CREATED"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.target_post_id").value(1))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.accepted").value(true));
     }
 

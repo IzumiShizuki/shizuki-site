@@ -14,7 +14,8 @@ import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
 import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
-import io.github.shizuki.site.user.dto.QuotaPolicyDto;
+import io.github.shizuki.site.user.dto.QuotaPolicyRequest;
+import io.github.shizuki.site.user.dto.QuotaPolicyResponse;
 import io.github.shizuki.site.user.dto.UserGroupsResponse;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLoginResponse;
@@ -62,17 +63,17 @@ public interface UserService {
     /**
      * 查询所有分组配额策略。
      */
-    List<QuotaPolicyDto> listQuotaPolicies();
+    List<QuotaPolicyResponse> listQuotaPolicies();
 
     /**
      * 更新指定策略。
      */
-    QuotaPolicyDto updateQuotaPolicy(String policyId, QuotaPolicyDto request);
+    QuotaPolicyResponse updateQuotaPolicy(String policyId, QuotaPolicyRequest request);
 
     /**
      * 批量创建/更新分组配额策略。
      */
-    List<QuotaPolicyDto> batchUpsertQuotaPolicies(List<QuotaPolicyDto> requests);
+    List<QuotaPolicyResponse> batchUpsertQuotaPolicies(List<QuotaPolicyRequest> requests);
 
     /**
      * 查询指定用户分组。

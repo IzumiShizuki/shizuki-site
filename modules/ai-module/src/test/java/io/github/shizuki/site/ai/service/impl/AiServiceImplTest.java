@@ -9,6 +9,7 @@ import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMessageSendResponse;
 import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownAssetPreviewRequest;
@@ -198,14 +199,14 @@ class AiServiceImplTest {
         request.setMemoryEnabled(Boolean.TRUE);
         request.setScopeId("session-001");
 
-        Map<String, Object> response = aiService.sendMessage("session-001", request);
+        AiMessageSendResponse response = aiService.sendMessage("session-001", request);
 
-        Assertions.assertEquals("tavern", response.get("mode"));
-        Assertions.assertEquals(1001L, response.get("character_id"));
-        Assertions.assertEquals(List.of(11L, 12L), response.get("worldbook_ids"));
-        Assertions.assertEquals(Boolean.FALSE, response.get("memory_enabled"));
-        Assertions.assertNull(response.get("scope_id"));
-        Assertions.assertTrue(String.valueOf(response.get("assistant_message")).contains("Tavern mode"));
+        Assertions.assertEquals("tavern", response.mode());
+        Assertions.assertEquals(1001L, response.characterId());
+        Assertions.assertEquals(List.of(11L, 12L), response.worldbookIds());
+        Assertions.assertEquals(Boolean.FALSE, response.memoryEnabled());
+        Assertions.assertNull(response.scopeId());
+        Assertions.assertTrue(response.assistantMessage().contains("Tavern mode"));
         Mockito.verify(memoryOsClient, Mockito.never()).retrieve(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any());
         Mockito.verify(memoryOsClient, Mockito.never()).record(
             ArgumentMatchers.anyString(),
@@ -413,10 +414,10 @@ class AiServiceImplTest {
         request.setMessage("你还记得我上次喜欢的风格吗？");
         request.setMemoryEnabled(Boolean.TRUE);
 
-        Map<String, Object> response = aiService.sendMessage("session-companion", request);
+        AiMessageSendResponse response = aiService.sendMessage("session-companion", request);
 
-        Assertions.assertEquals("12:companion:my_home_ai:home", response.get("scope_id"));
-        Assertions.assertTrue(String.valueOf(response.get("assistant_message")).contains("profile=偏好暖光和安静的书桌环境"));
+        Assertions.assertEquals("12:companion:my_home_ai:home", response.scopeId());
+        Assertions.assertTrue(response.assistantMessage().contains("profile=偏好暖光和安静的书桌环境"));
         Mockito.verify(memoryOsClient).record(
             ArgumentMatchers.eq("12:companion:my_home_ai:home"),
             ArgumentMatchers.eq("你还记得我上次喜欢的风格吗？"),

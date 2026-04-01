@@ -7,6 +7,7 @@ import io.github.shizuki.common.security.annotation.RequireGroup;
 import io.github.shizuki.common.security.service.AdminPrivilegeService;
 import io.github.shizuki.site.user.dto.AdminGroupCreateRequest;
 import io.github.shizuki.site.user.dto.AdminGroupDeleteRequest;
+import io.github.shizuki.site.user.dto.AdminGroupDeleteResponse;
 import io.github.shizuki.site.user.dto.AdminGroupItemResponse;
 import io.github.shizuki.site.user.dto.AdminGroupPageResponse;
 import io.github.shizuki.site.user.dto.AdminGroupUpdateRequest;
@@ -14,7 +15,6 @@ import io.github.shizuki.site.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -70,10 +70,10 @@ public class AdminGroupCatalogController {
     @PostMapping("/{group_code}/delete")
     @AuditLog(action = "group.catalog.delete", resource = "group_catalog")
     @Operation(summary = "删除分组目录项", description = "必须再次提交管理员权限码，成功后级联清理关联配置")
-    public ApiResponse<Map<String, String>> deleteGroup(@PathVariable("group_code") String groupCode,
-                                                        @Valid @RequestBody AdminGroupDeleteRequest request) {
+    public ApiResponse<AdminGroupDeleteResponse> deleteGroup(@PathVariable("group_code") String groupCode,
+                                                             @Valid @RequestBody AdminGroupDeleteRequest request) {
         adminPrivilegeService.verifyCode(request.getPrivilegeCode());
         userService.deleteAdminGroup(groupCode);
-        return ApiResponse.success(Map.of("status", "DELETED"));
+        return ApiResponse.success(new AdminGroupDeleteResponse("DELETED", groupCode));
     }
 }

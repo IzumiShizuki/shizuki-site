@@ -9,5 +9,5 @@ public record MeAccountResponse(Long userId,
                                 Integer emailVerified,
                                 String avatarUrl,
                                 Boolean hasPassword,
-                                List<OAuthBindingView> oauthBindings) {
+                                List<OAuthBindingResponse> oauthBindings) {
 }

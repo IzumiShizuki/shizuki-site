@@ -10,9 +10,13 @@ import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterCreateResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterImportResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMessageSendResponse;
 import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
+import io.github.shizuki.site.ai.dto.AiQuotaStatusResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownMapNodeResponse;
 import io.github.shizuki.site.ai.dto.AiTownNpcResponse;
@@ -191,7 +195,7 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
-    public Map<String, Object> sendMessage(String sessionId, SendMessageRequest request) {
+    public AiMessageSendResponse sendMessage(String sessionId, SendMessageRequest request) {
         Long userId = requireLoginUserId();
         AiSessionEntity session = loadOwnedSession(sessionId, userId);
         String sessionMode = normalizeSessionMode(session.getMode());
@@ -244,32 +248,31 @@ public class AiServiceImpl implements AiService {
             writeMemoryRecord(memoryContext, session, normalizedMessage, assistantMessage);
         }
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("session_id", sessionId);
-        response.put("user_message", normalizedMessage);
-        response.put("assistant_message", assistantMessage);
-        response.put("mode", sessionMode);
-        response.put("context_size", contextSize);
-        response.put("memory_enabled", memoryContext.enabled());
-        response.put("scope_id", memoryContext.scopeId());
-        response.put("quota_applied", true);
-        response.put("character_id", session.getCharacterId());
-        response.put("worldbook_ids", worldbookIds);
-        response.put("scene_prompt", session.getScenePrompt());
-        response.put("town_room_code", session.getTownRoomCode());
-        response.put("actor_code", session.getActorCode());
-        response.put("quota_code", usage.getQuotaCode());
-        response.put("total_rounds", usage.getTotalRounds());
-        response.put("used_rounds", usage.getUsedRounds());
-        response.put("remaining_rounds", unlimitedQuota ? -1 : Math.max(0, usage.getTotalRounds() - usage.getUsedRounds()));
-        response.put("memory_summary_highlights", memoryContext.summaryHighlights());
-        response.put("memory_journal_highlights", memoryContext.journalHighlights());
-
-        return response;
+        return new AiMessageSendResponse(
+            sessionId,
+            normalizedMessage,
+            assistantMessage,
+            sessionMode,
+            contextSize,
+            memoryContext.enabled(),
+            memoryContext.scopeId(),
+            true,
+            session.getCharacterId(),
+            worldbookIds,
+            session.getScenePrompt(),
+            session.getTownRoomCode(),
+            session.getActorCode(),
+            usage.getQuotaCode(),
+            usage.getTotalRounds(),
+            usage.getUsedRounds(),
+            unlimitedQuota ? -1 : Math.max(0, usage.getTotalRounds() - usage.getUsedRounds()),
+            memoryContext.summaryHighlights(),
+            memoryContext.journalHighlights()
+        );
     }
 
     @Override
-    public Map<String, Object> myQuota() {
+    public AiQuotaStatusResponse myQuota() {
         Long userId = requireLoginUserId();
         long total = resolveTotalQuota();
         AiQuotaUsageEntity usage = loadOrCreateUsage(userId, total);
@@ -277,22 +280,30 @@ public class AiServiceImpl implements AiService {
             ? -1
             : Math.max(0, usage.getTotalRounds() - usage.getUsedRounds());
 
-        return Map.of(
-            "quota_code", usage.getQuotaCode(),
-            "total", usage.getTotalRounds(),
-            "used", usage.getUsedRounds(),
-            "remaining", remaining
+        return new AiQuotaStatusResponse(
+            usage.getQuotaCode(),
+            usage.getTotalRounds(),
+            usage.getUsedRounds(),
+            remaining
         );
     }
 
     @Override
-    public Map<String, Object> createCharacter(Map<String, Object> request) {
+    public AiCharacterCreateResponse createCharacter(Map<String, Object> request) {
         return saveCharacter("character", request);
     }
 
     @Override
-    public Map<String, Object> importCharacterCard(Map<String, Object> request) {
-        return saveCharacter("character_card_png", request);
+    public AiCharacterImportResponse importCharacterCard(Map<String, Object> request) {
+        AiCharacterCreateResponse response = saveCharacter("character_card_png", request);
+        return new AiCharacterImportResponse(
+            response.status(),
+            response.type(),
+            response.id(),
+            response.displayName(),
+            response.visibilityType(),
+            response.payload()
+        );
     }
 
     @Override
@@ -617,7 +628,7 @@ public class AiServiceImpl implements AiService {
         return toWorldbookEntryResponse(entity);
     }
 
-    private Map<String, Object> saveCharacter(String type, Map<String, Object> request) {
+    private AiCharacterCreateResponse saveCharacter(String type, Map<String, Object> request) {
         Long userId = requireLoginUserId();
         Map<String, Object> payload = request == null ? Map.of() : request;
         LocalDateTime now = LocalDateTime.now();
@@ -634,13 +645,13 @@ public class AiServiceImpl implements AiService {
         entity.setVersion(0);
         aiCharacterMapper.insert(entity);
 
-        return Map.of(
-            "status", "CREATED",
-            "type", type,
-            "id", entity.getId(),
-            "display_name", entity.getDisplayName(),
-            "visibility_type", entity.getVisibilityType(),
-            "payload", payload
+        return new AiCharacterCreateResponse(
+            "CREATED",
+            type,
+            entity.getId(),
+            entity.getDisplayName(),
+            entity.getVisibilityType(),
+            payload
         );
     }
 

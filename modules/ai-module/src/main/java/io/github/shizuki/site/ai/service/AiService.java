@@ -2,9 +2,13 @@ package io.github.shizuki.site.ai.service;
 
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterCreateResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterImportResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMessageSendResponse;
 import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
+import io.github.shizuki.site.ai.dto.AiQuotaStatusResponse;
 import io.github.shizuki.site.ai.dto.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.dto.AiTownSceneSummaryResponse;
@@ -39,22 +43,22 @@ public interface AiService {
     /**
      * 发送消息并返回回复。
      */
-    Map<String, Object> sendMessage(String sessionId, SendMessageRequest request);
+    AiMessageSendResponse sendMessage(String sessionId, SendMessageRequest request);
 
     /**
      * 查询当前用户配额使用情况。
      */
-    Map<String, Object> myQuota();
+    AiQuotaStatusResponse myQuota();
 
     /**
      * 创建角色配置。
      */
-    Map<String, Object> createCharacter(Map<String, Object> request);
+    AiCharacterCreateResponse createCharacter(Map<String, Object> request);
 
     /**
      * 导入角色卡配置。
      */
-    Map<String, Object> importCharacterCard(Map<String, Object> request);
+    AiCharacterImportResponse importCharacterCard(Map<String, Object> request);
 
     /**
      * 查询当前用户角色列表。

@@ -26,11 +26,12 @@ import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MeResponse;
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.dto.MusicSourceAccountStatusResponse;
+import io.github.shizuki.site.user.dto.OAuthBindingResponse;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateRequest;
 import io.github.shizuki.site.user.dto.OAuthLoginCreateResponse;
-import io.github.shizuki.site.user.dto.OAuthBindingView;
 import io.github.shizuki.site.user.dto.ProfileUpdateRequest;
-import io.github.shizuki.site.user.dto.QuotaPolicyDto;
+import io.github.shizuki.site.user.dto.QuotaPolicyRequest;
+import io.github.shizuki.site.user.dto.QuotaPolicyResponse;
 import io.github.shizuki.site.user.dto.UserGroupsResponse;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLoginResponse;
@@ -160,12 +161,12 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Account not found");
         }
 
-        List<OAuthBindingView> oauthBindings = oAuthBindingMapper.selectList(
+        List<OAuthBindingResponse> oauthBindings = oAuthBindingMapper.selectList(
                 new LambdaQueryWrapper<OAuthBindingEntity>()
                     .eq(OAuthBindingEntity::getUserId, checkedUserId)
                     .orderByDesc(OAuthBindingEntity::getCreatedAt)
             ).stream()
-            .map(item -> new OAuthBindingView(item.getProvider(), item.getProviderLogin(), item.getCreatedAt()))
+            .map(item -> new OAuthBindingResponse(item.getProvider(), item.getProviderLogin(), item.getCreatedAt()))
             .toList();
 
         return new MeAccountResponse(
@@ -341,15 +342,15 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<QuotaPolicyDto> listQuotaPolicies() {
+    public List<QuotaPolicyResponse> listQuotaPolicies() {
         return groupQuotaPolicyMapper.selectList(new LambdaQueryWrapper<GroupQuotaPolicyEntity>().orderByAsc(GroupQuotaPolicyEntity::getPolicyId))
             .stream()
-            .map(this::toQuotaPolicyDto)
+            .map(this::toQuotaPolicyResponse)
             .toList();
     }
 
     @Override
-    public QuotaPolicyDto updateQuotaPolicy(String policyId, QuotaPolicyDto request) {
+    public QuotaPolicyResponse updateQuotaPolicy(String policyId, QuotaPolicyRequest request) {
         GroupQuotaPolicyEntity entity = groupQuotaPolicyMapper.selectOne(
             new LambdaQueryWrapper<GroupQuotaPolicyEntity>().eq(GroupQuotaPolicyEntity::getPolicyId, policyId)
         );
@@ -357,25 +358,26 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Policy not found");
         }
 
+        validateQuotaPolicyRequest(request);
         entity.setPolicyId(policyId);
-        entity.setGroupCode(request.getGroupCode());
-        entity.setQuotaCode(request.getQuotaCode());
+        entity.setGroupCode(normalizeGroupCode(request.getGroupCode()));
+        entity.setQuotaCode(normalizeQuotaCode(request.getQuotaCode()));
         entity.setQuotaValue(request.getValue());
         entity.setUpdatedAt(LocalDateTime.now());
         groupQuotaPolicyMapper.updateById(entity);
-        return toQuotaPolicyDto(entity);
+        return toQuotaPolicyResponse(entity);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public List<QuotaPolicyDto> batchUpsertQuotaPolicies(List<QuotaPolicyDto> requests) {
+    public List<QuotaPolicyResponse> batchUpsertQuotaPolicies(List<QuotaPolicyRequest> requests) {
         if (requests == null || requests.isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Quota policy batch items are required");
         }
 
         Set<String> dedup = new LinkedHashSet<>();
-        List<QuotaPolicyDto> result = new java.util.ArrayList<>();
-        for (QuotaPolicyDto request : requests) {
+        List<QuotaPolicyResponse> result = new java.util.ArrayList<>();
+        for (QuotaPolicyRequest request : requests) {
             validateQuotaPolicyRequest(request);
             String groupCode = normalizeGroupCode(request.getGroupCode());
             String quotaCode = normalizeQuotaCode(request.getQuotaCode());
@@ -407,7 +409,7 @@ public class UserServiceImpl implements UserService {
                 entity.setUpdatedAt(now);
                 groupQuotaPolicyMapper.updateById(entity);
             }
-            result.add(toQuotaPolicyDto(entity));
+            result.add(toQuotaPolicyResponse(entity));
         }
         return result;
     }
@@ -1111,13 +1113,13 @@ public class UserServiceImpl implements UserService {
         return account.getId();
     }
 
-    private QuotaPolicyDto toQuotaPolicyDto(GroupQuotaPolicyEntity entity) {
-        QuotaPolicyDto dto = new QuotaPolicyDto();
-        dto.setPolicyId(entity.getPolicyId());
-        dto.setGroupCode(entity.getGroupCode());
-        dto.setQuotaCode(entity.getQuotaCode());
-        dto.setValue(entity.getQuotaValue());
-        return dto;
+    private QuotaPolicyResponse toQuotaPolicyResponse(GroupQuotaPolicyEntity entity) {
+        return new QuotaPolicyResponse(
+            entity.getPolicyId(),
+            entity.getGroupCode(),
+            entity.getQuotaCode(),
+            entity.getQuotaValue()
+        );
     }
 
     /**
@@ -1217,7 +1219,7 @@ public class UserServiceImpl implements UserService {
         return normalized.isEmpty() ? Set.of() : normalized;
     }
 
-    private void validateQuotaPolicyRequest(QuotaPolicyDto request) {
+    private void validateQuotaPolicyRequest(QuotaPolicyRequest request) {
         if (request == null
             || !StringUtils.hasText(request.getPolicyId())
             || !StringUtils.hasText(request.getGroupCode())

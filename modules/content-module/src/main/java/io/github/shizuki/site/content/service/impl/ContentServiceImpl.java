@@ -11,6 +11,7 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.model.StorageObjectMetadata;
+import io.github.shizuki.site.content.dto.AppLikeResponse;
 import io.github.shizuki.site.content.dto.AppSummary;
 import io.github.shizuki.site.content.dto.AuthorProfileResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
@@ -18,6 +19,8 @@ import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperSubmitResponse;
+import io.github.shizuki.site.content.dto.ContentReportCreateResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
@@ -29,6 +32,7 @@ import io.github.shizuki.site.content.dto.PostDetailResponse;
 import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.dto.PostPresentationResponse;
 import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
+import io.github.shizuki.site.content.dto.PostLikeResponse;
 import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.dto.ReportRequest;
@@ -1413,7 +1417,7 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
-    public Map<String, Object> likePost(Long postId) {
+    public PostLikeResponse likePost(Long postId) {
         PostEntity post = postMapper.selectById(postId);
         if (post == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
@@ -1427,11 +1431,11 @@ public class ContentServiceImpl implements ContentService {
 
         post.setLikeCount((post.getLikeCount() == null ? 0L : post.getLikeCount()) + 1);
         postMapper.updateById(post);
-        return Map.of("post_id", postId, "liked", true, "like_count", post.getLikeCount());
+        return new PostLikeResponse(postId, true, post.getLikeCount());
     }
 
     @Override
-    public Map<String, Object> likeApp(Long appId) {
+    public AppLikeResponse likeApp(Long appId) {
         AppEntity app = appMapper.selectById(appId);
         if (app == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "App not found");
@@ -1442,11 +1446,11 @@ public class ContentServiceImpl implements ContentService {
 
         app.setLikeCount((app.getLikeCount() == null ? 0L : app.getLikeCount()) + 1);
         appMapper.updateById(app);
-        return Map.of("app_id", appId, "liked", true, "like_count", app.getLikeCount());
+        return new AppLikeResponse(appId, true, app.getLikeCount());
     }
 
     @Override
-    public Map<String, Object> report(ReportRequest request) {
+    public ContentReportCreateResponse report(ReportRequest request) {
         ContentReportEntity report = new ContentReportEntity();
         report.setTargetType(request.getTargetType());
         report.setTargetId(request.getTargetId());
@@ -1454,16 +1458,16 @@ public class ContentServiceImpl implements ContentService {
         report.setStatus(REPORT_STATUS_CREATED);
         report.setCreatedAt(LocalDateTime.now());
         contentReportMapper.insert(report);
-        return Map.of(
-            "report_id", report.getId(),
-            "target_type", report.getTargetType(),
-            "target_id", report.getTargetId(),
-            "status", report.getStatus()
+        return new ContentReportCreateResponse(
+            report.getId(),
+            report.getTargetType(),
+            report.getTargetId(),
+            report.getStatus()
         );
     }
 
     @Override
-    public Map<String, Object> submitAuthorWhisper(AuthorWhisperRequest request) {
+    public AuthorWhisperSubmitResponse submitAuthorWhisper(AuthorWhisperRequest request) {
         if (request == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "request body is required");
         }
@@ -1492,11 +1496,11 @@ public class ContentServiceImpl implements ContentService {
         report.setCreatedAt(LocalDateTime.now());
         contentReportMapper.insert(report);
 
-        return Map.of(
-            "whisper_id", report.getId(),
-            "status", report.getStatus(),
-            "target_post_id", normalizedPostId,
-            "accepted", true
+        return new AuthorWhisperSubmitResponse(
+            report.getId(),
+            report.getStatus(),
+            normalizedPostId,
+            true
         );
     }
 

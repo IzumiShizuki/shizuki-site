@@ -1,6 +1,7 @@
 package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.core.response.ApiResponse;
+import io.github.shizuki.site.common.dto.ActionStatusResponse;
 import io.github.shizuki.site.user.dto.auth.AuthGrantRequest;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.dto.auth.AuthLogoutRequest;
@@ -11,7 +12,6 @@ import io.github.shizuki.site.user.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -74,9 +74,9 @@ public class AuthController {
      */
     @PostMapping("/password/reset")
     @Operation(summary = "重置密码", description = "通过邮箱验证码重置密码")
-    public ApiResponse<Map<String, String>> resetPassword(@Valid @RequestBody EmailCodePasswordUpdateRequest request) {
+    public ApiResponse<ActionStatusResponse> resetPassword(@Valid @RequestBody EmailCodePasswordUpdateRequest request) {
         authService.resetPasswordByEmail(request);
-        return ApiResponse.success(Map.of("status", "OK"));
+        return ApiResponse.success(new ActionStatusResponse("OK"));
     }
 
     /**
@@ -87,9 +87,9 @@ public class AuthController {
      */
     @PostMapping("/logout")
     @Operation(summary = "退出登录", description = "使当前登录态失效")
-    public ApiResponse<Map<String, String>> logout(@RequestBody(required = false) AuthLogoutRequest request) {
+    public ApiResponse<ActionStatusResponse> logout(@RequestBody(required = false) AuthLogoutRequest request) {
         authService.logout(request);
-        return ApiResponse.success(Map.of("status", "OK"));
+        return ApiResponse.success(new ActionStatusResponse("OK"));
     }
 
     /**

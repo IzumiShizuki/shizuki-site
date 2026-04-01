@@ -3,7 +3,7 @@ package io.github.shizuki.site.media.integration;
 import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.dto.MeAccountResponse;
 import io.github.shizuki.site.user.dto.MusicSourceAccountStatusResponse;
-import io.github.shizuki.site.user.dto.OAuthBindingView;
+import io.github.shizuki.site.user.dto.OAuthBindingResponse;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -155,7 +155,7 @@ public class UserMusicGateway {
         try {
             MeAccountResponse account = userService.getAccountProfile(userId);
             return account.oauthBindings().stream()
-                .map(OAuthBindingView::provider)
+                .map(OAuthBindingResponse::provider)
                 .anyMatch(code -> normalizedProvider.equals(String.valueOf(code).trim().toLowerCase()));
         } catch (Exception ex) {
             LOGGER.warn("Get oauth binding fallback in monolith mode, userId={}, provider={}",

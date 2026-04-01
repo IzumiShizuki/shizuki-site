@@ -12,6 +12,9 @@
 - API 与 DTO 约束权威：
   - `resouces/md/02_代码开发文档_v0.1.md`
   - `resouces/md/05_AI协作开发规范_v0.1.md`
+  - `resouces/md/standards/07_后端架构与分层规范.md`
+  - `resouces/md/standards/08_后端命名与模型后缀规范.md`
+  - `resouces/md/standards/09_后端接口契约与动态JSON例外规范.md`
 
 ## 3. 对齐原则
 
@@ -20,6 +23,8 @@
 - 列表简版响应：`*Summary`
 - 选项集响应：`*OptionResponse`
 - 持久化实体：`*Entity`
+- 确认型响应优先复用共享 `ActionStatusResponse`
+- 带资源标识的删除确认使用域内 `*DeleteResponse`
 - Mapper / Service / Controller 保持与模块职责一致，不用 DTO 名承担职责说明
 
 ## 4. SQL 与模型的关系
@@ -28,13 +33,15 @@
 - Java `Entity` 对应表语义，不要求类名与表名字符串完全相同
 - HTTP 字段继续使用 `snake_case`
 - Java 字段继续使用 `camelCase`
+- `.dto` 包路径当前视为 legacy package；本阶段统一类名与类型，不做物理迁包
 
 ## 5. 当前登记的命名例外
 
 | 当前名称 | 当前位置 | 现状说明 | 目标名称 |
 | --- | --- | --- | --- |
-| `QuotaPolicyDto` | `model/response/src/main/java/io/github/shizuki/site/user/dto/QuotaPolicyDto.java` | 已作为对外响应使用，但后缀不统一 | `QuotaPolicyResponse` |
-| `OAuthBindingView` | `model/response/src/main/java/io/github/shizuki/site/user/dto/OAuthBindingView.java` | 对外展示对象使用了 `View` | `OAuthBindingResponse` |
+| `QuotaPolicyDto` | `model/response/src/main/java/io/github/shizuki/site/user/dto/QuotaPolicyResponse.java` | 物理路径已切到标准响应类，legacy 名仅保留在迁移说明 | `QuotaPolicyResponse` |
+| `OAuthBindingView` | `model/response/src/main/java/io/github/shizuki/site/user/dto/OAuthBindingResponse.java` | 物理路径已切到标准响应类，legacy 名仅保留在迁移说明 | `OAuthBindingResponse` |
+| Controller 级 `ApiResponse<Map<...>>` | 各业务模块 controller / service | 仅动态 JSON 例外允许保留 | 强类型 `*Response` 或登记至 `backend-contract-exceptions.yml` |
 
 说明：
 
@@ -44,6 +51,7 @@
 ## 6. 已符合规则的样例
 
 - `AuthTokenResponse`
+- `ActionStatusResponse`
 - `UserGroupsUpdateRequest`
 - `PostSummary`
 - `AuthorProfileResponse`

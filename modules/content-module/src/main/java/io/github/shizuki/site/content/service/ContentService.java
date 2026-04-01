@@ -1,15 +1,19 @@
 package io.github.shizuki.site.content.service;
 
 import io.github.shizuki.common.core.response.PageResponse;
+import io.github.shizuki.site.content.dto.AppLikeResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileResponse;
 import io.github.shizuki.site.content.dto.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
 import io.github.shizuki.site.content.dto.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.dto.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.dto.AuthorWhisperRequest;
+import io.github.shizuki.site.content.dto.AuthorWhisperSubmitResponse;
 import io.github.shizuki.site.content.dto.AppSummary;
+import io.github.shizuki.site.content.dto.ContentReportCreateResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
 import io.github.shizuki.site.content.dto.ContentVisibilityUpdateRequest;
+import io.github.shizuki.site.content.dto.PostLikeResponse;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.dto.PostCategoryPolicyUpdateRequest;
 import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
@@ -23,7 +27,6 @@ import io.github.shizuki.site.content.dto.PostSidebarResponse;
 import io.github.shizuki.site.content.dto.PostSummary;
 import io.github.shizuki.site.content.dto.ReportRequest;
 import java.util.List;
-import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface ContentService {
@@ -159,22 +162,22 @@ public interface ContentService {
     /**
      * 点赞帖子。
      */
-    Map<String, Object> likePost(Long postId);
+    PostLikeResponse likePost(Long postId);
 
     /**
      * 点赞应用。
      */
-    Map<String, Object> likeApp(Long appId);
+    AppLikeResponse likeApp(Long appId);
 
     /**
      * 提交举报。
      */
-    Map<String, Object> report(ReportRequest request);
+    ContentReportCreateResponse report(ReportRequest request);
 
     /**
      * 提交匿名悄悄话给作者。
      */
-    Map<String, Object> submitAuthorWhisper(AuthorWhisperRequest request);
+    AuthorWhisperSubmitResponse submitAuthorWhisper(AuthorWhisperRequest request);
 
     /**
      * 管理员分页查询作者悄悄话。

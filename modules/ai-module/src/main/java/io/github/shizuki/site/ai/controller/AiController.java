@@ -4,9 +4,13 @@ import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.ai.dto.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterCreateResponse;
+import io.github.shizuki.site.ai.dto.AiCharacterImportResponse;
 import io.github.shizuki.site.ai.dto.AiCharacterSummaryResponse;
 import io.github.shizuki.site.ai.dto.AiCompanionConfigResponse;
+import io.github.shizuki.site.ai.dto.AiMessageSendResponse;
 import io.github.shizuki.site.ai.dto.AiMemoryScopeResponse;
+import io.github.shizuki.site.ai.dto.AiQuotaStatusResponse;
 import io.github.shizuki.site.ai.dto.AiSessionSummary;
 import io.github.shizuki.site.ai.dto.AiTownAssetPreviewRequest;
 import io.github.shizuki.site.ai.dto.AiTownAssetPreviewResponse;
@@ -67,26 +71,26 @@ public class AiController {
     @RateLimit(key = "ai.messages", limit = 30, windowSeconds = 60)
     @AuditLog(action = "ai.message.send", resource = "ai_session")
     @Operation(summary = "发送消息", description = "发送用户消息并返回助手回复，同时扣减配额")
-    public ApiResponse<Map<String, Object>> sendMessage(@PathVariable("session_id") String sessionId,
-                                                        @Valid @RequestBody SendMessageRequest request) {
+    public ApiResponse<AiMessageSendResponse> sendMessage(@PathVariable("session_id") String sessionId,
+                                                          @Valid @RequestBody SendMessageRequest request) {
         return ApiResponse.success(aiService.sendMessage(sessionId, request));
     }
 
     @GetMapping("/ai-quotas/me")
     @Operation(summary = "查询我的 AI 配额")
-    public ApiResponse<Map<String, Object>> myQuota() {
+    public ApiResponse<AiQuotaStatusResponse> myQuota() {
         return ApiResponse.success(aiService.myQuota());
     }
 
     @PostMapping("/ai-characters")
     @Operation(summary = "创建角色配置", description = "保存结构化角色配置 JSON")
-    public ApiResponse<Map<String, Object>> createCharacter(@RequestBody Map<String, Object> request) {
+    public ApiResponse<AiCharacterCreateResponse> createCharacter(@RequestBody Map<String, Object> request) {
         return ApiResponse.success(aiService.createCharacter(request));
     }
 
     @PostMapping("/ai-character-cards/import")
     @Operation(summary = "导入角色卡", description = "导入角色卡内容并落库")
-    public ApiResponse<Map<String, Object>> importCharacterCard(@RequestBody Map<String, Object> request) {
+    public ApiResponse<AiCharacterImportResponse> importCharacterCard(@RequestBody Map<String, Object> request) {
         return ApiResponse.success(aiService.importCharacterCard(request));
     }
 
