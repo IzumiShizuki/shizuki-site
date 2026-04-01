@@ -156,8 +156,15 @@
                 :class="{ active: viewMode === 'editor' && writerState.editor.postId === mine.postId }"
                 @click="openMinePost(mine.postId)"
               >
-                <span class="mine-title">{{ mine.title }}</span>
-                <span class="mine-meta">{{ mine.statusCode }} · {{ mine.visibility }}</span>
+                <span class="mine-title">{{ resolveMinePostDisplayTitle(mine) }}</span>
+                <span class="mine-meta-badges">
+                  <span class="status-badge" :class="resolvePostStatusMeta(mine.statusCode).className">
+                    {{ resolvePostStatusMeta(mine.statusCode).label }}
+                  </span>
+                  <span class="status-badge" :class="resolvePostVisibilityMeta(mine.visibility).className">
+                    {{ resolvePostVisibilityMeta(mine.visibility).label }}
+                  </span>
+                </span>
               </button>
               <p v-if="writerState.loading" class="side-tip">加载我的文章中...</p>
               <p v-else-if="!writerState.myPosts.length" class="side-tip">暂无草稿或文章。</p>
@@ -178,7 +185,9 @@
             >
               <header class="card-head">
                 <h3>{{ post.title }}</h3>
-                <span class="visibility">{{ post.visibility }}</span>
+                <span class="visibility status-badge" :class="resolvePostVisibilityMeta(post.visibility).className">
+                  {{ resolvePostVisibilityMeta(post.visibility).label }}
+                </span>
               </header>
               <p class="summary">{{ resolveSummary(post.summary) }}</p>
               <div class="meta-row">
@@ -449,9 +458,14 @@
               </section>
 
               <div class="editor-grid">
-                <label class="field field-wide">
+                <label class="field field-wide field-title">
                   <span>标题</span>
-                  <input v-model.trim="writerState.editor.title" type="text" class="field-input" maxlength="255" />
+                  <input
+                    v-model.trim="writerState.editor.title"
+                    type="text"
+                    class="field-input field-input-title"
+                    maxlength="255"
+                  />
                 </label>
                 <label class="field field-wide">
                   <span>分类</span>
@@ -484,9 +498,9 @@
                 <label class="field field-wide">
                   <span>可见性</span>
                   <select v-model="writerState.editor.visibility" class="field-input">
-                    <option value="PUBLIC">PUBLIC</option>
-                    <option value="PRIVATE">PRIVATE</option>
-                    <option value="GROUP">GROUP</option>
+                    <option value="PUBLIC">公开</option>
+                    <option value="PRIVATE">私密</option>
+                    <option value="GROUP">分组可见</option>
                   </select>
                 </label>
                 <label class="field field-wide">
@@ -505,10 +519,13 @@
                   <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
                 </div>
                 <div class="editor-info-panel-status">
-                  <span class="editor-status">
-                    {{ writerState.editor.statusCode || 'DRAFT' }}
-                    <span v-if="pasteState.sessionDecision"> · 粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}</span>
-                  </span>
+                  <div class="editor-status">
+                    <span class="status-badge" :class="editorStatusMeta.className">{{ editorStatusMeta.label }}</span>
+                    <span class="status-badge" :class="editorVisibilityMeta.className">{{ editorVisibilityMeta.label }}</span>
+                    <span v-if="pasteState.sessionDecision" class="editor-status-note">
+                      粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}
+                    </span>
+                  </div>
                 </div>
                 <p v-if="writerState.error" class="error-text editor-meta-message">{{ writerState.error }}</p>
                 <p v-if="writerState.notice" class="notice-text editor-meta-message">{{ writerState.notice }}</p>
@@ -638,13 +655,23 @@ import {
   mergeBlogCategoryCatalog,
   resolveDefaultBlogCategoryCode
 } from '../utils/blogCategoryCatalog';
-import { resolveBlogPostDisplayTitle } from '../utils/blogPostTitle';
+import { DEFAULT_BLOG_POST_TITLE, resolveBlogPostDisplayTitle } from '../utils/blogPostTitle';
 import { shouldSyncEditorRoute } from './blogEditorRouteState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 
 const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
 
 const ROOT_CATEGORY_OPTION = Object.freeze({ code: '', label: '全部' });
+const POST_STATUS_META = Object.freeze({
+  DRAFT: { label: '草稿', className: 'status-badge--draft' },
+  PUBLISHED: { label: '已发布', className: 'status-badge--published' },
+  ARCHIVED: { label: '已归档', className: 'status-badge--archived' }
+});
+const POST_VISIBILITY_META = Object.freeze({
+  PUBLIC: { label: '公开', className: 'status-badge--public' },
+  PRIVATE: { label: '私密', className: 'status-badge--private' },
+  GROUP: { label: '分组可见', className: 'status-badge--group' }
+});
 
 const auth = useAuthSession();
 const route = useRoute();
@@ -752,6 +779,7 @@ const readingProgress = ref(0);
 const editorMode = ref('wysiwyg');
 const editorInfoVisible = ref(false);
 const leftNavHint = ref('');
+let myPostsLoadToken = 0;
 
 const articleScrollRef = ref(null);
 const tocListRef = ref(null);
@@ -1018,6 +1046,8 @@ const detailPresentationReady = computed(() => String(detailPresentationState.da
 const detailPresentationPptReady = computed(() => detailPresentationReady.value && detailPresentationState.data?.pptReady === true);
 const editorPresentationStatusText = computed(() => resolvePresentationStatusText(editorPresentationState.data, editorPresentationState.loading || editorPresentationState.generating));
 const detailPresentationStatusText = computed(() => resolvePresentationStatusText(detailPresentationState.data, detailPresentationState.loading));
+const editorStatusMeta = computed(() => resolvePostStatusMeta(writerState.editor.statusCode));
+const editorVisibilityMeta = computed(() => resolvePostVisibilityMeta(writerState.editor.visibility));
 
 const progressRadius = 20;
 const progressCircumference = 2 * Math.PI * progressRadius;
@@ -1041,6 +1071,31 @@ function normalizeTags(value) {
   return value
     .map((item) => String(item || '').trim().toLowerCase())
     .filter(Boolean);
+}
+
+function resolvePostStatusMeta(statusCode) {
+  const normalized = normalizeString(statusCode, 'DRAFT').trim().toUpperCase();
+  return POST_STATUS_META[normalized] || { label: normalized || '未知状态', className: 'status-badge--default' };
+}
+
+function resolvePostVisibilityMeta(visibility) {
+  const normalized = normalizeString(visibility, 'PUBLIC').trim().toUpperCase();
+  return POST_VISIBILITY_META[normalized] || { label: normalized || '未知可见性', className: 'status-badge--default' };
+}
+
+function resolveMinePostDisplayTitle(post) {
+  if (!post || typeof post !== 'object') return DEFAULT_BLOG_POST_TITLE;
+  const editorPostId = toSafeInt(writerState.editor.postId, 0);
+  const minePostId = toSafeInt(post.postId, 0);
+  if (editorPostId > 0 && editorPostId === minePostId) {
+    return resolveBlogPostDisplayTitle({
+      ...post,
+      title: writerState.editor.title,
+      summary: writerState.editor.summary,
+      slugCode: writerState.editor.slugCode
+    });
+  }
+  return resolveBlogPostDisplayTitle(post);
 }
 
 function normalizePostSummary(raw) {
@@ -1112,6 +1167,71 @@ function normalizeAuthorPost(raw) {
     readingMinutes: Math.max(1, toSafeInt(raw?.readingMinutes ?? raw?.reading_minutes, 1)),
     likeCount: Math.max(0, toSafeInt(raw?.likeCount ?? raw?.like_count, 0))
   };
+}
+
+function mergeMyPostSnapshot(postLike) {
+  const normalized = normalizeAuthorPost(postLike);
+  if (normalized.postId <= 0) return;
+  const index = writerState.myPosts.findIndex((item) => item.postId === normalized.postId);
+  if (index < 0) return;
+  const current = writerState.myPosts[index];
+  const rawTitle = normalizeString(postLike?.title).trim();
+  const rawSummary = normalizeString(postLike?.summary).trim();
+  const rawSlugCode = normalizeString(postLike?.slugCode ?? postLike?.slug_code).trim();
+  const rawVisibility = normalizeString(postLike?.visibility).trim();
+  const rawStatusCode = normalizeString(postLike?.statusCode ?? postLike?.status_code).trim();
+  writerState.myPosts[index] = {
+    ...current,
+    ...normalized,
+    title: rawTitle || rawSummary || rawSlugCode ? normalized.title : current.title,
+    summary: rawSummary || current.summary,
+    slugCode: rawSlugCode || current.slugCode,
+    visibility: rawVisibility ? normalized.visibility : current.visibility,
+    statusCode: rawStatusCode ? normalized.statusCode : current.statusCode
+  };
+}
+
+async function hydrateUntitledMyPosts(posts, requestToken) {
+  const normalizedPosts = Array.isArray(posts) ? posts : [];
+  const pendingPosts = normalizedPosts.filter((post) => post.postId > 0 && post.title === DEFAULT_BLOG_POST_TITLE);
+  if (!pendingPosts.length) {
+    return normalizedPosts;
+  }
+
+  const details = await Promise.allSettled(
+    pendingPosts.map(async (post) => {
+      const detail = await getMyPostDetail(post.postId, auth.authorizedFetch);
+      const normalized = normalizePostDetail(detail);
+      return {
+        postId: post.postId,
+        title: normalized.displayTitle,
+        summary: normalized.summary,
+        slugCode: normalized.slugCode,
+        coverImageUrl: normalized.coverImageUrl,
+        visibility: normalized.visibility,
+        statusCode: normalized.statusCode
+      };
+    })
+  );
+
+  if (requestToken !== myPostsLoadToken) {
+    return normalizedPosts;
+  }
+
+  const detailMap = new Map();
+  details.forEach((result) => {
+    if (result.status !== 'fulfilled') return;
+    detailMap.set(result.value.postId, result.value);
+  });
+
+  if (!detailMap.size) {
+    return normalizedPosts;
+  }
+
+  return normalizedPosts.map((post) => {
+    const detail = detailMap.get(post.postId);
+    return detail ? { ...post, ...detail } : post;
+  });
 }
 
 function normalizePresentation(raw) {
@@ -1529,17 +1649,24 @@ async function loadMyPosts() {
     writerState.myPosts = [];
     return;
   }
+  const requestToken = ++myPostsLoadToken;
   writerState.loading = true;
   writerState.error = '';
   try {
     const payload = await listMyPosts({ pageNo: 1, pageSize: 80 }, auth.authorizedFetch);
+    if (requestToken !== myPostsLoadToken) return;
     const items = Array.isArray(payload?.items) ? payload.items : [];
-    writerState.myPosts = items.map(normalizeAuthorPost).filter((post) => post.postId > 0);
+    const normalizedPosts = items.map(normalizeAuthorPost).filter((post) => post.postId > 0);
+    writerState.myPosts = normalizedPosts;
+    writerState.myPosts = await hydrateUntitledMyPosts(normalizedPosts, requestToken);
   } catch (error) {
+    if (requestToken !== myPostsLoadToken) return;
     writerState.error = normalizeErrorMessage(error, '加载我的文章失败');
     writerState.myPosts = [];
   } finally {
-    writerState.loading = false;
+    if (requestToken === myPostsLoadToken) {
+      writerState.loading = false;
+    }
   }
 }
 
@@ -1616,12 +1743,14 @@ function applyPostDetailToEditor(postDetail) {
   writerState.editor.markdown = normalizeMarkdownForEditor(normalized.markdown || '');
   writerState.editor.statusCode = normalized.statusCode || 'DRAFT';
   writerState.editor.lastRelayedSignature = '';
+  mergeMyPostSnapshot(postDetail);
 }
 
 function applyAuthorPostToEditor(post) {
   const normalized = normalizeAuthorPost(post);
   writerState.editor.postId = normalized.postId || null;
   writerState.editor.statusCode = normalized.statusCode || writerState.editor.statusCode;
+  mergeMyPostSnapshot(post);
 }
 
 async function syncEditorRouteToPost(postId) {
@@ -2587,6 +2716,28 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2);
 }
 
+.field-title {
+  gap: 4px;
+}
+
+.field-input-title {
+  min-height: 48px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: clamp(22px, 2.3vw, 30px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+}
+
+.field-input-title:focus {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 .mini-btn {
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 10px;
@@ -2756,9 +2907,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.mine-meta {
-  font-size: 11px;
-  color: rgba(208, 219, 243, 0.85);
+.mine-meta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .side-tip {
@@ -2819,11 +2971,7 @@ onBeforeUnmount(() => {
 }
 
 .visibility {
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-  background: rgba(var(--accent-rgb), 0.2);
-  border: 1px solid rgba(var(--accent-rgb), 0.44);
+  flex-shrink: 0;
 }
 
 .summary {
@@ -3175,8 +3323,71 @@ onBeforeUnmount(() => {
 }
 
 .editor-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-status-note {
   font-size: 12px;
   color: var(--theme-text-secondary, rgba(208, 220, 247, 0.88));
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(244, 248, 255, 0.94);
+}
+
+.status-badge--draft {
+  background: rgba(248, 190, 78, 0.18);
+  border-color: rgba(248, 190, 78, 0.42);
+  color: rgba(255, 228, 168, 0.98);
+}
+
+.status-badge--published {
+  background: rgba(88, 193, 132, 0.18);
+  border-color: rgba(88, 193, 132, 0.4);
+  color: rgba(191, 255, 210, 0.98);
+}
+
+.status-badge--archived {
+  background: rgba(143, 160, 190, 0.18);
+  border-color: rgba(143, 160, 190, 0.38);
+  color: rgba(225, 234, 248, 0.92);
+}
+
+.status-badge--public {
+  background: rgba(76, 171, 234, 0.18);
+  border-color: rgba(76, 171, 234, 0.42);
+  color: rgba(196, 234, 255, 0.98);
+}
+
+.status-badge--private {
+  background: rgba(234, 111, 147, 0.18);
+  border-color: rgba(234, 111, 147, 0.4);
+  color: rgba(255, 210, 224, 0.98);
+}
+
+.status-badge--group {
+  background: rgba(159, 123, 255, 0.18);
+  border-color: rgba(159, 123, 255, 0.4);
+  color: rgba(226, 214, 255, 0.98);
+}
+
+.status-badge--default {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .editor-body {
