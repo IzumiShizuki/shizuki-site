@@ -1,14 +1,31 @@
 <template>
   <section class="lightapp-window">
     <LightAppTopToolbar :window-id="props.windowId">
+        <div class="toolbar-switches with-divider" role="tablist" aria-label="Balance sections">
+          <button
+            v-for="item in BALANCE_SECTION_ITEMS"
+            :key="`balance_section_${item.code}`"
+            class="icon-btn toolbar-tab-btn ripple-trigger"
+            :class="{ 'is-active': section === item.code }"
+            type="button"
+            role="tab"
+            :aria-selected="section === item.code"
+            :title="item.label"
+            :aria-label="item.label"
+            @click="section = item.code"
+          >
+            <i :class="item.iconClass" aria-hidden="true"></i>
+          </button>
+        </div>
         <button
           class="icon-btn toolbar-btn ripple-trigger"
+          :class="{ 'is-active': showCreateForm }"
           type="button"
           :title="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
           :aria-label="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
           @click="toggleCreateForm"
         >
-          <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+          <i class="fas fa-plus" aria-hidden="true"></i>
         </button>
 
         <span class="toolbar-hint">基准币</span>
@@ -1733,6 +1750,14 @@ onBeforeUnmount(() => {
   margin-left: auto;
   color: var(--la-muted);
   font-size: 12px;
+}
+
+.toolbar-tab-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .compact-select {

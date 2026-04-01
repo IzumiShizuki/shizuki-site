@@ -1,6 +1,23 @@
 <template>
   <section class="lightapp-window pomodoro-window">
-    <LightAppHeaderPortal :window-id="props.windowId">
+    <LightAppTopToolbar :window-id="props.windowId">
+      <div class="toolbar-switches with-divider" role="tablist" aria-label="Pomodoro modes">
+        <button
+          v-for="item in POMODORO_MODE_ITEMS"
+          :key="`pomodoro_mode_${item.mode}`"
+          class="icon-action-btn toolbar-tab-btn ripple-trigger"
+          :class="{ 'is-active': mode === item.mode }"
+          type="button"
+          role="tab"
+          :aria-selected="mode === item.mode"
+          :title="item.label"
+          :aria-label="item.label"
+          @click="switchMode(item.mode)"
+        >
+          <i :class="item.iconClass" aria-hidden="true"></i>
+        </button>
+      </div>
+
       <div class="template-toolbar">
         <label class="template-picker">
           <span>模板</span>
@@ -36,7 +53,7 @@
           </button>
         </div>
       </div>
-    </LightAppHeaderPortal>
+    </LightAppTopToolbar>
 
     <Transition name="panel-collapse">
       <form v-if="showForm" class="template-form liquid-material" @submit.prevent="submitTemplate">
@@ -195,6 +212,7 @@ import {
   parseJsonObject
 } from './pomodoroState';
 import {
+  POMODORO_MODE_ITEMS,
   POMODORO_MODE_FOCUS,
   POMODORO_MODE_LONG_BREAK,
   POMODORO_MODE_SHORT_BREAK,
@@ -202,7 +220,7 @@ import {
   registerPomodoroModeChangeHandler,
   resolvePomodoroWindowState
 } from './pomodoroWindowState';
-import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
+import LightAppTopToolbar from '../LightAppTopToolbar.vue';
 
 const auth = useAuthSession();
 const RUNTIME_KEY = 'shizuki.lightapps.pomodoro.runtime.v2';
@@ -1041,14 +1059,15 @@ onBeforeUnmount(() => {
 }
 
 .template-toolbar {
-  --liquid-bg: var(--la-panel-bg);
-  --liquid-border: var(--la-border);
-  border-radius: 12px;
-  padding: 10px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
+}
+
+.toolbar-tab-btn {
+  width: 32px;
+  padding: 0;
 }
 
 .template-picker {

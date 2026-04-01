@@ -14,12 +14,13 @@
           </button>
           <button
             class="icon-btn toolbar-btn ripple-trigger"
+            :class="{ 'is-active': showForm }"
             type="button"
             :title="showForm ? '收起添加区' : '添加网址'"
             :aria-label="showForm ? '收起添加区' : '添加网址'"
             @click="toggleForm"
           >
-            <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+            <i class="fas fa-plus" aria-hidden="true"></i>
           </button>
         </div>
     </LightAppTopToolbar>

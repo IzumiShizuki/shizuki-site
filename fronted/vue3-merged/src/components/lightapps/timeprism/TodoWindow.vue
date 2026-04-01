@@ -3,21 +3,23 @@
     <LightAppTopToolbar :window-id="props.windowId">
         <button
           class="icon-btn toolbar-btn ripple-trigger"
+          :class="{ 'is-active': showCreateForm }"
           type="button"
           :title="showCreateForm ? '收起添加区' : '添加待办'"
           :aria-label="showCreateForm ? '收起添加区' : '添加待办'"
           @click="toggleCreateForm"
         >
-          <i :class="showCreateForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+          <i class="fas fa-plus" aria-hidden="true"></i>
         </button>
         <button
           class="icon-btn toolbar-btn ripple-trigger"
+          :class="{ 'is-active': showRecurringPanel }"
           type="button"
           :title="showRecurringPanel ? '收起周期规则' : '周期规则'"
           :aria-label="showRecurringPanel ? '收起周期规则' : '周期规则'"
           @click="toggleRecurringPanel"
         >
-          <i :class="showRecurringPanel ? 'fas fa-repeat' : 'fas fa-calendar-plus'" aria-hidden="true"></i>
+          <i class="fas fa-repeat" aria-hidden="true"></i>
         </button>
     </LightAppTopToolbar>
 

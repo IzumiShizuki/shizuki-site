@@ -3,12 +3,13 @@
     <LightAppTopToolbar :window-id="props.windowId">
         <button
           class="icon-btn toolbar-btn ripple-trigger"
+          :class="{ 'is-active': showForm }"
           type="button"
           :title="showForm ? '收起添加区' : '添加项目'"
           :aria-label="showForm ? '收起添加区' : '添加项目'"
           @click="toggleForm"
         >
-          <i :class="showForm ? 'fas fa-chevron-up' : 'fas fa-plus'" aria-hidden="true"></i>
+          <i class="fas fa-plus" aria-hidden="true"></i>
         </button>
         <span class="toolbar-hint">共 {{ projects.length }} 个项目</span>
     </LightAppTopToolbar>

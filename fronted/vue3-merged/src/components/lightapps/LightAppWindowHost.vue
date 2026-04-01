@@ -16,60 +16,6 @@
               <small v-if="win.pinned" class="pin-hint">主页固定</small>
             </div>
 
-            <div v-if="win.code === 'timeprism-todo'" class="window-app-actions" role="tablist" aria-label="TimePrism modules">
-              <button
-                v-for="module in TIMEPRISM_MODULE_ITEMS"
-                :key="`timeprism_${win.id}_${module.code}`"
-                class="icon-btn app-switch-btn ripple-trigger"
-                :class="{ active: currentTimePrismModule(win.id) === module.code }"
-                type="button"
-                role="tab"
-                :aria-selected="currentTimePrismModule(win.id) === module.code"
-                :title="module.label"
-                :aria-label="module.label"
-                @pointerdown.stop
-                @click.stop="setTimePrismModule(win.id, module.code)"
-              >
-                <i :class="module.iconClass" aria-hidden="true"></i>
-              </button>
-            </div>
-
-            <div v-else-if="win.code === 'pomodoro-timer'" class="window-app-actions" role="tablist" aria-label="Pomodoro modes">
-              <button
-                v-for="item in POMODORO_MODE_ITEMS"
-                :key="`pomodoro_${win.id}_${item.mode}`"
-                class="icon-btn app-switch-btn ripple-trigger"
-                :class="{ active: currentPomodoroMode(win.id) === item.mode }"
-                type="button"
-                role="tab"
-                :aria-selected="currentPomodoroMode(win.id) === item.mode"
-                :title="item.label"
-                :aria-label="item.label"
-                @pointerdown.stop
-                @click.stop="setPomodoroMode(win.id, item.mode)"
-              >
-                <i :class="item.iconClass" aria-hidden="true"></i>
-              </button>
-            </div>
-
-            <div v-else-if="win.code === 'balance-ledger'" class="window-app-actions" role="tablist" aria-label="Balance sections">
-              <button
-                v-for="item in BALANCE_SECTION_ITEMS"
-                :key="`balance_${win.id}_${item.code}`"
-                class="icon-btn app-switch-btn ripple-trigger"
-                :class="{ active: currentBalanceSection(win.id) === item.code }"
-                type="button"
-                role="tab"
-                :aria-selected="currentBalanceSection(win.id) === item.code"
-                :title="item.label"
-                :aria-label="item.label"
-                @pointerdown.stop
-                @click.stop="setBalanceSection(win.id, item.code)"
-              >
-                <i :class="item.iconClass" aria-hidden="true"></i>
-              </button>
-            </div>
-
             <div :id="headerPortalTargetId(win.id)" class="window-context-slot window-toolbar-interactive"></div>
           </div>
 
@@ -124,21 +70,14 @@ import {
 } from '../../utils/lightAppWindowRuntime';
 import PomodoroWindow from './pomodoro/PomodoroWindow.vue';
 import {
-  POMODORO_MODE_ITEMS,
-  releasePomodoroWindowState,
-  resolvePomodoroWindowState,
-  setPomodoroWindowMode
+  releasePomodoroWindowState
 } from './pomodoro/pomodoroWindowState';
 import BalanceLedgerWindow from './balance/BalanceLedgerWindow.vue';
 import {
-  BALANCE_SECTION_ITEMS,
-  releaseBalanceWindowState,
-  resolveBalanceWindowState,
-  setBalanceWindowSection
+  releaseBalanceWindowState
 } from './balance/balanceWindowState';
 import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
 import {
-  TIMEPRISM_MODULE_ITEMS,
   releaseTimePrismSuiteSession,
   resolveTimePrismSuiteSession,
   setSuiteActiveModule
@@ -363,31 +302,6 @@ function handleResize() {
   replaceState(next);
 }
 
-function currentTimePrismModule(windowId) {
-  return resolveTimePrismSuiteSession(windowId).activeModule;
-}
-
-function setTimePrismModule(windowId, moduleCode) {
-  const session = resolveTimePrismSuiteSession(windowId);
-  setSuiteActiveModule(session, moduleCode);
-}
-
-function currentPomodoroMode(windowId) {
-  return resolvePomodoroWindowState(windowId).mode;
-}
-
-function setPomodoroMode(windowId, mode) {
-  setPomodoroWindowMode(windowId, mode);
-}
-
-function currentBalanceSection(windowId) {
-  return resolveBalanceWindowState(windowId).section;
-}
-
-function setBalanceSection(windowId, section) {
-  setBalanceWindowSection(windowId, section);
-}
-
 function releaseWindowLinkedState(windowId) {
   const target = state.windows.find((item) => item.id === Number(windowId));
   if (!target) return;
@@ -546,14 +460,6 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.26);
 }
 
-.window-app-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 8px;
-  border-left: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.28));
-}
-
 .window-context-slot {
   flex: 1 1 auto;
   min-width: 0;
@@ -664,16 +570,6 @@ onBeforeUnmount(() => {
 
   .window-title span {
     max-width: 118px;
-  }
-
-  .window-app-actions {
-    gap: 3px;
-    padding-left: 6px;
-  }
-
-  .app-switch-btn {
-    width: 26px;
-    height: 26px;
   }
 }
 
