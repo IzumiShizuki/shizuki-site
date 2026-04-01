@@ -1,19 +1,19 @@
 package io.github.shizuki.site.user.service;
 
-import io.github.shizuki.site.user.dto.auth.AuthGrantRequest;
+import io.github.shizuki.site.user.request.auth.AuthGrantRequest;
 import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
-import io.github.shizuki.site.user.dto.auth.AuthLogoutRequest;
+import io.github.shizuki.site.user.request.auth.AuthLogoutRequest;
 import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
-import io.github.shizuki.site.user.dto.auth.EmailCodePasswordUpdateRequest;
-import io.github.shizuki.site.user.dto.auth.EmailBindRequest;
-import io.github.shizuki.site.user.dto.auth.EmailRegisterRequest;
-import io.github.shizuki.site.user.dto.auth.EmailVerificationSendRequest;
+import io.github.shizuki.site.user.request.auth.EmailCodePasswordUpdateRequest;
+import io.github.shizuki.site.user.request.auth.EmailBindRequest;
+import io.github.shizuki.site.user.request.auth.EmailRegisterRequest;
+import io.github.shizuki.site.user.request.auth.EmailVerificationSendRequest;
 import io.github.shizuki.site.user.dto.auth.EmailVerificationSendResponse;
 import io.github.shizuki.site.user.dto.auth.ImageCaptchaResponse;
-import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeRequest;
+import io.github.shizuki.site.user.request.auth.OAuthAuthorizeRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
-import io.github.shizuki.site.user.dto.auth.OAuthBindRequest;
-import io.github.shizuki.site.user.dto.auth.OAuthConflictConfirmRequest;
+import io.github.shizuki.site.user.request.auth.OAuthBindRequest;
+import io.github.shizuki.site.user.request.auth.OAuthConflictConfirmRequest;
 
 /**
  * 认证应用服务接口。

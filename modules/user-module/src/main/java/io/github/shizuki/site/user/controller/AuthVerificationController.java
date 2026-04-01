@@ -2,10 +2,10 @@ package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
-import io.github.shizuki.site.user.dto.auth.EmailVerificationSendRequest;
+import io.github.shizuki.site.user.request.auth.EmailVerificationSendRequest;
 import io.github.shizuki.site.user.dto.auth.EmailVerificationSendResponse;
 import io.github.shizuki.site.user.dto.auth.ImageCaptchaResponse;
-import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeRequest;
+import io.github.shizuki.site.user.request.auth.OAuthAuthorizeRequest;
 import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
 import io.github.shizuki.site.user.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;

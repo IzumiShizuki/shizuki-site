@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
-import io.github.shizuki.site.user.dto.MusicSourceAccountBindSessionCompleteRequest;
+import io.github.shizuki.site.user.request.MusicSourceAccountBindSessionCompleteRequest;
 import io.github.shizuki.site.user.dto.MusicSourceAccountBindSessionCreateResponse;
 import io.github.shizuki.site.user.dto.MusicSourceAccountBindSessionStatusResponse;
 import io.github.shizuki.site.user.dto.MusicSourceAccountStatusResponse;

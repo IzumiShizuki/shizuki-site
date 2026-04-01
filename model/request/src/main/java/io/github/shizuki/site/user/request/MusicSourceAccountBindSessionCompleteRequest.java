@@ -1,4 +1,4 @@
-package io.github.shizuki.site.user.dto;
+package io.github.shizuki.site.user.request;
 
 import jakarta.validation.constraints.NotBlank;
 

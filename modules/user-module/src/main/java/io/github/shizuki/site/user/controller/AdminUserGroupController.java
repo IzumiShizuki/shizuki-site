@@ -6,7 +6,7 @@ import io.github.shizuki.common.security.annotation.RequireAdminPrivilege;
 import io.github.shizuki.common.security.annotation.RequireGroup;
 import io.github.shizuki.site.user.dto.AdminUserPageResponse;
 import io.github.shizuki.site.user.dto.UserGroupsResponse;
-import io.github.shizuki.site.user.dto.UserGroupsUpdateRequest;
+import io.github.shizuki.site.user.request.UserGroupsUpdateRequest;
 import io.github.shizuki.site.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

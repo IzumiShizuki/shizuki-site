@@ -1,6 +1,6 @@
 package io.github.shizuki.site.user.controller;
 
-import io.github.shizuki.site.user.dto.QuotaPolicyRequest;
+import io.github.shizuki.site.user.request.QuotaPolicyRequest;
 import io.github.shizuki.site.user.dto.QuotaPolicyResponse;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.List;

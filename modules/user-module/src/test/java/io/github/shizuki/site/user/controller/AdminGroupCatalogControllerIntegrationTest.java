@@ -1,10 +1,10 @@
 package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.security.service.AdminPrivilegeService;
-import io.github.shizuki.site.user.dto.AdminGroupCreateRequest;
+import io.github.shizuki.site.user.request.AdminGroupCreateRequest;
 import io.github.shizuki.site.user.dto.AdminGroupItemResponse;
 import io.github.shizuki.site.user.dto.AdminGroupPageResponse;
-import io.github.shizuki.site.user.dto.AdminGroupUpdateRequest;
+import io.github.shizuki.site.user.request.AdminGroupUpdateRequest;
 import io.github.shizuki.site.user.service.UserService;
 import java.time.LocalDateTime;
 import java.util.List;

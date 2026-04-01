@@ -1,4 +1,4 @@
-package io.github.shizuki.site.user.dto;
+package io.github.shizuki.site.user.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
