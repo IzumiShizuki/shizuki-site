@@ -939,6 +939,7 @@ public class MediaServiceImpl implements MediaService {
         Set<String> playlistCodes = new LinkedHashSet<>();
         Set<String> trackKeys = new LinkedHashSet<>();
         Set<String> failedProviders = new LinkedHashSet<>();
+        Set<String> missingApiKeyProviders = new LinkedHashSet<>();
 
         TuneHubApiContext apiContext = resolveTuneHubApiContext(false);
         SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
@@ -954,6 +955,25 @@ public class MediaServiceImpl implements MediaService {
                         "music_error_code", MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED,
                         "mode", sourcePolicy.mode(),
                         "providers", selectedProviders,
+                        "request_id", requestId,
+                        "trace_id", traceId
+                    )
+                );
+            }
+        }
+        if (!StringUtils.hasText(apiContext.apiKey())) {
+            for (String provider : selectedProviders) {
+                if (TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)) {
+                    missingApiKeyProviders.add(provider);
+                }
+            }
+            if (!missingApiKeyProviders.isEmpty() && missingApiKeyProviders.size() == selectedProviders.size()) {
+                throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "TuneHub API key missing",
+                    Map.of(
+                        "music_error_code", MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING,
+                        "providers", new ArrayList<>(missingApiKeyProviders),
                         "request_id", requestId,
                         "trace_id", traceId
                     )
@@ -1058,6 +1078,23 @@ public class MediaServiceImpl implements MediaService {
             }
 
             if (!TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)) {
+                continue;
+            }
+
+            if (missingApiKeyProviders.contains(provider)) {
+                failedProviders.add(provider);
+                LOGGER.info(
+                    "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=provider_done result=fail reason=api_key_missing duration_ms={} row_count=0 mapped_count=0 dedupe_dropped=0 partial=true",
+                    LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                    searchId,
+                    requestId,
+                    traceId,
+                    userId,
+                    normalizedType,
+                    queryDigest,
+                    provider,
+                    Math.max(1L, System.currentTimeMillis() - providerStartMs)
+                );
                 continue;
             }
 

@@ -1,6 +1,7 @@
 package io.github.shizuki.site.content.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -887,10 +888,10 @@ public class ContentServiceImpl implements ContentService {
         Set<String> categories = new LinkedHashSet<>();
 
         List<PostEntity> posts = postMapper.selectList(
-            new LambdaQueryWrapper<PostEntity>()
-                .select(PostEntity::getCategoryCode)
-                .eq(PostEntity::getDeleted, 0)
-                .orderByAsc(PostEntity::getCategoryCode)
+            new QueryWrapper<PostEntity>()
+                .select("category_code")
+                .eq("deleted", 0)
+                .orderByAsc("category_code")
         );
         posts.stream()
             .map(PostEntity::getCategoryCode)
@@ -899,9 +900,9 @@ public class ContentServiceImpl implements ContentService {
             .forEach(categories::add);
 
         postCategoryPolicyMapper.selectList(
-                new LambdaQueryWrapper<PostCategoryPolicyEntity>()
-                    .select(PostCategoryPolicyEntity::getCategoryCode)
-                    .orderByAsc(PostCategoryPolicyEntity::getCategoryCode)
+                new QueryWrapper<PostCategoryPolicyEntity>()
+                    .select("category_code")
+                    .orderByAsc("category_code")
             ).stream()
             .map(PostCategoryPolicyEntity::getCategoryCode)
             .map(this::normalizeDisplayCategory)
@@ -909,9 +910,9 @@ public class ContentServiceImpl implements ContentService {
             .forEach(categories::add);
 
         postCategoryMetaMapper.selectList(
-                new LambdaQueryWrapper<PostCategoryMetaEntity>()
-                    .select(PostCategoryMetaEntity::getCategoryCode)
-                    .orderByAsc(PostCategoryMetaEntity::getCategoryCode)
+                new QueryWrapper<PostCategoryMetaEntity>()
+                    .select("category_code")
+                    .orderByAsc("category_code")
             ).stream()
             .map(PostCategoryMetaEntity::getCategoryCode)
             .map(this::normalizeDisplayCategory)

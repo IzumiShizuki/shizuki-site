@@ -1,5 +1,6 @@
 package io.github.shizuki.site.content.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Set;
 
@@ -10,21 +11,27 @@ public class AuthorPostUpsertRequest {
     private String summary;
 
     @NotBlank
+    @JsonAlias("categoryCode")
     private String categoryCode;
 
+    @JsonAlias("slugCode")
     private String slugCode;
 
+    @JsonAlias("coverImageUrl")
     private String coverImageUrl;
 
     @NotBlank
     private String visibility;
 
+    @JsonAlias("allowedGroupCodes")
     private Set<String> allowedGroupCodes;
 
     private Set<String> tags;
 
+    @JsonAlias("markdownBucket")
     private String markdownBucket;
 
+    @JsonAlias("markdownKey")
     private String markdownKey;
 
     public String getTitle() {
