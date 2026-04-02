@@ -2,7 +2,7 @@ package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.annotation.RequireGroup;
-import io.github.shizuki.site.user.dto.AdminOptionsResponse;
+import io.github.shizuki.site.user.response.AdminOptionsResponse;
 import io.github.shizuki.site.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

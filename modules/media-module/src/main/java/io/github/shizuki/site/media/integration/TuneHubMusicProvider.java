@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.media.config.TuneHubMusicProperties;
-import io.github.shizuki.site.media.dto.MusicTrackResponse;
+import io.github.shizuki.site.media.response.MusicTrackResponse;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;

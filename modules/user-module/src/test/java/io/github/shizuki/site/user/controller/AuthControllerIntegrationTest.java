@@ -2,8 +2,8 @@ package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
-import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
-import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.response.auth.AuthIntrospectResponse;
+import io.github.shizuki.site.user.response.auth.AuthTokenResponse;
 import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.support.ApiErrorAssertions;
 import java.util.Set;

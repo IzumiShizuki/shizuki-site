@@ -3,7 +3,7 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.PageResponse;
-import io.github.shizuki.site.content.dto.AppSummary;
+import io.github.shizuki.site.content.response.AppSummary;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
 import java.util.List;

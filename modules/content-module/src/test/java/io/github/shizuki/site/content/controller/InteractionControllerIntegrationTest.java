@@ -2,10 +2,10 @@ package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
-import io.github.shizuki.site.content.dto.AppLikeResponse;
-import io.github.shizuki.site.content.dto.ContentReportCreateResponse;
-import io.github.shizuki.site.content.dto.PostLikeResponse;
-import io.github.shizuki.site.content.dto.ReportRequest;
+import io.github.shizuki.site.content.response.AppLikeResponse;
+import io.github.shizuki.site.content.response.ContentReportCreateResponse;
+import io.github.shizuki.site.content.response.PostLikeResponse;
+import io.github.shizuki.site.content.request.ReportRequest;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
 import org.junit.jupiter.api.Test;

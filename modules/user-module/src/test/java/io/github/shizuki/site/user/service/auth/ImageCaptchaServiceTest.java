@@ -2,7 +2,7 @@ package io.github.shizuki.site.user.service.auth;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.site.user.config.AuthProperties;
-import io.github.shizuki.site.user.dto.auth.ImageCaptchaResponse;
+import io.github.shizuki.site.user.response.auth.ImageCaptchaResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

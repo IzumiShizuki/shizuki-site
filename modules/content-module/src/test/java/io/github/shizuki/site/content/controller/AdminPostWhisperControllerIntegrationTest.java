@@ -1,7 +1,7 @@
 package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.response.PageResponse;
-import io.github.shizuki.site.content.dto.AuthorWhisperItemResponse;
+import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.time.LocalDateTime;
 import java.util.List;

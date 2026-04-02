@@ -1,6 +1,6 @@
 package io.github.shizuki.site.user.controller;
 
-import io.github.shizuki.site.user.dto.MeResponse;
+import io.github.shizuki.site.user.response.MeResponse;
 import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.Map;

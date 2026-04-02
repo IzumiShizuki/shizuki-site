@@ -2,8 +2,8 @@ package io.github.shizuki.site.media.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
-import io.github.shizuki.site.media.dto.AdminAssetAuditResponse;
-import io.github.shizuki.site.media.dto.AdminAssetUpdateRequest;
+import io.github.shizuki.site.media.response.AdminAssetAuditResponse;
+import io.github.shizuki.site.media.request.AdminAssetUpdateRequest;
 import io.github.shizuki.site.media.service.MediaService;
 import io.github.shizuki.site.media.support.ApiErrorAssertions;
 import org.junit.jupiter.api.Test;

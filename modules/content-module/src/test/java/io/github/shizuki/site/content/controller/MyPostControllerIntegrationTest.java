@@ -1,11 +1,11 @@
 package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.response.PageResponse;
-import io.github.shizuki.site.content.dto.AuthorPostItemResponse;
-import io.github.shizuki.site.content.dto.PostContentRelayResponse;
-import io.github.shizuki.site.content.dto.PostEditorPolicyResponse;
-import io.github.shizuki.site.content.dto.PostPresentationDownloadResponse;
-import io.github.shizuki.site.content.dto.PostPresentationResponse;
+import io.github.shizuki.site.content.response.AuthorPostItemResponse;
+import io.github.shizuki.site.content.response.PostContentRelayResponse;
+import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
+import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
+import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.time.LocalDateTime;
 import java.util.List;

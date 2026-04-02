@@ -8,7 +8,7 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.security.service.AdminPrivilegeService;
 import io.github.shizuki.site.user.request.AdminPrivilegeUnlockRequest;
-import io.github.shizuki.site.user.dto.AdminPrivilegeUnlockResponse;
+import io.github.shizuki.site.user.response.AdminPrivilegeUnlockResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

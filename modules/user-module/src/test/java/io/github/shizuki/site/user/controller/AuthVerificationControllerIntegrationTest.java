@@ -2,9 +2,9 @@ package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
-import io.github.shizuki.site.user.dto.auth.EmailVerificationSendResponse;
-import io.github.shizuki.site.user.dto.auth.ImageCaptchaResponse;
-import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
+import io.github.shizuki.site.user.response.auth.EmailVerificationSendResponse;
+import io.github.shizuki.site.user.response.auth.ImageCaptchaResponse;
+import io.github.shizuki.site.user.response.auth.OAuthAuthorizeResponse;
 import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.support.ApiErrorAssertions;
 import org.junit.jupiter.api.Test;

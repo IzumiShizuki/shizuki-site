@@ -15,13 +15,13 @@ import io.github.shizuki.common.storage.model.StorageObjectMetadata;
 import io.github.shizuki.common.storage.util.OssKeyBuilder;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
-import io.github.shizuki.site.media.dto.AdminWallpaperAuditRequest;
-import io.github.shizuki.site.media.dto.AdminWallpaperAuditResponse;
-import io.github.shizuki.site.media.dto.WallpaperImportJobResponse;
-import io.github.shizuki.site.media.dto.WallpaperProfileResponse;
-import io.github.shizuki.site.media.dto.WallpaperSettingsUpdateRequest;
-import io.github.shizuki.site.media.dto.WallpaperVisibilityUpdateRequest;
-import io.github.shizuki.site.media.dto.WorkshopImportCreateRequest;
+import io.github.shizuki.site.media.request.AdminWallpaperAuditRequest;
+import io.github.shizuki.site.media.response.AdminWallpaperAuditResponse;
+import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
+import io.github.shizuki.site.media.response.WallpaperProfileResponse;
+import io.github.shizuki.site.media.request.WallpaperSettingsUpdateRequest;
+import io.github.shizuki.site.media.request.WallpaperVisibilityUpdateRequest;
+import io.github.shizuki.site.media.request.WorkshopImportCreateRequest;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaL2dPackageEntity;
 import io.github.shizuki.site.media.entity.MediaWallpaperImportJobEntity;
@@ -277,13 +277,29 @@ public class WallpaperServiceImpl implements WallpaperService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to update this wallpaper");
         }
 
+        if (request.getTitle() != null) {
+            String title = readString(request.getTitle(), "").trim();
+            if (!StringUtils.hasText(title)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Wallpaper title cannot be blank");
+            }
+            profile.setTitleText(title);
+        }
+
         if (request.getEmbeddedBgmAssetId() != null) {
-            ensureAssetExists(request.getEmbeddedBgmAssetId());
-            profile.setEmbeddedBgmAssetId(request.getEmbeddedBgmAssetId());
+            if (request.getEmbeddedBgmAssetId() <= 0) {
+                profile.setEmbeddedBgmAssetId(null);
+            } else {
+                ensureAssetExists(request.getEmbeddedBgmAssetId());
+                profile.setEmbeddedBgmAssetId(request.getEmbeddedBgmAssetId());
+            }
         }
         if (request.getEmbeddedBgvAssetId() != null) {
-            ensureAssetExists(request.getEmbeddedBgvAssetId());
-            profile.setEmbeddedBgvAssetId(request.getEmbeddedBgvAssetId());
+            if (request.getEmbeddedBgvAssetId() <= 0) {
+                profile.setEmbeddedBgvAssetId(null);
+            } else {
+                ensureAssetExists(request.getEmbeddedBgvAssetId());
+                profile.setEmbeddedBgvAssetId(request.getEmbeddedBgvAssetId());
+            }
         }
         if (request.getDefaultMasterVolume() != null) {
             profile.setDefaultMasterVolume(clampVolume(request.getDefaultMasterVolume()));
@@ -313,6 +329,26 @@ public class WallpaperServiceImpl implements WallpaperService {
         wallpaperProfileMapper.updateById(profile);
 
         return fetchWallpaperResponse(profile.getId(), loginUser);
+    }
+
+    @Override
+    public void deleteWallpaper(Long wallpaperId) {
+        Long userId = requireLoginUserId();
+        LoginUser loginUser = currentLoginUser();
+        MediaWallpaperProfileEntity profile = wallpaperProfileMapper.selectById(wallpaperId);
+        if (profile == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Wallpaper not found");
+        }
+        if (!profile.getOwnerUserId().equals(userId) && !isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to delete this wallpaper");
+        }
+
+        transactionTemplate.executeWithoutResult(status -> {
+            deleteWallpaperManagedAsset(profile.getVisualAssetId());
+            deleteWallpaperManagedAsset(profile.getEmbeddedBgmAssetId());
+            deleteWallpaperManagedAsset(profile.getEmbeddedBgvAssetId());
+            wallpaperProfileMapper.deleteById(profile.getId());
+        });
     }
 
     @Override
@@ -1050,6 +1086,46 @@ public class WallpaperServiceImpl implements WallpaperService {
         MediaAssetEntity asset = mediaAssetMapper.selectById(assetId);
         if (asset == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Asset does not exist");
+        }
+    }
+
+    private void deleteWallpaperManagedAsset(Long assetId) {
+        if (assetId == null) {
+            return;
+        }
+        MediaAssetEntity asset = mediaAssetMapper.selectById(assetId);
+        if (asset == null || !isWallpaperManagedAsset(asset)) {
+            return;
+        }
+        if (AssetKindEnum.LIVE2D_PACKAGE.getCode() == (asset.getAssetKindCode() == null ? -1 : asset.getAssetKindCode())) {
+            mediaL2dPackageMapper.delete(
+                new LambdaQueryWrapper<MediaL2dPackageEntity>().eq(MediaL2dPackageEntity::getAssetId, assetId)
+            );
+        }
+        deleteStoredObjectQuietly(asset.getBucketName(), asset.getObjectKey());
+        mediaAssetMapper.deleteById(assetId);
+    }
+
+    private boolean isWallpaperManagedAsset(MediaAssetEntity asset) {
+        if (asset == null) {
+            return false;
+        }
+        Map<String, Object> metadata = readJsonMap(asset.getMetadataJson());
+        String source = String.valueOf(metadata.getOrDefault("source", "")).trim();
+        boolean wallpaperAsset = Boolean.parseBoolean(String.valueOf(metadata.getOrDefault("wallpaper", false)));
+        return wallpaperAsset || "wallpaper_import".equalsIgnoreCase(source);
+    }
+
+    private void deleteStoredObjectQuietly(String bucket, String key) {
+        String normalizedBucket = readString(bucket, "").trim();
+        String normalizedKey = readString(key, "").trim();
+        if (!StringUtils.hasText(normalizedBucket) || !StringUtils.hasText(normalizedKey)) {
+            return;
+        }
+        try {
+            objectStorageClient.deleteObject(normalizedBucket, normalizedKey);
+        } catch (Exception ignored) {
+            // ignore cleanup failures
         }
     }
 

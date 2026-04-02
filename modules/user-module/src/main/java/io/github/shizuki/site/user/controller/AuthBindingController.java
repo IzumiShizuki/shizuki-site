@@ -5,7 +5,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.context.LoginUserContext;
-import io.github.shizuki.site.common.dto.ActionStatusResponse;
+import io.github.shizuki.site.common.response.ActionStatusResponse;
 import io.github.shizuki.site.user.request.auth.EmailBindRequest;
 import io.github.shizuki.site.user.request.auth.OAuthBindRequest;
 import io.github.shizuki.site.user.service.AuthService;

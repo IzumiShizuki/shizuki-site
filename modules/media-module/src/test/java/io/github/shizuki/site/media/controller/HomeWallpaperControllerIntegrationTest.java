@@ -1,7 +1,7 @@
 package io.github.shizuki.site.media.controller;
 
-import io.github.shizuki.site.media.dto.WallpaperImportJobResponse;
-import io.github.shizuki.site.media.dto.WallpaperProfileResponse;
+import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
+import io.github.shizuki.site.media.response.WallpaperProfileResponse;
 import io.github.shizuki.site.media.service.WallpaperService;
 import io.github.shizuki.site.media.support.ApiErrorAssertions;
 import java.math.BigDecimal;

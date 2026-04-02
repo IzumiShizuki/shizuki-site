@@ -1,7 +1,7 @@
 package io.github.shizuki.site.user.controller;
 
-import io.github.shizuki.site.user.dto.AdminUserPageResponse;
-import io.github.shizuki.site.user.dto.UserGroupsResponse;
+import io.github.shizuki.site.user.response.AdminUserPageResponse;
+import io.github.shizuki.site.user.response.UserGroupsResponse;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.List;
 import java.util.Set;

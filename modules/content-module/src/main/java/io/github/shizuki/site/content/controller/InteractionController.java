@@ -2,10 +2,10 @@ package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
-import io.github.shizuki.site.content.dto.AppLikeResponse;
-import io.github.shizuki.site.content.dto.ContentReportCreateResponse;
-import io.github.shizuki.site.content.dto.PostLikeResponse;
-import io.github.shizuki.site.content.dto.ReportRequest;
+import io.github.shizuki.site.content.response.AppLikeResponse;
+import io.github.shizuki.site.content.response.ContentReportCreateResponse;
+import io.github.shizuki.site.content.response.PostLikeResponse;
+import io.github.shizuki.site.content.request.ReportRequest;
 import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

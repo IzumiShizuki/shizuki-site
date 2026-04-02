@@ -1,11 +1,11 @@
 package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.core.response.ApiResponse;
-import io.github.shizuki.site.common.dto.ActionStatusResponse;
+import io.github.shizuki.site.common.response.ActionStatusResponse;
 import io.github.shizuki.site.user.request.auth.AuthGrantRequest;
-import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
+import io.github.shizuki.site.user.response.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.request.auth.AuthLogoutRequest;
-import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.response.auth.AuthTokenResponse;
 import io.github.shizuki.site.user.request.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.request.auth.OAuthConflictConfirmRequest;
 import io.github.shizuki.site.user.service.AuthService;

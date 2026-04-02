@@ -3,7 +3,7 @@ package io.github.shizuki.site.content.controller;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.common.security.annotation.RequireGroup;
-import io.github.shizuki.site.content.dto.AuthorWhisperItemResponse;
+import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

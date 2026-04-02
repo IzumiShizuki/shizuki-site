@@ -1,7 +1,7 @@
 package io.github.shizuki.site.user.controller;
 
 import io.github.shizuki.common.core.response.ApiResponse;
-import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.response.auth.AuthTokenResponse;
 import io.github.shizuki.site.user.request.auth.EmailRegisterRequest;
 import io.github.shizuki.site.user.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,7 +1,7 @@
 package io.github.shizuki.site.user.controller;
 
-import io.github.shizuki.site.user.dto.AdminGroupOptionResponse;
-import io.github.shizuki.site.user.dto.AdminOptionsResponse;
+import io.github.shizuki.site.user.response.AdminGroupOptionResponse;
+import io.github.shizuki.site.user.response.AdminOptionsResponse;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.List;
 import org.junit.jupiter.api.Test;

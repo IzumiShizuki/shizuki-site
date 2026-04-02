@@ -1,7 +1,7 @@
 package io.github.shizuki.site.media.controller;
 
-import io.github.shizuki.site.media.dto.MeMusicLibrarySidebarResponse;
-import io.github.shizuki.site.media.dto.MusicPlaylistSummaryResponse;
+import io.github.shizuki.site.media.response.MeMusicLibrarySidebarResponse;
+import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.service.MediaService;
 import java.util.List;
 import org.junit.jupiter.api.Test;

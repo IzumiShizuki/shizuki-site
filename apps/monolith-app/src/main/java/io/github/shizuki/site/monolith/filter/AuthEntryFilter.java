@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.monolith.config.GatewayAuthProperties;
-import io.github.shizuki.site.user.dto.auth.AuthIntrospectResponse;
+import io.github.shizuki.site.user.response.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.service.AuthService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

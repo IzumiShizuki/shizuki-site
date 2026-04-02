@@ -1,6 +1,6 @@
 package io.github.shizuki.site.content.support;
 
-import io.github.shizuki.site.content.dto.AuthorProfileResponse;
+import io.github.shizuki.site.content.response.AuthorProfileResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

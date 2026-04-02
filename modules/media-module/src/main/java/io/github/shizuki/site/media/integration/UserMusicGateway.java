@@ -1,9 +1,9 @@
 package io.github.shizuki.site.media.integration;
 
-import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
-import io.github.shizuki.site.user.dto.MeAccountResponse;
-import io.github.shizuki.site.user.dto.MusicSourceAccountStatusResponse;
-import io.github.shizuki.site.user.dto.OAuthBindingResponse;
+import io.github.shizuki.site.user.response.MusicApiKeyStatusResponse;
+import io.github.shizuki.site.user.response.MeAccountResponse;
+import io.github.shizuki.site.user.response.MusicSourceAccountStatusResponse;
+import io.github.shizuki.site.user.response.OAuthBindingResponse;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.ArrayList;
 import java.util.Collections;

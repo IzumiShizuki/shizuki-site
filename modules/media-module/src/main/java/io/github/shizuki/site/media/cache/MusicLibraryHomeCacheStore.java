@@ -3,7 +3,7 @@ package io.github.shizuki.site.media.cache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.site.media.config.MusicLibraryHomeCacheProperties;
-import io.github.shizuki.site.media.dto.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,6 +1,6 @@
 package io.github.shizuki.site.content.controller;
 
-import io.github.shizuki.site.content.dto.ContentVisibilityResponse;
+import io.github.shizuki.site.content.response.ContentVisibilityResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.util.Set;
 import org.junit.jupiter.api.Test;

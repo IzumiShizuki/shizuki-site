@@ -19,7 +19,7 @@ import io.github.shizuki.site.user.config.AuthProperties;
 import io.github.shizuki.site.user.request.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.request.auth.EmailBindRequest;
 import io.github.shizuki.site.user.request.auth.EmailRegisterRequest;
-import io.github.shizuki.site.user.dto.auth.OAuthAuthorizeResponse;
+import io.github.shizuki.site.user.response.auth.OAuthAuthorizeResponse;
 import io.github.shizuki.site.user.request.auth.OAuthBindRequest;
 import io.github.shizuki.site.user.request.auth.OAuthConflictConfirmRequest;
 import io.github.shizuki.site.user.entity.OAuthBindingEntity;

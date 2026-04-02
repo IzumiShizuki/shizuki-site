@@ -1,7 +1,7 @@
 package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.response.ApiResponse;
-import io.github.shizuki.site.content.dto.AuthorProfileResponse;
+import io.github.shizuki.site.content.response.AuthorProfileResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.AuthorProfileHttpCacheSupport;
 import io.swagger.v3.oas.annotations.Operation;

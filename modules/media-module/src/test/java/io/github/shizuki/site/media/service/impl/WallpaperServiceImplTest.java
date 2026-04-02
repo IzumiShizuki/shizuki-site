@@ -1,12 +1,14 @@
 package io.github.shizuki.site.media.service.impl;
 
+import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
-import io.github.shizuki.site.media.dto.WallpaperImportJobResponse;
+import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
+import io.github.shizuki.site.media.request.WallpaperSettingsUpdateRequest;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaWallpaperImportJobEntity;
 import io.github.shizuki.site.media.entity.MediaWallpaperProfileEntity;
@@ -81,6 +83,12 @@ class WallpaperServiceImplTest {
 
         WallpaperWorkshopProperties workshopProperties = new WallpaperWorkshopProperties();
 
+        Mockito.when(objectStorageClient.generateGetUrl(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyLong()))
+            .thenAnswer(invocation -> "https://signed.example.com/" + invocation.getArgument(1, String.class));
+
         Mockito.doAnswer(invocation -> {
             MediaAssetEntity entity = invocation.getArgument(0);
             if (entity.getId() == null) {
@@ -90,6 +98,13 @@ class WallpaperServiceImplTest {
             return 1;
         }).when(mediaAssetMapper).insert(ArgumentMatchers.any(MediaAssetEntity.class));
         Mockito.when(mediaAssetMapper.selectById(ArgumentMatchers.anyLong())).thenAnswer(invocation -> assetStore.get(invocation.getArgument(0)));
+        Mockito.when(mediaAssetMapper.selectList(ArgumentMatchers.any()))
+            .thenAnswer(invocation -> new java.util.ArrayList<>(assetStore.values()));
+        Mockito.doAnswer(invocation -> {
+            Long assetId = invocation.getArgument(0);
+            assetStore.remove(assetId);
+            return 1;
+        }).when(mediaAssetMapper).deleteById(ArgumentMatchers.anyLong());
 
         Mockito.doAnswer(invocation -> {
             MediaWallpaperProfileEntity entity = invocation.getArgument(0);
@@ -101,6 +116,18 @@ class WallpaperServiceImplTest {
         }).when(wallpaperProfileMapper).insert(ArgumentMatchers.any(MediaWallpaperProfileEntity.class));
         Mockito.when(wallpaperProfileMapper.selectById(ArgumentMatchers.anyLong()))
             .thenAnswer(invocation -> profileStore.get(invocation.getArgument(0)));
+        Mockito.doAnswer(invocation -> {
+            MediaWallpaperProfileEntity entity = invocation.getArgument(0);
+            if (entity != null && entity.getId() != null) {
+                profileStore.put(entity.getId(), entity);
+            }
+            return 1;
+        }).when(wallpaperProfileMapper).updateById(ArgumentMatchers.any(MediaWallpaperProfileEntity.class));
+        Mockito.doAnswer(invocation -> {
+            Long profileId = invocation.getArgument(0);
+            profileStore.remove(profileId);
+            return 1;
+        }).when(wallpaperProfileMapper).deleteById(ArgumentMatchers.anyLong());
 
         Mockito.doAnswer(invocation -> {
             MediaWallpaperImportJobEntity entity = invocation.getArgument(0);
@@ -223,6 +250,79 @@ class WallpaperServiceImplTest {
 
         Assertions.assertEquals(AssetVisibilityEnum.PUBLIC.getCode(), profile.getVisibilityCode());
         Assertions.assertEquals(AssetAuditStatusEnum.APPROVED.name(), profile.getAuditStatus());
+    }
+
+    @Test
+    void shouldUpdateWallpaperTitleAndClearEmbeddedAssets() {
+        LoginUserContext.set(new LoginUser(31L, Set.of("USER"), Set.of()));
+        Mockito.when(l2dZipValidator.validate(ArgumentMatchers.any())).thenThrow(new RuntimeException("not l2d"));
+
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("cover.jpg", new byte[] {1, 2, 3});
+        entries.put("bgm.mp3", new byte[] {7, 8, 9});
+        MockMultipartFile file = new MockMultipartFile("file", "mixed.zip", "application/zip", zipOf(entries));
+        WallpaperImportJobResponse response = wallpaperService.importPackage(file, "PRIVATE", "旧标题");
+
+        MediaWallpaperProfileEntity before = profileStore.get(response.wallpaperId());
+        Assertions.assertNotNull(before);
+        Assertions.assertNotNull(before.getEmbeddedBgmAssetId());
+
+        WallpaperSettingsUpdateRequest request = new WallpaperSettingsUpdateRequest();
+        request.setTitle("新标题");
+        request.setEmbeddedBgmAssetId(0L);
+        request.setEmbeddedBgvAssetId(0L);
+
+        wallpaperService.updateWallpaperSettings(response.wallpaperId(), request);
+
+        MediaWallpaperProfileEntity after = profileStore.get(response.wallpaperId());
+        Assertions.assertNotNull(after);
+        Assertions.assertEquals("新标题", after.getTitleText());
+        Assertions.assertNull(after.getEmbeddedBgmAssetId());
+        Assertions.assertNull(after.getEmbeddedBgvAssetId());
+    }
+
+    @Test
+    void shouldDeleteWallpaperAndManagedAssets() {
+        LoginUserContext.set(new LoginUser(32L, Set.of("USER"), Set.of()));
+        Mockito.when(l2dZipValidator.validate(ArgumentMatchers.any())).thenThrow(new RuntimeException("not l2d"));
+
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("cover.jpg", new byte[] {1, 2, 3});
+        entries.put("bgm.mp3", new byte[] {7, 8, 9});
+        MockMultipartFile file = new MockMultipartFile("file", "mixed.zip", "application/zip", zipOf(entries));
+        WallpaperImportJobResponse response = wallpaperService.importPackage(file, "PRIVATE", "待删除");
+
+        MediaWallpaperProfileEntity profile = profileStore.get(response.wallpaperId());
+        Assertions.assertNotNull(profile);
+        MediaAssetEntity visual = assetStore.get(profile.getVisualAssetId());
+        MediaAssetEntity bgm = assetStore.get(profile.getEmbeddedBgmAssetId());
+        Assertions.assertNotNull(visual);
+        Assertions.assertNotNull(bgm);
+
+        wallpaperService.deleteWallpaper(response.wallpaperId());
+
+        Assertions.assertNull(profileStore.get(response.wallpaperId()));
+        Assertions.assertNull(assetStore.get(visual.getId()));
+        Assertions.assertNull(assetStore.get(bgm.getId()));
+        Mockito.verify(objectStorageClient).deleteObject(visual.getBucketName(), visual.getObjectKey());
+        Mockito.verify(objectStorageClient).deleteObject(bgm.getBucketName(), bgm.getObjectKey());
+    }
+
+    @Test
+    void shouldRejectDeleteWallpaperWhenUserIsNotOwner() {
+        LoginUserContext.set(new LoginUser(33L, Set.of("USER"), Set.of()));
+        MockMultipartFile file = new MockMultipartFile("file", "sky.png", "image/png", new byte[] {1, 2, 3});
+        WallpaperImportJobResponse response = wallpaperService.importPackage(file, "PRIVATE", "仅所有者可删");
+
+        LoginUserContext.set(new LoginUser(34L, Set.of("USER"), Set.of()));
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> wallpaperService.deleteWallpaper(response.wallpaperId())
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("No permission"));
+        Assertions.assertNotNull(profileStore.get(response.wallpaperId()));
     }
 
     private byte[] zipOf(Map<String, byte[]> entries) {

@@ -4,7 +4,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.user.auth.EmailVerificationPurpose;
 import io.github.shizuki.site.user.config.AuthProperties;
-import io.github.shizuki.site.user.dto.auth.EmailVerificationSendResponse;
+import io.github.shizuki.site.user.response.auth.EmailVerificationSendResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

@@ -1,6 +1,6 @@
 package io.github.shizuki.site.user.controller;
 
-import io.github.shizuki.site.user.dto.auth.AuthTokenResponse;
+import io.github.shizuki.site.user.response.auth.AuthTokenResponse;
 import io.github.shizuki.site.user.service.AuthService;
 import java.util.Set;
 import org.junit.jupiter.api.Test;

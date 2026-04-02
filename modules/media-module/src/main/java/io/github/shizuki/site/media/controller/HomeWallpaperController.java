@@ -3,17 +3,18 @@ package io.github.shizuki.site.media.controller;
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
-import io.github.shizuki.site.media.dto.WallpaperImportJobResponse;
-import io.github.shizuki.site.media.dto.WallpaperProfileResponse;
-import io.github.shizuki.site.media.dto.WallpaperSettingsUpdateRequest;
-import io.github.shizuki.site.media.dto.WallpaperVisibilityUpdateRequest;
-import io.github.shizuki.site.media.dto.WorkshopImportCreateRequest;
+import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
+import io.github.shizuki.site.media.response.WallpaperProfileResponse;
+import io.github.shizuki.site.media.request.WallpaperSettingsUpdateRequest;
+import io.github.shizuki.site.media.request.WallpaperVisibilityUpdateRequest;
+import io.github.shizuki.site.media.request.WorkshopImportCreateRequest;
 import io.github.shizuki.site.media.service.WallpaperService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -80,6 +81,14 @@ public class HomeWallpaperController {
     public ApiResponse<WallpaperProfileResponse> updateVisibility(@PathVariable("wallpaper_id") Long wallpaperId,
                                                                   @Valid @RequestBody WallpaperVisibilityUpdateRequest request) {
         return ApiResponse.success(wallpaperService.updateWallpaperVisibility(wallpaperId, request));
+    }
+
+    @DeleteMapping("/{wallpaper_id}")
+    @AuditLog(action = "home.wallpaper.delete", resource = "home_wallpaper")
+    @Operation(summary = "删除壁纸", description = "删除当前用户拥有的壁纸，并清理本次导入生成的关联资源")
+    public ApiResponse<Void> deleteWallpaper(@PathVariable("wallpaper_id") Long wallpaperId) {
+        wallpaperService.deleteWallpaper(wallpaperId);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/public")

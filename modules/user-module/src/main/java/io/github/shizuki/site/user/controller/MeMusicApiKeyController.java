@@ -3,7 +3,7 @@ package io.github.shizuki.site.user.controller;
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.context.LoginUserContext;
-import io.github.shizuki.site.user.dto.MusicApiKeyStatusResponse;
+import io.github.shizuki.site.user.response.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.request.MusicApiKeyUpsertRequest;
 import io.github.shizuki.site.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;

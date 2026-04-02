@@ -1,7 +1,7 @@
 package io.github.shizuki.site.media.task;
 
 import io.github.shizuki.site.media.cache.MusicLibraryHomeCacheStore;
-import io.github.shizuki.site.media.dto.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
 import io.github.shizuki.site.media.service.impl.MediaServiceImpl;
 import java.util.List;
 import org.junit.jupiter.api.Test;

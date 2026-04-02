@@ -1,6 +1,6 @@
 package io.github.shizuki.site.user.controller;
 
-import io.github.shizuki.site.user.dto.GroupPermissionsResponse;
+import io.github.shizuki.site.user.response.GroupPermissionsResponse;
 import io.github.shizuki.site.user.service.UserService;
 import java.util.List;
 import java.util.Set;

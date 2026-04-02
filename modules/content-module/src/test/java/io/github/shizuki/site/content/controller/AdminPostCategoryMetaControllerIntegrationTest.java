@@ -1,6 +1,6 @@
 package io.github.shizuki.site.content.controller;
 
-import io.github.shizuki.site.content.dto.PostCategoryMetaResponse;
+import io.github.shizuki.site.content.response.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.util.List;
 import org.junit.jupiter.api.Test;

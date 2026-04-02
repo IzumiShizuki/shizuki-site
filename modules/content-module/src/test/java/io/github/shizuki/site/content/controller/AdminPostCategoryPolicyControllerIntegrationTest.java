@@ -1,6 +1,6 @@
 package io.github.shizuki.site.content.controller;
 
-import io.github.shizuki.site.content.dto.PostCategoryPolicyResponse;
+import io.github.shizuki.site.content.response.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.util.List;
 import java.util.Set;
