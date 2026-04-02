@@ -68,11 +68,11 @@ count_lines() {
 }
 
 registry_map_response_count() {
-  "${RG_BIN}" -n 'shape: "ApiResponse<Map<String, Object>>"' "${REGISTRY_FILE}" | wc -l | tr -d ' '
+  ("${RG_BIN}" -n 'shape: "ApiResponse<Map<String, Object>>"' "${REGISTRY_FILE}" || true) | wc -l | tr -d ' '
 }
 
 registry_map_request_count() {
-  "${RG_BIN}" -n 'shape: "Map<String, Object>"' "${REGISTRY_FILE}" | wc -l | tr -d ' '
+  ("${RG_BIN}" -n 'shape: "Map<String, Object>"' "${REGISTRY_FILE}" || true) | wc -l | tr -d ' '
 }
 
 inventory_rows() {

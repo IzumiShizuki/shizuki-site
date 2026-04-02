@@ -20,6 +20,8 @@ import io.github.shizuki.site.ai.response.AiQuotaStatusResponse;
 import io.github.shizuki.site.ai.response.AiSessionSummary;
 import io.github.shizuki.site.ai.response.AiTownMapNodeResponse;
 import io.github.shizuki.site.ai.response.AiTownNpcResponse;
+import io.github.shizuki.site.ai.request.AiCharacterCreateRequest;
+import io.github.shizuki.site.ai.request.AiCharacterImportRequest;
 import io.github.shizuki.site.ai.request.AiTownAssetPreviewRequest;
 import io.github.shizuki.site.ai.response.AiTownAssetPreviewResponse;
 import io.github.shizuki.site.ai.response.AiTownPublicMapResponse;
@@ -289,13 +291,21 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
-    public AiCharacterCreateResponse createCharacter(Map<String, Object> request) {
-        return saveCharacter("character", request);
+    public AiCharacterCreateResponse createCharacter(AiCharacterCreateRequest request) {
+        String displayName = normalizeDisplayName(request == null ? null : request.getDisplayName(), "未命名角色");
+        String visibilityType = normalizeVisibilityType(request == null ? null : request.getVisibilityType());
+        Long coverAssetId = normalizePositiveLong(request == null ? null : request.getCoverAssetId());
+        Map<String, Object> payload = buildCharacterCreatePayload(request, displayName, visibilityType, coverAssetId);
+        return saveCharacter("character", displayName, visibilityType, coverAssetId, payload);
     }
 
     @Override
-    public AiCharacterImportResponse importCharacterCard(Map<String, Object> request) {
-        AiCharacterCreateResponse response = saveCharacter("character_card_png", request);
+    public AiCharacterImportResponse importCharacterCard(AiCharacterImportRequest request) {
+        String displayName = normalizeDisplayName(request == null ? null : request.getDisplayName(), "导入角色卡");
+        String visibilityType = normalizeVisibilityType(request == null ? null : request.getVisibilityType());
+        Long coverAssetId = normalizePositiveLong(request == null ? null : request.getCoverAssetId());
+        Map<String, Object> payload = buildCharacterImportPayload(request, displayName, visibilityType, coverAssetId);
+        AiCharacterCreateResponse response = saveCharacter("character_card_png", displayName, visibilityType, coverAssetId, payload);
         return new AiCharacterImportResponse(
             response.status(),
             response.type(),
@@ -628,16 +638,19 @@ public class AiServiceImpl implements AiService {
         return toWorldbookEntryResponse(entity);
     }
 
-    private AiCharacterCreateResponse saveCharacter(String type, Map<String, Object> request) {
+    private AiCharacterCreateResponse saveCharacter(String type,
+                                                    String displayName,
+                                                    String visibilityType,
+                                                    Long coverAssetId,
+                                                    Map<String, Object> payload) {
         Long userId = requireLoginUserId();
-        Map<String, Object> payload = request == null ? Map.of() : request;
         LocalDateTime now = LocalDateTime.now();
         AiCharacterEntity entity = new AiCharacterEntity();
         entity.setUserId(userId);
         entity.setTypeName(type);
-        entity.setDisplayName(resolveCharacterDisplayName(payload, type));
-        entity.setCoverAssetId(resolveOptionalLong(payload.get("cover_asset_id"), payload.get("coverAssetId"), payload.get("avatar_asset_id"), payload.get("avatarAssetId")));
-        entity.setVisibilityType(normalizeVisibilityType(resolveOptionalText(payload.get("visibility_type"), payload.get("visibilityType"))));
+        entity.setDisplayName(displayName);
+        entity.setCoverAssetId(coverAssetId);
+        entity.setVisibilityType(visibilityType);
         entity.setPayloadJson(toJson(payload));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
@@ -653,6 +666,50 @@ public class AiServiceImpl implements AiService {
             entity.getVisibilityType(),
             payload
         );
+    }
+
+    private Map<String, Object> buildCharacterCreatePayload(AiCharacterCreateRequest request,
+                                                            String displayName,
+                                                            String visibilityType,
+                                                            Long coverAssetId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("displayName", displayName);
+        if (request != null) {
+            putIfPresent(payload, "persona", request.getPersona());
+            putIfPresent(payload, "description", request.getDescription());
+            if (normalizeOptionalText(request.getVisibilityType()) != null) {
+                payload.put("visibilityType", visibilityType);
+            }
+        }
+        if (coverAssetId != null) {
+            payload.put("coverAssetId", coverAssetId);
+        }
+        return payload;
+    }
+
+    private Map<String, Object> buildCharacterImportPayload(AiCharacterImportRequest request,
+                                                            String displayName,
+                                                            String visibilityType,
+                                                            Long coverAssetId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("displayName", displayName);
+        if (request != null) {
+            putIfPresent(payload, "rawCardJson", request.getRawCardJson());
+            if (normalizeOptionalText(request.getVisibilityType()) != null) {
+                payload.put("visibilityType", visibilityType);
+            }
+        }
+        if (coverAssetId != null) {
+            payload.put("coverAssetId", coverAssetId);
+        }
+        return payload;
+    }
+
+    private void putIfPresent(Map<String, Object> payload, String key, String value) {
+        String normalized = normalizeOptionalText(value);
+        if (normalized != null) {
+            payload.put(key, normalized);
+        }
     }
 
     private AiQuotaUsageEntity loadOrCreateUsage(Long userId, long total) {

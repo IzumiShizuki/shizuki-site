@@ -20,6 +20,8 @@ import io.github.shizuki.site.ai.response.AiTownSceneSummaryResponse;
 import io.github.shizuki.site.ai.response.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.response.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.response.AiWorldbookSummaryResponse;
+import io.github.shizuki.site.ai.request.AiCharacterCreateRequest;
+import io.github.shizuki.site.ai.request.AiCharacterImportRequest;
 import io.github.shizuki.site.ai.request.CreateSessionRequest;
 import io.github.shizuki.site.ai.request.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.request.SendMessageRequest;
@@ -337,6 +339,83 @@ class AiServiceImplTest {
         Assertions.assertEquals("character_card_png", characters.get(0).characterType());
         Assertions.assertEquals("馆长 Haru", detail.displayName());
         Assertions.assertEquals("安静而可靠", detail.payload().get("persona"));
+    }
+
+    @Test
+    void shouldCreateCharacterWithCanonicalPayload() throws Exception {
+        LoginUserContext.set(new LoginUser(17L, Set.of("USER"), Set.of()));
+        AtomicLong sequence = new AtomicLong(300);
+
+        Mockito.doAnswer(invocation -> {
+            AiCharacterEntity entity = invocation.getArgument(0);
+            entity.setId(sequence.incrementAndGet());
+            return 1;
+        }).when(aiCharacterMapper).insert(ArgumentMatchers.any(AiCharacterEntity.class));
+
+        AiCharacterCreateRequest request = new AiCharacterCreateRequest();
+        request.setDisplayName("馆长 Haru");
+        request.setPersona("安静而可靠");
+        request.setDescription("负责夜间借阅。");
+        request.setVisibilityType("private");
+        request.setCoverAssetId(901L);
+
+        var response = aiService.createCharacter(request);
+
+        Assertions.assertEquals("馆长 Haru", response.displayName());
+        Assertions.assertEquals("PRIVATE", response.visibilityType());
+        Assertions.assertEquals("馆长 Haru", response.payload().get("displayName"));
+        Assertions.assertEquals("安静而可靠", response.payload().get("persona"));
+        Assertions.assertEquals("负责夜间借阅。", response.payload().get("description"));
+        Assertions.assertEquals("PRIVATE", response.payload().get("visibilityType"));
+        Assertions.assertEquals(901L, response.payload().get("coverAssetId"));
+
+        ArgumentCaptor<AiCharacterEntity> captor = ArgumentCaptor.forClass(AiCharacterEntity.class);
+        Mockito.verify(aiCharacterMapper).insert(captor.capture());
+        AiCharacterEntity persisted = captor.getValue();
+        Assertions.assertEquals("馆长 Haru", persisted.getDisplayName());
+        Assertions.assertEquals(901L, persisted.getCoverAssetId());
+        Assertions.assertEquals("PRIVATE", persisted.getVisibilityType());
+
+        Map<String, Object> payload = new ObjectMapper().readValue(persisted.getPayloadJson(), Map.class);
+        Assertions.assertEquals("馆长 Haru", payload.get("displayName"));
+        Assertions.assertEquals("安静而可靠", payload.get("persona"));
+        Assertions.assertEquals("负责夜间借阅。", payload.get("description"));
+        Assertions.assertEquals("PRIVATE", payload.get("visibilityType"));
+        Assertions.assertEquals(901, payload.get("coverAssetId"));
+        Assertions.assertFalse(payload.containsKey("display_name"));
+    }
+
+    @Test
+    void shouldImportCharacterCardWithCanonicalPayload() throws Exception {
+        LoginUserContext.set(new LoginUser(17L, Set.of("USER"), Set.of()));
+        AtomicLong sequence = new AtomicLong(400);
+
+        Mockito.doAnswer(invocation -> {
+            AiCharacterEntity entity = invocation.getArgument(0);
+            entity.setId(sequence.incrementAndGet());
+            return 1;
+        }).when(aiCharacterMapper).insert(ArgumentMatchers.any(AiCharacterEntity.class));
+
+        AiCharacterImportRequest request = new AiCharacterImportRequest();
+        request.setDisplayName("夜班馆长");
+        request.setRawCardJson("{\"name\":\"夜班馆长\"}");
+        request.setCoverAssetId(902L);
+
+        var response = aiService.importCharacterCard(request);
+
+        Assertions.assertEquals("夜班馆长", response.displayName());
+        Assertions.assertEquals("PRIVATE", response.visibilityType());
+        Assertions.assertEquals("{\"name\":\"夜班馆长\"}", response.payload().get("rawCardJson"));
+        Assertions.assertEquals(902L, response.payload().get("coverAssetId"));
+        Assertions.assertFalse(response.payload().containsKey("visibilityType"));
+
+        ArgumentCaptor<AiCharacterEntity> captor = ArgumentCaptor.forClass(AiCharacterEntity.class);
+        Mockito.verify(aiCharacterMapper).insert(captor.capture());
+        Map<String, Object> payload = new ObjectMapper().readValue(captor.getValue().getPayloadJson(), Map.class);
+        Assertions.assertEquals("夜班馆长", payload.get("displayName"));
+        Assertions.assertEquals("{\"name\":\"夜班馆长\"}", payload.get("rawCardJson"));
+        Assertions.assertEquals(902, payload.get("coverAssetId"));
+        Assertions.assertFalse(payload.containsKey("raw_card_json"));
     }
 
     @Test

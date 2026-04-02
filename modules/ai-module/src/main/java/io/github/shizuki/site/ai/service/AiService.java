@@ -12,6 +12,8 @@ import io.github.shizuki.site.ai.response.AiQuotaStatusResponse;
 import io.github.shizuki.site.ai.response.AiTownPublicMapResponse;
 import io.github.shizuki.site.ai.response.AiTownSceneDetailResponse;
 import io.github.shizuki.site.ai.response.AiTownSceneSummaryResponse;
+import io.github.shizuki.site.ai.request.AiCharacterCreateRequest;
+import io.github.shizuki.site.ai.request.AiCharacterImportRequest;
 import io.github.shizuki.site.ai.request.AiTownAssetPreviewRequest;
 import io.github.shizuki.site.ai.response.AiTownAssetPreviewResponse;
 import io.github.shizuki.site.ai.response.AiWorldbookDetailResponse;
@@ -25,7 +27,6 @@ import io.github.shizuki.site.ai.request.UpdateCompanionConfigRequest;
 import io.github.shizuki.site.ai.request.UpdateWorldbookRequest;
 import io.github.shizuki.site.ai.request.UpsertWorldbookEntryRequest;
 import java.util.List;
-import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface AiService {
@@ -53,12 +54,12 @@ public interface AiService {
     /**
      * 创建角色配置。
      */
-    AiCharacterCreateResponse createCharacter(Map<String, Object> request);
+    AiCharacterCreateResponse createCharacter(AiCharacterCreateRequest request);
 
     /**
      * 导入角色卡配置。
      */
-    AiCharacterImportResponse importCharacterCard(Map<String, Object> request);
+    AiCharacterImportResponse importCharacterCard(AiCharacterImportRequest request);
 
     /**
      * 查询当前用户角色列表。

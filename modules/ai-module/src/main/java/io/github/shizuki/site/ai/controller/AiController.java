@@ -20,6 +20,8 @@ import io.github.shizuki.site.ai.response.AiTownSceneSummaryResponse;
 import io.github.shizuki.site.ai.response.AiWorldbookDetailResponse;
 import io.github.shizuki.site.ai.response.AiWorldbookEntryResponse;
 import io.github.shizuki.site.ai.response.AiWorldbookSummaryResponse;
+import io.github.shizuki.site.ai.request.AiCharacterCreateRequest;
+import io.github.shizuki.site.ai.request.AiCharacterImportRequest;
 import io.github.shizuki.site.ai.request.CreateSessionRequest;
 import io.github.shizuki.site.ai.request.CreateWorldbookRequest;
 import io.github.shizuki.site.ai.request.SendMessageRequest;
@@ -32,7 +34,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -84,13 +85,13 @@ public class AiController {
 
     @PostMapping("/ai-characters")
     @Operation(summary = "创建角色配置", description = "保存结构化角色配置 JSON")
-    public ApiResponse<AiCharacterCreateResponse> createCharacter(@RequestBody Map<String, Object> request) {
+    public ApiResponse<AiCharacterCreateResponse> createCharacter(@Valid @RequestBody AiCharacterCreateRequest request) {
         return ApiResponse.success(aiService.createCharacter(request));
     }
 
     @PostMapping("/ai-character-cards/import")
     @Operation(summary = "导入角色卡", description = "导入角色卡内容并落库")
-    public ApiResponse<AiCharacterImportResponse> importCharacterCard(@RequestBody Map<String, Object> request) {
+    public ApiResponse<AiCharacterImportResponse> importCharacterCard(@Valid @RequestBody AiCharacterImportRequest request) {
         return ApiResponse.success(aiService.importCharacterCard(request));
     }
 

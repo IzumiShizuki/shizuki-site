@@ -2,7 +2,11 @@ package io.github.shizuki.site.ai.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.ai.request.AiCharacterCreateRequest;
+import io.github.shizuki.site.ai.request.AiCharacterImportRequest;
+import io.github.shizuki.site.ai.response.AiCharacterCreateResponse;
 import io.github.shizuki.site.ai.response.AiCharacterDetailResponse;
+import io.github.shizuki.site.ai.response.AiCharacterImportResponse;
 import io.github.shizuki.site.ai.response.AiMessageSendResponse;
 import io.github.shizuki.site.ai.response.AiQuotaStatusResponse;
 import io.github.shizuki.site.ai.response.AiCharacterSummaryResponse;
@@ -125,6 +129,121 @@ class AiControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.quota_code").value("ai_round_total"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.remaining").value(17));
+    }
+
+    @Test
+    void shouldCreateCharacterSuccessfully() throws Exception {
+        Mockito.when(aiService.createCharacter(ArgumentMatchers.any(AiCharacterCreateRequest.class)))
+            .thenReturn(new AiCharacterCreateResponse(
+                "CREATED",
+                "character",
+                1001L,
+                "馆长 Haru",
+                "PRIVATE",
+                Map.of("displayName", "馆长 Haru", "persona", "安静而可靠")
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-characters")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "displayName": "馆长 Haru",
+                      "persona": "安静而可靠",
+                      "description": "负责夜间借阅。",
+                      "visibilityType": "PRIVATE"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.display_name").value("馆长 Haru"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.payload.persona").value("安静而可靠"));
+    }
+
+    @Test
+    void shouldImportCharacterCardSuccessfully() throws Exception {
+        Mockito.when(aiService.importCharacterCard(ArgumentMatchers.any(AiCharacterImportRequest.class)))
+            .thenReturn(new AiCharacterImportResponse(
+                "CREATED",
+                "character_card_png",
+                1002L,
+                "馆长 Haru",
+                "PRIVATE",
+                Map.of("displayName", "馆长 Haru", "rawCardJson", "{\"name\":\"馆长 Haru\"}")
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-character-cards/import")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "displayName": "馆长 Haru",
+                      "rawCardJson": "{\\\"name\\\":\\\"馆长 Haru\\\"}",
+                      "visibilityType": "PRIVATE"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.display_name").value("馆长 Haru"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.payload.rawCardJson").value("{\"name\":\"馆长 Haru\"}"));
+    }
+
+    @Test
+    void shouldCreateCharacterWithLegacyAliases() throws Exception {
+        Mockito.when(aiService.createCharacter(ArgumentMatchers.any(AiCharacterCreateRequest.class)))
+            .thenAnswer(invocation -> {
+                AiCharacterCreateRequest request = invocation.getArgument(0);
+                return new AiCharacterCreateResponse(
+                    "CREATED",
+                    "character",
+                    1003L,
+                    request.getDisplayName(),
+                    request.getVisibilityType(),
+                    Map.of("displayName", request.getDisplayName(), "coverAssetId", request.getCoverAssetId())
+                );
+            });
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-characters")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "character_name": "小春",
+                      "visibility_type": "PRIVATE",
+                      "avatar_asset_id": 20001
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.display_name").value("小春"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.payload.coverAssetId").value(20001));
+    }
+
+    @Test
+    void shouldImportCharacterCardWithLegacyAliases() throws Exception {
+        Mockito.when(aiService.importCharacterCard(ArgumentMatchers.any(AiCharacterImportRequest.class)))
+            .thenAnswer(invocation -> {
+                AiCharacterImportRequest request = invocation.getArgument(0);
+                return new AiCharacterImportResponse(
+                    "CREATED",
+                    "character_card_png",
+                    1004L,
+                    request.getDisplayName(),
+                    request.getVisibilityType(),
+                    Map.of("displayName", request.getDisplayName(), "rawCardJson", request.getRawCardJson(), "coverAssetId", request.getCoverAssetId())
+                );
+            });
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-character-cards/import")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "nickname": "夜班馆长",
+                      "raw_card_json": "{\\\"name\\\":\\\"夜班馆长\\\"}",
+                      "visibility_type": "PRIVATE",
+                      "avatar_asset_id": 30001
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.display_name").value("夜班馆长"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.payload.rawCardJson").value("{\"name\":\"夜班馆长\"}"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.payload.coverAssetId").value(30001));
     }
 
     @Test
@@ -477,6 +596,48 @@ class AiControllerIntegrationTest {
                 .content("""
                     {
                       "message": ""
+                    }
+                    """))
+            .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenCreateCharacterDisplayNameBlank() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-characters")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "displayName": "",
+                      "persona": "安静而可靠"
+                    }
+                    """))
+            .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenImportCharacterCardRawJsonBlank() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-character-cards/import")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "displayName": "馆长 Haru",
+                      "rawCardJson": ""
+                    }
+                    """))
+            .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenCreateCharacterVisibilityInvalid() throws Exception {
+        Mockito.when(aiService.createCharacter(ArgumentMatchers.any(AiCharacterCreateRequest.class)))
+            .thenThrow(new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported visibility_type: FRIENDS"));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/ai-characters")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "displayName": "馆长 Haru",
+                      "visibilityType": "FRIENDS"
                     }
                     """))
             .andExpect(ApiErrorAssertions.hasProblem(400, "BAD_REQUEST"));
