@@ -23,6 +23,7 @@ import 'tldraw/tldraw.css';
 import { createRichText, graphToMermaidText, parseMermaidTextToGraph, richTextToPlainText } from './boardMermaid';
 
 const GUIDE_STORAGE_KEY = 'shizuki.board-canvas.palette-guide-dismissed.v1';
+const BOARD_GRID_SIZE = 24;
 const STYLE_PANEL_COMPACT_BREAKPOINT = '(max-width: 980px)';
 const QUICK_CONNECT_SHAPE_TYPES = new Set(['geo', 'note', 'text', 'frame']);
 const quickConnectPreviewStore = {
@@ -129,6 +130,31 @@ function getShapeLabel(shape, fallback = '') {
     return props.name.trim();
   }
   return fallback;
+}
+
+function ensureBoardCanvasDefaults(editor) {
+  if (!editor) return;
+  const documentSettings = editor.getDocumentSettings?.();
+  const instanceState = editor.getInstanceState?.();
+  const shouldEnableGridMode = !instanceState?.isGridMode;
+  const shouldUpdateGridSize = toNumber(documentSettings?.gridSize, BOARD_GRID_SIZE) !== BOARD_GRID_SIZE;
+  if (!shouldEnableGridMode && !shouldUpdateGridSize) return;
+
+  editor.run(
+    () => {
+      if (shouldUpdateGridSize) {
+        editor.updateDocumentSettings({
+          gridSize: BOARD_GRID_SIZE
+        });
+      }
+      if (shouldEnableGridMode) {
+        editor.updateInstanceState({
+          isGridMode: true
+        });
+      }
+    },
+    { history: 'ignore' }
+  );
 }
 
 function resolveArrowPoint(shape, terminal) {
@@ -429,12 +455,11 @@ function getQuickConnectScreenOffset(anchorId) {
   return { x: -12, y: 0 };
 }
 
-function resolveQuickConnectScreenPoint(editor, pagePoint) {
-  const hostRect = editor.getContainer()?.getBoundingClientRect?.();
-  const screenPoint = editor.pageToScreen(pagePoint);
+function resolveQuickConnectViewportPoint(editor, pagePoint) {
+  const viewportPoint = editor.pageToViewport(pagePoint);
   return {
-    x: screenPoint.x - (hostRect?.left || 0),
-    y: screenPoint.y - (hostRect?.top || 0)
+    x: toNumber(viewportPoint?.x, 0),
+    y: toNumber(viewportPoint?.y, 0)
   };
 }
 
@@ -511,6 +536,43 @@ function updateQuickConnectArrowEnd(editor, arrowId, pagePoint) {
     }
   });
   return true;
+}
+
+function resolveConnectionAnchorPoints(fromBounds, toBounds) {
+  const fromCenter = {
+    x: toNumber(fromBounds?.x, 0) + toNumber(fromBounds?.w, 0) / 2,
+    y: toNumber(fromBounds?.y, 0) + toNumber(fromBounds?.h, 0) / 2
+  };
+  const toCenter = {
+    x: toNumber(toBounds?.x, 0) + toNumber(toBounds?.w, 0) / 2,
+    y: toNumber(toBounds?.y, 0) + toNumber(toBounds?.h, 0) / 2
+  };
+  const dx = toCenter.x - fromCenter.x;
+  const dy = toCenter.y - fromCenter.y;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return {
+      start: {
+        x: dx >= 0 ? toNumber(fromBounds?.x, 0) + toNumber(fromBounds?.w, 0) : toNumber(fromBounds?.x, 0),
+        y: fromCenter.y
+      },
+      end: {
+        x: dx >= 0 ? toNumber(toBounds?.x, 0) : toNumber(toBounds?.x, 0) + toNumber(toBounds?.w, 0),
+        y: toCenter.y
+      }
+    };
+  }
+
+  return {
+    start: {
+      x: fromCenter.x,
+      y: dy >= 0 ? toNumber(fromBounds?.y, 0) + toNumber(fromBounds?.h, 0) : toNumber(fromBounds?.y, 0)
+    },
+    end: {
+      x: toCenter.x,
+      y: dy >= 0 ? toNumber(toBounds?.y, 0) : toNumber(toBounds?.y, 0) + toNumber(toBounds?.h, 0)
+    }
+  };
 }
 
 function buildQuickConnectPreviewPath(start, end) {
@@ -695,24 +757,25 @@ function createShapesFromGraph(editor, graphInput) {
   edges.forEach((edge) => {
     const from = nodePositions.get(edge?.from);
     const to = nodePositions.get(edge?.to);
-    if (!from || !to) return;
-    const startPoint = {
-      x: from.x + from.w / 2,
-      y: from.y + from.h / 2
-    };
-    const endPoint = {
-      x: to.x + to.w / 2,
-      y: to.y + to.h / 2
-    };
+    const fromShapeId = nodeShapeById.get(edge?.from);
+    const toShapeId = nodeShapeById.get(edge?.to);
+    if (!from || !to || !fromShapeId || !toShapeId) return;
+    const fromBounds = editor.getShapePageBounds(fromShapeId) || from;
+    const toBounds = editor.getShapePageBounds(toShapeId) || to;
+    const { start: startPoint, end: endPoint } = resolveConnectionAnchorPoints(fromBounds, toBounds);
     const edgeLabel = String(edge?.label || '').trim();
+    const arrowId = createShapeId();
     editor.createShape({
-      id: createShapeId(),
+      id: arrowId,
       type: 'arrow',
-      x: 0,
-      y: 0,
+      x: startPoint.x,
+      y: startPoint.y,
       props: {
-        start: startPoint,
-        end: endPoint,
+        start: { x: 0, y: 0 },
+        end: {
+          x: endPoint.x - startPoint.x,
+          y: endPoint.y - startPoint.y
+        },
         bend: 0,
         kind: 'straight',
         arrowheadStart: 'none',
@@ -723,6 +786,30 @@ function createShapesFromGraph(editor, graphInput) {
         board_canvas_edge_from: String(edge?.from || ''),
         board_canvas_edge_to: String(edge?.to || ''),
         board_canvas_edge_label: edgeLabel
+      }
+    });
+    editor.createBinding({
+      type: 'arrow',
+      fromId: arrowId,
+      toId: fromShapeId,
+      props: {
+        terminal: 'start',
+        normalizedAnchor: resolveQuickConnectBindingAnchor(fromBounds, startPoint),
+        isPrecise: true,
+        isExact: false,
+        snap: 'edge'
+      }
+    });
+    editor.createBinding({
+      type: 'arrow',
+      fromId: arrowId,
+      toId: toShapeId,
+      props: {
+        terminal: 'end',
+        normalizedAnchor: resolveQuickConnectBindingAnchor(toBounds, endPoint),
+        isPrecise: true,
+        isExact: false,
+        snap: 'edge'
       }
     });
     createdEdgeCount += 1;
@@ -752,6 +839,7 @@ function createCanvasApi(onReady) {
   return {
     bindEditor(nextEditor) {
       editor = nextEditor;
+      ensureBoardCanvasDefaults(editor);
       if (typeof onReady === 'function') {
         onReady();
       }
@@ -767,13 +855,17 @@ function createCanvasApi(onReady) {
       const current = requireEditor();
       if (!snapshot || typeof snapshot !== 'object') {
         clearCurrentPage(current);
+        ensureBoardCanvasDefaults(current);
         return false;
       }
       current.loadSnapshot(snapshot);
+      ensureBoardCanvasDefaults(current);
       return true;
     },
     clear() {
-      clearCurrentPage(requireEditor());
+      const current = requireEditor();
+      clearCurrentPage(current);
+      ensureBoardCanvasDefaults(current);
     },
     createStencilShapeAtViewportCenter(toolId) {
       return createStencilShapeAtViewportCenter(requireEditor(), toolId);
@@ -1177,19 +1269,16 @@ function BoardCanvasQuickConnectOverlay() {
       if (!isQuickConnectVisible(editor, shape)) return null;
       const bounds = editor.getSelectionPageBounds() || editor.getShapePageBounds(shape.id);
       if (!bounds) return null;
-      const hostRect = editor.getContainer()?.getBoundingClientRect?.();
-      const hostLeft = hostRect?.left || 0;
-      const hostTop = hostRect?.top || 0;
       return {
         shape,
         anchors: getQuickConnectAnchors(bounds).map((anchor) => ({
           ...anchor,
-          screenPoint: (() => {
-            const screenPoint = editor.pageToScreen(anchor.pagePoint);
+          viewportPoint: (() => {
+            const viewportPoint = resolveQuickConnectViewportPoint(editor, anchor.pagePoint);
             const offset = getQuickConnectScreenOffset(anchor.id);
             return {
-              x: screenPoint.x - hostLeft + offset.x,
-              y: screenPoint.y - hostTop + offset.y
+              x: viewportPoint.x + offset.x,
+              y: viewportPoint.y + offset.y
             };
           })()
         }))
@@ -1221,8 +1310,8 @@ function BoardCanvasQuickConnectOverlay() {
           aria-label={anchor.label}
           title={anchor.label}
           style={{
-            left: `${anchor.screenPoint.x}px`,
-            top: `${anchor.screenPoint.y}px`
+            left: `${anchor.viewportPoint.x}px`,
+            top: `${anchor.viewportPoint.y}px`
           }}
           onPointerDown={(event) => handlePointerDown(anchor, event)}
         >
@@ -1246,16 +1335,16 @@ function BoardCanvasQuickConnectPreview() {
     'board-canvas-quick-connect-preview',
     () => {
       if (!preview?.startPagePoint || !preview?.currentPagePoint) return null;
-      const start = resolveQuickConnectScreenPoint(editor, preview.startPagePoint);
-      const end = resolveQuickConnectScreenPoint(editor, preview.currentPagePoint);
+      const start = resolveQuickConnectViewportPoint(editor, preview.startPagePoint);
+      const end = resolveQuickConnectViewportPoint(editor, preview.currentPagePoint);
       const targetBounds = preview.targetBounds;
       let targetRect = null;
       if (targetBounds) {
-        const topLeft = resolveQuickConnectScreenPoint(editor, {
+        const topLeft = resolveQuickConnectViewportPoint(editor, {
           x: targetBounds.x,
           y: targetBounds.y
         });
-        const bottomRight = resolveQuickConnectScreenPoint(editor, {
+        const bottomRight = resolveQuickConnectViewportPoint(editor, {
           x: targetBounds.x + targetBounds.w,
           y: targetBounds.y + targetBounds.h
         });
@@ -1348,12 +1437,14 @@ function BoardCanvasReactHost({ api, initialSnapshot }) {
             api.bindEditor(editor);
             if (initializedRef.current) return;
             initializedRef.current = true;
-            if (!initialSnapshot || typeof initialSnapshot !== 'object') return;
-            try {
-              editor.loadSnapshot(initialSnapshot);
-            } catch {
-              // ignore invalid initial snapshot
+            if (initialSnapshot && typeof initialSnapshot === 'object') {
+              try {
+                editor.loadSnapshot(initialSnapshot);
+              } catch {
+                // ignore invalid initial snapshot
+              }
             }
+            ensureBoardCanvasDefaults(editor);
           }}
         >
           <BoardCanvasUiPortals leftHost={leftHost} rightHost={rightHost} zoomHost={zoomHost} />

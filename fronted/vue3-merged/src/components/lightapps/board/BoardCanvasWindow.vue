@@ -1093,12 +1093,7 @@ onBeforeUnmount(() => {
   min-height: 100%;
   isolation: isolate;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(235, 242, 255, 0.74)),
-    linear-gradient(90deg, rgba(166, 185, 220, 0.12) 1px, transparent 1px),
-    linear-gradient(rgba(166, 185, 220, 0.12) 1px, transparent 1px);
-  background-size: auto, 24px 24px, 24px 24px;
-  background-position: 0 0, 0 0, 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(235, 242, 255, 0.74));
 }
 
 :deep(.board-canvas-react-host__surface) {
@@ -1111,6 +1106,14 @@ onBeforeUnmount(() => {
 :deep(.board-canvas-react-host .tl-background),
 :deep(.board-canvas-react-host .tl-background__wrapper) {
   background: transparent !important;
+}
+
+:deep(.board-canvas-react-host .tl-grid) {
+  opacity: 0.68;
+}
+
+:deep(.board-canvas-react-host .tl-grid-dot) {
+  fill: rgba(144, 168, 214, 0.46);
 }
 
 :deep(.board-canvas-react-host .board-snap-indicator .tl-snap-indicator) {
