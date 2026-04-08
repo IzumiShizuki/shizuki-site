@@ -2771,6 +2771,9 @@ onBeforeUnmount(() => {
 .route-switch-enter-active,
 .route-switch-leave-active {
   transition: opacity 260ms ease, transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .route-switch-enter-from {
