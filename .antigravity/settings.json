@@ -1,0 +1,12 @@
+{
+  "browser": {
+    "type": "edge",
+    "executablePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "description": "Preferred browser for Antigravity subagents"
+  },
+  "consent": {
+    "all_tools": true,
+    "safe_to_auto_run": true,
+    "user_approval": "Full consent granted by user on 2026-04-08"
+  }
+}

@@ -65,4 +65,16 @@ Run `bd prime` for workflow context. Editor integrations such as `bd setup codex
 
 For full workflow details: `bd prime`
 
-<!-- END BEADS INTEGRATION -->
+
+<!-- BEGIN ANTIGRAVITY CONFIGURATION -->
+## Antigravity Configuration
+
+- **Preferred Browser**: Microsoft Edge (`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`)
+- **Permission Status**: Full Consent
+  - The user has granted full permission for Antigravity to execute tools.
+  - Commands identified as safe or common tasks should be executed with high autonomy.
+  - Browser subagents are authorized to use Edge for web interactions.
+
+See [.antigravity/settings.json](file:///d:/xuexi/10.program/shizuki-site/shizuki-site/.antigravity/settings.json) for technical details.
+<!-- END ANTIGRAVITY CONFIGURATION -->
+
