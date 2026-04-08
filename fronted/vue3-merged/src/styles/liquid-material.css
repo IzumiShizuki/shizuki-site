@@ -6,8 +6,8 @@
 
   --glass-bg: var(--theme-surface-soft, rgba(var(--glass-rgb), var(--glass-bg-alpha)));
   --glass-border: var(--theme-border, rgba(255, 255, 255, var(--glass-border-alpha)));
-  --glass-shadow: 0 8px 32px rgba(22, 12, 10, var(--glass-shadow-alpha));
-  --glass-blur: blur(16px) saturate(160%);
+  --glass-shadow: 0 12px 48px rgba(22, 12, 10, var(--glass-shadow-alpha));
+  --glass-blur: blur(24px) saturate(180%);
 }
 
 .liquid-material {
