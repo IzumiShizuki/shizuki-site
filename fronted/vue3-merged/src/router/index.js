@@ -1,21 +1,22 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import AiHubPage from '../pages/AiHubPage.vue';
-import AdminPage from '../pages/AdminPage.vue';
-import AuthorPage from '../pages/AuthorPage.vue';
-import AuthCallbackPage from '../pages/AuthCallbackPage.vue';
-import AuthPage from '../pages/AuthPage.vue';
-import AppsPage from '../pages/AppsPage.vue';
-import BlogListPage from '../pages/BlogListPage.vue';
-import BlogPage from '../pages/BlogPage.vue';
-import BlogPresentationPage from '../pages/BlogPresentationPage.vue';
 import HomePage from '../pages/HomePage.vue';
-import MusicLibraryPage from '../pages/MusicLibraryPage.vue';
-import MusicLibraryHomeView from '../pages/music/MusicLibraryHomeView.vue';
-import MusicPlaylistDetailView from '../pages/music/MusicPlaylistDetailView.vue';
-import MusicPlayerDetailView from '../pages/music/MusicPlayerDetailView.vue';
-import ProfilePage from '../pages/ProfilePage.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { resolveOAuthCallbackRedirect } from './oauthCallbackGuard';
+
+const AiHubPage = () => import('../pages/AiHubPage.vue');
+const AdminPage = () => import('../pages/AdminPage.vue');
+const AuthorPage = () => import('../pages/AuthorPage.vue');
+const AuthCallbackPage = () => import('../pages/AuthCallbackPage.vue');
+const AuthPage = () => import('../pages/AuthPage.vue');
+const AppsPage = () => import('../pages/AppsPage.vue');
+const BlogListPage = () => import('../pages/BlogListPage.vue');
+const BlogPage = () => import('../pages/BlogPage.vue');
+const BlogPresentationPage = () => import('../pages/BlogPresentationPage.vue');
+const MusicLibraryPage = () => import('../pages/MusicLibraryPage.vue');
+const MusicLibraryHomeView = () => import('../pages/music/MusicLibraryHomeView.vue');
+const MusicPlaylistDetailView = () => import('../pages/music/MusicPlaylistDetailView.vue');
+const MusicPlayerDetailView = () => import('../pages/music/MusicPlayerDetailView.vue');
+const ProfilePage = () => import('../pages/ProfilePage.vue');
 
 export const routePathByKey = {
   home: '/',

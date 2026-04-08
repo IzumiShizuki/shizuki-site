@@ -10,12 +10,12 @@
     rgba(var(--accent-gradient-start-rgb), 0.94),
     rgba(var(--accent-gradient-end-rgb), 0.9)
   );
-  --theme-surface: linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84));
-  --theme-surface-elevated: linear-gradient(145deg, rgba(156, 108, 92, 0.24), rgba(31, 20, 17, 0.74));
-  --theme-surface-soft: rgba(247, 223, 210, 0.16);
-  --theme-panel-surface: linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84));
-  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(156, 108, 92, 0.24), rgba(31, 20, 17, 0.74));
-  --theme-reader-surface: linear-gradient(180deg, rgba(18, 26, 40, 0.68), rgba(10, 16, 26, 0.48));
+  --theme-surface: linear-gradient(155deg, rgba(41, 55, 78, 0.32), rgba(15, 23, 42, 0.84));
+  --theme-surface-elevated: linear-gradient(145deg, rgba(62, 79, 107, 0.24), rgba(21, 31, 54, 0.74));
+  --theme-surface-soft: rgba(241, 245, 249, 0.16);
+  --theme-panel-surface: linear-gradient(155deg, rgba(41, 55, 78, 0.32), rgba(15, 23, 42, 0.84));
+  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(62, 79, 107, 0.24), rgba(21, 31, 54, 0.74));
+  --theme-reader-surface: linear-gradient(180deg, rgba(22, 33, 56, 0.68), rgba(13, 20, 36, 0.48));
   --theme-code-surface: rgba(5, 10, 18, 0.62);
   --theme-code-border: rgba(255, 255, 255, 0.18);
   --theme-border: rgba(255, 224, 208, 0.24);
@@ -46,8 +46,8 @@
   --theme-menu-avatar-border: rgba(255, 255, 255, 0.86);
   --theme-spot-a: rgba(246, 194, 161, 0.22);
   --theme-spot-b: rgba(239, 160, 168, 0.16);
-  --theme-scrim: rgba(24, 14, 12, 0.64);
-  --app-shell-backdrop: linear-gradient(120deg, #1d2230, #211e34, #1b2538);
+  --theme-scrim: rgba(15, 23, 42, 0.64);
+  --app-shell-backdrop: linear-gradient(120deg, #0d1117, #131a28, #0e121a);
   --wallpaper-stage-filter: brightness(0.64) saturate(118%);
   --wallpaper-home-filter: brightness(0.82) saturate(112%);
   --wallpaper-stage-overlay-background: linear-gradient(180deg, rgba(8, 11, 18, 0.34), rgba(8, 11, 18, 0.52));

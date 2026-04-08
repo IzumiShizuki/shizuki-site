@@ -100,6 +100,18 @@ export async function updateWallpaperVisibility(wallpaperId, visibility, authori
   return unwrapApiResponse(response);
 }
 
+export async function deleteWallpaper(wallpaperId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const normalizedId = Number(wallpaperId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    throw new Error('wallpaperId is required');
+  }
+  const response = await request(`/api/v1/home-wallpapers/${encodeURIComponent(normalizedId)}`, {
+    method: 'DELETE'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function listPendingWallpapers(authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/admin/home-wallpapers/pending', {

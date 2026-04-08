@@ -332,9 +332,9 @@ watch(
 <style scoped>
 .top-menu-root {
   --menu-alpha-scale: 0.52;
-  --menu-glass-bg: rgba(var(--glass-rgb), calc(var(--glass-bg-alpha) * var(--menu-alpha-scale)));
-  --menu-glass-border: rgba(255, 255, 255, calc(var(--glass-border-alpha) * var(--menu-alpha-scale)));
-  --menu-glass-shadow: 0 8px 32px rgba(0, 0, 0, calc(var(--glass-shadow-alpha) * var(--menu-alpha-scale)));
+  --menu-glass-bg: var(--theme-panel-surface-elevated, rgba(var(--glass-rgb), calc(var(--glass-bg-alpha) * var(--menu-alpha-scale))));
+  --menu-glass-border: var(--theme-border-strong, rgba(255, 255, 255, calc(var(--glass-border-alpha) * var(--menu-alpha-scale))));
+  --menu-glass-shadow: 0 10px 30px rgba(18, 9, 8, 0.18);
   --menu-hover-bg: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
   --menu-active-bg: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
   --menu-active-border: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
@@ -342,6 +342,10 @@ watch(
   --icon-hover-color: rgb(var(--accent-strong-rgb));
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
+}
+
+.top-menu-root i {
+  color: inherit;
 }
 
 .top-menu-root .liquid-material {
@@ -451,7 +455,7 @@ watch(
   --left-main-gap: 18px;
   --left-main-item-width: 96px;
   --left-main-padding-x: 20px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.4)) 92%, transparent);
   border-radius: 40px;
   min-width: calc(
     (var(--left-main-item-width) * var(--left-main-count, 5)) +
@@ -689,7 +693,7 @@ watch(
   height: 44px;
   border-radius: 50%;
   overflow: hidden;
-  background: rgba(10, 16, 25, 0.64);
+  background: var(--theme-panel-surface-elevated, rgba(10, 16, 25, 0.64));
   border: 2px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
@@ -723,7 +727,7 @@ watch(
   border: 2px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
   position: relative;
   overflow: hidden;
-  background: rgba(10, 16, 25, 0.64);
+  background: var(--theme-panel-surface-elevated, rgba(10, 16, 25, 0.64));
 }
 
 .avatar-image {
@@ -929,21 +933,20 @@ watch(
   position: absolute;
   inset: 5px;
   border-radius: 999px;
+  opacity: 0;
+  background: transparent;
+  box-shadow: none;
   transition: transform 0.28s ease, opacity 0.28s ease, box-shadow 0.28s ease, background 0.28s ease;
 }
 
 .theme-toggle-box.day::before {
-  background: linear-gradient(180deg, rgba(255, 223, 132, 0.98), rgba(255, 169, 92, 0.88));
-  box-shadow:
-    0 0 0 1px rgba(139, 84, 31, 0.16),
-    0 0 14px rgba(255, 184, 96, 0.36);
+  background: transparent;
+  box-shadow: none;
 }
 
 .theme-toggle-box.night::before {
-  background: linear-gradient(180deg, rgba(176, 186, 255, 0.96), rgba(111, 121, 208, 0.9));
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.16),
-    0 0 14px rgba(126, 143, 255, 0.28);
+  background: transparent;
+  box-shadow: none;
 }
 
 .theme-toggle-box i {
@@ -952,11 +955,21 @@ watch(
 }
 
 .theme-toggle-box.day i {
-  color: rgba(92, 51, 20, 0.94);
+  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
 }
 
 .theme-toggle-box.night i {
-  color: rgba(246, 248, 255, 0.96);
+  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+}
+
+:root[data-theme-mode='day'] .top-menu-root {
+  --menu-glass-bg: linear-gradient(160deg, rgba(255, 252, 248, 0.92), rgba(244, 233, 225, 0.84));
+  --menu-glass-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
+  --menu-glass-shadow: 0 14px 28px rgba(88, 60, 50, 0.12);
+}
+
+:root[data-theme-mode='day'] .top-menu-root :is(.author-avatar-box, .avatar-box) {
+  background: linear-gradient(160deg, rgba(255, 251, 247, 0.94), rgba(242, 231, 224, 0.84));
 }
 
 .fixed-nav-wrapper.expanded .menu-label-text {

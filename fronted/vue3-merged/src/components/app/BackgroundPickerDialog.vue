@@ -146,6 +146,10 @@
             <span v-if="activeBackground.workshopItemId"> | Workshop ID: {{ activeBackground.workshopItemId }}</span>
           </p>
           <div class="settings-grid">
+            <label class="settings-title-field">
+              壁纸标题
+              <input v-model.trim="wallpaperSettingState.title" class="field-input-lite" type="text" placeholder="请输入壁纸标题" />
+            </label>
             <label>
               主音量 {{ formatPercent(wallpaperSettingState.masterVolume) }}
               <input v-model.number="wallpaperSettingState.masterVolume" type="range" min="0" max="1" step="0.01" />
@@ -220,6 +224,9 @@
             </button>
             <button class="scope-btn danger ripple-trigger" :disabled="wallpaperSettingState.visibilitySaving" @click="$emit('set-active-wallpaper-visibility', 'PRIVATE')">
               设为私有
+            </button>
+            <button class="scope-btn danger ripple-trigger" :disabled="wallpaperSettingState.deleting" @click="$emit('delete-active-wallpaper')">
+              {{ wallpaperSettingState.deleting ? '删除中...' : '删除壁纸' }}
             </button>
           </div>
           <p v-if="wallpaperSettingState.error" class="route-bg-note">{{ wallpaperSettingState.error }}</p>
@@ -296,6 +303,7 @@ defineEmits([
   'open-workshop-preview-window',
   'save-active-wallpaper-settings',
   'set-active-wallpaper-visibility',
+  'delete-active-wallpaper',
   'select-background'
 ]);
 </script>
@@ -305,15 +313,15 @@ defineEmits([
   position: fixed;
   inset: 0;
   z-index: 1500;
-  background: rgba(10, 12, 18, 0.42);
+  background: var(--theme-scrim, rgba(10, 12, 18, 0.42));
   display: grid;
   place-items: center;
 }
 
 .bg-picker {
-  --liquid-bg: rgba(var(--glass-rgb), 0.38);
-  --liquid-border: rgba(255, 255, 255, 0.46);
-  --liquid-shadow: 0 16px 44px rgba(8, 12, 20, 0.32);
+  --liquid-bg: var(--theme-panel-surface, rgba(var(--glass-rgb), 0.38));
+  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.46));
+  --liquid-shadow: 0 16px 44px rgba(18, 9, 8, 0.18);
   width: min(94vw, 980px);
   max-height: min(88vh, 760px);
   border-radius: 22px;
@@ -347,18 +355,18 @@ defineEmits([
 }
 
 .picker-title {
-  color: rgba(23, 27, 36, 0.9);
+  color: var(--theme-text-primary, rgba(23, 27, 36, 0.9));
   font-size: 18px;
   font-weight: 700;
 }
 
 .picker-close {
-  border: 0;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.24));
   border-radius: 10px;
   min-width: 60px;
   height: 32px;
-  background: rgba(255, 255, 255, 0.38);
-  color: rgba(30, 34, 42, 0.8);
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.38));
+  color: var(--theme-icon-primary, rgba(30, 34, 42, 0.8));
 }
 
 .picker-toolbar {
@@ -515,6 +523,10 @@ defineEmits([
   padding: 0 10px;
   background: rgba(255, 255, 255, 0.6);
   color: rgba(24, 28, 38, 0.9);
+}
+
+.settings-title-field {
+  grid-column: 1 / -1;
 }
 
 .wallpaper-settings {

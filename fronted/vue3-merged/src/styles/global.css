@@ -88,7 +88,9 @@ body {
   .fixed-nav-wrapper,
   .route-page-view,
   .settings-panel,
-  .workspace-shell
+  .workspace-shell,
+  .light-window-host,
+  .lightapp-window
 ) :is(i, .fas, .far, .fab, .fa-solid, .fa-regular, .fa-brands) {
   text-shadow: var(--theme-contrast-icon-shadow, 0 1px 1px rgba(0, 0, 0, 0.3));
 }
@@ -775,6 +777,62 @@ body {
 
 .top-menu-root :is(.left-pill-group, .author-avatar-box, .avatar-box) {
   border-color: var(--theme-border-strong, rgba(255, 214, 194, 0.34)) !important;
+}
+
+:where(.light-window-host, .lightapp-window) :is(
+  .window-title,
+  .window-title span,
+  .window-header,
+  .icon-btn,
+  .icon-action-btn,
+  .toolbar-btn,
+  .app-switch-btn
+) {
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
+}
+
+:where(.light-window-host, .lightapp-window) :is(
+  .icon-btn,
+  .icon-action-btn,
+  .toolbar-btn,
+  .app-switch-btn
+) {
+  color: var(--theme-icon-primary, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
+}
+
+:where(.light-window-host, .lightapp-window) :is(
+  .window-title,
+  .icon-btn,
+  .icon-action-btn,
+  .toolbar-btn,
+  .app-switch-btn,
+  .icon-btn i,
+  .icon-action-btn i,
+  .toolbar-btn i,
+  .app-switch-btn i,
+  .window-title i,
+  .window-title svg,
+  .icon-btn svg,
+  .icon-action-btn svg,
+  .toolbar-btn svg,
+  .app-switch-btn svg
+) {
+  color: inherit !important;
+  fill: currentColor;
+}
+
+:where(.light-window-host, .lightapp-window) :is(
+  .icon-btn.danger,
+  .icon-action-btn.danger
+) {
+  color: rgba(172, 44, 60, 0.88) !important;
+}
+
+:where(.light-window-host, .lightapp-window) :is(
+  .app-switch-btn.active,
+  .chip-btn.active
+) {
+  color: rgb(var(--accent-strong-rgb)) !important;
 }
 
 :root[data-accent-mode='gradient'] :is(

@@ -218,6 +218,7 @@
         @open-workshop-preview-window="openWorkshopPreviewWindow"
         @save-active-wallpaper-settings="saveActiveWallpaperSettings"
         @set-active-wallpaper-visibility="setActiveWallpaperVisibility"
+        @delete-active-wallpaper="deleteActiveWallpaper"
         @select-background="selectBackground"
       />
 
@@ -272,6 +273,7 @@ import * as wallpaperApi from './services/wallpaperApi';
 import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
 import { refreshAosManager } from './utils/aosManager';
 import { fileToDataUrl, uploadAmbientAudioAsset, validateAmbientAudioFile } from './utils/ambientAudioUpload';
+import { normalizePermanentPublicAssetUrl, resolveSignedStorageExpiryEpochMs } from './utils/publicAssetUrl';
 import { runtimeGuards } from './utils/runtimeGuards';
 import {
   applyAmbientPreset,
@@ -343,6 +345,7 @@ const importState = reactive({
 });
 
 const wallpaperSettingState = reactive({
+  title: '',
   masterVolume: 1,
   bgmVolume: 1,
   bgvVolume: 1,
@@ -353,6 +356,7 @@ const wallpaperSettingState = reactive({
   customValues: {},
   saving: false,
   visibilitySaving: false,
+  deleting: false,
   error: ''
 });
 
@@ -377,10 +381,14 @@ let lastVisualizerFrameAt = 0;
 let sidebarAiCloseTimer = 0;
 let wallpaperImportPollTimer = 0;
 let wallpaperPreferenceSaveTimer = 0;
+let wallpaperSignedUrlRefreshTimer = 0;
+let wallpaperSignedUrlRefreshRunning = false;
 let reducedMotionMediaQuery = null;
 const AI_SIDEBAR_EXIT_MS = 260;
 const VISUALIZER_TARGET_FPS = 30;
 const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
+const WALLPAPER_SIGNED_URL_REFRESH_BUFFER_MS = 60 * 1000;
+const WALLPAPER_SIGNED_URL_REFRESH_MIN_DELAY_MS = 15 * 1000;
 const ambientAssetDownloadCache = new Map();
 
 const route = useRoute();
@@ -1079,12 +1087,23 @@ function normalizeSchemaItem(raw, keyFallback = '') {
   };
 }
 
+function normalizeWallpaperAssetUrl(url, visibility, auditStatus) {
+  const normalized = String(url || '').trim();
+  if (!normalized) return '';
+  if (visibility === 'PUBLIC' && auditStatus === 'APPROVED') {
+    return normalizePermanentPublicAssetUrl(normalized);
+  }
+  return normalized;
+}
+
 function normalizeWallpaperProfile(raw, index = 0) {
   const wallpaperId = parsePositiveId(readRecordField(raw, 'wallpaperId', 'wallpaper_id', 0));
   const sceneType = String(readRecordField(raw, 'sceneType', 'scene_type', 'STATIC')).trim().toUpperCase();
   const type = sceneType === 'L2D' ? 'l2d' : sceneType === 'DYNAMIC' ? 'dynamic' : 'static';
-  const visualUrl = String(readRecordField(raw, 'visualUrl', 'visual_url', '') || '').trim();
-  const previewUrl = String(readRecordField(raw, 'previewUrl', 'preview_url', visualUrl) || '').trim();
+  const visibility = String(readRecordField(raw, 'visibility', 'visibility', 'PRIVATE')).toUpperCase();
+  const auditStatus = String(readRecordField(raw, 'auditStatus', 'audit_status', 'PENDING_AUDIT')).toUpperCase();
+  const visualUrl = normalizeWallpaperAssetUrl(readRecordField(raw, 'visualUrl', 'visual_url', ''), visibility, auditStatus);
+  const previewUrl = normalizeWallpaperAssetUrl(readRecordField(raw, 'previewUrl', 'preview_url', visualUrl), visibility, auditStatus);
   const itemId = wallpaperId > 0 ? `wp-${wallpaperId}` : `wp-temp-${index}`;
   return {
     id: itemId,
@@ -1094,12 +1113,12 @@ function normalizeWallpaperProfile(raw, index = 0) {
     preview: previewUrl || visualUrl || normalizeAssetPath('images/original-bg.png'),
     type,
     sceneType,
-    visibility: String(readRecordField(raw, 'visibility', 'visibility', 'PRIVATE')).toUpperCase(),
-    auditStatus: String(readRecordField(raw, 'auditStatus', 'audit_status', 'PENDING_AUDIT')).toUpperCase(),
+    visibility,
+    auditStatus,
     embeddedBgmAssetId: parsePositiveId(readRecordField(raw, 'embeddedBgmAssetId', 'embedded_bgm_asset_id', 0)),
-    embeddedBgmUrl: String(readRecordField(raw, 'embeddedBgmUrl', 'embedded_bgm_url', '') || '').trim(),
+    embeddedBgmUrl: normalizeWallpaperAssetUrl(readRecordField(raw, 'embeddedBgmUrl', 'embedded_bgm_url', ''), visibility, auditStatus),
     embeddedBgvAssetId: parsePositiveId(readRecordField(raw, 'embeddedBgvAssetId', 'embedded_bgv_asset_id', 0)),
-    embeddedBgvUrl: String(readRecordField(raw, 'embeddedBgvUrl', 'embedded_bgv_url', '') || '').trim(),
+    embeddedBgvUrl: normalizeWallpaperAssetUrl(readRecordField(raw, 'embeddedBgvUrl', 'embedded_bgv_url', ''), visibility, auditStatus),
     l2dEntryModelJson: String(readRecordField(raw, 'l2dEntryModelJson', 'l2d_entry_model_json', '') || '').trim(),
     defaultMasterVolume: clampUnit(readRecordField(raw, 'defaultMasterVolume', 'default_master_volume', 1), 1),
     defaultBgmVolume: clampUnit(readRecordField(raw, 'defaultBgmVolume', 'default_bgm_volume', 1), 1),
@@ -1128,6 +1147,7 @@ function applyBackgroundSelectionGuard() {
 }
 
 function loadEmergencySingleBackgroundFallback() {
+  clearWallpaperSignedUrlRefreshTimer();
   backgroundEmergencyFallbackUsed.value = true;
   backgroundItems.value = [
     {
@@ -1158,6 +1178,7 @@ function loadEmergencySingleBackgroundFallback() {
 }
 
 async function loadBackgroundLibrary() {
+  clearWallpaperSignedUrlRefreshTimer();
   wallpaperLoading.value = true;
   wallpaperErrorHint.value = '';
   backgroundEmergencyFallbackUsed.value = false;
@@ -1183,6 +1204,7 @@ async function loadBackgroundLibrary() {
     applyBackgroundSelectionGuard();
     wallpaperLoading.value = false;
     syncActiveWallpaperSettingFromItem(true);
+    scheduleWallpaperSignedUrlRefresh();
   }
 }
 
@@ -1209,6 +1231,7 @@ function syncActiveWallpaperSettingFromItem(force = false) {
     : {};
   const activeId = String(item.id || '').trim();
   const cached = activeId ? wallpaperCustomValuesById[activeId] : null;
+  wallpaperSettingState.title = String(item.name || '').trim();
   wallpaperSettingState.masterVolume = clampUnit(item.defaultMasterVolume, 1);
   wallpaperSettingState.bgmVolume = clampUnit(item.defaultBgmVolume, 1);
   wallpaperSettingState.bgvVolume = clampUnit(item.defaultBgvVolume, 1);
@@ -1219,6 +1242,75 @@ function syncActiveWallpaperSettingFromItem(force = false) {
   wallpaperSettingState.customValues = cached && typeof cached === 'object'
     ? { ...cached }
     : { ...defaults };
+}
+
+function clearWallpaperSignedUrlRefreshTimer() {
+  if (wallpaperSignedUrlRefreshTimer && typeof window !== 'undefined') {
+    window.clearTimeout(wallpaperSignedUrlRefreshTimer);
+  }
+  wallpaperSignedUrlRefreshTimer = 0;
+}
+
+function resolveActiveWallpaperSignedExpiryEpochMs() {
+  const candidates = [
+    activeBackground.value?.src,
+    activeBackground.value?.preview,
+    activeWallpaperBgmUrl.value,
+    activeWallpaperBgvUrl.value
+  ]
+    .map((url) => resolveSignedStorageExpiryEpochMs(url))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (!candidates.length) {
+    return 0;
+  }
+  return Math.min(...candidates);
+}
+
+function shouldRefreshWallpaperSignedUrls(now = Date.now()) {
+  const expiryAtMs = resolveActiveWallpaperSignedExpiryEpochMs();
+  if (!expiryAtMs) {
+    return false;
+  }
+  return now >= expiryAtMs - WALLPAPER_SIGNED_URL_REFRESH_BUFFER_MS;
+}
+
+async function refreshWallpaperLibraryForSignedUrls() {
+  if (!auth.isAuthenticated.value || wallpaperLoading.value || wallpaperSignedUrlRefreshRunning) {
+    return false;
+  }
+  if (!shouldRefreshWallpaperSignedUrls()) {
+    scheduleWallpaperSignedUrlRefresh();
+    return false;
+  }
+  wallpaperSignedUrlRefreshRunning = true;
+  try {
+    await loadBackgroundLibrary();
+    return true;
+  } finally {
+    wallpaperSignedUrlRefreshRunning = false;
+  }
+}
+
+function scheduleWallpaperSignedUrlRefresh() {
+  clearWallpaperSignedUrlRefreshTimer();
+  if (typeof window === 'undefined' || !auth.isAuthenticated.value) {
+    return;
+  }
+  const expiryAtMs = resolveActiveWallpaperSignedExpiryEpochMs();
+  if (!expiryAtMs) {
+    return;
+  }
+  const delayMs = expiryAtMs - Date.now() - WALLPAPER_SIGNED_URL_REFRESH_BUFFER_MS;
+  if (delayMs <= 0) {
+    wallpaperSignedUrlRefreshTimer = window.setTimeout(() => {
+      refreshWallpaperLibraryForSignedUrls().catch(() => {});
+    }, 0);
+    return;
+  }
+  wallpaperSignedUrlRefreshTimer = window.setTimeout(() => {
+    refreshWallpaperLibraryForSignedUrls().catch(() => {});
+  }, Math.max(WALLPAPER_SIGNED_URL_REFRESH_MIN_DELAY_MS, delayMs));
 }
 
 function applyWallpaperCustomVariables() {
@@ -1535,13 +1627,31 @@ async function saveActiveWallpaperSettings() {
     wallpaperSettingState.error = '当前壁纸不支持设置。';
     return;
   }
+  const title = String(wallpaperSettingState.title || '').trim();
+  if (!title) {
+    wallpaperSettingState.error = '壁纸标题不能为空。';
+    return;
+  }
+  const bgmAssetIdText = String(wallpaperSettingState.bgmAssetIdText || '').trim();
+  const bgvAssetIdText = String(wallpaperSettingState.bgvAssetIdText || '').trim();
+  const embeddedBgmAssetId = bgmAssetIdText ? parsePositiveId(bgmAssetIdText) : 0;
+  const embeddedBgvAssetId = bgvAssetIdText ? parsePositiveId(bgvAssetIdText) : 0;
+  if (bgmAssetIdText && !embeddedBgmAssetId) {
+    wallpaperSettingState.error = '内置 BGM 资源 ID 必须为正整数。';
+    return;
+  }
+  if (bgvAssetIdText && !embeddedBgvAssetId) {
+    wallpaperSettingState.error = '内置 BGV 资源 ID 必须为正整数。';
+    return;
+  }
   wallpaperSettingState.saving = true;
   try {
     const payload = await wallpaperApi.updateWallpaperSettings(
       item.wallpaperId,
       {
-        embeddedBgmAssetId: parsePositiveId(wallpaperSettingState.bgmAssetIdText) || undefined,
-        embeddedBgvAssetId: parsePositiveId(wallpaperSettingState.bgvAssetIdText) || undefined,
+        title,
+        embeddedBgmAssetId,
+        embeddedBgvAssetId,
         defaultMasterVolume: clampUnit(wallpaperSettingState.masterVolume, 1),
         defaultBgmVolume: clampUnit(wallpaperSettingState.bgmVolume, 1),
         defaultBgvVolume: clampUnit(wallpaperSettingState.bgvVolume, 1),
@@ -1559,8 +1669,10 @@ async function saveActiveWallpaperSettings() {
         ...normalized
       };
     }
+    syncActiveWallpaperSettingFromItem(true);
     saveActiveCustomValueSnapshot();
     queueWallpaperPreferenceSync();
+    importState.hint = '壁纸设置已保存。';
   } catch (error) {
     wallpaperSettingState.error = String(error?.detail || error?.message || '设置保存失败');
   } finally {
@@ -1595,6 +1707,40 @@ async function setActiveWallpaperVisibility(visibility) {
     wallpaperSettingState.error = String(error?.detail || error?.message || '可见性更新失败');
   } finally {
     wallpaperSettingState.visibilitySaving = false;
+  }
+}
+
+async function deleteActiveWallpaper() {
+  wallpaperSettingState.error = '';
+  if (!auth.isAuthenticated.value) {
+    wallpaperSettingState.error = '请先登录。';
+    return;
+  }
+  const item = activeBackground.value;
+  if (!item || !item.wallpaperId) {
+    wallpaperSettingState.error = '当前壁纸不支持删除。';
+    return;
+  }
+  const confirmed = window.confirm(`确定要删除壁纸「${item.name}」吗？此操作不可恢复。`);
+  if (!confirmed) {
+    return;
+  }
+  wallpaperSettingState.deleting = true;
+  try {
+    await wallpaperApi.deleteWallpaper(item.wallpaperId, auth.authorizedFetch);
+    backgroundItems.value = backgroundItems.value.filter((background) => background.id !== item.id);
+    delete wallpaperCustomValuesById[item.id];
+    if (!backgroundItems.value.length) {
+      loadEmergencySingleBackgroundFallback();
+    }
+    applyBackgroundSelectionGuard();
+    syncActiveWallpaperSettingFromItem(true);
+    queueWallpaperPreferenceSync();
+    importState.hint = '壁纸已删除。';
+  } catch (error) {
+    wallpaperSettingState.error = String(error?.detail || error?.message || '壁纸删除失败');
+  } finally {
+    wallpaperSettingState.deleting = false;
   }
 }
 
@@ -1866,6 +2012,8 @@ function onVisibilityChange() {
   pageVisible.value = typeof document === 'undefined' ? true : !document.hidden;
   if (!pageVisible.value) {
     releaseLyricPointer();
+  } else {
+    refreshWallpaperLibraryForSignedUrls().catch(() => {});
   }
   recordWindowDiag('app.visibilitychange', {
     hidden: !pageVisible.value,
@@ -1883,6 +2031,7 @@ function onWindowBlur(event) {
 function onWindowFocus(event) {
   if (typeof window !== 'undefined' && event?.target && event.target !== window) return;
   windowFocused.value = true;
+  refreshWallpaperLibraryForSignedUrls().catch(() => {});
   recordWindowDiag('app.focus', { hasFocus: true });
 }
 
@@ -1896,6 +2045,7 @@ function onPageHide(event) {
 function onPageShow(event) {
   pageVisible.value = typeof document === 'undefined' ? true : !document.hidden;
   windowFocused.value = typeof document === 'undefined' ? true : document.hasFocus();
+  refreshWallpaperLibraryForSignedUrls().catch(() => {});
   recordWindowDiag('app.pageshow', {
     persisted: Boolean(event?.persisted),
     hidden: !pageVisible.value,
@@ -2203,11 +2353,13 @@ watch(activeBackgroundId, () => {
   l2dRenderFailed.value = false;
   syncActiveWallpaperSettingFromItem(true);
   applyWallpaperAudioState();
+  scheduleWallpaperSignedUrlRefresh();
 });
 watch(
   () => [activeWallpaperBgmUrl.value, activeWallpaperBgvUrl.value],
   () => {
     applyWallpaperAudioState();
+    scheduleWallpaperSignedUrlRefresh();
   },
   { immediate: true }
 );
@@ -2270,11 +2422,13 @@ watch(
     if (authenticated) {
       await loadRemoteSiteAtmospherePreference();
       await syncAmbientMixer();
+      scheduleWallpaperSignedUrlRefresh();
       return;
     }
     if (wasAuthenticated) {
       ambientAssetDownloadCache.clear();
     }
+    clearWallpaperSignedUrlRefreshTimer();
   }
 );
 watch(
@@ -2384,6 +2538,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  clearWallpaperSignedUrlRefreshTimer();
   stopImportPolling();
   if (wallpaperPreferenceSaveTimer) {
     window.clearTimeout(wallpaperPreferenceSaveTimer);
@@ -2524,13 +2679,17 @@ onBeforeUnmount(() => {
   scrollbar-color: rgba(120, 132, 158, 0.48) rgba(9, 14, 24, 0.12);
   border-radius: 18px;
   padding: 16px;
-  background: rgba(10, 14, 22, 0.32);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 14px 32px rgba(6, 10, 18, 0.22);
+  background: var(--theme-panel-surface, rgba(10, 14, 22, 0.32));
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.18));
+  box-shadow: 0 14px 32px rgba(18, 9, 8, 0.18);
+  backdrop-filter: blur(16px) saturate(124%);
+  -webkit-backdrop-filter: blur(16px) saturate(124%);
   transition:
     background-color 340ms ease,
     border-color 320ms ease,
     box-shadow 360ms ease,
+    backdrop-filter 360ms ease,
+    -webkit-backdrop-filter 360ms ease,
     padding 260ms ease;
 }
 
@@ -2561,6 +2720,8 @@ onBeforeUnmount(() => {
   border: 0;
   box-shadow: none;
   padding: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .route-content.route-content-blog {
@@ -2661,6 +2822,46 @@ onBeforeUnmount(() => {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
   cursor: grab;
   user-select: none;
+}
+
+:root[data-theme-mode='day'] .route-content {
+  background: var(--theme-panel-surface, linear-gradient(155deg, rgba(255, 255, 255, 0.66), rgba(238, 238, 242, 0.46)));
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+  box-shadow: 0 18px 34px rgba(76, 76, 84, 0.08);
+  backdrop-filter: blur(18px) saturate(116%);
+  -webkit-backdrop-filter: blur(18px) saturate(116%);
+  scrollbar-color: rgba(148, 148, 156, 0.5) rgba(172, 172, 180, 0.12);
+}
+
+:root[data-theme-mode='day'] .route-content::-webkit-scrollbar-track {
+  background: rgba(172, 172, 180, 0.12);
+}
+
+:root[data-theme-mode='day'] .route-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(184, 184, 192, 0.62), rgba(142, 142, 150, 0.46));
+  background-clip: content-box;
+}
+
+:root[data-theme-mode='day'] .route-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(196, 196, 204, 0.72), rgba(154, 154, 162, 0.56));
+  background-clip: content-box;
+}
+
+:root[data-theme-mode='day'] .route-content.route-content-home {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme-mode='day'] .global-lyric-bar {
+  --liquid-bg: var(--theme-floating-surface, rgba(var(--glass-rgb), 0.34));
+  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.4));
+  --liquid-shadow: 0 12px 24px rgba(88, 60, 50, 0.14);
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  text-shadow: none;
 }
 
 .global-bars {

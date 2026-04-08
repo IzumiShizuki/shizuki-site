@@ -23,6 +23,9 @@ const ACCENT_PRESETS = [
 
 const GRADIENT_PRESETS = [
   { id: 'apricot-blush', name: '奶杏桃粉', startHex: '#F6C2A1', endHex: '#EFA0A8' },
+  { id: 'glass-ocean', name: '极光海蓝', startHex: '#60A5FA', endHex: '#34D399' },
+  { id: 'cyber-neon', name: '赛博霓虹', startHex: '#F472B6', endHex: '#818CF8' },
+  { id: 'midnight-violet', name: '午夜星紫', startHex: '#A78BFA', endHex: '#4F46E5' },
   { id: 'sunset', name: '晚霞粉橙', startHex: '#FF7A8A', endHex: '#FFB168' },
   { id: 'rose', name: '蔷薇奶霓', startHex: '#FF6BAA', endHex: '#C36BFF' },
   { id: 'berry', name: '莓果粉紫', startHex: '#E94BC5', endHex: '#9D6BFF' },
@@ -139,64 +142,67 @@ function applyAccentVariables() {
   const lifted = [clamp(r + (255 - r) * 0.18), clamp(g + (255 - g) * 0.18), clamp(b + (255 - b) * 0.16)];
   const gradientStart = hexToRgbTuple(state.accentGradientStartHex) || [246, 194, 161];
   const gradientEnd = hexToRgbTuple(state.accentGradientEndHex) || [239, 160, 168];
-  const warmCore = mixTuple([r, g, b], [50, 32, 28], 0.68);
-  const warmShade = mixTuple([r, g, b], [20, 12, 10], 0.82);
-  const warmLift = mixTuple(soft, [255, 235, 224], 0.34);
-  const warmBorder = mixTuple([r, g, b], [255, 230, 214], 0.18);
-  const warmBorderStrong = mixTuple(strong, [255, 214, 194], 0.12);
+  const warmCore = mixTuple([r, g, b], [28, 36, 56], 0.72);
+  const warmShade = mixTuple([r, g, b], [14, 18, 32], 0.86);
+  const warmLift = mixTuple(soft, [255, 252, 248], 0.34);
+  const warmBorder = mixTuple([r, g, b], [241, 245, 249], 0.18);
+  const warmBorderStrong = mixTuple(strong, [226, 232, 240], 0.12);
   const paperBase = state.accentMode === 'gradient'
-    ? mixTuple(gradientStart, [255, 250, 246], 0.82)
-    : mixTuple(lifted, [255, 249, 244], 0.74);
+    ? mixTuple(gradientStart, [255, 253, 250], 0.86)
+    : mixTuple(lifted, [255, 253, 250], 0.82);
   const paperShade = state.accentMode === 'gradient'
-    ? mixTuple(gradientEnd, [246, 237, 231], 0.76)
-    : mixTuple(soft, [245, 235, 229], 0.68);
+    ? mixTuple(gradientEnd, [252, 250, 246], 0.82)
+    : mixTuple(soft, [252, 250, 246], 0.76);
   const paperLift = state.accentMode === 'gradient'
-    ? mixTuple(gradientStart, [255, 252, 249], 0.88)
-    : mixTuple(warmLift, [255, 252, 249], 0.78);
-  const paperBorder = mixTuple(strong, [88, 60, 50], 0.2);
-  const paperBorderStrong = mixTuple(strong, [66, 44, 38], 0.16);
+    ? mixTuple(gradientStart, [255, 255, 255], 0.92)
+    : mixTuple(warmLift, [255, 255, 255], 0.92);
+  const paperGlass = mixTuple(paperShade, [255, 254, 252], 0.68);
+  const paperMist = mixTuple(paperBase, [255, 254, 252], 0.82);
+  const paperFrost = mixTuple(paperLift, [255, 255, 255], 0.94);
+  const paperBorder = mixTuple(strong, [148, 163, 184], 0.2);
+  const paperBorderStrong = mixTuple(strong, [100, 116, 139], 0.16);
   const themeSurface = isDayMode
-    ? `linear-gradient(155deg, rgba(${paperBase.join(', ')}, 0.88), rgba(${paperShade.join(', ')}, 0.78))`
+    ? `linear-gradient(155deg, rgba(${paperMist.join(', ')}, 0.68), rgba(${paperGlass.join(', ')}, 0.48))`
     : state.accentMode === 'gradient'
-      ? `linear-gradient(155deg, rgba(${mixTuple(gradientStart, [68, 42, 34], 0.56).join(', ')}, 0.7), rgba(${mixTuple(gradientEnd, [22, 14, 12], 0.84).join(', ')}, 0.76))`
-      : `linear-gradient(155deg, rgba(${warmCore.join(', ')}, 0.34), rgba(${warmShade.join(', ')}, 0.84))`;
+      ? `linear-gradient(155deg, rgba(${mixTuple(gradientStart, [28, 36, 56], 0.64).join(', ')}, 0.74), rgba(${mixTuple(gradientEnd, [14, 18, 32], 0.88).join(', ')}, 0.82))`
+      : `linear-gradient(155deg, rgba(${warmCore.join(', ')}, 0.42), rgba(${warmShade.join(', ')}, 0.88))`;
   const themeSurfaceElevated = isDayMode
-    ? `linear-gradient(145deg, rgba(${paperLift.join(', ')}, 0.94), rgba(${paperShade.join(', ')}, 0.82))`
+    ? `linear-gradient(145deg, rgba(${paperFrost.join(', ')}, 0.82), rgba(${paperMist.join(', ')}, 0.6))`
     : state.accentMode === 'gradient'
-      ? `linear-gradient(145deg, rgba(${mixTuple(gradientStart, [110, 72, 56], 0.44).join(', ')}, 0.32), rgba(${mixTuple(gradientEnd, [36, 22, 18], 0.74).join(', ')}, 0.74))`
-      : `linear-gradient(145deg, rgba(${mixTuple(lifted, [126, 82, 68], 0.36).join(', ')}, 0.28), rgba(${mixTuple([r, g, b], [30, 18, 16], 0.78).join(', ')}, 0.72))`;
+      ? `linear-gradient(145deg, rgba(${mixTuple(gradientStart, [48, 60, 82], 0.52).join(', ')}, 0.4), rgba(${mixTuple(gradientEnd, [14, 18, 32], 0.78).join(', ')}, 0.78))`
+      : `linear-gradient(145deg, rgba(${mixTuple(lifted, [48, 60, 82], 0.48).join(', ')}, 0.36), rgba(${mixTuple([r, g, b], [14, 18, 32], 0.82).join(', ')}, 0.78))`;
   const themeSurfaceSoft = isDayMode
-    ? `rgba(${paperLift.join(', ')}, 0.72)`
+    ? `rgba(${paperFrost.join(', ')}, 0.54)`
     : state.accentMode === 'gradient'
-      ? `rgba(${mixTuple(gradientStart, [255, 236, 224], 0.28).join(', ')}, 0.16)`
+      ? `rgba(${mixTuple(gradientStart, [226, 232, 240], 0.28).join(', ')}, 0.16)`
       : `rgba(${warmLift.join(', ')}, 0.16)`;
   const themePanelSurface = isDayMode
-    ? `linear-gradient(155deg, rgba(${paperLift.join(', ')}, 0.96), rgba(${paperShade.join(', ')}, 0.88))`
+    ? `linear-gradient(155deg, rgba(${paperFrost.join(', ')}, 0.76), rgba(${paperGlass.join(', ')}, 0.56))`
     : themeSurface;
   const themePanelSurfaceElevated = isDayMode
-    ? `linear-gradient(145deg, rgba(255, 252, 249, 0.98), rgba(${paperBase.join(', ')}, 0.9))`
+    ? `linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(${paperMist.join(', ')}, 0.66))`
     : themeSurfaceElevated;
   const themeReaderSurface = isDayMode
-    ? `linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(${paperBase.join(', ')}, 0.94))`
-    : 'linear-gradient(180deg, rgba(18, 26, 40, 0.68), rgba(10, 16, 26, 0.48))';
+    ? `linear-gradient(180deg, rgba(255, 254, 252, 0.94), rgba(${paperMist.join(', ')}, 0.78))`
+    : 'linear-gradient(180deg, rgba(14, 18, 32, 0.68), rgba(9, 11, 20, 0.48))';
   const themeCodeSurface = isDayMode
-    ? `rgba(${mixTuple(paperShade, [255, 248, 243], 0.52).join(', ')}, 0.92)`
+    ? `rgba(${mixTuple(paperGlass, [255, 255, 255], 0.42).join(', ')}, 0.74)`
     : 'rgba(5, 10, 18, 0.62)';
-  const themeCodeBorder = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.22)` : 'rgba(255, 255, 255, 0.18)';
-  const themeBorder = isDayMode ? `rgba(${paperBorder.join(', ')}, 0.24)` : `rgba(${warmBorder.join(', ')}, 0.24)`;
-  const themeBorderStrong = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.38)` : `rgba(${warmBorderStrong.join(', ')}, 0.34)`;
+  const themeCodeBorder = isDayMode ? `rgba(${mixTuple(paperBorderStrong, [102, 102, 108], 0.42).join(', ')}, 0.18)` : 'rgba(255, 255, 255, 0.18)';
+  const themeBorder = isDayMode ? `rgba(${mixTuple(paperBorder, [108, 108, 114], 0.44).join(', ')}, 0.18)` : `rgba(${warmBorder.join(', ')}, 0.24)`;
+  const themeBorderStrong = isDayMode ? `rgba(${mixTuple(paperBorderStrong, [92, 92, 98], 0.44).join(', ')}, 0.26)` : `rgba(${warmBorderStrong.join(', ')}, 0.34)`;
   const themeTextPrimary = isDayMode ? 'rgba(52, 34, 29, 0.96)' : 'rgba(255, 242, 233, 0.96)';
   const themeTextSecondary = isDayMode ? 'rgba(88, 62, 53, 0.86)' : 'rgba(231, 211, 196, 0.88)';
   const themeTextTertiary = isDayMode ? 'rgba(121, 90, 79, 0.74)' : 'rgba(205, 183, 168, 0.78)';
   const themeIconPrimary = isDayMode ? 'rgba(94, 72, 63, 0.92)' : 'rgba(236, 242, 255, 0.92)';
   const themeIconMuted = isDayMode ? 'rgba(125, 99, 88, 0.78)' : 'rgba(210, 220, 238, 0.76)';
   const themeIconStrong = isDayMode ? 'rgba(72, 52, 46, 0.98)' : 'rgba(248, 250, 255, 0.98)';
-  const themeDividerSoft = isDayMode ? `rgba(${paperBorderStrong.join(', ')}, 0.16)` : 'rgba(193, 211, 244, 0.24)';
+  const themeDividerSoft = isDayMode ? `rgba(${mixTuple(paperBorderStrong, [118, 118, 124], 0.4).join(', ')}, 0.12)` : 'rgba(193, 211, 244, 0.24)';
   const themeFloatingSurface = isDayMode
-    ? `linear-gradient(160deg, rgba(${paperLift.join(', ')}, 0.94), rgba(${paperShade.join(', ')}, 0.84))`
+    ? `linear-gradient(160deg, rgba(${paperFrost.join(', ')}, 0.7), rgba(${paperGlass.join(', ')}, 0.48))`
     : 'linear-gradient(160deg, rgba(18, 24, 38, 0.78), rgba(12, 18, 30, 0.72))';
   const themeFloatingSurfaceHover = isDayMode
-    ? `linear-gradient(160deg, rgba(${mixTuple(paperLift, gradientStart, 0.16).join(', ')}, 0.98), rgba(${mixTuple(paperShade, gradientEnd, 0.12).join(', ')}, 0.88))`
+    ? `linear-gradient(160deg, rgba(${paperFrost.join(', ')}, 0.8), rgba(${mixTuple(paperGlass, [246, 246, 248], 0.46).join(', ')}, 0.58))`
     : state.accentMode === 'gradient'
       ? `linear-gradient(160deg, rgba(${gradientStart[0]}, ${gradientStart[1]}, ${gradientStart[2]}, 0.28), rgba(${gradientEnd[0]}, ${gradientEnd[1]}, ${gradientEnd[2]}, 0.22))`
       : `linear-gradient(160deg, rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, 0.22), rgba(${r}, ${g}, ${b}, 0.18))`;
