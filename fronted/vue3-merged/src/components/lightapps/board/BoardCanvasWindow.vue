@@ -1150,22 +1150,10 @@ onBeforeUnmount(() => {
   z-index: 25;
 }
 
-:deep(.board-canvas-react-host .board-connect-preview__path) {
-  fill: none;
-  stroke: rgba(105, 152, 255, 0.96);
-  stroke-width: 2.2px;
-  stroke-dasharray: 8 6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 2px 6px rgba(80, 123, 216, 0.22));
-}
-
 :deep(.board-canvas-react-host .board-connect-preview__target) {
-  fill: rgba(120, 166, 255, 0.08);
-  stroke: rgba(102, 150, 255, 0.92);
-  stroke-width: 1.8px;
-  stroke-dasharray: 7 5;
-  filter: drop-shadow(0 4px 10px rgba(79, 116, 204, 0.16));
+  fill: rgba(120, 166, 255, 0.12);
+  stroke: rgba(102, 150, 255, 0.7);
+  stroke-width: 2px;
 }
 
 :deep(.board-canvas-react-host .board-connect-overlay__button) {
@@ -1325,16 +1313,14 @@ onBeforeUnmount(() => {
 :deep(.board-left-palette__toggle:hover) {
   transform: translateY(-1px);
   background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(190, 225, 255, 0.62);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 :deep(.board-left-palette__tool.is-selected) {
-  background:
-    linear-gradient(180deg, rgba(151, 183, 235, 0.62), rgba(126, 160, 218, 0.72));
-  border-color: rgba(181, 217, 255, 0.82);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
-    0 8px 18px rgba(89, 119, 173, 0.18);
+  background: rgba(227, 242, 253, 0.15);
+  border-color: rgba(144, 202, 249, 0.5);
+  color: #90caf9;
+  box-shadow: none;
 }
 
 :deep(.board-left-palette__tool:active),
@@ -1478,6 +1464,49 @@ onBeforeUnmount(() => {
 :deep(.board-right-style .tlui-style-panel__section) {
   border-radius: 10px;
   overflow: visible;
+}
+
+:deep(.board-right-arrange) {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+:deep(.board-right-arrange__title) {
+  font-size: 11px;
+  color: rgba(220, 230, 255, 0.85);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+:deep(.board-right-arrange__grid) {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+:deep(.board-right-arrange__grid button) {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: rgba(230, 240, 255, 0.9);
+  padding: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+:deep(.board-right-arrange__grid button:hover:not(:disabled)) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(180, 210, 255, 0.5);
+}
+
+:deep(.board-right-arrange__grid button:disabled) {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 :deep(.board-zoom-host) {

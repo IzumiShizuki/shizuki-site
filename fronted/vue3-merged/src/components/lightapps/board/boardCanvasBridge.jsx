@@ -1156,6 +1156,28 @@ function BoardCanvasLeftPalette() {
   );
 }
 
+function BoardCanvasArrangePanel() {
+  const editor = useEditor();
+  const selectedShapeIds = useValue('selected-shapes', () => editor.getSelectedShapeIds(), [editor]);
+  const disabled = selectedShapeIds.length < 2;
+
+  return (
+    <div className="board-right-arrange">
+      <div className="board-right-arrange__title">排列 (Arrange)</div>
+      <div className="board-right-arrange__grid">
+        <button type="button" disabled={disabled} title="左对齐" onClick={() => editor.alignShapes(selectedShapeIds, 'left')}><i className="fas fa-align-left" aria-hidden="true"></i></button>
+        <button type="button" disabled={disabled} title="水平居中" onClick={() => editor.alignShapes(selectedShapeIds, 'center-horizontal')}><i className="fas fa-align-center" aria-hidden="true"></i></button>
+        <button type="button" disabled={disabled} title="右对齐" onClick={() => editor.alignShapes(selectedShapeIds, 'right')}><i className="fas fa-align-right" aria-hidden="true"></i></button>
+        <button type="button" disabled={disabled} title="顶端对齐" onClick={() => editor.alignShapes(selectedShapeIds, 'top')}><i className="fas fa-arrows-alt-v" style={{transform: 'rotate(90deg)'}} aria-hidden="true"></i></button>
+        <button type="button" disabled={disabled} title="垂直居中" onClick={() => editor.alignShapes(selectedShapeIds, 'center-vertical')}><i className="fas fa-arrows-alt-v" aria-hidden="true"></i></button>
+        <button type="button" disabled={disabled} title="底端对齐" onClick={() => editor.alignShapes(selectedShapeIds, 'bottom')}><i className="fas fa-arrows-alt-v" style={{transform: 'rotate(-90deg)'}} aria-hidden="true"></i></button>
+        <button type="button" disabled={disabled} title="水平分布" onClick={() => editor.distributeShapes(selectedShapeIds, 'horizontal')}><i className="fas fa-arrows-alt-h" aria-hidden="true"></i></button>
+        <button type="button" disabled={disabled} title="垂直分布" onClick={() => editor.distributeShapes(selectedShapeIds, 'vertical')}><i className="fas fa-bars" aria-hidden="true"></i></button>
+      </div>
+    </div>
+  );
+}
+
 function BoardCanvasStylePanel() {
   const editor = useEditor();
   const isCompact = useCompactBoardUi();
@@ -1188,7 +1210,10 @@ function BoardCanvasStylePanel() {
       {!collapsed ? (
         <div className="board-right-style__body">
           {selectedCount > 0 ? (
-            <DefaultStylePanel />
+            <>
+              <DefaultStylePanel />
+              <BoardCanvasArrangePanel />
+            </>
           ) : (
             <p className="board-right-style__placeholder">选中图形后可编辑颜色、粗细、填充和文本样式</p>
           )}
@@ -1369,7 +1394,6 @@ function BoardCanvasQuickConnectPreview() {
 
   return (
     <svg className="board-connect-preview" aria-hidden="true">
-      <path d={previewState.path} className="board-connect-preview__path" />
       {previewState.targetRect ? (
         <rect
           className="board-connect-preview__target"

@@ -1,80 +1,56 @@
-# Agent Instructions
+# 智能体协作协议 (Agent Instructions)
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+本项目采用 **bd** (beads) 引擎驱动任务流。启动前请运行 `bd onboard` 唤醒系统。
 
-## Quick Reference
+## 1. 快捷指令 (Quick Reference)
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+bd ready              # 查看可用任务
+bd show <id>          # 查看任务详情
+bd update <id> --status in_progress  # 认领并锁定任务
+bd close <id>         # 完成任务
+bd sync               # 同步任务状态
 ```
 
-## Landing the Plane (Session Completion)
+## 2. 任务提交流程 (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below.  
-默认交付目标为**本机提交完成**（不自动推送远端）。
+**在每次会话结束前**，请执行以下操作以确保本地代码基线稳固：
 
-**MANDATORY WORKFLOW:**
+1.  **遗留事项检查**：为所有未完成的事项创建 Issue 标记。
+2.  **质量控制**：运行测试、Linter 与构建命令，修正代码缺陷。
+3.  **状态更新**：关闭已完成任务，更新进行中的任务状态。
+4.  **全量同步**：
+    ```bash
+    bd sync
+    git status  # 确认工作树状态
+    ```
+5.  **环境清理**：清空临时文件，修剪冗余分支。
+6.  **本地提交**：确认所有变更均已在本地 Commit。
+7.  **上下文移交**：为下一次开发留下清晰的任务进度说明。
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Sync local status**:
-   ```bash
-   bd sync
-   git status  # MUST show clean working tree
-   ```
-5. **Clean up** - Clear stashes, prune temporary files/branches
-6. **Verify** - All changes committed locally
-7. **Hand off** - Provide context for next session
+## 3. 核心准则 (CRITICAL RULES)
 
-**CRITICAL RULES:**
-- Work is complete once local commit + quality gates + `bd sync` are done
-- DO NOT push to GitHub unless user explicitly asks for remote push
-- If user explicitly requests push, execute:
-  - `git pull --rebase`
-  - `bd sync`
-  - `git push`
-  - `git status` must show up-to-date with origin
+- **本地优先**：完成本地 Commit、质量检查及 `bd sync` 即代表任务阶段性达成。
+- **权限限制**：除非得到明确授权，否则严禁执行 `git push` 操作。
+- **推送到远端**（仅在获得授权后执行）：
+    - `git pull --rebase`
+    - `bd sync`
+    - `git push`
+    - 通过 `git status` 确认与远端仓库完全同步。
 
-## Commit Rules
+## 4. Commit 规范
 
-- Commit identity must use:
-  - `user.name = Izumi`
-  - `user.email = 29301481@qq.com`
-- Commit message format must be:
-  - ``fix|feat : 具体内容（简要说明做了什么）``
+- **作者标识**：
+    - `user.name = Izumi`
+    - `user.email = 29301481@qq.com`
+- **信息格式**：
+    - `type: description` (例如 `fix: resolve auth timeout issue`)
 
+---
 
-<!-- BEGIN BEADS INTEGRATION -->
-## Issue Tracking
+## 5. 配置信息 (Configuration)
 
-Use `bd` for task tracking in this project.
-
-Run `bd prime` for workflow context. Editor integrations such as `bd setup codex` can keep this lightweight while still injecting the current workflow.
-
-**Quick reference:**
-- `bd ready --json` - Find unblocked work
-- `bd create "Title" --description="Context" --type task --priority 2 --json` - Create issue
-- `bd update <id> --status in_progress --json` - Claim work
-- `bd close <id> --reason "Done" --json` - Complete work
-- `bd sync` - Sync issue state with git
-
-For full workflow details: `bd prime`
-
-
-<!-- BEGIN ANTIGRAVITY CONFIGURATION -->
-## Antigravity Configuration
-
-- **Preferred Browser**: Microsoft Edge (`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`)
-- **Permission Status**: Full Consent
-  - The user has granted full permission for Antigravity to execute tools.
-  - Commands identified as safe or common tasks should be executed with high autonomy.
-  - Browser subagents are authorized to use Edge for web interactions.
-
-See [.antigravity/settings.json](file:///d:/xuexi/10.program/shizuki-site/shizuki-site/.antigravity/settings.json) for technical details.
-<!-- END ANTIGRAVITY CONFIGURATION -->
+- **浏览器**: Microsoft Edge (`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`)
+- **权限协议**: 全局授权 (Full Consent)
+- **设置文件**: [.antigravity/settings.json](file:///d:/xuexi/10.program/shizuki-site/shizuki-site/.antigravity/settings.json)
 
