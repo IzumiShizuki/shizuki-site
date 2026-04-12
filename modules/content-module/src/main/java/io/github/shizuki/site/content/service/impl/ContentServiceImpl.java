@@ -890,7 +890,7 @@ public class ContentServiceImpl implements ContentService {
         List<PostEntity> posts = postMapper.selectList(
             new QueryWrapper<PostEntity>()
                 .select("category_code")
-                .eq("deleted", 0)
+                .eq("deleted_flag", 0)
                 .orderByAsc("category_code")
         );
         posts.stream()
