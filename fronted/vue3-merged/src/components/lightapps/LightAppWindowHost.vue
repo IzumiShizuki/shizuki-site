@@ -26,7 +26,12 @@
             <button class="icon-btn ripple-trigger" :title="win.minimized ? '还原' : '最小化'" @pointerdown.stop @click.stop="toggleMinimized(win.id)">
               <i :class="win.minimized ? 'fas fa-up-right-and-down-left-from-center' : 'fas fa-window-minimize'" aria-hidden="true"></i>
             </button>
-            <button class="icon-btn ripple-trigger" title="关闭" @pointerdown.stop @click.stop="closeById(win.id)">
+            <button
+              class="icon-btn ripple-trigger"
+              title="关闭"
+              @pointerdown.stop.prevent="closeByPointer($event, win.id)"
+              @click.stop.prevent="closeById(win.id)"
+            >
               <i class="fas fa-xmark" aria-hidden="true"></i>
             </button>
           </div>
@@ -163,8 +168,16 @@ function focusById(windowId) {
 }
 
 function closeById(windowId) {
+  if (interaction.windowId === Number(windowId)) {
+    clearInteraction();
+  }
   releaseWindowLinkedState(windowId);
   replaceState(closeWindow(state, windowId));
+}
+
+function closeByPointer(event, windowId) {
+  if (Number(event?.button) !== 0) return;
+  closeById(windowId);
 }
 
 function togglePinned(windowId) {
@@ -181,6 +194,7 @@ function startDrag(event, win) {
   if (!win || event.button !== 0) return;
   if (event.target?.closest?.('button, input, select, label, .window-toolbar-interactive')) return;
 
+  clearInteraction();
   interaction.mode = 'drag';
   interaction.windowId = win.id;
   interaction.pointerId = event.pointerId;
@@ -190,13 +204,13 @@ function startDrag(event, win) {
   interaction.originY = win.y;
 
   focusById(win.id);
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
+  bindInteractionListeners();
 }
 
 function startResize(event, win) {
   if (!win || event.button !== 0) return;
 
+  clearInteraction();
   interaction.mode = 'resize';
   interaction.windowId = win.id;
   interaction.pointerId = event.pointerId;
@@ -206,8 +220,7 @@ function startResize(event, win) {
   interaction.originHeight = win.height;
 
   focusById(win.id);
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
+  bindInteractionListeners();
 }
 
 function onPointerMove(event) {
@@ -251,11 +264,29 @@ function onPointerUp(event) {
   if (!interaction.mode) return;
   if (interaction.pointerId && event.pointerId !== interaction.pointerId) return;
 
+  clearInteraction();
+}
+
+function onPointerCancel() {
+  if (!interaction.mode) return;
+  clearInteraction();
+}
+
+function bindInteractionListeners() {
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerCancel);
+  window.addEventListener('blur', onPointerCancel);
+}
+
+function clearInteraction() {
   interaction.mode = '';
   interaction.windowId = 0;
   interaction.pointerId = 0;
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', onPointerUp);
+  window.removeEventListener('pointercancel', onPointerCancel);
+  window.removeEventListener('blur', onPointerCancel);
 }
 
 function openFromEvent(event) {
@@ -329,6 +360,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', onPointerUp);
+  window.removeEventListener('pointercancel', onPointerCancel);
+  window.removeEventListener('blur', onPointerCancel);
 });
 </script>
 
