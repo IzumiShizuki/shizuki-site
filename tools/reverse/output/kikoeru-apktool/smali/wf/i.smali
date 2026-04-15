@@ -1,0 +1,501 @@
+.class public final Lwf/i;
+.super Lwf/e1;
+.source "r8-map-id-83e7a383375a75708b939e02cd35029138ed7d2d39ea49fdd06cb269cd70c2ed"
+
+
+# static fields
+.field public static final c:Lwf/i;
+
+
+# direct methods
+.method static constructor <clinit>()V
+    .locals 2
+
+    .line 1
+    new-instance v0, Lwf/i;
+
+    .line 2
+    .line 3
+    sget-object v1, Lwf/j;->a:Lwf/j;
+
+    .line 4
+    .line 5
+    invoke-direct {v0, v1}, Lwf/e1;-><init>(Lsf/a;)V
+
+    .line 6
+    .line 7
+    .line 8
+    sput-object v0, Lwf/i;->c:Lwf/i;
+
+    .line 9
+    .line 10
+    return-void
+    .line 11
+    .line 12
+    .line 13
+    .line 14
+    .line 15
+    .line 16
+    .line 17
+    .line 18
+    .line 19
+    .line 20
+    .line 21
+    .line 22
+    .line 23
+    .line 24
+    .line 25
+    .line 26
+    .line 27
+    .line 28
+    .line 29
+.end method
+
+
+# virtual methods
+.method public final h(Ljava/lang/Object;)I
+    .locals 1
+
+    .line 1
+    check-cast p1, [B
+
+    .line 2
+    .line 3
+    const-string v0, "<this>"
+
+    .line 4
+    .line 5
+    invoke-static {p1, v0}, Ljc/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 6
+    .line 7
+    .line 8
+    array-length p1, p1
+
+    .line 9
+    return p1
+    .line 10
+    .line 11
+    .line 12
+    .line 13
+    .line 14
+    .line 15
+    .line 16
+    .line 17
+    .line 18
+    .line 19
+    .line 20
+    .line 21
+    .line 22
+    .line 23
+    .line 24
+    .line 25
+    .line 26
+    .line 27
+    .line 28
+    .line 29
+    .line 30
+    .line 31
+    .line 32
+    .line 33
+    .line 34
+    .line 35
+    .line 36
+.end method
+
+.method public final j(Lvf/a;ILjava/lang/Object;)V
+    .locals 2
+
+    .line 1
+    check-cast p3, Lwf/h;
+
+    .line 2
+    .line 3
+    const-string v0, "builder"
+
+    .line 4
+    .line 5
+    invoke-static {p3, v0}, Ljc/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 6
+    .line 7
+    .line 8
+    iget-object v0, p0, Lwf/e1;->b:Lwf/d1;
+
+    .line 9
+    .line 10
+    invoke-interface {p1, v0, p2}, Lvf/a;->n(Lwf/d1;I)B
+
+    .line 11
+    .line 12
+    .line 13
+    move-result p1
+
+    .line 14
+    invoke-static {p3}, Lwf/c1;->c(Lwf/c1;)V
+
+    .line 15
+    .line 16
+    .line 17
+    iget-object p2, p3, Lwf/h;->a:[B
+
+    .line 18
+    .line 19
+    iget v0, p3, Lwf/h;->b:I
+
+    .line 20
+    .line 21
+    add-int/lit8 v1, v0, 0x1
+
+    .line 22
+    .line 23
+    iput v1, p3, Lwf/h;->b:I
+
+    .line 24
+    .line 25
+    aput-byte p1, p2, v0
+
+    .line 26
+    .line 27
+    return-void
+    .line 28
+    .line 29
+    .line 30
+    .line 31
+    .line 32
+    .line 33
+    .line 34
+    .line 35
+    .line 36
+    .line 37
+    .line 38
+    .line 39
+    .line 40
+    .line 41
+    .line 42
+    .line 43
+    .line 44
+    .line 45
+    .line 46
+    .line 47
+    .line 48
+    .line 49
+    .line 50
+    .line 51
+    .line 52
+    .line 53
+    .line 54
+    .line 55
+    .line 56
+    .line 57
+    .line 58
+    .line 59
+    .line 60
+    .line 61
+    .line 62
+    .line 63
+    .line 64
+    .line 65
+    .line 66
+    .line 67
+    .line 68
+    .line 69
+    .line 70
+    .line 71
+    .line 72
+    .line 73
+    .line 74
+    .line 75
+    .line 76
+    .line 77
+    .line 78
+    .line 79
+    .line 80
+    .line 81
+    .line 82
+    .line 83
+    .line 84
+    .line 85
+    .line 86
+    .line 87
+    .line 88
+    .line 89
+    .line 90
+    .line 91
+    .line 92
+    .line 93
+    .line 94
+    .line 95
+    .line 96
+    .line 97
+    .line 98
+    .line 99
+    .line 100
+    .line 101
+    .line 102
+    .line 103
+    .line 104
+    .line 105
+    .line 106
+    .line 107
+    .line 108
+    .line 109
+    .line 110
+    .line 111
+    .line 112
+    .line 113
+    .line 114
+.end method
+
+.method public final k(Ljava/lang/Object;)Ljava/lang/Object;
+    .locals 1
+
+    .line 1
+    check-cast p1, [B
+
+    .line 2
+    .line 3
+    const-string v0, "<this>"
+
+    .line 4
+    .line 5
+    invoke-static {p1, v0}, Ljc/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 6
+    .line 7
+    .line 8
+    new-instance v0, Lwf/h;
+
+    .line 9
+    .line 10
+    invoke-direct {v0}, Ljava/lang/Object;-><init>()V
+
+    .line 11
+    .line 12
+    .line 13
+    iput-object p1, v0, Lwf/h;->a:[B
+
+    .line 14
+    .line 15
+    array-length p1, p1
+
+    .line 16
+    iput p1, v0, Lwf/h;->b:I
+
+    .line 17
+    .line 18
+    const/16 p1, 0xa
+
+    .line 19
+    .line 20
+    invoke-virtual {v0, p1}, Lwf/h;->b(I)V
+
+    .line 21
+    .line 22
+    .line 23
+    return-object v0
+    .line 24
+    .line 25
+    .line 26
+    .line 27
+    .line 28
+    .line 29
+    .line 30
+    .line 31
+    .line 32
+    .line 33
+    .line 34
+    .line 35
+    .line 36
+.end method
+
+.method public final n()Ljava/lang/Object;
+    .locals 1
+
+    .line 1
+    const/4 v0, 0x0
+
+    .line 2
+    new-array v0, v0, [B
+
+    .line 3
+    .line 4
+    return-object v0
+    .line 5
+    .line 6
+    .line 7
+    .line 8
+    .line 9
+    .line 10
+    .line 11
+    .line 12
+    .line 13
+    .line 14
+    .line 15
+    .line 16
+    .line 17
+    .line 18
+    .line 19
+    .line 20
+    .line 21
+    .line 22
+    .line 23
+    .line 24
+    .line 25
+    .line 26
+    .line 27
+    .line 28
+    .line 29
+.end method
+
+.method public final o(Lyf/t;Ljava/lang/Object;I)V
+    .locals 4
+
+    .line 1
+    check-cast p2, [B
+
+    .line 2
+    .line 3
+    const-string v0, "encoder"
+
+    .line 4
+    .line 5
+    invoke-static {p1, v0}, Ljc/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 6
+    .line 7
+    .line 8
+    const-string v0, "content"
+
+    .line 9
+    .line 10
+    invoke-static {p2, v0}, Ljc/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 11
+    .line 12
+    .line 13
+    const/4 v0, 0x0
+
+    .line 14
+    :goto_0
+    if-ge v0, p3, :cond_0
+
+    .line 15
+    .line 16
+    aget-byte v1, p2, v0
+
+    .line 17
+    .line 18
+    const-string v2, "descriptor"
+
+    .line 19
+    .line 20
+    iget-object v3, p0, Lwf/e1;->b:Lwf/d1;
+
+    .line 21
+    .line 22
+    invoke-static {v3, v2}, Ljc/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 23
+    .line 24
+    .line 25
+    invoke-virtual {p1, v3, v0}, Lyf/t;->g(Luf/g;I)V
+
+    .line 26
+    .line 27
+    .line 28
+    invoke-virtual {p1, v1}, Lyf/t;->d(B)V
+
+    .line 29
+    .line 30
+    .line 31
+    add-int/lit8 v0, v0, 0x1
+
+    .line 32
+    .line 33
+    goto :goto_0
+
+    .line 34
+    :cond_0
+    return-void
+    .line 35
+    .line 36
+    .line 37
+    .line 38
+    .line 39
+    .line 40
+    .line 41
+    .line 42
+    .line 43
+    .line 44
+    .line 45
+    .line 46
+    .line 47
+    .line 48
+    .line 49
+    .line 50
+    .line 51
+    .line 52
+    .line 53
+    .line 54
+    .line 55
+    .line 56
+    .line 57
+    .line 58
+    .line 59
+    .line 60
+    .line 61
+    .line 62
+    .line 63
+    .line 64
+    .line 65
+    .line 66
+    .line 67
+    .line 68
+    .line 69
+    .line 70
+    .line 71
+    .line 72
+    .line 73
+    .line 74
+    .line 75
+    .line 76
+    .line 77
+    .line 78
+    .line 79
+    .line 80
+    .line 81
+    .line 82
+    .line 83
+    .line 84
+    .line 85
+    .line 86
+    .line 87
+    .line 88
+    .line 89
+    .line 90
+    .line 91
+    .line 92
+    .line 93
+    .line 94
+    .line 95
+    .line 96
+    .line 97
+    .line 98
+    .line 99
+    .line 100
+    .line 101
+    .line 102
+    .line 103
+    .line 104
+    .line 105
+    .line 106
+    .line 107
+    .line 108
+    .line 109
+    .line 110
+    .line 111
+    .line 112
+    .line 113
+    .line 114
+.end method

@@ -1166,28 +1166,28 @@ onBeforeUnmount(() => {
 }
 
 .artist-card {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--theme-surface-soft);
   padding: 10px;
 }
 
 .artist-name {
   margin: 0;
   font-size: 14px;
-  color: rgba(244, 248, 255, 0.95);
+  color: var(--theme-text-primary);
 }
 
 .artist-meta {
   margin: 6px 0 0;
   font-size: 12px;
-  color: rgba(179, 190, 214, 0.84);
+  color: var(--theme-text-secondary);
 }
 
 .podcast-card {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--theme-surface-soft);
   overflow: hidden;
 }
 
@@ -1208,25 +1208,25 @@ onBeforeUnmount(() => {
 .podcast-title {
   margin: 0;
   font-size: 13px;
-  color: rgba(244, 248, 255, 0.95);
+  color: var(--theme-text-primary);
 }
 
 .podcast-desc {
   margin: 0;
   font-size: 12px;
-  color: rgba(179, 190, 214, 0.84);
+  color: var(--theme-text-secondary);
 }
 
 .podcast-note {
   margin: 0;
   font-size: 12px;
-  color: rgba(184, 196, 221, 0.84);
+  color: var(--theme-text-tertiary);
 }
 
 .empty-state {
   border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.24);
-  color: rgba(184, 196, 221, 0.84);
+  border: 1px dashed var(--theme-border-strong);
+  color: var(--theme-text-tertiary);
   min-height: 84px;
   display: grid;
   place-items: center;

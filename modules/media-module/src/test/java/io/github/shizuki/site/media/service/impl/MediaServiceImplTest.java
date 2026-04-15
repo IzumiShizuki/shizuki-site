@@ -8,6 +8,7 @@ import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.config.TuneHubMusicProperties;
+import io.github.shizuki.site.media.integration.AsmrMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
@@ -81,6 +82,7 @@ class MediaServiceImplTest {
     private SpotifyMusicProvider spotifyMusicClient;
     private NeteaseCookieProvider neteaseCookieProvider;
     private TuneHubMusicProvider tuneHubMusicProvider;
+    private AsmrMusicProvider asmrMusicProvider;
     private MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private MediaServiceImpl mediaService;
 
@@ -107,6 +109,7 @@ class MediaServiceImplTest {
         spotifyMusicClient = Mockito.mock(SpotifyMusicProvider.class);
         neteaseCookieProvider = Mockito.mock(NeteaseCookieProvider.class);
         tuneHubMusicProvider = Mockito.mock(TuneHubMusicProvider.class);
+        asmrMusicProvider = Mockito.mock(AsmrMusicProvider.class);
         musicTrackCacheUploadPublisher = Mockito.mock(MusicTrackCacheUploadPublisher.class);
         Mockito.when(assetSecurityInspector.inspect(
                 Mockito.anyLong(),
@@ -293,6 +296,7 @@ class MediaServiceImplTest {
             spotifyMusicClient,
             neteaseCookieProvider,
             tuneHubMusicProvider,
+            asmrMusicProvider,
             musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,
             listenCacheProperties,
@@ -721,6 +725,7 @@ class MediaServiceImplTest {
             spotifyMusicClient,
             neteaseCookieProvider,
             tuneHubMusicProvider,
+            asmrMusicProvider,
             musicTrackCacheUploadPublisher,
             tuneHubMusicProperties,
             listenCacheProperties,

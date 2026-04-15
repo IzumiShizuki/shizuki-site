@@ -162,9 +162,9 @@ useDismissiblePopover({
 
 <style scoped>
 .music-library-dock {
-  --liquid-bg: linear-gradient(145deg, rgba(15, 18, 26, 0.9), rgba(12, 14, 21, 0.92));
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 16px 36px rgba(7, 9, 15, 0.45);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border-strong);
+  --liquid-shadow: var(--theme-shadow-soft, 0 16px 36px rgba(7, 9, 15, 0.15));
   position: fixed;
   left: max(12px, env(safe-area-inset-left));
   right: max(12px, env(safe-area-inset-right));
@@ -199,7 +199,7 @@ useDismissiblePopover({
   border-radius: 999px;
   border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  color: var(--accent-mode-text);
   font-size: 12px;
   letter-spacing: 0.03em;
 }
@@ -215,7 +215,7 @@ useDismissiblePopover({
 }
 
 .time {
-  color: rgba(188, 201, 228, 0.9);
+  color: var(--theme-text-tertiary);
   font-size: 12px;
   min-width: 86px;
   text-align: right;
@@ -250,13 +250,13 @@ useDismissiblePopover({
 
 .title {
   margin: 0;
-  color: rgba(240, 245, 255, 0.96);
+  color: var(--theme-text-primary);
   font-size: 14px;
 }
 
 .artist {
   margin: 6px 0 0;
-  color: rgba(166, 178, 206, 0.88);
+  color: var(--theme-text-secondary);
   font-size: 12px;
 }
 
@@ -270,14 +270,14 @@ useDismissiblePopover({
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(237, 243, 255, 0.92);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
 }
 
 .ctrl-btn.primary {
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  color: var(--accent-mode-text);
   border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
@@ -294,9 +294,9 @@ useDismissiblePopover({
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(239, 245, 255, 0.96);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
 }
 
 .mode-btn.active {
@@ -305,7 +305,7 @@ useDismissiblePopover({
 }
 
 .volume-icon {
-  color: rgba(210, 223, 248, 0.88);
+  color: var(--theme-text-tertiary);
   font-size: 14px;
 }
 
@@ -315,9 +315,9 @@ useDismissiblePopover({
 }
 
 .dock-queue {
-  --liquid-bg: linear-gradient(160deg, rgba(13, 17, 26, 0.94), rgba(10, 14, 20, 0.94));
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 18px 30px rgba(4, 8, 14, 0.46);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border-strong);
+  --liquid-shadow: var(--theme-shadow-soft, 0 18px 30px rgba(4, 8, 14, 0.16));
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
@@ -338,16 +338,16 @@ useDismissiblePopover({
 .queue-head p {
   margin: 0;
   font-size: 13px;
-  color: rgba(235, 242, 255, 0.94);
+  color: var(--theme-text-primary);
 }
 
 .queue-close {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(237, 243, 255, 0.94);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
 }
 
 .queue-body {
@@ -358,9 +358,9 @@ useDismissiblePopover({
 }
 
 .queue-item {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--theme-surface-soft);
   padding: 8px 10px;
   text-align: left;
   display: grid;
@@ -375,12 +375,12 @@ useDismissiblePopover({
 
 .queue-name {
   font-size: 13px;
-  color: rgba(241, 246, 255, 0.96);
+  color: var(--theme-text-primary);
 }
 
 .queue-meta {
   font-size: 11px;
-  color: rgba(180, 193, 219, 0.86);
+  color: var(--theme-text-secondary);
 }
 
 .queue-empty {
@@ -389,14 +389,14 @@ useDismissiblePopover({
   display: grid;
   place-items: center;
   border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: 1px dashed var(--theme-border);
   color: rgba(177, 190, 216, 0.84);
   font-size: 12px;
 }
 
 .dock-collect {
   --liquid-bg: linear-gradient(160deg, rgba(13, 17, 26, 0.94), rgba(10, 14, 20, 0.94));
-  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-border: var(--theme-border-strong);
   --liquid-shadow: 0 18px 30px rgba(4, 8, 14, 0.46);
   position: absolute;
   right: 0;
@@ -430,9 +430,9 @@ useDismissiblePopover({
 
 .collect-item,
 .collect-login {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--theme-surface-soft);
   padding: 8px 10px;
   text-align: left;
   display: grid;
@@ -452,12 +452,12 @@ useDismissiblePopover({
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
-  color: rgba(241, 246, 255, 0.96);
+  color: var(--theme-text-primary);
 }
 
 .collect-meta {
   font-size: 11px;
-  color: rgba(180, 193, 219, 0.86);
+  color: var(--theme-text-secondary);
 }
 
 .collect-login {
@@ -472,7 +472,7 @@ useDismissiblePopover({
   display: grid;
   place-items: center;
   border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: 1px dashed var(--theme-border);
   color: rgba(177, 190, 216, 0.84);
   font-size: 12px;
 }

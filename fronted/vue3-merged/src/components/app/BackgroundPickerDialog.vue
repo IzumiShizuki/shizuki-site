@@ -121,10 +121,14 @@
                 <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="$emit('submit-workshop-import')">
                   创建导入任务
                 </button>
+                <button class="scope-btn ghost ripple-trigger" @click="$emit('open-workshop-discovery-window')">
+                  快速选图
+                </button>
                 <button class="scope-btn ghost ripple-trigger" :disabled="!importState.workshopUrl" @click="$emit('open-workshop-preview-window')">
                   小窗预览
                 </button>
               </div>
+              <p class="route-bg-note">可先点“快速选图”打开 Workshop 列表，选中条目后复制链接粘贴到上方输入框。</p>
             </section>
           </div>
           <p v-else class="route-bg-note">登录后可上传本地包或导入 Workshop 资源。</p>
@@ -300,6 +304,7 @@ defineEmits([
   'package-file-change',
   'submit-package-import',
   'submit-workshop-import',
+  'open-workshop-discovery-window',
   'open-workshop-preview-window',
   'save-active-wallpaper-settings',
   'set-active-wallpaper-visibility',

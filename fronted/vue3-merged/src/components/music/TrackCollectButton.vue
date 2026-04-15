@@ -39,9 +39,9 @@ function handleClick() {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(231, 238, 252, 0.9);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
 }
 
 </style>

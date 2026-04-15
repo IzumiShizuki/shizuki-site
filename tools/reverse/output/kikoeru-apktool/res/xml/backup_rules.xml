@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="error/." />
+    <exclude domain="file" path="download/." />
+    <exclude domain="file" path="appcenter/." />
+    <exclude domain="file" path="metadata/." />
+</full-backup-content>

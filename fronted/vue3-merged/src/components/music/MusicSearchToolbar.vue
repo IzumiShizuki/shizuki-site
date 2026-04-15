@@ -147,9 +147,9 @@ useDismissiblePopover({
 
 <style scoped>
 .music-search-toolbar {
-  --liquid-bg: linear-gradient(150deg, rgba(20, 24, 36, 0.9), rgba(15, 19, 29, 0.86));
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 14px 26px rgba(6, 10, 18, 0.34);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border-strong);
+  --liquid-shadow: var(--theme-shadow-soft, 0 14px 26px rgba(6, 10, 18, 0.15));
   position: sticky;
   top: 0;
   z-index: 20;
@@ -167,9 +167,9 @@ useDismissiblePopover({
 }
 
 .history-panel {
-  --liquid-bg: linear-gradient(150deg, rgba(17, 22, 34, 0.97), rgba(12, 18, 30, 0.95));
-  --liquid-border: rgba(255, 255, 255, 0.18);
-  --liquid-shadow: 0 18px 34px rgba(5, 10, 20, 0.45);
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border-strong);
+  --liquid-shadow: var(--theme-shadow-soft, 0 18px 34px rgba(5, 10, 20, 0.2));
   border-radius: 12px;
   padding: 10px;
   display: grid;
@@ -185,15 +185,15 @@ useDismissiblePopover({
 
 .history-title {
   font-size: 12px;
-  color: rgba(209, 221, 246, 0.9);
+  color: var(--theme-text-tertiary);
 }
 
 .history-clear-btn {
   min-height: 24px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(229, 237, 251, 0.93);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   padding: 0 8px;
   font-size: 12px;
 }
@@ -207,9 +207,9 @@ useDismissiblePopover({
 .history-chip {
   min-height: 28px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(228, 236, 252, 0.9);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   padding: 0 10px;
   font-size: 12px;
 }
@@ -218,14 +218,14 @@ useDismissiblePopover({
   min-height: var(--music-toolbar-height, 36px);
   height: var(--music-toolbar-height, 36px);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-soft);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  color: rgba(214, 226, 247, 0.9);
+  color: var(--theme-text-secondary);
 }
 
 .search-input-wrap i {
@@ -237,7 +237,7 @@ useDismissiblePopover({
   border: 0;
   outline: none;
   background: transparent;
-  color: rgba(236, 243, 255, 0.95);
+  color: var(--theme-text-primary);
   font-size: 13px;
 }
 
@@ -261,7 +261,7 @@ useDismissiblePopover({
 .refresh-btn {
   border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  color: var(--accent-mode-text);
 }
 
 .filters-row {
@@ -285,9 +285,9 @@ useDismissiblePopover({
 .chip-btn {
   min-height: 30px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(228, 236, 252, 0.9);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   padding: 0 12px;
   font-size: 12px;
 }
@@ -295,7 +295,7 @@ useDismissiblePopover({
 .chip-btn.active {
   border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  color: var(--accent-mode-text);
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="error/." />
+        <exclude domain="file" path="download/." />
+        <exclude domain="file" path="appcenter/." />
+        <exclude domain="file" path="metadata/." />
+    </cloud-backup>
+</data-extraction-rules>

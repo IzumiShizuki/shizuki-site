@@ -1,0 +1,64 @@
+.class public final Lxg/f;
+.super Llh/m;
+.source "r8-map-id-83e7a383375a75708b939e02cd35029138ed7d2d39ea49fdd06cb269cd70c2ed"
+
+
+# virtual methods
+.method public final G(Llh/y;)Llh/f0;
+    .locals 1
+
+    .line 1
+    const-string v0, "file"
+
+    .line 2
+    .line 3
+    invoke-static {p1, v0}, Ljc/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 4
+    .line 5
+    .line 6
+    invoke-virtual {p1}, Llh/y;->b()Llh/y;
+
+    .line 7
+    .line 8
+    .line 9
+    move-result-object v0
+
+    .line 10
+    if-eqz v0, :cond_0
+
+    .line 11
+    .line 12
+    invoke-virtual {p0, v0}, Llh/l;->i(Llh/y;)V
+
+    .line 13
+    .line 14
+    .line 15
+    :cond_0
+    invoke-super {p0, p1}, Llh/m;->G(Llh/y;)Llh/f0;
+
+    .line 16
+    .line 17
+    .line 18
+    move-result-object p1
+
+    .line 19
+    return-object p1
+    .line 20
+    .line 21
+    .line 22
+    .line 23
+    .line 24
+    .line 25
+    .line 26
+    .line 27
+    .line 28
+    .line 29
+    .line 30
+    .line 31
+    .line 32
+    .line 33
+    .line 34
+    .line 35
+    .line 36
+.end method

@@ -1,0 +1,33 @@
+package d;
+
+import android.app.Notification;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.window.BackEvent;
+
+/* JADX INFO: compiled from: r8-map-id-83e7a383375a75708b939e02cd35029138ed7d2d39ea49fdd06cb269cd70c2ed */
+/* JADX INFO: loaded from: classes.dex */
+public abstract class b {
+    public static int a(AccessibilityNodeInfo accessibilityNodeInfo) {
+        return accessibilityNodeInfo.getChecked();
+    }
+
+    public static long b(BackEvent backEvent) {
+        return backEvent.getFrameTimeMillis();
+    }
+
+    public static int c(AccessibilityNodeInfo accessibilityNodeInfo) {
+        return accessibilityNodeInfo.getExpandedState();
+    }
+
+    public static CharSequence d(AccessibilityNodeInfo accessibilityNodeInfo) {
+        return accessibilityNodeInfo.getSupplementalDescription();
+    }
+
+    public static boolean e(AccessibilityNodeInfo accessibilityNodeInfo) {
+        return accessibilityNodeInfo.isFieldRequired();
+    }
+
+    public static void f(Notification.Builder builder) {
+        builder.setShortCriticalText(null);
+    }
+}

@@ -215,6 +215,7 @@
         @package-file-change="onPackageFileChange"
         @submit-package-import="submitPackageImport"
         @submit-workshop-import="submitWorkshopImport"
+        @open-workshop-discovery-window="openWorkshopDiscoveryWindow"
         @open-workshop-preview-window="openWorkshopPreviewWindow"
         @save-active-wallpaper-settings="saveActiveWallpaperSettings"
         @set-active-wallpaper-visibility="setActiveWallpaperVisibility"
@@ -389,6 +390,8 @@ const VISUALIZER_TARGET_FPS = 30;
 const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
 const WALLPAPER_SIGNED_URL_REFRESH_BUFFER_MS = 60 * 1000;
 const WALLPAPER_SIGNED_URL_REFRESH_MIN_DELAY_MS = 15 * 1000;
+const WORKSHOP_DISCOVERY_URL =
+  'https://steamcommunity.com/workshop/browse/?appid=431960&requiredtags%5B0%5D=Scene&section=readytouseitems&browsesort=trend';
 const ambientAssetDownloadCache = new Map();
 
 const route = useRoute();
@@ -1613,6 +1616,14 @@ function openWorkshopPreviewWindow() {
     normalized,
     'shizuki-workshop-preview',
     'popup=yes,width=1120,height=760,noopener,noreferrer'
+  );
+}
+
+function openWorkshopDiscoveryWindow() {
+  window.open(
+    WORKSHOP_DISCOVERY_URL,
+    'shizuki-workshop-discovery',
+    'popup=yes,width=1280,height=840,noopener,noreferrer'
   );
 }
 

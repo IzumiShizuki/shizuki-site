@@ -669,8 +669,8 @@ function providerLabel(provider) {
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-soft);
   color: var(--theme-text-secondary);
 }
 
@@ -707,7 +707,7 @@ function providerLabel(provider) {
 .lyric-card {
   border: 1px solid var(--theme-border-strong);
   border-radius: 14px;
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-soft-rgb), 0.14));
+  background: var(--theme-surface-soft);
   padding: 10px;
   min-height: 86px;
 }
@@ -749,7 +749,7 @@ function providerLabel(provider) {
   line-height: 1.55;
   font-weight: 700;
   color: var(--theme-text-primary);
-  text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.2);
+  text-shadow: none;
   opacity: 1;
 }
 
@@ -780,9 +780,9 @@ function providerLabel(provider) {
 .control-panel {
   border: 1px solid var(--theme-border-strong);
   border-radius: 14px;
-  background:
-    radial-gradient(120% 100% at 8% 0%, rgba(var(--accent-soft-rgb), 0.16), transparent 55%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
+  background: var(--theme-panel-surface);
+    /* radial-gradient(120% 100% at 8% 0%, rgba(var(--accent-soft-rgb), 0.16), transparent 55%), */
+    /* linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04)); */
   padding: 10px 9px 12px;
   display: grid;
   gap: 10px;
@@ -821,14 +821,14 @@ function providerLabel(provider) {
   border: 1px solid var(--theme-border);
   border-radius: 11px;
   padding: 8px 10px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
+  background: var(--theme-surface-soft);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 1px 0 var(--theme-border-soft),
     0 6px 16px rgba(6, 10, 18, 0.22);
 }
 
 .eq-chip {
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0.04));
+  background: var(--theme-surface-soft);
 }
 
 .control-chip-head {
@@ -900,11 +900,11 @@ function providerLabel(provider) {
       90deg,
       rgba(var(--accent-soft-rgb), 0.9) 0%,
       rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
-      rgba(255, 255, 255, 0.24) var(--level-percent, 50%),
-      rgba(255, 255, 255, 0.08) 100%
+      var(--theme-border) var(--level-percent, 50%),
+      var(--theme-surface-soft) 100%
     );
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--theme-border-strong);
+  box-shadow: inset 0 0 0 1px var(--theme-border-soft);
 }
 
 .control-range::-webkit-slider-thumb {
@@ -913,7 +913,7 @@ function providerLabel(provider) {
   height: 14px;
   margin-top: -4px;
   border-radius: 50%;
-  border: 2px solid rgba(236, 242, 255, 0.95);
+  border: 2px solid var(--theme-surface-strong);
   background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
   box-shadow:
     0 0 0 3px rgba(var(--accent-rgb), 0.16),
@@ -928,18 +928,18 @@ function providerLabel(provider) {
       90deg,
       rgba(var(--accent-soft-rgb), 0.9) 0%,
       rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
-      rgba(255, 255, 255, 0.24) var(--level-percent, 50%),
-      rgba(255, 255, 255, 0.08) 100%
+      var(--theme-border) var(--level-percent, 50%),
+      var(--theme-surface-soft) 100%
     );
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--theme-border-strong);
+  box-shadow: inset 0 0 0 1px var(--theme-border-soft);
 }
 
 .control-range::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid rgba(236, 242, 255, 0.95);
+  border: 2px solid var(--theme-surface-strong);
   background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
   box-shadow:
     0 0 0 3px rgba(var(--accent-rgb), 0.16),
@@ -958,9 +958,9 @@ function providerLabel(provider) {
 }
 
 .integration-card {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--theme-surface-soft);
   padding: 8px;
   display: grid;
   gap: 8px;
@@ -970,8 +970,8 @@ function providerLabel(provider) {
   width: 100%;
   border: 0;
   border-radius: 10px;
-  background: rgba(var(--accent-rgb), 0.08);
-  color: rgba(236, 243, 255, 0.94);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   padding: 8px 10px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -987,13 +987,13 @@ function providerLabel(provider) {
 .summary-main h4 {
   margin: 0;
   font-size: 13px;
-  color: rgba(238, 244, 255, 0.95);
+  color: var(--theme-text-primary);
 }
 
 .summary-main p {
   margin: 4px 0 0;
   font-size: 11px;
-  color: rgba(194, 206, 228, 0.88);
+  color: var(--theme-text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1004,12 +1004,12 @@ function providerLabel(provider) {
   padding: 2px 8px;
   font-size: 11px;
   color: rgba(var(--accent-soft-rgb), 0.94);
-  background: rgba(var(--accent-rgb), 0.2);
+  background: var(--theme-surface-soft);
 }
 
 .bind-tag.ok {
   color: rgba(var(--accent-soft-rgb), 0.96);
-  background: rgba(var(--accent-rgb), 0.3);
+  background: var(--theme-surface-soft);
 }
 
 .provider-detail {
@@ -1060,7 +1060,7 @@ function providerLabel(provider) {
 .integration-head h4 {
   margin: 0;
   font-size: 13px;
-  color: rgba(238, 244, 255, 0.95);
+  color: var(--theme-text-primary);
 }
 
 .head-actions {
@@ -1076,23 +1076,23 @@ function providerLabel(provider) {
 
 .field-block span {
   font-size: 11px;
-  color: rgba(188, 198, 220, 0.84);
+  color: var(--theme-text-tertiary);
 }
 
 .field-block input {
   border-radius: 9px;
   border: 1px solid var(--theme-border);
   background: var(--theme-surface-soft);
-  color: rgba(240, 246, 255, 0.95);
+  color: var(--theme-text-primary);
   padding: 8px;
   outline: none;
 }
 
 .strategy-select {
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(240, 246, 255, 0.95);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
   padding: 8px;
   outline: none;
 }
@@ -1105,7 +1105,7 @@ function providerLabel(provider) {
 .order-row p {
   margin: 0;
   font-size: 11px;
-  color: rgba(188, 198, 220, 0.84);
+  color: var(--theme-text-tertiary);
 }
 
 .order-actions {
@@ -1121,9 +1121,9 @@ function providerLabel(provider) {
 
 .mini-btn {
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(236, 243, 255, 0.94);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   min-height: 30px;
   padding: 0 10px;
 }
@@ -1137,7 +1137,7 @@ function providerLabel(provider) {
 .status-text {
   margin: 0;
   font-size: 12px;
-  color: rgba(194, 206, 228, 0.88);
+  color: var(--theme-text-tertiary);
 }
 
 .status-text.error {
@@ -1152,9 +1152,9 @@ function providerLabel(provider) {
 
 .spotify-search-row input {
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(240, 246, 255, 0.95);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
   padding: 8px;
   outline: none;
 }
@@ -1170,10 +1170,10 @@ function providerLabel(provider) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--theme-border);
   border-radius: 10px;
   padding: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--theme-surface-soft);
 }
 
 .spotify-meta {
@@ -1190,13 +1190,13 @@ function providerLabel(provider) {
 
 .spotify-meta .song {
   font-size: 12px;
-  color: rgba(242, 247, 255, 0.96);
+  color: var(--theme-text-primary);
 }
 
 .spotify-meta .artist {
   margin-top: 4px;
   font-size: 11px;
-  color: rgba(178, 191, 218, 0.86);
+  color: var(--theme-text-secondary);
 }
 
 .spotify-actions {

@@ -98,6 +98,18 @@ shizuki:
       cache-ttl-seconds: ${MUSIC_TUNEHUB_CACHE_TTL_SECONDS:900}
       connect-timeout-ms: ${MUSIC_TUNEHUB_CONNECT_TIMEOUT_MS:1200}
       read-timeout-ms: ${MUSIC_TUNEHUB_READ_TIMEOUT_MS:5000}
+    asmr:
+      server: ${MUSIC_ASMR_SERVER:https://api.asmr-300.com}
+      base-url: ${MUSIC_ASMR_BASE_URL:https://api.asmr.one}
+      base-urls:
+      - ${MUSIC_ASMR_BASE_URL_1:https://api.asmr.one}
+      - ${MUSIC_ASMR_BASE_URL_2:https://api.asmr-100.com}
+      - ${MUSIC_ASMR_BASE_URL_3:https://api.asmr-200.com}
+      - ${MUSIC_ASMR_BASE_URL_4:https://api.asmr-300.com}
+      default-order: ${MUSIC_ASMR_DEFAULT_ORDER:release}
+      default-sort: ${MUSIC_ASMR_DEFAULT_SORT:desc}
+      connect-timeout-ms: ${MUSIC_ASMR_CONNECT_TIMEOUT_MS:1000}
+      read-timeout-ms: ${MUSIC_ASMR_READ_TIMEOUT_MS:5000}
     listen-cache:
       enabled: ${MUSIC_LISTEN_CACHE_ENABLED:true}
       retention-days: ${MUSIC_LISTEN_CACHE_RETENTION_DAYS:30}

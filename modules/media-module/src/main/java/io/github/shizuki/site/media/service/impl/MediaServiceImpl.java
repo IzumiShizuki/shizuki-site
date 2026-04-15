@@ -14,13 +14,14 @@ import io.github.shizuki.common.storage.model.StorageObjectMetadata;
 import io.github.shizuki.common.storage.util.OssKeyBuilder;
 import io.github.shizuki.common.storage.util.UploadValidator;
 import io.github.shizuki.site.media.cache.MusicLibraryHomeCacheStore;
-import io.github.shizuki.site.media.config.MusicListenCacheProperties;
-import io.github.shizuki.site.media.integration.UserMusicGateway;
-import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
-import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
-import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
+import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.config.TuneHubMusicProperties;
+import io.github.shizuki.site.media.integration.AsmrMusicProvider;
+import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
+import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
+import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
+import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.request.AdminAssetUpdateRequest;
 import io.github.shizuki.site.media.response.AdminAssetAuditResponse;
 import io.github.shizuki.site.media.request.AdminMusicDefaultPlaylistBundleReplaceRequest;
@@ -167,6 +168,7 @@ public class MediaServiceImpl implements MediaService {
     private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
     private static final Pattern VIRTUAL_TUNEHUB_PLAYLIST_CODE_PATTERN =
         Pattern.compile("^vh_tunehub_([a-z0-9_\\-]+)_([a-z0-9_\\-]+)_(.+)$");
+    private static final Pattern VIRTUAL_ASMR_PLAYLIST_CODE_PATTERN = Pattern.compile("^vh_asmr_work_([0-9]+)$");
     private static final String LOG_EVENT_API_CONTEXT_START = "MUSIC_TUNEHUB_API_CONTEXT_RESOLVE";
     private static final String LOG_EVENT_SEARCH_START = "MUSIC_SEARCH_START";
     private static final String LOG_EVENT_SEARCH_PROVIDER_FAIL = "MUSIC_SEARCH_PROVIDER_FAIL";
@@ -232,6 +234,7 @@ public class MediaServiceImpl implements MediaService {
     private final SpotifyMusicProvider spotifyMusicClient;
     private final NeteaseCookieProvider neteaseCookieProvider;
     private final TuneHubMusicProvider tuneHubMusicProvider;
+    private final AsmrMusicProvider asmrMusicProvider;
     private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private final TuneHubMusicProperties tuneHubMusicProperties;
     private final MusicListenCacheProperties musicListenCacheProperties;
@@ -277,6 +280,7 @@ public class MediaServiceImpl implements MediaService {
                             SpotifyMusicProvider spotifyMusicClient,
                             NeteaseCookieProvider neteaseCookieProvider,
                             TuneHubMusicProvider tuneHubMusicProvider,
+                            AsmrMusicProvider asmrMusicProvider,
                             MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher,
                             TuneHubMusicProperties tuneHubMusicProperties,
                             MusicListenCacheProperties musicListenCacheProperties,
@@ -305,6 +309,7 @@ public class MediaServiceImpl implements MediaService {
         this.spotifyMusicClient = spotifyMusicClient;
         this.neteaseCookieProvider = neteaseCookieProvider;
         this.tuneHubMusicProvider = tuneHubMusicProvider;
+        this.asmrMusicProvider = asmrMusicProvider;
         this.musicTrackCacheUploadPublisher = musicTrackCacheUploadPublisher;
         this.tuneHubMusicProperties = tuneHubMusicProperties;
         this.musicListenCacheProperties = musicListenCacheProperties;
@@ -861,6 +866,10 @@ public class MediaServiceImpl implements MediaService {
         if (virtualPlaylistRef != null) {
             return loadVirtualTunehubPlaylistBundle(virtualPlaylistRef);
         }
+        AsmrVirtualPlaylistRef asmrVirtualPlaylistRef = parseVirtualAsmrPlaylistCode(normalizedCode);
+        if (asmrVirtualPlaylistRef != null) {
+            return loadVirtualAsmrPlaylistBundle(asmrVirtualPlaylistRef);
+        }
         if (DEFAULT_PLAYLIST_CODE.equals(normalizedCode)) {
             List<MusicTrackResponse> tracks = listDefaultMusicPlaylistFromDb();
             return new MusicPlaylistBundleResponse(
@@ -1072,6 +1081,142 @@ public class MediaServiceImpl implements MediaService {
                         providerTrackMapped,
                         providerDedupeDropped,
                         failedProviders.contains("spotify")
+                    );
+                }
+                continue;
+            }
+
+            if ("asmr".equals(provider)) {
+                if (!includeTracks && !includePlaylists) {
+                    continue;
+                }
+                int playlistMatchedCount = 0;
+                try {
+                    AsmrMusicProvider.SearchResult searchResult = asmrMusicProvider.searchWorks(normalizedQuery, safePage, safeLimit);
+                    List<AsmrMusicProvider.WorkSummary> works = searchResult.works();
+                    providerRowCount = works == null ? 0 : works.size();
+
+                    if (includeTracks && tracks.size() < trackCollectLimit) {
+                        int mappedCount = 0;
+                        for (AsmrMusicProvider.WorkSummary item : works) {
+                            String trackId = String.valueOf(item.id());
+                            if (!StringUtils.hasText(trackId)) {
+                                continue;
+                            }
+                            String dedupeKey = provider + ":" + trackId;
+                            if (!trackKeys.add(dedupeKey)) {
+                                continue;
+                            }
+                            tracks.add(new MusicSearchTrackResponse(
+                                trackId,
+                                "asmr",
+                                readString(item.title(), ""),
+                                readString(item.artist(), ""),
+                                "",
+                                readString(item.cover(), ""),
+                                item.durationSec()
+                            ));
+                            mappedCount += 1;
+                            if (tracks.size() >= trackCollectLimit) {
+                                break;
+                            }
+                        }
+                        providerTrackMapped = mappedCount;
+                        providerDedupeDropped = Math.max(0, providerRowCount - mappedCount);
+                    }
+
+                    if (includePlaylists && playlists.size() < playlistCollectLimit) {
+                        for (AsmrMusicProvider.WorkSummary item : works) {
+                            String playlistCode = buildVirtualAsmrWorkPlaylistCode(item.id());
+                            if (!StringUtils.hasText(playlistCode) || !playlistCodes.add(playlistCode)) {
+                                continue;
+                            }
+                            playlists.add(new MusicPlaylistSummaryResponse(
+                                playlistCode,
+                                readString(item.title(), "ASMR 作品"),
+                                "ASMR 作品歌单",
+                                readString(item.cover(), ""),
+                                PLAYLIST_TYPE_CUSTOM,
+                                0L,
+                                true,
+                                0,
+                                "asmr"
+                            ));
+                            playlistMatchedCount += 1;
+                            if (playlists.size() >= playlistCollectLimit) {
+                                break;
+                            }
+                        }
+                    }
+
+                    LOGGER.info(
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=track_fetch result=ok reason=- duration_ms={} row_count={} mapped_count={} dedupe_dropped={} total_track_count={} partial={}",
+                        LOG_EVENT_SEARCH_PROVIDER_RESULT,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
+                        provider,
+                        Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        providerRowCount,
+                        providerTrackMapped,
+                        providerDedupeDropped,
+                        tracks.size(),
+                        false
+                    );
+                    LOGGER.info(
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=playlist_fetch result=ok strategy={} matched_count={} duration_ms={} partial={}",
+                        LOG_EVENT_SEARCH_STAGE_PLAYLIST_MATCH_DONE,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
+                        provider,
+                        "work_virtual",
+                        playlistMatchedCount,
+                        Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        false
+                    );
+                } catch (Exception ex) {
+                    failedProviders.add(provider);
+                    LOGGER.warn(
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=track_fetch result=fail reason={} duration_ms={} row_count={} mapped_count={} dedupe_dropped={} partial=true",
+                        LOG_EVENT_SEARCH_PROVIDER_FAIL,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
+                        provider,
+                        sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")),
+                        Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        providerRowCount,
+                        providerTrackMapped,
+                        providerDedupeDropped
+                    );
+                } finally {
+                    LOGGER.info(
+                        "{} search_id={} request_id={} trace_id={} user_id={} type={} query_hash={} provider={} stage=provider_done result={} reason={} duration_ms={} row_count={} mapped_count={} dedupe_dropped={} partial={}",
+                        LOG_EVENT_SEARCH_STAGE_PROVIDER_FETCH_DONE,
+                        searchId,
+                        requestId,
+                        traceId,
+                        userId,
+                        normalizedType,
+                        queryDigest,
+                        provider,
+                        failedProviders.contains(provider) ? "fail" : "ok",
+                        failedProviders.contains(provider) ? "provider_error" : "-",
+                        Math.max(1L, System.currentTimeMillis() - providerStartMs),
+                        providerRowCount,
+                        providerTrackMapped,
+                        providerDedupeDropped,
+                        failedProviders.contains(provider)
                     );
                 }
                 continue;
@@ -1436,7 +1581,7 @@ public class MediaServiceImpl implements MediaService {
     @Override
     public MusicTrackResponse resolvePlaybackTrack(MusicResolvePlaybackRequest request) {
         long startMs = System.currentTimeMillis();
-        String provider = normalizeSourceProvider(readString(request == null ? null : request.getProvider(), ""));
+        String provider = normalizePlaybackProvider(readString(request == null ? null : request.getProvider(), ""));
         if (!StringUtils.hasText(provider)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported playback provider");
         }
@@ -1467,19 +1612,16 @@ public class MediaServiceImpl implements MediaService {
                 ""
             );
             if (resolveLyric) {
-                TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
-                if (StringUtils.hasText(lyricApiContext.apiKey())) {
+                if ("asmr".equals(provider)) {
                     try {
-                        TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
-                            lyricApiContext.apiKey(),
-                            provider,
+                        AsmrPlaybackTrackResult asmrTrack = resolveAsmrPlaybackTrackTarget(
                             trackId,
-                            tuneHubMusicProperties.getDefaultQuality()
+                            readString(request == null ? null : request.getTitle(), ""),
+                            readString(request == null ? null : request.getArtist(), ""),
+                            readString(request == null ? null : request.getCover(), "")
                         );
-                        lyricText = readString(parsedLyric.lyricText(), "");
-                        translationLyricText = readString(parsedLyric.translationLyricText(), "");
-                        furiganaLyricText = readString(parsedLyric.furiganaLyricText(), "");
-                        resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
+                        lyricText = asmrMusicProvider.loadLyricText(asmrTrack.lyricUrl());
+                        resolvedCover = resolvePlaybackCover(resolvedCover, asmrTrack.cover(), "");
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
                     } catch (Exception ex) {
                         LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
@@ -1487,6 +1629,29 @@ public class MediaServiceImpl implements MediaService {
                             trackId,
                             sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")));
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
+                    }
+                } else {
+                    TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
+                    if (StringUtils.hasText(lyricApiContext.apiKey())) {
+                        try {
+                            TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                                lyricApiContext.apiKey(),
+                                provider,
+                                trackId,
+                                tuneHubMusicProperties.getDefaultQuality()
+                            );
+                            lyricText = readString(parsedLyric.lyricText(), "");
+                            translationLyricText = readString(parsedLyric.translationLyricText(), "");
+                            furiganaLyricText = readString(parsedLyric.furiganaLyricText(), "");
+                            resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
+                            LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
+                        } catch (Exception ex) {
+                            LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
+                                provider,
+                                trackId,
+                                sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")));
+                            LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
+                        }
                     }
                 }
             }
@@ -1529,19 +1694,16 @@ public class MediaServiceImpl implements MediaService {
                 ""
             );
             if (resolveLyric) {
-                TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
-                if (StringUtils.hasText(lyricApiContext.apiKey())) {
+                if ("asmr".equals(provider)) {
                     try {
-                        TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
-                            lyricApiContext.apiKey(),
-                            provider,
+                        AsmrPlaybackTrackResult asmrTrack = resolveAsmrPlaybackTrackTarget(
                             trackId,
-                            tuneHubMusicProperties.getDefaultQuality()
+                            readString(request == null ? null : request.getTitle(), ""),
+                            readString(request == null ? null : request.getArtist(), ""),
+                            readString(request == null ? null : request.getCover(), "")
                         );
-                        lyricText = readString(parsedLyric.lyricText(), "");
-                        translationLyricText = readString(parsedLyric.translationLyricText(), "");
-                        furiganaLyricText = readString(parsedLyric.furiganaLyricText(), "");
-                        resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
+                        lyricText = asmrMusicProvider.loadLyricText(asmrTrack.lyricUrl());
+                        resolvedCover = resolvePlaybackCover(resolvedCover, asmrTrack.cover(), "");
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
                     } catch (Exception ex) {
                         LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
@@ -1549,6 +1711,29 @@ public class MediaServiceImpl implements MediaService {
                             trackId,
                             sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")));
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
+                    }
+                } else {
+                    TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
+                    if (StringUtils.hasText(lyricApiContext.apiKey())) {
+                        try {
+                            TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                                lyricApiContext.apiKey(),
+                                provider,
+                                trackId,
+                                tuneHubMusicProperties.getDefaultQuality()
+                            );
+                            lyricText = readString(parsedLyric.lyricText(), "");
+                            translationLyricText = readString(parsedLyric.translationLyricText(), "");
+                            furiganaLyricText = readString(parsedLyric.furiganaLyricText(), "");
+                            resolvedCover = resolvePlaybackCover(resolvedCover, parsedLyric.cover(), "");
+                            LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=true", provider, trackId);
+                        } catch (Exception ex) {
+                            LOGGER.warn("MUSIC_RESOLVE_PLAYBACK_LYRIC_REFETCH_FAIL provider={} trackId={} reason={}",
+                                provider,
+                                trackId,
+                                sanitizeLogMessage(readString(ex.getMessage(), "unknown_error")));
+                            LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
+                        }
                     }
                 }
             }
@@ -1579,6 +1764,10 @@ public class MediaServiceImpl implements MediaService {
                     furiganaLyricText
                 )
             );
+        }
+
+        if ("asmr".equals(provider)) {
+            return resolvePlaybackViaAsmr(request, trackId, storageMode, resolveLyric, userId, startMs);
         }
 
         TuneHubApiContext apiContext = resolveTuneHubApiContext();
@@ -1726,6 +1915,231 @@ public class MediaServiceImpl implements MediaService {
                 furiganaLyricText
             )
         );
+    }
+
+    private MusicTrackResponse resolvePlaybackViaAsmr(MusicResolvePlaybackRequest request,
+                                                      String trackId,
+                                                      MusicListenCacheProperties.StorageMode storageMode,
+                                                      boolean resolveLyric,
+                                                      Long userId,
+                                                      long startMs) {
+        AsmrPlaybackTrackResult asmrTrack = resolveAsmrPlaybackTrackTarget(
+            trackId,
+            readString(request == null ? null : request.getTitle(), ""),
+            readString(request == null ? null : request.getArtist(), ""),
+            readString(request == null ? null : request.getCover(), "")
+        );
+        String resolvedAudio = readString(asmrTrack.audioUrl(), "");
+        if (!StringUtils.hasText(resolvedAudio)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "ASMR track stream unavailable");
+        }
+        validateHttpUrlIfPresent(resolvedAudio, "audio");
+
+        boolean shouldCache = musicListenCacheProperties.isEnabled()
+            && (!musicListenCacheProperties.isLoginOnly() || userId > 0);
+        boolean cacheEnqueued = false;
+        if (shouldCache) {
+            upsertTrackSourceCache("asmr", trackId, resolvedAudio);
+            if (shouldEnqueueTrackToOss(storageMode, resolvedAudio)) {
+                cacheEnqueued = musicTrackCacheUploadPublisher.publish(
+                    "asmr",
+                    trackId,
+                    resolvedAudio,
+                    readString(asmrTrack.title(), ""),
+                    readString(asmrTrack.artist(), "")
+                );
+            }
+        }
+
+        String lyricText = "";
+        String translationLyricText = "";
+        String furiganaLyricText = "";
+        if (resolveLyric && StringUtils.hasText(readString(asmrTrack.lyricUrl(), ""))) {
+            lyricText = readString(asmrMusicProvider.loadLyricText(asmrTrack.lyricUrl()), "");
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("cacheMode", storageMode.code());
+        metadata.put("resolved_source", "asmr");
+        metadata.put("provider", "asmr");
+        metadata.put("sourceScene", "asmr_playback");
+        metadata.put("lyricTextAvailable", StringUtils.hasText(lyricText));
+        if (asmrTrack.workId() > 0L) {
+            metadata.put("workId", asmrTrack.workId());
+        }
+        if (StringUtils.hasText(readString(asmrTrack.hash(), ""))) {
+            metadata.put("asmrHash", asmrTrack.hash());
+        }
+        if (asmrTrack.durationSec() != null) {
+            metadata.put("durationSec", asmrTrack.durationSec());
+        }
+        if (StringUtils.hasText(readString(asmrTrack.sourceId(), ""))) {
+            metadata.put("sourceId", asmrTrack.sourceId());
+        }
+        if (StringUtils.hasText(readString(asmrTrack.sourceUrl(), ""))) {
+            metadata.put("sourceUrl", asmrTrack.sourceUrl());
+        }
+        metadata.put("cacheEnqueued", cacheEnqueued);
+
+        LOGGER.info("MUSIC_COVER_FALLBACK_RESOLVED provider=asmr trackId={} success={}",
+            trackId,
+            StringUtils.hasText(readString(asmrTrack.cover(), "")));
+        LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider=asmr trackId={} success={}",
+            trackId,
+            StringUtils.hasText(lyricText));
+        LOGGER.info(
+            "{} provider=asmr trackId={} source=parse lyricSource=asmr parseMs={} cacheEnqueued={} lyricTextLength={} durationMs={}",
+            LOG_EVENT_RESOLVE_STAGE_DONE,
+            trackId,
+            Math.max(1L, System.currentTimeMillis() - startMs),
+            cacheEnqueued,
+            lyricText.length(),
+            Math.max(1L, System.currentTimeMillis() - startMs)
+        );
+
+        return new MusicTrackResponse(
+            trackId,
+            "asmr",
+            readString(asmrTrack.title(), trackId),
+            readString(asmrTrack.artist(), ""),
+            readString(asmrTrack.cover(), ""),
+            resolvedAudio,
+            "",
+            0,
+            true,
+            lyricText,
+            buildPlaybackMetadata(
+                metadata,
+                lyricText,
+                translationLyricText,
+                furiganaLyricText
+            )
+        );
+    }
+
+    private AsmrPlaybackTrackResult resolveAsmrPlaybackTrackTarget(String trackId,
+                                                                   String titleHint,
+                                                                   String artistHint,
+                                                                   String coverHint) {
+        AsmrPlaybackTrackRef ref = parseAsmrPlaybackTrackRef(trackId);
+        String normalizedTitleHint = readString(titleHint, "");
+        String normalizedArtistHint = readString(artistHint, "");
+        String normalizedCoverHint = readString(coverHint, "");
+
+        if (ref.workId() > 0L) {
+            AsmrMusicProvider.WorkSummary work = asmrMusicProvider.getWork(ref.workId());
+            String workTitle = readString(work.title(), "");
+            String workArtist = readString(work.artist(), "");
+            String workCover = readString(work.cover(), "");
+            if (StringUtils.hasText(ref.hash())) {
+                AsmrMusicProvider.AudioTrack selected = null;
+                List<AsmrMusicProvider.AudioTrack> tracks = asmrMusicProvider.listAudioTracks(ref.workId());
+                for (AsmrMusicProvider.AudioTrack item : tracks) {
+                    if (ref.hash().equals(readString(item.hash(), ""))) {
+                        selected = item;
+                        break;
+                    }
+                }
+                String audioUrl = "";
+                String lyricUrl = "";
+                Integer durationSec = null;
+                String selectedTitle = "";
+                if (selected != null) {
+                    audioUrl = firstNonBlank(
+                        readString(selected.playableAudioUrl(), ""),
+                        readString(selected.mediaStreamUrl(), ""),
+                        readString(selected.streamLowQualityUrl(), ""),
+                        readString(selected.mediaDownloadUrl(), "")
+                    );
+                    lyricUrl = readString(selected.lyricUrl(), "");
+                    durationSec = selected.durationSec();
+                    selectedTitle = readString(selected.title(), "");
+                }
+                if (!StringUtils.hasText(audioUrl)) {
+                    audioUrl = asmrMusicProvider.resolveStreamUrlByHash(ref.hash());
+                }
+                return new AsmrPlaybackTrackResult(
+                    ref.workId(),
+                    trackId,
+                    firstNonBlank(normalizedTitleHint, selectedTitle, workTitle, "ASMR 音轨"),
+                    firstNonBlank(normalizedArtistHint, workArtist),
+                    firstNonBlank(normalizedCoverHint, workCover),
+                    readString(audioUrl, ""),
+                    lyricUrl,
+                    durationSec,
+                    ref.hash(),
+                    readString(work.sourceId(), ""),
+                    readString(work.sourceUrl(), "")
+                );
+            }
+            AsmrMusicProvider.ResolvedTrack resolved = asmrMusicProvider.resolvePlayableByWork(ref.workId(), normalizedTitleHint);
+            return new AsmrPlaybackTrackResult(
+                ref.workId(),
+                trackId,
+                firstNonBlank(normalizedTitleHint, resolved.title(), workTitle, "ASMR 音轨"),
+                firstNonBlank(normalizedArtistHint, resolved.artist(), workArtist),
+                firstNonBlank(normalizedCoverHint, resolved.cover(), workCover),
+                readString(resolved.audioUrl(), ""),
+                readString(resolved.lyricUrl(), ""),
+                resolved.durationSec(),
+                readString(resolved.hash(), ""),
+                firstNonBlank(readString(resolved.sourceId(), ""), readString(work.sourceId(), "")),
+                firstNonBlank(readString(resolved.sourceUrl(), ""), readString(work.sourceUrl(), ""))
+            );
+        }
+
+        String hash = readString(ref.hash(), "");
+        String audioUrl = asmrMusicProvider.resolveStreamUrlByHash(hash);
+        return new AsmrPlaybackTrackResult(
+            0L,
+            trackId,
+            firstNonBlank(normalizedTitleHint, "ASMR 音轨"),
+            normalizedArtistHint,
+            normalizedCoverHint,
+            readString(audioUrl, ""),
+            "",
+            null,
+            hash,
+            "",
+            ""
+        );
+    }
+
+    private AsmrPlaybackTrackRef parseAsmrPlaybackTrackRef(String trackId) {
+        String normalized = readString(trackId, "");
+        if (!StringUtils.hasText(normalized)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
+        }
+        int separator = normalized.indexOf('|');
+        if (separator > 0) {
+            String workPart = readString(normalized.substring(0, separator), "");
+            String hashPart = readString(normalized.substring(separator + 1), "");
+            try {
+                long workId = Long.parseLong(workPart);
+                String hash = normalizeAsmrTrackHash(hashPart);
+                if (workId > 0L && StringUtils.hasText(hash)) {
+                    return new AsmrPlaybackTrackRef(workId, hash);
+                }
+            } catch (Exception ignored) {
+                // ignore
+            }
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "ASMR track_id format invalid");
+        }
+        if (normalized.matches("^[0-9]+$")) {
+            try {
+                long workId = Long.parseLong(normalized);
+                if (workId > 0L) {
+                    return new AsmrPlaybackTrackRef(workId, "");
+                }
+            } catch (Exception ignored) {
+                // ignore
+            }
+        }
+        String hash = normalizeAsmrTrackHash(normalized);
+        if (StringUtils.hasText(hash)) {
+            return new AsmrPlaybackTrackRef(0L, hash);
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "ASMR track_id format invalid");
     }
 
     /**
@@ -2716,6 +3130,103 @@ public class MediaServiceImpl implements MediaService {
         return new TuneHubVirtualPlaylistRef(playlistCode, provider, sourceType, sourceId);
     }
 
+    private MusicPlaylistBundleResponse loadVirtualAsmrPlaylistBundle(AsmrVirtualPlaylistRef ref) {
+        AsmrMusicProvider.WorkSummary work = asmrMusicProvider.getWork(ref.workId());
+        List<AsmrMusicProvider.AudioTrack> audioTracks = asmrMusicProvider.listAudioTracks(ref.workId());
+        List<MusicTrackResponse> tracks = new ArrayList<>();
+        int sort = 1;
+        for (AsmrMusicProvider.AudioTrack item : audioTracks) {
+            String hash = readString(item.hash(), "");
+            String trackId = buildAsmrTrackId(ref.workId(), hash);
+            if (!StringUtils.hasText(trackId)) {
+                continue;
+            }
+            String title = readString(item.title(), "");
+            String cover = readString(work.cover(), "");
+            String lyricUrl = readString(item.lyricUrl(), "");
+            String audioUrl = firstNonBlank(
+                readString(item.playableAudioUrl(), ""),
+                readString(item.mediaStreamUrl(), ""),
+                readString(item.streamLowQualityUrl(), ""),
+                readString(item.mediaDownloadUrl(), "")
+            );
+            if (!StringUtils.hasText(audioUrl) && StringUtils.hasText(hash)) {
+                audioUrl = asmrMusicProvider.resolveStreamUrlByHash(hash);
+            }
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("provider", "asmr");
+            metadata.put("workId", ref.workId());
+            metadata.put("sourceScene", "asmr_virtual_work");
+            if (StringUtils.hasText(hash)) {
+                metadata.put("asmrHash", hash);
+            }
+            if (item.durationSec() != null) {
+                metadata.put("durationSec", item.durationSec());
+            }
+            tracks.add(new MusicTrackResponse(
+                trackId,
+                "asmr",
+                StringUtils.hasText(title) ? title : readString(work.title(), "ASMR 音轨"),
+                readString(work.artist(), ""),
+                cover,
+                audioUrl,
+                lyricUrl,
+                sort++,
+                true,
+                "",
+                sanitizeTrackMetadata(metadata)
+            ));
+        }
+        if (tracks.isEmpty()) {
+            tracks.add(new MusicTrackResponse(
+                String.valueOf(ref.workId()),
+                "asmr",
+                readString(work.title(), "ASMR 作品"),
+                readString(work.artist(), ""),
+                readString(work.cover(), ""),
+                "",
+                "",
+                1,
+                true,
+                "",
+                sanitizeTrackMetadata(Map.of(
+                    "provider", "asmr",
+                    "workId", ref.workId(),
+                    "sourceScene", "asmr_virtual_work"
+                ))
+            ));
+        }
+        MusicPlaylistSummaryResponse profile = new MusicPlaylistSummaryResponse(
+            ref.playlistCode(),
+            readString(work.title(), "ASMR 作品"),
+            "ASMR 作品歌单",
+            readString(work.cover(), ""),
+            PLAYLIST_TYPE_CUSTOM,
+            0L,
+            true,
+            tracks.size(),
+            "asmr"
+        );
+        return new MusicPlaylistBundleResponse(profile, tracks);
+    }
+
+    private AsmrVirtualPlaylistRef parseVirtualAsmrPlaylistCode(String playlistCode) {
+        Matcher matcher = VIRTUAL_ASMR_PLAYLIST_CODE_PATTERN.matcher(readString(playlistCode, ""));
+        if (!matcher.matches()) {
+            return null;
+        }
+        long workId;
+        try {
+            workId = Long.parseLong(readString(matcher.group(1), ""));
+        } catch (Exception ex) {
+            return null;
+        }
+        if (workId <= 0L) {
+            return null;
+        }
+        return new AsmrVirtualPlaylistRef(playlistCode, workId);
+    }
+
     private TuneHubApiContext resolveTuneHubApiContext() {
         return resolveTuneHubApiContext(true);
     }
@@ -2826,8 +3337,8 @@ public class MediaServiceImpl implements MediaService {
 
     private String normalizeSearchProvider(String provider) {
         String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
-        if ("spotify".equals(normalized)) {
-            return "spotify";
+        if ("spotify".equals(normalized) || "asmr".equals(normalized)) {
+            return normalized;
         }
         return normalizeSourceProvider(normalized);
     }
@@ -2850,12 +3361,42 @@ public class MediaServiceImpl implements MediaService {
         return "vh_tunehub_" + normalizedProvider + "_search_" + encodedKeyword;
     }
 
+    private String buildVirtualAsmrWorkPlaylistCode(long workId) {
+        if (workId <= 0L) {
+            return "";
+        }
+        return "vh_asmr_work_" + workId;
+    }
+
+    private String buildAsmrTrackId(long workId, String hash) {
+        String normalizedHash = normalizeAsmrTrackHash(hash);
+        if (workId > 0L && StringUtils.hasText(normalizedHash)) {
+            return workId + "|" + normalizedHash;
+        }
+        if (workId > 0L) {
+            return String.valueOf(workId);
+        }
+        return normalizedHash;
+    }
+
+    private String normalizeAsmrTrackHash(String hash) {
+        String normalized = readString(hash, "");
+        if (!StringUtils.hasText(normalized)) {
+            return "";
+        }
+        if (!normalized.matches("^[0-9]+/[0-9]+$")) {
+            return "";
+        }
+        return normalized;
+    }
+
     private String resolveProviderDisplayName(String provider) {
-        String normalized = normalizeSourceProvider(provider);
+        String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
         return switch (normalized) {
             case "netease" -> "网易云";
             case "kuwo" -> "酷我";
             case "qq" -> "QQ 音乐";
+            case "asmr" -> "ASMR";
             default -> normalized.toUpperCase(Locale.ROOT);
         };
     }
@@ -3326,6 +3867,14 @@ public class MediaServiceImpl implements MediaService {
     private String normalizeSourceProvider(String provider) {
         String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
         return TUNEHUB_PLAYLIST_PLATFORMS.contains(normalized) ? normalized : "";
+    }
+
+    private String normalizePlaybackProvider(String provider) {
+        String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
+        if ("asmr".equals(normalized)) {
+            return "asmr";
+        }
+        return normalizeSourceProvider(normalized);
     }
 
     private String normalizeSourceAccountProvider(String provider) {
@@ -4486,6 +5035,19 @@ public class MediaServiceImpl implements MediaService {
         return readString(String.valueOf(value), fallback);
     }
 
+    private String firstNonBlank(String... values) {
+        if (values == null || values.length == 0) {
+            return "";
+        }
+        for (String item : values) {
+            String value = readString(item, "");
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
     /**
      * 优先以新字段 `asset_kind_code` 解析；兼容历史 `asset_type` 回退读取。
      */
@@ -4640,6 +5202,25 @@ public class MediaServiceImpl implements MediaService {
                                              String provider,
                                              String sourceType,
                                              String sourceId) {
+    }
+
+    private record AsmrVirtualPlaylistRef(String playlistCode, long workId) {
+    }
+
+    private record AsmrPlaybackTrackRef(long workId, String hash) {
+    }
+
+    private record AsmrPlaybackTrackResult(long workId,
+                                           String trackId,
+                                           String title,
+                                           String artist,
+                                           String cover,
+                                           String audioUrl,
+                                           String lyricUrl,
+                                           Integer durationSec,
+                                           String hash,
+                                           String sourceId,
+                                           String sourceUrl) {
     }
 
     private static final class ArtistAggregate {

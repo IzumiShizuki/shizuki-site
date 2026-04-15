@@ -80,9 +80,9 @@ watch(
 }
 
 .dialog-shell {
-  --liquid-bg: var(--theme-panel-surface, linear-gradient(160deg, rgba(18, 22, 33, 0.9), rgba(13, 17, 26, 0.9)));
-  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.18));
-  --liquid-shadow: 0 20px 36px rgba(18, 9, 8, 0.2);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--theme-shadow-hard, 0 20px 36px rgba(18, 9, 8, 0.2));
   width: min(420px, calc(100vw - 24px));
   border-radius: 16px;
   padding: 14px;
@@ -99,16 +99,16 @@ watch(
 .dialog-head h3 {
   margin: 0;
   font-size: 18px;
-  color: var(--theme-text-primary, rgba(242, 247, 255, 0.97));
+  color: var(--theme-text-primary);
 }
 
 .dialog-close {
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.12));
-  color: var(--theme-icon-primary, rgba(237, 243, 255, 0.94));
+  border: 1px solid var(--theme-border);
+  background: var(--theme-panel-surface-elevated);
+  color: var(--theme-icon-primary);
 }
 
 .dialog-field {
@@ -118,15 +118,15 @@ watch(
 
 .dialog-field span {
   font-size: 12px;
-  color: var(--theme-text-secondary, rgba(188, 199, 223, 0.84));
+  color: var(--theme-text-secondary);
 }
 
 .dialog-field input {
   min-height: 38px;
   border-radius: 10px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
-  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.1));
-  color: var(--theme-text-primary, rgba(239, 245, 255, 0.96));
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
   padding: 0 11px;
   outline: none;
 }
@@ -151,9 +151,9 @@ watch(
 .dialog-btn {
   min-height: 34px;
   border-radius: 10px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.1));
-  color: var(--theme-text-primary, rgba(233, 240, 255, 0.94));
+  border: 1px solid var(--theme-border);
+  background: var(--theme-panel-surface-elevated);
+  color: var(--theme-text-primary);
   padding: 0 14px;
 }
 

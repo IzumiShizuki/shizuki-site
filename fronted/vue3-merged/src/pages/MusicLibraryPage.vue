@@ -236,6 +236,7 @@ const SEARCH_PROVIDER_OPTIONS = [
   { value: 'netease', label: '网易云' },
   { value: 'kuwo', label: '酷我' },
   { value: 'qq', label: 'QQ' },
+  { value: 'asmr', label: 'ASMR' },
   { value: 'spotify', label: 'Spotify' }
 ];
 const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];

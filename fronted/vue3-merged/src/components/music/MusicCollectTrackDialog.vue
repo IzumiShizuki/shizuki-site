@@ -90,9 +90,9 @@ const trackTitle = computed(() => {
 }
 
 .dialog-shell {
-  --liquid-bg: var(--theme-panel-surface, linear-gradient(160deg, rgba(18, 22, 33, 0.92), rgba(13, 17, 26, 0.92)));
-  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.18));
-  --liquid-shadow: 0 20px 36px rgba(18, 9, 8, 0.2);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--theme-shadow-hard, 0 20px 36px rgba(18, 9, 8, 0.2));
   width: min(460px, calc(100vw - 24px));
   border-radius: 16px;
   padding: 14px;
@@ -110,22 +110,22 @@ const trackTitle = computed(() => {
 .dialog-head h3 {
   margin: 0;
   font-size: 18px;
-  color: var(--theme-text-primary, rgba(242, 247, 255, 0.97));
+  color: var(--theme-text-primary);
 }
 
 .dialog-sub {
   margin: 6px 0 0;
   font-size: 12px;
-  color: var(--theme-text-secondary, rgba(180, 193, 219, 0.86));
+  color: var(--theme-text-secondary);
 }
 
 .dialog-close {
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.12));
-  color: var(--theme-icon-primary, rgba(237, 243, 255, 0.94));
+  border: 1px solid var(--theme-border);
+  background: var(--theme-panel-surface-elevated);
+  color: var(--theme-icon-primary);
 }
 
 .dialog-body {
@@ -137,16 +137,16 @@ const trackTitle = computed(() => {
 }
 
 .collect-item {
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.08));
+  background: var(--theme-panel-surface-elevated);
   padding: 10px 12px;
   text-align: left;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  color: var(--theme-text-primary, rgba(241, 246, 255, 0.96));
+  color: var(--theme-text-primary);
 }
 
 .collect-item.primary {
@@ -168,8 +168,7 @@ const trackTitle = computed(() => {
 }
 
 .collect-meta {
-  font-size: 11px;
-  color: var(--theme-text-secondary, rgba(180, 193, 219, 0.86));
+  color: var(--theme-text-secondary);
 }
 
 .collect-empty {
@@ -178,8 +177,8 @@ const trackTitle = computed(() => {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  border: 1px dashed var(--theme-border, rgba(255, 255, 255, 0.2));
-  color: var(--theme-text-secondary, rgba(177, 190, 216, 0.84));
+  border: 1px dashed var(--theme-border);
+  color: var(--theme-text-secondary);
   font-size: 12px;
 }
 
@@ -198,9 +197,9 @@ const trackTitle = computed(() => {
 .dialog-btn {
   min-height: 34px;
   border-radius: 10px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.1));
-  color: var(--theme-text-primary, rgba(233, 240, 255, 0.94));
+  border: 1px solid var(--theme-border);
+  background: var(--theme-panel-surface-elevated);
+  color: var(--theme-text-primary);
   padding: 0 14px;
 }
 

@@ -460,7 +460,7 @@ export function usePlayerEngine(options = {}) {
     const track = tracks.value[index];
     if (!track) return;
     const provider = String(track.provider || '').trim().toLowerCase();
-    if (!['netease', 'kuwo', 'qq'].includes(provider)) return;
+    if (!['netease', 'kuwo', 'qq', 'asmr'].includes(provider)) return;
     const trackId = String(track.trackId || track.id || '').trim();
     if (!trackId) return;
     const resolveKey = `${provider}:${trackId}`;
@@ -520,7 +520,7 @@ export function usePlayerEngine(options = {}) {
     if (!track || (!force && track.audio)) return track;
 
     const provider = String(track.provider || '').trim().toLowerCase();
-    const supported = provider === 'netease' || provider === 'kuwo' || provider === 'qq';
+    const supported = provider === 'netease' || provider === 'kuwo' || provider === 'qq' || provider === 'asmr';
     if (!supported) return track;
 
     const trackId = String(track.trackId || track.id || '').trim();
@@ -913,7 +913,7 @@ export function usePlayerEngine(options = {}) {
       },
       0
     );
-    const canLazyResolve = ['netease', 'kuwo', 'qq'].includes(String(normalized.provider || '').toLowerCase())
+    const canLazyResolve = ['netease', 'kuwo', 'qq', 'asmr'].includes(String(normalized.provider || '').toLowerCase())
       && String(normalized.trackId || normalized.id || '').trim() !== '';
     if (!normalized.audio && !canLazyResolve) return false;
     const replaceQueue = options?.replaceQueue === true;
@@ -969,7 +969,7 @@ export function usePlayerEngine(options = {}) {
       0
     );
 
-    const canLazyResolve = ['netease', 'kuwo', 'qq'].includes(String(normalized.provider || '').toLowerCase())
+    const canLazyResolve = ['netease', 'kuwo', 'qq', 'asmr'].includes(String(normalized.provider || '').toLowerCase())
       && String(normalized.trackId || normalized.id || '').trim() !== '';
     if (!normalized.audio && !canLazyResolve) return false;
 
