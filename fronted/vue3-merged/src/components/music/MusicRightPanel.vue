@@ -631,9 +631,9 @@ function providerLabel(provider) {
 
 <style scoped>
 .music-right-panel {
-  --liquid-bg: linear-gradient(170deg, rgba(21, 24, 34, 0.78), rgba(17, 20, 29, 0.62));
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 16px 30px rgba(8, 10, 18, 0.32);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--theme-shadow-soft, 0 16px 30px rgba(8, 10, 18, 0.12));
   border-radius: 18px;
   padding: 14px 12px calc(var(--music-bottom-dock-height, 124px) + 12px);
   height: 100%;
@@ -655,14 +655,14 @@ function providerLabel(provider) {
   margin: 0;
   font-size: 11px;
   letter-spacing: 0.12em;
-  color: rgba(184, 194, 217, 0.72);
+  color: var(--theme-text-tertiary);
   text-transform: uppercase;
 }
 
 .head-text h3 {
   margin: 4px 0 0;
   font-size: 17px;
-  color: rgba(238, 243, 255, 0.96);
+  color: var(--theme-text-primary);
 }
 
 .drawer-close {
@@ -671,16 +671,16 @@ function providerLabel(provider) {
   border-radius: 9px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.12);
-  color: rgba(243, 247, 255, 0.92);
+  color: var(--theme-text-secondary);
 }
 
 .track-card {
   display: grid;
   grid-template-columns: 58px 1fr;
   gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--theme-surface-soft);
   padding: 8px;
 }
 
@@ -695,17 +695,17 @@ function providerLabel(provider) {
 .meta .title {
   margin: 3px 0 0;
   font-size: 14px;
-  color: rgba(240, 245, 255, 0.96);
+  color: var(--theme-text-primary);
 }
 
 .meta .artist {
   margin: 6px 0 0;
   font-size: 12px;
-  color: rgba(174, 186, 214, 0.86);
+  color: var(--theme-text-secondary);
 }
 
 .lyric-card {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border-strong);
   border-radius: 14px;
   background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-soft-rgb), 0.14));
   padding: 10px;
@@ -720,7 +720,7 @@ function providerLabel(provider) {
   margin: 0;
   font-size: 11px;
   letter-spacing: 0.1em;
-  color: rgba(188, 201, 227, 0.78);
+  color: var(--theme-text-tertiary);
   text-transform: uppercase;
 }
 
@@ -738,7 +738,7 @@ function providerLabel(provider) {
 .lyric-card .line.prev,
 .lyric-card .line.next {
   font-size: 12px;
-  color: rgba(183, 195, 220, 0.78);
+  color: var(--theme-text-tertiary);
   opacity: 0.68;
   transform: translateY(0);
   filter: blur(0.2px);
@@ -748,7 +748,7 @@ function providerLabel(provider) {
   font-size: 15px;
   line-height: 1.55;
   font-weight: 700;
-  color: rgba(248, 251, 255, 0.98);
+  color: var(--theme-text-primary);
   text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.2);
   opacity: 1;
 }
@@ -778,7 +778,7 @@ function providerLabel(provider) {
 }
 
 .control-panel {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--theme-border-strong);
   border-radius: 14px;
   background:
     radial-gradient(120% 100% at 8% 0%, rgba(var(--accent-soft-rgb), 0.16), transparent 55%),
@@ -798,14 +798,14 @@ function providerLabel(provider) {
   margin: 0;
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: rgba(234, 241, 255, 0.94);
+  color: var(--theme-text-secondary);
 }
 
 .control-head-sub {
   margin: 0;
   font-size: 10px;
   letter-spacing: 0.08em;
-  color: rgba(174, 188, 217, 0.82);
+  color: var(--theme-text-tertiary);
 }
 
 .control-grid {
@@ -818,7 +818,7 @@ function providerLabel(provider) {
   display: grid;
   align-content: center;
   gap: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--theme-border);
   border-radius: 11px;
   padding: 8px 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
@@ -845,7 +845,7 @@ function providerLabel(provider) {
   gap: 5px;
   font-size: 10px;
   letter-spacing: 0.1em;
-  color: rgba(191, 204, 231, 0.86);
+  color: var(--theme-text-tertiary);
 }
 
 .control-title i {
@@ -857,14 +857,14 @@ function providerLabel(provider) {
   margin: 0;
   font-size: 12px;
   font-weight: 700;
-  color: rgba(238, 244, 255, 0.94);
+  color: var(--theme-text-primary);
   white-space: nowrap;
 }
 
 .control-sub-value {
   margin: 0;
   font-size: 10px;
-  color: rgba(187, 201, 230, 0.88);
+  color: var(--theme-text-tertiary);
 }
 
 .control-range-row {
@@ -1081,8 +1081,8 @@ function providerLabel(provider) {
 
 .field-block input {
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
   color: rgba(240, 246, 255, 0.95);
   padding: 8px;
   outline: none;

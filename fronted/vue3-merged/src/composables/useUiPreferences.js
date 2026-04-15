@@ -287,7 +287,7 @@ function applyAccentVariables() {
   const wallpaperHomeOverlayBackground = isDayMode
     ? 'linear-gradient(180deg, rgba(255, 251, 248, 0.06), rgba(248, 241, 236, 0.18))'
     : 'linear-gradient(180deg, rgba(8, 11, 18, 0.16), rgba(8, 11, 18, 0.42))';
-  const wallpaperHomeOverlayOpacity = isDayMode ? '0.28' : '0.9';
+  const wallpaperHomeOverlayOpacity = isDayMode ? '0.38' : '0.9';
   const wallpaperHomeOverlayBackdrop = isDayMode ? 'blur(0px) saturate(102%)' : 'blur(1px) saturate(106%)';
 
   const root = document.documentElement;

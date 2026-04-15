@@ -764,7 +764,7 @@ onBeforeUnmount(() => {
 }
 
 .home-toolbar {
-  --liquid-bg: linear-gradient(145deg, rgba(22, 26, 38, 0.82), rgba(16, 20, 30, 0.78));
+  --liquid-bg: var(--theme-panel-surface);
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 12px 24px rgba(6, 8, 14, 0.3);
   border-radius: 12px;
@@ -781,10 +781,10 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
   padding: 0 10px;
-  color: rgba(217, 228, 248, 0.88);
+  color: var(--theme-text-secondary);
 }
 
 .search-box i {
@@ -797,7 +797,7 @@ onBeforeUnmount(() => {
   outline: none;
   width: 100%;
   background: transparent;
-  color: rgba(234, 241, 255, 0.94);
+  color: var(--theme-text-primary);
   font-size: 12px;
   line-height: 1;
 }
@@ -822,7 +822,7 @@ onBeforeUnmount(() => {
 }
 
 .panel {
-  --liquid-bg: linear-gradient(145deg, rgba(19, 23, 34, 0.84), rgba(14, 18, 28, 0.8));
+  --liquid-bg: var(--theme-panel-surface);
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 12px 24px rgba(6, 8, 14, 0.3);
   border-radius: 14px;
@@ -841,12 +841,12 @@ onBeforeUnmount(() => {
 .panel-head h2 {
   margin: 0;
   font-size: 18px;
-  color: rgba(240, 246, 255, 0.95);
+  color: var(--theme-text-primary);
 }
 
 .panel-head span {
   font-size: 12px;
-  color: rgba(184, 195, 220, 0.82);
+  color: var(--theme-text-tertiary);
 }
 
 .provider-block {
@@ -864,12 +864,12 @@ onBeforeUnmount(() => {
 .provider-head h3 {
   margin: 0;
   font-size: 14px;
-  color: rgba(238, 244, 255, 0.94);
+  color: var(--theme-text-primary);
 }
 
 .provider-head span {
   font-size: 12px;
-  color: rgba(184, 195, 220, 0.82);
+  color: var(--theme-text-tertiary);
 }
 
 .playlist-grid {
@@ -887,9 +887,9 @@ onBeforeUnmount(() => {
 .playlist-card {
   position: relative;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(234, 241, 255, 0.94);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
   overflow: hidden;
   text-align: left;
   min-height: 278px;
@@ -933,7 +933,7 @@ onBeforeUnmount(() => {
 
 .meta .name {
   font-size: 13px;
-  color: rgba(244, 248, 255, 0.96);
+  color: var(--theme-text-primary);
   min-height: 20px;
   line-height: 20px;
   white-space: nowrap;
@@ -943,7 +943,7 @@ onBeforeUnmount(() => {
 
 .meta .desc {
   font-size: 11px;
-  color: rgba(181, 192, 216, 0.84);
+  color: var(--theme-text-secondary);
   line-height: 1.4;
   min-height: calc(1.4em * 2);
   display: -webkit-box;
@@ -958,9 +958,9 @@ onBeforeUnmount(() => {
   height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(227, 236, 255, 0.92);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   font-size: 11px;
 }
 
@@ -1019,8 +1019,8 @@ onBeforeUnmount(() => {
 
 .table-head {
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(188, 199, 221, 0.84);
+  border-bottom: 1px solid var(--theme-border);
+  color: var(--theme-text-tertiary);
   font-size: 12px;
 }
 
@@ -1028,8 +1028,8 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: 10px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(234, 240, 255, 0.92);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
   text-align: left;
   cursor: pointer;
 }
@@ -1088,7 +1088,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.1);
-  color: rgba(231, 238, 252, 0.9);
+  color: var(--theme-text-secondary);
 }
 
 .track-action-btn .liked {
@@ -1150,7 +1150,7 @@ onBeforeUnmount(() => {
 }
 
 .artist-col {
-  color: rgba(179, 190, 214, 0.86);
+  color: var(--theme-text-secondary);
 }
 
 .podcast-grid {

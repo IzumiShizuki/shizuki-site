@@ -105,9 +105,9 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
 
 <style scoped>
 .music-left-sidebar {
-  --liquid-bg: linear-gradient(170deg, rgba(23, 26, 38, 0.78), rgba(20, 22, 32, 0.62));
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 16px 30px rgba(8, 10, 18, 0.32);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--theme-shadow-soft, 0 16px 30px rgba(8, 10, 18, 0.12));
   border-radius: 18px;
   padding: 14px 12px calc(var(--music-bottom-dock-height, 124px) + 10px);
   height: 100%;
@@ -142,7 +142,7 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
 
 .brand-text {
   font-size: 13px;
-  color: rgba(235, 240, 252, 0.96);
+  color: var(--theme-text-primary);
   font-weight: 700;
 }
 
@@ -151,9 +151,9 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(243, 247, 255, 0.92);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
 }
 
 .nav-block,
@@ -177,17 +177,17 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(178, 188, 212, 0.68);
+  color: var(--theme-text-tertiary);
   margin: 0 2px 2px;
 }
 
 .nav-item,
 .list-item {
   min-height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(233, 239, 255, 0.86);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -200,7 +200,7 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
 .list-item.selected {
   border-color: rgba(var(--accent-rgb), 0.66);
   background: linear-gradient(120deg, rgba(var(--accent-rgb), 0.28), rgba(var(--accent-soft-rgb), 0.22));
-  color: rgba(242, 248, 255, 0.98);
+  color: var(--accent-mode-text);
   box-shadow: 0 6px 18px rgba(var(--accent-rgb), 0.22);
 }
 
@@ -215,7 +215,7 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   margin: 0;
   padding: 6px 2px 0;
   font-size: 12px;
-  color: rgba(166, 179, 205, 0.76);
+  color: var(--theme-text-tertiary);
 }
 
 @media (max-width: 900px) {
