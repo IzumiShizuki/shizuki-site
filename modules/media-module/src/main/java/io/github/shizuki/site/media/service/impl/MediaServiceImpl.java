@@ -56,6 +56,13 @@ import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistProfileResponse;
 import io.github.shizuki.site.media.response.MusicSourcePlaylistImportResponse;
+import io.github.shizuki.site.media.response.MusicVoicePlayableTrackResponse;
+import io.github.shizuki.site.media.response.MusicVoiceTagResponse;
+import io.github.shizuki.site.media.response.MusicVoiceTrackNodeResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorkBundleResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorkDetailResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorkItemResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.response.PublicHomeRoleResponse;
 import io.github.shizuki.site.media.response.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.response.SpotifyTrackResponse;
@@ -210,6 +217,9 @@ public class MediaServiceImpl implements MediaService {
         "lyricTextAvailable",
         "coverSource"
     );
+    private static final String VOICE_DEFAULT_ORDER = "release";
+    private static final String VOICE_DEFAULT_SORT = "desc";
+    private static final int VOICE_MAX_FILTER_FETCH_ROUNDS = 4;
 
     private final ObjectStorageClient objectStorageClient;
     private final MediaStorageProperties mediaStorageProperties;
@@ -908,6 +918,9 @@ public class MediaServiceImpl implements MediaService {
         String traceId = readString(MDC.get(LOG_KEY_TRACE_ID), "-");
 
         List<String> selectedProviders = resolveSearchProviders(providers, userId);
+        if (selectedProviders.contains("asmr")) {
+            requireAsmrAccess();
+        }
         boolean includePlaylists = "all".equals(normalizedType) || "playlist".equals(normalizedType);
         boolean includeTracks = "all".equals(normalizedType) || "track".equals(normalizedType) || "artist".equals(normalizedType);
         boolean includeArtists = "all".equals(normalizedType) || "artist".equals(normalizedType);
@@ -1572,6 +1585,131 @@ public class MediaServiceImpl implements MediaService {
             playlists,
             tracks,
             artists
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public MusicVoiceWorksResponse searchVoiceWorks(String query,
+                                                    Integer page,
+                                                    Integer limit,
+                                                    String order,
+                                                    String sort,
+                                                    String tagIds) {
+        requireAsmrAccess();
+        int safePage = page == null ? 1 : Math.max(1, page);
+        int safeLimit = limit == null ? 24 : Math.max(1, Math.min(60, limit));
+        String normalizedKeyword = normalizeVoiceQuery(query);
+        String normalizedOrder = normalizeVoiceOrder(order);
+        String normalizedSort = normalizeVoiceSort(sort);
+        Set<Long> selectedTagIds = parseVoiceTagIds(tagIds);
+
+        boolean keywordMode = StringUtils.hasText(normalizedKeyword);
+        int fetchPage = safePage;
+        int fetchRound = 0;
+        int effectiveFetchLimit = selectedTagIds.isEmpty() ? safeLimit : Math.min(60, Math.max(safeLimit, 30));
+        int totalCount = 0;
+        int lastPage = safePage;
+        int lastPageSize = safeLimit;
+        List<AsmrMusicProvider.WorkSummary> accepted = new ArrayList<>();
+        Set<Long> acceptedWorkIds = new LinkedHashSet<>();
+
+        while (fetchRound < VOICE_MAX_FILTER_FETCH_ROUNDS && accepted.size() < safeLimit + 1) {
+            AsmrMusicProvider.SearchResult result = keywordMode
+                ? asmrMusicProvider.searchWorks(normalizedKeyword, fetchPage, effectiveFetchLimit, normalizedOrder, normalizedSort)
+                : asmrMusicProvider.listWorks(fetchPage, effectiveFetchLimit, normalizedOrder, normalizedSort);
+            List<AsmrMusicProvider.WorkSummary> works = result.works() == null ? List.of() : result.works();
+            totalCount = Math.max(totalCount, result.totalCount());
+            lastPage = Math.max(1, result.currentPage());
+            lastPageSize = Math.max(1, result.pageSize());
+            for (AsmrMusicProvider.WorkSummary item : works) {
+                if (item == null || item.id() <= 0L) {
+                    continue;
+                }
+                if (!matchesVoiceTagFilter(item, selectedTagIds)) {
+                    continue;
+                }
+                if (!acceptedWorkIds.add(item.id())) {
+                    continue;
+                }
+                accepted.add(item);
+                if (accepted.size() >= safeLimit + 1) {
+                    break;
+                }
+            }
+            boolean upstreamHasMore = result.totalCount() > ((long) result.currentPage() * Math.max(1, result.pageSize()));
+            if (!upstreamHasMore || works.isEmpty() || selectedTagIds.isEmpty()) {
+                break;
+            }
+            fetchPage += 1;
+            fetchRound += 1;
+        }
+
+        boolean hasMore = accepted.size() > safeLimit
+            || totalCount > ((long) lastPage * Math.max(1, lastPageSize));
+        List<AsmrMusicProvider.WorkSummary> visible = accepted.size() > safeLimit
+            ? accepted.subList(0, safeLimit)
+            : accepted;
+
+        List<MusicVoiceWorkItemResponse> items = new ArrayList<>();
+        for (AsmrMusicProvider.WorkSummary item : visible) {
+            items.add(toVoiceWorkItem(item));
+        }
+        return new MusicVoiceWorksResponse(
+            items,
+            safePage,
+            safeLimit,
+            hasMore,
+            aggregateVoiceAvailableTags(visible)
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public MusicVoiceWorkBundleResponse getVoiceWorkBundle(Long workId) {
+        requireAsmrAccess();
+        long safeWorkId = workId == null ? 0L : workId;
+        if (safeWorkId <= 0L) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "work_id is required");
+        }
+        AsmrMusicProvider.WorkSummary work = asmrMusicProvider.getWork(safeWorkId);
+        List<AsmrMusicProvider.TrackNode> trackTree = asmrMusicProvider.listTrackTree(safeWorkId);
+        List<AsmrMusicProvider.AudioTrack> audioTracks = asmrMusicProvider.listAudioTracks(safeWorkId);
+
+        List<MusicVoiceTrackNodeResponse> trackNodeResponses = new ArrayList<>();
+        for (AsmrMusicProvider.TrackNode node : trackTree) {
+            trackNodeResponses.add(toVoiceTrackNode(node));
+        }
+
+        List<MusicVoicePlayableTrackResponse> playableTracks = new ArrayList<>();
+        for (AsmrMusicProvider.AudioTrack item : audioTracks) {
+            String hash = readString(item.hash(), "");
+            String trackId = buildAsmrTrackId(work.id(), hash);
+            if (!StringUtils.hasText(trackId)) {
+                continue;
+            }
+            playableTracks.add(new MusicVoicePlayableTrackResponse(
+                trackId,
+                hash,
+                readString(item.title(), ""),
+                readString(item.path(), ""),
+                readString(work.artist(), ""),
+                readString(work.cover(), ""),
+                readString(item.lyricUrl(), ""),
+                item.durationSec(),
+                readString(work.sourceId(), ""),
+                readString(work.sourceUrl(), ""),
+                readString(work.title(), "")
+            ));
+        }
+        return new MusicVoiceWorkBundleResponse(
+            toVoiceWorkDetail(work),
+            trackNodeResponses,
+            playableTracks
         );
     }
 
@@ -3271,6 +3409,218 @@ public class MediaServiceImpl implements MediaService {
         throw new BusinessException(ErrorCode.BAD_REQUEST, "unsupported search type");
     }
 
+    private String normalizeVoiceQuery(String query) {
+        String normalized = readString(query, "");
+        if (!StringUtils.hasText(normalized)) {
+            return "";
+        }
+        if (normalized.length() < 2) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "search query is too short");
+        }
+        if (normalized.length() > 64) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "search query is too long");
+        }
+        return normalized;
+    }
+
+    private String normalizeVoiceOrder(String order) {
+        String normalized = readString(order, VOICE_DEFAULT_ORDER).toLowerCase(Locale.ROOT);
+        if ("release".equals(normalized)
+            || "create_date".equals(normalized)
+            || "dl_count".equals(normalized)
+            || "review_count".equals(normalized)
+            || "rate_average_2dp".equals(normalized)
+            || "rate_count".equals(normalized)
+            || "price".equals(normalized)) {
+            return normalized;
+        }
+        return VOICE_DEFAULT_ORDER;
+    }
+
+    private String normalizeVoiceSort(String sort) {
+        return "asc".equalsIgnoreCase(readString(sort, VOICE_DEFAULT_SORT)) ? "asc" : "desc";
+    }
+
+    private Set<Long> parseVoiceTagIds(String tagIdsRaw) {
+        String raw = readString(tagIdsRaw, "");
+        if (!StringUtils.hasText(raw)) {
+            return Set.of();
+        }
+        Set<Long> result = new LinkedHashSet<>();
+        for (String part : raw.split(",")) {
+            String normalized = readString(part, "");
+            if (!StringUtils.hasText(normalized)) {
+                continue;
+            }
+            try {
+                long value = Long.parseLong(normalized);
+                if (value > 0L) {
+                    result.add(value);
+                }
+            } catch (Exception ignored) {
+                // ignore invalid tag id
+            }
+        }
+        return result;
+    }
+
+    private boolean matchesVoiceTagFilter(AsmrMusicProvider.WorkSummary work, Set<Long> selectedTagIds) {
+        if (selectedTagIds == null || selectedTagIds.isEmpty()) {
+            return true;
+        }
+        if (work == null || work.tags() == null || work.tags().isEmpty()) {
+            return false;
+        }
+        Set<Long> workTagIds = new LinkedHashSet<>();
+        for (AsmrMusicProvider.TagSummary item : work.tags()) {
+            if (item == null || item.tagId() <= 0L) {
+                continue;
+            }
+            workTagIds.add(item.tagId());
+        }
+        return workTagIds.containsAll(selectedTagIds);
+    }
+
+    private MusicVoiceWorkItemResponse toVoiceWorkItem(AsmrMusicProvider.WorkSummary work) {
+        return new MusicVoiceWorkItemResponse(
+            work.id(),
+            readString(work.title(), ""),
+            readString(work.artist(), ""),
+            readString(work.cover(), ""),
+            readString(work.releaseDate(), ""),
+            work.durationSec(),
+            work.dlCount(),
+            work.reviewCount(),
+            work.rateCount(),
+            work.rateAverage(),
+            work.nsfw(),
+            readString(work.ageCategory(), ""),
+            readString(work.sourceId(), ""),
+            readString(work.sourceUrl(), ""),
+            toVoiceTags(work.tags()),
+            toVoiceActors(work.vas())
+        );
+    }
+
+    private MusicVoiceWorkDetailResponse toVoiceWorkDetail(AsmrMusicProvider.WorkSummary work) {
+        return new MusicVoiceWorkDetailResponse(
+            work.id(),
+            readString(work.title(), ""),
+            readString(work.artist(), ""),
+            readString(work.cover(), ""),
+            work.nsfw(),
+            readString(work.ageCategory(), ""),
+            readString(work.releaseDate(), ""),
+            work.durationSec(),
+            work.dlCount(),
+            work.reviewCount(),
+            work.rateCount(),
+            work.rateAverage(),
+            work.rank() == null ? Map.of() : work.rank(),
+            toVoiceTags(work.tags()),
+            toVoiceActors(work.vas()),
+            work.languageEditions() == null ? List.of() : work.languageEditions(),
+            readString(work.sourceId(), ""),
+            readString(work.sourceUrl(), ""),
+            readString(work.originalWorkNo(), ""),
+            readString(work.reviewText(), ""),
+            work.extra() == null ? Map.of() : work.extra()
+        );
+    }
+
+    private List<MusicVoiceTagResponse> toVoiceTags(List<AsmrMusicProvider.TagSummary> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return List.of();
+        }
+        List<MusicVoiceTagResponse> result = new ArrayList<>();
+        for (AsmrMusicProvider.TagSummary item : tags) {
+            if (item == null) {
+                continue;
+            }
+            long tagId = item.tagId();
+            String name = extractVoiceTagName(item.name());
+            if (tagId <= 0L && !StringUtils.hasText(name)) {
+                continue;
+            }
+            result.add(new MusicVoiceTagResponse(tagId, name));
+        }
+        return result;
+    }
+
+    private List<String> toVoiceActors(List<AsmrMusicProvider.VoiceActorSummary> vas) {
+        if (vas == null || vas.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (AsmrMusicProvider.VoiceActorSummary item : vas) {
+            String name = readString(item == null ? null : item.name(), "");
+            if (StringUtils.hasText(name)) {
+                result.add(name);
+            }
+        }
+        return result;
+    }
+
+    private List<MusicVoiceTagResponse> aggregateVoiceAvailableTags(List<AsmrMusicProvider.WorkSummary> works) {
+        if (works == null || works.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, MusicVoiceTagResponse> byId = new LinkedHashMap<>();
+        Map<String, MusicVoiceTagResponse> byName = new LinkedHashMap<>();
+        for (AsmrMusicProvider.WorkSummary work : works) {
+            List<MusicVoiceTagResponse> tags = toVoiceTags(work == null ? List.of() : work.tags());
+            for (MusicVoiceTagResponse tag : tags) {
+                if (tag == null) {
+                    continue;
+                }
+                if (tag.tagId() > 0L) {
+                    byId.putIfAbsent(tag.tagId(), tag);
+                    continue;
+                }
+                String key = readString(tag.name(), "").toLowerCase(Locale.ROOT);
+                if (StringUtils.hasText(key)) {
+                    byName.putIfAbsent(key, tag);
+                }
+            }
+        }
+        List<MusicVoiceTagResponse> result = new ArrayList<>(byId.values());
+        result.addAll(byName.values());
+        result.sort((left, right) -> {
+            int idCompare = Long.compare(left.tagId(), right.tagId());
+            if (idCompare != 0 && left.tagId() > 0L && right.tagId() > 0L) {
+                return idCompare;
+            }
+            return readString(left.name(), "").compareToIgnoreCase(readString(right.name(), ""));
+        });
+        return result;
+    }
+
+    private String extractVoiceTagName(String raw) {
+        return readString(raw, "");
+    }
+
+    private MusicVoiceTrackNodeResponse toVoiceTrackNode(AsmrMusicProvider.TrackNode node) {
+        if (node == null) {
+            return new MusicVoiceTrackNodeResponse("", "", "", "", "", "", null, List.of());
+        }
+        List<MusicVoiceTrackNodeResponse> children = new ArrayList<>();
+        if (node.children() != null && !node.children().isEmpty()) {
+            for (AsmrMusicProvider.TrackNode child : node.children()) {
+                children.add(toVoiceTrackNode(child));
+            }
+        }
+        return new MusicVoiceTrackNodeResponse(
+            readString(node.nodeType(), ""),
+            readString(node.title(), ""),
+            readString(node.hash(), ""),
+            readString(node.mediaStreamUrl(), ""),
+            readString(node.streamLowQualityUrl(), ""),
+            readString(node.mediaDownloadUrl(), ""),
+            node.durationSec(),
+            children
+        );
+    }
+
     private List<String> resolveSearchProviders(String providers, Long userId) {
         List<String> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
@@ -4204,6 +4554,17 @@ public class MediaServiceImpl implements MediaService {
 
     private boolean currentLoginUserHasPermission(String permission) {
         return LoginUserContext.get().map(user -> user.hasPermission(permission)).orElse(false);
+    }
+
+    private void requireAsmrAccess() {
+        if (currentLoginUserHasPermission("music.asmr.access")) {
+            return;
+        }
+        throw new BusinessException(
+            ErrorCode.FORBIDDEN,
+            "No permission to access ASMR resource",
+            Map.of("permission", "music.asmr.access")
+        );
     }
 
     private long resolveQuotaValue(String quotaCode, Set<String> groups, long fallback) {

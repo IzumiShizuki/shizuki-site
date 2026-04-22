@@ -14,6 +14,8 @@ import io.github.shizuki.site.media.response.MusicQuotaResponse;
 import io.github.shizuki.site.media.request.MusicResolvePlaybackRequest;
 import io.github.shizuki.site.media.response.MusicSearchResponse;
 import io.github.shizuki.site.media.response.MusicTrackResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorkBundleResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.response.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.response.SpotifyTrackResponse;
 import io.github.shizuki.site.media.service.MediaService;
@@ -93,6 +95,25 @@ public class MusicController {
                                                    @RequestParam(value = "page", required = false) Integer page,
                                                    @RequestParam(value = "limit", required = false) Integer limit) {
         return ApiResponse.success(mediaService.searchMusic(query, type, providers, page, limit));
+    }
+
+    @GetMapping("/voice/works")
+    @RateLimit(key = "music.voice.works", limit = 80, windowSeconds = 60)
+    @Operation(summary = "音声作品搜索", description = "ASMR 专用搜索，支持默认榜单、排序与标签筛选")
+    public ApiResponse<MusicVoiceWorksResponse> voiceWorks(@RequestParam(value = "q", required = false) String query,
+                                                           @RequestParam(value = "page", required = false) Integer page,
+                                                           @RequestParam(value = "limit", required = false) Integer limit,
+                                                           @RequestParam(value = "order", required = false) String order,
+                                                           @RequestParam(value = "sort", required = false) String sort,
+                                                           @RequestParam(value = "tag_ids", required = false) String tagIds) {
+        return ApiResponse.success(mediaService.searchVoiceWorks(query, page, limit, order, sort, tagIds));
+    }
+
+    @GetMapping("/voice/works/{workId}/bundle")
+    @RateLimit(key = "music.voice.work.bundle", limit = 80, windowSeconds = 60)
+    @Operation(summary = "音声作品聚合详情", description = "返回作品结构化信息、音轨树和可播放音轨")
+    public ApiResponse<MusicVoiceWorkBundleResponse> voiceWorkBundle(@PathVariable("workId") Long workId) {
+        return ApiResponse.success(mediaService.getVoiceWorkBundle(workId));
     }
 
     @PostMapping("/tracks/resolve-playback")

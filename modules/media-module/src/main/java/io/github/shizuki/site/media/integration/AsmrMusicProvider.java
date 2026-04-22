@@ -67,15 +67,24 @@ public class AsmrMusicProvider {
      * 搜索作品（works）。
      */
     public SearchResult searchWorks(String keyword, int page, int limit) {
+        return searchWorks(keyword, page, limit, properties.getDefaultOrder(), properties.getDefaultSort());
+    }
+
+    /**
+     * 搜索作品（works），支持指定排序。
+     */
+    public SearchResult searchWorks(String keyword, int page, int limit, String order, String sort) {
         String normalizedKeyword = normalizeKeyword(keyword);
         int safePage = Math.max(1, page);
         int safeLimit = Math.max(1, Math.min(60, limit));
+        String normalizedOrder = normalizeOrder(order);
+        String normalizedSort = normalizeSort(sort);
         String encodedKeyword = encodeQuerySegment(normalizedKeyword);
         String path = "/api/search/" + encodedKeyword;
         Map<String, Object> body = Map.of(
             "page", safePage,
-            "order", readString(properties.getDefaultOrder(), "release"),
-            "sort", readString(properties.getDefaultSort(), "desc"),
+            "order", normalizedOrder,
+            "sort", normalizedSort,
             "seed", 0,
             "subtitle", 0,
             "localSubtitledWorks", List.of(),
@@ -83,6 +92,36 @@ public class AsmrMusicProvider {
         );
 
         Object raw = requestJsonRaw("POST", path, body);
+        if (!(raw instanceof Map<?, ?> rawMap)) {
+            return new SearchResult(List.of(), safePage, safeLimit, 0);
+        }
+        Map<String, Object> map = castObjectMap(rawMap);
+        List<WorkSummary> works = parseWorks(map.get("works"));
+        Pagination pagination = parsePagination(map.get("pagination"), safePage, safeLimit, works.size());
+        return new SearchResult(
+            works,
+            pagination.currentPage(),
+            pagination.pageSize(),
+            pagination.totalCount()
+        );
+    }
+
+    /**
+     * 查询作品列表（空关键词榜单流）。
+     */
+    public SearchResult listWorks(int page, int limit, String order, String sort) {
+        int safePage = Math.max(1, page);
+        int safeLimit = Math.max(1, Math.min(60, limit));
+        String normalizedOrder = normalizeOrder(order);
+        String normalizedSort = normalizeSort(sort);
+        String path = String.format(
+            Locale.ROOT,
+            "/api/works?page=%d&order=%s&sort=%s",
+            safePage,
+            encodeQuerySegment(normalizedOrder),
+            encodeQuerySegment(normalizedSort)
+        );
+        Object raw = requestJsonRaw("GET", path, null);
         if (!(raw instanceof Map<?, ?> rawMap)) {
             return new SearchResult(List.of(), safePage, safeLimit, 0);
         }
@@ -117,9 +156,9 @@ public class AsmrMusicProvider {
     }
 
     /**
-     * 查询作品下可播放音轨（扁平化后的 audio 列表）。
+     * 查询作品音轨树。
      */
-    public List<AudioTrack> listAudioTracks(long workId) {
+    public List<TrackNode> listTrackTree(long workId) {
         if (workId <= 0L) {
             return List.of();
         }
@@ -128,10 +167,24 @@ public class AsmrMusicProvider {
         if (!(raw instanceof List<?> rootNodes)) {
             return List.of();
         }
+        List<TrackNode> result = new ArrayList<>();
+        for (Object node : rootNodes) {
+            TrackNode mapped = toTrackNode(node);
+            if (mapped != null) {
+                result.add(mapped);
+            }
+        }
+        return result;
+    }
 
+    /**
+     * 查询作品下可播放音轨（扁平化后的 audio 列表）。
+     */
+    public List<AudioTrack> listAudioTracks(long workId) {
+        List<TrackNode> rootNodes = listTrackTree(workId);
         List<AudioTrackDraft> audioDrafts = new ArrayList<>();
         Map<String, String> lyricByTitleKey = new LinkedHashMap<>();
-        for (Object node : rootNodes) {
+        for (TrackNode node : rootNodes) {
             walkTrackNode(node, "", audioDrafts, lyricByTitleKey);
         }
 
@@ -151,7 +204,8 @@ public class AsmrMusicProvider {
                 readString(item.mediaDownloadUrl(), ""),
                 readString(audioUrl, ""),
                 readString(lyricUrl, ""),
-                item.durationSec()
+                item.durationSec(),
+                readString(item.path(), "")
             ));
         }
         return result;
@@ -438,9 +492,9 @@ public class AsmrMusicProvider {
     private WorkSummary toWorkSummary(Map<String, Object> raw) {
         long id = readLong(raw.get("id"), 0L);
         String title = readString(raw.get("title"), "");
-        String artist = readString(raw.get("name"), "");
-        if (!StringUtils.hasText(artist)) {
-            artist = readString(asObjectMap(raw.get("circle")).get("name"), "");
+        String circle = readString(raw.get("name"), "");
+        if (!StringUtils.hasText(circle)) {
+            circle = readString(asObjectMap(raw.get("circle")).get("name"), "");
         }
         String cover = firstNonBlank(
             readString(raw.get("mainCoverUrl"), ""),
@@ -451,14 +505,45 @@ public class AsmrMusicProvider {
         Integer durationSec = toInteger(raw.get("duration"));
         String sourceId = readString(raw.get("source_id"), "");
         String sourceUrl = readString(raw.get("source_url"), "");
+        String releaseDate = firstNonBlank(
+            readString(raw.get("release"), ""),
+            readString(raw.get("create_date"), "")
+        );
+        Integer dlCount = toInteger(raw.get("dl_count"));
+        Integer reviewCount = toInteger(raw.get("review_count"));
+        Integer rateCount = toInteger(raw.get("rate_count"));
+        Double rateAverage = toDouble(raw.get("rate_average_2dp"));
+        boolean nsfw = toBoolean(raw.get("nsfw"));
+        String ageCategory = readString(raw.get("age_category_string"), "");
+        Map<String, Object> rank = asObjectMap(raw.get("rank"));
+        List<TagSummary> tags = parseTags(raw.get("tags"));
+        List<VoiceActorSummary> vas = parseVas(raw.get("vas"));
+        List<Map<String, Object>> languageEditions = parseObjectList(raw.get("language_editions"));
+        String originalWorkNo = readString(raw.get("original_workno"), "");
+        String reviewText = readString(raw.get("review_text"), "");
+        Map<String, Object> extra = parseWorkExtra(raw);
         return new WorkSummary(
             id,
             title,
-            artist,
+            circle,
             cover,
             durationSec,
             sourceId,
-            sourceUrl
+            sourceUrl,
+            releaseDate,
+            dlCount,
+            reviewCount,
+            rateCount,
+            rateAverage,
+            nsfw,
+            ageCategory,
+            tags,
+            vas,
+            languageEditions,
+            rank,
+            originalWorkNo,
+            reviewText,
+            extra
         );
     }
 
@@ -470,24 +555,57 @@ public class AsmrMusicProvider {
         return new Pagination(currentPage, pageSize, totalCount);
     }
 
-    private void walkTrackNode(Object rawNode,
+    private TrackNode toTrackNode(Object rawNode) {
+        if (!(rawNode instanceof Map<?, ?> nodeMapRaw)) {
+            return null;
+        }
+        Map<String, Object> node = castObjectMap(nodeMapRaw);
+        String nodeType = readString(node.get("type"), "").toLowerCase(Locale.ROOT);
+        String title = readString(node.get("title"), "");
+        String hash = readString(node.get("hash"), "");
+        String mediaStreamUrl = readString(node.get("mediaStreamUrl"), "");
+        String streamLowQualityUrl = readString(node.get("streamLowQualityUrl"), "");
+        String mediaDownloadUrl = readString(node.get("mediaDownloadUrl"), "");
+        Double durationSec = toDouble(node.get("duration"));
+        List<TrackNode> children = new ArrayList<>();
+        Object childrenRaw = node.get("children");
+        if (childrenRaw instanceof List<?> rawChildren) {
+            for (Object item : rawChildren) {
+                TrackNode child = toTrackNode(item);
+                if (child != null) {
+                    children.add(child);
+                }
+            }
+        }
+        return new TrackNode(
+            nodeType,
+            title,
+            hash,
+            mediaStreamUrl,
+            streamLowQualityUrl,
+            mediaDownloadUrl,
+            durationSec,
+            children
+        );
+    }
+
+    private void walkTrackNode(TrackNode rawNode,
                                String parentPath,
                                List<AudioTrackDraft> audioDrafts,
                                Map<String, String> lyricByTitleKey) {
-        if (!(rawNode instanceof Map<?, ?> nodeMapRaw)) {
+        if (rawNode == null) {
             return;
         }
-        Map<String, Object> node = castObjectMap(nodeMapRaw);
-        String type = readString(node.get("type"), "").toLowerCase(Locale.ROOT);
-        String title = readString(node.get("title"), "");
+        String type = readString(rawNode.nodeType(), "").toLowerCase(Locale.ROOT);
+        String title = readString(rawNode.title(), "");
         String currentPath = StringUtils.hasText(parentPath)
             ? parentPath + "/" + title
             : title;
 
         if ("folder".equals(type)) {
-            Object childrenRaw = node.get("children");
-            if (childrenRaw instanceof List<?> children) {
-                for (Object child : children) {
+            List<TrackNode> children = rawNode.children();
+            if (children != null && !children.isEmpty()) {
+                for (TrackNode child : children) {
                     walkTrackNode(child, currentPath, audioDrafts, lyricByTitleKey);
                 }
             }
@@ -496,8 +614,8 @@ public class AsmrMusicProvider {
 
         if ("text".equals(type)) {
             String lyricUrl = firstNonBlank(
-                readString(node.get("mediaDownloadUrl"), ""),
-                readString(node.get("mediaStreamUrl"), "")
+                readString(rawNode.mediaDownloadUrl(), ""),
+                readString(rawNode.mediaStreamUrl(), "")
             );
             if (StringUtils.hasText(title) && title.toLowerCase(Locale.ROOT).endsWith(".lrc") && StringUtils.hasText(lyricUrl)) {
                 lyricByTitleKey.putIfAbsent(normalizeTrackTitleKey(title), lyricUrl);
@@ -510,12 +628,12 @@ public class AsmrMusicProvider {
         }
 
         audioDrafts.add(new AudioTrackDraft(
-            readString(node.get("hash"), ""),
+            readString(rawNode.hash(), ""),
             title,
-            readString(node.get("mediaStreamUrl"), ""),
-            readString(node.get("streamLowQualityUrl"), ""),
-            readString(node.get("mediaDownloadUrl"), ""),
-            toInteger(node.get("duration")),
+            readString(rawNode.mediaStreamUrl(), ""),
+            readString(rawNode.streamLowQualityUrl(), ""),
+            readString(rawNode.mediaDownloadUrl(), ""),
+            toInteger(rawNode.durationSec()),
             currentPath
         ));
     }
@@ -559,6 +677,141 @@ public class AsmrMusicProvider {
             score += 2;
         }
         return score;
+    }
+
+    private List<TagSummary> parseTags(Object rawTags) {
+        if (!(rawTags instanceof List<?> rawList) || rawList.isEmpty()) {
+            return List.of();
+        }
+        List<TagSummary> result = new ArrayList<>();
+        for (Object item : rawList) {
+            if (!(item instanceof Map<?, ?> mapRaw)) {
+                continue;
+            }
+            Map<String, Object> map = castObjectMap(mapRaw);
+            long tagId = readLong(map.get("id"), 0L);
+            String name = readString(map.get("name"), "");
+            if (!StringUtils.hasText(name)) {
+                name = readTagNameFromI18n(map.get("i18n"));
+            }
+            if (tagId <= 0L && !StringUtils.hasText(name)) {
+                continue;
+            }
+            result.add(new TagSummary(tagId, name));
+        }
+        return result;
+    }
+
+    private String readTagNameFromI18n(Object i18nRaw) {
+        Map<String, Object> i18n = asObjectMap(i18nRaw);
+        if (i18n.isEmpty()) {
+            return "";
+        }
+        String zhCn = readString(asObjectMap(i18n.get("zh-cn")).get("name"), "");
+        if (StringUtils.hasText(zhCn)) {
+            return zhCn;
+        }
+        String jaJp = readString(asObjectMap(i18n.get("ja-jp")).get("name"), "");
+        if (StringUtils.hasText(jaJp)) {
+            return jaJp;
+        }
+        return readString(asObjectMap(i18n.get("en-us")).get("name"), "");
+    }
+
+    private List<VoiceActorSummary> parseVas(Object rawVas) {
+        if (!(rawVas instanceof List<?> rawList) || rawList.isEmpty()) {
+            return List.of();
+        }
+        List<VoiceActorSummary> result = new ArrayList<>();
+        for (Object item : rawList) {
+            if (!(item instanceof Map<?, ?> mapRaw)) {
+                continue;
+            }
+            Map<String, Object> map = castObjectMap(mapRaw);
+            String actorId = readString(map.get("id"), "");
+            String name = readString(map.get("name"), "");
+            if (!StringUtils.hasText(actorId) && !StringUtils.hasText(name)) {
+                continue;
+            }
+            result.add(new VoiceActorSummary(actorId, name));
+        }
+        return result;
+    }
+
+    private List<Map<String, Object>> parseObjectList(Object raw) {
+        if (!(raw instanceof List<?> rawList) || rawList.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object item : rawList) {
+            Map<String, Object> map = asObjectMap(item);
+            if (map.isEmpty()) {
+                continue;
+            }
+            result.add(map);
+        }
+        return result;
+    }
+
+    private Map<String, Object> parseWorkExtra(Map<String, Object> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        putIfPresent(result, "circle", asObjectMap(raw.get("circle")));
+        putIfPresent(result, "source_type", readString(raw.get("source_type"), ""));
+        putIfPresent(result, "user_name", readString(raw.get("user_name"), ""));
+        putIfPresent(result, "translation_info", asObjectMap(raw.get("translation_info")));
+        putIfPresent(result, "work_attributes", parseObjectList(raw.get("work_attributes")));
+        putIfPresent(result, "other_language_editions_in_db", parseObjectList(raw.get("other_language_editions_in_db")));
+        return result.isEmpty() ? Map.of() : result;
+    }
+
+    private void putIfPresent(Map<String, Object> collector, String key, Object value) {
+        if (collector == null || !StringUtils.hasText(key) || value == null) {
+            return;
+        }
+        if (value instanceof String text) {
+            if (!StringUtils.hasText(text)) {
+                return;
+            }
+            collector.put(key, text);
+            return;
+        }
+        if (value instanceof Map<?, ?> mapValue) {
+            if (mapValue.isEmpty()) {
+                return;
+            }
+            collector.put(key, mapValue);
+            return;
+        }
+        if (value instanceof List<?> listValue) {
+            if (listValue.isEmpty()) {
+                return;
+            }
+            collector.put(key, listValue);
+            return;
+        }
+        collector.put(key, value);
+    }
+
+    private String normalizeOrder(String order) {
+        String normalized = readString(order, readString(properties.getDefaultOrder(), "release")).toLowerCase(Locale.ROOT);
+        if ("release".equals(normalized)
+            || "create_date".equals(normalized)
+            || "dl_count".equals(normalized)
+            || "review_count".equals(normalized)
+            || "rate_average_2dp".equals(normalized)
+            || "rate_count".equals(normalized)
+            || "price".equals(normalized)) {
+            return normalized;
+        }
+        return "release";
+    }
+
+    private String normalizeSort(String sort) {
+        String normalized = readString(sort, readString(properties.getDefaultSort(), "desc")).toLowerCase(Locale.ROOT);
+        return "asc".equals(normalized) ? "asc" : "desc";
     }
 
     private String normalizeKeyword(String keyword) {
@@ -765,6 +1018,31 @@ public class AsmrMusicProvider {
         }
     }
 
+    private Double toDouble(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        try {
+            if (raw instanceof Number number) {
+                return number.doubleValue();
+            }
+            return Double.parseDouble(String.valueOf(raw));
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private boolean toBoolean(Object raw) {
+        if (raw == null) {
+            return false;
+        }
+        if (raw instanceof Boolean value) {
+            return value;
+        }
+        String text = String.valueOf(raw).trim().toLowerCase(Locale.ROOT);
+        return "1".equals(text) || "true".equals(text) || "yes".equals(text);
+    }
+
     private String firstNonBlank(String... values) {
         if (values == null || values.length == 0) {
             return "";
@@ -790,7 +1068,37 @@ public class AsmrMusicProvider {
                               String cover,
                               Integer durationSec,
                               String sourceId,
-                              String sourceUrl) {
+                              String sourceUrl,
+                              String releaseDate,
+                              Integer dlCount,
+                              Integer reviewCount,
+                              Integer rateCount,
+                              Double rateAverage,
+                              boolean nsfw,
+                              String ageCategory,
+                              List<TagSummary> tags,
+                              List<VoiceActorSummary> vas,
+                              List<Map<String, Object>> languageEditions,
+                              Map<String, Object> rank,
+                              String originalWorkNo,
+                              String reviewText,
+                              Map<String, Object> extra) {
+    }
+
+    public record TagSummary(long tagId, String name) {
+    }
+
+    public record VoiceActorSummary(String actorId, String name) {
+    }
+
+    public record TrackNode(String nodeType,
+                            String title,
+                            String hash,
+                            String mediaStreamUrl,
+                            String streamLowQualityUrl,
+                            String mediaDownloadUrl,
+                            Double durationSec,
+                            List<TrackNode> children) {
     }
 
     public record AudioTrack(String hash,
@@ -800,7 +1108,8 @@ public class AsmrMusicProvider {
                              String mediaDownloadUrl,
                              String playableAudioUrl,
                              String lyricUrl,
-                             Integer durationSec) {
+                             Integer durationSec,
+                             String path) {
     }
 
     public record ResolvedTrack(String trackId,

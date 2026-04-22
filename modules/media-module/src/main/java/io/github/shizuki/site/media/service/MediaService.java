@@ -27,6 +27,8 @@ import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicSearchResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.request.MusicResolvePlaybackRequest;
+import io.github.shizuki.site.media.response.MusicVoiceWorkBundleResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.response.PublicHomeRoleResponse;
 import io.github.shizuki.site.media.response.MusicSourcePlaylistImportResponse;
 import io.github.shizuki.site.media.response.SpotifyPreviewResponse;
@@ -137,6 +139,32 @@ public interface MediaService {
      * @return 搜索聚合结果
      */
     MusicSearchResponse searchMusic(String query, String type, String providers, Integer page, Integer limit);
+
+    /**
+     * 音声作品搜索（ASMR 专用）。
+     *
+     * @param query 搜索词（为空时走榜单流）
+     * @param page 页码
+     * @param limit 每页数量
+     * @param order 排序字段
+     * @param sort 排序方向（asc/desc）
+     * @param tagIds 标签 ID 列表（逗号分隔，AND）
+     * @return 音声作品列表与可用标签
+     */
+    MusicVoiceWorksResponse searchVoiceWorks(String query,
+                                             Integer page,
+                                             Integer limit,
+                                             String order,
+                                             String sort,
+                                             String tagIds);
+
+    /**
+     * 音声作品聚合详情。
+     *
+     * @param workId 作品 ID
+     * @return 作品详情、音轨树与可播放音轨
+     */
+    MusicVoiceWorkBundleResponse getVoiceWorkBundle(Long workId);
 
     /**
      * 按需解析歌曲播放信息（仅在真实播放动作触发）。
