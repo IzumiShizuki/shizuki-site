@@ -22,6 +22,8 @@ import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.request.MusicResolvePlaybackRequest;
 import io.github.shizuki.site.media.response.MusicSearchResponse;
 import io.github.shizuki.site.media.response.MusicTrackResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorkBundleResponse;
+import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.response.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaAssetGroupAclEntity;
@@ -46,6 +48,7 @@ import io.github.shizuki.site.media.service.security.AssetInspectionResult;
 import io.github.shizuki.site.media.service.security.AssetSecurityInspector;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -587,6 +590,99 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldRejectAsmrSearchWhenPermissionMissing() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> mediaService.searchMusic("耳语", "track", "asmr", 1, 24)
+        );
+
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, exception.getErrorCode());
+        Assertions.assertEquals("music.asmr.access", exception.getDetails().get("permission"));
+    }
+
+    @Test
+    void shouldSearchVoiceWorksWithTagAndFilter() {
+        LoginUserContext.set(new LoginUser(8L, Set.of("FRIEND"), Set.of("music.asmr.access")));
+        AsmrMusicProvider.WorkSummary work1 = buildAsmrWorkSummary(
+            1001L,
+            "夜色耳语",
+            List.of(new AsmrMusicProvider.TagSummary(11L, "耳搔"), new AsmrMusicProvider.TagSummary(22L, "低语")),
+            List.of(new AsmrMusicProvider.VoiceActorSummary("va-1", "白樺玲奈"))
+        );
+        AsmrMusicProvider.WorkSummary work2 = buildAsmrWorkSummary(
+            1002L,
+            "午后助眠",
+            List.of(new AsmrMusicProvider.TagSummary(22L, "低语")),
+            List.of(new AsmrMusicProvider.VoiceActorSummary("va-2", "星野葵"))
+        );
+        Mockito.when(asmrMusicProvider.listWorks(1, 30, "release", "desc"))
+            .thenReturn(new AsmrMusicProvider.SearchResult(List.of(work1, work2), 1, 30, 2));
+
+        MusicVoiceWorksResponse response = mediaService.searchVoiceWorks("", 1, 24, "release", "desc", "11,22");
+
+        Assertions.assertEquals(1, response.items().size());
+        Assertions.assertEquals(1001L, response.items().get(0).workId());
+        Assertions.assertFalse(response.availableTags().isEmpty());
+        Assertions.assertTrue(response.availableTags().stream().anyMatch(tag -> tag.tagId() == 11L));
+    }
+
+    @Test
+    void shouldBuildVoiceWorkBundleSuccessfully() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("ADMIN"), Set.of("music.asmr.access")));
+        AsmrMusicProvider.WorkSummary work = buildAsmrWorkSummary(
+            2001L,
+            "白噪声治愈室",
+            List.of(new AsmrMusicProvider.TagSummary(31L, "雨声")),
+            List.of(new AsmrMusicProvider.VoiceActorSummary("va-3", "青山千夜"))
+        );
+        AsmrMusicProvider.TrackNode rootNode = new AsmrMusicProvider.TrackNode(
+            "folder",
+            "本篇",
+            "",
+            "",
+            "",
+            "",
+            null,
+            List.of(
+                new AsmrMusicProvider.TrackNode(
+                    "audio",
+                    "track-1.mp3",
+                    "2001/1",
+                    "https://api.asmr-300.com/api/media/stream/2001/1",
+                    "",
+                    "",
+                    180.0,
+                    List.of()
+                )
+            )
+        );
+        AsmrMusicProvider.AudioTrack audioTrack = new AsmrMusicProvider.AudioTrack(
+            "2001/1",
+            "track-1.mp3",
+            "https://api.asmr-300.com/api/media/stream/2001/1",
+            "",
+            "",
+            "https://raw.kiko-play-niptan.one/media/2001/1.mp3",
+            "https://raw.kiko-play-niptan.one/media/2001/1.lrc",
+            180,
+            "本篇/track-1.mp3"
+        );
+        Mockito.when(asmrMusicProvider.getWork(2001L)).thenReturn(work);
+        Mockito.when(asmrMusicProvider.listTrackTree(2001L)).thenReturn(List.of(rootNode));
+        Mockito.when(asmrMusicProvider.listAudioTracks(2001L)).thenReturn(List.of(audioTrack));
+
+        MusicVoiceWorkBundleResponse bundle = mediaService.getVoiceWorkBundle(2001L);
+
+        Assertions.assertEquals(2001L, bundle.work().workId());
+        Assertions.assertEquals("白噪声治愈室", bundle.work().title());
+        Assertions.assertEquals(1, bundle.trackTree().size());
+        Assertions.assertEquals(1, bundle.playableTracks().size());
+        Assertions.assertEquals("2001|2001/1", bundle.playableTracks().get(0).trackId());
+    }
+
+    @Test
     void shouldLoadVirtualPlaylistBundleWithPlaylistSourceSummary() {
         Mockito.when(tuneHubMusicProvider.loadVirtualPlaylistTracks("th_test_default_key", "netease", "playlist", "2400142669"))
             .thenReturn(
@@ -662,6 +758,35 @@ class MediaServiceImplTest {
         Assertions.assertEquals("[00:01.00]line1\n[00:03.00]line2", response.lyricText());
         Assertions.assertEquals("https://audio.example.com/track.mp3", response.audio());
         Assertions.assertTrue(response.metadata().containsKey("lyricTracks"));
+    }
+
+    private AsmrMusicProvider.WorkSummary buildAsmrWorkSummary(long workId,
+                                                               String title,
+                                                               List<AsmrMusicProvider.TagSummary> tags,
+                                                               List<AsmrMusicProvider.VoiceActorSummary> vas) {
+        return new AsmrMusicProvider.WorkSummary(
+            workId,
+            title,
+            "白噪研究社",
+            "https://cdn.example.com/voice-cover.png",
+            3600,
+            "RJ000" + workId,
+            "https://www.dlsite.com/home/work/=/product_id/RJ000" + workId + ".html",
+            "2026-03-01",
+            12345,
+            88,
+            100,
+            4.8,
+            true,
+            "18+",
+            tags == null ? List.of() : tags,
+            vas == null ? List.of() : vas,
+            List.of(Map.of("lang", "zh-cn")),
+            Map.of("rank", 1),
+            "RJ000" + workId,
+            "简介",
+            Map.of("source_type", "DLSITE")
+        );
     }
 
     private MediaAssetEntity buildAsset(Long id, Long userId, Integer visibilityCode, String auditStatus) {
