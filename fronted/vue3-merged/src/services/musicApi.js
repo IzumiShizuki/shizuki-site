@@ -77,10 +77,44 @@ export async function resolvePlaybackTrack(payload, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
-export async function listMusicProviders() {
-  const response = await httpRequest('/api/v1/music/providers', {
-    method: 'GET'
-  });
+export async function listMusicProviders(authorizedFetch) {
+  const payload = { method: 'GET' };
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/providers', payload)
+    : await httpRequest('/api/v1/music/providers', payload);
+  return unwrapApiResponse(response);
+}
+
+export async function searchVoiceWorks(options = {}, authorizedFetch) {
+  const payload = {
+    method: 'GET',
+    query: {
+      q: String(options?.q || '').trim(),
+      page: Number.isFinite(Number(options?.page)) ? Number(options.page) : 1,
+      limit: Number.isFinite(Number(options?.limit)) ? Number(options.limit) : 24,
+      order: String(options?.order || 'release').trim(),
+      sort: String(options?.sort || 'desc').trim(),
+      tag_ids: Array.isArray(options?.tagIds)
+        ? options.tagIds.map((item) => String(item || '').trim()).filter(Boolean).join(',')
+        : String(options?.tagIds || '').trim()
+    }
+  };
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/voice/works', payload)
+    : await httpRequest('/api/v1/music/voice/works', payload);
+  return unwrapApiResponse(response);
+}
+
+export async function getVoiceWorkBundle(workId, authorizedFetch) {
+  const normalizedWorkId = String(workId || '').trim();
+  if (!normalizedWorkId) {
+    throw new Error('workId is required');
+  }
+  const path = `/api/v1/music/voice/works/${encodeURIComponent(normalizedWorkId)}/bundle`;
+  const payload = { method: 'GET' };
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch(path, payload)
+    : await httpRequest(path, payload);
   return unwrapApiResponse(response);
 }
 

@@ -16,7 +16,7 @@ function clamp01(value) {
 
 function normalizePath(path) {
   const value = String(path || '').trim();
-  return value.startsWith('/') ? value : '/music-library';
+  return value.startsWith('/') ? value : '/music-library/music';
 }
 
 function createMusicLibraryUiState() {
@@ -32,7 +32,7 @@ function createMusicLibraryUiState() {
   const expandedProvider = ref('');
   const eqLevels = ref([0.66, 0.52, 0.74]);
   const scrollTopByPath = reactive({});
-  const lastContentPath = ref('/music-library');
+  const lastContentPath = ref('/music-library/music');
 
   function setActiveNav(navKey) {
     const normalized = String(navKey || '').trim();

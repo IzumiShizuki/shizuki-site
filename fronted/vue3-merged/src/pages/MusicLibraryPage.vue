@@ -33,7 +33,32 @@
         />
 
         <SubtleScrollArea tag="main" ref="centerPaneRef" class="music-center-pane" @scroll.passive="rememberCenterScroll">
+          <header class="music-center-mode-switch" role="tablist" aria-label="music center mode tabs">
+            <button
+              class="mode-tab ripple-trigger"
+              type="button"
+              role="tab"
+              :aria-selected="currentCenterMode === 'music'"
+              :class="{ active: currentCenterMode === 'music' }"
+              @click="openCenterMode('music')"
+            >
+              音乐
+            </button>
+            <button
+              v-if="voiceEntryVisible"
+              class="mode-tab ripple-trigger"
+              type="button"
+              role="tab"
+              :aria-selected="currentCenterMode === 'voice'"
+              :class="{ active: currentCenterMode === 'voice' }"
+              @click="openCenterMode('voice')"
+            >
+              音声
+            </button>
+          </header>
+
           <MusicSearchToolbar
+            v-if="showMusicSearchToolbar"
             class="music-toolbar-stick"
             :keyword="ui.globalSearchKeyword.value"
             :type="ui.globalSearchType.value"
@@ -236,9 +261,9 @@ const SEARCH_PROVIDER_OPTIONS = [
   { value: 'netease', label: '网易云' },
   { value: 'kuwo', label: '酷我' },
   { value: 'qq', label: 'QQ' },
-  { value: 'asmr', label: 'ASMR' },
   { value: 'spotify', label: 'Spotify' }
 ];
+const MUSIC_SEARCH_PROVIDER_VALUES = SEARCH_PROVIDER_OPTIONS.map((item) => String(item.value || '').trim().toLowerCase());
 const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
 
 const route = useRoute();
@@ -249,6 +274,10 @@ const ui = useMusicLibraryUiState();
 
 const centerPaneRef = ref(null);
 const isMobileViewport = ref(false);
+const providerRows = ref([]);
+const voiceEntryVisible = ref(false);
+const voiceAccessResolved = ref(false);
+const voiceDeniedNoticeShown = ref(false);
 
 const homeLoading = ref(false);
 const homeError = ref('');
@@ -354,6 +383,12 @@ const searchResult = ref({
 
 const isPlaylistRoute = computed(() => route.name === 'music-library-playlist');
 const isPlayerDetailRoute = computed(() => route.name === 'music-library-player');
+const isVoiceRoute = computed(() => route.name === 'music-library-voice' || route.name === 'music-library-voice-work');
+const isMusicRoute = computed(() =>
+  route.name === 'music-library-music' || route.name === 'music-library' || (!isPlaylistRoute.value && !isPlayerDetailRoute.value && !isVoiceRoute.value)
+);
+const currentCenterMode = computed(() => (isVoiceRoute.value ? 'voice' : 'music'));
+const showMusicSearchToolbar = computed(() => currentCenterMode.value === 'music');
 const currentPlaylistCodeFromRoute = computed(() => String(route.params.playlistCode || '').trim());
 
 const currentPlaylistProfile = computed(() => {
@@ -482,6 +517,22 @@ function setFatalError(error, fallback = '页面渲染异常，请刷新后重�
   console.error('[MUSIC_PAGE_FATAL]', error);
 }
 
+function normalizeProviderVisibilityRow(raw) {
+  return {
+    provider: String(raw?.provider || raw?.providerCode || '').trim().toLowerCase(),
+    enabled: Boolean(raw?.enabled),
+    visible: Boolean(raw?.visible),
+    sort: Number.isFinite(Number(raw?.sort)) ? Number(raw.sort) : 0
+  };
+}
+
+function computeVoiceEntryVisible(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const asmr = list.find((item) => String(item?.provider || '').trim().toLowerCase() === 'asmr');
+  if (!asmr) return false;
+  return Boolean(asmr.enabled) && Boolean(asmr.visible);
+}
+
 function normalizePlaylistSummary(raw, fallbackCode = DEFAULT_PLAYLIST_CODE) {
   return {
     playlistCode: String(raw?.playlistCode || raw?.playlist_code || fallbackCode || DEFAULT_PLAYLIST_CODE).trim(),
@@ -539,7 +590,7 @@ function resolveCenterViewKey(viewRoute) {
     const code = String(viewRoute?.params?.playlistCode || '').trim();
     return `playlist:${code}`;
   }
-  return String(viewRoute?.fullPath || routeName || 'music-library');
+  return String(viewRoute?.fullPath || routeName || 'music-library/music');
 }
 
 function toPlaylistTrackUpsertPayload(track, fallbackSort = 0, targetPlaylistCode = '') {
@@ -759,7 +810,7 @@ function clearSearchState(options = {}) {
 }
 
 function goLogin() {
-  auth.redirectToAuth('session_expired', route.fullPath || '/music-library');
+  auth.redirectToAuth('session_expired', route.fullPath || '/music-library/music');
 }
 
 function requestMusicLogin() {
@@ -817,14 +868,75 @@ function handleSelectNav(navKey) {
   clearSearchState();
   ui.setActiveNav(key);
   ui.closeDrawers();
-  if (isPlaylistRoute.value) {
-    router.push({ name: 'music-library' });
+  if (!isMusicRoute.value) {
+    router.push({ name: 'music-library-music' });
   }
 }
 
 function openMusicAuthorization() {
   ui.closeDrawers();
   router.push({ path: '/profile', query: { tab: 'account' } });
+}
+
+function notifyVoiceAccessDenied() {
+  if (voiceDeniedNoticeShown.value) return;
+  voiceDeniedNoticeShown.value = true;
+  window.alert('当前账号无音声访问权限');
+}
+
+async function ensureVoiceRouteAccess(options = {}) {
+  const notify = options?.notify !== false;
+  if (!voiceAccessResolved.value) return;
+  if (!isVoiceRoute.value) return;
+  if (voiceEntryVisible.value) return;
+  if (notify) {
+    notifyVoiceAccessDenied();
+  }
+  await router.replace({
+    name: 'music-library-music',
+    query: {
+      reason: 'voice_forbidden'
+    }
+  });
+}
+
+async function loadMusicProviderVisibility() {
+  try {
+    const payload = await musicApi.listMusicProviders(
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
+    const rows = (Array.isArray(payload) ? payload : [])
+      .map((item) => normalizeProviderVisibilityRow(item))
+      .filter((item) => item.provider)
+      .sort((left, right) => left.sort - right.sort);
+    providerRows.value = rows;
+    voiceEntryVisible.value = computeVoiceEntryVisible(rows);
+  } catch {
+    providerRows.value = [];
+    voiceEntryVisible.value = false;
+  } finally {
+    voiceAccessResolved.value = true;
+  }
+  await ensureVoiceRouteAccess({ notify: false });
+}
+
+async function openCenterMode(mode) {
+  const normalized = String(mode || '').trim().toLowerCase();
+  if (normalized === 'voice') {
+    if (!voiceEntryVisible.value) {
+      notifyVoiceAccessDenied();
+      return;
+    }
+    if (isVoiceRoute.value) return;
+    rememberCenterScroll();
+    ui.setLastContentPath(route.fullPath || '/music-library/music');
+    await router.push({ name: 'music-library-voice' });
+    return;
+  }
+  if (isMusicRoute.value) return;
+  rememberCenterScroll();
+  ui.setLastContentPath(route.fullPath || '/music-library/music');
+  await router.push({ name: 'music-library-music' });
 }
 
 async function loadHomeData() {
@@ -851,7 +963,11 @@ async function loadHomeData() {
 
 function normalizeSearchProviderList(input) {
   if (!Array.isArray(input)) return DEFAULT_SEARCH_PROVIDERS.slice();
-  const providers = [...new Set(input.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean))];
+  const providers = [...new Set(
+    input
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter((item) => item && MUSIC_SEARCH_PROVIDER_VALUES.includes(item))
+  )];
   return providers.length ? providers : DEFAULT_SEARCH_PROVIDERS.slice();
 }
 
@@ -1718,7 +1834,7 @@ async function handleBindSpotify() {
   }
   spotifyBusy.value = true;
   try {
-    await auth.startOAuthBind('spotify', '/music-library');
+    await auth.startOAuthBind('spotify', '/music-library/music');
   } catch (error) {
     spotifyBusy.value = false;
     window.alert(parseErrorMessage(error, 'Spotify 连接失败'));
@@ -2101,7 +2217,7 @@ function openPlaylistDetail(playlistCode) {
   const code = String(playlistCode || '').trim();
   if (!code) return;
   rememberCenterScroll();
-  ui.setLastContentPath(route.fullPath || '/music-library');
+  ui.setLastContentPath(route.fullPath || '/music-library/music');
   ui.setSelectedPlaylistCode(code);
   ui.closeDrawers();
   router.push({
@@ -2117,16 +2233,16 @@ function backToMainList() {
     router.push(target);
     return;
   }
-  router.push({ name: 'music-library' });
+  router.push({ name: 'music-library-music' });
 }
 
 function enterPlayerDetail() {
-  ui.setLastContentPath(route.fullPath || '/music-library');
+  ui.setLastContentPath(route.fullPath || '/music-library/music');
   ui.closeDrawers();
   router.push({
     name: 'music-library-player',
     query: {
-      from: encodeURIComponent(route.fullPath || '/music-library')
+      from: encodeURIComponent(route.fullPath || '/music-library/music')
     }
   });
 }
@@ -2134,7 +2250,7 @@ function enterPlayerDetail() {
 function exitPlayerDetail() {
   const from = typeof route.query?.from === 'string' ? decodeURIComponent(route.query.from) : '';
   const target = from.startsWith('/music-library') ? from : ui.lastContentPath.value;
-  router.push(target || '/music-library');
+  router.push(target || '/music-library/music');
 }
 
 async function reloadCurrentPlaylist() {
@@ -2220,6 +2336,8 @@ const musicContext = Object.freeze({
   player,
   ui,
   authState,
+  currentCenterMode,
+  voiceEntryVisible,
   homeData,
   homeLoading,
   homeError,
@@ -2253,6 +2371,8 @@ const musicContext = Object.freeze({
   loadMoreMusicSearchSection,
   retryMusicSearchLoadMore,
   reloadCurrentPlaylist,
+  ensureVoiceRouteAccess,
+  openCenterMode,
   loadMoreCurrentPlaylistTracks,
   openPlaylistDetail,
   backToMainList,
@@ -2282,6 +2402,24 @@ watch(
       }
       await nextTick();
       restoreCenterScroll(nextPath);
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [voiceAccessResolved.value, voiceEntryVisible.value, route.name],
+  async () => {
+    await ensureVoiceRouteAccess({ notify: false });
+  },
+  { immediate: true }
+);
+
+watch(
+  () => route.query?.reason,
+  (reason) => {
+    if (String(reason || '').trim() === 'voice_forbidden') {
+      notifyVoiceAccessDenied();
     }
   },
   { immediate: true }
@@ -2321,6 +2459,7 @@ watch(
   async () => {
     await Promise.all([
       loadHomeData(),
+      loadMusicProviderVisibility(),
       loadSidebarData(),
       loadTunehubStatus(),
       loadSpotifyBindingStatus(),
@@ -2347,6 +2486,7 @@ onMounted(async () => {
 
     await Promise.all([
       loadHomeData(),
+      loadMusicProviderVisibility(),
       loadSidebarData(),
       loadTunehubStatus(),
       loadSpotifyBindingStatus(),
@@ -2372,6 +2512,7 @@ async function reloadAfterFatalError() {
   fatalErrorText.value = '';
   await Promise.all([
     loadHomeData(),
+    loadMusicProviderVisibility(),
     loadSidebarData(),
     loadTunehubStatus(),
     loadSpotifyBindingStatus(),
@@ -2393,6 +2534,40 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.music-center-mode-switch {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: linear-gradient(140deg, rgba(18, 22, 33, 0.84), rgba(14, 17, 27, 0.78));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.mode-tab {
+  min-height: 32px;
+  min-width: 72px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(221, 231, 246, 0.9);
+  font-size: 13px;
+  padding: 0 12px;
+  transition: all 0.2s ease;
+}
+
+.mode-tab.active {
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.9), rgba(var(--accent-soft-rgb), 0.86));
+  color: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 16px rgba(var(--accent-rgb), 0.24);
+}
+
 .music-fatal-error {
   --liquid-bg: linear-gradient(150deg, rgba(36, 17, 22, 0.82), rgba(24, 13, 18, 0.78));
   --liquid-border: rgba(255, 162, 186, 0.42);
