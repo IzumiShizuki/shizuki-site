@@ -1,5 +1,5 @@
 <template>
-  <Teleport v-if="portalTarget" :to="portalTarget">
+  <Teleport v-if="teleportReady" :to="portalTarget">
     <div class="lightapp-header-portal" @pointerdown.stop>
       <slot />
     </div>
@@ -7,7 +7,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, nextTick, onMounted, onUpdated, ref, watch } from 'vue';
+import { resolveLightAppHeaderPortalSelector } from './lightAppShellStore';
 
 const props = defineProps({
   windowId: {
@@ -16,12 +17,36 @@ const props = defineProps({
   }
 });
 
-const portalTarget = computed(() => {
-  const normalized = Number(props.windowId);
-  if (!Number.isInteger(normalized) || normalized <= 0) {
-    return '';
+const portalTarget = computed(() => resolveLightAppHeaderPortalSelector(props.windowId));
+const teleportReady = ref(false);
+
+function syncTeleportReady() {
+  const selector = portalTarget.value;
+  if (!selector || typeof document === 'undefined') {
+    teleportReady.value = false;
+    return;
   }
-  return `#lightapp-header-portal-${normalized}`;
+  teleportReady.value = Boolean(document.querySelector(selector));
+}
+
+watch(
+  portalTarget,
+  async () => {
+    teleportReady.value = false;
+    await nextTick();
+    syncTeleportReady();
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
+  syncTeleportReady();
+});
+
+onUpdated(() => {
+  if (!teleportReady.value) {
+    syncTeleportReady();
+  }
 });
 </script>
 
@@ -29,10 +54,17 @@ const portalTarget = computed(() => {
 .lightapp-header-portal {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow-x: auto;
-  padding-left: 6px;
+  overflow-y: hidden;
+  padding-left: 0;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
   scrollbar-width: thin;
 }
 

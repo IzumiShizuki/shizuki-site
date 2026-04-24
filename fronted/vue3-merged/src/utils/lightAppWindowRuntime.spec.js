@@ -19,14 +19,34 @@ describe('lightAppWindowRuntime', () => {
     expect(state.windows[0].id).not.toBe(state.windows[1].id);
   });
 
-  it('focuses existed app window instead of duplicating same code', () => {
+  it('places initial window below top safe area', () => {
+    let state = createWindowRuntimeState();
+    state = openOrFocusWindow(state, { code: 'pomodoro-timer', title: 'Pomodoro' }, { width: 1280, height: 720 });
+
+    expect(state.windows).toHaveLength(1);
+    expect(state.windows[0].y).toBeGreaterThanOrEqual(100);
+  });
+
+  it('reuses existed app window instead of duplicating same code', () => {
     let state = createWindowRuntimeState();
     state = openOrFocusWindow(state, { code: 'timeprism-todo', title: 'Todo' }, { width: 1280, height: 720 });
     const firstZ = state.windows[0].zIndex;
     state = openOrFocusWindow(state, { code: 'timeprism-todo', title: 'Todo' }, { width: 1280, height: 720 });
 
     expect(state.windows).toHaveLength(1);
-    expect(state.windows[0].zIndex).toBeGreaterThan(firstZ);
+    expect(state.windows[0].zIndex).toBe(firstZ);
+  });
+
+  it('keeps top window z-index stable when focusing repeatedly', () => {
+    let state = createWindowRuntimeState();
+    state = openOrFocusWindow(state, { code: 'timeprism-todo', title: 'Todo' }, { width: 1280, height: 720 });
+    const todoId = state.windows[0].id;
+    const firstZ = state.windows[0].zIndex;
+
+    state = focusWindow(state, todoId);
+    state = focusWindow(state, todoId);
+
+    expect(state.windows[0].zIndex).toBe(firstZ);
   });
 
   it('supports focus, resize and close', () => {
