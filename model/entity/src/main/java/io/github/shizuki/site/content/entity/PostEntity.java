@@ -56,6 +56,27 @@ public class PostEntity extends BaseEntity {
     @TableField("like_value")
     private Long likeCount;
 
+    @TableField("notion_page_id")
+    private String notionPageId;
+
+    @TableField("notion_data_source_id")
+    private String notionDataSourceId;
+
+    @TableField("notion_last_edited_time")
+    private LocalDateTime notionLastEditedTime;
+
+    @TableField("sync_status_code")
+    private String syncStatusCode;
+
+    @TableField("sync_error_text")
+    private String syncErrorText;
+
+    @TableField("last_remote_pull_time")
+    private LocalDateTime lastRemotePullTime;
+
+    @TableField("last_remote_push_time")
+    private LocalDateTime lastRemotePushTime;
+
     public Long getPostNum() {
         return postNum;
     }
@@ -182,6 +203,62 @@ public class PostEntity extends BaseEntity {
 
     public void setLikeCount(Long likeCount) {
         this.likeCount = likeCount;
+    }
+
+    public String getNotionPageId() {
+        return notionPageId;
+    }
+
+    public void setNotionPageId(String notionPageId) {
+        this.notionPageId = notionPageId;
+    }
+
+    public String getNotionDataSourceId() {
+        return notionDataSourceId;
+    }
+
+    public void setNotionDataSourceId(String notionDataSourceId) {
+        this.notionDataSourceId = notionDataSourceId;
+    }
+
+    public LocalDateTime getNotionLastEditedTime() {
+        return notionLastEditedTime;
+    }
+
+    public void setNotionLastEditedTime(LocalDateTime notionLastEditedTime) {
+        this.notionLastEditedTime = notionLastEditedTime;
+    }
+
+    public String getSyncStatusCode() {
+        return syncStatusCode;
+    }
+
+    public void setSyncStatusCode(String syncStatusCode) {
+        this.syncStatusCode = syncStatusCode;
+    }
+
+    public String getSyncErrorText() {
+        return syncErrorText;
+    }
+
+    public void setSyncErrorText(String syncErrorText) {
+        this.syncErrorText = syncErrorText;
+    }
+
+    public LocalDateTime getLastRemotePullTime() {
+        return lastRemotePullTime;
+    }
+
+    public void setLastRemotePullTime(LocalDateTime lastRemotePullTime) {
+        this.lastRemotePullTime = lastRemotePullTime;
+    }
+
+    public LocalDateTime getLastRemotePushTime() {
+        return lastRemotePushTime;
+    }
+
+    public void setLastRemotePushTime(LocalDateTime lastRemotePushTime) {
+        this.lastRemotePushTime = lastRemotePushTime;
     }
 
 }

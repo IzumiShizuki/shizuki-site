@@ -20,4 +20,17 @@ public class PostPresentationGenerationConfiguration {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "notionSyncExecutor")
+    public Executor notionSyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("post-notion-sync-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(50);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
+    }
 }

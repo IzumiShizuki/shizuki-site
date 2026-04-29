@@ -18,6 +18,11 @@ public record AuthorPostItemResponse(
     Integer readingMinutes,
     Long likeCount,
     LocalDateTime publishedAt,
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+    String notionPageId,
+    String syncStatusCode,
+    String syncErrorText,
+    LocalDateTime remoteLastEditedAt,
+    boolean unsupportedBlockFlag
 ) {
 }

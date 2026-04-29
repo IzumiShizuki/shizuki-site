@@ -28,11 +28,7 @@ public class AuthorPostUpsertRequest {
 
     private Set<String> tags;
 
-    @JsonAlias("markdownBucket")
-    private String markdownBucket;
-
-    @JsonAlias("markdownKey")
-    private String markdownKey;
+    private String markdown;
 
     public String getTitle() {
         return title;
@@ -98,19 +94,11 @@ public class AuthorPostUpsertRequest {
         this.tags = tags;
     }
 
-    public String getMarkdownBucket() {
-        return markdownBucket;
+    public String getMarkdown() {
+        return markdown;
     }
 
-    public void setMarkdownBucket(String markdownBucket) {
-        this.markdownBucket = markdownBucket;
-    }
-
-    public String getMarkdownKey() {
-        return markdownKey;
-    }
-
-    public void setMarkdownKey(String markdownKey) {
-        this.markdownKey = markdownKey;
+    public void setMarkdown(String markdown) {
+        this.markdown = markdown;
     }
 }

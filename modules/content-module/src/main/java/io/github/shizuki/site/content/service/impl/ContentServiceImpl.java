@@ -17,6 +17,7 @@ import io.github.shizuki.site.content.response.AppSummary;
 import io.github.shizuki.site.content.response.AuthorProfileResponse;
 import io.github.shizuki.site.content.request.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.response.AuthorPostItemResponse;
+import io.github.shizuki.site.content.request.PostNotionSyncJobCreateRequest;
 import io.github.shizuki.site.content.request.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.request.AuthorWhisperRequest;
@@ -28,8 +29,8 @@ import io.github.shizuki.site.content.response.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.request.PostCategoryPolicyUpdateRequest;
 import io.github.shizuki.site.content.response.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.request.PostCategoryMetaUpsertRequest;
-import io.github.shizuki.site.content.response.PostContentRelayResponse;
 import io.github.shizuki.site.content.response.PostDetailResponse;
+import io.github.shizuki.site.content.response.PostNotionSyncJobResponse;
 import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
@@ -41,9 +42,11 @@ import io.github.shizuki.site.content.entity.AppEntity;
 import io.github.shizuki.site.content.entity.AppGroupAclEntity;
 import io.github.shizuki.site.content.entity.AuthorProfileEntity;
 import io.github.shizuki.site.content.entity.ContentReportEntity;
+import io.github.shizuki.site.content.entity.NotionSyncJobEntity;
 import io.github.shizuki.site.content.entity.PostCategoryMetaEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyGroupEntity;
+import io.github.shizuki.site.content.entity.PostContentEntity;
 import io.github.shizuki.site.content.entity.PostEntity;
 import io.github.shizuki.site.content.entity.PostGroupAclEntity;
 import io.github.shizuki.site.content.entity.PostPresentationEntity;
@@ -52,9 +55,11 @@ import io.github.shizuki.site.content.mapper.AppGroupAclMapper;
 import io.github.shizuki.site.content.mapper.AppMapper;
 import io.github.shizuki.site.content.mapper.AuthorProfileMapper;
 import io.github.shizuki.site.content.mapper.ContentReportMapper;
+import io.github.shizuki.site.content.mapper.NotionSyncJobMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryMetaMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyGroupMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyMapper;
+import io.github.shizuki.site.content.mapper.PostContentMapper;
 import io.github.shizuki.site.content.mapper.PostGroupAclMapper;
 import io.github.shizuki.site.content.mapper.PostMapper;
 import io.github.shizuki.site.content.mapper.PostPresentationMapper;
@@ -62,7 +67,10 @@ import io.github.shizuki.site.content.mapper.PostTagMapper;
 import io.github.shizuki.site.content.model.ContentVisibilityEnum;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.AuthorProfileHttpCacheSupport;
+import io.github.shizuki.site.content.support.NotionBlockCodec;
+import io.github.shizuki.site.content.support.NotionProperties;
 import io.github.shizuki.site.content.support.PostPresentationGeneratorClient;
+import io.github.shizuki.site.content.support.PostNotionSyncService;
 import io.github.shizuki.site.content.support.PostPresentationTemplateService;
 import io.github.shizuki.site.content.support.PostPresentationTemplateService.PresentationDeck;
 import java.io.ByteArrayInputStream;
@@ -95,7 +103,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ContentServiceImpl implements ContentService {
@@ -130,13 +137,19 @@ public class ContentServiceImpl implements ContentService {
     private final PostCategoryPolicyMapper postCategoryPolicyMapper;
     private final PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper;
     private final PostCategoryMetaMapper postCategoryMetaMapper;
+    private final PostContentMapper postContentMapper;
     private final PostPresentationMapper postPresentationMapper;
+    private final NotionSyncJobMapper notionSyncJobMapper;
     private final AuthorProfileMapper authorProfileMapper;
     private final ObjectStorageClient objectStorageClient;
     private final ObjectMapper objectMapper;
+    private final NotionProperties notionProperties;
+    private final NotionBlockCodec notionBlockCodec;
+    private final PostNotionSyncService postNotionSyncService;
     private final PostPresentationTemplateService postPresentationTemplateService;
     private final PostPresentationGeneratorClient postPresentationGeneratorClient;
     private final Executor postPresentationExecutor;
+    private final Executor notionSyncExecutor;
 
     @Value("${shizuki.blog.storage.private-bucket:${shizuki.media.storage.private-bucket:}}")
     private String blogPrivateBucket;
@@ -162,13 +175,19 @@ public class ContentServiceImpl implements ContentService {
                               PostCategoryPolicyMapper postCategoryPolicyMapper,
                               PostCategoryPolicyGroupMapper postCategoryPolicyGroupMapper,
                               PostCategoryMetaMapper postCategoryMetaMapper,
+                              PostContentMapper postContentMapper,
                               PostPresentationMapper postPresentationMapper,
+                              NotionSyncJobMapper notionSyncJobMapper,
                               AuthorProfileMapper authorProfileMapper,
                               ObjectStorageClient objectStorageClient,
                               ObjectMapper objectMapper,
+                              NotionProperties notionProperties,
+                              NotionBlockCodec notionBlockCodec,
+                              PostNotionSyncService postNotionSyncService,
                               PostPresentationTemplateService postPresentationTemplateService,
                               PostPresentationGeneratorClient postPresentationGeneratorClient,
-                              @Qualifier("postPresentationExecutor") Executor postPresentationExecutor) {
+                              @Qualifier("postPresentationExecutor") Executor postPresentationExecutor,
+                              @Qualifier("notionSyncExecutor") Executor notionSyncExecutor) {
         this.postMapper = postMapper;
         this.appMapper = appMapper;
         this.contentReportMapper = contentReportMapper;
@@ -178,13 +197,19 @@ public class ContentServiceImpl implements ContentService {
         this.postCategoryPolicyMapper = postCategoryPolicyMapper;
         this.postCategoryPolicyGroupMapper = postCategoryPolicyGroupMapper;
         this.postCategoryMetaMapper = postCategoryMetaMapper;
+        this.postContentMapper = postContentMapper;
         this.postPresentationMapper = postPresentationMapper;
+        this.notionSyncJobMapper = notionSyncJobMapper;
         this.authorProfileMapper = authorProfileMapper;
         this.objectStorageClient = objectStorageClient;
         this.objectMapper = objectMapper;
+        this.notionProperties = notionProperties;
+        this.notionBlockCodec = notionBlockCodec;
+        this.postNotionSyncService = postNotionSyncService;
         this.postPresentationTemplateService = postPresentationTemplateService;
         this.postPresentationGeneratorClient = postPresentationGeneratorClient;
         this.postPresentationExecutor = postPresentationExecutor;
+        this.notionSyncExecutor = notionSyncExecutor;
     }
 
     @Override
@@ -1145,40 +1170,7 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
-    public PostContentRelayResponse relayPostMarkdown(MultipartFile file) {
-        Long userId = requireLoginUserId();
-        requirePermission("blog.post.write");
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Upload file is required");
-        }
-
-        String bucket = readString(blogPrivateBucket, "");
-        if (!StringUtils.hasText(bucket)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Blog storage bucket is not configured");
-        }
-
-        long maxSize = blogMaxUploadSize <= 0 ? 1_048_576L : blogMaxUploadSize;
-        long size = Math.max(0L, file.getSize());
-        if (size <= 0L || size > maxSize) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown file size exceeds limit");
-        }
-
-        String contentType = normalizeMarkdownContentType(file.getContentType());
-        String key = buildMarkdownObjectKey(userId);
-
-        try (InputStream inputStream = file.getInputStream()) {
-            StorageObjectMetadata metadata = new StorageObjectMetadata();
-            metadata.setContentType(contentType);
-            metadata.setContentLength(size);
-            objectStorageClient.putObject(bucket, key, inputStream, metadata);
-        } catch (IOException exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Relay markdown upload failed");
-        }
-
-        return new PostContentRelayResponse(bucket, key, contentType, size);
-    }
-
-    @Override
+    @Transactional
     public AuthorPostItemResponse createMyPost(AuthorPostUpsertRequest request) {
         Long userId = requireLoginUserId();
         requirePermission("blog.post.write");
@@ -1187,6 +1179,7 @@ public class ContentServiceImpl implements ContentService {
         }
 
         PreparedPostPayload payload = preparePostPayload(request, null);
+        LocalDateTime now = LocalDateTime.now();
         PostEntity post = new PostEntity();
         post.setUserId(userId);
         post.setPostNum(generatePostNum());
@@ -1197,25 +1190,29 @@ public class ContentServiceImpl implements ContentService {
         post.setCoverImageUrl(payload.coverImageUrl());
         post.setVisibility(payload.visibility().name());
         post.setStatusCode(POST_STATUS_DRAFT);
-        post.setMarkdownBucket(payload.markdownBucket());
-        post.setMarkdownKey(payload.markdownKey());
         post.setWordCount(payload.wordCount());
         post.setLineCount(payload.lineCount());
         post.setReadingMinutes(payload.readingMinutes());
         post.setLikeCount(0L);
-        post.setCreatedAt(LocalDateTime.now());
-        post.setUpdatedAt(LocalDateTime.now());
+        post.setNotionDataSourceId(isNotionOwnerScoped(userId) ? notionProperties.getDataSourceId() : null);
+        post.setSyncStatusCode(PostNotionSyncService.SYNC_STATUS_LOCAL_ONLY);
+        post.setSyncErrorText("");
+        post.setCreatedAt(now);
+        post.setUpdatedAt(now);
         postMapper.insert(post);
+        upsertPostContent(post.getId(), null, payload, now);
 
         if (payload.visibility() == ContentVisibilityEnum.GROUP) {
             replacePostAcl(post.getId(), payload.allowedGroups());
         }
         replacePostTags(post.getId(), payload.tags());
+        runSaveSync(post.getId());
 
-        return toAuthorPostItemResponse(post);
+        return toAuthorPostItemResponse(reloadPost(post.getId()));
     }
 
     @Override
+    @Transactional
     public AuthorPostItemResponse updateMyPost(Long postId, AuthorPostUpsertRequest request) {
         Long userId = requireLoginUserId();
         requirePermission("blog.post.write");
@@ -1232,19 +1229,21 @@ public class ContentServiceImpl implements ContentService {
         }
 
         PreparedPostPayload payload = preparePostPayload(request, postId);
+        LocalDateTime now = LocalDateTime.now();
         post.setTitle(payload.title());
         post.setSummary(payload.summary());
         post.setCategoryCode(payload.categoryCode());
         post.setSlugCode(payload.slugCode());
         post.setCoverImageUrl(payload.coverImageUrl());
         post.setVisibility(payload.visibility().name());
-        post.setMarkdownBucket(payload.markdownBucket());
-        post.setMarkdownKey(payload.markdownKey());
+        post.setMarkdownBucket(null);
+        post.setMarkdownKey(null);
         post.setWordCount(payload.wordCount());
         post.setLineCount(payload.lineCount());
         post.setReadingMinutes(payload.readingMinutes());
-        post.setUpdatedAt(LocalDateTime.now());
+        post.setUpdatedAt(now);
         postMapper.updateById(post);
+        upsertPostContent(post.getId(), findPostContent(post.getId()), payload, now);
 
         if (payload.visibility() == ContentVisibilityEnum.GROUP) {
             replacePostAcl(post.getId(), payload.allowedGroups());
@@ -1252,8 +1251,9 @@ public class ContentServiceImpl implements ContentService {
             clearPostAcl(post.getId());
         }
         replacePostTags(post.getId(), payload.tags());
+        runSaveSync(post.getId());
 
-        return toAuthorPostItemResponse(post);
+        return toAuthorPostItemResponse(reloadPost(post.getId()));
     }
 
     @Override
@@ -1270,12 +1270,20 @@ public class ContentServiceImpl implements ContentService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to delete this post");
         }
 
+        if (isNotionOwnerScoped(post.getUserId()) && StringUtils.hasText(readString(post.getNotionPageId(), "").trim())) {
+            postNotionSyncService.trashRemotePage(post);
+        }
+
         String markdownBucket = readString(post.getMarkdownBucket(), "");
         String markdownKey = readString(post.getMarkdownKey(), "");
         PostPresentationEntity presentation = findPostPresentation(postId);
+        PostContentEntity postContent = findPostContent(postId);
 
         clearPostAcl(postId);
         clearPostTags(postId);
+        if (postContent != null && postContent.getId() != null && postContent.getId() > 0) {
+            postContentMapper.deleteById(postContent.getId());
+        }
         if (presentation != null && presentation.getId() != null && presentation.getId() > 0) {
             postPresentationMapper.deleteById(presentation.getId());
         }
@@ -1289,6 +1297,7 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
+    @Transactional
     public AuthorPostItemResponse publishMyPost(Long postId) {
         Long userId = requireLoginUserId();
         requirePermission("blog.post.publish");
@@ -1309,10 +1318,12 @@ public class ContentServiceImpl implements ContentService {
         }
         post.setUpdatedAt(LocalDateTime.now());
         postMapper.updateById(post);
-        return toAuthorPostItemResponse(post);
+        runSaveSync(post.getId());
+        return toAuthorPostItemResponse(reloadPost(post.getId()));
     }
 
     @Override
+    @Transactional
     public AuthorPostItemResponse unpublishMyPost(Long postId) {
         Long userId = requireLoginUserId();
         requirePermission("blog.post.publish");
@@ -1329,7 +1340,59 @@ public class ContentServiceImpl implements ContentService {
         post.setPublishedAt(null);
         post.setUpdatedAt(LocalDateTime.now());
         postMapper.updateById(post);
-        return toAuthorPostItemResponse(post);
+        runSaveSync(post.getId());
+        return toAuthorPostItemResponse(reloadPost(post.getId()));
+    }
+
+    @Override
+    public PostNotionSyncJobResponse createMyPostNotionSyncJob(PostNotionSyncJobCreateRequest request) {
+        Long userId = requireLoginUserId();
+        requirePermission("blog.post.write");
+        requireNotionOwnerOperator(userId);
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Request body is required");
+        }
+
+        String directionCode = normalizeSyncDirection(request.getDirection());
+        String targetTypeCode = normalizeSyncTargetType(request.getTargetType());
+        Long targetPostId = targetTypeCode.equals(PostNotionSyncService.TARGET_POST) ? request.getPostId() : null;
+        if (targetTypeCode.equals(PostNotionSyncService.TARGET_POST)) {
+            if (targetPostId == null || targetPostId <= 0) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "post_id is required for target_type=POST");
+            }
+            PostEntity post = postMapper.selectById(targetPostId);
+            if (post == null || !Objects.equals(post.getUserId(), notionProperties.getOwnerUserId())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "Owner post not found");
+            }
+        }
+
+        NotionSyncJobEntity job = postNotionSyncService.createJob(
+            PostNotionSyncService.JOB_TRIGGER_MANUAL,
+            directionCode,
+            targetTypeCode,
+            targetPostId,
+            notionProperties.getOwnerUserId()
+        );
+        notionSyncExecutor.execute(() -> postNotionSyncService.executeJob(job.getId()));
+        return toPostNotionSyncJobResponse(job);
+    }
+
+    @Override
+    public PostNotionSyncJobResponse getMyPostNotionSyncJob(Long jobId) {
+        Long userId = requireLoginUserId();
+        requirePermission("blog.post.write");
+        requireNotionOwnerOperator(userId);
+        if (jobId == null || jobId <= 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "job_id is required");
+        }
+        NotionSyncJobEntity job = notionSyncJobMapper.selectById(jobId);
+        if (job == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Notion sync job not found");
+        }
+        if (!Objects.equals(job.getOwnerUserId(), notionProperties.getOwnerUserId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this sync job");
+        }
+        return toPostNotionSyncJobResponse(job);
     }
 
     @Override
@@ -2113,25 +2176,11 @@ public class ContentServiceImpl implements ContentService {
         String categoryCode = normalizeCategoryCode(request.getCategoryCode(), true);
         String slugCode = normalizeSlugCode(request.getSlugCode());
         validateSlugUnique(slugCode, updatingPostId);
-
-        String markdownBucket = readString(request.getMarkdownBucket(), "").trim();
-        String markdownKey = readString(request.getMarkdownKey(), "").trim();
-        if (!StringUtils.hasText(markdownBucket) || !StringUtils.hasText(markdownKey)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown bucket/key are required");
-        }
-
-        String configuredBucket = readString(blogPrivateBucket, "").trim();
-        if (StringUtils.hasText(configuredBucket) && !configuredBucket.equals(markdownBucket)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown bucket is not allowed");
-        }
-
-        if (!objectStorageClient.objectExists(markdownBucket, markdownKey)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown object does not exist in storage");
-        }
-
-        String markdown = readMarkdownObject(markdownBucket, markdownKey);
+        String markdown = normalizeMarkdownContent(request.getMarkdown());
+        assertMarkdownEditable(updatingPostId, markdown);
         MarkdownMetrics metrics = computeMarkdownMetrics(markdown);
         String coverImageUrl = resolveCoverImageUrl(request.getCoverImageUrl(), markdown);
+        NotionBlockCodec.EncodeResult encodeResult = notionBlockCodec.encodeMarkdown(markdown);
 
         return new PreparedPostPayload(
             title,
@@ -2142,8 +2191,9 @@ public class ContentServiceImpl implements ContentService {
             visibility,
             allowedGroups,
             normalizeTagCodes(request.getTags()),
-            markdownBucket,
-            markdownKey,
+            markdown,
+            notionBlockCodec.writeBlocksJson(encodeResult.blocks()),
+            encodeResult.contentHash(),
             metrics.wordCount(),
             metrics.lineCount(),
             metrics.readingMinutes()
@@ -2167,19 +2217,157 @@ public class ContentServiceImpl implements ContentService {
         }
 
         normalizeCategoryCode(readString(post.getCategoryCode(), "").trim(), true);
-
-        String markdownBucket = readString(post.getMarkdownBucket(), "").trim();
-        String markdownKey = readString(post.getMarkdownKey(), "").trim();
-        if (!StringUtils.hasText(markdownBucket) || !StringUtils.hasText(markdownKey)) {
+        String markdown = readPostMarkdown(post);
+        if (!StringUtils.hasText(markdown.trim())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown content is required before publishing");
         }
+    }
 
-        String configuredBucket = readString(blogPrivateBucket, "").trim();
-        if (StringUtils.hasText(configuredBucket) && !configuredBucket.equals(markdownBucket)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown bucket is not allowed");
+    private void upsertPostContent(Long postId, PostContentEntity existing, PreparedPostPayload payload, LocalDateTime now) {
+        if (postId == null || postId <= 0 || payload == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Post content payload is required");
         }
-        if (!objectStorageClient.objectExists(markdownBucket, markdownKey)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Markdown object does not exist in storage");
+        PostContentEntity content = existing == null ? new PostContentEntity() : existing;
+        boolean preserveRemoteLock = content.getUnsupportedBlockFlag() != null
+            && content.getUnsupportedBlockFlag() == 1
+            && Objects.equals(normalizeMarkdownContent(content.getMarkdownCache()), payload.markdown());
+        if (content.getId() == null || content.getId() <= 0) {
+            content.setPostId(postId);
+            content.setCreatedAt(now);
+        }
+        content.setContentMode(PostNotionSyncService.CONTENT_MODE_NOTION_BLOCKS);
+        content.setMarkdownCache(payload.markdown());
+        content.setNotionBlocksJson(preserveRemoteLock ? content.getNotionBlocksJson() : payload.notionBlocksJson());
+        content.setContentHash(preserveRemoteLock ? content.getContentHash() : payload.contentHash());
+        content.setUnsupportedBlockFlag(preserveRemoteLock ? 1 : 0);
+        content.setUpdatedAt(now);
+        if (content.getId() == null || content.getId() <= 0) {
+            postContentMapper.insert(content);
+        } else {
+            postContentMapper.updateById(content);
+        }
+    }
+
+    private PostContentEntity findPostContent(Long postId) {
+        if (postId == null || postId <= 0) {
+            return null;
+        }
+        return postContentMapper.selectOne(
+            new LambdaQueryWrapper<PostContentEntity>()
+                .eq(PostContentEntity::getDeleted, 0)
+                .eq(PostContentEntity::getPostId, postId)
+                .last("LIMIT 1")
+        );
+    }
+
+    private PostEntity reloadPost(Long postId) {
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        return post;
+    }
+
+    private void runSaveSync(Long postId) {
+        if (postId == null || postId <= 0 || !notionProperties.isConfigured()) {
+            return;
+        }
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null || !isNotionOwnerScoped(post.getUserId())) {
+            return;
+        }
+        try {
+            NotionSyncJobEntity job = postNotionSyncService.createJob(
+                PostNotionSyncService.JOB_TRIGGER_SAVE,
+                PostNotionSyncService.DIRECTION_PUSH,
+                PostNotionSyncService.TARGET_POST,
+                postId,
+                notionProperties.getOwnerUserId()
+            );
+            postNotionSyncService.executeJob(job.getId());
+        } catch (Exception exception) {
+            post.setSyncStatusCode(PostNotionSyncService.SYNC_STATUS_SYNC_ERROR);
+            post.setSyncErrorText(readString(exception.getMessage(), "Notion sync failed"));
+            post.setUpdatedAt(LocalDateTime.now());
+            postMapper.updateById(post);
+        }
+    }
+
+    private boolean isNotionOwnerScoped(Long userId) {
+        return userId != null && Objects.equals(userId, notionProperties.getOwnerUserId());
+    }
+
+    private void requireNotionOwnerOperator(Long userId) {
+        if (!notionProperties.isConfigured()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Notion integration is not configured");
+        }
+        if (Objects.equals(userId, notionProperties.getOwnerUserId()) || currentViewer().admin()) {
+            return;
+        }
+        throw new BusinessException(ErrorCode.FORBIDDEN, "Only the notion owner can operate sync jobs");
+    }
+
+    private String normalizeSyncDirection(String raw) {
+        String normalized = readString(raw, PostNotionSyncService.DIRECTION_BOTH).trim().toUpperCase(Locale.ROOT);
+        if (PostNotionSyncService.DIRECTION_PULL.equals(normalized)
+            || PostNotionSyncService.DIRECTION_PUSH.equals(normalized)
+            || PostNotionSyncService.DIRECTION_BOTH.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported sync direction");
+    }
+
+    private String normalizeSyncTargetType(String raw) {
+        String normalized = readString(raw, PostNotionSyncService.TARGET_POST).trim().toUpperCase(Locale.ROOT);
+        if (PostNotionSyncService.TARGET_POST.equals(normalized) || PostNotionSyncService.TARGET_ALL.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported sync target type");
+    }
+
+    private PostNotionSyncJobResponse toPostNotionSyncJobResponse(NotionSyncJobEntity job) {
+        if (job == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Notion sync job not found");
+        }
+        return new PostNotionSyncJobResponse(
+            job.getId(),
+            readString(job.getTriggerType(), ""),
+            readString(job.getDirectionCode(), ""),
+            readString(job.getTargetTypeCode(), ""),
+            job.getPostId(),
+            job.getOwnerUserId(),
+            readString(job.getStatusCode(), PostNotionSyncService.JOB_STATUS_PENDING),
+            job.getResultCount() == null ? 0 : job.getResultCount(),
+            job.getErrorCount() == null ? 0 : job.getErrorCount(),
+            job.getSkippedCount() == null ? 0 : job.getSkippedCount(),
+            job.getConflictCount() == null ? 0 : job.getConflictCount(),
+            readString(job.getErrorText(), ""),
+            job.getStartedTime(),
+            job.getFinishedTime(),
+            job.getCreatedAt(),
+            job.getUpdatedAt()
+        );
+    }
+
+    private String normalizeMarkdownContent(String markdown) {
+        return readString(markdown, "").replace("\r\n", "\n").replace('\r', '\n').stripTrailing();
+    }
+
+    private void assertMarkdownEditable(Long postId, String markdown) {
+        if (postId == null || postId <= 0) {
+            return;
+        }
+        PostContentEntity existing = findPostContent(postId);
+        if (existing == null || existing.getUnsupportedBlockFlag() == null || existing.getUnsupportedBlockFlag() != 1) {
+            return;
+        }
+        PostEntity post = postMapper.selectById(postId);
+        if (post == null || !StringUtils.hasText(readString(post.getNotionPageId(), "").trim())) {
+            return;
+        }
+        String currentMarkdown = normalizeMarkdownContent(existing.getMarkdownCache());
+        if (!Objects.equals(currentMarkdown, normalizeMarkdownContent(markdown))) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "This post contains unsupported Notion blocks. Edit it in Notion.");
         }
     }
 
@@ -2586,6 +2774,7 @@ public class ContentServiceImpl implements ContentService {
     private PostDetailResponse toPostDetailResponse(PostEntity post, String markdown, boolean editable) {
         ContentVisibilityEnum visibility = normalizeVisibility(post.getVisibility());
         Set<String> allowedGroupCodes = visibility == ContentVisibilityEnum.GROUP ? loadPostAclGroups(post.getId()) : Set.of();
+        PostContentEntity content = findPostContent(post.getId());
         return new PostDetailResponse(
             post.getId(),
             post.getTitle(),
@@ -2603,11 +2792,17 @@ public class ContentServiceImpl implements ContentService {
             post.getLikeCount() == null ? 0L : post.getLikeCount(),
             resolvePostPublishTimeForDisplay(post),
             editable,
-            markdown
+            markdown,
+            readString(post.getNotionPageId(), ""),
+            readString(post.getSyncStatusCode(), PostNotionSyncService.SYNC_STATUS_LOCAL_ONLY),
+            readString(post.getSyncErrorText(), ""),
+            post.getNotionLastEditedTime(),
+            content != null && content.getUnsupportedBlockFlag() != null && content.getUnsupportedBlockFlag() == 1
         );
     }
 
     private AuthorPostItemResponse toAuthorPostItemResponse(PostEntity post) {
+        PostContentEntity content = findPostContent(post.getId());
         return new AuthorPostItemResponse(
             post.getId(),
             post.getTitle(),
@@ -2623,11 +2818,20 @@ public class ContentServiceImpl implements ContentService {
             post.getReadingMinutes() == null ? 1 : post.getReadingMinutes(),
             post.getLikeCount() == null ? 0L : post.getLikeCount(),
             resolvePostPublishTimeForDisplay(post),
-            post.getUpdatedAt()
+            post.getUpdatedAt(),
+            readString(post.getNotionPageId(), ""),
+            readString(post.getSyncStatusCode(), PostNotionSyncService.SYNC_STATUS_LOCAL_ONLY),
+            readString(post.getSyncErrorText(), ""),
+            post.getNotionLastEditedTime(),
+            content != null && content.getUnsupportedBlockFlag() != null && content.getUnsupportedBlockFlag() == 1
         );
     }
 
     private String readPostMarkdown(PostEntity post) {
+        PostContentEntity content = findPostContent(post == null ? null : post.getId());
+        if (content != null && StringUtils.hasText(readString(content.getMarkdownCache(), ""))) {
+            return content.getMarkdownCache();
+        }
         String bucket = readString(post.getMarkdownBucket(), "").trim();
         String key = readString(post.getMarkdownKey(), "").trim();
         if (StringUtils.hasText(bucket) && StringUtils.hasText(key)) {
@@ -2849,8 +3053,9 @@ public class ContentServiceImpl implements ContentService {
         ContentVisibilityEnum visibility,
         Set<String> allowedGroups,
         Set<String> tags,
-        String markdownBucket,
-        String markdownKey,
+        String markdown,
+        String notionBlocksJson,
+        String contentHash,
         Long wordCount,
         Long lineCount,
         Integer readingMinutes

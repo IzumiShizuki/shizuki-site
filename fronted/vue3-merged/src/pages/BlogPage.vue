@@ -346,6 +346,7 @@
                 class="editor-rich-editor"
                 v-model="writerState.editor.markdown"
                 :default-mode="editorMode"
+                :read-only="editorReadOnlyBecauseNotion"
                 :image-upload-handler="handleInlineImageUpload"
                 placeholder="在这里写 Markdown 内容..."
                 @ready="handleRichEditorReady"
@@ -378,7 +379,7 @@
               <button
                 type="button"
                 class="mini-btn ripple-trigger"
-                :disabled="writerState.saving || deleteDialogState.submitting"
+                :disabled="writerState.saving || deleteDialogState.submitting || editorReadOnlyBecauseNotion"
                 @click="handleSaveDraft"
               >
                 保存草稿
@@ -386,7 +387,7 @@
               <button
                 type="button"
                 class="mini-btn ripple-trigger"
-                :disabled="writerState.publishing || deleteDialogState.submitting || !canPublish || !writerState.editor.postId"
+                :disabled="writerState.publishing || deleteDialogState.submitting || !canPublish || !writerState.editor.postId || editorReadOnlyBecauseNotion"
                 @click="handlePublish"
               >
                 发布
@@ -394,7 +395,7 @@
               <button
                 type="button"
                 class="mini-btn ripple-trigger"
-                :disabled="writerState.publishing || deleteDialogState.submitting || !canPublish || !writerState.editor.postId"
+                :disabled="writerState.publishing || deleteDialogState.submitting || !canPublish || !writerState.editor.postId || editorReadOnlyBecauseNotion"
                 @click="handleUnpublish"
               >
                 下线
@@ -508,7 +509,7 @@
                   <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
                 </label>
                 <label class="field field-wide file-field">
-                  <span>Markdown 文件上传（relay）</span>
+                  <span>导入 Markdown 文件</span>
                   <input type="file" accept=".md,text/markdown,text/plain" @change="handleMarkdownFileUpload" />
                 </label>
               </div>
@@ -522,11 +523,34 @@
                   <div class="editor-status">
                     <span class="status-badge" :class="editorStatusMeta.className">{{ editorStatusMeta.label }}</span>
                     <span class="status-badge" :class="editorVisibilityMeta.className">{{ editorVisibilityMeta.label }}</span>
+                    <span class="status-badge" :class="editorSyncStatusMeta.className">{{ editorSyncStatusMeta.label }}</span>
                     <span v-if="pasteState.sessionDecision" class="editor-status-note">
                       粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}
                     </span>
                   </div>
+                  <div class="editor-status editor-status--secondary">
+                    <span v-if="writerState.editor.notionPageId" class="editor-status-note">Notion 已绑定</span>
+                    <span v-if="writerState.editor.remoteLastEditedAt" class="editor-status-note">
+                      远端更新：{{ formatDateTime(writerState.editor.remoteLastEditedAt) }}
+                    </span>
+                    <button
+                      type="button"
+                      class="mini-btn ripple-trigger"
+                      :disabled="!writerState.editor.postId || notionJobRunning"
+                      @click="handlePullFromNotion"
+                    >
+                      从 Notion 拉取
+                    </button>
+                    <span v-if="notionSyncState.statusCode" class="editor-status-note">
+                      任务状态：{{ notionSyncState.statusCode }}
+                    </span>
+                  </div>
                 </div>
+                <p v-if="writerState.editor.unsupportedBlockFlag" class="error-text editor-meta-message">
+                  该文章包含 Notion 专有块。正文已切换为只读，请直接在 Notion 中编辑。
+                </p>
+                <p v-if="writerState.editor.syncErrorText" class="error-text editor-meta-message">{{ writerState.editor.syncErrorText }}</p>
+                <p v-if="notionSyncState.errorText" class="error-text editor-meta-message">{{ notionSyncState.errorText }}</p>
                 <p v-if="writerState.error" class="error-text editor-meta-message">{{ writerState.error }}</p>
                 <p v-if="writerState.notice" class="notice-text editor-meta-message">{{ writerState.notice }}</p>
               </div>
@@ -628,12 +652,14 @@ import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
+  createPostNotionSyncJob,
   createMyPost,
   deleteMyPost,
   generateMyPostPresentation,
   getMyPostPresentation,
   getMyPostPresentationPptDownloadUrl,
   getMyPostDetail,
+  getPostNotionSyncJob,
   getPostDetail,
   getPostPresentation,
   getPostPresentationPptDownloadUrl,
@@ -642,7 +668,6 @@ import {
   listMyPosts,
   listPosts,
   publishMyPost,
-  relayPostMarkdown,
   uploadBlogInlineImage,
   unpublishMyPost,
   updateMyPost
@@ -671,6 +696,13 @@ const POST_VISIBILITY_META = Object.freeze({
   PUBLIC: { label: '公开', className: 'status-badge--public' },
   PRIVATE: { label: '私密', className: 'status-badge--private' },
   GROUP: { label: '分组可见', className: 'status-badge--group' }
+});
+const POST_SYNC_STATUS_META = Object.freeze({
+  LOCAL_ONLY: { label: '仅本地', className: 'status-badge--default' },
+  SYNCED: { label: '已同步', className: 'status-badge--published' },
+  SYNC_ERROR: { label: '同步失败', className: 'status-badge--private' },
+  CONFLICT: { label: '远端冲突', className: 'status-badge--archived' },
+  REMOTE_LOCKED: { label: 'Notion 锁定', className: 'status-badge--group' }
 });
 
 const auth = useAuthSession();
@@ -719,11 +751,21 @@ const writerState = reactive({
     tagsText: '',
     allowedGroupCodesText: 'USER,FRIEND,ADMIN',
     markdown: '',
-    markdownBucket: '',
-    markdownKey: '',
     statusCode: 'DRAFT',
-    lastRelayedSignature: ''
+    notionPageId: '',
+    syncStatusCode: 'LOCAL_ONLY',
+    syncErrorText: '',
+    remoteLastEditedAt: null,
+    unsupportedBlockFlag: false
   }
+});
+
+const notionSyncState = reactive({
+  submitting: false,
+  polling: false,
+  jobId: null,
+  statusCode: '',
+  errorText: ''
 });
 
 const detailNavState = reactive({
@@ -1048,6 +1090,11 @@ const editorPresentationStatusText = computed(() => resolvePresentationStatusTex
 const detailPresentationStatusText = computed(() => resolvePresentationStatusText(detailPresentationState.data, detailPresentationState.loading));
 const editorStatusMeta = computed(() => resolvePostStatusMeta(writerState.editor.statusCode));
 const editorVisibilityMeta = computed(() => resolvePostVisibilityMeta(writerState.editor.visibility));
+const editorSyncStatusMeta = computed(() => resolveSyncStatusMeta(writerState.editor.syncStatusCode));
+const editorReadOnlyBecauseNotion = computed(() => writerState.editor.unsupportedBlockFlag === true);
+const notionJobRunning = computed(
+  () => notionSyncState.submitting || notionSyncState.polling || notionSyncState.statusCode === 'PENDING' || notionSyncState.statusCode === 'RUNNING'
+);
 
 const progressRadius = 20;
 const progressCircumference = 2 * Math.PI * progressRadius;
@@ -1081,6 +1128,11 @@ function resolvePostStatusMeta(statusCode) {
 function resolvePostVisibilityMeta(visibility) {
   const normalized = normalizeString(visibility, 'PUBLIC').trim().toUpperCase();
   return POST_VISIBILITY_META[normalized] || { label: normalized || '未知可见性', className: 'status-badge--default' };
+}
+
+function resolveSyncStatusMeta(statusCode) {
+  const normalized = normalizeString(statusCode, 'LOCAL_ONLY').trim().toUpperCase();
+  return POST_SYNC_STATUS_META[normalized] || { label: normalized || '未知同步状态', className: 'status-badge--default' };
 }
 
 function resolveMinePostDisplayTitle(post) {
@@ -1132,7 +1184,13 @@ function normalizePostDetail(raw) {
     likeCount: Math.max(0, toSafeInt(raw?.likeCount ?? raw?.like_count, 0)),
     publishedAt: raw?.publishedAt ?? raw?.published_at ?? null,
     editable: Boolean(raw?.editable),
-    markdown: normalizeString(raw?.markdown)
+    markdown: normalizeString(raw?.markdown),
+    allowedGroupCodes: Array.isArray(raw?.allowedGroupCodes ?? raw?.allowed_group_codes) ? (raw?.allowedGroupCodes ?? raw?.allowed_group_codes) : [],
+    notionPageId: normalizeString(raw?.notionPageId ?? raw?.notion_page_id),
+    syncStatusCode: normalizeString(raw?.syncStatusCode ?? raw?.sync_status_code, 'LOCAL_ONLY').toUpperCase(),
+    syncErrorText: normalizeString(raw?.syncErrorText ?? raw?.sync_error_text),
+    remoteLastEditedAt: raw?.remoteLastEditedAt ?? raw?.remote_last_edited_at ?? null,
+    unsupportedBlockFlag: Boolean(raw?.unsupportedBlockFlag ?? raw?.unsupported_block_flag)
   };
 }
 
@@ -1164,8 +1222,28 @@ function normalizeAuthorPost(raw) {
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
     statusCode: normalizeString(raw?.statusCode ?? raw?.status_code, 'DRAFT').toUpperCase(),
     tags: normalizeTags(raw?.tags),
+    wordCount: Math.max(0, toSafeInt(raw?.wordCount ?? raw?.word_count, 0)),
+    lineCount: Math.max(0, toSafeInt(raw?.lineCount ?? raw?.line_count, 0)),
     readingMinutes: Math.max(1, toSafeInt(raw?.readingMinutes ?? raw?.reading_minutes, 1)),
-    likeCount: Math.max(0, toSafeInt(raw?.likeCount ?? raw?.like_count, 0))
+    likeCount: Math.max(0, toSafeInt(raw?.likeCount ?? raw?.like_count, 0)),
+    notionPageId: normalizeString(raw?.notionPageId ?? raw?.notion_page_id),
+    syncStatusCode: normalizeString(raw?.syncStatusCode ?? raw?.sync_status_code, 'LOCAL_ONLY').toUpperCase(),
+    syncErrorText: normalizeString(raw?.syncErrorText ?? raw?.sync_error_text),
+    remoteLastEditedAt: raw?.remoteLastEditedAt ?? raw?.remote_last_edited_at ?? null,
+    unsupportedBlockFlag: Boolean(raw?.unsupportedBlockFlag ?? raw?.unsupported_block_flag)
+  };
+}
+
+function normalizeNotionSyncJob(raw) {
+  return {
+    jobId: toSafeInt(raw?.jobId ?? raw?.job_id, 0),
+    statusCode: normalizeString(raw?.statusCode ?? raw?.status_code, 'PENDING').toUpperCase(),
+    errorText: normalizeString(raw?.errorText ?? raw?.error_text),
+    resultCount: Math.max(0, toSafeInt(raw?.resultCount ?? raw?.result_count, 0)),
+    errorCount: Math.max(0, toSafeInt(raw?.errorCount ?? raw?.error_count, 0)),
+    skippedCount: Math.max(0, toSafeInt(raw?.skippedCount ?? raw?.skipped_count, 0)),
+    conflictCount: Math.max(0, toSafeInt(raw?.conflictCount ?? raw?.conflict_count, 0)),
+    finishedAt: raw?.finishedAt ?? raw?.finished_at ?? null
   };
 }
 
@@ -1187,7 +1265,12 @@ function mergeMyPostSnapshot(postLike) {
     summary: rawSummary || current.summary,
     slugCode: rawSlugCode || current.slugCode,
     visibility: rawVisibility ? normalized.visibility : current.visibility,
-    statusCode: rawStatusCode ? normalized.statusCode : current.statusCode
+    statusCode: rawStatusCode ? normalized.statusCode : current.statusCode,
+    notionPageId: normalized.notionPageId || current.notionPageId,
+    syncStatusCode: normalized.syncStatusCode || current.syncStatusCode,
+    syncErrorText: normalized.syncErrorText,
+    remoteLastEditedAt: normalized.remoteLastEditedAt,
+    unsupportedBlockFlag: normalized.unsupportedBlockFlag
   };
 }
 
@@ -1670,50 +1753,6 @@ async function loadMyPosts() {
   }
 }
 
-function buildMarkdownSignature(markdown) {
-  const text = String(markdown || '');
-  let checksum = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    checksum = (checksum + text.charCodeAt(i) * (i + 1)) % 2147483647;
-  }
-  return `${text.length}:${checksum}`;
-}
-
-async function relayMarkdownText(markdownText) {
-  const file = new File([String(markdownText || '')], `blog-${Date.now()}.md`, {
-    type: 'text/markdown'
-  });
-  return relayPostMarkdown(file, auth.authorizedFetch);
-}
-
-function applyMarkdownRelayResult(relay) {
-  writerState.editor.markdownBucket = normalizeString(
-    relay?.bucketName ?? relay?.bucket_name ?? relay?.bucket
-  );
-  writerState.editor.markdownKey = normalizeString(
-    relay?.objectKey ?? relay?.object_key ?? relay?.key
-  );
-}
-
-async function ensureEditorMarkdownRelayed() {
-  const markdownText = normalizeMarkdownForEditor(writerState.editor.markdown);
-  if (!markdownText.trim()) {
-    throw new Error('正文不能为空');
-  }
-  writerState.editor.markdown = markdownText;
-  const signature = buildMarkdownSignature(markdownText);
-  if (
-    signature === writerState.editor.lastRelayedSignature &&
-    writerState.editor.markdownBucket &&
-    writerState.editor.markdownKey
-  ) {
-    return;
-  }
-  const relay = await relayMarkdownText(markdownText);
-  applyMarkdownRelayResult(relay);
-  writerState.editor.lastRelayedSignature = signature;
-}
-
 function buildEditorPayload() {
   const visibility = normalizeString(writerState.editor.visibility, 'PUBLIC').toUpperCase();
   return {
@@ -1725,8 +1764,7 @@ function buildEditorPayload() {
     visibility,
     allowedGroupCodes: visibility === 'GROUP' ? parseCodeList(writerState.editor.allowedGroupCodesText) : [],
     tags: parseTagList(writerState.editor.tagsText),
-    markdownBucket: writerState.editor.markdownBucket,
-    markdownKey: writerState.editor.markdownKey
+    markdown: normalizeMarkdownForEditor(writerState.editor.markdown)
   };
 }
 
@@ -1740,9 +1778,14 @@ function applyPostDetailToEditor(postDetail) {
   writerState.editor.coverImageUrl = normalized.coverImageUrl;
   writerState.editor.visibility = normalized.visibility || 'PUBLIC';
   writerState.editor.tagsText = normalized.tags.map((item) => `#${item}`).join(', ');
+  writerState.editor.allowedGroupCodesText = normalized.allowedGroupCodes.join(',');
   writerState.editor.markdown = normalizeMarkdownForEditor(normalized.markdown || '');
   writerState.editor.statusCode = normalized.statusCode || 'DRAFT';
-  writerState.editor.lastRelayedSignature = '';
+  writerState.editor.notionPageId = normalized.notionPageId;
+  writerState.editor.syncStatusCode = normalized.syncStatusCode;
+  writerState.editor.syncErrorText = normalized.syncErrorText;
+  writerState.editor.remoteLastEditedAt = normalized.remoteLastEditedAt;
+  writerState.editor.unsupportedBlockFlag = normalized.unsupportedBlockFlag;
   mergeMyPostSnapshot(postDetail);
 }
 
@@ -1750,6 +1793,11 @@ function applyAuthorPostToEditor(post) {
   const normalized = normalizeAuthorPost(post);
   writerState.editor.postId = normalized.postId || null;
   writerState.editor.statusCode = normalized.statusCode || writerState.editor.statusCode;
+  writerState.editor.notionPageId = normalized.notionPageId || writerState.editor.notionPageId;
+  writerState.editor.syncStatusCode = normalized.syncStatusCode || writerState.editor.syncStatusCode;
+  writerState.editor.syncErrorText = normalized.syncErrorText;
+  writerState.editor.remoteLastEditedAt = normalized.remoteLastEditedAt;
+  writerState.editor.unsupportedBlockFlag = normalized.unsupportedBlockFlag;
   mergeMyPostSnapshot(post);
 }
 
@@ -1765,11 +1813,14 @@ async function handleSaveDraft(options = {}) {
     writerState.error = '暂无可用分类，请先在分类管理中启用至少一个分类';
     return;
   }
+  if (editorReadOnlyBecauseNotion.value) {
+    writerState.error = '该文章包含 Notion 专有块，请在 Notion 中编辑正文';
+    return;
+  }
   writerState.saving = true;
   writerState.error = '';
   writerState.notice = '';
   try {
-    await ensureEditorMarkdownRelayed();
     const payload = buildEditorPayload();
     const result = writerState.editor.postId
       ? await updateMyPost(writerState.editor.postId, payload, auth.authorizedFetch)
@@ -1822,6 +1873,71 @@ async function handleUnpublish() {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function refreshEditorAfterNotionSync(postId) {
+  const normalizedPostId = toSafeInt(postId, 0);
+  if (normalizedPostId > 0) {
+    await openMinePost(normalizedPostId, { routeSync: false });
+  }
+  await Promise.all([loadMyPosts(), loadPostList()]);
+}
+
+async function pollNotionSyncJobUntilDone(jobId, postId) {
+  const normalizedJobId = toSafeInt(jobId, 0);
+  if (normalizedJobId <= 0) return null;
+  notionSyncState.jobId = normalizedJobId;
+  notionSyncState.polling = true;
+  let latest = null;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    latest = normalizeNotionSyncJob(await getPostNotionSyncJob(normalizedJobId, auth.authorizedFetch));
+    notionSyncState.statusCode = latest.statusCode;
+    notionSyncState.errorText = latest.errorText;
+    if (!['PENDING', 'RUNNING'].includes(latest.statusCode)) {
+      break;
+    }
+    await sleep(1200);
+  }
+  notionSyncState.polling = false;
+  await refreshEditorAfterNotionSync(postId);
+  return latest;
+}
+
+async function handlePullFromNotion() {
+  const postId = toSafeInt(writerState.editor.postId, 0);
+  if (postId <= 0 || notionJobRunning.value) return;
+  notionSyncState.submitting = true;
+  notionSyncState.errorText = '';
+  writerState.error = '';
+  writerState.notice = '';
+  try {
+    const createdJob = normalizeNotionSyncJob(
+      await createPostNotionSyncJob(
+        {
+          direction: 'PULL',
+          targetType: 'POST',
+          postId
+        },
+        auth.authorizedFetch
+      )
+    );
+    notionSyncState.jobId = createdJob.jobId;
+    notionSyncState.statusCode = createdJob.statusCode;
+    const completedJob = await pollNotionSyncJobUntilDone(createdJob.jobId, postId);
+    if (completedJob?.statusCode === 'SUCCEEDED') {
+      writerState.notice = '已从 Notion 拉取最新内容';
+      return;
+    }
+    writerState.error = completedJob?.errorText || 'Notion 拉取未完成';
+  } catch (error) {
+    writerState.error = normalizeErrorMessage(error, 'Notion 拉取失败');
+  } finally {
+    notionSyncState.submitting = false;
+  }
+}
+
 function openDeleteDialog() {
   if (!writerState.editor.postId || deleteDialogState.submitting) return;
   writerState.error = '';
@@ -1870,11 +1986,7 @@ async function handleMarkdownFileUpload(event) {
   try {
     const text = await file.text();
     writerState.editor.markdown = normalizeMarkdownForEditor(text);
-    writerState.editor.lastRelayedSignature = '';
-    const relay = await relayPostMarkdown(file, auth.authorizedFetch);
-    applyMarkdownRelayResult(relay);
-    writerState.editor.lastRelayedSignature = buildMarkdownSignature(writerState.editor.markdown);
-    writerState.notice = 'Markdown 文件已上传并同步到编辑区';
+    writerState.notice = 'Markdown 文件已导入到编辑区';
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, '上传 Markdown 失败');
   } finally {
@@ -1918,10 +2030,17 @@ function resetEditorForm() {
   writerState.editor.tagsText = '';
   writerState.editor.allowedGroupCodesText = 'USER,FRIEND,ADMIN';
   writerState.editor.markdown = '';
-  writerState.editor.markdownBucket = '';
-  writerState.editor.markdownKey = '';
   writerState.editor.statusCode = 'DRAFT';
-  writerState.editor.lastRelayedSignature = '';
+  writerState.editor.notionPageId = '';
+  writerState.editor.syncStatusCode = 'LOCAL_ONLY';
+  writerState.editor.syncErrorText = '';
+  writerState.editor.remoteLastEditedAt = null;
+  writerState.editor.unsupportedBlockFlag = false;
+  notionSyncState.submitting = false;
+  notionSyncState.polling = false;
+  notionSyncState.jobId = null;
+  notionSyncState.statusCode = '';
+  notionSyncState.errorText = '';
   resetEditorPresentationState();
 }
 
@@ -2029,6 +2148,9 @@ async function openMinePost(postId, options = {}) {
   if (normalizedPostId <= 0) return;
   writerState.error = '';
   writerState.notice = '';
+  notionSyncState.jobId = null;
+  notionSyncState.statusCode = '';
+  notionSyncState.errorText = '';
   try {
     const payload = await getMyPostDetail(normalizedPostId, auth.authorizedFetch);
     applyPostDetailToEditor(payload);
@@ -2372,11 +2494,9 @@ function insertTextIntoEditor(text) {
     const source = normalizeMarkdownForEditor(writerState.editor.markdown);
     const next = normalizeMarkdownForEditor(text);
     writerState.editor.markdown = source ? `${source}\n\n${next}` : next;
-    writerState.editor.lastRelayedSignature = '';
     return;
   }
   editor.insertText(text);
-  writerState.editor.lastRelayedSignature = '';
 }
 
 function closePasteDialog() {
@@ -3327,6 +3447,10 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+.editor-status--secondary {
+  margin-top: 8px;
 }
 
 .editor-status-note {

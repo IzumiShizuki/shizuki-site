@@ -2,8 +2,8 @@ package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.response.AuthorPostItemResponse;
-import io.github.shizuki.site.content.response.PostContentRelayResponse;
 import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
+import io.github.shizuki.site.content.response.PostNotionSyncJobResponse;
 import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.service.ContentService;
@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
@@ -50,7 +49,12 @@ class MyPostControllerIntegrationTest {
                     1,
                     0L,
                     null,
-                    LocalDateTime.now()
+                    LocalDateTime.now(),
+                    "notion-page-1",
+                    "SYNCED",
+                    "",
+                    LocalDateTime.now(),
+                    false
                 )),
                 1,
                 1,
@@ -66,23 +70,40 @@ class MyPostControllerIntegrationTest {
     }
 
     @Test
-    void shouldRelayMarkdownSuccessfully() throws Exception {
-        Mockito.when(contentService.relayPostMarkdown(ArgumentMatchers.any()))
-            .thenReturn(new PostContentRelayResponse("blog-private", "blog-posts/user-1/test.md", "text/markdown", 12L));
+    void shouldCreateNotionSyncJobSuccessfully() throws Exception {
+        Mockito.when(contentService.createMyPostNotionSyncJob(ArgumentMatchers.any()))
+            .thenReturn(new PostNotionSyncJobResponse(
+                501L,
+                "MANUAL",
+                "PULL",
+                "POST",
+                20L,
+                1L,
+                "PENDING",
+                0,
+                0,
+                0,
+                0,
+                "",
+                null,
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now()
+            ));
 
-        MockMultipartFile file = new MockMultipartFile(
-            "file",
-            "test.md",
-            "text/markdown",
-            "# hello".getBytes()
-        );
-
-        mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/me/posts/content-relay")
-                .file(file)
-                .contentType(MediaType.MULTIPART_FORM_DATA))
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/me/posts/notion/sync-jobs")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "direction": "PULL",
+                      "targetType": "POST",
+                      "postId": 20
+                    }
+                    """))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.bucket").value("blog-private"));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.job_id").value(501))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status_code").value("PENDING"));
     }
 
     @Test
@@ -103,7 +124,12 @@ class MyPostControllerIntegrationTest {
                 1,
                 0L,
                 null,
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                "",
+                "LOCAL_ONLY",
+                "",
+                null,
+                false
             ));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/me/posts")
@@ -116,14 +142,42 @@ class MyPostControllerIntegrationTest {
                       "visibility": "PUBLIC",
                       "tags": [],
                       "allowedGroupCodes": [],
-                      "markdownBucket": "blog-private",
-                      "markdownKey": "blog-posts/user-1/test.md"
+                      "markdown": "# draft"
                     }
                     """))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.post_id").value(20))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status_code").value("DRAFT"));
+    }
+
+    @Test
+    void shouldGetNotionSyncJobSuccessfully() throws Exception {
+        Mockito.when(contentService.getMyPostNotionSyncJob(ArgumentMatchers.eq(501L)))
+            .thenReturn(new PostNotionSyncJobResponse(
+                501L,
+                "MANUAL",
+                "PULL",
+                "POST",
+                20L,
+                1L,
+                "SUCCEEDED",
+                1,
+                0,
+                0,
+                0,
+                "",
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                LocalDateTime.now()
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/me/posts/notion/sync-jobs/501"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.job_id").value(501))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status_code").value("SUCCEEDED"));
     }
 
     @Test

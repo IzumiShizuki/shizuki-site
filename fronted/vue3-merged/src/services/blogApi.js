@@ -31,8 +31,7 @@ function normalizeUpsertPayload(payload = {}) {
     visibility: String(payload.visibility || 'PUBLIC').trim().toUpperCase(),
     allowedGroupCodes,
     tags,
-    markdownBucket: String(payload.markdownBucket || '').trim(),
-    markdownKey: String(payload.markdownKey || '').trim()
+    markdown: String(payload.markdown || '')
   };
 }
 
@@ -135,20 +134,6 @@ export async function getMyPostCategoryPolicies(authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/me/posts/category-policies', {
     method: 'GET'
-  });
-  return unwrapApiResponse(response);
-}
-
-export async function relayPostMarkdown(file, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
-  if (!(file instanceof File)) {
-    throw new Error('file is required');
-  }
-  const formData = new FormData();
-  formData.append('file', file, file.name || 'blog-post.md');
-  const response = await request('/api/v1/me/posts/content-relay', {
-    method: 'POST',
-    body: formData
   });
   return unwrapApiResponse(response);
 }
@@ -354,6 +339,28 @@ export async function unpublishMyPost(postId, authorizedFetch) {
   const id = normalizePostId(postId);
   const response = await request(`/api/v1/me/posts/${id}/unpublish`, {
     method: 'POST'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function createPostNotionSyncJob(payload = {}, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/me/posts/notion/sync-jobs', {
+    method: 'POST',
+    body: {
+      direction: String(payload.direction || '').trim().toUpperCase(),
+      targetType: String(payload.targetType || '').trim().toUpperCase(),
+      postId: Number.isFinite(Number(payload.postId)) ? Number(payload.postId) : undefined
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getPostNotionSyncJob(jobId, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const id = normalizePostId(jobId);
+  const response = await request(`/api/v1/me/posts/notion/sync-jobs/${id}`, {
+    method: 'GET'
   });
   return unwrapApiResponse(response);
 }
