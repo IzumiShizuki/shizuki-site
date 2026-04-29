@@ -116,7 +116,11 @@ function normalizeTask(raw) {
     deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
     deadlineRemindUnit: toText(source.deadlineRemindUnit ?? source.deadline_remind_unit, '').toUpperCase(),
     sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
-    updatedAt: source.updatedAt || source.updated_at || ''
+    updatedAt: source.updatedAt || source.updated_at || '',
+    notionPageId: toText(source.notionPageId ?? source.notion_page_id, ''),
+    syncStatusCode: toText(source.syncStatusCode ?? source.sync_status_code, 'LOCAL_ONLY').toUpperCase() || 'LOCAL_ONLY',
+    syncErrorText: toText(source.syncErrorText ?? source.sync_error_text, ''),
+    remoteLastEditedAt: source.remoteLastEditedAt || source.remote_last_edited_at || ''
   };
 }
 
@@ -126,7 +130,30 @@ function normalizeTaskColumn(raw) {
     columnCode: toText(source.columnCode ?? source.column_code, '').toLowerCase(),
     title: toText(source.title, ''),
     sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
-    enabled: toBoolean(source.enabled, true)
+    enabled: toBoolean(source.enabled, true),
+    notionStatusOptionId: toText(source.notionStatusOptionId ?? source.notion_status_option_id, ''),
+    managedBy: toText(source.managedBy ?? source.managed_by, 'LOCAL').toUpperCase() || 'LOCAL'
+  };
+}
+
+function normalizeTaskNotionSyncJob(raw) {
+  const source = toObject(raw);
+  return {
+    jobId: toNumber(source.jobId ?? source.job_id, 0),
+    triggerType: toText(source.triggerType ?? source.trigger_type, '').toUpperCase(),
+    direction: toText(source.direction, '').toUpperCase(),
+    targetType: toText(source.targetType ?? source.target_type, '').toUpperCase(),
+    taskId: toNumber(source.taskId ?? source.task_id, 0) || null,
+    statusCode: toText(source.statusCode ?? source.status_code, 'PENDING').toUpperCase() || 'PENDING',
+    resultCount: toNumber(source.resultCount ?? source.result_count, 0),
+    errorCount: toNumber(source.errorCount ?? source.error_count, 0),
+    skippedCount: toNumber(source.skippedCount ?? source.skipped_count, 0),
+    conflictCount: toNumber(source.conflictCount ?? source.conflict_count, 0),
+    errorText: toText(source.errorText ?? source.error_text, ''),
+    startedAt: source.startedAt || source.started_at || '',
+    finishedAt: source.finishedAt || source.finished_at || '',
+    createdAt: source.createdAt || source.created_at || '',
+    updatedAt: source.updatedAt || source.updated_at || ''
   };
 }
 
@@ -630,6 +657,27 @@ export async function updateLightAppTaskColumns(payload, authorizedFetch) {
     })
   );
   return normalizeList(raw, normalizeTaskColumn);
+}
+
+export async function createLightAppTaskNotionSyncJob(payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch('/api/v1/light-apps/tasks/notion/sync-jobs', {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeTaskNotionSyncJob(raw);
+}
+
+export async function getLightAppTaskNotionSyncJob(jobId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/light-apps/tasks/notion/sync-jobs/${encodeURIComponent(jobId)}`, {
+      method: 'GET'
+    })
+  );
+  return normalizeTaskNotionSyncJob(raw);
 }
 
 export async function listLightAppSchedules(authorizedFetch) {

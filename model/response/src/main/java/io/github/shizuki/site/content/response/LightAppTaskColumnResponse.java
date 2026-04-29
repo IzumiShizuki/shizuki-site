@@ -4,6 +4,8 @@ public record LightAppTaskColumnResponse(
     String columnCode,
     String title,
     int sortNum,
-    boolean enabled
+    boolean enabled,
+    String notionStatusOptionId,
+    String managedBy
 ) {
 }

@@ -35,6 +35,8 @@ import io.github.shizuki.site.content.request.LightAppTaskRecurringRuleUpsertReq
 import io.github.shizuki.site.content.response.LightAppTaskColumnResponse;
 import io.github.shizuki.site.content.request.LightAppTaskColumnsUpdateRequest;
 import io.github.shizuki.site.content.request.LightAppTaskMoveRequest;
+import io.github.shizuki.site.content.request.LightAppTaskNotionSyncJobCreateRequest;
+import io.github.shizuki.site.content.response.LightAppTaskNotionSyncJobResponse;
 import io.github.shizuki.site.content.response.LightAppTaskResponse;
 import io.github.shizuki.site.content.request.LightAppTaskUpsertRequest;
 import io.github.shizuki.site.content.response.LightAppTodoRecurringRuleResponse;
@@ -60,6 +62,7 @@ import io.github.shizuki.site.content.entity.LightAppScheduleEventEntity;
 import io.github.shizuki.site.content.entity.LightAppTaskRecurringRuleEntity;
 import io.github.shizuki.site.content.entity.LightAppTaskColumnEntity;
 import io.github.shizuki.site.content.entity.LightAppTaskEntity;
+import io.github.shizuki.site.content.entity.LightAppTaskNotionSyncJobEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoRecurringRuleEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoEntity;
 import io.github.shizuki.site.content.entity.LightAppUrlLinkEntity;
@@ -81,6 +84,8 @@ import io.github.shizuki.site.content.mapper.LightAppTodoMapper;
 import io.github.shizuki.site.content.mapper.LightAppUrlLinkMapper;
 import io.github.shizuki.site.content.mapper.LightAppWhiteboardMapper;
 import io.github.shizuki.site.content.service.LightAppService;
+import io.github.shizuki.site.content.support.LightAppTaskNotionProperties;
+import io.github.shizuki.site.content.support.LightAppTaskNotionSyncService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
@@ -100,8 +105,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -174,6 +181,9 @@ public class LightAppServiceImpl implements LightAppService {
     private final LightAppScheduleRecurringRuleMapper scheduleRecurringRuleMapper;
     private final LightAppUrlLinkMapper urlLinkMapper;
     private final LightAppWhiteboardMapper whiteboardMapper;
+    private final LightAppTaskNotionProperties taskNotionProperties;
+    private final LightAppTaskNotionSyncService taskNotionSyncService;
+    private final Executor notionSyncExecutor;
     private final RestClient restClient;
 
     public LightAppServiceImpl(
@@ -193,7 +203,10 @@ public class LightAppServiceImpl implements LightAppService {
         LightAppScheduleRecurringRuleMapper scheduleRecurringRuleMapper,
         LightAppUrlLinkMapper urlLinkMapper,
         LightAppWhiteboardMapper whiteboardMapper,
-        RestClient.Builder restClientBuilder
+        RestClient.Builder restClientBuilder,
+        LightAppTaskNotionProperties taskNotionProperties,
+        LightAppTaskNotionSyncService taskNotionSyncService,
+        @Qualifier("notionSyncExecutor") Executor notionSyncExecutor
     ) {
         this.balanceAccountMapper = balanceAccountMapper;
         this.balanceTransactionMapper = balanceTransactionMapper;
@@ -211,6 +224,9 @@ public class LightAppServiceImpl implements LightAppService {
         this.scheduleRecurringRuleMapper = scheduleRecurringRuleMapper;
         this.urlLinkMapper = urlLinkMapper;
         this.whiteboardMapper = whiteboardMapper;
+        this.taskNotionProperties = taskNotionProperties;
+        this.taskNotionSyncService = taskNotionSyncService;
+        this.notionSyncExecutor = notionSyncExecutor;
         this.restClient = restClientBuilder.build();
     }
 
@@ -1024,8 +1040,8 @@ public class LightAppServiceImpl implements LightAppService {
     @Override
     public List<LightAppTaskResponse> listTasks() {
         Long userId = requireLoginUserId();
+        ensureTaskColumnsReady(userId);
         materializeTaskRecurringInstances(userId);
-        ensureDefaultTaskColumns(userId);
         return taskMapper.selectList(new LambdaQueryWrapper<LightAppTaskEntity>()
                 .eq(LightAppTaskEntity::getUserId, userId)
                 .orderByAsc(LightAppTaskEntity::getColumnCode)
@@ -1041,7 +1057,7 @@ public class LightAppServiceImpl implements LightAppService {
     @Transactional
     public LightAppTaskResponse createTask(LightAppTaskUpsertRequest request) {
         Long userId = requireLoginUserId();
-        ensureDefaultTaskColumns(userId);
+        ensureTaskColumnsReady(userId);
         LightAppTaskEntity entity = new LightAppTaskEntity();
         entity.setUserId(userId);
         entity.setProjectId(normalizeProjectId(userId, request.getProjectId()));
@@ -1051,6 +1067,9 @@ public class LightAppServiceImpl implements LightAppService {
         applyTaskTemporalFields(entity, request);
         entity.setSortNum(resolveSortNum(request.getSortNum(), taskMapper.selectMaxSortNumByUserId(userId)));
         taskMapper.insert(entity);
+        entity.setSyncStatusCode(isTaskNotionOwnerScoped(userId) ? LightAppTaskNotionSyncService.SYNC_STATUS_LOCAL_ONLY : null);
+        taskMapper.updateById(entity);
+        runTaskSaveSync(entity.getId());
         return toTaskResponse(requireTask(userId, entity.getId()));
     }
 
@@ -1058,7 +1077,7 @@ public class LightAppServiceImpl implements LightAppService {
     @Transactional
     public LightAppTaskResponse updateTask(Long taskId, LightAppTaskUpsertRequest request) {
         Long userId = requireLoginUserId();
-        ensureDefaultTaskColumns(userId);
+        ensureTaskColumnsReady(userId);
         LightAppTaskEntity entity = requireTask(userId, taskId);
         entity.setProjectId(normalizeProjectId(userId, request.getProjectId()));
         entity.setTitle(normalizeRequiredText(request.getTitle(), "title"));
@@ -1069,6 +1088,7 @@ public class LightAppServiceImpl implements LightAppService {
             entity.setSortNum(request.getSortNum());
         }
         taskMapper.updateById(entity);
+        runTaskSaveSync(taskId);
         return toTaskResponse(requireTask(userId, taskId));
     }
 
@@ -1077,6 +1097,9 @@ public class LightAppServiceImpl implements LightAppService {
     public void deleteTask(Long taskId) {
         Long userId = requireLoginUserId();
         LightAppTaskEntity entity = requireTask(userId, taskId);
+        if (isTaskNotionOwnerScoped(userId)) {
+            taskNotionSyncService.trashRemotePage(entity);
+        }
         taskMapper.deleteById(entity.getId());
     }
 
@@ -1084,13 +1107,14 @@ public class LightAppServiceImpl implements LightAppService {
     @Transactional
     public LightAppTaskResponse moveTask(LightAppTaskMoveRequest request) {
         Long userId = requireLoginUserId();
-        ensureDefaultTaskColumns(userId);
+        ensureTaskColumnsReady(userId);
         LightAppTaskEntity entity = requireTask(userId, request.getTaskId());
         entity.setColumnCode(resolveColumnCode(userId, request.getColumnCode(), true));
         if (request.getSortNum() != null) {
             entity.setSortNum(request.getSortNum());
         }
         taskMapper.updateById(entity);
+        runTaskSaveSync(entity.getId());
         return toTaskResponse(requireTask(userId, entity.getId()));
     }
 
@@ -1111,7 +1135,7 @@ public class LightAppServiceImpl implements LightAppService {
     @Transactional
     public LightAppTaskRecurringRuleResponse createTaskRecurringRule(LightAppTaskRecurringRuleUpsertRequest request) {
         Long userId = requireLoginUserId();
-        ensureDefaultTaskColumns(userId);
+        ensureTaskColumnsReady(userId);
         LightAppTaskRecurringRuleEntity entity = new LightAppTaskRecurringRuleEntity();
         entity.setUserId(userId);
         applyTaskRecurringRuleUpsert(entity, request, userId);
@@ -1124,7 +1148,7 @@ public class LightAppServiceImpl implements LightAppService {
     @Transactional
     public LightAppTaskRecurringRuleResponse updateTaskRecurringRule(Long ruleId, LightAppTaskRecurringRuleUpsertRequest request) {
         Long userId = requireLoginUserId();
-        ensureDefaultTaskColumns(userId);
+        ensureTaskColumnsReady(userId);
         LightAppTaskRecurringRuleEntity entity = requireTaskRecurringRule(userId, ruleId);
         applyTaskRecurringRuleUpsert(entity, request, userId);
         if (request.getSortNum() != null) {
@@ -1145,7 +1169,7 @@ public class LightAppServiceImpl implements LightAppService {
     @Override
     public List<LightAppTaskColumnResponse> listTaskColumns() {
         Long userId = requireLoginUserId();
-        ensureDefaultTaskColumns(userId);
+        ensureTaskColumnsReady(userId);
         return taskColumnMapper.selectList(new LambdaQueryWrapper<LightAppTaskColumnEntity>()
                 .eq(LightAppTaskColumnEntity::getUserId, userId)
                 .orderByAsc(LightAppTaskColumnEntity::getSortNum)
@@ -1159,7 +1183,10 @@ public class LightAppServiceImpl implements LightAppService {
     @Transactional
     public List<LightAppTaskColumnResponse> updateTaskColumns(LightAppTaskColumnsUpdateRequest request) {
         Long userId = requireLoginUserId();
-        ensureDefaultTaskColumns(userId);
+        ensureTaskColumnsReady(userId);
+        if (isTaskNotionOwnerScoped(userId)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "Task columns are managed by Notion");
+        }
         List<LightAppTaskColumnsUpdateRequest.Item> items = request == null ? List.of() : request.getColumns();
         if (items == null || items.isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "columns are required");
@@ -1215,6 +1242,52 @@ public class LightAppServiceImpl implements LightAppService {
         }
 
         return listTaskColumns();
+    }
+
+    @Override
+    public LightAppTaskNotionSyncJobResponse createTaskNotionSyncJob(LightAppTaskNotionSyncJobCreateRequest request) {
+        Long userId = requireLoginUserId();
+        requireTaskNotionOwnerOperator(userId);
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Request body is required");
+        }
+
+        String directionCode = normalizeTaskNotionSyncDirection(request.getDirection());
+        String targetTypeCode = normalizeTaskNotionSyncTargetType(request.getTargetType());
+        Long targetTaskId = LightAppTaskNotionSyncService.TARGET_TASK.equals(targetTypeCode) ? request.getTaskId() : null;
+        if (LightAppTaskNotionSyncService.TARGET_TASK.equals(targetTypeCode)) {
+            if (targetTaskId == null || targetTaskId <= 0) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "task_id is required for target_type=TASK");
+            }
+            requireOwnerTask(targetTaskId);
+        }
+
+        LightAppTaskNotionSyncJobEntity job = taskNotionSyncService.createJob(
+            LightAppTaskNotionSyncService.JOB_TRIGGER_MANUAL,
+            directionCode,
+            targetTypeCode,
+            targetTaskId,
+            taskNotionProperties.getOwnerUserId()
+        );
+        notionSyncExecutor.execute(() -> taskNotionSyncService.executeJob(job.getId()));
+        return toTaskNotionSyncJobResponse(job);
+    }
+
+    @Override
+    public LightAppTaskNotionSyncJobResponse getTaskNotionSyncJob(Long jobId) {
+        Long userId = requireLoginUserId();
+        requireTaskNotionOwnerOperator(userId);
+        if (jobId == null || jobId <= 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "job_id is required");
+        }
+        LightAppTaskNotionSyncJobEntity job = taskNotionSyncService.getJob(jobId);
+        if (job == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Task notion sync job not found");
+        }
+        if (!Objects.equals(job.getOwnerUserId(), taskNotionProperties.getOwnerUserId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this sync job");
+        }
+        return toTaskNotionSyncJobResponse(job);
     }
 
     @Override
@@ -1927,6 +2000,14 @@ public class LightAppServiceImpl implements LightAppService {
             entity.setEnabled(true);
             taskColumnMapper.insert(entity);
         }
+    }
+
+    private void ensureTaskColumnsReady(Long userId) {
+        if (isTaskNotionOwnerScoped(userId)) {
+            taskNotionSyncService.ensureColumnMirrorInitialized();
+            return;
+        }
+        ensureDefaultTaskColumns(userId);
     }
 
     private String resolveColumnCode(Long userId, String rawColumnCode, boolean strict) {
@@ -3266,7 +3347,11 @@ public class LightAppServiceImpl implements LightAppService {
             entity.getDeadlineRemindValue(),
             entity.getDeadlineRemindUnitCode() == null ? null : normalizeReminderUnit(entity.getDeadlineRemindUnitCode()),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
-            entity.getUpdatedAt()
+            entity.getUpdatedAt(),
+            readStringOrDefault(entity.getNotionPageId(), ""),
+            readStringOrDefault(entity.getSyncStatusCode(), LightAppTaskNotionSyncService.SYNC_STATUS_LOCAL_ONLY),
+            readStringOrDefault(entity.getSyncErrorText(), ""),
+            entity.getNotionLastEditedTime()
         );
     }
 
@@ -3275,7 +3360,11 @@ public class LightAppServiceImpl implements LightAppService {
             entity.getColumnCode(),
             entity.getTitle(),
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
-            Boolean.TRUE.equals(entity.getEnabled())
+            Boolean.TRUE.equals(entity.getEnabled()),
+            readStringOrDefault(entity.getNotionStatusOptionId(), ""),
+            Boolean.TRUE.equals(entity.getNotionManaged())
+                ? LightAppTaskNotionSyncService.MANAGED_BY_NOTION
+                : LightAppTaskNotionSyncService.MANAGED_BY_LOCAL
         );
     }
 
@@ -3302,6 +3391,102 @@ public class LightAppServiceImpl implements LightAppService {
             entity.getSortNum() == null ? 0 : entity.getSortNum(),
             entity.getUpdatedAt()
         );
+    }
+
+    private void runTaskSaveSync(Long taskId) {
+        if (taskId == null || taskId <= 0 || !taskNotionProperties.isConfigured()) {
+            return;
+        }
+        LightAppTaskEntity task = taskMapper.selectById(taskId);
+        if (task == null || !isTaskNotionOwnerScoped(task.getUserId())) {
+            return;
+        }
+        try {
+            LightAppTaskNotionSyncJobEntity job = taskNotionSyncService.createJob(
+                LightAppTaskNotionSyncService.JOB_TRIGGER_SAVE,
+                LightAppTaskNotionSyncService.DIRECTION_PUSH,
+                LightAppTaskNotionSyncService.TARGET_TASK,
+                taskId,
+                taskNotionProperties.getOwnerUserId()
+            );
+            taskNotionSyncService.executeJob(job.getId());
+        } catch (Exception exception) {
+            task.setSyncStatusCode(LightAppTaskNotionSyncService.SYNC_STATUS_SYNC_ERROR);
+            task.setSyncErrorText(readStringOrDefault(exception.getMessage(), "Task notion sync failed"));
+            task.setUpdatedAt(LocalDateTime.now());
+            taskMapper.updateById(task);
+        }
+    }
+
+    private boolean isTaskNotionOwnerScoped(Long userId) {
+        return taskNotionProperties.isConfigured()
+            && userId != null
+            && Objects.equals(userId, taskNotionProperties.getOwnerUserId());
+    }
+
+    private void requireTaskNotionOwnerOperator(Long userId) {
+        if (!taskNotionProperties.isConfigured()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Task notion integration is not configured");
+        }
+        if (Objects.equals(userId, taskNotionProperties.getOwnerUserId())) {
+            return;
+        }
+        throw new BusinessException(ErrorCode.FORBIDDEN, "Only the notion owner can operate task sync jobs");
+    }
+
+    private LightAppTaskEntity requireOwnerTask(Long taskId) {
+        LightAppTaskEntity task = taskMapper.selectById(taskId);
+        if (task == null || !Objects.equals(task.getUserId(), taskNotionProperties.getOwnerUserId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Owner task not found");
+        }
+        return task;
+    }
+
+    private String normalizeTaskNotionSyncDirection(String raw) {
+        String normalized = readStringOrDefault(raw, LightAppTaskNotionSyncService.DIRECTION_BOTH).trim().toUpperCase(Locale.ROOT);
+        if (LightAppTaskNotionSyncService.DIRECTION_PULL.equals(normalized)
+            || LightAppTaskNotionSyncService.DIRECTION_PUSH.equals(normalized)
+            || LightAppTaskNotionSyncService.DIRECTION_BOTH.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported sync direction");
+    }
+
+    private String normalizeTaskNotionSyncTargetType(String raw) {
+        String normalized = readStringOrDefault(raw, LightAppTaskNotionSyncService.TARGET_TASK).trim().toUpperCase(Locale.ROOT);
+        if (LightAppTaskNotionSyncService.TARGET_TASK.equals(normalized)
+            || LightAppTaskNotionSyncService.TARGET_ALL.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported sync target type");
+    }
+
+    private LightAppTaskNotionSyncJobResponse toTaskNotionSyncJobResponse(LightAppTaskNotionSyncJobEntity job) {
+        if (job == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Task notion sync job not found");
+        }
+        return new LightAppTaskNotionSyncJobResponse(
+            job.getId(),
+            readStringOrDefault(job.getTriggerType(), ""),
+            readStringOrDefault(job.getDirectionCode(), ""),
+            readStringOrDefault(job.getTargetTypeCode(), ""),
+            job.getTaskId(),
+            readStringOrDefault(job.getStatusCode(), LightAppTaskNotionSyncService.JOB_STATUS_PENDING),
+            job.getResultCount() == null ? 0 : job.getResultCount(),
+            job.getErrorCount() == null ? 0 : job.getErrorCount(),
+            job.getSkippedCount() == null ? 0 : job.getSkippedCount(),
+            job.getConflictCount() == null ? 0 : job.getConflictCount(),
+            readStringOrDefault(job.getErrorText(), ""),
+            job.getStartedTime(),
+            job.getFinishedTime(),
+            job.getCreatedAt(),
+            job.getUpdatedAt()
+        );
+    }
+
+    private String readStringOrDefault(String value, String fallback) {
+        String normalized = String.valueOf(value == null ? fallback : value).trim();
+        return StringUtils.hasText(normalized) ? normalized : fallback;
     }
 
     private record DefaultTaskColumn(String code, String title, int sortNum) {

@@ -6,7 +6,10 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.site.content.response.LightAppBalanceAnalyticsResponse;
 import io.github.shizuki.site.content.request.LightAppPomodoroUpsertRequest;
+import io.github.shizuki.site.content.request.LightAppTaskColumnsUpdateRequest;
 import io.github.shizuki.site.content.request.LightAppTodoReorderRequest;
+import io.github.shizuki.site.content.support.LightAppTaskNotionProperties;
+import io.github.shizuki.site.content.support.LightAppTaskNotionSyncService;
 import io.github.shizuki.site.content.entity.LightAppBalanceTransactionEntity;
 import io.github.shizuki.site.content.entity.LightAppFxRateEntity;
 import io.github.shizuki.site.content.entity.LightAppTodoEntity;
@@ -31,6 +34,7 @@ import io.github.shizuki.site.content.service.impl.LightAppServiceImpl;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -98,6 +102,15 @@ class LightAppServiceImplTest {
 
     @Mock
     private RestClient restClient;
+
+    @Mock
+    private LightAppTaskNotionProperties taskNotionProperties;
+
+    @Mock
+    private LightAppTaskNotionSyncService taskNotionSyncService;
+
+    @Mock
+    private Executor notionSyncExecutor;
 
     @InjectMocks
     private LightAppServiceImpl lightAppService;
@@ -250,5 +263,27 @@ class LightAppServiceImplTest {
         Assertions.assertEquals(1, response.incomeCategoryBreakdown().size());
         Assertions.assertEquals("其他", response.incomeCategoryBreakdown().get(0).categoryName());
         Assertions.assertEquals(new BigDecimal("100.0000"), response.incomeCategoryBreakdown().get(0).ratioPercent());
+    }
+
+    @Test
+    void shouldRejectTaskColumnsUpdateWhenNotionManagedByOwner() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+        Mockito.when(taskNotionProperties.isConfigured()).thenReturn(true);
+        Mockito.when(taskNotionProperties.getOwnerUserId()).thenReturn(7L);
+
+        LightAppTaskColumnsUpdateRequest request = new LightAppTaskColumnsUpdateRequest();
+        LightAppTaskColumnsUpdateRequest.Item item = new LightAppTaskColumnsUpdateRequest.Item();
+        item.setColumnCode("todo");
+        item.setTitle("待处理");
+        item.setSortNum(10);
+        item.setEnabled(true);
+        request.setColumns(List.of(item));
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> lightAppService.updateTaskColumns(request)
+        );
+        Assertions.assertEquals(ErrorCode.CONFLICT, exception.getErrorCode());
+        Mockito.verify(taskNotionSyncService).ensureColumnMirrorInitialized();
     }
 }

@@ -103,7 +103,11 @@ function normalizeTasks(raw) {
         deadlineRemindValue: toNumber(source.deadlineRemindValue ?? source.deadline_remind_value, 0) || null,
         deadlineRemindUnit: String(source.deadlineRemindUnit ?? source.deadline_remind_unit ?? '').trim().toUpperCase(),
         sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
-        updatedAt: source.updatedAt || source.updated_at || ''
+        updatedAt: source.updatedAt || source.updated_at || '',
+        notionPageId: String(source.notionPageId ?? source.notion_page_id ?? '').trim(),
+        syncStatusCode: String(source.syncStatusCode ?? source.sync_status_code ?? 'LOCAL_ONLY').trim().toUpperCase() || 'LOCAL_ONLY',
+        syncErrorText: String(source.syncErrorText ?? source.sync_error_text ?? '').trim(),
+        remoteLastEditedAt: source.remoteLastEditedAt || source.remote_last_edited_at || ''
       };
     })
     .filter(Boolean)
@@ -123,7 +127,9 @@ function normalizeTaskColumns(raw) {
         columnCode,
         title: String(source.title || '').trim() || columnCode,
         sortNum: toNumber(source.sortNum ?? source.sort_num, 0),
-        enabled: toBoolean(source.enabled, true)
+        enabled: toBoolean(source.enabled, true),
+        notionStatusOptionId: String(source.notionStatusOptionId ?? source.notion_status_option_id ?? '').trim(),
+        managedBy: String(source.managedBy ?? source.managed_by ?? 'LOCAL').trim().toUpperCase() || 'LOCAL'
       };
     })
     .filter(Boolean)

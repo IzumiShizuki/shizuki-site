@@ -139,6 +139,29 @@ shizuki:
         author-user-id: "AuthorUserId"
         published-at: "PublishedAt"
         allowed-groups: "AllowedGroups"
+  light-app:
+    task:
+      notion:
+        enabled: false
+        token: "<NOTION_INTERNAL_TOKEN>"
+        data-source-id: "<NOTION_TASK_DATA_SOURCE_ID>"
+        owner-user-id: 1
+        version: "2026-03-11"
+        api-base-url: "https://api.notion.com/v1"
+        rate-limit-per-second: 2
+        connect-timeout-ms: 1500
+        read-timeout-ms: 4000
+        retry-count: 2
+        retry-backoff-ms: 250
+        retry-max-backoff-ms: 2000
+        nightly-cron: "0 0 3 * * *"
+        timezone: "Asia/Shanghai"
+        properties:
+          title: "Name"
+          status: "Status"
+          project-code: "ProjectCode"
+          schedule: "Schedule"
+          show-on-calendar: "ShowOnCalendar"
   auth:
     jwt:
       secret: "<AUTH_JWT_SECRET>"
