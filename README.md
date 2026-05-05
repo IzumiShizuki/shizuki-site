@@ -16,7 +16,7 @@ Shizuki Site 是一个"长期生活系统"型个人站点，提供：
 ### 后端
 - **语言与框架**：Java 17 + Spring Boot 3.2.x
 - **架构形态**：单体应用 + 业务模块化（Monolith Modular）
-- **数据访问**：MyBatis-Plus + MySQL 8
+- **数据访问**：MyBatis-Plus + PostgreSQL 16
 - **缓存与会话**：Redis 7
 - **对象存储**：阿里云 OSS
 - **安全认证**：Sa-Token
@@ -41,7 +41,7 @@ Shizuki Site 是一个"长期生活系统"型个人站点，提供：
 1. **启动中间件**
 ```bash
 ./scripts/up-middleware.sh
-# 或手动：docker compose up -d mysql redis
+# 或手动：docker compose up -d postgres redis
 ```
 
 2. **构建项目**
@@ -195,7 +195,7 @@ git commit -m "📝 docs : 更新 API 文档"
 
 ### 资源要求
 - **最低配置**：单机 8GB 内存
-- **中间件**：MySQL (1.2-1.6GB) + Redis (0.25-0.5GB)
+- **中间件**：PostgreSQL (1.2-1.6GB) + Redis (0.25-0.5GB)
 - **应用服务**：单体应用约 1.2-2.0GB（视 profile 与流量而定）
 - **系统预留**：1.0-1.4GB
 
@@ -228,9 +228,9 @@ cp resouces/yaml/middleware-config.example.yaml resouces/yaml/middleware-config.
 
 数据库初始化建议：
 
-1. 先执行 `resouces/sql/00_init_databases.sql`（创建 `shizuki_app` 库）。
-2. 启动应用，让 Flyway 自动执行 `apps/monolith-app/src/main/resources/monolith/db/migration/*.sql`。
-3. 若你不走 Flyway（不推荐），可手工执行 `resouces/sql/shizuki_app.sql` 直接初始化整库结构和种子数据。
+1. 新环境优先使用 PostgreSQL，并配置 `DB_URL=jdbc:postgresql://<host>:5432/shizuki_app`。
+2. 启动应用，让 Flyway 执行 `apps/monolith-app/src/main/resources/monolith/db/migration-pg/*.sql`。
+3. 历史 MySQL 迁移请使用 `scripts/migrate_mysql_to_postgres.sh`，并在切换前执行 `scripts/verify_mysql_postgres_consistency.sh`。
 
 ## 许可证
 

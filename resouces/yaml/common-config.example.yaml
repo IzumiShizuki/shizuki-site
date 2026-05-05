@@ -7,13 +7,14 @@
 middleware:
   host: "<MIDDLEWARE_HOST>"
   ports:
+    postgres: 5432
     mysql: 3306
     redis: 6379
     kafka: 9092
 
 spring:
   datasource:
-    # Example: jdbc:mysql://<host>:3306/shizuki_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    # Example: jdbc:postgresql://<host>:5432/shizuki_app
     url: "<DB_URL>"
     username: "<DB_USERNAME>"
     password: "<DB_PASSWORD>"

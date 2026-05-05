@@ -1,22 +1,35 @@
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: shizuki-mysql
+  meting-api:
+    build:
+      context: .
+      dockerfile: tools/meting-sidecar/Dockerfile
+    image: ${METING_API_IMAGE:-shizuki-site/meting-api:latest}
+    container_name: shizuki-meting-api
+    profiles: [ "app" ]
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      TZ: Asia/Shanghai
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --default-time-zone=+08:00
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql-data:/var/lib/mysql
-      - ./resouces/sql/00_init_databases.sql:/docker-entrypoint-initdb.d/00_init_databases.sql:ro
+      METING_ALLOWED_PROVIDERS: ${METING_ALLOWED_PROVIDERS:-netease,kuwo,qq}
     healthcheck:
-      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent" ]
+      test: [ "CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1/health') !== false ? 0 : 1);\"" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16
+    container_name: shizuki-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shizuki_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d shizuki_app" ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -68,20 +81,23 @@ services:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      DB_URL: jdbc:mysql://mysql:3306/shizuki_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
-      DB_USERNAME: root
-      DB_PASSWORD: root
+      MUSIC_METING_BASE_URL: ${MUSIC_METING_BASE_URL:-http://meting-api}
+      DB_URL: jdbc:postgresql://postgres:5432/shizuki_app
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       AUDIT_PUBLISHER_TYPE: ${AUDIT_PUBLISHER_TYPE:-noop}
       AUDIT_KAFKA_TOPIC: shizuki.audit.log
     depends_on:
-      mysql:
+      meting-api:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
 volumes:
-  mysql-data:
+  postgres-data:
   redis-data:
