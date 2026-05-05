@@ -5,36 +5,61 @@
         v-for="win in visibleWindows"
         :key="win.id"
         class="light-window liquid-material"
+        :class="{
+          'is-minimized': win.minimized,
+          'is-active': Number(win.id) === activeWindowId
+        }"
+        :data-window-id="win.id"
+        :data-window-code="win.code"
         :style="windowStyle(win)"
-        @pointerdown="focusById(win.id)"
+        @pointerdown="handleWindowPointerDown($event, win.id)"
       >
-        <header class="window-header" @pointerdown="startDrag($event, win)">
-          <div class="window-left">
-            <div class="window-title">
-              <i :class="win.iconClass" aria-hidden="true"></i>
-              <span>{{ win.title }}</span>
-              <small v-if="win.pinned" class="pin-hint">主页固定</small>
+        <header class="window-header">
+          <div class="window-head-row">
+            <div class="window-drag-zone" @pointerdown="startDrag($event, win)">
+              <div class="window-title">
+                <i :class="win.iconClass" aria-hidden="true"></i>
+                <span>{{ win.title }}</span>
+                <small v-if="win.pinned" class="pin-hint">主页固定</small>
+              </div>
             </div>
-
-            <div :id="headerPortalTargetId(win.id)" class="window-context-slot window-toolbar-interactive"></div>
           </div>
 
-          <div class="window-actions">
-            <button class="icon-btn ripple-trigger" :title="win.pinned ? '取消固定' : '固定到主页'" @pointerdown.stop @click.stop="togglePinned(win.id)">
+          <div class="window-actions-zone" @pointerdown.stop>
+            <button
+              class="icon-btn icon-btn-action ripple-trigger"
+              :title="win.pinned ? '取消固定' : '固定到主页'"
+              type="button"
+              @pointerdown.stop="handleActionPointerDown($event, win.id)"
+              @click.stop.prevent="handleActionClick('pin', win.id)"
+            >
               <i :class="win.pinned ? 'fas fa-thumbtack' : 'fas fa-thumbtack fa-rotate-90'" aria-hidden="true"></i>
             </button>
-            <button class="icon-btn ripple-trigger" :title="win.minimized ? '还原' : '最小化'" @pointerdown.stop @click.stop="toggleMinimized(win.id)">
+            <button
+              class="icon-btn icon-btn-action ripple-trigger"
+              :title="win.minimized ? '还原' : '最小化'"
+              type="button"
+              @pointerdown.stop="handleActionPointerDown($event, win.id)"
+              @click.stop.prevent="handleActionClick('minimize', win.id)"
+            >
               <i :class="win.minimized ? 'fas fa-up-right-and-down-left-from-center' : 'fas fa-window-minimize'" aria-hidden="true"></i>
             </button>
             <button
-              class="icon-btn ripple-trigger"
+              class="icon-btn icon-btn-action ripple-trigger"
               title="关闭"
-              @pointerdown.stop.prevent="closeByPointer($event, win.id)"
-              @click.stop.prevent="closeById(win.id)"
+              type="button"
+              @pointerdown.stop="handleActionPointerDown($event, win.id)"
+              @click.stop.prevent="handleActionClick('close', win.id)"
             >
               <i class="fas fa-xmark" aria-hidden="true"></i>
             </button>
           </div>
+
+          <div
+            :id="headerPortalTargetId(win.id)"
+            class="window-toolbar-zone window-toolbar-hit"
+            @pointerdown.stop
+          ></div>
         </header>
 
         <Transition name="window-collapse">
@@ -46,7 +71,7 @@
         <Transition name="window-collapse">
           <button
             v-if="!win.minimized"
-            class="window-resize"
+            class="window-resize-handle"
             type="button"
             title="拖拽缩放"
             @pointerdown.stop.prevent="startResize($event, win)"
@@ -61,60 +86,29 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive } from 'vue';
-import { getLightAppByCode } from '../../utils/lightAppsCatalog';
-import { LIGHT_APP_WINDOW_OPEN_EVENT } from '../../utils/lightAppWindowBus';
-import {
-  closeWindow,
-  createWindowRuntimeState,
-  focusWindow,
-  getVisibleWindows,
-  openOrFocusWindow,
-  setWindowMinimized,
-  setWindowRect,
-  toggleWindowPinned
-} from '../../utils/lightAppWindowRuntime';
 import PomodoroWindow from './pomodoro/PomodoroWindow.vue';
-import {
-  releasePomodoroWindowState
-} from './pomodoro/pomodoroWindowState';
 import BalanceLedgerWindow from './balance/BalanceLedgerWindow.vue';
-import {
-  releaseBalanceWindowState
-} from './balance/balanceWindowState';
 import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
-import {
-  releaseTimePrismSuiteSession,
-  resolveTimePrismSuiteSession,
-  setSuiteActiveModule
-} from './timeprism/timePrismSuiteState';
-import { emitTimePrismFocusItem } from './timeprism/timePrismFocusBus';
 import UrlLinksWindow from './url/UrlLinksWindow.vue';
 import BoardCanvasWindow from './board/BoardCanvasWindow.vue';
 import BlogSlidevWindow from './blog/BlogSlidevWindow.vue';
 import {
-  releaseBlogPresentationWindowState,
-  setBlogPresentationWindowEntry
-} from './blog/blogPresentationWindowState';
+  closeLightAppWindow,
+  focusLightAppWindow,
+  getVisibleLightAppWindows,
+  releaseLightAppShell,
+  resolveLightAppHeaderPortalId,
+  retainLightAppShell,
+  setLightAppWindowRect,
+  toggleLightAppWindowMinimized,
+  toggleLightAppWindowPinned
+} from './lightAppShellStore';
 
 const props = defineProps({
   isHomeRoute: {
     type: Boolean,
     default: false
   }
-});
-
-const state = reactive(createWindowRuntimeState());
-
-const interaction = reactive({
-  mode: '',
-  windowId: 0,
-  pointerId: 0,
-  startX: 0,
-  startY: 0,
-  originX: 0,
-  originY: 0,
-  originWidth: 0,
-  originHeight: 0
 });
 
 const componentMap = Object.freeze({
@@ -126,7 +120,35 @@ const componentMap = Object.freeze({
   'blog-slidev': BlogSlidevWindow
 });
 
-const visibleWindows = computed(() => getVisibleWindows(state, props.isHomeRoute));
+const WINDOW_INTERACTIVE_SELECTOR = 'button, input, select, textarea, a, [role="button"], [contenteditable], .window-toolbar-hit';
+
+const interaction = reactive({
+  mode: '',
+  windowId: 0,
+  pointerId: 0,
+  startX: 0,
+  startY: 0,
+  originX: 0,
+  originY: 0,
+  originWidth: 0,
+  originHeight: 0,
+  captureTarget: null
+});
+
+const visibleWindows = computed(() => getVisibleLightAppWindows(props.isHomeRoute));
+
+const activeWindowId = computed(() => {
+  const windows = Array.isArray(visibleWindows.value) ? visibleWindows.value : [];
+  let maxZ = -Infinity;
+  let id = 0;
+  windows.forEach((item) => {
+    const z = Number(item?.zIndex);
+    if (!Number.isFinite(z) || z < maxZ) return;
+    maxZ = z;
+    id = Number(item?.id) || 0;
+  });
+  return id;
+});
 
 function viewport() {
   if (typeof window === 'undefined') {
@@ -138,10 +160,14 @@ function viewport() {
   };
 }
 
-function replaceState(next) {
-  state.nextId = next.nextId;
-  state.nextZIndex = next.nextZIndex;
-  state.windows = next.windows;
+function isPrimaryPointer(event) {
+  if (!event) return true;
+  if (typeof event.button !== 'number') return true;
+  return Number(event.button) === 0;
+}
+
+function isInteractiveTarget(target) {
+  return Boolean(target?.closest?.(WINDOW_INTERACTIVE_SELECTOR));
 }
 
 function resolveWindowComponent(code) {
@@ -159,209 +185,179 @@ function windowStyle(win) {
 }
 
 function headerPortalTargetId(windowId) {
-  const normalized = Number(windowId);
-  return `lightapp-header-portal-${Number.isInteger(normalized) && normalized > 0 ? normalized : 0}`;
+  return resolveLightAppHeaderPortalId(windowId);
 }
 
 function focusById(windowId) {
-  replaceState(focusWindow(state, windowId));
+  focusLightAppWindow(windowId);
+}
+
+function handleWindowPointerDown(event, windowId) {
+  if (!isPrimaryPointer(event)) return;
+  focusById(windowId);
+}
+
+function handleActionPointerDown(event, windowId) {
+  if (!isPrimaryPointer(event)) return;
+  event.stopPropagation();
+  focusById(windowId);
 }
 
 function closeById(windowId) {
   if (interaction.windowId === Number(windowId)) {
     clearInteraction();
   }
-  releaseWindowLinkedState(windowId);
-  replaceState(closeWindow(state, windowId));
+  closeLightAppWindow(windowId);
 }
 
-function closeByPointer(event, windowId) {
-  if (Number(event?.button) !== 0) return;
-  closeById(windowId);
+function handleActionClick(action, windowId) {
+  const normalized = String(action || '').trim().toLowerCase();
+  focusById(windowId);
+
+  if (normalized === 'pin') {
+    toggleLightAppWindowPinned(windowId);
+    return;
+  }
+  if (normalized === 'minimize') {
+    toggleLightAppWindowMinimized(windowId);
+    return;
+  }
+  if (normalized === 'close') {
+    closeById(windowId);
+  }
 }
 
-function togglePinned(windowId) {
-  replaceState(toggleWindowPinned(state, windowId));
+function bindInteractionListeners(target) {
+  if (!target || typeof target.addEventListener !== 'function') return;
+  target.addEventListener('pointermove', onInteractionPointerMove);
+  target.addEventListener('pointerup', onInteractionPointerUp);
+  target.addEventListener('pointercancel', onInteractionPointerCancel);
+  window.addEventListener('blur', onInteractionPointerCancel);
 }
 
-function toggleMinimized(windowId) {
-  const target = state.windows.find((item) => item.id === Number(windowId));
-  if (!target) return;
-  replaceState(setWindowMinimized(state, windowId, !target.minimized));
+function unbindInteractionListeners(target) {
+  if (target && typeof target.removeEventListener === 'function') {
+    target.removeEventListener('pointermove', onInteractionPointerMove);
+    target.removeEventListener('pointerup', onInteractionPointerUp);
+    target.removeEventListener('pointercancel', onInteractionPointerCancel);
+  }
+  window.removeEventListener('blur', onInteractionPointerCancel);
+}
+
+function beginInteraction(mode, event, win) {
+  if (!win || !mode || !isPrimaryPointer(event)) return;
+  const pointerId = Number(event.pointerId) || 0;
+  const captureTarget = event.currentTarget && typeof event.currentTarget === 'object' ? event.currentTarget : window;
+
+  clearInteraction();
+
+  interaction.mode = mode;
+  interaction.windowId = Number(win.id) || 0;
+  interaction.pointerId = pointerId;
+  interaction.startX = Number(event.clientX) || 0;
+  interaction.startY = Number(event.clientY) || 0;
+  interaction.originX = Number(win.x) || 0;
+  interaction.originY = Number(win.y) || 0;
+  interaction.originWidth = Number(win.width) || 0;
+  interaction.originHeight = Number(win.height) || 0;
+  interaction.captureTarget = captureTarget;
+
+  if (pointerId && typeof captureTarget?.setPointerCapture === 'function') {
+    try {
+      captureTarget.setPointerCapture(pointerId);
+    } catch {
+      // ignore pointer capture failures
+    }
+  }
+
+  bindInteractionListeners(captureTarget);
 }
 
 function startDrag(event, win) {
-  if (!win || event.button !== 0) return;
-  if (event.target?.closest?.('button, input, select, label, .window-toolbar-interactive')) return;
-
-  clearInteraction();
-  interaction.mode = 'drag';
-  interaction.windowId = win.id;
-  interaction.pointerId = event.pointerId;
-  interaction.startX = event.clientX;
-  interaction.startY = event.clientY;
-  interaction.originX = win.x;
-  interaction.originY = win.y;
-
+  if (!win || !isPrimaryPointer(event)) return;
+  if (isInteractiveTarget(event?.target)) return;
   focusById(win.id);
-  bindInteractionListeners();
+  beginInteraction('drag', event, win);
 }
 
 function startResize(event, win) {
-  if (!win || event.button !== 0) return;
-
-  clearInteraction();
-  interaction.mode = 'resize';
-  interaction.windowId = win.id;
-  interaction.pointerId = event.pointerId;
-  interaction.startX = event.clientX;
-  interaction.startY = event.clientY;
-  interaction.originWidth = win.width;
-  interaction.originHeight = win.height;
-
+  if (!win || !isPrimaryPointer(event)) return;
   focusById(win.id);
-  bindInteractionListeners();
+  beginInteraction('resize', event, win);
 }
 
-function onPointerMove(event) {
+function onInteractionPointerMove(event) {
   if (!interaction.mode) return;
-  if (interaction.pointerId && event.pointerId !== interaction.pointerId) return;
+  if (interaction.pointerId && Number(event?.pointerId) !== interaction.pointerId) return;
 
-  const dx = event.clientX - interaction.startX;
-  const dy = event.clientY - interaction.startY;
+  const dx = (Number(event?.clientX) || 0) - interaction.startX;
+  const dy = (Number(event?.clientY) || 0) - interaction.startY;
 
   if (interaction.mode === 'drag') {
-    replaceState(
-      setWindowRect(
-        state,
-        interaction.windowId,
-        {
-          x: interaction.originX + dx,
-          y: interaction.originY + dy
-        },
-        viewport()
-      )
+    setLightAppWindowRect(
+      interaction.windowId,
+      {
+        x: interaction.originX + dx,
+        y: interaction.originY + dy
+      },
+      viewport()
     );
     return;
   }
 
   if (interaction.mode === 'resize') {
-    replaceState(
-      setWindowRect(
-        state,
-        interaction.windowId,
-        {
-          width: interaction.originWidth + dx,
-          height: interaction.originHeight + dy
-        },
-        viewport()
-      )
+    setLightAppWindowRect(
+      interaction.windowId,
+      {
+        width: interaction.originWidth + dx,
+        height: interaction.originHeight + dy
+      },
+      viewport()
     );
   }
 }
 
-function onPointerUp(event) {
-  if (!interaction.mode) return;
-  if (interaction.pointerId && event.pointerId !== interaction.pointerId) return;
-
-  clearInteraction();
-}
-
-function onPointerCancel() {
-  if (!interaction.mode) return;
-  clearInteraction();
-}
-
-function bindInteractionListeners() {
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
-  window.addEventListener('pointercancel', onPointerCancel);
-  window.addEventListener('blur', onPointerCancel);
-}
-
 function clearInteraction() {
+  if (interaction.captureTarget && interaction.pointerId && typeof interaction.captureTarget.releasePointerCapture === 'function') {
+    try {
+      interaction.captureTarget.releasePointerCapture(interaction.pointerId);
+    } catch {
+      // ignore pointer release failures
+    }
+  }
+
+  unbindInteractionListeners(interaction.captureTarget || window);
+
   interaction.mode = '';
   interaction.windowId = 0;
   interaction.pointerId = 0;
-  window.removeEventListener('pointermove', onPointerMove);
-  window.removeEventListener('pointerup', onPointerUp);
-  window.removeEventListener('pointercancel', onPointerCancel);
-  window.removeEventListener('blur', onPointerCancel);
+  interaction.startX = 0;
+  interaction.startY = 0;
+  interaction.originX = 0;
+  interaction.originY = 0;
+  interaction.originWidth = 0;
+  interaction.originHeight = 0;
+  interaction.captureTarget = null;
 }
 
-function openFromEvent(event) {
-  const code = String(event?.detail?.code || '').trim();
-  if (!code) return;
-  const app = getLightAppByCode(code);
-  if (!app) return;
-  const next = openOrFocusWindow(state, app, viewport());
-  replaceState(next);
-  const targetWindowId = next.windows.find((item) => item.code === code)?.id || 0;
-
-  if (code === 'timeprism-todo') {
-    const windowId = targetWindowId;
-    const moduleCode = String(event?.detail?.moduleCode || '').trim().toLowerCase();
-    if (windowId && moduleCode) {
-      setSuiteActiveModule(resolveTimePrismSuiteSession(windowId), moduleCode);
-    }
-    const focusItemId = Number(event?.detail?.focusItemId) || 0;
-    if (focusItemId > 0 && moduleCode) {
-      emitTimePrismFocusItem({ moduleCode, itemId: focusItemId });
-    }
-    return;
-  }
-
-  if (code === 'blog-slidev' && targetWindowId) {
-    setBlogPresentationWindowEntry(targetWindowId, {
-      postId: event?.detail?.postId,
-      scope: event?.detail?.scope
-    });
-  }
+function onInteractionPointerUp(event) {
+  if (!interaction.mode) return;
+  if (interaction.pointerId && Number(event?.pointerId) !== interaction.pointerId) return;
+  clearInteraction();
 }
 
-function handleResize() {
-  const next = {
-    ...state,
-    windows: state.windows.map((item) => item)
-  };
-  next.windows.forEach((win) => {
-    const normalized = setWindowRect(next, win.id, {}, viewport());
-    next.nextId = normalized.nextId;
-    next.nextZIndex = normalized.nextZIndex;
-    next.windows = normalized.windows;
-  });
-  replaceState(next);
-}
-
-function releaseWindowLinkedState(windowId) {
-  const target = state.windows.find((item) => item.id === Number(windowId));
-  if (!target) return;
-  if (target.code === 'timeprism-todo') {
-    releaseTimePrismSuiteSession(windowId);
-  } else if (target.code === 'pomodoro-timer') {
-    releasePomodoroWindowState(windowId);
-  } else if (target.code === 'balance-ledger') {
-    releaseBalanceWindowState(windowId);
-  } else if (target.code === 'blog-slidev') {
-    releaseBlogPresentationWindowState(windowId);
-  }
+function onInteractionPointerCancel() {
+  if (!interaction.mode) return;
+  clearInteraction();
 }
 
 onMounted(() => {
-  window.addEventListener(LIGHT_APP_WINDOW_OPEN_EVENT, openFromEvent);
-  window.addEventListener('resize', handleResize);
+  retainLightAppShell();
 });
 
 onBeforeUnmount(() => {
-  state.windows.forEach((item) => {
-    releaseWindowLinkedState(item.id);
-  });
-  window.removeEventListener(LIGHT_APP_WINDOW_OPEN_EVENT, openFromEvent);
-  window.removeEventListener('resize', handleResize);
-  window.removeEventListener('pointermove', onPointerMove);
-  window.removeEventListener('pointerup', onPointerUp);
-  window.removeEventListener('pointercancel', onPointerCancel);
-  window.removeEventListener('blur', onPointerCancel);
+  releaseLightAppShell();
+  clearInteraction();
 });
 </script>
 
@@ -395,6 +391,11 @@ onBeforeUnmount(() => {
   transition:
     box-shadow 220ms ease,
     border-color 180ms ease;
+}
+
+.light-window.is-active {
+  --liquid-shadow: 0 24px 56px rgba(18, 9, 8, 0.24);
+  --liquid-border: color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.5)) 82%, rgba(var(--accent-rgb), 0.24));
 }
 
 .light-window:focus-within {
@@ -447,13 +448,13 @@ onBeforeUnmount(() => {
 }
 
 .window-header {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  padding-right: 112px;
   border-bottom: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.26));
-  cursor: move;
   user-select: none;
   transition: background-color 180ms ease;
 }
@@ -462,12 +463,22 @@ onBeforeUnmount(() => {
   background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.08));
 }
 
-.window-left {
+.window-head-row {
+  display: block;
+  min-height: 32px;
+}
+
+.window-drag-zone {
   display: flex;
   align-items: center;
-  gap: 8px;
   min-width: 0;
-  flex: 1;
+  min-height: 32px;
+  width: 100%;
+  cursor: move;
+  border-radius: 10px;
+  padding: 2px 4px 2px 0;
+  position: relative;
+  z-index: 1;
 }
 
 .window-title {
@@ -493,18 +504,29 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.26);
 }
 
-.window-context-slot {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
-.window-actions {
-  display: flex;
+.window-actions-zone {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.window-toolbar-zone {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  overflow: hidden;
+  padding-top: 2px;
+  position: relative;
+  z-index: 2;
 }
 
 .icon-btn {
@@ -514,11 +536,16 @@ onBeforeUnmount(() => {
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.42));
   background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.32));
   color: var(--theme-icon-primary, rgba(34, 41, 56, 0.84));
+  cursor: pointer;
   transition:
     transform 140ms ease,
     border-color 140ms ease,
     background-color 140ms ease,
     box-shadow 180ms ease;
+}
+
+.icon-btn-action {
+  pointer-events: auto;
 }
 
 .icon-btn:hover {
@@ -532,6 +559,15 @@ onBeforeUnmount(() => {
   border-color: rgba(var(--accent-rgb), 0.56);
   background: rgba(var(--accent-rgb), 0.2);
   color: rgb(var(--accent-strong-rgb));
+}
+
+.light-window.is-minimized .window-header {
+  padding-right: 112px;
+  padding-bottom: 8px;
+}
+
+.light-window.is-minimized .window-toolbar-zone {
+  display: none;
 }
 
 .window-body {
@@ -570,7 +606,7 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
-.window-resize {
+.window-resize-handle {
   position: absolute;
   right: 8px;
   bottom: 8px;
@@ -590,7 +626,7 @@ onBeforeUnmount(() => {
     background-color 140ms ease;
 }
 
-.window-resize:hover {
+.window-resize-handle:hover {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.58);
   background: rgba(255, 255, 255, 0.42);

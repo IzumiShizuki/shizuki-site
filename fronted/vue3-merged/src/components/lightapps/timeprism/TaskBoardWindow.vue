@@ -15,11 +15,34 @@
           class="icon-btn toolbar-btn ripple-trigger"
           :class="{ 'is-active': showColumnEditor }"
           type="button"
-          :title="showColumnEditor ? '关闭列配置' : '列配置'"
-          :aria-label="showColumnEditor ? '关闭列配置' : '列配置'"
+          :title="taskNotionManagedMode ? '列由 Notion 管理，请在 Notion 修改' : showColumnEditor ? '关闭列配置' : '列配置'"
+          :aria-label="taskNotionManagedMode ? '列由 Notion 管理，请在 Notion 修改' : showColumnEditor ? '关闭列配置' : '列配置'"
+          :disabled="taskNotionManagedMode"
           @click="toggleColumnEditor"
         >
           <i class="fas fa-table-columns" aria-hidden="true"></i>
+        </button>
+        <button
+          v-if="showTaskNotionControls"
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="syncBusy ? '同步中' : '从 Notion 拉取任务与列'"
+          :aria-label="syncBusy ? '同步中' : '从 Notion 拉取任务与列'"
+          :disabled="syncBusy"
+          @click="triggerTaskNotionSync('PULL')"
+        >
+          <i :class="syncBusy && taskSyncJob?.direction === 'PULL' ? 'fas fa-spinner fa-spin' : 'fas fa-download'" aria-hidden="true"></i>
+        </button>
+        <button
+          v-if="showTaskNotionControls"
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          :title="syncBusy ? '同步中' : '推送本地任务到 Notion'"
+          :aria-label="syncBusy ? '同步中' : '推送本地任务到 Notion'"
+          :disabled="syncBusy"
+          @click="triggerTaskNotionSync('PUSH')"
+        >
+          <i :class="syncBusy && taskSyncJob?.direction === 'PUSH' ? 'fas fa-spinner fa-spin' : 'fas fa-upload'" aria-hidden="true"></i>
         </button>
         <button
           class="icon-btn toolbar-btn ripple-trigger"
@@ -32,6 +55,18 @@
           <i class="fas fa-repeat" aria-hidden="true"></i>
         </button>
     </LightAppTopToolbar>
+
+    <section v-if="showTaskNotionControls" class="task-notion-panel liquid-material">
+      <div class="task-notion-panel__row">
+        <p>列由 Notion 管理，请在 Notion 修改状态列。</p>
+        <span v-if="taskSyncJob" class="task-sync-badge" :class="taskSyncBadgeClass(taskSyncJob.statusCode)">
+          {{ taskSyncStatusLabel(taskSyncJob.statusCode) }}
+        </span>
+      </div>
+      <small class="task-notion-panel__hint">
+        {{ taskSyncSummary }}
+      </small>
+    </section>
 
     <CollapsiblePanel :visible="showCreateForm" tag="form" class="task-create" @submit.prevent="createTaskItem">
         <input v-model.trim="draft.title" type="text" placeholder="新增看板任务，例如：完成接口联调" />
@@ -154,7 +189,7 @@
         <p v-else class="empty-hint">暂无周期规则</p>
     </CollapsiblePanel>
 
-    <section v-if="showColumnEditor" class="column-editor liquid-material">
+    <section v-if="showColumnEditor && !taskNotionManagedMode" class="column-editor liquid-material">
       <header>
         <h4>列配置</h4>
         <button
@@ -199,6 +234,15 @@
               <template v-if="item.projectId">{{ projectName(item.projectId) }}</template>
               <template v-if="item.dueAt"> · {{ formatTaskDateLabel(item.dueAt, item.timePrecision) }}</template>
             </small>
+            <div v-if="shouldShowTaskSyncMeta(item)" class="task-sync-meta">
+              <span class="task-sync-badge" :class="taskSyncBadgeClass(item.syncStatusCode)">
+                {{ taskSyncStatusLabel(item.syncStatusCode) }}
+              </span>
+              <small v-if="item.remoteLastEditedAt">
+                远端 {{ formatSyncTime(item.remoteLastEditedAt) }}
+              </small>
+            </div>
+            <p v-if="item.syncErrorText" class="task-sync-error">{{ item.syncErrorText }}</p>
             <div class="card-actions">
               <button class="icon-btn ripple-trigger" title="编辑" @click="startTaskEdit(item)">
                 <i class="fas fa-pen"></i>
@@ -230,6 +274,8 @@ import {
   deleteLightAppTask,
   deleteLightAppTaskRecurringRule,
   listLightAppProjects,
+  createLightAppTaskNotionSyncJob,
+  getLightAppTaskNotionSyncJob,
   listLightAppTaskRecurringRules,
   listLightAppTaskColumns,
   listLightAppTasks,
@@ -281,6 +327,8 @@ const columnDrafts = ref([]);
 const taskRecurringRules = ref([]);
 const editingTaskId = ref(0);
 const editingRecurringRuleId = ref(0);
+const taskSyncJob = ref(null);
+let taskSyncPollTimer = 0;
 
 const draft = reactive({
   title: '',
@@ -311,6 +359,22 @@ const recurringDraft = reactive({
 const enabledColumns = computed(() => columns.value.filter((item) => item.enabled));
 const isDayTaskPrecision = computed(() => isDayPrecision(draft.timePrecision));
 const taskTimeInputType = computed(() => resolveTaskTimeInputType(draft.timePrecision));
+const taskNotionManagedMode = computed(
+  () => auth.isAuthenticated.value && columns.value.some((item) => item.managedBy === 'NOTION')
+);
+const showTaskNotionControls = computed(() => auth.isAuthenticated.value && taskNotionManagedMode.value);
+const syncBusy = computed(() => ['PENDING', 'RUNNING'].includes(taskSyncJob.value?.statusCode || ''));
+const taskSyncSummary = computed(() => {
+  if (!taskSyncJob.value) {
+    return '可手动执行 Pull 或 Push，夜间任务会自动校准。';
+  }
+  const parts = [`最近任务：${taskSyncStatusLabel(taskSyncJob.value.statusCode)}`];
+  if (taskSyncJob.value.resultCount) parts.push(`成功 ${taskSyncJob.value.resultCount}`);
+  if (taskSyncJob.value.errorCount) parts.push(`错误 ${taskSyncJob.value.errorCount}`);
+  if (taskSyncJob.value.conflictCount) parts.push(`冲突 ${taskSyncJob.value.conflictCount}`);
+  if (taskSyncJob.value.errorText) parts.push(taskSyncJob.value.errorText);
+  return parts.join(' · ');
+});
 
 const tasksByColumn = computed(() => {
   const result = {};
@@ -337,7 +401,9 @@ function normalizeColumns(input) {
       columnCode: String(item.columnCode || item.column_code || '').trim().toLowerCase(),
       title: String(item.title || '').trim(),
       sortNum: Number(item.sortNum ?? item.sort_num) || 0,
-      enabled: Boolean(item.enabled)
+      enabled: Boolean(item.enabled),
+      notionStatusOptionId: String(item.notionStatusOptionId ?? item.notion_status_option_id ?? '').trim(),
+      managedBy: String(item.managedBy ?? item.managed_by ?? 'LOCAL').trim().toUpperCase() || 'LOCAL'
     }))
     .filter((item) => item.columnCode)
     .sort((left, right) => left.sortNum - right.sortNum || left.columnCode.localeCompare(right.columnCode));
@@ -362,7 +428,11 @@ function normalizeTasks(input) {
       deadlineRemindValue: normalizePositiveInteger(item.deadlineRemindValue ?? item.deadline_remind_value),
       deadlineRemindUnit: String(item.deadlineRemindUnit ?? item.deadline_remind_unit ?? '').trim().toUpperCase(),
       sortNum: Number(item.sortNum ?? item.sort_num) || 0,
-      updatedAt: item.updatedAt || item.updated_at || ''
+      updatedAt: item.updatedAt || item.updated_at || '',
+      notionPageId: String(item.notionPageId ?? item.notion_page_id ?? '').trim(),
+      syncStatusCode: String(item.syncStatusCode ?? item.sync_status_code ?? 'LOCAL_ONLY').trim().toUpperCase() || 'LOCAL_ONLY',
+      syncErrorText: String(item.syncErrorText ?? item.sync_error_text ?? '').trim(),
+      remoteLastEditedAt: item.remoteLastEditedAt || item.remote_last_edited_at || ''
     }))
     .filter((item) => item.taskId && item.title)
     .sort((left, right) => {
@@ -420,6 +490,54 @@ function normalizePositiveInteger(value) {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return null;
   return Math.round(num);
+}
+
+function taskSyncStatusLabel(statusCode) {
+  const normalized = String(statusCode || '').trim().toUpperCase();
+  switch (normalized) {
+    case 'SYNCED':
+    case 'SUCCEEDED':
+      return '已同步';
+    case 'LOCAL_ONLY':
+      return '仅本地';
+    case 'CONFLICT':
+      return '有冲突';
+    case 'SYNC_ERROR':
+    case 'FAILED':
+      return '同步失败';
+    case 'PARTIAL':
+      return '部分完成';
+    case 'PENDING':
+      return '排队中';
+    case 'RUNNING':
+      return '同步中';
+    default:
+      return '同步状态';
+  }
+}
+
+function taskSyncBadgeClass(statusCode) {
+  const normalized = String(statusCode || '').trim().toUpperCase();
+  if (normalized === 'SYNCED' || normalized === 'SUCCEEDED') return 'is-synced';
+  if (normalized === 'CONFLICT' || normalized === 'PARTIAL') return 'is-warning';
+  if (normalized === 'SYNC_ERROR' || normalized === 'FAILED') return 'is-error';
+  if (normalized === 'PENDING' || normalized === 'RUNNING') return 'is-running';
+  return 'is-local';
+}
+
+function shouldShowTaskSyncMeta(item) {
+  return taskNotionManagedMode.value || Boolean(item?.notionPageId) || Boolean(item?.syncErrorText);
+}
+
+function formatSyncTime(value) {
+  return value ? formatTaskDateLabel(value, 'MINUTE') : '';
+}
+
+function stopTaskSyncPolling() {
+  if (taskSyncPollTimer) {
+    window.clearTimeout(taskSyncPollTimer);
+    taskSyncPollTimer = 0;
+  }
 }
 
 function isFirstColumn(columnCode) {
@@ -644,6 +762,8 @@ async function removeRecurringRule(ruleId) {
 async function hydrate() {
   errorText.value = '';
   await auth.ensureReady();
+  taskSyncJob.value = null;
+  stopTaskSyncPolling();
 
   if (!auth.isAuthenticated.value) {
     const guest = readGuestLightAppData();
@@ -897,6 +1017,11 @@ async function removeTask(taskId) {
 }
 
 function toggleColumnEditor() {
+  if (taskNotionManagedMode.value) {
+    errorText.value = '列由 Notion 管理，请在 Notion 修改。';
+    showColumnEditor.value = false;
+    return;
+  }
   showColumnEditor.value = !showColumnEditor.value;
   if (showColumnEditor.value) {
     cloneColumnDrafts();
@@ -904,6 +1029,7 @@ function toggleColumnEditor() {
 }
 
 function appendColumnDraft() {
+  if (taskNotionManagedMode.value) return;
   columnDrafts.value.push({
     columnCode: `column_${columnDrafts.value.length + 1}`,
     title: '新列',
@@ -913,6 +1039,7 @@ function appendColumnDraft() {
 }
 
 function removeColumnDraft(index) {
+  if (taskNotionManagedMode.value) return;
   columnDrafts.value.splice(index, 1);
 }
 
@@ -934,6 +1061,10 @@ function normalizedColumnDrafts() {
 }
 
 async function saveColumns() {
+  if (taskNotionManagedMode.value) {
+    errorText.value = '列由 Notion 管理，请在 Notion 修改。';
+    return;
+  }
   const payloadColumns = normalizedColumnDrafts();
   if (!payloadColumns.length) {
     errorText.value = '至少保留一列';
@@ -975,12 +1106,55 @@ async function saveColumns() {
   }
 }
 
+async function pollTaskNotionSyncJob(jobId) {
+  stopTaskSyncPolling();
+  if (!jobId) return;
+  try {
+    const job = await getLightAppTaskNotionSyncJob(jobId, auth.authorizedFetch);
+    taskSyncJob.value = job;
+    if (job.statusCode === 'PENDING' || job.statusCode === 'RUNNING') {
+      taskSyncPollTimer = window.setTimeout(() => {
+        pollTaskNotionSyncJob(jobId);
+      }, 1200);
+      return;
+    }
+    await refreshRemoteBoard();
+    if (job.statusCode === 'FAILED' || job.statusCode === 'PARTIAL') {
+      errorText.value = job.errorText || 'Task Notion 同步未完全成功';
+    }
+  } catch (error) {
+    errorText.value = error?.message || 'Task Notion 同步状态查询失败';
+  }
+}
+
+async function triggerTaskNotionSync(direction) {
+  if (!showTaskNotionControls.value || syncBusy.value) {
+    return;
+  }
+  try {
+    errorText.value = '';
+    await auth.ensureReady();
+    const job = await createLightAppTaskNotionSyncJob(
+      {
+        direction,
+        targetType: 'ALL'
+      },
+      auth.authorizedFetch
+    );
+    taskSyncJob.value = job;
+    await pollTaskNotionSyncJob(job.jobId);
+  } catch (error) {
+    errorText.value = error?.message || 'Task Notion 同步任务创建失败';
+  }
+}
+
 onMounted(() => {
   hydrate();
   window.addEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
 
 onBeforeUnmount(() => {
+  stopTaskSyncPolling();
   window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
 });
 
@@ -1039,6 +1213,31 @@ watch(
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 8px;
+}
+
+.task-notion-panel {
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.task-notion-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-notion-panel__row p,
+.task-notion-panel__hint {
+  margin: 0;
+}
+
+.task-notion-panel__hint {
+  color: var(--la-muted);
 }
 
 .task-create input,
@@ -1210,6 +1409,57 @@ watch(
   padding: 8px;
   display: grid;
   gap: 8px;
+}
+
+.task-sync-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-sync-meta small {
+  color: var(--la-muted);
+}
+
+.task-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--la-border);
+  font-size: 11px;
+  color: var(--la-text);
+  background: rgba(var(--glass-rgb), 0.28);
+}
+
+.task-sync-badge.is-synced {
+  background: rgba(65, 154, 111, 0.18);
+  color: #1d6f4f;
+}
+
+.task-sync-badge.is-warning {
+  background: rgba(227, 164, 41, 0.18);
+  color: #8d5f08;
+}
+
+.task-sync-badge.is-error {
+  background: rgba(214, 74, 103, 0.16);
+  color: #9a2648;
+}
+
+.task-sync-badge.is-running {
+  background: rgba(64, 120, 218, 0.18);
+  color: #2553a0;
+}
+
+.task-sync-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--la-danger);
+  word-break: break-word;
 }
 
 .task-card p {

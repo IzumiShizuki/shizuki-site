@@ -7,13 +7,14 @@
 middleware:
   host: "<MIDDLEWARE_HOST>"
   ports:
+    postgres: 5432
     mysql: 3306
     redis: 6379
     kafka: 9092
 
 spring:
   datasource:
-    # Example: jdbc:mysql://<host>:3306/shizuki_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    # Example: jdbc:postgresql://<host>:5432/shizuki_app
     url: "<DB_URL>"
     username: "<DB_USERNAME>"
     password: "<DB_PASSWORD>"
@@ -78,6 +79,23 @@ shizuki:
         user-api-url: "https://api.spotify.com/v1/me"
         scope: "user-read-email user-read-private"
   music:
+    meting:
+      # Internal sidecar URL; keep this in private network.
+      base-url: "http://meting-api"
+      default-api-key: "meting-system"
+      default-platform-order: ["netease", "kuwo", "qq"]
+      default-quality: "128k"
+      default-bitrate-kbps: 128
+      default-playlist-ids:
+        netease: "3778678"
+        kuwo: "145114659"
+        qq: "9209322004"
+    spotify:
+      client-id: "<SPOTIFY_CLIENT_ID>"
+      client-secret: "<SPOTIFY_CLIENT_SECRET>"
+      token-url: "https://accounts.spotify.com/api/token"
+      search-url: "https://api.spotify.com/v1/search"
+      track-url: "https://api.spotify.com/v1/tracks"
     security:
       # Generate once: openssl rand -base64 32
       key-encryption-master-key: "<MUSIC_KEY_ENCRYPTION_MASTER_KEY_BASE64_32_BYTES>"
@@ -95,6 +113,56 @@ shizuki:
     storage:
       private-bucket: "<BLOG_PRIVATE_BUCKET>"
       max-upload-size: 1048576
+    notion:
+      enabled: false
+      token: "<NOTION_INTERNAL_TOKEN>"
+      data-source-id: "<NOTION_DATA_SOURCE_ID>"
+      owner-user-id: 1
+      version: "2026-03-11"
+      api-base-url: "https://api.notion.com/v1"
+      rate-limit-per-second: 2
+      connect-timeout-ms: 1500
+      read-timeout-ms: 4000
+      retry-count: 2
+      retry-backoff-ms: 250
+      retry-max-backoff-ms: 2000
+      nightly-cron: "0 0 3 * * *"
+      timezone: "Asia/Shanghai"
+      properties:
+        title: "Name"
+        summary: "Summary"
+        category: "Category"
+        slug: "Slug"
+        tags: "Tags"
+        visibility: "Visibility"
+        status: "Status"
+        cover-image-url: "CoverImageUrl"
+        author-user-id: "AuthorUserId"
+        published-at: "PublishedAt"
+        allowed-groups: "AllowedGroups"
+  light-app:
+    task:
+      notion:
+        enabled: false
+        token: "<NOTION_INTERNAL_TOKEN>"
+        data-source-id: "<NOTION_TASK_DATA_SOURCE_ID>"
+        owner-user-id: 1
+        version: "2026-03-11"
+        api-base-url: "https://api.notion.com/v1"
+        rate-limit-per-second: 2
+        connect-timeout-ms: 1500
+        read-timeout-ms: 4000
+        retry-count: 2
+        retry-backoff-ms: 250
+        retry-max-backoff-ms: 2000
+        nightly-cron: "0 0 3 * * *"
+        timezone: "Asia/Shanghai"
+        properties:
+          title: "Name"
+          status: "Status"
+          project-code: "ProjectCode"
+          schedule: "Schedule"
+          show-on-calendar: "ShowOnCalendar"
   auth:
     jwt:
       secret: "<AUTH_JWT_SECRET>"

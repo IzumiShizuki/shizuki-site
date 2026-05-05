@@ -213,6 +213,12 @@ import {
   setSuiteActiveModule,
   TIMEPRISM_MODULE_ITEMS
 } from '../components/lightapps/timeprism/timePrismSuiteState';
+import {
+  closeLightAppPageMode,
+  openLightAppPageMode,
+  resolveLightAppPageModeWindowId,
+  useLightAppShellState
+} from '../components/lightapps/lightAppShellStore';
 import UrlLinksWindow from '../components/lightapps/url/UrlLinksWindow.vue';
 import BoardCanvasWindow from '../components/lightapps/board/BoardCanvasWindow.vue';
 import BlogSlidevWindow from '../components/lightapps/blog/BlogSlidevWindow.vue';
@@ -220,7 +226,6 @@ import { useAuthSession } from '../composables/useAuthSession';
 import { listLightAppUrlLinks } from '../services/lightAppsApi';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { LIGHT_APPS_CATALOG, getLightAppByCode, isKnownLightAppCode } from '../utils/lightAppsCatalog';
-import { LIGHT_APP_SHARED_WINDOW_IDS } from '../utils/lightAppWindowRuntime';
 import {
   createLocalEntityId,
   readGuestLightAppData,
@@ -237,13 +242,12 @@ import {
   readLightAppsState,
   writeLightAppsState
 } from '../utils/lightAppsState';
-import { resolveBlogPresentationWindowState } from '../components/lightapps/blog/blogPresentationWindowState';
 
 const DRAG_MIME = 'application/x-shizuki-lightapp-item';
 
 const catalog = LIGHT_APPS_CATALOG;
+const shellState = useLightAppShellState();
 const appState = ref(createDefaultLightAppsState());
-const activePageCode = ref('');
 const syncHint = ref('');
 const urlLinks = ref([]);
 const urlSourceViewMode = ref('detail');
@@ -265,8 +269,9 @@ let syncTimer = 0;
 let syncHintTimer = 0;
 let remoteHydrating = false;
 
+const activePageCode = computed(() => String(shellState.pageMode.code || '').trim());
 const activePageApp = computed(() => getLightAppByCode(activePageCode.value));
-const activePageWindowId = computed(() => LIGHT_APP_SHARED_WINDOW_IDS[activePageCode.value] || 0);
+const activePageWindowId = computed(() => resolveLightAppPageModeWindowId(activePageCode.value));
 const activePageComponent = computed(() => PAGE_COMPONENT_MAP[activePageCode.value] || null);
 const hasActivePageOverlay = computed(() => Boolean(activePageApp.value && activePageComponent.value));
 const isUrlSourceIconMode = computed(() => urlSourceViewMode.value === 'icon');
@@ -930,6 +935,9 @@ function openCollectionItem(payload) {
 function useApp(code) {
   const app = getLightAppByCode(code);
   if (!app || !isEnabled(code)) return;
+  if (activePageCode.value === code) {
+    closePageMode();
+  }
   openLightAppWindow(code, { source: 'apps_center' });
 }
 
@@ -943,21 +951,11 @@ function openUrlManager() {
 function openAppInPage(code) {
   const app = getLightAppByCode(code);
   if (!app || !isEnabled(code)) return;
-  activePageCode.value = code;
-  const windowId = LIGHT_APP_SHARED_WINDOW_IDS[code];
-  if (code === 'timeprism-todo') {
-    resolveTimePrismSuiteSession(windowId);
-  } else if (code === 'pomodoro-timer') {
-    resolvePomodoroWindowState(windowId);
-  } else if (code === 'balance-ledger') {
-    resolveBalanceWindowState(windowId);
-  } else if (code === 'blog-slidev') {
-    resolveBlogPresentationWindowState(windowId);
-  }
+  openLightAppPageMode(code, { source: 'apps_page' });
 }
 
 function closePageMode() {
-  activePageCode.value = '';
+  closeLightAppPageMode();
 }
 
 function setActivePageTab(tabCode) {

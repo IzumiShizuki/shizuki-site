@@ -14,6 +14,7 @@ import io.github.shizuki.site.content.response.LightAppProjectResponse;
 import io.github.shizuki.site.content.response.LightAppPomodoroResponse;
 import io.github.shizuki.site.content.response.LightAppScheduleResponse;
 import io.github.shizuki.site.content.response.LightAppTaskColumnResponse;
+import io.github.shizuki.site.content.response.LightAppTaskNotionSyncJobResponse;
 import io.github.shizuki.site.content.response.LightAppTaskResponse;
 import io.github.shizuki.site.content.response.LightAppTodoResponse;
 import io.github.shizuki.site.content.response.LightAppUrlLinkResolveResponse;
@@ -325,6 +326,10 @@ class LightAppControllerIntegrationTest {
                 null,
                 null,
                 30,
+                null,
+                "notion-task-9",
+                "SYNCED",
+                "",
                 null
             ));
 
@@ -347,14 +352,78 @@ class LightAppControllerIntegrationTest {
     void shouldListTaskColumnsSuccessfully() throws Exception {
         Mockito.when(lightAppService.listTaskColumns())
             .thenReturn(List.of(
-                new LightAppTaskColumnResponse("todo", "待处理", 10, true),
-                new LightAppTaskColumnResponse("doing", "进行中", 20, true)
+                new LightAppTaskColumnResponse("todo", "待处理", 10, true, "status_todo", "NOTION"),
+                new LightAppTaskColumnResponse("doing", "进行中", 20, true, "status_doing", "NOTION")
             ));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/task-columns"))
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].column_code").value("todo"));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].column_code").value("todo"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].managed_by").value("NOTION"));
+    }
+
+    @Test
+    void shouldCreateTaskNotionSyncJobSuccessfully() throws Exception {
+        Mockito.when(lightAppService.createTaskNotionSyncJob(ArgumentMatchers.any()))
+            .thenReturn(new LightAppTaskNotionSyncJobResponse(
+                21L,
+                "MANUAL",
+                "PULL",
+                "ALL",
+                null,
+                "PENDING",
+                0,
+                0,
+                0,
+                0,
+                "",
+                null,
+                null,
+                LocalDateTime.of(2026, 4, 30, 1, 0),
+                LocalDateTime.of(2026, 4, 30, 1, 0)
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/tasks/notion/sync-jobs")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "direction": "PULL",
+                      "target_type": "ALL"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.job_id").value(21))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status_code").value("PENDING"));
+    }
+
+    @Test
+    void shouldGetTaskNotionSyncJobSuccessfully() throws Exception {
+        Mockito.when(lightAppService.getTaskNotionSyncJob(ArgumentMatchers.eq(21L)))
+            .thenReturn(new LightAppTaskNotionSyncJobResponse(
+                21L,
+                "MANUAL",
+                "BOTH",
+                "ALL",
+                null,
+                "SUCCEEDED",
+                5,
+                0,
+                0,
+                0,
+                "",
+                LocalDateTime.of(2026, 4, 30, 1, 0),
+                LocalDateTime.of(2026, 4, 30, 1, 1),
+                LocalDateTime.of(2026, 4, 30, 1, 0),
+                LocalDateTime.of(2026, 4, 30, 1, 1)
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/light-apps/tasks/notion/sync-jobs/21"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.job_id").value(21))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status_code").value("SUCCEEDED"));
     }
 
     @Test
@@ -522,6 +591,29 @@ class LightAppControllerIntegrationTest {
 
         mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/light-apps/tasks/404"))
             .andExpect(ApiErrorAssertions.hasProblem(404, "NOT_FOUND"));
+    }
+
+    @Test
+    void shouldReturnConflictWhenTaskColumnsManagedByNotion() throws Exception {
+        Mockito.doThrow(new BusinessException(ErrorCode.CONFLICT, "Task columns are managed by Notion"))
+            .when(lightAppService)
+            .updateTaskColumns(ArgumentMatchers.any());
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/light-apps/task-columns")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "columns": [
+                        {
+                          "column_code": "todo",
+                          "title": "待处理",
+                          "sort_num": 10,
+                          "enabled": true
+                        }
+                      ]
+                    }
+                    """))
+            .andExpect(ApiErrorAssertions.hasProblem(409, "CONFLICT"));
     }
 
     @Test

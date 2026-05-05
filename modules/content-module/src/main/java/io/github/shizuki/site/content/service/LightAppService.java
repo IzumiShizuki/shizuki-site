@@ -24,7 +24,9 @@ import io.github.shizuki.site.content.request.LightAppTaskRecurringRuleUpsertReq
 import io.github.shizuki.site.content.response.LightAppTaskColumnResponse;
 import io.github.shizuki.site.content.request.LightAppTaskColumnsUpdateRequest;
 import io.github.shizuki.site.content.request.LightAppTaskMoveRequest;
+import io.github.shizuki.site.content.request.LightAppTaskNotionSyncJobCreateRequest;
 import io.github.shizuki.site.content.response.LightAppTaskResponse;
+import io.github.shizuki.site.content.response.LightAppTaskNotionSyncJobResponse;
 import io.github.shizuki.site.content.request.LightAppTaskUpsertRequest;
 import io.github.shizuki.site.content.response.LightAppTodoRecurringRuleResponse;
 import io.github.shizuki.site.content.request.LightAppTodoRecurringRuleUpsertRequest;
@@ -171,6 +173,10 @@ public interface LightAppService {
     List<LightAppTaskColumnResponse> listTaskColumns();
 
     List<LightAppTaskColumnResponse> updateTaskColumns(LightAppTaskColumnsUpdateRequest request);
+
+    LightAppTaskNotionSyncJobResponse createTaskNotionSyncJob(LightAppTaskNotionSyncJobCreateRequest request);
+
+    LightAppTaskNotionSyncJobResponse getTaskNotionSyncJob(Long jobId);
 
     List<LightAppScheduleResponse> listSchedules();
 

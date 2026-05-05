@@ -26,7 +26,9 @@ import io.github.shizuki.site.content.request.LightAppTaskRecurringRuleUpsertReq
 import io.github.shizuki.site.content.response.LightAppTaskColumnResponse;
 import io.github.shizuki.site.content.request.LightAppTaskColumnsUpdateRequest;
 import io.github.shizuki.site.content.request.LightAppTaskMoveRequest;
+import io.github.shizuki.site.content.request.LightAppTaskNotionSyncJobCreateRequest;
 import io.github.shizuki.site.content.response.LightAppTaskResponse;
+import io.github.shizuki.site.content.response.LightAppTaskNotionSyncJobResponse;
 import io.github.shizuki.site.content.request.LightAppTaskUpsertRequest;
 import io.github.shizuki.site.content.response.LightAppTodoRecurringRuleResponse;
 import io.github.shizuki.site.content.request.LightAppTodoRecurringRuleUpsertRequest;
@@ -480,6 +482,20 @@ public class LightAppController {
     @Operation(summary = "更新任务列配置")
     public ApiResponse<List<LightAppTaskColumnResponse>> updateTaskColumns(@Valid @RequestBody LightAppTaskColumnsUpdateRequest request) {
         return ApiResponse.success(lightAppService.updateTaskColumns(request));
+    }
+
+    @PostMapping("/tasks/notion/sync-jobs")
+    @Operation(summary = "创建 Task Notion 同步任务")
+    public ApiResponse<LightAppTaskNotionSyncJobResponse> createTaskNotionSyncJob(
+        @Valid @RequestBody LightAppTaskNotionSyncJobCreateRequest request
+    ) {
+        return ApiResponse.success(lightAppService.createTaskNotionSyncJob(request));
+    }
+
+    @GetMapping("/tasks/notion/sync-jobs/{job_id}")
+    @Operation(summary = "查询 Task Notion 同步任务")
+    public ApiResponse<LightAppTaskNotionSyncJobResponse> getTaskNotionSyncJob(@PathVariable("job_id") Long jobId) {
+        return ApiResponse.success(lightAppService.getTaskNotionSyncJob(jobId));
     }
 
     @GetMapping("/schedules")

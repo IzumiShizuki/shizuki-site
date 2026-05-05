@@ -340,7 +340,6 @@ const importState = reactive({
   workshopUrl: '',
   workshopVisibility: 'PRIVATE',
   workshopTitle: '',
-  runningJobId: 0,
   hint: '',
   busy: false
 });
@@ -380,7 +379,6 @@ let freqData = null;
 let rafId = 0;
 let lastVisualizerFrameAt = 0;
 let sidebarAiCloseTimer = 0;
-let wallpaperImportPollTimer = 0;
 let wallpaperPreferenceSaveTimer = 0;
 let wallpaperSignedUrlRefreshTimer = 0;
 let wallpaperSignedUrlRefreshRunning = false;
@@ -1492,48 +1490,6 @@ function normalizeImportJobResponse(raw) {
   };
 }
 
-function stopImportPolling() {
-  if (wallpaperImportPollTimer) {
-    window.clearInterval(wallpaperImportPollTimer);
-    wallpaperImportPollTimer = 0;
-  }
-}
-
-async function pollWallpaperImportJob(jobId) {
-  if (!auth.isAuthenticated.value || !jobId) return;
-  const payload = normalizeImportJobResponse(await wallpaperApi.getWallpaperImportJob(jobId, auth.authorizedFetch));
-  if (!payload) return;
-  const status = payload.status;
-  if (status === 'SUCCEEDED') {
-    importState.hint = `导入成功（任务 #${payload.jobId}）`;
-    stopImportPolling();
-    await refreshBackgroundLibrary();
-    if (payload.wallpaperId > 0) {
-      const targetId = `wp-${payload.wallpaperId}`;
-      if (backgroundItems.value.some((item) => item.id === targetId)) {
-        ui.setGlobalBackgroundId(targetId);
-      }
-    }
-    return;
-  }
-  if (status === 'FAILED' || status === 'FALLBACK_REQUIRED') {
-    const detail = payload.errorMessage || payload.fallbackHint || '导入失败';
-    importState.hint = `导入未完成：${detail}`;
-    stopImportPolling();
-    return;
-  }
-  importState.hint = `任务 #${payload.jobId} 状态：${status}`;
-}
-
-function startImportPolling(jobId) {
-  stopImportPolling();
-  importState.runningJobId = jobId;
-  pollWallpaperImportJob(jobId).catch(() => {});
-  wallpaperImportPollTimer = window.setInterval(() => {
-    pollWallpaperImportJob(jobId).catch(() => {});
-  }, 2500);
-}
-
 async function submitPackageImport() {
   if (!auth.isAuthenticated.value) {
     importState.hint = '请先登录后再上传导入。';
@@ -1557,8 +1513,7 @@ async function submitPackageImport() {
     if (!payload || !payload.jobId) {
       throw new Error('导入任务创建失败');
     }
-    importState.hint = `导入任务已创建：#${payload.jobId}`;
-    startImportPolling(payload.jobId);
+    importState.hint = `导入任务已创建：#${payload.jobId}。已关闭自动状态查询，请稍后手动刷新资源库查看结果。`;
   } catch (error) {
     importState.hint = String(error?.detail || error?.message || '包导入失败');
   } finally {
@@ -1589,8 +1544,7 @@ async function submitWorkshopImport() {
     if (!payload || !payload.jobId) {
       throw new Error('任务创建失败');
     }
-    importState.hint = `Workshop 导入任务已创建：#${payload.jobId}`;
-    startImportPolling(payload.jobId);
+    importState.hint = `Workshop 导入任务已创建：#${payload.jobId}。已关闭自动状态查询，请稍后手动刷新资源库查看结果。`;
   } catch (error) {
     importState.hint = String(error?.detail || error?.message || 'Workshop 导入失败');
   } finally {
@@ -2553,7 +2507,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   clearWallpaperSignedUrlRefreshTimer();
-  stopImportPolling();
   if (wallpaperPreferenceSaveTimer) {
     window.clearTimeout(wallpaperPreferenceSaveTimer);
     wallpaperPreferenceSaveTimer = 0;

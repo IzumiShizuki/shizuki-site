@@ -4,9 +4,10 @@ import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.response.AuthorPostItemResponse;
+import io.github.shizuki.site.content.request.PostNotionSyncJobCreateRequest;
 import io.github.shizuki.site.content.request.AuthorPostUpsertRequest;
-import io.github.shizuki.site.content.response.PostContentRelayResponse;
 import io.github.shizuki.site.content.response.PostDetailResponse;
+import io.github.shizuki.site.content.response.PostNotionSyncJobResponse;
 import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
@@ -14,7 +15,6 @@ import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,9 +23,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/me/posts")
@@ -59,13 +57,6 @@ public class MyPostController {
     @Operation(summary = "查询作者可读分类默认分组策略")
     public ApiResponse<PostEditorPolicyResponse> categoryPolicies() {
         return ApiResponse.success(contentService.getMyPostCategoryPolicies());
-    }
-
-    @PostMapping(value = "/content-relay", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @AuditLog(action = "post.content.relay", resource = "post")
-    @Operation(summary = "中转上传 markdown")
-    public ApiResponse<PostContentRelayResponse> relayMarkdown(@RequestPart("file") MultipartFile file) {
-        return ApiResponse.success(contentService.relayPostMarkdown(file));
     }
 
     @PostMapping
@@ -103,6 +94,21 @@ public class MyPostController {
     @Operation(summary = "下线文章")
     public ApiResponse<AuthorPostItemResponse> unpublish(@PathVariable("post_id") Long postId) {
         return ApiResponse.success(contentService.unpublishMyPost(postId));
+    }
+
+    @PostMapping("/notion/sync-jobs")
+    @AuditLog(action = "post.notion.sync-job.create", resource = "post")
+    @Operation(summary = "创建 Notion 手动同步任务")
+    public ApiResponse<PostNotionSyncJobResponse> createNotionSyncJob(
+        @Valid @RequestBody PostNotionSyncJobCreateRequest request
+    ) {
+        return ApiResponse.success(contentService.createMyPostNotionSyncJob(request));
+    }
+
+    @GetMapping("/notion/sync-jobs/{job_id}")
+    @Operation(summary = "查询 Notion 同步任务详情")
+    public ApiResponse<PostNotionSyncJobResponse> notionSyncJob(@PathVariable("job_id") Long jobId) {
+        return ApiResponse.success(contentService.getMyPostNotionSyncJob(jobId));
     }
 
     @PostMapping("/{post_id}/presentation/generate")

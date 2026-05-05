@@ -21,6 +21,10 @@ public enum ErrorCode {
      */
     NOT_FOUND("NOT_FOUND", "资源不存在"),
     /**
+     * 资源状态冲突，当前操作无法直接执行。
+     */
+    CONFLICT("CONFLICT", "资源状态冲突"),
+    /**
      * 请求频率超限。
      */
     TOO_MANY_REQUESTS("TOO_MANY_REQUESTS", "请求过于频繁"),

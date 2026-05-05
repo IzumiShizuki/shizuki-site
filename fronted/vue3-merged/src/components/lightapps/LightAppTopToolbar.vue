@@ -27,6 +27,9 @@ defineProps({
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  width: 100%;
+  justify-content: flex-start;
+  align-content: flex-start;
 }
 
 .top-toolbar.layout-space-between {

@@ -22,7 +22,9 @@ print_error() {
 }
 
 collect_sql_files() {
-  find resouces/sql apps/monolith-app/src/main/resources/monolith/db/migration \
+  find resouces/sql \
+    apps/monolith-app/src/main/resources/monolith/db/migration \
+    apps/monolith-app/src/main/resources/monolith/db/migration-pg \
     -type f -name '*.sql' -not -path '*/target/*' | sort
 }
 
@@ -64,7 +66,8 @@ check_no_select_star() {
 
 check_flyway_naming() {
   local file="$1"
-  if [[ "${file}" != apps/monolith-app/src/main/resources/monolith/db/migration/* ]]; then
+  if [[ "${file}" != apps/monolith-app/src/main/resources/monolith/db/migration/* ]] \
+    && [[ "${file}" != apps/monolith-app/src/main/resources/monolith/db/migration-pg/* ]]; then
     return 0
   fi
   local base
@@ -110,7 +113,9 @@ check_column_comment_for_create_table() {
 }
 
 main() {
-  if [[ ! -d "resouces/sql" ]] || [[ ! -d "apps/monolith-app/src/main/resources/monolith/db/migration" ]]; then
+  if [[ ! -d "resouces/sql" ]] \
+    || [[ ! -d "apps/monolith-app/src/main/resources/monolith/db/migration" ]] \
+    || [[ ! -d "apps/monolith-app/src/main/resources/monolith/db/migration-pg" ]]; then
     print_error "required SQL directories not found"
     exit 1
   fi

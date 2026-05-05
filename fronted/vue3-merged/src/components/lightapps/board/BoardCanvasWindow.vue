@@ -230,7 +230,6 @@ const mermaidPanel = reactive({
 });
 
 let boardBridge = null;
-let snapshotPollTimer = 0;
 let persistTimer = 0;
 let infoTimer = 0;
 let loadingBoardToken = 0;
@@ -530,6 +529,13 @@ function schedulePersist(boardId) {
 }
 
 async function flushBoardById(boardId, force) {
+  const isActiveBoard = Number(activeBoardId.value) === Number(boardId);
+  if (isActiveBoard) {
+    syncSnapshotFromCanvas({
+      schedulePersist: false,
+      ignoreSwitching: true
+    });
+  }
   const target = boards.value.find((item) => Number(item.whiteboardId) === Number(boardId));
   if (!target) return;
   if (!force && !dirty.value) return;
@@ -574,9 +580,12 @@ async function flushCurrentBoard(force) {
   await flushBoardById(board.whiteboardId, force);
 }
 
-function syncSnapshotFromCanvas() {
+function syncSnapshotFromCanvas(options = {}) {
+  const schedulePersistEnabled = options.schedulePersist !== false;
+  const ignoreSwitching = options.ignoreSwitching === true;
   if (!boardBridge?.api?.isReady()) return;
-  if (boardLoading.value || switchingBoard || saving.value) return;
+  if (boardLoading.value || saving.value) return;
+  if (!ignoreSwitching && switchingBoard) return;
   const board = activeBoard.value;
   if (!board) return;
   let snapshot = null;
@@ -592,7 +601,9 @@ function syncSnapshotFromCanvas() {
   board.documentJson = nextDocumentJson;
   board.boardKind = normalizeBoardKind(activeBoardKind.value);
   dirty.value = true;
-  schedulePersist(board.whiteboardId);
+  if (schedulePersistEnabled) {
+    schedulePersist(board.whiteboardId);
+  }
 }
 
 function openRename() {
@@ -883,17 +894,9 @@ onMounted(async () => {
       }
     });
   }
-
-  snapshotPollTimer = window.setInterval(() => {
-    syncSnapshotFromCanvas();
-  }, 1800);
 });
 
 onBeforeUnmount(() => {
-  if (snapshotPollTimer) {
-    window.clearInterval(snapshotPollTimer);
-    snapshotPollTimer = 0;
-  }
   if (persistTimer) {
     window.clearTimeout(persistTimer);
     persistTimer = 0;

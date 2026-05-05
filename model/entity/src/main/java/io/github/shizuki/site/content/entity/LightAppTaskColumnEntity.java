@@ -22,6 +22,12 @@ public class LightAppTaskColumnEntity extends BaseEntity {
     @TableField("enabled_flag")
     private Boolean enabled;
 
+    @TableField("notion_status_option_id")
+    private String notionStatusOptionId;
+
+    @TableField("notion_managed_flag")
+    private Boolean notionManaged;
+
     public Long getUserId() {
         return userId;
     }
@@ -60,5 +66,21 @@ public class LightAppTaskColumnEntity extends BaseEntity {
 
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getNotionStatusOptionId() {
+        return notionStatusOptionId;
+    }
+
+    public void setNotionStatusOptionId(String notionStatusOptionId) {
+        this.notionStatusOptionId = notionStatusOptionId;
+    }
+
+    public Boolean getNotionManaged() {
+        return notionManaged;
+    }
+
+    public void setNotionManaged(Boolean notionManaged) {
+        this.notionManaged = notionManaged;
     }
 }

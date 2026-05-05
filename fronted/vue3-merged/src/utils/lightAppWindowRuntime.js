@@ -3,6 +3,7 @@ const DEFAULT_HEIGHT = 360;
 const MIN_WIDTH = 300;
 const MIN_HEIGHT = 220;
 const EDGE_PADDING = 12;
+const TOP_SAFE_OFFSET = 108;
 const BASE_Z_INDEX = 2400;
 export const LIGHT_APP_SHARED_WINDOW_IDS = Object.freeze({
   'timeprism-todo': 910001,
@@ -73,7 +74,7 @@ function resolveInitialRect(viewport, index, code) {
 
   const cascadeOffset = index * 24;
   const x = clamp(EDGE_PADDING + cascadeOffset, EDGE_PADDING, Math.max(EDGE_PADDING, view.width - width - EDGE_PADDING));
-  const y = clamp(76 + cascadeOffset, EDGE_PADDING, Math.max(EDGE_PADDING, view.height - height - EDGE_PADDING));
+  const y = clamp(TOP_SAFE_OFFSET + cascadeOffset, EDGE_PADDING, Math.max(EDGE_PADDING, view.height - height - EDGE_PADDING));
 
   return { x, y, width, height };
 }
@@ -95,6 +96,13 @@ function cloneState(state) {
   };
 }
 
+function topZIndex(windows, fallback = BASE_Z_INDEX) {
+  return (Array.isArray(windows) ? windows : []).reduce((max, item) => {
+    const z = Number(item?.zIndex);
+    return Number.isFinite(z) ? Math.max(max, z) : max;
+  }, Number(fallback) || BASE_Z_INDEX);
+}
+
 export function createWindowRuntimeState() {
   return {
     nextId: 1,
@@ -111,9 +119,12 @@ export function openOrFocusWindow(state, appMeta, viewport) {
 
   const existedIndex = next.windows.findIndex((item) => item.code === code);
   if (existedIndex >= 0) {
-    next.nextZIndex += 1;
     const existed = next.windows[existedIndex];
-    existed.zIndex = next.nextZIndex;
+    const maxZ = topZIndex(next.windows, next.nextZIndex);
+    if (Number(existed.zIndex) < maxZ) {
+      next.nextZIndex = Math.max(next.nextZIndex, maxZ) + 1;
+      existed.zIndex = next.nextZIndex;
+    }
     existed.minimized = false;
     return next;
   }
@@ -151,7 +162,11 @@ export function focusWindow(state, id) {
   const numericId = Number(id);
   const index = next.windows.findIndex((item) => item.id === numericId);
   if (index < 0) return next;
-  next.nextZIndex += 1;
+  const maxZ = topZIndex(next.windows, next.nextZIndex);
+  if (Number(next.windows[index].zIndex) >= maxZ) {
+    return next;
+  }
+  next.nextZIndex = Math.max(next.nextZIndex, maxZ) + 1;
   next.windows[index].zIndex = next.nextZIndex;
   return next;
 }

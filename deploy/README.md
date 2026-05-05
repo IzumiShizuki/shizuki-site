@@ -71,3 +71,10 @@ docker compose -f docker-compose.server.yml --env-file .env.server down
   - Behavior: run `docker compose up -d --no-build`
 - Backward-compatible old entry
   - `deploy/redeploy-server.bat` / `deploy/redeploy-server.sh` now forward to "Update code + rebuild deploy"
+
+## 9) MySQL -> PostgreSQL cutover
+
+- See `deploy/POSTGRES_CUTOVER_RUNBOOK.md` for the full migration/cutover checklist.
+- Use:
+  - `scripts/migrate_mysql_to_postgres.sh`
+  - `scripts/verify_mysql_postgres_consistency.sh`

@@ -19,6 +19,10 @@ public record LightAppTaskResponse(
     Integer deadlineRemindValue,
     String deadlineRemindUnit,
     int sortNum,
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+    String notionPageId,
+    String syncStatusCode,
+    String syncErrorText,
+    LocalDateTime remoteLastEditedAt
 ) {
 }

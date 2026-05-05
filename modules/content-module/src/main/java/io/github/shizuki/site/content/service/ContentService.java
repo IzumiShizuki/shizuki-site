@@ -5,6 +5,7 @@ import io.github.shizuki.site.content.response.AppLikeResponse;
 import io.github.shizuki.site.content.response.AuthorProfileResponse;
 import io.github.shizuki.site.content.request.AuthorProfileUpsertRequest;
 import io.github.shizuki.site.content.response.AuthorPostItemResponse;
+import io.github.shizuki.site.content.request.PostNotionSyncJobCreateRequest;
 import io.github.shizuki.site.content.request.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.request.AuthorWhisperRequest;
@@ -18,8 +19,8 @@ import io.github.shizuki.site.content.response.PostCategoryPolicyResponse;
 import io.github.shizuki.site.content.request.PostCategoryPolicyUpdateRequest;
 import io.github.shizuki.site.content.response.PostCategoryMetaResponse;
 import io.github.shizuki.site.content.request.PostCategoryMetaUpsertRequest;
-import io.github.shizuki.site.content.response.PostContentRelayResponse;
 import io.github.shizuki.site.content.response.PostDetailResponse;
+import io.github.shizuki.site.content.response.PostNotionSyncJobResponse;
 import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
@@ -27,7 +28,6 @@ import io.github.shizuki.site.content.response.PostSidebarResponse;
 import io.github.shizuki.site.content.response.PostSummary;
 import io.github.shizuki.site.content.request.ReportRequest;
 import java.util.List;
-import org.springframework.web.multipart.MultipartFile;
 
 public interface ContentService {
 
@@ -105,11 +105,6 @@ public interface ContentService {
     PostEditorPolicyResponse getMyPostCategoryPolicies();
 
     /**
-     * 中转上传 markdown 文件。
-     */
-    PostContentRelayResponse relayPostMarkdown(MultipartFile file);
-
-    /**
      * 创建作者文章草稿。
      */
     AuthorPostItemResponse createMyPost(AuthorPostUpsertRequest request);
@@ -133,6 +128,16 @@ public interface ContentService {
      * 下线作者文章。
      */
     AuthorPostItemResponse unpublishMyPost(Long postId);
+
+    /**
+     * 创建 Notion 手动同步任务。
+     */
+    PostNotionSyncJobResponse createMyPostNotionSyncJob(PostNotionSyncJobCreateRequest request);
+
+    /**
+     * 查询 Notion 同步任务详情。
+     */
+    PostNotionSyncJobResponse getMyPostNotionSyncJob(Long jobId);
 
     /**
      * 为当前作者文章生成演示文稿。

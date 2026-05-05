@@ -62,6 +62,27 @@ public class LightAppTaskEntity extends BaseEntity {
     @TableField("sort_num")
     private Integer sortNum;
 
+    @TableField("notion_page_id")
+    private String notionPageId;
+
+    @TableField("notion_last_edited_time")
+    private LocalDateTime notionLastEditedTime;
+
+    @TableField("sync_status_code")
+    private String syncStatusCode;
+
+    @TableField("sync_error_text")
+    private String syncErrorText;
+
+    @TableField("last_remote_pull_time")
+    private LocalDateTime lastRemotePullTime;
+
+    @TableField("last_remote_push_time")
+    private LocalDateTime lastRemotePushTime;
+
+    @TableField("sync_hash")
+    private String syncHash;
+
     public Long getUserId() {
         return userId;
     }
@@ -204,5 +225,61 @@ public class LightAppTaskEntity extends BaseEntity {
 
     public void setSortNum(Integer sortNum) {
         this.sortNum = sortNum;
+    }
+
+    public String getNotionPageId() {
+        return notionPageId;
+    }
+
+    public void setNotionPageId(String notionPageId) {
+        this.notionPageId = notionPageId;
+    }
+
+    public LocalDateTime getNotionLastEditedTime() {
+        return notionLastEditedTime;
+    }
+
+    public void setNotionLastEditedTime(LocalDateTime notionLastEditedTime) {
+        this.notionLastEditedTime = notionLastEditedTime;
+    }
+
+    public String getSyncStatusCode() {
+        return syncStatusCode;
+    }
+
+    public void setSyncStatusCode(String syncStatusCode) {
+        this.syncStatusCode = syncStatusCode;
+    }
+
+    public String getSyncErrorText() {
+        return syncErrorText;
+    }
+
+    public void setSyncErrorText(String syncErrorText) {
+        this.syncErrorText = syncErrorText;
+    }
+
+    public LocalDateTime getLastRemotePullTime() {
+        return lastRemotePullTime;
+    }
+
+    public void setLastRemotePullTime(LocalDateTime lastRemotePullTime) {
+        this.lastRemotePullTime = lastRemotePullTime;
+    }
+
+    public LocalDateTime getLastRemotePushTime() {
+        return lastRemotePushTime;
+    }
+
+    public void setLastRemotePushTime(LocalDateTime lastRemotePushTime) {
+        this.lastRemotePushTime = lastRemotePushTime;
+    }
+
+    public String getSyncHash() {
+        return syncHash;
+    }
+
+    public void setSyncHash(String syncHash) {
+        this.syncHash = syncHash;
     }
 }

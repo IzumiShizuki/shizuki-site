@@ -21,6 +21,11 @@ public record PostDetailResponse(
     Long likeCount,
     LocalDateTime publishedAt,
     boolean editable,
-    String markdown
+    String markdown,
+    String notionPageId,
+    String syncStatusCode,
+    String syncErrorText,
+    LocalDateTime remoteLastEditedAt,
+    boolean unsupportedBlockFlag
 ) {
 }

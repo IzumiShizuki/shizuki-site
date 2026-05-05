@@ -14,14 +14,19 @@ import io.github.shizuki.site.content.mapper.AppGroupAclMapper;
 import io.github.shizuki.site.content.mapper.AppMapper;
 import io.github.shizuki.site.content.mapper.AuthorProfileMapper;
 import io.github.shizuki.site.content.mapper.ContentReportMapper;
+import io.github.shizuki.site.content.mapper.NotionSyncJobMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryMetaMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyGroupMapper;
 import io.github.shizuki.site.content.mapper.PostCategoryPolicyMapper;
+import io.github.shizuki.site.content.mapper.PostContentMapper;
 import io.github.shizuki.site.content.mapper.PostGroupAclMapper;
 import io.github.shizuki.site.content.mapper.PostMapper;
 import io.github.shizuki.site.content.mapper.PostPresentationMapper;
 import io.github.shizuki.site.content.mapper.PostTagMapper;
 import io.github.shizuki.site.content.service.impl.ContentServiceImpl;
+import io.github.shizuki.site.content.support.NotionBlockCodec;
+import io.github.shizuki.site.content.support.NotionProperties;
+import io.github.shizuki.site.content.support.PostNotionSyncService;
 import io.github.shizuki.site.content.support.PostPresentationGeneratorClient;
 import io.github.shizuki.site.content.support.PostPresentationTemplateService;
 import java.time.LocalDateTime;
@@ -68,7 +73,13 @@ class ContentServiceImplVisibilityTest {
     private PostCategoryMetaMapper postCategoryMetaMapper;
 
     @Mock
+    private PostContentMapper postContentMapper;
+
+    @Mock
     private PostPresentationMapper postPresentationMapper;
+
+    @Mock
+    private NotionSyncJobMapper notionSyncJobMapper;
 
     @Mock
     private AuthorProfileMapper authorProfileMapper;
@@ -82,10 +93,17 @@ class ContentServiceImplVisibilityTest {
     @Mock
     private Executor postPresentationExecutor;
 
+    @Mock
+    private PostNotionSyncService postNotionSyncService;
+
+    @Mock
+    private Executor notionSyncExecutor;
+
     private ContentServiceImpl contentService;
 
     @BeforeEach
     void setUp() {
+        ObjectMapper objectMapper = new ObjectMapper();
         contentService = new ContentServiceImpl(
             postMapper,
             appMapper,
@@ -96,13 +114,19 @@ class ContentServiceImplVisibilityTest {
             postCategoryPolicyMapper,
             postCategoryPolicyGroupMapper,
             postCategoryMetaMapper,
+            postContentMapper,
             postPresentationMapper,
+            notionSyncJobMapper,
             authorProfileMapper,
             objectStorageClient,
-            new ObjectMapper(),
+            objectMapper,
+            new NotionProperties(),
+            new NotionBlockCodec(objectMapper),
+            postNotionSyncService,
             new PostPresentationTemplateService(),
             postPresentationGeneratorClient,
-            postPresentationExecutor
+            postPresentationExecutor,
+            notionSyncExecutor
         );
 
         Mockito.lenient().when(postTagMapper.selectList(Mockito.any())).thenReturn(List.of());

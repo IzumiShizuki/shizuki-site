@@ -815,8 +815,8 @@ public class UserServiceImpl implements UserService {
         jdbcTemplate.update("DELETE FROM MDA_ASSET_GROUP_ACL WHERE group_code = ?", normalizedGroupCode);
         jdbcTemplate.update(
             "UPDATE USR_ACCOUNT "
-                + "SET groups_json = JSON_REMOVE(groups_json, JSON_UNQUOTE(JSON_SEARCH(groups_json, 'one', ?))) "
-                + "WHERE JSON_SEARCH(groups_json, 'one', ?) IS NOT NULL",
+                + "SET groups_json = (groups_json::jsonb - ?) "
+                + "WHERE jsonb_exists(groups_json::jsonb, ?)",
             normalizedGroupCode,
             normalizedGroupCode
         );
@@ -985,7 +985,7 @@ public class UserServiceImpl implements UserService {
 
     private long queryUserCountByGroup(String groupCode) {
         Long count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(1) FROM USR_ACCOUNT WHERE deleted_flag = 0 AND JSON_SEARCH(groups_json, 'one', ?) IS NOT NULL",
+            "SELECT COUNT(1) FROM USR_ACCOUNT WHERE deleted_flag = 0 AND jsonb_exists(groups_json::jsonb, ?)",
             Long.class,
             groupCode
         );
