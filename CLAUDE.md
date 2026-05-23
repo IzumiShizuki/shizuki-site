@@ -88,6 +88,20 @@
 - MySQL: 3306
 - Redis: 6379
 
+## 命名约定
+
+模块目录名与 Maven `<artifactId>` 之间存在历史差异，本约定锁定为现状不再调整：
+
+| 目录名                    | artifactId        | 说明                                                                                       |
+| ------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
+| `model/`                  | `site-model`      | model jar 在仓库内仅一份，目录名按"model"语义而非坐标                                      |
+| `modules/user-module/`    | `user-service`    | 目录名带 `-module` 强调"Maven 模块"语义；artifactId 带 `-service` 体现"未来可拆分进程"语义 |
+| `modules/content-module/` | `content-service` | 同上                                                                                       |
+| `modules/media-module/`   | `media-service`   | 同上                                                                                       |
+| `modules/ai-module/`      | `ai-service`      | 同上                                                                                       |
+
+新增模块沿用此约定：目录名 `xxx-module`，artifactId `xxx-service`。本约定经评审 spec `backend-refactor-review` 确认（见 `.kiro/specs/backend-refactor-review/findings.json` 中 `naming` 维度 5 条 finding 的 resolution 字段）。
+
 ## 架构概览
 
 ### 模块结构
