@@ -17,17 +17,17 @@
     <dependencies>
         <dependency>
             <groupId>io.github.shizuki</groupId>
-            <artifactId>user-service</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.github.shizuki</groupId>
             <artifactId>common-core</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.github.shizuki</groupId>
             <artifactId>common-servlet</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.shizuki</groupId>
+            <artifactId>common-integration</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
