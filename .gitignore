@@ -1,5 +1,7 @@
 HELP.md
 target/
+# ---- backend-refactor-review: build hygiene ----
+.mvn/repository/
 logs/
 *.log
 *.tmp
