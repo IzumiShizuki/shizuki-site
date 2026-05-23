@@ -569,7 +569,7 @@ async function loadTownScene(sceneCode) {
   const normalizedSceneCode = normalizeOptionalText(sceneCode);
   if (!normalizedSceneCode) return;
   selectedTownSceneCode.value = normalizedSceneCode;
-  selectedTownScene.value = normalizeTownSceneDetail(await getAiTownScene(normalizedSceneCode, auth.authorizedFetch));
+  selectedTownScene.value = normalizeTownSceneDetail(await getAiTownScene(normalizedSceneCode));
   if (canManageTownAssets.value) {
     townAssetEditor.attachedSceneCode = normalizedSceneCode;
     if (townSubView.value === 'editor') {
@@ -669,22 +669,10 @@ async function loadTownAssetPreview(options = {}) {
 }
 
 async function loadTownExplorer() {
-  if (!auth.isAuthenticated.value) {
-    townScenes.value = [];
-    townMap.value = { scenes: [] };
-    selectedTownSceneCode.value = '';
-    selectedTownScene.value = null;
-    townErrorText.value = '请先登录后再进入 AI 小镇。';
-    return;
-  }
-
   townLoading.value = true;
   townErrorText.value = '';
   try {
-    const [sceneListPayload, mapPayload] = await Promise.all([
-      listAiTownScenes(auth.authorizedFetch),
-      getAiTownPublicMap(auth.authorizedFetch)
-    ]);
+    const [sceneListPayload, mapPayload] = await Promise.all([listAiTownScenes(), getAiTownPublicMap()]);
     townScenes.value = Array.isArray(sceneListPayload) ? sceneListPayload.map(normalizeTownSceneSummary) : [];
     townMap.value = normalizeTownMap(mapPayload);
     const defaultSceneCode = selectedTownSceneCode.value || townScenes.value[0]?.sceneCode || 'library';
