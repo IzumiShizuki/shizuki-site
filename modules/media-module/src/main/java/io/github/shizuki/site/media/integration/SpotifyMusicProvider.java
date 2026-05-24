@@ -133,9 +133,9 @@ public class SpotifyMusicProvider {
             if (ex.getStatusCode().is5xxServerError()) {
                 throw new TransientSpotifyException("upstream_5xx", ex);
             }
-            LOGGER.warn("Spotify app token request failed, status={}", ex.getRawStatusCode());
+            LOGGER.warn("Spotify app token request failed, status={}", ex.getStatusCode().value());
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Spotify upstream error",
-                Map.of("music_error_code", "MUSIC_SPOTIFY_UPSTREAM_ERROR", "upstream_status", ex.getRawStatusCode()));
+                Map.of("music_error_code", "MUSIC_SPOTIFY_UPSTREAM_ERROR", "upstream_status", ex.getStatusCode().value()));
         } catch (ResourceAccessException ex) {
             throw new TransientSpotifyException("network", ex);
         }
@@ -152,15 +152,15 @@ public class SpotifyMusicProvider {
                 });
             return parseSearchResponse(response);
         } catch (RestClientResponseException ex) {
-            if (StringUtils.hasText(userTokenOptional) && (ex.getRawStatusCode() == 401 || ex.getRawStatusCode() == 403)) {
+            if (StringUtils.hasText(userTokenOptional) && (ex.getStatusCode().value() == 401 || ex.getStatusCode().value() == 403)) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Spotify user token invalid",
-                    Map.of("music_error_code", "MUSIC_SPOTIFY_TOKEN_INVALID", "upstream_status", ex.getRawStatusCode()));
+                    Map.of("music_error_code", "MUSIC_SPOTIFY_TOKEN_INVALID", "upstream_status", ex.getStatusCode().value()));
             }
             if (ex.getStatusCode().is5xxServerError()) {
                 throw new TransientSpotifyException("upstream_5xx", ex);
             }
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Spotify upstream error",
-                Map.of("music_error_code", "MUSIC_SPOTIFY_UPSTREAM_ERROR", "upstream_status", ex.getRawStatusCode()));
+                Map.of("music_error_code", "MUSIC_SPOTIFY_UPSTREAM_ERROR", "upstream_status", ex.getStatusCode().value()));
         } catch (ResourceAccessException ex) {
             throw new TransientSpotifyException("network", ex);
         }
@@ -181,15 +181,15 @@ public class SpotifyMusicProvider {
             }
             return new SpotifyPreviewResponse(trackId, previewUrl, "spotify", "");
         } catch (RestClientResponseException ex) {
-            if (StringUtils.hasText(userTokenOptional) && (ex.getRawStatusCode() == 401 || ex.getRawStatusCode() == 403)) {
+            if (StringUtils.hasText(userTokenOptional) && (ex.getStatusCode().value() == 401 || ex.getStatusCode().value() == 403)) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Spotify user token invalid",
-                    Map.of("music_error_code", "MUSIC_SPOTIFY_TOKEN_INVALID", "upstream_status", ex.getRawStatusCode()));
+                    Map.of("music_error_code", "MUSIC_SPOTIFY_TOKEN_INVALID", "upstream_status", ex.getStatusCode().value()));
             }
             if (ex.getStatusCode().is5xxServerError()) {
                 throw new TransientSpotifyException("upstream_5xx", ex);
             }
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Spotify upstream error",
-                Map.of("music_error_code", "MUSIC_SPOTIFY_UPSTREAM_ERROR", "upstream_status", ex.getRawStatusCode()));
+                Map.of("music_error_code", "MUSIC_SPOTIFY_UPSTREAM_ERROR", "upstream_status", ex.getStatusCode().value()));
         } catch (ResourceAccessException ex) {
             throw new TransientSpotifyException("network", ex);
         }

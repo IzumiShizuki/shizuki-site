@@ -175,7 +175,7 @@ public abstract class AbstractOAuthProviderStrategy implements OAuthProviderStra
                 throw new TransientOAuthException("oauth_upstream_5xx", ex);
             }
             // 4xx 通常为授权码无效或请求参数问题，不重试。
-            String statusText = "status=" + ex.getRawStatusCode();
+            String statusText = "status=" + ex.getStatusCode().value();
             String body = ex.getResponseBodyAsString();
             if (StringUtils.hasText(body)) {
                 body = body.replace('\n', ' ').replace('\r', ' ').trim();

@@ -2066,7 +2066,7 @@ public class TuneHubMusicProvider {
                 "MUSIC_TUNEHUB_HTTP_FAIL method={} url={} status={} durationMs={} reason={}",
                 normalizedMethod,
                 sanitizedUrl,
-                ex.getRawStatusCode(),
+                ex.getStatusCode().value(),
                 Math.max(1L, System.currentTimeMillis() - startMs),
                 sanitizeLogMessage(ex.getMessage())
             );
@@ -2074,7 +2074,7 @@ public class TuneHubMusicProvider {
                 ErrorCode.INTERNAL_ERROR,
                 "TuneHub upstream request failed",
                 Map.of(
-                    "status", ex.getRawStatusCode(),
+                    "status", ex.getStatusCode().value(),
                     "url", url,
                     "body", previewText(ex.getResponseBodyAsString())
                 )

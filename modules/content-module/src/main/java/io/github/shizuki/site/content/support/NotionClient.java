@@ -223,7 +223,7 @@ public class NotionClient {
             return request.retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {
             });
         } catch (RestClientResponseException ex) {
-            if (ex.getRawStatusCode() == 429 || ex.getStatusCode().is5xxServerError()) {
+            if (ex.getStatusCode().value() == 429 || ex.getStatusCode().is5xxServerError()) {
                 sleepRetryAfter(ex);
                 throw new TransientNotionException("notion_transient", ex);
             }
@@ -270,7 +270,7 @@ public class NotionClient {
     private String sanitizeUpstreamMessage(RestClientResponseException ex) {
         String body = ex.getResponseBodyAsString();
         if (!StringUtils.hasText(body)) {
-            return "status=" + ex.getRawStatusCode();
+            return "status=" + ex.getStatusCode().value();
         }
         try {
             Map<String, Object> payload = objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {
