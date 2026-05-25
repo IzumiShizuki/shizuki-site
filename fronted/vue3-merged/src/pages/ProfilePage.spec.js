@@ -457,7 +457,7 @@ describe('ProfilePage immediate account expansion', () => {
     expect(musicAuthCard.classes()).toContain('focused');
     expect(mocked.auth.getPreference).toHaveBeenCalled();
     expect(mocked.getMusicSourceAccountStatus).toHaveBeenCalledTimes(1);
-    expect(musicText).toContain('TuneHub');
+    expect(musicText).toContain('Meting');
     expect(musicText).toContain('Spotify');
     expect(musicText).toContain('网易云');
     expect(musicText).toContain('QQ 音乐');

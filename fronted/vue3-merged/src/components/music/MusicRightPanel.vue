@@ -91,7 +91,7 @@
       <article class="integration-card accordion-card" :class="{ expanded: isTunehubExpanded }">
         <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider('tunehub')">
           <div class="summary-main">
-            <h4>TuneHub</h4>
+            <h4>Meting</h4>
             <p>{{ tunehubSummary }}</p>
           </div>
           <span class="bind-tag" :class="{ ok: tunehubBound }">{{ tunehubBound ? '已绑定' : '未绑定' }}</span>
@@ -101,9 +101,9 @@
         <transition name="provider-expand">
           <div v-if="isTunehubExpanded" class="provider-detail">
             <header class="integration-head">
-              <h4>TuneHub Key</h4>
+              <h4>Meting Key</h4>
               <div class="head-actions">
-                <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization')">
+                <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization', 'meting')">
                   用户中心
                 </button>
                 <button
@@ -122,7 +122,7 @@
               <input
                 :value="tunehubKeyInput"
                 type="password"
-                placeholder="输入 TuneHub API Key"
+                placeholder="输入 Meting API Key"
                 :disabled="!isAuthenticated"
                 @input="emit('update:tunehubKeyInput', $event.target.value)"
               />
@@ -165,7 +165,7 @@
         <transition name="provider-expand">
           <div v-if="isSpotifyExpanded" class="provider-detail">
             <div class="row-actions">
-              <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization')">
+              <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization', 'spotify')">
                 用户中心
               </button>
               <button class="mini-btn primary ripple-trigger" type="button" @click="emit('bind-spotify')" :disabled="spotifyBusy || !isAuthenticated">
@@ -232,9 +232,9 @@
             @change="emit('update:source-mode', $event.target.value)"
           >
             <option value="account_first">账号优先</option>
-            <option value="tunehub_first">TuneHub 优先</option>
+            <option value="tunehub_first">Meting 优先</option>
             <option value="account_only">仅账号源</option>
-            <option value="tunehub_only">仅 TuneHub</option>
+            <option value="tunehub_only">仅 Meting</option>
           </select>
         </label>
         <div class="order-row">
@@ -592,12 +592,12 @@ const lyricTransitionKey = computed(() => {
 });
 
 const tunehubStatusText = computed(() => {
-  if (!props.isAuthenticated) return '登录后可保存 TuneHub Key';
+  if (!props.isAuthenticated) return '登录后可保存 Meting Key';
   if (tunehubBound.value) {
     const mask = String(props.tunehubStatus?.keyMask || '').trim();
     return mask ? `已绑定：${mask}` : '已绑定 Key';
   }
-  return '未绑定 TuneHub Key';
+  return '未绑定 Meting Key';
 });
 
 function toggleProvider(provider) {
