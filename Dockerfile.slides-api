@@ -1,0 +1,17 @@
+FROM m.daocloud.io/mcr.microsoft.com/playwright:v1.58.2-noble
+
+WORKDIR /app
+
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+COPY services/slides-api/package.json ./package.json
+RUN npm install --omit=dev
+
+COPY services/slides-api/server.mjs ./server.mjs
+
+ENV NODE_ENV=production
+ENV PORT=3211
+
+EXPOSE 3211
+
+CMD ["npm", "run", "start"]
