@@ -379,7 +379,6 @@ body {
   .control-chip,
   .integration-card,
   .provider-detail,
-  .manual-fallback,
   .playlist-card,
   .artist-card,
   .provider-summary,
@@ -608,6 +607,24 @@ body {
   color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
 }
 
+:where(.profile-page, .music-library-page) details.manual-fallback {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:where(.profile-page, .music-library-page) details.manual-fallback > summary {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 :root[data-theme-mode='day'] .music-library-page :is(
   .music-left-sidebar,
   .music-right-panel,
@@ -631,7 +648,6 @@ body {
   .control-chip,
   .integration-card,
   .provider-detail,
-  .manual-fallback,
   .playlist-card,
   .artist-card,
   .nav-item,
