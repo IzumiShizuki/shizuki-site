@@ -3,7 +3,7 @@ package io.github.shizuki.site.ai.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import io.github.shizuki.site.user.service.UserService;
+import io.github.shizuki.common.integration.user.UserServicePort;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,7 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class UserQuotaGatewayTest {
 
     @Mock
-    private UserService userService;
+    private UserServicePort userService;
 
     @InjectMocks
     private UserQuotaGateway userQuotaClient;

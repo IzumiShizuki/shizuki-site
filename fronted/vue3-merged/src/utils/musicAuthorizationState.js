@@ -23,9 +23,9 @@ export const SOURCE_ACCOUNT_PROVIDER_CATALOG = Object.freeze({
 
 export const MUSIC_SOURCE_MODE_OPTIONS = Object.freeze([
   Object.freeze({ value: 'account_first', label: '账号优先' }),
-  Object.freeze({ value: 'tunehub_first', label: 'TuneHub 优先' }),
+  Object.freeze({ value: 'tunehub_first', label: 'Meting 优先' }),
   Object.freeze({ value: 'account_only', label: '仅账号源' }),
-  Object.freeze({ value: 'tunehub_only', label: '仅 TuneHub' })
+  Object.freeze({ value: 'tunehub_only', label: '仅 Meting' })
 ]);
 
 export function normalizeMusicApiKeyStatus(raw) {

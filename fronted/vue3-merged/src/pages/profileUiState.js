@@ -135,7 +135,7 @@ export function buildSectionSummary(sectionKey, payload = {}) {
       const configuredCount = Number(payload.configuredCount || 0);
       return configuredCount > 0
         ? `已接入 ${configuredCount} 项音乐授权能力`
-        : '配置 TuneHub、Spotify 与三平台账号源授权';
+        : '配置 Meting、Spotify 与三平台账号源授权';
     }
     case ProfileSectionKey.ARTICLES.WORKSPACE:
       return '草稿、发布与统计入口';

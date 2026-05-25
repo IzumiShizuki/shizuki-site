@@ -23,6 +23,7 @@ import io.github.shizuki.site.media.request.MeMusicPlaylistTrackUpsertRequest;
 import io.github.shizuki.site.media.request.MeMusicPlaylistUpdateRequest;
 import io.github.shizuki.site.media.response.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.response.MusicMetingStatusResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicSearchResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
@@ -119,6 +120,13 @@ public interface MediaService {
      * @return 主列表聚合
      */
     MusicLibraryHomeResponse getMusicLibraryHome();
+
+    /**
+     * 查询 Meting sidecar 当前可用状态及其支持平台列表（运维面板用）。
+     *
+     * @return sidecar 状态
+     */
+    MusicMetingStatusResponse getMetingStatus();
 
     /**
      * 根据歌单编码查询歌单聚合（按公开/私有权限判断）。

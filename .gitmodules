@@ -1,0 +1,3 @@
+[submodule "third_party/meting-api"]
+	path = third_party/meting-api
+	url = https://github.com/injahow/meting-api.git

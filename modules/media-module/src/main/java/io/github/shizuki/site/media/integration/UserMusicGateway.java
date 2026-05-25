@@ -4,7 +4,7 @@ import io.github.shizuki.site.user.response.MusicApiKeyStatusResponse;
 import io.github.shizuki.site.user.response.MeAccountResponse;
 import io.github.shizuki.site.user.response.MusicSourceAccountStatusResponse;
 import io.github.shizuki.site.user.response.OAuthBindingResponse;
-import io.github.shizuki.site.user.service.UserService;
+import io.github.shizuki.common.integration.user.UserServicePort;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -22,9 +22,9 @@ public class UserMusicGateway {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UserMusicGateway.class);
 
-    private final UserService userService;
+    private final UserServicePort userService;
 
-    public UserMusicGateway(UserService userService) {
+    public UserMusicGateway(UserServicePort userService) {
         this.userService = userService;
     }
 

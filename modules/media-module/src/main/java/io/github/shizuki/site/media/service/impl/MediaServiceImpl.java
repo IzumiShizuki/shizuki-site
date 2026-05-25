@@ -18,6 +18,7 @@ import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.config.TuneHubMusicProperties;
 import io.github.shizuki.site.media.integration.AsmrMusicProvider;
+import io.github.shizuki.site.media.integration.MetingMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
@@ -52,6 +53,7 @@ import io.github.shizuki.site.media.response.MusicSearchTrackResponse;
 import io.github.shizuki.site.media.response.MusicTrackResponse;
 import io.github.shizuki.site.media.response.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.response.MusicMetingStatusResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistProfileResponse;
@@ -252,6 +254,9 @@ public class MediaServiceImpl implements MediaService {
     private final TransactionTemplate transactionTemplate;
     @Autowired(required = false)
     private MusicLibraryHomeCacheStore musicLibraryHomeCacheStore;
+
+    @Autowired(required = false)
+    private MetingMusicProvider metingMusicProvider;
 
     /**
      * 构造媒体服务实现。
@@ -807,6 +812,24 @@ public class MediaServiceImpl implements MediaService {
             );
         }
         return response;
+    }
+
+    /**
+     * 查询 Meting sidecar 当前可用状态。
+     *
+     * <p>当 {@link MetingMusicProvider} bean 已装配时，认为 sidecar 可用并返回其支持的平台集合；
+     * 否则返回不可用 + 内置默认平台兜底。
+     */
+    @Override
+    public MusicMetingStatusResponse getMetingStatus() {
+        if (metingMusicProvider == null) {
+            return new MusicMetingStatusResponse(false, List.of("netease", "kuwo", "qq"));
+        }
+        Set<String> supported = metingMusicProvider.listSupportedPlatforms();
+        List<String> providers = supported == null || supported.isEmpty()
+            ? List.of("netease", "kuwo", "qq")
+            : new ArrayList<>(supported);
+        return new MusicMetingStatusResponse(true, providers);
     }
 
     private MusicLibraryHomeResponse buildMusicLibraryHome() {

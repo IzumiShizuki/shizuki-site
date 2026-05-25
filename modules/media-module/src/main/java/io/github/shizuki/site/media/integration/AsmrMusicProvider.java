@@ -391,15 +391,15 @@ public class AsmrMusicProvider {
                 }
                 return objectMapper.readValue(response, Object.class);
             } catch (RestClientResponseException ex) {
-                lastStatus = ex.getRawStatusCode();
+                lastStatus = ex.getStatusCode().value();
                 lastSource = sourceBase;
-                if (!isRetryableHttpStatus(ex.getRawStatusCode()) || lastCandidate.equals(sourceBase)) {
+                if (!isRetryableHttpStatus(ex.getStatusCode().value()) || lastCandidate.equals(sourceBase)) {
                     throw new BusinessException(
                         ErrorCode.INTERNAL_ERROR,
                         "ASMR upstream error",
                         Map.of(
                             "music_error_code", "MUSIC_ASMR_UPSTREAM_ERROR",
-                            "upstream_status", ex.getRawStatusCode(),
+                            "upstream_status", ex.getStatusCode().value(),
                             "source", sourceBase
                         )
                     );
@@ -408,7 +408,7 @@ public class AsmrMusicProvider {
                     "ASMR_UPSTREAM_SOURCE_RETRY source={} method={} status={} path={}",
                     sourceBase,
                     httpMethod.name(),
-                    ex.getRawStatusCode(),
+                    ex.getStatusCode().value(),
                     path
                 );
             } catch (ResourceAccessException ex) {

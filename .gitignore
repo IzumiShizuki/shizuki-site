@@ -1,5 +1,7 @@
 HELP.md
 target/
+# ---- backend-refactor-review: build hygiene ----
+.mvn/repository/
 logs/
 *.log
 *.tmp
@@ -2942,3 +2944,13 @@ tmp/
 # Local presentation generator artifacts
 /tools/presentation-generator/node_modules/
 /tools/presentation-generator/.tmp/
+
+# ---- backend-refactor-review: 本地工具与日志 ----
+.codex
+.codex/
+resouces/log/
+/.tools/.gitignore
+
+# Maven 本地仓库残留与子模块 .mvn 残留
+**/.mvn/repository/**
+modules/*/.mvn/

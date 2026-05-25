@@ -4,11 +4,12 @@
 
 ## 项目概述
 
-**Shizuki Site** 是一个个人学习陪伴平台，采用 Spring Boot 3.x、Spring Cloud 和 Alibaba Nacos 构建的微服务架构。平台提供学习陪伴功能（角色、背景、环境音）、内容管理（博客、时间线、项目展示）、互动功能（评论、点赞）以及 AI 能力（角色卡、世界书、OpenAI 兼容 API）。
+**Shizuki Site** 是一个个人学习陪伴平台，采用 Spring Boot 3.x 构建的**模块化单体（modular monolith）**。平台按域划分为 user / content / media / ai 四个 Maven 模块，由 `apps/monolith-app` 装配为单一 jar 部署。架构面向"未来可拆分微服务"设计（接口对外、库代码下沉），但当前生产形态是单体。平台提供学习陪伴功能（角色、背景、环境音）、内容管理（博客、时间线、项目展示）、互动功能（评论、点赞）以及 AI 能力（角色卡、世界书、OpenAI 兼容 API）。
 
 **核心特征：**
+
 - Maven 多模块 Monorepo 结构
-- 从第一天起就采用微服务架构（网关 + 4 个业务服务）
+- 模块化单体：当前以单 jar 运行，长期目标可拆分为微服务
 - 目标部署环境：单机 8GB 内存，使用 Docker Compose
 - 安全基线：OWASP ASVS L1，强制限流、配额、白名单和审计日志
 - API 标准：`/api/v1/**` 基础路径，JSON/查询参数使用 snake_case，错误响应使用 `application/problem+json`
@@ -18,33 +19,39 @@
 ### 本地开发环境搭建
 
 1. **启动中间件（MySQL、Redis、Nacos）：**
+
    ```bash
    ./scripts/up-middleware.sh
    # 或手动执行：docker compose up -d mysql redis nacos
    ```
 
 2. **停止中间件：**
+
    ```bash
    ./scripts/down-middleware.sh
    # 或手动执行：docker compose down
    ```
 
 3. **构建整个项目：**
+
    ```bash
    mvn clean install
    ```
 
 4. **构建特定模块：**
+
    ```bash
    mvn clean install -pl services/user-service -am
    ```
 
 5. **本地运行单个服务：**
+
    ```bash
    mvn -pl services/user-service spring-boot:run
    ```
 
 6. **运行测试：**
+
    ```bash
    # 所有测试
    mvn test
@@ -60,6 +67,7 @@
    ```
 
 7. **检查 SQL 规范（提交前）：**
+
    ```bash
    ./scripts/check_sql_conventions.sh
    ```
@@ -80,6 +88,20 @@
 - MySQL: 3306
 - Redis: 6379
 
+## 命名约定
+
+模块目录名与 Maven `<artifactId>` 之间存在历史差异，本约定锁定为现状不再调整：
+
+| 目录名                    | artifactId        | 说明                                                                                       |
+| ------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
+| `model/`                  | `site-model`      | model jar 在仓库内仅一份，目录名按"model"语义而非坐标                                      |
+| `modules/user-module/`    | `user-service`    | 目录名带 `-module` 强调"Maven 模块"语义；artifactId 带 `-service` 体现"未来可拆分进程"语义 |
+| `modules/content-module/` | `content-service` | 同上                                                                                       |
+| `modules/media-module/`   | `media-service`   | 同上                                                                                       |
+| `modules/ai-module/`      | `ai-service`      | 同上                                                                                       |
+
+新增模块沿用此约定：目录名 `xxx-module`，artifactId `xxx-service`。本约定经评审 spec `backend-refactor-review` 确认（见 `.kiro/specs/backend-refactor-review/findings.json` 中 `naming` 维度 5 条 finding 的 resolution 字段）。
+
 ## 架构概览
 
 ### 模块结构
@@ -90,7 +112,7 @@ shizuki-site/
 │   ├── common-core/              # 核心工具（ApiResponse、ErrorCode、BaseEntity、ClockProvider）
 │   ├── common-servlet/           # Web 层（安全、审计、限流、XSS、追踪）
 │   └── common-integration/       # 外部集成（OAuth、OSS 存储）
-├── services/                      # 微服务
+├── services/                      # 历史路径：微服务拆分预留 / sidecar 服务（slides-api 等）
 │   ├── gateway-service/          # Spring Cloud Gateway（路由、鉴权、限流）
 │   ├── user-service/             # 用户账户、鉴权、分组、配额、偏好设置
 │   ├── content-service/          # 博客文章、时间线、项目展示、评论
@@ -113,24 +135,28 @@ shizuki-site/
 ### 核心架构模式
 
 **认证与授权：**
+
 - 使用 Sa-Token 进行令牌管理
 - 网关通过 User Service 验证执行统一认证
 - 业务服务执行资源级二次授权（纵深防御）
 - 令牌通过 HTTP Header 传递（不使用查询参数）
 
 **审计日志：**
+
 - 通过 common-servlet 中的 `@AuditLog` 注解实现
 - 使用 Outbox 模式确保审计事件可靠发布
 - 支持多种发布器：Kafka、ELK 或 Noop（可配置）
 - 失败审计事件的自动重试机制
 
 **限流与配额：**
+
 - 网关级限流（时间窗口内的请求数）
 - 服务级配额执行（如 AI 对话轮数、媒体上传）
 - 配额策略按用户组定义，支持继承规则
 - 每个模块都有紧急停止开关
 
 **错误处理：**
+
 - 所有错误返回 RFC 7807 `application/problem+json` 格式
 - common-servlet 中的全局异常处理器
 - 自定义 `BusinessException` 配合 `ErrorCode` 枚举
@@ -230,6 +256,7 @@ shizuki-site/
 ### common-core
 
 所有服务共享的核心工具：
+
 - `ApiResponse<T>`：标准成功响应包装器
 - `PageResponse<T>`：分页响应包装器
 - `ErrorCode`：所有错误码的枚举
@@ -240,6 +267,7 @@ shizuki-site/
 ### common-servlet
 
 Web 层组件（通过 Spring Boot starter 自动配置）：
+
 - **全局异常处理器**：将异常转换为 RFC 7807 Problem Details
 - **追踪过滤器**：`TraceIdFilter`、`RequestIdFilter` 用于分布式追踪
 - **安全**：Sa-Token 配置、鉴权拦截器
@@ -251,6 +279,7 @@ Web 层组件（通过 Spring Boot starter 自动配置）：
 ### common-integration
 
 外部服务集成：
+
 - **OAuth**：GitHub、Google OAuth 登录流程
 - **存储**：阿里云 OSS 媒体存储集成
 - **HTTP 客户端**：配置好的 RestTemplate/WebClient beans

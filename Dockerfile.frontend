@@ -9,6 +9,8 @@ COPY fronted/vue3-merged/ ./
 # Use "/" to make frontend call same-origin /api paths.
 ARG VITE_GATEWAY_BASE_URL=/
 ENV VITE_GATEWAY_BASE_URL=${VITE_GATEWAY_BASE_URL}
+ARG VITE_METING_CONSOLE_URL=
+ENV VITE_METING_CONSOLE_URL=${VITE_METING_CONSOLE_URL}
 
 RUN npm run build
 

@@ -1,6 +1,6 @@
 package io.github.shizuki.site.ai.integration;
 
-import io.github.shizuki.site.user.service.UserService;
+import io.github.shizuki.common.integration.user.UserServicePort;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,9 +11,9 @@ public class UserQuotaGateway {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UserQuotaGateway.class);
 
-    private final UserService userService;
+    private final UserServicePort userService;
 
-    public UserQuotaGateway(UserService userService) {
+    public UserQuotaGateway(UserServicePort userService) {
         this.userService = userService;
     }
 

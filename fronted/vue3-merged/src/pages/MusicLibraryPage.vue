@@ -238,6 +238,7 @@ import {
   requestMusicSourceCookies,
   waitForMusicSourceBind
 } from '../utils/musicSourceBindHelper';
+import { openMetingConsoleWindow } from '../utils/metingConsole';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
@@ -246,6 +247,8 @@ const PLAYLIST_BROWSE_STEP = 100;
 const PLAYLIST_PREFETCH_GAP = 40;
 const SEARCH_ALL_PLAYLIST_MIN_CAPACITY = 1;
 const SEARCH_ALL_PLAYLIST_MAX_CAPACITY = 12;
+const METING_CONSOLE_UNCONFIGURED_MESSAGE = '未配置 Meting 配置页地址，请设置 VITE_METING_CONSOLE_URL。';
+const METING_API_PROVIDER = 'tunehub';
 const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
   playlists: 3,
   tracks: 10,
@@ -873,8 +876,15 @@ function handleSelectNav(navKey) {
   }
 }
 
-function openMusicAuthorization() {
+function openMusicAuthorization(provider = '') {
   ui.closeDrawers();
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (normalizedProvider === 'meting' || normalizedProvider === 'tunehub') {
+    if (!openMetingConsoleWindow()) {
+      window.alert(METING_CONSOLE_UNCONFIGURED_MESSAGE);
+    }
+    return;
+  }
   router.push({ path: '/profile', query: { tab: 'account' } });
 }
 
@@ -1476,7 +1486,7 @@ async function loadTunehubStatus() {
     return;
   }
   try {
-    const payload = await musicApi.getMusicApiKeyStatus('tunehub', auth.authorizedFetch);
+    const payload = await musicApi.getMusicApiKeyStatus(METING_API_PROVIDER, auth.authorizedFetch);
     tunehubStatus.value = normalizeApiKeyStatus(payload);
   } catch {
     tunehubStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
@@ -1489,16 +1499,16 @@ async function handleSaveTunehubKey() {
     return;
   }
   if (!String(tunehubKeyInput.value || '').trim()) {
-    window.alert('请输入 TuneHub API Key');
+    window.alert('请输入 Meting API Key');
     return;
   }
   tunehubBusy.value = true;
   try {
-    const payload = await musicApi.upsertMusicApiKey('tunehub', tunehubKeyInput.value, auth.authorizedFetch);
+    const payload = await musicApi.upsertMusicApiKey(METING_API_PROVIDER, tunehubKeyInput.value, auth.authorizedFetch);
     tunehubStatus.value = normalizeApiKeyStatus(payload);
     tunehubKeyInput.value = '';
   } catch (error) {
-    window.alert(parseErrorMessage(error, 'TuneHub Key 保存失败'));
+    window.alert(parseErrorMessage(error, 'Meting Key 保存失败'));
   } finally {
     tunehubBusy.value = false;
   }
@@ -1511,10 +1521,10 @@ async function handleDeleteTunehubKey() {
   }
   tunehubBusy.value = true;
   try {
-    await musicApi.deleteMusicApiKey('tunehub', auth.authorizedFetch);
+    await musicApi.deleteMusicApiKey(METING_API_PROVIDER, auth.authorizedFetch);
     tunehubStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
   } catch (error) {
-    window.alert(parseErrorMessage(error, 'TuneHub Key 删除失败'));
+    window.alert(parseErrorMessage(error, 'Meting Key 删除失败'));
   } finally {
     tunehubBusy.value = false;
   }

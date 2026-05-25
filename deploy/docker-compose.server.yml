@@ -50,6 +50,7 @@ services:
       dockerfile: Dockerfile.frontend
       args:
         VITE_GATEWAY_BASE_URL: ${VITE_GATEWAY_BASE_URL:-/}
+        VITE_METING_CONSOLE_URL: ${VITE_METING_CONSOLE_URL:-}
     image: shizuki-site/site:latest
     container_name: shizuki-site-frontend
     restart: unless-stopped

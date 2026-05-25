@@ -230,12 +230,12 @@
     <template v-else-if="navKey === 'recommend'">
       <section class="panel liquid-material">
         <header class="panel-head">
-          <h2>TuneHub 歌单</h2>
+          <h2>Meting 歌单</h2>
           <span>{{ filteredTunehubPlaylists.length }} 个</span>
         </header>
 
         <div v-if="!filteredTunehubPlaylists.length && !music.homeLoading.value" class="empty-state">
-          暂无可展示 TuneHub 歌单
+          暂无可展示 Meting 歌单
         </div>
 
         <div class="playlist-grid">
@@ -333,7 +333,7 @@
       <section class="panel liquid-material">
         <header class="panel-head">
           <h2>歌单总览</h2>
-          <span>TuneHub + Spotify 占位</span>
+          <span>Meting + Spotify 占位</span>
         </header>
 
         <section class="provider-block">
@@ -364,11 +364,11 @@
 
         <section class="provider-block">
           <div class="provider-head">
-            <h3>TuneHub</h3>
+            <h3>Meting</h3>
             <span>{{ filteredTunehubPlaylists.length }}</span>
           </div>
           <div v-if="!filteredTunehubPlaylists.length && !music.homeLoading.value" class="empty-state compact">
-            暂无 TuneHub 歌单
+            暂无 Meting 歌单
           </div>
           <div class="playlist-grid">
             <button
