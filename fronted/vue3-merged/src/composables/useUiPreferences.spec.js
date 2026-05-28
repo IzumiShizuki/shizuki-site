@@ -64,7 +64,7 @@ describe('useUiPreferences', () => {
         accentGradientId: 'apricot-blush',
         accentGradientStartHex: '#F6C2A1',
         accentGradientEndHex: '#EFA0A8',
-        themeDefaultsVersion: 2
+        themeDefaultsVersion: 3
       })
     );
   });
@@ -99,7 +99,40 @@ describe('useUiPreferences', () => {
         accentGradientId: 'apricot-blush',
         accentGradientStartHex: '#F6C2A1',
         accentGradientEndHex: '#EFA0A8',
-        themeDefaultsVersion: 2
+        themeDefaultsVersion: 3
+      })
+    );
+  });
+
+  it('migrates legacy defaults even when previous defaults marker is already saved', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        themeDefaultsVersion: 2,
+        accentHex: '#C8B4FF',
+        accentMode: 'solid',
+        accentGradientId: 'berry',
+        accentGradientStartHex: '#E94BC5',
+        accentGradientEndHex: '#9D6BFF'
+      })
+    );
+
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+
+    ui.initializeUiPreferences();
+
+    expect(ui.state.accentHex).toBe('#F2B39D');
+    expect(ui.state.accentMode).toBe('solid');
+    expect(ui.state.accentGradientId).toBe('apricot-blush');
+    expect(ui.state.accentGradientStartHex).toBe('#F6C2A1');
+    expect(ui.state.accentGradientEndHex).toBe('#EFA0A8');
+    expect(readStoredPreferences()).toEqual(
+      expect.objectContaining({
+        themeDefaultsVersion: 3,
+        accentHex: '#F2B39D',
+        accentMode: 'solid',
+        accentGradientId: 'apricot-blush'
       })
     );
   });
@@ -134,7 +167,7 @@ describe('useUiPreferences', () => {
         accentGradientId: 'sunset',
         accentGradientStartHex: '#FF7A8A',
         accentGradientEndHex: '#FFB168',
-        themeDefaultsVersion: 2
+        themeDefaultsVersion: 3
       })
     );
   });
@@ -160,7 +193,7 @@ describe('useUiPreferences', () => {
         accentGradientId: 'apricot-blush',
         accentGradientStartHex: '#F6C2A1',
         accentGradientEndHex: '#EFA0A8',
-        themeDefaultsVersion: 2
+        themeDefaultsVersion: 3
       })
     );
   });

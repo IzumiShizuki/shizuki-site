@@ -2,7 +2,7 @@ import { reactive } from 'vue';
 
 const STORAGE_KEY = 'shizuki.uiPreferences.v1';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
-const THEME_DEFAULTS_VERSION = 2;
+const THEME_DEFAULTS_VERSION = 3;
 const LEGACY_DEFAULT_ACCENT_HEX = '#C8B4FF';
 const LEGACY_DEFAULT_GRADIENT_PRESET_ID = 'berry';
 const LEGACY_DEFAULT_GRADIENT_START_HEX = '#E94BC5';
