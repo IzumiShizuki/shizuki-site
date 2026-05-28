@@ -8,8 +8,8 @@ cp .env.server.example .env.server
 # edit .env.server with real DB/Redis/JWT values
 # required: SHIZUKI_MUSIC_SECURITY_KEY_ENCRYPTION_MASTER_KEY must be base64 of 32 bytes
 # example generation: openssl rand -base64 32
-# music search key now comes from: ../resouces/yaml/common-config.yaml
-# field: shizuki.music.tunehub.default-api-key
+# music sidecar URL: shizuki.music.meting.base-url
+# （部署方在容器网络内提供 meting-api 服务，无需用户级 API Key）
 # if OSS is not configured yet, keep OSS_VALIDATE_BUCKETS_ON_STARTUP=false
 ```
 

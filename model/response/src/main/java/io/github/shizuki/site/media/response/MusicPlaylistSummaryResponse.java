@@ -15,7 +15,7 @@ public record MusicPlaylistSummaryResponse(
     @Schema(description = "所属用户 ID，默认歌单为 0") Long ownerUserId,
     @Schema(description = "是否公开") boolean isPublic,
     @Schema(description = "曲目数量") int trackCount,
-    @Schema(description = "推荐来源 provider（netease/kuwo/qq/tunehub）") String sourceProvider
+    @Schema(description = "推荐来源 provider（netease/kuwo/qq/meting）") String sourceProvider
 ) {
 
     public MusicPlaylistSummaryResponse(String playlistCode,

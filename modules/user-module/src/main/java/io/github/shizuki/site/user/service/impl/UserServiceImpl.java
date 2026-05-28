@@ -85,9 +85,9 @@ public class UserServiceImpl implements UserService {
     private static final String GROUP_STATUS_ACTIVE = "ACTIVE";
     private static final String GROUP_STATUS_DISABLED = "DISABLED";
     private static final int DEFAULT_GROUP_PAGE_SIZE = 20;
-    private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
-    private static final Set<String> SUPPORTED_MUSIC_SOURCE_PROVIDERS = Set.of("netease", "qqmusic", "kugou", "tunehub", "spotify");
-    private static final List<String> DEFAULT_SOURCE_PROVIDER_ORDER = List.of("netease", "qqmusic", "kugou", "tunehub", "spotify");
+    private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("spotify", "asmr");
+    private static final Set<String> SUPPORTED_MUSIC_SOURCE_PROVIDERS = Set.of("netease", "qqmusic", "kugou", "spotify");
+    private static final List<String> DEFAULT_SOURCE_PROVIDER_ORDER = List.of("netease", "qqmusic", "kugou", "spotify");
     private static final String SOURCE_ACCOUNT_PROVIDER_PREFIX = "music_cookie_";
 
     private final OAuthStateService oAuthStateService;
@@ -1266,7 +1266,11 @@ public class UserServiceImpl implements UserService {
         }
         String normalized = provider.trim().toLowerCase();
         if (!SUPPORTED_MUSIC_PROVIDERS.contains(normalized)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported provider: " + provider);
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Unsupported provider: " + provider,
+                Map.of("music_error_code", "MUSIC_PROVIDER_NOT_SUPPORTED")
+            );
         }
         return normalized;
     }

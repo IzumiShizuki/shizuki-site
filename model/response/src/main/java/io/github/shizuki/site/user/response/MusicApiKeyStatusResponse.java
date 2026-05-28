@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 public class MusicApiKeyStatusResponse {
 
     /**
-     * provider 编码（如 tunehub / spotify）。
+     * provider 编码（如 spotify / asmr）。
      */
     private String provider;
     /**

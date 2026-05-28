@@ -41,7 +41,7 @@
     },
     {
       "key": "musicProvider",
-      "value": "tunehub"
+      "value": "meting"
     },
     {
       "key": "musicApiKey",
@@ -995,29 +995,6 @@
                 "method": "GET",
                 "url": "{{gatewayBaseUrl}}/api/v1/admin/music/provider-guides",
                 "description": "管理员查询所有 provider 的 API Key 引导配置。"
-              }
-            },
-            {
-              "name": "管理员音乐-更新 Provider 引导",
-              "request": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"title\": \"TuneHub API Key 获取\",\n  \"content\": \"登录控制台生成 API Key 并复制到站点绑定。\",\n  \"link\": \"https://tunehub.sayqz.com/dashboard\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": "{{gatewayBaseUrl}}/api/v1/admin/music/provider-guides/{{musicProvider}}",
-                "description": "管理员更新指定 Provider 的 API Key 获取引导。"
               }
             }
           ]

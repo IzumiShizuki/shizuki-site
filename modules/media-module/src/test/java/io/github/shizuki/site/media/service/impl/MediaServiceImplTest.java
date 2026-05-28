@@ -6,12 +6,12 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
+import io.github.shizuki.site.media.config.MetingMusicProperties;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
-import io.github.shizuki.site.media.config.TuneHubMusicProperties;
 import io.github.shizuki.site.media.integration.AsmrMusicProvider;
+import io.github.shizuki.site.media.integration.MetingMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
-import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.request.AdminMusicDefaultPlaylistBundleReplaceRequest;
@@ -84,7 +84,7 @@ class MediaServiceImplTest {
     private UserMusicGateway userMusicClient;
     private SpotifyMusicProvider spotifyMusicClient;
     private NeteaseCookieProvider neteaseCookieProvider;
-    private TuneHubMusicProvider tuneHubMusicProvider;
+    private MetingMusicProvider metingMusicProvider;
     private AsmrMusicProvider asmrMusicProvider;
     private MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private MediaServiceImpl mediaService;
@@ -111,7 +111,7 @@ class MediaServiceImplTest {
         userMusicClient = Mockito.mock(UserMusicGateway.class);
         spotifyMusicClient = Mockito.mock(SpotifyMusicProvider.class);
         neteaseCookieProvider = Mockito.mock(NeteaseCookieProvider.class);
-        tuneHubMusicProvider = Mockito.mock(TuneHubMusicProvider.class);
+        metingMusicProvider = Mockito.mock(MetingMusicProvider.class);
         asmrMusicProvider = Mockito.mock(AsmrMusicProvider.class);
         musicTrackCacheUploadPublisher = Mockito.mock(MusicTrackCacheUploadPublisher.class);
         Mockito.when(assetSecurityInspector.inspect(
@@ -272,7 +272,7 @@ class MediaServiceImplTest {
 
         OssProperties tinyLimitOss = new OssProperties();
         tinyLimitOss.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
-        TuneHubMusicProperties tuneHubMusicProperties = new TuneHubMusicProperties();
+        MetingMusicProperties metingMusicProperties = new MetingMusicProperties();
         MusicListenCacheProperties listenCacheProperties = new MusicListenCacheProperties();
 
         MediaServiceImpl tinyLimitService = new MediaServiceImpl(
@@ -298,10 +298,10 @@ class MediaServiceImplTest {
             userMusicClient,
             spotifyMusicClient,
             neteaseCookieProvider,
-            tuneHubMusicProvider,
             asmrMusicProvider,
             musicTrackCacheUploadPublisher,
-            tuneHubMusicProperties,
+            metingMusicProvider,
+            metingMusicProperties,
             listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager())
@@ -405,17 +405,18 @@ class MediaServiceImplTest {
 
         Mockito.when(musicPlaylistMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
         Mockito.when(musicTrackCacheMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
-        Mockito.when(tuneHubMusicProvider.parseSingleTrack(
+        Mockito.when(metingMusicProvider.parseSingleTrack(
             Mockito.eq("th_test_default_key"),
             Mockito.eq("netease"),
             Mockito.eq("1367153990"),
             Mockito.anyString()
-        )).thenReturn(new TuneHubMusicProvider.ParseTrackResult(
+        )).thenReturn(new MetingMusicProvider.ParseTrackResult(
             "1367153990",
             "Need Parse",
             "Shizuki",
             "",
             "https://music.example.com/parsed.mp3",
+            "",
             "",
             "",
             ""
@@ -430,7 +431,7 @@ class MediaServiceImplTest {
 
         mediaService.upsertAdminDefaultPlaylistTrack(request);
 
-        Mockito.verify(tuneHubMusicProvider).parseSingleTrack(
+        Mockito.verify(metingMusicProvider).parseSingleTrack(
             Mockito.eq("th_test_default_key"),
             Mockito.eq("netease"),
             Mockito.eq("1367153990"),
@@ -456,7 +457,7 @@ class MediaServiceImplTest {
         request.setEnabled(true);
 
         Mockito.when(musicPlaylistMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
-        Mockito.when(tuneHubMusicProvider.parseSingleTrack(
+        Mockito.when(metingMusicProvider.parseSingleTrack(
             Mockito.eq("th_test_default_key"),
             Mockito.eq("netease"),
             Mockito.eq("1367153990"),
@@ -475,32 +476,32 @@ class MediaServiceImplTest {
     }
 
     @Test
-    void shouldAggregateTuneHubSearchTracksSuccessfully() {
-        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "netease", "零之", 1, 24))
+    void shouldAggregateMetingSearchTracksSuccessfully() {
+        Mockito.when(metingMusicProvider.searchTracks("th_test_default_key", "netease", "零之", 1, 24))
             .thenReturn(
                 List.of(
-                    new TuneHubMusicProvider.SearchTrackResult(
+                    new MetingMusicProvider.SearchTrackResult(
                         "1366570351",
+                        "netease",
                         "Sweet",
                         "Bren Joy",
                         "Twenties",
                         "https://cover.example/netease.png",
-                        226,
-                        "netease"
+                        226
                     )
                 )
             );
-        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "kuwo", "零之", 1, 24))
+        Mockito.when(metingMusicProvider.searchTracks("th_test_default_key", "kuwo", "零之", 1, 24))
             .thenReturn(
                 List.of(
-                    new TuneHubMusicProvider.SearchTrackResult(
+                    new MetingMusicProvider.SearchTrackResult(
                         "168060593",
+                        "kuwo",
                         "Sweet",
                         "Bren Joy",
                         "Twenties",
                         "https://cover.example/kuwo.png",
-                        226,
-                        "kuwo"
+                        226
                     )
                 )
             );
@@ -515,19 +516,19 @@ class MediaServiceImplTest {
 
     @Test
     void shouldReturnPartialWhenOneProviderSearchFails() {
-        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "netease", "sweet", 1, 24))
+        Mockito.when(metingMusicProvider.searchTracks("th_test_default_key", "netease", "sweet", 1, 24))
             .thenThrow(new RuntimeException("netease upstream error"));
-        Mockito.when(tuneHubMusicProvider.searchTracks("th_test_default_key", "kuwo", "sweet", 1, 24))
+        Mockito.when(metingMusicProvider.searchTracks("th_test_default_key", "kuwo", "sweet", 1, 24))
             .thenReturn(
                 List.of(
-                    new TuneHubMusicProvider.SearchTrackResult(
+                    new MetingMusicProvider.SearchTrackResult(
                         "168060593",
+                        "kuwo",
                         "Sweet",
                         "Bren Joy",
                         "Twenties",
                         "",
-                        226,
-                        "kuwo"
+                        226
                     )
                 )
             );
@@ -542,10 +543,10 @@ class MediaServiceImplTest {
 
     @Test
     void shouldReturnRealPlaylistWhenTypeIsPlaylist() {
-        Mockito.when(tuneHubMusicProvider.searchPlaylists("th_test_default_key", "netease", "白色相簿", 1, 24))
+        Mockito.when(metingMusicProvider.searchPlaylists("th_test_default_key", "netease", "白色相簿", 1, 24))
             .thenReturn(
                 List.of(
-                    new TuneHubMusicProvider.VirtualPlaylistSummary(
+                    new MetingMusicProvider.VirtualPlaylistSummary(
                         "netease",
                         "playlist",
                         "2400142669",
@@ -557,7 +558,7 @@ class MediaServiceImplTest {
                     )
                 )
             );
-        Mockito.when(tuneHubMusicProvider.searchPlaylists("th_test_default_key", "kuwo", "白色相簿", 1, 24))
+        Mockito.when(metingMusicProvider.searchPlaylists("th_test_default_key", "kuwo", "白色相簿", 1, 24))
             .thenReturn(List.of());
         Mockito.when(userMusicPlaylistMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
 
@@ -565,28 +566,13 @@ class MediaServiceImplTest {
 
         Assertions.assertFalse(response.partial());
         Assertions.assertTrue(response.tracks().isEmpty());
+        // R6.1: legacy vh_tunehub_ playlist code should round-trip without rewrite.
         Assertions.assertTrue(response.playlists().stream().anyMatch(item -> "vh_tunehub_netease_playlist_2400142669".equals(item.playlistCode())));
         Assertions.assertTrue(response.playlists().stream().noneMatch(item ->
             String.valueOf(item.playlistCode()).contains("_search_")
         ));
-        Mockito.verify(tuneHubMusicProvider, Mockito.never())
+        Mockito.verify(metingMusicProvider, Mockito.never())
             .searchTracks(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyInt(), Mockito.anyInt());
-    }
-
-    @Test
-    void shouldThrowForbiddenWhenAllTuneHubProvidersMissingApiKey() {
-        MediaServiceImpl serviceWithoutApiKey = buildMediaService("");
-
-        BusinessException exception = Assertions.assertThrows(
-            BusinessException.class,
-            () -> serviceWithoutApiKey.searchMusic("樱花", "track", "netease,kuwo,qq", 1, 10)
-        );
-
-        Assertions.assertEquals(ErrorCode.FORBIDDEN, exception.getErrorCode());
-        Assertions.assertEquals("MUSIC_SEARCH_API_KEY_MISSING", exception.getDetails().get("music_error_code"));
-        Object providers = exception.getDetails().get("providers");
-        Assertions.assertTrue(providers instanceof List<?>);
-        Assertions.assertEquals(List.of("netease", "kuwo", "qq"), providers);
     }
 
     @Test
@@ -684,7 +670,8 @@ class MediaServiceImplTest {
 
     @Test
     void shouldLoadVirtualPlaylistBundleWithPlaylistSourceSummary() {
-        Mockito.when(tuneHubMusicProvider.loadVirtualPlaylistTracks("th_test_default_key", "netease", "playlist", "2400142669"))
+        // R6.1: legacy vh_tunehub_ playlist code must still resolve via the legacy compat regex.
+        Mockito.when(metingMusicProvider.loadVirtualPlaylistTracks("th_test_default_key", "netease", "playlist", "2400142669"))
             .thenReturn(
                 List.of(
                     new MusicTrackResponse(
@@ -701,9 +688,9 @@ class MediaServiceImplTest {
                     )
                 )
             );
-        Mockito.when(tuneHubMusicProvider.loadPlaylistSummary("th_test_default_key", "netease", "playlist", "2400142669"))
+        Mockito.when(metingMusicProvider.loadPlaylistSummary("th_test_default_key", "netease", "playlist", "2400142669"))
             .thenReturn(
-                new TuneHubMusicProvider.VirtualPlaylistSummary(
+                new MetingMusicProvider.VirtualPlaylistSummary(
                     "netease",
                     "playlist",
                     "2400142669",
@@ -718,10 +705,93 @@ class MediaServiceImplTest {
         MusicPlaylistBundleResponse bundle = mediaService.getMusicPlaylistBundle("vh_tunehub_netease_playlist_2400142669");
 
         Assertions.assertNotNull(bundle);
+        // R6.4: the legacy code is preserved verbatim instead of being rewritten to vh_meting_*.
         Assertions.assertEquals("vh_tunehub_netease_playlist_2400142669", bundle.profile().playlistCode());
         Assertions.assertEquals("白色相簿2全人声曲", bundle.profile().name());
         Assertions.assertEquals("https://cover.example/playlist.png", bundle.profile().cover());
         Assertions.assertEquals(1, bundle.tracks().size());
+    }
+
+    @Test
+    void shouldFallbackOnVhTunehubLegacyCode() {
+        // R6.1 / R6.2: parse should accept both vh_meting_ (preferred) and vh_tunehub_ (legacy)
+        // playlist codes during the compatibility window. This test pins the legacy path.
+        Mockito.when(metingMusicProvider.loadVirtualPlaylistTracks("th_test_default_key", "kuwo", "playlist", "9999"))
+            .thenReturn(List.of());
+        Mockito.when(metingMusicProvider.loadPlaylistSummary("th_test_default_key", "kuwo", "playlist", "9999"))
+            .thenReturn(
+                new MetingMusicProvider.VirtualPlaylistSummary(
+                    "kuwo",
+                    "playlist",
+                    "9999",
+                    "Legacy",
+                    "Legacy compat",
+                    "",
+                    "vh_tunehub_kuwo_playlist_9999",
+                    0
+                )
+            );
+
+        MusicPlaylistBundleResponse bundle = mediaService.getMusicPlaylistBundle("vh_tunehub_kuwo_playlist_9999");
+
+        Assertions.assertNotNull(bundle);
+        // R6.4: returned playlistCode preserves the legacy prefix.
+        Assertions.assertEquals("vh_tunehub_kuwo_playlist_9999", bundle.profile().playlistCode());
+    }
+
+    @Test
+    void shouldRouteSearchTracksToMetingProvider() {
+        // R2.1: searchMusic must route to metingMusicProvider.searchTracks (TuneHub provider has been deleted).
+        Mockito.when(metingMusicProvider.searchTracks(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("樱花"),
+            Mockito.anyInt(),
+            Mockito.anyInt()
+        )).thenReturn(
+            List.of(
+                new MetingMusicProvider.SearchTrackResult(
+                    "track-sakura-1",
+                    "netease",
+                    "樱花樱花想见你",
+                    "Aimer",
+                    "Album",
+                    "https://cover.example/sakura.png",
+                    240
+                )
+            )
+        );
+
+        MusicSearchResponse response = mediaService.searchMusic("樱花", "track", "netease", 1, 24);
+
+        Assertions.assertFalse(response.partial());
+        Assertions.assertEquals(1, response.tracks().size());
+        Assertions.assertEquals("netease", response.tracks().get(0).provider());
+        Mockito.verify(metingMusicProvider, Mockito.atLeastOnce()).searchTracks(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("樱花"),
+            Mockito.anyInt(),
+            Mockito.anyInt()
+        );
+    }
+
+    @Test
+    void shouldNormalizeLegacySourceModeOnRead() throws Exception {
+        // R5.2 / R5.3 backend mirror: normalizeSourceModeForRead must coerce legacy tunehub_*
+        // values to meting_* during the compatibility window, and fall back invalid input to
+        // account_first per design §3.2.6.
+        java.lang.reflect.Method method = MediaServiceImpl.class.getDeclaredMethod("normalizeSourceModeForRead", String.class);
+        method.setAccessible(true);
+
+        Assertions.assertEquals("meting_first", method.invoke(null, "tunehub_first"));
+        Assertions.assertEquals("meting_only", method.invoke(null, "tunehub_only"));
+        Assertions.assertEquals("meting_first", method.invoke(null, "TUNEHUB_FIRST"));
+        Assertions.assertEquals("meting_only", method.invoke(null, "Tunehub_Only"));
+        Assertions.assertEquals("meting_first", method.invoke(null, "meting_first"));
+        Assertions.assertEquals("account_only", method.invoke(null, "account_only"));
+        Assertions.assertEquals("account_first", method.invoke(null, new Object[]{null}));
+        Assertions.assertEquals("account_first", method.invoke(null, "garbage"));
     }
 
     @Test
@@ -733,19 +803,20 @@ class MediaServiceImplTest {
         request.setArtist("测试歌手");
         request.setResolveLyric(true);
 
-        Mockito.when(tuneHubMusicProvider.parseSingleTrack(
+        Mockito.when(metingMusicProvider.parseSingleTrack(
             Mockito.eq("th_test_default_key"),
             Mockito.eq("netease"),
             Mockito.eq("448316816"),
             Mockito.any()
         ))
             .thenReturn(
-                new TuneHubMusicProvider.ParseTrackResult(
+                new MetingMusicProvider.ParseTrackResult(
                     "448316816",
                     "测试歌曲",
                     "测试歌手",
-                    "https://cover.example.com/cover.jpg",
+                    "",
                     "https://audio.example.com/track.mp3",
+                    "https://cover.example.com/cover.jpg",
                     "[00:01.00]line1\n[00:03.00]line2",
                     "[00:01.00]翻译1\n[00:03.00]翻译2",
                     "[00:01.00]furigana1\n[00:03.00]furigana2"
@@ -822,8 +893,8 @@ class MediaServiceImplTest {
 
         OssProperties ossProperties = new OssProperties();
         ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
-        TuneHubMusicProperties tuneHubMusicProperties = new TuneHubMusicProperties();
-        tuneHubMusicProperties.setDefaultApiKey(defaultApiKey);
+        MetingMusicProperties metingMusicProperties = new MetingMusicProperties();
+        metingMusicProperties.setDefaultApiKey(defaultApiKey);
         MusicListenCacheProperties listenCacheProperties = new MusicListenCacheProperties();
 
         return new MediaServiceImpl(
@@ -849,10 +920,10 @@ class MediaServiceImplTest {
             userMusicClient,
             spotifyMusicClient,
             neteaseCookieProvider,
-            tuneHubMusicProvider,
             asmrMusicProvider,
             musicTrackCacheUploadPublisher,
-            tuneHubMusicProperties,
+            metingMusicProvider,
+            metingMusicProperties,
             listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager())

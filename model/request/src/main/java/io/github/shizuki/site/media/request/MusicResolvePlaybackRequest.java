@@ -23,7 +23,7 @@ public class MusicResolvePlaybackRequest {
     @Schema(description = "封面 URL（可选）", example = "https://example.com/cover.jpg")
     private String cover;
 
-    @Schema(description = "来源歌单编码（可选）", example = "vh_tunehub_netease_toplist_3778678")
+    @Schema(description = "来源歌单编码（可选）", example = "vh_meting_netease_toplist_3778678")
     private String playlistCode;
 
     @Schema(description = "是否仅补拉歌词（可选）", example = "true")

@@ -1,51 +1,51 @@
-import { flushPromises, mount } from '@vue/test-utils';
-import { reactive, ref } from 'vue';
-import { createMemoryHistory, createRouter } from 'vue-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ProfilePage from './ProfilePage.vue';
+import { flushPromises, mount } from "@vue/test-utils";
+import { reactive, ref } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import ProfilePage from "./ProfilePage.vue";
 
 const mocked = vi.hoisted(() => ({
   auth: null,
   ui: null,
   listMyPosts: vi.fn(),
-  getMusicApiKeyStatus: vi.fn(),
-  upsertMusicApiKey: vi.fn(),
-  deleteMusicApiKey: vi.fn(),
   getMusicSourceAccountStatus: vi.fn(),
   upsertMusicSourceAccountCookie: vi.fn(),
   deleteMusicSourceAccount: vi.fn(),
   importMusicSourcePlaylists: vi.fn(),
   detectMusicSourceHelper: vi.fn(),
   requestMusicSourceCookies: vi.fn(),
-  openMusicSourceHelperInstallGuide: vi.fn()
+  openMusicSourceHelperInstallGuide: vi.fn(),
 }));
 
-vi.mock('../composables/useAuthSession', () => ({
-  useAuthSession: () => mocked.auth
+vi.mock("../composables/useAuthSession", () => ({
+  useAuthSession: () => mocked.auth,
 }));
 
-vi.mock('../composables/useUiPreferences', () => ({
-  useUiPreferences: () => mocked.ui
+vi.mock("../composables/useUiPreferences", () => ({
+  useUiPreferences: () => mocked.ui,
 }));
 
-vi.mock('../services/blogApi', () => ({
-  listMyPosts: (...args) => mocked.listMyPosts(...args)
+vi.mock("../services/blogApi", () => ({
+  listMyPosts: (...args) => mocked.listMyPosts(...args),
 }));
 
-vi.mock('../services/musicApi', () => ({
-  getMusicApiKeyStatus: (...args) => mocked.getMusicApiKeyStatus(...args),
-  upsertMusicApiKey: (...args) => mocked.upsertMusicApiKey(...args),
-  deleteMusicApiKey: (...args) => mocked.deleteMusicApiKey(...args),
-  getMusicSourceAccountStatus: (...args) => mocked.getMusicSourceAccountStatus(...args),
-  upsertMusicSourceAccountCookie: (...args) => mocked.upsertMusicSourceAccountCookie(...args),
-  deleteMusicSourceAccount: (...args) => mocked.deleteMusicSourceAccount(...args),
-  importMusicSourcePlaylists: (...args) => mocked.importMusicSourcePlaylists(...args)
+vi.mock("../services/musicApi", () => ({
+  getMusicSourceAccountStatus: (...args) =>
+    mocked.getMusicSourceAccountStatus(...args),
+  upsertMusicSourceAccountCookie: (...args) =>
+    mocked.upsertMusicSourceAccountCookie(...args),
+  deleteMusicSourceAccount: (...args) =>
+    mocked.deleteMusicSourceAccount(...args),
+  importMusicSourcePlaylists: (...args) =>
+    mocked.importMusicSourcePlaylists(...args),
 }));
 
-vi.mock('../utils/musicSourceBindHelper', () => ({
+vi.mock("../utils/musicSourceBindHelper", () => ({
   detectMusicSourceHelper: (...args) => mocked.detectMusicSourceHelper(...args),
-  requestMusicSourceCookies: (...args) => mocked.requestMusicSourceCookies(...args),
-  openMusicSourceHelperInstallGuide: (...args) => mocked.openMusicSourceHelperInstallGuide(...args)
+  requestMusicSourceCookies: (...args) =>
+    mocked.requestMusicSourceCookies(...args),
+  openMusicSourceHelperInstallGuide: (...args) =>
+    mocked.openMusicSourceHelperInstallGuide(...args),
 }));
 
 function createDeferred() {
@@ -62,83 +62,92 @@ function createAuthMock(overrides = {}) {
   return {
     user: ref({
       userId: 7,
-      nickname: 'Izumi',
-      avatarUrl: '',
-      groups: ['ADMIN'],
-      permissions: ['blog.post.write']
+      nickname: "Izumi",
+      avatarUrl: "",
+      groups: ["ADMIN"],
+      permissions: ["blog.post.write"],
     }),
     isAuthenticated: ref(true),
     ensureReady: vi.fn().mockResolvedValue(),
     getAccountProfile: vi.fn().mockResolvedValue({
       userId: 7,
-      username: 'izumi',
-      nickname: 'Izumi',
-      email: 'izumi@example.com',
+      username: "izumi",
+      nickname: "Izumi",
+      email: "izumi@example.com",
       emailVerified: 1,
-      avatarUrl: '',
+      avatarUrl: "",
       hasPassword: true,
-      oauthBindings: []
+      oauthBindings: [],
     }),
     createImageCaptcha: vi.fn().mockResolvedValue({
-      captchaId: 'captcha-1',
-      svgContent: '<svg></svg>',
-      expiresInSec: 60
+      captchaId: "captcha-1",
+      svgContent: "<svg></svg>",
+      expiresInSec: 60,
     }),
     getPreference: vi.fn().mockResolvedValue({}),
     updatePreference: vi.fn().mockResolvedValue({}),
-    uploadAvatar: vi.fn().mockResolvedValue({ avatarUrl: 'https://example.com/avatar.png' }),
+    uploadAvatar: vi
+      .fn()
+      .mockResolvedValue({ avatarUrl: "https://example.com/avatar.png" }),
     logout: vi.fn().mockResolvedValue(),
     startOAuthBind: vi.fn().mockResolvedValue(),
     sendEmailVerification: vi.fn().mockResolvedValue({ cooldownSec: 60 }),
     bindEmailCredential: vi.fn().mockResolvedValue(),
-    sendResetPasswordVerification: vi.fn().mockResolvedValue({ cooldownSec: 60 }),
+    sendResetPasswordVerification: vi
+      .fn()
+      .mockResolvedValue({ cooldownSec: 60 }),
     changePasswordByEmail: vi.fn().mockResolvedValue(),
     authorizedFetch: vi.fn(),
-    ...overrides
+    ...overrides,
   };
 }
 
 function createUiMock() {
   const state = reactive({
-    accentHex: '#F2B39D',
-    accentMode: 'solid',
-    accentGradientId: 'apricot-blush',
-    accentGradientStartHex: '#F6C2A1',
-    accentGradientEndHex: '#EFA0A8',
+    accentHex: "#F2B39D",
+    accentMode: "solid",
+    accentGradientId: "apricot-blush",
+    accentGradientStartHex: "#F6C2A1",
+    accentGradientEndHex: "#EFA0A8",
     routeBackgroundByKey: {},
-    globalBackgroundId: '',
-    aiPanelOpen: false
+    globalBackgroundId: "",
+    aiPanelOpen: false,
   });
 
   return {
     state,
     ACCENT_PRESETS: [
-      { name: '奶杏桃粉', hex: '#F2B39D' },
-      { name: '薄荷青', hex: '#8FDCC8' }
+      { name: "奶杏桃粉", hex: "#F2B39D" },
+      { name: "薄荷青", hex: "#8FDCC8" },
     ],
     GRADIENT_PRESETS: [
-      { id: 'apricot-blush', name: '奶杏桃粉', startHex: '#F6C2A1', endHex: '#EFA0A8' }
+      {
+        id: "apricot-blush",
+        name: "奶杏桃粉",
+        startHex: "#F6C2A1",
+        endHex: "#EFA0A8",
+      },
     ],
     setAccentHex: vi.fn((hex) => {
       state.accentHex = hex;
       return { ok: true, normalized: hex };
     }),
     resetAccent: vi.fn(() => {
-      state.accentHex = '#F2B39D';
-      state.accentGradientId = 'apricot-blush';
-      state.accentGradientStartHex = '#F6C2A1';
-      state.accentGradientEndHex = '#EFA0A8';
+      state.accentHex = "#F2B39D";
+      state.accentGradientId = "apricot-blush";
+      state.accentGradientStartHex = "#F6C2A1";
+      state.accentGradientEndHex = "#EFA0A8";
     }),
     setAccentMode: vi.fn((mode) => {
-      state.accentMode = mode === 'gradient' ? 'gradient' : 'solid';
+      state.accentMode = mode === "gradient" ? "gradient" : "solid";
       return state.accentMode;
     }),
     setAccentGradientPreset: vi.fn((presetId) => {
       state.accentGradientId = presetId;
-      return { id: presetId, startHex: '#F6C2A1', endHex: '#EFA0A8' };
+      return { id: presetId, startHex: "#F6C2A1", endHex: "#EFA0A8" };
     }),
     setAccentGradientCustom: vi.fn((startHex, endHex) => {
-      state.accentGradientId = 'custom';
+      state.accentGradientId = "custom";
       state.accentGradientStartHex = startHex;
       state.accentGradientEndHex = endHex;
       return { ok: true, startHex, endHex };
@@ -148,18 +157,18 @@ function createUiMock() {
     }),
     setAiPanelOpen: vi.fn((open) => {
       state.aiPanelOpen = Boolean(open);
-    })
+    }),
   };
 }
 
-async function mountProfilePageWithRouter(initialPath = '/profile') {
+async function mountProfilePageWithRouter(initialPath = "/profile") {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: '/profile', component: { template: '<div />' } },
-      { path: '/auth', component: { template: '<div />' } },
-      { path: '/:pathMatch(.*)*', component: { template: '<div />' } }
-    ]
+      { path: "/profile", component: { template: "<div />" } },
+      { path: "/auth", component: { template: "<div />" } },
+      { path: "/:pathMatch(.*)*", component: { template: "<div />" } },
+    ],
   });
 
   await router.push(initialPath);
@@ -175,9 +184,9 @@ async function mountProfilePageWithRouter(initialPath = '/profile') {
         ProfileHeroCard: true,
         ProfileAvatarActionSheet: true,
         ProfileAvatarPreviewDialog: true,
-        ProfileAvatarCropDialog: true
-      }
-    }
+        ProfileAvatarCropDialog: true,
+      },
+    },
   });
 
   await flushPromises();
@@ -228,14 +237,14 @@ function findSectionCard(wrapper, sectionKey) {
 function createAccountProfile(overrides = {}) {
   return {
     userId: 7,
-    username: 'izumi',
-    nickname: 'Izumi',
-    email: 'izumi@example.com',
+    username: "izumi",
+    nickname: "Izumi",
+    email: "izumi@example.com",
     emailVerified: 1,
-    avatarUrl: '',
+    avatarUrl: "",
     hasPassword: true,
     oauthBindings: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -244,33 +253,34 @@ let originalRequestAnimationFrame;
 let originalCancelAnimationFrame;
 let scrollIntoViewCalls = [];
 
-describe('ProfilePage immediate account expansion', () => {
+describe("ProfilePage immediate account expansion", () => {
   beforeEach(() => {
     originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
     originalRequestAnimationFrame = window.requestAnimationFrame;
     originalCancelAnimationFrame = window.cancelAnimationFrame;
     scrollIntoViewCalls = [];
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: vi.fn(function scrollIntoViewMock() {
-        scrollIntoViewCalls.push(this?.getAttribute?.('data-section-key') || this?.getAttribute?.('data-group-key') || '');
-      })
+        scrollIntoViewCalls.push(
+          this?.getAttribute?.("data-section-key") ||
+            this?.getAttribute?.("data-group-key") ||
+            "",
+        );
+      }),
     });
-    Object.defineProperty(window, 'requestAnimationFrame', {
+    Object.defineProperty(window, "requestAnimationFrame", {
       configurable: true,
       value: vi.fn((callback) => {
         callback(0);
         return 1;
-      })
+      }),
     });
-    Object.defineProperty(window, 'cancelAnimationFrame', {
+    Object.defineProperty(window, "cancelAnimationFrame", {
       configurable: true,
-      value: vi.fn()
+      value: vi.fn(),
     });
     mocked.listMyPosts.mockReset().mockResolvedValue({ items: [] });
-    mocked.getMusicApiKeyStatus.mockReset().mockResolvedValue({});
-    mocked.upsertMusicApiKey.mockReset().mockResolvedValue({});
-    mocked.deleteMusicApiKey.mockReset().mockResolvedValue({});
     mocked.getMusicSourceAccountStatus.mockReset().mockResolvedValue([]);
     mocked.upsertMusicSourceAccountCookie.mockReset().mockResolvedValue({});
     mocked.deleteMusicSourceAccount.mockReset().mockResolvedValue({});
@@ -283,49 +293,49 @@ describe('ProfilePage immediate account expansion', () => {
 
   afterEach(() => {
     if (originalScrollIntoView) {
-      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
         configurable: true,
-        value: originalScrollIntoView
+        value: originalScrollIntoView,
       });
     } else {
       delete HTMLElement.prototype.scrollIntoView;
     }
-    Object.defineProperty(window, 'requestAnimationFrame', {
+    Object.defineProperty(window, "requestAnimationFrame", {
       configurable: true,
-      value: originalRequestAnimationFrame
+      value: originalRequestAnimationFrame,
     });
-    Object.defineProperty(window, 'cancelAnimationFrame', {
+    Object.defineProperty(window, "cancelAnimationFrame", {
       configurable: true,
-      value: originalCancelAnimationFrame
+      value: originalCancelAnimationFrame,
     });
     mocked.auth = null;
     mocked.ui = null;
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
     vi.restoreAllMocks();
   });
 
-  it('expands account info immediately before account data resolves', async () => {
+  it("expands account info immediately before account data resolves", async () => {
     const accountDeferred = createDeferred();
     mocked.auth = createAuthMock({
-      getAccountProfile: vi.fn(() => accountDeferred.promise)
+      getAccountProfile: vi.fn(() => accountDeferred.promise),
     });
 
     const wrapper = await mountProfilePage();
-    expect(wrapper.classes()).toContain('profile-no-motion');
-    const profileGroup = findGroup(wrapper, 'profile');
-    const accountGroup = findGroup(wrapper, 'account');
-    const accountInfoCard = findSectionCard(wrapper, 'account-info');
+    expect(wrapper.classes()).toContain("profile-no-motion");
+    const profileGroup = findGroup(wrapper, "profile");
+    const accountGroup = findGroup(wrapper, "account");
+    const accountInfoCard = findSectionCard(wrapper, "account-info");
 
     expect(profileGroup.isVisible()).toBe(true);
     expect(accountGroup.isVisible()).toBe(false);
-    expect(accountInfoCard.classes()).not.toContain('focused');
+    expect(accountInfoCard.classes()).not.toContain("focused");
 
-    await findQuickAction(wrapper, '查看账号信息').trigger('click');
+    await findQuickAction(wrapper, "查看账号信息").trigger("click");
     await flushPromises();
 
     expect(profileGroup.isVisible()).toBe(false);
     expect(accountGroup.isVisible()).toBe(true);
-    expect(accountInfoCard.classes()).toContain('focused');
+    expect(accountInfoCard.classes()).toContain("focused");
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
 
     accountDeferred.resolve(createAccountProfile());
@@ -335,60 +345,60 @@ describe('ProfilePage immediate account expansion', () => {
     wrapper.unmount();
   });
 
-  it('shows email bind as expanded before captcha initialization completes', async () => {
+  it("shows email bind as expanded before captcha initialization completes", async () => {
     const accountDeferred = createDeferred();
     const captchaDeferred = createDeferred();
     mocked.auth = createAuthMock({
       getAccountProfile: vi.fn(() => accountDeferred.promise),
-      createImageCaptcha: vi.fn(() => captchaDeferred.promise)
+      createImageCaptcha: vi.fn(() => captchaDeferred.promise),
     });
 
     const wrapper = await mountProfilePage();
-    const accountGroup = findGroup(wrapper, 'account');
-    const emailBindCard = findSectionCard(wrapper, 'email-bind');
+    const accountGroup = findGroup(wrapper, "account");
+    const emailBindCard = findSectionCard(wrapper, "email-bind");
 
-    await findQuickAction(wrapper, '绑定邮箱').trigger('click');
+    await findQuickAction(wrapper, "绑定邮箱").trigger("click");
     await flushPromises();
 
     expect(accountGroup.isVisible()).toBe(true);
-    expect(emailBindCard.classes()).toContain('focused');
+    expect(emailBindCard.classes()).toContain("focused");
     expect(mocked.auth.createImageCaptcha).not.toHaveBeenCalled();
 
     accountDeferred.resolve(createAccountProfile());
     await flushPromises();
 
     expect(mocked.auth.createImageCaptcha).toHaveBeenCalledTimes(1);
-    expect(emailBindCard.classes()).toContain('focused');
+    expect(emailBindCard.classes()).toContain("focused");
 
     captchaDeferred.resolve({
-      captchaId: 'captcha-1',
-      svgContent: '<svg></svg>',
-      expiresInSec: 60
+      captchaId: "captcha-1",
+      svgContent: "<svg></svg>",
+      expiresInSec: 60,
     });
     await flushPromises();
 
-    expect(emailBindCard.classes()).toContain('focused');
+    expect(emailBindCard.classes()).toContain("focused");
     wrapper.unmount();
   });
 
-  it('dedupes account profile loading across rapid quick-action clicks', async () => {
+  it("dedupes account profile loading across rapid quick-action clicks", async () => {
     const accountDeferred = createDeferred();
     mocked.auth = createAuthMock({
-      getAccountProfile: vi.fn(() => accountDeferred.promise)
+      getAccountProfile: vi.fn(() => accountDeferred.promise),
     });
 
     const wrapper = await mountProfilePage();
-    const accountGroup = findGroup(wrapper, 'account');
-    const emailBindCard = findSectionCard(wrapper, 'email-bind');
-    const changePasswordCard = findSectionCard(wrapper, 'change-password');
+    const accountGroup = findGroup(wrapper, "account");
+    const emailBindCard = findSectionCard(wrapper, "email-bind");
+    const changePasswordCard = findSectionCard(wrapper, "change-password");
 
-    await findQuickAction(wrapper, '绑定邮箱').trigger('click');
-    await findQuickAction(wrapper, '修改密码').trigger('click');
+    await findQuickAction(wrapper, "绑定邮箱").trigger("click");
+    await findQuickAction(wrapper, "修改密码").trigger("click");
     await flushPromises();
 
     expect(accountGroup.isVisible()).toBe(true);
-    expect(emailBindCard.classes()).not.toContain('focused');
-    expect(changePasswordCard.classes()).toContain('focused');
+    expect(emailBindCard.classes()).not.toContain("focused");
+    expect(changePasswordCard.classes()).toContain("focused");
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
 
     accountDeferred.resolve(createAccountProfile());
@@ -398,24 +408,24 @@ describe('ProfilePage immediate account expansion', () => {
     wrapper.unmount();
   });
 
-  it('shows music auth section immediately before account data resolves', async () => {
+  it("shows music auth section immediately before account data resolves", async () => {
     const accountDeferred = createDeferred();
     mocked.auth = createAuthMock({
-      getAccountProfile: vi.fn(() => accountDeferred.promise)
+      getAccountProfile: vi.fn(() => accountDeferred.promise),
     });
 
     const wrapper = await mountProfilePage();
-    const accountGroup = findGroup(wrapper, 'account');
-    const musicAuthCard = findSectionCard(wrapper, 'music-auth');
+    const accountGroup = findGroup(wrapper, "account");
+    const musicAuthCard = findSectionCard(wrapper, "music-auth");
     scrollIntoViewCalls = [];
 
-    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await findQuickAction(wrapper, "音乐授权与排序").trigger("click");
     await flushPromises();
 
     expect(accountGroup.isVisible()).toBe(true);
-    expect(musicAuthCard.classes()).toContain('focused');
+    expect(musicAuthCard.classes()).toContain("focused");
     expect(mocked.auth.getAccountProfile).toHaveBeenCalledTimes(1);
-    expect(scrollIntoViewCalls).toContain('music-auth');
+    expect(scrollIntoViewCalls).toContain("music-auth");
 
     accountDeferred.resolve(createAccountProfile());
     await flushPromises();
@@ -424,116 +434,132 @@ describe('ProfilePage immediate account expansion', () => {
     wrapper.unmount();
   });
 
-  it('renders music auth cards from the shared provider model', async () => {
+  it("renders music auth cards from the shared provider model", async () => {
     mocked.auth = createAuthMock({
       getAccountProfile: vi.fn().mockResolvedValue(
         createAccountProfile({
-          oauthBindings: [{ provider: 'spotify', providerLogin: 'izumi_spotify' }]
-        })
+          oauthBindings: [
+            { provider: "spotify", providerLogin: "izumi_spotify" },
+          ],
+        }),
       ),
       getPreference: vi.fn().mockResolvedValue({
-        'music.source_mode': 'account_first',
-        'music.account_provider_order': ['qqmusic', 'kugou', 'netease']
-      })
-    });
-    mocked.getMusicApiKeyStatus.mockResolvedValue({
-      keyBound: true,
-      keyMask: 'th-***',
-      updatedAt: '2026-03-21T12:00:00Z'
+        "music.source_mode": "account_first",
+        "music.account_provider_order": ["qqmusic", "kugou", "netease"],
+      }),
     });
     mocked.getMusicSourceAccountStatus.mockResolvedValue([
-      { provider: 'netease', bound: true, mask: 'MUSIC_U=***', status: 'BOUND' },
-      { provider: 'qqmusic', bound: true, mask: 'uin=***', status: 'BOUND' },
-      { provider: 'kugou', bound: false, status: 'UNBOUND' }
+      {
+        provider: "netease",
+        bound: true,
+        mask: "MUSIC_U=***",
+        status: "BOUND",
+      },
+      { provider: "qqmusic", bound: true, mask: "uin=***", status: "BOUND" },
+      { provider: "kugou", bound: false, status: "UNBOUND" },
     ]);
 
     const wrapper = await mountProfilePage();
-    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await findQuickAction(wrapper, "音乐授权与排序").trigger("click");
     await flushPromises();
 
-    const musicAuthCard = findSectionCard(wrapper, 'music-auth');
+    const musicAuthCard = findSectionCard(wrapper, "music-auth");
     const musicText = musicAuthCard.text();
 
-    expect(musicAuthCard.classes()).toContain('focused');
+    expect(musicAuthCard.classes()).toContain("focused");
     expect(mocked.auth.getPreference).toHaveBeenCalled();
     expect(mocked.getMusicSourceAccountStatus).toHaveBeenCalledTimes(1);
-    expect(musicText).toContain('Meting');
-    expect(musicText).toContain('Spotify');
-    expect(musicText).toContain('网易云');
-    expect(musicText).toContain('QQ 音乐');
-    expect(musicText).toContain('酷狗');
-    expect(musicText).not.toContain('酷我');
-    expect(wrapper.get('[data-testid="music-source-mode-select"]').element.value).toBe('account_first');
+    expect(musicText).toContain("Meting");
+    expect(musicText).toContain("Spotify");
+    expect(musicText).toContain("网易云");
+    expect(musicText).toContain("QQ 音乐");
+    expect(musicText).toContain("酷狗");
+    expect(musicText).not.toContain("酷我");
     expect(
-      wrapper.findAll('.music-source-order-item .provider-name').map((node) => node.text())
-    ).toEqual(['QQ 音乐', '酷狗', '网易云']);
+      wrapper.get('[data-testid="music-source-mode-select"]').element.value,
+    ).toBe("account_first");
+    expect(
+      wrapper
+        .findAll(".music-source-order-item .provider-name")
+        .map((node) => node.text()),
+    ).toEqual(["QQ 音乐", "酷狗", "网易云"]);
     wrapper.unmount();
   });
 
-  it('persists source mode and provider order updates through preferences', async () => {
+  it("persists source mode and provider order updates through preferences", async () => {
     mocked.auth = createAuthMock({
       getAccountProfile: vi.fn().mockResolvedValue(createAccountProfile()),
       getPreference: vi.fn().mockResolvedValue({
         music: {
-          source_mode: 'tunehub_first',
-          account_provider_order: ['netease', 'qqmusic', 'kugou']
-        }
-      })
+          source_mode: "meting_first",
+          account_provider_order: ["netease", "qqmusic", "kugou"],
+        },
+      }),
     });
 
     const wrapper = await mountProfilePage();
-    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await findQuickAction(wrapper, "音乐授权与排序").trigger("click");
     await flushPromises();
 
-    await wrapper.get('[data-testid="music-source-mode-select"]').setValue('account_only');
+    await wrapper
+      .get('[data-testid="music-source-mode-select"]')
+      .setValue("account_only");
     await flushPromises();
 
     expect(mocked.auth.updatePreference).toHaveBeenCalledWith(
       expect.objectContaining({
-        'music.source_mode': 'account_only',
-        'music.account_provider_order': ['netease', 'qqmusic', 'kugou'],
+        "music.source_mode": "account_only",
+        "music.account_provider_order": ["netease", "qqmusic", "kugou"],
         music: expect.objectContaining({
-          source_mode: 'account_only',
-          account_provider_order: ['netease', 'qqmusic', 'kugou']
-        })
-      })
+          source_mode: "account_only",
+          account_provider_order: ["netease", "qqmusic", "kugou"],
+        }),
+      }),
     );
 
-    await wrapper.get('.music-source-order-item[data-provider-code="qqmusic"] .move-up-btn').trigger('click');
+    await wrapper
+      .get(
+        '.music-source-order-item[data-provider-code="qqmusic"] .move-up-btn',
+      )
+      .trigger("click");
     await flushPromises();
 
     expect(mocked.auth.updatePreference).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        'music.account_provider_order': ['qqmusic', 'netease', 'kugou'],
+        "music.account_provider_order": ["qqmusic", "netease", "kugou"],
         music: expect.objectContaining({
-          account_provider_order: ['qqmusic', 'netease', 'kugou']
-        })
-      })
+          account_provider_order: ["qqmusic", "netease", "kugou"],
+        }),
+      }),
     );
     wrapper.unmount();
   });
 
-  it('keeps logout actions in profile core and account management', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it("keeps logout actions in profile core and account management", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     mocked.auth = createAuthMock();
 
     const { wrapper, router } = await mountProfilePageWithRouter();
-    expect(wrapper.get('[data-testid="profile-core-logout"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="profile-core-logout"]').exists()).toBe(
+      true,
+    );
 
-    await findQuickAction(wrapper, '查看账号信息').trigger('click');
+    await findQuickAction(wrapper, "查看账号信息").trigger("click");
     await flushPromises();
 
-    const accountGroup = findGroup(wrapper, 'account');
+    const accountGroup = findGroup(wrapper, "account");
     expect(accountGroup.isVisible()).toBe(true);
 
-    await accountGroup.get('[data-testid="profile-account-logout"]').trigger('click');
+    await accountGroup
+      .get('[data-testid="profile-account-logout"]')
+      .trigger("click");
     await flushPromises();
 
-    expect(confirmSpy).toHaveBeenCalledWith('确认登出当前账号？');
+    expect(confirmSpy).toHaveBeenCalledWith("确认登出当前账号？");
     expect(mocked.auth.logout).toHaveBeenCalledTimes(1);
-    expect(router.currentRoute.value.path).toBe('/auth');
-    expect(router.currentRoute.value.query.reason).toBe('signed_out');
-    expect(router.currentRoute.value.query.redirect).toBe('/profile');
+    expect(router.currentRoute.value.path).toBe("/auth");
+    expect(router.currentRoute.value.query.reason).toBe("signed_out");
+    expect(router.currentRoute.value.query.redirect).toBe("/profile");
     wrapper.unmount();
   });
 });

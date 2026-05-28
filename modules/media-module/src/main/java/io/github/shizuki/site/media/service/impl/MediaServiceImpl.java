@@ -15,13 +15,12 @@ import io.github.shizuki.common.storage.util.OssKeyBuilder;
 import io.github.shizuki.common.storage.util.UploadValidator;
 import io.github.shizuki.site.media.cache.MusicLibraryHomeCacheStore;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
+import io.github.shizuki.site.media.config.MetingMusicProperties;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
-import io.github.shizuki.site.media.config.TuneHubMusicProperties;
 import io.github.shizuki.site.media.integration.AsmrMusicProvider;
 import io.github.shizuki.site.media.integration.MetingMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
-import io.github.shizuki.site.media.integration.TuneHubMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.request.AdminAssetUpdateRequest;
 import io.github.shizuki.site.media.response.AdminAssetAuditResponse;
@@ -172,13 +171,15 @@ public class MediaServiceImpl implements MediaService {
     private static final String PLAYLIST_TYPE_DEFAULT = "DEFAULT";
     private static final String PLAYLIST_TYPE_LIKED = "LIKED";
     private static final String PLAYLIST_TYPE_CUSTOM = "CUSTOM";
-    private static final Set<String> TUNEHUB_PLAYLIST_PLATFORMS = Set.of("netease", "kuwo", "qq");
-    private static final Set<String> TUNEHUB_REAL_PLAYLIST_SEARCH_PLATFORMS = Set.of("netease", "kuwo");
-    private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("tunehub", "spotify", "asmr");
-    private static final Pattern VIRTUAL_TUNEHUB_PLAYLIST_CODE_PATTERN =
+    private static final Set<String> MUSIC_PLATFORMS = Set.of("netease", "kuwo", "qq");
+    private static final Set<String> MUSIC_REAL_PLAYLIST_SEARCH_PLATFORMS = Set.of("netease", "kuwo");
+    private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("spotify", "asmr");
+    private static final Pattern VIRTUAL_METING_PLAYLIST_CODE_PATTERN =
+        Pattern.compile("^vh_meting_([a-z0-9_\\-]+)_([a-z0-9_\\-]+)_(.+)$");
+    private static final Pattern VIRTUAL_LEGACY_PLAYLIST_CODE_PATTERN =
         Pattern.compile("^vh_tunehub_([a-z0-9_\\-]+)_([a-z0-9_\\-]+)_(.+)$");
     private static final Pattern VIRTUAL_ASMR_PLAYLIST_CODE_PATTERN = Pattern.compile("^vh_asmr_work_([0-9]+)$");
-    private static final String LOG_EVENT_API_CONTEXT_START = "MUSIC_TUNEHUB_API_CONTEXT_RESOLVE";
+    private static final String LOG_EVENT_API_CONTEXT_START = "MUSIC_METING_API_CONTEXT_RESOLVE";
     private static final String LOG_EVENT_SEARCH_START = "MUSIC_SEARCH_START";
     private static final String LOG_EVENT_SEARCH_PROVIDER_FAIL = "MUSIC_SEARCH_PROVIDER_FAIL";
     private static final String LOG_EVENT_SEARCH_PROVIDER_RESULT = "MUSIC_SEARCH_PROVIDER_RESULT";
@@ -194,15 +195,14 @@ public class MediaServiceImpl implements MediaService {
     private static final String LOG_EVENT_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL = "MUSIC_DEFAULT_COLLECT_CLOUD_ENQUEUE_FAIL";
     private static final String LOG_KEY_REQUEST_ID = "request_id";
     private static final String LOG_KEY_TRACE_ID = "trace_id";
-    private static final String MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING = "MUSIC_SEARCH_API_KEY_MISSING";
     private static final String MUSIC_ERROR_CODE_SOURCE_ACCOUNT_REQUIRED = "MUSIC_SOURCE_ACCOUNT_REQUIRED";
     private static final String MUSIC_ERROR_CODE_SOURCE_PROVIDER_UNSUPPORTED = "MUSIC_SOURCE_PROVIDER_UNSUPPORTED";
     private static final String MUSIC_ERROR_CODE_SOURCE_IMPORT_PROVIDER_UNSUPPORTED =
         "MUSIC_SOURCE_IMPORT_PROVIDER_UNSUPPORTED";
     private static final String SOURCE_MODE_ACCOUNT_FIRST = "account_first";
-    private static final String SOURCE_MODE_TUNEHUB_FIRST = "tunehub_first";
+    private static final String SOURCE_MODE_METING_FIRST = "meting_first";
     private static final String SOURCE_MODE_ACCOUNT_ONLY = "account_only";
-    private static final String SOURCE_MODE_TUNEHUB_ONLY = "tunehub_only";
+    private static final String SOURCE_MODE_METING_ONLY = "meting_only";
     private static final List<String> SOURCE_PROVIDER_DEFAULT_ORDER = List.of("netease", "qqmusic", "kugou");
     private static final Set<String> SOURCE_ACCOUNT_SUPPORTED_PROVIDERS = Set.of("netease", "qqmusic", "kugou");
     private static final String SOURCE_ONLY_OBJECT_CODE = "__source_only__";
@@ -245,18 +245,15 @@ public class MediaServiceImpl implements MediaService {
     private final UserMusicGateway userMusicClient;
     private final SpotifyMusicProvider spotifyMusicClient;
     private final NeteaseCookieProvider neteaseCookieProvider;
-    private final TuneHubMusicProvider tuneHubMusicProvider;
     private final AsmrMusicProvider asmrMusicProvider;
     private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
-    private final TuneHubMusicProperties tuneHubMusicProperties;
+    private final MetingMusicProvider metingMusicProvider;
+    private final MetingMusicProperties metingMusicProperties;
     private final MusicListenCacheProperties musicListenCacheProperties;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     @Autowired(required = false)
     private MusicLibraryHomeCacheStore musicLibraryHomeCacheStore;
-
-    @Autowired(required = false)
-    private MetingMusicProvider metingMusicProvider;
 
     /**
      * 构造媒体服务实现。
@@ -294,10 +291,10 @@ public class MediaServiceImpl implements MediaService {
                             UserMusicGateway userMusicClient,
                             SpotifyMusicProvider spotifyMusicClient,
                             NeteaseCookieProvider neteaseCookieProvider,
-                            TuneHubMusicProvider tuneHubMusicProvider,
                             AsmrMusicProvider asmrMusicProvider,
                             MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher,
-                            TuneHubMusicProperties tuneHubMusicProperties,
+                            MetingMusicProvider metingMusicProvider,
+                            MetingMusicProperties metingMusicProperties,
                             MusicListenCacheProperties musicListenCacheProperties,
                             ObjectMapper objectMapper,
                             TransactionTemplate transactionTemplate) {
@@ -323,10 +320,10 @@ public class MediaServiceImpl implements MediaService {
         this.userMusicClient = userMusicClient;
         this.spotifyMusicClient = spotifyMusicClient;
         this.neteaseCookieProvider = neteaseCookieProvider;
-        this.tuneHubMusicProvider = tuneHubMusicProvider;
         this.asmrMusicProvider = asmrMusicProvider;
         this.musicTrackCacheUploadPublisher = musicTrackCacheUploadPublisher;
-        this.tuneHubMusicProperties = tuneHubMusicProperties;
+        this.metingMusicProvider = metingMusicProvider;
+        this.metingMusicProperties = metingMusicProperties;
         this.musicListenCacheProperties = musicListenCacheProperties;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
@@ -836,18 +833,18 @@ public class MediaServiceImpl implements MediaService {
         List<MusicPlaylistSummaryResponse> featuredPlaylists = new ArrayList<>();
         List<MusicTrackResponse> featuredTracks = new ArrayList<>();
 
-        TuneHubApiContext apiContext = resolveTuneHubApiContext();
+        MusicApiContext apiContext = resolveMusicApiContext();
         if (StringUtils.hasText(apiContext.apiKey())) {
             try {
-                List<TuneHubMusicProvider.VirtualPlaylistSummary> virtualPlaylists = tuneHubMusicProvider.listToplistPlaylists(
+                List<MetingMusicProvider.VirtualPlaylistSummary> virtualPlaylists = metingMusicProvider.listToplistPlaylists(
                     apiContext.apiKey(),
                     apiContext.platformOrder(),
                     2
                 );
-                for (TuneHubMusicProvider.VirtualPlaylistSummary item : virtualPlaylists) {
+                for (MetingMusicProvider.VirtualPlaylistSummary item : virtualPlaylists) {
                     featuredPlaylists.add(new MusicPlaylistSummaryResponse(
                         item.playlistCode(),
-                        readString(item.name(), "TuneHub 推荐歌单"),
+                        readString(item.name(), "Meting 推荐歌单"),
                         readString(item.description(), ""),
                         readString(item.cover(), ""),
                         PLAYLIST_TYPE_CUSTOM,
@@ -858,8 +855,8 @@ public class MediaServiceImpl implements MediaService {
                     ));
                 }
                 if (!virtualPlaylists.isEmpty()) {
-                    TuneHubMusicProvider.VirtualPlaylistSummary first = virtualPlaylists.get(0);
-                    featuredTracks = tuneHubMusicProvider.loadVirtualPlaylistTracks(
+                    MetingMusicProvider.VirtualPlaylistSummary first = virtualPlaylists.get(0);
+                    featuredTracks = metingMusicProvider.loadVirtualPlaylistTracks(
                         apiContext.apiKey(),
                         first.platform(),
                         first.sourceType(),
@@ -867,7 +864,7 @@ public class MediaServiceImpl implements MediaService {
                     );
                 }
             } catch (Exception ex) {
-                LOGGER.warn("MUSIC_TUNEHUB_HOME_LOAD_FAIL reason={}", readString(ex.getMessage(), "unknown_error"));
+                LOGGER.warn("MUSIC_METING_HOME_LOAD_FAIL reason={}", readString(ex.getMessage(), "unknown_error"));
             }
         }
 
@@ -895,9 +892,9 @@ public class MediaServiceImpl implements MediaService {
     @Override
     public MusicPlaylistBundleResponse getMusicPlaylistBundle(String playlistCode) {
         String normalizedCode = normalizePlaylistCode(playlistCode);
-        TuneHubVirtualPlaylistRef virtualPlaylistRef = parseVirtualTunehubPlaylistCode(normalizedCode);
+        MusicVirtualPlaylistRef virtualPlaylistRef = parseVirtualMusicPlaylistCode(normalizedCode);
         if (virtualPlaylistRef != null) {
-            return loadVirtualTunehubPlaylistBundle(virtualPlaylistRef);
+            return loadVirtualMusicPlaylistBundle(virtualPlaylistRef);
         }
         AsmrVirtualPlaylistRef asmrVirtualPlaylistRef = parseVirtualAsmrPlaylistCode(normalizedCode);
         if (asmrVirtualPlaylistRef != null) {
@@ -986,13 +983,13 @@ public class MediaServiceImpl implements MediaService {
         Set<String> failedProviders = new LinkedHashSet<>();
         Set<String> missingApiKeyProviders = new LinkedHashSet<>();
 
-        TuneHubApiContext apiContext = resolveTuneHubApiContext(false);
+        MusicApiContext apiContext = resolveMusicApiContext(false);
         SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
         if (sourcePolicy.accountOnly()) {
             boolean hasBoundProvider = selectedProviders.stream()
-                .filter(TUNEHUB_PLAYLIST_PLATFORMS::contains)
+                .filter(MUSIC_PLATFORMS::contains)
                 .anyMatch(sourcePolicy.boundProviders()::contains);
-            if (!hasBoundProvider && selectedProviders.stream().anyMatch(TUNEHUB_PLAYLIST_PLATFORMS::contains)) {
+            if (!hasBoundProvider && selectedProviders.stream().anyMatch(MUSIC_PLATFORMS::contains)) {
                 throw new BusinessException(
                     ErrorCode.FORBIDDEN,
                     "No bound source account for current mode",
@@ -1007,21 +1004,19 @@ public class MediaServiceImpl implements MediaService {
             }
         }
         if (!StringUtils.hasText(apiContext.apiKey())) {
+            // 任务 2.2 / design §3.2.3: sidecar 默认有 system key，本分支几乎不触发；
+            // 仅作为健壮性兜底——记录告警并跳过对应平台 provider，让搜索继续返回非空结果。
             for (String provider : selectedProviders) {
-                if (TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)) {
+                if (MUSIC_PLATFORMS.contains(provider)) {
                     missingApiKeyProviders.add(provider);
                 }
             }
-            if (!missingApiKeyProviders.isEmpty() && missingApiKeyProviders.size() == selectedProviders.size()) {
-                throw new BusinessException(
-                    ErrorCode.FORBIDDEN,
-                    "TuneHub API key missing",
-                    Map.of(
-                        "music_error_code", MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING,
-                        "providers", new ArrayList<>(missingApiKeyProviders),
-                        "request_id", requestId,
-                        "trace_id", traceId
-                    )
+            if (!missingApiKeyProviders.isEmpty()) {
+                LOGGER.warn(
+                    "MUSIC_SEARCH_API_KEY_MISSING_FALLBACK request_id={} trace_id={} providers={}",
+                    requestId,
+                    traceId,
+                    new ArrayList<>(missingApiKeyProviders)
                 );
             }
         }
@@ -1258,7 +1253,7 @@ public class MediaServiceImpl implements MediaService {
                 continue;
             }
 
-            if (!TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)) {
+            if (!MUSIC_PLATFORMS.contains(provider)) {
                 continue;
             }
 
@@ -1301,7 +1296,7 @@ public class MediaServiceImpl implements MediaService {
             if (shouldProbeTracks) {
                 long trackFetchStartMs = System.currentTimeMillis();
                 try {
-                    List<TuneHubMusicProvider.SearchTrackResult> searchItems = tuneHubMusicProvider.searchTracks(
+                    List<MetingMusicProvider.SearchTrackResult> searchItems = metingMusicProvider.searchTracks(
                         apiContext.apiKey(),
                         provider,
                         normalizedQuery,
@@ -1310,7 +1305,7 @@ public class MediaServiceImpl implements MediaService {
                     );
                     providerRowCount = searchItems.size();
                     int mappedCount = 0;
-                    for (TuneHubMusicProvider.SearchTrackResult item : searchItems) {
+                    for (MetingMusicProvider.SearchTrackResult item : searchItems) {
                         String trackId = readString(item.trackId(), "");
                         if (!StringUtils.hasText(trackId)) {
                             continue;
@@ -1396,18 +1391,18 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
 
-            if (includePlaylists && TUNEHUB_REAL_PLAYLIST_SEARCH_PLATFORMS.contains(provider) && playlists.size() < playlistCollectLimit) {
+            if (includePlaylists && MUSIC_REAL_PLAYLIST_SEARCH_PLATFORMS.contains(provider) && playlists.size() < playlistCollectLimit) {
                 long playlistSearchStartMs = System.currentTimeMillis();
                 int playlistMatchedCount = 0;
                 try {
-                    List<TuneHubMusicProvider.VirtualPlaylistSummary> searchPlaylists = tuneHubMusicProvider.searchPlaylists(
+                    List<MetingMusicProvider.VirtualPlaylistSummary> searchPlaylists = metingMusicProvider.searchPlaylists(
                         apiContext.apiKey(),
                         provider,
                         normalizedQuery,
                         safePage,
                         safeLimit
                     );
-                    for (TuneHubMusicProvider.VirtualPlaylistSummary item : searchPlaylists) {
+                    for (MetingMusicProvider.VirtualPlaylistSummary item : searchPlaylists) {
                         String code = readString(item.playlistCode(), "");
                         if (!StringUtils.hasText(code) || !playlistCodes.add(code)) {
                             continue;
@@ -1517,7 +1512,7 @@ public class MediaServiceImpl implements MediaService {
                 if (containsKeyword(defaultName, normalizedQuery) || containsKeyword(defaultDesc, normalizedQuery)) {
                     if (playlistCodes.add(DEFAULT_PLAYLIST_CODE)) {
                         int defaultCount = listDefaultMusicPlaylistFromDb().size();
-                        playlists.add(buildDefaultPlaylistSummary(defaultCount, "tunehub"));
+                        playlists.add(buildDefaultPlaylistSummary(defaultCount, "meting"));
                     }
                 }
             }
@@ -1792,14 +1787,14 @@ public class MediaServiceImpl implements MediaService {
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
                     }
                 } else {
-                    TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
+                    MusicApiContext lyricApiContext = resolveMusicApiContext();
                     if (StringUtils.hasText(lyricApiContext.apiKey())) {
                         try {
-                            TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                            MetingMusicProvider.ParseTrackResult parsedLyric = metingMusicProvider.parseSingleTrack(
                                 lyricApiContext.apiKey(),
                                 provider,
                                 trackId,
-                                tuneHubMusicProperties.getDefaultQuality()
+                                metingMusicProperties.getDefaultQuality()
                             );
                             lyricText = readString(parsedLyric.lyricText(), "");
                             translationLyricText = readString(parsedLyric.translationLyricText(), "");
@@ -1874,14 +1869,14 @@ public class MediaServiceImpl implements MediaService {
                         LOGGER.info("MUSIC_LYRIC_FALLBACK_RESOLVED provider={} trackId={} success=false", provider, trackId);
                     }
                 } else {
-                    TuneHubApiContext lyricApiContext = resolveTuneHubApiContext();
+                    MusicApiContext lyricApiContext = resolveMusicApiContext();
                     if (StringUtils.hasText(lyricApiContext.apiKey())) {
                         try {
-                            TuneHubMusicProvider.ParseTrackResult parsedLyric = tuneHubMusicProvider.parseSingleTrack(
+                            MetingMusicProvider.ParseTrackResult parsedLyric = metingMusicProvider.parseSingleTrack(
                                 lyricApiContext.apiKey(),
                                 provider,
                                 trackId,
-                                tuneHubMusicProperties.getDefaultQuality()
+                                metingMusicProperties.getDefaultQuality()
                             );
                             lyricText = readString(parsedLyric.lyricText(), "");
                             translationLyricText = readString(parsedLyric.translationLyricText(), "");
@@ -1931,7 +1926,7 @@ public class MediaServiceImpl implements MediaService {
             return resolvePlaybackViaAsmr(request, trackId, storageMode, resolveLyric, userId, startMs);
         }
 
-        TuneHubApiContext apiContext = resolveTuneHubApiContext();
+        MusicApiContext apiContext = resolveMusicApiContext();
         boolean canUseNeteaseAccount = canUseNeteaseAccountSource(userId, sourcePolicy, provider);
         boolean hasBoundAccountSource = sourcePolicy.boundProviders().contains(provider);
         boolean accountFirst = SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode());
@@ -1979,10 +1974,14 @@ public class MediaServiceImpl implements MediaService {
             if (canUseNeteaseAccount) {
                 return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, true);
             }
-            throw new BusinessException(
-                ErrorCode.FORBIDDEN,
-                "TuneHub API key missing",
-                Map.of("music_error_code", MUSIC_ERROR_CODE_SEARCH_API_KEY_MISSING, "provider", provider)
+            // 任务 2.2 / design §3.2.3: sidecar 默认有 system key，本分支几乎不触发。
+            // 这里不再抛 FORBIDDEN，而是记录告警继续执行；下游 parseSingleTrackWithRetry
+            // 在 sidecar 真的拒绝时会自行抛出语义更精确的异常。
+            LOGGER.warn(
+                "MUSIC_RESOLVE_PLAYBACK_API_KEY_MISSING_FALLBACK provider={} trackId={} userId={}",
+                provider,
+                trackId,
+                userId
             );
         }
 
@@ -1992,7 +1991,7 @@ public class MediaServiceImpl implements MediaService {
                 apiContext.apiKey(),
                 provider,
                 trackId,
-                tuneHubMusicProperties.getDefaultQuality(),
+                metingMusicProperties.getDefaultQuality(),
                 2
             );
         } catch (Exception ex) {
@@ -2001,7 +2000,7 @@ public class MediaServiceImpl implements MediaService {
             }
             throw ex;
         }
-        TuneHubMusicProvider.ParseTrackResult parsed = parseAttempt.result();
+        MetingMusicProvider.ParseTrackResult parsed = parseAttempt.result();
         int retryCount = parseAttempt.retryCount();
         long parseDoneMs = System.currentTimeMillis();
 
@@ -2067,7 +2066,7 @@ public class MediaServiceImpl implements MediaService {
             buildPlaybackMetadata(
                 Map.of(
                     "cacheMode", storageMode.code(),
-                    "resolved_source", "tunehub",
+                    "resolved_source", "meting",
                     "fallback_applied", false,
                     "retry_count", retryCount
                 ),
@@ -2314,13 +2313,14 @@ public class MediaServiceImpl implements MediaService {
         long used = loadPickUsedCount(userId);
         long uploadTotal = resolveQuotaValue(MUSIC_UPLOAD_QUOTA_CODE, groups, 104857600L);
         long uploadUsed = loadUploadUsedBytes(userId);
-        UserMusicGateway.ApiKeyStatus keyStatus = userMusicClient.getApiKeyStatus(userId, "tunehub");
+        // R3.6: aggregator no longer requires user API key; sidecar (Meting) is always available.
+        boolean keyBound = StringUtils.hasText(readString(metingMusicProperties.getDefaultApiKey(), ""));
         return new MusicQuotaResponse(
             MUSIC_PICK_QUOTA_CODE,
             total,
             used,
             quotaRemaining(total, used),
-            keyStatus != null && keyStatus.keyBound(),
+            keyBound,
             uploadTotal,
             uploadUsed,
             quotaRemaining(uploadTotal, uploadUsed)
@@ -2333,7 +2333,7 @@ public class MediaServiceImpl implements MediaService {
     @Override
     public MusicPickResponse pickMusic(MusicPickRequest request) {
         Long userId = requireLoginUserId();
-        String provider = normalizeProviderCode(readString(request == null ? null : request.getProvider(), "tunehub"));
+        String provider = normalizeProviderCode(readString(request == null ? null : request.getProvider(), "meting"));
         String query = readString(request == null ? null : request.getQuery(), "");
         validateMusicQuery(query);
 
@@ -2482,7 +2482,7 @@ public class MediaServiceImpl implements MediaService {
         );
         if (configs == null || configs.isEmpty()) {
             return List.of(
-                new MusicProviderResponse("tunehub", true, true, 10),
+                new MusicProviderResponse("meting", true, true, 10),
                 new MusicProviderResponse("spotify", true, true, 20),
                 new MusicProviderResponse("asmr", true, false, 30)
             );
@@ -3207,18 +3207,18 @@ public class MediaServiceImpl implements MediaService {
         );
     }
 
-    private MusicPlaylistBundleResponse loadVirtualTunehubPlaylistBundle(TuneHubVirtualPlaylistRef ref) {
-        TuneHubApiContext apiContext = resolveTuneHubApiContext();
-        List<MusicTrackResponse> tracks = tuneHubMusicProvider.loadVirtualPlaylistTracks(
+    private MusicPlaylistBundleResponse loadVirtualMusicPlaylistBundle(MusicVirtualPlaylistRef ref) {
+        MusicApiContext apiContext = resolveMusicApiContext();
+        List<MusicTrackResponse> tracks = metingMusicProvider.loadVirtualPlaylistTracks(
             apiContext.apiKey(),
             ref.provider(),
             ref.sourceType(),
             ref.sourceId()
         );
 
-        TuneHubMusicProvider.VirtualPlaylistSummary summary = null;
+        MetingMusicProvider.VirtualPlaylistSummary summary = null;
         if ("toplist".equals(ref.sourceType())) {
-            summary = tuneHubMusicProvider
+            summary = metingMusicProvider
                 .listToplistPlaylists(apiContext.apiKey(), List.of(ref.provider()), 8)
                 .stream()
                 .filter(item ->
@@ -3229,7 +3229,7 @@ public class MediaServiceImpl implements MediaService {
                 .findFirst()
                 .orElse(null);
         } else if ("playlist".equals(ref.sourceType())) {
-            summary = tuneHubMusicProvider.loadPlaylistSummary(
+            summary = metingMusicProvider.loadPlaylistSummary(
                 apiContext.apiKey(),
                 ref.provider(),
                 ref.sourceType(),
@@ -3237,12 +3237,12 @@ public class MediaServiceImpl implements MediaService {
             );
         }
         if (summary == null) {
-            summary = new TuneHubMusicProvider.VirtualPlaylistSummary(
+            summary = new MetingMusicProvider.VirtualPlaylistSummary(
                 ref.provider(),
                 ref.sourceType(),
                 ref.sourceId(),
                 ref.provider().toUpperCase(Locale.ROOT) + " 歌单",
-                "TuneHub 虚拟歌单",
+                "Meting 虚拟歌单",
                 "",
                 ref.playlistCode(),
                 tracks.size()
@@ -3265,7 +3265,7 @@ public class MediaServiceImpl implements MediaService {
 
         MusicPlaylistSummaryResponse profile = new MusicPlaylistSummaryResponse(
             ref.playlistCode(),
-            readString(summary.name(), "TuneHub 歌单"),
+            readString(summary.name(), "Meting 歌单"),
             readString(summary.description(), ""),
             readString(summary.cover(), ""),
             PLAYLIST_TYPE_CUSTOM,
@@ -3277,10 +3277,16 @@ public class MediaServiceImpl implements MediaService {
         return new MusicPlaylistBundleResponse(profile, tracks);
     }
 
-    private TuneHubVirtualPlaylistRef parseVirtualTunehubPlaylistCode(String playlistCode) {
-        Matcher matcher = VIRTUAL_TUNEHUB_PLAYLIST_CODE_PATTERN.matcher(readString(playlistCode, ""));
+    private MusicVirtualPlaylistRef parseVirtualMusicPlaylistCode(String playlistCode) {
+        String code = readString(playlistCode, "");
+        // R6.2: prefer the new vh_meting_ prefix.
+        Matcher matcher = VIRTUAL_METING_PLAYLIST_CODE_PATTERN.matcher(code);
         if (!matcher.matches()) {
-            return null;
+            // R6.1: fallback to legacy vh_tunehub_ prefix during the compatibility window.
+            matcher = VIRTUAL_LEGACY_PLAYLIST_CODE_PATTERN.matcher(code);
+            if (!matcher.matches()) {
+                return null;
+            }
         }
         String provider = normalizeSourceProvider(matcher.group(1));
         String sourceType = readString(matcher.group(2), "").toLowerCase(Locale.ROOT);
@@ -3288,7 +3294,9 @@ public class MediaServiceImpl implements MediaService {
         if (!StringUtils.hasText(provider) || !StringUtils.hasText(sourceType) || !StringUtils.hasText(sourceId)) {
             return null;
         }
-        return new TuneHubVirtualPlaylistRef(playlistCode, provider, sourceType, sourceId);
+        // R6.4: preserve the original playlistCode (legacy or new prefix) so downstream callers
+        // can roundtrip it without forced rewrites.
+        return new MusicVirtualPlaylistRef(playlistCode, provider, sourceType, sourceId);
     }
 
     private MusicPlaylistBundleResponse loadVirtualAsmrPlaylistBundle(AsmrVirtualPlaylistRef ref) {
@@ -3388,21 +3396,19 @@ public class MediaServiceImpl implements MediaService {
         return new AsmrVirtualPlaylistRef(playlistCode, workId);
     }
 
-    private TuneHubApiContext resolveTuneHubApiContext() {
-        return resolveTuneHubApiContext(true);
+    private MusicApiContext resolveMusicApiContext() {
+        return resolveMusicApiContext(true);
     }
 
-    private TuneHubApiContext resolveTuneHubApiContext(boolean logBuildStart) {
+    private MusicApiContext resolveMusicApiContext(boolean logBuildStart) {
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
-        String userApiKey = userId > 0 ? userMusicClient.getApiKeyPlaintext(userId, "tunehub") : "";
-        String systemApiKey = readString(tuneHubMusicProperties.getDefaultApiKey(), "");
-        String apiKey = StringUtils.hasText(userApiKey) ? userApiKey : systemApiKey;
-        String keySource = StringUtils.hasText(userApiKey) ? "user" : "system";
-        List<String> preferredOrder = resolveTuneHubPlatformOrder(userId);
+        String apiKey = readString(metingMusicProperties.getDefaultApiKey(), "");
+        String keySource = "system";
+        List<String> preferredOrder = resolveMusicPlatformOrder(userId);
         if (logBuildStart) {
             LOGGER.info("{} userId={} keySource={} platformOrder={}", LOG_EVENT_API_CONTEXT_START, userId, keySource, preferredOrder);
         }
-        return new TuneHubApiContext(apiKey, keySource, preferredOrder);
+        return new MusicApiContext(apiKey, keySource, preferredOrder);
     }
 
     private String normalizeMusicSearchQuery(String query) {
@@ -3658,7 +3664,7 @@ public class MediaServiceImpl implements MediaService {
             }
         }
         if (result.isEmpty()) {
-            List<String> defaults = resolveTuneHubPlatformOrder(userId);
+            List<String> defaults = resolveMusicPlatformOrder(userId);
             for (String item : defaults) {
                 String normalized = normalizeSearchProvider(item);
                 if (!StringUtils.hasText(normalized) || !seen.add(normalized)) {
@@ -3675,7 +3681,7 @@ public class MediaServiceImpl implements MediaService {
         if (SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode())) {
             List<String> filtered = new ArrayList<>();
             for (String provider : result) {
-                if (!TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)) {
+                if (!MUSIC_PLATFORMS.contains(provider)) {
                     filtered.add(provider);
                     continue;
                 }
@@ -3686,7 +3692,7 @@ public class MediaServiceImpl implements MediaService {
             result = filtered;
         }
         if (SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode())) {
-            List<String> priorityOrder = normalizeTuneHubPlatformOrder(sourcePolicy.providerOrder());
+            List<String> priorityOrder = normalizeMusicPlatformOrder(sourcePolicy.providerOrder());
             Map<String, Integer> rankMap = new LinkedHashMap<>();
             for (int i = 0; i < priorityOrder.size(); i += 1) {
                 rankMap.put(priorityOrder.get(i), i);
@@ -3731,7 +3737,7 @@ public class MediaServiceImpl implements MediaService {
         String encodedKeyword = Base64.getUrlEncoder()
             .withoutPadding()
             .encodeToString(normalizedKeyword.getBytes(StandardCharsets.UTF_8));
-        return "vh_tunehub_" + normalizedProvider + "_search_" + encodedKeyword;
+        return "vh_meting_" + normalizedProvider + "_search_" + encodedKeyword;
     }
 
     private String buildVirtualAsmrWorkPlaylistCode(long workId) {
@@ -3827,13 +3833,13 @@ public class MediaServiceImpl implements MediaService {
     }
 
     private boolean virtualPlaylistMatchesKeyword(String apiKey,
-                                                  TuneHubMusicProvider.VirtualPlaylistSummary summary,
+                                                  MetingMusicProvider.VirtualPlaylistSummary summary,
                                                   String keyword) {
         if (!StringUtils.hasText(apiKey) || summary == null || !StringUtils.hasText(keyword)) {
             return false;
         }
         try {
-            List<MusicTrackResponse> tracks = tuneHubMusicProvider.loadVirtualPlaylistTracks(
+            List<MusicTrackResponse> tracks = metingMusicProvider.loadVirtualPlaylistTracks(
                 apiKey,
                 readString(summary.platform(), ""),
                 readString(summary.sourceType(), ""),
@@ -3914,8 +3920,8 @@ public class MediaServiceImpl implements MediaService {
         return normalized;
     }
 
-    private List<String> resolveTuneHubPlatformOrder(Long userId) {
-        List<String> defaultOrder = normalizeTuneHubPlatformOrder(tuneHubMusicProperties.getDefaultPlatformOrder());
+    private List<String> resolveMusicPlatformOrder(Long userId) {
+        List<String> defaultOrder = normalizeMusicPlatformOrder(metingMusicProperties.getDefaultPlatformOrder());
         if (userId == null || userId <= 0) {
             return defaultOrder;
         }
@@ -3935,7 +3941,7 @@ public class MediaServiceImpl implements MediaService {
         Set<String> seen = new LinkedHashSet<>();
         for (String item : preferredOrder) {
             String normalized = normalizeSourceProvider(item);
-            if (!TUNEHUB_PLAYLIST_PLATFORMS.contains(normalized) || !seen.add(normalized)) {
+            if (!MUSIC_PLATFORMS.contains(normalized) || !seen.add(normalized)) {
                 continue;
             }
             if (!isProviderEnabled(enabledMap, normalized)) {
@@ -3966,13 +3972,13 @@ public class MediaServiceImpl implements MediaService {
         return enabled == null || enabled;
     }
 
-    private List<String> normalizeTuneHubPlatformOrder(List<String> rawOrder) {
+    private List<String> normalizeMusicPlatformOrder(List<String> rawOrder) {
         List<String> source = rawOrder == null ? Collections.emptyList() : rawOrder;
         List<String> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (String item : source) {
             String normalized = normalizeSourceProvider(item);
-            if (!TUNEHUB_PLAYLIST_PLATFORMS.contains(normalized) || !seen.add(normalized)) {
+            if (!MUSIC_PLATFORMS.contains(normalized) || !seen.add(normalized)) {
                 continue;
             }
             result.add(normalized);
@@ -4128,7 +4134,7 @@ public class MediaServiceImpl implements MediaService {
         Exception lastException = null;
         while (attempts <= Math.max(0, maxRetries)) {
             try {
-                TuneHubMusicProvider.ParseTrackResult result = tuneHubMusicProvider.parseSingleTrack(
+                MetingMusicProvider.ParseTrackResult result = metingMusicProvider.parseSingleTrack(
                     apiKey,
                     provider,
                     trackId,
@@ -4143,19 +4149,19 @@ public class MediaServiceImpl implements MediaService {
         if (lastException instanceof RuntimeException runtimeException) {
             throw runtimeException;
         }
-        throw new BusinessException(ErrorCode.INTERNAL_ERROR, "TuneHub parse failed");
+        throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Music parse failed");
     }
 
     private SearchSourcePolicy resolveSearchSourcePolicy(Long userId) {
         if (userId == null || userId <= 0) {
-            return new SearchSourcePolicy(SOURCE_MODE_TUNEHUB_FIRST, SOURCE_PROVIDER_DEFAULT_ORDER, Set.of());
+            return new SearchSourcePolicy(SOURCE_MODE_METING_FIRST, SOURCE_PROVIDER_DEFAULT_ORDER, Set.of());
         }
         Map<String, Object> preference = userMusicClient.getPreference(userId);
         Map<String, Object> musicObject = asObjectMap(preference.get("music"));
         String sourceMode = normalizeSourceMode(
             readString(
                 preference.get("music.source_mode"),
-                readString(musicObject.get("source_mode"), SOURCE_MODE_TUNEHUB_FIRST)
+                readString(musicObject.get("source_mode"), SOURCE_MODE_METING_FIRST)
             )
         );
         List<String> providerOrder = asSourceProviderList(preference.get("music.account_provider_order"));
@@ -4210,17 +4216,32 @@ public class MediaServiceImpl implements MediaService {
         return "";
     }
 
-    private String normalizeSourceMode(String mode) {
-        String normalized = readString(mode, SOURCE_MODE_TUNEHUB_FIRST).toLowerCase(Locale.ROOT);
-        if (
-            SOURCE_MODE_ACCOUNT_FIRST.equals(normalized)
-                || SOURCE_MODE_TUNEHUB_FIRST.equals(normalized)
-                || SOURCE_MODE_ACCOUNT_ONLY.equals(normalized)
-                || SOURCE_MODE_TUNEHUB_ONLY.equals(normalized)
-        ) {
-            return normalized;
+    /**
+     * 后端读侧统一兼容 helper（任务 2.4）：
+     * <ul>
+     *   <li>把旧值 {@code tunehub_first} / {@code tunehub_only} 映射为 {@code meting_first} / {@code meting_only}。</li>
+     *   <li>无效或缺失值兜底为 {@link #SOURCE_MODE_ACCOUNT_FIRST}（design §3.2.6）。</li>
+     * </ul>
+     * 所有读取 {@code preference_json#>>'{music,source_mode}'} 的位置都应统一过此 helper。
+     */
+    private static String normalizeSourceModeForRead(String raw) {
+        if (raw == null) {
+            return SOURCE_MODE_ACCOUNT_FIRST;
         }
-        return SOURCE_MODE_TUNEHUB_FIRST;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "tunehub_first" -> SOURCE_MODE_METING_FIRST;
+            case "tunehub_only"  -> SOURCE_MODE_METING_ONLY;
+            case "account_first" -> SOURCE_MODE_ACCOUNT_FIRST;
+            case "meting_first"  -> SOURCE_MODE_METING_FIRST;
+            case "account_only"  -> SOURCE_MODE_ACCOUNT_ONLY;
+            case "meting_only"   -> SOURCE_MODE_METING_ONLY;
+            default              -> SOURCE_MODE_ACCOUNT_FIRST;
+        };
+    }
+
+    private String normalizeSourceMode(String mode) {
+        return normalizeSourceModeForRead(mode);
     }
 
     private List<MusicTrackResponse> listDefaultMusicPlaylistFromDb() {
@@ -4239,7 +4260,7 @@ public class MediaServiceImpl implements MediaService {
 
     private String normalizeSourceProvider(String provider) {
         String normalized = readString(provider, "").toLowerCase(Locale.ROOT);
-        return TUNEHUB_PLAYLIST_PLATFORMS.contains(normalized) ? normalized : "";
+        return MUSIC_PLATFORMS.contains(normalized) ? normalized : "";
     }
 
     private String normalizePlaybackProvider(String provider) {
@@ -4720,7 +4741,7 @@ public class MediaServiceImpl implements MediaService {
                 );
                 return;
             }
-            TuneHubApiContext apiContext = resolveTuneHubApiContext(false);
+            MusicApiContext apiContext = resolveMusicApiContext(false);
             if (!StringUtils.hasText(apiContext.apiKey())) {
                 LOGGER.warn(
                     "{} provider={} trackId={} reason=api_key_missing",
@@ -4731,11 +4752,11 @@ public class MediaServiceImpl implements MediaService {
                 return;
             }
             try {
-                TuneHubMusicProvider.ParseTrackResult parsed = tuneHubMusicProvider.parseSingleTrack(
+                MetingMusicProvider.ParseTrackResult parsed = metingMusicProvider.parseSingleTrack(
                     apiContext.apiKey(),
                     normalizedProvider,
                     trackId,
-                    tuneHubMusicProperties.getDefaultQuality()
+                    metingMusicProperties.getDefaultQuality()
                 );
                 resolvedAudioUrl = readString(parsed.audioUrl(), "");
             } catch (Exception exception) {
@@ -5079,21 +5100,21 @@ public class MediaServiceImpl implements MediaService {
         long missingAudio = tracks.stream()
             .filter(item -> !StringUtils.hasText(readString(item.audio(), "")))
             .count();
-        long tunehubResolvable = tracks.stream()
+        long aggregatorResolvable = tracks.stream()
             .filter(item -> {
                 String provider = readString(item.provider(), "").toLowerCase(Locale.ROOT);
-                return TUNEHUB_PLAYLIST_PLATFORMS.contains(provider)
+                return MUSIC_PLATFORMS.contains(provider)
                     && StringUtils.hasText(readString(item.trackId(), ""));
             })
             .count();
         LOGGER.info(
-            "MUSIC_USER_PLAYLIST_BUNDLE_STATS playlistCode={} ownerView={} total={} missingTrackId={} missingAudio={} tunehubResolvable={}",
+            "MUSIC_USER_PLAYLIST_BUNDLE_STATS playlistCode={} ownerView={} total={} missingTrackId={} missingAudio={} aggregatorResolvable={}",
             readString(playlist.getPlaylistCode(), ""),
             ownerView,
             tracks.size(),
             missingTrackId,
             missingAudio,
-            tunehubResolvable
+            aggregatorResolvable
         );
         return new MusicPlaylistBundleResponse(
             toPlaylistSummary(playlist, tracks.size()),
@@ -5565,12 +5586,12 @@ public class MediaServiceImpl implements MediaService {
         };
     }
 
-    private record TuneHubApiContext(String apiKey,
+    private record MusicApiContext(String apiKey,
                                      String keySource,
                                      List<String> platformOrder) {
     }
 
-    private record ParseAttemptResult(TuneHubMusicProvider.ParseTrackResult result,
+    private record ParseAttemptResult(MetingMusicProvider.ParseTrackResult result,
                                       int retryCount) {
     }
 
@@ -5582,7 +5603,7 @@ public class MediaServiceImpl implements MediaService {
         }
     }
 
-    private record TuneHubVirtualPlaylistRef(String playlistCode,
+    private record MusicVirtualPlaylistRef(String playlistCode,
                                              String provider,
                                              String sourceType,
                                              String sourceId) {

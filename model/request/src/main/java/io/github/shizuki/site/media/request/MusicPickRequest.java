@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "音乐选歌请求")
 public class MusicPickRequest {
 
-    @Schema(description = "Provider 编码", example = "tunehub")
+    @Schema(description = "Provider 编码", example = "meting")
     private String provider;
 
     @Schema(description = "搜索关键字", example = "晴天")

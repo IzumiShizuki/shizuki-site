@@ -1,6 +1,8 @@
 <template>
   <section class="music-center-view music-home-view">
-    <p v-if="displayErrorText" class="state-text error">{{ displayErrorText }}</p>
+    <p v-if="displayErrorText" class="state-text error">
+      {{ displayErrorText }}
+    </p>
 
     <template v-if="music.hasActiveSearch.value">
       <section class="panel liquid-material">
@@ -18,7 +20,12 @@
             <h3>歌单</h3>
             <span>{{ visibleSearchPlaylists.length }}</span>
           </div>
-          <div v-if="!visibleSearchPlaylists.length" class="empty-state compact">暂无匹配歌单</div>
+          <div
+            v-if="!visibleSearchPlaylists.length"
+            class="empty-state compact"
+          >
+            暂无匹配歌单
+          </div>
           <div
             ref="searchPlaylistRowRef"
             class="playlist-grid"
@@ -35,8 +42,8 @@
             >
               <div class="cover" :style="coverStyle(item)"></div>
               <div class="meta">
-                <p class="name">{{ item.name || '未命名歌单' }}</p>
-                <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
+                <p class="name">{{ item.name || "未命名歌单" }}</p>
+                <p class="desc">{{ item.description || "点击进入歌单详情" }}</p>
                 <button
                   v-if="shouldShowDescExpand(item)"
                   class="desc-expand-btn ripple-trigger"
@@ -49,7 +56,10 @@
             </button>
           </div>
           <footer v-if="showAllPlaylistPager" class="search-section-pager">
-            <p v-if="music.searchSectionLoading.value?.playlists" class="pager-text">
+            <p
+              v-if="music.searchSectionLoading.value?.playlists"
+              class="pager-text"
+            >
               <i class="fas fa-spinner fa-spin"></i>
               加载更多歌单中...
             </p>
@@ -85,29 +95,48 @@
             <span>时长</span>
             <span>操作</span>
           </div>
-          <div v-if="!visibleSearchTracks.length" class="empty-state compact">暂无匹配歌曲</div>
+          <div v-if="!visibleSearchTracks.length" class="empty-state compact">
+            暂无匹配歌曲
+          </div>
           <article
             v-for="(item, index) in visibleSearchTracks"
             :key="`search-track-${item.trackId || item.id || index}`"
             class="table-row search-track-row ripple-trigger"
             @click="music.playSearchTrack(item, index)"
           >
-            <span>{{ String(index + 1).padStart(2, '0') }}</span>
+            <span>{{ String(index + 1).padStart(2, "0") }}</span>
             <span class="title-col track-title-col">
-              <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
-              <span class="track-title-text">{{ item.title || '未知标题' }}</span>
+              <span
+                class="track-cover"
+                :class="{ empty: !item.cover }"
+                :style="trackCoverStyle(item)"
+              ></span>
+              <span class="track-title-text">{{
+                item.title || "未知标题"
+              }}</span>
             </span>
-            <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
-            <span>{{ item.provider || '-' }}</span>
-            <span>{{ item.durationLabel || '--:--' }}</span>
+            <span class="artist-col">{{ item.artist || "未知歌手" }}</span>
+            <span>{{ item.provider || "-" }}</span>
+            <span>{{ item.durationLabel || "--:--" }}</span>
             <span class="row-actions">
               <button
                 class="track-action-btn ripple-trigger"
                 type="button"
-                :title="music.isTrackLiked(item.trackId || item.id) ? '取消红心' : '加入红心'"
+                :title="
+                  music.isTrackLiked(item.trackId || item.id)
+                    ? '取消红心'
+                    : '加入红心'
+                "
                 @click.stop="music.toggleTrackLike(item)"
               >
-                <i class="fas" :class="music.isTrackLiked(item.trackId || item.id) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+                <i
+                  class="fas"
+                  :class="
+                    music.isTrackLiked(item.trackId || item.id)
+                      ? 'fa-heart liked'
+                      : 'fa-heart-crack'
+                  "
+                ></i>
               </button>
               <button
                 class="track-action-btn ripple-trigger"
@@ -126,7 +155,10 @@
             </span>
           </article>
           <footer v-if="showAllTrackPager" class="search-section-pager">
-            <p v-if="music.searchSectionLoading.value?.tracks" class="pager-text">
+            <p
+              v-if="music.searchSectionLoading.value?.tracks"
+              class="pager-text"
+            >
               <i class="fas fa-spinner fa-spin"></i>
               加载更多歌曲中...
             </p>
@@ -154,15 +186,27 @@
             <h3>歌手</h3>
             <span>{{ visibleSearchArtists.length }}</span>
           </div>
-          <div v-if="!visibleSearchArtists.length" class="empty-state compact">暂无匹配歌手</div>
+          <div v-if="!visibleSearchArtists.length" class="empty-state compact">
+            暂无匹配歌手
+          </div>
           <div class="artist-grid">
-            <article v-for="item in visibleSearchArtists" :key="`search-artist-${item.name}`" class="artist-card">
+            <article
+              v-for="item in visibleSearchArtists"
+              :key="`search-artist-${item.name}`"
+              class="artist-card"
+            >
               <p class="artist-name">{{ item.name }}</p>
-              <p class="artist-meta">{{ item.hitCount }} 首 · {{ (item.providers || []).join(' / ') || '-' }}</p>
+              <p class="artist-meta">
+                {{ item.hitCount }} 首 ·
+                {{ (item.providers || []).join(" / ") || "-" }}
+              </p>
             </article>
           </div>
           <footer v-if="showAllArtistPager" class="search-section-pager">
-            <p v-if="music.searchSectionLoading.value?.artists" class="pager-text">
+            <p
+              v-if="music.searchSectionLoading.value?.artists"
+              class="pager-text"
+            >
               <i class="fas fa-spinner fa-spin"></i>
               加载更多歌手中...
             </p>
@@ -195,8 +239,14 @@
             aria-live="polite"
           >
             <header>
-              <p>{{ descriptionPopover.title || '歌单简介' }}</p>
-              <button type="button" class="close-btn ripple-trigger" @click="closeDescriptionPopover">×</button>
+              <p>{{ descriptionPopover.title || "歌单简介" }}</p>
+              <button
+                type="button"
+                class="close-btn ripple-trigger"
+                @click="closeDescriptionPopover"
+              >
+                ×
+              </button>
             </header>
             <div class="body">{{ descriptionPopover.description }}</div>
           </div>
@@ -231,16 +281,19 @@
       <section class="panel liquid-material">
         <header class="panel-head">
           <h2>Meting 歌单</h2>
-          <span>{{ filteredTunehubPlaylists.length }} 个</span>
+          <span>{{ filteredMetingPlaylists.length }} 个</span>
         </header>
 
-        <div v-if="!filteredTunehubPlaylists.length && !music.homeLoading.value" class="empty-state">
+        <div
+          v-if="!filteredMetingPlaylists.length && !music.homeLoading.value"
+          class="empty-state"
+        >
           暂无可展示 Meting 歌单
         </div>
 
         <div class="playlist-grid">
           <button
-            v-for="item in filteredTunehubPlaylists"
+            v-for="item in filteredMetingPlaylists"
             :key="item.playlistCode"
             class="playlist-card ripple-trigger"
             :class="{ opening: openingPlaylistCode === item.playlistCode }"
@@ -249,8 +302,8 @@
           >
             <div class="cover" :style="coverStyle(item)"></div>
             <div class="meta">
-              <p class="name">{{ item.name || '未命名歌单' }}</p>
-              <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
+              <p class="name">{{ item.name || "未命名歌单" }}</p>
+              <p class="desc">{{ item.description || "点击进入歌单详情" }}</p>
             </div>
           </button>
         </div>
@@ -263,8 +316,17 @@
         </header>
 
         <div class="playlist-grid">
-          <article v-for="item in spotifyPlaceholderPlaylists" :key="item.id" class="playlist-card is-placeholder">
-            <div class="cover placeholder-cover" :style="{ backgroundImage: item.cover ? `url('${item.cover}')` : '' }"></div>
+          <article
+            v-for="item in spotifyPlaceholderPlaylists"
+            :key="item.id"
+            class="playlist-card is-placeholder"
+          >
+            <div
+              class="cover placeholder-cover"
+              :style="{
+                backgroundImage: item.cover ? `url('${item.cover}')` : '',
+              }"
+            ></div>
             <div class="meta">
               <p class="name">{{ item.name }}</p>
               <p class="desc">{{ item.description }}</p>
@@ -287,7 +349,10 @@
           <span>操作</span>
         </div>
 
-        <div v-if="!filteredTracks.length && !music.homeLoading.value" class="empty-state">
+        <div
+          v-if="!filteredTracks.length && !music.homeLoading.value"
+          class="empty-state"
+        >
           暂无推荐歌曲
         </div>
 
@@ -297,18 +362,29 @@
           class="table-row recommend-track-row ripple-trigger"
           @click="music.playFeaturedTrack(item, index)"
         >
-          <span>{{ String(index + 1).padStart(2, '0') }}</span>
-          <span class="title-col">{{ item.title || '未知标题' }}</span>
-          <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
-          <span>{{ item.duration || item.durationLabel || '--:--' }}</span>
+          <span>{{ String(index + 1).padStart(2, "0") }}</span>
+          <span class="title-col">{{ item.title || "未知标题" }}</span>
+          <span class="artist-col">{{ item.artist || "未知歌手" }}</span>
+          <span>{{ item.duration || item.durationLabel || "--:--" }}</span>
           <span class="row-actions">
             <button
               class="track-action-btn ripple-trigger"
               type="button"
-              :title="music.isTrackLiked(item.trackId || item.id) ? '取消红心' : '加入红心'"
+              :title="
+                music.isTrackLiked(item.trackId || item.id)
+                  ? '取消红心'
+                  : '加入红心'
+              "
               @click.stop="music.toggleTrackLike(item)"
             >
-              <i class="fas" :class="music.isTrackLiked(item.trackId || item.id) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+              <i
+                class="fas"
+                :class="
+                  music.isTrackLiked(item.trackId || item.id)
+                    ? 'fa-heart liked'
+                    : 'fa-heart-crack'
+                "
+              ></i>
             </button>
             <button
               class="track-action-btn ripple-trigger"
@@ -341,7 +417,10 @@
             <h3>我收藏的歌单</h3>
             <span>{{ userCollectedPlaylists.length }}</span>
           </div>
-          <div v-if="!userCollectedPlaylists.length" class="empty-state compact">
+          <div
+            v-if="!userCollectedPlaylists.length"
+            class="empty-state compact"
+          >
             暂无收藏歌单
           </div>
           <div class="playlist-grid">
@@ -355,8 +434,8 @@
             >
               <div class="cover" :style="coverStyle(item)"></div>
               <div class="meta">
-                <p class="name">{{ item.name || '未命名歌单' }}</p>
-                <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
+                <p class="name">{{ item.name || "未命名歌单" }}</p>
+                <p class="desc">{{ item.description || "点击进入歌单详情" }}</p>
               </div>
             </button>
           </div>
@@ -365,14 +444,17 @@
         <section class="provider-block">
           <div class="provider-head">
             <h3>Meting</h3>
-            <span>{{ filteredTunehubPlaylists.length }}</span>
+            <span>{{ filteredMetingPlaylists.length }}</span>
           </div>
-          <div v-if="!filteredTunehubPlaylists.length && !music.homeLoading.value" class="empty-state compact">
+          <div
+            v-if="!filteredMetingPlaylists.length && !music.homeLoading.value"
+            class="empty-state compact"
+          >
             暂无 Meting 歌单
           </div>
           <div class="playlist-grid">
             <button
-              v-for="item in filteredTunehubPlaylists"
+              v-for="item in filteredMetingPlaylists"
               :key="`playlist-only-${item.playlistCode}`"
               class="playlist-card ripple-trigger"
               :class="{ opening: openingPlaylistCode === item.playlistCode }"
@@ -381,8 +463,8 @@
             >
               <div class="cover" :style="coverStyle(item)"></div>
               <div class="meta">
-                <p class="name">{{ item.name || '未命名歌单' }}</p>
-                <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
+                <p class="name">{{ item.name || "未命名歌单" }}</p>
+                <p class="desc">{{ item.description || "点击进入歌单详情" }}</p>
               </div>
             </button>
           </div>
@@ -394,8 +476,17 @@
             <span>占位</span>
           </div>
           <div class="playlist-grid">
-            <article v-for="item in spotifyPlaceholderPlaylists" :key="`playlist-spotify-${item.id}`" class="playlist-card is-placeholder">
-              <div class="cover placeholder-cover" :style="{ backgroundImage: item.cover ? `url('${item.cover}')` : '' }"></div>
+            <article
+              v-for="item in spotifyPlaceholderPlaylists"
+              :key="`playlist-spotify-${item.id}`"
+              class="playlist-card is-placeholder"
+            >
+              <div
+                class="cover placeholder-cover"
+                :style="{
+                  backgroundImage: item.cover ? `url('${item.cover}')` : '',
+                }"
+              ></div>
               <div class="meta">
                 <p class="name">{{ item.name }}</p>
                 <p class="desc">{{ item.description }}</p>
@@ -414,8 +505,17 @@
         </header>
 
         <div class="podcast-grid">
-          <article v-for="item in filteredPodcastCards" :key="item.id" class="podcast-card">
-            <div class="podcast-thumb" :style="{ backgroundImage: item.cover ? `url('${item.cover}')` : '' }"></div>
+          <article
+            v-for="item in filteredPodcastCards"
+            :key="item.id"
+            class="podcast-card"
+          >
+            <div
+              class="podcast-thumb"
+              :style="{
+                backgroundImage: item.cover ? `url('${item.cover}')` : '',
+              }"
+            ></div>
             <div class="podcast-meta">
               <p class="podcast-title">{{ item.title }}</p>
               <p class="podcast-desc">{{ item.description }}</p>
@@ -430,27 +530,36 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
-import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
+import { useMusicLibraryContext } from "../../composables/musicLibraryContext";
+import TrackCollectButton from "../../components/music/TrackCollectButton.vue";
 import {
   estimatePlaylistRowCapacity as estimatePlaylistRowCapacityByWidth,
-  normalizePlaylistRowCapacity
-} from '../../utils/musicSearchAllLayout';
+  normalizePlaylistRowCapacity,
+} from "../../utils/musicSearchAllLayout";
 
 const music = useMusicLibraryContext();
-const openingPlaylistCode = ref('');
+const openingPlaylistCode = ref("");
 const searchPlaylistRowRef = ref(null);
 const descriptionPopoverRef = ref(null);
 const descriptionPopover = ref({
   visible: false,
-  title: '',
-  description: '',
+  title: "",
+  description: "",
   top: 24,
   left: 24,
-  width: 320
+  width: 320,
 });
-const playlistRowCapacity = ref(Number(music.searchPlaylistRowCapacity?.value || 3) || 3);
+const playlistRowCapacity = ref(
+  Number(music.searchPlaylistRowCapacity?.value || 3) || 3,
+);
 const OPEN_PLAYLIST_ANIMATION_MS = 320;
 const PLAYLIST_DESC_EXPAND_THRESHOLD = 36;
 const PLAYLIST_CARD_MIN_WIDTH = 188;
@@ -459,104 +568,199 @@ let openPlaylistTimer = 0;
 let playlistRowResizeObserver = null;
 
 const SPOTIFY_PLACEHOLDER = [
-  { id: 'sp-1', name: 'Spotify 热门精选', description: '即将接入 Spotify 歌单能力', cover: '' },
-  { id: 'sp-2', name: 'Spotify 沉浸电子', description: '后续支持拉取官方歌单', cover: '' },
-  { id: 'sp-3', name: 'Spotify 日推占位', description: '连接后可按账号推荐', cover: '' }
+  {
+    id: "sp-1",
+    name: "Spotify 热门精选",
+    description: "即将接入 Spotify 歌单能力",
+    cover: "",
+  },
+  {
+    id: "sp-2",
+    name: "Spotify 沉浸电子",
+    description: "后续支持拉取官方歌单",
+    cover: "",
+  },
+  {
+    id: "sp-3",
+    name: "Spotify 日推占位",
+    description: "连接后可按账号推荐",
+    cover: "",
+  },
 ];
 
 const PODCAST_PLACEHOLDER = [
-  { id: 'pod-1', title: '夜间电台（预留）', description: '后续接入外部播客源后可播放', cover: '' },
-  { id: 'pod-2', title: '学习频道（预留）', description: '暂为静态占位，不调用外部 API', cover: '' },
-  { id: 'pod-3', title: '通勤资讯（预留）', description: '后续可接入网易云播客能力', cover: '' }
+  {
+    id: "pod-1",
+    title: "夜间电台（预留）",
+    description: "后续接入外部播客源后可播放",
+    cover: "",
+  },
+  {
+    id: "pod-2",
+    title: "学习频道（预留）",
+    description: "暂为静态占位，不调用外部 API",
+    cover: "",
+  },
+  {
+    id: "pod-3",
+    title: "通勤资讯（预留）",
+    description: "后续可接入网易云播客能力",
+    cover: "",
+  },
 ];
 
-const navKey = computed(() => String(music.ui.activeNav.value || 'recommend'));
+const navKey = computed(() => String(music.ui.activeNav.value || "recommend"));
 
-const filteredTunehubPlaylists = computed(() => {
-  return Array.isArray(music.homeData.value?.featuredPlaylists) ? music.homeData.value.featuredPlaylists : [];
+const filteredMetingPlaylists = computed(() => {
+  return Array.isArray(music.homeData.value?.featuredPlaylists)
+    ? music.homeData.value.featuredPlaylists
+    : [];
 });
 
 const filteredTracks = computed(() => {
-  return Array.isArray(music.homeData.value?.featuredTracks) ? music.homeData.value.featuredTracks : [];
+  return Array.isArray(music.homeData.value?.featuredTracks)
+    ? music.homeData.value.featuredTracks
+    : [];
 });
 
 const spotifyPlaceholderPlaylists = computed(() => SPOTIFY_PLACEHOLDER);
 const filteredPodcastCards = computed(() => PODCAST_PLACEHOLDER);
 const userCollectedPlaylists = computed(() =>
-  (Array.isArray(music.collectedPlaylists?.value) ? music.collectedPlaylists.value : [])
+  Array.isArray(music.collectedPlaylists?.value)
+    ? music.collectedPlaylists.value
+    : [],
 );
-const searchType = computed(() => String(music.ui.globalSearchType.value || 'all'));
-const searchPlaylists = computed(() => (Array.isArray(music.searchResult.value?.playlists) ? music.searchResult.value.playlists : []));
-const searchTracks = computed(() => (Array.isArray(music.searchResult.value?.tracks) ? music.searchResult.value.tracks : []));
-const searchArtists = computed(() => (Array.isArray(music.searchResult.value?.artists) ? music.searchResult.value.artists : []));
+const searchType = computed(() =>
+  String(music.ui.globalSearchType.value || "all"),
+);
+const searchPlaylists = computed(() =>
+  Array.isArray(music.searchResult.value?.playlists)
+    ? music.searchResult.value.playlists
+    : [],
+);
+const searchTracks = computed(() =>
+  Array.isArray(music.searchResult.value?.tracks)
+    ? music.searchResult.value.tracks
+    : [],
+);
+const searchArtists = computed(() =>
+  Array.isArray(music.searchResult.value?.artists)
+    ? music.searchResult.value.artists
+    : [],
+);
 const searchAllVisibleCount = computed(() => {
   const raw = music.searchAllVisibleCount?.value || {};
   return {
-    playlists: Number.isFinite(Number(raw.playlists)) ? Math.max(0, Number(raw.playlists)) : 4,
-    tracks: Number.isFinite(Number(raw.tracks)) ? Math.max(0, Number(raw.tracks)) : 10,
-    artists: Number.isFinite(Number(raw.artists)) ? Math.max(0, Number(raw.artists)) : 10
+    playlists: Number.isFinite(Number(raw.playlists))
+      ? Math.max(0, Number(raw.playlists))
+      : 4,
+    tracks: Number.isFinite(Number(raw.tracks))
+      ? Math.max(0, Number(raw.tracks))
+      : 10,
+    artists: Number.isFinite(Number(raw.artists))
+      ? Math.max(0, Number(raw.artists))
+      : 10,
   };
 });
 const visibleSearchPlaylists = computed(() => {
-  if (searchType.value !== 'all') return searchPlaylists.value;
-  const configured = Math.max(1, Number(searchAllVisibleCount.value.playlists || 1));
+  if (searchType.value !== "all") return searchPlaylists.value;
+  const configured = Math.max(
+    1,
+    Number(searchAllVisibleCount.value.playlists || 1),
+  );
   const capacity = Math.max(1, Number(playlistRowCapacity.value || configured));
   return searchPlaylists.value.slice(0, Math.min(configured, capacity));
 });
 const visibleSearchTracks = computed(() => {
-  if (searchType.value !== 'all') return searchTracks.value;
+  if (searchType.value !== "all") return searchTracks.value;
   return searchTracks.value.slice(0, searchAllVisibleCount.value.tracks);
 });
 const visibleSearchArtists = computed(() => {
-  if (searchType.value !== 'all') return searchArtists.value;
+  if (searchType.value !== "all") return searchArtists.value;
   return searchArtists.value.slice(0, searchAllVisibleCount.value.artists);
 });
-const hiddenPlaylistsCount = computed(() => Math.max(0, searchPlaylists.value.length - visibleSearchPlaylists.value.length));
-const hiddenTracksCount = computed(() => Math.max(0, searchTracks.value.length - visibleSearchTracks.value.length));
-const hiddenArtistsCount = computed(() => Math.max(0, searchArtists.value.length - visibleSearchArtists.value.length));
+const hiddenPlaylistsCount = computed(() =>
+  Math.max(
+    0,
+    searchPlaylists.value.length - visibleSearchPlaylists.value.length,
+  ),
+);
+const hiddenTracksCount = computed(() =>
+  Math.max(0, searchTracks.value.length - visibleSearchTracks.value.length),
+);
+const hiddenArtistsCount = computed(() =>
+  Math.max(0, searchArtists.value.length - visibleSearchArtists.value.length),
+);
 const failedProvidersText = computed(() => {
-  const list = Array.isArray(music.searchResult.value?.failedProviders) ? music.searchResult.value.failedProviders : [];
-  return list.length ? list.join(' / ') : '-';
+  const list = Array.isArray(music.searchResult.value?.failedProviders)
+    ? music.searchResult.value.failedProviders
+    : [];
+  return list.length ? list.join(" / ") : "-";
 });
-const showPlaylistResults = computed(() => searchType.value === 'all' || searchType.value === 'playlist');
-const showTrackResults = computed(() => searchType.value === 'all' || searchType.value === 'track');
-const showArtistResults = computed(() => searchType.value === 'all' || searchType.value === 'artist');
+const showPlaylistResults = computed(
+  () => searchType.value === "all" || searchType.value === "playlist",
+);
+const showTrackResults = computed(
+  () => searchType.value === "all" || searchType.value === "track",
+);
+const showArtistResults = computed(
+  () => searchType.value === "all" || searchType.value === "artist",
+);
 const showSearchPager = computed(() => {
-  if (searchType.value === 'all') return false;
+  if (searchType.value === "all") return false;
   const hasMore = music.searchHasMore?.value || {};
   if (music.searchLoadingMore?.value) return true;
-  if (searchType.value === 'playlist') return Boolean(hasMore.playlists);
-  if (searchType.value === 'artist') return Boolean(hasMore.artists);
+  if (searchType.value === "playlist") return Boolean(hasMore.playlists);
+  if (searchType.value === "artist") return Boolean(hasMore.artists);
   return Boolean(hasMore.tracks);
 });
 const playlistRowStyle = computed(() => {
-  const cardCount = Math.max(1, visibleSearchPlaylists.value.length || playlistRowCapacity.value || 1);
+  const cardCount = Math.max(
+    1,
+    visibleSearchPlaylists.value.length || playlistRowCapacity.value || 1,
+  );
   return {
-    '--playlist-row-capacity': String(cardCount)
+    "--playlist-row-capacity": String(cardCount),
   };
 });
 const descriptionPopoverStyle = computed(() => ({
   top: `${descriptionPopover.value.top}px`,
   left: `${descriptionPopover.value.left}px`,
-  width: `${descriptionPopover.value.width}px`
+  width: `${descriptionPopover.value.width}px`,
 }));
-const playlistCanLoadMore = computed(() => hiddenPlaylistsCount.value > 0 || Boolean(music.searchHasMore.value?.playlists));
-const trackCanLoadMore = computed(() => hiddenTracksCount.value > 0 || Boolean(music.searchHasMore.value?.tracks));
-const artistCanLoadMore = computed(() => hiddenArtistsCount.value > 0 || Boolean(music.searchHasMore.value?.artists));
+const playlistCanLoadMore = computed(
+  () =>
+    hiddenPlaylistsCount.value > 0 ||
+    Boolean(music.searchHasMore.value?.playlists),
+);
+const trackCanLoadMore = computed(
+  () =>
+    hiddenTracksCount.value > 0 || Boolean(music.searchHasMore.value?.tracks),
+);
+const artistCanLoadMore = computed(
+  () =>
+    hiddenArtistsCount.value > 0 || Boolean(music.searchHasMore.value?.artists),
+);
 const showAllPlaylistPager = computed(
   () =>
-    searchType.value === 'all' &&
-    (playlistCanLoadMore.value || Boolean(music.searchSectionLoading.value?.playlists) || Boolean(music.searchSectionError.value?.playlists))
+    searchType.value === "all" &&
+    (playlistCanLoadMore.value ||
+      Boolean(music.searchSectionLoading.value?.playlists) ||
+      Boolean(music.searchSectionError.value?.playlists)),
 );
 const showAllTrackPager = computed(
   () =>
-    searchType.value === 'all' &&
-    (trackCanLoadMore.value || Boolean(music.searchSectionLoading.value?.tracks) || Boolean(music.searchSectionError.value?.tracks))
+    searchType.value === "all" &&
+    (trackCanLoadMore.value ||
+      Boolean(music.searchSectionLoading.value?.tracks) ||
+      Boolean(music.searchSectionError.value?.tracks)),
 );
 const showAllArtistPager = computed(
   () =>
-    searchType.value === 'all' &&
-    (artistCanLoadMore.value || Boolean(music.searchSectionLoading.value?.artists) || Boolean(music.searchSectionError.value?.artists))
+    searchType.value === "all" &&
+    (artistCanLoadMore.value ||
+      Boolean(music.searchSectionLoading.value?.artists) ||
+      Boolean(music.searchSectionError.value?.artists)),
 );
 const searchSummaryText = computed(() => {
   const playlistCount = visibleSearchPlaylists.value.length;
@@ -566,39 +770,40 @@ const searchSummaryText = computed(() => {
 });
 const displayErrorText = computed(() => {
   if (music.hasActiveSearch.value) {
-    return String(music.searchError.value || '').trim();
+    return String(music.searchError.value || "").trim();
   }
-  return String(music.homeError.value || '').trim();
+  return String(music.homeError.value || "").trim();
 });
 
 function coverStyle(item) {
   const url = safeCoverUrl(item?.cover);
   return {
-    backgroundImage: url ? `url('${url}')` : 'none'
+    backgroundImage: url ? `url('${url}')` : "none",
   };
 }
 
 function trackCoverStyle(item) {
   const url = safeCoverUrl(item?.cover);
   return {
-    backgroundImage: url ? `url('${url}')` : 'none'
+    backgroundImage: url ? `url('${url}')` : "none",
   };
 }
 
 function safeCoverUrl(rawUrl) {
-  const raw = String(rawUrl || '').trim();
-  if (!raw) return '';
-  const escaped = raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const raw = String(rawUrl || "").trim();
+  if (!raw) return "";
+  const escaped = raw.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   return encodeURI(escaped);
 }
 
 function prefersReducedMotion() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function")
+    return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function handleOpenPlaylist(playlistCode) {
-  const code = String(playlistCode || '').trim();
+  const code = String(playlistCode || "").trim();
   if (!code) return;
   if (openPlaylistTimer) {
     window.clearTimeout(openPlaylistTimer);
@@ -614,17 +819,17 @@ function handleOpenPlaylist(playlistCode) {
 }
 
 function handleOpenCollectDialog(track) {
-  if (typeof music.openCollectDialog === 'function') {
+  if (typeof music.openCollectDialog === "function") {
     music.openCollectDialog(track || null);
   }
 }
 
 function handleRequireCollectLogin() {
-  if (typeof music.requestMusicLogin === 'function') {
+  if (typeof music.requestMusicLogin === "function") {
     music.requestMusicLogin();
     return;
   }
-  window.alert('请先登录后再收藏');
+  window.alert("请先登录后再收藏");
 }
 
 function computePlaylistRowCapacity(width) {
@@ -633,18 +838,18 @@ function computePlaylistRowCapacity(width) {
     gap: PLAYLIST_CARD_GAP,
     min: 1,
     max: 12,
-    fallback: normalizePlaylistRowCapacity(playlistRowCapacity.value)
+    fallback: normalizePlaylistRowCapacity(playlistRowCapacity.value),
   });
 }
 
 function syncSearchPlaylistRowCapacity() {
-  if (searchType.value !== 'all' || !music.hasActiveSearch.value) return;
+  if (searchType.value !== "all" || !music.hasActiveSearch.value) return;
   const element = searchPlaylistRowRef.value;
   if (!element) return;
   const nextCapacity = computePlaylistRowCapacity(element.clientWidth);
   if (nextCapacity === playlistRowCapacity.value) return;
   playlistRowCapacity.value = nextCapacity;
-  if (typeof music.setSearchPlaylistRowCapacity === 'function') {
+  if (typeof music.setSearchPlaylistRowCapacity === "function") {
     music.setSearchPlaylistRowCapacity(nextCapacity);
   }
 }
@@ -660,7 +865,8 @@ async function startObservePlaylistRow() {
   const element = searchPlaylistRowRef.value;
   if (!element) return;
   syncSearchPlaylistRowCapacity();
-  if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return;
+  if (typeof window === "undefined" || typeof ResizeObserver === "undefined")
+    return;
   stopObservePlaylistRow();
   playlistRowResizeObserver = new ResizeObserver(() => {
     syncSearchPlaylistRowCapacity();
@@ -669,24 +875,31 @@ async function startObservePlaylistRow() {
 }
 
 function shouldShowDescExpand(item) {
-  return String(item?.description || '').trim().length > PLAYLIST_DESC_EXPAND_THRESHOLD;
+  return (
+    String(item?.description || "").trim().length >
+    PLAYLIST_DESC_EXPAND_THRESHOLD
+  );
 }
 
 function openDescriptionPopover(event, item) {
   const trigger = event?.currentTarget;
   const rect = trigger?.getBoundingClientRect?.();
-  const description = String(item?.description || '').trim();
+  const description = String(item?.description || "").trim();
   if (!description) return;
   const width = 340;
-  const safeTop = rect ? Math.min(window.innerHeight - 220, rect.bottom + 8) : 24;
-  const safeLeft = rect ? Math.min(window.innerWidth - width - 16, Math.max(16, rect.left)) : 24;
+  const safeTop = rect
+    ? Math.min(window.innerHeight - 220, rect.bottom + 8)
+    : 24;
+  const safeLeft = rect
+    ? Math.min(window.innerWidth - width - 16, Math.max(16, rect.left))
+    : 24;
   descriptionPopover.value = {
     visible: true,
-    title: String(item?.name || '歌单简介'),
+    title: String(item?.name || "歌单简介"),
     description,
     top: Math.max(16, safeTop),
     left: Math.max(16, safeLeft),
-    width
+    width,
   };
 }
 
@@ -694,11 +907,11 @@ function closeDescriptionPopover() {
   if (!descriptionPopover.value.visible) return;
   descriptionPopover.value = {
     visible: false,
-    title: '',
-    description: '',
+    title: "",
+    description: "",
     top: 24,
     left: 24,
-    width: 320
+    width: 320,
   };
 }
 
@@ -710,45 +923,53 @@ function handleGlobalPointerDown(event) {
 }
 
 function handleGlobalKeydown(event) {
-  if (event?.key === 'Escape') {
+  if (event?.key === "Escape") {
     closeDescriptionPopover();
   }
 }
 
 watch(
-  () => [music.hasActiveSearch.value, searchType.value, showPlaylistResults.value],
+  () => [
+    music.hasActiveSearch.value,
+    searchType.value,
+    showPlaylistResults.value,
+  ],
   async ([activeSearch, type, showPlaylists]) => {
-    if (activeSearch && showPlaylists && type === 'all') {
+    if (activeSearch && showPlaylists && type === "all") {
       await startObservePlaylistRow();
       return;
     }
     stopObservePlaylistRow();
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
   () => music.searchPlaylistRowCapacity?.value,
   (next) => {
-    const normalized = normalizePlaylistRowCapacity(next, { min: 1, max: 12, fallback: 3 });
+    const normalized = normalizePlaylistRowCapacity(next, {
+      min: 1,
+      max: 12,
+      fallback: 3,
+    });
     if (normalized !== playlistRowCapacity.value) {
       playlistRowCapacity.value = normalized;
     }
-  }
+  },
 );
 
 onMounted(() => {
-  if (typeof window === 'undefined') return;
-  window.addEventListener('pointerdown', handleGlobalPointerDown, true);
-  window.addEventListener('keydown', handleGlobalKeydown);
+  if (typeof window === "undefined") return;
+  window.addEventListener("pointerdown", handleGlobalPointerDown, true);
+  window.addEventListener("keydown", handleGlobalKeydown);
 });
 
 onBeforeUnmount(() => {
   stopObservePlaylistRow();
   closeDescriptionPopover();
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('pointerdown', handleGlobalPointerDown, true);
-    window.removeEventListener('keydown', handleGlobalKeydown);
+  if (typeof window !== "undefined") {
+    window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
+    window.removeEventListener("keydown", handleGlobalKeydown);
   }
   if (openPlaylistTimer) {
     window.clearTimeout(openPlaylistTimer);
@@ -879,7 +1100,10 @@ onBeforeUnmount(() => {
 }
 
 .playlist-grid-single-row {
-  grid-template-columns: repeat(var(--playlist-row-capacity, 1), minmax(0, 1fr));
+  grid-template-columns: repeat(
+    var(--playlist-row-capacity, 1),
+    minmax(0, 1fr)
+  );
   grid-auto-rows: 1fr;
   overflow: hidden;
 }
@@ -917,7 +1141,11 @@ onBeforeUnmount(() => {
 }
 
 .placeholder-cover {
-  background-image: linear-gradient(135deg, rgba(var(--accent-rgb), 0.24), rgba(var(--accent-soft-rgb), 0.18));
+  background-image: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.24),
+    rgba(var(--accent-soft-rgb), 0.18)
+  );
 }
 
 .meta {
@@ -1058,7 +1286,11 @@ onBeforeUnmount(() => {
 }
 
 .track-cover.empty {
-  background-image: linear-gradient(145deg, rgba(65, 74, 105, 0.54), rgba(33, 40, 64, 0.6));
+  background-image: linear-gradient(
+    145deg,
+    rgba(65, 74, 105, 0.54),
+    rgba(33, 40, 64, 0.6)
+  );
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
@@ -1194,7 +1426,11 @@ onBeforeUnmount(() => {
 .podcast-thumb {
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-soft-rgb), 0.16));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.2),
+    rgba(var(--accent-soft-rgb), 0.16)
+  );
   background-size: cover;
   background-position: center;
 }
@@ -1246,7 +1482,10 @@ onBeforeUnmount(() => {
   }
 
   .playlist-grid-single-row {
-    grid-template-columns: repeat(var(--playlist-row-capacity, 1), minmax(0, 1fr));
+    grid-template-columns: repeat(
+      var(--playlist-row-capacity, 1),
+      minmax(0, 1fr)
+    );
   }
 
   .podcast-grid {
@@ -1255,7 +1494,9 @@ onBeforeUnmount(() => {
 
   .search-track-head,
   .search-track-row {
-    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) 66px 58px 122px;
+    grid-template-columns:
+      40px minmax(0, 1.65fr) minmax(0, 0.9fr)
+      66px 58px 122px;
     gap: 6px;
   }
 
