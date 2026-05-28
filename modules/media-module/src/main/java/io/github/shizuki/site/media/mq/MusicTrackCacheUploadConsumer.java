@@ -8,6 +8,7 @@ import io.github.shizuki.common.storage.model.StorageObjectMetadata;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.entity.MusicTrackCacheEntity;
 import io.github.shizuki.site.media.mapper.MusicTrackCacheMapper;
+import io.github.shizuki.site.media.util.MusicTrackCacheObjectCodes;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
@@ -69,7 +70,9 @@ public class MusicTrackCacheUploadConsumer {
 
         try {
             MusicTrackCacheEntity existing = loadTrackCache(provider, trackId);
-            if (existing != null && objectStorageClient.objectExists(existing.getBucketCode(), existing.getObjectCode())) {
+            if (existing != null
+                && !MusicTrackCacheObjectCodes.isSourceOnlyObjectCode(existing.getObjectCode())
+                && objectStorageClient.objectExists(existing.getBucketCode(), existing.getObjectCode())) {
                 touchTrackCacheLastListen(existing);
                 LOGGER.info("MUSIC_CACHE_UPLOAD_CONSUME_OK provider={} trackId={} cacheHit=true durationMs={}",
                     provider,

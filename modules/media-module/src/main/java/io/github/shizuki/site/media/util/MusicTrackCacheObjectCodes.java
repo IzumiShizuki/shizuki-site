@@ -10,6 +10,10 @@ public final class MusicTrackCacheObjectCodes {
      */
     public static final String SOURCE_ONLY_OBJECT_CODE = "__source_only__";
 
+    public static boolean isSourceOnlyObjectCode(String objectCode) {
+        return SOURCE_ONLY_OBJECT_CODE.equals(objectCode);
+    }
+
     private MusicTrackCacheObjectCodes() {
     }
 }

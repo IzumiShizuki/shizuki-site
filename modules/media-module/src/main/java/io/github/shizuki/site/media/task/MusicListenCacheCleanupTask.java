@@ -5,6 +5,7 @@ import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.entity.MusicTrackCacheEntity;
 import io.github.shizuki.site.media.mapper.MusicTrackCacheMapper;
+import io.github.shizuki.site.media.util.MusicTrackCacheObjectCodes;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.slf4j.Logger;
@@ -62,7 +63,9 @@ public class MusicListenCacheCleanupTask {
             for (MusicTrackCacheEntity row : rows) {
                 totalRows += 1;
                 try {
-                    if (StringUtils.hasText(row.getBucketCode()) && StringUtils.hasText(row.getObjectCode())) {
+                    if (StringUtils.hasText(row.getBucketCode())
+                        && StringUtils.hasText(row.getObjectCode())
+                        && !MusicTrackCacheObjectCodes.isSourceOnlyObjectCode(row.getObjectCode())) {
                         objectStorageClient.deleteObject(row.getBucketCode(), row.getObjectCode());
                         ossDeleteSuccess += 1;
                     }
