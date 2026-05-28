@@ -7,6 +7,7 @@
       :key="item.key"
       class="dot-rail-btn ripple-trigger"
       :class="{ active: activeKey === item.key, disabled: item.disabled }"
+      :style="resolveButtonStyle(item.key)"
       type="button"
       :title="item.label"
       :aria-label="item.label"
@@ -66,12 +67,35 @@ const normalizedItems = computed(() =>
     .filter(Boolean)
 );
 
-const railClassName = computed(() => {
+const normalizedDistribution = computed(() => {
   const allowed = new Set(['stack', 'mid-sixths', 'full-sixths']);
   const normalized = String(props.distribution || 'stack').trim().toLowerCase();
-  const distribution = allowed.has(normalized) ? normalized : 'stack';
-  return `distribution-${distribution}`;
+  return allowed.has(normalized) ? normalized : 'stack';
 });
+
+const railClassName = computed(() => `distribution-${normalizedDistribution.value}`);
+
+const midSixthsRowMap = computed(() => {
+  const rowMap = new Map();
+  if (normalizedDistribution.value !== 'mid-sixths') {
+    return rowMap;
+  }
+  const totalSlots = 6;
+  const count = Math.min(normalizedItems.value.length, totalSlots);
+  if (count === 0) {
+    return rowMap;
+  }
+  const startRow = Math.max(1, Math.floor((totalSlots - count) / 2) + 1);
+  normalizedItems.value.forEach((item, index) => {
+    const row = Math.min(startRow + index, totalSlots);
+    rowMap.set(item.key, { gridRow: `${row}` });
+  });
+  return rowMap;
+});
+
+function resolveButtonStyle(itemKey) {
+  return midSixthsRowMap.value.get(itemKey);
+}
 </script>
 
 <style scoped>
@@ -122,22 +146,6 @@ const railClassName = computed(() => {
   top: calc(100% / 6);
   bottom: calc(100% / 6);
   z-index: 0;
-}
-
-.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(1) {
-  grid-row: 2;
-}
-
-.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(2) {
-  grid-row: 3;
-}
-
-.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(3) {
-  grid-row: 4;
-}
-
-.route-dot-rail.distribution-mid-sixths .dot-rail-btn:nth-of-type(4) {
-  grid-row: 5;
 }
 
 .route-dot-rail.distribution-full-sixths .dot-rail-line {
