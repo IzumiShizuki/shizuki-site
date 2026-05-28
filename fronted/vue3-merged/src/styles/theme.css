@@ -1,60 +1,15 @@
 :root {
-  --accent-hex: #f2b39d;
-  --accent-rgb: 242, 179, 157;
-  --accent-strong-rgb: 208, 150, 132;
-  --accent-soft-rgb: 247, 211, 195;
-  --accent-gradient-start-rgb: 246, 194, 161;
-  --accent-gradient-end-rgb: 239, 160, 168;
+  --accent-hex: #c8b4ff;
+  --accent-rgb: 200, 180, 255;
+  --accent-strong-rgb: 173, 146, 243;
+  --accent-soft-rgb: 228, 220, 255;
+  --accent-gradient-start-rgb: 233, 75, 197;
+  --accent-gradient-end-rgb: 157, 107, 255;
   --accent-gradient: linear-gradient(
     135deg,
     rgba(var(--accent-gradient-start-rgb), 0.94),
     rgba(var(--accent-gradient-end-rgb), 0.9)
   );
-  --theme-surface: linear-gradient(155deg, rgba(41, 55, 78, 0.32), rgba(15, 23, 42, 0.84));
-  --theme-surface-elevated: linear-gradient(145deg, rgba(62, 79, 107, 0.24), rgba(21, 31, 54, 0.74));
-  --theme-surface-soft: rgba(241, 245, 249, 0.16);
-  --theme-panel-surface: linear-gradient(155deg, rgba(41, 55, 78, 0.32), rgba(15, 23, 42, 0.84));
-  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(62, 79, 107, 0.24), rgba(21, 31, 54, 0.74));
-  --theme-reader-surface: linear-gradient(180deg, rgba(22, 33, 56, 0.68), rgba(13, 20, 36, 0.48));
-  --theme-code-surface: rgba(5, 10, 18, 0.62);
-  --theme-code-border: rgba(255, 255, 255, 0.18);
-  --theme-border: rgba(255, 224, 208, 0.24);
-  --theme-border-strong: rgba(255, 210, 190, 0.34);
-  --theme-text-primary: rgba(255, 242, 233, 0.96);
-  --theme-text-secondary: rgba(231, 211, 196, 0.88);
-  --theme-text-tertiary: rgba(205, 183, 168, 0.78);
-  --theme-icon-primary: rgba(236, 242, 255, 0.92);
-  --theme-icon-muted: rgba(210, 220, 238, 0.76);
-  --theme-icon-strong: rgba(248, 250, 255, 0.98);
-  --theme-divider-soft: rgba(193, 211, 244, 0.24);
-  --theme-floating-surface: linear-gradient(160deg, rgba(18, 24, 38, 0.78), rgba(12, 18, 30, 0.72));
-  --theme-floating-surface-hover: linear-gradient(160deg, rgba(74, 96, 132, 0.3), rgba(24, 32, 48, 0.74));
-  --theme-floating-ink: rgba(244, 248, 255, 0.94);
-  --theme-floating-close-surface: rgba(255, 255, 255, 0.12);
-  --theme-contrast-stroke-color: rgba(5, 8, 14, 0.44);
-  --theme-contrast-stroke-soft: rgba(5, 8, 14, 0.28);
-  --theme-contrast-text-shadow: 0 1px 1px rgba(0, 0, 0, 0.24);
-  --theme-contrast-text-shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.18);
-  --theme-contrast-text-shadow-strong: 0 1px 1px rgba(0, 0, 0, 0.54), 0 0 1px rgba(0, 0, 0, 0.18);
-  --theme-contrast-icon-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
-  --theme-contrast-icon-shadow-strong: 0 1px 1px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.2);
-  --theme-contrast-outline-width: 0.18px;
-  --theme-contrast-outline-width-strong: 0.24px;
-  --theme-menu-text: rgba(236, 242, 255, 0.92);
-  --theme-menu-text-muted: rgba(235, 241, 255, 0.9);
-  --theme-menu-text-disabled: rgba(210, 220, 238, 0.72);
-  --theme-menu-avatar-border: rgba(255, 255, 255, 0.86);
-  --theme-spot-a: rgba(246, 194, 161, 0.22);
-  --theme-spot-b: rgba(239, 160, 168, 0.16);
-  --theme-scrim: rgba(15, 23, 42, 0.64);
-  --app-shell-backdrop: linear-gradient(120deg, #0d1117, #131a28, #0e121a);
-  --wallpaper-stage-filter: brightness(0.64) saturate(118%);
-  --wallpaper-home-filter: brightness(0.82) saturate(112%);
-  --wallpaper-stage-overlay-background: linear-gradient(180deg, rgba(8, 11, 18, 0.34), rgba(8, 11, 18, 0.52));
-  --wallpaper-stage-overlay-backdrop: blur(7px) saturate(120%);
-  --wallpaper-home-overlay-background: linear-gradient(180deg, rgba(8, 11, 18, 0.16), rgba(8, 11, 18, 0.42));
-  --wallpaper-home-overlay-opacity: 0.9;
-  --wallpaper-home-overlay-backdrop: blur(1px) saturate(106%);
   --accent-gradient-soft: linear-gradient(
     135deg,
     rgba(var(--accent-gradient-start-rgb), 0.24),
@@ -85,6 +40,6 @@
   --accent-mode-focus-ring: 0 0 0 3px rgba(var(--accent-rgb), 0.22);
   --accent-mode-glow: 0 0 18px rgba(var(--accent-rgb), 0.22);
   --accent-mode-text: rgba(255, 255, 255, 0.96);
-  --accent-mode-text-muted: rgba(255, 233, 221, 0.84);
+  --accent-mode-text-muted: rgba(248, 242, 255, 0.84);
   --accent-press-overlay: rgba(var(--accent-rgb), 0.14);
 }

@@ -20,90 +20,18 @@ body {
   font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
   user-select: none;
   -webkit-user-select: none;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
-}
-
-:where(
-  .app-shell,
-  .fixed-nav-wrapper,
-  .route-page-view,
-  .settings-panel,
-  .global-lyric-bar,
-  .workspace-shell,
-  .ai-side-column
-) :is(
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6,
-  button,
-  label,
-  legend,
-  .item-label,
-  .menu-label-text,
-  .helper-text,
-  .error-text,
-  .tag-chip,
-  .pill-count,
-  .chip-count,
-  .eyebrow,
-  .section-title,
-  .panel-title,
-  .card-title,
-  .stat-label,
-  .field-label
-) {
-  text-shadow: var(--theme-contrast-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24));
-}
-
-:where(
-  .app-shell,
-  .fixed-nav-wrapper,
-  .route-page-view,
-  .settings-panel,
-  .global-lyric-bar,
-  .workspace-shell,
-  .ai-side-column
-) :is(
-  p,
-  li,
-  dt,
-  dd,
-  small,
-  strong,
-  figcaption,
-  blockquote,
-  .meta-text,
-  .supporting-text,
-  .description,
-  .hint-text
-) {
-  text-shadow: var(--theme-contrast-text-shadow-soft, 0 1px 0 rgba(0, 0, 0, 0.18));
-}
-
-:where(
-  .app-shell,
-  .fixed-nav-wrapper,
-  .route-page-view,
-  .settings-panel,
-  .workspace-shell,
-  .light-window-host,
-  .lightapp-window
-) :is(i, .fas, .far, .fab, .fa-solid, .fa-regular, .fa-brands) {
-  text-shadow: var(--theme-contrast-icon-shadow, 0 1px 1px rgba(0, 0, 0, 0.3));
+  color: rgba(238, 243, 255, 0.96);
 }
 
 .ripple-trigger {
   transition:
-    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-    filter 0.3s ease,
-    background-color 0.3s ease,
-    background 0.3s ease,
-    border-color 0.3s ease,
-    color 0.3s ease;
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease,
+    background-color 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
   transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -111,11 +39,11 @@ body {
 }
 
 .ripple-trigger:active {
-  transform: translateY(2px) scale(0.97) translateZ(0);
+  transform: translateY(1px) scale(0.985) translateZ(0);
   box-shadow:
     inset 0 0 0 1px var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)),
     var(--accent-mode-glow, 0 0 18px rgba(var(--accent-rgb), 0.22));
-  filter: saturate(1.08) brightness(0.96);
+  filter: saturate(1.04) brightness(0.98);
 }
 
 :where(
@@ -123,11 +51,9 @@ body {
   .hero-btn.primary,
   .ctrl-btn.primary,
   .mini-btn.primary,
-  .quick-btn,
   .apply-btn,
   .search-btn,
   .refresh-btn,
-  .stage-btn.primary,
   .soft-btn.primary
 ) {
   border-style: solid !important;
@@ -143,43 +69,22 @@ body {
   .hero-btn.primary,
   .ctrl-btn.primary,
   .mini-btn.primary,
-  .quick-btn,
   .apply-btn,
   .search-btn,
   .refresh-btn,
-  .stage-btn.primary,
   .soft-btn.primary
 ):not(:disabled):hover {
-  transform: translateY(-2px) translateZ(0);
   background: var(--accent-mode-fill-hover, var(--accent-mode-fill-strong)) !important;
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
   box-shadow:
-    var(--accent-mode-shadow, 0 14px 28px rgba(var(--accent-rgb), 0.28)),
-    var(--accent-mode-glow, 0 0 24px rgba(var(--accent-rgb), 0.26)) !important;
+    var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24)),
+    var(--accent-mode-glow, 0 0 18px rgba(var(--accent-rgb), 0.22)) !important;
 }
 
 :where(
   .ghost-btn,
   .oauth-btn,
   .icon-btn,
-  .tab-btn,
-  .action-btn,
-  .switch-btn,
-  .chip-btn,
-  .category-pill,
-  .preset-btn,
-  .gradient-btn,
-  .mode-btn,
-  .mode-tab,
-  .back-btn,
-  .queue-close,
-  .history-clear-btn,
-  .desc-expand-btn,
-  .pager-load-btn,
-  .pager-retry-btn,
-  .meta-collect-btn,
-  .stage-btn,
-  .npc-action,
   .close-btn,
   .reset-btn,
   .track-action-btn,
@@ -198,49 +103,27 @@ body {
   .ghost-btn,
   .oauth-btn,
   .icon-btn,
-  .tab-btn,
-  .action-btn,
-  .switch-btn,
-  .chip-btn,
-  .category-pill,
-  .preset-btn,
-  .gradient-btn,
-  .mode-btn,
-  .mode-tab,
-  .back-btn,
-  .queue-close,
-  .history-clear-btn,
-  .desc-expand-btn,
-  .pager-load-btn,
-  .pager-retry-btn,
-  .meta-collect-btn,
-  .stage-btn,
-  .npc-action,
   .close-btn,
   .reset-btn,
   .track-action-btn,
   .soft-btn:not(.primary),
   .popover-item:not(.danger)
 ):not(:disabled):hover {
-  transform: translateY(-2px) translateZ(0);
   background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24)) !important;
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
   box-shadow:
-    0 12px 24px rgba(6, 10, 18, 0.16),
-    var(--accent-mode-glow, 0 0 24px rgba(var(--accent-rgb), 0.24)) !important;
+    0 8px 18px rgba(6, 10, 18, 0.12),
+    var(--accent-mode-glow, 0 0 18px rgba(var(--accent-rgb), 0.22)) !important;
 }
 
 :is(
   .mode-btn.active,
-  .mode-tab.active,
   .nav-item.active,
   .list-item.selected,
   .chip-btn.active,
   .mini-btn.active,
   .bind-tag.ok,
   .queue-item.active,
-  .table-row.active,
-  .lyric-row.active,
   .track-row.active,
   .playlist-card.opening,
   .switch-btn.active,
@@ -265,592 +148,16 @@ body {
 :where(
   .field-input,
   .search-input,
-  .field-input-lite,
-  .field-textarea,
-  .captcha-preview,
-  .music-source-mode-select
-),
-:where(
-  .field-input,
-  .search-input,
-  .field-input-lite,
-  .field-textarea,
-  .captcha-preview,
-  .music-source-mode-select
-):not(:focus-visible) {
-  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16)) !important;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
-}
-
-:where(
-  .field-input,
-  .search-input,
-  .field-input-lite,
-  .field-textarea,
-  .music-source-mode-select
+  .field-input-lite
 ):focus,
 :where(
   .field-input,
   .search-input,
-  .field-input-lite,
-  .field-textarea,
-  .music-source-mode-select
+  .field-input-lite
 ):focus-visible {
   outline: none;
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
   box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.2)) !important;
-}
-
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) {
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
-}
-
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
-  .profile-content-panel,
-  .profile-scroll-frame,
-  .overview-card,
-  .recent-item,
-  .music-auth-card,
-  .music-source-order-item,
-  .auth-shell,
-  .hero,
-  .apps-main,
-  .app-card,
-  .url-source-block,
-  .url-source-item,
-  .page-mode-shell,
-  .page-mode-body,
-  .toolbar,
-  .left-panel,
-  .center-panel,
-  .right-panel,
-  .left-switch,
-  .search-panel,
-  .category-strip,
-  .feed-card,
-  .side-card,
-  .category-panel,
-  .whisper-panel,
-  .post-card,
-  .download-menu,
-  .music-fatal-error,
-  .music-left-sidebar,
-  .music-right-panel,
-  .music-search-toolbar,
-  .music-library-dock,
-  .dock-queue,
-  .panel,
-  .playlist-hero,
-  .playlist-table,
-  .music-player-detail-view,
-  .workspace-shell,
-  .workspace-main,
-  .workspace-side,
-  .content-panel,
-  .author-card,
-  .playlist-desc-popover
-) {
-  background: var(--theme-panel-surface, var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84)))) !important;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  box-shadow: 0 14px 30px rgba(18, 9, 8, 0.18) !important;
-}
-
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
-  .group-header,
-  .page-mode-tabs,
-  .card-icon-drag,
-  .url-source-icon,
-  .mine-item,
-  .mini-btn,
-  .tag-chip,
-  .icon-circle-btn,
-  .download-item,
-  .latest-item,
-  .list-row,
-  .category-panel-card,
-  .sidebar-reopen-btn,
-  .pill-count,
-  .chip-count,
-  .track-card,
-  .lyric-card,
-  .control-panel,
-  .control-chip,
-  .integration-card,
-  .provider-detail,
-  .playlist-card,
-  .artist-card,
-  .provider-summary,
-  .nav-item,
-  .list-item,
-  .table-row,
-  .queue-item,
-  .lyric-row,
-  .history-panel,
-  .history-chip,
-  .history-clear-btn,
-  .search-input-wrap,
-  .desc-expand-btn,
-  .pager-load-btn,
-  .pager-retry-btn,
-  .back-btn,
-  .track-action-btn,
-  .dialog-close,
-  .drawer-close,
-  .create-btn,
-  .queue-close,
-  .mode-icon-btn,
-  .mode-pill,
-  .center-time-pill,
-  .lyric-mode-stack,
-  .meta-collect-btn,
-  .scene-chip,
-  .mode-switch,
-  .status-pill,
-  .npc-card,
-  .side-info-card,
-  .side-empty,
-  .highlight-chip,
-  .editor-tag,
-  .editor-card,
-  .editor-data-card,
-  .site-settings-preview,
-  .hero-fact-card,
-  .story-hero-preview,
-  .story-side-panel,
-  .skill-focus-frame,
-  .identity-unit,
-  .story-signal-pill,
-  .story-side-live,
-  .link-btn,
-  .mine-title
-) {
-  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated, rgba(247, 223, 210, 0.16))) !important;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
-}
-
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) .icon-circle-btn {
-  color: var(--theme-icon-primary, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
-}
-
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
-  .group-eyebrow,
-  .group-caption,
-  .helper-text,
-  .overview-label,
-  .overview-hint,
-  .recent-label,
-  .field-label,
-  .captcha-loading,
-  .toolbar-meta,
-  .policy-block p,
-  .mine-meta,
-  .side-tip,
-  .summary,
-  .meta-row,
-  .card-head p,
-  .card-meta,
-  .url-source-main small,
-  .url-empty,
-  .page-mode-foot-hint,
-  .hero p,
-  .eyebrow,
-  .oauth-title,
-  .state-tip,
-  .latest-text small,
-  .category-panel-card-main span,
-  .whisper-field span,
-  .action-hint,
-  .apps-main-head span,
-  .sync-hint,
-  .strip-meta,
-  .mine-meta,
-  .field-tip,
-  .empty-tip,
-  .toolbar-error,
-  .history-title,
-  .desc,
-  .artist-meta,
-  .queue-empty,
-  .hero-type,
-  .hero-desc,
-  .hero-stats,
-  .time,
-  .artist,
-  .queue-meta,
-  .dialog-sub,
-  .collect-meta,
-  .collect-empty,
-  .track-card .artist,
-  .lyric-card .label,
-  .control-head-sub,
-  .control-head-title,
-  .control-value,
-  .range-bound,
-  .control-sub-value,
-  .status-text,
-  .summary-main p,
-  .head-text p,
-  .head-text span,
-  .side-caption,
-  .sub,
-  .album,
-  .line-sub,
-  .hero-fact-label,
-  .story-preview-kicker,
-  .story-side-kicker,
-  .story-greeting,
-  .story-quote,
-  .story-preview-text,
-  .story-mini-kicker,
-  .story-side-meta-line,
-  .field-inline > span,
-  .identity-label,
-  .line-text,
-  .mini-title,
-  .scene-meta-row,
-  .npc-meta,
-  .editor-file-field span,
-  .editor-inline-tip,
-  .editor-preview-list,
-  .editor-data-card dt,
-  .editor-data-card dd,
-  .playlist-desc-popover .body
-) {
-  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
-}
-
-:where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
-  h1,
-  h2,
-  h3,
-  .group-title,
-  .overview-value,
-  .recent-value,
-  .provider-name,
-  .page-mode-title,
-  .card-head h3,
-  .content-pane h2,
-  .detail-head h2,
-  .side-block h2,
-  .block-head h3,
-  .side-head h3,
-  .brand-text,
-  .title,
-  .queue-name,
-  .dialog-head h3,
-  .collect-name,
-  .provider-head h3,
-  .artist-name,
-  .track-title-text,
-  .panel-head h2,
-  .track-card .title,
-  .stage-copy h2,
-  .side-panel-head h3,
-  .npc-card strong,
-  .side-info-card strong,
-  .editor-card strong,
-  .editor-data-card strong,
-  .site-settings-preview-copy .mini-title,
-  .story-preview-title,
-  .story-status-text,
-  .skill-node-label
-) {
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
-}
-
-:where(.music-library-page, .ai-hub-page, .author-page) :is(
-  .nav-item i,
-  .list-item i,
-  .back-btn,
-  .track-action-btn,
-  .dialog-close,
-  .drawer-close,
-  .create-btn,
-  .queue-close,
-  .mode-icon-btn,
-  .center-time-pill,
-  .play-mode-pill,
-  .mode-btn,
-  .meta-collect-btn,
-  .provider-summary > i,
-  .summary-main i
-) {
-  color: var(--theme-icon-primary, rgba(94, 72, 63, 0.92)) !important;
-}
-
-:where(.music-library-page, .ai-hub-page, .author-page) :is(
-  .search-input-wrap input,
-  .spotify-search-row input,
-  .dialog-field input,
-  .field-block input,
-  .field-block select,
-  .strategy-select,
-  .editor-file-field input,
-  .editor-select,
-  .status-select,
-  .status-input
-) {
-  background: var(--theme-surface-soft, rgba(247, 223, 210, 0.16)) !important;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
-}
-
-:where(.music-library-page, .ai-hub-page, .author-page) :is(
-  .search-input-wrap,
-  .field-block,
-  .dialog-field
-) {
-  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
-}
-
-:where(.profile-page, .music-library-page) details.manual-fallback {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-:where(.profile-page, .music-library-page) details.manual-fallback > summary {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-:root[data-theme-mode='day'] .music-library-page :is(
-  .music-left-sidebar,
-  .music-right-panel,
-  .music-search-toolbar,
-  .music-library-dock,
-  .dock-queue,
-  .music-fatal-error,
-  .playlist-hero,
-  .playlist-table,
-  .panel,
-  .music-player-detail-view,
-  .playlist-desc-popover
-) {
-  box-shadow: 0 16px 32px rgba(88, 60, 50, 0.12) !important;
-}
-
-:root[data-theme-mode='day'] .music-library-page :is(
-  .track-card,
-  .lyric-card,
-  .control-panel,
-  .control-chip,
-  .integration-card,
-  .provider-detail,
-  .playlist-card,
-  .artist-card,
-  .nav-item,
-  .list-item,
-  .table-row,
-  .queue-item,
-  .lyric-row,
-  .history-panel,
-  .history-clear-btn,
-  .desc-expand-btn,
-  .pager-load-btn,
-  .pager-retry-btn,
-  .lyric-mode-stack
-) {
-  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated)) !important;
-  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  box-shadow: 0 12px 24px rgba(88, 60, 50, 0.1) !important;
-}
-
-:root[data-theme-mode='day'] .music-library-page :is(
-  .playlist-card.is-placeholder,
-  .collect-item.login,
-  .empty-state,
-  .queue-empty
-) {
-  background: var(--theme-reader-surface, rgba(255, 253, 250, 0.98)) !important;
-  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-}
-
-:root[data-theme-mode='day'] .ai-hub-page .workspace-shell {
-  background:
-    radial-gradient(circle at 18% 14%, var(--theme-spot-a, rgba(var(--accent-rgb), 0.16)), transparent 34%),
-    radial-gradient(circle at 82% 20%, var(--theme-spot-b, rgba(var(--accent-rgb), 0.12)), transparent 28%),
-    var(--theme-panel-surface, var(--theme-surface)) !important;
-  box-shadow: 0 20px 40px rgba(88, 60, 50, 0.12) !important;
-}
-
-:root[data-theme-mode='day'] .ai-hub-page .town-map-board {
-  background:
-    radial-gradient(circle at 20% 18%, rgba(246, 184, 92, 0.16), transparent 24%),
-    radial-gradient(circle at 76% 28%, rgba(107, 181, 255, 0.12), transparent 28%),
-    radial-gradient(circle at 78% 72%, rgba(255, 128, 148, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(255, 251, 247, 0.98), rgba(244, 236, 230, 0.94)) !important;
-  border-color: var(--theme-border-strong, rgba(255, 210, 190, 0.34)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 18px 36px rgba(88, 60, 50, 0.1) !important;
-}
-
-:root[data-theme-mode='day'] .ai-hub-page .map-backdrop {
-  opacity: 0.7 !important;
-  background:
-    linear-gradient(135deg, rgba(128, 114, 104, 0.06) 25%, transparent 25%) 0 0 / 64px 64px,
-    linear-gradient(225deg, rgba(128, 114, 104, 0.04) 25%, transparent 25%) 0 0 / 64px 64px !important;
-}
-
-:root[data-theme-mode='day'] .ai-hub-page .map-gridline {
-  background-image:
-    linear-gradient(rgba(126, 102, 92, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(126, 102, 92, 0.08) 1px, transparent 1px) !important;
-}
-
-:root[data-theme-mode='day'] .ai-hub-page :is(.map-node, .scene-chip) {
-  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated)) !important;
-  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96)) !important;
-  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  box-shadow: 0 12px 24px rgba(88, 60, 50, 0.1) !important;
-}
-
-:root[data-theme-mode='day'] .ai-hub-page :is(.map-node:hover, .map-node.active, .scene-chip:hover, .scene-chip.active) {
-  background: var(--theme-floating-surface-hover, var(--theme-panel-surface-elevated)) !important;
-  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
-}
-
-:root[data-theme-mode='day'] .author-page .story-hero-stage {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06) 42%, rgba(var(--accent-rgb), 0.08) 100%),
-    var(--theme-panel-surface, var(--theme-surface)) !important;
-  border-color: var(--theme-border-strong, rgba(255, 210, 190, 0.34)) !important;
-  box-shadow: 0 18px 34px rgba(88, 60, 50, 0.12) !important;
-}
-
-:root[data-theme-mode='day'] .author-page .story-hero-stage::after {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 36%, rgba(153, 120, 108, 0.08)),
-    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 34%) !important;
-}
-
-:root[data-theme-mode='day'] .author-page .story-hero-cover {
-  opacity: 0.26 !important;
-  filter: brightness(1.08) contrast(1.01) saturate(0.94) !important;
-}
-
-:root[data-theme-mode='day'] .author-page :is(
-  .story-hero-preview,
-  .story-side-panel,
-  .hero-fact-card,
-  .skill-focus-frame,
-  .identity-unit,
-  .story-signal-pill,
-  .story-side-live,
-  .skill-focus-item,
-  .site-settings-preview
-) {
-  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated)) !important;
-  border-color: var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  box-shadow: 0 10px 22px rgba(88, 60, 50, 0.08) !important;
-}
-
-.auth-page .hero {
-  background:
-    radial-gradient(circle at 18% 15%, var(--theme-spot-a, rgba(var(--accent-rgb), 0.22)), transparent 58%),
-    radial-gradient(circle at 80% 84%, var(--theme-spot-b, rgba(var(--accent-rgb), 0.16)), transparent 62%),
-    var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84))) !important;
-}
-
-.apps-route .sync-hint {
-  background: rgba(255, 205, 182, 0.14) !important;
-  border-color: rgba(255, 210, 186, 0.3) !important;
-  color: rgba(255, 231, 217, 0.92) !important;
-}
-
-.top-menu-root {
-  --menu-glass-border: var(--theme-border, rgba(255, 224, 208, 0.24));
-  --menu-glass-shadow: 0 8px 32px rgba(18, 9, 8, calc(var(--glass-shadow-alpha) * var(--menu-alpha-scale)));
-}
-
-.top-menu-root :is(
-  .item-label,
-  .pill-btn-box,
-  .menu-label-text
-) {
-  color: var(--theme-menu-text, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
-}
-
-.top-menu-root :is(
-  .icon-minimal,
-  .circle-icon-box,
-  .github-style-box,
-  .avatar-box.anonymous,
-  .pill-btn-box i
-) {
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(255, 242, 233, 0.96))) !important;
-}
-
-.top-menu-root :is(.left-pill-group, .author-avatar-box, .avatar-box) {
-  border-color: var(--theme-border-strong, rgba(255, 214, 194, 0.34)) !important;
-}
-
-:where(.light-window-host, .lightapp-window) :is(
-  .window-title,
-  .window-title span,
-  .window-header,
-  .icon-btn,
-  .icon-action-btn,
-  .toolbar-btn,
-  .app-switch-btn
-) {
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96)) !important;
-}
-
-:where(.light-window-host, .lightapp-window) :is(
-  .icon-btn,
-  .icon-action-btn,
-  .toolbar-btn,
-  .app-switch-btn
-) {
-  color: var(--theme-icon-primary, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
-}
-
-:where(.light-window-host, .lightapp-window) :is(
-  .window-title,
-  .icon-btn,
-  .icon-action-btn,
-  .toolbar-btn,
-  .app-switch-btn,
-  .icon-btn i,
-  .icon-action-btn i,
-  .toolbar-btn i,
-  .app-switch-btn i,
-  .window-title i,
-  .window-title svg,
-  .icon-btn svg,
-  .icon-action-btn svg,
-  .toolbar-btn svg,
-  .app-switch-btn svg
-) {
-  color: inherit !important;
-  fill: currentColor;
-}
-
-:where(.light-window-host, .lightapp-window) :is(
-  .icon-btn.danger,
-  .icon-action-btn.danger
-) {
-  color: rgba(172, 44, 60, 0.88) !important;
-}
-
-:where(.light-window-host, .lightapp-window) :is(
-  .app-switch-btn.active,
-  .chip-btn.active
-) {
-  color: rgb(var(--accent-strong-rgb)) !important;
 }
 
 :root[data-accent-mode='gradient'] :is(
@@ -883,79 +190,5 @@ body {
 
 ::selection {
   background: rgba(var(--accent-rgb), 0.38);
-  color: rgba(43, 21, 16, 0.95);
-}
-
-/* 
- * ----------------------------------------
- * 柔和陪伴感：全局大圆角注入 (Dynamic & Mild Upgrade) 
- * ----------------------------------------
- */
-
-/* 大容器 / 面板类：提供极其柔和的包裹感 */
-:where(
-  .profile-content-panel,
-  .profile-scroll-frame,
-  .overview-card,
-  .recent-item,
-  .music-auth-card,
-  .auth-shell,
-  .app-card,
-  .url-source-item,
-  .category-panel-card,
-  .post-card,
-  .feed-card,
-  .side-card,
-  .music-left-sidebar,
-  .music-right-panel,
-  .music-library-dock,
-  .playlist-card,
-  .track-card,
-  .artist-card,
-  .panel,
-  .dialog-panel,
-  .content-panel,
-  .settings-panel,
-  .atmosphere-panel,
-  .light-window-host,
-  .lightapp-window,
-  .story-side-panel,
-  .site-settings-preview,
-  .editor-card
-) {
-  border-radius: 20px !important;
-}
-
-/* 按钮与交互晶体：柔和平滑的胶囊或高圆角 */
-:where(
-  .primary-btn, 
-  .ghost-btn, 
-  .action-btn, 
-  .mode-btn, 
-  .preset-btn, 
-  .gradient-btn, 
-  .category-pill, 
-  .tag-chip, 
-  .music-source-order-item,
-  .chip-btn,
-  .switch-btn,
-  .tab-btn,
-  .route-tab,
-  .page-btn,
-  .mine-item
-) {
-  border-radius: 12px !important;
-}
-
-/* 对话框/输入框组件：圆润底托 */
-:where(
-  .field-input, 
-  .search-input, 
-  .field-input-lite, 
-  .field-textarea, 
-  .music-source-mode-select,
-  .search-input-wrap,
-  .dialog-field input
-) {
-  border-radius: 10px !important;
+  color: rgba(21, 16, 35, 0.95);
 }
