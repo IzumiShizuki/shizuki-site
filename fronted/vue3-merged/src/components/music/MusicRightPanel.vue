@@ -1,19 +1,11 @@
 <template>
-  <aside
-    class="music-right-panel liquid-material"
-    :class="{ mobile: isMobile, 'drawer-open': drawerOpen }"
-  >
+  <aside class="music-right-panel liquid-material" :class="{ mobile: isMobile, 'drawer-open': drawerOpen }">
     <header class="right-head">
       <div class="head-text">
         <p>Now Playing</p>
         <h3>歌词与播放信息</h3>
       </div>
-      <button
-        v-if="isMobile"
-        class="drawer-close ripple-trigger"
-        type="button"
-        @click="emit('close-drawer')"
-      >
+      <button v-if="isMobile" class="drawer-close ripple-trigger" type="button" @click="emit('close-drawer')">
         <i class="fas fa-xmark"></i>
       </button>
     </header>
@@ -21,15 +13,12 @@
     <article class="track-card">
       <div class="cover" :style="coverStyle"></div>
       <div class="meta">
-        <p class="title">{{ track?.title || "暂无歌曲" }}</p>
-        <p class="artist">{{ track?.artist || "未知歌手" }}</p>
+        <p class="title">{{ track?.title || '暂无歌曲' }}</p>
+        <p class="artist">{{ track?.artist || '未知歌手' }}</p>
       </div>
     </article>
 
-    <article
-      class="lyric-card"
-      :class="{ 'lyric-card--expanded': !expandedProviderKey }"
-    >
+    <article class="lyric-card" :class="{ 'lyric-card--expanded': !expandedProviderKey }">
       <p class="label">实时歌词</p>
       <transition name="lyric-soft" mode="out-in">
         <div :key="lyricTransitionKey" class="lyric-triplet">
@@ -71,11 +60,7 @@
           </div>
         </article>
 
-        <article
-          v-for="(item, idx) in eqItems"
-          :key="item.label"
-          class="control-chip eq-chip"
-        >
+        <article v-for="(item, idx) in eqItems" :key="item.label" class="control-chip eq-chip">
           <header class="control-chip-head">
             <p class="control-title">
               <i class="fas" :class="item.icon"></i>
@@ -103,51 +88,88 @@
     </section>
 
     <section class="integration-panel">
-      <article
-        class="integration-card accordion-card"
-        :class="{ expanded: isSpotifyExpanded }"
-      >
-        <button
-          class="provider-summary ripple-trigger"
-          type="button"
-          @click="toggleProvider('spotify')"
-        >
+      <article class="integration-card accordion-card" :class="{ expanded: isMetingExpanded }">
+        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider('meting')">
+          <div class="summary-main">
+            <h4>Meting</h4>
+            <p>{{ metingSummary }}</p>
+          </div>
+          <span class="bind-tag" :class="{ ok: metingBound }">{{ metingBound ? '已绑定' : '未绑定' }}</span>
+          <i class="fas" :class="isMetingExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
+
+        <transition name="provider-expand">
+          <div v-if="isMetingExpanded" class="provider-detail">
+            <header class="integration-head">
+              <h4>Meting Key</h4>
+              <div class="head-actions">
+                <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization', 'meting')">
+                  用户中心
+                </button>
+                <button
+                  class="mini-btn ripple-trigger"
+                  type="button"
+                  @click="emit('refresh-meting-status')"
+                  :disabled="metingBusy || !isAuthenticated"
+                >
+                  <i class="fas fa-rotate-right"></i>
+                </button>
+              </div>
+            </header>
+
+            <label class="field-block">
+              <span>API Key</span>
+              <input
+                :value="metingKeyInput"
+                type="password"
+                placeholder="输入 Meting API Key"
+                :disabled="!isAuthenticated"
+                @input="emit('update:metingKeyInput', $event.target.value)"
+              />
+            </label>
+
+            <p class="status-text">{{ metingStatusText }}</p>
+
+            <div class="row-actions">
+              <button
+                class="mini-btn primary ripple-trigger"
+                type="button"
+                @click="emit('save-meting-key')"
+                :disabled="metingBusy || !isAuthenticated"
+              >
+                {{ metingBusy ? '保存中...' : '保存' }}
+              </button>
+              <button
+                class="mini-btn ripple-trigger"
+                type="button"
+                @click="emit('delete-meting-key')"
+                :disabled="metingBusy || !isAuthenticated"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </transition>
+      </article>
+
+      <article class="integration-card accordion-card" :class="{ expanded: isSpotifyExpanded }">
+        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider('spotify')">
           <div class="summary-main">
             <h4>Spotify</h4>
             <p>{{ spotifySummary }}</p>
           </div>
-          <span class="bind-tag" :class="{ ok: spotifyBound }">{{
-            spotifyBound ? "已绑定" : "未绑定"
-          }}</span>
-          <i
-            class="fas"
-            :class="isSpotifyExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"
-          ></i>
+          <span class="bind-tag" :class="{ ok: spotifyBound }">{{ spotifyBound ? '已绑定' : '未绑定' }}</span>
+          <i class="fas" :class="isSpotifyExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
         </button>
 
         <transition name="provider-expand">
           <div v-if="isSpotifyExpanded" class="provider-detail">
             <div class="row-actions">
-              <button
-                class="mini-btn ripple-trigger"
-                type="button"
-                @click="emit('open-music-authorization', 'spotify')"
-              >
+              <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization', 'spotify')">
                 用户中心
               </button>
-              <button
-                class="mini-btn primary ripple-trigger"
-                type="button"
-                @click="emit('bind-spotify')"
-                :disabled="spotifyBusy || !isAuthenticated"
-              >
-                {{
-                  spotifyBusy
-                    ? "跳转中..."
-                    : spotifyBound
-                      ? "重新绑定"
-                      : "连接 Spotify（可选）"
-                }}
+              <button class="mini-btn primary ripple-trigger" type="button" @click="emit('bind-spotify')" :disabled="spotifyBusy || !isAuthenticated">
+                {{ spotifyBusy ? '跳转中...' : spotifyBound ? '重新绑定' : '连接 Spotify（可选）' }}
               </button>
             </div>
 
@@ -160,68 +182,38 @@
                 @input="emit('update:spotifyQuery', $event.target.value)"
                 @keydown.enter.prevent="emit('search-spotify')"
               />
-              <button
-                class="mini-btn ripple-trigger"
-                type="button"
-                :disabled="spotifySearching || !spotifySearchReady"
-                @click="emit('search-spotify')"
-              >
-                {{ spotifySearching ? "搜索中..." : "搜索" }}
+              <button class="mini-btn ripple-trigger" type="button" :disabled="spotifySearching || !spotifySearchReady" @click="emit('search-spotify')">
+                {{ spotifySearching ? '搜索中...' : '搜索' }}
               </button>
             </div>
 
-            <p v-if="spotifyPreviewMode && !spotifyBound" class="status-text">
-              预览模式：未绑定也可搜索、试听与入队
-            </p>
-            <p
-              v-else-if="spotifyPreviewMode && spotifyBound"
-              class="status-text"
-            >
-              已绑定账号：优先使用你的 Spotify 授权能力
-            </p>
-            <p v-else-if="!spotifyBound" class="status-text">
-              先连接 Spotify 后可搜索与入队
-            </p>
-            <p v-if="spotifyError" class="status-text error">
-              {{ spotifyError }}
-            </p>
+            <p v-if="spotifyPreviewMode && !spotifyBound" class="status-text">预览模式：未绑定也可搜索、试听与入队</p>
+            <p v-else-if="spotifyPreviewMode && spotifyBound" class="status-text">已绑定账号：优先使用你的 Spotify 授权能力</p>
+            <p v-else-if="!spotifyBound" class="status-text">先连接 Spotify 后可搜索与入队</p>
+            <p v-if="spotifyError" class="status-text error">{{ spotifyError }}</p>
 
             <div class="spotify-results">
-              <article
-                v-for="item in spotifyResults"
-                :key="item.trackId || item.id"
-                class="spotify-item"
-              >
+              <article v-for="item in spotifyResults" :key="item.trackId || item.id" class="spotify-item">
                 <div class="spotify-meta">
-                  <p class="song">{{ item.title || "未知歌曲" }}</p>
-                  <p class="artist">{{ item.artist || "未知歌手" }}</p>
+                  <p class="song">{{ item.title || '未知歌曲' }}</p>
+                  <p class="artist">{{ item.artist || '未知歌手' }}</p>
                 </div>
                 <div class="spotify-actions">
                   <button
                     class="mini-btn ripple-trigger"
                     type="button"
-                    :disabled="
-                      !spotifySearchReady ||
-                      (!item.previewUrl && !item.preview_url)
-                    "
+                    :disabled="!spotifySearchReady || (!item.previewUrl && !item.preview_url)"
                     @click="emit('preview-spotify', item)"
                   >
                     试听
                   </button>
-                  <button
-                    class="mini-btn ripple-trigger"
-                    type="button"
-                    :disabled="!spotifySearchReady"
-                    @click="emit('enqueue-spotify', item)"
-                  >
+                  <button class="mini-btn ripple-trigger" type="button" :disabled="!spotifySearchReady" @click="emit('enqueue-spotify', item)">
                     入队
                   </button>
                 </div>
               </article>
 
-              <p v-if="!spotifyResults.length" class="empty-tip">
-                暂无 Spotify 搜索结果
-              </p>
+              <p v-if="!spotifyResults.length" class="empty-tip">暂无 Spotify 搜索结果</p>
             </div>
           </div>
         </transition>
@@ -254,12 +246,7 @@
               class="mini-btn ripple-trigger"
               type="button"
               :disabled="!isAuthenticated"
-              @click="
-                emit('move-source-provider', {
-                  provider,
-                  direction: index === 0 ? 'down' : 'up',
-                })
-              "
+              @click="emit('move-source-provider', { provider, direction: index === 0 ? 'down' : 'up' })"
             >
               {{ providerLabel(provider) }}
             </button>
@@ -273,32 +260,16 @@
         class="integration-card accordion-card"
         :class="{ expanded: expandedProviderKey === item.provider }"
       >
-        <button
-          class="provider-summary ripple-trigger"
-          type="button"
-          @click="toggleProvider(item.provider)"
-        >
+        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider(item.provider)">
           <div class="summary-main">
             <h4>{{ item.title }}</h4>
             <p>{{ item.summary }}</p>
           </div>
-          <span class="bind-tag" :class="{ ok: item.bound }">{{
-            item.bound ? "已绑定" : "未绑定"
-          }}</span>
-          <i
-            class="fas"
-            :class="
-              expandedProviderKey === item.provider
-                ? 'fa-chevron-up'
-                : 'fa-chevron-down'
-            "
-          ></i>
+          <span class="bind-tag" :class="{ ok: item.bound }">{{ item.bound ? '已绑定' : '未绑定' }}</span>
+          <i class="fas" :class="expandedProviderKey === item.provider ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
         </button>
         <transition name="provider-expand">
-          <div
-            v-if="expandedProviderKey === item.provider"
-            class="provider-detail"
-          >
+          <div v-if="expandedProviderKey === item.provider" class="provider-detail">
             <p class="status-text">{{ item.statusText }}</p>
             <div class="row-actions">
               <button
@@ -307,13 +278,7 @@
                 :disabled="item.busy || item.bindBusy || !isAuthenticated"
                 @click="emit('bind-source-account', item.provider)"
               >
-                {{
-                  item.bindBusy
-                    ? "绑定中..."
-                    : item.bound
-                      ? "重新绑定"
-                      : "一键绑定"
-                }}
+                {{ item.bindBusy ? '绑定中...' : item.bound ? '重新绑定' : '一键绑定' }}
               </button>
               <button
                 class="mini-btn ripple-trigger"
@@ -343,18 +308,10 @@
               <button
                 class="mini-btn ripple-trigger"
                 type="button"
-                :disabled="
-                  item.importBusy || !isAuthenticated || !item.importSupported
-                "
+                :disabled="item.importBusy || !isAuthenticated || !item.importSupported"
                 @click="emit('import-source-playlists', item.provider)"
               >
-                {{
-                  item.importSupported
-                    ? item.importBusy
-                      ? "导入中..."
-                      : "导入歌单"
-                    : "暂不支持导入"
-                }}
+                {{ item.importSupported ? (item.importBusy ? '导入中...' : '导入歌单') : '暂不支持导入' }}
               </button>
             </div>
             <details class="manual-fallback">
@@ -366,12 +323,7 @@
                   type="password"
                   :placeholder="`输入 ${item.title} Cookie`"
                   :disabled="!isAuthenticated"
-                  @input="
-                    emit('update:source-cookie', {
-                      provider: item.provider,
-                      value: $event.target.value,
-                    })
-                  "
+                  @input="emit('update:source-cookie', { provider: item.provider, value: $event.target.value })"
                 />
               </label>
               <div class="row-actions">
@@ -381,7 +333,7 @@
                   :disabled="item.busy || !isAuthenticated"
                   @click="emit('save-source-cookie', item.provider)"
                 >
-                  {{ item.busy ? "保存中..." : "保存 Cookie" }}
+                  {{ item.busy ? '保存中...' : '保存 Cookie' }}
                 </button>
               </div>
             </details>
@@ -393,83 +345,85 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { safeCssUrl } from "../../utils/url";
+import { computed } from 'vue';
+import { safeCssUrl } from '../../utils/url';
 
 const props = defineProps({
   track: { type: Object, default: null },
-  lyricLine: { type: String, default: "" },
+  lyricLine: { type: String, default: '' },
   lyricContext: {
     type: Object,
-    default: () => ({ prev: "", current: "", next: "" }),
+    default: () => ({ prev: '', current: '', next: '' })
   },
   volume: { type: Number, default: 0.8 },
   eqLevels: { type: Array, default: () => [0.66, 0.52, 0.74] },
   isMobile: { type: Boolean, default: false },
   drawerOpen: { type: Boolean, default: false },
   isAuthenticated: { type: Boolean, default: false },
-  expandedProvider: { type: String, default: "" },
+  expandedProvider: { type: String, default: '' },
+  metingKeyInput: { type: String, default: '' },
+  metingStatus: { type: Object, default: () => ({ keyBound: false, keyMask: '', updatedAt: '' }) },
+  metingBusy: { type: Boolean, default: false },
   spotifyBound: { type: Boolean, default: false },
   spotifyPreviewMode: { type: Boolean, default: true },
   spotifyBusy: { type: Boolean, default: false },
-  spotifyQuery: { type: String, default: "" },
+  spotifyQuery: { type: String, default: '' },
   spotifySearching: { type: Boolean, default: false },
   spotifyResults: { type: Array, default: () => [] },
-  spotifyError: { type: String, default: "" },
-  sourceMode: { type: String, default: "meting_first" },
-  sourceProviderOrder: {
-    type: Array,
-    default: () => ["netease", "qqmusic", "kugou"],
-  },
+  spotifyError: { type: String, default: '' },
+  sourceMode: { type: String, default: 'meting_first' },
+  sourceProviderOrder: { type: Array, default: () => ['netease', 'qqmusic', 'kugou'] },
   sourceAccounts: { type: Object, default: () => ({}) },
   sourceCookieInputs: { type: Object, default: () => ({}) },
   sourceBusyMap: { type: Object, default: () => ({}) },
   sourceImportBusyMap: { type: Object, default: () => ({}) },
   sourceBindBusyMap: { type: Object, default: () => ({}) },
-  sourceHelperAvailable: { type: Boolean, default: false },
+  sourceHelperAvailable: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
-  "set-volume",
-  "set-eq-level",
-  "close-drawer",
-  "update:expandedProvider",
-  "open-music-authorization",
-  "bind-spotify",
-  "update:spotifyQuery",
-  "search-spotify",
-  "preview-spotify",
-  "enqueue-spotify",
-  "update:source-mode",
-  "move-source-provider",
-  "update:source-cookie",
-  "save-source-cookie",
-  "delete-source-cookie",
-  "import-source-playlists",
-  "bind-source-account",
-  "detect-source-helper",
-  "open-source-helper-guide",
+  'set-volume',
+  'set-eq-level',
+  'close-drawer',
+  'update:expandedProvider',
+  'update:metingKeyInput',
+  'save-meting-key',
+  'delete-meting-key',
+  'refresh-meting-status',
+  'open-music-authorization',
+  'bind-spotify',
+  'update:spotifyQuery',
+  'search-spotify',
+  'preview-spotify',
+  'enqueue-spotify',
+  'update:source-mode',
+  'move-source-provider',
+  'update:source-cookie',
+  'save-source-cookie',
+  'delete-source-cookie',
+  'import-source-playlists',
+  'bind-source-account',
+  'detect-source-helper',
+  'open-source-helper-guide'
 ]);
 
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
   const safeCover = safeCssUrl(props.track?.cover || fallback);
   return {
-    backgroundImage: safeCover ? `url('${safeCover}')` : "none",
+    backgroundImage: safeCover ? `url('${safeCover}')` : 'none'
   };
 });
 
 function toEqDbLabel(rawValue) {
   const safe = Number.isFinite(Number(rawValue)) ? Number(rawValue) : 0.5;
   const db = Math.round((Math.max(0, Math.min(1, safe)) - 0.5) * 24);
-  const prefix = db > 0 ? "+" : "";
+  const prefix = db > 0 ? '+' : '';
   return `${prefix}${db}dB`;
 }
 
 const eqItems = computed(() => {
-  const source = Array.isArray(props.eqLevels)
-    ? props.eqLevels
-    : [0.66, 0.52, 0.74];
+  const source = Array.isArray(props.eqLevels) ? props.eqLevels : [0.66, 0.52, 0.74];
   const clamp = (value, fallback) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
@@ -480,111 +434,78 @@ const eqItems = computed(() => {
   const high = clamp(source[2], 0.74);
   return [
     {
-      label: "LOW",
-      icon: "fa-wave-square",
+      label: 'LOW',
+      icon: 'fa-wave-square',
       value: low,
       percent: Math.round(low * 100),
       percentLabel: `${Math.round(low * 100)}%`,
-      dbLabel: toEqDbLabel(low),
+      dbLabel: toEqDbLabel(low)
     },
     {
-      label: "MID",
-      icon: "fa-sliders",
+      label: 'MID',
+      icon: 'fa-sliders',
       value: mid,
       percent: Math.round(mid * 100),
       percentLabel: `${Math.round(mid * 100)}%`,
-      dbLabel: toEqDbLabel(mid),
+      dbLabel: toEqDbLabel(mid)
     },
     {
-      label: "HIGH",
-      icon: "fa-signal",
+      label: 'HIGH',
+      icon: 'fa-signal',
       value: high,
       percent: Math.round(high * 100),
       percentLabel: `${Math.round(high * 100)}%`,
-      dbLabel: toEqDbLabel(high),
-    },
+      dbLabel: toEqDbLabel(high)
+    }
   ];
 });
 
-const expandedProviderKey = computed(() =>
-  String(props.expandedProvider || "")
-    .trim()
-    .toLowerCase(),
-);
-const isSpotifyExpanded = computed(
-  () => expandedProviderKey.value === "spotify",
-);
+const expandedProviderKey = computed(() => String(props.expandedProvider || '').trim().toLowerCase());
+const isMetingExpanded = computed(() => expandedProviderKey.value === 'meting');
+const isSpotifyExpanded = computed(() => expandedProviderKey.value === 'spotify');
+const metingBound = computed(() => Boolean(props.metingStatus?.keyBound));
 
-const spotifySummary = computed(() => {
-  if (props.spotifyPreviewMode && !props.spotifyBound) return "预览模式";
-  if (!props.isAuthenticated) return "未登录";
-  return props.spotifyBound ? "已绑定" : "未绑定";
+const metingSummary = computed(() => {
+  if (!props.isAuthenticated) return '未登录';
+  if (!metingBound.value) return '未绑定';
+  const mask = String(props.metingStatus?.keyMask || '').trim();
+  return mask || '已绑定';
 });
 
-const spotifySearchReady = computed(
-  () => props.spotifyPreviewMode || props.spotifyBound,
-);
+const spotifySummary = computed(() => {
+  if (props.spotifyPreviewMode && !props.spotifyBound) return '预览模式';
+  if (!props.isAuthenticated) return '未登录';
+  return props.spotifyBound ? '已绑定' : '未绑定';
+});
+
+const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spotifyBound);
 const normalizedSourceProviderOrder = computed(() => {
-  const source = Array.isArray(props.sourceProviderOrder)
-    ? props.sourceProviderOrder
-    : [];
-  const next = source
-    .map((item) =>
-      String(item || "")
-        .trim()
-        .toLowerCase(),
-    )
-    .filter(Boolean);
+  const source = Array.isArray(props.sourceProviderOrder) ? props.sourceProviderOrder : [];
+  const next = source.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean);
   if (!next.length) {
-    return ["netease", "qqmusic", "kugou"];
+    return ['netease', 'qqmusic', 'kugou'];
   }
   return next;
 });
-const SOURCE_CARD_ORDER = ["netease", "qqmusic", "kugou"];
+const SOURCE_CARD_ORDER = ['netease', 'qqmusic', 'kugou'];
 const sourceCards = computed(() => {
-  const statusMap =
-    props.sourceAccounts && typeof props.sourceAccounts === "object"
-      ? props.sourceAccounts
-      : {};
-  const cookieMap =
-    props.sourceCookieInputs && typeof props.sourceCookieInputs === "object"
-      ? props.sourceCookieInputs
-      : {};
-  const busyMap =
-    props.sourceBusyMap && typeof props.sourceBusyMap === "object"
-      ? props.sourceBusyMap
-      : {};
-  const importBusyMap =
-    props.sourceImportBusyMap && typeof props.sourceImportBusyMap === "object"
-      ? props.sourceImportBusyMap
-      : {};
-  const bindBusyMap =
-    props.sourceBindBusyMap && typeof props.sourceBindBusyMap === "object"
-      ? props.sourceBindBusyMap
-      : {};
+  const statusMap = props.sourceAccounts && typeof props.sourceAccounts === 'object' ? props.sourceAccounts : {};
+  const cookieMap = props.sourceCookieInputs && typeof props.sourceCookieInputs === 'object' ? props.sourceCookieInputs : {};
+  const busyMap = props.sourceBusyMap && typeof props.sourceBusyMap === 'object' ? props.sourceBusyMap : {};
+  const importBusyMap = props.sourceImportBusyMap && typeof props.sourceImportBusyMap === 'object' ? props.sourceImportBusyMap : {};
+  const bindBusyMap = props.sourceBindBusyMap && typeof props.sourceBindBusyMap === 'object' ? props.sourceBindBusyMap : {};
   return SOURCE_CARD_ORDER.map((provider) => {
-    const status =
-      statusMap?.[provider] && typeof statusMap[provider] === "object"
-        ? statusMap[provider]
-        : {};
-    const bound = Boolean(
-      status?.bound ?? status?.keyBound ?? status?.key_bound,
-    );
-    const mask = String(
-      status?.mask || status?.keyMask || status?.key_mask || "",
-    ).trim();
+    const status = statusMap?.[provider] && typeof statusMap[provider] === 'object' ? statusMap[provider] : {};
+    const bound = Boolean(status?.bound ?? status?.keyBound ?? status?.key_bound);
+    const mask = String(status?.mask || status?.keyMask || status?.key_mask || '').trim();
     const bindBusy = Boolean(bindBusyMap?.[provider]);
-    const helperState = props.sourceHelperAvailable
-      ? "助手已就绪"
-      : "助手未安装";
+    const helperState = props.sourceHelperAvailable ? '助手已就绪' : '助手未安装';
     const statusText = !props.isAuthenticated
-      ? "登录后可配置"
+      ? '登录后可配置'
       : bindBusy
-        ? "绑定中：请在新打开页面完成登录"
+        ? '绑定中：请在新打开页面完成登录'
         : bound
-          ? mask
-            ? `已绑定：${mask}`
-            : "已绑定"
+          ? (mask ? `已绑定：${mask}` : '已绑定')
           : helperState;
     return {
       provider,
@@ -592,130 +513,119 @@ const sourceCards = computed(() => {
       bound,
       summary: mask || statusText,
       statusText,
-      cookieInput: String(cookieMap?.[provider] || ""),
+      cookieInput: String(cookieMap?.[provider] || ''),
       busy: Boolean(busyMap?.[provider]),
       bindBusy,
       importBusy: Boolean(importBusyMap?.[provider]),
-      importSupported: provider === "netease",
+      importSupported: provider === 'netease'
     };
   });
 });
-const LYRIC_DEBUG_KEY = "shizuki.music.debug.lyric";
-let lastLyricDebugMode = "";
+const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
+let lastLyricDebugMode = '';
 
 function lyricDebugEnabled() {
-  if (typeof window === "undefined") return false;
+  if (typeof window === 'undefined') return false;
   try {
-    const value = String(window.localStorage.getItem(LYRIC_DEBUG_KEY) || "")
-      .trim()
-      .toLowerCase();
-    return value === "1" || value === "true" || value === "on";
+    const value = String(window.localStorage.getItem(LYRIC_DEBUG_KEY) || '').trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'on';
   } catch {
     return false;
   }
 }
 
 function extractInlineLyricPreview(track) {
-  const metadata =
-    track?.metadata && typeof track.metadata === "object" ? track.metadata : {};
-  const raw =
-    typeof track?.lyricText === "string" && track.lyricText.trim()
-      ? track.lyricText
-      : typeof track?.lyric_text === "string" && track.lyric_text.trim()
-        ? track.lyric_text
-        : typeof metadata?.lyricText === "string" && metadata.lyricText.trim()
-          ? metadata.lyricText
-          : typeof metadata?.lyric_text === "string" &&
-              metadata.lyric_text.trim()
-            ? metadata.lyric_text
-            : "";
-  if (!raw.trim()) return "";
+  const metadata = track?.metadata && typeof track.metadata === 'object' ? track.metadata : {};
+  const raw = typeof track?.lyricText === 'string' && track.lyricText.trim()
+    ? track.lyricText
+    : typeof track?.lyric_text === 'string' && track.lyric_text.trim()
+      ? track.lyric_text
+      : typeof metadata?.lyricText === 'string' && metadata.lyricText.trim()
+        ? metadata.lyricText
+        : typeof metadata?.lyric_text === 'string' && metadata.lyric_text.trim()
+          ? metadata.lyric_text
+          : '';
+  if (!raw.trim()) return '';
   const normalized = raw
-    .replace(/\\r\\n/g, "\n")
-    .replace(/\\n/g, "\n")
-    .replace(/\\r/g, "\n")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
     .trim();
-  if (!normalized) return "";
+  if (!normalized) return '';
   const first = normalized
-    .split("\n")
-    .map((line) => line.replace(/\[[^\]]+\]/g, "").trim())
+    .split('\n')
+    .map((line) => line.replace(/\[[^\]]+\]/g, '').trim())
     .find(Boolean);
-  return String(first || "").trim();
+  return String(first || '').trim();
 }
 
 const lyricDisplay = computed(() => {
-  const raw =
-    props.lyricContext && typeof props.lyricContext === "object"
-      ? props.lyricContext
-      : {};
+  const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
   const inlinePreview = extractInlineLyricPreview(props.track);
-  const timelineLine = String(raw.current || props.lyricLine || "").trim();
-  const current =
-    String(timelineLine || inlinePreview || "").trim() || "纯音乐，无歌词";
-  const renderMode = timelineLine
-    ? "timeline"
-    : inlinePreview
-      ? "raw-fallback"
-      : "empty";
+  const timelineLine = String(raw.current || props.lyricLine || '').trim();
+  const current = String(timelineLine || inlinePreview || '').trim() || '纯音乐，无歌词';
+  const renderMode = timelineLine ? 'timeline' : inlinePreview ? 'raw-fallback' : 'empty';
   if (lyricDebugEnabled() && renderMode !== lastLyricDebugMode) {
     lastLyricDebugMode = renderMode;
     // eslint-disable-next-line no-console
-    console.info("[MUSIC_LYRIC_DEBUG] render_mode", {
+    console.info('[MUSIC_LYRIC_DEBUG] render_mode', {
       mode: renderMode,
       timelineLength: timelineLine.length,
-      fallbackLength: inlinePreview.length,
+      fallbackLength: inlinePreview.length
     });
   }
   return {
-    prev: String(raw.prev || "").trim(),
+    prev: String(raw.prev || '').trim(),
     current,
-    next: String(raw.next || "").trim(),
+    next: String(raw.next || '').trim()
   };
 });
 
 const lyricTransitionKey = computed(() => {
-  const raw =
-    props.lyricContext && typeof props.lyricContext === "object"
-      ? props.lyricContext
-      : {};
-  if (typeof raw.key === "string" && raw.key.trim()) {
+  const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
+  if (typeof raw.key === 'string' && raw.key.trim()) {
     return raw.key.trim();
   }
   return `${lyricDisplay.value.prev}|${lyricDisplay.value.current}|${lyricDisplay.value.next}`;
 });
 
+const metingStatusText = computed(() => {
+  if (!props.isAuthenticated) return '登录后可保存 Meting Key';
+  if (metingBound.value) {
+    const mask = String(props.metingStatus?.keyMask || '').trim();
+    return mask ? `已绑定：${mask}` : '已绑定 Key';
+  }
+  return '未绑定 Meting Key';
+});
+
 function toggleProvider(provider) {
-  const key = String(provider || "")
-    .trim()
-    .toLowerCase();
+  const key = String(provider || '').trim().toLowerCase();
   if (!key) return;
   if (expandedProviderKey.value === key) {
-    emit("update:expandedProvider", "");
+    emit('update:expandedProvider', '');
     return;
   }
-  emit("update:expandedProvider", key);
+  emit('update:expandedProvider', key);
 }
 
 function onVolumeInput(event) {
   const value = Number(event?.target?.value);
-  emit("set-volume", Math.max(0, Math.min(1, value / 100)));
+  emit('set-volume', Math.max(0, Math.min(1, value / 100)));
 }
 
 function onEqInput(event, index) {
   const value = Number(event?.target?.value);
-  emit("set-eq-level", { index, value: Math.max(0, Math.min(1, value / 100)) });
+  emit('set-eq-level', { index, value: Math.max(0, Math.min(1, value / 100)) });
 }
 
 function providerLabel(provider) {
-  const normalized = String(provider || "")
-    .trim()
-    .toLowerCase();
-  if (normalized === "netease") return "网易云";
-  if (normalized === "qqmusic") return "QQ 音乐";
-  if (normalized === "kugou") return "酷狗";
-  return normalized || "未知平台";
+  const normalized = String(provider || '').trim().toLowerCase();
+  if (normalized === 'netease') return '网易云';
+  if (normalized === 'qqmusic') return 'QQ 音乐';
+  if (normalized === 'kugou') return '酷狗';
+  return normalized || '未知平台';
 }
 </script>
 
@@ -822,10 +732,7 @@ function providerLabel(provider) {
 
 .lyric-card .line {
   margin: 0;
-  transition:
-    opacity 280ms ease,
-    transform 320ms ease,
-    filter 300ms ease;
+  transition: opacity 280ms ease, transform 320ms ease, filter 300ms ease;
 }
 
 .lyric-card .line.prev,
@@ -848,10 +755,7 @@ function providerLabel(provider) {
 
 .lyric-soft-enter-active,
 .lyric-soft-leave-active {
-  transition:
-    opacity 320ms ease,
-    transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 320ms ease;
+  transition: opacity 320ms ease, transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 320ms ease;
 }
 
 .lyric-soft-enter-from {
@@ -877,8 +781,8 @@ function providerLabel(provider) {
   border: 1px solid var(--theme-border-strong);
   border-radius: 14px;
   background: var(--theme-panel-surface);
-  /* radial-gradient(120% 100% at 8% 0%, rgba(var(--accent-soft-rgb), 0.16), transparent 55%), */
-  /* linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04)); */
+    /* radial-gradient(120% 100% at 8% 0%, rgba(var(--accent-soft-rgb), 0.16), transparent 55%), */
+    /* linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04)); */
   padding: 10px 9px 12px;
   display: grid;
   gap: 10px;
@@ -991,13 +895,14 @@ function providerLabel(provider) {
 .control-range::-webkit-slider-runnable-track {
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(var(--accent-soft-rgb), 0.9) 0%,
-    rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
-    var(--theme-border) var(--level-percent, 50%),
-    var(--theme-surface-soft) 100%
-  );
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--accent-soft-rgb), 0.9) 0%,
+      rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
+      var(--theme-border) var(--level-percent, 50%),
+      var(--theme-surface-soft) 100%
+    );
   border: 1px solid var(--theme-border-strong);
   box-shadow: inset 0 0 0 1px var(--theme-border-soft);
 }
@@ -1009,11 +914,7 @@ function providerLabel(provider) {
   margin-top: -4px;
   border-radius: 50%;
   border: 2px solid var(--theme-surface-strong);
-  background: linear-gradient(
-    145deg,
-    rgba(var(--accent-soft-rgb), 0.98),
-    rgba(var(--accent-rgb), 0.94)
-  );
+  background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
   box-shadow:
     0 0 0 3px rgba(var(--accent-rgb), 0.16),
     0 0 12px rgba(var(--accent-rgb), 0.52);
@@ -1022,13 +923,14 @@ function providerLabel(provider) {
 .control-range::-moz-range-track {
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(var(--accent-soft-rgb), 0.9) 0%,
-    rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
-    var(--theme-border) var(--level-percent, 50%),
-    var(--theme-surface-soft) 100%
-  );
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--accent-soft-rgb), 0.9) 0%,
+      rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
+      var(--theme-border) var(--level-percent, 50%),
+      var(--theme-surface-soft) 100%
+    );
   border: 1px solid var(--theme-border-strong);
   box-shadow: inset 0 0 0 1px var(--theme-border-soft);
 }
@@ -1038,11 +940,7 @@ function providerLabel(provider) {
   height: 14px;
   border-radius: 50%;
   border: 2px solid var(--theme-surface-strong);
-  background: linear-gradient(
-    145deg,
-    rgba(var(--accent-soft-rgb), 0.98),
-    rgba(var(--accent-rgb), 0.94)
-  );
+  background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
   box-shadow:
     0 0 0 3px rgba(var(--accent-rgb), 0.16),
     0 0 12px rgba(var(--accent-rgb), 0.52);

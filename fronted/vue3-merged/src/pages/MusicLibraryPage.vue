@@ -1,30 +1,15 @@
 <template>
-  <section
-    class="route-page music-library-page"
-    :class="{ 'player-detail-route': isPlayerDetailRoute }"
-  >
+  <section class="route-page music-library-page" :class="{ 'player-detail-route': isPlayerDetailRoute }">
     <section v-if="fatalErrorText" class="music-fatal-error liquid-material">
       <h3>音乐页面加载失败</h3>
       <p>{{ fatalErrorText }}</p>
-      <button
-        class="retry-btn ripple-trigger"
-        type="button"
-        @click="reloadAfterFatalError"
-      >
-        重试加载
-      </button>
+      <button class="retry-btn ripple-trigger" type="button" @click="reloadAfterFatalError">重试加载</button>
     </section>
 
-    <div
-      class="music-library-module"
-      :class="{ 'player-detail-only': isPlayerDetailRoute }"
-    >
+    <div class="music-library-module" :class="{ 'player-detail-only': isPlayerDetailRoute }">
       <template v-if="!isPlayerDetailRoute">
         <button
-          v-if="
-            isMobileViewport &&
-            (ui.leftDrawerOpen.value || ui.rightDrawerOpen.value)
-          "
+          v-if="isMobileViewport && (ui.leftDrawerOpen.value || ui.rightDrawerOpen.value)"
           class="drawer-mask"
           type="button"
           @click="ui.closeDrawers"
@@ -47,17 +32,8 @@
           @close-drawer="ui.setLeftDrawerOpen(false)"
         />
 
-        <SubtleScrollArea
-          tag="main"
-          ref="centerPaneRef"
-          class="music-center-pane"
-          @scroll.passive="rememberCenterScroll"
-        >
-          <header
-            class="music-center-mode-switch"
-            role="tablist"
-            aria-label="music center mode tabs"
-          >
+        <SubtleScrollArea tag="main" ref="centerPaneRef" class="music-center-pane" @scroll.passive="rememberCenterScroll">
+          <header class="music-center-mode-switch" role="tablist" aria-label="music center mode tabs">
             <button
               class="mode-tab ripple-trigger"
               type="button"
@@ -103,19 +79,11 @@
           />
 
           <header v-if="isMobileViewport" class="mobile-switch-bar">
-            <button
-              class="switch-btn ripple-trigger"
-              type="button"
-              @click="ui.setLeftDrawerOpen(true)"
-            >
+            <button class="switch-btn ripple-trigger" type="button" @click="ui.setLeftDrawerOpen(true)">
               <i class="fas fa-bars"></i>
               菜单
             </button>
-            <button
-              class="switch-btn ripple-trigger"
-              type="button"
-              @click="ui.setRightDrawerOpen(true)"
-            >
+            <button class="switch-btn ripple-trigger" type="button" @click="ui.setRightDrawerOpen(true)">
               <i class="fas fa-sliders"></i>
               信息/音量
             </button>
@@ -123,11 +91,7 @@
 
           <RouterView v-slot="{ Component, route: centerRoute }">
             <transition :name="centerTransitionName" mode="out-in">
-              <component
-                :is="Component"
-                :key="resolveCenterViewKey(centerRoute)"
-                class="music-center-view-shell"
-              />
+              <component :is="Component" :key="resolveCenterViewKey(centerRoute)" class="music-center-view-shell" />
             </transition>
           </RouterView>
         </SubtleScrollArea>
@@ -142,6 +106,9 @@
           :drawer-open="ui.rightDrawerOpen.value"
           :is-authenticated="auth.isAuthenticated.value"
           :expanded-provider="ui.expandedProvider.value"
+          :meting-key-input="metingKeyInput"
+          :meting-status="metingStatus"
+          :meting-busy="metingBusy"
           :spotify-bound="spotifyBound"
           :spotify-busy="spotifyBusy"
           :spotify-query="spotifyQuery"
@@ -160,6 +127,10 @@
           @set-eq-level="handleSetEqLevel"
           @close-drawer="ui.setRightDrawerOpen(false)"
           @update:expanded-provider="ui.setExpandedProvider($event)"
+          @update:meting-key-input="metingKeyInput = $event"
+          @save-meting-key="handleSaveMetingKey"
+          @delete-meting-key="handleDeleteMetingKey"
+          @refresh-meting-status="loadMetingStatus"
           @open-music-authorization="openMusicAuthorization"
           @bind-spotify="handleBindSpotify"
           @update:spotify-query="spotifyQuery = $event"
@@ -176,6 +147,7 @@
           @detect-source-helper="handleDetectMusicSourceHelper"
           @open-source-helper-guide="handleOpenMusicSourceHelperGuide"
         />
+
       </template>
 
       <main v-else class="music-player-detail-pane">
@@ -230,88 +202,72 @@
 </template>
 
 <script setup>
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onErrorCaptured,
-  onMounted,
-  provide,
-  ref,
-  watch,
-} from "vue";
-import { RouterView, useRoute, useRouter } from "vue-router";
-import MusicLibraryDock from "../components/music/MusicLibraryDock.vue";
-import MusicCreatePlaylistDialog from "../components/music/MusicCreatePlaylistDialog.vue";
-import MusicCollectTrackDialog from "../components/music/MusicCollectTrackDialog.vue";
-import MusicLeftSidebar from "../components/music/MusicLeftSidebar.vue";
-import MusicRightPanel from "../components/music/MusicRightPanel.vue";
-import MusicSearchToolbar from "../components/music/MusicSearchToolbar.vue";
-import SubtleScrollArea from "../components/SubtleScrollArea.vue";
-import { MUSIC_LIBRARY_CONTEXT_KEY } from "../composables/musicLibraryContext";
-import { useAuthSession } from "../composables/useAuthSession";
-import { usePlayerBridge } from "../composables/playerBridge";
-import {
-  MUSIC_PRIMARY_NAV,
-  useMusicLibraryUiState,
-} from "./musicLibraryUiState";
-import * as musicApi from "../services/musicApi";
-import { buildPlaylistTrackUpsertPayload } from "../utils/musicTrackPayload";
+import { computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, provide, ref, watch } from 'vue';
+import { RouterView, useRoute, useRouter } from 'vue-router';
+import MusicLibraryDock from '../components/music/MusicLibraryDock.vue';
+import MusicCreatePlaylistDialog from '../components/music/MusicCreatePlaylistDialog.vue';
+import MusicCollectTrackDialog from '../components/music/MusicCollectTrackDialog.vue';
+import MusicLeftSidebar from '../components/music/MusicLeftSidebar.vue';
+import MusicRightPanel from '../components/music/MusicRightPanel.vue';
+import MusicSearchToolbar from '../components/music/MusicSearchToolbar.vue';
+import SubtleScrollArea from '../components/SubtleScrollArea.vue';
+import { MUSIC_LIBRARY_CONTEXT_KEY } from '../composables/musicLibraryContext';
+import { useAuthSession } from '../composables/useAuthSession';
+import { usePlayerBridge } from '../composables/playerBridge';
+import { MUSIC_PRIMARY_NAV, useMusicLibraryUiState } from './musicLibraryUiState';
+import * as musicApi from '../services/musicApi';
+import { buildPlaylistTrackUpsertPayload } from '../utils/musicTrackPayload';
 import {
   clearMusicSearchHistory,
   readMusicSearchHistory,
-  recordMusicSearchHistory,
-} from "../utils/musicSearchHistory";
-import { formatMediaTime } from "../utils/mediaTime";
-import { normalizePlaylistRowCapacity } from "../utils/musicSearchAllLayout";
-import { buildCollectPlaylistTargets } from "../utils/musicCollectTargets";
+  recordMusicSearchHistory
+} from '../utils/musicSearchHistory';
+import { formatMediaTime } from '../utils/mediaTime';
+import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
+import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
 import {
   SOURCE_ACCOUNT_PROVIDERS,
   normalizeApiKeyStatus,
   normalizeMusicSourceModeValue,
   normalizeSourceAccountStatus,
-  normalizeSourceProviderOrder,
-} from "../utils/musicAuthorizationState";
+  normalizeSourceProviderOrder
+} from '../utils/musicAuthorizationState';
 import {
   detectMusicSourceHelper,
   openMusicSourceHelperInstallGuide,
   requestMusicSourceCookies,
-  waitForMusicSourceBind,
-} from "../utils/musicSourceBindHelper";
-import { openMetingConsoleWindow } from "../utils/metingConsole";
+  waitForMusicSourceBind
+} from '../utils/musicSourceBindHelper';
+import { openMetingConsoleWindow } from '../utils/metingConsole';
 
-const DEFAULT_PLAYLIST_CODE = "default_public";
+const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
 const PLAYLIST_BROWSE_INITIAL_VISIBLE = 100;
 const PLAYLIST_BROWSE_STEP = 100;
 const PLAYLIST_PREFETCH_GAP = 40;
 const SEARCH_ALL_PLAYLIST_MIN_CAPACITY = 1;
 const SEARCH_ALL_PLAYLIST_MAX_CAPACITY = 12;
-const METING_CONSOLE_UNCONFIGURED_MESSAGE =
-  "未配置 Meting 配置页地址，请设置 VITE_METING_CONSOLE_URL。";
+const METING_CONSOLE_UNCONFIGURED_MESSAGE = '未配置 Meting 配置页地址，请设置 VITE_METING_CONSOLE_URL。';
+const METING_API_PROVIDER = 'meting';
 const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
   playlists: 3,
   tracks: 10,
-  artists: 10,
+  artists: 10
 });
 const SEARCH_TYPE_OPTIONS = [
-  { value: "all", label: "全部" },
-  { value: "playlist", label: "歌单" },
-  { value: "track", label: "歌曲" },
-  { value: "artist", label: "歌手" },
+  { value: 'all', label: '全部' },
+  { value: 'playlist', label: '歌单' },
+  { value: 'track', label: '歌曲' },
+  { value: 'artist', label: '歌手' }
 ];
 const SEARCH_PROVIDER_OPTIONS = [
-  { value: "netease", label: "网易云" },
-  { value: "kuwo", label: "酷我" },
-  { value: "qq", label: "QQ" },
-  { value: "spotify", label: "Spotify" },
+  { value: 'netease', label: '网易云' },
+  { value: 'kuwo', label: '酷我' },
+  { value: 'qq', label: 'QQ' },
+  { value: 'spotify', label: 'Spotify' }
 ];
-const MUSIC_SEARCH_PROVIDER_VALUES = SEARCH_PROVIDER_OPTIONS.map((item) =>
-  String(item.value || "")
-    .trim()
-    .toLowerCase(),
-);
-const DEFAULT_SEARCH_PROVIDERS = ["netease", "kuwo", "qq"];
+const MUSIC_SEARCH_PROVIDER_VALUES = SEARCH_PROVIDER_OPTIONS.map((item) => String(item.value || '').trim().toLowerCase());
+const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
 
 const route = useRoute();
 const router = useRouter();
@@ -327,25 +283,29 @@ const voiceAccessResolved = ref(false);
 const voiceDeniedNoticeShown = ref(false);
 
 const homeLoading = ref(false);
-const homeError = ref("");
+const homeError = ref('');
 const homeData = ref({
   featuredPlaylists: [],
-  featuredTracks: [],
+  featuredTracks: []
 });
 
 const sidebarData = ref({
   defaultPlaylist: null,
   likedPlaylist: null,
   createdPlaylists: [],
-  collectedPlaylists: [],
+  collectedPlaylists: []
 });
+
+const metingKeyInput = ref('');
+const metingStatus = ref({ keyBound: false, keyMask: '', updatedAt: '' });
+const metingBusy = ref(false);
 
 const spotifyBound = ref(false);
 const spotifyBusy = ref(false);
-const spotifyQuery = ref("");
+const spotifyQuery = ref('');
 const spotifySearching = ref(false);
 const spotifyResults = ref([]);
-const spotifyError = ref("");
+const spotifyError = ref('');
 const musicSourceAccounts = ref({});
 const musicSourceCookieInputs = ref({});
 const musicSourceBusyMap = ref({});
@@ -353,121 +313,100 @@ const musicSourceImportBusyMap = ref({});
 const musicSourceBindBusyMap = ref({});
 const musicSourceBindSessions = ref({});
 const musicSourceHelperAvailable = ref(false);
-const musicSourceMode = ref("meting_first");
-const musicAccountProviderOrder = ref(["netease", "qqmusic", "kugou"]);
+const musicSourceMode = ref('meting_first');
+const musicAccountProviderOrder = ref(['netease', 'qqmusic', 'kugou']);
 
 const collectingPlaylist = ref(false);
 const likedTrackIds = ref(new Set());
 const searchLoading = ref(false);
 const searchLoadingMore = ref(false);
-const searchLoadingMoreError = ref("");
-const searchError = ref("");
+const searchLoadingMoreError = ref('');
+const searchError = ref('');
 const searchPage = ref(1);
 const searchSectionPage = ref({
   playlists: 1,
   tracks: 1,
-  artists: 1,
+  artists: 1
 });
 const searchSectionLoading = ref({
   playlists: false,
   tracks: false,
-  artists: false,
+  artists: false
 });
 const searchSectionError = ref({
-  playlists: "",
-  tracks: "",
-  artists: "",
+  playlists: '',
+  tracks: '',
+  artists: ''
 });
 const searchHasMore = ref({
   playlists: false,
   tracks: false,
-  artists: false,
+  artists: false
 });
 const searchAllVisibleCount = ref({
   playlists: SEARCH_ALL_INITIAL_VISIBLE.playlists,
   tracks: SEARCH_ALL_INITIAL_VISIBLE.tracks,
-  artists: SEARCH_ALL_INITIAL_VISIBLE.artists,
+  artists: SEARCH_ALL_INITIAL_VISIBLE.artists
 });
 const searchPlaylistRowCapacity = ref(SEARCH_ALL_INITIAL_VISIBLE.playlists);
 const searchAutoLoadLocked = ref(false);
 const musicSearchHistory = ref([]);
 const committedSearch = ref({
-  keyword: "",
-  type: "all",
-  providers: DEFAULT_SEARCH_PROVIDERS.slice(),
+  keyword: '',
+  type: 'all',
+  providers: DEFAULT_SEARCH_PROVIDERS.slice()
 });
 const createDialogVisible = ref(false);
 const createDialogSubmitting = ref(false);
-const createDialogError = ref("");
+const createDialogError = ref('');
 const collectDialogVisible = ref(false);
 const collectDialogTrack = ref(null);
-const collectDialogError = ref("");
+const collectDialogError = ref('');
 const collectDialogBusy = ref(false);
 const playlistBrowseVisibleCount = ref(PLAYLIST_BROWSE_INITIAL_VISIBLE);
 const playlistBrowseAutoLoadLocked = ref(false);
 const playlistBrowseLoading = ref(false);
-const playlistBrowseError = ref("");
+const playlistBrowseError = ref('');
 const playlistBrowseProfile = ref({
   playlistCode: DEFAULT_PLAYLIST_CODE,
-  name: "默认歌单",
-  description: "全站共通默认歌单",
-  cover: "",
+  name: '默认歌单',
+  description: '全站共通默认歌单',
+  cover: ''
 });
 const playlistBrowseTracks = ref([]);
 const searchResult = ref({
-  query: "",
-  type: "all",
+  query: '',
+  type: 'all',
   partial: false,
   failedProviders: [],
   playlists: [],
   tracks: [],
-  artists: [],
+  artists: []
 });
 
-const isPlaylistRoute = computed(() => route.name === "music-library-playlist");
-const isPlayerDetailRoute = computed(
-  () => route.name === "music-library-player",
+const isPlaylistRoute = computed(() => route.name === 'music-library-playlist');
+const isPlayerDetailRoute = computed(() => route.name === 'music-library-player');
+const isVoiceRoute = computed(() => route.name === 'music-library-voice' || route.name === 'music-library-voice-work');
+const isMusicRoute = computed(() =>
+  route.name === 'music-library-music' || route.name === 'music-library' || (!isPlaylistRoute.value && !isPlayerDetailRoute.value && !isVoiceRoute.value)
 );
-const isVoiceRoute = computed(
-  () =>
-    route.name === "music-library-voice" ||
-    route.name === "music-library-voice-work",
-);
-const isMusicRoute = computed(
-  () =>
-    route.name === "music-library-music" ||
-    route.name === "music-library" ||
-    (!isPlaylistRoute.value &&
-      !isPlayerDetailRoute.value &&
-      !isVoiceRoute.value),
-);
-const currentCenterMode = computed(() =>
-  isVoiceRoute.value ? "voice" : "music",
-);
-const showMusicSearchToolbar = computed(
-  () => currentCenterMode.value === "music",
-);
-const currentPlaylistCodeFromRoute = computed(() =>
-  String(route.params.playlistCode || "").trim(),
-);
+const currentCenterMode = computed(() => (isVoiceRoute.value ? 'voice' : 'music'));
+const showMusicSearchToolbar = computed(() => currentCenterMode.value === 'music');
+const currentPlaylistCodeFromRoute = computed(() => String(route.params.playlistCode || '').trim());
 
 const currentPlaylistProfile = computed(() => {
   const raw = playlistBrowseProfile.value || {};
   return {
-    playlistCode: String(
-      raw.playlistCode || raw.playlist_code || DEFAULT_PLAYLIST_CODE,
-    ),
-    name: String(raw.name || "默认歌单"),
-    description: String(raw.description || ""),
-    cover: String(raw.cover || ""),
-    trackCount: Number(raw.trackCount || raw.track_count || 0),
+    playlistCode: String(raw.playlistCode || raw.playlist_code || DEFAULT_PLAYLIST_CODE),
+    name: String(raw.name || '默认歌单'),
+    description: String(raw.description || ''),
+    cover: String(raw.cover || ''),
+    trackCount: Number(raw.trackCount || raw.track_count || 0)
   };
 });
 
 const currentPlaylistAllTracks = computed(() => {
-  const list = Array.isArray(playlistBrowseTracks.value)
-    ? playlistBrowseTracks.value
-    : [];
+  const list = Array.isArray(playlistBrowseTracks.value) ? playlistBrowseTracks.value : [];
   return list;
 });
 
@@ -480,38 +419,22 @@ const currentPlaylistTracks = computed(() => {
   }
   return all.slice(0, visible);
 });
-const currentPlaylistHasMore = computed(
-  () =>
-    currentPlaylistTracks.value.length < currentPlaylistAllTracks.value.length,
-);
-const currentPlaylistLoading = computed(() =>
-  Boolean(playlistBrowseLoading.value),
-);
-const currentPlaylistError = computed(() =>
-  String(playlistBrowseError.value || ""),
-);
-const playerQueueTracks = computed(() =>
-  Array.isArray(player.tracks.value) ? player.tracks.value : [],
-);
-const centerTransitionName = ref("music-center-fade");
+const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length < currentPlaylistAllTracks.value.length);
+const currentPlaylistLoading = computed(() => Boolean(playlistBrowseLoading.value));
+const currentPlaylistError = computed(() => String(playlistBrowseError.value || ''));
+const playerQueueTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
+const centerTransitionName = ref('music-center-fade');
 let allSearchCapacityRefreshTimer = 0;
-const fatalErrorText = ref("");
+const fatalErrorText = ref('');
 
 const isAdminUser = computed(() => {
-  const groups = Array.isArray(auth.user.value?.groups)
-    ? auth.user.value.groups
-    : [];
-  return groups.some(
-    (item) =>
-      String(item || "")
-        .trim()
-        .toUpperCase() === "ADMIN",
-  );
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((item) => String(item || '').trim().toUpperCase() === 'ADMIN');
 });
 
 const authState = computed(() => ({
   isAuthenticated: Boolean(auth.isAuthenticated.value),
-  isAdmin: isAdminUser.value,
+  isAdmin: isAdminUser.value
 }));
 
 const selectedPlaylistCode = computed(() => {
@@ -525,47 +448,38 @@ const corePlaylists = computed(() => {
   const list = [];
   const fallbackDefault = {
     playlistCode: DEFAULT_PLAYLIST_CODE,
-    name: "默认歌单",
-    description: "全站共通默认歌单",
-    icon: "fas fa-earth-asia",
+    name: '默认歌单',
+    description: '全站共通默认歌单',
+    icon: 'fas fa-earth-asia'
   };
-  const defaultPlaylist = normalizePlaylistSummary(
-    sidebarData.value.defaultPlaylist || fallbackDefault,
-    DEFAULT_PLAYLIST_CODE,
-  );
-  list.push({ ...defaultPlaylist, icon: "fas fa-earth-asia" });
+  const defaultPlaylist = normalizePlaylistSummary(sidebarData.value.defaultPlaylist || fallbackDefault, DEFAULT_PLAYLIST_CODE);
+  list.push({ ...defaultPlaylist, icon: 'fas fa-earth-asia' });
 
   if (auth.isAuthenticated.value && sidebarData.value.likedPlaylist) {
     list.push({
       ...normalizePlaylistSummary(sidebarData.value.likedPlaylist),
-      icon: "fas fa-heart",
+      icon: 'fas fa-heart'
     });
   }
   return list;
 });
 
 const createdPlaylists = computed(() =>
-  (Array.isArray(sidebarData.value.createdPlaylists)
-    ? sidebarData.value.createdPlaylists
-    : []
-  ).map((item) => normalizePlaylistSummary(item)),
+  (Array.isArray(sidebarData.value.createdPlaylists) ? sidebarData.value.createdPlaylists : []).map((item) =>
+    normalizePlaylistSummary(item)
+  )
 );
 
 const collectedPlaylists = computed(() =>
-  (Array.isArray(sidebarData.value.collectedPlaylists)
-    ? sidebarData.value.collectedPlaylists
-    : []
-  ).map((item) => normalizePlaylistSummary(item)),
+  (Array.isArray(sidebarData.value.collectedPlaylists) ? sidebarData.value.collectedPlaylists : []).map((item) =>
+    normalizePlaylistSummary(item)
+  )
 );
 
 const collectPlaylistTargets = computed(() =>
-  buildCollectPlaylistTargets(
-    createdPlaylists.value,
-    collectedPlaylists.value,
-    {
-      excludedCodes: [DEFAULT_PLAYLIST_CODE],
-    },
-  ),
+  buildCollectPlaylistTargets(createdPlaylists.value, collectedPlaylists.value, {
+    excludedCodes: [DEFAULT_PLAYLIST_CODE]
+  })
 );
 
 const collectedCodes = computed(() => {
@@ -582,183 +496,125 @@ const isCurrentPlaylistCollected = computed(() => {
 });
 
 const likedPlaylistCode = computed(() => {
-  const code =
-    sidebarData.value?.likedPlaylist?.playlistCode ||
-    sidebarData.value?.likedPlaylist?.playlist_code ||
-    "";
-  return String(code || "").trim();
+  const code = sidebarData.value?.likedPlaylist?.playlistCode || sidebarData.value?.likedPlaylist?.playlist_code || '';
+  return String(code || '').trim();
 });
 
-const normalizedGlobalSearchKeyword = computed(() =>
-  String(ui.globalSearchKeyword.value || "").trim(),
-);
+const normalizedGlobalSearchKeyword = computed(() => String(ui.globalSearchKeyword.value || '').trim());
 
-const hasActiveSearch = computed(
-  () => String(committedSearch.value.keyword || "").trim().length >= 2,
-);
+const hasActiveSearch = computed(() => String(committedSearch.value.keyword || '').trim().length >= 2);
 const showSearchToolbarFilters = computed(() => {
-  const nav = String(ui.activeNav.value || "")
-    .trim()
-    .toLowerCase();
-  return !(nav === "recommend" && !hasActiveSearch.value);
+  const nav = String(ui.activeNav.value || '').trim().toLowerCase();
+  return !(nav === 'recommend' && !hasActiveSearch.value);
 });
 
-function parseErrorMessage(error, fallback = "操作失败，请稍后重试") {
-  if (typeof error?.detail === "string" && error.detail.trim())
-    return error.detail.trim();
-  if (typeof error?.message === "string" && error.message.trim())
-    return error.message.trim();
+function parseErrorMessage(error, fallback = '操作失败，请稍后重试') {
+  if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
   return fallback;
 }
 
-function setFatalError(error, fallback = "页面渲染异常，请刷新后重试") {
+function setFatalError(error, fallback = '页面渲染异常，请刷新后重试') {
   fatalErrorText.value = parseErrorMessage(error, fallback);
   // eslint-disable-next-line no-console
-  console.error("[MUSIC_PAGE_FATAL]", error);
+  console.error('[MUSIC_PAGE_FATAL]', error);
 }
 
 function normalizeProviderVisibilityRow(raw) {
   return {
-    provider: String(raw?.provider || raw?.providerCode || "")
-      .trim()
-      .toLowerCase(),
+    provider: String(raw?.provider || raw?.providerCode || '').trim().toLowerCase(),
     enabled: Boolean(raw?.enabled),
     visible: Boolean(raw?.visible),
-    sort: Number.isFinite(Number(raw?.sort)) ? Number(raw.sort) : 0,
+    sort: Number.isFinite(Number(raw?.sort)) ? Number(raw.sort) : 0
   };
 }
 
 function computeVoiceEntryVisible(rows) {
   const list = Array.isArray(rows) ? rows : [];
-  const asmr = list.find(
-    (item) =>
-      String(item?.provider || "")
-        .trim()
-        .toLowerCase() === "asmr",
-  );
+  const asmr = list.find((item) => String(item?.provider || '').trim().toLowerCase() === 'asmr');
   if (!asmr) return false;
   return Boolean(asmr.enabled) && Boolean(asmr.visible);
 }
 
 function normalizePlaylistSummary(raw, fallbackCode = DEFAULT_PLAYLIST_CODE) {
   return {
-    playlistCode: String(
-      raw?.playlistCode ||
-        raw?.playlist_code ||
-        fallbackCode ||
-        DEFAULT_PLAYLIST_CODE,
-    ).trim(),
-    name: String(raw?.name || "未命名歌单").trim() || "未命名歌单",
-    description: String(raw?.description || "").trim(),
-    cover: String(raw?.cover || "").trim(),
-    playlistType: String(raw?.playlistType || raw?.playlist_type || "").trim(),
+    playlistCode: String(raw?.playlistCode || raw?.playlist_code || fallbackCode || DEFAULT_PLAYLIST_CODE).trim(),
+    name: String(raw?.name || '未命名歌单').trim() || '未命名歌单',
+    description: String(raw?.description || '').trim(),
+    cover: String(raw?.cover || '').trim(),
+    playlistType: String(raw?.playlistType || raw?.playlist_type || '').trim(),
     ownerUserId: Number(raw?.ownerUserId || raw?.owner_user_id || 0),
     isPublic: Boolean(raw?.isPublic ?? raw?.is_public),
-    trackCount: Number(raw?.trackCount || raw?.track_count || 0),
+    trackCount: Number(raw?.trackCount || raw?.track_count || 0)
   };
 }
 
 function normalizeApiTrack(raw, index = 0) {
-  const id = String(
-    raw?.trackId || raw?.track_id || raw?.id || `track-${index + 1}`,
-  );
-  const metadata =
-    raw?.metadata && typeof raw.metadata === "object" ? raw.metadata : {};
-  const durationSec = Number.isFinite(
-    Number(
-      raw?.durationSec ??
-        raw?.duration_sec ??
-        metadata?.durationSec ??
-        metadata?.duration_sec,
-    ),
-  )
-    ? Number(
-        raw?.durationSec ??
-          raw?.duration_sec ??
-          metadata?.durationSec ??
-          metadata?.duration_sec,
-      )
+  const id = String(raw?.trackId || raw?.track_id || raw?.id || `track-${index + 1}`);
+  const metadata = raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
+  const durationSec = Number.isFinite(Number(
+    raw?.durationSec ?? raw?.duration_sec ?? metadata?.durationSec ?? metadata?.duration_sec
+  ))
+    ? Number(raw?.durationSec ?? raw?.duration_sec ?? metadata?.durationSec ?? metadata?.duration_sec)
     : null;
   const durationLabelRaw = String(
-    raw?.durationLabel ||
-      raw?.duration_label ||
-      raw?.duration ||
-      metadata?.durationLabel ||
-      metadata?.duration_label ||
-      "",
+    raw?.durationLabel
+    || raw?.duration_label
+    || raw?.duration
+    || metadata?.durationLabel
+    || metadata?.duration_label
+    || ''
   ).trim();
-  const durationLabel =
-    durationLabelRaw ||
-    (durationSec != null
-      ? formatMediaTime(durationSec, { fallback: "--:--" })
-      : "--:--");
+  const durationLabel = durationLabelRaw || (durationSec != null ? formatMediaTime(durationSec, { fallback: '--:--' }) : '--:--');
   return {
     id,
     trackId: id,
     title: String(raw?.title || id),
-    artist: String(raw?.artist || ""),
-    cover: String(raw?.cover || raw?.coverUrl || raw?.cover_url || ""),
-    audio: String(raw?.audio || raw?.audioUrl || raw?.audio_url || ""),
-    lyric: String(raw?.lyric || raw?.lyricUrl || raw?.lyric_url || ""),
-    lyricText: String(
-      raw?.lyricText ||
-        raw?.lyric_text ||
-        metadata?.lyricText ||
-        metadata?.lyric_text ||
-        "",
-    ),
-    provider: String(
-      raw?.provider || raw?.providerCode || raw?.provider_code || "local",
-    ),
+    artist: String(raw?.artist || ''),
+    cover: String(raw?.cover || raw?.coverUrl || raw?.cover_url || ''),
+    audio: String(raw?.audio || raw?.audioUrl || raw?.audio_url || ''),
+    lyric: String(raw?.lyric || raw?.lyricUrl || raw?.lyric_url || ''),
+    lyricText: String(raw?.lyricText || raw?.lyric_text || metadata?.lyricText || metadata?.lyric_text || ''),
+    provider: String(raw?.provider || raw?.providerCode || raw?.provider_code || 'local'),
     durationSec,
     durationLabel,
     duration: durationLabel,
-    metadata,
+    metadata
   };
 }
 
 function isPlaylistPath(path) {
-  return String(path || "").startsWith("/music-library/playlist/");
+  return String(path || '').startsWith('/music-library/playlist/');
 }
 
 function resolveCenterViewKey(viewRoute) {
-  const routeName = String(viewRoute?.name || "");
-  if (routeName === "music-library-playlist") {
-    const code = String(viewRoute?.params?.playlistCode || "").trim();
+  const routeName = String(viewRoute?.name || '');
+  if (routeName === 'music-library-playlist') {
+    const code = String(viewRoute?.params?.playlistCode || '').trim();
     return `playlist:${code}`;
   }
-  return String(viewRoute?.fullPath || routeName || "music-library/music");
+  return String(viewRoute?.fullPath || routeName || 'music-library/music');
 }
 
-function toPlaylistTrackUpsertPayload(
-  track,
-  fallbackSort = 0,
-  targetPlaylistCode = "",
-) {
-  const playlistCode = String(
-    targetPlaylistCode || currentPlaylistProfile.value?.playlistCode || "",
-  ).trim();
+function toPlaylistTrackUpsertPayload(track, fallbackSort = 0, targetPlaylistCode = '') {
+  const playlistCode = String(targetPlaylistCode || currentPlaylistProfile.value?.playlistCode || '').trim();
   return buildPlaylistTrackUpsertPayload(track, {
     fallbackSort,
     playlistCode,
     activeNav: ui.activeNav.value,
     hasActiveSearch: hasActiveSearch.value,
-    isPlaylistRoute: isPlaylistRoute.value,
+    isPlaylistRoute: isPlaylistRoute.value
   });
 }
 
 function normalizeSpotifyResult(raw, index = 0) {
   return {
-    id: String(
-      raw?.trackId || raw?.track_id || raw?.id || `spotify-${index + 1}`,
-    ),
-    trackId: String(
-      raw?.trackId || raw?.track_id || raw?.id || `spotify-${index + 1}`,
-    ),
-    title: String(raw?.title || raw?.name || ""),
-    artist: String(raw?.artist || ""),
-    previewUrl: String(raw?.previewUrl || raw?.preview_url || ""),
-    provider: "spotify",
+    id: String(raw?.trackId || raw?.track_id || raw?.id || `spotify-${index + 1}`),
+    trackId: String(raw?.trackId || raw?.track_id || raw?.id || `spotify-${index + 1}`),
+    title: String(raw?.title || raw?.name || ''),
+    artist: String(raw?.artist || ''),
+    previewUrl: String(raw?.previewUrl || raw?.preview_url || ''),
+    provider: 'spotify'
   };
 }
 
@@ -767,46 +623,33 @@ function normalizeSearchPlaylist(raw) {
 }
 
 function normalizeSearchTrack(raw, index = 0) {
-  const trackId =
-    String(
-      raw?.trackId || raw?.track_id || raw?.id || `search-${index + 1}`,
-    ).trim() || `search-${index + 1}`;
+  const trackId = String(raw?.trackId || raw?.track_id || raw?.id || `search-${index + 1}`).trim() || `search-${index + 1}`;
   return {
     id: trackId,
     trackId,
-    provider: String(raw?.provider || "local").trim() || "local",
-    title: String(raw?.title || "").trim() || "未知标题",
-    artist: String(raw?.artist || "").trim() || "未知歌手",
-    album: String(raw?.album || "").trim(),
-    cover: String(raw?.cover || "").trim(),
-    durationSec: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec))
-      ? Number(raw.durationSec ?? raw.duration_sec)
-      : null,
-    durationLabel: Number.isFinite(
-      Number(raw?.durationSec ?? raw?.duration_sec),
-    )
-      ? formatMediaTime(Number(raw.durationSec ?? raw.duration_sec), {
-          fallback: "--:--",
-        })
-      : "--:--",
-    audio: "",
-    lyric: "",
+    provider: String(raw?.provider || 'local').trim() || 'local',
+    title: String(raw?.title || '').trim() || '未知标题',
+    artist: String(raw?.artist || '').trim() || '未知歌手',
+    album: String(raw?.album || '').trim(),
+    cover: String(raw?.cover || '').trim(),
+    durationSec: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec)) ? Number(raw.durationSec ?? raw.duration_sec) : null,
+    durationLabel: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec))
+      ? formatMediaTime(Number(raw.durationSec ?? raw.duration_sec), { fallback: '--:--' })
+      : '--:--',
+    audio: '',
+    lyric: ''
   };
 }
 
 function normalizeSearchArtist(raw) {
   return {
-    name: String(raw?.name || "").trim() || "未知歌手",
-    hitCount: Number.isFinite(Number(raw?.hitCount ?? raw?.hit_count))
-      ? Number(raw.hitCount ?? raw.hit_count)
-      : 0,
-    providers: Array.isArray(raw?.providers)
-      ? raw.providers.map((item) => String(item || "").trim()).filter(Boolean)
-      : [],
+    name: String(raw?.name || '').trim() || '未知歌手',
+    hitCount: Number.isFinite(Number(raw?.hitCount ?? raw?.hit_count)) ? Number(raw.hitCount ?? raw.hit_count) : 0,
+    providers: Array.isArray(raw?.providers) ? raw.providers.map((item) => String(item || '').trim()).filter(Boolean) : []
   };
 }
 
-function createEmptySearchResult(type = "all", query = "") {
+function createEmptySearchResult(type = 'all', query = '') {
   return {
     query,
     type,
@@ -814,34 +657,29 @@ function createEmptySearchResult(type = "all", query = "") {
     failedProviders: [],
     playlists: [],
     tracks: [],
-    artists: [],
+    artists: []
   };
 }
 
 function parseSearchHasMore(payload = {}) {
   return {
-    playlists: Boolean(
-      payload?.hasMorePlaylists ?? payload?.has_more_playlists,
-    ),
+    playlists: Boolean(payload?.hasMorePlaylists ?? payload?.has_more_playlists),
     tracks: Boolean(payload?.hasMoreTracks ?? payload?.has_more_tracks),
-    artists: Boolean(payload?.hasMoreArtists ?? payload?.has_more_artists),
+    artists: Boolean(payload?.hasMoreArtists ?? payload?.has_more_artists)
   };
 }
 
 function normalizeSearchSection(type) {
-  const normalized = String(type || "")
-    .trim()
-    .toLowerCase();
-  if (normalized === "playlist" || normalized === "playlists")
-    return "playlists";
-  if (normalized === "artist" || normalized === "artists") return "artists";
-  return "tracks";
+  const normalized = String(type || '').trim().toLowerCase();
+  if (normalized === 'playlist' || normalized === 'playlists') return 'playlists';
+  if (normalized === 'artist' || normalized === 'artists') return 'artists';
+  return 'tracks';
 }
 
 function resolveSearchTypeBySection(section) {
-  if (section === "playlists") return "playlist";
-  if (section === "artists") return "artist";
-  return "track";
+  if (section === 'playlists') return 'playlist';
+  if (section === 'artists') return 'artist';
+  return 'track';
 }
 
 function mergeUniqueBy(items, incoming, keySelector) {
@@ -857,39 +695,28 @@ function mergeUniqueBy(items, incoming, keySelector) {
 }
 
 function getCurrentSearchHasMore(type = committedSearch.value.type) {
-  const normalizedType = String(type || "all")
-    .trim()
-    .toLowerCase();
-  if (normalizedType === "playlist")
-    return Boolean(searchHasMore.value.playlists);
-  if (normalizedType === "artist") return Boolean(searchHasMore.value.artists);
+  const normalizedType = String(type || 'all').trim().toLowerCase();
+  if (normalizedType === 'playlist') return Boolean(searchHasMore.value.playlists);
+  if (normalizedType === 'artist') return Boolean(searchHasMore.value.artists);
   return Boolean(searchHasMore.value.tracks);
 }
 
 function getSearchLoadedCountByType(type = committedSearch.value.type) {
-  const normalizedType = String(type || "all")
-    .trim()
-    .toLowerCase();
-  if (normalizedType === "playlist") {
-    return Array.isArray(searchResult.value?.playlists)
-      ? searchResult.value.playlists.length
-      : 0;
+  const normalizedType = String(type || 'all').trim().toLowerCase();
+  if (normalizedType === 'playlist') {
+    return Array.isArray(searchResult.value?.playlists) ? searchResult.value.playlists.length : 0;
   }
-  if (normalizedType === "artist") {
-    return Array.isArray(searchResult.value?.artists)
-      ? searchResult.value.artists.length
-      : 0;
+  if (normalizedType === 'artist') {
+    return Array.isArray(searchResult.value?.artists) ? searchResult.value.artists.length : 0;
   }
-  return Array.isArray(searchResult.value?.tracks)
-    ? searchResult.value.tracks.length
-    : 0;
+  return Array.isArray(searchResult.value?.tracks) ? searchResult.value.tracks.length : 0;
 }
 
 function resetSearchAllVisibleCount() {
   searchAllVisibleCount.value = {
     playlists: getAllPlaylistRequestLimit(),
     tracks: SEARCH_ALL_INITIAL_VISIBLE.tracks,
-    artists: SEARCH_ALL_INITIAL_VISIBLE.artists,
+    artists: SEARCH_ALL_INITIAL_VISIBLE.artists
   };
 }
 
@@ -897,7 +724,7 @@ function getAllPlaylistRequestLimit() {
   return normalizePlaylistRowCapacity(searchPlaylistRowCapacity.value, {
     min: SEARCH_ALL_PLAYLIST_MIN_CAPACITY,
     max: SEARCH_ALL_PLAYLIST_MAX_CAPACITY,
-    fallback: SEARCH_ALL_INITIAL_VISIBLE.playlists,
+    fallback: SEARCH_ALL_INITIAL_VISIBLE.playlists
   });
 }
 
@@ -905,25 +732,17 @@ function setSearchPlaylistRowCapacity(nextCapacity) {
   const normalized = normalizePlaylistRowCapacity(nextCapacity, {
     min: SEARCH_ALL_PLAYLIST_MIN_CAPACITY,
     max: SEARCH_ALL_PLAYLIST_MAX_CAPACITY,
-    fallback: SEARCH_ALL_INITIAL_VISIBLE.playlists,
+    fallback: SEARCH_ALL_INITIAL_VISIBLE.playlists
   });
   if (normalized === searchPlaylistRowCapacity.value) return;
   searchPlaylistRowCapacity.value = normalized;
   searchAllVisibleCount.value = {
     ...searchAllVisibleCount.value,
-    playlists: normalized,
+    playlists: normalized
   };
-  const isAllSearch =
-    String(committedSearch.value.type || "all")
-      .trim()
-      .toLowerCase() === "all";
+  const isAllSearch = String(committedSearch.value.type || 'all').trim().toLowerCase() === 'all';
   if (!hasActiveSearch.value || !isAllSearch) return;
-  if (
-    searchLoading.value ||
-    searchLoadingMore.value ||
-    searchSectionLoading.value.playlists
-  )
-    return;
+  if (searchLoading.value || searchLoadingMore.value || searchSectionLoading.value.playlists) return;
   if (allSearchCapacityRefreshTimer) {
     window.clearTimeout(allSearchCapacityRefreshTimer);
     allSearchCapacityRefreshTimer = 0;
@@ -935,13 +754,10 @@ function setSearchPlaylistRowCapacity(nextCapacity) {
 }
 
 function resetPlaylistBrowseVisibleCount(totalCount = 0) {
-  const safeTotal = Number.isFinite(Number(totalCount))
-    ? Math.max(0, Number(totalCount))
-    : 0;
-  playlistBrowseVisibleCount.value =
-    safeTotal > 0
-      ? Math.max(1, Math.min(safeTotal, PLAYLIST_BROWSE_INITIAL_VISIBLE))
-      : PLAYLIST_BROWSE_INITIAL_VISIBLE;
+  const safeTotal = Number.isFinite(Number(totalCount)) ? Math.max(0, Number(totalCount)) : 0;
+  playlistBrowseVisibleCount.value = safeTotal > 0
+    ? Math.max(1, Math.min(safeTotal, PLAYLIST_BROWSE_INITIAL_VISIBLE))
+    : PLAYLIST_BROWSE_INITIAL_VISIBLE;
 }
 
 function growPlaylistBrowseVisibleCount() {
@@ -956,21 +772,18 @@ function growPlaylistBrowseVisibleCount() {
 
 function growSearchAllVisibleCount(section) {
   const key = normalizeSearchSection(section);
-  if (!["playlists", "tracks", "artists"].includes(key)) return false;
-  const loaded = Array.isArray(searchResult.value?.[key])
-    ? searchResult.value[key].length
-    : 0;
+  if (!['playlists', 'tracks', 'artists'].includes(key)) return false;
+  const loaded = Array.isArray(searchResult.value?.[key]) ? searchResult.value[key].length : 0;
   const current = Math.max(0, Number(searchAllVisibleCount.value[key] || 0));
   if (loaded <= current) return false;
-  const step =
-    key === "playlists"
-      ? getAllPlaylistRequestLimit()
-      : Number(SEARCH_ALL_INITIAL_VISIBLE[key] || 0);
+  const step = key === 'playlists'
+    ? getAllPlaylistRequestLimit()
+    : Number(SEARCH_ALL_INITIAL_VISIBLE[key] || 0);
   const next = Math.min(loaded, current + Math.max(1, step));
   if (next <= current) return false;
   searchAllVisibleCount.value = {
     ...searchAllVisibleCount.value,
-    [key]: next,
+    [key]: next
   };
   return true;
 }
@@ -982,32 +795,25 @@ function clearSearchState(options = {}) {
   }
   searchPage.value = 1;
   searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
-  searchSectionLoading.value = {
-    playlists: false,
-    tracks: false,
-    artists: false,
-  };
-  searchSectionError.value = { playlists: "", tracks: "", artists: "" };
+  searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
+  searchSectionError.value = { playlists: '', tracks: '', artists: '' };
   searchHasMore.value = { playlists: false, tracks: false, artists: false };
   searchLoadingMore.value = false;
-  searchLoadingMoreError.value = "";
+  searchLoadingMoreError.value = '';
   searchAutoLoadLocked.value = false;
   resetSearchAllVisibleCount();
   committedSearch.value = {
-    keyword: "",
-    type: "all",
-    providers: DEFAULT_SEARCH_PROVIDERS.slice(),
+    keyword: '',
+    type: 'all',
+    providers: DEFAULT_SEARCH_PROVIDERS.slice()
   };
-  searchError.value = "";
+  searchError.value = '';
   searchLoading.value = false;
-  searchResult.value = createEmptySearchResult("all", "");
+  searchResult.value = createEmptySearchResult('all', '');
 }
 
 function goLogin() {
-  auth.redirectToAuth(
-    "session_expired",
-    route.fullPath || "/music-library/music",
-  );
+  auth.redirectToAuth('session_expired', route.fullPath || '/music-library/music');
 }
 
 function requestMusicLogin() {
@@ -1015,13 +821,11 @@ function requestMusicLogin() {
 }
 
 function updateViewportMode() {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     isMobileViewport.value = false;
     return;
   }
-  const viewportWidth = Number(
-    window.innerWidth || document?.documentElement?.clientWidth || 0,
-  );
+  const viewportWidth = Number(window.innerWidth || document?.documentElement?.clientWidth || 0);
   const mobile = viewportWidth > 0 ? viewportWidth <= 900 : false;
   isMobileViewport.value = mobile;
   if (!mobile) {
@@ -1033,7 +837,7 @@ function getCenterPaneElement() {
   const target = centerPaneRef.value;
   if (!target) return null;
   if (target instanceof HTMLElement) return target;
-  if (typeof target.getElement === "function") {
+  if (typeof target.getElement === 'function') {
     const element = target.getElement();
     if (element instanceof HTMLElement) return element;
   }
@@ -1061,35 +865,33 @@ function restoreCenterScroll(path) {
 }
 
 function handleSelectNav(navKey) {
-  const key = String(navKey || "").trim();
+  const key = String(navKey || '').trim();
   if (!key) return;
 
   clearSearchState();
   ui.setActiveNav(key);
   ui.closeDrawers();
   if (!isMusicRoute.value) {
-    router.push({ name: "music-library-music" });
+    router.push({ name: 'music-library-music' });
   }
 }
 
-function openMusicAuthorization(provider = "") {
+function openMusicAuthorization(provider = '') {
   ui.closeDrawers();
-  const normalizedProvider = String(provider || "")
-    .trim()
-    .toLowerCase();
-  if (normalizedProvider === "meting") {
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (normalizedProvider === 'meting') {
     if (!openMetingConsoleWindow()) {
       window.alert(METING_CONSOLE_UNCONFIGURED_MESSAGE);
     }
     return;
   }
-  router.push({ path: "/profile", query: { tab: "account" } });
+  router.push({ path: '/profile', query: { tab: 'account' } });
 }
 
 function notifyVoiceAccessDenied() {
   if (voiceDeniedNoticeShown.value) return;
   voiceDeniedNoticeShown.value = true;
-  window.alert("当前账号无音声访问权限");
+  window.alert('当前账号无音声访问权限');
 }
 
 async function ensureVoiceRouteAccess(options = {}) {
@@ -1101,17 +903,17 @@ async function ensureVoiceRouteAccess(options = {}) {
     notifyVoiceAccessDenied();
   }
   await router.replace({
-    name: "music-library-music",
+    name: 'music-library-music',
     query: {
-      reason: "voice_forbidden",
-    },
+      reason: 'voice_forbidden'
+    }
   });
 }
 
 async function loadMusicProviderVisibility() {
   try {
     const payload = await musicApi.listMusicProviders(
-      auth.isAuthenticated.value ? auth.authorizedFetch : undefined,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
     );
     const rows = (Array.isArray(payload) ? payload : [])
       .map((item) => normalizeProviderVisibilityRow(item))
@@ -1129,51 +931,41 @@ async function loadMusicProviderVisibility() {
 }
 
 async function openCenterMode(mode) {
-  const normalized = String(mode || "")
-    .trim()
-    .toLowerCase();
-  if (normalized === "voice") {
+  const normalized = String(mode || '').trim().toLowerCase();
+  if (normalized === 'voice') {
     if (!voiceEntryVisible.value) {
       notifyVoiceAccessDenied();
       return;
     }
     if (isVoiceRoute.value) return;
     rememberCenterScroll();
-    ui.setLastContentPath(route.fullPath || "/music-library/music");
-    await router.push({ name: "music-library-voice" });
+    ui.setLastContentPath(route.fullPath || '/music-library/music');
+    await router.push({ name: 'music-library-voice' });
     return;
   }
   if (isMusicRoute.value) return;
   rememberCenterScroll();
-  ui.setLastContentPath(route.fullPath || "/music-library/music");
-  await router.push({ name: "music-library-music" });
+  ui.setLastContentPath(route.fullPath || '/music-library/music');
+  await router.push({ name: 'music-library-music' });
 }
 
 async function loadHomeData() {
   homeLoading.value = true;
-  homeError.value = "";
+  homeError.value = '';
   try {
     const payload = await musicApi.getMusicLibraryHome(
-      auth.isAuthenticated.value ? auth.authorizedFetch : undefined,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
     );
-    const featuredPlaylists = Array.isArray(
-      payload?.featuredPlaylists || payload?.featured_playlists,
-    )
-      ? (payload.featuredPlaylists || payload.featured_playlists).map((item) =>
-          normalizePlaylistSummary(item, DEFAULT_PLAYLIST_CODE),
-        )
+    const featuredPlaylists = Array.isArray(payload?.featuredPlaylists || payload?.featured_playlists)
+      ? (payload.featuredPlaylists || payload.featured_playlists).map((item) => normalizePlaylistSummary(item, DEFAULT_PLAYLIST_CODE))
       : [];
-    const featuredTracks = Array.isArray(
-      payload?.featuredTracks || payload?.featured_tracks,
-    )
-      ? (payload.featuredTracks || payload?.featured_tracks).map(
-          (item, index) => normalizeApiTrack(item, index),
-        )
+    const featuredTracks = Array.isArray(payload?.featuredTracks || payload?.featured_tracks)
+      ? (payload.featuredTracks || payload?.featured_tracks).map((item, index) => normalizeApiTrack(item, index))
       : [];
     homeData.value = { featuredPlaylists, featuredTracks };
   } catch (error) {
     homeData.value = { featuredPlaylists: [], featuredTracks: [] };
-    homeError.value = parseErrorMessage(error, "音乐主列表加载失败");
+    homeError.value = parseErrorMessage(error, '音乐主列表加载失败');
   } finally {
     homeLoading.value = false;
   }
@@ -1181,26 +973,17 @@ async function loadHomeData() {
 
 function normalizeSearchProviderList(input) {
   if (!Array.isArray(input)) return DEFAULT_SEARCH_PROVIDERS.slice();
-  const providers = [
-    ...new Set(
-      input
-        .map((item) =>
-          String(item || "")
-            .trim()
-            .toLowerCase(),
-        )
-        .filter((item) => item && MUSIC_SEARCH_PROVIDER_VALUES.includes(item)),
-    ),
-  ];
+  const providers = [...new Set(
+    input
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter((item) => item && MUSIC_SEARCH_PROVIDER_VALUES.includes(item))
+  )];
   return providers.length ? providers : DEFAULT_SEARCH_PROVIDERS.slice();
 }
 
 function commitSearchFromDraft() {
   const keyword = normalizedGlobalSearchKeyword.value;
-  const type =
-    String(ui.globalSearchType.value || "all")
-      .trim()
-      .toLowerCase() || "all";
+  const type = String(ui.globalSearchType.value || 'all').trim().toLowerCase() || 'all';
   const providers = normalizeSearchProviderList(ui.globalSearchProviders.value);
   if (keyword.length < 2) {
     clearSearchState({ resetDraft: false });
@@ -1209,7 +992,7 @@ function commitSearchFromDraft() {
   committedSearch.value = {
     keyword,
     type,
-    providers,
+    providers
   };
   return true;
 }
@@ -1221,32 +1004,25 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
     : append
       ? searchPage.value + 1
       : 1;
-  const keyword = String(criteria?.keyword || "").trim();
-  const type =
-    String(criteria?.type || "all")
-      .trim()
-      .toLowerCase() || "all";
-  const isAllType = type === "all";
+  const keyword = String(criteria?.keyword || '').trim();
+  const type = String(criteria?.type || 'all').trim().toLowerCase() || 'all';
+  const isAllType = type === 'all';
   const providers = normalizeSearchProviderList(criteria?.providers);
   const allPlaylistLimit = getAllPlaylistRequestLimit();
   const allTrackLimit = SEARCH_ALL_INITIAL_VISIBLE.tracks;
   const allArtistLimit = SEARCH_ALL_INITIAL_VISIBLE.artists;
   if (keyword.length < 2) {
-    searchError.value = "";
+    searchError.value = '';
     searchLoading.value = false;
     searchLoadingMore.value = false;
-    searchLoadingMoreError.value = "";
+    searchLoadingMoreError.value = '';
     searchHasMore.value = { playlists: false, tracks: false, artists: false };
     searchPage.value = 1;
     searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
-    searchSectionError.value = { playlists: "", tracks: "", artists: "" };
-    searchSectionLoading.value = {
-      playlists: false,
-      tracks: false,
-      artists: false,
-    };
+    searchSectionError.value = { playlists: '', tracks: '', artists: '' };
+    searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
     resetSearchAllVisibleCount();
-    searchResult.value = createEmptySearchResult(type, "");
+    searchResult.value = createEmptySearchResult(type, '');
     return;
   }
 
@@ -1256,79 +1032,51 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
 
   if (append) {
     searchLoadingMore.value = true;
-    searchLoadingMoreError.value = "";
+    searchLoadingMoreError.value = '';
   } else {
     searchLoading.value = true;
     searchPage.value = 1;
     searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
-    searchSectionError.value = { playlists: "", tracks: "", artists: "" };
-    searchSectionLoading.value = {
-      playlists: false,
-      tracks: false,
-      artists: false,
-    };
+    searchSectionError.value = { playlists: '', tracks: '', artists: '' };
+    searchSectionLoading.value = { playlists: false, tracks: false, artists: false };
     searchHasMore.value = { playlists: false, tracks: false, artists: false };
     resetSearchAllVisibleCount();
-    searchLoadingMoreError.value = "";
+    searchLoadingMoreError.value = '';
   }
-  searchError.value = "";
-  const searchAuthorizedFetch = auth.isAuthenticated.value
-    ? auth.authorizedFetch
-    : undefined;
+  searchError.value = '';
+  const searchAuthorizedFetch = auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
   try {
     if (!append && isAllType) {
-      const [playlistsResponse, tracksResponse, artistsResponse] =
-        await Promise.allSettled([
-          musicApi.searchMusic(
-            keyword,
-            {
-              type: "playlist",
-              providers,
-              page: 1,
-              limit: allPlaylistLimit,
-            },
-            searchAuthorizedFetch,
-          ),
-          musicApi.searchMusic(
-            keyword,
-            {
-              type: "track",
-              providers,
-              page: 1,
-              limit: allTrackLimit,
-            },
-            searchAuthorizedFetch,
-          ),
-          musicApi.searchMusic(
-            keyword,
-            {
-              type: "artist",
-              providers,
-              page: 1,
-              limit: allArtistLimit,
-            },
-            searchAuthorizedFetch,
-          ),
-        ]);
+      const [playlistsResponse, tracksResponse, artistsResponse] = await Promise.allSettled([
+        musicApi.searchMusic(keyword, {
+          type: 'playlist',
+          providers,
+          page: 1,
+          limit: allPlaylistLimit
+        }, searchAuthorizedFetch),
+        musicApi.searchMusic(keyword, {
+          type: 'track',
+          providers,
+          page: 1,
+          limit: allTrackLimit
+        }, searchAuthorizedFetch),
+        musicApi.searchMusic(keyword, {
+          type: 'artist',
+          providers,
+          page: 1,
+          limit: allArtistLimit
+        }, searchAuthorizedFetch)
+      ]);
 
-      const playlistsPayload =
-        playlistsResponse.status === "fulfilled"
-          ? playlistsResponse.value
-          : null;
-      const tracksPayload =
-        tracksResponse.status === "fulfilled" ? tracksResponse.value : null;
-      const artistsPayload =
-        artistsResponse.status === "fulfilled" ? artistsResponse.value : null;
+      const playlistsPayload = playlistsResponse.status === 'fulfilled' ? playlistsResponse.value : null;
+      const tracksPayload = tracksResponse.status === 'fulfilled' ? tracksResponse.value : null;
+      const artistsPayload = artistsResponse.status === 'fulfilled' ? artistsResponse.value : null;
 
       const playlists = Array.isArray(playlistsPayload?.playlists)
-        ? playlistsPayload.playlists.map((item) =>
-            normalizeSearchPlaylist(item),
-          )
+        ? playlistsPayload.playlists.map((item) => normalizeSearchPlaylist(item))
         : [];
       const tracks = Array.isArray(tracksPayload?.tracks)
-        ? tracksPayload.tracks.map((item, index) =>
-            normalizeSearchTrack(item, index),
-          )
+        ? tracksPayload.tracks.map((item, index) => normalizeSearchTrack(item, index))
         : [];
       const artists = Array.isArray(artistsPayload?.artists)
         ? artistsPayload.artists.map((item) => normalizeSearchArtist(item))
@@ -1336,147 +1084,86 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
 
       const failedProviders = mergeUniqueBy(
         mergeUniqueBy(
-          Array.isArray(
-            playlistsPayload?.failedProviders ||
-              playlistsPayload?.failed_providers,
-          )
-            ? (
-                playlistsPayload.failedProviders ||
-                playlistsPayload.failed_providers
-              )
-                .map((item) => String(item || "").trim())
-                .filter(Boolean)
+          Array.isArray(playlistsPayload?.failedProviders || playlistsPayload?.failed_providers)
+            ? (playlistsPayload.failedProviders || playlistsPayload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
             : [],
-          Array.isArray(
-            tracksPayload?.failedProviders || tracksPayload?.failed_providers,
-          )
-            ? (tracksPayload.failedProviders || tracksPayload.failed_providers)
-                .map((item) => String(item || "").trim())
-                .filter(Boolean)
+          Array.isArray(tracksPayload?.failedProviders || tracksPayload?.failed_providers)
+            ? (tracksPayload.failedProviders || tracksPayload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
             : [],
-          (item) =>
-            String(item || "")
-              .trim()
-              .toLowerCase(),
+          (item) => String(item || '').trim().toLowerCase()
         ),
-        Array.isArray(
-          artistsPayload?.failedProviders || artistsPayload?.failed_providers,
-        )
-          ? (artistsPayload.failedProviders || artistsPayload.failed_providers)
-              .map((item) => String(item || "").trim())
-              .filter(Boolean)
+        Array.isArray(artistsPayload?.failedProviders || artistsPayload?.failed_providers)
+          ? (artistsPayload.failedProviders || artistsPayload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
           : [],
-        (item) =>
-          String(item || "")
-            .trim()
-            .toLowerCase(),
+        (item) => String(item || '').trim().toLowerCase()
       );
       const failedSections = [];
-      if (playlistsResponse.status === "rejected")
-        failedSections.push("playlist");
-      if (tracksResponse.status === "rejected") failedSections.push("track");
-      if (artistsResponse.status === "rejected") failedSections.push("artist");
+      if (playlistsResponse.status === 'rejected') failedSections.push('playlist');
+      if (tracksResponse.status === 'rejected') failedSections.push('track');
+      if (artistsResponse.status === 'rejected') failedSections.push('artist');
       const mergedFailedProviders = mergeUniqueBy(
         failedProviders,
         failedSections,
-        (item) =>
-          String(item || "")
-            .trim()
-            .toLowerCase(),
+        (item) => String(item || '').trim().toLowerCase()
       );
 
-      const anyRejected =
-        playlistsResponse.status === "rejected" ||
-        tracksResponse.status === "rejected" ||
-        artistsResponse.status === "rejected";
+      const anyRejected = playlistsResponse.status === 'rejected'
+        || tracksResponse.status === 'rejected'
+        || artistsResponse.status === 'rejected';
 
-      const parsedPlaylistsHasMore = parseSearchHasMore(
-        playlistsPayload || {},
-      ).playlists;
-      const parsedTracksHasMore = parseSearchHasMore(
-        tracksPayload || {},
-      ).tracks;
-      const parsedArtistsHasMore = parseSearchHasMore(
-        artistsPayload || {},
-      ).artists;
+      const parsedPlaylistsHasMore = parseSearchHasMore(playlistsPayload || {}).playlists;
+      const parsedTracksHasMore = parseSearchHasMore(tracksPayload || {}).tracks;
+      const parsedArtistsHasMore = parseSearchHasMore(artistsPayload || {}).artists;
 
       searchResult.value = {
-        query: String(
-          playlistsPayload?.query ||
-            tracksPayload?.query ||
-            artistsPayload?.query ||
-            keyword,
-        ),
-        type: "all",
-        partial: Boolean(
-          playlistsPayload?.partial ||
-          tracksPayload?.partial ||
-          artistsPayload?.partial ||
-          anyRejected,
-        ),
+        query: String(playlistsPayload?.query || tracksPayload?.query || artistsPayload?.query || keyword),
+        type: 'all',
+        partial: Boolean(playlistsPayload?.partial || tracksPayload?.partial || artistsPayload?.partial || anyRejected),
         failedProviders: mergedFailedProviders,
         playlists,
         tracks,
-        artists,
+        artists
       };
 
       searchHasMore.value = {
-        playlists: Boolean(
-          parsedPlaylistsHasMore || playlists.length >= allPlaylistLimit,
-        ),
+        playlists: Boolean(parsedPlaylistsHasMore || playlists.length >= allPlaylistLimit),
         tracks: Boolean(parsedTracksHasMore || tracks.length >= allTrackLimit),
-        artists: Boolean(
-          parsedArtistsHasMore || artists.length >= allArtistLimit,
-        ),
+        artists: Boolean(parsedArtistsHasMore || artists.length >= allArtistLimit)
       };
       searchPage.value = 1;
       searchSectionPage.value = { playlists: 1, tracks: 1, artists: 1 };
-      searchSectionError.value = { playlists: "", tracks: "", artists: "" };
+      searchSectionError.value = { playlists: '', tracks: '', artists: '' };
       searchAllVisibleCount.value = {
         ...searchAllVisibleCount.value,
         playlists: allPlaylistLimit,
         tracks: allTrackLimit,
-        artists: allArtistLimit,
+        artists: allArtistLimit
       };
       return;
     }
 
-    const payload = await musicApi.searchMusic(
-      keyword,
-      {
-        type,
-        providers,
-        page: targetPage,
-        limit: SEARCH_PAGE_SIZE,
-      },
-      searchAuthorizedFetch,
-    );
+    const payload = await musicApi.searchMusic(keyword, {
+      type,
+      providers,
+      page: targetPage,
+      limit: SEARCH_PAGE_SIZE
+    }, searchAuthorizedFetch);
     const normalized = {
       query: String(payload?.query || keyword),
-      type: String(payload?.type || type || "all"),
+      type: String(payload?.type || type || 'all'),
       partial: Boolean(payload?.partial),
-      failedProviders: Array.isArray(
-        payload?.failedProviders || payload?.failed_providers,
-      )
-        ? (payload.failedProviders || payload.failed_providers)
-            .map((item) => String(item || "").trim())
-            .filter(Boolean)
+      failedProviders: Array.isArray(payload?.failedProviders || payload?.failed_providers)
+        ? (payload.failedProviders || payload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
         : [],
-      playlists: Array.isArray(payload?.playlists)
-        ? payload.playlists.map((item) => normalizeSearchPlaylist(item))
-        : [],
-      tracks: Array.isArray(payload?.tracks)
-        ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index))
-        : [],
-      artists: Array.isArray(payload?.artists)
-        ? payload.artists.map((item) => normalizeSearchArtist(item))
-        : [],
+      playlists: Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [],
+      tracks: Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [],
+      artists: Array.isArray(payload?.artists) ? payload.artists.map((item) => normalizeSearchArtist(item)) : []
     };
     const parsedHasMore = parseSearchHasMore(payload);
     const fallbackHasMore = {
       playlists: normalized.playlists.length >= SEARCH_PAGE_SIZE,
       tracks: normalized.tracks.length >= SEARCH_PAGE_SIZE,
-      artists: normalized.artists.length >= SEARCH_PAGE_SIZE,
+      artists: normalized.artists.length >= SEARCH_PAGE_SIZE
     };
 
     if (append) {
@@ -1487,35 +1174,26 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
         failedProviders: mergeUniqueBy(
           searchResult.value.failedProviders || [],
           normalized.failedProviders || [],
-          (item) =>
-            String(item || "")
-              .trim()
-              .toLowerCase(),
+          (item) => String(item || '').trim().toLowerCase()
         ),
         playlists: mergeUniqueBy(
           searchResult.value.playlists || [],
           normalized.playlists || [],
-          (item) => String(item?.playlistCode || "").trim(),
+          (item) => String(item?.playlistCode || '').trim()
         ),
         tracks: mergeUniqueBy(
           searchResult.value.tracks || [],
           normalized.tracks || [],
-          (item) =>
-            `${String(item?.provider || "")
-              .trim()
-              .toLowerCase()}:${String(item?.trackId || item?.id || "").trim()}`,
+          (item) => `${String(item?.provider || '').trim().toLowerCase()}:${String(item?.trackId || item?.id || '').trim()}`
         ),
         artists: mergeUniqueBy(
           searchResult.value.artists || [],
           normalized.artists || [],
-          (item) =>
-            `${String(item?.name || "")
-              .trim()
-              .toLowerCase()}::${(Array.isArray(item?.providers) ? item.providers : []).join(",")}`,
-        ),
+          (item) => `${String(item?.name || '').trim().toLowerCase()}::${(Array.isArray(item?.providers) ? item.providers : []).join(',')}`
+        )
       };
       searchPage.value = targetPage;
-      searchLoadingMoreError.value = "";
+      searchLoadingMoreError.value = '';
     } else {
       searchResult.value = normalized;
       searchPage.value = 1;
@@ -1524,13 +1202,10 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
     searchHasMore.value = {
       playlists: parsedHasMore.playlists || fallbackHasMore.playlists,
       tracks: parsedHasMore.tracks || fallbackHasMore.tracks,
-      artists: parsedHasMore.artists || fallbackHasMore.artists,
+      artists: parsedHasMore.artists || fallbackHasMore.artists
     };
   } catch (error) {
-    const message = parseErrorMessage(
-      error,
-      append ? "加载更多失败，请继续滑动或点击重试" : "搜索失败，请稍后重试",
-    );
+    const message = parseErrorMessage(error, append ? '加载更多失败，请继续滑动或点击重试' : '搜索失败，请稍后重试');
     if (append) {
       searchLoadingMoreError.value = message;
     } else {
@@ -1550,24 +1225,22 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
 
 function triggerMusicSearch() {
   if (!commitSearchFromDraft()) return;
-  musicSearchHistory.value = recordMusicSearchHistory(
-    committedSearch.value.keyword,
-  );
-  searchLoadingMoreError.value = "";
-  searchSectionError.value = { playlists: "", tracks: "", artists: "" };
+  musicSearchHistory.value = recordMusicSearchHistory(committedSearch.value.keyword);
+  searchLoadingMoreError.value = '';
+  searchSectionError.value = { playlists: '', tracks: '', artists: '' };
   runMusicSearch(committedSearch.value, { append: false, page: 1 });
 }
 
 function refreshMusicSearch() {
-  const committedKeyword = String(committedSearch.value.keyword || "").trim();
+  const committedKeyword = String(committedSearch.value.keyword || '').trim();
   if (committedKeyword.length < 2) return;
-  searchLoadingMoreError.value = "";
-  searchSectionError.value = { playlists: "", tracks: "", artists: "" };
+  searchLoadingMoreError.value = '';
+  searchSectionError.value = { playlists: '', tracks: '', artists: '' };
   runMusicSearch(committedSearch.value, { append: false, page: 1 });
 }
 
 function applyMusicSearchHistory(keyword) {
-  const normalized = String(keyword || "").trim();
+  const normalized = String(keyword || '').trim();
   if (!normalized) return;
   ui.setGlobalSearchKeyword(normalized);
 }
@@ -1579,144 +1252,98 @@ function clearMusicSearchHistoryRecords() {
 
 async function loadMoreMusicSearch() {
   if (!hasActiveSearch.value) return;
-  if (String(committedSearch.value.type || "all").toLowerCase() === "all")
-    return;
+  if (String(committedSearch.value.type || 'all').toLowerCase() === 'all') return;
   if (searchLoading.value || searchLoadingMore.value) return;
   if (!getCurrentSearchHasMore(committedSearch.value.type)) return;
-  await runMusicSearch(committedSearch.value, {
-    append: true,
-    page: searchPage.value + 1,
-  });
+  await runMusicSearch(committedSearch.value, { append: true, page: searchPage.value + 1 });
 }
 
 async function loadMoreMusicSearchSection(sectionType, options = {}) {
   if (!hasActiveSearch.value) return;
-  if (String(committedSearch.value.type || "all").toLowerCase() !== "all")
-    return;
+  if (String(committedSearch.value.type || 'all').toLowerCase() !== 'all') return;
   const forceFetch = Boolean(options?.forceFetch);
   const section = normalizeSearchSection(sectionType);
-  const isAllType =
-    String(committedSearch.value.type || "all").toLowerCase() === "all";
-  if (!["playlists", "tracks", "artists"].includes(section)) return;
+  const isAllType = String(committedSearch.value.type || 'all').toLowerCase() === 'all';
+  if (!['playlists', 'tracks', 'artists'].includes(section)) return;
   if (searchSectionLoading.value[section]) return;
-  const skipLocalGrow = isAllType && section === "playlists";
-  if (!forceFetch && !skipLocalGrow && growSearchAllVisibleCount(section))
-    return;
+  const skipLocalGrow = isAllType && section === 'playlists';
+  if (!forceFetch && !skipLocalGrow && growSearchAllVisibleCount(section)) return;
   if (!searchHasMore.value[section]) return;
 
-  const nextPage = Math.max(
-    1,
-    Number(searchSectionPage.value[section] || 1) + 1,
-  );
+  const nextPage = Math.max(1, Number(searchSectionPage.value[section] || 1) + 1);
   const queryType = resolveSearchTypeBySection(section);
-  const sectionLimit =
-    section === "playlists" && isAllType
-      ? getAllPlaylistRequestLimit()
-      : SEARCH_PAGE_SIZE;
+  const sectionLimit = section === 'playlists' && isAllType ? getAllPlaylistRequestLimit() : SEARCH_PAGE_SIZE;
   const criteria = {
     keyword: committedSearch.value.keyword,
     type: queryType,
-    providers: committedSearch.value.providers,
+    providers: committedSearch.value.providers
   };
 
-  searchSectionLoading.value = {
-    ...searchSectionLoading.value,
-    [section]: true,
-  };
-  searchSectionError.value = { ...searchSectionError.value, [section]: "" };
+  searchSectionLoading.value = { ...searchSectionLoading.value, [section]: true };
+  searchSectionError.value = { ...searchSectionError.value, [section]: '' };
   try {
-    const searchAuthorizedFetch = auth.isAuthenticated.value
-      ? auth.authorizedFetch
-      : undefined;
-    const payload = await musicApi.searchMusic(
-      criteria.keyword,
-      {
-        type: criteria.type,
-        providers: criteria.providers,
-        page: nextPage,
-        limit: sectionLimit,
-      },
-      searchAuthorizedFetch,
-    );
+    const searchAuthorizedFetch = auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
+    const payload = await musicApi.searchMusic(criteria.keyword, {
+      type: criteria.type,
+      providers: criteria.providers,
+      page: nextPage,
+      limit: sectionLimit
+    }, searchAuthorizedFetch);
     const parsedHasMore = parseSearchHasMore(payload);
-    const playlists = Array.isArray(payload?.playlists)
-      ? payload.playlists.map((item) => normalizeSearchPlaylist(item))
-      : [];
-    const tracks = Array.isArray(payload?.tracks)
-      ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index))
-      : [];
-    const artists = Array.isArray(payload?.artists)
-      ? payload.artists.map((item) => normalizeSearchArtist(item))
-      : [];
+    const playlists = Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [];
+    const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [];
+    const artists = Array.isArray(payload?.artists) ? payload.artists.map((item) => normalizeSearchArtist(item)) : [];
 
     const nextSearchResult = {
       ...searchResult.value,
-      query: String(payload?.query || committedSearch.value.keyword || ""),
-      type: "all",
+      query: String(payload?.query || committedSearch.value.keyword || ''),
+      type: 'all',
       partial: Boolean(searchResult.value.partial || payload?.partial),
       failedProviders: mergeUniqueBy(
         searchResult.value.failedProviders || [],
         Array.isArray(payload?.failedProviders || payload?.failed_providers)
-          ? (payload.failedProviders || payload.failed_providers)
-              .map((item) => String(item || "").trim())
-              .filter(Boolean)
+          ? (payload.failedProviders || payload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
           : [],
-        (item) =>
-          String(item || "")
-            .trim()
-            .toLowerCase(),
-      ),
+        (item) => String(item || '').trim().toLowerCase()
+      )
     };
-    if (section === "playlists") {
+    if (section === 'playlists') {
       nextSearchResult.playlists = isAllType
         ? playlists
-        : mergeUniqueBy(searchResult.value.playlists || [], playlists, (item) =>
-            String(item?.playlistCode || "").trim(),
-          );
-    } else if (section === "artists") {
+        : mergeUniqueBy(
+          searchResult.value.playlists || [],
+          playlists,
+          (item) => String(item?.playlistCode || '').trim()
+        );
+    } else if (section === 'artists') {
       nextSearchResult.artists = mergeUniqueBy(
         searchResult.value.artists || [],
         artists,
-        (item) =>
-          `${String(item?.name || "")
-            .trim()
-            .toLowerCase()}::${(Array.isArray(item?.providers) ? item.providers : []).join(",")}`,
+        (item) => `${String(item?.name || '').trim().toLowerCase()}::${(Array.isArray(item?.providers) ? item.providers : []).join(',')}`
       );
     } else {
       nextSearchResult.tracks = mergeUniqueBy(
         searchResult.value.tracks || [],
         tracks,
-        (item) =>
-          `${String(item?.provider || "")
-            .trim()
-            .toLowerCase()}:${String(item?.trackId || item?.id || "").trim()}`,
+        (item) => `${String(item?.provider || '').trim().toLowerCase()}:${String(item?.trackId || item?.id || '').trim()}`
       );
     }
     searchResult.value = nextSearchResult;
 
     const nextHasMore = { ...searchHasMore.value };
-    if (section === "playlists") {
-      nextHasMore.playlists = Boolean(
-        parsedHasMore.playlists || playlists.length >= sectionLimit,
-      );
-    } else if (section === "artists") {
-      nextHasMore.artists = Boolean(
-        parsedHasMore.artists || artists.length >= SEARCH_PAGE_SIZE,
-      );
+    if (section === 'playlists') {
+      nextHasMore.playlists = Boolean(parsedHasMore.playlists || playlists.length >= sectionLimit);
+    } else if (section === 'artists') {
+      nextHasMore.artists = Boolean(parsedHasMore.artists || artists.length >= SEARCH_PAGE_SIZE);
     } else {
-      nextHasMore.tracks = Boolean(
-        parsedHasMore.tracks || tracks.length >= SEARCH_PAGE_SIZE,
-      );
+      nextHasMore.tracks = Boolean(parsedHasMore.tracks || tracks.length >= SEARCH_PAGE_SIZE);
     }
     searchHasMore.value = nextHasMore;
-    searchSectionPage.value = {
-      ...searchSectionPage.value,
-      [section]: nextPage,
-    };
-    if (isAllType && section === "playlists") {
+    searchSectionPage.value = { ...searchSectionPage.value, [section]: nextPage };
+    if (isAllType && section === 'playlists') {
       searchAllVisibleCount.value = {
         ...searchAllVisibleCount.value,
-        playlists: sectionLimit,
+        playlists: sectionLimit
       };
     } else {
       growSearchAllVisibleCount(section);
@@ -1724,19 +1351,16 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
   } catch (error) {
     searchSectionError.value = {
       ...searchSectionError.value,
-      [section]: parseErrorMessage(error, "加载失败，继续滑动或点击重试"),
+      [section]: parseErrorMessage(error, '加载失败，继续滑动或点击重试')
     };
   } finally {
-    searchSectionLoading.value = {
-      ...searchSectionLoading.value,
-      [section]: false,
-    };
+    searchSectionLoading.value = { ...searchSectionLoading.value, [section]: false };
   }
 }
 
-async function retryMusicSearchLoadMore(sectionType = "") {
+async function retryMusicSearchLoadMore(sectionType = '') {
   const section = normalizeSearchSection(sectionType);
-  if (String(committedSearch.value.type || "all").toLowerCase() === "all") {
+  if (String(committedSearch.value.type || 'all').toLowerCase() === 'all') {
     await loadMoreMusicSearchSection(section, { forceFetch: true });
     return;
   }
@@ -1754,10 +1378,7 @@ function maybeAutoLoadCurrentPlaylist() {
   const container = getCenterPaneElement();
   if (!container) return;
   if (playlistBrowseAutoLoadLocked.value) return;
-  const visibleCount = Math.max(
-    0,
-    Number(playlistBrowseVisibleCount.value || 0),
-  );
+  const visibleCount = Math.max(0, Number(playlistBrowseVisibleCount.value || 0));
   const triggerCount = Math.max(1, visibleCount - PLAYLIST_PREFETCH_GAP);
   const scrollProgress = container.scrollTop + container.clientHeight;
   const scrollRatio = scrollProgress / Math.max(1, container.scrollHeight);
@@ -1773,10 +1394,8 @@ function maybeAutoLoadCurrentPlaylist() {
 
 function maybeAutoLoadNextSearchPage() {
   if (!hasActiveSearch.value) return;
-  const normalizedType = String(committedSearch.value.type || "all")
-    .trim()
-    .toLowerCase();
-  if (normalizedType === "all") return;
+  const normalizedType = String(committedSearch.value.type || 'all').trim().toLowerCase();
+  if (normalizedType === 'all') return;
   if (searchLoading.value || searchLoadingMore.value) return;
   if (!getCurrentSearchHasMore(normalizedType)) return;
   const container = getCenterPaneElement();
@@ -1784,10 +1403,7 @@ function maybeAutoLoadNextSearchPage() {
   if (searchAutoLoadLocked.value) return;
   const loadedCount = getSearchLoadedCountByType(normalizedType);
   if (loadedCount <= 0) return;
-  const triggerCount = Math.max(
-    1,
-    loadedCount - Math.floor(SEARCH_PAGE_SIZE * 0.4),
-  );
+  const triggerCount = Math.max(1, loadedCount - Math.floor(SEARCH_PAGE_SIZE * 0.4));
   const scrollProgress = container.scrollTop + container.clientHeight;
   const scrollRatio = scrollProgress / Math.max(1, container.scrollHeight);
   const reachedCount = Math.ceil(scrollRatio * loadedCount);
@@ -1804,58 +1420,40 @@ async function loadSidebarData() {
     sidebarData.value = {
       defaultPlaylist: {
         playlistCode: DEFAULT_PLAYLIST_CODE,
-        name: "默认歌单",
-        description: "全站共通默认歌单",
+        name: '默认歌单',
+        description: '全站共通默认歌单'
       },
       likedPlaylist: null,
       createdPlaylists: [],
-      collectedPlaylists: [],
+      collectedPlaylists: []
     };
     likedTrackIds.value = new Set();
     return;
   }
 
   try {
-    const payload = await musicApi.getMyMusicLibrarySidebar(
-      auth.authorizedFetch,
-    );
+    const payload = await musicApi.getMyMusicLibrarySidebar(auth.authorizedFetch);
     sidebarData.value = {
-      defaultPlaylist: normalizePlaylistSummary(
-        payload?.defaultPlaylist || payload?.default_playlist,
-        DEFAULT_PLAYLIST_CODE,
-      ),
-      likedPlaylist:
-        payload?.likedPlaylist || payload?.liked_playlist
-          ? normalizePlaylistSummary(
-              payload?.likedPlaylist || payload?.liked_playlist,
-            )
-          : null,
-      createdPlaylists: Array.isArray(
-        payload?.createdPlaylists || payload?.created_playlists,
-      )
-        ? (payload.createdPlaylists || payload.created_playlists).map((item) =>
-            normalizePlaylistSummary(item),
-          )
+      defaultPlaylist: normalizePlaylistSummary(payload?.defaultPlaylist || payload?.default_playlist, DEFAULT_PLAYLIST_CODE),
+      likedPlaylist: payload?.likedPlaylist || payload?.liked_playlist ? normalizePlaylistSummary(payload?.likedPlaylist || payload?.liked_playlist) : null,
+      createdPlaylists: Array.isArray(payload?.createdPlaylists || payload?.created_playlists)
+        ? (payload.createdPlaylists || payload.created_playlists).map((item) => normalizePlaylistSummary(item))
         : [],
-      collectedPlaylists: Array.isArray(
-        payload?.collectedPlaylists || payload?.collected_playlists,
-      )
-        ? (payload.collectedPlaylists || payload.collected_playlists).map(
-            (item) => normalizePlaylistSummary(item),
-          )
-        : [],
+      collectedPlaylists: Array.isArray(payload?.collectedPlaylists || payload?.collected_playlists)
+        ? (payload.collectedPlaylists || payload.collected_playlists).map((item) => normalizePlaylistSummary(item))
+        : []
     };
     await loadLikedTrackIds();
   } catch {
     sidebarData.value = {
       defaultPlaylist: {
         playlistCode: DEFAULT_PLAYLIST_CODE,
-        name: "默认歌单",
-        description: "全站共通默认歌单",
+        name: '默认歌单',
+        description: '全站共通默认歌单'
       },
       likedPlaylist: null,
       createdPlaylists: [],
-      collectedPlaylists: [],
+      collectedPlaylists: []
     };
     likedTrackIds.value = new Set();
   }
@@ -1869,21 +1467,66 @@ async function loadLikedTrackIds() {
   }
 
   try {
-    const payload = await musicApi.getPlaylistBundleByCode(
-      likedCode,
-      auth.authorizedFetch,
-    );
+    const payload = await musicApi.getPlaylistBundleByCode(likedCode, auth.authorizedFetch);
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
     const next = new Set();
     tracks.forEach((item) => {
-      const key = String(
-        item?.trackId || item?.track_id || item?.id || "",
-      ).trim();
+      const key = String(item?.trackId || item?.track_id || item?.id || '').trim();
       if (key) next.add(key);
     });
     likedTrackIds.value = next;
   } catch {
     likedTrackIds.value = new Set();
+  }
+}
+
+async function loadMetingStatus() {
+  if (!auth.isAuthenticated.value) {
+    metingStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
+    return;
+  }
+  try {
+    const payload = await musicApi.getMusicApiKeyStatus(METING_API_PROVIDER, auth.authorizedFetch);
+    metingStatus.value = normalizeApiKeyStatus(payload);
+  } catch {
+    metingStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
+  }
+}
+
+async function handleSaveMetingKey() {
+  if (!auth.isAuthenticated.value) {
+    goLogin();
+    return;
+  }
+  if (!String(metingKeyInput.value || '').trim()) {
+    window.alert('请输入 Meting API Key');
+    return;
+  }
+  metingBusy.value = true;
+  try {
+    const payload = await musicApi.upsertMusicApiKey(METING_API_PROVIDER, metingKeyInput.value, auth.authorizedFetch);
+    metingStatus.value = normalizeApiKeyStatus(payload);
+    metingKeyInput.value = '';
+  } catch (error) {
+    window.alert(parseErrorMessage(error, 'Meting Key 保存失败'));
+  } finally {
+    metingBusy.value = false;
+  }
+}
+
+async function handleDeleteMetingKey() {
+  if (!auth.isAuthenticated.value) {
+    goLogin();
+    return;
+  }
+  metingBusy.value = true;
+  try {
+    await musicApi.deleteMusicApiKey(METING_API_PROVIDER, auth.authorizedFetch);
+    metingStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
+  } catch (error) {
+    window.alert(parseErrorMessage(error, 'Meting Key 删除失败'));
+  } finally {
+    metingBusy.value = false;
   }
 }
 
@@ -1894,17 +1537,10 @@ async function loadSpotifyBindingStatus() {
   }
   try {
     const profile = await auth.getAccountProfile();
-    const bindings = Array.isArray(
-      profile?.oauthBindings || profile?.oauth_bindings,
-    )
-      ? profile.oauthBindings || profile.oauth_bindings
+    const bindings = Array.isArray(profile?.oauthBindings || profile?.oauth_bindings)
+      ? (profile.oauthBindings || profile.oauth_bindings)
       : [];
-    spotifyBound.value = bindings.some(
-      (item) =>
-        String(item?.provider || "")
-          .trim()
-          .toLowerCase() === "spotify",
-    );
+    spotifyBound.value = bindings.some((item) => String(item?.provider || '').trim().toLowerCase() === 'spotify');
   } catch {
     spotifyBound.value = false;
   }
@@ -1912,22 +1548,19 @@ async function loadSpotifyBindingStatus() {
 
 async function loadMusicSourcePreference() {
   if (!auth.isAuthenticated.value) {
-    musicSourceMode.value = "meting_first";
+    musicSourceMode.value = 'meting_first';
     musicAccountProviderOrder.value = SOURCE_ACCOUNT_PROVIDERS.slice();
     return;
   }
   try {
     const payload = await auth.getPreference();
-    const musicNode =
-      payload?.music && typeof payload.music === "object" ? payload.music : {};
-    const modeRaw = payload?.["music.source_mode"] || musicNode?.source_mode;
-    const orderRaw =
-      payload?.["music.account_provider_order"] ||
-      musicNode?.account_provider_order;
+    const musicNode = payload?.music && typeof payload.music === 'object' ? payload.music : {};
+    const modeRaw = payload?.['music.source_mode'] || musicNode?.source_mode;
+    const orderRaw = payload?.['music.account_provider_order'] || musicNode?.account_provider_order;
     musicSourceMode.value = normalizeMusicSourceModeValue(modeRaw);
     musicAccountProviderOrder.value = normalizeSourceProviderOrder(orderRaw);
   } catch {
-    musicSourceMode.value = "meting_first";
+    musicSourceMode.value = 'meting_first';
     musicAccountProviderOrder.value = SOURCE_ACCOUNT_PROVIDERS.slice();
   }
 }
@@ -1936,21 +1569,18 @@ async function persistMusicSourcePreference() {
   if (!auth.isAuthenticated.value) return;
   try {
     const payload = await auth.getPreference();
-    const nextPreference =
-      payload && typeof payload === "object" ? { ...payload } : {};
-    const nextMusic =
-      nextPreference.music && typeof nextPreference.music === "object"
-        ? { ...nextPreference.music }
-        : {};
+    const nextPreference = payload && typeof payload === 'object' ? { ...payload } : {};
+    const nextMusic = nextPreference.music && typeof nextPreference.music === 'object'
+      ? { ...nextPreference.music }
+      : {};
     nextMusic.source_mode = musicSourceMode.value;
     nextMusic.account_provider_order = musicAccountProviderOrder.value.slice();
     nextPreference.music = nextMusic;
-    nextPreference["music.source_mode"] = musicSourceMode.value;
-    nextPreference["music.account_provider_order"] =
-      musicAccountProviderOrder.value.slice();
+    nextPreference['music.source_mode'] = musicSourceMode.value;
+    nextPreference['music.account_provider_order'] = musicAccountProviderOrder.value.slice();
     await auth.updatePreference(nextPreference);
   } catch (error) {
-    window.alert(parseErrorMessage(error, "保存音乐源策略失败"));
+    window.alert(parseErrorMessage(error, '保存音乐源策略失败'));
   }
 }
 
@@ -1965,9 +1595,7 @@ async function loadMusicSourceAccountsStatus() {
     return;
   }
   try {
-    const payload = await musicApi.getMusicSourceAccountStatus(
-      auth.authorizedFetch,
-    );
+    const payload = await musicApi.getMusicSourceAccountStatus(auth.authorizedFetch);
     const rows = Array.isArray(payload) ? payload : [];
     const statusMap = {};
     const inputMap = {};
@@ -1975,14 +1603,14 @@ async function loadMusicSourceAccountsStatus() {
       const normalized = normalizeSourceAccountStatus(item);
       if (!normalized.provider) return;
       statusMap[normalized.provider] = normalized;
-      inputMap[normalized.provider] = "";
+      inputMap[normalized.provider] = '';
     });
     SOURCE_ACCOUNT_PROVIDERS.forEach((provider) => {
       if (!statusMap[provider]) {
         statusMap[provider] = normalizeSourceAccountStatus({}, provider);
       }
       if (!Object.prototype.hasOwnProperty.call(inputMap, provider)) {
-        inputMap[provider] = "";
+        inputMap[provider] = '';
       }
     });
     musicSourceAccounts.value = statusMap;
@@ -1995,7 +1623,7 @@ async function loadMusicSourceAccountsStatus() {
 async function handleDetectMusicSourceHelper() {
   musicSourceHelperAvailable.value = await detectMusicSourceHelper();
   if (!musicSourceHelperAvailable.value) {
-    window.alert("未检测到音乐助手，请先安装后再执行一键绑定。");
+    window.alert('未检测到音乐助手，请先安装后再执行一键绑定。');
   }
 }
 
@@ -2008,9 +1636,7 @@ async function handleBindMusicSourceAccount(provider) {
     goLogin();
     return;
   }
-  const normalizedProvider = String(provider || "")
-    .trim()
-    .toLowerCase();
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
   if (!musicSourceHelperAvailable.value) {
     handleOpenMusicSourceHelperGuide();
@@ -2019,73 +1645,60 @@ async function handleBindMusicSourceAccount(provider) {
 
   musicSourceBindBusyMap.value = {
     ...musicSourceBindBusyMap.value,
-    [normalizedProvider]: true,
+    [normalizedProvider]: true
   };
 
   try {
-    const session = await musicApi.createMusicSourceBindSession(
-      normalizedProvider,
-      auth.authorizedFetch,
-    );
+    const session = await musicApi.createMusicSourceBindSession(normalizedProvider, auth.authorizedFetch);
     musicSourceBindSessions.value = {
       ...musicSourceBindSessions.value,
-      [normalizedProvider]: session,
+      [normalizedProvider]: session
     };
 
     try {
-      window.open(
-        String(session?.loginUrl || ""),
-        "_blank",
-        "noopener,noreferrer",
-      );
+      window.open(String(session?.loginUrl || ''), '_blank', 'noopener,noreferrer');
     } catch {
       // noop
     }
 
-    const expiresAtMs = Date.parse(String(session?.expiresAt || ""));
+    const expiresAtMs = Date.parse(String(session?.expiresAt || ''));
     let completed = false;
-    let lastErrorMessage = "";
-    let lastSubmittedCookie = "";
+    let lastErrorMessage = '';
+    let lastSubmittedCookie = '';
 
     while (!completed) {
       if (Number.isFinite(expiresAtMs) && Date.now() >= expiresAtMs) {
         break;
       }
       try {
-        const helperPayload = await requestMusicSourceCookies(
-          normalizedProvider,
-          1800,
-        );
-        const cookieBundle = String(helperPayload?.cookieBundle || "").trim();
+        const helperPayload = await requestMusicSourceCookies(normalizedProvider, 1800);
+        const cookieBundle = String(helperPayload?.cookieBundle || '').trim();
         if (cookieBundle && cookieBundle !== lastSubmittedCookie) {
           lastSubmittedCookie = cookieBundle;
           const savedStatus = await musicApi.completeMusicSourceBindSession(
             normalizedProvider,
-            String(session?.sessionId || ""),
+            String(session?.sessionId || ''),
             {
               provider: normalizedProvider,
-              bindToken: String(session?.bindToken || ""),
+              bindToken: String(session?.bindToken || ''),
               cookieBundle,
-              helperVersion: helperPayload?.helperVersion || "",
+              helperVersion: helperPayload?.helperVersion || ''
             },
-            auth.authorizedFetch,
+            auth.authorizedFetch
           );
           musicSourceAccounts.value = {
             ...musicSourceAccounts.value,
-            [normalizedProvider]: normalizeSourceAccountStatus(
-              savedStatus,
-              normalizedProvider,
-            ),
+            [normalizedProvider]: normalizeSourceAccountStatus(savedStatus, normalizedProvider)
           };
           musicSourceCookieInputs.value = {
             ...musicSourceCookieInputs.value,
-            [normalizedProvider]: "",
+            [normalizedProvider]: ''
           };
           completed = true;
           break;
         }
       } catch (error) {
-        lastErrorMessage = parseErrorMessage(error, "");
+        lastErrorMessage = parseErrorMessage(error, '');
       }
       await waitForMusicSourceBind(1800);
     }
@@ -2094,26 +1707,24 @@ async function handleBindMusicSourceAccount(provider) {
       try {
         const bindStatus = await musicApi.getMusicSourceBindSession(
           normalizedProvider,
-          String(session?.sessionId || ""),
-          auth.authorizedFetch,
+          String(session?.sessionId || ''),
+          auth.authorizedFetch
         );
-        const failureReason = String(bindStatus?.failureReason || "").trim();
+        const failureReason = String(bindStatus?.failureReason || '').trim();
         if (failureReason) {
           lastErrorMessage = failureReason;
         }
       } catch {
         // noop
       }
-      window.alert(
-        lastErrorMessage || "未检测到有效登录态，请确认目标平台已登录后重试。",
-      );
+      window.alert(lastErrorMessage || '未检测到有效登录态，请确认目标平台已登录后重试。');
     }
   } catch (error) {
-    window.alert(parseErrorMessage(error, "发起一键绑定失败"));
+    window.alert(parseErrorMessage(error, '发起一键绑定失败'));
   } finally {
     musicSourceBindBusyMap.value = {
       ...musicSourceBindBusyMap.value,
-      [normalizedProvider]: false,
+      [normalizedProvider]: false
     };
   }
 }
@@ -2124,17 +1735,13 @@ function handleUpdateMusicSourceMode(mode) {
 }
 
 function handleMoveMusicSourceProvider(payload) {
-  const provider = String(payload?.provider || "")
-    .trim()
-    .toLowerCase();
-  const direction = String(payload?.direction || "")
-    .trim()
-    .toLowerCase();
+  const provider = String(payload?.provider || '').trim().toLowerCase();
+  const direction = String(payload?.direction || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(provider)) return;
   const order = normalizeSourceProviderOrder(musicAccountProviderOrder.value);
   const index = order.indexOf(provider);
   if (index < 0) return;
-  const delta = direction === "down" ? 1 : -1;
+  const delta = direction === 'down' ? 1 : -1;
   const target = Math.max(0, Math.min(order.length - 1, index + delta));
   if (target === index) return;
   const next = order.slice();
@@ -2145,13 +1752,11 @@ function handleMoveMusicSourceProvider(payload) {
 }
 
 function handleUpdateMusicSourceCookieInput(payload) {
-  const provider = String(payload?.provider || "")
-    .trim()
-    .toLowerCase();
+  const provider = String(payload?.provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(provider)) return;
   musicSourceCookieInputs.value = {
     ...musicSourceCookieInputs.value,
-    [provider]: String(payload?.value || ""),
+    [provider]: String(payload?.value || '')
   };
 }
 
@@ -2160,46 +1765,29 @@ async function handleSaveMusicSourceCookie(provider) {
     goLogin();
     return;
   }
-  const normalizedProvider = String(provider || "")
-    .trim()
-    .toLowerCase();
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
-  const cookie = String(
-    musicSourceCookieInputs.value?.[normalizedProvider] || "",
-  ).trim();
+  const cookie = String(musicSourceCookieInputs.value?.[normalizedProvider] || '').trim();
   if (!cookie) {
-    window.alert("请先输入 Cookie");
+    window.alert('请先输入 Cookie');
     return;
   }
-  musicSourceBusyMap.value = {
-    ...musicSourceBusyMap.value,
-    [normalizedProvider]: true,
-  };
+  musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: true };
   try {
-    const payload = await musicApi.upsertMusicSourceAccountCookie(
-      normalizedProvider,
-      cookie,
-      auth.authorizedFetch,
-    );
-    const nextStatus = normalizeSourceAccountStatus(
-      payload,
-      normalizedProvider,
-    );
+    const payload = await musicApi.upsertMusicSourceAccountCookie(normalizedProvider, cookie, auth.authorizedFetch);
+    const nextStatus = normalizeSourceAccountStatus(payload, normalizedProvider);
     musicSourceAccounts.value = {
       ...musicSourceAccounts.value,
-      [normalizedProvider]: nextStatus,
+      [normalizedProvider]: nextStatus
     };
     musicSourceCookieInputs.value = {
       ...musicSourceCookieInputs.value,
-      [normalizedProvider]: "",
+      [normalizedProvider]: ''
     };
   } catch (error) {
-    window.alert(parseErrorMessage(error, "保存 Cookie 失败"));
+    window.alert(parseErrorMessage(error, '保存 Cookie 失败'));
   } finally {
-    musicSourceBusyMap.value = {
-      ...musicSourceBusyMap.value,
-      [normalizedProvider]: false,
-    };
+    musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: false };
   }
 }
 
@@ -2208,37 +1796,23 @@ async function handleDeleteMusicSourceCookie(provider) {
     goLogin();
     return;
   }
-  const normalizedProvider = String(provider || "")
-    .trim()
-    .toLowerCase();
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
-  musicSourceBusyMap.value = {
-    ...musicSourceBusyMap.value,
-    [normalizedProvider]: true,
-  };
+  musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: true };
   try {
-    await musicApi.deleteMusicSourceAccount(
-      normalizedProvider,
-      auth.authorizedFetch,
-    );
+    await musicApi.deleteMusicSourceAccount(normalizedProvider, auth.authorizedFetch);
     musicSourceAccounts.value = {
       ...musicSourceAccounts.value,
-      [normalizedProvider]: normalizeSourceAccountStatus(
-        {},
-        normalizedProvider,
-      ),
+      [normalizedProvider]: normalizeSourceAccountStatus({}, normalizedProvider)
     };
     musicSourceCookieInputs.value = {
       ...musicSourceCookieInputs.value,
-      [normalizedProvider]: "",
+      [normalizedProvider]: ''
     };
   } catch (error) {
-    window.alert(parseErrorMessage(error, "删除 Cookie 失败"));
+    window.alert(parseErrorMessage(error, '删除 Cookie 失败'));
   } finally {
-    musicSourceBusyMap.value = {
-      ...musicSourceBusyMap.value,
-      [normalizedProvider]: false,
-    };
+    musicSourceBusyMap.value = { ...musicSourceBusyMap.value, [normalizedProvider]: false };
   }
 }
 
@@ -2247,30 +1821,19 @@ async function handleImportMusicSourcePlaylists(provider) {
     goLogin();
     return;
   }
-  const normalizedProvider = String(provider || "")
-    .trim()
-    .toLowerCase();
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
-  musicSourceImportBusyMap.value = {
-    ...musicSourceImportBusyMap.value,
-    [normalizedProvider]: true,
-  };
+  musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: true };
   try {
-    const payload = await musicApi.importMusicSourcePlaylists(
-      normalizedProvider,
-      auth.authorizedFetch,
-    );
+    const payload = await musicApi.importMusicSourcePlaylists(normalizedProvider, auth.authorizedFetch);
     await loadSidebarData();
     window.alert(
-      `导入完成：歌单 ${Number(payload?.importedPlaylists || 0)} 个，歌曲 ${Number(payload?.importedTracks || 0)} 首`,
+      `导入完成：歌单 ${Number(payload?.importedPlaylists || 0)} 个，歌曲 ${Number(payload?.importedTracks || 0)} 首`
     );
   } catch (error) {
-    window.alert(parseErrorMessage(error, "导入歌单失败"));
+    window.alert(parseErrorMessage(error, '导入歌单失败'));
   } finally {
-    musicSourceImportBusyMap.value = {
-      ...musicSourceImportBusyMap.value,
-      [normalizedProvider]: false,
-    };
+    musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: false };
   }
 }
 
@@ -2281,90 +1844,84 @@ async function handleBindSpotify() {
   }
   spotifyBusy.value = true;
   try {
-    await auth.startOAuthBind("spotify", "/music-library/music");
+    await auth.startOAuthBind('spotify', '/music-library/music');
   } catch (error) {
     spotifyBusy.value = false;
-    window.alert(parseErrorMessage(error, "Spotify 连接失败"));
+    window.alert(parseErrorMessage(error, 'Spotify 连接失败'));
   }
 }
 
 async function handleSearchSpotify() {
-  const keyword = String(spotifyQuery.value || "").trim();
+  const keyword = String(spotifyQuery.value || '').trim();
   if (!keyword) {
     spotifyResults.value = [];
     return;
   }
   spotifySearching.value = true;
-  spotifyError.value = "";
+  spotifyError.value = '';
   try {
     const payload = await musicApi.searchSpotifyTracks(
       keyword,
       12,
-      auth.isAuthenticated.value ? auth.authorizedFetch : undefined,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
     );
     const list = Array.isArray(payload) ? payload : [];
-    spotifyResults.value = list.map((item, index) =>
-      normalizeSpotifyResult(item, index),
-    );
+    spotifyResults.value = list.map((item, index) => normalizeSpotifyResult(item, index));
   } catch (error) {
     spotifyResults.value = [];
-    spotifyError.value = parseErrorMessage(error, "Spotify 搜索失败");
+    spotifyError.value = parseErrorMessage(error, 'Spotify 搜索失败');
   } finally {
     spotifySearching.value = false;
   }
 }
 
 async function resolveSpotifyPreviewUrl(item) {
-  const embedded = String(item?.previewUrl || item?.preview_url || "").trim();
+  const embedded = String(item?.previewUrl || item?.preview_url || '').trim();
   if (embedded) return embedded;
 
-  const trackId = String(
-    item?.trackId || item?.track_id || item?.id || "",
-  ).trim();
-  if (!trackId) return "";
+  const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
+  if (!trackId) return '';
 
   try {
     const payload = await musicApi.getSpotifyPreview(
       trackId,
-      auth.isAuthenticated.value ? auth.authorizedFetch : undefined,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
     );
-    return String(payload?.previewUrl || payload?.preview_url || "").trim();
+    return String(payload?.previewUrl || payload?.preview_url || '').trim();
   } catch {
-    return "";
+    return '';
   }
 }
 
 async function enqueueSpotifyTrack(item, autoPlay = false) {
-  const trackId = String(
-    item?.trackId || item?.track_id || item?.id || "",
-  ).trim();
+  const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
   if (!trackId) {
-    window.alert("Spotify 曲目缺少 trackId");
+    window.alert('Spotify 曲目缺少 trackId');
     return;
   }
 
   const previewUrl = await resolveSpotifyPreviewUrl(item);
   if (!previewUrl) {
-    window.alert("该 Spotify 曲目无可用 preview_url，无法入队播放");
+    window.alert('该 Spotify 曲目无可用 preview_url，无法入队播放');
     return;
   }
 
   const success = await player.enqueueExternalTrack?.(
     {
       trackId: `spotify:${trackId}`,
-      provider: "spotify",
-      title: String(item?.title || "Spotify Track"),
-      artist: String(item?.artist || ""),
-      cover: "",
+      provider: 'spotify',
+      title: String(item?.title || 'Spotify Track'),
+      artist: String(item?.artist || ''),
+      cover: '',
       audio: previewUrl,
-      lyric: "",
-      enabled: true,
+      lyric: '',
+      enabled: true
     },
-    autoPlay,
+    autoPlay
   );
 
   if (!success) {
-    window.alert("Spotify 曲目入队失败");
+    window.alert('Spotify 曲目入队失败');
   }
 }
 
@@ -2378,58 +1935,43 @@ async function handleEnqueueSpotify(item) {
 
 async function ensureCurrentRoutePlaylistLoaded(options = {}) {
   if (!isPlaylistRoute.value) return;
-  const playlistCode =
-    currentPlaylistCodeFromRoute.value || DEFAULT_PLAYLIST_CODE;
+  const playlistCode = currentPlaylistCodeFromRoute.value || DEFAULT_PLAYLIST_CODE;
   ui.setSelectedPlaylistCode(playlistCode);
   const force = options?.force === true;
-  if (
-    !force &&
-    currentPlaylistProfile.value.playlistCode === playlistCode &&
-    currentPlaylistAllTracks.value.length
-  ) {
+  if (!force && currentPlaylistProfile.value.playlistCode === playlistCode && currentPlaylistAllTracks.value.length) {
     return;
   }
   playlistBrowseLoading.value = true;
-  playlistBrowseError.value = "";
+  playlistBrowseError.value = '';
   try {
     const payload = await musicApi.getPlaylistBundleByCode(
       playlistCode,
-      auth.isAuthenticated.value ? auth.authorizedFetch : undefined,
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
     );
-    const profile = normalizePlaylistSummary(
-      payload?.profile || payload?.playlist,
-      playlistCode,
-    );
-    const tracks = Array.isArray(payload?.tracks)
-      ? payload.tracks.map((item, index) => normalizeApiTrack(item, index))
-      : [];
+    const profile = normalizePlaylistSummary(payload?.profile || payload?.playlist, playlistCode);
+    const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeApiTrack(item, index)) : [];
     playlistBrowseProfile.value = profile;
     playlistBrowseTracks.value = tracks;
     resetPlaylistBrowseVisibleCount(tracks.length);
     // Keep this lightweight line log for runtime troubleshooting in browser console.
     // eslint-disable-next-line no-console
-    console.info("[MUSIC_FRONT_PLAYLIST_BUNDLE_LOADED]", {
+    console.info('[MUSIC_FRONT_PLAYLIST_BUNDLE_LOADED]', {
       playlistCode,
       loadedTracks: tracks.length,
       visibleTracks: playlistBrowseVisibleCount.value,
-      firstTrack: tracks[0]
-        ? {
-            trackId: tracks[0].trackId,
-            provider: tracks[0].provider,
-            title: tracks[0].title,
-          }
-        : null,
+      firstTrack: tracks[0] ? {
+        trackId: tracks[0].trackId,
+        provider: tracks[0].provider,
+        title: tracks[0].title
+      } : null
     });
   } catch (error) {
     playlistBrowseProfile.value = normalizePlaylistSummary(
-      { playlistCode, name: "歌单加载失败", description: "", cover: "" },
-      playlistCode,
+      { playlistCode, name: '歌单加载失败', description: '', cover: '' },
+      playlistCode
     );
     playlistBrowseTracks.value = [];
-    playlistBrowseError.value = parseErrorMessage(
-      error,
-      "歌单加载失败，请稍后重试",
-    );
+    playlistBrowseError.value = parseErrorMessage(error, '歌单加载失败，请稍后重试');
     resetPlaylistBrowseVisibleCount(0);
   } finally {
     playlistBrowseLoading.value = false;
@@ -2437,96 +1979,77 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
 }
 
 async function playFeaturedTrack(item, index) {
-  const trackId = String(
-    item?.trackId || item?.track_id || item?.id || "",
-  ).trim();
-  const sourceIndex = playerQueueTracks.value.findIndex(
-    (track) => track.id === trackId,
-  );
+  const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
+  const sourceIndex = playerQueueTracks.value.findIndex((track) => track.id === trackId);
   if (sourceIndex >= 0) {
     const played = await player.selectTrackByIndex(sourceIndex, true);
     if (!played) {
-      window.alert("该歌曲当前无法播放，请稍后重试");
+      window.alert('该歌曲当前无法播放，请稍后重试');
     }
     return;
   }
 
   const played = await player.playExternalTrack?.(
     normalizeApiTrack(item, Number(index) || 0),
-    { replaceQueue: true },
+    { replaceQueue: true }
   );
   if (!played) {
-    window.alert("该歌曲当前无法播放，请稍后重试");
+    window.alert('该歌曲当前无法播放，请稍后重试');
   }
 }
 
 async function enqueueFeaturedTrackNext(item, index) {
-  const success = await player.enqueueNextTrack?.(
-    normalizeApiTrack(item, Number(index) || 0),
-  );
+  const success = await player.enqueueNextTrack?.(normalizeApiTrack(item, Number(index) || 0));
   if (!success) {
-    window.alert("当前曲目暂不可加入“下一首播放”");
+    window.alert('当前曲目暂不可加入“下一首播放”');
   }
 }
 
 async function playSearchTrack(item, index) {
-  const trackId = String(
-    item?.trackId || item?.track_id || item?.id || "",
-  ).trim();
-  const provider = String(item?.provider || "")
-    .trim()
-    .toLowerCase();
+  const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
+  const provider = String(item?.provider || '').trim().toLowerCase();
   const existingIndex = playerQueueTracks.value.findIndex((track) => {
-    const rowId = String(track?.trackId || track?.id || "").trim();
-    const rowProvider = String(track?.provider || "")
-      .trim()
-      .toLowerCase();
+    const rowId = String(track?.trackId || track?.id || '').trim();
+    const rowProvider = String(track?.provider || '').trim().toLowerCase();
     return rowId === trackId && (!provider || provider === rowProvider);
   });
   if (existingIndex >= 0) {
     const played = await player.selectTrackByIndex(existingIndex, true);
     if (!played) {
-      window.alert("该歌曲当前无法播放，请稍后重试");
+      window.alert('该歌曲当前无法播放，请稍后重试');
     }
     return;
   }
   const played = await player.playExternalTrack?.(
     normalizeSearchTrack(item, Number(index) || 0),
-    { replaceQueue: true },
+    { replaceQueue: true }
   );
   if (!played) {
-    window.alert("该歌曲当前无法播放，请稍后重试");
+    window.alert('该歌曲当前无法播放，请稍后重试');
   }
 }
 
 async function enqueueSearchTrackNext(item, index) {
-  const success = await player.enqueueNextTrack?.(
-    normalizeSearchTrack(item, Number(index) || 0),
-  );
+  const success = await player.enqueueNextTrack?.(normalizeSearchTrack(item, Number(index) || 0));
   if (!success) {
-    window.alert("当前曲目暂不可加入“下一首播放”");
+    window.alert('当前曲目暂不可加入“下一首播放”');
   }
 }
 
 async function playTrackInCurrentPlaylist(index) {
   const safeIndex = Number(index);
-  if (
-    !Number.isInteger(safeIndex) ||
-    safeIndex < 0 ||
-    safeIndex >= currentPlaylistAllTracks.value.length
-  )
-    return;
+  if (!Number.isInteger(safeIndex) || safeIndex < 0 || safeIndex >= currentPlaylistAllTracks.value.length) return;
   const success = await player.replaceQueueWithTracks?.(
     currentPlaylistAllTracks.value,
     safeIndex,
     true,
     {
-      sourceType: "playlist",
-      sourceCode: currentPlaylistProfile.value?.playlistCode || "",
-    },
+      sourceType: 'playlist',
+      sourceCode: currentPlaylistProfile.value?.playlistCode || ''
+    }
   );
   if (!success) {
-    window.alert("该歌曲当前无法播放，请稍后重试");
+    window.alert('该歌曲当前无法播放，请稍后重试');
     return;
   }
   growPlaylistBrowseVisibleCount();
@@ -2538,49 +2061,38 @@ async function handleSelectTrackFromDock(index) {
   await player.selectTrackByIndex(safeIndex, true);
 }
 
-async function collectTrackToPlaylist(
-  trackInput,
-  rawPlaylistCode,
-  options = {},
-) {
+async function collectTrackToPlaylist(trackInput, rawPlaylistCode, options = {}) {
   if (!auth.isAuthenticated.value) {
     goLogin();
     return false;
   }
-  const playlistCode = String(rawPlaylistCode || "").trim();
+  const playlistCode = String(rawPlaylistCode || '').trim();
   if (!playlistCode) {
-    window.alert("请选择一个目标歌单");
+    window.alert('请选择一个目标歌单');
     return false;
   }
 
   const currentTrack = trackInput || player.currentTrack.value;
   if (!currentTrack) {
-    window.alert("当前没有可收藏的歌曲");
+    window.alert('当前没有可收藏的歌曲');
     return false;
   }
 
   try {
     await musicApi.upsertMyMusicPlaylistTrack(
       playlistCode,
-      toPlaylistTrackUpsertPayload(
-        currentTrack,
-        playerQueueTracks.value.length + 1,
-        playlistCode,
-      ),
-      auth.authorizedFetch,
+      toPlaylistTrackUpsertPayload(currentTrack, playerQueueTracks.value.length + 1, playlistCode),
+      auth.authorizedFetch
     );
     if (options?.silent !== true) {
-      window.alert("已收藏到歌单");
+      window.alert('已收藏到歌单');
     }
-    if (
-      isPlaylistRoute.value &&
-      currentPlaylistProfile.value.playlistCode === playlistCode
-    ) {
+    if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === playlistCode) {
       await ensureCurrentRoutePlaylistLoaded({ force: true });
     }
     return true;
   } catch (error) {
-    window.alert(parseErrorMessage(error, "收藏歌曲失败，请稍后重试"));
+    window.alert(parseErrorMessage(error, '收藏歌曲失败，请稍后重试'));
     return false;
   }
 }
@@ -2591,33 +2103,26 @@ async function collectTrackToDefaultPublic(trackInput) {
     return false;
   }
   if (!isAdminUser.value) {
-    window.alert("仅管理员可写入默认收藏夹");
+    window.alert('仅管理员可写入默认收藏夹');
     return false;
   }
   const currentTrack = trackInput || player.currentTrack.value;
   if (!currentTrack) {
-    window.alert("当前没有可收藏的歌曲");
+    window.alert('当前没有可收藏的歌曲');
     return false;
   }
   try {
     await musicApi.upsertAdminDefaultPlaylistTrack(
-      toPlaylistTrackUpsertPayload(
-        currentTrack,
-        playerQueueTracks.value.length + 1,
-        DEFAULT_PLAYLIST_CODE,
-      ),
-      auth.authorizedFetch,
+      toPlaylistTrackUpsertPayload(currentTrack, playerQueueTracks.value.length + 1, DEFAULT_PLAYLIST_CODE),
+      auth.authorizedFetch
     );
-    window.alert("已加入默认收藏夹（云端）");
-    if (
-      isPlaylistRoute.value &&
-      currentPlaylistProfile.value.playlistCode === DEFAULT_PLAYLIST_CODE
-    ) {
+    window.alert('已加入默认收藏夹（云端）');
+    if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === DEFAULT_PLAYLIST_CODE) {
       await ensureCurrentRoutePlaylistLoaded({ force: true });
     }
     return true;
   } catch (error) {
-    window.alert(parseErrorMessage(error, "加入默认收藏夹失败，请稍后重试"));
+    window.alert(parseErrorMessage(error, '加入默认收藏夹失败，请稍后重试'));
     return false;
   }
 }
@@ -2629,38 +2134,31 @@ function openCollectDialog(trackInput) {
   }
   const currentTrack = trackInput || player.currentTrack.value;
   if (!currentTrack) {
-    window.alert("当前没有可收藏的歌曲");
+    window.alert('当前没有可收藏的歌曲');
     return;
   }
   collectDialogTrack.value = currentTrack;
-  collectDialogError.value = "";
+  collectDialogError.value = '';
   collectDialogVisible.value = true;
 }
 
 function closeCollectDialog() {
   collectDialogVisible.value = false;
-  collectDialogError.value = "";
+  collectDialogError.value = '';
   collectDialogTrack.value = null;
 }
 
 async function handleCollectDialogSelect(playlistCode) {
   collectDialogBusy.value = true;
   try {
-    const ok = await collectTrackToPlaylist(
-      collectDialogTrack.value,
-      playlistCode,
-      { silent: true },
-    );
+    const ok = await collectTrackToPlaylist(collectDialogTrack.value, playlistCode, { silent: true });
     if (ok) {
       collectDialogVisible.value = false;
       return;
     }
-    collectDialogError.value = "收藏失败，请稍后重试";
+    collectDialogError.value = '收藏失败，请稍后重试';
   } catch (error) {
-    collectDialogError.value = parseErrorMessage(
-      error,
-      "收藏歌曲失败，请稍后重试",
-    );
+    collectDialogError.value = parseErrorMessage(error, '收藏歌曲失败，请稍后重试');
   } finally {
     collectDialogBusy.value = false;
   }
@@ -2674,38 +2172,23 @@ async function handleCollectDialogDefaultPublic() {
       collectDialogVisible.value = false;
       return;
     }
-    collectDialogError.value = "加入默认收藏夹失败，请稍后重试";
+    collectDialogError.value = '加入默认收藏夹失败，请稍后重试';
   } catch (error) {
-    collectDialogError.value = parseErrorMessage(
-      error,
-      "加入默认收藏夹失败，请稍后重试",
-    );
+    collectDialogError.value = parseErrorMessage(error, '加入默认收藏夹失败，请稍后重试');
   } finally {
     collectDialogBusy.value = false;
   }
 }
 
 function isTrackLiked(trackId) {
-  return likedTrackIds.value.has(String(trackId || ""));
+  return likedTrackIds.value.has(String(trackId || ''));
 }
 
 async function toggleTrackLike(trackInput) {
-  const id = String(
-    trackInput?.trackId ||
-      trackInput?.track_id ||
-      trackInput?.id ||
-      trackInput ||
-      "",
-  ).trim();
+  const id = String(trackInput?.trackId || trackInput?.track_id || trackInput?.id || trackInput || '').trim();
   if (!id) return;
 
-  const provider =
-    String(
-      trackInput?.provider ||
-        trackInput?.providerCode ||
-        trackInput?.provider_code ||
-        "local",
-    ).trim() || "local";
+  const provider = String(trackInput?.provider || trackInput?.providerCode || trackInput?.provider_code || 'local').trim() || 'local';
   const next = new Set(likedTrackIds.value);
   if (next.has(id)) next.delete(id);
   else next.add(id);
@@ -2719,19 +2202,15 @@ async function toggleTrackLike(trackInput) {
     if (next.has(id)) {
       await musicApi.upsertMyMusicPlaylistTrack(
         likedPlaylistCode.value,
-        toPlaylistTrackUpsertPayload(
-          trackInput,
-          next.size,
-          likedPlaylistCode.value,
-        ),
-        auth.authorizedFetch,
+        toPlaylistTrackUpsertPayload(trackInput, next.size, likedPlaylistCode.value),
+        auth.authorizedFetch
       );
     } else {
       await musicApi.deleteMyMusicPlaylistTrack(
         likedPlaylistCode.value,
         provider,
         id,
-        auth.authorizedFetch,
+        auth.authorizedFetch
       );
     }
     await loadSidebarData();
@@ -2740,53 +2219,48 @@ async function toggleTrackLike(trackInput) {
     if (rollback.has(id)) rollback.delete(id);
     else rollback.add(id);
     likedTrackIds.value = rollback;
-    window.alert(parseErrorMessage(error, "更新红心歌单失败"));
+    window.alert(parseErrorMessage(error, '更新红心歌单失败'));
   }
 }
 
 function openPlaylistDetail(playlistCode) {
-  const code = String(playlistCode || "").trim();
+  const code = String(playlistCode || '').trim();
   if (!code) return;
   rememberCenterScroll();
-  ui.setLastContentPath(route.fullPath || "/music-library/music");
+  ui.setLastContentPath(route.fullPath || '/music-library/music');
   ui.setSelectedPlaylistCode(code);
   ui.closeDrawers();
   router.push({
-    name: "music-library-playlist",
-    params: { playlistCode: code },
+    name: 'music-library-playlist',
+    params: { playlistCode: code }
   });
 }
 
 function backToMainList() {
   ui.closeDrawers();
-  const target = String(ui.lastContentPath.value || "").trim();
-  if (target.startsWith("/music-library") && target !== route.fullPath) {
+  const target = String(ui.lastContentPath.value || '').trim();
+  if (target.startsWith('/music-library') && target !== route.fullPath) {
     router.push(target);
     return;
   }
-  router.push({ name: "music-library-music" });
+  router.push({ name: 'music-library-music' });
 }
 
 function enterPlayerDetail() {
-  ui.setLastContentPath(route.fullPath || "/music-library/music");
+  ui.setLastContentPath(route.fullPath || '/music-library/music');
   ui.closeDrawers();
   router.push({
-    name: "music-library-player",
+    name: 'music-library-player',
     query: {
-      from: encodeURIComponent(route.fullPath || "/music-library/music"),
-    },
+      from: encodeURIComponent(route.fullPath || '/music-library/music')
+    }
   });
 }
 
 function exitPlayerDetail() {
-  const from =
-    typeof route.query?.from === "string"
-      ? decodeURIComponent(route.query.from)
-      : "";
-  const target = from.startsWith("/music-library")
-    ? from
-    : ui.lastContentPath.value;
-  router.push(target || "/music-library/music");
+  const from = typeof route.query?.from === 'string' ? decodeURIComponent(route.query.from) : '';
+  const target = from.startsWith('/music-library') ? from : ui.lastContentPath.value;
+  router.push(target || '/music-library/music');
 }
 
 async function reloadCurrentPlaylist() {
@@ -2798,7 +2272,7 @@ async function handleCreatePlaylist() {
     goLogin();
     return;
   }
-  createDialogError.value = "";
+  createDialogError.value = '';
   collectDialogVisible.value = false;
   createDialogVisible.value = true;
 }
@@ -2809,23 +2283,20 @@ async function submitCreatePlaylist(rawName) {
     goLogin();
     return;
   }
-  const name = String(rawName || "").trim();
+  const name = String(rawName || '').trim();
   if (!name) {
-    createDialogError.value = "歌单名称不能为空";
+    createDialogError.value = '歌单名称不能为空';
     return;
   }
   createDialogSubmitting.value = true;
-  createDialogError.value = "";
+  createDialogError.value = '';
   try {
-    const created = await musicApi.createMyMusicPlaylist(
-      { name },
-      auth.authorizedFetch,
-    );
+    const created = await musicApi.createMyMusicPlaylist({ name }, auth.authorizedFetch);
     await loadSidebarData();
     createDialogVisible.value = false;
     openPlaylistDetail(created?.playlistCode || created?.playlist_code);
   } catch (error) {
-    createDialogError.value = parseErrorMessage(error, "创建歌单失败");
+    createDialogError.value = parseErrorMessage(error, '创建歌单失败');
   } finally {
     createDialogSubmitting.value = false;
   }
@@ -2848,7 +2319,7 @@ async function toggleCollectCurrentPlaylist() {
     }
     await loadSidebarData();
   } catch (error) {
-    window.alert(parseErrorMessage(error, "更新收藏状态失败"));
+    window.alert(parseErrorMessage(error, '更新收藏状态失败'));
   } finally {
     collectingPlaylist.value = false;
   }
@@ -2860,15 +2331,13 @@ function handleSetVolume(nextVolume) {
 
 function handleSetEqLevel(payload) {
   ui.setEqLevel(payload?.index, payload?.value);
-  if (typeof window !== "undefined") {
+  if (typeof window !== 'undefined') {
     window.dispatchEvent(
-      new CustomEvent("shizuki:music:eq-change", {
+      new CustomEvent('shizuki:music:eq-change', {
         detail: {
-          levels: Array.isArray(ui.eqLevels.value)
-            ? ui.eqLevels.value.slice()
-            : [],
-        },
-      }),
+          levels: Array.isArray(ui.eqLevels.value) ? ui.eqLevels.value.slice() : []
+        }
+      })
     );
   }
 }
@@ -2929,7 +2398,7 @@ const musicContext = Object.freeze({
   collectTrackToDefaultPublic,
   openCollectDialog,
   toggleTrackLike,
-  isTrackLiked,
+  isTrackLiked
 });
 
 provide(MUSIC_LIBRARY_CONTEXT_KEY, musicContext);
@@ -2945,7 +2414,7 @@ watch(
       restoreCenterScroll(nextPath);
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
@@ -2953,38 +2422,38 @@ watch(
   async () => {
     await ensureVoiceRouteAccess({ notify: false });
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
   () => route.query?.reason,
   (reason) => {
-    if (String(reason || "").trim() === "voice_forbidden") {
+    if (String(reason || '').trim() === 'voice_forbidden') {
       notifyVoiceAccessDenied();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
   () => route.fullPath,
   (nextPath, prevPath) => {
     if (!prevPath) {
-      centerTransitionName.value = "music-center-fade";
+      centerTransitionName.value = 'music-center-fade';
       return;
     }
     const fromPlaylist = isPlaylistPath(prevPath);
     const toPlaylist = isPlaylistPath(nextPath);
     if (toPlaylist && !fromPlaylist) {
-      centerTransitionName.value = "music-center-forward";
+      centerTransitionName.value = 'music-center-forward';
       return;
     }
     if (!toPlaylist && fromPlaylist) {
-      centerTransitionName.value = "music-center-backward";
+      centerTransitionName.value = 'music-center-backward';
       return;
     }
-    centerTransitionName.value = "music-center-fade";
-  },
+    centerTransitionName.value = 'music-center-fade';
+  }
 );
 
 watch(
@@ -2992,7 +2461,7 @@ watch(
   async () => {
     await ensureCurrentRoutePlaylistLoaded();
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
@@ -3002,25 +2471,26 @@ watch(
       loadHomeData(),
       loadMusicProviderVisibility(),
       loadSidebarData(),
+      loadMetingStatus(),
       loadSpotifyBindingStatus(),
       loadMusicSourcePreference(),
-      loadMusicSourceAccountsStatus(),
+      loadMusicSourceAccountsStatus()
     ]);
     if (!musicSourceHelperAvailable.value) {
       musicSourceHelperAvailable.value = await detectMusicSourceHelper();
     }
     await ensureCurrentRoutePlaylistLoaded();
-  },
+  }
 );
 
 onMounted(async () => {
   try {
     await auth.ensureReady();
-    ui.setExpandedProvider("");
+    ui.setExpandedProvider('');
     updateViewportMode();
     musicSearchHistory.value = readMusicSearchHistory();
-    if (typeof window !== "undefined") {
-      window.addEventListener("resize", updateViewportMode, { passive: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', updateViewportMode, { passive: true });
     }
     musicSourceHelperAvailable.value = await detectMusicSourceHelper();
 
@@ -3028,38 +2498,37 @@ onMounted(async () => {
       loadHomeData(),
       loadMusicProviderVisibility(),
       loadSidebarData(),
+      loadMetingStatus(),
       loadSpotifyBindingStatus(),
       loadMusicSourcePreference(),
       loadMusicSourceAccountsStatus(),
-      ensureCurrentRoutePlaylistLoaded(),
+      ensureCurrentRoutePlaylistLoaded()
     ]);
 
     await nextTick();
     restoreCenterScroll(route.fullPath);
   } catch (error) {
-    setFatalError(error, "初始化失败，请稍后重试");
+    setFatalError(error, '初始化失败，请稍后重试');
   }
 });
 
 onErrorCaptured((error, instance, info) => {
-  const componentName = String(instance?.type?.name || "unknown");
-  setFatalError(
-    error,
-    `渲染阶段异常（${componentName} / ${String(info || "unknown")}）`,
-  );
+  const componentName = String(instance?.type?.name || 'unknown');
+  setFatalError(error, `渲染阶段异常（${componentName} / ${String(info || 'unknown')}）`);
   return false;
 });
 
 async function reloadAfterFatalError() {
-  fatalErrorText.value = "";
+  fatalErrorText.value = '';
   await Promise.all([
     loadHomeData(),
     loadMusicProviderVisibility(),
     loadSidebarData(),
+    loadMetingStatus(),
     loadSpotifyBindingStatus(),
     loadMusicSourcePreference(),
     loadMusicSourceAccountsStatus(),
-    ensureCurrentRoutePlaylistLoaded({ force: true }),
+    ensureCurrentRoutePlaylistLoaded({ force: true })
   ]);
 }
 
@@ -3068,8 +2537,8 @@ onBeforeUnmount(() => {
     window.clearTimeout(allSearchCapacityRefreshTimer);
     allSearchCapacityRefreshTimer = 0;
   }
-  if (typeof window !== "undefined") {
-    window.removeEventListener("resize", updateViewportMode);
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateViewportMode);
   }
 });
 </script>
@@ -3085,11 +2554,7 @@ onBeforeUnmount(() => {
   padding: 8px;
   margin-bottom: 8px;
   border-radius: 12px;
-  background: linear-gradient(
-    140deg,
-    rgba(18, 22, 33, 0.84),
-    rgba(14, 17, 27, 0.78)
-  );
+  background: linear-gradient(140deg, rgba(18, 22, 33, 0.84), rgba(14, 17, 27, 0.78));
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(8px);
 }
@@ -3108,21 +2573,13 @@ onBeforeUnmount(() => {
 
 .mode-tab.active {
   border-color: rgba(var(--accent-rgb), 0.58);
-  background: linear-gradient(
-    132deg,
-    rgba(var(--accent-rgb), 0.9),
-    rgba(var(--accent-soft-rgb), 0.86)
-  );
+  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.9), rgba(var(--accent-soft-rgb), 0.86));
   color: rgba(255, 255, 255, 0.96);
   box-shadow: 0 8px 16px rgba(var(--accent-rgb), 0.24);
 }
 
 .music-fatal-error {
-  --liquid-bg: linear-gradient(
-    150deg,
-    rgba(36, 17, 22, 0.82),
-    rgba(24, 13, 18, 0.78)
-  );
+  --liquid-bg: linear-gradient(150deg, rgba(36, 17, 22, 0.82), rgba(24, 13, 18, 0.78));
   --liquid-border: rgba(255, 162, 186, 0.42);
   --liquid-shadow: 0 14px 30px rgba(40, 8, 16, 0.34);
   margin: 0 0 10px;
