@@ -8,9 +8,7 @@ const mocked = vi.hoisted(() => ({
   auth: null,
   ui: null,
   listMyPosts: vi.fn(),
-  getMusicApiKeyStatus: vi.fn(),
-  upsertMusicApiKey: vi.fn(),
-  deleteMusicApiKey: vi.fn(),
+  getMetingStatus: vi.fn(),
   getMusicSourceAccountStatus: vi.fn(),
   upsertMusicSourceAccountCookie: vi.fn(),
   deleteMusicSourceAccount: vi.fn(),
@@ -33,9 +31,7 @@ vi.mock('../services/blogApi', () => ({
 }));
 
 vi.mock('../services/musicApi', () => ({
-  getMusicApiKeyStatus: (...args) => mocked.getMusicApiKeyStatus(...args),
-  upsertMusicApiKey: (...args) => mocked.upsertMusicApiKey(...args),
-  deleteMusicApiKey: (...args) => mocked.deleteMusicApiKey(...args),
+  getMetingStatus: (...args) => mocked.getMetingStatus(...args),
   getMusicSourceAccountStatus: (...args) => mocked.getMusicSourceAccountStatus(...args),
   upsertMusicSourceAccountCookie: (...args) => mocked.upsertMusicSourceAccountCookie(...args),
   deleteMusicSourceAccount: (...args) => mocked.deleteMusicSourceAccount(...args),
@@ -268,9 +264,7 @@ describe('ProfilePage immediate account expansion', () => {
       value: vi.fn()
     });
     mocked.listMyPosts.mockReset().mockResolvedValue({ items: [] });
-    mocked.getMusicApiKeyStatus.mockReset().mockResolvedValue({});
-    mocked.upsertMusicApiKey.mockReset().mockResolvedValue({});
-    mocked.deleteMusicApiKey.mockReset().mockResolvedValue({});
+    mocked.getMetingStatus.mockReset().mockResolvedValue({ available: true, providers: ['netease', 'kuwo', 'qq'] });
     mocked.getMusicSourceAccountStatus.mockReset().mockResolvedValue([]);
     mocked.upsertMusicSourceAccountCookie.mockReset().mockResolvedValue({});
     mocked.deleteMusicSourceAccount.mockReset().mockResolvedValue({});
@@ -436,10 +430,9 @@ describe('ProfilePage immediate account expansion', () => {
         'music.account_provider_order': ['qqmusic', 'kugou', 'netease']
       })
     });
-    mocked.getMusicApiKeyStatus.mockResolvedValue({
-      keyBound: true,
-      keyMask: 'th-***',
-      updatedAt: '2026-03-21T12:00:00Z'
+    mocked.getMetingStatus.mockResolvedValue({
+      available: true,
+      providers: ['netease', 'kuwo', 'qq']
     });
     mocked.getMusicSourceAccountStatus.mockResolvedValue([
       { provider: 'netease', bound: true, mask: 'MUSIC_U=***', status: 'BOUND' },
@@ -457,12 +450,12 @@ describe('ProfilePage immediate account expansion', () => {
     expect(musicAuthCard.classes()).toContain('focused');
     expect(mocked.auth.getPreference).toHaveBeenCalled();
     expect(mocked.getMusicSourceAccountStatus).toHaveBeenCalledTimes(1);
-    expect(musicText).toContain('TuneHub');
+    expect(musicText).toContain('Meting');
     expect(musicText).toContain('Spotify');
     expect(musicText).toContain('网易云');
     expect(musicText).toContain('QQ 音乐');
     expect(musicText).toContain('酷狗');
-    expect(musicText).not.toContain('酷我');
+    expect(musicText).toContain('酷我');
     expect(wrapper.get('[data-testid="music-source-mode-select"]').element.value).toBe('account_first');
     expect(
       wrapper.findAll('.music-source-order-item .provider-name').map((node) => node.text())
@@ -484,6 +477,8 @@ describe('ProfilePage immediate account expansion', () => {
     const wrapper = await mountProfilePage();
     await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
     await flushPromises();
+
+    expect(wrapper.get('[data-testid="music-source-mode-select"]').element.value).toBe('meting_first');
 
     await wrapper.get('[data-testid="music-source-mode-select"]').setValue('account_only');
     await flushPromises();

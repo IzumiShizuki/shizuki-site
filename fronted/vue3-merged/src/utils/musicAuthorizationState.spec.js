@@ -58,10 +58,12 @@ describe('musicAuthorizationState', () => {
     });
   });
 
-  it('falls back invalid source mode values to tunehub_first', () => {
-    expect(MUSIC_SOURCE_MODE_OPTIONS.map((item) => item.value)).toContain('tunehub_first');
+  it('falls back invalid source mode values to meting_first and keeps legacy compatibility', () => {
+    expect(MUSIC_SOURCE_MODE_OPTIONS.map((item) => item.value)).toContain('meting_first');
     expect(normalizeMusicSourceModeValue('ACCOUNT_ONLY')).toBe('account_only');
-    expect(normalizeMusicSourceModeValue('legacy-mode')).toBe('tunehub_first');
+    expect(normalizeMusicSourceModeValue('tunehub_first')).toBe('meting_first');
+    expect(normalizeMusicSourceModeValue('tunehub_only')).toBe('meting_only');
+    expect(normalizeMusicSourceModeValue('legacy-mode')).toBe('meting_first');
   });
 
   it('returns consistent provider labels', () => {

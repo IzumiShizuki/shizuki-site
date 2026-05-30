@@ -230,17 +230,17 @@
     <template v-else-if="navKey === 'recommend'">
       <section class="panel liquid-material">
         <header class="panel-head">
-          <h2>TuneHub 歌单</h2>
-          <span>{{ filteredTunehubPlaylists.length }} 个</span>
+          <h2>Meting 歌单</h2>
+          <span>{{ filteredMetingPlaylists.length }} 个</span>
         </header>
 
-        <div v-if="!filteredTunehubPlaylists.length && !music.homeLoading.value" class="empty-state">
-          暂无可展示 TuneHub 歌单
+        <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state">
+          暂无可展示 Meting 歌单
         </div>
 
         <div class="playlist-grid">
           <button
-            v-for="item in filteredTunehubPlaylists"
+            v-for="item in filteredMetingPlaylists"
             :key="item.playlistCode"
             class="playlist-card ripple-trigger"
             :class="{ opening: openingPlaylistCode === item.playlistCode }"
@@ -333,7 +333,7 @@
       <section class="panel liquid-material">
         <header class="panel-head">
           <h2>歌单总览</h2>
-          <span>TuneHub + Spotify 占位</span>
+          <span>Meting + Spotify 占位</span>
         </header>
 
         <section class="provider-block">
@@ -364,15 +364,15 @@
 
         <section class="provider-block">
           <div class="provider-head">
-            <h3>TuneHub</h3>
-            <span>{{ filteredTunehubPlaylists.length }}</span>
+            <h3>Meting</h3>
+            <span>{{ filteredMetingPlaylists.length }}</span>
           </div>
-          <div v-if="!filteredTunehubPlaylists.length && !music.homeLoading.value" class="empty-state compact">
-            暂无 TuneHub 歌单
+          <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state compact">
+            暂无 Meting 歌单
           </div>
           <div class="playlist-grid">
             <button
-              v-for="item in filteredTunehubPlaylists"
+              v-for="item in filteredMetingPlaylists"
               :key="`playlist-only-${item.playlistCode}`"
               class="playlist-card ripple-trigger"
               :class="{ opening: openingPlaylistCode === item.playlistCode }"
@@ -472,7 +472,7 @@ const PODCAST_PLACEHOLDER = [
 
 const navKey = computed(() => String(music.ui.activeNav.value || 'recommend'));
 
-const filteredTunehubPlaylists = computed(() => {
+const filteredMetingPlaylists = computed(() => {
   return Array.isArray(music.homeData.value?.featuredPlaylists) ? music.homeData.value.featuredPlaylists : [];
 });
 
@@ -800,6 +800,10 @@ onBeforeUnmount(() => {
   color: var(--theme-text-primary);
   font-size: 12px;
   line-height: 1;
+}
+
+.search-box input::placeholder {
+  color: rgba(226, 210, 198, 0.86);
 }
 
 .toolbar-btn {

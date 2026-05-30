@@ -449,7 +449,7 @@ const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiHubRoute = computed(() => currentRouteKey.value === 'ai-hub');
-const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall && !isBlogRoute.value);
+const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall);
 const authDisplayName = computed(() => auth.user.value?.nickname || '个人页面');
 const authAvatarUrl = computed(() => String(auth.user.value?.avatarUrl || '').trim());
 const authorMenuAvatarUrl = ref('/images/katanegai.jpg');
@@ -2620,6 +2620,9 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr;
   grid-template-rows: minmax(0, 1fr);
   gap: 12px;
+  width: 100%;
+  max-width: var(--app-workspace-content-max-width, 1320px);
+  margin-inline: auto;
   transition: padding-top 260ms ease;
 }
 
@@ -3048,6 +3051,7 @@ onBeforeUnmount(() => {
     --music-top-offset-collapsed: 50px;
     --music-top-offset-expanded: 70px;
     --music-bottom-offset: 10px;
+    max-width: none;
     padding: 50px 10px 10px 48px;
   }
 
@@ -3100,6 +3104,7 @@ onBeforeUnmount(() => {
     --music-top-offset-collapsed: 10px;
     --music-top-offset-expanded: 16px;
     --music-bottom-offset: 8px;
+    max-width: none;
     padding: 10px 8px 8px 44px;
   }
 

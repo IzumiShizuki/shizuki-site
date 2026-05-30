@@ -217,9 +217,8 @@ useDismissiblePopover({
 .search-input-wrap {
   min-height: var(--music-toolbar-height, 36px);
   height: var(--music-toolbar-height, 36px);
-  border-radius: 12px;
-  border: 1px solid var(--theme-border-strong);
-  background: var(--theme-surface-soft);
+  background: transparent;
+  border: none;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -241,6 +240,10 @@ useDismissiblePopover({
   font-size: 13px;
 }
 
+.search-input-wrap input::placeholder {
+  color: rgba(226, 210, 198, 0.88);
+}
+
 .search-btn,
 .refresh-btn {
   min-height: var(--music-toolbar-height, 36px);
@@ -250,18 +253,41 @@ useDismissiblePopover({
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: all 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 4px 12px rgba(6, 10, 18, 0.1);
 }
 
 .search-btn {
-  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  color: var(--accent-mode-text, rgba(246, 250, 255, 0.98));
+  border: 1px solid rgba(var(--accent-rgb), 0.5);
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.38));
+  color: var(--accent-mode-text);
+  box-shadow: 0 6px 18px rgba(var(--accent-rgb), 0.24);
+}
+
+.search-btn:hover {
+  transform: translateY(-2px);
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.45));
+  box-shadow: 0 10px 24px rgba(var(--accent-rgb), 0.32);
+}
+
+.search-btn:active {
+  transform: translateY(0) scale(0.96);
 }
 
 .refresh-btn {
-  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: var(--accent-mode-text);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-strong);
+  color: var(--theme-text-primary);
+}
+
+.refresh-btn:hover {
+  transform: scale(1.05);
+  background: var(--theme-panel-surface-elevated);
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+.refresh-btn:active {
+  transform: scale(0.96);
 }
 
 .filters-row {
@@ -285,11 +311,21 @@ useDismissiblePopover({
 .chip-btn {
   min-height: 30px;
   border-radius: 999px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-strong);
   color: var(--theme-text-secondary);
   padding: 0 12px;
   font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.chip-btn:hover {
+  background: var(--theme-panel-surface-elevated);
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.chip-btn:active {
+  transform: scale(0.95);
 }
 
 .chip-btn.active {

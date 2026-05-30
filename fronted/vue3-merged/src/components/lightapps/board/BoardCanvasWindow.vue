@@ -176,7 +176,6 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import mermaid from 'mermaid';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppWhiteboard,
@@ -234,6 +233,13 @@ let persistTimer = 0;
 let infoTimer = 0;
 let loadingBoardToken = 0;
 let switchingBoard = false;
+let mermaidRuntimePromise = null;
+
+const MERMAID_RUNTIME_OPTIONS = Object.freeze({
+  startOnLoad: false,
+  securityLevel: 'loose',
+  theme: 'default'
+});
 
 const activeBoard = computed(() =>
   boards.value.find((item) => Number(item.whiteboardId) === Number(activeBoardId.value)) || null
@@ -246,6 +252,25 @@ const statusText = computed(() => {
   if (auth.isAuthenticated.value) return '已登录：白板数据云端同步';
   return '游客模式：白板数据仅保存在本地';
 });
+
+async function ensureMermaidRuntime() {
+  if (!mermaidRuntimePromise) {
+    mermaidRuntimePromise = import('mermaid')
+      .then((mod) => {
+        const runtime = mod?.default || mod;
+        if (!runtime || typeof runtime.parse !== 'function' || typeof runtime.render !== 'function') {
+          throw new Error('Mermaid 运行时加载失败');
+        }
+        runtime.initialize(MERMAID_RUNTIME_OPTIONS);
+        return runtime;
+      })
+      .catch((error) => {
+        mermaidRuntimePromise = null;
+        throw error;
+      });
+  }
+  return mermaidRuntimePromise;
+}
 
 function clearInfoLater() {
   if (infoTimer) {
@@ -761,8 +786,10 @@ async function importMermaidText() {
     return;
   }
 
+  let mermaidRuntime = null;
   try {
-    await mermaid.parse(source);
+    mermaidRuntime = await ensureMermaidRuntime();
+    await mermaidRuntime.parse(source);
   } catch (error) {
     setError(error?.str || error?.message || 'Mermaid 语法解析失败');
     return;
@@ -784,8 +811,9 @@ async function importMermaidText() {
   }
 
   try {
+    const runtime = mermaidRuntime || (await ensureMermaidRuntime());
     const renderId = `board_canvas_${Date.now()}`;
-    const rendered = await mermaid.render(renderId, source);
+    const rendered = await runtime.render(renderId, source);
     await boardBridge.api.insertSvg(rendered?.svg || '');
     dirty.value = true;
     schedulePersist(activeBoardId.value);
@@ -877,12 +905,6 @@ watch(
 );
 
 onMounted(async () => {
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'loose',
-    theme: 'default'
-  });
-
   await hydrateBoards();
 
   if (canvasMountRef.value) {

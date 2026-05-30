@@ -1,5 +1,5 @@
 <template>
-  <Teleport v-if="teleportReady" :to="portalTarget">
+  <Teleport v-if="teleportReady && isActive" :to="portalTarget">
     <div class="lightapp-header-portal" @pointerdown.stop>
       <slot />
     </div>
@@ -7,7 +7,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUpdated, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUpdated, ref, watch, onActivated, onDeactivated } from 'vue';
 import { resolveLightAppHeaderPortalSelector } from './lightAppShellStore';
 
 const props = defineProps({
@@ -19,6 +19,15 @@ const props = defineProps({
 
 const portalTarget = computed(() => resolveLightAppHeaderPortalSelector(props.windowId));
 const teleportReady = ref(false);
+const isActive = ref(true);
+
+onActivated(() => {
+  isActive.value = true;
+});
+
+onDeactivated(() => {
+  isActive.value = false;
+});
 
 function syncTeleportReady() {
   const selector = portalTarget.value;

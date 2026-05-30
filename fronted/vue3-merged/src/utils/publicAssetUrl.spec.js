@@ -2,11 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { normalizePermanentPublicAssetUrl, resolveSignedStorageExpiryEpochMs } from './publicAssetUrl';
 
 describe('normalizePermanentPublicAssetUrl', () => {
-  it('removes OSS signed query parameters from public asset urls', () => {
+  it('keeps signed query parameters by default to avoid breaking private cdn access', () => {
     const rawUrl =
       'https://cdn.example.com/assets/author/avatar.webp?OSSAccessKeyId=test-key&Expires=1893456000&Signature=test-sign';
 
-    expect(normalizePermanentPublicAssetUrl(rawUrl)).toBe('https://cdn.example.com/assets/author/avatar.webp');
+    expect(normalizePermanentPublicAssetUrl(rawUrl)).toBe(rawUrl);
+  });
+
+  it('can explicitly remove signed query parameters when caller confirms public readability', () => {
+    const rawUrl =
+      'https://cdn.example.com/assets/author/avatar.webp?OSSAccessKeyId=test-key&Expires=1893456000&Signature=test-sign';
+
+    expect(normalizePermanentPublicAssetUrl(rawUrl, { forceStripSignedQuery: true })).toBe(
+      'https://cdn.example.com/assets/author/avatar.webp'
+    );
   });
 
   it('keeps normal asset urls untouched when query is not a storage signature', () => {

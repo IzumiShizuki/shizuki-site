@@ -9,6 +9,9 @@ const SIGNED_STORAGE_QUERY_KEYS = new Set([
   'x-amz-expires'
 ]);
 
+const STRIP_SIGNED_PUBLIC_ASSET_QUERY =
+  String(import.meta?.env?.VITE_STRIP_SIGNED_PUBLIC_ASSET_QUERY || '').trim().toLowerCase() === 'true';
+
 function isAbsoluteUrl(raw) {
   return /^[a-z][a-z0-9+.-]*:/iu.test(raw);
 }
@@ -27,9 +30,14 @@ function hasSignedStorageQuery(searchParams) {
   return false;
 }
 
-export function normalizePermanentPublicAssetUrl(raw) {
+export function normalizePermanentPublicAssetUrl(raw, options = {}) {
   const url = String(raw || '').trim();
   if (!url || !isAbsoluteUrl(url)) {
+    return url;
+  }
+
+  const forceStrip = options?.forceStripSignedQuery === true;
+  if (!STRIP_SIGNED_PUBLIC_ASSET_QUERY && !forceStrip) {
     return url;
   }
 

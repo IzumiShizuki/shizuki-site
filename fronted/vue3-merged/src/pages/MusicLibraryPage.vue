@@ -35,7 +35,7 @@
         <SubtleScrollArea tag="main" ref="centerPaneRef" class="music-center-pane" @scroll.passive="rememberCenterScroll">
           <header class="music-center-mode-switch" role="tablist" aria-label="music center mode tabs">
             <button
-              class="mode-tab ripple-trigger"
+              class="mode-tab"
               type="button"
               role="tab"
               :aria-selected="currentCenterMode === 'music'"
@@ -46,7 +46,7 @@
             </button>
             <button
               v-if="voiceEntryVisible"
-              class="mode-tab ripple-trigger"
+              class="mode-tab"
               type="button"
               role="tab"
               :aria-selected="currentCenterMode === 'voice'"
@@ -106,9 +106,8 @@
           :drawer-open="ui.rightDrawerOpen.value"
           :is-authenticated="auth.isAuthenticated.value"
           :expanded-provider="ui.expandedProvider.value"
-          :tunehub-key-input="tunehubKeyInput"
-          :tunehub-status="tunehubStatus"
-          :tunehub-busy="tunehubBusy"
+          :meting-status="metingStatus"
+          :meting-status-busy="metingStatusBusy"
           :spotify-bound="spotifyBound"
           :spotify-busy="spotifyBusy"
           :spotify-query="spotifyQuery"
@@ -127,10 +126,7 @@
           @set-eq-level="handleSetEqLevel"
           @close-drawer="ui.setRightDrawerOpen(false)"
           @update:expanded-provider="ui.setExpandedProvider($event)"
-          @update:tunehub-key-input="tunehubKeyInput = $event"
-          @save-tunehub-key="handleSaveTunehubKey"
-          @delete-tunehub-key="handleDeleteTunehubKey"
-          @refresh-tunehub-status="loadTunehubStatus"
+          @refresh-meting-status="loadMetingStatus"
           @open-music-authorization="openMusicAuthorization"
           @bind-spotify="handleBindSpotify"
           @update:spotify-query="spotifyQuery = $event"
@@ -227,7 +223,6 @@ import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
 import {
   SOURCE_ACCOUNT_PROVIDERS,
-  normalizeApiKeyStatus,
   normalizeMusicSourceModeValue,
   normalizeSourceAccountStatus,
   normalizeSourceProviderOrder
@@ -293,9 +288,8 @@ const sidebarData = ref({
   collectedPlaylists: []
 });
 
-const tunehubKeyInput = ref('');
-const tunehubStatus = ref({ keyBound: false, keyMask: '', updatedAt: '' });
-const tunehubBusy = ref(false);
+const metingStatus = ref({ available: false, providers: ['netease', 'kuwo', 'qq'] });
+const metingStatusBusy = ref(false);
 
 const spotifyBound = ref(false);
 const spotifyBusy = ref(false);
@@ -310,7 +304,7 @@ const musicSourceImportBusyMap = ref({});
 const musicSourceBindBusyMap = ref({});
 const musicSourceBindSessions = ref({});
 const musicSourceHelperAvailable = ref(false);
-const musicSourceMode = ref('tunehub_first');
+const musicSourceMode = ref('meting_first');
 const musicAccountProviderOrder = ref(['netease', 'qqmusic', 'kugou']);
 
 const collectingPlaylist = ref(false);
@@ -1470,53 +1464,20 @@ async function loadLikedTrackIds() {
   }
 }
 
-async function loadTunehubStatus() {
-  if (!auth.isAuthenticated.value) {
-    tunehubStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
-    return;
-  }
+async function loadMetingStatus() {
+  metingStatusBusy.value = true;
   try {
-    const payload = await musicApi.getMusicApiKeyStatus('tunehub', auth.authorizedFetch);
-    tunehubStatus.value = normalizeApiKeyStatus(payload);
+    const payload = await musicApi.getMetingStatus(
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
+    metingStatus.value = {
+      available: Boolean(payload?.available),
+      providers: Array.isArray(payload?.providers) ? payload.providers : ['netease', 'kuwo', 'qq']
+    };
   } catch {
-    tunehubStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
-  }
-}
-
-async function handleSaveTunehubKey() {
-  if (!auth.isAuthenticated.value) {
-    goLogin();
-    return;
-  }
-  if (!String(tunehubKeyInput.value || '').trim()) {
-    window.alert('请输入 TuneHub API Key');
-    return;
-  }
-  tunehubBusy.value = true;
-  try {
-    const payload = await musicApi.upsertMusicApiKey('tunehub', tunehubKeyInput.value, auth.authorizedFetch);
-    tunehubStatus.value = normalizeApiKeyStatus(payload);
-    tunehubKeyInput.value = '';
-  } catch (error) {
-    window.alert(parseErrorMessage(error, 'TuneHub Key 保存失败'));
+    metingStatus.value = { available: false, providers: ['netease', 'kuwo', 'qq'] };
   } finally {
-    tunehubBusy.value = false;
-  }
-}
-
-async function handleDeleteTunehubKey() {
-  if (!auth.isAuthenticated.value) {
-    goLogin();
-    return;
-  }
-  tunehubBusy.value = true;
-  try {
-    await musicApi.deleteMusicApiKey('tunehub', auth.authorizedFetch);
-    tunehubStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
-  } catch (error) {
-    window.alert(parseErrorMessage(error, 'TuneHub Key 删除失败'));
-  } finally {
-    tunehubBusy.value = false;
+    metingStatusBusy.value = false;
   }
 }
 
@@ -1538,7 +1499,7 @@ async function loadSpotifyBindingStatus() {
 
 async function loadMusicSourcePreference() {
   if (!auth.isAuthenticated.value) {
-    musicSourceMode.value = 'tunehub_first';
+    musicSourceMode.value = 'meting_first';
     musicAccountProviderOrder.value = SOURCE_ACCOUNT_PROVIDERS.slice();
     return;
   }
@@ -1550,7 +1511,7 @@ async function loadMusicSourcePreference() {
     musicSourceMode.value = normalizeMusicSourceModeValue(modeRaw);
     musicAccountProviderOrder.value = normalizeSourceProviderOrder(orderRaw);
   } catch {
-    musicSourceMode.value = 'tunehub_first';
+    musicSourceMode.value = 'meting_first';
     musicAccountProviderOrder.value = SOURCE_ACCOUNT_PROVIDERS.slice();
   }
 }
@@ -1613,7 +1574,7 @@ async function loadMusicSourceAccountsStatus() {
 async function handleDetectMusicSourceHelper() {
   musicSourceHelperAvailable.value = await detectMusicSourceHelper();
   if (!musicSourceHelperAvailable.value) {
-    window.alert('未检测到音乐助手，请先安装后再执行一键绑定。');
+    window.alert('未检测到自动读取扩展。你仍可使用手动粘贴 Cookie 方式完成绑定。');
   }
 }
 
@@ -1628,10 +1589,6 @@ async function handleBindMusicSourceAccount(provider) {
   }
   const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
-  if (!musicSourceHelperAvailable.value) {
-    handleOpenMusicSourceHelperGuide();
-    return;
-  }
 
   musicSourceBindBusyMap.value = {
     ...musicSourceBindBusyMap.value,
@@ -1649,6 +1606,11 @@ async function handleBindMusicSourceAccount(provider) {
       window.open(String(session?.loginUrl || ''), '_blank', 'noopener,noreferrer');
     } catch {
       // noop
+    }
+
+    if (!musicSourceHelperAvailable.value) {
+      window.alert('已打开登录页。登录完成后请复制该平台 Cookie 到右侧输入框并点击“保存 Cookie”。');
+      return;
     }
 
     const expiresAtMs = Date.parse(String(session?.expiresAt || ''));
@@ -1710,7 +1672,7 @@ async function handleBindMusicSourceAccount(provider) {
       window.alert(lastErrorMessage || '未检测到有效登录态，请确认目标平台已登录后重试。');
     }
   } catch (error) {
-    window.alert(parseErrorMessage(error, '发起一键绑定失败'));
+    window.alert(parseErrorMessage(error, '打开绑定登录页失败'));
   } finally {
     musicSourceBindBusyMap.value = {
       ...musicSourceBindBusyMap.value,
@@ -2461,7 +2423,7 @@ watch(
       loadHomeData(),
       loadMusicProviderVisibility(),
       loadSidebarData(),
-      loadTunehubStatus(),
+      loadMetingStatus(),
       loadSpotifyBindingStatus(),
       loadMusicSourcePreference(),
       loadMusicSourceAccountsStatus()
@@ -2488,7 +2450,7 @@ onMounted(async () => {
       loadHomeData(),
       loadMusicProviderVisibility(),
       loadSidebarData(),
-      loadTunehubStatus(),
+      loadMetingStatus(),
       loadSpotifyBindingStatus(),
       loadMusicSourcePreference(),
       loadMusicSourceAccountsStatus(),
@@ -2514,7 +2476,7 @@ async function reloadAfterFatalError() {
     loadHomeData(),
     loadMusicProviderVisibility(),
     loadSidebarData(),
-    loadTunehubStatus(),
+    loadMetingStatus(),
     loadSpotifyBindingStatus(),
     loadMusicSourcePreference(),
     loadMusicSourceAccountsStatus(),
@@ -2534,38 +2496,51 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.music-library-page {
+  --theme-text-primary: rgba(255, 247, 241, 0.98);
+  --theme-text-secondary: rgba(241, 226, 215, 0.94);
+  --theme-text-tertiary: rgba(224, 206, 194, 0.9);
+  --theme-icon-primary: rgba(245, 249, 255, 0.95);
+  --theme-panel-surface: linear-gradient(155deg, rgba(34, 46, 68, 0.48), rgba(12, 18, 32, 0.88));
+  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(53, 68, 96, 0.4), rgba(17, 24, 42, 0.84));
+  --theme-surface-soft: rgba(24, 34, 52, 0.56);
+  --theme-border: rgba(255, 226, 210, 0.3);
+}
+
 .music-center-mode-switch {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 12;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  background: linear-gradient(140deg, rgba(18, 22, 33, 0.84), rgba(14, 17, 27, 0.78));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 0 4px;
 }
 
 .mode-tab {
-  min-height: 32px;
-  min-width: 72px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(221, 231, 246, 0.9);
-  font-size: 13px;
-  padding: 0 12px;
-  transition: all 0.2s ease;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--theme-text-tertiary, rgba(255, 255, 255, 0.2)) !important;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  outline: none;
+}
+
+.mode-tab:hover {
+  color: var(--theme-text-secondary, rgba(255, 255, 255, 0.5)) !important;
 }
 
 .mode-tab.active {
-  border-color: rgba(var(--accent-rgb), 0.58);
-  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.9), rgba(var(--accent-soft-rgb), 0.86));
-  color: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 16px rgba(var(--accent-rgb), 0.24);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--theme-text-primary, rgba(255, 255, 255, 0.95)) !important;
+  cursor: default;
+  transform: translateY(1px);
 }
 
 .music-fatal-error {

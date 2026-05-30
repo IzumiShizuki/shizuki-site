@@ -9,7 +9,7 @@
       muted
       loop
       playsinline
-      preload="auto"
+      preload="metadata"
       @error="$emit('video-error')"
     ></video>
     <WallpaperL2dCanvas

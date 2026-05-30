@@ -120,7 +120,11 @@ function createMusicLibraryUiState() {
       expandedProvider.value = '';
       return;
     }
-    if (normalized === 'tunehub' || normalized === 'spotify') {
+    if (normalized === 'tunehub') {
+      expandedProvider.value = 'meting';
+      return;
+    }
+    if (normalized === 'meting' || normalized === 'spotify') {
       expandedProvider.value = normalized;
     }
   }

@@ -431,30 +431,20 @@ watch(
 .left-main-btn.active .icon-minimal {
   color: rgb(var(--accent-strong-rgb));
   transform: scale(1.06);
-  text-shadow: var(--theme-contrast-icon-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.6));
 }
 
 .left-main-btn.active .item-label {
-  color: rgb(var(--accent-strong-rgb));
-  font-weight: 600;
-  text-shadow: var(--theme-contrast-text-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.54));
+  display: none;
 }
 
 .item-label {
-  font-size: 11px;
-  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9));
-  font-weight: 560;
-  letter-spacing: 0.28px;
-  line-height: 1.15;
-  white-space: nowrap;
-  text-shadow: var(--theme-contrast-text-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.54));
-  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.18px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
+  display: none;
 }
 
 .left-pill-group {
-  --left-main-gap: 18px;
-  --left-main-item-width: 96px;
-  --left-main-padding-x: 20px;
+  --left-main-gap: 12px;
+  --left-main-item-width: 64px;
+  --left-main-padding-x: 16px;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.4)) 92%, transparent);
   border-radius: 40px;
   min-width: calc(
@@ -462,12 +452,12 @@ watch(
       (var(--left-main-gap) * (var(--left-main-count, 5) - 1)) +
       (var(--left-main-padding-x) * 2)
   );
-  padding: 8px var(--left-main-padding-x) 4px;
+  padding: 0 var(--left-main-padding-x);
   display: flex;
   gap: var(--left-main-gap);
   justify-content: flex-start;
-  align-items: flex-start;
-  height: 70px;
+  align-items: center;
+  height: 60px;
   position: relative;
 }
 
@@ -500,7 +490,7 @@ watch(
 
 .icon-minimal {
   font-size: 20px;
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+  color: #ffffff;
   height: 32px;
   width: 32px;
   display: flex;
@@ -508,8 +498,6 @@ watch(
   justify-content: center;
   transition: transform 0.2s, color 0.2s, background-color 0.2s;
   border-radius: 50%;
-  text-shadow: var(--theme-contrast-icon-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.6));
-  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.24px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
 }
 
 .icon-minimal:hover {
@@ -527,10 +515,8 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+  color: #ffffff;
   transition: all 0.3s ease;
-  text-shadow: var(--theme-contrast-icon-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.6));
-  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.24px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
 }
 
 .circle-icon-box:hover {
@@ -589,20 +575,20 @@ watch(
 }
 
 .pill-btn-box {
-  height: 40px;
-  padding: 0 20px;
-  border-radius: 30px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  justify-content: center;
+  font-size: 18px;
+  color: #ffffff;
   transition: all 0.3s;
-  letter-spacing: 0.01em;
-  text-shadow: var(--theme-contrast-text-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.54));
-  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.18px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
+}
+
+.pill-btn-box > span:not(.ai-chat-dot) {
+  display: none;
 }
 
 .pill-btn-box i {
@@ -636,14 +622,6 @@ watch(
   box-shadow: none;
 }
 
-.ai-chat-item.disabled .item-label {
-  color: var(--theme-menu-text-disabled, rgba(210, 220, 238, 0.72));
-}
-
-.ai-chat-item.disabled .ai-chat-dot {
-  opacity: 0.72;
-}
-
 .ai-chat-dot {
   position: absolute;
   top: 5px;
@@ -669,11 +647,9 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+  color: #ffffff;
   border-radius: 50%;
   transition: transform 0.2s, color 0.2s;
-  text-shadow: var(--theme-contrast-icon-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.6));
-  -webkit-text-stroke: var(--theme-contrast-outline-width-strong, 0.24px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
 }
 
 .author-info-item,

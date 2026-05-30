@@ -85,13 +85,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive } from 'vue';
-import PomodoroWindow from './pomodoro/PomodoroWindow.vue';
-import BalanceLedgerWindow from './balance/BalanceLedgerWindow.vue';
-import TimePrismTodoSuiteWindow from './timeprism/TimePrismTodoSuiteWindow.vue';
-import UrlLinksWindow from './url/UrlLinksWindow.vue';
-import BoardCanvasWindow from './board/BoardCanvasWindow.vue';
-import BlogSlidevWindow from './blog/BlogSlidevWindow.vue';
+import { computed, defineAsyncComponent, h, onBeforeUnmount, onMounted, reactive } from 'vue';
 import {
   closeLightAppWindow,
   focusLightAppWindow,
@@ -110,6 +104,56 @@ const props = defineProps({
     default: false
   }
 });
+
+const AsyncWindowLoading = {
+  name: 'AsyncWindowLoading',
+  render() {
+    return h('div', { class: 'window-component-state window-component-state-loading' }, [
+      h('i', { class: 'fas fa-spinner fa-spin', 'aria-hidden': 'true' }),
+      h('span', null, '模块加载中...')
+    ]);
+  }
+};
+
+const AsyncWindowError = {
+  name: 'AsyncWindowError',
+  props: {
+    error: {
+      type: Object,
+      default: null
+    }
+  },
+  render() {
+    return h('div', { class: 'window-component-state window-component-state-error' }, [
+      h('i', { class: 'fas fa-triangle-exclamation', 'aria-hidden': 'true' }),
+      h('span', null, this.error?.message || '模块加载失败，请关闭后重试。')
+    ]);
+  }
+};
+
+function createAsyncWindowComponent(loader) {
+  return defineAsyncComponent({
+    loader,
+    delay: 120,
+    timeout: 30000,
+    loadingComponent: AsyncWindowLoading,
+    errorComponent: AsyncWindowError,
+    onError(error, retry, fail, attempts) {
+      if (attempts <= 2) {
+        retry();
+        return;
+      }
+      fail(error);
+    }
+  });
+}
+
+const TimePrismTodoSuiteWindow = createAsyncWindowComponent(() => import('./timeprism/TimePrismTodoSuiteWindow.vue'));
+const PomodoroWindow = createAsyncWindowComponent(() => import('./pomodoro/PomodoroWindow.vue'));
+const BalanceLedgerWindow = createAsyncWindowComponent(() => import('./balance/BalanceLedgerWindow.vue'));
+const UrlLinksWindow = createAsyncWindowComponent(() => import('./url/UrlLinksWindow.vue'));
+const BoardCanvasWindow = createAsyncWindowComponent(() => import('./board/BoardCanvasWindow.vue'));
+const BlogSlidevWindow = createAsyncWindowComponent(() => import('./blog/BlogSlidevWindow.vue'));
 
 const componentMap = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
@@ -604,6 +648,30 @@ onBeforeUnmount(() => {
 
 .window-body::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+.window-component-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 72px;
+  margin: 4px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.24);
+  background: rgba(12, 18, 30, 0.42);
+  color: rgba(229, 236, 249, 0.9);
+  font-size: 13px;
+}
+
+.window-component-state-loading i {
+  color: rgba(var(--accent-rgb), 0.9);
+}
+
+.window-component-state-error {
+  border-color: rgba(255, 126, 148, 0.38);
+  background: rgba(72, 16, 24, 0.36);
+  color: rgba(255, 212, 220, 0.94);
 }
 
 .window-resize-handle {
