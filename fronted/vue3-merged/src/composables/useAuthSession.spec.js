@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __resetAuthSessionForTest, useAuthSession } from './useAuthSession';
+import { __resetAuthSessionForTest, __setOAuthRedirectForTest, useAuthSession } from './useAuthSession';
 
 const AUTH_STORAGE_KEY = 'shizuki.auth.v1';
 const USER_STORAGE_KEY = 'shizuki.user.v1';
@@ -22,6 +22,7 @@ function delayedJsonResponse(delayMs, status, payload) {
 
 describe('useAuthSession', () => {
   const originalFetch = globalThis.fetch;
+  let oauthRedirectMock;
 
   beforeEach(() => {
     __resetAuthSessionForTest();
@@ -29,6 +30,8 @@ describe('useAuthSession', () => {
     window.sessionStorage.clear();
     window.location.hash = '#/';
     vi.restoreAllMocks();
+    oauthRedirectMock = vi.fn();
+    __setOAuthRedirectForTest(oauthRedirectMock);
   });
 
   afterEach(() => {
@@ -98,15 +101,12 @@ describe('useAuthSession', () => {
     globalThis.fetch = fetchMock;
 
     const auth = useAuthSession();
-    try {
-      await auth.startOAuthLogin('github', '/profile');
-    } catch {
-      // jsdom may throw on window.location.assign navigation.
-    }
+    await auth.startOAuthLogin('github', '/profile');
 
     const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body || '{}');
     expect(requestBody.redirect_uri).toBe(`${window.location.origin}${window.location.pathname}`);
     expect(requestBody.redirect_uri.includes('#')).toBe(false);
+    expect(oauthRedirectMock).toHaveBeenCalledWith('https://github.com/login/oauth/authorize?client_id=demo');
 
     const pendingAll = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || '{}');
     expect(pendingAll.states?.['state-001']?.oauthLoginId).toBe('oauth-login-001');
@@ -415,11 +415,7 @@ describe('useAuthSession', () => {
     globalThis.fetch = fetchMock;
 
     const auth = useAuthSession();
-    try {
-      await auth.startOAuthLogin('github', '/profile');
-    } catch {
-      // jsdom may throw on window.location.assign navigation.
-    }
+    await auth.startOAuthLogin('github', '/profile');
     const callbackResult = await auth.handleOAuthCallback({
       code: 'oauth-code-flow',
       state: 'state-flow'
@@ -438,6 +434,7 @@ describe('useAuthSession', () => {
     const authorizeBody = JSON.parse(fetchMock.mock.calls[0][1].body || '{}');
     expect(authorizeBody.provider).toBe('github');
     expect(authorizeBody.scene).toBe('LOGIN');
+    expect(oauthRedirectMock).toHaveBeenCalledWith('https://github.com/login/oauth/authorize?client_id=demo&state=state-flow');
 
     const tokenBody = JSON.parse(fetchMock.mock.calls[1][1].body || '{}');
     expect(tokenBody.grant_type).toBe('OAUTH_CODE');

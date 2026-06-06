@@ -12,6 +12,13 @@ const PROTECTED_ROUTE_PREFIXES = ['/profile', '/admin', '/blog/editor'];
 
 let sessionSingleton;
 
+function defaultOAuthRedirect(url) {
+  if (typeof window === 'undefined') return;
+  window.location.assign(url);
+}
+
+let oauthRedirect = defaultOAuthRedirect;
+
 function normalizeRoutePath(path) {
   if (!path || typeof path !== 'string') return '/profile';
   if (!path.startsWith('/')) return '/profile';
@@ -522,7 +529,7 @@ function createAuthSession() {
       scene: normalizedScene
     });
 
-    window.location.assign(oauthPayload.authorizeUrl);
+    oauthRedirect(oauthPayload.authorizeUrl);
   }
 
   async function startOAuthLogin(provider, redirectPath) {
@@ -868,4 +875,9 @@ export function useAuthSession() {
 
 export function __resetAuthSessionForTest() {
   sessionSingleton = null;
+  oauthRedirect = defaultOAuthRedirect;
+}
+
+export function __setOAuthRedirectForTest(redirectFn) {
+  oauthRedirect = typeof redirectFn === 'function' ? redirectFn : defaultOAuthRedirect;
 }

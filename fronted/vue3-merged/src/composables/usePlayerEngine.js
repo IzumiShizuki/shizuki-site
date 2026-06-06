@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 import { parseLrc } from '../utils/lrc';
 import { formatMediaTime } from '../utils/mediaTime';
@@ -1088,10 +1088,12 @@ export function usePlayerEngine(options = {}) {
     { immediate: true }
   );
 
-  onBeforeUnmount(() => {
-    audioElement.pause();
-    audioElement.src = '';
-  });
+  if (getCurrentInstance()) {
+    onBeforeUnmount(() => {
+      audioElement.pause();
+      audioElement.src = '';
+    });
+  }
 
   return {
     tracks,
