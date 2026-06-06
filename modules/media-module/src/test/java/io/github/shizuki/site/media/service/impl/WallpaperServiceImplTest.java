@@ -8,6 +8,7 @@ import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
 import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
+import io.github.shizuki.site.media.response.WallpaperProfileResponse;
 import io.github.shizuki.site.media.request.WallpaperSettingsUpdateRequest;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaWallpaperImportJobEntity;
@@ -116,6 +117,8 @@ class WallpaperServiceImplTest {
         }).when(wallpaperProfileMapper).insert(ArgumentMatchers.any(MediaWallpaperProfileEntity.class));
         Mockito.when(wallpaperProfileMapper.selectById(ArgumentMatchers.anyLong()))
             .thenAnswer(invocation -> profileStore.get(invocation.getArgument(0)));
+        Mockito.when(wallpaperProfileMapper.selectList(ArgumentMatchers.any()))
+            .thenAnswer(invocation -> new java.util.ArrayList<>(profileStore.values()));
         Mockito.doAnswer(invocation -> {
             MediaWallpaperProfileEntity entity = invocation.getArgument(0);
             if (entity != null && entity.getId() != null) {
@@ -250,6 +253,27 @@ class WallpaperServiceImplTest {
 
         Assertions.assertEquals(AssetVisibilityEnum.PUBLIC.getCode(), profile.getVisibilityCode());
         Assertions.assertEquals(AssetAuditStatusEnum.APPROVED.name(), profile.getAuditStatus());
+    }
+
+    @Test
+    void shouldReturnPermanentPublicUrlForApprovedPublicWallpaper() {
+        LoginUserContext.set(new LoginUser(23L, Set.of("ADMIN"), Set.of()));
+        MockMultipartFile file = new MockMultipartFile("file", "city.png", "image/png", new byte[] {4, 5, 6});
+        WallpaperImportJobResponse response = wallpaperService.importPackage(file, "PUBLIC", "长期公开图");
+
+        LoginUserContext.clear();
+
+        java.util.List<WallpaperProfileResponse> publicWallpapers = wallpaperService.listPublicWallpapers();
+
+        WallpaperProfileResponse wallpaper = publicWallpapers.stream()
+            .filter(item -> response.wallpaperId().equals(item.wallpaperId()))
+            .findFirst()
+            .orElseThrow();
+        Assertions.assertTrue(wallpaper.visualUrl().startsWith("https://cdn.example.com/assets/"));
+        Assertions.assertFalse(wallpaper.visualUrl().startsWith("https://signed.example.com/"));
+        Assertions.assertFalse(wallpaper.mine());
+        Mockito.verify(objectStorageClient, Mockito.never())
+            .generateGetUrl(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.anyLong());
     }
 
     @Test
