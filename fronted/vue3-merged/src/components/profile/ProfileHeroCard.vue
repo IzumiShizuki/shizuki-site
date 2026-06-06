@@ -132,6 +132,7 @@ defineEmits(['avatar-click']);
 }
 
 .hero-title {
+  margin: 0;
   font-size: clamp(20px, 2.6vw, 29px);
   line-height: 1.2;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));

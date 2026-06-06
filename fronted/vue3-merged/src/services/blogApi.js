@@ -408,8 +408,44 @@ export async function getPostPresentationPptDownloadUrl(postId, authorizedFetch)
   const response =
     typeof authorizedFetch === 'function'
       ? await authorizedFetch(path, { method: 'GET' })
-      : await httpRequest(path, { method: 'GET' });
+    : await httpRequest(path, { method: 'GET' });
   return unwrapApiResponse(response);
+}
+
+function normalizeVideoProcessPayload(payload = {}) {
+  return {
+    sourceUrl: String(payload.sourceUrl || payload.source_url || payload.url || '').trim(),
+    filePath: String(payload.filePath || payload.file_path || '').trim(),
+    preferredLanguages: Array.isArray(payload.preferredLanguages || payload.preferred_languages)
+      ? payload.preferredLanguages || payload.preferred_languages
+      : [],
+    maxKeyframes: Number.isFinite(Number(payload.maxKeyframes ?? payload.max_keyframes))
+      ? Math.trunc(Number(payload.maxKeyframes ?? payload.max_keyframes))
+      : undefined,
+    includeVision: Boolean(payload.includeVision ?? payload.include_vision),
+    outputFormat: String(payload.outputFormat || payload.output_format || '').trim()
+  };
+}
+
+async function requestPostVideo(path, payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(path, {
+    method: 'POST',
+    body: normalizeVideoProcessPayload(payload)
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function inspectPostVideo(payload, authorizedFetch) {
+  return requestPostVideo('/api/v1/me/posts/video/inspect', payload, authorizedFetch);
+}
+
+export async function transcribePostVideo(payload, authorizedFetch) {
+  return requestPostVideo('/api/v1/me/posts/video/transcribe', payload, authorizedFetch);
+}
+
+export async function summarizePostVideo(payload, authorizedFetch) {
+  return requestPostVideo('/api/v1/me/posts/video/summarize', payload, authorizedFetch);
 }
 
 export async function listAdminCategoryPolicies(authorizedFetch) {

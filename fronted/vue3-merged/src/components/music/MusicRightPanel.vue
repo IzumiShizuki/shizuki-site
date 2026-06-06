@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <aside class="music-right-panel liquid-material" :class="{ mobile: isMobile, 'drawer-open': drawerOpen }">
     <header class="right-head">
       <div class="head-text">
@@ -193,124 +193,6 @@
             </div>
           </transition>
         </article>
-
-        <article class="glass-card strategy-card">
-          <header class="card-head">
-            <p class="card-label">Music Source Logic</p>
-          </header>
-          <div class="strategy-row">
-            <span class="sub-label">Priority Engine</span>
-            <div class="custom-select-wrap">
-              <select
-                class="premium-select"
-                :value="sourceMode"
-                @change="emit('update:source-mode', $event.target.value)"
-              >
-                <option value="account_first">Account First</option>
-                <option value="meting_first">Meting First</option>
-                <option value="account_only">Account Only</option>
-                <option value="meting_only">Meting Only</option>
-              </select>
-              <i class="fas fa-chevron-down select-arrow"></i>
-            </div>
-          </div>
-
-          <div class="provider-order-widget">
-            <span class="sub-label">Provider Hierarchy</span>
-            <div class="order-pills">
-              <button
-                v-for="(provider, index) in normalizedSourceProviderOrder"
-                :key="`${provider}-${index}`"
-                class="order-pill ripple-trigger"
-                :disabled="!isAuthenticated"
-                @click="emit('move-source-provider', { provider, direction: index === 0 ? 'down' : 'up' })"
-              >
-                {{ providerLabel(provider) }}
-                <i class="fas" :class="index === 0 ? 'fa-sort-down' : 'fa-sort-up'"></i>
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <article
-          v-for="item in sourceCards"
-          :key="item.provider"
-          class="glass-card source-item-card"
-          :class="{ expanded: expandedProviderKey === item.provider }"
-        >
-          <button class="tile-trigger ripple-trigger" @click="toggleProvider(item.provider)">
-            <div class="tile-main">
-              <div class="tile-brand">
-                <i class="fas brand-icon" :class="[item.icon, providerBrandClass(item.provider)]"></i>
-                <div class="brand-text">
-                  <h4>{{ item.title }}</h4>
-                  <p>{{ item.summary }}</p>
-                </div>
-              </div>
-              <div class="tile-badge small" :class="{ active: item.bound }">
-                 {{ item.bound ? 'READY' : 'WAITING' }}
-              </div>
-            </div>
-          </button>
-
-          <transition name="provider-expand">
-            <div v-if="expandedProviderKey === item.provider" class="tile-expanded-content narrow">
-              <div class="status-box">{{ item.statusText }}</div>
-              <div class="source-manual-input">
-                <p class="field-label">Cookie（手动模式）</p>
-                <div class="input-with-action">
-                  <input
-                    :value="item.cookieInput"
-                    type="text"
-                    placeholder="粘贴该平台 Cookie 后点击保存"
-                    :disabled="item.busy || !isAuthenticated"
-                    @input="emit('update:source-cookie', { provider: item.provider, value: $event.target.value })"
-                    @keydown.enter.prevent="emit('save-source-cookie', item.provider)"
-                  />
-                </div>
-              </div>
-              <div class="action-grid-v2">
-                <button
-                  class="premium-btn accent ripple-trigger"
-                  :disabled="item.busy || !isAuthenticated"
-                  @click="emit('save-source-cookie', item.provider)"
-                >
-                  {{ item.busy ? '保存中...' : '保存 Cookie' }}
-                </button>
-                <button
-                  class="premium-btn subtle ripple-trigger"
-                  :disabled="item.bindBusy || !isAuthenticated"
-                  @click="emit('bind-source-account', item.provider)"
-                >
-                  {{ item.bindBusy ? '处理中...' : '打开登录页' }}
-                </button>
-                <button
-                  v-if="item.importSupported"
-                  class="premium-btn subtle ripple-trigger"
-                  :disabled="item.importBusy || !isAuthenticated"
-                  @click="emit('import-source-playlists', item.provider)"
-                >
-                  {{ item.importBusy ? '同步中...' : '同步歌单' }}
-                </button>
-                <button
-                  class="premium-btn danger ripple-trigger"
-                  :disabled="item.busy || !isAuthenticated"
-                  @click="emit('delete-source-cookie', item.provider)"
-                >
-                  清除绑定
-                </button>
-                <button
-                  v-if="!sourceHelperAvailable"
-                  class="premium-btn ghost ripple-trigger"
-                  type="button"
-                  @click="emit('open-source-helper-guide')"
-                >
-                  自动读取扩展（可选）
-                </button>
-              </div>
-            </div>
-          </transition>
-        </article>
       </section>
     </div>
   </aside>
@@ -451,51 +333,6 @@ const spotifySummary = computed(() => {
 });
 
 const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spotifyBound);
-const normalizedSourceProviderOrder = computed(() => {
-  const source = Array.isArray(props.sourceProviderOrder) ? props.sourceProviderOrder : [];
-  const next = source.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean);
-  if (!next.length) {
-    return ['netease', 'qqmusic', 'kugou'];
-  }
-  return next;
-});
-const SOURCE_CARD_ORDER = ['netease', 'qqmusic', 'kugou'];
-const sourceCards = computed(() => {
-  const statusMap = props.sourceAccounts && typeof props.sourceAccounts === 'object' ? props.sourceAccounts : {};
-  const cookieMap = props.sourceCookieInputs && typeof props.sourceCookieInputs === 'object' ? props.sourceCookieInputs : {};
-  const busyMap = props.sourceBusyMap && typeof props.sourceBusyMap === 'object' ? props.sourceBusyMap : {};
-  const importBusyMap = props.sourceImportBusyMap && typeof props.sourceImportBusyMap === 'object' ? props.sourceImportBusyMap : {};
-  const bindBusyMap = props.sourceBindBusyMap && typeof props.sourceBindBusyMap === 'object' ? props.sourceBindBusyMap : {};
-  return SOURCE_CARD_ORDER.map((provider) => {
-    const status = statusMap?.[provider] && typeof statusMap[provider] === 'object' ? statusMap[provider] : {};
-    const bound = Boolean(status?.bound ?? status?.keyBound ?? status?.key_bound);
-    const mask = String(status?.mask || status?.keyMask || status?.key_mask || '').trim();
-    const bindBusy = Boolean(bindBusyMap?.[provider]);
-    const helperState = props.sourceHelperAvailable
-      ? '可选自动读取已启用'
-      : '当前为手动 Cookie 绑定';
-    const statusText = !props.isAuthenticated
-      ? '登录后可配置'
-      : bindBusy
-        ? '绑定中：请在新打开页面完成登录'
-        : bound
-          ? (mask ? `已绑定：${mask}` : '已绑定')
-          : helperState;
-    return {
-      provider,
-      title: providerLabel(provider),
-      icon: providerIcon(provider),
-      bound,
-      summary: mask || statusText,
-      statusText,
-      cookieInput: String(cookieMap?.[provider] || ''),
-      busy: Boolean(busyMap?.[provider]),
-      bindBusy,
-      importBusy: Boolean(importBusyMap?.[provider]),
-      importSupported: provider === 'netease'
-    };
-  });
-});
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
 let lastLyricDebugMode = '';
 
@@ -604,23 +441,6 @@ function providerLabel(provider) {
   return normalized || '未知平台';
 }
 
-function providerIcon(provider) {
-  const normalized = String(provider || '').trim().toLowerCase();
-  if (normalized === 'netease') return 'fa-music';
-  if (normalized === 'qqmusic') return 'fa-qq';
-  if (normalized === 'kugou') return 'fa-dog';
-  if (normalized === 'spotify') return 'fa-spotify';
-  return 'fa-cloud';
-}
-
-function providerBrandClass(provider) {
-  const normalized = String(provider || '').trim().toLowerCase();
-  if (normalized === 'netease') return 'netease';
-  if (normalized === 'qqmusic') return 'qqmusic';
-  if (normalized === 'kugou') return 'kugou';
-  if (normalized === 'spotify') return 'spotify';
-  return '';
-}
 </script>
 
 <style scoped>
@@ -655,15 +475,15 @@ function providerBrandClass(provider) {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.15em;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-dim);
   text-transform: uppercase;
 }
 
 .main-title {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 18px;
   font-weight: 800;
-  color: var(--theme-text-primary);
+  color: var(--music-soft-text);
   letter-spacing: -0.01em;
 }
 
@@ -671,9 +491,9 @@ function providerBrandClass(provider) {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid var(--theme-border-strong);
-  background: var(--theme-surface-strong);
-  color: var(--theme-text-primary);
+  border: 1px solid var(--music-soft-border-strong);
+  background: var(--music-soft-fill);
+  color: var(--music-soft-text);
   transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -975,28 +795,30 @@ function providerBrandClass(provider) {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: var(--theme-text-primary);
+  color: var(--music-soft-text);
 }
 
 .brand-text p {
   margin: 2px 0 0;
   font-size: 11px;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-muted);
 }
 
 .tile-badge {
   font-size: 9px;
   font-weight: 800;
-  color: var(--theme-text-tertiary);
-  border: 1px solid var(--theme-border);
+  color: var(--music-soft-text);
+  border: 1px solid var(--music-soft-border);
+  background: var(--music-soft-fill);
   padding: 2px 6px;
   border-radius: 6px;
 }
 
 .tile-badge.active {
-  color: white;
-  background: rgb(var(--accent-strong-rgb));
-  border-color: rgb(var(--accent-strong-rgb));
+  color: var(--music-accent-text, var(--accent-mode-text));
+  background: var(--accent-mode-fill-strong);
+  border-color: var(--accent-mode-border-strong);
+  box-shadow: 0 6px 16px rgba(var(--accent-rgb), 0.18);
 }
 
 .tile-expanded-content {
@@ -1016,7 +838,7 @@ function providerBrandClass(provider) {
 .field-label {
   font-size: 10px;
   font-weight: 700;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-dim);
   text-transform: uppercase;
 }
 
@@ -1028,12 +850,12 @@ function providerBrandClass(provider) {
 
 .input-with-action input {
   flex: 1;
-  background: var(--theme-surface-strong);
-  border: 1px solid var(--theme-border);
+  background: var(--music-soft-fill);
+  border: 1px solid var(--music-soft-border);
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 12px;
-  color: var(--theme-text-primary);
+  color: var(--music-soft-text);
   outline: none;
   transition: border-color 0.2s ease;
 }
@@ -1044,10 +866,10 @@ function providerBrandClass(provider) {
 
 .action-btn {
   width: 36px;
-  background: var(--theme-surface-strong);
-  border: 1px solid var(--theme-border);
+  background: var(--music-soft-fill);
+  border: 1px solid var(--music-soft-border);
   border-radius: 10px;
-  color: var(--theme-text-primary);
+  color: var(--music-soft-text);
 }
 
 .action-footer {
@@ -1066,8 +888,9 @@ function providerBrandClass(provider) {
 }
 
 .premium-btn.accent {
-  background: rgb(var(--accent-strong-rgb));
-  color: white;
+  background: var(--accent-mode-fill-strong);
+  color: var(--music-accent-text, var(--accent-mode-text));
+  border-color: var(--accent-mode-border-strong);
 }
 
 .premium-btn.accent:hover {
@@ -1076,86 +899,21 @@ function providerBrandClass(provider) {
 }
 
 .premium-btn.subtle {
-  background: var(--theme-surface-strong);
-  border-color: var(--theme-border);
-  color: var(--theme-text-primary);
+  background: var(--music-soft-fill);
+  border-color: var(--music-soft-border);
+  color: var(--music-soft-text);
 }
 
 .premium-btn.ghost {
   background: transparent;
-  border-color: var(--theme-border);
-  color: var(--theme-text-secondary);
+  border-color: var(--music-soft-border);
+  color: var(--music-soft-text);
 }
 
 .premium-btn.danger {
   background: rgba(255, 68, 68, 0.1);
   color: #ff4444;
   border-color: rgba(255, 68, 68, 0.2);
-}
-
-/* Source Strategy Card */
-.strategy-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.strategy-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sub-label {
-  font-size: 11px;
-  color: var(--theme-text-secondary);
-  font-weight: 600;
-}
-
-.custom-select-wrap {
-  position: relative;
-  width: 140px;
-}
-
-.premium-select {
-  width: 100%;
-  appearance: none;
-  background: var(--theme-surface-strong);
-  border: 1px solid var(--theme-border);
-  border-radius: 8px;
-  padding: 6px 30px 6px 10px;
-  font-size: 12px;
-  color: var(--theme-text-primary);
-  outline: none;
-}
-
-.select-arrow {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 10px;
-  pointer-events: none;
-  color: var(--theme-text-tertiary);
-}
-
-.order-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.order-pill {
-  background: var(--theme-surface-strong);
-  border: 1px solid var(--theme-border);
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 11px;
-  color: var(--theme-text-primary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 /* Animations & Transitions */
@@ -1188,9 +946,9 @@ function providerBrandClass(provider) {
 .results-container {
   max-height: 180px;
   overflow-y: auto;
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--music-soft-border);
   border-radius: 10px;
-  background: rgba(0,0,0,0.02);
+  background: var(--music-soft-fill);
 }
 
 .result-row {
@@ -1210,7 +968,7 @@ function providerBrandClass(provider) {
 .res-title {
   font-size: 12px;
   font-weight: 700;
-  color: var(--theme-text-primary);
+  color: var(--music-soft-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1218,7 +976,7 @@ function providerBrandClass(provider) {
 
 .res-artist {
   font-size: 11px;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-dim);
 }
 
 .res-actions {
@@ -1230,33 +988,34 @@ function providerBrandClass(provider) {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: var(--theme-surface-strong);
-  border: 1px solid var(--theme-border);
+  background: var(--music-soft-fill);
+  border: 1px solid var(--music-soft-border);
   font-size: 10px;
   display: grid;
   place-items: center;
-  color: var(--theme-text-primary);
+  color: var(--music-soft-text);
 }
 
 .empty-notif {
   padding: 16px;
   text-align: center;
   font-size: 11px;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-dim);
 }
 
 .status-box {
-  background: var(--theme-surface-strong);
+  background: var(--music-soft-fill);
   padding: 8px;
   border-radius: 8px;
   font-size: 11px;
-  color: var(--theme-text-secondary);
+  color: var(--music-soft-text-muted);
+  border: 1px solid var(--music-soft-border);
 }
 
 .helper-line {
   margin: 0;
   font-size: 11px;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-dim);
 }
 
 .provider-tag-list {
@@ -1266,23 +1025,12 @@ function providerBrandClass(provider) {
 }
 
 .provider-tag {
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--music-soft-border);
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 10px;
-  color: var(--theme-text-secondary);
-  background: var(--theme-surface-strong);
-}
-
-.action-grid-v2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.source-manual-input {
-  display: grid;
-  gap: 6px;
+  color: var(--music-soft-text);
+  background: var(--music-soft-fill);
 }
 
 @media (max-width: 900px) {

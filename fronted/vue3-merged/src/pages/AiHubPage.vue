@@ -202,7 +202,61 @@
           </template>
 
           <template v-else>
+            <div v-if="isCompanionConversation" class="companion-workspace">
+              <section class="companion-stage liquid-material" :data-companion-status="companionStage.status">
+                <header class="companion-stage-head">
+                  <div>
+                    <span class="stage-kicker">Live2D Companion</span>
+                    <h2>自宅 companion 观看区</h2>
+                    <p>复用公开 L2D 资源契约，随右侧对话切换 idle / thinking / speaking 状态。</p>
+                  </div>
+                  <span class="companion-status" :class="`status-${companionStage.status}`">
+                    {{ companionStageLabel }}
+                  </span>
+                </header>
+
+                <div class="companion-l2d-frame">
+                  <WallpaperL2dCanvas
+                    v-if="companionStageAsset && !companionStage.renderFailed"
+                    :model-url="companionStageAsset.modelUrl"
+                    :model-entry="companionStageAsset.modelEntry"
+                    :fallback-src="companionStageAsset.fallbackSrc"
+                    @error="handleCompanionL2dError"
+                  />
+                  <div v-else class="companion-l2d-empty">
+                    <strong>{{ companionStage.loading ? 'L2D 资源读取中...' : '还没有可用 L2D companion' }}</strong>
+                    <p>
+                      {{
+                        companionStage.errorText ||
+                        '请先在公开首页角色池中准备一个 LIVE2D_PACKAGE，并确保它包含 downloadUrl 与 l2dEntryModelJson。'
+                      }}
+                    </p>
+                  </div>
+                  <div class="companion-stage-glow" aria-hidden="true"></div>
+                </div>
+
+                <div class="companion-stage-footer">
+                  <span>{{ companionStageAsset?.title || '等待 L2D 资源' }}</span>
+                  <small v-if="companionStage.lastAssistantMessage">{{ companionStage.lastAssistantMessage }}</small>
+                  <small v-else>当前状态：{{ companionStageLabel }}</small>
+                </div>
+              </section>
+
+              <AiDialog
+                :visible="true"
+                mode="embedded"
+                chat-mode="companion"
+                :allowed-modes="conversationAllowedModes"
+                :open-payload="conversationOpenPayload"
+                :show-header="false"
+                :show-close-button="false"
+                @mode-change="handleConversationModeChange"
+                @chat-state="handleConversationChatState"
+              />
+            </div>
+
             <AiDialog
+              v-else
               :visible="true"
               mode="embedded"
               :chat-mode="conversationChatMode"
@@ -211,6 +265,7 @@
               :show-header="false"
               :show-close-button="false"
               @mode-change="handleConversationModeChange"
+              @chat-state="handleConversationChatState"
             />
           </template>
         </section>
@@ -324,6 +379,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AiDialog from '../components/AiDialog.vue';
+import WallpaperL2dCanvas from '../components/WallpaperL2dCanvas.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminTownNpcSession,
@@ -333,7 +389,9 @@ import {
   listAiTownScenes,
   previewAdminAiTownAsset
 } from '../services/aiApi';
+import { listPublicHomeRoles } from '../services/wallpaperApi';
 import { buildAiCapabilityState } from '../utils/aiAuthorizationState';
+import { resolveCompanionStageStatus, selectCompanionL2dAsset } from '../utils/aiCompanionStage';
 
 const auth = useAuthSession();
 const activePrimaryMode = ref('town');
@@ -349,6 +407,7 @@ const townMap = ref({ scenes: [] });
 const selectedTownSceneCode = ref('');
 const selectedTownScene = ref(null);
 const townAssetEditor = reactive(createTownAssetEditorState());
+const companionStage = reactive(createCompanionStageState());
 
 const STANDARD_CONVERSATION_MODES = ['normal', 'tavern'];
 const ADMIN_CONVERSATION_MODES = ['town_npc', 'companion'];
@@ -434,6 +493,18 @@ function createTownAssetEditorState() {
   };
 }
 
+function createCompanionStageState() {
+  return {
+    loading: false,
+    loaded: false,
+    status: 'idle',
+    asset: null,
+    errorText: '',
+    renderFailed: false,
+    lastAssistantMessage: ''
+  };
+}
+
 function normalizeTownAssetPreview(raw = {}) {
   return {
     assetImportId: toNumber(raw.assetImportId ?? raw.asset_import_id),
@@ -510,6 +581,13 @@ const currentConversationLabel = computed(() => {
   return '当前对话 · 普通模式';
 });
 
+const isCompanionConversation = computed(() => activePrimaryMode.value === 'conversation' && conversationChatMode.value === 'companion');
+const companionStageAsset = computed(() => companionStage.asset);
+const companionStageLabel = computed(() => {
+  if (companionStage.status === 'thinking') return 'Thinking';
+  if (companionStage.status === 'speaking') return 'Speaking';
+  return 'Idle';
+});
 const canOpenCompanion = computed(() => isAdminUser.value && selectedTownSceneCode.value === 'home_gate');
 
 function activateTownWorkspace(nextSubView = 'map') {
@@ -551,6 +629,9 @@ function handleConversationModeChange(mode) {
   if (conversationChatMode.value === 'normal' || conversationChatMode.value === 'tavern') {
     conversationOpenPayload.value = null;
   }
+  if (conversationChatMode.value !== 'companion') {
+    resetCompanionStageStatus();
+  }
 }
 
 function resetAdminOnlyWorkspaceState() {
@@ -577,6 +658,50 @@ async function loadTownScene(sceneCode) {
     }
   } else if (!townAssetEditor.attachedSceneCode) {
     townAssetEditor.attachedSceneCode = normalizedSceneCode;
+  }
+}
+
+function resetCompanionStageStatus() {
+  companionStage.status = 'idle';
+  companionStage.lastAssistantMessage = '';
+}
+
+function handleConversationChatState(event) {
+  if (event?.mode !== 'companion') return;
+  companionStage.status = resolveCompanionStageStatus(event, companionStage.status);
+  if (event?.assistantMessage || event?.assistant_message) {
+    companionStage.lastAssistantMessage = normalizeOptionalText(event.assistantMessage || event.assistant_message).slice(0, 120);
+  }
+  if (event?.phase === 'send-error') {
+    companionStage.lastAssistantMessage = normalizeOptionalText(event.errorText).slice(0, 120);
+  }
+}
+
+function handleCompanionL2dError(message) {
+  companionStage.renderFailed = true;
+  companionStage.errorText = `L2D companion 渲染失败：${normalizeOptionalText(message) || 'runtime unavailable'}`;
+}
+
+async function loadCompanionStageAssets(force = false) {
+  if (companionStage.loading) return;
+  if (companionStage.loaded && !force) return;
+
+  companionStage.loading = true;
+  companionStage.errorText = '';
+  try {
+    const roles = await listPublicHomeRoles();
+    const preferredAssetId = toNumber(conversationOpenPayload.value?.bootstrap?.config?.avatarAssetId);
+    companionStage.asset = selectCompanionL2dAsset(roles, preferredAssetId);
+    companionStage.renderFailed = false;
+    companionStage.loaded = true;
+    if (!companionStage.asset) {
+      companionStage.errorText = '公开角色池里还没有可渲染的 L2D 资源。';
+    }
+  } catch (error) {
+    companionStage.asset = null;
+    companionStage.errorText = resolveTownError(error);
+  } finally {
+    companionStage.loading = false;
   }
 }
 
@@ -744,6 +869,17 @@ onMounted(async () => {
   await auth.ensureReady();
   await loadTownExplorer();
 });
+
+watch(
+  () => isCompanionConversation.value,
+  (active) => {
+    if (active) {
+      void loadCompanionStageAssets();
+      return;
+    }
+    resetCompanionStageStatus();
+  }
+);
 
 watch(
   () => [auth.isAuthenticated.value, isAdminUser.value],

@@ -142,7 +142,7 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
 
 .brand-text {
   font-size: 13px;
-  color: var(--theme-text-primary);
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
   font-weight: 700;
 }
 
@@ -151,9 +151,10 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  border: 1px solid var(--theme-border-strong);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
+  border: 1px solid var(--music-soft-border-strong, rgba(255, 255, 255, 0.26));
+  background: var(--music-soft-fill, linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)));
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
+  box-shadow: var(--music-soft-shadow, 0 10px 24px rgba(10, 12, 18, 0.14));
 }
 
 .nav-block,
@@ -177,45 +178,58 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-dim, rgba(214, 203, 192, 0.74));
   margin: 0 2px 2px;
 }
 
 .nav-item,
 .list-item {
   min-height: 36px;
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--music-soft-border, rgba(255, 255, 255, 0.16));
   border-radius: 12px;
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
+  background: var(--music-soft-fill, linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)));
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 10px;
   font-size: 13px;
   text-align: left;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.nav-item:hover,
+.list-item:hover {
+  background: var(--music-soft-fill-hover, linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08)));
+  border-color: var(--music-soft-border-strong, rgba(255, 255, 255, 0.26));
 }
 
 .nav-item.active,
 .list-item.selected {
-  border-color: rgba(var(--accent-rgb), 0.66);
-  background: linear-gradient(120deg, rgba(var(--accent-rgb), 0.28), rgba(var(--accent-soft-rgb), 0.22));
-  color: var(--accent-mode-text);
-  box-shadow: 0 6px 18px rgba(var(--accent-rgb), 0.22);
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
+  background: var(--music-active-fill, linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.42), rgba(var(--accent-rgb), 0.32)));
+  color: var(--music-accent-text, var(--accent-mode-text));
+  box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.22);
 }
 
 .nav-item i,
 .list-item i {
   width: 16px;
   text-align: center;
-  opacity: 0.9;
+  color: var(--music-soft-text-muted, rgba(233, 225, 216, 0.84));
+  opacity: 0.94;
+}
+
+.nav-item.active i,
+.list-item.selected i {
+  color: inherit;
 }
 
 .empty-tip {
   margin: 0;
   padding: 6px 2px 0;
   font-size: 12px;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-dim, rgba(214, 203, 192, 0.74));
 }
 
 @media (max-width: 900px) {

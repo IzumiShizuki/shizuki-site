@@ -2562,6 +2562,33 @@ select.field-input:focus-visible,
   grid-column: 1 / -1;
 }
 
+.manual-fallback {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  display: grid;
+  gap: 10px;
+}
+
+.manual-fallback > summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(198, 219, 239, 0.9);
+  font-size: 12px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.manual-fallback > summary::-webkit-details-marker {
+  display: none;
+}
+
 .music-auth-title {
   margin: 0;
   font-size: 14px;
@@ -2927,6 +2954,10 @@ select.field-input:focus-visible,
 :root[data-theme-mode='day'] .music-auth-title,
 :root[data-theme-mode='day'] .provider-name {
   color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .manual-fallback > summary {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
 }
 
 :root[data-theme-mode='day'] .quick-btn {

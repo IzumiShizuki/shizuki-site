@@ -18,6 +18,13 @@ export async function listPublicWallpapers() {
   return unwrapApiResponse(response);
 }
 
+export async function listPublicHomeRoles() {
+  const response = await httpRequest('/api/v1/assets/public/home-roles', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function listWallpaperLibrary(scope = 'my', authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/home-wallpapers/library', {

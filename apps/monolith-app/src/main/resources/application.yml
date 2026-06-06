@@ -219,6 +219,17 @@ shizuki:
       download-expire-seconds: ${BLOG_PRESENTATION_DOWNLOAD_EXPIRE_SECONDS:900}
       connect-timeout-ms: ${BLOG_PRESENTATION_CONNECT_TIMEOUT_MS:2000}
       read-timeout-ms: ${BLOG_PRESENTATION_READ_TIMEOUT_MS:660000}
+    video:
+      converter-base-url: ${BLOG_VIDEO_CONVERTER_BASE_URL:}
+      connect-timeout-ms: ${BLOG_VIDEO_CONNECT_TIMEOUT_MS:2000}
+      read-timeout-ms: ${BLOG_VIDEO_READ_TIMEOUT_MS:900000}
+      max-keyframes: ${BLOG_VIDEO_MAX_KEYFRAMES:12}
+      allow-local-files: ${BLOG_VIDEO_ALLOW_LOCAL_FILES:false}
+      allowed-domains:
+      - youtube.com
+      - youtu.be
+      - bilibili.com
+      - b23.tv
   content:
     author-profile:
       cache:

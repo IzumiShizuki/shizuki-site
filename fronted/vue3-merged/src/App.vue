@@ -217,6 +217,7 @@
         @submit-workshop-import="submitWorkshopImport"
         @open-workshop-discovery-window="openWorkshopDiscoveryWindow"
         @open-workshop-preview-window="openWorkshopPreviewWindow"
+        @check-wallpaper-import-job="checkWallpaperImportJob"
         @save-active-wallpaper-settings="saveActiveWallpaperSettings"
         @set-active-wallpaper-visibility="setActiveWallpaperVisibility"
         @delete-active-wallpaper="deleteActiveWallpaper"
@@ -337,9 +338,13 @@ const importState = reactive({
   packageVisibility: 'PRIVATE',
   packageTitle: '',
   packageFile: null,
+  workshopSearchQuery: '',
   workshopUrl: '',
   workshopVisibility: 'PRIVATE',
   workshopTitle: '',
+  lastImportJobId: 0,
+  lastImportJobStatus: '',
+  statusBusy: false,
   hint: '',
   busy: false
 });
@@ -1490,6 +1495,32 @@ function normalizeImportJobResponse(raw) {
   };
 }
 
+function formatImportJobHint(job, fallbackPrefix = '导入任务') {
+  if (!job || !job.jobId) return `${fallbackPrefix}状态不可用。`;
+  const status = String(job.status || '').toUpperCase();
+  if (status === 'SUCCEEDED') {
+    return `${fallbackPrefix} #${job.jobId} 已完成，正在刷新壁纸库。`;
+  }
+  if (status === 'FALLBACK_REQUIRED') {
+    const detail = [job.errorMessage, job.fallbackHint].filter(Boolean).join('；');
+    return `${fallbackPrefix} #${job.jobId} 需要改用本地包导入${detail ? `：${detail}` : '。'}`;
+  }
+  if (status === 'FAILED') {
+    return `${fallbackPrefix} #${job.jobId} 失败${job.errorMessage ? `：${job.errorMessage}` : '。'}`;
+  }
+  if (status === 'RUNNING') {
+    return `${fallbackPrefix} #${job.jobId} 正在下载和解析，请稍后查询状态。`;
+  }
+  return `${fallbackPrefix} #${job.jobId} 已创建，等待服务器处理。`;
+}
+
+function rememberImportJob(job, prefix) {
+  if (!job || !job.jobId) return;
+  importState.lastImportJobId = job.jobId;
+  importState.lastImportJobStatus = job.status || '';
+  importState.hint = formatImportJobHint(job, prefix);
+}
+
 async function submitPackageImport() {
   if (!auth.isAuthenticated.value) {
     importState.hint = '请先登录后再上传导入。';
@@ -1513,7 +1544,10 @@ async function submitPackageImport() {
     if (!payload || !payload.jobId) {
       throw new Error('导入任务创建失败');
     }
-    importState.hint = `导入任务已创建：#${payload.jobId}。已关闭自动状态查询，请稍后手动刷新资源库查看结果。`;
+    rememberImportJob(payload, '本地包导入任务');
+    if (payload.status === 'SUCCEEDED') {
+      await loadBackgroundLibrary();
+    }
   } catch (error) {
     importState.hint = String(error?.detail || error?.message || '包导入失败');
   } finally {
@@ -1544,11 +1578,35 @@ async function submitWorkshopImport() {
     if (!payload || !payload.jobId) {
       throw new Error('任务创建失败');
     }
-    importState.hint = `Workshop 导入任务已创建：#${payload.jobId}。已关闭自动状态查询，请稍后手动刷新资源库查看结果。`;
+    rememberImportJob(payload, 'Workshop 导入任务');
   } catch (error) {
     importState.hint = String(error?.detail || error?.message || 'Workshop 导入失败');
   } finally {
     importState.busy = false;
+  }
+}
+
+async function checkWallpaperImportJob() {
+  const jobId = Number(importState.lastImportJobId || 0);
+  if (!auth.isAuthenticated.value) {
+    importState.hint = '请先登录后再查询导入任务。';
+    return;
+  }
+  if (!Number.isFinite(jobId) || jobId <= 0) {
+    importState.hint = '暂无可查询的导入任务。';
+    return;
+  }
+  importState.statusBusy = true;
+  try {
+    const payload = normalizeImportJobResponse(await wallpaperApi.getWallpaperImportJob(jobId, auth.authorizedFetch));
+    rememberImportJob(payload, payload?.sourceType === 'WORKSHOP' ? 'Workshop 导入任务' : '本地包导入任务');
+    if (payload?.status === 'SUCCEEDED') {
+      await loadBackgroundLibrary();
+    }
+  } catch (error) {
+    importState.hint = String(error?.detail || error?.message || '任务状态查询失败');
+  } finally {
+    importState.statusBusy = false;
   }
 }
 
@@ -1576,9 +1634,18 @@ function openWorkshopPreviewWindow() {
   );
 }
 
+function buildWorkshopDiscoveryUrl() {
+  const url = new URL(WORKSHOP_DISCOVERY_URL);
+  const query = String(importState.workshopSearchQuery || '').trim();
+  if (query) {
+    url.searchParams.set('searchtext', query);
+  }
+  return url.toString();
+}
+
 function openWorkshopDiscoveryWindow() {
   window.open(
-    WORKSHOP_DISCOVERY_URL,
+    buildWorkshopDiscoveryUrl(),
     'shizuki-workshop-discovery',
     'popup=yes,width=1280,height=840,noopener,noreferrer'
   );

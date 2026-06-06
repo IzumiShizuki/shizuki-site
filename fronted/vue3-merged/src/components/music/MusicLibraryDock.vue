@@ -215,7 +215,7 @@ useDismissiblePopover({
   border-radius: 999px;
   border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.52));
   background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.28));
-  color: var(--accent-mode-text);
+  color: var(--music-accent-text, var(--accent-mode-text));
   font-size: 12px;
   letter-spacing: 0.03em;
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
@@ -375,7 +375,7 @@ useDismissiblePopover({
 
 .ctrl-btn.primary {
   background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.55), rgba(var(--accent-soft-rgb), 0.45));
-  color: var(--accent-mode-text);
+  color: var(--music-accent-text, var(--accent-mode-text));
   border-color: rgba(var(--accent-rgb), 0.55);
   box-shadow: 0 8px 22px rgba(var(--accent-rgb), 0.28);
 }

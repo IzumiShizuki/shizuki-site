@@ -1,0 +1,26 @@
+FROM m.daocloud.io/docker.io/library/python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VIDEO_CONVERTER_PORT=3220
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY tools/document-converter/requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --retries 20 --timeout 120 -r /app/requirements.txt
+
+COPY tools/document-converter/video_pipeline.py /app/video_pipeline.py
+
+EXPOSE 3220
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=5 --start-period=30s \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3220/health', timeout=3)" || exit 1
+
+CMD ["python", "/app/video_pipeline.py"]
