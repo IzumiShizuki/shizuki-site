@@ -71,7 +71,7 @@ describe('authorUiState', () => {
     expect(normalized.profileJson.site.faviconUrl).toBe('https://example.com/favicon.png');
   });
 
-  it('normalizes signed image urls to permanent public urls', () => {
+  it('keeps signed image urls on read to avoid breaking private storage access', () => {
     const payload = normalizeAuthorProfilePayload({
       profileJson: {
         hero: {
@@ -97,12 +97,24 @@ describe('authorUiState', () => {
       }
     });
 
-    expect(payload.profileJson.hero.avatarUrl).toBe('https://cdn.example.com/assets/hero/avatar.webp');
-    expect(payload.profileJson.hero.coverImageUrl).toBe('https://cdn.example.com/assets/hero/cover.webp');
-    expect(payload.profileJson.journey[0].imageUrl).toBe('https://cdn.example.com/assets/journey/scene.webp');
-    expect(payload.profileJson.about.introImageUrl).toBe('https://cdn.example.com/assets/about/intro.webp');
+    expect(payload.profileJson.hero.avatarUrl).toBe(
+      'https://cdn.example.com/assets/hero/avatar.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
+    );
+    expect(payload.profileJson.hero.coverImageUrl).toBe(
+      'https://cdn.example.com/assets/hero/cover.webp?x-oss-signature=test&x-oss-expires=900'
+    );
+    expect(payload.profileJson.journey[0].imageUrl).toBe(
+      'https://cdn.example.com/assets/journey/scene.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
+    );
+    expect(payload.profileJson.about.introImageUrl).toBe(
+      'https://cdn.example.com/assets/about/intro.webp?x-oss-signature=test&x-oss-expires=900'
+    );
     expect(payload.profileJson.about.missionImageUrl).toBe('https://cdn.example.com/assets/about/mission.webp?width=960');
-    expect(payload.profileJson.about.linksImageUrl).toBe('https://cdn.example.com/assets/about/links.webp');
-    expect(payload.profileJson.site.faviconUrl).toBe('https://cdn.example.com/assets/site/favicon.webp');
+    expect(payload.profileJson.about.linksImageUrl).toBe(
+      'https://cdn.example.com/assets/about/links.webp?x-amz-signature=test&x-amz-expires=900'
+    );
+    expect(payload.profileJson.site.faviconUrl).toBe(
+      'https://cdn.example.com/assets/site/favicon.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
+    );
   });
 });

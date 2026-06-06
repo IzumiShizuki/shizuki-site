@@ -185,15 +185,15 @@ useDismissiblePopover({
 
 .history-title {
   font-size: 12px;
-  color: var(--theme-text-tertiary);
+  color: var(--music-soft-text-muted, rgba(233, 225, 216, 0.84));
 }
 
 .history-clear-btn {
   min-height: 24px;
   border-radius: 8px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
+  border: 1px solid var(--music-soft-border, rgba(255, 255, 255, 0.16));
+  background: var(--music-soft-fill, linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)));
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
   padding: 0 8px;
   font-size: 12px;
 }
@@ -207,9 +207,9 @@ useDismissiblePopover({
 .history-chip {
   min-height: 28px;
   border-radius: 999px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
+  border: 1px solid var(--music-soft-border, rgba(255, 255, 255, 0.16));
+  background: var(--music-soft-fill, linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)));
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
   padding: 0 10px;
   font-size: 12px;
 }
@@ -217,15 +217,15 @@ useDismissiblePopover({
 .search-input-wrap {
   min-height: var(--music-toolbar-height, 36px);
   height: var(--music-toolbar-height, 36px);
-  border-radius: 12px;
-  border: 1px solid var(--theme-border-strong);
-  background: var(--theme-surface-soft);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  color: var(--theme-text-secondary);
+  color: var(--music-soft-text-muted, rgba(233, 225, 216, 0.84));
 }
 
 .search-input-wrap i {
@@ -237,8 +237,13 @@ useDismissiblePopover({
   border: 0;
   outline: none;
   background: transparent;
-  color: var(--theme-text-primary);
+  box-shadow: none;
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
   font-size: 13px;
+}
+
+.search-input-wrap input::placeholder {
+  color: var(--music-soft-text-dim, rgba(214, 203, 192, 0.74));
 }
 
 .search-btn,
@@ -250,18 +255,43 @@ useDismissiblePopover({
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: all 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 4px 12px rgba(6, 10, 18, 0.1);
 }
 
 .search-btn {
-  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  color: var(--accent-mode-text, rgba(246, 250, 255, 0.98));
+  border: 1px solid var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
+  background: var(--accent-mode-fill-strong, linear-gradient(145deg, rgba(var(--accent-strong-rgb), 0.94), rgba(var(--accent-rgb), 0.84)));
+  color: var(--music-accent-text, var(--accent-mode-text));
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
+}
+
+.search-btn:hover {
+  transform: translateY(-2px);
+  background: var(--accent-mode-fill-hover, var(--accent-mode-fill-strong));
+  box-shadow:
+    var(--accent-mode-shadow, 0 10px 24px rgba(var(--accent-rgb), 0.32)),
+    0 0 22px rgba(var(--accent-rgb), 0.18);
+}
+
+.search-btn:active {
+  transform: translateY(0) scale(0.96);
 }
 
 .refresh-btn {
-  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: var(--accent-mode-text);
+  border: 1px solid var(--music-soft-border-strong, rgba(255, 255, 255, 0.26));
+  background: var(--music-soft-fill, linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)));
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
+}
+
+.refresh-btn:hover {
+  transform: scale(1.05);
+  background: var(--music-soft-fill-hover, linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08)));
+  border-color: var(--music-soft-border-strong, rgba(255, 255, 255, 0.26));
+}
+
+.refresh-btn:active {
+  transform: scale(0.96);
 }
 
 .filters-row {
@@ -285,17 +315,27 @@ useDismissiblePopover({
 .chip-btn {
   min-height: 30px;
   border-radius: 999px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
+  border: 1px solid var(--music-soft-border, rgba(255, 255, 255, 0.16));
+  background: var(--music-soft-fill, linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)));
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
   padding: 0 12px;
   font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.chip-btn:hover {
+  background: var(--music-soft-fill-hover, linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08)));
+  border-color: var(--music-soft-border-strong, rgba(255, 255, 255, 0.26));
+}
+
+.chip-btn:active {
+  transform: scale(0.95);
 }
 
 .chip-btn.active {
-  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: var(--accent-mode-text);
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
+  background: var(--music-active-fill, linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.42), rgba(var(--accent-rgb), 0.32)));
+  color: var(--music-accent-text, var(--accent-mode-text));
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
 

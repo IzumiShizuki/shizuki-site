@@ -20,6 +20,30 @@ services:
       retries: 5
       start_period: 20s
 
+  document-converter:
+    build:
+      context: ..
+      dockerfile: Dockerfile.document-converter
+    image: shizuki-site/document-converter:latest
+    container_name: shizuki-site-document-converter
+    restart: unless-stopped
+    environment:
+      VIDEO_CONVERTER_PORT: ${VIDEO_CONVERTER_PORT:-3220}
+      VIDEO_MAX_DURATION_SECONDS: ${VIDEO_MAX_DURATION_SECONDS:-7200}
+      VIDEO_MAX_DOWNLOAD_BYTES: ${VIDEO_MAX_DOWNLOAD_BYTES:-1073741824}
+      VIDEO_MAX_KEYFRAMES: ${VIDEO_MAX_KEYFRAMES:-12}
+      VIDEO_COOKIES_FILE: ${VIDEO_COOKIES_FILE:-}
+      VIDEO_ENABLE_VISION: ${VIDEO_ENABLE_VISION:-false}
+    volumes:
+      - document-converter-work:/tmp/shizuki-video
+      - ${VIDEO_COOKIES_HOST_FILE:-/dev/null}:${VIDEO_COOKIES_FILE:-/run/secrets/video-cookies.txt}:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3220/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   backend:
     build:
       context: ..
@@ -34,12 +58,19 @@ services:
       BLOG_PRESENTATION_GENERATOR_BASE_URL: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:-http://presentation-generator:3210}
       BLOG_PRESENTATION_CONNECT_TIMEOUT_MS: ${BLOG_PRESENTATION_CONNECT_TIMEOUT_MS:-2000}
       BLOG_PRESENTATION_READ_TIMEOUT_MS: ${BLOG_PRESENTATION_READ_TIMEOUT_MS:-660000}
+      BLOG_VIDEO_CONVERTER_BASE_URL: ${BLOG_VIDEO_CONVERTER_BASE_URL:-http://document-converter:3220}
+      BLOG_VIDEO_CONNECT_TIMEOUT_MS: ${BLOG_VIDEO_CONNECT_TIMEOUT_MS:-2000}
+      BLOG_VIDEO_READ_TIMEOUT_MS: ${BLOG_VIDEO_READ_TIMEOUT_MS:-900000}
+      BLOG_VIDEO_MAX_KEYFRAMES: ${BLOG_VIDEO_MAX_KEYFRAMES:-12}
+      BLOG_VIDEO_ALLOW_LOCAL_FILES: ${BLOG_VIDEO_ALLOW_LOCAL_FILES:-false}
     volumes:
       - ../resouces/yaml:/app/resouces/yaml:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       presentation-generator:
+        condition: service_healthy
+      document-converter:
         condition: service_healthy
     ports:
       - "${BACKEND_PORT:-8080}:8080"
@@ -58,3 +89,6 @@ services:
       - backend
     ports:
       - "${SITE_PORT:-5173}:80"
+
+volumes:
+  document-converter-work:

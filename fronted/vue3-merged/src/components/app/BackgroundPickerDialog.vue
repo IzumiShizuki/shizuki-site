@@ -74,14 +74,31 @@
             <button class="scope-btn ripple-trigger" :disabled="wallpaperLoading" @click="$emit('refresh-background-library')">
               {{ wallpaperLoading ? '刷新中...' : '刷新壁纸库' }}
             </button>
-            <span v-if="backgroundEmergencyFallbackUsed" class="route-bg-note">当前使用紧急占位背景</span>
-            <span v-if="wallpaperErrorHint" class="route-bg-note">{{ wallpaperErrorHint }}</span>
-            <span v-if="importState.hint" class="route-bg-note">{{ importState.hint }}</span>
+            <button
+              class="scope-btn ghost ripple-trigger"
+              :disabled="importState.statusBusy || !importState.lastImportJobId"
+              @click="$emit('check-wallpaper-import-job')"
+            >
+              {{ importState.statusBusy ? '查询中...' : '查询导入状态' }}
+            </button>
+            <span v-if="importState.lastImportJobId" class="status-pill">
+              #{{ importState.lastImportJobId }} {{ importState.lastImportJobStatus || 'PENDING' }}
+            </span>
+          </div>
+
+          <div v-if="backgroundEmergencyFallbackUsed || wallpaperErrorHint || importState.hint" class="status-stack">
+            <p v-if="backgroundEmergencyFallbackUsed" class="route-bg-note">当前使用紧急占位背景。</p>
+            <p v-if="wallpaperErrorHint" class="route-bg-note">{{ wallpaperErrorHint }}</p>
+            <p v-if="importState.hint" class="route-bg-note">{{ importState.hint }}</p>
           </div>
 
           <div v-if="isAuthenticated" class="picker-import-grid">
             <section class="import-card">
-              <h4>本地包导入</h4>
+              <div class="import-card-head">
+                <h4>本地包导入</h4>
+                <span class="status-pill soft">最稳妥</span>
+              </div>
+              <p class="route-bg-note">适合已经下载好的 Wallpaper Engine 包、图片或视频。上传后资源会落到服务器对象存储，再作为站点背景使用。</p>
               <div
                 class="package-dropzone"
                 :class="{ active: packageDropActive }"
@@ -105,7 +122,23 @@
             </section>
 
             <section class="import-card">
-              <h4>Workshop 导入</h4>
+              <div class="import-card-head">
+                <h4>Workshop 搜索与导入</h4>
+                <span class="status-pill soft">可选</span>
+              </div>
+              <p class="route-bg-note">先搜索并复制 Steam Workshop 条目链接。服务器会优先使用 Steam 公开文件地址；拿不到直链时需要 SteamCMD 和可访问该条目的账号。</p>
+              <div class="workshop-search-row">
+                <input
+                  v-model.trim="importState.workshopSearchQuery"
+                  class="field-input-lite"
+                  type="search"
+                  placeholder="搜索关键词，如 anime room / city rain"
+                  @keydown.enter.prevent="$emit('open-workshop-discovery-window')"
+                />
+                <button class="scope-btn ghost ripple-trigger" @click="$emit('open-workshop-discovery-window')">
+                  打开搜索
+                </button>
+              </div>
               <input
                 v-model.trim="importState.workshopUrl"
                 class="field-input-lite"
@@ -121,34 +154,34 @@
                 <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="$emit('submit-workshop-import')">
                   创建导入任务
                 </button>
-                <button class="scope-btn ghost ripple-trigger" @click="$emit('open-workshop-discovery-window')">
-                  快速选图
-                </button>
                 <button class="scope-btn ghost ripple-trigger" :disabled="!importState.workshopUrl" @click="$emit('open-workshop-preview-window')">
                   小窗预览
                 </button>
               </div>
-              <p class="route-bg-note">可先点“快速选图”打开 Workshop 列表，选中条目后复制链接粘贴到上方输入框。</p>
+              <p class="route-bg-note">导入任务是服务器异步执行的；创建后可以点“查询导入状态”确认是否下载成功。</p>
             </section>
           </div>
           <p v-else class="route-bg-note">登录后可上传本地包或导入 Workshop 资源。</p>
 
-          <section class="import-card import-guide">
-            <h4>支持格式与建议包结构</h4>
-            <p class="route-bg-note">静态：png / jpg / jpeg / webp / avif</p>
-            <p class="route-bg-note">动态：gif / webp / apng / mp4 / webm / mov</p>
-            <p class="route-bg-note">L2D：zip（需包含 model3.json 及依赖文件）</p>
-            <p class="route-bg-note">可选内嵌：bgm（mp3/wav/ogg/flac/aac/m4a）、bgv（mp4/webm/mov）</p>
-            <p class="route-bg-note">上传后自动分类优先级：L2D &gt; 动态 &gt; 静态</p>
-          </section>
+          <p class="format-guide-note">
+            支持图片、视频、Live2D zip 与内嵌 BGM/BGV 媒体；上传后会自动按 L2D、动态、静态的顺序分类。
+          </p>
         </section>
 
         <section v-if="pickerMode === 'acquire' && activeBackground?.wallpaperId && canEditActiveWallpaper" class="wallpaper-settings">
-          <div class="picker-title">Wallpaper 设置</div>
-          <p class="route-bg-note">
-            来源：{{ activeBackground.importSource || 'PACKAGE' }}
-            <span v-if="activeBackground.workshopItemId"> | Workshop ID: {{ activeBackground.workshopItemId }}</span>
-          </p>
+          <header class="wallpaper-settings-head">
+            <div>
+              <div class="picker-title">Wallpaper 设置</div>
+              <p class="route-bg-note">
+                来源：{{ activeBackground.importSource || 'PACKAGE' }}
+                <span v-if="activeBackground.workshopItemId"> | Workshop ID: {{ activeBackground.workshopItemId }}</span>
+              </p>
+            </div>
+            <div class="settings-checks">
+              <label><input v-model="wallpaperSettingState.bgmEnabled" type="checkbox" /> BGM</label>
+              <label><input v-model="wallpaperSettingState.bgvEnabled" type="checkbox" /> BGV</label>
+            </div>
+          </header>
           <div class="settings-grid">
             <label class="settings-title-field">
               壁纸标题
@@ -174,11 +207,6 @@
               内置 BGV 资源 ID
               <input v-model.trim="wallpaperSettingState.bgvAssetIdText" class="field-input-lite" type="text" placeholder="可选，数字ID" />
             </label>
-          </div>
-
-          <div class="settings-checks">
-            <label><input v-model="wallpaperSettingState.bgmEnabled" type="checkbox" /> 启用 BGM</label>
-            <label><input v-model="wallpaperSettingState.bgvEnabled" type="checkbox" /> 启用 BGV</label>
           </div>
 
           <div v-if="activeCustomSchemaItems.length" class="settings-custom">
@@ -306,6 +334,7 @@ defineEmits([
   'submit-workshop-import',
   'open-workshop-discovery-window',
   'open-workshop-preview-window',
+  'check-wallpaper-import-job',
   'save-active-wallpaper-settings',
   'set-active-wallpaper-visibility',
   'delete-active-wallpaper',
@@ -318,23 +347,33 @@ defineEmits([
   position: fixed;
   inset: 0;
   z-index: 1500;
-  background: var(--theme-scrim, rgba(10, 12, 18, 0.42));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 245, 246, 0.16)),
+    rgba(18, 15, 20, 0.18);
   display: grid;
   place-items: center;
+  backdrop-filter: blur(10px) saturate(1.05);
 }
 
 .bg-picker {
-  --liquid-bg: var(--theme-panel-surface, rgba(var(--glass-rgb), 0.38));
-  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.46));
-  --liquid-shadow: 0 16px 44px rgba(18, 9, 8, 0.18);
+  --liquid-bg: rgba(255, 250, 250, 0.68);
+  --liquid-border: rgba(255, 255, 255, 0.76);
+  --liquid-shadow: 0 18px 44px rgba(55, 38, 42, 0.14);
+  --picker-ink: rgba(75, 55, 54, 0.94);
+  --picker-ink-soft: rgba(94, 72, 70, 0.76);
+  --picker-accent-text: rgba(112, 55, 62, 0.96);
   width: min(94vw, 980px);
-  max-height: min(88vh, 760px);
-  border-radius: 22px;
-  padding: 14px;
+  max-height: min(86vh, 720px);
+  border-radius: 18px;
+  padding: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+}
+
+.bg-picker :is(button, label, p, h4, .picker-title, .route-bg-note, .format-guide-note) {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) !important;
 }
 
 .picker-head {
@@ -360,18 +399,20 @@ defineEmits([
 }
 
 .picker-title {
-  color: var(--theme-text-primary, rgba(23, 27, 36, 0.9));
+  color: var(--picker-ink) !important;
+  font-family: var(--font-cute, var(--font-display));
   font-size: 18px;
   font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .picker-close {
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.24));
+  border: 1px solid rgba(255, 255, 255, 0.54) !important;
   border-radius: 10px;
   min-width: 60px;
   height: 32px;
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.38));
-  color: var(--theme-icon-primary, rgba(30, 34, 42, 0.8));
+  background: rgba(255, 255, 255, 0.48) !important;
+  color: var(--picker-ink) !important;
 }
 
 .picker-toolbar {
@@ -389,13 +430,14 @@ defineEmits([
 }
 
 .tab-btn {
-  border: 0;
-  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.58) !important;
+  border-radius: 9px;
   min-width: 72px;
-  height: 32px;
+  height: 30px;
   padding: 0 12px;
-  background: rgba(255, 255, 255, 0.34);
-  color: rgba(27, 31, 40, 0.78);
+  background: rgba(255, 255, 255, 0.54) !important;
+  color: var(--picker-ink-soft) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18) !important;
 }
 
 .picker-mode-switch .tab-btn {
@@ -403,8 +445,10 @@ defineEmits([
 }
 
 .tab-btn.active {
-  background: rgba(var(--accent-strong-rgb), 0.86);
-  color: rgba(248, 238, 255, 0.94);
+  background: rgba(var(--accent-rgb), 0.34) !important;
+  border-color: rgba(var(--accent-rgb), 0.38) !important;
+  color: var(--picker-accent-text) !important;
+  box-shadow: 0 8px 18px rgba(var(--accent-rgb), 0.16) !important;
 }
 
 .picker-apply-mode {
@@ -419,36 +463,40 @@ defineEmits([
 }
 
 .scope-label {
-  color: rgba(28, 32, 40, 0.82);
+  color: var(--picker-ink-soft);
   font-size: 12px;
 }
 
 .scope-btn {
-  border: 0;
-  border-radius: 10px;
-  min-height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.58) !important;
+  border-radius: 9px;
+  min-height: 30px;
   padding: 0 12px;
-  background: rgba(255, 255, 255, 0.34);
-  color: rgba(27, 31, 40, 0.78);
+  background: rgba(255, 255, 255, 0.54) !important;
+  color: var(--picker-ink-soft) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18) !important;
 }
 
 .scope-btn.active {
-  background: rgba(var(--accent-rgb), 0.3);
-  color: rgba(248, 238, 255, 0.94);
+  background: rgba(var(--accent-rgb), 0.34) !important;
+  border-color: rgba(var(--accent-rgb), 0.38) !important;
+  color: var(--picker-accent-text) !important;
+  box-shadow: 0 8px 18px rgba(var(--accent-rgb), 0.16) !important;
 }
 
 .scope-btn.danger {
-  background: rgba(235, 94, 124, 0.2);
-  color: rgba(135, 27, 50, 0.9);
+  background: rgba(235, 94, 124, 0.14) !important;
+  border-color: rgba(235, 94, 124, 0.22) !important;
+  color: rgba(135, 27, 50, 0.92) !important;
 }
 
 .scope-btn.ghost {
-  background: rgba(255, 255, 255, 0.2);
-  color: rgba(24, 28, 38, 0.88);
+  background: rgba(255, 255, 255, 0.42) !important;
+  color: var(--picker-ink-soft) !important;
 }
 
 .route-bg-note {
-  color: rgba(28, 32, 40, 0.82);
+  color: var(--picker-ink-soft) !important;
   font-size: 12px;
   margin: 0;
 }
@@ -461,7 +509,7 @@ defineEmits([
   touch-action: pan-y;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
   padding-right: 2px;
 }
 
@@ -472,24 +520,58 @@ defineEmits([
   gap: 8px;
 }
 
+.status-stack {
+  border: 1px solid rgba(var(--accent-rgb), 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.46);
+  padding: 7px 10px;
+  display: grid;
+  gap: 3px;
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(var(--accent-rgb), 0.18);
+  color: var(--picker-accent-text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.status-pill.soft {
+  background: rgba(255, 255, 255, 0.42);
+  color: rgba(94, 72, 70, 0.68);
+}
+
 .picker-import-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .import-card {
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.54);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.42);
   padding: 10px;
   display: grid;
+  align-content: start;
   gap: 8px;
+}
+
+.import-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
 }
 
 .package-dropzone {
   border: 1px dashed rgba(85, 94, 114, 0.45);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.38);
   padding: 8px;
   display: grid;
   gap: 6px;
@@ -506,12 +588,10 @@ defineEmits([
 
 .import-card h4 {
   margin: 0;
-  color: rgba(24, 28, 38, 0.88);
-  font-size: 13px;
-}
-
-.import-guide {
-  gap: 6px;
+  color: var(--picker-ink) !important;
+  font-family: var(--font-cute, var(--font-display));
+  font-size: 14px;
+  letter-spacing: 0.01em;
 }
 
 .import-actions {
@@ -520,14 +600,32 @@ defineEmits([
   gap: 8px;
 }
 
+.format-guide-note {
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 10px;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.34);
+  color: var(--picker-ink-soft) !important;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.workshop-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .field-input-lite {
   width: 100%;
-  border: 0;
-  border-radius: 10px;
-  min-height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.62) !important;
+  border-radius: 9px;
+  min-height: 30px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.6);
-  color: rgba(24, 28, 38, 0.9);
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: var(--picker-ink) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
 }
 
 .settings-title-field {
@@ -535,34 +633,44 @@ defineEmits([
 }
 
 .wallpaper-settings {
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.44);
   padding: 10px;
   display: grid;
   gap: 8px;
 }
 
+.wallpaper-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px 8px;
 }
 
 .settings-grid label {
   display: grid;
   gap: 4px;
-  color: rgba(28, 32, 40, 0.86);
+  color: var(--picker-ink-soft) !important;
   font-size: 12px;
 }
 
 .settings-checks {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  justify-content: flex-end;
+  gap: 8px 12px;
 }
 
 .settings-checks label {
-  color: rgba(25, 30, 40, 0.86);
+  color: var(--picker-ink-soft) !important;
   font-size: 12px;
 }
 
@@ -573,8 +681,9 @@ defineEmits([
 
 .settings-custom h4 {
   margin: 0;
-  color: rgba(25, 30, 40, 0.88);
-  font-size: 13px;
+  color: var(--picker-ink) !important;
+  font-family: var(--font-cute, var(--font-display));
+  font-size: 14px;
 }
 
 .custom-row {
@@ -585,7 +694,7 @@ defineEmits([
 }
 
 .custom-row label {
-  color: rgba(24, 28, 38, 0.88);
+  color: var(--picker-ink-soft) !important;
   font-size: 12px;
 }
 
@@ -621,7 +730,7 @@ defineEmits([
 }
 
 .picker-name {
-  color: rgba(28, 32, 40, 0.84);
+  color: var(--picker-ink) !important;
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -629,7 +738,7 @@ defineEmits([
 }
 
 .picker-meta {
-  color: rgba(34, 38, 48, 0.68);
+  color: var(--picker-ink-soft) !important;
   font-size: 11px;
 }
 
@@ -685,7 +794,8 @@ defineEmits([
   }
 
   .picker-import-grid,
-  .settings-grid {
+  .settings-grid,
+  .workshop-search-row {
     grid-template-columns: 1fr;
   }
 

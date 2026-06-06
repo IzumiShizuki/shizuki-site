@@ -202,7 +202,61 @@
           </template>
 
           <template v-else>
+            <div v-if="isCompanionConversation" class="companion-workspace">
+              <section class="companion-stage liquid-material" :data-companion-status="companionStage.status">
+                <header class="companion-stage-head">
+                  <div>
+                    <span class="stage-kicker">Live2D Companion</span>
+                    <h2>自宅 companion 观看区</h2>
+                    <p>复用公开 L2D 资源契约，随右侧对话切换 idle / thinking / speaking 状态。</p>
+                  </div>
+                  <span class="companion-status" :class="`status-${companionStage.status}`">
+                    {{ companionStageLabel }}
+                  </span>
+                </header>
+
+                <div class="companion-l2d-frame">
+                  <WallpaperL2dCanvas
+                    v-if="companionStageAsset && !companionStage.renderFailed"
+                    :model-url="companionStageAsset.modelUrl"
+                    :model-entry="companionStageAsset.modelEntry"
+                    :fallback-src="companionStageAsset.fallbackSrc"
+                    @error="handleCompanionL2dError"
+                  />
+                  <div v-else class="companion-l2d-empty">
+                    <strong>{{ companionStage.loading ? 'L2D 资源读取中...' : '还没有可用 L2D companion' }}</strong>
+                    <p>
+                      {{
+                        companionStage.errorText ||
+                        '请先在公开首页角色池中准备一个 LIVE2D_PACKAGE，并确保它包含 downloadUrl 与 l2dEntryModelJson。'
+                      }}
+                    </p>
+                  </div>
+                  <div class="companion-stage-glow" aria-hidden="true"></div>
+                </div>
+
+                <div class="companion-stage-footer">
+                  <span>{{ companionStageAsset?.title || '等待 L2D 资源' }}</span>
+                  <small v-if="companionStage.lastAssistantMessage">{{ companionStage.lastAssistantMessage }}</small>
+                  <small v-else>当前状态：{{ companionStageLabel }}</small>
+                </div>
+              </section>
+
+              <AiDialog
+                :visible="true"
+                mode="embedded"
+                chat-mode="companion"
+                :allowed-modes="conversationAllowedModes"
+                :open-payload="conversationOpenPayload"
+                :show-header="false"
+                :show-close-button="false"
+                @mode-change="handleConversationModeChange"
+                @chat-state="handleConversationChatState"
+              />
+            </div>
+
             <AiDialog
+              v-else
               :visible="true"
               mode="embedded"
               :chat-mode="conversationChatMode"
@@ -211,6 +265,7 @@
               :show-header="false"
               :show-close-button="false"
               @mode-change="handleConversationModeChange"
+              @chat-state="handleConversationChatState"
             />
           </template>
         </section>
@@ -324,6 +379,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AiDialog from '../components/AiDialog.vue';
+import WallpaperL2dCanvas from '../components/WallpaperL2dCanvas.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminTownNpcSession,
@@ -333,7 +389,9 @@ import {
   listAiTownScenes,
   previewAdminAiTownAsset
 } from '../services/aiApi';
+import { listPublicHomeRoles } from '../services/wallpaperApi';
 import { buildAiCapabilityState } from '../utils/aiAuthorizationState';
+import { resolveCompanionStageStatus, selectCompanionL2dAsset } from '../utils/aiCompanionStage';
 
 const auth = useAuthSession();
 const activePrimaryMode = ref('town');
@@ -349,6 +407,7 @@ const townMap = ref({ scenes: [] });
 const selectedTownSceneCode = ref('');
 const selectedTownScene = ref(null);
 const townAssetEditor = reactive(createTownAssetEditorState());
+const companionStage = reactive(createCompanionStageState());
 
 const STANDARD_CONVERSATION_MODES = ['normal', 'tavern'];
 const ADMIN_CONVERSATION_MODES = ['town_npc', 'companion'];
@@ -434,6 +493,18 @@ function createTownAssetEditorState() {
   };
 }
 
+function createCompanionStageState() {
+  return {
+    loading: false,
+    loaded: false,
+    status: 'idle',
+    asset: null,
+    errorText: '',
+    renderFailed: false,
+    lastAssistantMessage: ''
+  };
+}
+
 function normalizeTownAssetPreview(raw = {}) {
   return {
     assetImportId: toNumber(raw.assetImportId ?? raw.asset_import_id),
@@ -510,6 +581,13 @@ const currentConversationLabel = computed(() => {
   return '当前对话 · 普通模式';
 });
 
+const isCompanionConversation = computed(() => activePrimaryMode.value === 'conversation' && conversationChatMode.value === 'companion');
+const companionStageAsset = computed(() => companionStage.asset);
+const companionStageLabel = computed(() => {
+  if (companionStage.status === 'thinking') return 'Thinking';
+  if (companionStage.status === 'speaking') return 'Speaking';
+  return 'Idle';
+});
 const canOpenCompanion = computed(() => isAdminUser.value && selectedTownSceneCode.value === 'home_gate');
 
 function activateTownWorkspace(nextSubView = 'map') {
@@ -551,6 +629,9 @@ function handleConversationModeChange(mode) {
   if (conversationChatMode.value === 'normal' || conversationChatMode.value === 'tavern') {
     conversationOpenPayload.value = null;
   }
+  if (conversationChatMode.value !== 'companion') {
+    resetCompanionStageStatus();
+  }
 }
 
 function resetAdminOnlyWorkspaceState() {
@@ -577,6 +658,50 @@ async function loadTownScene(sceneCode) {
     }
   } else if (!townAssetEditor.attachedSceneCode) {
     townAssetEditor.attachedSceneCode = normalizedSceneCode;
+  }
+}
+
+function resetCompanionStageStatus() {
+  companionStage.status = 'idle';
+  companionStage.lastAssistantMessage = '';
+}
+
+function handleConversationChatState(event) {
+  if (event?.mode !== 'companion') return;
+  companionStage.status = resolveCompanionStageStatus(event, companionStage.status);
+  if (event?.assistantMessage || event?.assistant_message) {
+    companionStage.lastAssistantMessage = normalizeOptionalText(event.assistantMessage || event.assistant_message).slice(0, 120);
+  }
+  if (event?.phase === 'send-error') {
+    companionStage.lastAssistantMessage = normalizeOptionalText(event.errorText).slice(0, 120);
+  }
+}
+
+function handleCompanionL2dError(message) {
+  companionStage.renderFailed = true;
+  companionStage.errorText = `L2D companion 渲染失败：${normalizeOptionalText(message) || 'runtime unavailable'}`;
+}
+
+async function loadCompanionStageAssets(force = false) {
+  if (companionStage.loading) return;
+  if (companionStage.loaded && !force) return;
+
+  companionStage.loading = true;
+  companionStage.errorText = '';
+  try {
+    const roles = await listPublicHomeRoles();
+    const preferredAssetId = toNumber(conversationOpenPayload.value?.bootstrap?.config?.avatarAssetId);
+    companionStage.asset = selectCompanionL2dAsset(roles, preferredAssetId);
+    companionStage.renderFailed = false;
+    companionStage.loaded = true;
+    if (!companionStage.asset) {
+      companionStage.errorText = '公开角色池里还没有可渲染的 L2D 资源。';
+    }
+  } catch (error) {
+    companionStage.asset = null;
+    companionStage.errorText = resolveTownError(error);
+  } finally {
+    companionStage.loading = false;
   }
 }
 
@@ -744,6 +869,17 @@ onMounted(async () => {
   await auth.ensureReady();
   await loadTownExplorer();
 });
+
+watch(
+  () => isCompanionConversation.value,
+  (active) => {
+    if (active) {
+      void loadCompanionStageAssets();
+      return;
+    }
+    resetCompanionStageStatus();
+  }
+);
 
 watch(
   () => [auth.isAuthenticated.value, isAdminUser.value],
@@ -1171,6 +1307,155 @@ watch(
   color: rgba(255, 190, 190, 0.96);
 }
 
+.companion-workspace {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.92fr) minmax(0, 1.08fr);
+  gap: 16px;
+  align-items: stretch;
+  min-height: min(78vh, 880px);
+}
+
+.companion-stage {
+  --liquid-bg: linear-gradient(160deg, rgba(14, 22, 38, 0.88), rgba(7, 12, 22, 0.84));
+  --liquid-border: rgba(255, 255, 255, 0.12);
+  --liquid-shadow: 0 18px 44px rgba(4, 7, 16, 0.28);
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 18px;
+  display: grid;
+  grid-template-rows: auto minmax(320px, 1fr) auto;
+  gap: 14px;
+  min-height: 0;
+}
+
+.companion-stage-head,
+.companion-stage-footer {
+  position: relative;
+  z-index: 2;
+}
+
+.companion-stage-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.companion-stage-head h2 {
+  margin: 4px 0 6px;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.08;
+}
+
+.companion-stage-head p {
+  margin: 0;
+  color: rgba(214, 225, 245, 0.8);
+  line-height: 1.65;
+}
+
+.companion-status {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(238, 246, 255, 0.92);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.companion-status.status-thinking {
+  background: rgba(255, 196, 92, 0.14);
+  border-color: rgba(255, 196, 92, 0.24);
+  color: rgba(255, 229, 170, 0.98);
+}
+
+.companion-status.status-speaking {
+  background: rgba(78, 210, 156, 0.14);
+  border-color: rgba(78, 210, 156, 0.24);
+  color: rgba(189, 250, 223, 0.98);
+}
+
+.companion-l2d-frame {
+  position: relative;
+  min-height: 360px;
+  border-radius: 26px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 88%, rgba(var(--accent-rgb), 0.22), transparent 30%),
+    radial-gradient(circle at 28% 20%, rgba(120, 180, 255, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.companion-l2d-frame::before {
+  content: '';
+  position: absolute;
+  inset: auto 13% 11% 13%;
+  height: 16%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(var(--accent-rgb), 0.28), transparent 68%);
+  filter: blur(10px);
+  opacity: 0.76;
+}
+
+.companion-stage[data-companion-status='thinking'] .companion-l2d-frame::before {
+  background: radial-gradient(ellipse, rgba(255, 196, 92, 0.32), transparent 68%);
+}
+
+.companion-stage[data-companion-status='speaking'] .companion-l2d-frame::before {
+  background: radial-gradient(ellipse, rgba(78, 210, 156, 0.34), transparent 68%);
+}
+
+.companion-l2d-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 28px;
+  text-align: center;
+}
+
+.companion-l2d-empty strong {
+  color: rgba(247, 250, 255, 0.95);
+}
+
+.companion-l2d-empty p {
+  max-width: 440px;
+  margin: 0;
+  color: rgba(202, 214, 236, 0.8);
+  line-height: 1.65;
+}
+
+.companion-stage-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 32%),
+    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.12), transparent 26%);
+}
+
+.companion-stage-footer {
+  display: grid;
+  gap: 4px;
+}
+
+.companion-stage-footer span {
+  color: rgba(247, 250, 255, 0.94);
+  font-weight: 800;
+}
+
+.companion-stage-footer small {
+  color: rgba(198, 211, 237, 0.78);
+  line-height: 1.55;
+}
+
 .editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1276,6 +1561,8 @@ watch(
 :root[data-theme-mode='day'] .mode-switch,
 :root[data-theme-mode='day'] .workspace-main,
 :root[data-theme-mode='day'] .workspace-side,
+:root[data-theme-mode='day'] .companion-stage,
+:root[data-theme-mode='day'] .companion-l2d-frame,
 :root[data-theme-mode='day'] .npc-card,
 :root[data-theme-mode='day'] .side-info-card,
 :root[data-theme-mode='day'] .editor-card,
@@ -1318,6 +1605,18 @@ watch(
   background: var(--theme-floating-surface-hover, var(--theme-panel-surface-elevated));
 }
 
+:root[data-theme-mode='day'] .companion-stage {
+  --liquid-bg: var(--theme-panel-surface, var(--theme-surface));
+  --liquid-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --liquid-shadow: 0 20px 38px rgba(88, 60, 50, 0.1);
+}
+
+:root[data-theme-mode='day'] .companion-l2d-frame {
+  background:
+    radial-gradient(circle at 50% 88%, rgba(var(--accent-rgb), 0.16), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.24));
+}
+
 :root[data-theme-mode='day'] .status-pill {
   color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
 }
@@ -1330,6 +1629,9 @@ watch(
 :root[data-theme-mode='day'] .side-panel-head p,
 :root[data-theme-mode='day'] .scene-atmosphere,
 :root[data-theme-mode='day'] .side-tip,
+:root[data-theme-mode='day'] .companion-stage-head p,
+:root[data-theme-mode='day'] .companion-stage-footer small,
+:root[data-theme-mode='day'] .companion-l2d-empty p,
 :root[data-theme-mode='day'] .editor-card p,
 :root[data-theme-mode='day'] .npc-card p,
 :root[data-theme-mode='day'] .side-info-card p,
@@ -1365,6 +1667,10 @@ watch(
   .workspace-side {
     min-height: 0;
   }
+
+  .companion-workspace {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1382,8 +1688,13 @@ watch(
   .mode-switch,
   .scene-rail,
   .editor-grid,
-  .editor-data-grid {
+  .editor-data-grid,
+  .companion-stage-head {
     grid-template-columns: 1fr;
+  }
+
+  .companion-stage-head {
+    display: grid;
   }
 
   .mode-tab {
@@ -1406,6 +1717,17 @@ watch(
   .map-node {
     min-width: 118px;
     padding: 10px 12px;
+  }
+
+  .companion-stage {
+    min-height: 0;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .companion-l2d-frame {
+    min-height: 300px;
+    border-radius: 20px;
   }
 }
 </style>

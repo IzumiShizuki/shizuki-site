@@ -128,7 +128,7 @@ export function buildProfileJsonFromEditForm(formInput) {
     year: normalizeString(row.year),
     title: normalizeString(row.title),
     description: normalizeString(row.description),
-    image_url: normalizeString(row.imageUrl ?? row.image_url),
+    image_url: normalizeImageUrlForSave(row.imageUrl ?? row.image_url),
     stack: normalizeStringList(row.stack)
   }));
 
@@ -137,8 +137,8 @@ export function buildProfileJsonFromEditForm(formInput) {
       greeting: normalizeString(hero.greeting),
       name: normalizeString(hero.name),
       quote: normalizeString(hero.quote),
-      avatar_url: normalizeImageUrl(hero.avatarUrl ?? hero.avatar_url),
-      cover_image_url: normalizeImageUrl(hero.coverImageUrl ?? hero.cover_image_url)
+      avatar_url: normalizeImageUrlForSave(hero.avatarUrl ?? hero.avatar_url),
+      cover_image_url: normalizeImageUrlForSave(hero.coverImageUrl ?? hero.cover_image_url)
     },
     identity: {
       birth_year: normalizeString(identity.birthYear ?? identity.birth_year),
@@ -157,14 +157,14 @@ export function buildProfileJsonFromEditForm(formInput) {
       mission: normalizeString(about.mission),
       focus: normalizeStringList(about.focus),
       music: normalizeStringList(about.music),
-      intro_image_url: normalizeImageUrl(about.introImageUrl ?? about.intro_image_url),
-      mission_image_url: normalizeImageUrl(about.missionImageUrl ?? about.mission_image_url),
-      links_image_url: normalizeImageUrl(about.linksImageUrl ?? about.links_image_url),
+      intro_image_url: normalizeImageUrlForSave(about.introImageUrl ?? about.intro_image_url),
+      mission_image_url: normalizeImageUrlForSave(about.missionImageUrl ?? about.mission_image_url),
+      links_image_url: normalizeImageUrlForSave(about.linksImageUrl ?? about.links_image_url),
       links: normalizeLinks(about.links)
     },
     site: {
       browser_title: normalizeString(site.browserTitle ?? site.browser_title),
-      favicon_url: normalizeImageUrl(site.faviconUrl ?? site.favicon_url)
+      favicon_url: normalizeImageUrlForSave(site.faviconUrl ?? site.favicon_url)
     }
   };
 }
@@ -244,6 +244,12 @@ function normalizeString(value) {
 
 function normalizeImageUrl(value) {
   return normalizePermanentPublicAssetUrl(normalizeString(value));
+}
+
+function normalizeImageUrlForSave(value) {
+  return normalizePermanentPublicAssetUrl(normalizeString(value), {
+    forceStripSignedQuery: true
+  });
 }
 
 function toObject(value) {

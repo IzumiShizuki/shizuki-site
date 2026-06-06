@@ -1246,7 +1246,7 @@ onBeforeUnmount(() => {
 
 .card-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 

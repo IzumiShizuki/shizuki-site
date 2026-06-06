@@ -896,7 +896,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['close', 'mode-change']);
+const emit = defineEmits(['close', 'mode-change', 'chat-state']);
 const prefersReducedMotion = useReducedMotion();
 const auth = useAuthSession();
 const authGroups = computed(() => (Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : []));
@@ -1585,6 +1585,14 @@ function isNotFoundError(error) {
   return Number(error?.status) === 404;
 }
 
+function emitChatState(state, payload = {}) {
+  emit('chat-state', {
+    mode: state?.mode || activeChatMode.value,
+    sessionId: normalizeOptionalText(state?.sessionId),
+    ...payload
+  });
+}
+
 async function submitActiveMessage() {
   const state = activeState.value;
   const draft = normalizeOptionalText(state.draft);
@@ -1596,6 +1604,8 @@ async function submitActiveMessage() {
   state.messages.push(pendingMessage);
   state.draft = '';
   state.pending = true;
+  let emittedAssistantSpeech = false;
+  emitChatState(state, { status: 'thinking', phase: 'send-start', userMessage: draft });
 
   try {
     await ensureSession(state, draft);
@@ -1618,6 +1628,13 @@ async function submitActiveMessage() {
     }
     if (response.assistantMessage) {
       state.messages.push(createMessage('assistant', response.assistantMessage));
+      emittedAssistantSpeech = true;
+      emitChatState(state, {
+        status: 'speaking',
+        phase: 'assistant-message',
+        assistantMessage: response.assistantMessage,
+        scopeId: response.scopeId
+      });
     }
     if (Number.isFinite(Number(response.remainingRounds))) {
       quota.value = normalizeQuota({
@@ -1633,8 +1650,12 @@ async function submitActiveMessage() {
     pendingMessage.pending = false;
     pendingMessage.failed = true;
     state.errorText = resolveErrorMessage(error);
+    emitChatState(state, { status: 'idle', phase: 'send-error', errorText: state.errorText });
   } finally {
     state.pending = false;
+    if (!emittedAssistantSpeech) {
+      emitChatState(state, { status: 'idle', phase: 'send-end' });
+    }
   }
 }
 

@@ -126,6 +126,14 @@ export async function getMusicKeyGuide(provider) {
   return unwrapApiResponse(response);
 }
 
+export async function getMetingStatus(authorizedFetch) {
+  const payload = { method: 'GET' };
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/meting/status', payload)
+    : await httpRequest('/api/v1/music/meting/status', payload);
+  return unwrapApiResponse(response);
+}
+
 export async function pickMusic(payload, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/music/picks', {

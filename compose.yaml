@@ -15,6 +15,30 @@ services:
       timeout: 5s
       retries: 5
 
+  document-converter:
+    build:
+      context: .
+      dockerfile: Dockerfile.document-converter
+    image: ${DOCUMENT_CONVERTER_IMAGE:-shizuki-site/document-converter:latest}
+    container_name: shizuki-document-converter
+    profiles: [ "app" ]
+    restart: unless-stopped
+    environment:
+      VIDEO_CONVERTER_PORT: ${VIDEO_CONVERTER_PORT:-3220}
+      VIDEO_MAX_DURATION_SECONDS: ${VIDEO_MAX_DURATION_SECONDS:-7200}
+      VIDEO_MAX_DOWNLOAD_BYTES: ${VIDEO_MAX_DOWNLOAD_BYTES:-1073741824}
+      VIDEO_MAX_KEYFRAMES: ${VIDEO_MAX_KEYFRAMES:-12}
+      VIDEO_COOKIES_FILE: ${VIDEO_COOKIES_FILE:-}
+      VIDEO_ENABLE_VISION: ${VIDEO_ENABLE_VISION:-false}
+    volumes:
+      - document-converter-work:/tmp/shizuki-video
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3220/health', timeout=3)" ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   postgres:
     image: postgres:16
     container_name: shizuki-postgres
@@ -82,6 +106,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       MUSIC_METING_BASE_URL: ${MUSIC_METING_BASE_URL:-http://meting-api}
+      BLOG_VIDEO_CONVERTER_BASE_URL: ${BLOG_VIDEO_CONVERTER_BASE_URL:-http://document-converter:3220}
       DB_URL: jdbc:postgresql://postgres:5432/shizuki_app
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
@@ -93,11 +118,14 @@ services:
     depends_on:
       meting-api:
         condition: service_healthy
+      document-converter:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
 volumes:
+  document-converter-work:
   postgres-data:
   redis-data:

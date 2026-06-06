@@ -4,7 +4,15 @@
       <button class="play-mode-pill ripple-trigger icon-only" type="button" :title="`播放顺序：${modeLabel}`" @click.stop="emit('cycle-mode')">
         <i class="fas" :class="modeIconClass"></i>
       </button>
-      <input class="progress-input" type="range" min="0" max="1000" :value="Math.round(progress * 1000)" @input="onSeek" />
+      <input
+        class="progress-input"
+        type="range"
+        min="0"
+        max="1000"
+        :value="Math.round(progress * 1000)"
+        :style="{ '--level-percent': `${progress * 100}%` }"
+        @input="onSeek"
+      />
       <span class="time">{{ playedText }} / {{ durationText }}</span>
     </div>
 
@@ -37,7 +45,15 @@
           <i class="fas fa-heart"></i>
         </button>
         <i class="fas fa-volume-low volume-icon"></i>
-        <input class="volume-input" type="range" min="0" max="100" :value="Math.round(volume * 100)" @input="onVolume" />
+        <input
+          class="volume-input"
+          type="range"
+          min="0"
+          max="100"
+          :value="Math.round(volume * 100)"
+          :style="{ '--level-percent': `${Math.round(volume * 100)}%` }"
+          @input="onVolume"
+        />
       </div>
     </div>
 
@@ -197,11 +213,22 @@ useDismissiblePopover({
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  color: var(--accent-mode-text);
+  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.52));
+  background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.28));
+  color: var(--music-accent-text, var(--accent-mode-text));
   font-size: 12px;
   letter-spacing: 0.03em;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.play-mode-pill:hover {
+  transform: translateY(-1px) scale(1.05);
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.35));
+  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.18);
+}
+
+.play-mode-pill:active {
+  transform: translateY(0) scale(0.96);
 }
 
 .play-mode-pill.icon-only {
@@ -222,8 +249,65 @@ useDismissiblePopover({
 }
 
 .progress-input {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: rgb(var(--accent-strong-rgb));
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.progress-input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--accent-strong-rgb)) 0%,
+    rgb(var(--accent-strong-rgb)) var(--level-percent, 0%),
+    var(--theme-border) var(--level-percent, 0%),
+    var(--theme-surface-soft) 100%
+  );
+  border: 1px solid var(--theme-border-strong);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.progress-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgb(var(--accent-strong-rgb));
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.4);
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.progress-input:hover::-webkit-slider-thumb {
+  transform: scale(1.25);
+  box-shadow: 0 0 15px rgba(var(--accent-rgb), 0.6);
+}
+
+.progress-input::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--accent-strong-rgb)) 0%,
+    rgb(var(--accent-strong-rgb)) var(--level-percent, 0%),
+    var(--theme-border) var(--level-percent, 0%),
+    var(--theme-surface-soft) 100%
+  );
+  border: 1px solid var(--theme-border-strong);
+}
+
+.progress-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgb(var(--accent-strong-rgb));
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.4);
 }
 
 .dock-main-row {
@@ -270,16 +354,36 @@ useDismissiblePopover({
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-strong);
   color: var(--theme-text-primary);
+  transition: all 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 4px 12px rgba(6, 10, 18, 0.08);
+}
+
+.ctrl-btn:hover {
+  transform: translateY(-2px) scale(1.08);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: var(--theme-panel-surface-elevated);
+  box-shadow: 0 8px 20px rgba(6, 10, 18, 0.15);
+  color: rgba(var(--accent-rgb), 0.9);
+}
+
+.ctrl-btn:active {
+  transform: translateY(0) scale(0.94);
 }
 
 .ctrl-btn.primary {
-  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  color: var(--accent-mode-text);
-  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.55), rgba(var(--accent-soft-rgb), 0.45));
+  color: var(--music-accent-text, var(--accent-mode-text));
+  border-color: rgba(var(--accent-rgb), 0.55);
+  box-shadow: 0 8px 22px rgba(var(--accent-rgb), 0.28);
+}
+
+.ctrl-btn.primary:hover {
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.65), rgba(var(--accent-soft-rgb), 0.55));
+  box-shadow: 0 10px 28px rgba(var(--accent-rgb), 0.35);
+  color: white;
 }
 
 .utility-block {
@@ -294,9 +398,20 @@ useDismissiblePopover({
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-strong);
   color: var(--theme-text-primary);
+  transition: all 0.2s ease;
+}
+
+.mode-btn:hover {
+  transform: translateY(-1px) scale(1.05);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: var(--theme-panel-surface-elevated);
+}
+
+.mode-btn:active {
+  transform: scale(0.95);
 }
 
 .mode-btn.active {
@@ -310,8 +425,62 @@ useDismissiblePopover({
 }
 
 .volume-input {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: rgb(var(--accent-strong-rgb));
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.volume-input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--accent-strong-rgb)) 0%,
+    rgb(var(--accent-strong-rgb)) var(--level-percent, 0%),
+    var(--theme-border) var(--level-percent, 0%),
+    var(--theme-surface-soft) 100%
+  );
+  border: 1px solid var(--theme-border-strong);
+}
+
+.volume-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgb(var(--accent-strong-rgb));
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.35);
+  transition: transform 0.2s ease;
+}
+
+.volume-input:hover::-webkit-slider-thumb {
+  transform: scale(1.3);
+}
+
+.volume-input::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--accent-strong-rgb)) 0%,
+    rgb(var(--accent-strong-rgb)) var(--level-percent, 0%),
+    var(--theme-border) var(--level-percent, 0%),
+    var(--theme-surface-soft) 100%
+  );
+  border: 1px solid var(--theme-border-strong);
+}
+
+.volume-input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgb(var(--accent-strong-rgb));
 }
 
 .dock-queue {
