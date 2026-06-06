@@ -3,6 +3,39 @@
     <p v-if="displayErrorText" class="state-text error">{{ displayErrorText }}</p>
 
     <template v-if="music.hasActiveSearch.value">
+      <section class="panel liquid-material extension-preview-panel">
+        <header class="panel-head">
+          <div>
+            <p class="section-kicker">Listening Extension</p>
+            <h2>听觉延伸</h2>
+          </div>
+          <button class="inline-panel-action ripple-trigger" type="button" @click="openRadioNav">
+            查看全部
+          </button>
+        </header>
+
+        <div v-if="listeningExtensionLoading && !listeningExtensionPreview.length" class="empty-state compact">
+          正在加载音声推荐...
+        </div>
+        <p v-else-if="listeningExtensionError" class="state-text error">{{ listeningExtensionError }}</p>
+        <div v-else class="listening-extension-grid compact">
+          <button
+            v-for="item in listeningExtensionPreview"
+            :key="`extension-preview-${item.workId}`"
+            class="listening-card ripple-trigger"
+            type="button"
+            @click="openVoiceWork(item)"
+          >
+            <div class="listening-cover" :style="listeningCoverStyle(item)"></div>
+            <div class="listening-copy">
+              <p class="listening-title">{{ item.title }}</p>
+              <p class="listening-desc">{{ item.description }}</p>
+              <p class="listening-tags">{{ item.tagLine }}</p>
+            </div>
+          </button>
+        </div>
+      </section>
+
       <section class="panel liquid-material">
         <header class="panel-head">
           <h2>搜索结果</h2>
@@ -228,6 +261,46 @@
     </template>
 
     <template v-else-if="navKey === 'recommend'">
+      <section class="music-cozy-library cozy-home-block">
+        <header class="music-cozy-hero liquid-material">
+          <div class="hero-copy">
+            <p class="eyebrow">Cozy Music Room</p>
+            <h1>{{ cozyHeroTitle }}</h1>
+            <p>{{ cozyHeroDescription }}</p>
+            <div class="mood-chip-row">
+              <button v-for="item in cozyMoodChips" :key="item" class="mood-chip ripple-trigger" type="button">
+                {{ item }}
+              </button>
+            </div>
+          </div>
+          <article class="hero-now-card liquid-material">
+            <p class="now-label">正在推荐</p>
+            <h2 class="now-title">{{ cozyNowPlaying.title }}</h2>
+            <p class="now-meta">{{ cozyNowPlaying.artist }} · {{ cozyNowPlaying.duration }}</p>
+            <p class="now-note">{{ cozyNowPlaying.note }}</p>
+          </article>
+        </header>
+
+        <div class="music-cozy-grid">
+          <button
+            v-for="item in cozyFeaturedCards"
+            :key="item.id"
+            class="album-card liquid-material ripple-trigger"
+            :class="{ 'is-static': !item.actionable }"
+            type="button"
+            :disabled="!item.actionable"
+            @click="handleCozyCardClick(item)"
+          >
+            <div class="album-cover" :style="cozyCardCoverStyle(item)"></div>
+            <div class="album-copy">
+              <h2>{{ item.title }}</h2>
+              <p>{{ item.description }}</p>
+              <span class="album-tag">{{ item.tag }}</span>
+            </div>
+          </button>
+        </div>
+      </section>
+
       <section class="panel liquid-material">
         <header class="panel-head">
           <h2>Meting 歌单</h2>
@@ -407,10 +480,56 @@
     </template>
 
     <template v-else>
+      <section class="panel liquid-material listening-extension-panel">
+        <header class="panel-head">
+          <div>
+            <p class="section-kicker">Radio / Voice</p>
+            <h2>播客与音声延伸</h2>
+          </div>
+          <button
+            class="inline-panel-action ripple-trigger"
+            type="button"
+            :disabled="listeningExtensionLoading"
+            @click="loadListeningExtension({ force: true })"
+          >
+            {{ listeningExtensionLoading ? '刷新中...' : '刷新推荐' }}
+          </button>
+        </header>
+
+        <p class="podcast-note">
+          这里先复用现有音声接口形成真实内容流；网易云播客或独立 Podcast API 后续可接在同一层。
+        </p>
+
+        <div v-if="listeningExtensionLoading && !listeningExtensionWorks.length" class="empty-state">
+          正在加载听觉延伸内容...
+        </div>
+        <p v-else-if="listeningExtensionError" class="state-text error">{{ listeningExtensionError }}</p>
+        <div v-else-if="listeningExtensionWorks.length" class="listening-extension-grid">
+          <button
+            v-for="item in listeningExtensionWorks"
+            :key="`extension-work-${item.workId}`"
+            class="listening-card ripple-trigger"
+            type="button"
+            @click="openVoiceWork(item)"
+          >
+            <div class="listening-cover" :style="listeningCoverStyle(item)"></div>
+            <div class="listening-copy">
+              <p class="listening-title">{{ item.title }}</p>
+              <p class="listening-desc">{{ item.description }}</p>
+              <p class="listening-stats">{{ item.statLine || item.circle }}</p>
+              <p class="listening-tags">{{ item.tagLine }}</p>
+            </div>
+          </button>
+        </div>
+        <div v-else class="empty-state">
+          暂无可展示的音声延伸内容
+        </div>
+      </section>
+
       <section class="panel liquid-material">
         <header class="panel-head">
-          <h2>播客（预留）</h2>
-          <span>伪界面</span>
+          <h2>外部播客源</h2>
+          <span>预留</span>
         </header>
 
         <div class="podcast-grid">
@@ -423,7 +542,7 @@
           </article>
         </div>
 
-        <p class="podcast-note">当前播客区域为占位，后续可接入网易云 API。</p>
+        <p class="podcast-note">当前外部播客源仍为占位，后续可接入网易云 API。</p>
       </section>
     </template>
   </section>
@@ -431,17 +550,25 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
+import * as musicApi from '../../services/musicApi';
+import { normalizeListeningExtensionWorks } from '../../utils/musicListeningExtension';
 import {
   estimatePlaylistRowCapacity as estimatePlaylistRowCapacityByWidth,
   normalizePlaylistRowCapacity
 } from '../../utils/musicSearchAllLayout';
 
+const router = useRouter();
 const music = useMusicLibraryContext();
 const openingPlaylistCode = ref('');
 const searchPlaylistRowRef = ref(null);
 const descriptionPopoverRef = ref(null);
+const listeningExtensionLoading = ref(false);
+const listeningExtensionError = ref('');
+const listeningExtensionLoaded = ref(false);
+const listeningExtensionWorks = ref([]);
 const descriptionPopover = ref({
   visible: false,
   title: '',
@@ -482,9 +609,79 @@ const filteredTracks = computed(() => {
 
 const spotifyPlaceholderPlaylists = computed(() => SPOTIFY_PLACEHOLDER);
 const filteredPodcastCards = computed(() => PODCAST_PLACEHOLDER);
+const listeningExtensionPreview = computed(() => listeningExtensionWorks.value.slice(0, 3));
 const userCollectedPlaylists = computed(() =>
   (Array.isArray(music.collectedPlaylists?.value) ? music.collectedPlaylists.value : [])
 );
+const cozyHeroTitle = computed(() => (filteredTracks.value.length ? '今天想听点什么呀' : '推荐音乐正在准备中'));
+const cozyHeroDescription = computed(() => {
+  const playlistCount = filteredMetingPlaylists.value.length;
+  const trackCount = filteredTracks.value.length;
+  if (!playlistCount && !trackCount) {
+    return '首页恢复为更柔和的 cozy 入口，推荐歌单与曲目加载完成后会优先展示在这里。';
+  }
+  return `已为你准备 ${playlistCount} 个 Meting 歌单和 ${trackCount} 首推荐曲目，保留当前三栏业务壳，只恢复首页的 cozy 入口氛围。`;
+});
+const cozyMoodChips = computed(() => {
+  const chips = [];
+  chips.push(filteredMetingPlaylists.value.length ? `${filteredMetingPlaylists.value.length} 个歌单` : 'Meting 推荐');
+  chips.push(filteredTracks.value.length ? `${filteredTracks.value.length} 首曲目` : '推荐待刷新');
+  chips.push(userCollectedPlaylists.value.length ? `${userCollectedPlaylists.value.length} 个收藏歌单` : 'Spotify 预览');
+  chips.push('继续播放');
+  return chips.slice(0, 4);
+});
+const cozyNowPlaying = computed(() => {
+  const track = filteredTracks.value[0] || null;
+  return {
+    title: String(track?.title || '今天想听点什么呀').trim() || '今天想听点什么呀',
+    artist: String(track?.artist || 'Shizuki Music').trim() || 'Shizuki Music',
+    duration: String(track?.duration || track?.durationLabel || '--:--').trim() || '--:--',
+    note: filteredMetingPlaylists.value.length
+      ? `已同步 ${filteredMetingPlaylists.value.length} 个歌单，可以直接从下方卡片进入。`
+      : '推荐歌单还在加载中，稍后刷新后会出现在下方。'
+  };
+});
+const cozyFeaturedCards = computed(() => {
+  const cards = filteredMetingPlaylists.value.slice(0, 4).map((item, index) => ({
+    id: `playlist-${item.playlistCode || item.id || item.name || index}`,
+    title: String(item?.name || '未命名歌单').trim() || '未命名歌单',
+    description: String(item?.description || '点击进入歌单详情').trim() || '点击进入歌单详情',
+    tag: 'Meting 推荐',
+    cover: String(item?.cover || '').trim(),
+    actionable: true,
+    playlistCode: String(item?.playlistCode || '').trim()
+  }));
+
+  if (cards.length < 4) {
+    filteredTracks.value.slice(0, 4 - cards.length).forEach((item, index) => {
+      cards.push({
+        id: `track-${item?.trackId || item?.id || index}`,
+        title: String(item?.title || '未命名单曲').trim() || '未命名单曲',
+        description: String(item?.artist || '点击直接播放当前推荐').trim() || '点击直接播放当前推荐',
+        tag: '推荐单曲',
+        cover: String(item?.cover || '').trim(),
+        actionable: true,
+        track: item,
+        trackIndex: index
+      });
+    });
+  }
+
+  if (cards.length < 4) {
+    spotifyPlaceholderPlaylists.value.slice(0, 4 - cards.length).forEach((item) => {
+      cards.push({
+        id: `spotify-placeholder-${item.id}`,
+        title: item.name,
+        description: item.description,
+        tag: 'Spotify 预览',
+        cover: String(item.cover || '').trim(),
+        actionable: false
+      });
+    });
+  }
+
+  return cards.slice(0, 4);
+});
 const searchType = computed(() => String(music.ui.globalSearchType.value || 'all'));
 const searchPlaylists = computed(() => (Array.isArray(music.searchResult.value?.playlists) ? music.searchResult.value.playlists : []));
 const searchTracks = computed(() => (Array.isArray(music.searchResult.value?.tracks) ? music.searchResult.value.tracks : []));
@@ -585,6 +782,18 @@ function trackCoverStyle(item) {
   };
 }
 
+function cozyCardCoverStyle(item) {
+  const url = safeCoverUrl(item?.cover);
+  return url ? { backgroundImage: `url('${url}')` } : {};
+}
+
+function listeningCoverStyle(item) {
+  const url = safeCoverUrl(item?.cover);
+  return {
+    backgroundImage: url ? `url('${url}')` : 'none'
+  };
+}
+
 function safeCoverUrl(rawUrl) {
   const raw = String(rawUrl || '').trim();
   if (!raw) return '';
@@ -611,6 +820,62 @@ function handleOpenPlaylist(playlistCode) {
     closeDescriptionPopover();
     music.openPlaylistDetail(code);
   }, delay);
+}
+
+function handleCozyCardClick(item) {
+  if (!item?.actionable) return;
+  if (item.playlistCode) {
+    handleOpenPlaylist(item.playlistCode);
+    return;
+  }
+  if (item.track && typeof music.playFeaturedTrack === 'function') {
+    music.playFeaturedTrack(item.track, Number(item.trackIndex || 0));
+  }
+}
+
+function parseErrorMessage(error, fallback = '听觉延伸内容加载失败，请稍后重试') {
+  if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
+  return fallback;
+}
+
+async function loadListeningExtension(options = {}) {
+  const force = options?.force === true;
+  if (listeningExtensionLoading.value) return;
+  if (listeningExtensionLoaded.value && !force) return;
+  listeningExtensionLoading.value = true;
+  listeningExtensionError.value = '';
+  try {
+    const payload = await musicApi.searchVoiceWorks({
+      q: '',
+      page: 1,
+      limit: 6,
+      order: 'release',
+      sort: 'desc'
+    });
+    listeningExtensionWorks.value = normalizeListeningExtensionWorks(payload, 6);
+    listeningExtensionLoaded.value = true;
+  } catch (error) {
+    listeningExtensionError.value = parseErrorMessage(error);
+    if (force || !listeningExtensionWorks.value.length) {
+      listeningExtensionWorks.value = [];
+    }
+  } finally {
+    listeningExtensionLoading.value = false;
+  }
+}
+
+function openRadioNav() {
+  music.ui.setActiveNav('radio');
+}
+
+function openVoiceWork(item) {
+  const workId = Number(item?.workId || 0);
+  if (!Number.isFinite(workId) || workId <= 0) return;
+  router.push({
+    name: 'music-library-voice-work',
+    params: { workId: String(workId) }
+  });
 }
 
 function handleOpenCollectDialog(track) {
@@ -763,6 +1028,26 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.cozy-home-block {
+  display: grid;
+  gap: 14px;
+}
+
+.music-cozy-library .album-card.is-static {
+  opacity: 0.88;
+}
+
+.music-cozy-library .album-copy {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.music-cozy-library .album-copy h2,
+.music-cozy-library .album-copy p {
+  margin: 0;
+}
+
 .home-toolbar {
   --liquid-bg: var(--theme-panel-surface);
   --liquid-border: rgba(255, 255, 255, 0.16);
@@ -800,6 +1085,10 @@ onBeforeUnmount(() => {
   color: var(--theme-text-primary);
   font-size: 12px;
   line-height: 1;
+}
+
+.search-box input::placeholder {
+  color: rgba(226, 210, 198, 0.86);
 }
 
 .toolbar-btn {

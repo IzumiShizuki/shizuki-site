@@ -2,345 +2,199 @@
   <aside class="music-right-panel liquid-material" :class="{ mobile: isMobile, 'drawer-open': drawerOpen }">
     <header class="right-head">
       <div class="head-text">
-        <p>Now Playing</p>
-        <h3>歌词与播放信息</h3>
+        <p class="overline">Now Playing</p>
+        <h3 class="main-title">歌词与播放信息</h3>
       </div>
       <button v-if="isMobile" class="drawer-close ripple-trigger" type="button" @click="emit('close-drawer')">
         <i class="fas fa-xmark"></i>
       </button>
     </header>
 
-    <article class="track-card">
-      <div class="cover" :style="coverStyle"></div>
-      <div class="meta">
-        <p class="title">{{ track?.title || '暂无歌曲' }}</p>
-        <p class="artist">{{ track?.artist || '未知歌手' }}</p>
-      </div>
-    </article>
-
-    <article class="lyric-card" :class="{ 'lyric-card--expanded': !expandedProviderKey }">
-      <p class="label">实时歌词</p>
-      <transition name="lyric-soft" mode="out-in">
-        <div :key="lyricTransitionKey" class="lyric-triplet">
-          <p class="line prev">{{ lyricDisplay.prev }}</p>
-          <p class="line current">{{ lyricDisplay.current }}</p>
-          <p class="line next">{{ lyricDisplay.next }}</p>
+    <div class="panel-sections">
+      <article class="glass-card track-card highlight">
+        <div class="cover-wrapper">
+          <div class="cover" :style="coverStyle"></div>
+          <div class="glow-effect"></div>
         </div>
-      </transition>
-    </article>
+        <div class="meta">
+          <p class="title">{{ track?.title || '暂无歌曲' }}</p>
+          <p class="artist">{{ track?.artist || '未知歌手' }}</p>
+        </div>
+      </article>
 
-    <section class="control-panel">
-      <header class="control-head">
-        <p class="control-head-title">音频调节器</p>
-        <p class="control-head-sub">实时生效</p>
-      </header>
-
-      <div class="control-grid">
-        <article class="control-chip volume-chip">
-          <header class="control-chip-head">
-            <p class="control-title">
-              <i class="fas fa-volume-high"></i>
-              VOL
-            </p>
-            <p class="control-value">{{ Math.round(volume * 100) }}%</p>
-          </header>
-          <div class="control-range-row">
-            <span class="range-bound">0</span>
-            <input
-              class="control-range"
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              :value="Math.round(volume * 100)"
-              :style="{ '--level-percent': `${Math.round(volume * 100)}%` }"
-              @input="onVolumeInput"
-            />
-            <span class="range-bound">100</span>
+      <article class="glass-card lyric-card" :class="{ 'lyric-card--expanded': !expandedProviderKey }">
+        <header class="card-head">
+          <p class="card-label">实时歌词</p>
+          <div class="indicator"></div>
+        </header>
+        <transition name="lyric-soft" mode="out-in">
+          <div :key="lyricTransitionKey" class="lyric-triplet">
+            <p class="line prev">{{ lyricDisplay.prev }}</p>
+            <p class="line current">{{ lyricDisplay.current }}</p>
+            <p class="line next">{{ lyricDisplay.next }}</p>
           </div>
-        </article>
+        </transition>
+      </article>
 
-        <article v-for="(item, idx) in eqItems" :key="item.label" class="control-chip eq-chip">
-          <header class="control-chip-head">
-            <p class="control-title">
-              <i class="fas" :class="item.icon"></i>
-              {{ item.label }}
-            </p>
-            <p class="control-value">{{ item.percentLabel }}</p>
-          </header>
-          <div class="control-range-row">
-            <span class="range-bound">0</span>
-            <input
-              class="control-range eq"
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              :value="item.percent"
-              :style="{ '--level-percent': `${item.percent}%` }"
-              @input="onEqInput($event, idx)"
-            />
-            <span class="range-bound">100</span>
+      <section class="glass-card mixer-card">
+        <header class="card-head">
+          <div class="head-info">
+            <p class="card-label">音频调节器</p>
+            <span class="status-pill">LIVE</span>
           </div>
-          <p class="control-sub-value">{{ item.dbLabel }}</p>
-        </article>
-      </div>
-    </section>
+        </header>
 
-    <section class="integration-panel">
-      <article class="integration-card accordion-card" :class="{ expanded: isMetingExpanded }">
-        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider('meting')">
-          <div class="summary-main">
-            <h4>Meting</h4>
-            <p>{{ metingSummary }}</p>
-          </div>
-          <span class="bind-tag" :class="{ ok: metingBound }">{{ metingBound ? '已绑定' : '未绑定' }}</span>
-          <i class="fas" :class="isMetingExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-        </button>
+        <div class="mixer-grid">
+          <article class="mixer-tile volume-tile">
+            <div class="tile-header">
+              <span class="tile-icon"><i class="fas fa-volume-high"></i></span>
+              <span class="tile-label">Master VOL</span>
+              <span class="tile-value">{{ Math.round(volume * 100) }}%</span>
+            </div>
+            <div class="slider-container">
+              <input
+                class="premium-range"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                :value="Math.round(volume * 100)"
+                :style="{ '--level-percent': `${Math.round(volume * 100)}%` }"
+                @input="onVolumeInput"
+              />
+            </div>
+          </article>
 
-        <transition name="provider-expand">
-          <div v-if="isMetingExpanded" class="provider-detail">
-            <header class="integration-head">
-              <h4>Meting Key</h4>
-              <div class="head-actions">
-                <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization', 'meting')">
-                  用户中心
-                </button>
+          <article v-for="(item, idx) in eqItems" :key="item.label" class="mixer-tile">
+            <div class="tile-header">
+              <span class="tile-icon"><i class="fas" :class="item.icon"></i></span>
+              <span class="tile-label">{{ item.label }} EQ</span>
+              <div class="tile-stats">
+                <span class="tile-value">{{ item.dbLabel }}</span>
+              </div>
+            </div>
+            <div class="slider-container">
+              <input
+                class="premium-range eq"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                :value="item.percent"
+                :style="{ '--level-percent': `${item.percent}%` }"
+                @input="onEqInput($event, idx)"
+              />
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="integration-stack">
+        <article class="glass-card integration-tile" :class="{ extended: isMetingExpanded }">
+          <button class="tile-trigger ripple-trigger" type="button" @click="toggleProvider('meting')">
+            <div class="tile-main">
+              <div class="tile-brand">
+                <i class="fas fa-bolt-lightning brand-icon"></i>
+                <div class="brand-text">
+                  <h4>Meting</h4>
+                  <p>{{ metingSummary }}</p>
+                </div>
+              </div>
+              <div class="tile-badge" :class="{ active: metingAvailable }">
+                {{ metingAvailable ? 'ONLINE' : 'OFFLINE' }}
+              </div>
+            </div>
+          </button>
+
+          <transition name="provider-expand">
+            <div v-if="isMetingExpanded" class="tile-expanded-content">
+              <div class="status-box">{{ metingStatusText }}</div>
+              <p class="helper-line">系统服务，无需用户 API Key</p>
+              <div class="provider-tag-list">
+                <span v-for="provider in metingProviders" :key="`meting-provider-${provider}`" class="provider-tag">
+                  {{ providerLabel(provider) }}
+                </span>
+              </div>
+              <div class="action-footer">
                 <button
-                  class="mini-btn ripple-trigger"
+                  class="premium-btn subtle ripple-trigger"
                   type="button"
                   @click="emit('refresh-meting-status')"
-                  :disabled="metingBusy || !isAuthenticated"
+                  :disabled="metingStatusBusy"
                 >
-                  <i class="fas fa-rotate-right"></i>
+                  刷新状态
                 </button>
               </div>
-            </header>
-
-            <label class="field-block">
-              <span>API Key</span>
-              <input
-                :value="metingKeyInput"
-                type="password"
-                placeholder="输入 Meting API Key"
-                :disabled="!isAuthenticated"
-                @input="emit('update:metingKeyInput', $event.target.value)"
-              />
-            </label>
-
-            <p class="status-text">{{ metingStatusText }}</p>
-
-            <div class="row-actions">
-              <button
-                class="mini-btn primary ripple-trigger"
-                type="button"
-                @click="emit('save-meting-key')"
-                :disabled="metingBusy || !isAuthenticated"
-              >
-                {{ metingBusy ? '保存中...' : '保存' }}
-              </button>
-              <button
-                class="mini-btn ripple-trigger"
-                type="button"
-                @click="emit('delete-meting-key')"
-                :disabled="metingBusy || !isAuthenticated"
-              >
-                删除
-              </button>
             </div>
-          </div>
-        </transition>
-      </article>
+          </transition>
+        </article>
 
-      <article class="integration-card accordion-card" :class="{ expanded: isSpotifyExpanded }">
-        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider('spotify')">
-          <div class="summary-main">
-            <h4>Spotify</h4>
-            <p>{{ spotifySummary }}</p>
-          </div>
-          <span class="bind-tag" :class="{ ok: spotifyBound }">{{ spotifyBound ? '已绑定' : '未绑定' }}</span>
-          <i class="fas" :class="isSpotifyExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-        </button>
-
-        <transition name="provider-expand">
-          <div v-if="isSpotifyExpanded" class="provider-detail">
-            <div class="row-actions">
-              <button class="mini-btn ripple-trigger" type="button" @click="emit('open-music-authorization', 'spotify')">
-                用户中心
-              </button>
-              <button class="mini-btn primary ripple-trigger" type="button" @click="emit('bind-spotify')" :disabled="spotifyBusy || !isAuthenticated">
-                {{ spotifyBusy ? '跳转中...' : spotifyBound ? '重新绑定' : '连接 Spotify（可选）' }}
-              </button>
-            </div>
-
-            <div class="spotify-search-row">
-              <input
-                :value="spotifyQuery"
-                type="text"
-                placeholder="搜索 Spotify 曲目"
-                :disabled="!spotifySearchReady"
-                @input="emit('update:spotifyQuery', $event.target.value)"
-                @keydown.enter.prevent="emit('search-spotify')"
-              />
-              <button class="mini-btn ripple-trigger" type="button" :disabled="spotifySearching || !spotifySearchReady" @click="emit('search-spotify')">
-                {{ spotifySearching ? '搜索中...' : '搜索' }}
-              </button>
-            </div>
-
-            <p v-if="spotifyPreviewMode && !spotifyBound" class="status-text">预览模式：未绑定也可搜索、试听与入队</p>
-            <p v-else-if="spotifyPreviewMode && spotifyBound" class="status-text">已绑定账号：优先使用你的 Spotify 授权能力</p>
-            <p v-else-if="!spotifyBound" class="status-text">先连接 Spotify 后可搜索与入队</p>
-            <p v-if="spotifyError" class="status-text error">{{ spotifyError }}</p>
-
-            <div class="spotify-results">
-              <article v-for="item in spotifyResults" :key="item.trackId || item.id" class="spotify-item">
-                <div class="spotify-meta">
-                  <p class="song">{{ item.title || '未知歌曲' }}</p>
-                  <p class="artist">{{ item.artist || '未知歌手' }}</p>
+        <article class="glass-card integration-tile" :class="{ extended: isSpotifyExpanded }">
+          <button class="tile-trigger ripple-trigger" type="button" @click="toggleProvider('spotify')">
+            <div class="tile-main">
+              <div class="tile-brand">
+                <i class="fab fa-spotify brand-icon spotify"></i>
+                <div class="brand-text">
+                  <h4>Spotify</h4>
+                  <p>{{ spotifySummary }}</p>
                 </div>
-                <div class="spotify-actions">
-                  <button
-                    class="mini-btn ripple-trigger"
-                    type="button"
-                    :disabled="!spotifySearchReady || (!item.previewUrl && !item.preview_url)"
-                    @click="emit('preview-spotify', item)"
-                  >
-                    试听
-                  </button>
-                  <button class="mini-btn ripple-trigger" type="button" :disabled="!spotifySearchReady" @click="emit('enqueue-spotify', item)">
-                    入队
-                  </button>
-                </div>
-              </article>
-
-              <p v-if="!spotifyResults.length" class="empty-tip">暂无 Spotify 搜索结果</p>
+              </div>
+              <div class="tile-badge" :class="{ active: spotifyBound }">
+                {{ spotifyBound ? 'SYNCED' : 'READY' }}
+              </div>
             </div>
-          </div>
-        </transition>
-      </article>
+          </button>
 
-      <article class="integration-card source-mode-card">
-        <header class="integration-head">
-          <h4>音乐源策略</h4>
-        </header>
-        <label class="field-block">
-          <span>优先模式</span>
-          <select
-            class="strategy-select"
-            :value="sourceMode"
-            :disabled="!isAuthenticated"
-            @change="emit('update:source-mode', $event.target.value)"
-          >
-            <option value="account_first">账号优先</option>
-            <option value="meting_first">Meting 优先</option>
-            <option value="account_only">仅账号源</option>
-            <option value="meting_only">仅 Meting</option>
-          </select>
-        </label>
-        <div class="order-row">
-          <p>账号源顺序</p>
-          <div class="order-actions">
-            <button
-              v-for="(provider, index) in normalizedSourceProviderOrder"
-              :key="`${provider}-${index}`"
-              class="mini-btn ripple-trigger"
-              type="button"
-              :disabled="!isAuthenticated"
-              @click="emit('move-source-provider', { provider, direction: index === 0 ? 'down' : 'up' })"
-            >
-              {{ providerLabel(provider) }}
-            </button>
-          </div>
-        </div>
-      </article>
-
-      <article
-        v-for="item in sourceCards"
-        :key="item.provider"
-        class="integration-card accordion-card"
-        :class="{ expanded: expandedProviderKey === item.provider }"
-      >
-        <button class="provider-summary ripple-trigger" type="button" @click="toggleProvider(item.provider)">
-          <div class="summary-main">
-            <h4>{{ item.title }}</h4>
-            <p>{{ item.summary }}</p>
-          </div>
-          <span class="bind-tag" :class="{ ok: item.bound }">{{ item.bound ? '已绑定' : '未绑定' }}</span>
-          <i class="fas" :class="expandedProviderKey === item.provider ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-        </button>
-        <transition name="provider-expand">
-          <div v-if="expandedProviderKey === item.provider" class="provider-detail">
-            <p class="status-text">{{ item.statusText }}</p>
-            <div class="row-actions">
-              <button
-                class="mini-btn primary ripple-trigger"
-                type="button"
-                :disabled="item.busy || item.bindBusy || !isAuthenticated"
-                @click="emit('bind-source-account', item.provider)"
-              >
-                {{ item.bindBusy ? '绑定中...' : item.bound ? '重新绑定' : '一键绑定' }}
-              </button>
-              <button
-                class="mini-btn ripple-trigger"
-                type="button"
-                :disabled="item.bindBusy"
-                @click="emit('detect-source-helper')"
-              >
-                检测助手
-              </button>
-              <button
-                v-if="!sourceHelperAvailable"
-                class="mini-btn ripple-trigger"
-                type="button"
-                :disabled="item.bindBusy"
-                @click="emit('open-source-helper-guide')"
-              >
-                安装助手
-              </button>
-              <button
-                class="mini-btn ripple-trigger"
-                type="button"
-                :disabled="item.busy || !isAuthenticated"
-                @click="emit('delete-source-cookie', item.provider)"
-              >
-                删除
-              </button>
-              <button
-                class="mini-btn ripple-trigger"
-                type="button"
-                :disabled="item.importBusy || !isAuthenticated || !item.importSupported"
-                @click="emit('import-source-playlists', item.provider)"
-              >
-                {{ item.importSupported ? (item.importBusy ? '导入中...' : '导入歌单') : '暂不支持导入' }}
-              </button>
-            </div>
-            <details class="manual-fallback">
-              <summary>高级手动绑定</summary>
-              <label class="field-block">
-                <span>Cookie</span>
-                <input
-                  :value="item.cookieInput"
-                  type="password"
-                  :placeholder="`输入 ${item.title} Cookie`"
-                  :disabled="!isAuthenticated"
-                  @input="emit('update:source-cookie', { provider: item.provider, value: $event.target.value })"
-                />
-              </label>
-              <div class="row-actions">
-                <button
-                  class="mini-btn primary ripple-trigger"
-                  type="button"
-                  :disabled="item.busy || !isAuthenticated"
-                  @click="emit('save-source-cookie', item.provider)"
-                >
-                  {{ item.busy ? '保存中...' : '保存 Cookie' }}
+          <transition name="provider-expand">
+            <div v-if="isSpotifyExpanded" class="tile-expanded-content">
+              <div class="spotify-actions-top">
+                <button class="premium-btn ghost ripple-trigger" @click="emit('open-music-authorization')">
+                  Settings
+                </button>
+                <button class="premium-btn accent ripple-trigger" @click="emit('bind-spotify')" :disabled="spotifyBusy || !isAuthenticated">
+                  {{ spotifyBound ? 'Reconnect' : 'Connect Account' }}
                 </button>
               </div>
-            </details>
-          </div>
-        </transition>
-      </article>
-    </section>
+
+              <div class="search-widget">
+                <div class="field-label">Music Discovery</div>
+                <div class="input-with-action">
+                  <input
+                    :value="spotifyQuery"
+                    type="text"
+                    placeholder="Search Spotify..."
+                    :disabled="!spotifySearchReady"
+                    @input="emit('update:spotifyQuery', $event.target.value)"
+                    @keydown.enter.prevent="emit('search-spotify')"
+                  />
+                  <button class="action-btn icon-only ripple-trigger" @click="emit('search-spotify')" :disabled="spotifySearching || !spotifySearchReady">
+                    <i class="fas" :class="spotifySearching ? 'fa-spinner fa-spin' : 'fa-search'"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="results-container">
+                <div v-for="item in spotifyResults" :key="item.trackId || item.id" class="result-row">
+                  <div class="res-meta">
+                    <span class="res-title">{{ item.title }}</span>
+                    <span class="res-artist">{{ item.artist }}</span>
+                  </div>
+                  <div class="res-actions">
+                    <button class="mini-icon-btn ripple-trigger" @click="emit('preview-spotify', item)" :disabled="!item.previewUrl && !item.preview_url">
+                      <i class="fas fa-play"></i>
+                    </button>
+                    <button class="mini-icon-btn ripple-trigger" @click="emit('enqueue-spotify', item)">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+                <p v-if="!spotifyResults.length" class="empty-notif">No tracks found</p>
+              </div>
+            </div>
+          </transition>
+        </article>
+      </section>
+    </div>
   </aside>
 </template>
 
@@ -361,9 +215,8 @@ const props = defineProps({
   drawerOpen: { type: Boolean, default: false },
   isAuthenticated: { type: Boolean, default: false },
   expandedProvider: { type: String, default: '' },
-  metingKeyInput: { type: String, default: '' },
-  metingStatus: { type: Object, default: () => ({ keyBound: false, keyMask: '', updatedAt: '' }) },
-  metingBusy: { type: Boolean, default: false },
+  metingStatus: { type: Object, default: () => ({ available: false, providers: [] }) },
+  metingStatusBusy: { type: Boolean, default: false },
   spotifyBound: { type: Boolean, default: false },
   spotifyPreviewMode: { type: Boolean, default: true },
   spotifyBusy: { type: Boolean, default: false },
@@ -386,9 +239,6 @@ const emit = defineEmits([
   'set-eq-level',
   'close-drawer',
   'update:expandedProvider',
-  'update:metingKeyInput',
-  'save-meting-key',
-  'delete-meting-key',
   'refresh-meting-status',
   'open-music-authorization',
   'bind-spotify',
@@ -461,16 +311,20 @@ const eqItems = computed(() => {
 });
 
 const expandedProviderKey = computed(() => String(props.expandedProvider || '').trim().toLowerCase());
-const isMetingExpanded = computed(() => expandedProviderKey.value === 'meting');
+const isMetingExpanded = computed(() => expandedProviderKey.value === 'meting' || expandedProviderKey.value === 'tunehub');
 const isSpotifyExpanded = computed(() => expandedProviderKey.value === 'spotify');
-const metingBound = computed(() => Boolean(props.metingStatus?.keyBound));
-
-const metingSummary = computed(() => {
-  if (!props.isAuthenticated) return '未登录';
-  if (!metingBound.value) return '未绑定';
-  const mask = String(props.metingStatus?.keyMask || '').trim();
-  return mask || '已绑定';
+const metingAvailable = computed(() => Boolean(props.metingStatus?.available));
+const metingProviders = computed(() => {
+  const list = Array.isArray(props.metingStatus?.providers) ? props.metingStatus.providers : [];
+  const normalized = list
+    .map((item) => String(item || '').trim().toLowerCase())
+    .map((item) => (item === 'qqmusic' || item === 'tencent' ? 'qq' : item))
+    .filter((item) => ['netease', 'kuwo', 'qq'].includes(item));
+  const deduped = [...new Set(normalized)];
+  return deduped.length ? deduped : ['netease', 'kuwo', 'qq'];
 });
+
+const metingSummary = computed(() => (metingAvailable.value ? '系统服务已就绪' : '系统服务离线'));
 
 const spotifySummary = computed(() => {
   if (props.spotifyPreviewMode && !props.spotifyBound) return '预览模式';
@@ -479,48 +333,6 @@ const spotifySummary = computed(() => {
 });
 
 const spotifySearchReady = computed(() => props.spotifyPreviewMode || props.spotifyBound);
-const normalizedSourceProviderOrder = computed(() => {
-  const source = Array.isArray(props.sourceProviderOrder) ? props.sourceProviderOrder : [];
-  const next = source.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean);
-  if (!next.length) {
-    return ['netease', 'qqmusic', 'kugou'];
-  }
-  return next;
-});
-const SOURCE_CARD_ORDER = ['netease', 'qqmusic', 'kugou'];
-const sourceCards = computed(() => {
-  const statusMap = props.sourceAccounts && typeof props.sourceAccounts === 'object' ? props.sourceAccounts : {};
-  const cookieMap = props.sourceCookieInputs && typeof props.sourceCookieInputs === 'object' ? props.sourceCookieInputs : {};
-  const busyMap = props.sourceBusyMap && typeof props.sourceBusyMap === 'object' ? props.sourceBusyMap : {};
-  const importBusyMap = props.sourceImportBusyMap && typeof props.sourceImportBusyMap === 'object' ? props.sourceImportBusyMap : {};
-  const bindBusyMap = props.sourceBindBusyMap && typeof props.sourceBindBusyMap === 'object' ? props.sourceBindBusyMap : {};
-  return SOURCE_CARD_ORDER.map((provider) => {
-    const status = statusMap?.[provider] && typeof statusMap[provider] === 'object' ? statusMap[provider] : {};
-    const bound = Boolean(status?.bound ?? status?.keyBound ?? status?.key_bound);
-    const mask = String(status?.mask || status?.keyMask || status?.key_mask || '').trim();
-    const bindBusy = Boolean(bindBusyMap?.[provider]);
-    const helperState = props.sourceHelperAvailable ? '助手已就绪' : '助手未安装';
-    const statusText = !props.isAuthenticated
-      ? '登录后可配置'
-      : bindBusy
-        ? '绑定中：请在新打开页面完成登录'
-        : bound
-          ? (mask ? `已绑定：${mask}` : '已绑定')
-          : helperState;
-    return {
-      provider,
-      title: providerLabel(provider),
-      bound,
-      summary: mask || statusText,
-      statusText,
-      cookieInput: String(cookieMap?.[provider] || ''),
-      busy: Boolean(busyMap?.[provider]),
-      bindBusy,
-      importBusy: Boolean(importBusyMap?.[provider]),
-      importSupported: provider === 'netease'
-    };
-  });
-});
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
 let lastLyricDebugMode = '';
 
@@ -592,16 +404,15 @@ const lyricTransitionKey = computed(() => {
 });
 
 const metingStatusText = computed(() => {
-  if (!props.isAuthenticated) return '登录后可保存 Meting Key';
-  if (metingBound.value) {
-    const mask = String(props.metingStatus?.keyMask || '').trim();
-    return mask ? `已绑定：${mask}` : '已绑定 Key';
+  if (metingAvailable.value) {
+    return `可用平台：${metingProviders.value.map((item) => providerLabel(item)).join(' / ')}`;
   }
-  return '未绑定 Meting Key';
+  return 'Meting sidecar 当前不可用，请检查服务容器状态。';
 });
 
 function toggleProvider(provider) {
-  const key = String(provider || '').trim().toLowerCase();
+  const raw = String(provider || '').trim().toLowerCase();
+  const key = raw === 'tunehub' ? 'meting' : raw;
   if (!key) return;
   if (expandedProviderKey.value === key) {
     emit('update:expandedProvider', '');
@@ -623,608 +434,622 @@ function onEqInput(event, index) {
 function providerLabel(provider) {
   const normalized = String(provider || '').trim().toLowerCase();
   if (normalized === 'netease') return '网易云';
+  if (normalized === 'kuwo') return '酷我';
+  if (normalized === 'qq') return 'QQ 音乐';
   if (normalized === 'qqmusic') return 'QQ 音乐';
   if (normalized === 'kugou') return '酷狗';
   return normalized || '未知平台';
 }
+
 </script>
 
 <style scoped>
 .music-right-panel {
   --liquid-bg: var(--theme-panel-surface);
-  --liquid-border: var(--theme-border);
-  --liquid-shadow: var(--theme-shadow-soft, 0 16px 30px rgba(8, 10, 18, 0.12));
+  --liquid-shadow: var(--theme-shadow-soft, 0 16px 40px rgba(0, 0, 0, 0.1));
+  --card-bg: var(--theme-surface-soft);
+  --accent-glow: rgba(var(--accent-rgb), 0.12);
+
   border-radius: 18px;
-  padding: 14px 12px calc(var(--music-bottom-dock-height, 124px) + 12px);
+  padding: 16px 14px calc(var(--music-bottom-dock-height, 124px) + 16px);
   height: 100%;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-border) transparent;
 }
 
 .right-head {
+  padding: 4px 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.head-text p {
+.overline {
   margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--theme-text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--music-soft-text-dim);
   text-transform: uppercase;
 }
 
-.head-text h3 {
-  margin: 4px 0 0;
-  font-size: 17px;
-  color: var(--theme-text-primary);
+.main-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--music-soft-text);
+  letter-spacing: -0.01em;
 }
 
 .drawer-close {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  border: 1px solid var(--theme-border-strong);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--music-soft-border-strong);
+  background: var(--music-soft-fill);
+  color: var(--music-soft-text);
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
+.drawer-close:hover {
+  transform: scale(1.08);
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.panel-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Glass Card Architecture */
+.glass-card {
+  position: relative;
+  background: var(--card-bg);
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: var(--liquid-shadow);
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-card.highlight {
+  border-color: rgba(var(--accent-rgb), 0.28);
+  background: linear-gradient(135deg, var(--card-bg), var(--accent-glow));
+}
+
+.glass-card:hover {
+  box-shadow: var(--theme-shadow-strong, 0 12px 30px rgba(0, 0, 0, 0.15));
+}
+
+/* Track Card */
 .track-card {
   display: grid;
-  grid-template-columns: 58px 1fr;
-  gap: 10px;
-  border: 1px solid var(--theme-border);
-  border-radius: 14px;
-  background: var(--theme-surface-soft);
-  padding: 8px;
+  grid-template-columns: 66px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.cover-wrapper {
+  position: relative;
+  width: 66px;
+  height: 66px;
 }
 
 .cover {
-  width: 58px;
-  height: 58px;
-  border-radius: 10px;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
   background-size: cover;
   background-position: center;
+  z-index: 2;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.glow-effect {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 80%;
+  background: rgb(var(--accent-rgb));
+  filter: blur(15px);
+  opacity: 0.35;
+  z-index: 1;
 }
 
 .meta .title {
-  margin: 3px 0 0;
-  font-size: 14px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--theme-text-primary);
 }
 
 .meta .artist {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: 4px 0 0;
+  font-size: 13px;
   color: var(--theme-text-secondary);
 }
 
+/* Lyric Card */
 .lyric-card {
-  border: 1px solid var(--theme-border-strong);
-  border-radius: 14px;
-  background: var(--theme-surface-soft);
-  padding: 10px;
-  min-height: 86px;
+  min-height: 96px;
 }
 
-.lyric-card.lyric-card--expanded {
-  min-height: 146px;
+.lyric-card--expanded {
+  min-height: 156px;
 }
 
-.lyric-card .label {
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.card-label {
   margin: 0;
   font-size: 11px;
-  letter-spacing: 0.1em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--theme-text-tertiary);
   text-transform: uppercase;
 }
 
+.indicator {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(var(--accent-strong-rgb));
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.6);
+}
+
 .lyric-triplet {
-  margin-top: 6px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .lyric-card .line {
   margin: 0;
-  transition: opacity 280ms ease, transform 320ms ease, filter 300ms ease;
+  transition: all 0.3s ease;
 }
 
 .lyric-card .line.prev,
 .lyric-card .line.next {
   font-size: 12px;
   color: var(--theme-text-tertiary);
-  opacity: 0.68;
-  transform: translateY(0);
-  filter: blur(0.2px);
+  opacity: 0.55;
+  filter: blur(0.4px);
 }
 
 .lyric-card .line.current {
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.45;
   font-weight: 700;
   color: var(--theme-text-primary);
-  text-shadow: none;
-  opacity: 1;
 }
 
-.lyric-soft-enter-active,
-.lyric-soft-leave-active {
-  transition: opacity 320ms ease, transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 320ms ease;
+/* Mixer Card (Audio Adjuster) */
+.mixer-card {
+  padding: 14px;
 }
 
-.lyric-soft-enter-from {
-  opacity: 0;
-  transform: translateY(10px) scale(0.98);
-  filter: blur(4px);
+.head-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.lyric-soft-leave-to {
-  opacity: 0;
-  transform: translateY(-8px) scale(0.99);
-  filter: blur(4px);
+.status-pill {
+  font-size: 9px;
+  font-weight: 800;
+  color: white;
+  background: rgb(var(--accent-strong-rgb));
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
 }
 
-.lyric-soft-enter-to,
-.lyric-soft-leave-from {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  filter: blur(0);
-}
-
-.control-panel {
-  border: 1px solid var(--theme-border-strong);
-  border-radius: 14px;
-  background: var(--theme-panel-surface);
-    /* radial-gradient(120% 100% at 8% 0%, rgba(var(--accent-soft-rgb), 0.16), transparent 55%), */
-    /* linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04)); */
-  padding: 10px 9px 12px;
+.mixer-grid {
   display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  margin-top: 4px;
 }
 
-.control-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.control-head-title {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: var(--theme-text-secondary);
-}
-
-.control-head-sub {
-  margin: 0;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--theme-text-tertiary);
-}
-
-.control-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.control-chip {
-  display: grid;
-  align-content: center;
-  gap: 6px;
+.mixer-tile {
+  background: var(--theme-surface-strong);
   border: 1px solid var(--theme-border);
-  border-radius: 11px;
-  padding: 8px 10px;
-  background: var(--theme-surface-soft);
-  box-shadow:
-    inset 0 1px 0 var(--theme-border-soft),
-    0 6px 16px rgba(6, 10, 18, 0.22);
-}
-
-.eq-chip {
-  background: var(--theme-surface-soft);
-}
-
-.control-chip-head {
+  border-radius: 12px;
+  padding: 10px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 8px;
 }
 
-.control-title {
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--theme-text-tertiary);
-}
-
-.control-title i {
-  font-size: 10px;
-  color: rgba(var(--accent-soft-rgb), 0.94);
-}
-
-.control-value {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--theme-text-primary);
-  white-space: nowrap;
-}
-
-.control-sub-value {
-  margin: 0;
-  font-size: 10px;
-  color: var(--theme-text-tertiary);
-}
-
-.control-range-row {
-  display: grid;
-  grid-template-columns: 20px 1fr 26px;
+.tile-header {
+  display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.range-bound {
   font-size: 10px;
-  color: rgba(182, 196, 226, 0.82);
+  font-weight: 700;
+  color: var(--theme-text-tertiary);
 }
 
-.control-range {
+.tile-icon {
+  color: rgb(var(--accent-strong-rgb));
+}
+
+.tile-value {
+  margin-left: auto;
+  color: var(--theme-text-primary);
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.slider-container {
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.premium-range {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 20px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--theme-border);
   cursor: pointer;
-  background: transparent;
+  outline: none;
 }
 
-.control-range.eq {
-  filter: saturate(1.08);
+.premium-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--accent-strong-rgb)) var(--level-percent, 0%),
+    var(--theme-border) var(--level-percent, 0%)
+  );
 }
 
-.control-range::-webkit-slider-runnable-track {
-  height: 8px;
-  border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(var(--accent-soft-rgb), 0.9) 0%,
-      rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
-      var(--theme-border) var(--level-percent, 50%),
-      var(--theme-surface-soft) 100%
-    );
-  border: 1px solid var(--theme-border-strong);
-  box-shadow: inset 0 0 0 1px var(--theme-border-soft);
-}
-
-.control-range::-webkit-slider-thumb {
+.premium-range::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   margin-top: -4px;
   border-radius: 50%;
-  border: 2px solid var(--theme-surface-strong);
-  background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
-  box-shadow:
-    0 0 0 3px rgba(var(--accent-rgb), 0.16),
-    0 0 12px rgba(var(--accent-rgb), 0.52);
+  background: white;
+  border: 2px solid rgb(var(--accent-strong-rgb));
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.4);
+  transition: transform 0.15s ease;
 }
 
-.control-range::-moz-range-track {
-  height: 8px;
-  border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(var(--accent-soft-rgb), 0.9) 0%,
-      rgba(var(--accent-rgb), 0.72) var(--level-percent, 50%),
-      var(--theme-border) var(--level-percent, 50%),
-      var(--theme-surface-soft) 100%
-    );
-  border: 1px solid var(--theme-border-strong);
-  box-shadow: inset 0 0 0 1px var(--theme-border-soft);
+.premium-range:hover::-webkit-slider-thumb {
+  transform: scale(1.25);
 }
 
-.control-range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--theme-surface-strong);
-  background: linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.98), rgba(var(--accent-rgb), 0.94));
-  box-shadow:
-    0 0 0 3px rgba(var(--accent-rgb), 0.16),
-    0 0 12px rgba(var(--accent-rgb), 0.52);
+/* Integration Stack */
+.integration-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-@media (max-width: 1100px) {
-  .control-grid {
-    grid-template-columns: 1fr;
-  }
+.integration-tile {
+  padding: 0;
 }
 
-.integration-panel {
-  display: grid;
-  gap: 8px;
-}
-
-.integration-card {
-  border: 1px solid var(--theme-border);
-  border-radius: 14px;
-  background: var(--theme-surface-soft);
-  padding: 8px;
-  display: grid;
-  gap: 8px;
-}
-
-.provider-summary {
+.tile-trigger {
   width: 100%;
+  padding: 12px;
   border: 0;
-  border-radius: 10px;
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
-  padding: 8px 10px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
+  background: transparent;
   text-align: left;
 }
 
-.summary-main {
-  min-width: 0;
+.tile-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.summary-main h4 {
-  margin: 0;
-  font-size: 13px;
-  color: var(--theme-text-primary);
+.tile-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.summary-main p {
-  margin: 4px 0 0;
-  font-size: 11px;
+.brand-icon {
+  font-size: 20px;
   color: var(--theme-text-tertiary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.bind-tag {
-  border-radius: 999px;
-  padding: 2px 8px;
+.brand-icon.spotify {
+  color: #1ed760;
+}
+
+.brand-icon.netease {
+  color: #e03f3f;
+}
+
+.brand-icon.qqmusic {
+  color: #12b7f5;
+}
+
+.brand-icon.kugou {
+  color: #00a1d6;
+}
+
+.brand-text h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--music-soft-text);
+}
+
+.brand-text p {
+  margin: 2px 0 0;
   font-size: 11px;
-  color: rgba(var(--accent-soft-rgb), 0.94);
-  background: var(--theme-surface-soft);
+  color: var(--music-soft-text-muted);
 }
 
-.bind-tag.ok {
-  color: rgba(var(--accent-soft-rgb), 0.96);
-  background: var(--theme-surface-soft);
+.tile-badge {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--music-soft-text);
+  border: 1px solid var(--music-soft-border);
+  background: var(--music-soft-fill);
+  padding: 2px 6px;
+  border-radius: 6px;
 }
 
-.provider-detail {
-  display: grid;
-  gap: 10px;
-  padding: 2px 2px 4px;
+.tile-badge.active {
+  color: var(--music-accent-text, var(--accent-mode-text));
+  background: var(--accent-mode-fill-strong);
+  border-color: var(--accent-mode-border-strong);
+  box-shadow: 0 6px 16px rgba(var(--accent-rgb), 0.18);
 }
 
+.tile-expanded-content {
+  padding: 0 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Premium Inputs & Buttons */
+.premium-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--music-soft-text-dim);
+  text-transform: uppercase;
+}
+
+.input-with-action {
+  position: relative;
+  display: flex;
+  gap: 6px;
+}
+
+.input-with-action input {
+  flex: 1;
+  background: var(--music-soft-fill);
+  border: 1px solid var(--music-soft-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--music-soft-text);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.input-with-action input:focus {
+  border-color: rgb(var(--accent-strong-rgb));
+}
+
+.action-btn {
+  width: 36px;
+  background: var(--music-soft-fill);
+  border: 1px solid var(--music-soft-border);
+  border-radius: 10px;
+  color: var(--music-soft-text);
+}
+
+.action-footer {
+  display: flex;
+  gap: 8px;
+}
+
+.premium-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.premium-btn.accent {
+  background: var(--accent-mode-fill-strong);
+  color: var(--music-accent-text, var(--accent-mode-text));
+  border-color: var(--accent-mode-border-strong);
+}
+
+.premium-btn.accent:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.3);
+}
+
+.premium-btn.subtle {
+  background: var(--music-soft-fill);
+  border-color: var(--music-soft-border);
+  color: var(--music-soft-text);
+}
+
+.premium-btn.ghost {
+  background: transparent;
+  border-color: var(--music-soft-border);
+  color: var(--music-soft-text);
+}
+
+.premium-btn.danger {
+  background: rgba(255, 68, 68, 0.1);
+  color: #ff4444;
+  border-color: rgba(255, 68, 68, 0.2);
+}
+
+/* Animations & Transitions */
 .provider-expand-enter-active,
 .provider-expand-leave-active {
+  transition: all 0.35s cubic-bezier(0.3, 0, 0, 1);
+  max-height: 500px;
   overflow: hidden;
-  transition:
-    max-height 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms ease,
-    transform 220ms ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lyric-soft-enter-active,
-  .lyric-soft-leave-active,
-  .lyric-card .line {
-    transition-duration: 1ms !important;
-    transition-delay: 0ms !important;
-  }
 }
 
 .provider-expand-enter-from,
 .provider-expand-leave-to {
   max-height: 0;
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-10px);
 }
 
-.provider-expand-enter-to,
-.provider-expand-leave-from {
-  max-height: 420px;
-  opacity: 1;
-  transform: translateY(0);
+/* Spotify Detail Specifics */
+.spotify-actions-top {
+  display: flex;
+  gap: 8px;
 }
 
-.integration-head {
+.search-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.results-container {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--music-soft-border);
+  border-radius: 10px;
+  background: var(--music-soft-fill);
+}
+
+.result-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--theme-border-soft);
 }
 
-.integration-head h4 {
-  margin: 0;
-  font-size: 13px;
-  color: var(--theme-text-primary);
-}
-
-.head-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.field-block {
-  display: grid;
-  gap: 6px;
-}
-
-.field-block span {
-  font-size: 11px;
-  color: var(--theme-text-tertiary);
-}
-
-.field-block input {
-  border-radius: 9px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-primary);
-  padding: 8px;
-  outline: none;
-}
-
-.strategy-select {
-  border-radius: 9px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-primary);
-  padding: 8px;
-  outline: none;
-}
-
-.order-row {
-  display: grid;
-  gap: 8px;
-}
-
-.order-row p {
-  margin: 0;
-  font-size: 11px;
-  color: var(--theme-text-tertiary);
-}
-
-.order-actions {
+.res-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.row-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.mini-btn {
-  border-radius: 8px;
-  border: 1px solid var(--theme-border-strong);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
-  min-height: 30px;
-  padding: 0 10px;
-}
-
-.mini-btn.primary {
-  border-color: rgba(var(--accent-rgb), 0.58);
-  background: rgba(var(--accent-rgb), 0.24);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
-}
-
-.status-text {
-  margin: 0;
-  font-size: 12px;
-  color: var(--theme-text-tertiary);
-}
-
-.status-text.error {
-  color: rgba(var(--accent-soft-rgb), 0.98);
-}
-
-.spotify-search-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
-
-.spotify-search-row input {
-  border-radius: 9px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-primary);
-  padding: 8px;
-  outline: none;
-}
-
-.spotify-results {
-  display: grid;
-  gap: 8px;
-  max-height: 220px;
-  overflow: auto;
-}
-
-.spotify-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  border: 1px solid var(--theme-border);
-  border-radius: 10px;
-  padding: 8px;
-  background: var(--theme-surface-soft);
-}
-
-.spotify-meta {
+  flex-direction: column;
   min-width: 0;
 }
 
-.spotify-meta .song,
-.spotify-meta .artist {
-  margin: 0;
+.res-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--music-soft-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.spotify-meta .song {
-  font-size: 12px;
-  color: var(--theme-text-primary);
-}
-
-.spotify-meta .artist {
-  margin-top: 4px;
+.res-artist {
   font-size: 11px;
-  color: var(--theme-text-secondary);
+  color: var(--music-soft-text-dim);
 }
 
-.spotify-actions {
+.res-actions {
   display: flex;
+  gap: 4px;
+}
+
+.mini-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--music-soft-fill);
+  border: 1px solid var(--music-soft-border);
+  font-size: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--music-soft-text);
+}
+
+.empty-notif {
+  padding: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--music-soft-text-dim);
+}
+
+.status-box {
+  background: var(--music-soft-fill);
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--music-soft-text-muted);
+  border: 1px solid var(--music-soft-border);
+}
+
+.helper-line {
+  margin: 0;
+  font-size: 11px;
+  color: var(--music-soft-text-dim);
+}
+
+.provider-tag-list {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
-.empty-tip {
-  margin: 0;
-  font-size: 12px;
-  color: rgba(178, 191, 218, 0.8);
+.provider-tag {
+  border: 1px solid var(--music-soft-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--music-soft-text);
+  background: var(--music-soft-fill);
 }
 
 @media (max-width: 900px) {
   .music-right-panel.mobile {
     position: fixed;
-    right: 10px;
-    top: 68px;
-    bottom: 96px;
-    width: min(78vw, 320px);
+    right: 12px;
+    top: 72px;
+    bottom: 108px;
+    width: min(85vw, 340px);
     z-index: 1220;
-    transform: translateX(112%);
-    transition: transform 260ms ease;
-    padding-bottom: 16px;
+    transform: translateX(115%);
+    transition: transform 0.4s cubic-bezier(0.1, 0, 0, 1);
+    background: var(--theme-panel-surface);
+    backdrop-filter: blur(20px);
   }
 
   .music-right-panel.mobile.drawer-open {
     transform: translateX(0);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
   }
 }
 </style>

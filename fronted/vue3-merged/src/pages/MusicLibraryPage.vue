@@ -35,7 +35,7 @@
         <SubtleScrollArea tag="main" ref="centerPaneRef" class="music-center-pane" @scroll.passive="rememberCenterScroll">
           <header class="music-center-mode-switch" role="tablist" aria-label="music center mode tabs">
             <button
-              class="mode-tab ripple-trigger"
+              class="mode-tab"
               type="button"
               role="tab"
               :aria-selected="currentCenterMode === 'music'"
@@ -46,7 +46,7 @@
             </button>
             <button
               v-if="voiceEntryVisible"
-              class="mode-tab ripple-trigger"
+              class="mode-tab"
               type="button"
               role="tab"
               :aria-selected="currentCenterMode === 'voice'"
@@ -106,9 +106,8 @@
           :drawer-open="ui.rightDrawerOpen.value"
           :is-authenticated="auth.isAuthenticated.value"
           :expanded-provider="ui.expandedProvider.value"
-          :meting-key-input="metingKeyInput"
           :meting-status="metingStatus"
-          :meting-busy="metingBusy"
+          :meting-status-busy="metingStatusBusy"
           :spotify-bound="spotifyBound"
           :spotify-busy="spotifyBusy"
           :spotify-query="spotifyQuery"
@@ -127,9 +126,6 @@
           @set-eq-level="handleSetEqLevel"
           @close-drawer="ui.setRightDrawerOpen(false)"
           @update:expanded-provider="ui.setExpandedProvider($event)"
-          @update:meting-key-input="metingKeyInput = $event"
-          @save-meting-key="handleSaveMetingKey"
-          @delete-meting-key="handleDeleteMetingKey"
           @refresh-meting-status="loadMetingStatus"
           @open-music-authorization="openMusicAuthorization"
           @bind-spotify="handleBindSpotify"
@@ -227,7 +223,6 @@ import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
 import {
   SOURCE_ACCOUNT_PROVIDERS,
-  normalizeApiKeyStatus,
   normalizeMusicSourceModeValue,
   normalizeSourceAccountStatus,
   normalizeSourceProviderOrder
@@ -238,7 +233,6 @@ import {
   requestMusicSourceCookies,
   waitForMusicSourceBind
 } from '../utils/musicSourceBindHelper';
-import { openMetingConsoleWindow } from '../utils/metingConsole';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
@@ -247,8 +241,6 @@ const PLAYLIST_BROWSE_STEP = 100;
 const PLAYLIST_PREFETCH_GAP = 40;
 const SEARCH_ALL_PLAYLIST_MIN_CAPACITY = 1;
 const SEARCH_ALL_PLAYLIST_MAX_CAPACITY = 12;
-const METING_CONSOLE_UNCONFIGURED_MESSAGE = '未配置 Meting 配置页地址，请设置 VITE_METING_CONSOLE_URL。';
-const METING_API_PROVIDER = 'meting';
 const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
   playlists: 3,
   tracks: 10,
@@ -296,9 +288,8 @@ const sidebarData = ref({
   collectedPlaylists: []
 });
 
-const metingKeyInput = ref('');
-const metingStatus = ref({ keyBound: false, keyMask: '', updatedAt: '' });
-const metingBusy = ref(false);
+const metingStatus = ref({ available: false, providers: ['netease', 'kuwo', 'qq'] });
+const metingStatusBusy = ref(false);
 
 const spotifyBound = ref(false);
 const spotifyBusy = ref(false);
@@ -876,15 +867,8 @@ function handleSelectNav(navKey) {
   }
 }
 
-function openMusicAuthorization(provider = '') {
+function openMusicAuthorization() {
   ui.closeDrawers();
-  const normalizedProvider = String(provider || '').trim().toLowerCase();
-  if (normalizedProvider === 'meting') {
-    if (!openMetingConsoleWindow()) {
-      window.alert(METING_CONSOLE_UNCONFIGURED_MESSAGE);
-    }
-    return;
-  }
   router.push({ path: '/profile', query: { tab: 'account' } });
 }
 
@@ -1481,52 +1465,19 @@ async function loadLikedTrackIds() {
 }
 
 async function loadMetingStatus() {
-  if (!auth.isAuthenticated.value) {
-    metingStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
-    return;
-  }
+  metingStatusBusy.value = true;
   try {
-    const payload = await musicApi.getMusicApiKeyStatus(METING_API_PROVIDER, auth.authorizedFetch);
-    metingStatus.value = normalizeApiKeyStatus(payload);
+    const payload = await musicApi.getMetingStatus(
+      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+    );
+    metingStatus.value = {
+      available: Boolean(payload?.available),
+      providers: Array.isArray(payload?.providers) ? payload.providers : ['netease', 'kuwo', 'qq']
+    };
   } catch {
-    metingStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
-  }
-}
-
-async function handleSaveMetingKey() {
-  if (!auth.isAuthenticated.value) {
-    goLogin();
-    return;
-  }
-  if (!String(metingKeyInput.value || '').trim()) {
-    window.alert('请输入 Meting API Key');
-    return;
-  }
-  metingBusy.value = true;
-  try {
-    const payload = await musicApi.upsertMusicApiKey(METING_API_PROVIDER, metingKeyInput.value, auth.authorizedFetch);
-    metingStatus.value = normalizeApiKeyStatus(payload);
-    metingKeyInput.value = '';
-  } catch (error) {
-    window.alert(parseErrorMessage(error, 'Meting Key 保存失败'));
+    metingStatus.value = { available: false, providers: ['netease', 'kuwo', 'qq'] };
   } finally {
-    metingBusy.value = false;
-  }
-}
-
-async function handleDeleteMetingKey() {
-  if (!auth.isAuthenticated.value) {
-    goLogin();
-    return;
-  }
-  metingBusy.value = true;
-  try {
-    await musicApi.deleteMusicApiKey(METING_API_PROVIDER, auth.authorizedFetch);
-    metingStatus.value = { keyBound: false, keyMask: '', updatedAt: '' };
-  } catch (error) {
-    window.alert(parseErrorMessage(error, 'Meting Key 删除失败'));
-  } finally {
-    metingBusy.value = false;
+    metingStatusBusy.value = false;
   }
 }
 
@@ -1623,7 +1574,7 @@ async function loadMusicSourceAccountsStatus() {
 async function handleDetectMusicSourceHelper() {
   musicSourceHelperAvailable.value = await detectMusicSourceHelper();
   if (!musicSourceHelperAvailable.value) {
-    window.alert('未检测到音乐助手，请先安装后再执行一键绑定。');
+    window.alert('未检测到自动读取扩展。你仍可使用手动粘贴 Cookie 方式完成绑定。');
   }
 }
 
@@ -1638,10 +1589,6 @@ async function handleBindMusicSourceAccount(provider) {
   }
   const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
-  if (!musicSourceHelperAvailable.value) {
-    handleOpenMusicSourceHelperGuide();
-    return;
-  }
 
   musicSourceBindBusyMap.value = {
     ...musicSourceBindBusyMap.value,
@@ -1659,6 +1606,11 @@ async function handleBindMusicSourceAccount(provider) {
       window.open(String(session?.loginUrl || ''), '_blank', 'noopener,noreferrer');
     } catch {
       // noop
+    }
+
+    if (!musicSourceHelperAvailable.value) {
+      window.alert('已打开登录页。登录完成后请复制该平台 Cookie 到右侧输入框并点击“保存 Cookie”。');
+      return;
     }
 
     const expiresAtMs = Date.parse(String(session?.expiresAt || ''));
@@ -1720,7 +1672,7 @@ async function handleBindMusicSourceAccount(provider) {
       window.alert(lastErrorMessage || '未检测到有效登录态，请确认目标平台已登录后重试。');
     }
   } catch (error) {
-    window.alert(parseErrorMessage(error, '发起一键绑定失败'));
+    window.alert(parseErrorMessage(error, '打开绑定登录页失败'));
   } finally {
     musicSourceBindBusyMap.value = {
       ...musicSourceBindBusyMap.value,
@@ -2544,38 +2496,51 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.music-library-page {
+  --theme-text-primary: rgba(255, 247, 241, 0.98);
+  --theme-text-secondary: rgba(241, 226, 215, 0.94);
+  --theme-text-tertiary: rgba(224, 206, 194, 0.9);
+  --theme-icon-primary: rgba(245, 249, 255, 0.95);
+  --theme-panel-surface: linear-gradient(155deg, rgba(34, 46, 68, 0.48), rgba(12, 18, 32, 0.88));
+  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(53, 68, 96, 0.4), rgba(17, 24, 42, 0.84));
+  --theme-surface-soft: rgba(24, 34, 52, 0.56);
+  --theme-border: rgba(255, 226, 210, 0.3);
+}
+
 .music-center-mode-switch {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 12;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  background: linear-gradient(140deg, rgba(18, 22, 33, 0.84), rgba(14, 17, 27, 0.78));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 0 4px;
 }
 
 .mode-tab {
-  min-height: 32px;
-  min-width: 72px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(221, 231, 246, 0.9);
-  font-size: 13px;
-  padding: 0 12px;
-  transition: all 0.2s ease;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--theme-text-tertiary, rgba(255, 255, 255, 0.2)) !important;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  outline: none;
+}
+
+.mode-tab:hover {
+  color: var(--theme-text-secondary, rgba(255, 255, 255, 0.5)) !important;
 }
 
 .mode-tab.active {
-  border-color: rgba(var(--accent-rgb), 0.58);
-  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.9), rgba(var(--accent-soft-rgb), 0.86));
-  color: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 16px rgba(var(--accent-rgb), 0.24);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--theme-text-primary, rgba(255, 255, 255, 0.95)) !important;
+  cursor: default;
+  transform: translateY(1px);
 }
 
 .music-fatal-error {
