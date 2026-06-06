@@ -69,7 +69,7 @@ public class AuthEntryFilter extends OncePerRequestFilter {
         }
 
         HttpServletRequest sanitizedRequest = stripUntrustedUserHeaders(request);
-        String path = sanitizedRequest.getRequestURI();
+        String path = resolveRequestPath(sanitizedRequest);
         boolean guestPath = isGuestPath(path);
 
         if ("OPTIONS".equalsIgnoreCase(sanitizedRequest.getMethod()) || isPublicPath(path)) {
@@ -157,6 +157,36 @@ public class AuthEntryFilter extends OncePerRequestFilter {
 
     private String currentGuestPolicy() {
         return properties.getGuestInvalidTokenPolicy().name().toLowerCase();
+    }
+
+    private String resolveRequestPath(HttpServletRequest request) {
+        String servletPath = readString(request.getServletPath());
+        String pathInfo = readString(request.getPathInfo());
+        if (StringUtils.hasText(servletPath) && !"/".equals(servletPath)) {
+            return normalizePath(servletPath + pathInfo);
+        }
+        if (StringUtils.hasText(pathInfo)) {
+            return normalizePath(pathInfo);
+        }
+
+        String requestUri = readString(request.getRequestURI());
+        String contextPath = readString(request.getContextPath());
+        if (StringUtils.hasText(contextPath) && requestUri.startsWith(contextPath)) {
+            requestUri = requestUri.substring(contextPath.length());
+        }
+        return normalizePath(requestUri);
+    }
+
+    private String readString(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String normalizePath(String value) {
+        String normalized = readString(value);
+        if (!StringUtils.hasText(normalized)) {
+            return "/";
+        }
+        return normalized.startsWith("/") ? normalized : "/" + normalized;
     }
 
     private HttpServletRequest withGuestHeaders(HttpServletRequest request) {

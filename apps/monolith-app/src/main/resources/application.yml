@@ -247,6 +247,8 @@ shizuki:
       - /api/v1/posts/**
       - /api/v1/apps/**
       - /api/v1/ai-sessions/**
+      - /api/v1/ai-town/scenes/**
+      - /api/v1/ai-town/public-map
       - /api/v1/assets/public/**
       - /api/v1/assets/*/download-url
       - /api/v1/music/playlist/default/**
