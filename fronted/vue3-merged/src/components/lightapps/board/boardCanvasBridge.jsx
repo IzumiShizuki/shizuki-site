@@ -1780,6 +1780,14 @@ function BoardCanvasReactHost({ api, initialSnapshot }) {
   );
 }
 
+export const __TEST__ = Object.freeze({
+  resolveDirectionalQuickConnectTarget,
+  bindQuickConnectArrowEnd,
+  connectQuickArrowToExistingShape,
+  createQuickConnectChoiceShape,
+  cancelQuickConnectChoice
+});
+
 export function mountBoardCanvas(target, options = {}) {
   if (!target) {
     throw new Error('mount target is required');
