@@ -1,12 +1,12 @@
-import { reactive, ref } from "vue";
+import { reactive, ref } from 'vue';
 
-const DEFAULT_PLAYLIST_CODE = "default_public";
-const DEFAULT_SEARCH_PROVIDERS = ["netease", "kuwo", "qq"];
+const DEFAULT_PLAYLIST_CODE = 'default_public';
+const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
 
 export const MUSIC_PRIMARY_NAV = [
-  { key: "recommend", label: "推荐", icon: "fas fa-house" },
-  { key: "playlist", label: "歌单", icon: "fas fa-compact-disc" },
-  { key: "radio", label: "播客", icon: "fas fa-podcast" },
+  { key: 'recommend', label: '推荐', icon: 'fas fa-house' },
+  { key: 'playlist', label: '歌单', icon: 'fas fa-compact-disc' },
+  { key: 'radio', label: '播客', icon: 'fas fa-podcast' }
 ];
 
 function clamp01(value) {
@@ -15,73 +15,63 @@ function clamp01(value) {
 }
 
 function normalizePath(path) {
-  const value = String(path || "").trim();
-  return value.startsWith("/") ? value : "/music-library/music";
+  const value = String(path || '').trim();
+  return value.startsWith('/') ? value : '/music-library/music';
 }
 
 function createMusicLibraryUiState() {
   const activeNav = ref(MUSIC_PRIMARY_NAV[0].key);
   const selectedPlaylistCode = ref(DEFAULT_PLAYLIST_CODE);
-  const homeSearchKeyword = ref("");
-  const globalSearchKeyword = ref("");
-  const globalSearchType = ref("all");
+  const homeSearchKeyword = ref('');
+  const globalSearchKeyword = ref('');
+  const globalSearchType = ref('all');
   const globalSearchProviders = ref(DEFAULT_SEARCH_PROVIDERS.slice());
   const detailSearchByCode = reactive({});
   const leftDrawerOpen = ref(false);
   const rightDrawerOpen = ref(false);
-  const expandedProvider = ref("");
+  const expandedProvider = ref('');
   const eqLevels = ref([0.66, 0.52, 0.74]);
   const scrollTopByPath = reactive({});
-  const lastContentPath = ref("/music-library/music");
+  const lastContentPath = ref('/music-library/music');
 
   function setActiveNav(navKey) {
-    const normalized = String(navKey || "").trim();
+    const normalized = String(navKey || '').trim();
     if (!normalized) return;
     activeNav.value = normalized;
   }
 
   function setSelectedPlaylistCode(playlistCode) {
-    const normalized = String(playlistCode || "").trim();
+    const normalized = String(playlistCode || '').trim();
     if (!normalized) return;
     selectedPlaylistCode.value = normalized;
   }
 
   function setHomeSearchKeyword(keyword) {
-    homeSearchKeyword.value = String(keyword || "").trimStart();
+    homeSearchKeyword.value = String(keyword || '').trimStart();
   }
 
   function setGlobalSearchKeyword(keyword) {
-    globalSearchKeyword.value = String(keyword || "").trimStart();
+    globalSearchKeyword.value = String(keyword || '').trimStart();
   }
 
   function setGlobalSearchType(type) {
-    const normalized = String(type || "")
-      .trim()
-      .toLowerCase();
+    const normalized = String(type || '').trim().toLowerCase();
     if (!normalized) return;
-    if (!["all", "playlist", "track", "artist"].includes(normalized)) return;
+    if (!['all', 'playlist', 'track', 'artist'].includes(normalized)) return;
     globalSearchType.value = normalized;
   }
 
   function setGlobalSearchProviders(nextProviders) {
     if (!Array.isArray(nextProviders)) return;
     const normalized = nextProviders
-      .map((item) =>
-        String(item || "")
-          .trim()
-          .toLowerCase(),
-      )
+      .map((item) => String(item || '').trim().toLowerCase())
       .filter((item) => item);
     const deduped = [...new Set(normalized)];
-    globalSearchProviders.value = deduped.length
-      ? deduped
-      : DEFAULT_SEARCH_PROVIDERS.slice();
+    globalSearchProviders.value = deduped.length ? deduped : DEFAULT_SEARCH_PROVIDERS.slice();
   }
 
   function toggleGlobalSearchProvider(provider) {
-    const normalized = String(provider || "")
-      .trim()
-      .toLowerCase();
+    const normalized = String(provider || '').trim().toLowerCase();
     if (!normalized) return;
     const set = new Set(globalSearchProviders.value);
     if (set.has(normalized)) {
@@ -94,21 +84,21 @@ function createMusicLibraryUiState() {
   }
 
   function resetGlobalSearch() {
-    globalSearchKeyword.value = "";
-    globalSearchType.value = "all";
+    globalSearchKeyword.value = '';
+    globalSearchType.value = 'all';
     globalSearchProviders.value = DEFAULT_SEARCH_PROVIDERS.slice();
   }
 
   function setDetailSearchKeyword(playlistCode, keyword) {
-    const code = String(playlistCode || "").trim();
+    const code = String(playlistCode || '').trim();
     if (!code) return;
-    detailSearchByCode[code] = String(keyword || "").trimStart();
+    detailSearchByCode[code] = String(keyword || '').trimStart();
   }
 
   function getDetailSearchKeyword(playlistCode) {
-    const code = String(playlistCode || "").trim();
-    if (!code) return "";
-    return String(detailSearchByCode[code] || "");
+    const code = String(playlistCode || '').trim();
+    if (!code) return '';
+    return String(detailSearchByCode[code] || '');
   }
 
   function setLeftDrawerOpen(open) {
@@ -125,25 +115,18 @@ function createMusicLibraryUiState() {
   }
 
   function setExpandedProvider(providerKey) {
-    const normalized = String(providerKey || "")
-      .trim()
-      .toLowerCase();
+    const normalized = String(providerKey || '').trim().toLowerCase();
     if (!normalized) {
-      expandedProvider.value = "";
+      expandedProvider.value = '';
       return;
     }
-    if (normalized === "tunehub") {
-      expandedProvider.value = "meting";
-      return;
-    }
-    if (normalized === "meting" || normalized === "spotify") {
+    if (normalized === 'meting' || normalized === 'spotify') {
       expandedProvider.value = normalized;
     }
   }
 
   function setEqLevel(index, value) {
-    if (!Number.isInteger(index) || index < 0 || index >= eqLevels.value.length)
-      return;
+    if (!Number.isInteger(index) || index < 0 || index >= eqLevels.value.length) return;
     const next = eqLevels.value.slice();
     next[index] = clamp01(Number(value));
     eqLevels.value = next;
@@ -193,7 +176,7 @@ function createMusicLibraryUiState() {
     setEqLevel,
     rememberScroll,
     readScroll,
-    setLastContentPath,
+    setLastContentPath
   };
 }
 

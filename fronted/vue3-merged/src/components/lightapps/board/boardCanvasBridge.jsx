@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
 import {
   Tldraw,
+  DefaultColorStyle,
+  DefaultFillStyle,
   DefaultMenuPanel,
   DefaultStylePanel,
   DefaultSnapIndicator,
@@ -21,12 +23,33 @@ import {
 import { useValue } from '@tldraw/state-react';
 import 'tldraw/tldraw.css';
 import { createRichText, graphToMermaidText, parseMermaidTextToGraph, richTextToPlainText } from './boardMermaid';
+import {
+  BOARD_DEFAULT_SHAPE_COLOR,
+  BOARD_DEFAULT_SHAPE_FILL,
+  QUICK_CONNECT_CHOICE_TOOLS,
+  getQuickConnectShapeSize,
+  getBoardDefaultShapeStyleProps,
+  resolveNearestDirectionalTarget,
+  resolveBoundsEdgePointToward,
+  resolveQuickConnectFallbackPoint,
+  resolveQuickConnectSpawnCenter
+} from './boardQuickConnect';
 
 const GUIDE_STORAGE_KEY = 'shizuki.board-canvas.palette-guide-dismissed.v1';
 const BOARD_GRID_SIZE = 24;
 const STYLE_PANEL_COMPACT_BREAKPOINT = '(max-width: 980px)';
 const QUICK_CONNECT_SHAPE_TYPES = new Set(['geo', 'note', 'text', 'frame']);
+const PALETTE_QUICK_INSERT_TOOLS = new Set([
+  ...QUICK_CONNECT_CHOICE_TOOLS.map((tool) => tool.id),
+  'line',
+  'arrow',
+  'frame'
+]);
 const quickConnectPreviewStore = {
+  state: null,
+  listeners: new Set()
+};
+const quickConnectChoiceStore = {
   state: null,
   listeners: new Set()
 };
@@ -72,6 +95,28 @@ function getQuickConnectPreviewSnapshot() {
 function setQuickConnectPreviewState(nextState) {
   quickConnectPreviewStore.state = nextState || null;
   quickConnectPreviewStore.listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // ignore listener failure
+    }
+  });
+}
+
+function subscribeQuickConnectChoice(listener) {
+  quickConnectChoiceStore.listeners.add(listener);
+  return () => {
+    quickConnectChoiceStore.listeners.delete(listener);
+  };
+}
+
+function getQuickConnectChoiceSnapshot() {
+  return quickConnectChoiceStore.state;
+}
+
+function setQuickConnectChoiceState(nextState) {
+  quickConnectChoiceStore.state = nextState || null;
+  quickConnectChoiceStore.listeners.forEach((listener) => {
     try {
       listener();
     } catch {
@@ -138,10 +183,19 @@ function ensureBoardCanvasDefaults(editor) {
   const instanceState = editor.getInstanceState?.();
   const shouldEnableGridMode = !instanceState?.isGridMode;
   const shouldUpdateGridSize = toNumber(documentSettings?.gridSize, BOARD_GRID_SIZE) !== BOARD_GRID_SIZE;
-  if (!shouldEnableGridMode && !shouldUpdateGridSize) return;
+  const canUpdateNextStyles = typeof editor.getStyleForNextShape === 'function' && typeof editor.setStyleForNextShapes === 'function';
+  const shouldUpdateDefaultColor = canUpdateNextStyles && editor.getStyleForNextShape(DefaultColorStyle) !== BOARD_DEFAULT_SHAPE_COLOR;
+  const shouldUpdateDefaultFill = canUpdateNextStyles && editor.getStyleForNextShape(DefaultFillStyle) !== BOARD_DEFAULT_SHAPE_FILL;
+  if (!shouldEnableGridMode && !shouldUpdateGridSize && !shouldUpdateDefaultColor && !shouldUpdateDefaultFill) return;
 
   editor.run(
     () => {
+      if (shouldUpdateDefaultColor) {
+        editor.setStyleForNextShapes(DefaultColorStyle, BOARD_DEFAULT_SHAPE_COLOR);
+      }
+      if (shouldUpdateDefaultFill) {
+        editor.setStyleForNextShapes(DefaultFillStyle, BOARD_DEFAULT_SHAPE_FILL);
+      }
       if (shouldUpdateGridSize) {
         editor.updateDocumentSettings({
           gridSize: BOARD_GRID_SIZE
@@ -284,12 +338,14 @@ function clearCurrentPage(editor) {
 function createTextShape(editor, shapeId, centerPoint) {
   const x = toNumber(centerPoint?.x, 0);
   const y = toNumber(centerPoint?.y, 0);
+  const { color } = getBoardDefaultShapeStyleProps('text');
   editor.createShape({
     id: shapeId,
     type: 'text',
     x: x - 72,
     y: y - 18,
     props: {
+      color,
       richText: createRichText('文本')
     }
   });
@@ -299,16 +355,22 @@ function createTextShape(editor, shapeId, centerPoint) {
 function createNoteShape(editor, shapeId, centerPoint) {
   const x = toNumber(centerPoint?.x, 0);
   const y = toNumber(centerPoint?.y, 0);
+  const { width, height } = getQuickConnectShapeSize('note');
+  const { color, labelColor } = getBoardDefaultShapeStyleProps('note');
   editor.createShape({
     id: shapeId,
     type: 'note',
-    x: x - 92,
-    y: y - 82
+    x: x - width / 2,
+    y: y - height / 2,
+    props: {
+      color,
+      labelColor
+    }
   });
   return { shapeId, autoEdit: true };
 }
 
-function createGeoShape(editor, shapeId, centerPoint, geo, width = 220, height = 140) {
+function createGeoShape(editor, shapeId, centerPoint, geo, width = 220, height = 140, toolId = geo) {
   const x = toNumber(centerPoint?.x, 0);
   const y = toNumber(centerPoint?.y, 0);
   editor.createShape({
@@ -320,7 +382,7 @@ function createGeoShape(editor, shapeId, centerPoint, geo, width = 220, height =
       w: width,
       h: height,
       geo,
-      fill: 'solid'
+      ...getBoardDefaultShapeStyleProps(toolId)
     }
   });
   return { shapeId, autoEdit: false };
@@ -368,13 +430,45 @@ function createStencilShape(editor, toolId, centerPoint, explicitShapeId) {
   const key = String(toolId || '').trim().toLowerCase();
   switch (key) {
     case 'rectangle':
-      return createGeoShape(editor, shapeId, centerPoint, 'rectangle');
+      return createGeoShape(
+        editor,
+        shapeId,
+        centerPoint,
+        'rectangle',
+        getQuickConnectShapeSize('rectangle').width,
+        getQuickConnectShapeSize('rectangle').height,
+        'rectangle'
+      );
     case 'ellipse':
-      return createGeoShape(editor, shapeId, centerPoint, 'ellipse');
+      return createGeoShape(
+        editor,
+        shapeId,
+        centerPoint,
+        'ellipse',
+        getQuickConnectShapeSize('ellipse').width,
+        getQuickConnectShapeSize('ellipse').height,
+        'ellipse'
+      );
     case 'diamond':
-      return createGeoShape(editor, shapeId, centerPoint, 'diamond');
+      return createGeoShape(
+        editor,
+        shapeId,
+        centerPoint,
+        'diamond',
+        getQuickConnectShapeSize('diamond').width,
+        getQuickConnectShapeSize('diamond').height,
+        'diamond'
+      );
     case 'triangle':
-      return createGeoShape(editor, shapeId, centerPoint, 'triangle');
+      return createGeoShape(
+        editor,
+        shapeId,
+        centerPoint,
+        'triangle',
+        getQuickConnectShapeSize('triangle').width,
+        getQuickConnectShapeSize('triangle').height,
+        'triangle'
+      );
     case 'note':
       return createNoteShape(editor, shapeId, centerPoint);
     case 'text':
@@ -522,6 +616,31 @@ function resolveQuickConnectTarget(editor, point, sourceShapeId, arrowId) {
   return winner;
 }
 
+function getQuickConnectCandidateTargets(editor, sourceShapeId, arrowId) {
+  const shapes = editor.getCurrentPageShapes();
+  if (!Array.isArray(shapes) || !shapes.length) return [];
+  return shapes
+    .map((shape) => {
+      if (!shape || shape.id === sourceShapeId || shape.id === arrowId) return null;
+      if (!QUICK_CONNECT_SHAPE_TYPES.has(shape.type) || shape.isLocked) return null;
+      const bounds = editor.getShapePageBounds(shape.id);
+      if (!bounds) return null;
+      return { shape, bounds };
+    })
+    .filter(Boolean);
+}
+
+function resolveDirectionalQuickConnectTarget(editor, sourceShape, anchor, arrowId) {
+  if (!sourceShape || !anchor?.id) return null;
+  const sourceBounds = editor.getShapePageBounds(sourceShape.id);
+  if (!sourceBounds) return null;
+  return resolveNearestDirectionalTarget(
+    sourceBounds,
+    getQuickConnectCandidateTargets(editor, sourceShape.id, arrowId),
+    anchor.id
+  );
+}
+
 function updateQuickConnectArrowEnd(editor, arrowId, pagePoint) {
   const arrow = editor.getShape(arrowId);
   if (!arrow) return false;
@@ -536,6 +655,65 @@ function updateQuickConnectArrowEnd(editor, arrowId, pagePoint) {
     }
   });
   return true;
+}
+
+function bindQuickConnectArrowEnd(editor, arrowId, targetShapeId, targetBounds, pagePoint) {
+  if (!targetShapeId || !targetBounds || !pagePoint) return false;
+  updateQuickConnectArrowEnd(editor, arrowId, pagePoint);
+  editor.createBinding({
+    type: 'arrow',
+    fromId: arrowId,
+    toId: targetShapeId,
+    props: {
+      terminal: 'end',
+      normalizedAnchor: resolveQuickConnectBindingAnchor(targetBounds, pagePoint),
+      isPrecise: true,
+      isExact: false,
+      snap: 'edge'
+    }
+  });
+  return true;
+}
+
+function connectQuickArrowToExistingShape(editor, arrowId, target, pagePoint) {
+  if (!target?.shape || !target?.bounds) return false;
+  return bindQuickConnectArrowEnd(editor, arrowId, target.shape.id, target.bounds, pagePoint);
+}
+
+function createQuickConnectChoiceShape(editor, choiceState, toolId) {
+  if (!choiceState?.arrowId || !choiceState?.startPagePoint || !choiceState?.dropPagePoint) {
+    return { created: false, shapeId: null };
+  }
+
+  const arrow = editor.getShape(choiceState.arrowId);
+  if (!arrow) {
+    return { created: false, shapeId: null };
+  }
+
+  const spawnCenter = resolveQuickConnectSpawnCenter(
+    choiceState.startPagePoint,
+    choiceState.dropPagePoint,
+    toolId
+  );
+  const created = createStencilShape(editor, toolId, spawnCenter);
+  if (!created?.shapeId) {
+    return { created: false, shapeId: null };
+  }
+
+  const bounds = editor.getShapePageBounds(created.shapeId);
+  if (bounds) {
+    const endPoint = resolveBoundsEdgePointToward(bounds, choiceState.startPagePoint);
+    bindQuickConnectArrowEnd(editor, choiceState.arrowId, created.shapeId, bounds, endPoint);
+  }
+
+  return finalizeCreatedShape(editor, created);
+}
+
+function cancelQuickConnectChoice(editor, choiceState) {
+  if (choiceState?.arrowId && editor.getShape(choiceState.arrowId)) {
+    editor.deleteShapes([choiceState.arrowId]);
+  }
+  setQuickConnectChoiceState(null);
 }
 
 function resolveConnectionAnchorPoints(fromBounds, toBounds) {
@@ -663,28 +841,43 @@ function beginQuickConnectDrag(editor, sourceShape, anchor, nativeEvent) {
     if (pointerId && Number(event?.pointerId || 0) !== pointerId) return;
     event.preventDefault();
     const pagePoint = toPagePoint(event);
-    updateQuickConnectArrowEnd(editor, arrowId, pagePoint);
     const target = resolveQuickConnectTarget(editor, pagePoint, sourceShape.id, arrowId);
     if (target?.shape && target?.bounds) {
-      editor.createBinding({
-        type: 'arrow',
-        fromId: arrowId,
-        toId: target.shape.id,
-        props: {
-          terminal: 'end',
-          normalizedAnchor: resolveQuickConnectBindingAnchor(target.bounds, pagePoint),
-          isPrecise: true,
-          isExact: false,
-          snap: 'edge'
-        }
-      });
+      connectQuickArrowToExistingShape(editor, arrowId, target, pagePoint);
+      editor.select(target.shape.id);
+      setQuickConnectChoiceState(null);
+      setQuickConnectPreviewState(null);
+      cleanup();
+      return;
     }
+
+    const directionalTarget = resolveDirectionalQuickConnectTarget(editor, sourceShape, anchor, arrowId);
+    if (directionalTarget?.shape && directionalTarget?.bounds) {
+      const endPoint = resolveBoundsEdgePointToward(directionalTarget.bounds, anchor.pagePoint);
+      connectQuickArrowToExistingShape(editor, arrowId, directionalTarget, endPoint);
+      editor.select(directionalTarget.shape.id);
+      setQuickConnectChoiceState(null);
+      setQuickConnectPreviewState(null);
+      cleanup();
+      return;
+    }
+
+    const fallbackPoint = resolveQuickConnectFallbackPoint(anchor.pagePoint, anchor.id);
+    updateQuickConnectArrowEnd(editor, arrowId, fallbackPoint);
+    editor.select(arrowId);
+    setQuickConnectChoiceState({
+      arrowId,
+      sourceShapeId: sourceShape.id,
+      startPagePoint: anchor.pagePoint,
+      dropPagePoint: fallbackPoint
+    });
     setQuickConnectPreviewState(null);
     cleanup();
   };
 
   const handlePointerCancel = () => {
     setQuickConnectPreviewState(null);
+    setQuickConnectChoiceState(null);
     cleanup();
   };
 
@@ -952,7 +1145,7 @@ function useCompactBoardUi() {
   return compact;
 }
 
-function usePaletteToolButtonEvents(tool, onActivated) {
+function usePaletteToolButtonEvents(tool, onActivated, toolId) {
   const editor = useEditor();
 
   return React.useMemo(() => {
@@ -1045,6 +1238,13 @@ function usePaletteToolButtonEvents(tool, onActivated) {
         return;
       }
       state = { name: 'idle' };
+      if (PALETTE_QUICK_INSERT_TOOLS.has(toolId)) {
+        createStencilShapeAtViewportCenter(editor, toolId);
+        if (typeof onActivated === 'function') {
+          onActivated();
+        }
+        return;
+      }
       tool.onSelect?.('toolbar');
       if (typeof onActivated === 'function') {
         onActivated();
@@ -1067,14 +1267,14 @@ function usePaletteToolButtonEvents(tool, onActivated) {
       onClick: handleClick,
       onTouchStart: handleTouchStart
     };
-  }, [editor, onActivated, tool]);
+  }, [editor, onActivated, tool, toolId]);
 }
 
 function BoardCanvasPaletteToolButton({ toolDef, onActivated }) {
   const tools = useTools();
   const tool = tools[toolDef.id];
   const isSelected = useIsToolSelected(tool);
-  const events = usePaletteToolButtonEvents(tool, onActivated);
+  const events = usePaletteToolButtonEvents(tool, onActivated, toolDef.id);
 
   if (!tool) {
     return null;
@@ -1409,6 +1609,104 @@ function BoardCanvasQuickConnectPreview() {
   );
 }
 
+function BoardCanvasQuickConnectChoice() {
+  const editor = useEditor();
+  const choice = React.useSyncExternalStore(
+    subscribeQuickConnectChoice,
+    getQuickConnectChoiceSnapshot,
+    getQuickConnectChoiceSnapshot
+  );
+
+  const choiceState = useValue(
+    'board-canvas-quick-connect-choice',
+    () => {
+      if (!choice?.dropPagePoint) return null;
+      const viewportPoint = resolveQuickConnectViewportPoint(editor, choice.dropPagePoint);
+      return {
+        ...choice,
+        viewportPoint
+      };
+    },
+    [editor, choice]
+  );
+
+  const dismissChoice = React.useCallback(() => {
+    if (!choiceState) return;
+    cancelQuickConnectChoice(editor, choiceState);
+  }, [choiceState, editor]);
+
+  React.useEffect(() => {
+    if (!choiceState) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      dismissChoice();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [choiceState, dismissChoice]);
+
+  if (!choiceState) {
+    return null;
+  }
+
+  const handleSelect = (toolId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const result = createQuickConnectChoiceShape(editor, choiceState, toolId);
+    setQuickConnectChoiceState(null);
+    if (!result.created && choiceState.arrowId && editor.getShape(choiceState.arrowId)) {
+      editor.deleteShapes([choiceState.arrowId]);
+    }
+  };
+
+  return (
+    <div
+      className="board-connect-choice"
+      role="menu"
+      aria-label="选择要连接的新图形"
+      style={{
+        left: `${choiceState.viewportPoint.x}px`,
+        top: `${choiceState.viewportPoint.y}px`
+      }}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    >
+      <div className="board-connect-choice__title">连接到新图形</div>
+      <div className="board-connect-choice__tools">
+        {QUICK_CONNECT_CHOICE_TOOLS.map((tool) => (
+          <button
+            key={`quick_connect_choice_${tool.id}`}
+            type="button"
+            role="menuitem"
+            className={`board-connect-choice__tool board-connect-choice__tool--${tool.id}`}
+            title={`连接到${tool.label}`}
+            onClick={(event) => handleSelect(tool.id, event)}
+          >
+            <i className={tool.iconClass} aria-hidden="true"></i>
+            <span>{tool.label}</span>
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="board-connect-choice__close"
+        title="取消连接"
+        aria-label="取消连接"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dismissChoice();
+        }}
+      >
+        <i className="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+  );
+}
+
 function BoardCanvasOverlays() {
   return <TldrawOverlays />;
 }
@@ -1417,6 +1715,7 @@ function BoardCanvasInFrontOfTheCanvas() {
   return (
     <>
       <BoardCanvasQuickConnectPreview />
+      <BoardCanvasQuickConnectChoice />
       <BoardCanvasQuickConnectOverlay />
     </>
   );

@@ -9,14 +9,12 @@ const mocked = vi.hoisted(() => ({
   getAiTownPublicMap: vi.fn(),
   getAiTownScene: vi.fn(),
   importAdminAiTownAsset: vi.fn(),
-  listPublicHomeRoles: vi.fn(),
   listAiTownScenes: vi.fn(),
   previewAdminAiTownAsset: vi.fn()
 }));
 
 const AiDialogStub = defineComponent({
   name: 'AiDialog',
-  emits: ['mode-change', 'chat-state'],
   props: {
     allowedModes: {
       type: Array,
@@ -30,25 +28,6 @@ const AiDialogStub = defineComponent({
   template: '<div class="ai-dialog-stub">{{ chatMode }}</div>'
 });
 
-const WallpaperL2dCanvasStub = defineComponent({
-  name: 'WallpaperL2dCanvas',
-  props: {
-    modelUrl: {
-      type: String,
-      default: ''
-    },
-    modelEntry: {
-      type: String,
-      default: ''
-    },
-    fallbackSrc: {
-      type: String,
-      default: ''
-    }
-  },
-  template: '<div class="wallpaper-l2d-stub" :data-model-url="modelUrl" :data-model-entry="modelEntry">{{ modelEntry }}</div>'
-});
-
 vi.mock('../composables/useAuthSession', () => ({
   useAuthSession: () => mocked.auth
 }));
@@ -60,10 +39,6 @@ vi.mock('../services/aiApi', () => ({
   importAdminAiTownAsset: (...args) => mocked.importAdminAiTownAsset(...args),
   listAiTownScenes: (...args) => mocked.listAiTownScenes(...args),
   previewAdminAiTownAsset: (...args) => mocked.previewAdminAiTownAsset(...args)
-}));
-
-vi.mock('../services/wallpaperApi', () => ({
-  listPublicHomeRoles: (...args) => mocked.listPublicHomeRoles(...args)
 }));
 
 function createAuth(groups = ['USER']) {
@@ -131,23 +106,11 @@ function createPreview(overrides = {}) {
   };
 }
 
-function createL2dRole(overrides = {}) {
-  return {
-    assetId: 88,
-    assetKind: 'LIVE2D_PACKAGE',
-    coverUrl: 'https://cdn.example/haru-cover.png',
-    downloadUrl: 'https://cdn.example/haru.zip',
-    l2dEntryModelJson: 'Haru/Haru.model3.json',
-    ...overrides
-  };
-}
-
 async function mountPage() {
   const wrapper = mount(AiHubPage, {
     global: {
       stubs: {
-        AiDialog: AiDialogStub,
-        WallpaperL2dCanvas: WallpaperL2dCanvasStub
+        AiDialog: AiDialogStub
       }
     }
   });
@@ -167,7 +130,6 @@ describe('AiHubPage', () => {
     mocked.getAiTownPublicMap.mockReset();
     mocked.getAiTownScene.mockReset();
     mocked.importAdminAiTownAsset.mockReset();
-    mocked.listPublicHomeRoles.mockReset();
     mocked.listAiTownScenes.mockReset();
     mocked.previewAdminAiTownAsset.mockReset();
 
@@ -189,7 +151,6 @@ describe('AiHubPage', () => {
     });
     mocked.previewAdminAiTownAsset.mockResolvedValue(createPreview());
     mocked.importAdminAiTownAsset.mockResolvedValue(createPreview());
-    mocked.listPublicHomeRoles.mockResolvedValue([]);
   });
 
   it('limits embedded dialog modes to normal and tavern for non-admin users', async () => {
@@ -260,66 +221,5 @@ describe('AiHubPage', () => {
       mocked.auth.authorizedFetch
     );
     expect(wrapper.text()).toContain('RPGMaker 资源已导入并生成预览。');
-  });
-
-  it('opens the admin companion workspace and renders a selected L2D asset', async () => {
-    mocked.auth = createAuth(['ADMIN']);
-    mocked.listPublicHomeRoles.mockResolvedValue([
-      { assetId: 3, assetKind: 'STATIC_IMAGE', downloadUrl: 'https://cdn.example/static.png' },
-      createL2dRole()
-    ]);
-
-    const wrapper = await mountPage();
-    const jumpButton = findButtonByText(wrapper, '快速跳到自宅');
-
-    expect(jumpButton).toBeTruthy();
-    await jumpButton.trigger('click');
-    await flushPromises();
-
-    const companionButton = findButtonByText(wrapper, '进入自宅 companion');
-    expect(companionButton).toBeTruthy();
-    await companionButton.trigger('click');
-    await flushPromises();
-
-    expect(mocked.listPublicHomeRoles).toHaveBeenCalledTimes(1);
-    expect(wrapper.find('.companion-stage').exists()).toBe(true);
-    expect(wrapper.find('.companion-stage').attributes('data-companion-status')).toBe('idle');
-    expect(wrapper.text()).toContain('自宅 companion 观看区');
-
-    const l2dCanvas = wrapper.findComponent(WallpaperL2dCanvasStub);
-    expect(l2dCanvas.exists()).toBe(true);
-    expect(l2dCanvas.props()).toMatchObject({
-      modelUrl: 'https://cdn.example/haru.zip',
-      modelEntry: 'Haru/Haru.model3.json',
-      fallbackSrc: 'https://cdn.example/haru-cover.png'
-    });
-
-    const dialog = wrapper.findComponent(AiDialogStub);
-    expect(dialog.props('chatMode')).toBe('companion');
-    expect(dialog.props('allowedModes')).toEqual(['normal', 'tavern', 'town_npc', 'companion']);
-  });
-
-  it('maps companion chat-state events into stage status and footer copy', async () => {
-    mocked.auth = createAuth(['ADMIN']);
-    mocked.listPublicHomeRoles.mockResolvedValue([createL2dRole()]);
-
-    const wrapper = await mountPage();
-    await findButtonByText(wrapper, '快速跳到自宅').trigger('click');
-    await flushPromises();
-    await findButtonByText(wrapper, '进入自宅 companion').trigger('click');
-    await flushPromises();
-
-    const dialog = wrapper.findComponent(AiDialogStub);
-    dialog.vm.$emit('chat-state', { mode: 'companion', phase: 'send-start' });
-    await flushPromises();
-
-    expect(wrapper.find('.companion-stage').attributes('data-companion-status')).toBe('thinking');
-    expect(wrapper.text()).toContain('Thinking');
-
-    dialog.vm.$emit('chat-state', { mode: 'companion', assistantMessage: '欢迎回家。' });
-    await flushPromises();
-
-    expect(wrapper.find('.companion-stage').attributes('data-companion-status')).toBe('speaking');
-    expect(wrapper.text()).toContain('欢迎回家。');
   });
 });

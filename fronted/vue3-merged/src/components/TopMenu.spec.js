@@ -1,4 +1,4 @@
-﻿import { mount } from '@vue/test-utils';
+import { mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 import TopMenu from './TopMenu.vue';
@@ -41,7 +41,7 @@ async function mountTopMenu(props = {}, initialPath = '/') {
 }
 
 describe('TopMenu profile entry', () => {
-  it('opens profile popover for authenticated users and supports profile action', async () => {
+  it('opens profile directly for authenticated users', async () => {
     const { wrapper } = await mountTopMenu({
       isAuthenticated: true,
       displayName: 'Izumi'
@@ -49,12 +49,11 @@ describe('TopMenu profile entry', () => {
 
     await wrapper.get('.user-profile-item').trigger('click');
 
-    expect(wrapper.find('.profile-popover').exists()).toBe(true);
-    expect(wrapper.emitted('open-auth')).toBeUndefined();
-
-    await wrapper.get('.profile-popover .popover-item').trigger('click');
-
     expect(wrapper.emitted('open-profile')).toHaveLength(1);
+    expect(wrapper.emitted('open-auth')).toBeUndefined();
+    expect(wrapper.find('.profile-popover').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('进入个人页面');
+    expect(wrapper.text()).not.toContain('登出');
   });
 
   it('keeps login entry behavior for guests', async () => {
@@ -68,15 +67,17 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.emitted('open-profile')).toBeUndefined();
   });
 
-  it('keeps icon-first menu semantics with accessibility labels', async () => {
-    const { wrapper } = await mountTopMenu();
+  it('emits theme toggle events and reflects the current mode label', async () => {
+    const { wrapper } = await mountTopMenu({
+      themeMode: 'day'
+    });
 
-    expect(wrapper.findAll('.item-label')).toHaveLength(0);
-    expect(wrapper.text()).not.toContain('MENU');
-    expect(wrapper.find('[aria-label="Menu Hub"]').exists()).toBe(true);
+    expect(wrapper.get('.theme-toggle-item .item-label').text()).toBe('白天模式');
+    expect(wrapper.get('.theme-toggle-box').classes()).toContain('day');
+    expect(wrapper.get('.theme-toggle-box .fa-sun').exists()).toBe(true);
 
-    await wrapper.get('.toggle-tab').trigger('click');
+    await wrapper.get('.theme-toggle-item').trigger('click');
 
-    expect(wrapper.emitted('toggle-menu')).toHaveLength(1);
+    expect(wrapper.emitted('toggle-theme-mode')).toHaveLength(1);
   });
 });

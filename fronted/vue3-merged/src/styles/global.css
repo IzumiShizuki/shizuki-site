@@ -614,24 +614,6 @@ body {
   color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
 }
 
-:where(.profile-page, .music-library-page) details.manual-fallback {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-:where(.profile-page, .music-library-page) details.manual-fallback > summary {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
 :root[data-theme-mode='day'] .music-library-page :is(
   .music-left-sidebar,
   .music-right-panel,
@@ -890,9 +872,9 @@ body {
   color: rgba(43, 21, 16, 0.95);
 }
 
-/* 
+/*
  * ----------------------------------------
- * 柔和陪伴感：全局大圆角注入 (Dynamic & Mild Upgrade) 
+ * 柔和陪伴感：全局大圆角注入 (Dynamic & Mild Upgrade)
  * ----------------------------------------
  */
 
@@ -931,14 +913,14 @@ body {
 
 /* 按钮与交互晶体：柔和平滑的胶囊或高圆角 */
 :where(
-  .primary-btn, 
-  .ghost-btn, 
-  .action-btn, 
-  .mode-btn, 
-  .preset-btn, 
-  .gradient-btn, 
-  .category-pill, 
-  .tag-chip, 
+  .primary-btn,
+  .ghost-btn,
+  .action-btn,
+  .mode-btn,
+  .preset-btn,
+  .gradient-btn,
+  .category-pill,
+  .tag-chip,
   .music-source-order-item,
   .tab-btn,
   .route-tab,
@@ -950,10 +932,10 @@ body {
 
 /* 对话框/输入框组件：圆润底托 */
 :where(
-  .field-input, 
-  .search-input, 
-  .field-input-lite, 
-  .field-textarea, 
+  .field-input,
+  .search-input,
+  .field-input-lite,
+  .field-textarea,
   .music-source-mode-select,
   .dialog-field input
 ) {

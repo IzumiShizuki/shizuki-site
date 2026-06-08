@@ -311,7 +311,7 @@ const eqItems = computed(() => {
 });
 
 const expandedProviderKey = computed(() => String(props.expandedProvider || '').trim().toLowerCase());
-const isMetingExpanded = computed(() => expandedProviderKey.value === 'meting' || expandedProviderKey.value === 'tunehub');
+const isMetingExpanded = computed(() => expandedProviderKey.value === 'meting');
 const isSpotifyExpanded = computed(() => expandedProviderKey.value === 'spotify');
 const metingAvailable = computed(() => Boolean(props.metingStatus?.available));
 const metingProviders = computed(() => {
@@ -411,8 +411,7 @@ const metingStatusText = computed(() => {
 });
 
 function toggleProvider(provider) {
-  const raw = String(provider || '').trim().toLowerCase();
-  const key = raw === 'tunehub' ? 'meting' : raw;
+  const key = String(provider || '').trim().toLowerCase();
   if (!key) return;
   if (expandedProviderKey.value === key) {
     emit('update:expandedProvider', '');

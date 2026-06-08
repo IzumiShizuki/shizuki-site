@@ -1181,6 +1181,103 @@ onBeforeUnmount(() => {
   stroke-width: 2px;
 }
 
+:deep(.board-canvas-react-host .board-connect-choice) {
+  position: absolute;
+  min-width: 204px;
+  padding: 10px;
+  border: 1px solid rgba(122, 150, 214, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 36px rgba(38, 52, 86, 0.18);
+  transform: translate(14px, -50%);
+  pointer-events: auto;
+  z-index: 27;
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__title) {
+  padding: 0 28px 8px 2px;
+  color: rgba(48, 63, 96, 0.82);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tools) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool) {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 8px;
+  border: 1px solid rgba(122, 150, 214, 0.18);
+  border-radius: 8px;
+  background: rgba(244, 248, 255, 0.86);
+  color: rgba(48, 63, 96, 0.88);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool:hover) {
+  border-color: rgba(103, 138, 222, 0.42);
+  background: rgba(232, 240, 255, 0.96);
+  color: rgba(48, 72, 132, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool i) {
+  font-size: 12px;
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool--rectangle i) {
+  color: rgba(70, 130, 236, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool--ellipse i) {
+  color: rgba(69, 154, 108, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool--diamond i) {
+  color: rgba(202, 151, 38, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool--triangle i) {
+  color: rgba(219, 96, 86, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool--note i) {
+  color: rgba(218, 123, 46, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__tool--text i) {
+  color: rgba(125, 89, 213, 0.98);
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__close) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(232, 238, 250, 0.86);
+  color: rgba(64, 78, 110, 0.72);
+  cursor: pointer;
+}
+
+:deep(.board-canvas-react-host .board-connect-choice__close:hover) {
+  background: rgba(218, 228, 248, 0.96);
+  color: rgba(50, 64, 96, 0.92);
+}
+
 :deep(.board-canvas-react-host .board-connect-overlay__button) {
   position: absolute;
   width: 22px;

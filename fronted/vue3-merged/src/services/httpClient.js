@@ -1,4 +1,4 @@
-const API_BASE = (import.meta.env.VITE_GATEWAY_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+const API_BASE = (import.meta.env.VITE_GATEWAY_BASE_URL || 'http://localhost:7070').replace(/\/+$/, '');
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]';

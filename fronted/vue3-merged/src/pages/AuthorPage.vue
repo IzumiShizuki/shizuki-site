@@ -1,16 +1,19 @@
 <template>
   <section class="route-page author-page motion-managed">
-    <div class="dashboard-layout">
-      <RouteDotRail
-        class="sidebar-dot-rail"
-        :items="tabs"
-        :active-key="activeTab"
-        :distribution="routeRailDistribution"
-        aria-label="关于网站导航"
-        @select="openTab"
-      />
+    <RailScaffold class="dashboard-layout">
+      <template #rail>
+        <RouteDotRail
+          class="sidebar-dot-rail"
+          :items="tabs"
+          :active-key="activeTab"
+          :distribution="routeRailDistribution"
+          aria-label="关于网站导航"
+          @select="openTab"
+        />
+      </template>
 
       <SubtleScrollArea
+        :key="contentPanelRenderKey"
         ref="contentPanelRef"
         tag="section"
         :contain-overscroll="false"
@@ -356,6 +359,10 @@
                 </footer>
               </template>
             </article>
+          </div>
+
+          <div v-else-if="isAdminConsoleTab" class="content-block admin-console-block">
+            <AdminPage :key="`author-admin-${activeAdminTab}`" embedded :forced-tab="activeAdminTab" />
           </div>
 
           <div v-else-if="activeTab === 'posts'" class="content-block">
@@ -900,7 +907,7 @@
           </div>
         </transition>
       </SubtleScrollArea>
-    </div>
+    </RailScaffold>
   </section>
 </template>
 
@@ -908,8 +915,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
+import AdminPage from './AdminPage.vue';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
+import RailScaffold from '../components/common/RailScaffold.vue';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
 import {
@@ -926,10 +935,11 @@ import {
   createEmptyJourneyRow,
   createEmptyLinkRow
 } from './authorEditFormState';
+import { AdminTabKey } from './adminUiState';
 import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
 import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
-const AUTHOR_ADMIN_ROUTE_KEY = '__author-admin-route__';
+const AUTHOR_ADMIN_ROUTE_PREFIX = 'admin:';
 const DEFAULT_SITE_BROWSER_TITLE = 'Levitation + Menu';
 const route = useRoute();
 const router = useRouter();
@@ -941,6 +951,15 @@ const baseTabs = [
   { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed' },
   { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting' }
 ];
+const adminTabs = Object.freeze([
+  { tab: AdminTabKey.USERS, label: '后台用户', icon: 'fas fa-users' },
+  { tab: AdminTabKey.GROUPS, label: '后台分组', icon: 'fas fa-layer-group' },
+  { tab: AdminTabKey.PERMISSIONS, label: '后台权限', icon: 'fas fa-key' },
+  { tab: AdminTabKey.QUOTA, label: '后台配额', icon: 'fas fa-gauge-high' },
+  { tab: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
+  { tab: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
+]);
+const ADMIN_TAB_KEYS = new Set(adminTabs.map((item) => item.tab));
 
 const SKILL_ICON_RULES = [
   { pattern: /(c\+\+|cpp|c\/c\+\+|clang|gcc)/i, icon: 'fas fa-code', tone: 'tone-cyan' },
@@ -1084,12 +1103,19 @@ const tabs = computed(() => {
   const items = [...baseTabs];
   if (isAdminUser.value) {
     items.push({ key: AuthorTabKey.SITE_SETTINGS, label: '站点设置', icon: 'fas fa-browser' });
-    items.push({ key: AUTHOR_ADMIN_ROUTE_KEY, label: '管理后台', icon: 'fas fa-user-shield' });
+    items.push(
+      ...adminTabs.map((item) => ({
+        key: `${AUTHOR_ADMIN_ROUTE_PREFIX}${item.tab}`,
+        label: item.label,
+        icon: item.icon
+      }))
+    );
   }
   return items;
 });
 
 const routeRailDistribution = computed(() => {
+  if (tabs.value.length > 6) return 'stack';
   return tabs.value.length >= 6 ? 'full-sixths' : 'mid-sixths';
 });
 
@@ -1097,6 +1123,15 @@ const activeTab = computed(() => {
   const raw = typeof route.query.tab === 'string' ? route.query.tab : '';
   return normalizeTab(raw);
 });
+const activeAdminTab = computed(() => {
+  if (!isAdminUser.value) return '';
+  const raw = String(activeTab.value || '').trim().toLowerCase();
+  if (!raw.startsWith(AUTHOR_ADMIN_ROUTE_PREFIX)) return '';
+  const tab = raw.slice(AUTHOR_ADMIN_ROUTE_PREFIX.length);
+  return ADMIN_TAB_KEYS.has(tab) ? tab : AdminTabKey.USERS;
+});
+const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
+const contentPanelRenderKey = computed(() => `${activeTab.value}:${activeAdminTab.value || 'none'}`);
 
 const hero = computed(() => authorProfile.value.profileJson.hero);
 const identity = computed(() => authorProfile.value.profileJson.identity);
@@ -1249,7 +1284,15 @@ const sectionEditorTitle = computed(() => {
 });
 
 function normalizeTab(raw) {
-  const normalized = normalizeAuthorTabKey(String(raw || '').trim().toLowerCase());
+  const text = String(raw || '').trim().toLowerCase();
+  if (text.startsWith(AUTHOR_ADMIN_ROUTE_PREFIX)) {
+    if (!isAdminUser.value) {
+      return AuthorTabKey.OVERVIEW;
+    }
+    const adminTab = text.slice(AUTHOR_ADMIN_ROUTE_PREFIX.length);
+    return `${AUTHOR_ADMIN_ROUTE_PREFIX}${ADMIN_TAB_KEYS.has(adminTab) ? adminTab : AdminTabKey.USERS}`;
+  }
+  const normalized = normalizeAuthorTabKey(text);
   if (normalized === AuthorTabKey.EDIT) {
     return AuthorTabKey.OVERVIEW;
   }
@@ -1260,10 +1303,6 @@ function normalizeTab(raw) {
 }
 
 function openTab(tabKey) {
-  if (tabKey === AUTHOR_ADMIN_ROUTE_KEY) {
-    router.push({ path: '/admin' });
-    return;
-  }
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
@@ -2258,6 +2297,23 @@ onBeforeUnmount(() => {
   height: auto;
   min-height: 0;
   padding-block: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(123, 194, 236, 0.48) transparent;
+}
+
+.sidebar-dot-rail::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-dot-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-dot-rail::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(111, 196, 235, 0.62), rgba(84, 155, 221, 0.48));
 }
 
 .content-panel {
@@ -3407,6 +3463,57 @@ onBeforeUnmount(() => {
   animation-delay: -4.1s;
 }
 
+:root[data-theme-mode='day'] .content-panel {
+  --liquid-bg: var(--theme-panel-surface, var(--theme-surface));
+  --liquid-border: var(--theme-border, rgba(255, 224, 208, 0.24));
+  --liquid-shadow: 0 16px 32px rgba(88, 60, 50, 0.12);
+}
+
+:root[data-theme-mode='day'] .site-settings-preview,
+:root[data-theme-mode='day'] .author-card,
+:root[data-theme-mode='day'] .story-hero-preview,
+:root[data-theme-mode='day'] .story-side-panel,
+:root[data-theme-mode='day'] .hero-fact-card,
+:root[data-theme-mode='day'] .skill-focus-frame,
+:root[data-theme-mode='day'] .identity-unit,
+:root[data-theme-mode='day'] .story-signal-pill,
+:root[data-theme-mode='day'] .story-side-live,
+:root[data-theme-mode='day'] .skill-focus-item,
+:root[data-theme-mode='day'] .link-btn {
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+  box-shadow: 0 10px 22px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .inline-edit-fab {
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  color: var(--theme-icon-primary, rgba(94, 72, 63, 0.92));
+  box-shadow: 0 12px 20px rgba(88, 60, 50, 0.12);
+}
+
+:root[data-theme-mode='day'] .state-tip,
+:root[data-theme-mode='day'] .hero-greeting,
+:root[data-theme-mode='day'] .hero-quote,
+:root[data-theme-mode='day'] .kv-row dt,
+:root[data-theme-mode='day'] .line-text,
+:root[data-theme-mode='day'] .mini-title,
+:root[data-theme-mode='day'] .story-greeting,
+:root[data-theme-mode='day'] .story-quote,
+:root[data-theme-mode='day'] .story-preview-text,
+:root[data-theme-mode='day'] .story-mini-kicker,
+:root[data-theme-mode='day'] .story-side-meta-line,
+:root[data-theme-mode='day'] .field-inline > span,
+:root[data-theme-mode='day'] .identity-label {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .status-select,
+:root[data-theme-mode='day'] .status-input {
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.16));
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+}
+
 @keyframes story-sweep {
   0%,
   16% {
@@ -4106,6 +4213,7 @@ onBeforeUnmount(() => {
     min-height: auto;
     height: auto;
     padding-block: 0;
+    overflow: visible;
   }
 
   .content-panel {
