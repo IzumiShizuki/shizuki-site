@@ -339,6 +339,9 @@ watch(
   --menu-active-bg: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
   --menu-active-border: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   --menu-active-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
+  --menu-icon-color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+  --menu-mobile-chip-bg: rgba(10, 16, 26, 0.42);
+  --menu-mobile-chip-border: rgba(255, 255, 255, 0.22);
   --icon-hover-color: rgb(var(--accent-strong-rgb));
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
@@ -490,7 +493,7 @@ watch(
 
 .icon-minimal {
   font-size: 20px;
-  color: #ffffff;
+  color: var(--menu-icon-color);
   height: 32px;
   width: 32px;
   display: flex;
@@ -515,7 +518,7 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: #ffffff;
+  color: var(--menu-icon-color);
   transition: all 0.3s ease;
 }
 
@@ -583,7 +586,7 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: #ffffff;
+  color: var(--menu-icon-color);
   transition: all 0.3s;
 }
 
@@ -647,7 +650,7 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: #ffffff;
+  color: var(--menu-icon-color);
   border-radius: 50%;
   transition: transform 0.2s, color 0.2s;
 }
@@ -942,6 +945,8 @@ watch(
   --menu-glass-bg: linear-gradient(160deg, rgba(255, 252, 248, 0.92), rgba(244, 233, 225, 0.84));
   --menu-glass-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
   --menu-glass-shadow: 0 14px 28px rgba(88, 60, 50, 0.12);
+  --menu-mobile-chip-bg: rgba(255, 246, 240, 0.84);
+  --menu-mobile-chip-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
 }
 
 :root[data-theme-mode='day'] .top-menu-root :is(.author-avatar-box, .avatar-box) {
@@ -1141,8 +1146,8 @@ watch(
     justify-content: center;
     padding: 0;
     gap: 0;
-    background: rgba(10, 16, 26, 0.42);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+    background: var(--menu-mobile-chip-bg);
+    box-shadow: inset 0 0 0 1px var(--menu-mobile-chip-border);
   }
 
   .menu-item-stack {
@@ -1155,8 +1160,8 @@ watch(
     align-items: center;
     justify-content: center;
     gap: 0;
-    background: rgba(10, 16, 26, 0.42);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+    background: var(--menu-mobile-chip-bg);
+    box-shadow: inset 0 0 0 1px var(--menu-mobile-chip-border);
   }
 
   .menu-item-stack.active {

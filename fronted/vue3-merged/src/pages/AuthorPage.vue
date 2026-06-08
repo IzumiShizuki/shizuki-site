@@ -3502,9 +3502,27 @@ onBeforeUnmount(() => {
 :root[data-theme-mode='day'] .story-preview-text,
 :root[data-theme-mode='day'] .story-mini-kicker,
 :root[data-theme-mode='day'] .story-side-meta-line,
+:root[data-theme-mode='day'] .journey-axis-day,
+:root[data-theme-mode='day'] .journey-axis-month-tick,
+:root[data-theme-mode='day'] .journey-axis-month-tick.is-passed,
+:root[data-theme-mode='day'] .journey-scene-day,
+:root[data-theme-mode='day'] .journey-scene-period,
 :root[data-theme-mode='day'] .field-inline > span,
 :root[data-theme-mode='day'] .identity-label {
   color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .journey-axis-month,
+:root[data-theme-mode='day'] .journey-scene-month {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .journey-axis-line {
+  background: linear-gradient(180deg, rgba(176, 140, 125, 0.2), rgba(176, 140, 125, 0.08));
+}
+
+:root[data-theme-mode='day'] .journey-scene-image {
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
 }
 
 :root[data-theme-mode='day'] .status-select,
