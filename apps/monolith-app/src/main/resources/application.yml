@@ -45,6 +45,18 @@ shizuki:
     quota:
       code: ai_round_total
       default-total-rounds: 5
+    chat:
+      enabled: ${AI_CHAT_ENABLED:false}
+      base-url: ${AI_CHAT_BASE_URL:}
+      api-key: ${AI_CHAT_API_KEY:}
+      model: ${AI_CHAT_MODEL:cpa-gpt-5.4-mini}
+      system-prompt: ${AI_CHAT_SYSTEM_PROMPT:}
+      connect-timeout-ms: ${AI_CHAT_CONNECT_TIMEOUT_MS:2500}
+      read-timeout-ms: ${AI_CHAT_READ_TIMEOUT_MS:90000}
+      max-tokens: ${AI_CHAT_MAX_TOKENS:800}
+      max-context-messages: ${AI_CHAT_MAX_CONTEXT_MESSAGES:12}
+      max-worldbook-entries: ${AI_CHAT_MAX_WORLDBOOK_ENTRIES:8}
+      temperature: ${AI_CHAT_TEMPERATURE:0.7}
     memory:
       enabled: ${AI_MEMORY_ENABLED:true}
       base-url: ${AI_MEMORY_BASE_URL:http://127.0.0.1:8788}

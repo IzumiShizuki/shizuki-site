@@ -78,7 +78,7 @@ retry "${UPLOAD_RETRIES}" sshpass -p "${REMOTE_PASS}" rsync -az --delete --parti
   -e "ssh ${SSH_OPTS[*]}" \
   "${LOCAL_APP_DIR}/" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_APP_DIR}/"
 
-echo "[2/2] Starting remote rebuild in background ..."
+echo "[2/2] Starting remote rebuild in background via ${REMOTE_RUNNER} ..."
 ssh_run "set -e; cd ${REMOTE_DEPLOY_DIR}; : > ${REMOTE_LOG_FILE}; echo 'STARTING \$(date '+%Y-%m-%d %H:%M:%S')' > ${REMOTE_STATUS_FILE}; nohup bash ${REMOTE_RUNNER} >/dev/null 2>&1 < /dev/null & echo \$! > ${REMOTE_PID_FILE}"
 
 start_ts="$(date +%s)"

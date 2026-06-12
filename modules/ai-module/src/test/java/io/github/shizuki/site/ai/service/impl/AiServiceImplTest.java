@@ -5,6 +5,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
+import io.github.shizuki.site.ai.config.AiChatProperties;
 import io.github.shizuki.site.ai.config.AiQuotaProperties;
 import io.github.shizuki.site.ai.response.AiCharacterDetailResponse;
 import io.github.shizuki.site.ai.response.AiCharacterSummaryResponse;
@@ -39,6 +40,7 @@ import io.github.shizuki.site.ai.entity.AiTownAssetImportEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntity;
 import io.github.shizuki.site.ai.entity.AiWorldbookEntryEntity;
 import io.github.shizuki.site.ai.integration.MemoryOsClient;
+import io.github.shizuki.site.ai.integration.OpenAiCompatibleChatClient;
 import io.github.shizuki.site.ai.integration.UserQuotaGateway;
 import io.github.shizuki.site.ai.mapper.AiCharacterMapper;
 import io.github.shizuki.site.ai.mapper.AiCompanionProfileMapper;
@@ -78,6 +80,7 @@ class AiServiceImplTest {
     private AiWorldbookMapper aiWorldbookMapper;
     private AiWorldbookEntryMapper aiWorldbookEntryMapper;
     private MemoryOsClient memoryOsClient;
+    private OpenAiCompatibleChatClient aiChatClient;
     private UserQuotaGateway userQuotaGateway;
 
     private AiServiceImpl aiService;
@@ -94,12 +97,15 @@ class AiServiceImplTest {
         aiWorldbookMapper = Mockito.mock(AiWorldbookMapper.class);
         aiWorldbookEntryMapper = Mockito.mock(AiWorldbookEntryMapper.class);
         memoryOsClient = Mockito.mock(MemoryOsClient.class);
+        aiChatClient = Mockito.mock(OpenAiCompatibleChatClient.class);
         userQuotaGateway = Mockito.mock(UserQuotaGateway.class);
 
+        AiChatProperties aiChatProperties = new AiChatProperties();
         AiQuotaProperties aiQuotaProperties = new AiQuotaProperties();
         aiQuotaProperties.setCode("ai_round_total");
         aiQuotaProperties.setDefaultTotalRounds(20L);
 
+        Mockito.when(aiChatClient.isConfigured()).thenReturn(false);
         Mockito.when(userQuotaGateway.resolveQuota(ArgumentMatchers.anyString(), ArgumentMatchers.anySet(), ArgumentMatchers.anyLong()))
             .thenAnswer(invocation -> invocation.getArgument(2));
 
@@ -113,8 +119,10 @@ class AiServiceImplTest {
             aiTownAssetImportMapper,
             aiWorldbookMapper,
             aiWorldbookEntryMapper,
+            aiChatProperties,
             aiQuotaProperties,
             memoryOsClient,
+            aiChatClient,
             userQuotaGateway,
             new ObjectMapper()
         );
@@ -238,6 +246,39 @@ class AiServiceImplTest {
 
         Assertions.assertEquals(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
         Mockito.verify(aiSessionMapper, Mockito.never()).selectOne(ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldUseConfiguredOpenAiCompatibleClientWhenEnabled() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+
+        AiSessionEntity session = new AiSessionEntity();
+        session.setId(601L);
+        session.setSessionId("session-002");
+        session.setUserId(9L);
+        session.setTitle("real ai session");
+        session.setMode("normal");
+        session.setBoundWorldbookJson("[]");
+
+        AiQuotaUsageEntity usage = new AiQuotaUsageEntity();
+        usage.setId(901L);
+        usage.setUserId(9L);
+        usage.setQuotaCode("ai_round_total");
+        usage.setTotalRounds(20L);
+        usage.setUsedRounds(0L);
+
+        Mockito.when(aiSessionMapper.selectOne(ArgumentMatchers.any())).thenReturn(session);
+        Mockito.when(aiQuotaUsageMapper.selectOne(ArgumentMatchers.any())).thenReturn(usage);
+        Mockito.when(aiChatClient.isConfigured()).thenReturn(true);
+        Mockito.when(aiChatClient.complete(ArgumentMatchers.anyList())).thenReturn("real ai reply");
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setMessage("please answer normally");
+
+        AiMessageSendResponse response = aiService.sendMessage("session-002", request);
+
+        Assertions.assertEquals("real ai reply", response.assistantMessage());
+        Mockito.verify(aiChatClient).complete(ArgumentMatchers.anyList());
     }
 
     @Test
