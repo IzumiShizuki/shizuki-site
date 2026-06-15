@@ -1,5 +1,17 @@
-HELP.md
 target/
+# ---- workspace cleanup ----
+%BASE_WIN%/
+.pytest_cache/
+.codex
+**/target/
+**/.mvn/repository/
+.tools/edge-cdp-profile*/
+tools/local/*
+!tools/local/.gitignore
+fronted/vue3-merged/vite-dev.*.log
+services/slides-api/.storage-test/
+tools/presentation-generator/.tmp/
+tools/reverse/
 # ---- backend-refactor-review: build hygiene ----
 .mvn/repository/
 logs/
@@ -2947,7 +2959,6 @@ tmp/
 .codex
 .codex/
 resouces/log/
-/.tools/.gitignore
 
 # Maven 本地仓库残留与子模块 .mvn 残留
 **/.mvn/repository/**

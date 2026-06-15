@@ -64,7 +64,7 @@
 
   - [x] 6.2 重写 `deploy/README.md` 第 11-13 行 - 旧文案："music search key now comes from: ../resouces/yaml/common-config.yaml / field: shizuki.music.tunehub.default-api-key" - 新文案："music sidecar URL: shizuki.music.meting.base-url（部署方在容器网络内提供 meting-api 服务，无需用户级 API Key）" - _Requirements: R7.2_
 
-  - [x] 6.3 更新 `postman/shizuki-site-apis.postman_collection.json` - 顶层 variable `musicProvider` 由 `"tunehub"` 改为 `"meting"` - 删除"TuneHub API Key 获取"示例条目（含 `https://tunehub.sayqz.com/dashboard` 链接）。Meting 不需要 Key，整个绑定示例直接删除 - _Requirements: R7.3_
+  - [x] 6.3 更新 `resouces/postman/shizuki-site-apis.postman_collection.json` - 顶层 variable `musicProvider` 由 `"tunehub"` 改为 `"meting"` - 删除"TuneHub API Key 获取"示例条目（含 `https://tunehub.sayqz.com/dashboard` 链接）。Meting 不需要 Key，整个绑定示例直接删除 - _Requirements: R7.3_
 
 - [x] 7. 测试更新与执行
   - [x] 7.1 重构 `MediaServiceImplTest.java`（depends on 2.x、3.x）- 所有 `Mockito.mock(TuneHubMusicProvider.class)` → `mock(MetingMusicProvider.class)` - 类型 `TuneHubMusicProvider.SearchTrackResult` 等 → `MetingMusicProvider.*` - 删除 `TuneHubMusicProperties` 相关 mock；改用 `MetingMusicProperties` - 删除测试方法 `shouldThrowForbiddenWhenAllTuneHubProvidersMissingApiKey`（行为已不存在）- 新增 `shouldRouteSearchTracksToMetingProvider`、`shouldFallbackOnVhTunehubLegacyCode`、`shouldNormalizeLegacySourceModeOnRead` - _Requirements: R8.1, R8.2_

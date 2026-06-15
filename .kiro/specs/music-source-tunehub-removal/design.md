@@ -542,7 +542,7 @@ ON DUPLICATE KEY UPDATE update_time = update_time;
 | `apps/monolith-app/src/main/resources/application.yml`            | 检查并删除任何 `shizuki.music.tunehub.*` 残留                                                                             |
 | `resouces/yaml/common-config.example.yaml`                        | 已确认仅有 `meting` 段，R7.1 满足                                                                                         |
 | `deploy/README.md` line 11-13                                     | 改写为 `# music sidecar URL: shizuki.music.meting.base-url（部署方在容器网络内提供 meting-api 服务，无需用户级 API Key）` |
-| `postman/shizuki-site-apis.postman_collection.json`               | 顶层 var `musicProvider` 由 `"tunehub"` 改为 `"meting"`；删除"TuneHub API Key 获取"示例条目（因 Meting 不需要 Key）       |
+| `resouces/postman/shizuki-site-apis.postman_collection.json`     | 顶层 var `musicProvider` 由 `"tunehub"` 改为 `"meting"`；删除"TuneHub API Key 获取"示例条目（因 Meting 不需要 Key）       |
 | `Dockerfile.frontend` 的 `VITE_METING_CONSOLE_URL`                | **保留**（R9.4）                                                                                                          |
 | `monolith.yaml` 网关 guest-paths 中 `/api/v1/music/meting/status` | **保留**（R7.5）                                                                                                          |
 

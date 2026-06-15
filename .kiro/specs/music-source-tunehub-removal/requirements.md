@@ -244,7 +244,7 @@ account_only, tunehub_only}`，新值集合 `{account_first, meting_first, accou
    shizuki.music.tunehub.default-api-key" 一段改写为
    "music sidecar URL comes from: shizuki.music.meting.base-url（部署方在容器网络内提供
    meting-api 服务，无需用户级 API Key）"。
-3. THE Backend SHALL 更新 `postman/shizuki-site-apis.postman_collection.json`：
+3. THE Backend SHALL 更新 `resouces/postman/shizuki-site-apis.postman_collection.json`：
    - collection 顶部 variable `musicProvider` 由 `"tunehub"` 改为 `"meting"`；
    - 删除或重写其中"TuneHub API Key 获取"示例条目（含
      `https://tunehub.sayqz.com/dashboard` 链接），使其指向 Meting GitHub 项目
