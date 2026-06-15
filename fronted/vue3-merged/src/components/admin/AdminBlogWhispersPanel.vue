@@ -41,6 +41,25 @@
             <dd>#{{ item.whisperId }}</dd>
           </div>
         </dl>
+
+        <div class="whisper-actions">
+          <button
+            class="mini-btn ripple-trigger primary"
+            type="button"
+            :disabled="loading || submittingId === item.whisperId || item.status === 'PUBLISHED'"
+            @click="$emit('set-status', { whisperId: item.whisperId, status: 'PUBLISHED' })"
+          >
+            {{ submittingId === item.whisperId && item.status !== 'PUBLISHED' ? '提交中...' : '公开展示' }}
+          </button>
+          <button
+            class="ghost-btn ripple-trigger"
+            type="button"
+            :disabled="loading || submittingId === item.whisperId || item.status === 'HIDDEN'"
+            @click="$emit('set-status', { whisperId: item.whisperId, status: 'HIDDEN' })"
+          >
+            {{ submittingId === item.whisperId && item.status !== 'HIDDEN' ? '提交中...' : '隐藏' }}
+          </button>
+        </div>
       </article>
     </div>
 
@@ -72,6 +91,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  submittingId: {
+    type: Number,
+    default: 0
+  },
   page: {
     type: Number,
     default: 1
@@ -86,7 +109,7 @@ const props = defineProps({
   }
 });
 
-defineEmits(['refresh', 'page']);
+defineEmits(['refresh', 'page', 'set-status']);
 
 const totalPages = computed(() => {
   if (!props.pageSize || props.pageSize <= 0) return 1;
@@ -204,6 +227,13 @@ function formatDateTime(value) {
 .whisper-meta dd {
   margin: 6px 0 0;
   color: rgba(234, 243, 255, 0.94);
+}
+
+.whisper-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .pagination-wrap {

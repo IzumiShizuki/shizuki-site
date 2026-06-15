@@ -8,6 +8,7 @@ async function mountTopMenu(props = {}, initialPath = '/') {
     history: createMemoryHistory(),
     routes: [
       { path: '/', name: 'home', component: { template: '<div />' } },
+      { path: '/author', name: 'author', component: { template: '<div />' } },
       { path: '/profile', name: 'profile', component: { template: '<div />' } },
       { path: '/auth', name: 'auth', component: { template: '<div />' } }
     ]
@@ -41,6 +42,22 @@ async function mountTopMenu(props = {}, initialPath = '/') {
 }
 
 describe('TopMenu profile entry', () => {
+  it('keeps Home active on /author and exposes the shell shortcut', async () => {
+    const { wrapper } = await mountTopMenu(
+      {
+        isAuthenticated: true,
+        displayName: 'Izumi'
+      },
+      '/author'
+    );
+
+    expect(wrapper.get('.left-main-btn.active .item-label').text()).toBe('Home');
+
+    await wrapper.get('.author-info-item').trigger('click');
+
+    expect(wrapper.emitted('open-entry-shell')).toHaveLength(1);
+  });
+
   it('opens profile directly for authenticated users', async () => {
     const { wrapper } = await mountTopMenu({
       isAuthenticated: true,

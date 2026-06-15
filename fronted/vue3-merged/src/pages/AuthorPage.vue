@@ -30,6 +30,8 @@
           <p v-if="cacheNotice" class="state-tip">{{ cacheNotice }}</p>
 
           <div v-if="activeTab === 'overview'" class="content-block overview-motion-root overview-story-root">
+            <AuthorWhisperFloatLayer :items="homepageWhisperItems" :active="true" />
+
             <section class="story-hero-stage author-card reveal-node" :style="[staggerStyle(0), resolveSectionImageDisplayStyle('hero.coverImageUrl')]">
               <button
                 v-if="canEditCurrentTab"
@@ -169,8 +171,27 @@
               </div>
             </section>
 
+            <section class="home-portal-grid reveal-node" :style="staggerStyle(9)">
+              <button
+                v-for="item in homepagePortalCards"
+                :key="item.key"
+                type="button"
+                class="home-portal-card ripple-trigger"
+                :class="item.tone"
+                @click="openHomepagePortal(item)"
+              >
+                <span class="home-portal-icon" aria-hidden="true">
+                  <i :class="item.icon"></i>
+                </span>
+                <span class="home-portal-copy">
+                  <strong>{{ item.title }}</strong>
+                  <small>{{ item.description }}</small>
+                </span>
+              </button>
+            </section>
+
             <section class="story-free-layout">
-              <article class="author-card story-identity-ribbon reveal-node" :style="staggerStyle(9)">
+              <article class="author-card story-identity-ribbon reveal-node" :style="staggerStyle(10)">
                 <h3>身份坐标</h3>
                 <div class="identity-track">
                   <div class="identity-unit">
@@ -192,14 +213,14 @@
                 </div>
               </article>
 
-              <article class="author-card story-notes reveal-node" :style="staggerStyle(10)">
+              <article class="author-card story-notes reveal-node" :style="staggerStyle(11)">
                 <h3>碎碎念频道</h3>
                 <p v-for="(line, index) in about.intro" :key="`intro-${index}`" class="line-text">
                   {{ line }}
                 </p>
               </article>
 
-              <article class="author-card story-focus-panel reveal-node" :style="staggerStyle(11)">
+              <article class="author-card story-focus-panel reveal-node" :style="staggerStyle(12)">
                 <h3>当前关注</h3>
                 <p class="line-text"><strong>目标：</strong>{{ about.mission }}</p>
                 <p class="mini-title">关注方向</p>
@@ -294,7 +315,7 @@
               <p v-if="!isAdminUser" class="line-text">仅管理员可见与可编辑。</p>
 
               <template v-else>
-                <p class="line-text">可修改浏览器标签页标题与网站图标，保存后会立即生效。</p>
+                <p class="line-text">可修改浏览器标签页标题、favicon 与独立 loader 图标，保存后会立即生效。</p>
                 <div class="field-grid two-col">
                   <label class="field-block">
                     <span>浏览器标题</span>
@@ -315,6 +336,15 @@
                       placeholder="https://..."
                     />
                   </label>
+                  <label class="field-block">
+                    <span>Loader 图标 URL</span>
+                    <input
+                      v-model.trim="editForm.site.loaderIconUrl"
+                      type="text"
+                      :disabled="editState.loading || editState.uploadingAvatar"
+                      placeholder="https://... / gif"
+                    />
+                  </label>
                 </div>
 
                 <div class="inline-actions compact">
@@ -326,18 +356,35 @@
                   >
                     {{ editState.uploadingAvatar ? '上传中...' : '上传网站图标并回填' }}
                   </button>
+                  <button
+                    class="mini-btn ripple-trigger"
+                    type="button"
+                    :disabled="editState.loading || editState.uploadingAvatar"
+                    @click="triggerSectionImageUpload('site.loaderIconUrl')"
+                  >
+                    {{ editState.uploadingAvatar ? '上传中...' : '上传 Loader 图标并回填' }}
+                  </button>
                 </div>
 
                 <div class="site-settings-preview">
-                  <img
-                    class="site-favicon-preview"
-                    :style="resolveSectionImagePreviewStyle('site.faviconUrl')"
-                    :src="editForm.site.faviconUrl || siteProfile.faviconUrl || hero.avatarUrl"
-                    alt="site favicon preview"
-                  />
+                  <div class="site-settings-preview-media">
+                    <img
+                      class="site-favicon-preview"
+                      :style="resolveSectionImagePreviewStyle('site.faviconUrl')"
+                      :src="editForm.site.faviconUrl || siteProfile.faviconUrl || hero.avatarUrl"
+                      alt="site favicon preview"
+                    />
+                    <img
+                      class="site-favicon-preview site-loader-preview"
+                      :style="resolveSectionImagePreviewStyle('site.loaderIconUrl')"
+                      :src="editForm.site.loaderIconUrl || siteProfile.loaderIconUrl || editForm.site.faviconUrl || siteProfile.faviconUrl || hero.avatarUrl"
+                      alt="site loader preview"
+                    />
+                  </div>
                   <div class="site-settings-preview-copy">
                     <p class="mini-title">浏览器预览</p>
                     <p class="line-text">{{ editForm.site.browserTitle || siteProfile.browserTitle || DEFAULT_SITE_BROWSER_TITLE }}</p>
+                    <p class="line-text">Loader 与 favicon 分离，若未单独设置则回退到 favicon。</p>
                   </div>
                 </div>
 
@@ -920,13 +967,16 @@ import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
 import RailScaffold from '../components/common/RailScaffold.vue';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
+import AuthorWhisperFloatLayer from '../components/author/AuthorWhisperFloatLayer.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
+import { listPublicPostWhispers } from '../services/blogApi';
 import {
   AuthorTabKey,
   createDefaultAuthorProfilePayload,
   normalizeAuthorProfilePayload,
   normalizeAuthorTabKey
 } from './authorUiState';
+import { buildAuthorHomepageWhisperPool } from './authorHomepageWhispersState';
 import {
   appendUniqueTags,
   buildEditFormFromProfile,
@@ -986,6 +1036,21 @@ const QUICK_STATUS_PRESET_OPTIONS = Object.freeze(['睡觉中', '上班中', '�
 const JOURNEY_MONTH_LABELS = Object.freeze(Array.from({ length: 12 }, (_, index) => `${String(index + 1).padStart(2, '0')}月`));
 const AUTHOR_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 const JOURNEY_IMAGE_PATH_PATTERN = /^journey\.\d+\.imageUrl$/u;
+const HOMEPAGE_PORTAL_CARDS = Object.freeze([
+  { key: 'blog', title: 'Blog', description: '文章、分类和悄悄话入口。', icon: 'far fa-file-alt', tone: 'tone-rose', target: '/blog' },
+  {
+    key: 'music',
+    title: 'Music',
+    description: '进入音乐库，播放器依旧会常驻左下角。',
+    icon: 'fas fa-music',
+    tone: 'tone-cyan',
+    target: '/music-library/music'
+  },
+  { key: 'apps', title: 'Apps', description: '轻应用与小工具合集。', icon: 'fas fa-th-large', tone: 'tone-blue', target: '/apps' },
+  { key: 'ai-hub', title: 'AI Hub', description: '进入多跳转站内 AI 区域。', icon: 'fas fa-brain', tone: 'tone-violet', target: '/ai-hub' },
+  { key: 'journey', title: 'Journey', description: '查看建站经历和阶段推进。', icon: 'fas fa-route', tone: 'tone-gold', target: AuthorTabKey.JOURNEY, mode: 'tab' },
+  { key: 'about', title: 'About', description: '回到关于页，继续看站点设定。', icon: 'fas fa-compass-drafting', tone: 'tone-mint', target: AuthorTabKey.ABOUT, mode: 'tab' }
+]);
 const DEFAULT_SECTION_IMAGE_RULE = Object.freeze({
   aspectRatio: 16 / 10,
   maxOutputWidth: 1600,
@@ -1049,6 +1114,15 @@ const SECTION_IMAGE_RULES = Object.freeze({
     previewShape: 'rect',
     title: '裁剪网站图标',
     description: '网站图标建议使用 1:1 比例，保存后会立即更新浏览器标签页图标。'
+  }),
+  'site.loaderIconUrl': Object.freeze({
+    aspectRatio: 1,
+    maxOutputWidth: 512,
+    maxOutputHeight: 512,
+    stencilShape: 'rect',
+    previewShape: 'rect',
+    title: '裁剪加载图标',
+    description: '加载图标与 favicon 独立管理，支持单独上传静态图或 GIF。'
   })
 });
 
@@ -1057,6 +1131,7 @@ const loadError = ref('');
 const cacheNotice = ref('');
 const authorProfile = ref(createDefaultAuthorProfilePayload());
 const editForm = ref(createDefaultAuthorEditForm());
+const homepageWhisperItems = ref(buildAuthorHomepageWhisperPool([]));
 const sectionImageUploadInputRef = ref(null);
 const contentPanelRef = ref(null);
 const journeyTimelineRef = ref(null);
@@ -1233,6 +1308,7 @@ const journeyMonthTicks = computed(() => {
     isPassed: index + 1 < activeMonth
   }));
 });
+const homepagePortalCards = computed(() => HOMEPAGE_PORTAL_CARDS);
 
 const activeSectionImageRule = computed(() => resolveSectionImageRule(sectionImageCropTargetPath.value));
 const sectionImageCropAspectRatio = computed(() => {
@@ -1306,6 +1382,15 @@ function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
+}
+
+function openHomepagePortal(item) {
+  if (!item) return;
+  if (item.mode === 'tab') {
+    openTab(item.target);
+    return;
+  }
+  openLink(item.target);
 }
 
 function normalizeActivityStatus(raw, fallback = '学习中') {
@@ -1505,6 +1590,11 @@ async function handleSectionImageFileChange(event) {
     return;
   }
 
+  if (contentType === 'image/gif' && targetPath.startsWith('site.')) {
+    await uploadSectionImageFile(file, targetPath, 'GIF 图标上传成功，已自动回填 URL');
+    return;
+  }
+
   resetSectionImageCropSource();
   sectionImageCropSourceUrl.value = URL.createObjectURL(file);
   sectionImageCropSourceName.value = String(file.name || 'section-image.png');
@@ -1527,6 +1617,33 @@ function closeSectionImageCropDialog() {
   resetSectionImageCropSource();
 }
 
+async function uploadSectionImageFile(file, targetPath, successMessage = '图片上传成功，已自动回填 URL') {
+  editState.uploadingAvatar = true;
+  editState.error = '';
+  editState.success = '';
+  try {
+    const uploadPayload = await uploadAuthorAvatar(file, auth.authorizedFetch, { targetPath });
+    const url = String(uploadPayload?.url || '').trim();
+    if (!url) {
+      throw new Error('图片 URL 为空');
+    }
+    const applied = updateFormFieldByPath(targetPath, url);
+    if (!applied) {
+      throw new Error('图片字段写入失败');
+    }
+    editState.success = successMessage;
+    closeSectionImageCropDialog();
+  } catch (error) {
+    const message = readErrorMessage(error, '图片上传失败');
+    editState.error =
+      Number(error?.status || 0) === 413 || message.includes('413')
+        ? '图片过大，超过上传限制。已改为压缩上传，但这张图仍然过大，请缩小分辨率后重试'
+        : message;
+  } finally {
+    editState.uploadingAvatar = false;
+  }
+}
+
 async function handleSectionImageCropConfirm(payload) {
   const targetPath = sectionImageCropTargetPath.value || pendingSectionImagePath.value;
   const blob = payload?.blob;
@@ -1544,30 +1661,7 @@ async function handleSectionImageCropConfirm(payload) {
     return;
   }
 
-  editState.uploadingAvatar = true;
-  editState.error = '';
-  editState.success = '';
-  try {
-    const uploadPayload = await uploadAuthorAvatar(file, auth.authorizedFetch, { targetPath });
-    const url = String(uploadPayload?.url || '').trim();
-    if (!url) {
-      throw new Error('图片 URL 为空');
-    }
-    const applied = updateFormFieldByPath(targetPath, url);
-    if (!applied) {
-      throw new Error('图片字段写入失败');
-    }
-    editState.success = '图片裁剪上传成功，已自动回填 URL';
-    closeSectionImageCropDialog();
-  } catch (error) {
-    const message = readErrorMessage(error, '图片上传失败');
-    editState.error =
-      Number(error?.status || 0) === 413 || message.includes('413')
-        ? '图片过大，超过上传限制。已改为压缩上传，但这张图仍然过大，请缩小分辨率后重试'
-        : message;
-  } finally {
-    editState.uploadingAvatar = false;
-  }
+  await uploadSectionImageFile(file, targetPath, '图片裁剪上传成功，已自动回填 URL');
 }
 
 function buildSectionImageFileName(sourceName, targetPath, mimeType = '') {
@@ -1978,7 +2072,8 @@ function buildEditFormState(profilePayload) {
     },
     site: {
       browserTitle: String(source.site?.browserTitle || '').trim(),
-      faviconUrl: String(source.site?.faviconUrl || '').trim()
+      faviconUrl: String(source.site?.faviconUrl || '').trim(),
+      loaderIconUrl: String(source.site?.loaderIconUrl || '').trim()
     }
   };
 }
@@ -2039,6 +2134,15 @@ async function loadPublicProfile() {
     }
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadHomepageWhispers() {
+  try {
+    const payload = await listPublicPostWhispers(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
+    homepageWhisperItems.value = buildAuthorHomepageWhisperPool(payload);
+  } catch {
+    homepageWhisperItems.value = buildAuthorHomepageWhisperPool([]);
   }
 }
 
@@ -2256,6 +2360,7 @@ watch(
 onMounted(() => {
   bindReducedMotionWatcher();
   loadPublicProfile();
+  loadHomepageWhispers();
   refreshActiveTabMotion();
 });
 
@@ -2354,6 +2459,12 @@ onBeforeUnmount(() => {
   background: rgba(7, 12, 21, 0.44);
 }
 
+.site-settings-preview-media {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .site-favicon-preview {
   width: 68px;
   height: 68px;
@@ -2361,6 +2472,12 @@ onBeforeUnmount(() => {
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 10px 22px rgba(4, 8, 15, 0.32);
+}
+
+.site-loader-preview {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
 }
 
 .site-settings-preview-copy .mini-title {
@@ -2881,6 +2998,11 @@ onBeforeUnmount(() => {
 .journey-story-root,
 .about-story-root {
   gap: 14px;
+}
+
+.overview-story-root {
+  position: relative;
+  isolation: isolate;
 }
 
 .story-hero-stage {
@@ -3411,6 +3533,99 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.84fr);
   gap: 12px;
+}
+
+.home-portal-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.home-portal-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 116px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(145deg, rgba(255, 244, 250, 0.14), rgba(198, 219, 255, 0.1));
+  box-shadow: 0 16px 34px rgba(12, 18, 34, 0.16);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  color: rgba(244, 246, 255, 0.96);
+}
+
+.home-portal-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -14% -40% auto;
+  width: 92px;
+  height: 92px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.home-portal-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(var(--accent-rgb), 0.46);
+  box-shadow:
+    0 20px 40px rgba(12, 18, 34, 0.22),
+    0 0 0 1px rgba(var(--accent-rgb), 0.18);
+}
+
+.home-portal-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 16px;
+}
+
+.home-portal-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.home-portal-copy strong {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.home-portal-copy small {
+  color: rgba(220, 227, 244, 0.84);
+  line-height: 1.6;
+}
+
+.home-portal-card.tone-rose .home-portal-icon {
+  background: linear-gradient(145deg, rgba(255, 165, 201, 0.4), rgba(243, 119, 154, 0.22));
+}
+
+.home-portal-card.tone-cyan .home-portal-icon {
+  background: linear-gradient(145deg, rgba(113, 231, 255, 0.38), rgba(88, 161, 255, 0.24));
+}
+
+.home-portal-card.tone-blue .home-portal-icon {
+  background: linear-gradient(145deg, rgba(126, 164, 255, 0.38), rgba(91, 104, 255, 0.22));
+}
+
+.home-portal-card.tone-violet .home-portal-icon {
+  background: linear-gradient(145deg, rgba(177, 152, 255, 0.38), rgba(207, 122, 255, 0.2));
+}
+
+.home-portal-card.tone-gold .home-portal-icon {
+  background: linear-gradient(145deg, rgba(255, 213, 127, 0.4), rgba(244, 171, 92, 0.2));
+}
+
+.home-portal-card.tone-mint .home-portal-icon {
+  background: linear-gradient(145deg, rgba(129, 245, 212, 0.38), rgba(102, 199, 255, 0.2));
 }
 
 .story-identity-ribbon {
@@ -4186,6 +4401,7 @@ onBeforeUnmount(() => {
 
   .hero-stage,
   .story-hero-stage,
+  .home-portal-card,
   .overview-card,
   .story-notes,
   .story-focus-panel,
@@ -4278,6 +4494,10 @@ onBeforeUnmount(() => {
 
   .story-free-layout {
     grid-template-columns: 1fr;
+  }
+
+  .home-portal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .skill-focus-frame {
@@ -4418,6 +4638,17 @@ onBeforeUnmount(() => {
   .section-editor {
     width: min(98vw, 980px);
     max-height: 92vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-portal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-portal-card {
+    min-height: 0;
+    padding: 14px;
   }
 }
 </style>

@@ -9,6 +9,7 @@ import io.github.shizuki.site.content.request.PostNotionSyncJobCreateRequest;
 import io.github.shizuki.site.content.request.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.request.AuthorWhisperRequest;
+import io.github.shizuki.site.content.request.AuthorWhisperStatusUpdateRequest;
 import io.github.shizuki.site.content.response.AuthorWhisperSubmitResponse;
 import io.github.shizuki.site.content.response.AppSummary;
 import io.github.shizuki.site.content.response.ContentReportCreateResponse;
@@ -185,9 +186,19 @@ public interface ContentService {
     AuthorWhisperSubmitResponse submitAuthorWhisper(AuthorWhisperRequest request);
 
     /**
+     * 公开读取首页可展示的悄悄话。
+     */
+    List<AuthorWhisperItemResponse> listPublishedAuthorWhispers();
+
+    /**
      * 管理员分页查询作者悄悄话。
      */
     PageResponse<AuthorWhisperItemResponse> listAuthorWhispers(long pageNo, long pageSize);
+
+    /**
+     * 管理员更新作者悄悄话状态。
+     */
+    AuthorWhisperItemResponse updateAuthorWhisperStatus(Long whisperId, AuthorWhisperStatusUpdateRequest request);
 
     /**
      * 查询帖子可见性配置。

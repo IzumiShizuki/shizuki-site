@@ -74,13 +74,13 @@
 
         <div
           class="menu-item-stack author-info-item ripple-trigger"
-          :class="{ 'route-active': isAuthorRoute }"
-          @click.stop="openAuthorOverview"
+          :class="{ 'route-active': isEntryShellRoute }"
+          @click.stop="openEntryShell"
         >
           <div class="author-avatar-box">
             <img class="author-avatar-image" :src="resolvedAuthorAvatarUrl" alt="author-avatar" @error="onAuthorAvatarError" />
           </div>
-          <span class="item-label">关于网站</span>
+          <span class="item-label">Shell</span>
         </div>
 
         <div
@@ -184,6 +184,7 @@ const emit = defineEmits([
   'open-profile',
   'open-admin',
   'open-author',
+  'open-entry-shell',
   'open-auth'
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
@@ -199,10 +200,10 @@ const themeToggleActionLabel = computed(() => (themeModeNormalized.value === 'da
 
 const mainNavItems = computed(() => {
   return [
-    { key: 'home', label: '主页', icon: 'fas fa-home' },
-    { key: 'blog', label: '博客', icon: 'far fa-file-alt' },
-    { key: 'music-library', label: '音乐库', icon: 'fas fa-music' },
-    { key: 'apps', label: '轻应用', icon: 'fas fa-th-large' },
+    { key: 'home', label: 'Home', icon: 'fas fa-house' },
+    { key: 'blog', label: 'Blog', icon: 'far fa-file-alt' },
+    { key: 'music-library', label: 'Music', icon: 'fas fa-music' },
+    { key: 'apps', label: 'Apps', icon: 'fas fa-th-large' },
     { key: 'ai-hub', label: 'AI Hub', icon: 'fas fa-brain' }
   ];
 });
@@ -215,6 +216,12 @@ const activeMainRoute = computed(() => {
   if (name.startsWith('music-library')) {
     return 'music-library';
   }
+  if (name === 'home') {
+    return '';
+  }
+  if (name === 'author') {
+    return 'home';
+  }
   const keys = mainNavItems.value.map((item) => item.key);
   return keys.includes(name) ? name : '';
 });
@@ -226,9 +233,9 @@ const isProfileRoute = computed(() => {
   return name === 'profile' || name === 'admin';
 });
 
-const isAuthorRoute = computed(() => {
+const isEntryShellRoute = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
-  return name === 'author';
+  return name === 'home';
 });
 
 const isAuthRoute = computed(() => {
@@ -298,8 +305,8 @@ function openProjectGithub() {
   window.open(PROJECT_GITHUB_URL, '_blank', 'noopener,noreferrer');
 }
 
-function openAuthorOverview() {
-  emit('open-author', 'overview');
+function openEntryShell() {
+  emit('open-entry-shell');
 }
 
 function openProfileHome() {
@@ -437,24 +444,28 @@ watch(
 }
 
 .left-main-btn.active .item-label {
-  display: none;
+  display: block;
 }
 
 .item-label {
   display: none;
 }
 
+.left-main-btn .item-label,
+.author-info-item .item-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
 .left-pill-group {
-  --left-main-gap: 12px;
-  --left-main-item-width: 64px;
+  --left-main-gap: 10px;
+  --left-main-item-width: 112px;
   --left-main-padding-x: 16px;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.4)) 92%, transparent);
   border-radius: 40px;
-  min-width: calc(
-    (var(--left-main-item-width) * var(--left-main-count, 5)) +
-      (var(--left-main-gap) * (var(--left-main-count, 5) - 1)) +
-      (var(--left-main-padding-x) * 2)
-  );
+  min-width: 0;
   padding: 0 var(--left-main-padding-x);
   display: flex;
   gap: var(--left-main-gap);
@@ -462,24 +473,11 @@ watch(
   align-items: center;
   height: 60px;
   position: relative;
+  flex-wrap: wrap;
 }
 
 .left-pill-group::before {
-  content: '';
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  left: var(--left-main-padding-x);
-  width: var(--left-main-item-width);
-  border-radius: 24px;
-  background: var(--menu-active-bg);
-  box-shadow:
-    0 0 0 1px var(--menu-active-border),
-    var(--menu-active-shadow);
-  transform: translateX(calc(var(--active-index, 0) * (var(--left-main-item-width) + var(--left-main-gap))));
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 .left-pill-group.no-main-active::before {
@@ -488,11 +486,23 @@ watch(
 
 .left-main-btn {
   width: var(--left-main-item-width);
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  flex-direction: row;
+  gap: 8px;
   z-index: 1;
 }
 
+.left-main-btn.active {
+  background: var(--menu-active-bg);
+  box-shadow:
+    0 0 0 1px var(--menu-active-border),
+    var(--menu-active-shadow);
+}
+
 .icon-minimal {
-  font-size: 20px;
+  font-size: 18px;
   color: var(--menu-icon-color);
   height: 32px;
   width: 32px;
@@ -1030,8 +1040,11 @@ watch(
 
   .left-main-btn {
     width: auto;
-    min-width: 56px;
-    padding: 0 6px;
+    min-width: 76px;
+    min-height: 52px;
+    padding: 6px 10px;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .item-label {

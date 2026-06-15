@@ -75,7 +75,8 @@ export function createDefaultAuthorProfileJson() {
     },
     site: {
       browserTitle: 'Levitation + Menu',
-      faviconUrl: '/images/katanegai.jpg'
+      faviconUrl: '/images/katanegai.jpg',
+      loaderIconUrl: '/images/katanegai.jpg'
     }
   };
 }
@@ -143,7 +144,13 @@ function normalizeAuthorProfileJson(raw, fallback) {
     },
     site: {
       browserTitle: normalizeString(siteRaw.browserTitle ?? siteRaw.browser_title, fallback.site.browserTitle),
-      faviconUrl: normalizeImageUrl(siteRaw.faviconUrl ?? siteRaw.favicon_url, fallback.site.faviconUrl)
+      faviconUrl: normalizeImageUrl(siteRaw.faviconUrl ?? siteRaw.favicon_url, fallback.site.faviconUrl),
+      loaderIconUrl: normalizeImageUrl(
+        siteRaw.loaderIconUrl ?? siteRaw.loader_icon_url,
+        normalizeImageUrl(siteRaw.faviconUrl ?? siteRaw.favicon_url, fallback.site.faviconUrl) ||
+          fallback.site.loaderIconUrl ||
+          fallback.site.faviconUrl
+      )
     }
   };
 }

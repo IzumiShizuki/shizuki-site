@@ -23,6 +23,26 @@ export function normalizeAdminWhisperItem(raw) {
   };
 }
 
+export function normalizePublicWhisperItem(raw) {
+  const item = normalizeAdminWhisperItem(raw);
+  return {
+    whisperId: item.whisperId,
+    status: item.status,
+    content: item.content,
+    nickname: item.nickname,
+    createdAt: item.createdAt
+  };
+}
+
+export function normalizePublicWhisperList(payload) {
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(readField(payload, 'items', 'items', []))
+      ? readField(payload, 'items', 'items', [])
+      : [];
+  return rows.map(normalizePublicWhisperItem).filter((item) => item.whisperId > 0 && item.status === 'PUBLISHED');
+}
+
 export function normalizeAdminWhisperPage(payload, fallbackPage = 1, fallbackPageSize = 20) {
   const rawItems = Array.isArray(readField(payload, 'items', 'items', [])) ? readField(payload, 'items', 'items', []) : [];
   return {

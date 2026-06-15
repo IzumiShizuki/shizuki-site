@@ -137,11 +137,13 @@
             :loading="whispersLoading"
             :error="whispersError"
             :items="whispersPage.items"
+            :submitting-id="whispersSubmittingId"
             :page="whispersPage.page"
             :page-size="whispersPage.pageSize"
             :total="whispersPage.total"
             @refresh="reloadBlogWhispers(1)"
             @page="reloadBlogWhispers"
+            @set-status="updateWhisperStatus"
           />
 
           <AdminBlogCategoriesPanel
@@ -217,7 +219,7 @@ import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
 import AdminUsersPanel from '../components/admin/AdminUsersPanel.vue';
 import AdminWallpapersPanel from '../components/admin/AdminWallpapersPanel.vue';
-import { normalizeAdminWhisperPage } from './adminWhispersState';
+import { normalizeAdminWhisperItem, normalizeAdminWhisperPage } from './adminWhispersState';
 import {
   AdminTabKey,
   buildQuotaMatrix,
@@ -323,6 +325,7 @@ const pendingWallpapers = ref([]);
 
 const whispersLoading = ref(false);
 const whispersError = ref('');
+const whispersSubmittingId = ref(0);
 const whispersPage = reactive({
   page: 1,
   pageSize: 20,
@@ -959,6 +962,42 @@ async function reloadBlogWhispers(page = 1) {
     whispersError.value = readErrorMessage(error);
   } finally {
     whispersLoading.value = false;
+  }
+}
+
+async function updateWhisperStatus(payload) {
+  const whisperId = toPositiveInt(payload?.whisperId, 0);
+  const status = String(payload?.status || '').trim().toUpperCase();
+  if (!whisperId || !status) {
+    whispersError.value = 'whisper status payload is invalid';
+    return;
+  }
+  whispersError.value = '';
+  whispersSubmittingId.value = whisperId;
+  try {
+    const saved = await withPrivilegeRetry(() =>
+      adminApi.updateAdminPostWhisperStatus(
+        whisperId,
+        {
+          status
+        },
+        auth.authorizedFetch
+      )
+    );
+    const index = whispersPage.items.findIndex((item) => item.whisperId === whisperId);
+    if (index >= 0) {
+      const normalized = normalizeAdminWhisperItem(saved);
+      whispersPage.items[index] = {
+        ...whispersPage.items[index],
+        ...normalized,
+        whisperId
+      };
+    }
+    setGlobalHint(`悄悄话 #${whisperId} 已切换为 ${status}`);
+  } catch (error) {
+    whispersError.value = readErrorMessage(error);
+  } finally {
+    whispersSubmittingId.value = 0;
   }
 }
 

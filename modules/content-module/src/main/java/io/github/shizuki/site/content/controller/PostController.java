@@ -4,6 +4,7 @@ import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
+import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.response.AuthorWhisperSubmitResponse;
 import io.github.shizuki.site.content.request.AuthorWhisperRequest;
 import io.github.shizuki.site.content.response.PostDetailResponse;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -83,6 +85,13 @@ public class PostController {
     @Operation(summary = "提交作者悄悄话", description = "支持游客匿名向作者发送悄悄话")
     public ApiResponse<AuthorWhisperSubmitResponse> whisper(@Valid @RequestBody AuthorWhisperRequest request) {
         return ApiResponse.success(contentService.submitAuthorWhisper(request));
+    }
+
+    @GetMapping("/whispers/public")
+    @RateLimit(key = "posts.whispers.public", limit = 60, windowSeconds = 60)
+    @Operation(summary = "读取公开悄悄话", description = "返回首页背景层可展示的最近 10 条公开悄悄话")
+    public ApiResponse<List<AuthorWhisperItemResponse>> publicWhispers() {
+        return ApiResponse.success(contentService.listPublishedAuthorWhispers());
     }
 
     /**

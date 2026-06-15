@@ -1,6 +1,7 @@
 package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.response.PageResponse;
+import io.github.shizuki.site.content.request.AuthorWhisperStatusUpdateRequest;
 import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.service.ContentService;
 import java.time.LocalDateTime;
@@ -11,6 +12,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
@@ -50,5 +52,34 @@ class AdminPostWhisperControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].whisper_id").value(9001))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].post_title").value("总体设计文档（初始）"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].content").value("hello author"));
+    }
+    @Test
+    void shouldUpdateAuthorWhisperStatusSuccessfully() throws Exception {
+        Mockito.when(contentService.updateAuthorWhisperStatus(
+                ArgumentMatchers.eq(9001L),
+                ArgumentMatchers.any(AuthorWhisperStatusUpdateRequest.class)
+            ))
+            .thenReturn(new AuthorWhisperItemResponse(
+                9001L,
+                "PUBLISHED",
+                0L,
+                "站点留言",
+                "hello author",
+                "访客A",
+                "",
+                LocalDateTime.of(2026, 3, 13, 10, 30)
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/admin/posts/whispers/9001/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "status": "PUBLISHED"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.whisper_id").value(9001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("PUBLISHED"));
     }
 }

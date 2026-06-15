@@ -149,6 +149,20 @@ export async function listAdminPostWhispers(params, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function updateAdminPostWhisperStatus(whisperId, payload, authorizedFetch) {
+  const normalizedId = Number(whisperId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    throw new Error('whisperId is required');
+  }
+  const response = await authorizedFetch(`/api/v1/admin/posts/whispers/${encodeURIComponent(normalizedId)}/status`, {
+    method: 'PUT',
+    body: {
+      status: String(payload?.status || '').trim().toUpperCase()
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function listPendingWallpapers(authorizedFetch) {
   const response = await authorizedFetch('/api/v1/admin/home-wallpapers/pending', {
     method: 'GET'

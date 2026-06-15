@@ -316,6 +316,14 @@ export async function updateMyPost(postId, payload, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function listPublicPostWhispers(authorizedFetch) {
+  const response =
+    typeof authorizedFetch === 'function'
+      ? await authorizedFetch('/api/v1/posts/whispers/public', { method: 'GET' })
+      : await httpRequest('/api/v1/posts/whispers/public', { method: 'GET' });
+  return unwrapApiResponse(response);
+}
+
 export async function deleteMyPost(postId, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const id = normalizePostId(postId);

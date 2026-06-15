@@ -39,6 +39,7 @@
         @open-profile="openProfile"
         @open-admin="openAdmin"
         @open-author="openAuthor"
+        @open-entry-shell="openEntryShell"
         @open-auth="openAuth"
         @open-background-picker="backgroundPickerVisible = true"
         @open-atmosphere-panel="openAtmospherePanel"
@@ -431,6 +432,7 @@ const routeLabelMap = {
 };
 const DEFAULT_BROWSER_TITLE = 'Levitation + Menu';
 const DEFAULT_FAVICON_URL = '/images/katanegai.jpg';
+const DEFAULT_LOADER_ICON_URL = '/images/katanegai.jpg';
 
 function normalizeAiChatMode(raw) {
   const normalized = String(raw || '').trim().toLowerCase();
@@ -2140,6 +2142,10 @@ function applySiteMetaToDocument(siteMeta) {
   if (typeof document === 'undefined') return;
   const title = String(siteMeta?.browserTitle || '').trim() || DEFAULT_BROWSER_TITLE;
   const faviconUrl = String(siteMeta?.faviconUrl || '').trim() || DEFAULT_FAVICON_URL;
+  const loaderIconUrl =
+    String(siteMeta?.loaderIconUrl || '').trim() ||
+    String(siteMeta?.faviconUrl || '').trim() ||
+    DEFAULT_LOADER_ICON_URL;
   document.title = title;
   let iconLink = document.querySelector('link[rel="icon"]');
   if (!(iconLink instanceof HTMLLinkElement)) {
@@ -2148,6 +2154,11 @@ function applySiteMetaToDocument(siteMeta) {
     document.head.appendChild(iconLink);
   }
   iconLink.setAttribute('href', faviconUrl);
+
+  const bootIcon = document.querySelector('[data-loader-icon]');
+  if (bootIcon instanceof HTMLImageElement) {
+    bootIcon.src = loaderIconUrl;
+  }
 }
 
 function applyAuthorMenuAvatar(payload) {
@@ -2262,6 +2273,11 @@ function openAuthor(tabKey = 'overview') {
   const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';
   if (route.path === '/author' && currentTab === (tabKey || '')) return;
   router.push({ path: '/author', query: nextQuery });
+}
+
+function openEntryShell() {
+  if (route.path === '/' && !route.query?.tab) return;
+  router.push({ path: '/' });
 }
 
 function handleSelectTrack(index) {

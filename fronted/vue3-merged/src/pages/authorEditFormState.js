@@ -62,7 +62,8 @@ export function createDefaultAuthorEditForm() {
     },
     site: {
       browserTitle: '',
-      faviconUrl: ''
+      faviconUrl: '',
+      loaderIconUrl: ''
     }
   };
 }
@@ -113,7 +114,11 @@ export function buildEditFormFromProfile(profilePayload) {
     },
     site: {
       browserTitle: normalizeString(site.browserTitle ?? site.browser_title),
-      faviconUrl: normalizeImageUrl(site.faviconUrl ?? site.favicon_url)
+      faviconUrl: normalizeImageUrl(site.faviconUrl ?? site.favicon_url),
+      loaderIconUrl: normalizeImageUrl(
+        site.loaderIconUrl ?? site.loader_icon_url,
+        normalizeImageUrl(site.faviconUrl ?? site.favicon_url)
+      )
     }
   };
 }
@@ -164,7 +169,8 @@ export function buildProfileJsonFromEditForm(formInput) {
     },
     site: {
       browser_title: normalizeString(site.browserTitle ?? site.browser_title),
-      favicon_url: normalizeImageUrlForSave(site.faviconUrl ?? site.favicon_url)
+      favicon_url: normalizeImageUrlForSave(site.faviconUrl ?? site.favicon_url),
+      loader_icon_url: normalizeImageUrlForSave(site.loaderIconUrl ?? site.loader_icon_url)
     }
   };
 }
@@ -237,13 +243,14 @@ function normalizeStringList(raw) {
     .filter((value, index, array) => array.indexOf(value) === index);
 }
 
-function normalizeString(value) {
-  if (value == null) return '';
-  return String(value).trim();
+function normalizeString(value, fallback = '') {
+  if (value == null) return fallback;
+  const normalized = String(value).trim();
+  return normalized || fallback;
 }
 
-function normalizeImageUrl(value) {
-  return normalizePermanentPublicAssetUrl(normalizeString(value));
+function normalizeImageUrl(value, fallback = '') {
+  return normalizePermanentPublicAssetUrl(normalizeString(value, fallback));
 }
 
 function normalizeImageUrlForSave(value) {

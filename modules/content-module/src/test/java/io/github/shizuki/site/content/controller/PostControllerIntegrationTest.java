@@ -4,6 +4,7 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.content.request.AuthorWhisperRequest;
+import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.response.AuthorWhisperSubmitResponse;
 import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
@@ -179,6 +180,30 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("CREATED"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.target_post_id").value(1))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.accepted").value(true));
+    }
+
+    @Test
+    void shouldListPublicWhispersSuccessfully() throws Exception {
+        Mockito.when(contentService.listPublishedAuthorWhispers())
+            .thenReturn(List.of(
+                new AuthorWhisperItemResponse(
+                    9002L,
+                    "PUBLISHED",
+                    0L,
+                    "站点留言",
+                    "public whisper",
+                    "guest-a",
+                    "",
+                    LocalDateTime.of(2026, 6, 15, 12, 0)
+                )
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/posts/whispers/public"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].whisper_id").value(9002))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].status").value("PUBLISHED"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].content").value("public whisper"));
     }
 
     @Test

@@ -69,6 +69,7 @@ describe('authorUiState', () => {
     expect(normalized.profileJson.about.links[0].label).toBe('Blog');
     expect(normalized.profileJson.site.browserTitle).toBe('Shizuki Site');
     expect(normalized.profileJson.site.faviconUrl).toBe('https://example.com/favicon.png');
+    expect(normalized.profileJson.site.loaderIconUrl).toBe('https://example.com/favicon.png');
   });
 
   it('keeps signed image urls on read to avoid breaking private storage access', () => {
@@ -92,7 +93,8 @@ describe('authorUiState', () => {
           links_image_url: 'https://cdn.example.com/assets/about/links.webp?x-amz-signature=test&x-amz-expires=900'
         },
         site: {
-          favicon_url: 'https://cdn.example.com/assets/site/favicon.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
+          favicon_url: 'https://cdn.example.com/assets/site/favicon.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo',
+          loader_icon_url: 'https://cdn.example.com/assets/site/loader.gif?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
         }
       }
     });
@@ -115,6 +117,9 @@ describe('authorUiState', () => {
     );
     expect(payload.profileJson.site.faviconUrl).toBe(
       'https://cdn.example.com/assets/site/favicon.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
+    );
+    expect(payload.profileJson.site.loaderIconUrl).toBe(
+      'https://cdn.example.com/assets/site/loader.gif?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
     );
   });
 });

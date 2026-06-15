@@ -65,6 +65,7 @@ describe('authorEditFormState', () => {
     expect(form.about.links[0]).toEqual({ label: 'Blog', url: '/#/blog' });
     expect(form.site.browserTitle).toBe('Shizuki Site');
     expect(form.site.faviconUrl).toBe('https://example.com/favicon.png');
+    expect(form.site.loaderIconUrl).toBe('https://example.com/favicon.png');
   });
 
   it('maps edit form to snake_case profile json', () => {
@@ -115,7 +116,8 @@ describe('authorEditFormState', () => {
       },
       site: {
         browserTitle: ' Shizuki Site ',
-        faviconUrl: ' https://example.com/favicon.png '
+        faviconUrl: ' https://example.com/favicon.png ',
+        loaderIconUrl: ' https://example.com/loader.gif '
       }
     });
 
@@ -133,6 +135,7 @@ describe('authorEditFormState', () => {
     expect(profileJson.about.links).toEqual([{ label: 'Blog', url: '/#/blog' }]);
     expect(profileJson.site.browser_title).toBe('Shizuki Site');
     expect(profileJson.site.favicon_url).toBe('https://example.com/favicon.png');
+    expect(profileJson.site.loader_icon_url).toBe('https://example.com/loader.gif');
     expect(profileJson.journey).toHaveLength(1);
     expect(profileJson.journey[0].title).toBe('Author');
   });
@@ -194,7 +197,8 @@ describe('authorEditFormState', () => {
       },
       site: {
         browserTitle: 'Shizuki Site',
-        faviconUrl: 'https://cdn.example.com/assets/site/favicon.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
+        faviconUrl: 'https://cdn.example.com/assets/site/favicon.webp?OSSAccessKeyId=test&Expires=1893456000&Signature=demo',
+        loaderIconUrl: 'https://cdn.example.com/assets/site/loader.gif?OSSAccessKeyId=test&Expires=1893456000&Signature=demo'
       }
     });
 
@@ -205,5 +209,6 @@ describe('authorEditFormState', () => {
     expect(profileJson.about.mission_image_url).toBe('https://cdn.example.com/assets/about/mission.webp?width=960');
     expect(profileJson.about.links_image_url).toBe('https://cdn.example.com/assets/about/links.webp');
     expect(profileJson.site.favicon_url).toBe('https://cdn.example.com/assets/site/favicon.webp');
+    expect(profileJson.site.loader_icon_url).toBe('https://cdn.example.com/assets/site/loader.gif');
   });
 });

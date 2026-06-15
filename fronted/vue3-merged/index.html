@@ -5,9 +5,133 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Levitation + Menu</title>
     <link rel="stylesheet" href="/vendor/aos/aos.css" />
+    <style>
+      #app-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 22% 20%, rgba(255, 214, 234, 0.28), transparent 32%),
+          radial-gradient(circle at 82% 18%, rgba(164, 199, 255, 0.24), transparent 28%),
+          linear-gradient(145deg, #151a29, #111522 46%, #17192a);
+        transition: opacity 320ms ease, visibility 320ms ease;
+      }
+
+      #app-boot.is-hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .app-boot-shell {
+        width: min(88vw, 240px);
+        padding: 24px 22px;
+        border-radius: 28px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(18px) saturate(120%);
+        -webkit-backdrop-filter: blur(18px) saturate(120%);
+        box-shadow: 0 24px 60px rgba(6, 10, 20, 0.28);
+        display: grid;
+        justify-items: center;
+        gap: 14px;
+        color: rgba(246, 246, 252, 0.94);
+        text-align: center;
+      }
+
+      .app-boot-icon-wrap {
+        position: relative;
+        width: 86px;
+        height: 86px;
+        display: grid;
+        place-items: center;
+      }
+
+      .app-boot-icon-wrap::before {
+        content: '';
+        position: absolute;
+        inset: -9px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.32);
+        border-top-color: rgba(255, 220, 235, 0.96);
+        border-right-color: rgba(165, 201, 255, 0.78);
+        animation: app-boot-spin 1.2s linear infinite;
+      }
+
+      .app-boot-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 22px;
+        object-fit: cover;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        box-shadow: 0 12px 30px rgba(8, 10, 22, 0.24);
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .app-boot-title {
+        margin: 0;
+        font: 600 15px/1.2 'Segoe UI', sans-serif;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .app-boot-copy {
+        margin: 0;
+        font: 400 12px/1.7 'Segoe UI', sans-serif;
+        color: rgba(228, 232, 244, 0.8);
+      }
+
+      @keyframes app-boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-boot {
+          transition-duration: 160ms;
+        }
+
+        .app-boot-icon-wrap::before {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="app-boot" aria-live="polite">
+      <div class="app-boot-shell">
+        <div class="app-boot-icon-wrap">
+          <img class="app-boot-icon" data-loader-icon src="/images/katanegai.jpg" alt="loader icon" />
+        </div>
+        <p class="app-boot-title">Shizuki Site</p>
+        <p class="app-boot-copy">Loading the entry shell and homepage layers.</p>
+      </div>
+    </div>
     <div id="app"></div>
+    <script>
+      (function () {
+        try {
+          var cache = window.localStorage.getItem('shizuki.authorProfile.cache.v1');
+          if (!cache) return;
+          var parsed = JSON.parse(cache);
+          var payload = parsed && parsed.payload ? parsed.payload : null;
+          var profileJson = payload && payload.profileJson ? payload.profileJson : null;
+          var site = profileJson && profileJson.site ? profileJson.site : null;
+          if (!site) return;
+          var nextIcon =
+            String(site.loaderIconUrl || site.loader_icon_url || site.faviconUrl || site.favicon_url || '').trim() ||
+            '/images/katanegai.jpg';
+          var icon = document.querySelector('[data-loader-icon]');
+          if (icon) {
+            icon.setAttribute('src', nextIcon);
+          }
+        } catch (_) {
+          // ignore boot cache errors
+        }
+      })();
+    </script>
     <script src="/vendor/aos/aos.js"></script>
     <script type="module" src="/src/main.js"></script>
   </body>

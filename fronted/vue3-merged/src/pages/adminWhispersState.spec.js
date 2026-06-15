@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAdminWhisperItem, normalizeAdminWhisperPage } from './adminWhispersState';
+import { normalizeAdminWhisperItem, normalizeAdminWhisperPage, normalizePublicWhisperList } from './adminWhispersState';
 
 describe('adminWhispersState', () => {
   it('normalizes whisper item fields from snake case payloads', () => {
@@ -41,5 +41,32 @@ describe('adminWhispersState', () => {
     expect(page.pageSize).toBe(20);
     expect(page.total).toBe(8);
     expect(page.items[0].postTitle).toBe('站点留言');
+  });
+  it('normalizes public whisper rows and filters non-published items', () => {
+    const items = normalizePublicWhisperList([
+      {
+        whisper_id: 2,
+        status: 'published',
+        content: 'public hello',
+        nickname: 'guest-a',
+        created_at: '2026-03-30T12:00:00Z'
+      },
+      {
+        whisper_id: 3,
+        status: 'created',
+        content: 'private hello',
+        nickname: 'guest-b'
+      }
+    ]);
+
+    expect(items).toEqual([
+      {
+        whisperId: 2,
+        status: 'PUBLISHED',
+        content: 'public hello',
+        nickname: 'guest-a',
+        createdAt: '2026-03-30T12:00:00Z'
+      }
+    ]);
   });
 });

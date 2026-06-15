@@ -12,6 +12,7 @@ const mocked = vi.hoisted(() => ({
   getAdminAuthorProfile: vi.fn(),
   updateAdminAuthorProfile: vi.fn(),
   uploadAuthorAvatar: vi.fn(),
+  listPublicPostWhispers: vi.fn(),
   readAuthorProfileCache: vi.fn(),
   writeAuthorProfileCache: vi.fn()
 }));
@@ -25,6 +26,10 @@ vi.mock('../services/authorApi', () => ({
   getAdminAuthorProfile: (...args) => mocked.getAdminAuthorProfile(...args),
   updateAdminAuthorProfile: (...args) => mocked.updateAdminAuthorProfile(...args),
   uploadAuthorAvatar: (...args) => mocked.uploadAuthorAvatar(...args)
+}));
+
+vi.mock('../services/blogApi', () => ({
+  listPublicPostWhispers: (...args) => mocked.listPublicPostWhispers(...args)
 }));
 
 vi.mock('./authorProfileCache', () => ({
@@ -117,8 +122,19 @@ describe('AuthorPage admin tab handling', () => {
     mocked.getAdminAuthorProfile.mockReset().mockResolvedValue(payload);
     mocked.updateAdminAuthorProfile.mockReset().mockResolvedValue(payload);
     mocked.uploadAuthorAvatar.mockReset().mockResolvedValue({ assetId: 1, url: 'https://example.com/avatar.png' });
+    mocked.listPublicPostWhispers.mockReset().mockResolvedValue([]);
     mocked.readAuthorProfileCache.mockReset().mockReturnValue(null);
     mocked.writeAuthorProfileCache.mockReset();
+  });
+
+  it('renders homepage portal cards and floating seed whispers on overview', async () => {
+    const { wrapper } = await mountPage('/author?tab=overview', ['USER']);
+
+    expect(mocked.getAuthorProfile).toHaveBeenCalledTimes(1);
+    expect(mocked.listPublicPostWhispers).toHaveBeenCalledTimes(1);
+    expect(wrapper.findAll('.home-portal-card')).toHaveLength(6);
+    expect(wrapper.find('.whisper-float-layer').exists()).toBe(true);
+    expect(wrapper.findAll('.whisper-float-card').length).toBeGreaterThan(0);
   });
 
   it('normalizes admin tabs back to overview for non-admin users', async () => {

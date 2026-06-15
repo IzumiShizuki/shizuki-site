@@ -21,6 +21,7 @@ import io.github.shizuki.site.content.request.PostNotionSyncJobCreateRequest;
 import io.github.shizuki.site.content.request.AuthorPostUpsertRequest;
 import io.github.shizuki.site.content.response.AuthorWhisperItemResponse;
 import io.github.shizuki.site.content.request.AuthorWhisperRequest;
+import io.github.shizuki.site.content.request.AuthorWhisperStatusUpdateRequest;
 import io.github.shizuki.site.content.response.AuthorWhisperSubmitResponse;
 import io.github.shizuki.site.content.response.ContentReportCreateResponse;
 import io.github.shizuki.site.content.response.ContentVisibilityResponse;
@@ -115,6 +116,8 @@ public class ContentServiceImpl implements ContentService {
     private static final String DEFAULT_AUTHOR_CODE = "shizuki";
     private static final int AUTHOR_PROFILE_MAX_JSON_LENGTH = 64_000;
     private static final String REPORT_STATUS_CREATED = "CREATED";
+    private static final String REPORT_STATUS_PUBLISHED = "PUBLISHED";
+    private static final String REPORT_STATUS_HIDDEN = "HIDDEN";
     private static final String REPORT_TARGET_AUTHOR_WHISPER = "AUTHOR_WHISPER";
     private static final String POST_PRESENTATION_STATUS_NOT_GENERATED = "NOT_GENERATED";
     private static final String POST_PRESENTATION_STATUS_GENERATING = "GENERATING";
@@ -639,11 +642,17 @@ public class ContentServiceImpl implements ContentService {
 
     private Map<String, Object> normalizeSiteSection(Map<String, Object> source) {
         Map<String, Object> normalized = defaultSiteSection();
+        String faviconUrl = readStringField(source, normalized.get("favicon_url").toString(), "favicon_url", "faviconUrl");
+        String loaderIconUrl = readStringField(source, "", "loader_icon_url", "loaderIconUrl");
+        if (!StringUtils.hasText(loaderIconUrl)) {
+            loaderIconUrl = faviconUrl;
+        }
         normalized.put(
             "browser_title",
             readStringField(source, normalized.get("browser_title").toString(), "browser_title", "browserTitle")
         );
-        normalized.put("favicon_url", readStringField(source, normalized.get("favicon_url").toString(), "favicon_url", "faviconUrl"));
+        normalized.put("favicon_url", faviconUrl);
+        normalized.put("loader_icon_url", loaderIconUrl);
         return normalized;
     }
 
@@ -796,6 +805,7 @@ public class ContentServiceImpl implements ContentService {
         Map<String, Object> site = new LinkedHashMap<>();
         site.put("browser_title", "Levitation + Menu");
         site.put("favicon_url", "/images/katanegai.jpg");
+        site.put("loader_icon_url", "/images/katanegai.jpg");
         return site;
     }
 
@@ -1569,6 +1579,24 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
+    public List<AuthorWhisperItemResponse> listPublishedAuthorWhispers() {
+        List<ContentReportEntity> whispers = contentReportMapper.selectList(
+            new LambdaQueryWrapper<ContentReportEntity>()
+                .eq(ContentReportEntity::getTargetType, REPORT_TARGET_AUTHOR_WHISPER)
+                .eq(ContentReportEntity::getStatus, REPORT_STATUS_PUBLISHED)
+                .orderByDesc(ContentReportEntity::getCreatedAt)
+                .orderByDesc(ContentReportEntity::getId)
+        );
+        if (whispers.size() > 10) {
+            whispers = whispers.subList(0, 10);
+        }
+        Map<Long, String> postTitleMap = resolveWhisperPostTitleMap(whispers);
+        return whispers.stream()
+            .map(row -> toAuthorWhisperItem(row, postTitleMap))
+            .toList();
+    }
+
+    @Override
     public PageResponse<AuthorWhisperItemResponse> listAuthorWhispers(long pageNo, long pageSize) {
         requireAdmin();
 
@@ -1593,6 +1621,34 @@ public class ContentServiceImpl implements ContentService {
             .toList();
 
         return PageResponse.of(items, total, normalizedPageNo, normalizedPageSize);
+    }
+
+    @Override
+    public AuthorWhisperItemResponse updateAuthorWhisperStatus(Long whisperId, AuthorWhisperStatusUpdateRequest request) {
+        requireAdmin();
+        if (whisperId == null || whisperId <= 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "whisperId is required");
+        }
+        String nextStatus = normalizeAdminWhisperStatus(request == null ? null : request.getStatus());
+
+        ContentReportEntity row = contentReportMapper.selectById(whisperId);
+        if (row == null || !REPORT_TARGET_AUTHOR_WHISPER.equalsIgnoreCase(readString(row.getTargetType(), ""))) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "whisper not found");
+        }
+
+        row.setStatus(nextStatus);
+        row.setUpdatedAt(LocalDateTime.now());
+        contentReportMapper.updateById(row);
+
+        return toAuthorWhisperItem(row, resolveWhisperPostTitleMap(List.of(row)));
+    }
+
+    private String normalizeAdminWhisperStatus(String rawStatus) {
+        String normalized = trimToEmpty(rawStatus).toUpperCase(Locale.ROOT);
+        if (REPORT_STATUS_PUBLISHED.equals(normalized) || REPORT_STATUS_HIDDEN.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "whisper status must be PUBLISHED or HIDDEN");
     }
 
     private String buildWhisperReason(String content, String nickname, String remark) {
