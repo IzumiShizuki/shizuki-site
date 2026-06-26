@@ -54,6 +54,7 @@ services:
     env_file:
       - .env.server
     environment:
+      SERVER_PORT: ${SERVER_PORT:-8080}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
       AI_CHAT_ENABLED: ${AI_CHAT_ENABLED:-false}
       AI_CHAT_BASE_URL: ${AI_CHAT_BASE_URL:-}
