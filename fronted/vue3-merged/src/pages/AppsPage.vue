@@ -1113,6 +1113,8 @@ onBeforeUnmount(() => {
 .apps-route {
   min-height: 100%;
   color: rgba(239, 244, 255, 0.96);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .apps-layout {
@@ -1126,6 +1128,7 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   padding: 12px;
   display: grid;
+  align-content: start;
   gap: 12px;
 }
 
@@ -1559,6 +1562,21 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(8px);
   box-shadow: 0 20px 38px rgba(5, 8, 16, 0.24);
+}
+
+@media (min-width: 981px) {
+  .apps-layout {
+    min-height: 100%;
+    align-items: stretch;
+  }
+
+  .apps-main {
+    min-height: 100%;
+  }
+
+  :global(body.apps-rail-mode .global-lyric-bar) {
+    bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+  }
 }
 
 @media (max-width: 980px) {

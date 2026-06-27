@@ -387,6 +387,15 @@ defineExpose({
   overflow: auto;
 }
 
+@media (min-width: 981px) {
+  .rail-editor {
+    top: 0;
+    align-self: stretch;
+    min-height: 100%;
+    max-height: none;
+  }
+}
+
 .rail-head {
   display: flex;
   align-items: center;
