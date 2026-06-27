@@ -1,6 +1,7 @@
 package io.github.shizuki.site.media.controller;
 
 import io.github.shizuki.site.media.response.MusicDefaultPlaylistBundleResponse;
+import io.github.shizuki.site.media.response.MusicMetingStatusResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistProfileResponse;
@@ -99,6 +100,19 @@ class MusicControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.profile.playlist_code").value("default_public"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.tracks[0].track_id").value("track-2"));
+    }
+
+    @Test
+    void shouldGetMetingStatusSuccessfully() throws Exception {
+        Mockito.when(mediaService.getMetingStatus()).thenReturn(
+            new MusicMetingStatusResponse(true, List.of("netease", "kuwo", "qq"))
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/music/meting/status"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.available").value(true))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.providers[0]").value("netease"));
     }
 
     @Test

@@ -6,6 +6,7 @@ import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.media.response.MusicKeyGuideResponse;
 import io.github.shizuki.site.media.response.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.response.MusicMetingStatusResponse;
 import io.github.shizuki.site.media.request.MusicPickRequest;
 import io.github.shizuki.site.media.response.MusicPickResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
@@ -153,6 +154,11 @@ public class MusicController {
     @Operation(summary = "查询 provider 列表", description = "返回 provider 启用状态与可见性")
     public ApiResponse<List<MusicProviderResponse>> providers() {
         return ApiResponse.success(mediaService.listMusicProviders());
+    }
+
+    @GetMapping("/meting/status")
+    public ApiResponse<MusicMetingStatusResponse> metingStatus() {
+        return ApiResponse.success(mediaService.getMetingStatus());
     }
 
     @GetMapping("/key-guide")
