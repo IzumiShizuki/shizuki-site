@@ -1,6 +1,35 @@
 name: shizuki-site
 
 services:
+  meting-api:
+    build:
+      context: ..
+      dockerfile: tools/meting-sidecar/Dockerfile
+    image: shizuki-site/meting-api:latest
+    container_name: shizuki-site-meting-api
+    restart: unless-stopped
+    environment:
+      METING_ALLOWED_PROVIDERS: ${METING_ALLOWED_PROVIDERS:-netease,kuwo,qq}
+    healthcheck:
+      test: ["CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1/health') !== false ? 0 : 1);\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  music-ncm-api:
+    build:
+      context: ..
+      dockerfile: tools/music-ncm-sidecar/Dockerfile
+    image: shizuki-site/music-ncm-api:latest
+    container_name: shizuki-site-music-ncm-api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login/qr/key?timestamp=' + Date.now()).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   presentation-generator:
     build:
       context: ..
@@ -16,6 +45,36 @@ services:
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3210) + '/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  bill-sync-agent:
+    build:
+      context: ..
+      dockerfile: Dockerfile.bill-sync-agent
+    image: shizuki-site/bill-sync-agent:latest
+    container_name: shizuki-site-bill-sync-agent
+    restart: unless-stopped
+    env_file:
+      - .env.server
+    environment:
+      PORT: ${BILL_SYNC_AGENT_PORT:-39031}
+      PLAYWRIGHT_BROWSERS_PATH: ${PLAYWRIGHT_BROWSERS_PATH:-/ms-playwright}
+      BILL_SYNC_AGENT_TOKEN: ${BILL_SYNC_AGENT_TOKEN:-}
+      BILL_SYNC_AGENT_HEADLESS: ${BILL_SYNC_AGENT_HEADLESS:-true}
+      BILL_SYNC_AGENT_BROWSER_PATH: ${BILL_SYNC_AGENT_BROWSER_PATH:-}
+      BILL_SYNC_AGENT_TIMEOUT_MS: ${BILL_SYNC_AGENT_TIMEOUT_MS:-45000}
+      BILL_SYNC_AGENT_NAV_TIMEOUT_MS: ${BILL_SYNC_AGENT_NAV_TIMEOUT_MS:-60000}
+      BILL_SYNC_AGENT_TIMEZONE: ${BILL_SYNC_AGENT_TIMEZONE:-Asia/Shanghai}
+      BILL_SYNC_AGENT_ALIPAY_LOGIN_URL: ${BILL_SYNC_AGENT_ALIPAY_LOGIN_URL:-}
+      BILL_SYNC_AGENT_ALIPAY_BILL_URL: ${BILL_SYNC_AGENT_ALIPAY_BILL_URL:-}
+      BILL_SYNC_AGENT_WECHAT_BILL_DIR: ${BILL_SYNC_AGENT_WECHAT_BILL_DIR:-/data/wechat-bills}
+    volumes:
+      - ${BILL_SYNC_AGENT_DATA_DIR:-/opt/shizuki-site/data/bill-sync-agent}:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 39031) + '/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 20s
       timeout: 5s
       retries: 5
       start_period: 20s
@@ -67,6 +126,9 @@ services:
       AI_CHAT_MAX_CONTEXT_MESSAGES: ${AI_CHAT_MAX_CONTEXT_MESSAGES:-12}
       AI_CHAT_MAX_WORLDBOOK_ENTRIES: ${AI_CHAT_MAX_WORLDBOOK_ENTRIES:-8}
       AI_CHAT_TEMPERATURE: ${AI_CHAT_TEMPERATURE:-0.7}
+      MUSIC_METING_BASE_URL: ${MUSIC_METING_BASE_URL:-http://meting-api}
+      MUSIC_NCM_BASE_URL: ${MUSIC_NCM_BASE_URL:-http://music-ncm-api:3000}
+      MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED: ${MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED:-false}
       BLOG_PRESENTATION_GENERATOR_BASE_URL: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:-http://presentation-generator:3210}
       BLOG_PRESENTATION_CONNECT_TIMEOUT_MS: ${BLOG_PRESENTATION_CONNECT_TIMEOUT_MS:-2000}
       BLOG_PRESENTATION_READ_TIMEOUT_MS: ${BLOG_PRESENTATION_READ_TIMEOUT_MS:-660000}
@@ -75,12 +137,21 @@ services:
       BLOG_VIDEO_READ_TIMEOUT_MS: ${BLOG_VIDEO_READ_TIMEOUT_MS:-900000}
       BLOG_VIDEO_MAX_KEYFRAMES: ${BLOG_VIDEO_MAX_KEYFRAMES:-12}
       BLOG_VIDEO_ALLOW_LOCAL_FILES: ${BLOG_VIDEO_ALLOW_LOCAL_FILES:-false}
+    group_add:
+      - "${DOCKER_SOCKET_GID:-988}"
     volumes:
       - ../resouces/yaml:/app/resouces/yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
+      meting-api:
+        condition: service_healthy
+      music-ncm-api:
+        condition: service_healthy
       presentation-generator:
+        condition: service_healthy
+      bill-sync-agent:
         condition: service_healthy
       document-converter:
         condition: service_healthy

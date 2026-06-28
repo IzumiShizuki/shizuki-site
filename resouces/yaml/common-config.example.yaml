@@ -90,6 +90,16 @@ shizuki:
         netease: "3778678"
         kuwo: "145114659"
         qq: "9209322004"
+    ncm:
+      # Internal sidecar URL for NetEase Cloud Music QR login.
+      base-url: "http://music-ncm-api:3000"
+      connect-timeout-ms: 1200
+      read-timeout-ms: 5000
+      poll-interval-ms: 1800
+      session-ttl-seconds: 180
+    source-account:
+      netease:
+        manual-cookie-fallback-enabled: false
     spotify:
       client-id: "<SPOTIFY_CLIENT_ID>"
       client-secret: "<SPOTIFY_CLIENT_SECRET>"
@@ -141,6 +151,18 @@ shizuki:
         published-at: "PublishedAt"
         allowed-groups: "AllowedGroups"
   light-app:
+    balance:
+      bill-sync:
+        enabled: true
+        api-base-url: "http://bill-sync-agent:39031"
+        api-token: "${BILL_SYNC_AGENT_TOKEN:}"
+        # Generate once: openssl rand -base64 32, then provide it through deploy/.env.server
+        storage-state-encryption-key: "${BALANCE_STORAGE_STATE_ENCRYPTION_KEY:}"
+        nightly-cron: "0 0 0 * * *"
+        timezone: "Asia/Shanghai"
+        raw-archive-root: "/data/lightapp-balance-sync"
+        # WeChat currently uses a server-side export directory configured on the sidecar:
+        #   BILL_SYNC_AGENT_WECHAT_BILL_DIR=D:/data/wechat-bills
     task:
       notion:
         enabled: false

@@ -12,6 +12,12 @@ public class MusicSourceAccountBindSessionCreateResponse {
     private String bindToken;
     private String status;
     private String loginUrl;
+    private String loginMode;
+    private String qrUrl;
+    private String qrImage;
+    private String qrStatus;
+    private String qrMessage;
+    private Integer pollIntervalMs;
     private LocalDateTime expiresAt;
 
     public MusicSourceAccountBindSessionCreateResponse() {
@@ -22,12 +28,24 @@ public class MusicSourceAccountBindSessionCreateResponse {
                                                        String bindToken,
                                                        String status,
                                                        String loginUrl,
+                                                       String loginMode,
+                                                       String qrUrl,
+                                                       String qrImage,
+                                                       String qrStatus,
+                                                       String qrMessage,
+                                                       Integer pollIntervalMs,
                                                        LocalDateTime expiresAt) {
         this.provider = provider;
         this.sessionId = sessionId;
         this.bindToken = bindToken;
         this.status = status;
         this.loginUrl = loginUrl;
+        this.loginMode = loginMode;
+        this.qrUrl = qrUrl;
+        this.qrImage = qrImage;
+        this.qrStatus = qrStatus;
+        this.qrMessage = qrMessage;
+        this.pollIntervalMs = pollIntervalMs;
         this.expiresAt = expiresAt;
     }
 
@@ -69,6 +87,54 @@ public class MusicSourceAccountBindSessionCreateResponse {
 
     public void setLoginUrl(String loginUrl) {
         this.loginUrl = loginUrl;
+    }
+
+    public String getLoginMode() {
+        return loginMode;
+    }
+
+    public void setLoginMode(String loginMode) {
+        this.loginMode = loginMode;
+    }
+
+    public String getQrUrl() {
+        return qrUrl;
+    }
+
+    public void setQrUrl(String qrUrl) {
+        this.qrUrl = qrUrl;
+    }
+
+    public String getQrImage() {
+        return qrImage;
+    }
+
+    public void setQrImage(String qrImage) {
+        this.qrImage = qrImage;
+    }
+
+    public String getQrStatus() {
+        return qrStatus;
+    }
+
+    public void setQrStatus(String qrStatus) {
+        this.qrStatus = qrStatus;
+    }
+
+    public String getQrMessage() {
+        return qrMessage;
+    }
+
+    public void setQrMessage(String qrMessage) {
+        this.qrMessage = qrMessage;
+    }
+
+    public Integer getPollIntervalMs() {
+        return pollIntervalMs;
+    }
+
+    public void setPollIntervalMs(Integer pollIntervalMs) {
+        this.pollIntervalMs = pollIntervalMs;
     }
 
     public LocalDateTime getExpiresAt() {

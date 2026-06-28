@@ -15,6 +15,21 @@ services:
       timeout: 5s
       retries: 5
 
+  music-ncm-api:
+    build:
+      context: .
+      dockerfile: tools/music-ncm-sidecar/Dockerfile
+    image: ${MUSIC_NCM_API_IMAGE:-shizuki-site/music-ncm-api:latest}
+    container_name: shizuki-music-ncm-api
+    profiles: [ "app" ]
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login/qr/key?timestamp=' + Date.now()).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))" ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   document-converter:
     build:
       context: .
@@ -117,6 +132,8 @@ services:
       AI_CHAT_MAX_WORLDBOOK_ENTRIES: ${AI_CHAT_MAX_WORLDBOOK_ENTRIES:-8}
       AI_CHAT_TEMPERATURE: ${AI_CHAT_TEMPERATURE:-0.7}
       MUSIC_METING_BASE_URL: ${MUSIC_METING_BASE_URL:-http://meting-api}
+      MUSIC_NCM_BASE_URL: ${MUSIC_NCM_BASE_URL:-http://music-ncm-api:3000}
+      MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED: ${MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED:-false}
       BLOG_VIDEO_CONVERTER_BASE_URL: ${BLOG_VIDEO_CONVERTER_BASE_URL:-http://document-converter:3220}
       DB_URL: jdbc:postgresql://postgres:5432/shizuki_app
       DB_USERNAME: postgres
@@ -128,6 +145,8 @@ services:
       AUDIT_KAFKA_TOPIC: shizuki.audit.log
     depends_on:
       meting-api:
+        condition: service_healthy
+      music-ncm-api:
         condition: service_healthy
       document-converter:
         condition: service_healthy

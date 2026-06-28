@@ -10,6 +10,10 @@ public class MusicSourceAccountBindSessionStatusResponse {
     private String provider;
     private String sessionId;
     private String status;
+    private String loginMode;
+    private String qrStatus;
+    private String qrMessage;
+    private Integer pollIntervalMs;
     private LocalDateTime expiresAt;
     private LocalDateTime completedAt;
     private String failureReason;
@@ -20,12 +24,20 @@ public class MusicSourceAccountBindSessionStatusResponse {
     public MusicSourceAccountBindSessionStatusResponse(String provider,
                                                        String sessionId,
                                                        String status,
+                                                       String loginMode,
+                                                       String qrStatus,
+                                                       String qrMessage,
+                                                       Integer pollIntervalMs,
                                                        LocalDateTime expiresAt,
                                                        LocalDateTime completedAt,
                                                        String failureReason) {
         this.provider = provider;
         this.sessionId = sessionId;
         this.status = status;
+        this.loginMode = loginMode;
+        this.qrStatus = qrStatus;
+        this.qrMessage = qrMessage;
+        this.pollIntervalMs = pollIntervalMs;
         this.expiresAt = expiresAt;
         this.completedAt = completedAt;
         this.failureReason = failureReason;
@@ -53,6 +65,38 @@ public class MusicSourceAccountBindSessionStatusResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getLoginMode() {
+        return loginMode;
+    }
+
+    public void setLoginMode(String loginMode) {
+        this.loginMode = loginMode;
+    }
+
+    public String getQrStatus() {
+        return qrStatus;
+    }
+
+    public void setQrStatus(String qrStatus) {
+        this.qrStatus = qrStatus;
+    }
+
+    public String getQrMessage() {
+        return qrMessage;
+    }
+
+    public void setQrMessage(String qrMessage) {
+        this.qrMessage = qrMessage;
+    }
+
+    public Integer getPollIntervalMs() {
+        return pollIntervalMs;
+    }
+
+    public void setPollIntervalMs(Integer pollIntervalMs) {
+        this.pollIntervalMs = pollIntervalMs;
     }
 
     public LocalDateTime getExpiresAt() {

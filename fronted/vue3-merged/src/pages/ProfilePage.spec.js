@@ -13,8 +13,12 @@ const mocked = vi.hoisted(() => ({
   upsertMusicSourceAccountCookie: vi.fn(),
   deleteMusicSourceAccount: vi.fn(),
   importMusicSourcePlaylists: vi.fn(),
+  createMusicSourceBindSession: vi.fn(),
+  getMusicSourceBindSession: vi.fn(),
+  completeMusicSourceBindSession: vi.fn(),
   detectMusicSourceHelper: vi.fn(),
   requestMusicSourceCookies: vi.fn(),
+  waitForMusicSourceBind: vi.fn(),
   openMusicSourceHelperInstallGuide: vi.fn()
 }));
 
@@ -35,12 +39,16 @@ vi.mock('../services/musicApi', () => ({
   getMusicSourceAccountStatus: (...args) => mocked.getMusicSourceAccountStatus(...args),
   upsertMusicSourceAccountCookie: (...args) => mocked.upsertMusicSourceAccountCookie(...args),
   deleteMusicSourceAccount: (...args) => mocked.deleteMusicSourceAccount(...args),
-  importMusicSourcePlaylists: (...args) => mocked.importMusicSourcePlaylists(...args)
+  importMusicSourcePlaylists: (...args) => mocked.importMusicSourcePlaylists(...args),
+  createMusicSourceBindSession: (...args) => mocked.createMusicSourceBindSession(...args),
+  getMusicSourceBindSession: (...args) => mocked.getMusicSourceBindSession(...args),
+  completeMusicSourceBindSession: (...args) => mocked.completeMusicSourceBindSession(...args)
 }));
 
 vi.mock('../utils/musicSourceBindHelper', () => ({
   detectMusicSourceHelper: (...args) => mocked.detectMusicSourceHelper(...args),
   requestMusicSourceCookies: (...args) => mocked.requestMusicSourceCookies(...args),
+  waitForMusicSourceBind: (...args) => mocked.waitForMusicSourceBind(...args),
   openMusicSourceHelperInstallGuide: (...args) => mocked.openMusicSourceHelperInstallGuide(...args)
 }));
 
@@ -269,8 +277,12 @@ describe('ProfilePage immediate account expansion', () => {
     mocked.upsertMusicSourceAccountCookie.mockReset().mockResolvedValue({});
     mocked.deleteMusicSourceAccount.mockReset().mockResolvedValue({});
     mocked.importMusicSourcePlaylists.mockReset().mockResolvedValue({});
+    mocked.createMusicSourceBindSession.mockReset().mockResolvedValue({});
+    mocked.getMusicSourceBindSession.mockReset().mockResolvedValue({});
+    mocked.completeMusicSourceBindSession.mockReset().mockResolvedValue({});
     mocked.detectMusicSourceHelper.mockReset().mockResolvedValue(false);
     mocked.requestMusicSourceCookies.mockReset();
+    mocked.waitForMusicSourceBind.mockReset().mockResolvedValue();
     mocked.openMusicSourceHelperInstallGuide.mockReset();
     mocked.ui = createUiMock();
   });
@@ -460,6 +472,76 @@ describe('ProfilePage immediate account expansion', () => {
     expect(
       wrapper.findAll('.music-source-order-item .provider-name').map((node) => node.text())
     ).toEqual(['QQ 音乐', '酷狗', '网易云']);
+    wrapper.unmount();
+  });
+
+  it('completes the netease qr bind flow without helper actions', async () => {
+    const pollGate = createDeferred();
+    mocked.auth = createAuthMock({
+      getAccountProfile: vi.fn().mockResolvedValue(createAccountProfile())
+    });
+    mocked.getMusicSourceAccountStatus
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { provider: 'netease', bound: true, mask: 'MUSIC_U=***', status: 'BOUND' }
+      ]);
+    mocked.createMusicSourceBindSession.mockResolvedValue({
+      provider: 'netease',
+      session_id: 'session-qr-1',
+      status: 'PENDING',
+      login_mode: 'qr',
+      qr_status: 'WAIT_SCAN',
+      qr_image: 'data:image/png;base64,qr-demo',
+      qr_message: '请使用手机网易云扫码登录',
+      poll_interval_ms: 10,
+      expires_at: '2099-06-28T12:05:00'
+    });
+    mocked.getMusicSourceBindSession
+      .mockResolvedValueOnce({
+        provider: 'netease',
+        session_id: 'session-qr-1',
+        status: 'PENDING',
+        login_mode: 'qr',
+        qr_status: 'WAIT_CONFIRM',
+        qr_message: '扫码成功，请在手机上确认登录',
+        poll_interval_ms: 10
+      })
+      .mockResolvedValueOnce({
+        provider: 'netease',
+        session_id: 'session-qr-1',
+        status: 'COMPLETED',
+        login_mode: 'qr',
+        qr_status: 'AUTHORIZED',
+        qr_message: '网易云登录确认成功',
+        poll_interval_ms: 10
+      });
+    mocked.waitForMusicSourceBind
+      .mockImplementationOnce(() => pollGate.promise)
+      .mockResolvedValue(undefined);
+
+    const wrapper = await mountProfilePage();
+    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await flushPromises();
+
+    const providerCard = wrapper.get('.music-source-provider-card[data-provider-code="netease"]');
+    expect(providerCard.text()).not.toContain('检测助手');
+    expect(providerCard.text()).not.toContain('安装助手');
+
+    void providerCard.get('.primary-btn').trigger('click');
+    await flushPromises();
+
+    expect(mocked.createMusicSourceBindSession).toHaveBeenCalledWith('netease', mocked.auth.authorizedFetch);
+    expect(providerCard.find('.music-source-qr-image').exists()).toBe(true);
+    expect(providerCard.text()).toContain('请使用网易云音乐 App 扫码登录');
+
+    pollGate.resolve();
+    await flushPromises();
+    await flushPromises();
+
+    expect(mocked.getMusicSourceBindSession).toHaveBeenCalledTimes(2);
+    expect(mocked.waitForMusicSourceBind).toHaveBeenCalled();
+    expect(mocked.getMusicSourceAccountStatus).toHaveBeenCalledTimes(2);
+    expect(wrapper.get('.music-source-provider-card[data-provider-code="netease"]').text()).toContain('MUSIC_U=***');
     wrapper.unmount();
   });
 

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="route-page profile-page motion-managed profile-no-motion">
     <RailScaffold class="profile-stage liquid-material">
       <template #rail>
@@ -388,7 +388,16 @@
                         <p class="helper-text">{{ item.statusText }}</p>
                       </div>
                     </div>
-                    <span class="provider-chip" :class="item.code">{{ item.bound ? '已绑定' : '未绑定' }}</span>
+                    <span class="provider-chip" :class="item.code">{{ item.chipText }}</span>
+                  </div>
+                  <div v-if="item.showQrPanel" class="music-source-qr-panel">
+                    <div class="music-source-qr-media">
+                      <img v-if="item.qrImage" :src="item.qrImage" :alt="`${item.name} 二维码登录`" class="music-source-qr-image" />
+                      <p v-else class="helper-text">二维码生成中...</p>
+                    </div>
+                    <div class="music-source-qr-copy">
+                      <p class="helper-text">{{ item.qrStatusText }}</p>
+                    </div>
                   </div>
                   <div class="inline-actions compact wrap">
                     <button
@@ -397,9 +406,10 @@
                       :disabled="item.busy || item.bindBusy"
                       @click="bindMusicSourceAccount(item.code)"
                     >
-                      {{ item.bindBusy ? '绑定中...' : item.bound ? '重新绑定' : '一键绑定' }}
+                      {{ item.bindActionLabel }}
                     </button>
                     <button
+                      v-if="!item.qrMode"
                       class="ghost-btn ripple-trigger"
                       type="button"
                       :disabled="item.bindBusy"
@@ -408,7 +418,7 @@
                       检测助手
                     </button>
                     <button
-                      v-if="!musicSourceHelperAvailable"
+                      v-if="!item.qrMode && !musicSourceHelperAvailable"
                       class="ghost-btn ripple-trigger"
                       type="button"
                       :disabled="item.bindBusy"
@@ -434,7 +444,7 @@
                       {{ item.importBusy ? '导入中...' : '导入歌单' }}
                     </button>
                   </div>
-                  <details class="manual-fallback">
+                  <details v-if="item.showManualFallback" class="manual-fallback">
                     <summary>高级手动绑定</summary>
                     <label class="field-label" :for="`music-source-cookie-${item.code}`">Cookie</label>
                     <textarea
@@ -691,6 +701,20 @@ import {
   requestMusicSourceCookies,
   waitForMusicSourceBind
 } from '../utils/musicSourceBindHelper';
+import {
+  MUSIC_SOURCE_BIND_LOGIN_MODE_QR,
+  MUSIC_SOURCE_BIND_QR_STATUS_AUTHORIZED,
+  MUSIC_SOURCE_BIND_QR_STATUS_WAIT_CONFIRM,
+  MUSIC_SOURCE_BIND_QR_STATUS_EXPIRED,
+  MUSIC_SOURCE_BIND_STATUS_COMPLETED,
+  MUSIC_SOURCE_BIND_STATUS_EXPIRED,
+  describeNeteaseQrBindSession,
+  isQrMusicSourceBindSession,
+  isTerminalMusicSourceBindSession,
+  mergeMusicSourceBindSession,
+  normalizeMusicSourceBindSession,
+  resolveMusicSourceBindPollIntervalMs
+} from '../utils/musicSourceBindSession';
 
 const route = useRoute();
 const router = useRouter();
@@ -985,6 +1009,34 @@ function applyMusicSourceAccounts(payload) {
   });
   musicSourceAccounts.value = statusMap;
   musicSourceCookieInputs.value = inputMap;
+}
+
+function isNeteaseSourceProvider(provider) {
+  return String(provider || '').trim().toLowerCase() === 'netease';
+}
+
+function updateMusicSourceBindSession(provider, payload) {
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!normalizedProvider) {
+    return normalizeMusicSourceBindSession(payload, normalizedProvider);
+  }
+  const current = musicSourceBindSessions.value?.[normalizedProvider] || {};
+  const next = mergeMusicSourceBindSession(current, payload, normalizedProvider);
+  musicSourceBindSessions.value = {
+    ...musicSourceBindSessions.value,
+    [normalizedProvider]: next
+  };
+  return next;
+}
+
+function clearMusicSourceBindSession(provider) {
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (!normalizedProvider || !Object.prototype.hasOwnProperty.call(musicSourceBindSessions.value, normalizedProvider)) {
+    return;
+  }
+  const next = { ...musicSourceBindSessions.value };
+  delete next[normalizedProvider];
+  musicSourceBindSessions.value = next;
 }
 
 function clearErrors() {
@@ -1395,6 +1447,7 @@ async function saveMusicSourceCookie(provider) {
       ...musicSourceAccounts.value,
       [normalizedProvider]: normalizeSourceAccountStatus(payload, normalizedProvider)
     };
+    clearMusicSourceBindSession(normalizedProvider);
     updateMusicSourceCookieInput(normalizedProvider, '');
     setGlobalHint(`${getSourceAccountProviderLabel(normalizedProvider)} Cookie 已保存`);
   } catch (error) {
@@ -1409,10 +1462,6 @@ async function bindMusicSourceAccount(provider) {
   const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
   musicPreferenceError.value = '';
-  if (!musicSourceHelperAvailable.value) {
-    openMusicSourceHelperGuide();
-    return;
-  }
 
   musicSourceBindBusyMap.value = {
     ...musicSourceBindBusyMap.value,
@@ -1420,18 +1469,71 @@ async function bindMusicSourceAccount(provider) {
   };
 
   try {
-    const session = await musicApi.createMusicSourceBindSession(normalizedProvider, auth.authorizedFetch);
-    musicSourceBindSessions.value = {
-      ...musicSourceBindSessions.value,
-      [normalizedProvider]: session
-    };
+    const createdSession = updateMusicSourceBindSession(
+      normalizedProvider,
+      await musicApi.createMusicSourceBindSession(normalizedProvider, auth.authorizedFetch)
+    );
+
+    if (isQrMusicSourceBindSession(createdSession) || isNeteaseSourceProvider(normalizedProvider)) {
+      const expiresAtMs = Date.parse(String(createdSession?.expiresAt || ''));
+      let currentSession = createdSession;
+      let lastErrorMessage = '';
+
+      while (!isTerminalMusicSourceBindSession(currentSession)) {
+        if (Number.isFinite(expiresAtMs) && Date.now() >= expiresAtMs) {
+          currentSession = updateMusicSourceBindSession(normalizedProvider, {
+            status: MUSIC_SOURCE_BIND_STATUS_EXPIRED,
+            qrStatus: MUSIC_SOURCE_BIND_QR_STATUS_EXPIRED,
+            failureReason: '二维码已过期，请重新生成'
+          });
+          break;
+        }
+
+        try {
+          currentSession = updateMusicSourceBindSession(
+            normalizedProvider,
+            await musicApi.getMusicSourceBindSession(
+              normalizedProvider,
+              String(currentSession?.sessionId || ''),
+              auth.authorizedFetch
+            )
+          );
+        } catch (error) {
+          lastErrorMessage = readErrorMessage(error);
+        }
+
+        if (isTerminalMusicSourceBindSession(currentSession)) {
+          break;
+        }
+        await waitForMusicSourceBind(resolveMusicSourceBindPollIntervalMs(currentSession, 1800));
+      }
+
+      if (String(currentSession?.status || '').trim().toUpperCase() === MUSIC_SOURCE_BIND_STATUS_COMPLETED) {
+        await loadMusicSourceAccountsStatus();
+        clearMusicSourceBindSession(normalizedProvider);
+        updateMusicSourceCookieInput(normalizedProvider, '');
+        setGlobalHint(`${getSourceAccountProviderLabel(normalizedProvider)} 已完成绑定`);
+        return;
+      }
+
+      musicPreferenceError.value = String(currentSession?.failureReason || '').trim()
+        || lastErrorMessage
+        || describeNeteaseQrBindSession(currentSession);
+      return;
+    }
+
+    if (!musicSourceHelperAvailable.value) {
+      openMusicSourceHelperGuide();
+      return;
+    }
+
     try {
-      window.open(String(session?.loginUrl || ''), '_blank', 'noopener,noreferrer');
+      window.open(String(createdSession?.loginUrl || ''), '_blank', 'noopener,noreferrer');
     } catch {
       // noop
     }
 
-    const expiresAtMs = Date.parse(String(session?.expiresAt || ''));
+    const expiresAtMs = Date.parse(String(createdSession?.expiresAt || ''));
     let completed = false;
     let lastErrorMessage = '';
     let lastSubmittedCookie = '';
@@ -1447,10 +1549,10 @@ async function bindMusicSourceAccount(provider) {
           lastSubmittedCookie = cookieBundle;
           const payload = await musicApi.completeMusicSourceBindSession(
             normalizedProvider,
-            String(session?.sessionId || ''),
+            String(createdSession?.sessionId || ''),
             {
               provider: normalizedProvider,
-              bindToken: String(session?.bindToken || ''),
+              bindToken: String(createdSession?.bindToken || ''),
               cookieBundle,
               helperVersion: helperPayload?.helperVersion || ''
             },
@@ -1460,6 +1562,7 @@ async function bindMusicSourceAccount(provider) {
             ...musicSourceAccounts.value,
             [normalizedProvider]: normalizeSourceAccountStatus(payload, normalizedProvider)
           };
+          clearMusicSourceBindSession(normalizedProvider);
           updateMusicSourceCookieInput(normalizedProvider, '');
           setGlobalHint(`${getSourceAccountProviderLabel(normalizedProvider)} 已完成绑定`);
           completed = true;
@@ -1475,7 +1578,7 @@ async function bindMusicSourceAccount(provider) {
       try {
         const bindStatus = await musicApi.getMusicSourceBindSession(
           normalizedProvider,
-          String(session?.sessionId || ''),
+          String(createdSession?.sessionId || ''),
           auth.authorizedFetch
         );
         const failureReason = String(bindStatus?.failureReason || '').trim();
@@ -1485,7 +1588,7 @@ async function bindMusicSourceAccount(provider) {
       } catch {
         // noop
       }
-      musicPreferenceError.value = lastErrorMessage || '未检测到有效登录态，请确认目标平台已登录后重试';
+      musicPreferenceError.value = lastErrorMessage || '未检测到有效登录状态，请确认目标平台已登录后重试';
     }
   } catch (error) {
     musicPreferenceError.value = readErrorMessage(error);
@@ -1509,6 +1612,7 @@ async function deleteMusicSourceCookie(provider) {
       ...musicSourceAccounts.value,
       [normalizedProvider]: normalizeSourceAccountStatus({}, normalizedProvider)
     };
+    clearMusicSourceBindSession(normalizedProvider);
     updateMusicSourceCookieInput(normalizedProvider, '');
     setGlobalHint(`${getSourceAccountProviderLabel(normalizedProvider)} 授权已移除`);
   } catch (error) {
@@ -1857,26 +1961,60 @@ const musicSourceAccountCards = computed(() =>
   normalizeSourceProviderOrder(musicSourceProviderOrder.value).map((provider) => {
     const providerMeta = getSourceAccountProviderMeta(provider);
     const status = musicSourceAccounts.value?.[provider] || normalizeSourceAccountStatus({}, provider);
+    const session = normalizeMusicSourceBindSession(musicSourceBindSessions.value?.[provider], provider);
     const bound = Boolean(status?.bound);
     const mask = String(status?.mask || '').trim();
     const updatedAt = String(status?.updatedAt || '').trim();
     const bindBusy = Boolean(musicSourceBindBusyMap.value?.[provider]);
+    const busy = Boolean(musicSourceBusyMap.value?.[provider]);
+    const importBusy = Boolean(musicSourceImportBusyMap.value?.[provider]);
+    const qrMode = isNeteaseSourceProvider(provider) || isQrMusicSourceBindSession(session);
     const helperState = musicSourceHelperAvailable.value ? '助手已就绪' : '助手未安装';
+    const showQrPanel = qrMode && Boolean(session.sessionId || session.qrImage || session.qrStatus || session.failureReason);
+    const qrStatusText = qrMode ? describeNeteaseQrBindSession(session) : '';
+    const bindActionLabel = qrMode
+      ? (bindBusy ? '等待扫码...' : bound ? '重新扫码绑定' : '扫码登录')
+      : (bindBusy ? '绑定中...' : bound ? '重新绑定' : '一键绑定');
+    const chipText = bound
+      ? '已绑定'
+      : qrMode
+        ? (session.qrStatus === MUSIC_SOURCE_BIND_QR_STATUS_WAIT_CONFIRM
+          ? '待确认'
+          : session.qrStatus === MUSIC_SOURCE_BIND_QR_STATUS_EXPIRED
+            ? '二维码过期'
+            : session.qrStatus === MUSIC_SOURCE_BIND_QR_STATUS_AUTHORIZED
+              ? '已授权'
+              : '未绑定')
+        : '未绑定';
+
     return {
       ...providerMeta,
       bound,
       mask,
       statusText: !auth.isAuthenticated.value
         ? '登录后可配置'
-        : bindBusy
-          ? '绑定中：请在新打开页面完成登录'
-          : bound
+        : qrMode
+          ? (bound
             ? (mask ? `已绑定：${mask}` : '已绑定')
-            : helperState,
-      busy: Boolean(musicSourceBusyMap.value?.[provider]),
+            : showQrPanel
+              ? '请使用网易云音乐 App 扫码登录'
+              : '点击按钮生成网易云二维码，用手机 App 扫码登录')
+          : bindBusy
+            ? '绑定中：请在新打开的页面完成登录'
+            : bound
+              ? (mask ? `已绑定：${mask}` : '已绑定')
+              : helperState,
+      busy,
       bindBusy,
-      importBusy: Boolean(musicSourceImportBusyMap.value?.[provider]),
-      updatedAtLabel: updatedAt ? formatDateLabel(updatedAt) : ''
+      importBusy,
+      updatedAtLabel: updatedAt ? formatDateLabel(updatedAt) : '',
+      qrMode,
+      qrImage: session.qrImage,
+      qrStatusText,
+      showQrPanel,
+      showManualFallback: !qrMode,
+      bindActionLabel,
+      chipText
     };
   })
 );
@@ -2589,6 +2727,41 @@ select.field-input:focus-visible,
   display: none;
 }
 
+.music-source-qr-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(148, 183, 208, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(141, 176, 202, 0.18);
+}
+
+.music-source-qr-media {
+  width: 132px;
+  min-height: 132px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.music-source-qr-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.music-source-qr-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
 .music-auth-title {
   margin: 0;
   font-size: 14px;
@@ -2726,6 +2899,15 @@ select.field-input:focus-visible,
 
   .music-source-order-actions {
     justify-content: flex-start;
+  }
+
+  .music-source-qr-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .music-source-qr-media {
+    width: min(100%, 180px);
+    margin: 0 auto;
   }
 }
 

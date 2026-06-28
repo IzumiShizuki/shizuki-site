@@ -114,6 +114,15 @@ shizuki:
         qq: ${MUSIC_METING_DEFAULT_PLAYLIST_ID_QQ:9209322004}
       connect-timeout-ms: ${MUSIC_METING_CONNECT_TIMEOUT_MS:1200}
       read-timeout-ms: ${MUSIC_METING_READ_TIMEOUT_MS:5000}
+    ncm:
+      base-url: ${MUSIC_NCM_BASE_URL:http://music-ncm-api:3000}
+      connect-timeout-ms: ${MUSIC_NCM_CONNECT_TIMEOUT_MS:1200}
+      read-timeout-ms: ${MUSIC_NCM_READ_TIMEOUT_MS:5000}
+      poll-interval-ms: ${MUSIC_NCM_POLL_INTERVAL_MS:1800}
+      session-ttl-seconds: ${MUSIC_NCM_SESSION_TTL_SECONDS:180}
+    source-account:
+      netease:
+        manual-cookie-fallback-enabled: ${MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED:false}
     spotify:
       client-id: ${SPOTIFY_CLIENT_ID:}
       client-secret: ${SPOTIFY_CLIENT_SECRET:}
