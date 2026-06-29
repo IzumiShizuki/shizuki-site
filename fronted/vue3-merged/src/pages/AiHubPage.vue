@@ -149,7 +149,7 @@
                 </div>
 
                 <div class="stage-actions">
-                  <button class="stage-btn ripple-trigger" type="button" :disabled="townLoading" @click="loadTownExplorer">
+                  <button class="stage-btn ripple-trigger" type="button" :disabled="townLoading || townFinanceHub.loading" @click="refreshTownStage">
                     {{ townLoading ? '刷新中...' : '刷新场景' }}
                   </button>
                   <button
@@ -162,6 +162,125 @@
                   </button>
                 </div>
               </div>
+              <section v-if="isFinanceBuildingSelected" class="finance-drawer liquid-material">
+                  <div class="finance-hero">
+                    <div class="finance-hero-copy">
+                      <span class="stage-kicker">Town Treasury House</span>
+                      <h3>{{ FINANCE_TOWN_BUILDING.title }}</h3>
+                      <p>{{ FINANCE_TOWN_BUILDING.description }}</p>
+                      <div class="highlight-list finance-highlight-list">
+                        <span v-for="item in FINANCE_TOWN_BUILDING.highlights" :key="item" class="highlight-chip">{{ item }}</span>
+                      </div>
+                    </div>
+
+                    <div class="finance-emblem" aria-hidden="true">
+                      <i class="fas fa-building-columns"></i>
+                      <span>00:00</span>
+                      <small>夜间对账</small>
+                    </div>
+                  </div>
+
+                  <p v-if="townFinanceHub.errorText" class="feedback-banner error">{{ townFinanceHub.errorText }}</p>
+
+                  <div v-if="townFinanceHub.loading" class="finance-state-card">
+                    <strong>账房正在盘点</strong>
+                    <p>正在读取账户总览、账单源状态和自动同步配置。</p>
+                  </div>
+
+                  <template v-else>
+                    <div class="finance-metrics-grid">
+                      <article class="finance-metric-card liquid-material">
+                        <span>总资产</span>
+                        <strong>{{ formatFinanceAmount(townFinanceHub.overview.totalBalance, townFinanceHub.overview.baseCurrency) }}</strong>
+                        <small>{{ financeOverviewCaption }}</small>
+                      </article>
+                      <article class="finance-metric-card liquid-material">
+                        <span>待还债务</span>
+                        <strong>{{ formatFinanceAmount(townFinanceHub.overview.totalDebt, townFinanceHub.overview.baseCurrency) }}</strong>
+                        <small>把借款与分期一起折进来</small>
+                      </article>
+                      <article class="finance-metric-card liquid-material accent-card">
+                        <span>净资产</span>
+                        <strong>{{ formatFinanceAmount(townFinanceHub.overview.netAsset, townFinanceHub.overview.baseCurrency) }}</strong>
+                        <small>{{ financeSyncSummary }}</small>
+                      </article>
+                    </div>
+
+                    <div class="finance-detail-grid">
+                      <article class="finance-panel liquid-material">
+                        <div class="finance-panel-head">
+                          <div>
+                            <span class="side-kicker">Bill Sources</span>
+                            <h4>自动入账来源</h4>
+                          </div>
+                          <small>{{ financeSourceSummary }}</small>
+                        </div>
+
+                        <div v-if="!auth.isAuthenticated" class="finance-empty-card">
+                          <strong>登录后接入自动同步</strong>
+                          <p>支付宝、微信和银行卡的真实同步状态只对当前用户展示；未登录时这里只保留建筑入口。</p>
+                          <button class="stage-btn primary ripple-trigger" type="button" @click="openFinanceLogin">前往登录</button>
+                        </div>
+
+                        <div v-else class="finance-source-grid">
+                          <article
+                            v-for="item in financeSourceCards"
+                            :key="item.provider"
+                            class="finance-source-card"
+                            :class="[`tone-${item.tone}`, `status-${item.status.toLowerCase()}`]"
+                          >
+                            <div class="finance-source-head">
+                              <strong>{{ item.label }}</strong>
+                              <span class="finance-source-pill">{{ formatFinanceSourceStatus(item.status) }}</span>
+                            </div>
+                            <p>{{ item.hint }}</p>
+                            <small>目标账户：{{ item.targetAccountName || '未绑定' }}</small>
+                            <small>最近同步：{{ formatFinanceDateTime(item.lastSyncedAt) }}</small>
+                          </article>
+                        </div>
+                      </article>
+
+                      <article class="finance-panel liquid-material">
+                        <div class="finance-panel-head">
+                          <div>
+                            <span class="side-kicker">Account Shelf</span>
+                            <h4>账户货架</h4>
+                          </div>
+                          <small>{{ financeAccountSummary }}</small>
+                        </div>
+
+                        <div v-if="!financeTopAccounts.length" class="finance-empty-card">
+                          <strong>账房还是空的</strong>
+                          <p>先去记账模块里创建支付宝余额、微信零钱、工资卡等账户，这里就会开始长出货架。</p>
+                        </div>
+
+                        <div v-else class="finance-account-list">
+                          <article v-for="item in financeTopAccounts" :key="item.accountId" class="finance-account-card">
+                            <div>
+                              <strong>{{ item.accountName }}</strong>
+                              <small>{{ item.channelName || item.channelCode || '未分渠道' }}</small>
+                            </div>
+                            <span>{{ formatFinanceAmount(item.balanceAmount, item.currencyCode) }}</span>
+                          </article>
+                        </div>
+                      </article>
+                    </div>
+                  </template>
+
+                  <div class="finance-action-row">
+                    <button class="stage-btn ripple-trigger" type="button" @click="openTownFinanceWindow(BALANCE_SECTION_OVERVIEW)">打开总览</button>
+                    <button class="stage-btn ripple-trigger" type="button" @click="openTownFinanceWindow(BALANCE_SECTION_TRANSACTIONS)">查看收支</button>
+                    <button class="stage-btn ripple-trigger" type="button" @click="openTownFinanceWindow(BALANCE_SECTION_ACCOUNTS)">整理账户</button>
+                    <button
+                      class="stage-btn primary ripple-trigger"
+                      type="button"
+                      :disabled="!auth.isAuthenticated"
+                      @click="openTownFinanceWindow(BALANCE_SECTION_SOURCES)"
+                    >
+                      管理自动同步
+                    </button>
+                  </div>
+                </section>
 
               <p v-if="townErrorText" class="feedback-banner error">{{ townErrorText }}</p>
 
@@ -171,27 +290,30 @@
                   <div class="map-gridline"></div>
 
                   <button
-                    v-for="node in townMap.scenes"
+                    v-for="node in townMapNodes"
                     :key="node.sceneCode"
                     class="map-node ripple-trigger"
                     :class="[`tone-${node.tone}`, { active: node.sceneCode === selectedTownSceneCode }]"
                     type="button"
                     :style="mapNodeStyle(node)"
-                    @click="loadTownScene(node.sceneCode)"
+                    @click="handleTownDestinationClick(node.sceneCode)"
                   >
+                    <span v-if="node.kind === 'finance'" class="map-node-mark" aria-hidden="true">
+                      <i class="fas fa-coins"></i>
+                    </span>
                     <strong>{{ node.title }}</strong>
-                    <small>{{ node.sceneCode }}</small>
+                    <small>{{ node.kind === 'finance' ? 'vault house' : node.sceneCode }}</small>
                   </button>
                 </div>
 
                 <div class="scene-rail">
                   <button
-                    v-for="scene in townScenes"
+                    v-for="scene in townRailItems"
                     :key="scene.sceneCode"
                     class="scene-chip ripple-trigger"
                     :class="{ active: scene.sceneCode === selectedTownSceneCode }"
                     type="button"
-                    @click="loadTownScene(scene.sceneCode)"
+                    @click="handleTownDestinationClick(scene.sceneCode)"
                   >
                     <strong>{{ scene.title }}</strong>
                     <span>{{ scene.npcCount }} 个展示点</span>
@@ -293,6 +415,51 @@
             </div>
           </template>
 
+          <template v-else-if="isFinanceBuildingSelected">
+            <div class="side-panel-head">
+              <div class="scene-meta-row">
+                <span class="scene-type">{{ FINANCE_TOWN_BUILDING.sceneType }}</span>
+                <small>{{ financeAuthLabel }}</small>
+              </div>
+              <h3>{{ FINANCE_TOWN_BUILDING.title }}</h3>
+              <p>{{ FINANCE_TOWN_BUILDING.description }}</p>
+            </div>
+
+            <p class="scene-atmosphere">{{ FINANCE_TOWN_BUILDING.atmosphereHint }}</p>
+
+            <div class="quick-actions">
+              <button class="quick-btn ripple-trigger" type="button" @click="openTownFinanceWindow(BALANCE_SECTION_OVERVIEW)">打开总账</button>
+              <button class="quick-btn ripple-trigger" type="button" @click="openTownFinanceWindow(BALANCE_SECTION_ACCOUNTS)">整理账户</button>
+              <button
+                class="quick-btn primary ripple-trigger"
+                type="button"
+                :disabled="!auth.isAuthenticated"
+                @click="openTownFinanceWindow(BALANCE_SECTION_SOURCES)"
+              >
+                自动同步
+              </button>
+            </div>
+
+            <div class="highlight-list">
+              <span v-for="item in FINANCE_TOWN_BUILDING.highlights" :key="item" class="highlight-chip">{{ item }}</span>
+            </div>
+
+            <div class="side-info-list">
+              <article class="side-info-card">
+                <strong>账房状态</strong>
+                <p>{{ financeStatusSummary }}</p>
+              </article>
+              <article class="side-info-card">
+                <strong>自动同步规则</strong>
+                <p>{{ financeSyncSummary }}</p>
+              </article>
+              <article class="side-info-card">
+                <strong>接入范围</strong>
+                <p>支付宝使用服务器扫码登录态，微信与银行卡使用服务器账单目录导入，特别适合工资卡流水归档。</p>
+              </article>
+            </div>
+          </template>
+
           <template v-else-if="selectedTownScene">
             <div class="side-panel-head">
               <div class="scene-meta-row">
@@ -389,9 +556,23 @@ import {
   listAiTownScenes,
   previewAdminAiTownAsset
 } from '../services/aiApi';
+import {
+  getLightAppBalanceOverview,
+  listLightAppBalanceAccounts,
+  listLightAppBalanceSourceAccountStatus
+} from '../services/lightAppsApi';
 import { listPublicHomeRoles } from '../services/wallpaperApi';
+import { openLightAppShellWindow } from '../components/lightapps/lightAppShellStore';
+import {
+  BALANCE_SECTION_ACCOUNTS,
+  BALANCE_SECTION_OVERVIEW,
+  BALANCE_SECTION_SOURCES,
+  BALANCE_SECTION_TRANSACTIONS,
+  setBalanceWindowSection
+} from '../components/lightapps/balance/balanceWindowState';
 import { buildAiCapabilityState } from '../utils/aiAuthorizationState';
 import { resolveCompanionStageStatus, selectCompanionL2dAsset } from '../utils/aiCompanionStage';
+import { readGuestLightAppData, readRemoteLightAppCache } from '../utils/lightAppsDataStore';
 
 const auth = useAuthSession();
 const activePrimaryMode = ref('town');
@@ -411,6 +592,27 @@ const companionStage = reactive(createCompanionStageState());
 
 const STANDARD_CONVERSATION_MODES = ['normal', 'tavern'];
 const ADMIN_CONVERSATION_MODES = ['town_npc', 'companion'];
+const FINANCE_TOWN_BUILDING_CODE = 'finance_vault';
+const FINANCE_SOURCE_METAS = Object.freeze([
+  { provider: 'alipay', label: '支付宝', hint: '服务器扫码后自动抓账。', tone: 'amber' },
+  { provider: 'wechat', label: '微信', hint: '服务器目录摄取导出的账单文件。', tone: 'sky' },
+  { provider: 'bankcard', label: '银行卡', hint: '适合工资卡和银行流水集中入账。', tone: 'emerald' }
+]);
+const FINANCE_TOWN_BUILDING = Object.freeze({
+  sceneCode: FINANCE_TOWN_BUILDING_CODE,
+  title: '金库账房',
+  sceneType: 'finance_house',
+  description: '这里专门收拢资产、账单同步和工资卡流水。点开它，小镇就会露出真正的管钱后台。',
+  atmosphereHint: '黄铜门轴、账本纸页和夜间对账灯一起运转，像一座会呼吸的库房。',
+  highlights: ['支付宝自动抓账', '微信账单导入', '银行卡工资流水', '夜间 00:00 同步'],
+  publicVisible: true,
+  tone: 'emerald',
+  coordX: 79,
+  coordY: 74,
+  npcCount: 0,
+  npcs: []
+});
+const townFinanceHub = reactive(createTownFinanceHubState());
 
 function toNumber(value) {
   const normalized = Number(value);
@@ -505,6 +707,24 @@ function createCompanionStageState() {
   };
 }
 
+function createTownFinanceHubState() {
+  return {
+    loading: false,
+    loaded: false,
+    mode: 'guest',
+    errorText: '',
+    overview: {
+      baseCurrency: 'CNY',
+      totalBalance: 0,
+      totalDebt: 0,
+      netAsset: 0,
+      calculatedAt: ''
+    },
+    accounts: [],
+    sourceAccounts: []
+  };
+}
+
 function normalizeTownAssetPreview(raw = {}) {
   return {
     assetImportId: toNumber(raw.assetImportId ?? raw.asset_import_id),
@@ -549,6 +769,145 @@ function isTownPreviewNotFound(error) {
   return message.includes('not found');
 }
 
+function isFinanceBuildingCode(sceneCode) {
+  return normalizeOptionalText(sceneCode) === FINANCE_TOWN_BUILDING_CODE;
+}
+
+function formatFinanceAmount(value, currencyCode = 'CNY') {
+  const amount = Number(value);
+  const currency = normalizeOptionalText(currencyCode).toUpperCase() || 'CNY';
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  try {
+    return new Intl.NumberFormat('zh-CN', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2
+    }).format(safeAmount);
+  } catch {
+    return `${currency} ${safeAmount.toFixed(2)}`;
+  }
+}
+
+function formatFinanceDateTime(value) {
+  const text = normalizeOptionalText(value);
+  if (!text) return '未记录';
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) {
+    return text;
+  }
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function formatFinanceSourceStatus(status) {
+  const normalized = normalizeOptionalText(status).toUpperCase();
+  if (normalized === 'BOUND') return '已绑定';
+  if (normalized === 'PENDING') return '绑定中';
+  if (normalized === 'REAUTH_REQUIRED') return '待重绑';
+  if (normalized === 'RUNNING') return '同步中';
+  return '未绑定';
+}
+
+function applyTownFinanceSnapshot(snapshot = {}, mode = 'guest') {
+  const overview = snapshot?.overview && typeof snapshot.overview === 'object' ? snapshot.overview : {};
+  townFinanceHub.mode = mode;
+  townFinanceHub.overview = {
+    baseCurrency: normalizeOptionalText(overview.baseCurrency || overview.base_currency).toUpperCase() || 'CNY',
+    totalBalance: Number(overview.totalBalance ?? overview.total_balance) || 0,
+    totalDebt: Number(overview.totalDebt ?? overview.total_debt) || 0,
+    netAsset: Number(overview.netAsset ?? overview.net_asset) || 0,
+    calculatedAt: overview.calculatedAt || overview.calculated_at || ''
+  };
+  townFinanceHub.accounts = Array.isArray(snapshot?.accounts) ? snapshot.accounts.slice() : [];
+  townFinanceHub.sourceAccounts = Array.isArray(snapshot?.sourceAccounts) ? snapshot.sourceAccounts.slice() : [];
+  townFinanceHub.loaded = true;
+}
+
+async function loadTownFinanceHub(force = false) {
+  if (townFinanceHub.loading) return;
+  const targetMode = auth.isAuthenticated.value ? 'remote' : 'guest';
+  if (townFinanceHub.loaded && townFinanceHub.mode === targetMode && !force) return;
+
+  townFinanceHub.loading = true;
+  townFinanceHub.errorText = '';
+  try {
+    if (auth.isAuthenticated.value) {
+      const [overview, accounts, sourceAccounts] = await Promise.all([
+        getLightAppBalanceOverview('CNY', auth.authorizedFetch),
+        listLightAppBalanceAccounts(auth.authorizedFetch),
+        listLightAppBalanceSourceAccountStatus(auth.authorizedFetch)
+      ]);
+      applyTownFinanceSnapshot({ overview, accounts, sourceAccounts }, 'remote');
+      return;
+    }
+
+    const guest = readGuestLightAppData();
+    applyTownFinanceSnapshot(
+      {
+        overview: guest.balanceOverview || {},
+        accounts: guest.balanceAccounts || [],
+        sourceAccounts: []
+      },
+      'guest'
+    );
+  } catch (error) {
+    townFinanceHub.errorText = error instanceof Error && normalizeOptionalText(error.message)
+      ? error.message
+      : '账房账册暂时打不开，请稍后再试。';
+    const fallback = auth.isAuthenticated.value ? readRemoteLightAppCache() : readGuestLightAppData();
+    applyTownFinanceSnapshot(
+      {
+        overview: fallback.balanceOverview || {},
+        accounts: fallback.balanceAccounts || [],
+        sourceAccounts: auth.isAuthenticated.value ? townFinanceHub.sourceAccounts : []
+      },
+      auth.isAuthenticated.value ? 'cache' : 'guest'
+    );
+  } finally {
+    townFinanceHub.loading = false;
+  }
+}
+
+async function selectTownFinanceBuilding(force = false) {
+  selectedTownSceneCode.value = FINANCE_TOWN_BUILDING.sceneCode;
+  selectedTownScene.value = {
+    ...FINANCE_TOWN_BUILDING,
+    highlights: [...FINANCE_TOWN_BUILDING.highlights],
+    npcs: []
+  };
+  await loadTownFinanceHub(force);
+}
+
+function openTownFinanceWindow(section = BALANCE_SECTION_OVERVIEW) {
+  const windowId = openLightAppShellWindow('balance-ledger', { source: 'ai_town_finance_house' });
+  if (windowId > 0) {
+    setBalanceWindowSection(windowId, section);
+  }
+}
+
+function openFinanceLogin() {
+  auth.redirectToAuth('login_required', '/ai-hub');
+}
+
+async function handleTownDestinationClick(sceneCode) {
+  if (isFinanceBuildingCode(sceneCode)) {
+    await selectTownFinanceBuilding();
+    return;
+  }
+  await loadTownScene(sceneCode);
+}
+
+async function refreshTownStage() {
+  await loadTownExplorer({
+    preserveSelectedCode: selectedTownSceneCode.value,
+    refreshFinance: isFinanceBuildingCode(selectedTownSceneCode.value)
+  });
+}
+
 const adminCapability = computed(() =>
   buildAiCapabilityState({
     authenticated: auth.isAuthenticated.value,
@@ -565,8 +924,75 @@ const conversationAllowedModes = computed(() =>
 const selectedTownSceneSummary = computed(() =>
   townScenes.value.find((item) => item.sceneCode === selectedTownSceneCode.value) || null
 );
+const isFinanceBuildingSelected = computed(() => isFinanceBuildingCode(selectedTownSceneCode.value));
+const townMapNodes = computed(() => [
+  ...townMap.value.scenes.map((item) => ({ ...item, kind: 'scene' })),
+  {
+    sceneCode: FINANCE_TOWN_BUILDING.sceneCode,
+    title: FINANCE_TOWN_BUILDING.title,
+    coordX: FINANCE_TOWN_BUILDING.coordX,
+    coordY: FINANCE_TOWN_BUILDING.coordY,
+    tone: FINANCE_TOWN_BUILDING.tone,
+    kind: 'finance'
+  }
+]);
+const townRailItems = computed(() => [
+  ...townScenes.value.map((item) => ({
+    ...item,
+    metaLabel: `${item.npcCount} 个展示点`
+  })),
+  {
+    ...FINANCE_TOWN_BUILDING,
+    npcCount: '账务中心',
+    metaLabel: '账务中心',
+    kind: 'finance'
+  }
+]);
 const townAssetMetadataEntries = computed(() => Object.entries(townAssetEditor.preview?.metadata || {}).slice(0, 8));
 const townAssetPreviewEntries = computed(() => Object.entries(townAssetEditor.preview?.preview || {}).slice(0, 6));
+const financeSourceCards = computed(() =>
+  FINANCE_SOURCE_METAS.map((meta) => {
+    const source = townFinanceHub.sourceAccounts.find((item) => item.provider === meta.provider) || {};
+    return {
+      ...meta,
+      status: normalizeOptionalText(source.status).toUpperCase() || 'UNBOUND',
+      bound: source.bound === true,
+      nightlyEnabled: source.nightlyEnabled === true,
+      targetAccountName: normalizeOptionalText(source.targetAccountName),
+      lastSyncedAt: source.lastSyncedAt || ''
+    };
+  })
+);
+const financeTopAccounts = computed(() =>
+  [...townFinanceHub.accounts]
+    .sort((left, right) => Number(right.balanceAmount || 0) - Number(left.balanceAmount || 0))
+    .slice(0, 5)
+);
+const financeOverviewCaption = computed(() => {
+  if (townFinanceHub.overview.calculatedAt) {
+    return `更新于 ${formatFinanceDateTime(townFinanceHub.overview.calculatedAt)}`;
+  }
+  return auth.isAuthenticated.value ? '实时汇总你的账户余额' : '游客模式下展示本地缓存';
+});
+const financeSourceSummary = computed(() => {
+  const boundCount = financeSourceCards.value.filter((item) => item.bound).length;
+  return `${boundCount}/${financeSourceCards.value.length} 已绑定`;
+});
+const financeAccountSummary = computed(() => `${townFinanceHub.accounts.length} 个账户`);
+const financeAuthLabel = computed(() => (auth.isAuthenticated.value ? '私有账本已接通' : '未登录，仅展示建筑入口'));
+const financeStatusSummary = computed(() => {
+  if (!auth.isAuthenticated.value) {
+    return '登录后这里会展示你的资产总览、自动同步状态和工资卡流水接入情况。';
+  }
+  return `当前共管理 ${townFinanceHub.accounts.length} 个账户，${financeSourceCards.value.filter((item) => item.bound).length} 个来源已接通。`;
+});
+const financeSyncSummary = computed(() => {
+  const nightlyCount = financeSourceCards.value.filter((item) => item.nightlyEnabled).length;
+  if (!auth.isAuthenticated.value) {
+    return '登录后可启用支付宝、微信和银行卡的自动同步。';
+  }
+  return nightlyCount > 0 ? `已开启 ${nightlyCount} 个夜间同步来源` : '夜间同步尚未开启';
+});
 
 const currentConversationLabel = computed(() => {
   if (conversationChatMode.value === 'tavern') {
@@ -599,7 +1025,9 @@ function activateTownWorkspace(nextSubView = 'map') {
   activePrimaryMode.value = 'town';
   townSubView.value = nextSubView;
   if (nextSubView === 'editor') {
-    townAssetEditor.attachedSceneCode = selectedTownSceneCode.value || townScenes.value[0]?.sceneCode || 'library';
+    townAssetEditor.attachedSceneCode = isFinanceBuildingCode(selectedTownSceneCode.value)
+      ? townScenes.value[0]?.sceneCode || 'library'
+      : selectedTownSceneCode.value || townScenes.value[0]?.sceneCode || 'library';
     void loadTownAssetPreview({ sceneCode: townAssetEditor.attachedSceneCode, silent: true });
   }
 }
@@ -793,14 +1221,22 @@ async function loadTownAssetPreview(options = {}) {
   }
 }
 
-async function loadTownExplorer() {
+async function loadTownExplorer(options = {}) {
   townLoading.value = true;
   townErrorText.value = '';
   try {
     const [sceneListPayload, mapPayload] = await Promise.all([listAiTownScenes(), getAiTownPublicMap()]);
     townScenes.value = Array.isArray(sceneListPayload) ? sceneListPayload.map(normalizeTownSceneSummary) : [];
     townMap.value = normalizeTownMap(mapPayload);
-    const defaultSceneCode = selectedTownSceneCode.value || townScenes.value[0]?.sceneCode || 'library';
+    const preferredSceneCode = normalizeOptionalText(options.preserveSelectedCode || selectedTownSceneCode.value);
+    if (isFinanceBuildingCode(preferredSceneCode)) {
+      await selectTownFinanceBuilding(Boolean(options.refreshFinance));
+      if (!townAssetEditor.attachedSceneCode) {
+        townAssetEditor.attachedSceneCode = townScenes.value[0]?.sceneCode || 'library';
+      }
+      return;
+    }
+    const defaultSceneCode = preferredSceneCode || townScenes.value[0]?.sceneCode || 'library';
     await loadTownScene(defaultSceneCode);
     if (!townAssetEditor.attachedSceneCode) {
       townAssetEditor.attachedSceneCode = defaultSceneCode;
@@ -890,6 +1326,16 @@ watch(
     resetAdminOnlyWorkspaceState();
   },
   { immediate: true }
+);
+
+watch(
+  () => auth.isAuthenticated.value,
+  (authenticated, previous) => {
+    if (authenticated === previous) return;
+    if (isFinanceBuildingSelected.value) {
+      void loadTownFinanceHub(true);
+    }
+  }
 );
 </script>
 
@@ -1220,6 +1666,209 @@ watch(
   background: rgba(var(--accent-rgb), 0.12);
 }
 
+.map-node-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  background: linear-gradient(145deg, rgba(255, 213, 120, 0.28), rgba(255, 255, 255, 0.08));
+  color: rgba(255, 232, 179, 0.96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.finance-drawer {
+  margin-top: 6px;
+  padding: 18px;
+  border-radius: 26px;
+  display: grid;
+  gap: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 192, 110, 0.16), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(91, 173, 255, 0.12), transparent 24%),
+    rgba(255, 255, 255, 0.045);
+}
+
+.finance-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 18px;
+  align-items: center;
+}
+
+.finance-hero-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.finance-hero-copy h3,
+.finance-panel-head h4 {
+  margin: 0;
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.08;
+}
+
+.finance-emblem {
+  min-height: 150px;
+  border-radius: 28px;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 214, 122, 0.32), transparent 34%),
+    linear-gradient(180deg, rgba(39, 27, 14, 0.82), rgba(16, 13, 10, 0.94));
+  border: 1px solid rgba(255, 219, 158, 0.22);
+  color: rgba(255, 240, 207, 0.95);
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(10, 7, 5, 0.26);
+}
+
+.finance-emblem i {
+  font-size: 34px;
+}
+
+.finance-emblem span {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.finance-emblem small {
+  color: rgba(255, 235, 196, 0.78);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.finance-highlight-list {
+  gap: 10px;
+}
+
+.finance-state-card,
+.finance-panel,
+.finance-metric-card {
+  border-radius: 22px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.finance-state-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+.finance-metrics-grid,
+.finance-detail-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.finance-metrics-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.finance-detail-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+}
+
+.finance-metric-card span,
+.finance-panel-head small,
+.finance-account-card small,
+.finance-source-card small {
+  color: rgba(203, 217, 240, 0.78);
+  font-size: 12px;
+}
+
+.finance-metric-card strong {
+  font-size: clamp(24px, 2.6vw, 34px);
+  line-height: 1;
+}
+
+.finance-metric-card.accent-card {
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.18), rgba(255, 255, 255, 0.04));
+}
+
+.finance-panel-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.finance-source-grid,
+.finance-account-list,
+.finance-action-row {
+  display: grid;
+  gap: 10px;
+}
+
+.finance-source-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.finance-action-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.finance-source-card,
+.finance-account-card,
+.finance-empty-card {
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 8px;
+}
+
+.finance-empty-card {
+  align-content: start;
+}
+
+.finance-source-card.tone-amber {
+  box-shadow: inset 0 0 0 1px rgba(245, 183, 96, 0.14);
+}
+
+.finance-source-card.tone-sky {
+  box-shadow: inset 0 0 0 1px rgba(111, 183, 255, 0.14);
+}
+
+.finance-source-card.tone-emerald {
+  box-shadow: inset 0 0 0 1px rgba(103, 211, 161, 0.16);
+}
+
+.finance-source-card.status-bound {
+  background: linear-gradient(145deg, rgba(63, 168, 132, 0.16), rgba(255, 255, 255, 0.04));
+}
+
+.finance-source-card.status-reauth_required {
+  background: linear-gradient(145deg, rgba(201, 105, 105, 0.18), rgba(255, 255, 255, 0.04));
+}
+
+.finance-source-head,
+.finance-account-card {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.finance-source-pill {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(247, 250, 255, 0.9);
+  font-size: 11px;
+}
+
+.finance-account-card span {
+  font-weight: 700;
+  color: rgba(247, 250, 255, 0.96);
+  text-align: right;
+}
+
 .side-panel-head,
 .side-info-list,
 .npc-list {
@@ -1493,6 +2142,40 @@ watch(
   color: var(--theme-icon-strong, rgba(72, 52, 46, 0.98));
 }
 
+:root[data-theme-mode='day'] .finance-drawer,
+:root[data-theme-mode='day'] .finance-state-card,
+:root[data-theme-mode='day'] .finance-panel,
+:root[data-theme-mode='day'] .finance-metric-card,
+:root[data-theme-mode='day'] .finance-source-card,
+:root[data-theme-mode='day'] .finance-account-card,
+:root[data-theme-mode='day'] .finance-empty-card {
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
+:root[data-theme-mode='day'] .finance-drawer {
+  background:
+    radial-gradient(circle at top right, rgba(255, 192, 110, 0.18), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(91, 173, 255, 0.12), transparent 24%),
+    var(--theme-panel-surface, var(--theme-surface));
+}
+
+:root[data-theme-mode='day'] .finance-emblem {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 214, 122, 0.34), transparent 34%),
+    linear-gradient(180deg, rgba(129, 95, 58, 0.9), rgba(83, 60, 37, 0.96));
+  border-color: rgba(166, 121, 68, 0.22);
+}
+
+:root[data-theme-mode='day'] :is(.finance-metric-card span, .finance-panel-head small, .finance-account-card small, .finance-source-card small) {
+  color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
+}
+
+:root[data-theme-mode='day'] .finance-source-pill {
+  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
+}
+
 @media (max-width: 1200px) {
   .workspace-grid {
     grid-template-columns: 1fr;
@@ -1517,6 +2200,10 @@ watch(
 
   .mode-switch,
   .scene-rail,
+  .finance-metrics-grid,
+  .finance-detail-grid,
+  .finance-source-grid,
+  .finance-action-row,
   .editor-grid,
   .editor-data-grid {
     grid-template-columns: 1fr;
@@ -1537,6 +2224,10 @@ watch(
 
   .town-map-board {
     min-height: 320px;
+  }
+
+  .finance-hero {
+    grid-template-columns: 1fr;
   }
 
   .map-node {

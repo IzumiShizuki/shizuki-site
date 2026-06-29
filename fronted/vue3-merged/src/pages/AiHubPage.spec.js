@@ -8,9 +8,16 @@ const mocked = vi.hoisted(() => ({
   createAdminTownNpcSession: vi.fn(),
   getAiTownPublicMap: vi.fn(),
   getAiTownScene: vi.fn(),
+  getLightAppBalanceOverview: vi.fn(),
   importAdminAiTownAsset: vi.fn(),
+  listLightAppBalanceAccounts: vi.fn(),
+  listLightAppBalanceSourceAccountStatus: vi.fn(),
   listAiTownScenes: vi.fn(),
-  previewAdminAiTownAsset: vi.fn()
+  openLightAppShellWindow: vi.fn(),
+  previewAdminAiTownAsset: vi.fn(),
+  readGuestLightAppData: vi.fn(),
+  readRemoteLightAppCache: vi.fn(),
+  setBalanceWindowSection: vi.fn()
 }));
 
 const AiDialogStub = defineComponent({
@@ -41,6 +48,29 @@ vi.mock('../services/aiApi', () => ({
   previewAdminAiTownAsset: (...args) => mocked.previewAdminAiTownAsset(...args)
 }));
 
+vi.mock('../services/lightAppsApi', () => ({
+  getLightAppBalanceOverview: (...args) => mocked.getLightAppBalanceOverview(...args),
+  listLightAppBalanceAccounts: (...args) => mocked.listLightAppBalanceAccounts(...args),
+  listLightAppBalanceSourceAccountStatus: (...args) => mocked.listLightAppBalanceSourceAccountStatus(...args)
+}));
+
+vi.mock('../components/lightapps/lightAppShellStore', () => ({
+  openLightAppShellWindow: (...args) => mocked.openLightAppShellWindow(...args)
+}));
+
+vi.mock('../components/lightapps/balance/balanceWindowState', () => ({
+  BALANCE_SECTION_ACCOUNTS: 'accounts',
+  BALANCE_SECTION_OVERVIEW: 'overview',
+  BALANCE_SECTION_SOURCES: 'sources',
+  BALANCE_SECTION_TRANSACTIONS: 'transactions',
+  setBalanceWindowSection: (...args) => mocked.setBalanceWindowSection(...args)
+}));
+
+vi.mock('../utils/lightAppsDataStore', () => ({
+  readGuestLightAppData: (...args) => mocked.readGuestLightAppData(...args),
+  readRemoteLightAppCache: (...args) => mocked.readRemoteLightAppCache(...args)
+}));
+
 function createAuth(groups = ['USER']) {
   return {
     isAuthenticated: ref(true),
@@ -49,7 +79,8 @@ function createAuth(groups = ['USER']) {
       groups
     }),
     authorizedFetch: vi.fn(),
-    ensureReady: vi.fn().mockResolvedValue()
+    ensureReady: vi.fn().mockResolvedValue(),
+    redirectToAuth: vi.fn()
   };
 }
 
@@ -129,9 +160,16 @@ describe('AiHubPage', () => {
     mocked.createAdminTownNpcSession.mockReset();
     mocked.getAiTownPublicMap.mockReset();
     mocked.getAiTownScene.mockReset();
+    mocked.getLightAppBalanceOverview.mockReset();
     mocked.importAdminAiTownAsset.mockReset();
+    mocked.listLightAppBalanceAccounts.mockReset();
+    mocked.listLightAppBalanceSourceAccountStatus.mockReset();
     mocked.listAiTownScenes.mockReset();
+    mocked.openLightAppShellWindow.mockReset();
     mocked.previewAdminAiTownAsset.mockReset();
+    mocked.readGuestLightAppData.mockReset();
+    mocked.readRemoteLightAppCache.mockReset();
+    mocked.setBalanceWindowSection.mockReset();
 
     mocked.listAiTownScenes.mockResolvedValue([
       createSceneSummary('library', '图书馆'),
@@ -151,6 +189,57 @@ describe('AiHubPage', () => {
     });
     mocked.previewAdminAiTownAsset.mockResolvedValue(createPreview());
     mocked.importAdminAiTownAsset.mockResolvedValue(createPreview());
+    mocked.getLightAppBalanceOverview.mockResolvedValue({
+      baseCurrency: 'CNY',
+      totalBalance: 12888,
+      totalDebt: 3200,
+      netAsset: 9688,
+      calculatedAt: '2026-06-29T00:00:00+08:00'
+    });
+    mocked.listLightAppBalanceAccounts.mockResolvedValue([
+      {
+        accountId: 1,
+        accountName: '工资卡',
+        channelName: '招商银行',
+        currencyCode: 'CNY',
+        balanceAmount: 9200
+      }
+    ]);
+    mocked.listLightAppBalanceSourceAccountStatus.mockResolvedValue([
+      {
+        provider: 'alipay',
+        status: 'BOUND',
+        bound: true,
+        targetAccountName: '支付宝余额',
+        nightlyEnabled: true,
+        lastSyncedAt: '2026-06-29T00:05:00+08:00'
+      },
+      {
+        provider: 'wechat',
+        status: 'BOUND',
+        bound: true,
+        targetAccountName: '微信零钱',
+        nightlyEnabled: false,
+        lastSyncedAt: '2026-06-28T23:58:00+08:00'
+      },
+      {
+        provider: 'bankcard',
+        status: 'BOUND',
+        bound: true,
+        targetAccountName: '工资卡',
+        nightlyEnabled: true,
+        lastSyncedAt: '2026-06-29T00:02:00+08:00'
+      }
+    ]);
+    mocked.openLightAppShellWindow.mockReturnValue(910003);
+    mocked.readGuestLightAppData.mockReturnValue({
+      balanceOverview: {},
+      balanceAccounts: []
+    });
+    mocked.readRemoteLightAppCache.mockReturnValue({
+      balanceOverview: {},
+      balanceAccounts: []
+    });
   });
 
   it('limits embedded dialog modes to normal and tavern for non-admin users', async () => {
@@ -221,5 +310,26 @@ describe('AiHubPage', () => {
       mocked.auth.authorizedFetch
     );
     expect(wrapper.text()).toContain('RPGMaker 资源已导入并生成预览。');
+  });
+
+  it('expands the finance building and routes to the balance sync section', async () => {
+    const wrapper = await mountPage();
+    const financeButton = findButtonByText(wrapper, '金库账房');
+
+    expect(financeButton).toBeTruthy();
+    await financeButton.trigger('click');
+    await flushPromises();
+
+    expect(mocked.getLightAppBalanceOverview).toHaveBeenCalledWith('CNY', mocked.auth.authorizedFetch);
+    expect(wrapper.text()).toContain('自动入账来源');
+    expect(wrapper.text()).toContain('工资卡');
+
+    const syncButton = findButtonByText(wrapper, '管理自动同步');
+    expect(syncButton).toBeTruthy();
+    await syncButton.trigger('click');
+    await flushPromises();
+
+    expect(mocked.openLightAppShellWindow).toHaveBeenCalledWith('balance-ledger', { source: 'ai_town_finance_house' });
+    expect(mocked.setBalanceWindowSection).toHaveBeenCalledWith(910003, 'sources');
   });
 });
