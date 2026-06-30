@@ -2438,15 +2438,34 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .lightapp-window {
+  --glass-rgb: 34, 48, 80;
+  --glass-bg-alpha: 0.58;
+  --glass-border-alpha: 0.22;
+  --glass-shadow-alpha: 0.18;
   --la-border: rgba(136, 166, 212, 0.26);
-  --la-input-bg: rgba(8, 18, 34, 0.88);
-  --la-btn-bg: rgba(18, 31, 56, 0.84);
-  --la-panel-bg: rgba(10, 18, 34, 0.78);
-  --la-card-bg: rgba(14, 24, 44, 0.84);
+  --la-input-bg: rgba(8, 16, 30, 0.94);
+  --la-btn-bg: rgba(18, 31, 56, 0.9);
+  --la-panel-bg: rgba(12, 21, 39, 0.9);
+  --la-card-bg: rgba(15, 26, 47, 0.92);
   --la-text: rgba(242, 246, 255, 0.96);
   --la-muted: rgba(172, 188, 215, 0.82);
   --la-danger: rgba(255, 136, 159, 0.96);
   --la-income: rgba(114, 217, 158, 0.94);
+  --theme-text-primary: var(--la-text);
+  --theme-text-secondary: rgba(190, 204, 229, 0.82);
+  --theme-icon-primary: rgba(236, 242, 255, 0.94);
+  --theme-border: rgba(136, 166, 212, 0.24);
+  --theme-border-strong: rgba(168, 190, 226, 0.34);
+  --theme-divider-soft: rgba(168, 190, 226, 0.16);
+  --theme-surface-soft: rgba(18, 29, 52, 0.9);
+  --theme-surface-elevated: rgba(20, 32, 56, 0.92);
+  --theme-panel-surface: linear-gradient(180deg, rgba(16, 28, 50, 0.94), rgba(10, 18, 34, 0.92));
+  --theme-panel-surface-elevated: linear-gradient(180deg, rgba(20, 33, 58, 0.94), rgba(13, 22, 41, 0.92));
+  --theme-floating-surface: rgba(18, 31, 56, 0.82);
+  --theme-floating-surface-hover: rgba(28, 46, 80, 0.94);
+  --theme-contrast-text-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+  --theme-contrast-text-shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.12);
+  --theme-contrast-icon-shadow: 0 1px 1px rgba(0, 0, 0, 0.24);
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -2457,6 +2476,14 @@ onBeforeUnmount(() => {
     radial-gradient(circle at top left, rgba(93, 141, 255, 0.16), transparent 28%),
     linear-gradient(180deg, rgba(8, 14, 26, 0.98), rgba(10, 18, 34, 0.96));
   border-radius: 18px;
+}
+
+.lightapp-window .liquid-material {
+  background: var(--liquid-bg, var(--theme-panel-surface-elevated)) !important;
+  border-color: var(--liquid-border, var(--theme-border)) !important;
+  box-shadow: var(--liquid-shadow, 0 16px 34px rgba(4, 10, 22, 0.2)) !important;
+  backdrop-filter: blur(14px) saturate(114%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(114%) !important;
 }
 
 .toolbar-hint {
@@ -2873,6 +2900,9 @@ onBeforeUnmount(() => {
 .metric-card {
   --liquid-bg: var(--la-panel-bg);
   --liquid-border: var(--la-border);
+  --liquid-shadow:
+    0 12px 28px rgba(4, 10, 22, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   border-radius: 12px;
   padding: clamp(7px, 1.2vw, 10px) clamp(8px, 1.5vw, 12px);
   display: grid;
@@ -2901,6 +2931,9 @@ onBeforeUnmount(() => {
 .filters-bar {
   --liquid-bg: var(--la-panel-bg);
   --liquid-border: var(--la-border);
+  --liquid-shadow:
+    0 14px 28px rgba(4, 10, 22, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   padding: 10px;
   display: flex;
@@ -2986,6 +3019,9 @@ onBeforeUnmount(() => {
 .chart-panel {
   --liquid-bg: var(--la-panel-bg);
   --liquid-border: var(--la-border);
+  --liquid-shadow:
+    0 16px 30px rgba(4, 10, 22, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   padding: 10px;
   display: grid;
@@ -3136,6 +3172,9 @@ onBeforeUnmount(() => {
 .overview-panel {
   --liquid-bg: var(--la-panel-bg);
   --liquid-border: var(--la-border);
+  --liquid-shadow:
+    0 14px 28px rgba(4, 10, 22, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   padding: 10px;
   display: grid;
@@ -3186,6 +3225,9 @@ onBeforeUnmount(() => {
 .ledger-summary {
   --liquid-bg: var(--la-panel-bg);
   --liquid-border: var(--la-border);
+  --liquid-shadow:
+    0 14px 28px rgba(4, 10, 22, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   padding: 10px 12px;
   display: grid;
