@@ -20,6 +20,7 @@
         <button
           class="icon-btn toolbar-btn ripple-trigger"
           :class="{ 'is-active': showCreateForm }"
+          :disabled="!canToggleCreateForm"
           type="button"
           :title="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
           :aria-label="showCreateForm ? '收起添加区' : `添加${activeSectionLabel}`"
@@ -305,6 +306,147 @@
       <p v-if="!accounts.length" class="empty-hint">暂无账户渠道</p>
     </ul>
 
+    <section v-else-if="section === BALANCE_SECTION_SOURCES" class="source-sync-section">
+      <p v-if="!isAuthenticated" class="empty-hint">登录后可绑定支付宝、微信、银行卡，并在服务器上自动抓取或摄取账单。</p>
+      <template v-else>
+        <article class="source-guide liquid-material">
+          <div class="source-guide-header">
+            <div>
+              <h4>接通自动记账</h4>
+              <p>支付宝支持服务器侧二维码绑定；微信和银行卡当前走服务器账单目录导入，不会显示二维码。</p>
+            </div>
+            <button class="text-btn is-subtle ripple-trigger" type="button" @click="openAccountsWorkspace">管理本地账户</button>
+          </div>
+          <div class="source-guide-grid">
+            <article class="source-guide-step">
+              <span class="source-step-badge">1</span>
+              <strong>准备本地账户</strong>
+              <p>可以手动选择已有账户，也可以直接点下面的绑定按钮，系统会自动补一个默认账户。</p>
+            </article>
+            <article class="source-guide-step">
+              <span class="source-step-badge">2</span>
+              <strong>接通来源</strong>
+              <p>支付宝会生成二维码；微信和银行卡会直接启用服务器目录导入模式。</p>
+            </article>
+            <article class="source-guide-step">
+              <span class="source-step-badge">3</span>
+              <strong>开始入账</strong>
+              <p>接通后可以立即同步，也可以打开夜间自动同步，让账单在 0:00 左右自动入账。</p>
+            </article>
+          </div>
+        </article>
+
+        <div class="source-grid">
+          <article
+            v-for="provider in SOURCE_PROVIDERS"
+            :key="`source_${provider}`"
+            class="source-card liquid-material"
+            :class="`provider-${provider}`"
+          >
+          <header class="source-card-header">
+            <div>
+              <h4>{{ resolveSourceStatus(provider).providerLabel || provider }}</h4>
+              <p>{{ formatSourceStatus(resolveSourceStatus(provider).status) }}</p>
+              <small class="source-provider-hint">{{ sourceProviderHint(provider) }}</small>
+              <small class="source-provider-mode">{{ sourceProviderMode(provider) }}</small>
+            </div>
+            <span
+              class="source-status-pill"
+              :class="{
+                'is-bound': resolveSourceStatus(provider).status === 'BOUND',
+                'is-pending': resolveSourceStatus(provider).status === 'PENDING',
+                'is-danger': resolveSourceStatus(provider).status === 'REAUTH_REQUIRED'
+              }"
+            >
+              {{ formatSourceStatus(resolveSourceStatus(provider).status) }}
+            </span>
+          </header>
+
+          <div class="source-config-grid">
+            <select v-model="resolveSourceDraft(provider).targetAccountId">
+              <option value="">选择本地账户</option>
+              <option v-for="item in accounts" :key="`source_account_${provider}_${item.accountId}`" :value="String(item.accountId)">
+                {{ item.accountName }} ({{ item.currencyCode }})
+              </option>
+            </select>
+            <label class="switch-line">
+              <input v-model="resolveSourceDraft(provider).nightlyEnabled" type="checkbox" />
+              夜间自动同步
+            </label>
+          </div>
+
+          <div class="source-inline-hint-row">
+            <small class="source-inline-tip">{{ sourceTargetHint(provider) }}</small>
+            <button
+              v-if="!resolveSourceDraft(provider).targetAccountId"
+              class="text-btn is-subtle ripple-trigger"
+              type="button"
+              @click="pickOrCreateSourceAccount(provider)"
+            >
+              {{ sourceAccountShortcutLabel(provider) }}
+            </button>
+          </div>
+
+          <div class="source-actions">
+            <button class="text-btn ripple-trigger" type="button" @click="saveSourceAccount(provider)">保存配置</button>
+            <button class="text-btn is-primary ripple-trigger" type="button" @click="beginSourceBind(provider)">
+              {{ sourceBindActionLabel(provider) }}
+            </button>
+            <button
+              class="text-btn ripple-trigger"
+              type="button"
+              :disabled="!resolveSourceStatus(provider).bound"
+              @click="triggerSourceSync(provider)"
+            >
+              立即同步
+            </button>
+          </div>
+
+          <div v-if="bindSessions[provider]" class="source-session liquid-material">
+            <p class="source-session-title">{{ sourceSessionTitle(provider, bindSessions[provider]) }}</p>
+            <small class="source-session-hint">{{ sourceSessionHint(provider, bindSessions[provider]) }}</small>
+            <img
+              v-if="bindSessions[provider].qrCodeImageDataUrl"
+              class="source-qr-image"
+              :src="bindSessions[provider].qrCodeImageDataUrl"
+              :alt="`${provider} bind qr`"
+            />
+            <code v-else-if="bindSessions[provider].qrCodePayload" class="source-qr-fallback">{{ bindSessions[provider].qrCodePayload }}</code>
+            <a
+              v-if="bindSessions[provider].loginUrl"
+              class="source-session-link"
+              :href="bindSessions[provider].loginUrl"
+              target="_blank"
+              rel="noreferrer"
+            >
+              打开登录页
+            </a>
+            <small v-if="bindSessions[provider].failureReason" class="error-text">{{ bindSessions[provider].failureReason }}</small>
+          </div>
+
+          <div class="source-meta">
+            <p>目标账户：{{ resolveSourceStatus(provider).targetAccountName || '未设置' }}</p>
+            <p>最近校验：{{ formatDateTime(resolveSourceStatus(provider).lastVerifiedAt) }}</p>
+            <p>最近同步：{{ formatDateTime(resolveSourceStatus(provider).lastSyncedAt) }}</p>
+            <p v-if="sourceImportDirectory(provider)" class="source-directory-tip">导入目录：<code>{{ sourceImportDirectory(provider) }}</code></p>
+            <p v-if="resolveSourceStatus(provider).lastSyncErrorText" class="error-text">
+              {{ resolveSourceStatus(provider).lastSyncErrorText }}
+            </p>
+          </div>
+
+          <div v-if="importJobs[provider]" class="source-job liquid-material">
+            <p>{{ formatImportJobStatus(importJobs[provider].status) }}</p>
+            <small>
+              导入 {{ importJobs[provider].importedCount }} 笔，去重 {{ importJobs[provider].duplicateCount }} 笔，跳过
+              {{ importJobs[provider].skippedCount }} 笔
+            </small>
+            <small v-if="importJobs[provider].errorText">{{ importJobs[provider].errorText }}</small>
+          </div>
+          </article>
+        </div>
+      </template>
+    </section>
+
     <section v-else-if="section === BALANCE_SECTION_TRANSACTIONS" class="ledger-records">
       <article class="filters-bar liquid-material">
         <div class="filters-presets">
@@ -419,22 +561,28 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthSession } from '../../../composables/useAuthSession';
 import {
+  createLightAppBalanceBindSession,
   createLightAppBalanceAccount,
   createLightAppBalanceDebt,
+  createLightAppBalanceImportJob,
   createLightAppBalanceRecurringCharge,
   createLightAppBalanceTransaction,
   deleteLightAppBalanceAccount,
   deleteLightAppBalanceDebt,
   deleteLightAppBalanceRecurringCharge,
   deleteLightAppBalanceTransaction,
+  getLightAppBalanceBindSession,
   getLightAppBalanceAnalytics,
+  getLightAppBalanceImportJob,
   getLightAppBalanceOverview,
   listLightAppBalanceAccounts,
   listLightAppBalanceDebts,
   listLightAppBalanceRecurringCharges,
+  listLightAppBalanceSourceAccountStatus,
   listLightAppBalanceTransactions,
   listLightAppFxRates,
   refreshLightAppFxRates,
+  updateLightAppBalanceSourceAccount,
   updateLightAppBalanceAccount,
   updateLightAppBalanceDebt,
   updateLightAppBalanceRecurringCharge,
@@ -461,6 +609,7 @@ import {
   BALANCE_SECTION_ITEMS,
   BALANCE_SECTION_OVERVIEW,
   BALANCE_SECTION_RECURRING,
+  BALANCE_SECTION_SOURCES,
   BALANCE_SECTION_TRANSACTIONS,
   normalizeBalanceSection,
   registerBalanceSectionChangeHandler,
@@ -478,6 +627,7 @@ const props = defineProps({
 
 const auth = useAuthSession();
 const balanceState = resolveBalanceWindowState(props.windowId);
+const isAuthenticated = computed(() => Boolean(auth.isAuthenticated.value));
 
 const section = computed({
   get() {
@@ -516,12 +666,52 @@ const DONUT_PALETTE_INCOME = [
   '#5f98bc',
   '#5086aa'
 ];
+const SOURCE_PROVIDERS = ['alipay', 'wechat', 'bankcard'];
+const SOURCE_PROVIDER_LABELS = {
+  alipay: '支付宝',
+  wechat: '微信',
+  bankcard: '银行卡'
+};
+const SOURCE_PROVIDER_HINTS = {
+  alipay: '扫码绑定后由服务器自动抓取账单。',
+  wechat: '将微信导出的账单放入服务器目录后自动导入。',
+  bankcard: '将银行卡导出的流水放入服务器目录后自动导入，适合工资卡。'
+};
+const SOURCE_PROVIDER_MODES = {
+  alipay: '二维码绑定',
+  wechat: '目录导入',
+  bankcard: '工资卡目录导入'
+};
+const SOURCE_PROVIDER_DEFAULT_ACCOUNTS = {
+  alipay: {
+    channelCode: 'alipay',
+    channelName: '支付宝',
+    accountName: '支付宝余额'
+  },
+  wechat: {
+    channelCode: 'wechat',
+    channelName: '微信',
+    accountName: '微信零钱'
+  },
+  bankcard: {
+    channelCode: 'bankcard',
+    channelName: '银行卡',
+    accountName: '工资卡'
+  }
+};
+const SOURCE_PROVIDER_IMPORT_DIRECTORIES = {
+  wechat: '/opt/shizuki-site/data/bill-sync-agent/wechat-bills',
+  bankcard: '/opt/shizuki-site/data/bill-sync-agent/bankcard-bills'
+};
+const TERMINAL_BIND_STATUSES = new Set(['BOUND', 'FAILED', 'EXPIRED']);
+const TERMINAL_IMPORT_JOB_STATUSES = new Set(['SUCCESS', 'FAILED']);
 
 const accounts = ref([]);
 const transactions = ref([]);
 const debts = ref([]);
 const recurringCharges = ref([]);
 const fxRates = ref([]);
+const sourceAccounts = ref([]);
 const overview = ref({
   baseCurrency: 'CNY',
   totalBalance: 0,
@@ -562,6 +752,30 @@ const saving = ref(false);
 const refreshingFx = ref(false);
 const analyticsLoading = ref(false);
 const errorText = ref('');
+const sourceDrafts = reactive({
+  alipay: {
+    targetAccountId: '',
+    nightlyEnabled: true
+  },
+  wechat: {
+    targetAccountId: '',
+    nightlyEnabled: true
+  },
+  bankcard: {
+    targetAccountId: '',
+    nightlyEnabled: true
+  }
+});
+const bindSessions = reactive({
+  alipay: null,
+  wechat: null,
+  bankcard: null
+});
+const importJobs = reactive({
+  alipay: null,
+  wechat: null,
+  bankcard: null
+});
 
 const filterPreset = ref('30d');
 const filterFromDate = ref('');
@@ -571,6 +785,8 @@ const filterAccountId = ref('');
 const filterDirection = ref('');
 
 let filterRefreshTimer = 0;
+const bindPollTimers = new Map();
+const importJobPollTimers = new Map();
 
 const accountDraft = reactive({
   channelName: '',
@@ -620,6 +836,10 @@ const activeSectionLabel = computed(() => {
   return matched?.label || '项目';
 });
 
+const canToggleCreateForm = computed(() =>
+  section.value !== BALANCE_SECTION_OVERVIEW && section.value !== BALANCE_SECTION_SOURCES
+);
+
 const currencyOptions = computed(() => {
   const seed = ['CNY', 'USD', 'EUR', 'JPY', 'HKD', baseCurrency.value || 'CNY'];
   const dynamic = [
@@ -646,6 +866,15 @@ const channelOptions = computed(() => {
     }
   });
   return Array.from(map.values()).sort((left, right) => left.channelName.localeCompare(right.channelName));
+});
+
+const sourceAccountMap = computed(() => {
+  const map = new Map();
+  sourceAccounts.value.forEach((item) => {
+    if (!item?.provider) return;
+    map.set(item.provider, item);
+  });
+  return map;
 });
 
 const transactionPresetCategories = computed(() =>
@@ -877,6 +1106,291 @@ function formatAmount(amount, currency) {
   return `${safe.toFixed(2)} ${code}`;
 }
 
+function sortSourceAccounts(items) {
+  const orderMap = new Map(SOURCE_PROVIDERS.map((provider, index) => [provider, index]));
+  return (Array.isArray(items) ? items : []).slice().sort((left, right) => {
+    const leftOrder = orderMap.get(String(left?.provider || '').toLowerCase()) ?? 99;
+    const rightOrder = orderMap.get(String(right?.provider || '').toLowerCase()) ?? 99;
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return String(left?.providerLabel || left?.provider || '').localeCompare(String(right?.providerLabel || right?.provider || ''));
+  });
+}
+
+function sourceProviderLabel(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return SOURCE_PROVIDER_LABELS[normalized] || normalized || '账单源';
+}
+
+function sourceProviderHint(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return SOURCE_PROVIDER_HINTS[normalized] || '由服务器自动同步账单。';
+}
+
+function sourceProviderMode(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return SOURCE_PROVIDER_MODES[normalized] || '自动同步';
+}
+
+function sourceImportDirectory(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return SOURCE_PROVIDER_IMPORT_DIRECTORIES[normalized] || '';
+}
+
+function sourceSupportsQrBind(provider) {
+  return String(provider || '').trim().toLowerCase() === 'alipay';
+}
+
+function sourceAccountTemplate(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return SOURCE_PROVIDER_DEFAULT_ACCOUNTS[normalized] || {
+    channelCode: normalized || 'manual',
+    channelName: sourceProviderLabel(normalized),
+    accountName: `${sourceProviderLabel(normalized)}账户`
+  };
+}
+
+function resolveUniqueSourceAccountName(baseName) {
+  const normalizedBase = String(baseName || '').trim() || '默认账户';
+  const existing = new Set(accounts.value.map((item) => String(item?.accountName || '').trim()).filter(Boolean));
+  if (!existing.has(normalizedBase)) {
+    return normalizedBase;
+  }
+  let cursor = 2;
+  while (existing.has(`${normalizedBase} ${cursor}`)) {
+    cursor += 1;
+  }
+  return `${normalizedBase} ${cursor}`;
+}
+
+function buildDefaultSourceAccountPayload(provider) {
+  const template = sourceAccountTemplate(provider);
+  return {
+    channelCode: template.channelCode,
+    channelName: template.channelName,
+    accountName: resolveUniqueSourceAccountName(template.accountName),
+    currencyCode: String(baseCurrency.value || 'CNY').trim().toUpperCase() || 'CNY',
+    balanceAmount: 0
+  };
+}
+
+function findRecommendedSourceAccount(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  const byChannel = accounts.value.filter((item) => String(item?.channelCode || '').trim().toLowerCase() === normalized);
+  if (byChannel.length === 1) {
+    return byChannel[0];
+  }
+  if (byChannel.length > 1) {
+    const template = sourceAccountTemplate(normalized);
+    const exactName = byChannel.find((item) => String(item?.accountName || '').trim() === template.accountName);
+    if (exactName) {
+      return exactName;
+    }
+  }
+  if (accounts.value.length === 1) {
+    return accounts.value[0];
+  }
+  return null;
+}
+
+function sourceAccountShortcutLabel(provider) {
+  const recommended = findRecommendedSourceAccount(provider);
+  if (recommended?.accountName) {
+    return `使用 ${recommended.accountName}`;
+  }
+  return '一键新建默认账户';
+}
+
+function sourceBindActionLabel(provider) {
+  const bound = Boolean(resolveSourceStatus(provider).bound);
+  const normalized = String(provider || '').trim().toLowerCase();
+  if (normalized === 'alipay') {
+    return bound ? '重新扫码绑定' : '扫码绑定';
+  }
+  if (normalized === 'wechat') {
+    return bound ? '重连目录导入' : '启用目录导入';
+  }
+  if (normalized === 'bankcard') {
+    return bound ? '重连工资卡目录' : '启用工资卡目录';
+  }
+  return bound ? '重新绑定' : '绑定来源';
+}
+
+function sourceTargetHint(provider) {
+  const draft = resolveSourceDraft(provider);
+  const selectedId = Number(draft.targetAccountId || resolveSourceStatus(provider).targetAccountId);
+  if (Number.isInteger(selectedId) && selectedId > 0) {
+    const matched = accounts.value.find((item) => item.accountId === selectedId);
+    const accountName = matched?.accountName || resolveSourceStatus(provider).targetAccountName || `账户#${selectedId}`;
+    return `账单会先记到本地账户「${accountName}」`;
+  }
+  if (!accounts.value.length) {
+    return '还没有本地账户。直接点下面的按钮，系统会自动创建一个默认账户再继续绑定。';
+  }
+  return sourceSupportsQrBind(provider)
+    ? '可以先手动选已有账户，也可以直接扫码绑定，系统会自动补一个默认账户。'
+    : '可以先手动选已有账户，也可以直接启用目录导入，系统会自动补一个默认账户。';
+}
+
+function sourceSessionTitle(provider, session) {
+  const status = String(session?.status || '').trim().toUpperCase();
+  if (sourceSupportsQrBind(provider) && status === 'PENDING') {
+    return '请用支付宝扫码';
+  }
+  if (sourceSupportsQrBind(provider) && status === 'BOUND') {
+    return '扫码绑定成功';
+  }
+  if (!sourceSupportsQrBind(provider) && status === 'BOUND') {
+    return '目录导入已启用';
+  }
+  return `绑定会话：${formatSourceStatus(status)}`;
+}
+
+function sourceSessionHint(provider, session) {
+  const status = String(session?.status || '').trim().toUpperCase();
+  if (sourceSupportsQrBind(provider)) {
+    if (status === 'PENDING') {
+      return '二维码生成后，用支付宝 App 扫码并在手机上确认登录。';
+    }
+    if (status === 'BOUND') {
+      return '扫码完成，后续会复用服务器登录态抓取支付宝账单。';
+    }
+    if (status === 'FAILED' || status === 'EXPIRED') {
+      return '二维码失效后可以再次点击“扫码绑定”。';
+    }
+    return '系统正在检查当前绑定状态。';
+  }
+  const directory = sourceImportDirectory(provider);
+  if (directory) {
+    return `这个来源不走扫码，把导出的账单文件放进 ${directory} 就可以被同步任务读取。`;
+  }
+  return '这个来源当前不需要二维码，接通后会直接进入服务器侧导入模式。';
+}
+
+function resolveSourceDraft(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return sourceDrafts[normalized] || sourceDrafts[SOURCE_PROVIDERS[0]];
+}
+
+function resolveSourceStatus(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return sourceAccountMap.value.get(normalized) || {
+    provider: normalized,
+    providerLabel: sourceProviderLabel(normalized),
+    bound: false,
+    status: 'UNBOUND',
+    targetAccountId: null,
+    targetAccountName: '',
+    targetCurrencyCode: '',
+    nightlyEnabled: Boolean(resolveSourceDraft(normalized)?.nightlyEnabled),
+    lastVerifiedAt: '',
+    lastSyncedAt: '',
+    lastSyncStatus: '',
+    lastSyncErrorText: '',
+    activeBindSessionId: '',
+    activeBindSessionStatus: '',
+    activeBindSessionExpiresAt: '',
+    updatedAt: ''
+  };
+}
+
+function applySourceDraftsFromStatus() {
+  SOURCE_PROVIDERS.forEach((provider) => {
+    const item = resolveSourceStatus(provider);
+    const draft = resolveSourceDraft(provider);
+    draft.targetAccountId = item.targetAccountId ? String(item.targetAccountId) : '';
+    draft.nightlyEnabled = Boolean(item.nightlyEnabled);
+  });
+}
+
+function clearBindPoll(provider) {
+  if (!bindPollTimers.has(provider)) return;
+  window.clearTimeout(bindPollTimers.get(provider));
+  bindPollTimers.delete(provider);
+}
+
+function clearImportJobPoll(provider) {
+  if (!importJobPollTimers.has(provider)) return;
+  window.clearTimeout(importJobPollTimers.get(provider));
+  importJobPollTimers.delete(provider);
+}
+
+function clearAllSourcePolling() {
+  SOURCE_PROVIDERS.forEach((provider) => {
+    clearBindPoll(provider);
+    clearImportJobPoll(provider);
+  });
+}
+
+function isTerminalBindSessionStatus(status) {
+  return TERMINAL_BIND_STATUSES.has(String(status || '').trim().toUpperCase());
+}
+
+function isTerminalImportJobStatus(status) {
+  return TERMINAL_IMPORT_JOB_STATUSES.has(String(status || '').trim().toUpperCase());
+}
+
+function buildSourcePayload(provider) {
+  const draft = resolveSourceDraft(provider);
+  return {
+    targetAccountId: draft.targetAccountId ? Number(draft.targetAccountId) : null,
+    nightlyEnabled: Boolean(draft.nightlyEnabled)
+  };
+}
+
+function formatSourceStatus(status) {
+  switch (String(status || '').trim().toUpperCase()) {
+    case 'BOUND':
+      return '已绑定';
+    case 'PENDING':
+      return '等待扫码';
+    case 'REAUTH_REQUIRED':
+      return '需要重绑';
+    default:
+      return '未绑定';
+  }
+}
+
+function formatImportJobStatus(status) {
+  switch (String(status || '').trim().toUpperCase()) {
+    case 'RUNNING':
+      return '同步中';
+    case 'SUCCESS':
+      return '已完成';
+    case 'FAILED':
+      return '失败';
+    default:
+      return '排队中';
+  }
+}
+
+function syncBindSessionsFromStatus() {
+  SOURCE_PROVIDERS.forEach((provider) => {
+    const item = resolveSourceStatus(provider);
+    if (item.activeBindSessionId && !isTerminalBindSessionStatus(item.activeBindSessionStatus)) {
+      bindSessions[provider] = {
+        provider,
+        sessionId: item.activeBindSessionId,
+        status: item.activeBindSessionStatus || 'PENDING',
+        loginUrl: bindSessions[provider]?.loginUrl || '',
+        qrCodePayload: bindSessions[provider]?.qrCodePayload || '',
+        qrCodeImageDataUrl: bindSessions[provider]?.qrCodeImageDataUrl || '',
+        expiresAt: item.activeBindSessionExpiresAt || bindSessions[provider]?.expiresAt || '',
+        completedAt: bindSessions[provider]?.completedAt || '',
+        failureReason: bindSessions[provider]?.failureReason || ''
+      };
+      scheduleBindSessionPoll(provider, item.activeBindSessionId, 1600);
+      return;
+    }
+    if (isTerminalBindSessionStatus(bindSessions[provider]?.status)) {
+      clearBindPoll(provider);
+      return;
+    }
+    if (!item.activeBindSessionId) {
+      clearBindPoll(provider);
+    }
+  });
+}
+
 function applyFilterPreset(preset) {
   const normalized = String(preset || '30d').trim().toLowerCase() || '30d';
   filterPreset.value = normalized;
@@ -1047,15 +1561,189 @@ function persistGuest(patch = {}) {
   void refreshAnalyticsData();
 }
 
+async function loadRemoteSourceSync(prefetchedList = null) {
+  const list = Array.isArray(prefetchedList)
+    ? prefetchedList
+    : await listLightAppBalanceSourceAccountStatus(auth.authorizedFetch);
+  sourceAccounts.value = sortSourceAccounts(list);
+  applySourceDraftsFromStatus();
+  syncBindSessionsFromStatus();
+  writeRemoteLightAppCache({
+    balanceSourceAccounts: sourceAccounts.value
+  });
+}
+
+function scheduleBindSessionPoll(provider, sessionId, delayMs = 2400) {
+  clearBindPoll(provider);
+  bindPollTimers.set(
+    provider,
+    window.setTimeout(() => {
+      void pollBindSession(provider, sessionId);
+    }, delayMs)
+  );
+}
+
+function scheduleImportJobPoll(provider, jobId, delayMs = 2000) {
+  clearImportJobPoll(provider);
+  importJobPollTimers.set(
+    provider,
+    window.setTimeout(() => {
+      void pollImportJob(provider, jobId);
+    }, delayMs)
+  );
+}
+
+async function pollBindSession(provider, sessionId) {
+  clearBindPoll(provider);
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) return;
+    const session = await getLightAppBalanceBindSession(provider, sessionId, auth.authorizedFetch);
+    bindSessions[provider] = session;
+    if (isTerminalBindSessionStatus(session.status)) {
+      await loadRemoteAll();
+      return;
+    }
+    scheduleBindSessionPoll(provider, sessionId);
+  } catch (error) {
+    errorText.value = error?.message || '数据源绑定状态刷新失败';
+  }
+}
+
+async function pollImportJob(provider, jobId) {
+  clearImportJobPoll(provider);
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) return;
+    const job = await getLightAppBalanceImportJob(jobId, auth.authorizedFetch);
+    importJobs[provider] = job;
+    if (isTerminalImportJobStatus(job.status)) {
+      await loadRemoteAll();
+      return;
+    }
+    scheduleImportJobPoll(provider, jobId);
+  } catch (error) {
+    errorText.value = error?.message || '账单同步任务刷新失败';
+  }
+}
+
+function openAccountsWorkspace() {
+  section.value = BALANCE_SECTION_ACCOUNTS;
+  resetEditing();
+  showCreateForm.value = true;
+}
+
+async function createDefaultSourceAccount(provider) {
+  await auth.ensureReady();
+  if (!auth.isAuthenticated.value) {
+    throw new Error('登录后才能创建本地账户');
+  }
+  const created = await createLightAppBalanceAccount(buildDefaultSourceAccountPayload(provider), auth.authorizedFetch);
+  accounts.value = sortBySortNumAndId([...accounts.value, created], 'accountId');
+  resolveSourceDraft(provider).targetAccountId = String(created.accountId);
+  writeRemoteLightAppCache({
+    balanceAccounts: accounts.value
+  });
+  return created;
+}
+
+async function pickOrCreateSourceAccount(provider) {
+  errorText.value = '';
+  try {
+    const recommended = findRecommendedSourceAccount(provider);
+    if (recommended?.accountId > 0) {
+      resolveSourceDraft(provider).targetAccountId = String(recommended.accountId);
+      return recommended.accountId;
+    }
+    const created = await createDefaultSourceAccount(provider);
+    return created.accountId;
+  } catch (error) {
+    errorText.value = error?.message || '默认账户创建失败';
+    return 0;
+  }
+}
+
+async function ensureSourceTargetAccount(provider) {
+  const draft = resolveSourceDraft(provider);
+  const explicitId = Number(draft.targetAccountId);
+  if (Number.isInteger(explicitId) && explicitId > 0) {
+    return explicitId;
+  }
+  const statusId = Number(resolveSourceStatus(provider).targetAccountId);
+  if (Number.isInteger(statusId) && statusId > 0) {
+    draft.targetAccountId = String(statusId);
+    return statusId;
+  }
+  const recommendedId = await pickOrCreateSourceAccount(provider);
+  if (Number.isInteger(recommendedId) && recommendedId > 0) {
+    draft.targetAccountId = String(recommendedId);
+    return recommendedId;
+  }
+  throw new Error('请先选择或创建一个本地账户');
+}
+
+async function saveSourceAccount(provider) {
+  errorText.value = '';
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) {
+      throw new Error('登录后才能配置自动抓账');
+    }
+    await updateLightAppBalanceSourceAccount(provider, buildSourcePayload(provider), auth.authorizedFetch);
+    await loadRemoteSourceSync();
+  } catch (error) {
+    errorText.value = error?.message || '数据源配置保存失败';
+  }
+}
+
+async function beginSourceBind(provider) {
+  errorText.value = '';
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) {
+      throw new Error('登录后才能绑定数据源');
+    }
+    const payload = buildSourcePayload(provider);
+    payload.targetAccountId = await ensureSourceTargetAccount(provider);
+    const session = await createLightAppBalanceBindSession(provider, payload, auth.authorizedFetch);
+    bindSessions[provider] = session;
+    if (isTerminalBindSessionStatus(session.status)) {
+      await loadRemoteAll();
+      return;
+    }
+    scheduleBindSessionPoll(provider, session.sessionId, 1200);
+    await loadRemoteSourceSync();
+  } catch (error) {
+    errorText.value = error?.message || '数据源绑定创建失败';
+  }
+}
+
+async function triggerSourceSync(provider) {
+  errorText.value = '';
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) {
+      throw new Error('登录后才能同步账单');
+    }
+    const job = await createLightAppBalanceImportJob(provider, auth.authorizedFetch);
+    importJobs[provider] = job;
+    scheduleImportJobPoll(provider, job.jobId, 1200);
+    await loadRemoteSourceSync();
+  } catch (error) {
+    errorText.value = error?.message || '账单同步任务创建失败';
+  }
+}
+
 async function loadRemoteAll() {
   const currentBase = String(baseCurrency.value || 'CNY').toUpperCase();
-  const [accountList, transactionList, debtList, recurringList, overviewData, rates] = await Promise.all([
+  const [accountList, transactionList, debtList, recurringList, overviewData, rates, sourceStatusList] = await Promise.all([
     listLightAppBalanceAccounts(auth.authorizedFetch),
     listLightAppBalanceTransactions(auth.authorizedFetch),
     listLightAppBalanceDebts(auth.authorizedFetch),
     listLightAppBalanceRecurringCharges(auth.authorizedFetch),
     getLightAppBalanceOverview(currentBase, auth.authorizedFetch),
-    listLightAppFxRates(currentBase, auth.authorizedFetch)
+    listLightAppFxRates(currentBase, auth.authorizedFetch),
+    listLightAppBalanceSourceAccountStatus(auth.authorizedFetch)
   ]);
 
   accounts.value = sortBySortNumAndId(accountList, 'accountId');
@@ -1064,6 +1752,9 @@ async function loadRemoteAll() {
   recurringCharges.value = sortBySortNumAndId(recurringList, 'recurringChargeId');
   overview.value = overviewData || overview.value;
   fxRates.value = sortBySortNumAndId(rates, 'quoteCurrency');
+  sourceAccounts.value = sortSourceAccounts(sourceStatusList);
+  applySourceDraftsFromStatus();
+  syncBindSessionsFromStatus();
   if (overview.value?.baseCurrency) {
     baseCurrency.value = String(overview.value.baseCurrency).toUpperCase();
   }
@@ -1073,6 +1764,7 @@ async function loadRemoteAll() {
     balanceTransactions: transactions.value,
     balanceDebts: debts.value,
     balanceRecurringCharges: recurringCharges.value,
+    balanceSourceAccounts: sourceAccounts.value,
     balanceOverview: overview.value,
     balanceFxRates: fxRates.value
   });
@@ -1085,6 +1777,13 @@ async function hydrate() {
   await auth.ensureReady();
 
   if (!auth.isAuthenticated.value) {
+    clearAllSourcePolling();
+    SOURCE_PROVIDERS.forEach((provider) => {
+      bindSessions[provider] = null;
+      importJobs[provider] = null;
+    });
+    sourceAccounts.value = [];
+    applySourceDraftsFromStatus();
     const guest = readGuestLightAppData();
     accounts.value = sortBySortNumAndId(guest.balanceAccounts || guest.balance_accounts || [], 'accountId');
     transactions.value = sortTransactions(guest.balanceTransactions || guest.balance_transactions || []);
@@ -1118,6 +1817,9 @@ async function hydrate() {
     transactions.value = sortTransactions(cache.balanceTransactions || []);
     debts.value = sortBySortNumAndId(cache.balanceDebts || [], 'debtId');
     recurringCharges.value = sortBySortNumAndId(cache.balanceRecurringCharges || [], 'recurringChargeId');
+    sourceAccounts.value = sortSourceAccounts(cache.balanceSourceAccounts || []);
+    applySourceDraftsFromStatus();
+    syncBindSessionsFromStatus();
     fxRates.value = sortBySortNumAndId(cache.balanceFxRates || [], 'quoteCurrency');
     const cacheOverview = cache.balanceOverview || {};
     overview.value = {
@@ -1134,6 +1836,10 @@ async function hydrate() {
 }
 
 function toggleCreateForm() {
+  if (!canToggleCreateForm.value) {
+    showCreateForm.value = false;
+    return;
+  }
   showCreateForm.value = !showCreateForm.value;
   if (!showCreateForm.value) {
     resetEditing();
@@ -1725,25 +2431,32 @@ onBeforeUnmount(() => {
     window.clearTimeout(filterRefreshTimer);
     filterRefreshTimer = 0;
   }
+  clearAllSourcePolling();
   registerBalanceSectionChangeHandler(props.windowId, null);
 });
 </script>
 
 <style scoped>
 .lightapp-window {
-  --la-border: rgba(255, 255, 255, 0.44);
-  --la-input-bg: rgba(var(--glass-rgb), 0.32);
-  --la-btn-bg: rgba(var(--glass-rgb), 0.3);
-  --la-panel-bg: rgba(var(--glass-rgb), 0.26);
-  --la-card-bg: rgba(var(--glass-rgb), 0.24);
-  --la-text: rgba(35, 42, 58, 0.9);
-  --la-muted: rgba(55, 64, 84, 0.74);
-  --la-danger: rgba(214, 74, 103, 0.92);
-  --la-income: rgba(30, 145, 84, 0.9);
+  --la-border: rgba(136, 166, 212, 0.26);
+  --la-input-bg: rgba(8, 18, 34, 0.88);
+  --la-btn-bg: rgba(18, 31, 56, 0.84);
+  --la-panel-bg: rgba(10, 18, 34, 0.78);
+  --la-card-bg: rgba(14, 24, 44, 0.84);
+  --la-text: rgba(242, 246, 255, 0.96);
+  --la-muted: rgba(172, 188, 215, 0.82);
+  --la-danger: rgba(255, 136, 159, 0.96);
+  --la-income: rgba(114, 217, 158, 0.94);
   display: grid;
   gap: 10px;
   min-width: 0;
   color: var(--la-text);
+  padding: 2px;
+  background:
+    radial-gradient(circle at top right, rgba(244, 164, 109, 0.18), transparent 34%),
+    radial-gradient(circle at top left, rgba(93, 141, 255, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(8, 14, 26, 0.98), rgba(10, 18, 34, 0.96));
+  border-radius: 18px;
 }
 
 .toolbar-hint {
@@ -1767,13 +2480,17 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   color: var(--la-text);
   padding: 6px 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .icon-btn {
   border: 1px solid var(--la-border);
-  background: var(--la-btn-bg);
+  background: linear-gradient(180deg, rgba(22, 38, 67, 0.94), rgba(15, 26, 46, 0.92));
   color: var(--la-text);
   border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 20px rgba(3, 8, 18, 0.18);
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -1783,9 +2500,21 @@ onBeforeUnmount(() => {
 
 .icon-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(189, 213, 252, 0.62);
-  background: rgba(var(--glass-rgb), 0.4);
-  box-shadow: 0 5px 14px rgba(12, 18, 32, 0.14);
+  border-color: rgba(161, 195, 255, 0.48);
+  background: linear-gradient(180deg, rgba(27, 49, 86, 0.96), rgba(17, 31, 55, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 12px 24px rgba(3, 8, 18, 0.22);
+}
+
+.icon-btn.is-active,
+.toolbar-tab-btn.is-active {
+  border-color: rgba(246, 176, 131, 0.5);
+  background: linear-gradient(180deg, rgba(115, 74, 55, 0.92), rgba(86, 51, 36, 0.9));
+  color: rgba(255, 241, 230, 0.98);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 202, 0.24),
+    0 14px 28px rgba(48, 21, 7, 0.24);
 }
 
 .create-form {
@@ -1802,6 +2531,11 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   padding: 8px 10px;
   min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.create-form input::placeholder {
+  color: rgba(148, 170, 205, 0.74);
 }
 
 .span-2 {
@@ -1825,6 +2559,307 @@ onBeforeUnmount(() => {
 .overview-stack {
   display: grid;
   gap: 10px;
+}
+
+.source-sync-section {
+  display: grid;
+  gap: 10px;
+}
+
+.source-guide {
+  --liquid-bg: rgba(11, 21, 39, 0.88);
+  --liquid-border: rgba(159, 182, 227, 0.24);
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 18px 40px rgba(4, 10, 22, 0.22);
+}
+
+.source-guide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.source-guide-header h4,
+.source-guide-header p {
+  margin: 0;
+}
+
+.source-guide-header h4 {
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+
+.source-guide-header p {
+  margin-top: 4px;
+  max-width: 78ch;
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.source-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.source-guide-step {
+  border: 1px solid rgba(130, 160, 205, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(19, 33, 59, 0.72), rgba(12, 20, 37, 0.78));
+}
+
+.source-guide-step strong,
+.source-guide-step p {
+  margin: 0;
+}
+
+.source-guide-step strong {
+  font-size: 13px;
+}
+
+.source-guide-step p {
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.source-step-badge {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(244, 161, 115, 0.16);
+  border: 1px solid rgba(248, 182, 141, 0.3);
+  color: rgba(255, 224, 201, 0.98);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.source-card {
+  --liquid-bg: var(--la-panel-bg);
+  --liquid-border: var(--la-border);
+  --source-accent: rgba(134, 175, 244, 0.82);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 18px 40px rgba(4, 10, 22, 0.18);
+}
+
+.source-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--source-accent), transparent);
+}
+
+.source-card.provider-alipay {
+  --source-accent: rgba(107, 171, 255, 0.92);
+}
+
+.source-card.provider-wechat {
+  --source-accent: rgba(107, 210, 147, 0.9);
+}
+
+.source-card.provider-bankcard {
+  --source-accent: rgba(247, 186, 125, 0.92);
+}
+
+.source-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.source-card-header h4,
+.source-card-header p,
+.source-meta p,
+.source-session p,
+.source-job p {
+  margin: 0;
+}
+
+.source-card-header h4 {
+  font-size: 15px;
+  letter-spacing: 0.2px;
+}
+
+.source-card-header p,
+.source-meta p,
+.source-session small,
+.source-job small {
+  color: var(--la-muted);
+  font-size: 12px;
+}
+
+.source-provider-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.source-provider-mode {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 6px;
+  padding: 3px 8px;
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(103, 139, 198, 0.14);
+  border: 1px solid rgba(129, 164, 220, 0.22);
+  color: rgba(214, 226, 248, 0.94);
+  font-size: 11px;
+  letter-spacing: 0.2px;
+}
+
+.source-status-pill {
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  background: rgba(119, 139, 168, 0.14);
+  border: 1px solid rgba(147, 172, 211, 0.2);
+  color: rgba(214, 224, 241, 0.84);
+  white-space: nowrap;
+}
+
+.source-status-pill.is-bound {
+  color: rgba(188, 245, 213, 0.96);
+  background: rgba(81, 180, 123, 0.16);
+  border-color: rgba(99, 196, 139, 0.26);
+}
+
+.source-status-pill.is-pending {
+  color: rgba(255, 228, 177, 0.96);
+  background: rgba(244, 188, 86, 0.16);
+  border-color: rgba(249, 201, 114, 0.24);
+}
+
+.source-status-pill.is-danger {
+  color: rgba(255, 199, 212, 0.96);
+  background: rgba(232, 115, 144, 0.16);
+  border-color: rgba(244, 136, 167, 0.24);
+}
+
+.source-config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.source-config-grid select {
+  border: 1px solid var(--la-border);
+  background: var(--la-input-bg);
+  color: var(--la-text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.source-inline-hint-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.source-inline-tip {
+  flex: 1;
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.source-session,
+.source-job {
+  --liquid-bg: rgba(18, 31, 54, 0.74);
+  --liquid-border: rgba(136, 164, 209, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.source-session-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.source-session-hint {
+  line-height: 1.55;
+}
+
+.source-qr-image {
+  width: min(100%, 220px);
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid rgba(161, 187, 229, 0.24);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 8px;
+}
+
+.source-qr-fallback {
+  display: block;
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(7, 15, 28, 0.76);
+  border: 1px dashed rgba(151, 180, 227, 0.28);
+  color: var(--la-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.source-session-link {
+  color: rgba(153, 205, 255, 0.96);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.source-session-link:hover {
+  text-decoration: underline;
+}
+
+.source-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.source-directory-tip code {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(220, 232, 248, 0.94);
 }
 
 .metrics-strip {
@@ -1882,8 +2917,8 @@ onBeforeUnmount(() => {
 }
 
 .filter-chip {
-  border: 1px solid rgba(255, 255, 255, 0.44);
-  background: rgba(var(--glass-rgb), 0.28);
+  border: 1px solid rgba(153, 176, 214, 0.22);
+  background: rgba(18, 31, 56, 0.72);
   color: var(--la-text);
   border-radius: 999px;
   padding: 5px 10px;
@@ -1897,14 +2932,14 @@ onBeforeUnmount(() => {
 
 .filter-chip:hover {
   transform: translateY(-1px);
-  border-color: rgba(178, 206, 248, 0.72);
-  background: rgba(var(--glass-rgb), 0.4);
+  border-color: rgba(171, 201, 246, 0.42);
+  background: rgba(24, 41, 73, 0.88);
 }
 
 .filter-chip.active {
-  border-color: rgba(118, 176, 250, 0.82);
-  background: rgba(120, 178, 248, 0.26);
-  color: rgba(33, 62, 112, 0.95);
+  border-color: rgba(247, 176, 129, 0.48);
+  background: rgba(112, 72, 50, 0.82);
+  color: rgba(255, 236, 220, 0.98);
 }
 
 .filters-inputs {
@@ -1928,13 +2963,18 @@ onBeforeUnmount(() => {
   border-radius: 9px;
   padding: 6px 9px;
   min-height: 32px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.create-form input:focus,
+.create-form select:focus,
+.compact-select:focus,
+.source-config-grid select:focus,
 .filters-inputs input:focus,
 .filters-inputs select:focus {
   outline: none;
-  border-color: rgba(139, 185, 248, 0.82);
-  box-shadow: 0 0 0 2px rgba(144, 190, 252, 0.18);
+  border-color: rgba(247, 177, 129, 0.54);
+  box-shadow: 0 0 0 2px rgba(244, 168, 117, 0.16);
 }
 
 .charts-zone {
@@ -2085,9 +3125,9 @@ onBeforeUnmount(() => {
 }
 
 .savings-meta span {
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(143, 168, 211, 0.18);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(17, 28, 49, 0.72);
   padding: 6px 8px;
   font-size: 11px;
   color: var(--la-muted);
@@ -2126,10 +3166,10 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr auto;
   gap: 4px 10px;
   align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(143, 168, 211, 0.18);
   border-radius: 10px;
   padding: 8px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(17, 28, 49, 0.72);
 }
 
 .compact-list li small {
@@ -2165,9 +3205,9 @@ onBeforeUnmount(() => {
 }
 
 .ledger-summary-grid span {
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(143, 168, 211, 0.18);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(17, 28, 49, 0.72);
   padding: 7px 9px;
   font-size: 12px;
 }
@@ -2197,8 +3237,8 @@ onBeforeUnmount(() => {
 
 .list-item:hover {
   transform: translateY(-1px);
-  --liquid-border: rgba(193, 216, 253, 0.62);
-  --liquid-bg: rgba(var(--glass-rgb), 0.34);
+  --liquid-border: rgba(189, 214, 251, 0.32);
+  --liquid-bg: rgba(20, 34, 59, 0.92);
 }
 
 .transaction-item {
@@ -2206,11 +3246,11 @@ onBeforeUnmount(() => {
 }
 
 .transaction-item.is-editing {
-  --liquid-border: rgba(120, 176, 246, 0.78);
-  --liquid-bg: rgba(167, 203, 248, 0.28);
+  --liquid-border: rgba(247, 177, 129, 0.44);
+  --liquid-bg: rgba(86, 56, 40, 0.62);
   box-shadow:
-    0 0 0 1px rgba(120, 176, 246, 0.42),
-    0 8px 18px rgba(30, 60, 104, 0.18);
+    0 0 0 1px rgba(247, 177, 129, 0.24),
+    0 10px 20px rgba(47, 23, 10, 0.18);
 }
 
 .list-main p {
@@ -2231,13 +3271,14 @@ onBeforeUnmount(() => {
 
 .text-btn {
   border: 1px solid var(--la-border);
-  background: var(--la-btn-bg);
+  background: linear-gradient(180deg, rgba(23, 39, 68, 0.92), rgba(16, 27, 48, 0.9));
   color: var(--la-text);
-  border-radius: 8px;
+  border-radius: 10px;
   min-height: 32px;
   padding: 0 10px;
   font-size: 12px;
   line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -2246,8 +3287,33 @@ onBeforeUnmount(() => {
 
 .text-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(189, 213, 252, 0.62);
-  background: rgba(var(--glass-rgb), 0.4);
+  border-color: rgba(175, 204, 246, 0.38);
+  background: linear-gradient(180deg, rgba(28, 48, 83, 0.96), rgba(19, 33, 58, 0.94));
+}
+
+.text-btn.is-primary {
+  border-color: rgba(248, 182, 138, 0.46);
+  background: linear-gradient(180deg, rgba(126, 81, 58, 0.98), rgba(95, 58, 39, 0.96));
+  color: rgba(255, 241, 230, 0.98);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 227, 205, 0.22),
+    0 10px 18px rgba(57, 27, 11, 0.18);
+}
+
+.text-btn.is-primary:hover {
+  background: linear-gradient(180deg, rgba(140, 90, 65, 1), rgba(109, 67, 46, 0.98));
+}
+
+.text-btn.is-subtle {
+  background: rgba(17, 28, 49, 0.54);
+  border-color: rgba(143, 168, 211, 0.16);
+}
+
+.text-btn:disabled,
+.icon-btn:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .is-income {
@@ -2270,18 +3336,33 @@ onBeforeUnmount(() => {
 }
 
 .editing-hint {
-  --liquid-bg: rgba(146, 194, 250, 0.26);
-  --liquid-border: rgba(134, 190, 248, 0.56);
+  --liquid-bg: rgba(84, 56, 40, 0.64);
+  --liquid-border: rgba(247, 177, 129, 0.3);
   border-radius: 10px;
   padding: 8px 10px;
   margin: 0;
   font-size: 12px;
-  color: rgba(35, 55, 88, 0.9);
+  color: rgba(255, 229, 208, 0.96);
 }
 
 @container lightapp-window-body (max-width: 700px) {
   .create-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .source-guide-grid,
+  .source-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .source-config-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .source-guide-header,
+  .source-inline-hint-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .span-2 {
@@ -2324,6 +3405,16 @@ onBeforeUnmount(() => {
   }
 
   .charts-zone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .source-guide-header,
+  .source-inline-hint-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .source-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
