@@ -22,7 +22,7 @@ const MusicPlayerDetailView = () => import('../pages/music/MusicPlayerDetailView
 const ProfilePage = () => import('../pages/ProfilePage.vue');
 
 export const routePathByKey = {
-  home: '/author',
+  home: '/',
   blog: '/blog',
   'music-library': '/music-library/music',
   apps: '/apps',

@@ -39,7 +39,6 @@
         @open-profile="openProfile"
         @open-admin="openAdmin"
         @open-author="openAuthor"
-        @open-entry-shell="openEntryShell"
         @open-auth="openAuth"
         @open-background-picker="backgroundPickerVisible = true"
         @open-atmosphere-panel="openAtmospherePanel"
@@ -2273,11 +2272,6 @@ function openAuthor(tabKey = 'overview') {
   const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';
   if (route.path === '/author' && currentTab === (tabKey || '')) return;
   router.push({ path: '/author', query: nextQuery });
-}
-
-function openEntryShell() {
-  if (route.path === '/' && !route.query?.tab) return;
-  router.push({ path: '/' });
 }
 
 function handleSelectTrack(index) {

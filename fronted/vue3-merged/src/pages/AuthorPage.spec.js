@@ -127,14 +127,13 @@ describe('AuthorPage admin tab handling', () => {
     mocked.writeAuthorProfileCache.mockReset();
   });
 
-  it('renders homepage portal cards and floating seed whispers on overview', async () => {
+  it('renders homepage portal cards without homepage whispers on overview', async () => {
     const { wrapper } = await mountPage('/author?tab=overview', ['USER']);
 
     expect(mocked.getAuthorProfile).toHaveBeenCalledTimes(1);
-    expect(mocked.listPublicPostWhispers).toHaveBeenCalledTimes(1);
+    expect(mocked.listPublicPostWhispers).not.toHaveBeenCalled();
     expect(wrapper.findAll('.home-portal-card')).toHaveLength(6);
-    expect(wrapper.find('.whisper-float-layer').exists()).toBe(true);
-    expect(wrapper.findAll('.whisper-float-card').length).toBeGreaterThan(0);
+    expect(wrapper.find('.whisper-float-layer').exists()).toBe(false);
   });
 
   it('normalizes admin tabs back to overview for non-admin users', async () => {

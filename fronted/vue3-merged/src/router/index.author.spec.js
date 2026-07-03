@@ -32,8 +32,9 @@ describe('author homepage routing', () => {
     await router.isReady();
   });
 
-  it('maps top menu home to /author', () => {
-    expect(routePathByKey.home).toBe('/author');
+  it('maps top menu home to / and keeps the site intro at /author', () => {
+    expect(routePathByKey.home).toBe('/');
+    expect(routePathByKey.author).toBe('/author');
   });
 
   it('resolves /author to the author route', () => {

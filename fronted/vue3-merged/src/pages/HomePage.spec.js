@@ -28,8 +28,8 @@ async function mountPage(initialPath = '/') {
   return { wrapper, router };
 }
 
-describe('HomePage entry shell', () => {
-  it('navigates to /author from the primary entry card button', async () => {
+describe('HomePage wallpaper home', () => {
+  it('opens the site intro from the primary action', async () => {
     const { wrapper, router } = await mountPage('/');
 
     await wrapper.get('.primary-btn').trigger('click');

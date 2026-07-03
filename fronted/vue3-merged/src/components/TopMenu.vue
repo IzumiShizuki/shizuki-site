@@ -74,13 +74,13 @@
 
         <div
           class="menu-item-stack author-info-item ripple-trigger"
-          :class="{ 'route-active': isEntryShellRoute }"
-          @click.stop="openEntryShell"
+          :class="{ 'route-active': isAuthorRoute }"
+          @click.stop="openAuthorPage"
         >
           <div class="author-avatar-box">
             <img class="author-avatar-image" :src="resolvedAuthorAvatarUrl" alt="author-avatar" @error="onAuthorAvatarError" />
           </div>
-          <span class="item-label">Shell</span>
+          <span class="item-label">Site</span>
         </div>
 
         <div
@@ -184,7 +184,6 @@ const emit = defineEmits([
   'open-profile',
   'open-admin',
   'open-author',
-  'open-entry-shell',
   'open-auth'
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
@@ -217,9 +216,6 @@ const activeMainRoute = computed(() => {
     return 'music-library';
   }
   if (name === 'home') {
-    return '';
-  }
-  if (name === 'author') {
     return 'home';
   }
   const keys = mainNavItems.value.map((item) => item.key);
@@ -233,9 +229,9 @@ const isProfileRoute = computed(() => {
   return name === 'profile' || name === 'admin';
 });
 
-const isEntryShellRoute = computed(() => {
+const isAuthorRoute = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
-  return name === 'home';
+  return name === 'author';
 });
 
 const isAuthRoute = computed(() => {
@@ -305,8 +301,8 @@ function openProjectGithub() {
   window.open(PROJECT_GITHUB_URL, '_blank', 'noopener,noreferrer');
 }
 
-function openEntryShell() {
-  emit('open-entry-shell');
+function openAuthorPage() {
+  emit('open-author');
 }
 
 function openProfileHome() {

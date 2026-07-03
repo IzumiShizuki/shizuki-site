@@ -30,8 +30,6 @@
           <p v-if="cacheNotice" class="state-tip">{{ cacheNotice }}</p>
 
           <div v-if="activeTab === 'overview'" class="content-block overview-motion-root overview-story-root">
-            <AuthorWhisperFloatLayer :items="homepageWhisperItems" :active="true" />
-
             <section class="story-hero-stage author-card reveal-node" :style="[staggerStyle(0), resolveSectionImageDisplayStyle('hero.coverImageUrl')]">
               <button
                 v-if="canEditCurrentTab"
@@ -967,16 +965,13 @@ import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
 import RailScaffold from '../components/common/RailScaffold.vue';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
-import AuthorWhisperFloatLayer from '../components/author/AuthorWhisperFloatLayer.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
-import { listPublicPostWhispers } from '../services/blogApi';
 import {
   AuthorTabKey,
   createDefaultAuthorProfilePayload,
   normalizeAuthorProfilePayload,
   normalizeAuthorTabKey
 } from './authorUiState';
-import { buildAuthorHomepageWhisperPool } from './authorHomepageWhispersState';
 import {
   appendUniqueTags,
   buildEditFormFromProfile,
@@ -1037,7 +1032,7 @@ const JOURNEY_MONTH_LABELS = Object.freeze(Array.from({ length: 12 }, (_, index)
 const AUTHOR_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 const JOURNEY_IMAGE_PATH_PATTERN = /^journey\.\d+\.imageUrl$/u;
 const HOMEPAGE_PORTAL_CARDS = Object.freeze([
-  { key: 'blog', title: 'Blog', description: '文章、分类和悄悄话入口。', icon: 'far fa-file-alt', tone: 'tone-rose', target: '/blog' },
+  { key: 'blog', title: 'Blog', description: '文章、分类与阅读入口。', icon: 'far fa-file-alt', tone: 'tone-rose', target: '/blog' },
   {
     key: 'music',
     title: 'Music',
@@ -1131,7 +1126,6 @@ const loadError = ref('');
 const cacheNotice = ref('');
 const authorProfile = ref(createDefaultAuthorProfilePayload());
 const editForm = ref(createDefaultAuthorEditForm());
-const homepageWhisperItems = ref(buildAuthorHomepageWhisperPool([]));
 const sectionImageUploadInputRef = ref(null);
 const contentPanelRef = ref(null);
 const journeyTimelineRef = ref(null);
@@ -2137,15 +2131,6 @@ async function loadPublicProfile() {
   }
 }
 
-async function loadHomepageWhispers() {
-  try {
-    const payload = await listPublicPostWhispers(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
-    homepageWhisperItems.value = buildAuthorHomepageWhisperPool(payload);
-  } catch {
-    homepageWhisperItems.value = buildAuthorHomepageWhisperPool([]);
-  }
-}
-
 function validateEditForm(form) {
   const heroName = String(form?.hero?.name || '').trim();
   if (!heroName) {
@@ -2360,7 +2345,6 @@ watch(
 onMounted(() => {
   bindReducedMotionWatcher();
   loadPublicProfile();
-  loadHomepageWhispers();
   refreshActiveTabMotion();
 });
 

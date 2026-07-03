@@ -42,7 +42,7 @@ async function mountTopMenu(props = {}, initialPath = '/') {
 }
 
 describe('TopMenu profile entry', () => {
-  it('keeps Home active on /author and exposes the shell shortcut', async () => {
+  it('keeps the site shortcut active on /author without marking Home active', async () => {
     const { wrapper } = await mountTopMenu(
       {
         isAuthenticated: true,
@@ -51,11 +51,19 @@ describe('TopMenu profile entry', () => {
       '/author'
     );
 
-    expect(wrapper.get('.left-main-btn.active .item-label').text()).toBe('Home');
+    expect(wrapper.findAll('.left-main-btn.active')).toHaveLength(0);
+    expect(wrapper.get('.author-info-item').classes()).toContain('route-active');
 
     await wrapper.get('.author-info-item').trigger('click');
 
-    expect(wrapper.emitted('open-entry-shell')).toHaveLength(1);
+    expect(wrapper.emitted('open-author')).toHaveLength(1);
+  });
+
+  it('marks Home active on /', async () => {
+    const { wrapper } = await mountTopMenu({}, '/');
+
+    expect(wrapper.get('.left-main-btn.active .item-label').text()).toBe('Home');
+    expect(wrapper.get('.author-info-item').classes()).not.toContain('route-active');
   });
 
   it('opens profile directly for authenticated users', async () => {

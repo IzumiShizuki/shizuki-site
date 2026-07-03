@@ -1,31 +1,36 @@
 <template>
-  <section class="entry-shell-page" aria-label="Entry Shell">
-    <div class="entry-shell-orbit orbit-a" aria-hidden="true"></div>
-    <div class="entry-shell-orbit orbit-b" aria-hidden="true"></div>
-    <div class="entry-shell-orbit orbit-c" aria-hidden="true"></div>
+  <section class="wallpaper-home-page" aria-label="Wallpaper Home">
+    <div class="wallpaper-home-orb orb-a" aria-hidden="true"></div>
+    <div class="wallpaper-home-orb orb-b" aria-hidden="true"></div>
 
-    <article class="entry-shell-card liquid-material">
-      <p class="entry-shell-sign">Shizuki Site</p>
-      <h1>入口壳</h1>
-      <p class="entry-shell-copy">
-        保留原本的背景、音乐与小工具氛围。
-        <span>点击下面的入口卡，再进入正式首页。</span>
+    <article class="wallpaper-home-dock liquid-material">
+      <p class="wallpaper-home-kicker">Wallpaper Home</p>
+      <h1>Home</h1>
+      <p class="wallpaper-home-copy">
+        这里是壁纸主界面，背景、音乐和悬浮工具会保持常驻。
+        <span>网站介绍已经独立到右侧的 Site 入口，不再占用 Home 主视图。</span>
       </p>
 
-      <div class="entry-shell-actions">
-        <button class="primary-btn ripple-trigger" type="button" @click="enterAuthorHome">进入首页</button>
+      <div class="wallpaper-home-actions">
+        <button class="primary-btn ripple-trigger" type="button" @click="openAuthorIntro">网站介绍</button>
         <button class="ghost-btn ripple-trigger" type="button" @click="openPath('/blog')">博客</button>
       </div>
 
-      <div class="entry-shell-meta">
-        <span>Background Ready</span>
-        <span>Music Always On</span>
-        <span>Tools Nearby</span>
+      <div class="wallpaper-home-meta">
+        <span>Wallpaper Focus</span>
+        <span>Music Nearby</span>
+        <span>Quick Tools Ready</span>
       </div>
     </article>
 
-    <div class="entry-shell-toolbelt liquid-material">
-      <button v-for="item in quickTools" :key="item.path" class="entry-tool-chip ripple-trigger" type="button" @click="openPath(item.path)">
+    <div class="wallpaper-home-shortcuts liquid-material">
+      <button
+        v-for="item in quickTools"
+        :key="item.path"
+        class="wallpaper-home-shortcut ripple-trigger"
+        type="button"
+        @click="openPath(item.path)"
+      >
         <i :class="item.icon" aria-hidden="true"></i>
         <span>{{ item.label }}</span>
       </button>
@@ -44,7 +49,7 @@ const quickTools = [
   { path: '/ai-hub', label: 'AI', icon: 'fas fa-brain' }
 ];
 
-function enterAuthorHome() {
+function openAuthorIntro() {
   router.push('/author');
 }
 
@@ -54,207 +59,168 @@ function openPath(path) {
 </script>
 
 <style scoped>
-.entry-shell-page {
+.wallpaper-home-page {
   position: relative;
   min-height: 100%;
-  padding: clamp(116px, 18vh, 164px) clamp(18px, 5vw, 54px) clamp(132px, 22vh, 184px);
-  display: grid;
-  place-items: center;
+  padding: clamp(118px, 18vh, 168px) clamp(18px, 5vw, 54px) clamp(132px, 20vh, 176px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
   overflow: hidden;
 }
 
-.entry-shell-card {
-  --liquid-bg: linear-gradient(145deg, rgba(255, 243, 252, 0.26), rgba(224, 230, 255, 0.16));
-  --liquid-border: rgba(255, 255, 255, 0.42);
-  --liquid-shadow: 0 30px 70px rgba(17, 18, 36, 0.2);
+.wallpaper-home-dock {
+  --liquid-bg: linear-gradient(145deg, rgba(20, 24, 40, 0.62), rgba(44, 29, 55, 0.4));
+  --liquid-border: rgba(255, 255, 255, 0.26);
+  --liquid-shadow: 0 28px 60px rgba(8, 10, 24, 0.34);
   position: relative;
   z-index: 1;
-  width: min(100%, 580px);
-  padding: clamp(28px, 5vw, 42px);
+  width: min(100%, 460px);
+  padding: clamp(24px, 4vw, 34px);
   border-radius: 30px;
   display: grid;
-  gap: 18px;
-  text-align: center;
+  gap: 16px;
+  color: rgba(248, 249, 255, 0.98);
+  text-shadow: 0 4px 16px rgba(7, 8, 15, 0.36);
+  backdrop-filter: blur(22px) saturate(132%);
 }
 
-.entry-shell-sign {
-  color: rgba(246, 235, 255, 0.92);
+.wallpaper-home-kicker {
+  margin: 0;
+  color: rgba(255, 220, 231, 0.92);
   font-size: 12px;
-  letter-spacing: 0.32em;
+  font-weight: 700;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
 }
 
-.entry-shell-card h1 {
+.wallpaper-home-dock h1 {
   margin: 0;
-  font-size: clamp(38px, 6vw, 62px);
-  line-height: 1.04;
-  color: rgba(255, 248, 252, 0.98);
+  font-size: clamp(34px, 6vw, 58px);
+  line-height: 0.98;
 }
 
-.entry-shell-copy {
+.wallpaper-home-copy {
+  margin: 0;
   display: grid;
   gap: 8px;
-  color: rgba(237, 239, 252, 0.9);
+  color: rgba(241, 243, 252, 0.94);
   font-size: clamp(14px, 2vw, 17px);
-  line-height: 1.8;
+  line-height: 1.75;
 }
 
-.entry-shell-copy span {
-  color: rgba(255, 220, 236, 0.94);
+.wallpaper-home-copy span {
+  color: rgba(255, 214, 229, 0.96);
 }
 
-.entry-shell-actions {
+.wallpaper-home-actions,
+.wallpaper-home-meta {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-.entry-shell-meta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.entry-shell-meta span,
-.entry-tool-chip {
+.wallpaper-home-meta span,
+.wallpaper-home-shortcut {
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(243, 240, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(245, 247, 255, 0.94);
 }
 
-.entry-shell-meta span {
-  padding: 7px 12px;
+.wallpaper-home-meta span {
+  padding: 8px 13px;
   font-size: 12px;
   letter-spacing: 0.04em;
 }
 
-.entry-shell-toolbelt {
-  --liquid-bg: rgba(16, 18, 34, 0.24);
+.wallpaper-home-shortcuts {
+  --liquid-bg: linear-gradient(145deg, rgba(12, 16, 32, 0.46), rgba(44, 38, 90, 0.28));
   --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 16px 36px rgba(8, 10, 24, 0.18);
-  position: absolute;
-  right: clamp(18px, 4vw, 42px);
-  bottom: clamp(96px, 18vh, 146px);
+  --liquid-shadow: 0 20px 44px rgba(8, 10, 24, 0.26);
+  position: relative;
   z-index: 1;
+  min-width: 196px;
   padding: 12px;
   border-radius: 22px;
   display: grid;
   gap: 10px;
+  backdrop-filter: blur(18px) saturate(136%);
 }
 
-.entry-tool-chip {
-  min-width: 132px;
-  padding: 11px 14px;
+.wallpaper-home-shortcut {
+  min-width: 0;
+  padding: 12px 14px;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   font: inherit;
   cursor: pointer;
 }
 
-.entry-tool-chip i {
+.wallpaper-home-shortcut i {
   font-size: 14px;
 }
 
-.entry-shell-orbit {
+.wallpaper-home-orb {
   position: absolute;
   border-radius: 999px;
-  filter: blur(1px);
   pointer-events: none;
+  filter: blur(2px);
 }
 
-.orbit-a {
-  inset: 12% auto auto 9%;
-  width: 180px;
-  height: 180px;
-  background: radial-gradient(circle, rgba(255, 208, 230, 0.24), rgba(255, 208, 230, 0));
-  animation: entry-drift-a 12s ease-in-out infinite;
-}
-
-.orbit-b {
-  inset: auto 12% 18% auto;
+.orb-a {
+  left: 10%;
+  bottom: 18%;
   width: 220px;
   height: 220px;
-  background: radial-gradient(circle, rgba(194, 210, 255, 0.2), rgba(194, 210, 255, 0));
-  animation: entry-drift-b 15s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(255, 199, 223, 0.24), rgba(255, 199, 223, 0));
 }
 
-.orbit-c {
-  inset: auto auto 14% 16%;
-  width: 128px;
-  height: 128px;
-  background: radial-gradient(circle, rgba(255, 243, 189, 0.16), rgba(255, 243, 189, 0));
-  animation: entry-drift-c 10s ease-in-out infinite;
-}
-
-@keyframes entry-drift-a {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(18px, -14px, 0);
-  }
-}
-
-@keyframes entry-drift-b {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(-16px, 18px, 0);
-  }
-}
-
-@keyframes entry-drift-c {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(12px, -12px, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .entry-shell-orbit {
-    animation: none;
-  }
+.orb-b {
+  right: 12%;
+  top: 18%;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(171, 201, 255, 0.18), rgba(171, 201, 255, 0));
 }
 
 @media (max-width: 920px) {
-  .entry-shell-toolbelt {
-    position: static;
-    width: min(100%, 420px);
-    margin-top: 18px;
+  .wallpaper-home-page {
+    align-items: stretch;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .wallpaper-home-dock,
+  .wallpaper-home-shortcuts {
+    width: min(100%, 460px);
+  }
+
+  .wallpaper-home-shortcuts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .entry-tool-chip {
-    min-width: 0;
+  .wallpaper-home-shortcut {
     justify-content: center;
   }
 }
 
 @media (max-width: 640px) {
-  .entry-shell-page {
-    padding-top: 110px;
-    padding-bottom: 144px;
+  .wallpaper-home-page {
+    padding-top: 112px;
+    padding-bottom: 148px;
   }
 
-  .entry-shell-card {
+  .wallpaper-home-dock {
     border-radius: 24px;
-    padding: 22px 18px;
+    padding: 20px 18px;
   }
 
-  .entry-shell-toolbelt {
+  .wallpaper-home-shortcuts {
     grid-template-columns: 1fr;
   }
 }
