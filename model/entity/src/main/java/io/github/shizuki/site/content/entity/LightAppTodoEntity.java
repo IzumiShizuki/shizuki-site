@@ -3,9 +3,10 @@ package io.github.shizuki.site.content.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import io.github.shizuki.site.common.mybatis.SmallIntBooleanTypeHandler;
 import java.time.LocalDateTime;
 
-@TableName("CTN_LA_TODO")
+@TableName(value = "CTN_LA_TODO", autoResultMap = true)
 public class LightAppTodoEntity extends BaseEntity {
 
     @TableField("user_id")
@@ -26,13 +27,13 @@ public class LightAppTodoEntity extends BaseEntity {
     @TableField("priority_code")
     private String priorityCode;
 
-    @TableField("done_flag")
+    @TableField(value = "done_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean done;
 
     @TableField("due_datetime")
     private LocalDateTime dueAt;
 
-    @TableField("show_on_calendar_flag")
+    @TableField(value = "show_on_calendar_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean showOnCalendar;
 
     @TableField("time_precision_code")
@@ -44,7 +45,7 @@ public class LightAppTodoEntity extends BaseEntity {
     @TableField("range_start_datetime")
     private LocalDateTime rangeStartAt;
 
-    @TableField("reminder_enabled_flag")
+    @TableField(value = "reminder_enabled_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean reminderEnabled;
 
     @TableField("start_remind_value")

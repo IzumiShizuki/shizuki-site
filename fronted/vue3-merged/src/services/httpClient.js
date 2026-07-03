@@ -1,4 +1,5 @@
-const API_BASE = (import.meta.env.VITE_GATEWAY_BASE_URL || 'http://localhost:7070').replace(/\/+$/, '');
+const RAW_API_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || '/').trim() || '/';
+const API_BASE = RAW_API_BASE === '/' ? '' : RAW_API_BASE.replace(/\/+$/, '');
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]';

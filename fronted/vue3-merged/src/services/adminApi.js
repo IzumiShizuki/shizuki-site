@@ -125,6 +125,38 @@ export async function batchUpsertQuotaPolicies(items, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getAdminOpsOverview(authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/ops/overview', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function listAdminOpsContainers(authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/ops/containers', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function actionAdminOpsContainer(containerId, action, authorizedFetch) {
+  const normalizedId = String(containerId || '').trim();
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  if (!normalizedId) {
+    throw new Error('containerId is required');
+  }
+  if (!normalizedAction) {
+    throw new Error('action is required');
+  }
+  const response = await authorizedFetch(`/api/v1/admin/ops/containers/${encodeURIComponent(normalizedId)}/actions`, {
+    method: 'POST',
+    body: {
+      action: normalizedAction
+    }
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function probeGateway() {
   return httpRequest('/api/v1/me', {
     method: 'GET'

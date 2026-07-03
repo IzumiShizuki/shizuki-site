@@ -3,9 +3,10 @@ package io.github.shizuki.site.content.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import io.github.shizuki.site.common.mybatis.SmallIntBooleanTypeHandler;
 import java.time.LocalDateTime;
 
-@TableName("CTN_LA_SCHEDULE_RECUR_RULE")
+@TableName(value = "CTN_LA_SCHEDULE_RECUR_RULE", autoResultMap = true)
 public class LightAppScheduleRecurringRuleEntity extends BaseEntity {
 
     @TableField("user_id")
@@ -23,7 +24,7 @@ public class LightAppScheduleRecurringRuleEntity extends BaseEntity {
     @TableField("duration_minutes")
     private Integer durationMinutes;
 
-    @TableField("all_day_flag")
+    @TableField(value = "all_day_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean allDay;
 
     @TableField("location_text")
@@ -44,7 +45,7 @@ public class LightAppScheduleRecurringRuleEntity extends BaseEntity {
     @TableField("end_datetime")
     private LocalDateTime endAt;
 
-    @TableField("enabled_flag")
+    @TableField(value = "enabled_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean enabled;
 
     @TableField("sort_num")

@@ -3,6 +3,13 @@
 .idea
 .vscode
 .beads
+.antigravity
+.claude
+.codex
+.kiro
+.pytest_cache
+.tools
+.mvn/repository
 **/target
 **/node_modules
 **/.DS_Store

@@ -2,6 +2,13 @@
 
 本项目采用 **bd** (beads) 引擎驱动任务流。启动前请运行 `bd onboard` 唤醒系统。
 
+## 0. 服务器归属边界 (Server Ownership Boundary)
+
+- `111.228.35.186` 是个人网站服务器。
+- `111.228.35.186` 仅用于 `shizuki-site`、个人域名、个人中间件、个人运维面板与相关个人服务。
+- `111.228.52.91` 是卓望系统服务器，不属于本项目默认运维范围。
+- 除非用户在当前对话中明确要求，否则不要把 `shizuki-site`、`1Panel`、个人站点解析或个人运维组件部署到 `111.228.52.91`。
+
 ## 1. 快捷指令 (Quick Reference)
 
 ```bash
@@ -53,4 +60,3 @@ bd sync               # 同步任务状态
 - **浏览器**: Microsoft Edge (`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`)
 - **权限协议**: 全局授权 (Full Consent)
 - **设置文件**: [.antigravity/settings.json](file:///d:/xuexi/10.program/shizuki-site/shizuki-site/.antigravity/settings.json)
-

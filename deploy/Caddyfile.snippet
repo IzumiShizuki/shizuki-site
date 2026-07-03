@@ -1,13 +1,17 @@
-# Put these blocks into your server Caddyfile.
-
-shizuki.online {
-  redir https://site.shizuki.online{uri} permanent
-}
+# Merge these rules into the 111.228.35.186 server Caddyfile.
+#
+# If the server already has a `shizuki.online` gateway block, keep it and only
+# redirect the bare root path `/` to the site frontend. Do not add a duplicate
+# `shizuki.online { ... }` block alongside an existing one.
 
 site.shizuki.online {
   reverse_proxy 127.0.0.1:5173
 }
 
 api.shizuki.online {
-  reverse_proxy 127.0.0.1:8080
+  reverse_proxy 127.0.0.1:3000
+}
+
+ops.shizuki.online, panel.shizuki.online {
+  reverse_proxy 127.0.0.1:10086
 }

@@ -14,27 +14,23 @@ import org.mockito.Mockito;
 class AdminOpsServiceImplTest {
 
     private AdminOpsProperties properties;
-    private PortainerClient portainerClient;
+    private DockerEngineClient dockerEngineClient;
     private MediaService mediaService;
     private AdminOpsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         properties = new AdminOpsProperties();
-        properties.getPortainer().setBaseUrl("https://ops.shizuki.online");
-        properties.getPortainer().setApiKey("api-key");
-        properties.getPortainer().setEndpointId(1L);
-
-        portainerClient = Mockito.mock(PortainerClient.class);
+        dockerEngineClient = Mockito.mock(DockerEngineClient.class);
         mediaService = Mockito.mock(MediaService.class);
-        service = new AdminOpsServiceImpl(properties, portainerClient, mediaService);
+        service = new AdminOpsServiceImpl(properties, dockerEngineClient, mediaService);
     }
 
     @Test
     void shouldKeepMetingStatusWhenPortainerUnavailable() {
         Mockito.when(mediaService.getMetingStatus()).thenReturn(new MusicMetingStatusResponse(true, List.of("netease", "kuwo")));
-        Mockito.when(portainerClient.listContainers())
-            .thenThrow(new BusinessException(ErrorCode.INTERNAL_ERROR, "Portainer request timeout"));
+        Mockito.when(dockerEngineClient.listContainers())
+            .thenThrow(new BusinessException(ErrorCode.INTERNAL_ERROR, "Docker socket request timeout"));
 
         var overview = service.getOverview();
 
@@ -45,21 +41,23 @@ class AdminOpsServiceImplTest {
     }
 
     @Test
-    void shouldFilterContainersByAllowedNamesAndBuildOverviewCount() {
+    void shouldExposeVisibleContainersButKeepManageabilityFlags() {
         Mockito.when(mediaService.getMetingStatus()).thenReturn(new MusicMetingStatusResponse(false, List.of("netease", "kuwo", "qq")));
-        Mockito.when(portainerClient.listContainers()).thenReturn(List.of(
-            new PortainerClient.ContainerSnapshot("id-backend", "shizuki-site-backend", "backend:v1", "running", "Up", List.of()),
-            new PortainerClient.ContainerSnapshot("id-random", "random-service", "random:v1", "running", "Up", List.of()),
-            new PortainerClient.ContainerSnapshot("id-meting", "shizuki-site-meting-api", "meting:v1", "exited", "Exited (0)", List.of())
+        Mockito.when(dockerEngineClient.listContainers()).thenReturn(List.of(
+            new DockerEngineClient.ContainerSnapshot("id-backend", "shizuki-site-backend", "backend:v1", "running", "Up", List.of()),
+            new DockerEngineClient.ContainerSnapshot("id-random", "random-service", "random:v1", "running", "Up", List.of()),
+            new DockerEngineClient.ContainerSnapshot("id-meting", "shizuki-site-meting-api", "meting:v1", "exited", "Exited (0)", List.of())
         ));
 
         var containers = service.listContainers();
         var overview = service.getOverview();
 
-        Assertions.assertEquals(2, containers.size());
+        Assertions.assertEquals(3, containers.size());
+        Assertions.assertTrue(containers.get(0).manageable());
+        Assertions.assertFalse(containers.get(1).manageable());
         Assertions.assertTrue(overview.portainerReachable());
-        Assertions.assertEquals(2, overview.containerTotal());
-        Assertions.assertEquals(1, overview.containerRunning());
+        Assertions.assertEquals(3, overview.containerTotal());
+        Assertions.assertEquals(2, overview.containerRunning());
         Assertions.assertEquals(1, overview.containerStopped());
     }
 
@@ -78,14 +76,14 @@ class AdminOpsServiceImplTest {
     @Test
     void shouldExecuteActionForManageableContainer() {
         properties.setEnableMutations(true);
-        Mockito.when(portainerClient.listContainers()).thenReturn(List.of(
-            new PortainerClient.ContainerSnapshot("id-backend-012345", "shizuki-site-backend", "backend:v1", "running", "Up", List.of())
+        Mockito.when(dockerEngineClient.listContainers()).thenReturn(List.of(
+            new DockerEngineClient.ContainerSnapshot("id-backend-012345", "shizuki-site-backend", "backend:v1", "running", "Up", List.of())
         ));
 
         var response = service.actionContainer("id-backend", "restart");
 
         Assertions.assertEquals("restart", response.action());
         Assertions.assertEquals("ACCEPTED", response.status());
-        Mockito.verify(portainerClient).invokeContainerAction("id-backend-012345", "restart");
+        Mockito.verify(dockerEngineClient).invokeContainerAction("id-backend-012345", "restart");
     }
 }

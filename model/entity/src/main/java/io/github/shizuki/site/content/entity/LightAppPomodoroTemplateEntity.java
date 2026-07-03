@@ -3,8 +3,9 @@ package io.github.shizuki.site.content.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import io.github.shizuki.site.common.mybatis.SmallIntBooleanTypeHandler;
 
-@TableName("CTN_LA_POMODORO_TEMPLATE")
+@TableName(value = "CTN_LA_POMODORO_TEMPLATE", autoResultMap = true)
 public class LightAppPomodoroTemplateEntity extends BaseEntity {
 
     @TableField("user_id")
@@ -25,7 +26,7 @@ public class LightAppPomodoroTemplateEntity extends BaseEntity {
     @TableField("long_break_every")
     private Integer longBreakEvery;
 
-    @TableField("auto_start_next_flag")
+    @TableField(value = "auto_start_next_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean autoStartNext;
 
     @TableField("ringtone_type_code")

@@ -83,7 +83,7 @@ class AdminOpsControllerIntegrationTest {
         LoginUserContext.set(new LoginUser(1L, Set.of("ADMIN"), Set.of()));
         Mockito.when(adminOpsService.getOverview()).thenReturn(
             new AdminOpsOverviewResponse(
-                "https://ops.shizuki.online",
+                "https://panel.shizuki.online",
                 new MusicMetingStatusResponse(true, List.of("netease", "kuwo")),
                 true,
                 "OK",

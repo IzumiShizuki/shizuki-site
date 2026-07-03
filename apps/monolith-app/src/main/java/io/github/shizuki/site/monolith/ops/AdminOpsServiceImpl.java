@@ -18,14 +18,14 @@ import org.springframework.util.StringUtils;
 public class AdminOpsServiceImpl implements AdminOpsService {
 
     private final AdminOpsProperties properties;
-    private final PortainerClient portainerClient;
+    private final DockerEngineClient dockerEngineClient;
     private final MediaService mediaService;
 
     public AdminOpsServiceImpl(AdminOpsProperties properties,
-                               PortainerClient portainerClient,
+                               DockerEngineClient dockerEngineClient,
                                MediaService mediaService) {
         this.properties = properties;
-        this.portainerClient = portainerClient;
+        this.dockerEngineClient = dockerEngineClient;
         this.mediaService = mediaService;
     }
 
@@ -35,7 +35,7 @@ public class AdminOpsServiceImpl implements AdminOpsService {
 
         List<AdminOpsContainerResponse> containers = List.of();
         boolean portainerReachable = false;
-        String portainerMessage = "Portainer unavailable";
+        String portainerMessage = "Container API unavailable";
         try {
             containers = listContainers();
             portainerReachable = true;
@@ -61,11 +61,11 @@ public class AdminOpsServiceImpl implements AdminOpsService {
 
     @Override
     public List<AdminOpsContainerResponse> listContainers() {
-        List<PortainerClient.ContainerSnapshot> snapshots = portainerClient.listContainers();
+        List<DockerEngineClient.ContainerSnapshot> snapshots = dockerEngineClient.listContainers();
         List<AdminOpsContainerResponse> result = new ArrayList<>();
-        for (PortainerClient.ContainerSnapshot item : snapshots) {
+        for (DockerEngineClient.ContainerSnapshot item : snapshots) {
             String containerName = readString(item.containerName(), "");
-            if (!properties.isContainerAllowed(containerName)) {
+            if (!properties.isContainerVisible(containerName)) {
                 continue;
             }
             result.add(toContainerResponse(item));
@@ -83,8 +83,8 @@ public class AdminOpsServiceImpl implements AdminOpsService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported action, expected start|stop|restart");
         }
 
-        PortainerClient.ContainerSnapshot target = findManageableContainer(containerId);
-        portainerClient.invokeContainerAction(target.containerId(), normalizedAction);
+        DockerEngineClient.ContainerSnapshot target = findManageableContainer(containerId);
+        dockerEngineClient.invokeContainerAction(target.containerId(), normalizedAction);
         return new AdminOpsContainerActionResponse(
             target.containerId(),
             target.containerName(),
@@ -94,15 +94,15 @@ public class AdminOpsServiceImpl implements AdminOpsService {
         );
     }
 
-    private PortainerClient.ContainerSnapshot findManageableContainer(String containerId) {
+    private DockerEngineClient.ContainerSnapshot findManageableContainer(String containerId) {
         String normalizedInput = readString(containerId, "");
         if (!StringUtils.hasText(normalizedInput)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "containerId is required");
         }
-        List<PortainerClient.ContainerSnapshot> snapshots = portainerClient.listContainers();
-        for (PortainerClient.ContainerSnapshot item : snapshots) {
+        List<DockerEngineClient.ContainerSnapshot> snapshots = dockerEngineClient.listContainers();
+        for (DockerEngineClient.ContainerSnapshot item : snapshots) {
             String containerName = readString(item.containerName(), "");
-            if (!properties.isContainerAllowed(containerName)) {
+            if (!properties.isContainerManageable(containerName)) {
                 continue;
             }
             String currentId = readString(item.containerId(), "");
@@ -114,15 +114,16 @@ public class AdminOpsServiceImpl implements AdminOpsService {
         throw new BusinessException(ErrorCode.NOT_FOUND, "Container not found or not manageable");
     }
 
-    private AdminOpsContainerResponse toContainerResponse(PortainerClient.ContainerSnapshot snapshot) {
+    private AdminOpsContainerResponse toContainerResponse(DockerEngineClient.ContainerSnapshot snapshot) {
         List<String> ports = new ArrayList<>();
-        for (PortainerClient.PortBinding port : snapshot.ports()) {
+        for (DockerEngineClient.PortBinding port : snapshot.ports()) {
             String label = formatPort(port);
             if (StringUtils.hasText(label)) {
                 ports.add(label);
             }
         }
         boolean running = "running".equalsIgnoreCase(readString(snapshot.state(), ""));
+        boolean manageable = properties.isContainerManageable(snapshot.containerName());
         return new AdminOpsContainerResponse(
             readString(snapshot.containerId(), ""),
             readString(snapshot.containerName(), ""),
@@ -131,7 +132,7 @@ public class AdminOpsServiceImpl implements AdminOpsService {
             readString(snapshot.status(), ""),
             ports,
             running,
-            true
+            manageable
         );
     }
 
@@ -155,7 +156,7 @@ public class AdminOpsServiceImpl implements AdminOpsService {
         return "";
     }
 
-    private String formatPort(PortainerClient.PortBinding port) {
+    private String formatPort(DockerEngineClient.PortBinding port) {
         if (port == null || port.privatePort() == null) {
             return "";
         }
@@ -174,7 +175,7 @@ public class AdminOpsServiceImpl implements AdminOpsService {
     }
 
     private String sanitizeMessage(String message) {
-        String text = readString(message, "Portainer unavailable").replace('\n', ' ').replace('\r', ' ');
+        String text = readString(message, "Container API unavailable").replace('\n', ' ').replace('\r', ' ');
         if (text.length() > 220) {
             return text.substring(0, 220) + "...";
         }

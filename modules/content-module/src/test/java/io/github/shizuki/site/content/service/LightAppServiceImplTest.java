@@ -4,7 +4,9 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
+import io.github.shizuki.site.content.entity.LightAppTaskColumnEntity;
 import io.github.shizuki.site.content.response.LightAppBalanceAnalyticsResponse;
+import io.github.shizuki.site.content.response.LightAppTaskColumnResponse;
 import io.github.shizuki.site.content.request.LightAppPomodoroUpsertRequest;
 import io.github.shizuki.site.content.request.LightAppTaskColumnsUpdateRequest;
 import io.github.shizuki.site.content.request.LightAppTodoReorderRequest;
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -263,6 +266,48 @@ class LightAppServiceImplTest {
         Assertions.assertEquals(1, response.incomeCategoryBreakdown().size());
         Assertions.assertEquals("其他", response.incomeCategoryBreakdown().get(0).categoryName());
         Assertions.assertEquals(new BigDecimal("100.0000"), response.incomeCategoryBreakdown().get(0).ratioPercent());
+    }
+
+    @Test
+    void shouldBootstrapDefaultTaskColumnsWhenListingTaskColumns() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+
+        LightAppTaskColumnEntity todo = new LightAppTaskColumnEntity();
+        todo.setId(1L);
+        todo.setUserId(7L);
+        todo.setColumnCode("todo");
+        todo.setTitle("todo");
+        todo.setSortNum(10);
+        todo.setEnabled(true);
+
+        LightAppTaskColumnEntity doing = new LightAppTaskColumnEntity();
+        doing.setId(2L);
+        doing.setUserId(7L);
+        doing.setColumnCode("doing");
+        doing.setTitle("doing");
+        doing.setSortNum(20);
+        doing.setEnabled(true);
+
+        LightAppTaskColumnEntity done = new LightAppTaskColumnEntity();
+        done.setId(3L);
+        done.setUserId(7L);
+        done.setColumnCode("done");
+        done.setTitle("done");
+        done.setSortNum(30);
+        done.setEnabled(true);
+
+        Mockito.when(taskColumnMapper.selectList(Mockito.any()))
+            .thenReturn(List.of())
+            .thenReturn(List.of(todo, doing, done));
+
+        List<LightAppTaskColumnResponse> response = lightAppService.listTaskColumns();
+
+        Assertions.assertEquals(List.of("todo", "doing", "done"), response.stream().map(LightAppTaskColumnResponse::columnCode).toList());
+
+        ArgumentCaptor<LightAppTaskColumnEntity> captor = ArgumentCaptor.forClass(LightAppTaskColumnEntity.class);
+        Mockito.verify(taskColumnMapper, Mockito.times(3)).insert(captor.capture());
+        Assertions.assertEquals(List.of("todo", "doing", "done"), captor.getAllValues().stream().map(LightAppTaskColumnEntity::getColumnCode).toList());
+        Assertions.assertTrue(captor.getAllValues().stream().allMatch(entity -> Boolean.TRUE.equals(entity.getEnabled())));
     }
 
     @Test

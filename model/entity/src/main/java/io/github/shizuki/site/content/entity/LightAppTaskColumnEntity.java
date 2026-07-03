@@ -3,8 +3,9 @@ package io.github.shizuki.site.content.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import io.github.shizuki.site.common.mybatis.SmallIntBooleanTypeHandler;
 
-@TableName("CTN_LA_TASK_COLUMN")
+@TableName(value = "CTN_LA_TASK_COLUMN", autoResultMap = true)
 public class LightAppTaskColumnEntity extends BaseEntity {
 
     @TableField("user_id")
@@ -19,13 +20,13 @@ public class LightAppTaskColumnEntity extends BaseEntity {
     @TableField("sort_num")
     private Integer sortNum;
 
-    @TableField("enabled_flag")
+    @TableField(value = "enabled_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean enabled;
 
     @TableField("notion_status_option_id")
     private String notionStatusOptionId;
 
-    @TableField("notion_managed_flag")
+    @TableField(value = "notion_managed_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean notionManaged;
 
     public Long getUserId() {

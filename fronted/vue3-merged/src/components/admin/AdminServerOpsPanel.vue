@@ -3,14 +3,14 @@
     <header class="ops-head">
       <div>
         <h2>Server Ops</h2>
-        <p>统一查看 meting 与核心容器状态，并在后台执行常用运维动作。</p>
+        <p>Review middleware health and core containers here, then jump into 1Panel for deeper server management.</p>
       </div>
       <div class="ops-head-actions">
         <button class="ghost-btn ripple-trigger" type="button" :disabled="loadingOverview" @click="$emit('refreshOverview')">
-          {{ loadingOverview ? '加载概览中...' : '刷新概览' }}
+          {{ loadingOverview ? 'Loading overview...' : 'Refresh overview' }}
         </button>
         <button class="ghost-btn ripple-trigger" type="button" :disabled="loadingContainers" @click="$emit('refreshContainers')">
-          {{ loadingContainers ? '加载容器中...' : '刷新容器' }}
+          {{ loadingContainers ? 'Loading containers...' : 'Refresh containers' }}
         </button>
         <a
           v-if="portalUrl"
@@ -19,10 +19,10 @@
           target="_blank"
           rel="noopener noreferrer"
         >
-          打开 Portainer 控制台
+          Open 1Panel
         </a>
         <button v-else class="primary-btn ripple-trigger" type="button" disabled>
-          Portainer 地址未配置
+          1Panel URL unavailable
         </button>
       </div>
     </header>
@@ -34,34 +34,34 @@
     <section class="kpi-grid">
       <article class="kpi-card liquid-material">
         <span>Meting</span>
-        <strong :class="{ ok: metingAvailable, bad: !metingAvailable }">{{ metingAvailable ? '可用' : '不可用' }}</strong>
+        <strong :class="{ ok: metingAvailable, bad: !metingAvailable }">{{ metingAvailable ? 'Ready' : 'Offline' }}</strong>
         <small>providers: {{ metingProviders.length ? metingProviders.join(', ') : '-' }}</small>
       </article>
       <article class="kpi-card liquid-material">
-        <span>Portainer</span>
-        <strong :class="{ ok: portainerReachable, bad: !portainerReachable }">{{ portainerReachable ? '可达' : '降级' }}</strong>
+        <span>Container API</span>
+        <strong :class="{ ok: portainerReachable, bad: !portainerReachable }">{{ portainerReachable ? 'Reachable' : 'Fallback' }}</strong>
         <small>{{ portainerMessage || '-' }}</small>
       </article>
       <article class="kpi-card liquid-material">
-        <span>容器总数</span>
+        <span>Containers</span>
         <strong>{{ containerTotal }}</strong>
         <small>running: {{ containerRunning }} / stopped: {{ containerStopped }}</small>
       </article>
     </section>
 
     <div v-if="!containers.length && !loadingContainers" class="state-tip">
-      暂无可管理容器，或当前 Portainer 不可达。
+      No containers are available right now, or the container API is offline.
     </div>
 
     <div class="table-wrap">
       <table class="admin-table">
         <thead>
           <tr>
-            <th>容器</th>
-            <th>镜像</th>
-            <th>状态</th>
-            <th>端口</th>
-            <th>操作</th>
+            <th>Container</th>
+            <th>Image</th>
+            <th>State</th>
+            <th>Ports</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -86,7 +86,7 @@
                   class="mini-btn ripple-trigger"
                   type="button"
                   data-action="start"
-                  :disabled="isActionBusy(item.containerId)"
+                  :disabled="item.manageable !== true || isActionBusy(item.containerId)"
                   @click="emitAction(item, 'start')"
                 >
                   {{ busyLabel(item.containerId, 'start') }}
@@ -95,7 +95,7 @@
                   class="mini-btn ripple-trigger"
                   type="button"
                   data-action="stop"
-                  :disabled="isActionBusy(item.containerId)"
+                  :disabled="item.manageable !== true || isActionBusy(item.containerId)"
                   @click="emitAction(item, 'stop')"
                 >
                   {{ busyLabel(item.containerId, 'stop') }}
@@ -104,12 +104,13 @@
                   class="mini-btn ripple-trigger"
                   type="button"
                   data-action="restart"
-                  :disabled="isActionBusy(item.containerId)"
+                  :disabled="item.manageable !== true || isActionBusy(item.containerId)"
                   @click="emitAction(item, 'restart')"
                 >
                   {{ busyLabel(item.containerId, 'restart') }}
                 </button>
               </div>
+              <p v-if="item.manageable !== true" class="cell-sub">Read-only here</p>
             </td>
           </tr>
         </tbody>
@@ -176,6 +177,7 @@ const containerRunning = computed(() => Number(props.overview?.containerRunning 
 const containerStopped = computed(() => Number(props.overview?.containerStopped || 0));
 
 function emitAction(item, action) {
+  if (item?.manageable !== true) return;
   emit('action', {
     containerId: String(item?.containerId || ''),
     containerName: String(item?.containerName || ''),
@@ -190,11 +192,11 @@ function isActionBusy(containerId) {
 
 function busyLabel(containerId, action) {
   if (!isActionBusy(containerId)) {
-    if (action === 'start') return '启动';
-    if (action === 'stop') return '停止';
-    return '重启';
+    if (action === 'start') return 'Start';
+    if (action === 'stop') return 'Stop';
+    return 'Restart';
   }
-  return String(props.activeAction || '').toLowerCase() === action ? '执行中...' : '等待中...';
+  return String(props.activeAction || '').toLowerCase() === action ? 'Running...' : 'Pending...';
 }
 
 function formatPorts(ports) {

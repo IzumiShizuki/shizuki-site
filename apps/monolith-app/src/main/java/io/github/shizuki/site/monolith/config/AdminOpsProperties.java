@@ -13,15 +13,17 @@ import org.springframework.util.StringUtils;
 @ConfigurationProperties(prefix = "shizuki.admin.ops")
 public class AdminOpsProperties {
 
-    private String portalUrl = "https://ops.shizuki.online";
+    private String portalUrl = "https://panel.shizuki.online/";
     private boolean enableMutations = false;
     private int connectTimeoutMs = 1200;
     private int readTimeoutMs = 5000;
+    private List<String> visibleContainerNames = new ArrayList<>();
     private List<String> allowedContainerNames = new ArrayList<>(List.of(
         "shizuki-site-backend",
         "shizuki-site-frontend",
         "shizuki-site-meting-api"
     ));
+    private final Docker docker = new Docker();
     private final Portainer portainer = new Portainer();
 
     public String getPortalUrl() {
@@ -29,7 +31,7 @@ public class AdminOpsProperties {
     }
 
     public void setPortalUrl(String portalUrl) {
-        this.portalUrl = StringUtils.hasText(portalUrl) ? portalUrl.trim() : "https://ops.shizuki.online";
+        this.portalUrl = StringUtils.hasText(portalUrl) ? portalUrl.trim() : "https://panel.shizuki.online/";
     }
 
     public boolean isEnableMutations() {
@@ -56,28 +58,42 @@ public class AdminOpsProperties {
         this.readTimeoutMs = Math.max(200, readTimeoutMs);
     }
 
+    public List<String> getVisibleContainerNames() {
+        return visibleContainerNames;
+    }
+
+    public void setVisibleContainerNames(List<String> visibleContainerNames) {
+        this.visibleContainerNames = normalizeContainerNameList(visibleContainerNames);
+    }
+
     public List<String> getAllowedContainerNames() {
         return allowedContainerNames;
     }
 
     public void setAllowedContainerNames(List<String> allowedContainerNames) {
-        Set<String> normalized = new LinkedHashSet<>();
-        if (allowedContainerNames != null) {
-            for (String item : allowedContainerNames) {
-                String value = normalizeContainerName(item);
-                if (StringUtils.hasText(value)) {
-                    normalized.add(value);
-                }
-            }
-        }
-        this.allowedContainerNames = new ArrayList<>(normalized);
+        this.allowedContainerNames = normalizeContainerNameList(allowedContainerNames);
+    }
+
+    public Docker getDocker() {
+        return docker;
     }
 
     public Portainer getPortainer() {
         return portainer;
     }
 
-    public boolean isContainerAllowed(String containerName) {
+    public boolean isContainerVisible(String containerName) {
+        String normalized = normalizeContainerName(containerName);
+        if (!StringUtils.hasText(normalized)) {
+            return false;
+        }
+        if (visibleContainerNames == null || visibleContainerNames.isEmpty()) {
+            return true;
+        }
+        return visibleContainerNames.stream().anyMatch(item -> item.equalsIgnoreCase(normalized));
+    }
+
+    public boolean isContainerManageable(String containerName) {
         String normalized = normalizeContainerName(containerName);
         if (!StringUtils.hasText(normalized)) {
             return false;
@@ -88,12 +104,41 @@ public class AdminOpsProperties {
         return allowedContainerNames.stream().anyMatch(item -> item.equalsIgnoreCase(normalized));
     }
 
+    public boolean isContainerAllowed(String containerName) {
+        return isContainerManageable(containerName);
+    }
+
     public static String normalizeContainerName(String raw) {
         String value = StringUtils.hasText(raw) ? raw.trim() : "";
         while (value.startsWith("/")) {
             value = value.substring(1);
         }
         return value.toLowerCase(Locale.ROOT);
+    }
+
+    private List<String> normalizeContainerNameList(List<String> containerNames) {
+        Set<String> normalized = new LinkedHashSet<>();
+        if (containerNames != null) {
+            for (String item : containerNames) {
+                String value = normalizeContainerName(item);
+                if (StringUtils.hasText(value)) {
+                    normalized.add(value);
+                }
+            }
+        }
+        return new ArrayList<>(normalized);
+    }
+
+    public static class Docker {
+        private String socketPath = "/var/run/docker.sock";
+
+        public String getSocketPath() {
+            return socketPath;
+        }
+
+        public void setSocketPath(String socketPath) {
+            this.socketPath = StringUtils.hasText(socketPath) ? socketPath.trim() : "/var/run/docker.sock";
+        }
     }
 
     public static class Portainer {

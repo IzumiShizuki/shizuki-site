@@ -3,8 +3,9 @@ package io.github.shizuki.site.content.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import io.github.shizuki.site.common.mybatis.SmallIntBooleanTypeHandler;
 
-@TableName("CTN_LA_PROJECT")
+@TableName(value = "CTN_LA_PROJECT", autoResultMap = true)
 public class LightAppProjectEntity extends BaseEntity {
 
     @TableField("user_id")
@@ -22,7 +23,7 @@ public class LightAppProjectEntity extends BaseEntity {
     @TableField("color_text")
     private String color;
 
-    @TableField("archived_flag")
+    @TableField(value = "archived_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean archived;
 
     @TableField("sort_num")

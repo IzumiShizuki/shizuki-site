@@ -10,6 +10,7 @@ const slidevBin = path.join(__dirname, 'node_modules', '.bin', process.platform 
 const port = Number.parseInt(process.env.PORT || '3210', 10);
 const exportTimeoutMs = Number.parseInt(process.env.SLIDEV_EXPORT_TIMEOUT_MS || '600000', 10);
 const pageTimeoutMs = Number.parseInt(process.env.SLIDEV_PAGE_TIMEOUT_MS || '180000', 10);
+const slidevExecutablePath = process.env.SLIDEV_EXECUTABLE_PATH || process.env.PLAYWRIGHT_EXECUTABLE_PATH || '';
 const waitUntil = ['networkidle', 'load', 'domcontentloaded', 'none'].includes(process.env.SLIDEV_WAIT_UNTIL || '')
   ? process.env.SLIDEV_WAIT_UNTIL
   : 'load';
@@ -67,6 +68,9 @@ function runSlidevExport(inputPath, outputPath) {
       '--wait-until',
       waitUntil
     ];
+    if (String(slidevExecutablePath).trim()) {
+      args.push('--executable-path', String(slidevExecutablePath).trim());
+    }
     const child = spawn(slidevBin, args, {
       cwd: __dirname,
       env: {

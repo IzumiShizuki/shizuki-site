@@ -494,7 +494,7 @@ class SlidesApiService {
       String(this.config.pageTimeoutMs),
       '--wait-until',
       this.config.waitUntil
-    ]);
+    ], this.config.executablePath);
   }
 
   async runSlidevBuild(inputPath, outputDir) {
@@ -510,12 +510,17 @@ class SlidesApiService {
       inputPath,
       '--out',
       outputDir
-    ]);
+    ], this.config.executablePath);
   }
 
-  async runCommand(args) {
+  async runCommand(args, executablePath = '') {
     return new Promise((resolve, reject) => {
-      const child = spawn(SLIDEV_BIN, args, {
+      const finalArgs = [...args];
+      if (String(executablePath || '').trim()) {
+        finalArgs.push('--executable-path', String(executablePath).trim());
+      }
+
+      const child = spawn(SLIDEV_BIN, finalArgs, {
         cwd: __dirname,
         env: {
           ...process.env,
@@ -568,6 +573,7 @@ function createConfig(env = process.env) {
     exportTimeoutMs: normalizeInt(env.SLIDES_API_EXPORT_TIMEOUT_MS, 600000),
     pageTimeoutMs: normalizeInt(env.SLIDES_API_PAGE_TIMEOUT_MS, 180000),
     waitUntil: env.SLIDES_API_WAIT_UNTIL || 'load',
+    executablePath: env.SLIDEV_EXECUTABLE_PATH || env.PLAYWRIGHT_EXECUTABLE_PATH || '',
     mockExecutor: env.SLIDES_API_MOCK_EXECUTOR || ''
   };
 }

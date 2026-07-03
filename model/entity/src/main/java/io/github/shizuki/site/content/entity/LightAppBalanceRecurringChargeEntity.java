@@ -3,10 +3,11 @@ package io.github.shizuki.site.content.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import io.github.shizuki.site.common.mybatis.SmallIntBooleanTypeHandler;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@TableName("CTN_LA_BAL_RECURRING_CHARGE")
+@TableName(value = "CTN_LA_BAL_RECURRING_CHARGE", autoResultMap = true)
 public class LightAppBalanceRecurringChargeEntity extends BaseEntity {
 
     @TableField("user_id")
@@ -45,7 +46,7 @@ public class LightAppBalanceRecurringChargeEntity extends BaseEntity {
     @TableField("last_trigger_datetime")
     private LocalDateTime lastTriggerAt;
 
-    @TableField("enabled_flag")
+    @TableField(value = "enabled_flag", typeHandler = SmallIntBooleanTypeHandler.class)
     private Boolean enabled;
 
     @TableField("sort_num")

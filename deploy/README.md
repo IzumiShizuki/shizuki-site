@@ -1,4 +1,4 @@
-# Server Deployment (Frontend + Backend)
+# Server Deployment (Frontend + Backend + Sidecars)
 
 ## 1) Prepare env
 
@@ -7,6 +7,7 @@ cd /path/to/shizuki-site/deploy
 cp .env.server.example .env.server
 # edit .env.server with real DB/Redis/JWT values
 # required: SHIZUKI_MUSIC_SECURITY_KEY_ENCRYPTION_MASTER_KEY must be base64 of 32 bytes
+# required for balance bill sync: BALANCE_STORAGE_STATE_ENCRYPTION_KEY must be base64 of 32 bytes
 # example generation: openssl rand -base64 32
 # music sidecar URL: shizuki.music.meting.base-url
 # （部署方在容器网络内提供 meting-api 服务，无需用户级 API Key）
@@ -25,8 +26,10 @@ docker compose -f docker-compose.server.yml --env-file .env.server up -d --build
 docker compose -f docker-compose.server.yml --env-file .env.server ps
 docker logs -f shizuki-site-backend
 docker logs -f shizuki-site-frontend
+docker logs -f shizuki-site-bill-sync-agent
 # quick check yaml mount is visible in backend container
 docker exec shizuki-site-backend sh -lc 'ls -l /app/resouces/yaml && sed -n "1,140p" /app/resouces/yaml/common-config.yaml'
+docker exec shizuki-site-bill-sync-agent sh -lc 'node -e "fetch(\"http://127.0.0.1:39031/healthz\").then(r => r.text()).then(console.log)"'
 ```
 
 ## 4) Access
@@ -34,16 +37,26 @@ docker exec shizuki-site-backend sh -lc 'ls -l /app/resouces/yaml && sed -n "1,1
 - Frontend: `http://<server-ip>:5173`
 - Backend API: `http://<server-ip>:8080`
 - Health: `http://<server-ip>:8080/actuator/health`
+- Bill sync sidecar health (container-internal): `http://bill-sync-agent:39031/healthz`
 - Music search verify:
   - `curl "http://<server-ip>:8080/api/v1/music/search?q=%E6%A8%B1%E8%8A%B1&type=track&providers=netease,kuwo,qq&page=1&limit=10"`
 
+Bill sync notes:
+
+- Alipay QR binding runs inside `shizuki-site-bill-sync-agent`.
+- WeChat currently ingests exported CSV/XLSX/ZIP bills from `${BILL_SYNC_AGENT_DATA_DIR}/wechat-bills` on the server.
+- Bank-card sync currently ingests exported CSV/XLS/XLSX/ZIP statements from `${BILL_SYNC_AGENT_DATA_DIR}/bankcard-bills` on the server.
+- Raw imported bill archives are stored under `${BILL_SYNC_AGENT_DATA_DIR}/lightapp-balance-sync`.
+
 ## 5) Domain (recommended)
 
-After DNS points to the server, add `deploy/Caddyfile.snippet` to your Caddy config:
+After DNS points to the server, merge `deploy/Caddyfile.snippet` into your Caddy config:
 
-- `https://shizuki.online` -> 301 redirect to `https://site.shizuki.online`
+- `https://shizuki.online/` -> redirect to `https://site.shizuki.online`
 - `https://site.shizuki.online` -> frontend
-- `https://api.shizuki.online` -> backend
+- `https://api.shizuki.online` -> backend / new-api
+- `https://panel.shizuki.online` -> 1Panel
+- `https://ops.shizuki.online` -> 1Panel alias
 
 ## 6) Update
 

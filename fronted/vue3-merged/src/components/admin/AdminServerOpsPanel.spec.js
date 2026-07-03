@@ -6,7 +6,7 @@ function mountPanel(props = {}) {
   return mount(AdminServerOpsPanel, {
     props: {
       overview: {
-        portalUrl: 'https://ops.shizuki.online',
+        portalUrl: 'https://panel.shizuki.online',
         meting: {
           available: true,
           providers: ['netease', 'kuwo']
@@ -25,7 +25,8 @@ function mountPanel(props = {}) {
           state: 'running',
           status: 'Up 1 minute',
           ports: ['0.0.0.0:18080->8080/tcp'],
-          running: true
+          running: true,
+          manageable: true
         }
       ],
       ...props
@@ -60,6 +61,26 @@ describe('AdminServerOpsPanel', () => {
       containers: []
     });
 
-    expect(wrapper.text()).toContain('暂无可管理容器');
+    expect(wrapper.text()).toContain('No containers are available right now');
+  });
+
+  it('disables action buttons for read-only containers', () => {
+    const wrapper = mountPanel({
+      containers: [
+        {
+          containerId: 'id-random',
+          containerName: 'infra-postgres',
+          image: 'postgres:17',
+          state: 'running',
+          status: 'Up 1 hour',
+          ports: ['5432/tcp'],
+          running: true,
+          manageable: false
+        }
+      ]
+    });
+
+    expect(wrapper.find('button[data-action="restart"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('Read-only here');
   });
 });

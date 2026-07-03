@@ -35,7 +35,7 @@
           <RouteDotRail
             v-if="!embedded"
             class="sidebar-dot-rail"
-            :items="tabs"
+            :items="adminTabs"
             :active-key="activeTab"
             distribution="full-sixths"
             aria-label="管理后台导航"
@@ -120,6 +120,23 @@
             @update:advanced="(value) => (uiState.quotaAdvanced = value)"
             @update:customQuotaCode="setCustomQuotaCode"
             @appendCustomQuota="appendCustomQuota"
+          />
+
+          <AdminServerOpsPanel
+            v-else-if="activeTab === AdminTabKey.SERVER_OPS"
+            :loading-overview="opsOverviewLoading"
+            :loading-containers="opsContainersLoading"
+            :mutating="opsMutating"
+            :active-container-id="opsActiveContainerId"
+            :active-action="opsActiveAction"
+            :action-receipt="opsActionReceipt"
+            :action-error="opsActionError"
+            :error="opsError"
+            :overview="opsOverview"
+            :containers="opsContainers"
+            @refresh-overview="reloadOpsOverview"
+            @refresh-containers="reloadOpsContainers"
+            @action="handleOpsContainerAction"
           />
 
           <AdminWallpapersPanel
@@ -217,6 +234,7 @@ import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPan
 import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
 import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue';
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
+import AdminServerOpsPanel from '../components/admin/AdminServerOpsPanel.vue';
 import AdminUsersPanel from '../components/admin/AdminUsersPanel.vue';
 import AdminWallpapersPanel from '../components/admin/AdminWallpapersPanel.vue';
 import { normalizeAdminWhisperItem, normalizeAdminWhisperPage } from './adminWhispersState';
@@ -255,6 +273,17 @@ const tabs = [
   { key: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
   { key: AdminTabKey.BLOG_WHISPERS, label: '博客悄悄话', icon: 'fas fa-user-secret' },
   { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
+];
+
+const adminTabs = [
+  { key: AdminTabKey.USERS, label: 'Users', icon: 'fas fa-users' },
+  { key: AdminTabKey.GROUPS, label: 'Groups', icon: 'fas fa-layer-group' },
+  { key: AdminTabKey.PERMISSIONS, label: 'Permissions', icon: 'fas fa-key' },
+  { key: AdminTabKey.QUOTA, label: 'Quota', icon: 'fas fa-gauge-high' },
+  { key: AdminTabKey.SERVER_OPS, label: 'Server Ops', icon: 'fas fa-server' },
+  { key: AdminTabKey.WALLPAPERS, label: 'Wallpapers', icon: 'far fa-image' },
+  { key: AdminTabKey.BLOG_WHISPERS, label: 'Whispers', icon: 'fas fa-user-secret' },
+  { key: AdminTabKey.BLOG_CATEGORIES, label: 'Categories', icon: 'fas fa-folder-tree' }
 ];
 
 const booting = ref(true);
@@ -311,6 +340,17 @@ const quotaMatrixRows = ref([]);
 const quotaMatrixCodes = ref([]);
 const selectedQuotaGroupCode = ref('');
 const customQuotaCode = ref('');
+
+const opsOverviewLoading = ref(false);
+const opsContainersLoading = ref(false);
+const opsMutating = ref(false);
+const opsActiveContainerId = ref('');
+const opsActiveAction = ref('');
+const opsActionReceipt = ref('');
+const opsActionError = ref('');
+const opsError = ref('');
+const opsOverview = ref({});
+const opsContainers = ref([]);
 
 const categoryMetaLoading = ref(false);
 const categoryMetaSaving = ref(false);
@@ -381,7 +421,7 @@ const selectedCatalogGroup = computed(() => {
 
 function normalizeTab(raw) {
   const normalized = String(raw || '');
-  return tabs.some((item) => item.key === normalized) ? normalized : AdminTabKey.USERS;
+  return adminTabs.some((item) => item.key === normalized) ? normalized : AdminTabKey.USERS;
 }
 
 function setGlobalHint(message) {
@@ -512,6 +552,32 @@ function toQuotaPolicyView(raw) {
     groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
     quotaCode: String(readField(raw, 'quotaCode', 'quota_code', '') || '').trim(),
     value: Number(readField(raw, 'value', 'value', 0)) || 0
+  };
+}
+
+function toOpsOverview(raw) {
+  return {
+    portalUrl: String(readField(raw, 'portalUrl', 'portal_url', '') || '').trim(),
+    meting: readField(raw, 'meting', 'meting', {}) || {},
+    portainerReachable: readField(raw, 'portainerReachable', 'portainer_reachable', false) === true,
+    portainerMessage: String(readField(raw, 'portainerMessage', 'portainer_message', '') || '').trim(),
+    containerTotal: Number(readField(raw, 'containerTotal', 'container_total', 0)) || 0,
+    containerRunning: Number(readField(raw, 'containerRunning', 'container_running', 0)) || 0,
+    containerStopped: Number(readField(raw, 'containerStopped', 'container_stopped', 0)) || 0
+  };
+}
+
+function toOpsContainer(raw) {
+  const ports = readField(raw, 'ports', 'ports', []);
+  return {
+    containerId: String(readField(raw, 'containerId', 'container_id', '') || '').trim(),
+    containerName: String(readField(raw, 'containerName', 'container_name', '') || '').trim(),
+    image: String(readField(raw, 'image', 'image', '') || '').trim(),
+    state: String(readField(raw, 'state', 'state', '') || '').trim(),
+    status: String(readField(raw, 'status', 'status', '') || '').trim(),
+    ports: Array.isArray(ports) ? ports.map((item) => String(item || '').trim()).filter(Boolean) : [],
+    running: readField(raw, 'running', 'running', false) === true,
+    manageable: readField(raw, 'manageable', 'manageable', false) === true
   };
 }
 
@@ -907,6 +973,65 @@ async function reloadQuota() {
     quotaError.value = readErrorMessage(error);
   } finally {
     quotaLoading.value = false;
+  }
+}
+
+async function reloadOpsOverview() {
+  opsError.value = '';
+  opsOverviewLoading.value = true;
+  try {
+    const payload = await adminApi.getAdminOpsOverview(auth.authorizedFetch);
+    opsOverview.value = toOpsOverview(payload);
+  } catch (error) {
+    opsOverview.value = {};
+    opsError.value = readErrorMessage(error);
+  } finally {
+    opsOverviewLoading.value = false;
+  }
+}
+
+async function reloadOpsContainers() {
+  opsError.value = '';
+  opsContainersLoading.value = true;
+  try {
+    const payload = await adminApi.listAdminOpsContainers(auth.authorizedFetch);
+    opsContainers.value = Array.isArray(payload) ? payload.map(toOpsContainer).filter((item) => item.containerId) : [];
+  } catch (error) {
+    opsContainers.value = [];
+    opsError.value = readErrorMessage(error);
+  } finally {
+    opsContainersLoading.value = false;
+  }
+}
+
+async function handleOpsContainerAction(payload) {
+  const containerId = String(payload?.containerId || '').trim();
+  const containerName = String(payload?.containerName || '').trim();
+  const action = String(payload?.action || '').trim().toLowerCase();
+  if (!containerId || !action) {
+    opsActionError.value = 'ops action payload is invalid';
+    return;
+  }
+
+  opsMutating.value = true;
+  opsActiveContainerId.value = containerId;
+  opsActiveAction.value = action;
+  opsActionReceipt.value = '';
+  opsActionError.value = '';
+  try {
+    const response = await withPrivilegeRetry(() =>
+      adminApi.actionAdminOpsContainer(containerId, action, auth.authorizedFetch)
+    );
+    const targetName = String(response?.containerName || response?.container_name || containerName || containerId).trim();
+    const targetAction = String(response?.action || action).trim().toLowerCase();
+    opsActionReceipt.value = `${targetName} ${targetAction} accepted`;
+    await Promise.all([reloadOpsOverview(), reloadOpsContainers()]);
+  } catch (error) {
+    opsActionError.value = readErrorMessage(error);
+  } finally {
+    opsMutating.value = false;
+    opsActiveContainerId.value = '';
+    opsActiveAction.value = '';
   }
 }
 
@@ -1306,6 +1431,8 @@ onMounted(async () => {
       reloadGroups(1),
       reloadPermissions(),
       reloadQuota(),
+      reloadOpsOverview(),
+      reloadOpsContainers(),
       reloadPendingWallpapers(),
       reloadBlogWhispers(1),
       reloadCategoryMetas()
