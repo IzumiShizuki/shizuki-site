@@ -30,6 +30,34 @@ services:
       retries: 5
       start_period: 20s
 
+  music-web-auth-sidecar:
+    build:
+      context: ..
+      dockerfile: tools/music-web-auth-sidecar/Dockerfile
+    image: shizuki-site/music-web-auth-sidecar:latest
+    container_name: shizuki-site-music-web-auth-sidecar
+    restart: unless-stopped
+    env_file:
+      - .env.server
+    environment:
+      PORT: ${MUSIC_WEB_AUTH_PORT:-39041}
+      PLAYWRIGHT_BROWSERS_PATH: ${PLAYWRIGHT_BROWSERS_PATH:-/ms-playwright}
+      MUSIC_WEB_AUTH_TOKEN: ${MUSIC_WEB_AUTH_TOKEN:-}
+      MUSIC_WEB_AUTH_HEADLESS: ${MUSIC_WEB_AUTH_HEADLESS:-true}
+      MUSIC_WEB_AUTH_BROWSER_PATH: ${MUSIC_WEB_AUTH_BROWSER_PATH:-}
+      MUSIC_WEB_AUTH_TIMEOUT_MS: ${MUSIC_WEB_AUTH_TIMEOUT_MS:-45000}
+      MUSIC_WEB_AUTH_NAV_TIMEOUT_MS: ${MUSIC_WEB_AUTH_NAV_TIMEOUT_MS:-60000}
+      MUSIC_WEB_AUTH_POLL_INTERVAL_MS: ${MUSIC_WEB_AUTH_POLL_INTERVAL_MS:-1800}
+      MUSIC_WEB_AUTH_TIMEZONE: ${MUSIC_WEB_AUTH_TIMEZONE:-Asia/Shanghai}
+    volumes:
+      - ${MUSIC_WEB_AUTH_DATA_DIR:-/opt/shizuki-site/data/music-web-auth}:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 39041) + '/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   presentation-generator:
     build:
       context: ..
@@ -70,6 +98,7 @@ services:
       BILL_SYNC_AGENT_ALIPAY_LOGIN_URL: ${BILL_SYNC_AGENT_ALIPAY_LOGIN_URL:-}
       BILL_SYNC_AGENT_ALIPAY_BILL_URL: ${BILL_SYNC_AGENT_ALIPAY_BILL_URL:-}
       BILL_SYNC_AGENT_WECHAT_BILL_DIR: ${BILL_SYNC_AGENT_WECHAT_BILL_DIR:-/data/wechat-bills}
+      BILL_SYNC_AGENT_BANKCARD_BILL_DIR: ${BILL_SYNC_AGENT_BANKCARD_BILL_DIR:-/data/bankcard-bills}
     volumes:
       - ${BILL_SYNC_AGENT_DATA_DIR:-/opt/shizuki-site/data/bill-sync-agent}:/data
     healthcheck:
@@ -128,7 +157,11 @@ services:
       AI_CHAT_TEMPERATURE: ${AI_CHAT_TEMPERATURE:-0.7}
       MUSIC_METING_BASE_URL: ${MUSIC_METING_BASE_URL:-http://meting-api}
       MUSIC_NCM_BASE_URL: ${MUSIC_NCM_BASE_URL:-http://music-ncm-api:3000}
-      MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED: ${MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED:-false}
+      MUSIC_WEB_AUTH_BASE_URL: ${MUSIC_WEB_AUTH_BASE_URL:-http://music-web-auth-sidecar:39041}
+      MUSIC_WEB_AUTH_TOKEN: ${MUSIC_WEB_AUTH_TOKEN:-}
+      MUSIC_WEB_AUTH_CONNECT_TIMEOUT_MS: ${MUSIC_WEB_AUTH_CONNECT_TIMEOUT_MS:-1500}
+      MUSIC_WEB_AUTH_READ_TIMEOUT_MS: ${MUSIC_WEB_AUTH_READ_TIMEOUT_MS:-5000}
+      MUSIC_WEB_AUTH_POLL_INTERVAL_MS: ${MUSIC_WEB_AUTH_POLL_INTERVAL_MS:-1800}
       BLOG_PRESENTATION_GENERATOR_BASE_URL: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:-http://presentation-generator:3210}
       BLOG_PRESENTATION_CONNECT_TIMEOUT_MS: ${BLOG_PRESENTATION_CONNECT_TIMEOUT_MS:-2000}
       BLOG_PRESENTATION_READ_TIMEOUT_MS: ${BLOG_PRESENTATION_READ_TIMEOUT_MS:-660000}
@@ -148,6 +181,8 @@ services:
       meting-api:
         condition: service_healthy
       music-ncm-api:
+        condition: service_healthy
+      music-web-auth-sidecar:
         condition: service_healthy
       presentation-generator:
         condition: service_healthy

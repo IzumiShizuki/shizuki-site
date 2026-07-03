@@ -121,7 +121,6 @@
           :source-busy-map="musicSourceBusyMap"
           :source-import-busy-map="musicSourceImportBusyMap"
           :source-bind-busy-map="musicSourceBindBusyMap"
-          :source-helper-available="musicSourceHelperAvailable"
           @set-volume="handleSetVolume"
           @set-eq-level="handleSetEqLevel"
           @close-drawer="ui.setRightDrawerOpen(false)"
@@ -140,8 +139,6 @@
           @delete-source-cookie="handleDeleteMusicSourceCookie"
           @import-source-playlists="handleImportMusicSourcePlaylists"
           @bind-source-account="handleBindMusicSourceAccount"
-          @detect-source-helper="handleDetectMusicSourceHelper"
-          @open-source-helper-guide="handleOpenMusicSourceHelperGuide"
         />
 
       </template>
@@ -228,11 +225,13 @@ import {
   normalizeSourceProviderOrder
 } from '../utils/musicAuthorizationState';
 import {
-  detectMusicSourceHelper,
-  openMusicSourceHelperInstallGuide,
-  requestMusicSourceCookies,
+  describeMusicSourceQrBindSession,
+  isTerminalMusicSourceBindSession,
+  mergeMusicSourceBindSession,
+  normalizeMusicSourceBindSession,
+  resolveMusicSourceBindPollIntervalMs,
   waitForMusicSourceBind
-} from '../utils/musicSourceBindHelper';
+} from '../utils/musicSourceBindSession';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const SEARCH_PAGE_SIZE = 24;
@@ -303,7 +302,6 @@ const musicSourceBusyMap = ref({});
 const musicSourceImportBusyMap = ref({});
 const musicSourceBindBusyMap = ref({});
 const musicSourceBindSessions = ref({});
-const musicSourceHelperAvailable = ref(false);
 const musicSourceMode = ref('meting_first');
 const musicAccountProviderOrder = ref(['netease', 'qqmusic', 'kugou']);
 
@@ -1572,14 +1570,11 @@ async function loadMusicSourceAccountsStatus() {
 }
 
 async function handleDetectMusicSourceHelper() {
-  musicSourceHelperAvailable.value = await detectMusicSourceHelper();
-  if (!musicSourceHelperAvailable.value) {
-    window.alert('未检测到自动读取扩展。你仍可使用手动粘贴 Cookie 方式完成绑定。');
-  }
+  window.alert('请前往个人资料页完成音乐扫码绑定');
 }
 
 function handleOpenMusicSourceHelperGuide() {
-  openMusicSourceHelperInstallGuide();
+  openMusicAuthorization();
 }
 
 async function handleBindMusicSourceAccount(provider) {
@@ -1596,83 +1591,68 @@ async function handleBindMusicSourceAccount(provider) {
   };
 
   try {
-    const session = await musicApi.createMusicSourceBindSession(normalizedProvider, auth.authorizedFetch);
+    const session = normalizeMusicSourceBindSession(
+      await musicApi.createMusicSourceBindSession(normalizedProvider, auth.authorizedFetch),
+      normalizedProvider
+    );
     musicSourceBindSessions.value = {
       ...musicSourceBindSessions.value,
       [normalizedProvider]: session
     };
 
-    try {
-      window.open(String(session?.loginUrl || ''), '_blank', 'noopener,noreferrer');
-    } catch {
-      // noop
-    }
-
-    if (!musicSourceHelperAvailable.value) {
-      window.alert('已打开登录页。登录完成后请复制该平台 Cookie 到右侧输入框并点击“保存 Cookie”。');
-      return;
-    }
-
     const expiresAtMs = Date.parse(String(session?.expiresAt || ''));
-    let completed = false;
+    let currentSession = session;
     let lastErrorMessage = '';
-    let lastSubmittedCookie = '';
 
-    while (!completed) {
+    while (!isTerminalMusicSourceBindSession(currentSession)) {
       if (Number.isFinite(expiresAtMs) && Date.now() >= expiresAtMs) {
+        currentSession = mergeMusicSourceBindSession(currentSession, {
+          status: 'EXPIRED',
+          qrStatus: 'EXPIRED',
+          failureReason: '二维码已过期，请重新发起绑定'
+        }, normalizedProvider);
+        musicSourceBindSessions.value = {
+          ...musicSourceBindSessions.value,
+          [normalizedProvider]: currentSession
+        };
         break;
       }
       try {
-        const helperPayload = await requestMusicSourceCookies(normalizedProvider, 1800);
-        const cookieBundle = String(helperPayload?.cookieBundle || '').trim();
-        if (cookieBundle && cookieBundle !== lastSubmittedCookie) {
-          lastSubmittedCookie = cookieBundle;
-          const savedStatus = await musicApi.completeMusicSourceBindSession(
+        currentSession = mergeMusicSourceBindSession(
+          currentSession,
+          await musicApi.getMusicSourceBindSession(
             normalizedProvider,
-            String(session?.sessionId || ''),
-            {
-              provider: normalizedProvider,
-              bindToken: String(session?.bindToken || ''),
-              cookieBundle,
-              helperVersion: helperPayload?.helperVersion || ''
-            },
+            String(currentSession?.sessionId || ''),
             auth.authorizedFetch
-          );
-          musicSourceAccounts.value = {
-            ...musicSourceAccounts.value,
-            [normalizedProvider]: normalizeSourceAccountStatus(savedStatus, normalizedProvider)
-          };
-          musicSourceCookieInputs.value = {
-            ...musicSourceCookieInputs.value,
-            [normalizedProvider]: ''
-          };
-          completed = true;
-          break;
-        }
+          ),
+          normalizedProvider
+        );
+        musicSourceBindSessions.value = {
+          ...musicSourceBindSessions.value,
+          [normalizedProvider]: currentSession
+        };
       } catch (error) {
         lastErrorMessage = parseErrorMessage(error, '');
       }
-      await waitForMusicSourceBind(1800);
+
+      if (isTerminalMusicSourceBindSession(currentSession)) {
+        break;
+      }
+      await waitForMusicSourceBind(resolveMusicSourceBindPollIntervalMs(currentSession, 1800));
     }
 
-    if (!completed) {
-      try {
-        const bindStatus = await musicApi.getMusicSourceBindSession(
-          normalizedProvider,
-          String(session?.sessionId || ''),
-          auth.authorizedFetch
-        );
-        const failureReason = String(bindStatus?.failureReason || '').trim();
-        if (failureReason) {
-          lastErrorMessage = failureReason;
-        }
-      } catch {
-        // noop
-      }
-      window.alert(lastErrorMessage || '未检测到有效登录态，请确认目标平台已登录后重试。');
+    if (String(currentSession?.status || '').trim().toUpperCase() === 'COMPLETED') {
+      await loadMusicSourceAccountsStatus();
+      return;
     }
+
+    window.alert(
+      String(currentSession?.failureReason || '').trim()
+      || lastErrorMessage
+      || describeMusicSourceQrBindSession(currentSession, normalizedProvider)
+    );
   } catch (error) {
-    window.alert(parseErrorMessage(error, '打开绑定登录页失败'));
+    window.alert(parseErrorMessage(error, '打开二维码绑定失败'));
   } finally {
     musicSourceBindBusyMap.value = {
       ...musicSourceBindBusyMap.value,
@@ -2428,9 +2408,6 @@ watch(
       loadMusicSourcePreference(),
       loadMusicSourceAccountsStatus()
     ]);
-    if (!musicSourceHelperAvailable.value) {
-      musicSourceHelperAvailable.value = await detectMusicSourceHelper();
-    }
     await ensureCurrentRoutePlaylistLoaded();
   }
 );
@@ -2444,7 +2421,6 @@ onMounted(async () => {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', updateViewportMode, { passive: true });
     }
-    musicSourceHelperAvailable.value = await detectMusicSourceHelper();
 
     await Promise.all([
       loadHomeData(),

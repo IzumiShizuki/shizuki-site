@@ -93,9 +93,12 @@ shizuki:
       read-timeout-ms: ${MUSIC_NCM_READ_TIMEOUT_MS:5000}
       poll-interval-ms: ${MUSIC_NCM_POLL_INTERVAL_MS:1800}
       session-ttl-seconds: ${MUSIC_NCM_SESSION_TTL_SECONDS:180}
-    source-account:
-      netease:
-        manual-cookie-fallback-enabled: ${MUSIC_SOURCE_ACCOUNT_NETEASE_MANUAL_COOKIE_FALLBACK_ENABLED:false}
+    web-auth:
+      base-url: ${MUSIC_WEB_AUTH_BASE_URL:http://music-web-auth-sidecar:39041}
+      api-token: ${MUSIC_WEB_AUTH_TOKEN:}
+      connect-timeout-ms: ${MUSIC_WEB_AUTH_CONNECT_TIMEOUT_MS:1500}
+      read-timeout-ms: ${MUSIC_WEB_AUTH_READ_TIMEOUT_MS:5000}
+      poll-interval-ms: ${MUSIC_WEB_AUTH_POLL_INTERVAL_MS:1800}
     spotify:
       client-id: ${SPOTIFY_CLIENT_ID:}
       client-secret: ${SPOTIFY_CLIENT_SECRET:}

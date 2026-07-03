@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.user.config.MusicNcmProperties;
-import io.github.shizuki.site.user.config.MusicSourceAccountNeteaseProperties;
+import io.github.shizuki.site.user.config.MusicWebAuthProperties;
 import io.github.shizuki.site.user.request.MusicSourceAccountBindSessionCompleteRequest;
 import io.github.shizuki.site.user.response.MusicSourceAccountBindSessionCreateResponse;
 import io.github.shizuki.site.user.response.MusicSourceAccountBindSessionStatusResponse;
@@ -23,18 +23,20 @@ import org.springframework.util.StringUtils;
 public class MusicSourceAccountBindSessionService {
 
     private static final Duration DEFAULT_SESSION_TTL = Duration.ofMinutes(5);
-    private static final int DEFAULT_POLL_INTERVAL_MS = 1800;
+    private static final Duration MISSING_SESSION_TTL = Duration.ofSeconds(5);
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_EXPIRED = "EXPIRED";
     private static final String STATUS_FAILED = "FAILED";
-    private static final String LOGIN_MODE_HELPER = "browser_cookie";
     private static final String LOGIN_MODE_QR = "qr";
     private static final String QR_STATUS_WAIT_SCAN = "WAIT_SCAN";
     private static final String QR_STATUS_WAIT_CONFIRM = "WAIT_CONFIRM";
     private static final String QR_STATUS_AUTHORIZED = "AUTHORIZED";
     private static final String QR_STATUS_EXPIRED = "EXPIRED";
     private static final String QR_STATUS_FAILED = "FAILED";
+    private static final String REDIS_KEY_PREFIX = "music:source-bind:";
+    private static final String QR_COMPLETION_SOURCE_NCM = "ncm-qr";
+    private static final String QR_COMPLETION_SOURCE_WEB = "music-web-auth";
     private static final int NCM_QR_CODE_EXPIRED = 800;
     private static final int NCM_QR_CODE_WAIT_SCAN = 801;
     private static final int NCM_QR_CODE_WAIT_CONFIRM = 802;
@@ -45,23 +47,26 @@ public class MusicSourceAccountBindSessionService {
     private final MusicSourceAccountCookieVerifier cookieVerifier;
     private final UserService userService;
     private final NcmQrAuthClient ncmQrAuthClient;
+    private final MusicWebAuthClient musicWebAuthClient;
     private final MusicNcmProperties musicNcmProperties;
-    private final MusicSourceAccountNeteaseProperties neteaseProperties;
+    private final MusicWebAuthProperties musicWebAuthProperties;
 
     public MusicSourceAccountBindSessionService(StringRedisTemplate redisTemplate,
                                                 ObjectMapper objectMapper,
                                                 MusicSourceAccountCookieVerifier cookieVerifier,
                                                 UserService userService,
                                                 NcmQrAuthClient ncmQrAuthClient,
+                                                MusicWebAuthClient musicWebAuthClient,
                                                 MusicNcmProperties musicNcmProperties,
-                                                MusicSourceAccountNeteaseProperties neteaseProperties) {
+                                                MusicWebAuthProperties musicWebAuthProperties) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.cookieVerifier = cookieVerifier;
         this.userService = userService;
         this.ncmQrAuthClient = ncmQrAuthClient;
+        this.musicWebAuthClient = musicWebAuthClient;
         this.musicNcmProperties = musicNcmProperties;
-        this.neteaseProperties = neteaseProperties;
+        this.musicWebAuthProperties = musicWebAuthProperties;
     }
 
     public MusicSourceAccountBindSessionCreateResponse createSession(Long userId, String provider) {
@@ -72,26 +77,33 @@ public class MusicSourceAccountBindSessionService {
         LocalDateTime expiresAt = now.plus(sessionTtl);
         String sessionId = UUID.randomUUID().toString();
         String bindToken = UUID.randomUUID().toString();
-
-        String loginMode = resolveLoginMode(normalizedProvider);
         String loginUrl = buildProviderLoginUrl(normalizedProvider);
         String qrKey = "";
         String qrUrl = "";
         String qrImage = "";
-        String qrStatus = "";
-        String qrMessage = "";
+        String qrStatus = QR_STATUS_WAIT_SCAN;
+        String qrMessage = waitScanMessage(normalizedProvider);
         Integer pollIntervalMs = resolvePollIntervalMs(normalizedProvider);
 
         if (isNeteaseProvider(normalizedProvider)) {
             NcmQrAuthClient.QrCreateResult qrCreateResult = ncmQrAuthClient.createQrSession();
             qrKey = qrCreateResult.qrKey();
-            qrUrl = qrCreateResult.qrUrl();
-            qrImage = qrCreateResult.qrImage();
-            qrStatus = QR_STATUS_WAIT_SCAN;
-            qrMessage = "请使用手机网易云扫码登录";
+            qrUrl = readText(qrCreateResult.qrUrl(), "");
+            qrImage = readText(qrCreateResult.qrImage(), "");
             if (StringUtils.hasText(qrUrl)) {
                 loginUrl = qrUrl;
             }
+        } else {
+            MusicWebAuthClient.BindSessionResult bindSessionResult =
+                musicWebAuthClient.createBindSession(normalizedProvider, sessionId, expiresAt);
+            loginUrl = readText(bindSessionResult.loginUrl(), loginUrl);
+            qrUrl = readText(bindSessionResult.qrUrl(), "");
+            qrImage = readText(bindSessionResult.qrImage(), "");
+            qrStatus = readText(bindSessionResult.qrStatus(), QR_STATUS_WAIT_SCAN).toUpperCase(Locale.ROOT);
+            qrMessage = readText(bindSessionResult.qrMessage(), waitScanMessage(normalizedProvider));
+            pollIntervalMs = bindSessionResult.pollIntervalMs() == null || bindSessionResult.pollIntervalMs() <= 0
+                ? resolvePollIntervalMs(normalizedProvider)
+                : bindSessionResult.pollIntervalMs();
         }
 
         BindSessionPayload payload = new BindSessionPayload(
@@ -101,7 +113,7 @@ public class MusicSourceAccountBindSessionService {
             bindToken,
             STATUS_PENDING,
             loginUrl,
-            loginMode,
+            LOGIN_MODE_QR,
             qrKey,
             qrUrl,
             qrImage,
@@ -155,31 +167,10 @@ public class MusicSourceAccountBindSessionService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Binding token is invalid");
         }
 
-        String helperVersion = request.getHelperVersion() == null ? "" : request.getHelperVersion().trim();
-        String cookieBundle = request.getCookieBundle() == null ? "" : request.getCookieBundle().trim();
-        MusicSourceAccountCookieVerifier.VerificationResult verificationResult =
-            cookieVerifier.verify(normalizedProvider, cookieBundle);
-        if (!verificationResult.valid()) {
-            BindSessionPayload failedPayload = payload.withFailureReason(
-                verificationResult.reason(),
-                helperVersion
-            );
-            writeSession(failedPayload, ttlForPayload(failedPayload));
-            throw new BusinessException(ErrorCode.BAD_REQUEST, verificationResult.reason());
-        }
-
-        MusicSourceAccountStatusResponse savedStatus = userService.upsertMusicSourceAccountCookie(
-            checkedUserId,
-            normalizedProvider,
-            cookieBundle
+        throw new BusinessException(
+            ErrorCode.BAD_REQUEST,
+            "Manual cookie bind is no longer supported for this provider; please use the QR login flow"
         );
-        BindSessionPayload completedPayload = payload.complete(
-            helperVersion,
-            isNeteaseProvider(normalizedProvider) ? QR_STATUS_AUTHORIZED : payload.qrStatus(),
-            isNeteaseProvider(normalizedProvider) ? "已导入登录态" : payload.qrMessage()
-        );
-        writeSession(completedPayload, ttlForPayload(completedPayload));
-        return savedStatus;
     }
 
     private Long requireValidUserId(Long userId) {
@@ -203,12 +194,16 @@ public class MusicSourceAccountBindSessionService {
     }
 
     private BindSessionPayload refreshSessionStatus(BindSessionPayload payload) {
-        if (payload == null || !STATUS_PENDING.equals(payload.status())) {
+        if (payload == null || !STATUS_PENDING.equals(payload.status()) || !LOGIN_MODE_QR.equals(payload.loginMode())) {
             return payload;
         }
-        if (!isNeteaseProvider(payload.provider()) || !LOGIN_MODE_QR.equals(payload.loginMode())) {
-            return payload;
+        if (isNeteaseProvider(payload.provider())) {
+            return refreshNeteaseQrStatus(payload);
         }
+        return refreshWebQrStatus(payload);
+    }
+
+    private BindSessionPayload refreshNeteaseQrStatus(BindSessionPayload payload) {
         try {
             NcmQrAuthClient.QrCheckResult qrCheckResult = ncmQrAuthClient.checkQrStatus(payload.qrKey());
             return mapNeteaseQrCheckResult(payload, qrCheckResult);
@@ -217,38 +212,72 @@ public class MusicSourceAccountBindSessionService {
         }
     }
 
+    private BindSessionPayload refreshWebQrStatus(BindSessionPayload payload) {
+        try {
+            MusicWebAuthClient.BindSessionResult bindSessionResult =
+                musicWebAuthClient.getBindSessionStatus(payload.provider(), payload.sessionId());
+            return mapWebQrCheckResult(payload, bindSessionResult);
+        } catch (BusinessException exception) {
+            return payload.withQrState(payload.qrStatus(), exception.getMessage());
+        }
+    }
+
     private BindSessionPayload mapNeteaseQrCheckResult(BindSessionPayload payload,
                                                        NcmQrAuthClient.QrCheckResult qrCheckResult) {
         int code = qrCheckResult == null ? 0 : qrCheckResult.code();
-        String message = readQrMessage(qrCheckResult == null ? "" : qrCheckResult.message(), code);
+        String message = readNeteaseQrMessage(qrCheckResult == null ? "" : qrCheckResult.message(), code);
         return switch (code) {
             case NCM_QR_CODE_WAIT_SCAN -> payload.withQrState(QR_STATUS_WAIT_SCAN, message);
             case NCM_QR_CODE_WAIT_CONFIRM -> payload.withQrState(QR_STATUS_WAIT_CONFIRM, message);
             case NCM_QR_CODE_EXPIRED -> payload.expire(message);
-            case NCM_QR_CODE_AUTHORIZED -> completeNeteaseQrSession(payload, qrCheckResult.cookie(), message);
+            case NCM_QR_CODE_AUTHORIZED -> completeQrSession(payload, qrCheckResult.cookie(), QR_COMPLETION_SOURCE_NCM, message);
             default -> payload.withQrState(payload.qrStatus(), message);
         };
     }
 
-    private BindSessionPayload completeNeteaseQrSession(BindSessionPayload payload,
-                                                        String cookieBundle,
-                                                        String qrMessage) {
-        if (!StringUtils.hasText(cookieBundle)) {
-            return payload.fail("网易云扫码成功，但未获取到登录态，请重新发起扫码");
+    private BindSessionPayload mapWebQrCheckResult(BindSessionPayload payload,
+                                                   MusicWebAuthClient.BindSessionResult bindSessionResult) {
+        if (bindSessionResult == null) {
+            return payload.withQrState(payload.qrStatus(), waitScanMessage(payload.provider()));
         }
+        String status = readText(bindSessionResult.status(), STATUS_PENDING).toUpperCase(Locale.ROOT);
+        String qrStatus = readText(bindSessionResult.qrStatus(), payload.qrStatus()).toUpperCase(Locale.ROOT);
+        String qrMessage = readText(bindSessionResult.qrMessage(), waitScanMessage(payload.provider()));
+        String cookieBundle = readText(bindSessionResult.cookieBundle(), "");
 
+        if (StringUtils.hasText(cookieBundle)) {
+            return completeQrSession(payload, cookieBundle, QR_COMPLETION_SOURCE_WEB, qrMessage);
+        }
+        if (STATUS_COMPLETED.equals(status)) {
+            return payload.fail("扫码已完成，但未能获取到登录态，请重新发起二维码绑定");
+        }
+        if (STATUS_EXPIRED.equals(status) || QR_STATUS_EXPIRED.equals(qrStatus)) {
+            return payload.expire(readText(qrMessage, "二维码已过期，请重新生成"));
+        }
+        if (STATUS_FAILED.equals(status) || QR_STATUS_FAILED.equals(qrStatus)) {
+            return payload.fail(readText(bindSessionResult.failureReason(), qrMessage));
+        }
+        return payload.withQrState(qrStatus, qrMessage);
+    }
+
+    private BindSessionPayload completeQrSession(BindSessionPayload payload,
+                                                 String cookieBundle,
+                                                 String completionSource,
+                                                 String qrMessage) {
+        if (!StringUtils.hasText(cookieBundle)) {
+            return payload.fail("扫码已完成，但未能获取到登录态，请重新发起二维码绑定");
+        }
         MusicSourceAccountCookieVerifier.VerificationResult verificationResult =
             cookieVerifier.verify(payload.provider(), cookieBundle);
         if (!verificationResult.valid()) {
             return payload.fail(verificationResult.reason());
         }
-
         userService.upsertMusicSourceAccountCookie(payload.userId(), payload.provider(), cookieBundle);
-        return payload.complete("ncm-qr", QR_STATUS_AUTHORIZED, qrMessage);
+        return payload.complete(completionSource, QR_STATUS_AUTHORIZED, readText(qrMessage, authorizedMessage(payload.provider())));
     }
 
     private String buildProviderLoginUrl(String provider) {
-        return switch (provider.toLowerCase(Locale.ROOT)) {
+        return switch (String.valueOf(provider).trim().toLowerCase(Locale.ROOT)) {
             case "netease" -> "https://music.163.com/";
             case "qqmusic" -> "https://y.qq.com/";
             case "kugou" -> "https://www.kugou.com/";
@@ -267,34 +296,61 @@ public class MusicSourceAccountBindSessionService {
         if (isNeteaseProvider(provider)) {
             return musicNcmProperties.getPollIntervalMs();
         }
-        return DEFAULT_POLL_INTERVAL_MS;
-    }
-
-    private String resolveLoginMode(String provider) {
-        return isNeteaseProvider(provider) ? LOGIN_MODE_QR : LOGIN_MODE_HELPER;
+        return musicWebAuthProperties.getPollIntervalMs();
     }
 
     private boolean isNeteaseProvider(String provider) {
         return "netease".equalsIgnoreCase(String.valueOf(provider));
     }
 
-    private String readQrMessage(String rawMessage, int qrCode) {
+    private String readNeteaseQrMessage(String rawMessage, int qrCode) {
         if (StringUtils.hasText(rawMessage)) {
             return rawMessage.trim();
         }
         return switch (qrCode) {
-            case NCM_QR_CODE_WAIT_SCAN -> "等待使用手机网易云扫码";
-            case NCM_QR_CODE_WAIT_CONFIRM -> "扫码成功，请在手机上确认登录";
-            case NCM_QR_CODE_AUTHORIZED -> "网易云登录确认成功";
-            case NCM_QR_CODE_EXPIRED -> "网易云二维码已过期，请重新发起扫码";
-            default -> "等待网易云扫码状态更新";
+            case NCM_QR_CODE_WAIT_SCAN -> waitScanMessage("netease");
+            case NCM_QR_CODE_WAIT_CONFIRM -> waitConfirmMessage("netease");
+            case NCM_QR_CODE_AUTHORIZED -> authorizedMessage("netease");
+            case NCM_QR_CODE_EXPIRED -> "网易云二维码已过期，请重新发起扫码绑定";
+            default -> waitScanMessage("netease");
+        };
+    }
+
+    private String waitScanMessage(String provider) {
+        return switch (String.valueOf(provider).trim().toLowerCase(Locale.ROOT)) {
+            case "netease" -> "请使用网易云音乐 App 扫码登录";
+            case "qqmusic" -> "请使用 QQ 手机版扫码登录 QQ 音乐";
+            case "kugou" -> "请使用 QQ 手机版扫码登录酷狗";
+            default -> "请使用手机扫码登录";
+        };
+    }
+
+    private String waitConfirmMessage(String provider) {
+        return switch (String.valueOf(provider).trim().toLowerCase(Locale.ROOT)) {
+            case "netease" -> "扫码成功，请在手机上确认登录网易云音乐";
+            case "qqmusic" -> "扫码成功，请在 QQ 手机版上确认登录 QQ 音乐";
+            case "kugou" -> "扫码成功，请在 QQ 手机版上确认登录酷狗";
+            default -> "扫码成功，请在手机上确认登录";
+        };
+    }
+
+    private String authorizedMessage(String provider) {
+        return providerLabel(provider) + " 登录确认成功";
+    }
+
+    private String providerLabel(String provider) {
+        return switch (String.valueOf(provider).trim().toLowerCase(Locale.ROOT)) {
+            case "netease" -> "网易云";
+            case "qqmusic" -> "QQ 音乐";
+            case "kugou" -> "酷狗";
+            default -> "目标平台";
         };
     }
 
     private Duration ttlForPayload(BindSessionPayload payload) {
         LocalDateTime now = LocalDateTime.now();
         if (payload == null || payload.expiresAt() == null || !payload.expiresAt().isAfter(now)) {
-            return Duration.ofSeconds(5);
+            return MISSING_SESSION_TTL;
         }
         return Duration.between(now, payload.expiresAt());
     }
@@ -320,7 +376,7 @@ public class MusicSourceAccountBindSessionService {
     }
 
     private String buildRedisKey(String sessionId) {
-        return "music:source-bind:" + sessionId;
+        return REDIS_KEY_PREFIX + sessionId;
     }
 
     private MusicSourceAccountBindSessionCreateResponse toCreateResponse(BindSessionPayload payload) {
@@ -361,14 +417,21 @@ public class MusicSourceAccountBindSessionService {
             normalizedProvider,
             sessionId,
             STATUS_EXPIRED,
-            resolveLoginMode(normalizedProvider),
-            isNeteaseProvider(normalizedProvider) ? QR_STATUS_EXPIRED : "",
-            isNeteaseProvider(normalizedProvider) ? "二维码已失效，请重新发起扫码" : "",
+            LOGIN_MODE_QR,
+            QR_STATUS_EXPIRED,
+            providerLabel(normalizedProvider) + " 二维码已失效，请重新发起扫码绑定",
             resolvePollIntervalMs(normalizedProvider),
             null,
             null,
             "Binding session does not exist or has expired"
         );
+    }
+
+    private String readText(String value, String fallback) {
+        if (!StringUtils.hasText(value)) {
+            return fallback;
+        }
+        return value.trim();
     }
 
     private record BindSessionPayload(String sessionId,
@@ -389,29 +452,6 @@ public class MusicSourceAccountBindSessionService {
                                       LocalDateTime completedAt,
                                       String failureReason,
                                       String helperVersion) {
-
-        private BindSessionPayload withFailureReason(String reason, String nextHelperVersion) {
-            return new BindSessionPayload(
-                sessionId,
-                userId,
-                provider,
-                bindToken,
-                STATUS_PENDING,
-                loginUrl,
-                loginMode,
-                qrKey,
-                qrUrl,
-                qrImage,
-                qrStatus,
-                qrMessage,
-                pollIntervalMs,
-                createdAt,
-                expiresAt,
-                null,
-                StringUtils.hasText(reason) ? reason.trim() : "",
-                StringUtils.hasText(nextHelperVersion) ? nextHelperVersion.trim() : ""
-            );
-        }
 
         private BindSessionPayload withQrState(String nextQrStatus, String nextQrMessage) {
             return new BindSessionPayload(

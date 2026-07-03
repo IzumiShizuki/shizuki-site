@@ -1,9 +1,12 @@
 package io.github.shizuki.site.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.site.user.config.MusicNcmProperties;
-import io.github.shizuki.site.user.config.MusicSourceAccountNeteaseProperties;
+import io.github.shizuki.site.user.config.MusicWebAuthProperties;
+import io.github.shizuki.site.user.request.MusicSourceAccountBindSessionCompleteRequest;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -30,6 +33,8 @@ class MusicSourceAccountBindSessionServiceTest {
     private UserService userService;
     @Mock
     private NcmQrAuthClient ncmQrAuthClient;
+    @Mock
+    private MusicWebAuthClient musicWebAuthClient;
 
     private final Map<String, String> redisStore = new HashMap<>();
     private MusicSourceAccountBindSessionService bindSessionService;
@@ -44,12 +49,13 @@ class MusicSourceAccountBindSessionServiceTest {
         Mockito.lenient().when(valueOperations.get(ArgumentMatchers.anyString()))
             .thenAnswer(invocation -> redisStore.get(invocation.getArgument(0)));
         Mockito.when(cookieVerifier.normalizeProvider(ArgumentMatchers.anyString()))
-            .thenAnswer(invocation -> String.valueOf((Object) invocation.getArgument(0)).trim().toLowerCase());
+            .thenAnswer(invocation -> invocation.<String>getArgument(0).trim().toLowerCase());
 
         MusicNcmProperties musicNcmProperties = new MusicNcmProperties();
         musicNcmProperties.setPollIntervalMs(900);
         musicNcmProperties.setSessionTtlSeconds(120);
-        MusicSourceAccountNeteaseProperties neteaseProperties = new MusicSourceAccountNeteaseProperties();
+        MusicWebAuthProperties musicWebAuthProperties = new MusicWebAuthProperties();
+        musicWebAuthProperties.setPollIntervalMs(1600);
 
         bindSessionService = new MusicSourceAccountBindSessionService(
             redisTemplate,
@@ -57,8 +63,9 @@ class MusicSourceAccountBindSessionServiceTest {
             cookieVerifier,
             userService,
             ncmQrAuthClient,
+            musicWebAuthClient,
             musicNcmProperties,
-            neteaseProperties
+            musicWebAuthProperties
         );
     }
 
@@ -81,6 +88,37 @@ class MusicSourceAccountBindSessionServiceTest {
         Assertions.assertEquals("data:image/png;base64,abc", response.getQrImage());
         Assertions.assertEquals(900, response.getPollIntervalMs());
         Assertions.assertFalse(redisStore.isEmpty());
+    }
+
+    @Test
+    void shouldCreateQqMusicQrBindSessionFromSidecar() {
+        Mockito.when(musicWebAuthClient.createBindSession(ArgumentMatchers.eq("qqmusic"), ArgumentMatchers.anyString(), ArgumentMatchers.any(LocalDateTime.class)))
+            .thenReturn(
+                new MusicWebAuthClient.BindSessionResult(
+                    "qqmusic",
+                    "session-qq-1",
+                    "PENDING",
+                    "https://graph.qq.com/oauth2.0/show",
+                    "https://xui.ptlogin2.qq.com/ssl/ptqrshow",
+                    "data:image/png;base64,qqqr",
+                    "WAIT_SCAN",
+                    "请使用 QQ 手机版扫码登录 QQ 音乐",
+                    1600,
+                    LocalDateTime.of(2099, 6, 29, 12, 0),
+                    null,
+                    "",
+                    ""
+                )
+            );
+
+        var response = bindSessionService.createSession(7L, "qqmusic");
+
+        Assertions.assertEquals("qqmusic", response.getProvider());
+        Assertions.assertEquals("PENDING", response.getStatus());
+        Assertions.assertEquals("qr", response.getLoginMode());
+        Assertions.assertEquals("WAIT_SCAN", response.getQrStatus());
+        Assertions.assertEquals("data:image/png;base64,qqqr", response.getQrImage());
+        Assertions.assertEquals(1600, response.getPollIntervalMs());
     }
 
     @Test
@@ -112,6 +150,59 @@ class MusicSourceAccountBindSessionServiceTest {
     }
 
     @Test
+    void shouldCompleteKugouQrSessionAfterSidecarReturnsCookies() {
+        Mockito.when(musicWebAuthClient.createBindSession(ArgumentMatchers.eq("kugou"), ArgumentMatchers.anyString(), ArgumentMatchers.any(LocalDateTime.class)))
+            .thenReturn(
+                new MusicWebAuthClient.BindSessionResult(
+                    "kugou",
+                    "session-kg-1",
+                    "PENDING",
+                    "https://graph.qq.com/oauth2.0/show",
+                    "",
+                    "data:image/png;base64,kgqr",
+                    "WAIT_SCAN",
+                    "请使用 QQ 手机版扫码登录酷狗",
+                    1600,
+                    LocalDateTime.of(2099, 6, 29, 12, 0),
+                    null,
+                    "",
+                    ""
+                )
+            );
+        Mockito.when(musicWebAuthClient.getBindSessionStatus(ArgumentMatchers.eq("kugou"), ArgumentMatchers.anyString()))
+            .thenReturn(
+                new MusicWebAuthClient.BindSessionResult(
+                    "kugou",
+                    "session-kg-1",
+                    "COMPLETED",
+                    "https://graph.qq.com/oauth2.0/show",
+                    "",
+                    "",
+                    "AUTHORIZED",
+                    "酷狗登录确认成功",
+                    1600,
+                    LocalDateTime.of(2099, 6, 29, 12, 0),
+                    LocalDateTime.of(2099, 6, 29, 12, 1),
+                    "",
+                    "kg_mid=abc; userid=7; token=xyz"
+                )
+            );
+        Mockito.when(cookieVerifier.verify(ArgumentMatchers.eq("kugou"), ArgumentMatchers.anyString()))
+            .thenReturn(MusicSourceAccountCookieVerifier.VerificationResult.valid(null));
+
+        var created = bindSessionService.createSession(7L, "kugou");
+        var status = bindSessionService.getSessionStatus(7L, "kugou", created.getSessionId());
+
+        Assertions.assertEquals("COMPLETED", status.getStatus());
+        Assertions.assertEquals("AUTHORIZED", status.getQrStatus());
+        Mockito.verify(userService).upsertMusicSourceAccountCookie(
+            ArgumentMatchers.eq(7L),
+            ArgumentMatchers.eq("kugou"),
+            ArgumentMatchers.contains("userid=7")
+        );
+    }
+
+    @Test
     void shouldExposeWaitConfirmStatusForNeteaseQrSession() {
         Mockito.when(ncmQrAuthClient.createQrSession()).thenReturn(
             new NcmQrAuthClient.QrCreateResult(
@@ -130,5 +221,28 @@ class MusicSourceAccountBindSessionServiceTest {
         Assertions.assertEquals("PENDING", status.getStatus());
         Assertions.assertEquals("WAIT_CONFIRM", status.getQrStatus());
         Assertions.assertTrue(String.valueOf(status.getQrMessage()).contains("确认"));
+    }
+
+    @Test
+    void shouldRejectManualCompletionForQrProviders() {
+        Mockito.when(ncmQrAuthClient.createQrSession()).thenReturn(
+            new NcmQrAuthClient.QrCreateResult(
+                "qr-key-4",
+                "https://music.163.com/login?codekey=manual",
+                "data:image/png;base64,manual"
+            )
+        );
+
+        var created = bindSessionService.createSession(7L, "netease");
+        MusicSourceAccountBindSessionCompleteRequest request = new MusicSourceAccountBindSessionCompleteRequest();
+        request.setBindToken(created.getBindToken());
+        request.setCookieBundle("MUSIC_U=abc");
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> bindSessionService.completeSession(7L, "netease", created.getSessionId(), request)
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("Manual cookie bind"));
     }
 }

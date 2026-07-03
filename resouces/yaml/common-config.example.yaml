@@ -97,9 +97,13 @@ shizuki:
       read-timeout-ms: 5000
       poll-interval-ms: 1800
       session-ttl-seconds: 180
-    source-account:
-      netease:
-        manual-cookie-fallback-enabled: false
+    web-auth:
+      # Internal sidecar URL for QQ Music / Kugou QR login.
+      base-url: "http://music-web-auth-sidecar:39041"
+      api-token: ""
+      connect-timeout-ms: 1500
+      read-timeout-ms: 5000
+      poll-interval-ms: 1800
     spotify:
       client-id: "<SPOTIFY_CLIENT_ID>"
       client-secret: "<SPOTIFY_CLIENT_SECRET>"
@@ -160,6 +164,8 @@ shizuki:
         storage-state-encryption-key: "${BALANCE_STORAGE_STATE_ENCRYPTION_KEY:}"
         nightly-cron: "0 0 0 * * *"
         timezone: "Asia/Shanghai"
+        connect-timeout-ms: 3000
+        read-timeout-ms: 120000
         raw-archive-root: "/data/lightapp-balance-sync"
         # WeChat currently uses a server-side export directory configured on the sidecar:
         #   BILL_SYNC_AGENT_WECHAT_BILL_DIR=D:/data/wechat-bills

@@ -16,10 +16,7 @@ const mocked = vi.hoisted(() => ({
   createMusicSourceBindSession: vi.fn(),
   getMusicSourceBindSession: vi.fn(),
   completeMusicSourceBindSession: vi.fn(),
-  detectMusicSourceHelper: vi.fn(),
-  requestMusicSourceCookies: vi.fn(),
-  waitForMusicSourceBind: vi.fn(),
-  openMusicSourceHelperInstallGuide: vi.fn()
+  waitForMusicSourceBind: vi.fn()
 }));
 
 vi.mock('../composables/useAuthSession', () => ({
@@ -45,12 +42,13 @@ vi.mock('../services/musicApi', () => ({
   completeMusicSourceBindSession: (...args) => mocked.completeMusicSourceBindSession(...args)
 }));
 
-vi.mock('../utils/musicSourceBindHelper', () => ({
-  detectMusicSourceHelper: (...args) => mocked.detectMusicSourceHelper(...args),
-  requestMusicSourceCookies: (...args) => mocked.requestMusicSourceCookies(...args),
-  waitForMusicSourceBind: (...args) => mocked.waitForMusicSourceBind(...args),
-  openMusicSourceHelperInstallGuide: (...args) => mocked.openMusicSourceHelperInstallGuide(...args)
-}));
+vi.mock('../utils/musicSourceBindSession', async () => {
+  const actual = await vi.importActual('../utils/musicSourceBindSession');
+  return {
+    ...actual,
+    waitForMusicSourceBind: (...args) => mocked.waitForMusicSourceBind(...args)
+  };
+});
 
 function createDeferred() {
   let resolve;
@@ -280,10 +278,7 @@ describe('ProfilePage immediate account expansion', () => {
     mocked.createMusicSourceBindSession.mockReset().mockResolvedValue({});
     mocked.getMusicSourceBindSession.mockReset().mockResolvedValue({});
     mocked.completeMusicSourceBindSession.mockReset().mockResolvedValue({});
-    mocked.detectMusicSourceHelper.mockReset().mockResolvedValue(false);
-    mocked.requestMusicSourceCookies.mockReset();
     mocked.waitForMusicSourceBind.mockReset().mockResolvedValue();
-    mocked.openMusicSourceHelperInstallGuide.mockReset();
     mocked.ui = createUiMock();
   });
 
@@ -470,6 +465,12 @@ describe('ProfilePage immediate account expansion', () => {
     expect(musicText).toContain('酷我');
     expect(wrapper.get('[data-testid="music-source-mode-select"]').element.value).toBe('account_first');
     expect(
+      wrapper.findAll('.music-source-provider-card .primary-btn').map((node) => node.text())
+    ).toEqual(['重新扫码绑定', '扫码绑定', '重新扫码绑定']);
+    expect(musicText).not.toContain('检测助手');
+    expect(musicText).not.toContain('安装助手');
+    expect(musicText).not.toContain('高级手动绑定');
+    expect(
       wrapper.findAll('.music-source-order-item .provider-name').map((node) => node.text())
     ).toEqual(['QQ 音乐', '酷狗', '网易云']);
     wrapper.unmount();
@@ -532,7 +533,7 @@ describe('ProfilePage immediate account expansion', () => {
 
     expect(mocked.createMusicSourceBindSession).toHaveBeenCalledWith('netease', mocked.auth.authorizedFetch);
     expect(providerCard.find('.music-source-qr-image').exists()).toBe(true);
-    expect(providerCard.text()).toContain('请使用网易云音乐 App 扫码登录');
+    expect(providerCard.text()).toContain('扫码成功');
 
     pollGate.resolve();
     await flushPromises();
@@ -542,6 +543,86 @@ describe('ProfilePage immediate account expansion', () => {
     expect(mocked.waitForMusicSourceBind).toHaveBeenCalled();
     expect(mocked.getMusicSourceAccountStatus).toHaveBeenCalledTimes(2);
     expect(wrapper.get('.music-source-provider-card[data-provider-code="netease"]').text()).toContain('MUSIC_U=***');
+    wrapper.unmount();
+  });
+
+  it('shows expired qr state for qqmusic and stops polling', async () => {
+    mocked.auth = createAuthMock({
+      getAccountProfile: vi.fn().mockResolvedValue(createAccountProfile())
+    });
+    mocked.createMusicSourceBindSession.mockResolvedValue({
+      provider: 'qqmusic',
+      session_id: 'session-qq-expired',
+      status: 'PENDING',
+      login_mode: 'qr',
+      qr_status: 'WAIT_SCAN',
+      qr_image: 'data:image/png;base64,qq-expired',
+      qr_message: '请使用手机扫码登录 QQ 音乐',
+      poll_interval_ms: 10,
+      expires_at: '2099-06-28T12:05:00'
+    });
+    mocked.getMusicSourceBindSession.mockResolvedValue({
+      provider: 'qqmusic',
+      session_id: 'session-qq-expired',
+      status: 'EXPIRED',
+      login_mode: 'qr',
+      qr_status: 'EXPIRED',
+      failure_reason: '二维码已过期，请点击“重新扫码绑定”',
+      poll_interval_ms: 10
+    });
+
+    const wrapper = await mountProfilePage();
+    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await flushPromises();
+
+    await wrapper.get('.music-source-provider-card[data-provider-code="qqmusic"] .primary-btn').trigger('click');
+    await flushPromises();
+
+    const providerCard = wrapper.get('.music-source-provider-card[data-provider-code="qqmusic"]');
+    expect(mocked.getMusicSourceBindSession).toHaveBeenCalledTimes(1);
+    expect(mocked.waitForMusicSourceBind).not.toHaveBeenCalled();
+    expect(providerCard.text()).toContain('二维码过期');
+    expect(wrapper.text()).toContain('二维码已过期');
+    wrapper.unmount();
+  });
+
+  it('shows failed qr state for kugou and stops polling', async () => {
+    mocked.auth = createAuthMock({
+      getAccountProfile: vi.fn().mockResolvedValue(createAccountProfile())
+    });
+    mocked.createMusicSourceBindSession.mockResolvedValue({
+      provider: 'kugou',
+      session_id: 'session-kugou-failed',
+      status: 'PENDING',
+      login_mode: 'qr',
+      qr_status: 'WAIT_SCAN',
+      qr_image: 'data:image/png;base64,kugou-failed',
+      qr_message: '请使用手机扫码登录酷狗音乐',
+      poll_interval_ms: 10,
+      expires_at: '2099-06-28T12:05:00'
+    });
+    mocked.getMusicSourceBindSession.mockResolvedValue({
+      provider: 'kugou',
+      session_id: 'session-kugou-failed',
+      status: 'FAILED',
+      login_mode: 'qr',
+      qr_status: 'FAILED',
+      failure_reason: '扫码绑定失败，请重新发起',
+      poll_interval_ms: 10
+    });
+
+    const wrapper = await mountProfilePage();
+    await findQuickAction(wrapper, '音乐授权与排序').trigger('click');
+    await flushPromises();
+
+    await wrapper.get('.music-source-provider-card[data-provider-code="kugou"] .primary-btn').trigger('click');
+    await flushPromises();
+
+    const providerCard = wrapper.get('.music-source-provider-card[data-provider-code="kugou"]');
+    expect(mocked.getMusicSourceBindSession).toHaveBeenCalledTimes(1);
+    expect(mocked.waitForMusicSourceBind).not.toHaveBeenCalled();
+    expect(providerCard.text()).toContain('绑定失败');
+    expect(wrapper.text()).toContain('扫码绑定失败');
     wrapper.unmount();
   });
 

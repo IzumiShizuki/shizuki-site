@@ -1,5 +1,6 @@
+import { getSourceAccountProviderLabel } from './musicAuthorizationState';
+
 export const MUSIC_SOURCE_BIND_LOGIN_MODE_QR = 'qr';
-export const MUSIC_SOURCE_BIND_LOGIN_MODE_HELPER = 'browser_cookie';
 
 export const MUSIC_SOURCE_BIND_STATUS_PENDING = 'PENDING';
 export const MUSIC_SOURCE_BIND_STATUS_COMPLETED = 'COMPLETED';
@@ -57,8 +58,15 @@ export function mergeMusicSourceBindSession(current, patch, fallbackProvider = '
   };
 }
 
+export function supportsMusicSourceQrProvider(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return normalized === 'netease' || normalized === 'qqmusic' || normalized === 'kugou';
+}
+
 export function isQrMusicSourceBindSession(session) {
-  return normalizeMusicSourceBindSession(session).loginMode === MUSIC_SOURCE_BIND_LOGIN_MODE_QR;
+  const normalized = normalizeMusicSourceBindSession(session);
+  return normalized.loginMode === MUSIC_SOURCE_BIND_LOGIN_MODE_QR
+    || supportsMusicSourceQrProvider(normalized.provider);
 }
 
 export function isTerminalMusicSourceBindSession(session) {
@@ -77,8 +85,14 @@ export function resolveMusicSourceBindPollIntervalMs(session, fallbackMs = 1800)
   return Math.max(300, Number(fallbackMs) || 1800);
 }
 
-export function describeNeteaseQrBindSession(session) {
-  const normalized = normalizeMusicSourceBindSession(session, 'netease');
+export function waitForMusicSourceBind(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+  });
+}
+
+export function describeMusicSourceQrBindSession(session, provider = '') {
+  const normalized = normalizeMusicSourceBindSession(session, provider);
   if (normalized.failureReason) {
     return normalized.failureReason;
   }
@@ -89,13 +103,14 @@ export function describeNeteaseQrBindSession(session) {
     return '扫码成功，请在手机上确认登录';
   }
   if (normalized.qrStatus === MUSIC_SOURCE_BIND_QR_STATUS_AUTHORIZED) {
-    return '网易云登录确认成功';
+    return '授权完成，正在同步账号信息';
   }
   if (normalized.qrStatus === MUSIC_SOURCE_BIND_QR_STATUS_EXPIRED) {
-    return '二维码已过期，请重新生成';
+    return '二维码已过期，请点击“重新扫码绑定”';
   }
   if (normalized.qrStatus === MUSIC_SOURCE_BIND_QR_STATUS_FAILED) {
     return '扫码绑定失败，请重新发起';
   }
-  return '请使用手机网易云扫码登录';
+  const label = getSourceAccountProviderLabel(normalized.provider || provider);
+  return `请使用手机扫码登录${label}`;
 }
