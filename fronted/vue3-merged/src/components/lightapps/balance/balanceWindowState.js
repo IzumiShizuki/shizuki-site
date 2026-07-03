@@ -1,6 +1,7 @@
 import { reactive } from 'vue';
 
 export const BALANCE_SECTION_OVERVIEW = 'overview';
+export const BALANCE_SECTION_SOURCES = 'sources';
 export const BALANCE_SECTION_ACCOUNTS = 'accounts';
 export const BALANCE_SECTION_TRANSACTIONS = 'transactions';
 export const BALANCE_SECTION_DEBTS = 'debts';
@@ -8,7 +9,8 @@ export const BALANCE_SECTION_RECURRING = 'recurring';
 
 export const BALANCE_SECTION_ITEMS = Object.freeze([
   { code: BALANCE_SECTION_OVERVIEW, label: '总览', iconClass: 'fas fa-chart-pie' },
-  { code: BALANCE_SECTION_ACCOUNTS, label: '渠道', iconClass: 'fas fa-wallet' },
+  { code: BALANCE_SECTION_SOURCES, label: '数据源', iconClass: 'fas fa-link' },
+  { code: BALANCE_SECTION_ACCOUNTS, label: '账户', iconClass: 'fas fa-wallet' },
   { code: BALANCE_SECTION_TRANSACTIONS, label: '收支', iconClass: 'fas fa-receipt' },
   { code: BALANCE_SECTION_DEBTS, label: '负债', iconClass: 'fas fa-hand-holding-dollar' },
   { code: BALANCE_SECTION_RECURRING, label: '定期', iconClass: 'fas fa-clock-rotate-left' }

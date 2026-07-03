@@ -199,36 +199,20 @@ describe('AiHubPage', () => {
     mocked.listLightAppBalanceAccounts.mockResolvedValue([
       {
         accountId: 1,
-        accountName: '工资卡',
-        channelName: '招商银行',
+        accountName: '钱迹导入账户',
+        channelName: '钱迹',
         currencyCode: 'CNY',
         balanceAmount: 9200
       }
     ]);
     mocked.listLightAppBalanceSourceAccountStatus.mockResolvedValue([
       {
-        provider: 'alipay',
+        provider: 'qianji',
         status: 'BOUND',
         bound: true,
-        targetAccountName: '支付宝余额',
-        nightlyEnabled: true,
-        lastSyncedAt: '2026-06-29T00:05:00+08:00'
-      },
-      {
-        provider: 'wechat',
-        status: 'BOUND',
-        bound: true,
-        targetAccountName: '微信零钱',
+        targetAccountName: '钱迹导入账户',
         nightlyEnabled: false,
-        lastSyncedAt: '2026-06-28T23:58:00+08:00'
-      },
-      {
-        provider: 'bankcard',
-        status: 'BOUND',
-        bound: true,
-        targetAccountName: '工资卡',
-        nightlyEnabled: true,
-        lastSyncedAt: '2026-06-29T00:02:00+08:00'
+        lastSyncedAt: '2026-06-29T00:05:00+08:00'
       }
     ]);
     mocked.openLightAppShellWindow.mockReturnValue(910003);
@@ -312,19 +296,19 @@ describe('AiHubPage', () => {
     expect(wrapper.text()).toContain('RPGMaker 资源已导入并生成预览。');
   });
 
-  it('expands the finance building and routes to the balance sync section', async () => {
+  it('expands the finance building and routes to the local qianji import section', async () => {
     const wrapper = await mountPage();
-    const financeButton = findButtonByText(wrapper, '金库账房');
+    const financeButton = findButtonByText(wrapper, '账房库');
 
     expect(financeButton).toBeTruthy();
     await financeButton.trigger('click');
     await flushPromises();
 
     expect(mocked.getLightAppBalanceOverview).toHaveBeenCalledWith('CNY', mocked.auth.authorizedFetch);
-    expect(wrapper.text()).toContain('自动入账来源');
-    expect(wrapper.text()).toContain('工资卡');
+    expect(wrapper.text()).toContain('账单导入来源');
+    expect(wrapper.text()).toContain('钱迹');
 
-    const syncButton = findButtonByText(wrapper, '管理自动同步');
+    const syncButton = findButtonByText(wrapper, '管理账房');
     expect(syncButton).toBeTruthy();
     await syncButton.trigger('click');
     await flushPromises();

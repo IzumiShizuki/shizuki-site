@@ -321,6 +321,67 @@ function normalizeBalanceRecurringCharge(raw) {
   };
 }
 
+function normalizeBalanceSourceAccountStatus(raw) {
+  const source = toObject(raw);
+  return {
+    provider: toText(source.provider, '').toLowerCase(),
+    providerLabel: toText(source.providerLabel ?? source.provider_label, ''),
+    bound: toBoolean(source.bound, false),
+    status: toText(source.status, 'UNBOUND').toUpperCase() || 'UNBOUND',
+    targetAccountId: toNumber(source.targetAccountId ?? source.target_account_id, 0) || null,
+    targetAccountName: toText(source.targetAccountName ?? source.target_account_name, ''),
+    targetCurrencyCode: toText(source.targetCurrencyCode ?? source.target_currency_code, '').toUpperCase(),
+    nightlyEnabled: toBoolean(source.nightlyEnabled ?? source.nightly_enabled, false),
+    lastVerifiedAt: source.lastVerifiedAt || source.last_verified_at || '',
+    lastSyncedAt: source.lastSyncedAt || source.last_synced_at || '',
+    lastSyncStatus: toText(source.lastSyncStatus ?? source.last_sync_status, '').toUpperCase(),
+    lastSyncErrorText: toText(source.lastSyncErrorText ?? source.last_sync_error_text, ''),
+    activeBindSessionId: toText(source.activeBindSessionId ?? source.active_bind_session_id, ''),
+    activeBindSessionStatus: toText(source.activeBindSessionStatus ?? source.active_bind_session_status, '').toUpperCase(),
+    activeBindSessionExpiresAt: source.activeBindSessionExpiresAt || source.active_bind_session_expires_at || '',
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
+function normalizeBalanceBindSession(raw) {
+  const source = toObject(raw);
+  return {
+    provider: toText(source.provider, '').toLowerCase(),
+    sessionId: toText(source.sessionId ?? source.session_id, ''),
+    status: toText(source.status, 'PENDING').toUpperCase() || 'PENDING',
+    loginUrl: toText(source.loginUrl ?? source.login_url, ''),
+    qrCodePayload: toText(source.qrCodePayload ?? source.qr_code_payload, ''),
+    qrCodeImageDataUrl: toText(source.qrCodeImageDataUrl ?? source.qr_code_image_data_url, ''),
+    expiresAt: source.expiresAt || source.expires_at || '',
+    completedAt: source.completedAt || source.completed_at || '',
+    failureReason: toText(source.failureReason ?? source.failure_reason, '')
+  };
+}
+
+function normalizeBalanceImportJob(raw) {
+  const source = toObject(raw);
+  return {
+    jobId: toNumber(source.jobId ?? source.job_id, 0),
+    provider: toText(source.provider, '').toLowerCase(),
+    providerLabel: toText(source.providerLabel ?? source.provider_label, ''),
+    triggerType: toText(source.triggerType ?? source.trigger_type, '').toUpperCase(),
+    status: toText(source.status, 'PENDING').toUpperCase() || 'PENDING',
+    sourceAccountId: toNumber(source.sourceAccountId ?? source.source_account_id, 0) || null,
+    targetAccountId: toNumber(source.targetAccountId ?? source.target_account_id, 0) || null,
+    importedCount: toNumber(source.importedCount ?? source.imported_count, 0),
+    duplicateCount: toNumber(source.duplicateCount ?? source.duplicate_count, 0),
+    skippedCount: toNumber(source.skippedCount ?? source.skipped_count, 0),
+    rawFilePath: toText(source.rawFilePath ?? source.raw_file_path, ''),
+    errorText: toText(source.errorText ?? source.error_text, ''),
+    requestFromAt: source.requestFromAt || source.request_from_at || '',
+    requestToAt: source.requestToAt || source.request_to_at || '',
+    startedAt: source.startedAt || source.started_at || '',
+    finishedAt: source.finishedAt || source.finished_at || '',
+    createdAt: source.createdAt || source.created_at || '',
+    updatedAt: source.updatedAt || source.updated_at || ''
+  };
+}
+
 function normalizeBalanceOverview(raw) {
   const source = toObject(raw);
   return {
@@ -1059,6 +1120,78 @@ export async function refreshLightAppFxRates(baseCurrency, authorizedFetch) {
     })
   );
   return normalizeList(raw, normalizeFxRate);
+}
+
+export async function listLightAppBalanceSourceAccountStatus(authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(await authorizedFetch('/api/v1/me/balance/source-accounts/status', { method: 'GET' }));
+  return normalizeList(raw, normalizeBalanceSourceAccountStatus).filter((item) => item.provider);
+}
+
+export async function updateLightAppBalanceSourceAccount(provider, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/me/balance/source-accounts/${encodeURIComponent(provider)}`, {
+      method: 'PUT',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceSourceAccountStatus(raw);
+}
+
+export async function createLightAppBalanceBindSession(provider, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/me/balance/source-accounts/${encodeURIComponent(provider)}/bind-sessions`, {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceBindSession(raw);
+}
+
+export async function getLightAppBalanceBindSession(provider, sessionId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(
+      `/api/v1/me/balance/source-accounts/${encodeURIComponent(provider)}/bind-sessions/${encodeURIComponent(sessionId)}`,
+      {
+        method: 'GET'
+      }
+    )
+  );
+  return normalizeBalanceBindSession(raw);
+}
+
+export async function createLightAppBalanceImportJob(provider, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/me/balance/source-accounts/${encodeURIComponent(provider)}/sync-now`, {
+      method: 'POST'
+    })
+  );
+  return normalizeBalanceImportJob(raw);
+}
+
+export async function createLightAppBalanceLocalSyncImportJob(provider, payload, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/me/balance/source-accounts/${encodeURIComponent(provider)}/local-sync`, {
+      method: 'POST',
+      body: payload || {}
+    })
+  );
+  return normalizeBalanceImportJob(raw);
+}
+
+export async function getLightAppBalanceImportJob(jobId, authorizedFetch) {
+  ensureAuthorizedFetch(authorizedFetch);
+  const raw = unwrap(
+    await authorizedFetch(`/api/v1/me/balance/import-jobs/${encodeURIComponent(jobId)}`, {
+      method: 'GET'
+    })
+  );
+  return normalizeBalanceImportJob(raw);
 }
 
 export async function listLightAppUrlLinks(authorizedFetch) {

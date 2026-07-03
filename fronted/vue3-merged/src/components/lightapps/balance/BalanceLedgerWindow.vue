@@ -307,13 +307,124 @@
     </ul>
 
     <section v-else-if="section === BALANCE_SECTION_SOURCES" class="source-sync-section">
-      <p v-if="!isAuthenticated" class="empty-hint">登录后可绑定支付宝、微信、银行卡，并在服务器上自动抓取或摄取账单。</p>
+      <p v-if="!isAuthenticated" class="empty-hint">登录后可选择钱迹导出的账单文件，并把导入结果写入你的本地账本。</p>
       <template v-else>
-        <article class="source-guide liquid-material">
+        <template v-if="SOURCE_PROVIDERS[0] === 'qianji'">
+          <article class="source-guide liquid-material">
+            <div class="source-guide-header">
+              <div>
+                <h4>本地导入</h4>
+                <p>这里只保留本地文件导入。你在钱迹里导出账单后，直接把 CSV 或 JSON 文件导入当前账本。</p>
+              </div>
+              <button class="text-btn is-subtle ripple-trigger" type="button" @click="openAccountsWorkspace">管理本地账户</button>
+            </div>
+            <div class="source-guide-grid">
+              <article class="source-guide-step">
+                <span class="source-step-badge">1</span>
+                <strong>准备目标账户</strong>
+                <p>先选一个本地账户接收钱迹导入结果；如果你还没有账户，可以让系统自动建一个默认的钱迹账户。</p>
+              </article>
+              <article class="source-guide-step">
+                <span class="source-step-badge">2</span>
+                <strong>选择钱迹文件</strong>
+                <p>支持钱迹导出的 CSV 和 JSON。当前会导入收入与支出，转账、还款、报销类记录会先跳过。</p>
+              </article>
+              <article class="source-guide-step">
+                <span class="source-step-badge">3</span>
+                <strong>导入到账本</strong>
+                <p>文件只在浏览器本地解析后再写入账本，不再依赖扫码、插件或服务器抓账。</p>
+              </article>
+            </div>
+          </article>
+
+          <div class="source-grid">
+            <article class="source-card liquid-material provider-qianji">
+              <header class="source-card-header">
+                <div>
+                  <h4>{{ resolveSourceStatus('qianji').providerLabel || '钱迹' }}</h4>
+                  <p>{{ formatSourceStatus(resolveSourceStatus('qianji').status) }}</p>
+                  <small class="source-provider-hint">{{ sourceProviderHint('qianji') }}</small>
+                  <small class="source-provider-mode">{{ sourceProviderMode('qianji') }}</small>
+                </div>
+                <span class="source-status-pill" :class="{ 'is-bound': resolveSourceStatus('qianji').status === 'BOUND' }">
+                  {{ formatSourceStatus(resolveSourceStatus('qianji').status) }}
+                </span>
+              </header>
+
+              <div class="source-config-grid">
+                <select v-model="resolveSourceDraft('qianji').targetAccountId">
+                  <option value="">选择本地账户</option>
+                  <option v-for="item in accounts" :key="`source_account_qianji_${item.accountId}`" :value="String(item.accountId)">
+                    {{ item.accountName }} ({{ item.currencyCode }})
+                  </option>
+                </select>
+              </div>
+
+              <div class="source-inline-hint-row">
+                <small class="source-inline-tip">{{ sourceTargetHint('qianji') }}</small>
+                <button
+                  v-if="!resolveSourceDraft('qianji').targetAccountId"
+                  class="text-btn is-subtle ripple-trigger"
+                  type="button"
+                  @click="pickOrCreateSourceAccount('qianji')"
+                >
+                  {{ sourceAccountShortcutLabel('qianji') }}
+                </button>
+              </div>
+
+              <div class="source-session liquid-material is-directory-mode">
+                <p class="source-session-title">选择钱迹导出文件</p>
+                <small class="source-session-hint">推荐直接导出 CSV；Android 导出的 JSON 也可以导入。</small>
+                <input
+                  ref="qianjiFileInput"
+                  class="source-file-input"
+                  type="file"
+                  accept=".csv,.json,text/csv,application/json"
+                  @change="handleQianjiFileChange"
+                />
+                <small v-if="qianjiImportState.fileName" class="source-session-hint">当前文件：{{ qianjiImportState.fileName }}</small>
+                <small v-if="qianjiImportState.summaryText" class="source-session-hint">{{ qianjiImportState.summaryText }}</small>
+                <ul v-if="qianjiImportState.warnings.length" class="source-warning-list">
+                  <li v-for="item in qianjiImportState.warnings.slice(0, 3)" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+
+              <div class="source-actions">
+                <button class="text-btn ripple-trigger" type="button" @click="saveSourceAccount('qianji')">保存配置</button>
+                <button
+                  class="text-btn is-primary ripple-trigger"
+                  type="button"
+                  :disabled="qianjiImportState.importing || !qianjiImportState.file"
+                  @click="importQianjiBills"
+                >
+                  {{ qianjiImportState.importing ? '导入中' : '导入钱迹文件' }}
+                </button>
+              </div>
+
+              <div class="source-meta">
+                <p>目标账户：{{ resolveSourceStatus('qianji').targetAccountName || '未设置' }}</p>
+                <p>最近同步：{{ formatDateTime(resolveSourceStatus('qianji').lastSyncedAt) }}</p>
+                <p v-if="resolveSourceStatus('qianji').lastSyncErrorText" class="error-text">
+                  {{ resolveSourceStatus('qianji').lastSyncErrorText }}
+                </p>
+              </div>
+
+              <div v-if="importJobs.qianji" class="source-job liquid-material">
+                <p>{{ formatImportJobStatus(importJobs.qianji.status) }}</p>
+                <small>
+                  导入 {{ importJobs.qianji.importedCount }} 笔，去重 {{ importJobs.qianji.duplicateCount }} 笔，跳过
+                  {{ importJobs.qianji.skippedCount }} 笔
+                </small>
+                <small v-if="importJobs.qianji.errorText">{{ importJobs.qianji.errorText }}</small>
+              </div>
+            </article>
+          </div>
+        </template>
+        <article v-if="SOURCE_PROVIDERS[0] !== 'qianji'" class="source-guide liquid-material">
           <div class="source-guide-header">
             <div>
               <h4>接通自动记账</h4>
-              <p>支付宝支持服务器侧二维码绑定；微信和银行卡当前走服务器账单目录导入，不会显示二维码。</p>
+              <p>支付宝支持服务器侧二维码登录；微信支持服务器二维码和本地 companion 同步；银行卡支持本地 companion 与目录导入。</p>
             </div>
             <button class="text-btn is-subtle ripple-trigger" type="button" @click="openAccountsWorkspace">管理本地账户</button>
           </div>
@@ -326,7 +437,7 @@
             <article class="source-guide-step">
               <span class="source-step-badge">2</span>
               <strong>接通来源</strong>
-              <p>支付宝会生成二维码；微信和银行卡会直接启用服务器目录导入模式。</p>
+              <p>支付宝会生成二维码；微信既可以扫码登录，也可以让本地 companion 推送账单；银行卡建议用本地 companion 或目录导入。</p>
             </article>
             <article class="source-guide-step">
               <span class="source-step-badge">3</span>
@@ -336,7 +447,7 @@
           </div>
         </article>
 
-        <div class="source-grid">
+        <div v-if="SOURCE_PROVIDERS[0] !== 'qianji'" class="source-grid">
           <article
             v-for="provider in SOURCE_PROVIDERS"
             :key="`source_${provider}`"
@@ -400,28 +511,84 @@
             >
               立即同步
             </button>
+            <button
+              v-if="providerSupportsLocalCompanion(provider)"
+              class="text-btn ripple-trigger"
+              type="button"
+              :disabled="localCompanionSyncing[provider]"
+              @click="triggerLocalCompanionSync(provider)"
+            >
+              {{ localCompanionSyncing[provider] ? '本地同步中' : '本地同步' }}
+            </button>
           </div>
 
-          <div v-if="bindSessions[provider]" class="source-session liquid-material">
-            <p class="source-session-title">{{ sourceSessionTitle(provider, bindSessions[provider]) }}</p>
-            <small class="source-session-hint">{{ sourceSessionHint(provider, bindSessions[provider]) }}</small>
-            <img
-              v-if="bindSessions[provider].qrCodeImageDataUrl"
-              class="source-qr-image"
-              :src="bindSessions[provider].qrCodeImageDataUrl"
-              :alt="`${provider} bind qr`"
-            />
-            <code v-else-if="bindSessions[provider].qrCodePayload" class="source-qr-fallback">{{ bindSessions[provider].qrCodePayload }}</code>
-            <a
-              v-if="bindSessions[provider].loginUrl"
-              class="source-session-link"
-              :href="bindSessions[provider].loginUrl"
-              target="_blank"
-              rel="noreferrer"
-            >
-              打开登录页
-            </a>
-            <small v-if="bindSessions[provider].failureReason" class="error-text">{{ bindSessions[provider].failureReason }}</small>
+          <div
+            v-if="shouldShowSourceSession(provider)"
+            class="source-session liquid-material"
+            :class="{ 'is-directory-mode': !sourceSupportsQrBind(provider) }"
+          >
+            <template v-if="sourceSupportsQrBind(provider)">
+              <p class="source-session-title">{{ sourceSessionTitle(provider, bindSessions[provider]) }}</p>
+              <small class="source-session-hint">{{ sourceSessionHint(provider, bindSessions[provider]) }}</small>
+              <img
+                v-if="bindSessions[provider]?.qrCodeImageDataUrl"
+                class="source-qr-image"
+                :src="bindSessions[provider].qrCodeImageDataUrl"
+                :alt="`${provider} bind qr`"
+              />
+              <code v-else-if="bindSessions[provider]?.qrCodePayload" class="source-qr-fallback">{{ bindSessions[provider].qrCodePayload }}</code>
+              <a
+                v-if="bindSessions[provider]?.loginUrl"
+                class="source-session-link"
+                :href="bindSessions[provider].loginUrl"
+                target="_blank"
+                rel="noreferrer"
+              >
+                打开登录页
+              </a>
+            </template>
+            <template v-else>
+              <p class="source-session-title">{{ sourceDirectoryPanelTitle(provider) }}</p>
+              <small class="source-session-hint">{{ sourceDirectoryPanelHint(provider) }}</small>
+              <div class="source-directory-panel">
+                <p>目录模式不会弹二维码，账单文件需要放到服务器目录里。</p>
+                <p>放入账单后可以点“立即同步”，或者等夜间自动同步任务处理。</p>
+                <code v-if="sourceImportDirectory(provider)" class="source-directory-panel-code">{{ sourceImportDirectory(provider) }}</code>
+              </div>
+            </template>
+            <small v-if="bindSessions[provider]?.failureReason" class="error-text">{{ bindSessions[provider].failureReason }}</small>
+          </div>
+
+          <div v-if="providerSupportsLocalCompanion(provider)" class="source-local-companion liquid-material">
+            <div class="source-local-companion-head">
+              <p>本地 companion</p>
+              <button class="text-btn is-subtle ripple-trigger" type="button" @click="refreshLocalCompanionProvider(provider)">
+                刷新
+              </button>
+            </div>
+            <small class="source-session-hint">{{ sourceLocalCompanionHint(provider) }}</small>
+            <p>{{ formatLocalCompanionStatus(resolveLocalCompanionState(provider).status) }}</p>
+            <p v-if="formatLocalCompanionSourceMode(resolveLocalCompanionState(provider))">
+              当前来源：{{ formatLocalCompanionSourceMode(resolveLocalCompanionState(provider)) }}
+            </p>
+            <p v-if="resolveLocalCompanionState(provider).directory" class="source-directory-tip">
+              本地目录：<code>{{ resolveLocalCompanionState(provider).directory }}</code>
+            </p>
+            <p v-if="resolveLocalCompanionState(provider).commandUsed">
+              本地命令：<code>{{ resolveLocalCompanionState(provider).commandUsed }}</code>
+            </p>
+            <p v-if="resolveLocalCompanionState(provider).messageCount">
+              消息样本：{{ resolveLocalCompanionState(provider).messageCount }} 条
+            </p>
+            <p v-if="resolveLocalCompanionState(provider).rawFileName">
+              最新文件：{{ resolveLocalCompanionState(provider).rawFileName }}
+            </p>
+            <p v-if="resolveLocalCompanionState(provider).scannedAt">
+              最近检测：{{ formatDateTime(resolveLocalCompanionState(provider).scannedAt) }}
+            </p>
+            <p v-if="resolveLocalCompanionState(provider).failureReason" class="error-text">
+              {{ resolveLocalCompanionState(provider).failureReason }}
+            </p>
           </div>
 
           <div class="source-meta">
@@ -563,6 +730,7 @@ import { useAuthSession } from '../../../composables/useAuthSession';
 import {
   createLightAppBalanceBindSession,
   createLightAppBalanceAccount,
+  createLightAppBalanceLocalSyncImportJob,
   createLightAppBalanceDebt,
   createLightAppBalanceImportJob,
   createLightAppBalanceRecurringCharge,
@@ -588,6 +756,12 @@ import {
   updateLightAppBalanceRecurringCharge,
   updateLightAppBalanceTransaction
 } from '../../../services/lightAppsApi';
+import {
+  getLocalBalanceCompanionHealth,
+  getLocalBalanceCompanionStatus,
+  scanLocalBalanceCompanion
+} from '../../../services/localBalanceCompanionApi';
+import { parseQianjiImportFile } from './qianjiImport';
 import {
   buildCategoryBreakdownRows,
   buildLedgerRangeQuery,
@@ -666,43 +840,25 @@ const DONUT_PALETTE_INCOME = [
   '#5f98bc',
   '#5086aa'
 ];
-const SOURCE_PROVIDERS = ['alipay', 'wechat', 'bankcard'];
+const SOURCE_PROVIDERS = ['qianji'];
 const SOURCE_PROVIDER_LABELS = {
-  alipay: '支付宝',
-  wechat: '微信',
-  bankcard: '银行卡'
+  qianji: '钱迹'
 };
 const SOURCE_PROVIDER_HINTS = {
-  alipay: '扫码绑定后由服务器自动抓取账单。',
-  wechat: '将微信导出的账单放入服务器目录后自动导入。',
-  bankcard: '将银行卡导出的流水放入服务器目录后自动导入，适合工资卡。'
+  qianji: '仅保留本地文件导入，支持钱迹导出的 CSV / JSON 账单。'
 };
 const SOURCE_PROVIDER_MODES = {
-  alipay: '二维码绑定',
-  wechat: '目录导入',
-  bankcard: '工资卡目录导入'
+  qianji: '本地文件导入'
 };
 const SOURCE_PROVIDER_DEFAULT_ACCOUNTS = {
-  alipay: {
-    channelCode: 'alipay',
-    channelName: '支付宝',
-    accountName: '支付宝余额'
-  },
-  wechat: {
-    channelCode: 'wechat',
-    channelName: '微信',
-    accountName: '微信零钱'
-  },
-  bankcard: {
-    channelCode: 'bankcard',
-    channelName: '银行卡',
-    accountName: '工资卡'
+  qianji: {
+    channelCode: 'qianji',
+    channelName: '钱迹',
+    accountName: '钱迹导入账户'
   }
 };
-const SOURCE_PROVIDER_IMPORT_DIRECTORIES = {
-  wechat: '/opt/shizuki-site/data/bill-sync-agent/wechat-bills',
-  bankcard: '/opt/shizuki-site/data/bill-sync-agent/bankcard-bills'
-};
+const SOURCE_PROVIDER_IMPORT_DIRECTORIES = {};
+const SOURCE_PROVIDER_LOCAL_COMPANION = new Set();
 const TERMINAL_BIND_STATUSES = new Set(['BOUND', 'FAILED', 'EXPIRED']);
 const TERMINAL_IMPORT_JOB_STATUSES = new Set(['SUCCESS', 'FAILED']);
 
@@ -753,6 +909,10 @@ const refreshingFx = ref(false);
 const analyticsLoading = ref(false);
 const errorText = ref('');
 const sourceDrafts = reactive({
+  qianji: {
+    targetAccountId: '',
+    nightlyEnabled: false
+  },
   alipay: {
     targetAccountId: '',
     nightlyEnabled: true
@@ -767,14 +927,33 @@ const sourceDrafts = reactive({
   }
 });
 const bindSessions = reactive({
+  qianji: null,
   alipay: null,
   wechat: null,
   bankcard: null
 });
 const importJobs = reactive({
+  qianji: null,
   alipay: null,
   wechat: null,
   bankcard: null
+});
+const localCompanionStatus = reactive({
+  wechat: null,
+  bankcard: null
+});
+const localCompanionSyncing = reactive({
+  wechat: false,
+  bankcard: false
+});
+const qianjiFileInput = ref(null);
+const qianjiImportState = reactive({
+  file: null,
+  fileName: '',
+  summaryText: '',
+  warnings: [],
+  parsed: null,
+  importing: false
 });
 
 const filterPreset = ref('30d');
@@ -1136,8 +1315,80 @@ function sourceImportDirectory(provider) {
   return SOURCE_PROVIDER_IMPORT_DIRECTORIES[normalized] || '';
 }
 
+function providerSupportsLocalCompanion(provider) {
+  return SOURCE_PROVIDER_LOCAL_COMPANION.has(String(provider || '').trim().toLowerCase());
+}
+
 function sourceSupportsQrBind(provider) {
-  return String(provider || '').trim().toLowerCase() === 'alipay';
+  const normalized = String(provider || '').trim().toLowerCase();
+  return normalized === 'alipay' || normalized === 'wechat';
+}
+
+function resolveLocalCompanionState(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return localCompanionStatus[normalized] || {
+    provider: normalized,
+    status: 'UNKNOWN',
+    sourceLabel: '',
+    sourceMode: '',
+    directory: '',
+    fileCount: 0,
+    rawFilePath: '',
+    rawFileName: '',
+    scannedAt: '',
+    failureReason: '',
+    commandUsed: '',
+    messageCount: 0
+  };
+}
+
+function formatLocalCompanionStatus(status) {
+  switch (String(status || '').trim().toUpperCase()) {
+    case 'OK':
+    case 'READY':
+      return '本地 companion 在线';
+    case 'EMPTY':
+      return '本地目录为空';
+    case 'MISSING_DIRECTORY':
+      return '未配置本地目录';
+    case 'DIRECTORY_NOT_FOUND':
+      return '本地目录不存在';
+    case 'OFFLINE':
+      return '本地 companion 未启动';
+    default:
+      return '等待检测本地 companion';
+  }
+}
+
+function formatLocalCompanionSourceMode(state) {
+  const sourceMode = String(state?.sourceMode || '').trim().toUpperCase();
+  if (sourceMode === 'CHATLOG_API') {
+    return 'chatlog API';
+  }
+  if (sourceMode === 'WECHAT_BIZ_DECRYPTED') {
+    return '本地微信支付';
+  }
+  if (sourceMode === 'WECHAT_CLI') {
+    return '本地 wechat-cli';
+  }
+  if (sourceMode === 'WXCLI') {
+    return '本地微信数据';
+  }
+  if (sourceMode === 'DIRECTORY') {
+    return '账单目录';
+  }
+  return '';
+}
+
+function sourceLocalCompanionHint(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  if (normalized === 'wechat') {
+    return '会优先尝试本地微信 CLI 或 JSON 数据源；如果本机没装，就回退到微信账单目录模式。';
+  }
+  if (String(provider || '').trim().toLowerCase() === 'wechat') {
+    return '适合在本机准备微信账单文件后，由 companion 直接把解析结果推送到服务器入账。';
+  }
+  return '适合把本机银行卡账单目录里的文件直接推送到服务器入账。';
 }
 
 function sourceAccountTemplate(provider) {
@@ -1186,9 +1437,6 @@ function findRecommendedSourceAccount(provider) {
       return exactName;
     }
   }
-  if (accounts.value.length === 1) {
-    return accounts.value[0];
-  }
   return null;
 }
 
@@ -1207,7 +1455,7 @@ function sourceBindActionLabel(provider) {
     return bound ? '重新扫码绑定' : '扫码绑定';
   }
   if (normalized === 'wechat') {
-    return bound ? '重连目录导入' : '启用目录导入';
+    return bound ? '重新扫码登录' : '扫码登录';
   }
   if (normalized === 'bankcard') {
     return bound ? '重连工资卡目录' : '启用工资卡目录';
@@ -1216,6 +1464,9 @@ function sourceBindActionLabel(provider) {
 }
 
 function sourceTargetHint(provider) {
+  if (String(provider || '').trim().toLowerCase() === 'qianji') {
+    return '钱迹文件会全部导入到这里选中的本地账户里；如果暂时还没有账户，可以一键创建默认的钱迹账户。';
+  }
   const draft = resolveSourceDraft(provider);
   const selectedId = Number(draft.targetAccountId || resolveSourceStatus(provider).targetAccountId);
   if (Number.isInteger(selectedId) && selectedId > 0) {
@@ -1233,11 +1484,12 @@ function sourceTargetHint(provider) {
 
 function sourceSessionTitle(provider, session) {
   const status = String(session?.status || '').trim().toUpperCase();
+  const providerLabel = sourceProviderLabel(provider);
   if (sourceSupportsQrBind(provider) && status === 'PENDING') {
-    return '请用支付宝扫码';
+    return `请用${providerLabel}扫码`;
   }
   if (sourceSupportsQrBind(provider) && status === 'BOUND') {
-    return '扫码绑定成功';
+    return `${providerLabel}扫码成功`;
   }
   if (!sourceSupportsQrBind(provider) && status === 'BOUND') {
     return '目录导入已启用';
@@ -1247,15 +1499,20 @@ function sourceSessionTitle(provider, session) {
 
 function sourceSessionHint(provider, session) {
   const status = String(session?.status || '').trim().toUpperCase();
+  const normalized = String(provider || '').trim().toLowerCase();
   if (sourceSupportsQrBind(provider)) {
     if (status === 'PENDING') {
-      return '二维码生成后，用支付宝 App 扫码并在手机上确认登录。';
+      return normalized === 'wechat'
+        ? '二维码生成后，用微信 App 扫码并在手机上确认登录网页版微信。'
+        : '二维码生成后，用支付宝 App 扫码并在手机上确认登录。';
     }
     if (status === 'BOUND') {
-      return '扫码完成，后续会复用服务器登录态抓取支付宝账单。';
+      return normalized === 'wechat'
+        ? '微信网页登录会话已保存，账单同步会继续优先读取服务器微信账单目录。'
+        : '扫码完成，后续会复用服务器登录态抓取支付宝账单。';
     }
     if (status === 'FAILED' || status === 'EXPIRED') {
-      return '二维码失效后可以再次点击“扫码绑定”。';
+      return '二维码失效后可以再次点击“扫码”按钮。';
     }
     return '系统正在检查当前绑定状态。';
   }
@@ -1264,6 +1521,27 @@ function sourceSessionHint(provider, session) {
     return `这个来源不走扫码，把导出的账单文件放进 ${directory} 就可以被同步任务读取。`;
   }
   return '这个来源当前不需要二维码，接通后会直接进入服务器侧导入模式。';
+}
+
+function shouldShowSourceSession(provider) {
+  return sourceSupportsQrBind(provider)
+    ? Boolean(bindSessions[provider])
+    : true;
+}
+
+function sourceDirectoryPanelTitle(provider) {
+  const bound = Boolean(resolveSourceStatus(provider).bound);
+  return bound ? '服务器账单兜底已启用' : '服务器账单兜底';
+}
+
+function sourceDirectoryPanelHint(provider) {
+  if (String(provider || '').trim().toLowerCase() === 'wechat') {
+    return '微信优先建议使用二维码登录或本地 companion；服务器账单目录仍会继续作为抓账兜底。';
+  }
+  if (String(provider || '').trim().toLowerCase() === 'bankcard') {
+    return '银行卡优先建议使用本地 companion；如果你已经把账单放到服务器目录，也仍然会被自动摄取。';
+  }
+  return '这个来源当前通过服务器目录摄取账单，不会弹出二维码。';
 }
 
 function resolveSourceDraft(provider) {
@@ -1340,13 +1618,13 @@ function buildSourcePayload(provider) {
 function formatSourceStatus(status) {
   switch (String(status || '').trim().toUpperCase()) {
     case 'BOUND':
-      return '已绑定';
+      return '已就绪';
     case 'PENDING':
-      return '等待扫码';
+      return '处理中';
     case 'REAUTH_REQUIRED':
-      return '需要重绑';
+      return '需要处理';
     default:
-      return '未绑定';
+      return '未设置';
   }
 }
 
@@ -1687,12 +1965,12 @@ async function saveSourceAccount(provider) {
   try {
     await auth.ensureReady();
     if (!auth.isAuthenticated.value) {
-      throw new Error('登录后才能配置自动抓账');
+      throw new Error('登录后才能配置钱迹导入账户');
     }
     await updateLightAppBalanceSourceAccount(provider, buildSourcePayload(provider), auth.authorizedFetch);
     await loadRemoteSourceSync();
   } catch (error) {
-    errorText.value = error?.message || '数据源配置保存失败';
+    errorText.value = error?.message || '钱迹导入配置保存失败';
   }
 }
 
@@ -1731,6 +2009,239 @@ async function triggerSourceSync(provider) {
     await loadRemoteSourceSync();
   } catch (error) {
     errorText.value = error?.message || '账单同步任务创建失败';
+  }
+}
+
+function resolveLocalCompanionFromAt(provider) {
+  const lastSyncedAt = resolveSourceStatus(provider).lastSyncedAt;
+  const parsed = Date.parse(lastSyncedAt || '');
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+  return new Date(parsed - 48 * 60 * 60 * 1000).toISOString();
+}
+
+function toServerLocalDateTime(value) {
+  const parsed = Date.parse(value || '');
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+  const date = new Date(parsed);
+  const pad = (input) => String(input).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    + `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function buildLocalCompanionUploadPayload(scanResult) {
+  const transactions = Array.isArray(scanResult?.transactions)
+    ? scanResult.transactions
+        .map((item) => ({
+          externalId: String(item?.externalId || '').trim() || null,
+          occurredAt: toServerLocalDateTime(item?.occurredAt),
+          direction: String(item?.direction || '').trim().toUpperCase() || 'EXPENSE',
+          amount: Number(item?.amount) || 0,
+          currencyCode: String(item?.currencyCode || 'CNY').trim().toUpperCase() || 'CNY',
+          counterparty: String(item?.counterparty || '').trim() || null,
+          categoryHint: String(item?.categoryHint || '').trim() || null,
+          note: String(item?.note || '').trim() || null,
+          rawPayload: typeof item?.rawPayload === 'string' ? item.rawPayload : JSON.stringify(item?.rawPayload || ''),
+          digest: String(item?.digest || '').trim() || null
+        }))
+        .filter((item) => item.occurredAt && item.amount > 0)
+    : [];
+
+  return {
+    sourceLabel: String(scanResult?.sourceLabel || '').trim() || 'local-balance-companion',
+    rawFilePath: String(scanResult?.rawFilePath || scanResult?.directory || '').trim(),
+    rawFileName: String(scanResult?.rawFileName || '').trim(),
+    transactions
+  };
+}
+
+function describeQianjiImportSummary(parsed) {
+  if (!parsed) {
+    return '';
+  }
+  return `解析到 ${parsed.importedCount || 0} 笔可导入记录，跳过 ${parsed.skippedCount || 0} 笔。`;
+}
+
+async function handleQianjiFileChange(event) {
+  errorText.value = '';
+  const file = event?.target?.files?.[0] || null;
+  qianjiImportState.file = file;
+  qianjiImportState.fileName = file?.name || '';
+  qianjiImportState.parsed = null;
+  qianjiImportState.summaryText = '';
+  qianjiImportState.warnings = [];
+  if (!file) {
+    return;
+  }
+  try {
+    const parsed = await parseQianjiImportFile(file);
+    qianjiImportState.parsed = parsed;
+    qianjiImportState.summaryText = describeQianjiImportSummary(parsed);
+    qianjiImportState.warnings = Array.isArray(parsed?.warnings) ? parsed.warnings : [];
+  } catch (error) {
+    qianjiImportState.summaryText = '';
+    qianjiImportState.warnings = [];
+    errorText.value = error?.message || '钱迹文件解析失败';
+  }
+}
+
+function buildQianjiUploadPayload(parsed) {
+  const transactions = Array.isArray(parsed?.transactions)
+    ? parsed.transactions
+        .map((item) => ({
+          externalId: String(item?.externalId || '').trim() || null,
+          occurredAt: String(item?.occurredAt || '').trim(),
+          direction: String(item?.direction || '').trim().toUpperCase() || 'EXPENSE',
+          amount: Number(item?.amount) || 0,
+          currencyCode: String(item?.currencyCode || 'CNY').trim().toUpperCase() || 'CNY',
+          counterparty: String(item?.counterparty || '').trim() || null,
+          categoryHint: String(item?.categoryHint || '').trim() || null,
+          note: String(item?.note || '').trim() || null,
+          rawPayload: typeof item?.rawPayload === 'string' ? item.rawPayload : JSON.stringify(item?.rawPayload || ''),
+          digest: String(item?.digest || '').trim() || null
+        }))
+        .filter((item) => item.occurredAt && item.amount > 0)
+    : [];
+
+  return {
+    sourceLabel: String(parsed?.sourceLabel || '').trim() || 'qianji-local-import',
+    rawFilePath: '',
+    rawFileName: String(parsed?.fileName || qianjiImportState.fileName || '').trim(),
+    requestFromAt: String(parsed?.requestFromAt || '').trim() || null,
+    requestToAt: String(parsed?.requestToAt || '').trim() || null,
+    transactions
+  };
+}
+
+async function importQianjiBills() {
+  errorText.value = '';
+  qianjiImportState.importing = true;
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) {
+      throw new Error('登录后才能导入钱迹文件');
+    }
+    if (!qianjiImportState.file) {
+      throw new Error('请先选择钱迹导出文件');
+    }
+    if (!qianjiImportState.parsed) {
+      qianjiImportState.parsed = await parseQianjiImportFile(qianjiImportState.file);
+      qianjiImportState.summaryText = describeQianjiImportSummary(qianjiImportState.parsed);
+      qianjiImportState.warnings = Array.isArray(qianjiImportState.parsed?.warnings) ? qianjiImportState.parsed.warnings : [];
+    }
+
+    const payload = buildSourcePayload('qianji');
+    payload.targetAccountId = await ensureSourceTargetAccount('qianji');
+    payload.nightlyEnabled = false;
+    await updateLightAppBalanceSourceAccount('qianji', payload, auth.authorizedFetch);
+
+    const uploadPayload = buildQianjiUploadPayload(qianjiImportState.parsed);
+    if (!uploadPayload.transactions.length) {
+      throw new Error('当前钱迹文件里没有可导入的收入或支出记录');
+    }
+
+    const job = await createLightAppBalanceLocalSyncImportJob('qianji', uploadPayload, auth.authorizedFetch);
+    importJobs.qianji = job;
+    await loadRemoteAll();
+  } catch (error) {
+    errorText.value = error?.message || '钱迹文件导入失败';
+  } finally {
+    qianjiImportState.importing = false;
+  }
+}
+
+async function refreshLocalCompanionProvider(provider, { silent = false } = {}) {
+  if (!providerSupportsLocalCompanion(provider)) {
+    return null;
+  }
+  try {
+    const health = await getLocalBalanceCompanionHealth();
+    const status = await getLocalBalanceCompanionStatus(provider);
+    localCompanionStatus[provider] = {
+      provider,
+      status: String(status?.status || health?.status || 'READY').trim().toUpperCase() || 'READY',
+      sourceLabel: String(status?.sourceLabel || health?.sourceLabel || '').trim(),
+      sourceMode: String(status?.sourceMode || '').trim(),
+      directory: String(status?.directory || '').trim(),
+      fileCount: Number(status?.fileCount) || 0,
+      rawFilePath: String(status?.rawFilePath || '').trim(),
+      rawFileName: String(status?.rawFileName || '').trim(),
+      scannedAt: status?.scannedAt || '',
+      failureReason: String(status?.failureReason || '').trim(),
+      commandUsed: String(status?.commandUsed || '').trim(),
+      messageCount: Number(status?.messageCount) || 0
+    };
+    return localCompanionStatus[provider];
+  } catch (error) {
+    localCompanionStatus[provider] = {
+      provider,
+      status: 'OFFLINE',
+      sourceLabel: '',
+      sourceMode: '',
+      directory: '',
+      fileCount: 0,
+      rawFilePath: '',
+      rawFileName: '',
+      scannedAt: '',
+      commandUsed: '',
+      messageCount: 0,
+      failureReason: silent ? '' : (error?.message || '本地 companion 未启动')
+    };
+    if (!silent) {
+      errorText.value = error?.message || '本地 companion 未启动';
+    }
+    return localCompanionStatus[provider];
+  }
+}
+
+async function refreshAllLocalCompanionStatus({ silent = true } = {}) {
+  const providers = SOURCE_PROVIDERS.filter((provider) => providerSupportsLocalCompanion(provider));
+  await Promise.all(providers.map((provider) => refreshLocalCompanionProvider(provider, { silent })));
+}
+
+async function triggerLocalCompanionSync(provider) {
+  errorText.value = '';
+  localCompanionSyncing[provider] = true;
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) {
+      throw new Error('登录后才能使用本地 companion 同步');
+    }
+    const payload = buildSourcePayload(provider);
+    payload.targetAccountId = await ensureSourceTargetAccount(provider);
+    await updateLightAppBalanceSourceAccount(provider, payload, auth.authorizedFetch);
+
+    const healthState = await refreshLocalCompanionProvider(provider, { silent: false });
+    if (!healthState || ['OFFLINE', 'MISSING_DIRECTORY', 'DIRECTORY_NOT_FOUND'].includes(healthState.status)) {
+      throw new Error(healthState?.failureReason || '本地 companion 当前不可用');
+    }
+
+    const scanResult = await scanLocalBalanceCompanion(provider, {
+      fromAt: resolveLocalCompanionFromAt(provider),
+      toAt: new Date().toISOString(),
+      maxFiles: provider === 'bankcard' ? 30 : 20
+    });
+    localCompanionStatus[provider] = {
+      ...resolveLocalCompanionState(provider),
+      ...scanResult,
+      status: String(scanResult?.status || 'READY').trim().toUpperCase() || 'READY'
+    };
+
+    const uploadPayload = buildLocalCompanionUploadPayload(scanResult);
+    if (!uploadPayload.transactions.length) {
+      throw new Error(scanResult?.failureReason || '本地 companion 没有找到可导入的账单');
+    }
+
+    const job = await createLightAppBalanceLocalSyncImportJob(provider, uploadPayload, auth.authorizedFetch);
+    importJobs[provider] = job;
+    await loadRemoteAll();
+  } catch (error) {
+    errorText.value = error?.message || '本地 companion 同步失败';
+  } finally {
+    localCompanionSyncing[provider] = false;
   }
 }
 
@@ -1781,6 +2292,9 @@ async function hydrate() {
     SOURCE_PROVIDERS.forEach((provider) => {
       bindSessions[provider] = null;
       importJobs[provider] = null;
+      if (providerSupportsLocalCompanion(provider)) {
+        localCompanionStatus[provider] = null;
+      }
     });
     sourceAccounts.value = [];
     applySourceDraftsFromStatus();
@@ -1811,6 +2325,7 @@ async function hydrate() {
 
   try {
     await loadRemoteAll();
+    await refreshAllLocalCompanionStatus({ silent: true });
   } catch (error) {
     const cache = readRemoteLightAppCache();
     accounts.value = sortBySortNumAndId(cache.balanceAccounts || [], 'accountId');
@@ -1831,6 +2346,7 @@ async function hydrate() {
     };
     baseCurrency.value = overview.value.baseCurrency || 'CNY';
     errorText.value = error?.message || '余额轻应用加载失败，已回退本地缓存。';
+    await refreshAllLocalCompanionStatus({ silent: true });
     await refreshAnalyticsData();
   }
 }
@@ -2676,6 +3192,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  align-items: start;
 }
 
 .source-card {
@@ -2688,6 +3205,7 @@ onBeforeUnmount(() => {
   padding: 14px;
   display: grid;
   gap: 10px;
+  align-self: start;
   box-shadow: 0 18px 40px rgba(4, 10, 22, 0.18);
 }
 
@@ -2709,6 +3227,13 @@ onBeforeUnmount(() => {
 
 .source-card.provider-bankcard {
   --source-accent: rgba(247, 186, 125, 0.92);
+}
+
+.source-card.provider-qianji {
+  --source-accent: rgba(118, 206, 176, 0.92);
+  background:
+    radial-gradient(circle at top right, rgba(118, 206, 176, 0.14), transparent 36%),
+    linear-gradient(180deg, rgba(13, 23, 42, 0.96), rgba(10, 18, 34, 0.94));
 }
 
 .source-card-header {
@@ -2836,6 +3361,10 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.source-session.is-directory-mode {
+  gap: 10px;
+}
+
 .source-session-title {
   margin: 0;
   font-size: 13px;
@@ -2844,6 +3373,37 @@ onBeforeUnmount(() => {
 
 .source-session-hint {
   line-height: 1.55;
+}
+
+.source-file-input {
+  width: 100%;
+  border: 1px dashed rgba(153, 192, 220, 0.28);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(10, 19, 36, 0.74);
+  color: var(--la-text);
+}
+
+.source-file-input::file-selector-button {
+  margin-right: 10px;
+  border: 1px solid rgba(143, 181, 226, 0.28);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(22, 38, 68, 0.92);
+  color: var(--la-text);
+  cursor: pointer;
+}
+
+.source-warning-list {
+  margin: 0;
+  padding-left: 18px;
+  color: rgba(255, 212, 155, 0.92);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.source-warning-list li + li {
+  margin-top: 4px;
 }
 
 .source-qr-image {
@@ -2877,16 +3437,67 @@ onBeforeUnmount(() => {
   text-decoration: underline;
 }
 
+.source-directory-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(7, 15, 28, 0.52);
+  border: 1px dashed rgba(151, 180, 227, 0.24);
+}
+
+.source-directory-panel p {
+  margin: 0;
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.source-directory-panel-code {
+  display: block;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 232, 248, 0.94);
+}
+
+.source-local-companion {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(113, 162, 230, 0.18);
+  background: rgba(8, 18, 34, 0.72);
+}
+
+.source-local-companion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.source-local-companion-head p,
+.source-local-companion p {
+  margin: 0;
+}
+
 .source-meta {
   display: grid;
   gap: 4px;
 }
 
 .source-directory-tip code {
+  display: inline-block;
   padding: 2px 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(220, 232, 248, 0.94);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .metrics-strip {
@@ -3002,6 +3613,7 @@ onBeforeUnmount(() => {
 .create-form input:focus,
 .create-form select:focus,
 .compact-select:focus,
+.source-file-input:focus,
 .source-config-grid select:focus,
 .filters-inputs input:focus,
 .filters-inputs select:focus {

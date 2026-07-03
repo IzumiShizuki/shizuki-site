@@ -210,15 +210,15 @@
                       <article class="finance-panel liquid-material">
                         <div class="finance-panel-head">
                           <div>
-                            <span class="side-kicker">Bill Sources</span>
-                            <h4>自动入账来源</h4>
+                            <span class="side-kicker">Import Sources</span>
+                            <h4>账单导入来源</h4>
                           </div>
                           <small>{{ financeSourceSummary }}</small>
                         </div>
 
                         <div v-if="!auth.isAuthenticated" class="finance-empty-card">
-                          <strong>登录后接入自动同步</strong>
-                          <p>支付宝、微信和银行卡的真实同步状态只对当前用户展示；未登录时这里只保留建筑入口。</p>
+                          <strong>登录后导入钱迹账单</strong>
+                          <p>钱迹本地导入状态只对当前用户展示；未登录时这里只保留建筑入口。</p>
                           <button class="stage-btn primary ripple-trigger" type="button" @click="openFinanceLogin">前往登录</button>
                         </div>
 
@@ -251,7 +251,7 @@
 
                         <div v-if="!financeTopAccounts.length" class="finance-empty-card">
                           <strong>账房还是空的</strong>
-                          <p>先去记账模块里创建支付宝余额、微信零钱、工资卡等账户，这里就会开始长出货架。</p>
+                          <p>先去记账模块里创建一个接收钱迹导入的本地账户，这里就会开始长出货架。</p>
                         </div>
 
                         <div v-else class="finance-account-list">
@@ -277,7 +277,7 @@
                       :disabled="!auth.isAuthenticated"
                       @click="openTownFinanceWindow(BALANCE_SECTION_SOURCES)"
                     >
-                      管理自动同步
+                      管理账房
                     </button>
                   </div>
                 </section>
@@ -450,12 +450,12 @@
                 <p>{{ financeStatusSummary }}</p>
               </article>
               <article class="side-info-card">
-                <strong>自动同步规则</strong>
+                <strong>导入规则</strong>
                 <p>{{ financeSyncSummary }}</p>
               </article>
               <article class="side-info-card">
                 <strong>接入范围</strong>
-                <p>支付宝使用服务器扫码登录态，微信与银行卡使用服务器账单目录导入，特别适合工资卡流水归档。</p>
+                <p>这里只保留钱迹导出的本地文件导入，不再使用扫码登录、浏览器插件或服务器抓账。</p>
               </article>
             </div>
           </template>
@@ -594,17 +594,15 @@ const STANDARD_CONVERSATION_MODES = ['normal', 'tavern'];
 const ADMIN_CONVERSATION_MODES = ['town_npc', 'companion'];
 const FINANCE_TOWN_BUILDING_CODE = 'finance_vault';
 const FINANCE_SOURCE_METAS = Object.freeze([
-  { provider: 'alipay', label: '支付宝', hint: '服务器扫码后自动抓账。', tone: 'amber' },
-  { provider: 'wechat', label: '微信', hint: '服务器目录摄取导出的账单文件。', tone: 'sky' },
-  { provider: 'bankcard', label: '银行卡', hint: '适合工资卡和银行流水集中入账。', tone: 'emerald' }
+  { provider: 'qianji', label: '钱迹', hint: '读取你手动导出的 CSV / JSON 账单文件。', tone: 'emerald' }
 ]);
 const FINANCE_TOWN_BUILDING = Object.freeze({
   sceneCode: FINANCE_TOWN_BUILDING_CODE,
-  title: '金库账房',
+  title: '账房库',
   sceneType: 'finance_house',
-  description: '这里专门收拢资产、账单同步和工资卡流水。点开它，小镇就会露出真正的管钱后台。',
-  atmosphereHint: '黄铜门轴、账本纸页和夜间对账灯一起运转，像一座会呼吸的库房。',
-  highlights: ['支付宝自动抓账', '微信账单导入', '银行卡工资流水', '夜间 00:00 同步'],
+  description: '这里专门收拢资产、本地账单导入和日常对账。点开它，小镇就会露出真正的管钱后台。',
+  atmosphereHint: '黄铜门轴、账本纸页和抽屉标签一起运转，像一座安静但很可靠的库房。',
+  highlights: ['钱迹账单导入', '本地文件解析', '本地账户归档', '不再扫码抓账'],
   publicVisible: true,
   tone: 'emerald',
   coordX: 79,
@@ -976,22 +974,22 @@ const financeOverviewCaption = computed(() => {
 });
 const financeSourceSummary = computed(() => {
   const boundCount = financeSourceCards.value.filter((item) => item.bound).length;
-  return `${boundCount}/${financeSourceCards.value.length} 已绑定`;
+  return `${boundCount}/${financeSourceCards.value.length} 已就绪`;
 });
 const financeAccountSummary = computed(() => `${townFinanceHub.accounts.length} 个账户`);
-const financeAuthLabel = computed(() => (auth.isAuthenticated.value ? '私有账本已接通' : '未登录，仅展示建筑入口'));
+const financeAuthLabel = computed(() => (auth.isAuthenticated.value ? '私有账本已开启' : '未登录，仅展示建筑入口'));
 const financeStatusSummary = computed(() => {
   if (!auth.isAuthenticated.value) {
-    return '登录后这里会展示你的资产总览、自动同步状态和工资卡流水接入情况。';
+    return '登录后这里会展示你的资产总览、钱迹导入状态和本地账户归档情况。';
   }
-  return `当前共管理 ${townFinanceHub.accounts.length} 个账户，${financeSourceCards.value.filter((item) => item.bound).length} 个来源已接通。`;
+  return `当前共管理 ${townFinanceHub.accounts.length} 个账户，${financeSourceCards.value.filter((item) => item.bound).length} 个钱迹来源已就绪。`;
 });
 const financeSyncSummary = computed(() => {
   const nightlyCount = financeSourceCards.value.filter((item) => item.nightlyEnabled).length;
   if (!auth.isAuthenticated.value) {
-    return '登录后可启用支付宝、微信和银行卡的自动同步。';
+    return '登录后可把钱迹导出的账单文件导入到账本。';
   }
-  return nightlyCount > 0 ? `已开启 ${nightlyCount} 个夜间同步来源` : '夜间同步尚未开启';
+  return nightlyCount > 0 ? `已保留 ${nightlyCount} 个来源的导入配置` : '还没有保存钱迹导入配置';
 });
 
 const currentConversationLabel = computed(() => {
