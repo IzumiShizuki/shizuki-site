@@ -164,6 +164,12 @@
 
     <section class="canvas-shell liquid-material">
       <div ref="canvasMountRef" class="canvas-host"></div>
+      <div v-if="boardCanvasUnavailable" class="canvas-unavailable">
+        <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+        <strong>白板编辑暂不可用</strong>
+        <p>{{ boardCanvasUnavailableText }}</p>
+        <code>VITE_TLDRAW_LICENSE_KEY</code>
+      </div>
       <div v-if="boardLoading" class="canvas-mask">
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
         <span>画板加载中...</span>
@@ -192,7 +198,7 @@ import {
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
 import { notifyLightAppsChanged, readLightAppsState } from '../../../utils/lightAppsState';
-import { mountBoardCanvas } from './boardCanvasBridge';
+import { getBoardCanvasAvailability, mountBoardCanvas } from './boardCanvasBridge';
 import { parseMermaidTextToGraph } from './boardMermaid';
 import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
 
@@ -213,6 +219,7 @@ const dirty = ref(false);
 const errorText = ref('');
 const infoText = ref('');
 const pngBackground = ref('white');
+const boardCanvasAvailability = ref(getBoardCanvasAvailability());
 
 const canvasMountRef = ref(null);
 const mermaidFileInputRef = ref(null);
@@ -244,8 +251,16 @@ const MERMAID_RUNTIME_OPTIONS = Object.freeze({
 const activeBoard = computed(() =>
   boards.value.find((item) => Number(item.whiteboardId) === Number(activeBoardId.value)) || null
 );
+const boardCanvasUnavailable = computed(() => !boardCanvasAvailability.value.supported);
+const boardCanvasUnavailableText = computed(() => {
+  if (boardCanvasAvailability.value.reason === 'missing-license-key') {
+    return '当前站点运行在生产环境，但前端没有配置 tldraw 授权 key。请在构建环境中补充 VITE_TLDRAW_LICENSE_KEY 后重新部署。';
+  }
+  return '白板编辑器暂时无法初始化，请检查前端运行环境后重试。';
+});
 
 const statusText = computed(() => {
+  if (boardCanvasUnavailable.value) return '白板已切换为授权降级模式：当前只保留面板展示，编辑能力已停用。';
   if (saving.value) return '同步中...';
   if (dirty.value) return '存在未同步变更';
   if (boardLoading.value) return '加载中...';
@@ -728,6 +743,10 @@ function closeMermaidPanel() {
 }
 
 function openImportPanel() {
+  if (boardCanvasUnavailable.value) {
+    setError(boardCanvasUnavailableText.value);
+    return;
+  }
   mermaidPanel.visible = true;
   mermaidPanel.mode = 'import';
   if (!mermaidPanel.text) {
@@ -736,6 +755,10 @@ function openImportPanel() {
 }
 
 function openExportPanel() {
+  if (boardCanvasUnavailable.value) {
+    setError(boardCanvasUnavailableText.value);
+    return;
+  }
   if (!boardBridge?.api?.isReady()) return;
   const preferredKind = activeBoardKind.value === 'MINDMAP' ? 'MINDMAP' : 'FLOWCHART';
   const result = boardBridge.api.exportMermaid(preferredKind);
@@ -824,6 +847,10 @@ async function importMermaidText() {
 }
 
 function triggerMermaidFile() {
+  if (boardCanvasUnavailable.value) {
+    setError(boardCanvasUnavailableText.value);
+    return;
+  }
   mermaidFileInputRef.value?.click?.();
 }
 
@@ -856,6 +883,10 @@ async function onMermaidFileChange(event) {
 }
 
 async function exportPng(scope) {
+  if (boardCanvasUnavailable.value) {
+    setError(boardCanvasUnavailableText.value);
+    return;
+  }
   if (!boardBridge?.api?.isReady()) {
     setError('画板尚未准备好');
     return;
@@ -906,6 +937,12 @@ watch(
 
 onMounted(async () => {
   await hydrateBoards();
+
+  boardCanvasAvailability.value = getBoardCanvasAvailability();
+
+  if (!boardCanvasAvailability.value.supported) {
+    return;
+  }
 
   if (canvasMountRef.value) {
     boardBridge = mountBoardCanvas(canvasMountRef.value, {
@@ -1109,6 +1146,49 @@ onBeforeUnmount(() => {
 
 .canvas-host {
   position: relative;
+}
+
+.canvas-unavailable {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+  color: rgba(64, 77, 112, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(238, 244, 255, 0.92)),
+    rgba(233, 240, 255, 0.9);
+}
+
+.canvas-unavailable i {
+  font-size: 28px;
+  color: rgba(216, 121, 88, 0.95);
+}
+
+.canvas-unavailable strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.canvas-unavailable p {
+  max-width: 520px;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.canvas-unavailable code {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(136, 157, 208, 0.32);
+  background: rgba(255, 255, 255, 0.86);
+  color: rgba(57, 82, 142, 0.96);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 :deep(.board-canvas-react-host) {

@@ -39,6 +39,8 @@ const GUIDE_STORAGE_KEY = 'shizuki.board-canvas.palette-guide-dismissed.v1';
 const BOARD_GRID_SIZE = 24;
 const STYLE_PANEL_COMPACT_BREAKPOINT = '(max-width: 980px)';
 const QUICK_CONNECT_SHAPE_TYPES = new Set(['geo', 'note', 'text', 'frame']);
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+const TLDRAW_LICENSE_KEY = String(import.meta.env.VITE_TLDRAW_LICENSE_KEY || '').trim();
 const PALETTE_QUICK_INSERT_TOOLS = new Set([
   ...QUICK_CONNECT_CHOICE_TOOLS.map((tool) => tool.id),
   'line',
@@ -128,6 +130,39 @@ function setQuickConnectChoiceState(nextState) {
 function toNumber(value, fallback = 0) {
   const normalized = Number(value);
   return Number.isFinite(normalized) ? normalized : fallback;
+}
+
+export function getBoardCanvasAvailability() {
+  if (typeof window === 'undefined') {
+    return {
+      supported: true,
+      reason: 'ready',
+      requiresLicenseKey: false,
+      hasLicenseKey: Boolean(TLDRAW_LICENSE_KEY)
+    };
+  }
+
+  const protocol = String(window.location?.protocol || '').toLowerCase();
+  const hostname = String(window.location?.hostname || '').toLowerCase();
+  const isLocalHost = LOCAL_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost');
+  const isProductionBuild = import.meta.env.PROD === true;
+  const requiresLicenseKey = protocol === 'https:' && !isLocalHost && isProductionBuild;
+
+  if (requiresLicenseKey && !TLDRAW_LICENSE_KEY) {
+    return {
+      supported: false,
+      reason: 'missing-license-key',
+      requiresLicenseKey: true,
+      hasLicenseKey: false
+    };
+  }
+
+  return {
+    supported: true,
+    reason: 'ready',
+    requiresLicenseKey,
+    hasLicenseKey: Boolean(TLDRAW_LICENSE_KEY)
+  };
 }
 
 function intersectsBox(left, right) {
@@ -1756,6 +1791,7 @@ function BoardCanvasReactHost({ api, initialSnapshot }) {
       <div className="board-canvas-react-host__surface">
         <Tldraw
           components={hiddenUiComponents}
+          licenseKey={TLDRAW_LICENSE_KEY || undefined}
           onMount={(editor) => {
             api.bindEditor(editor);
             if (initializedRef.current) return;
