@@ -411,6 +411,26 @@ export function createSiteApiClient(config) {
         method: 'POST',
         body: payload
       });
+    },
+    async listTaskColumns() {
+      const payload = await authorizedRequest('/api/v1/light-apps/task-columns', { method: 'GET' });
+      return Array.isArray(payload) ? payload : [];
+    },
+    async listTaskRecurringRules() {
+      const payload = await authorizedRequest('/api/v1/light-apps/task-recurring-rules', { method: 'GET' });
+      return Array.isArray(payload) ? payload : [];
+    },
+    async createTaskRecurringRule(payload) {
+      return authorizedRequest('/api/v1/light-apps/task-recurring-rules', {
+        method: 'POST',
+        body: payload
+      });
+    },
+    async updateTaskRecurringRule(ruleId, payload) {
+      return authorizedRequest(`/api/v1/light-apps/task-recurring-rules/${encodeURIComponent(ruleId)}`, {
+        method: 'PUT',
+        body: payload
+      });
     }
   };
 }

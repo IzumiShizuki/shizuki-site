@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "sync:media": "node scripts/sync-media.mjs",
     "sync:qianji": "node scripts/qianji-local-sync.mjs",
+    "sync:qianji:timeprism": "node scripts/qianji-timeprism-task.mjs",
     "test:unit": "vitest run"
   },
   "dependencies": {
