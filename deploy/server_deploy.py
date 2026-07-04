@@ -47,6 +47,10 @@ PROTECTED_REMOTE_PREFIXES = {
 }
 
 
+def log(message: str) -> None:
+    print(message, flush=True)
+
+
 @dataclass(frozen=True)
 class DeployConfig:
     host: str
@@ -203,8 +207,11 @@ def list_remote_tree(
 ) -> tuple[set[str], dict[str, paramiko.SFTPAttributes]]:
     dirs: set[str] = set()
     files: dict[str, paramiko.SFTPAttributes] = {}
+    scanned_dirs = 0
+    scanned_files = 0
 
     def walk(rel_dir: str) -> None:
+        nonlocal scanned_dirs, scanned_files
         remote_dir = remote_join(remote_base, rel_dir)
         try:
             entries = sftp.listdir_attr(remote_dir)
@@ -215,10 +222,20 @@ def list_remote_tree(
             child_rel = f"{rel_dir}/{entry.filename}" if rel_dir else entry.filename
             if stat.S_ISDIR(entry.st_mode):
                 dirs.add(child_rel)
+                scanned_dirs += 1
+                if scanned_dirs == 1 or scanned_dirs % 100 == 0:
+                    log(
+                        f"[sync] remote index dirs {scanned_dirs}, files {scanned_files}"
+                    )
                 if not is_protected_remote(child_rel):
                     walk(child_rel)
             elif stat.S_ISREG(entry.st_mode):
                 files[child_rel] = entry
+                scanned_files += 1
+                if scanned_files == 1 or scanned_files % 200 == 0:
+                    log(
+                        f"[sync] remote index dirs {scanned_dirs}, files {scanned_files}"
+                    )
 
     walk("")
     return dirs, files
@@ -246,12 +263,16 @@ def desired_mode(local_path: Path) -> int:
 def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
     root = repo_root()
     local_dirs, local_files = build_local_tree(root)
-    print(f"[sync] local files: {len(local_files)}, local dirs: {len(local_dirs)}")
+    log(f"[sync] local files: {len(local_files)}, local dirs: {len(local_dirs)}")
 
     sftp = ssh.open_sftp()
     try:
         ensure_remote_dir(sftp, config.remote_app_dir)
+        log("[sync] indexing remote files...")
         remote_dirs, remote_files = list_remote_tree(sftp, config.remote_app_dir)
+        log(
+            f"[sync] remote files: {len(remote_files)}, remote dirs: {len(remote_dirs)}"
+        )
 
         for rel_dir in sorted(local_dirs, key=lambda item: (item.count("/"), item)):
             ensure_remote_dir(sftp, remote_join(config.remote_app_dir, rel_dir))
@@ -294,9 +315,13 @@ def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
             except OSError:
                 pass
             uploaded += 1
-            if uploaded == 1 or uploaded % 100 == 0 or index == total:
-                print(
+            if uploaded == 1 or uploaded % 100 == 0:
+                log(
                     f"[sync] uploaded {uploaded}, skipped {skipped}, missing {missing_local}, scanned {index}/{total}"
+                )
+            if index == 1 or index % 100 == 0 or index == total:
+                log(
+                    f"[sync] progress scanned {index}/{total}, uploaded {uploaded}, skipped {skipped}, missing {missing_local}"
                 )
 
         deleted_files = 0
@@ -320,7 +345,7 @@ def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
                 except OSError:
                     pass
 
-        print(
+        log(
             f"[sync] uploaded {uploaded}, skipped {skipped}, missing {missing_local}, deleted files {deleted_files}, deleted dirs {deleted_dirs}"
         )
     finally:
@@ -385,10 +410,10 @@ def poll_remote_rebuild(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
     while True:
         elapsed = int(time.time() - start)
         if elapsed > config.deploy_timeout_seconds:
-            print(f"[ERROR] remote deploy timed out after {config.deploy_timeout_seconds}s")
+            log(f"[ERROR] remote deploy timed out after {config.deploy_timeout_seconds}s")
             tail = tail_remote_log(ssh, log_file, 80).strip()
             if tail:
-                print(tail)
+                log(tail)
             raise RuntimeError("remote deploy timed out")
 
         _, status_line, _ = read_command(
@@ -398,21 +423,21 @@ def poll_remote_rebuild(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
         status_line = status_line.strip()
 
         if status_line.startswith("SUCCESS"):
-            print("[OK] remote deploy finished successfully.")
+            log("[OK] remote deploy finished successfully.")
             tail = tail_remote_log(ssh, log_file, 40).strip()
             if tail:
-                print(tail)
+                log(tail)
             return
         if status_line.startswith("FAILED"):
-            print("[ERROR] remote deploy failed.")
+            log("[ERROR] remote deploy failed.")
             tail = tail_remote_log(ssh, log_file, 80).strip()
             if tail:
-                print(tail)
+                log(tail)
             raise RuntimeError(status_line)
         if status_line:
-            print(f"[WAIT] {status_line} ({elapsed}s)")
+            log(f"[WAIT] {status_line} ({elapsed}s)")
         else:
-            print(f"[WAIT] remote status unavailable yet ({elapsed}s)")
+            log(f"[WAIT] remote status unavailable yet ({elapsed}s)")
 
         time.sleep(config.deploy_poll_interval_seconds)
 
@@ -427,7 +452,7 @@ def restart_remote(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
     )
     output = require_success(ssh, command)
     if output.strip():
-        print(output.strip())
+        log(output.strip())
 
 
 def open_ssh(config: DeployConfig) -> paramiko.SSHClient:
@@ -454,32 +479,32 @@ def run_update(config: DeployConfig) -> None:
     while True:
         try:
             with open_ssh(config) as ssh:
-                print("[0/3] Checking SSH connectivity...")
+                log("[0/3] Checking SSH connectivity...")
                 require_success(ssh, "echo ok >/dev/null")
-                print("[1/3] Uploading local code to server...")
+                log("[1/3] Uploading local code to server...")
                 sync_project(ssh, config)
-                print("[2/3] Starting remote rebuild...")
+                log("[2/3] Starting remote rebuild...")
                 start_remote_rebuild(ssh, config)
-                print("[3/3] Polling remote rebuild status...")
+                log("[3/3] Polling remote rebuild status...")
                 poll_remote_rebuild(ssh, config)
-                print("Update code + deploy finished.")
+                log("Update code + deploy finished.")
                 return
         except Exception as exc:  # pragma: no cover
             if attempt >= config.upload_retries:
                 raise RuntimeError(
                     f"update deploy failed after {attempt} attempt(s): {exc}"
                 ) from exc
-            print(f"[WARN] update deploy attempt {attempt} failed: {exc}")
-            print("[WARN] retrying in 3 seconds...")
+            log(f"[WARN] update deploy attempt {attempt} failed: {exc}")
+            log("[WARN] retrying in 3 seconds...")
             attempt += 1
             time.sleep(3)
 
 
 def run_restart(config: DeployConfig) -> None:
     with open_ssh(config) as ssh:
-        print("[1/1] Restarting existing containers without uploading code...")
+        log("[1/1] Restarting existing containers without uploading code...")
         restart_remote(ssh, config)
-        print("Restart-only deployment finished.")
+        log("Restart-only deployment finished.")
 
 
 def main() -> int:
@@ -491,7 +516,7 @@ def main() -> int:
             run_restart(config)
         return 0
     except Exception as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        print(f"[ERROR] {exc}", file=sys.stderr, flush=True)
         return 1
 
 
