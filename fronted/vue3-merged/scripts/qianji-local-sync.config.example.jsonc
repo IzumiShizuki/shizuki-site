@@ -1,0 +1,55 @@
+{
+  // Your site backend. Use the real API origin, not localhost:7070.
+  "apiBaseUrl": "http://111.228.35.186:8080",
+
+  // Either keep an access token here, or provide email + password so the script can refresh it automatically.
+  "email": "your-email@example.com",
+  "password": "replace-with-your-password",
+
+  // Directory where Qianji exports CSV / JSON files.
+  "watchDir": "D:/exports/qianji",
+
+  // Optional: move processed files out of the watch directory after a successful sync.
+  "archiveDir": "D:/exports/qianji/processed",
+
+  // Poll every 60 seconds when running with --watch.
+  "pollIntervalSeconds": 60,
+
+  // Save local file fingerprints here to avoid reprocessing the same export.
+  "processedStateFile": "./qianji-local-sync.state.json",
+
+  // Qianji local import currently works best when grouped by source account.
+  "groupByAccount": true,
+
+  // If a Qianji source account has no explicit mapping, use this local account name.
+  "fallbackAccountName": "钱迹导入",
+
+  // Optional: restore the source-account status card to this account after each run.
+  // "statusAnchorAccountName": "钱迹同步入口",
+
+  // Optional: per-source-account local mapping.
+  "accountMappings": {
+    "支付宝余额": {
+      "accountName": "支付宝余额",
+      "channelCode": "alipay",
+      "channelName": "支付宝",
+      "currencyCode": "CNY"
+    },
+    "微信零钱": {
+      "accountName": "微信零钱",
+      "channelCode": "wechat",
+      "channelName": "微信",
+      "currencyCode": "CNY"
+    },
+    "招商银行卡": {
+      "accountName": "工资卡",
+      "channelCode": "bank_card",
+      "channelName": "银行卡",
+      "currencyCode": "CNY"
+    },
+    "__default__": {
+      "channelCode": "qianji",
+      "channelName": "钱迹"
+    }
+  }
+}

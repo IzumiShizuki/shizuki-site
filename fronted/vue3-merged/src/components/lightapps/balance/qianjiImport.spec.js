@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQianjiCsvText, parseQianjiJsonText } from './qianjiImport';
+import { extractQianjiRecordAccount, extractQianjiRecordBook, parseQianjiCsvText, parseQianjiJsonText } from './qianjiImport';
 
 describe('qianjiImport', () => {
   it('parses csv rows with income and expense columns', () => {
@@ -61,5 +61,15 @@ describe('qianjiImport', () => {
       amount: '128.50',
       categoryHint: '红包'
     });
+  });
+
+  it('extracts source account hints from qianji records', () => {
+    const record = {
+      账户1: '微信零钱',
+      账本: '默认账本'
+    };
+
+    expect(extractQianjiRecordAccount(record)).toBe('微信零钱');
+    expect(extractQianjiRecordBook(record)).toBe('默认账本');
   });
 });

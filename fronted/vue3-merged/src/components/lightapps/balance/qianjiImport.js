@@ -203,6 +203,14 @@ function resolveCategory(record) {
   return secondary || category || primary || '钱迹导入';
 }
 
+export function extractQianjiRecordAccount(record) {
+  return readMatchingValue(record, HEADER_ALIASES.account);
+}
+
+export function extractQianjiRecordBook(record) {
+  return readMatchingValue(record, HEADER_ALIASES.book);
+}
+
 function resolveNote(record) {
   const parts = [
     readMatchingValue(record, HEADER_ALIASES.note),
