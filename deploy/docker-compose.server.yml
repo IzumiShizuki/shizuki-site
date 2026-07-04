@@ -200,6 +200,7 @@ services:
       args:
         VITE_GATEWAY_BASE_URL: ${VITE_GATEWAY_BASE_URL:-/}
         VITE_METING_CONSOLE_URL: ${VITE_METING_CONSOLE_URL:-}
+        VITE_TLDRAW_LICENSE_KEY: ${VITE_TLDRAW_LICENSE_KEY:-}
     image: shizuki-site/site:latest
     container_name: shizuki-site-frontend
     restart: unless-stopped
