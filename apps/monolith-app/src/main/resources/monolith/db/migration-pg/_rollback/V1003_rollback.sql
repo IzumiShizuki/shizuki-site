@@ -18,8 +18,8 @@
 --   * The combination above is intentional belt-and-braces: the script
 --     is recoverable archive material, not a deployment artefact.
 --
--- Spec       : .kiro/specs/music-source-tunehub-removal/
--- Design ref : design.md §6.2
+-- Change set : TuneHub removal and Meting migration
+-- Design ref : section 6.2
 -- Reverses   : V1003__music_tunehub_to_meting.sql (steps 1, 2, 4)
 --
 -- =====================================================================
@@ -107,8 +107,8 @@ INSERT INTO MDA_MUSIC_PROVIDER_GUIDE
     (provider_code, guide_title, guide_text, guide_link)
 VALUES (
     'tunehub',
-    'TuneHub API Key 获取指南',
-    '登录 TuneHub 控制台后在 Dashboard 生成 API Key。',
+    'TuneHub API Key 閼惧嘲褰囬幐鍥у础',
+    '閻ц缍?TuneHub 閹貉冨煑閸欐澘鎮楅崷?Dashboard 閻㈢喐鍨?API Key閵?,
     'https://tunehub.sayqz.com/dashboard'
 )
 ON CONFLICT (provider_code) DO UPDATE SET

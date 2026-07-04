@@ -2,9 +2,9 @@
 -- V1003: TuneHub -> Meting aggregator migration (PostgreSQL primary path)
 -- =====================================================================
 --
--- Spec      : .kiro/specs/music-source-tunehub-removal/
--- Design    : design.md §3.5
--- Constraint: .kiro/specs/music-source-tunehub-removal/.work/db_constraint_check.md
+-- Change set: TuneHub removal and Meting migration
+-- Design ref : section 3.5
+-- Constraint : schema gap on MDA_USER_MUSIC_PLAYLIST_TRACK
 --             (Conclusion B: schema gap on MDA_USER_MUSIC_PLAYLIST_TRACK
 --              -> step 5b uses WHERE NOT EXISTS fallback, NOT ON CONFLICT)
 --
@@ -30,7 +30,7 @@
 --               (fallback because PG migration-pg path does not maintain
 --                the (playlist_code, provider_code, track_id) UNIQUE
 --                index for MDA_USER_MUSIC_PLAYLIST_TRACK -- see
---                db_constraint_check.md §2). The NOT EXISTS guard makes
+--                the constraint review note). The NOT EXISTS guard makes
 --                re-runs degenerate to 0 inserts.
 --
 -- Compatibility:
@@ -81,8 +81,8 @@ INSERT INTO MDA_MUSIC_PROVIDER_GUIDE
     (provider_code, guide_title, guide_text, guide_link)
 VALUES (
     'meting',
-    'Meting 系统服务说明',
-    'Meting 为系统内置服务，无需用户 API Key。Spotify 继续使用官方开发者凭证；网易云/QQ/酷狗账号能力请使用 Cookie 绑定助手。',
+    'Meting 缂傚倷绶￠崹闈涚暦閻㈤潧鍨濇繛宸簻鐎氬鈧箍鍎遍幊搴綖閵堝鍋ｉ柛銉戝懏鎲煎┑?,
+    'Meting 濠电偞鍨堕幑浣糕枍閿濆鐒鹃悗闈涙憸绾惧ジ鏌ｉ弬鍨Щ闁轰礁澧庣槐鎾诲礃閹勭亶濠电姭鍋撻柛銉墮缁€澶愭煃閽樺鍣界紒鈧径鎰厸闁告劦浜滈埢鍫熺箾閹惧磭鍩ｉ柟顔荤矙婵℃悂鏁冮埀顒勬偂?API Key闂備線娼уΛ鏃傜紦缁差湹tify 缂傚倸鍊风紞鈧柛娑卞灡閺嗙増绻涙潏鍓хК婵炲娲熷顐﹀Χ閸ワ絽浜鹃悷娆忓閹达箑钃熼柣鏂款殠閸ゆ洟鏌嶈閸撶喎鐣烽敐澶婄闁挎繂鍊告禍楣冩煕濞戝崬骞栨繛鍫濈埣閹綊宕堕敂鍓х摌缂備浇绮炬禍顒傛閺冨牆绠ｉ柣鎰儗濞笺劍绻?QQ/闂傚倷妞掗崡鎶剿夐幘鍨涘亾濮橆剛肖闁瑰嘲缍婇弫鍐焵椤掑啨浜归柛褎顨嗛崵鍕煢濡警妲告い顐ｆ閹綊宕堕鍛板悅婵犵數鍋涘ú顓㈠箖?Cookie 缂傚倸鍊烽悞锕傚垂閻㈠憡鍋╁Δ锝呭暙缁€澶愭煃閸濆嫬鈧悂路娓氣偓閺?,
     'https://github.com/injahow/meting-api'
 )
 ON CONFLICT (provider_code) DO UPDATE SET
@@ -175,7 +175,7 @@ WHERE preference_json #>> ARRAY['music.source_mode'] = 'tunehub_only';
 --   playlist_code single-column UNIQUE constraint
 --   (AK_MDA_USER_MUSIC_PLAYLIST_1) is asserted by the V406 / V4 MySQL
 --   DDL and assumed in PG by the operational baseline -- see
---   db_constraint_check.md §3.
+--   the original playlist uniqueness review note.
 -- ---------------------------------------------------------------------
 INSERT INTO MDA_USER_MUSIC_PLAYLIST
     (playlist_code, user_id, playlist_type, name_text, description_text,
@@ -193,7 +193,7 @@ ON CONFLICT (playlist_code) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- Step 5b: MDA_USER_MUSIC_PLAYLIST_TRACK -- vh_meting_* mirror copies
---   FALLBACK FORM (WHERE NOT EXISTS) per db_constraint_check.md §2.2.
+--   FALLBACK FORM (WHERE NOT EXISTS) because the active PG path does not
 --
 --   Why not ON CONFLICT (playlist_code, provider_code, track_id):
 --     The active Flyway path migration-pg/ does NOT maintain DDL for

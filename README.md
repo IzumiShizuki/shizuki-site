@@ -1,240 +1,36 @@
-# Shizuki Site - 个人学习陪伴平台
+# Shizuki Site
 
-> 一个集学习陪伴、内容沉淀、作品展示与 AI 对话于一体的个人站点
+个人站点项目，当前以单体后端 + Vue 前端为主，部署目标默认是 `111.228.35.186`。
 
-## 项目简介
+## 保留的主要入口
 
-Shizuki Site 是一个"长期生活系统"型个人站点，提供：
-
-- 🎭 **学习陪伴**：动态角色 + 背景音乐 + 环境音 + 可定制 Widgets
-- 📝 **内容沉淀**：博客文章、时间线、项目展示
-- 🤖 **AI 对话**：支持角色卡、世界书、OpenAI 兼容协议
-- 🎨 **视觉体验**：毛玻璃效果、圆角卡片、分区背景配置
-
-## 技术栈
-
-### 后端
-- **语言与框架**：Java 17 + Spring Boot 3.2.x
-- **架构形态**：单体应用 + 业务模块化（Monolith Modular）
-- **数据访问**：MyBatis-Plus + PostgreSQL 16
-- **缓存与会话**：Redis 7
-- **对象存储**：阿里云 OSS
-- **安全认证**：Sa-Token
-- **构建工具**：Maven 多模块
-
-### 架构设计
-- 单体入口 `apps/monolith-app` + 业务模块 `modules/*`
-- 数据结构模块 `model/{entity,request,response}`
-- 统一鉴权与限流
-- 审计日志与配额管理
-- OWASP ASVS L1 安全基线
-
-## 快速开始
-
-### 前置要求
-- JDK 17+
-- Maven 3.6+
-- Docker & Docker Compose
-
-### 启动步骤
-
-1. **启动中间件**
-```bash
-./scripts/up-middleware.sh
-# 或手动：docker compose up -d postgres redis
-```
-
-2. **构建项目**
-```bash
-mvn clean install
-```
-
-3. **运行服务**
-```bash
-# 启动单体应用
-mvn -pl apps/monolith-app spring-boot:run
-
-# 或使用 Docker 启动单体应用
-docker compose --profile app up -d
-```
-
-4. **访问服务**
-- Monolith API: http://localhost:8080
-
-### 停止服务
-```bash
-./scripts/down-middleware.sh
-# 或手动：docker compose down
-```
+- 前端目录：`fronted/vue3-merged`
+- 前端启动：`fronted/start_frontend.bat`
+- 服务器部署：`deploy/update-code-and-deploy.bat`
+- 服务器重启：`deploy/restart-only.bat`
 
 ## 项目结构
 
-```
-shizuki-site/
-├── libs/                      # 公共库
-│   ├── common-core/          # 核心工具类
-│   ├── common-servlet/       # Web 层组件
-│   └── common-integration/   # 外部集成
-├── model/                     # 数据结构模块
-│   ├── entity/               # 持久化实体
-│   ├── request/              # 请求 DTO
-│   └── response/             # 响应 DTO
-├── modules/                   # 业务模块
-│   ├── user-module/
-│   ├── content-module/
-│   ├── media-module/
-│   └── ai-module/
-├── apps/
-│   └── monolith-app/         # 单体启动入口 (8080)
-├── resouces/
-│   ├── md/                   # 架构文档
-│   └── sql/                  # 数据库脚本
-└── scripts/                  # 工具脚本
-```
+- `apps/monolith-app`
+  - 单体后端启动入口
+- `modules`
+  - 业务模块
+- `fronted/vue3-merged`
+  - 前端工程
+- `deploy`
+  - 服务器部署文件
+- `docker`
+  - Dockerfile 集中目录
 
-## 核心功能
-
-### 用户体系
-- **GUEST**：游客，公开内容浏览
-- **USER**：普通用户，基础功能 + 个人偏好
-- **INTERVIEWER**：面试官（3 天有效期，自动降级）
-- **FRIEND**：友人，受邀分组
-- **ADMIN**：管理员，全站管理
-
-### AI 配额策略
-- 无自带 API 用户：**总生命周期 5 轮**（1 问 + 1 答 = 1 轮）
-- 自带 API 用户：无总轮数限制，但受 30/min 限流保护
-- 对话历史保留 30 天，可自行清理
-
-### 安全特性
-- 统一鉴权与限流（网关级 + 服务级）
-- XSS 防护（OWASP Java HTML Sanitizer）
-- 审计日志（关键操作可追溯）
-- 配额管理与紧急止损开关
-- 外链跳转确认与白名单机制
-
-## 开发指南
-
-### 运行测试
-```bash
-# 所有测试
-mvn test
-
-# 单个模块测试
-mvn test -pl modules/user-module
-
-# 单个测试类
-mvn test -pl modules/user-module -Dtest=AuthControllerIntegrationTest
-```
-
-### SQL 规范检查
-```bash
-./scripts/check_sql_conventions.sh
-```
-
-### API 文档
-启动服务后访问 Swagger UI：
-- Monolith: http://localhost:8080/swagger-ui/index.html
-
-## Git 提交规范
-
-**重要**：所有提交必须遵循以下格式：
-
-```
-emoji type : description
-```
-
-### 常用操作（优先使用）
-
-| Emoji | Type     | 用途                           |
-| ----- | -------- | ------------------------------ |
-| ✨     | feat     | 新增功能                       |
-| 🐛     | fix      | 修复 bug                       |
-| ♻️     | refactor | 重构（不改变功能）             |
-| 🎨     | style    | 代码风格/格式调整（不改逻辑）  |
-| ⚡     | perf     | 性能优化                       |
-| ✅     | test     | 新增/修改测试                  |
-| 📝     | docs     | 文档（README、注释、接口文档） |
-| 🔧     | chore    | 维护（构建脚本、依赖、配置）   |
-| 🚀     | build    | 构建相关（打包、编译）         |
-| 👷     | ci       | CI 配置（GitHub Actions 等）   |
-| 🔥     | del      | 删除代码/文件/无用逻辑         |
-| ⏪     | revert   | 回滚提交                       |
-
-### 扩展操作
-
-| Emoji | Type     | 用途                  |
-| ----- | -------- | --------------------- |
-| 🚚     | move     | 移动/重命名文件或目录 |
-| 🔒     | security | 安全修复/加固         |
-| 🌐     | i18n     | 国际化/本地化         |
-| 📦     | deps     | 依赖变更（升级/降级） |
-| 🧹     | cleanup  | 清理死代码/临时代码   |
-|️ 🗃     | data     | 数据/SQL/迁移脚本变更 |
-| 🧱     | init     | 初始化项目/基础功能   |
-
-### 提交示例
+## 本地开发
 
 ```bash
-git commit -m "✨ feat : 新增用户偏好设置同步功能"
-git commit -m "🐛 fix : 修复 AI 配额计算错误"
-git commit -m "📝 docs : 更新 API 文档"
+mvn clean install
+mvn -pl apps/monolith-app spring-boot:run
 ```
 
-## 文档
+前端在 `fronted/vue3-merged` 下单独运行。
 
-详细文档请查看 `resouces/md/` 目录：
+## 说明
 
-- [规范导航](resouces/md/standards/00_规范导航.md) - 命名、术语、组件分层、前端状态与遗留台账统一入口
-- [总体设计文档](resouces/md/总体设计文档_f.md) - 产品定位、架构设计、安全基线
-- [代码开发文档](resouces/md/02_代码开发文档_v0.1.md) - 技术栈、工程结构、开发规范
-- [AI协作开发规范](resouces/md/05_AI协作开发规范_v0.1.md) - AI 必遵守规则、可复用工具类、提交流程
-- [CLAUDE.md](CLAUDE.md) - Claude Code 工作指南
-
-## 部署说明
-
-### 资源要求
-- **最低配置**：单机 8GB 内存
-- **中间件**：PostgreSQL (1.2-1.6GB) + Redis (0.25-0.5GB)
-- **应用服务**：单体应用约 1.2-2.0GB（视 profile 与流量而定）
-- **系统预留**：1.0-1.4GB
-
-### 环境变量
-
-关键环境变量（参考 `compose.yaml`）：
-- `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`: 数据库连接
-- `REDIS_HOST`, `REDIS_PORT`: Redis 连接
-- `AUDIT_PUBLISHER_TYPE`: 审计发布器类型（默认 `noop`，可切 `kafka`）
-- `INTERVIEWER_SECRET`: 面试官注册密钥（必需）
-
-### 远程中间件配置（公开仓库安全模式）
-
-仓库不提交真实中间件地址与密钥。请使用公开模板生成本地私有配置：
-
-```bash
-cp resouces/yaml/middleware-config.example.yaml resouces/yaml/middleware-config.yaml
-```
-
-然后在 `resouces/yaml/middleware-config.yaml` 中填写你的真实值（该文件已被 `.gitignore` 忽略）。
-
-常见必填项：
-
-- `middleware.host`
-- `spring.datasource.url` / `spring.datasource.username` / `spring.datasource.password`
-- `spring.data.redis.password`
-- `spring.kafka.bootstrap-servers`
-- `shizuki.oss.endpoint` / `shizuki.oss.access-key-id` / `shizuki.oss.access-key-secret`
-- `shizuki.auth.jwt.secret`
-
-数据库初始化建议：
-
-1. 新环境优先使用 PostgreSQL，并配置 `DB_URL=jdbc:postgresql://<host>:5432/shizuki_app`。
-2. 启动应用，让 Flyway 执行 `apps/monolith-app/src/main/resources/monolith/db/migration-pg/*.sql`。
-3. 历史 MySQL 迁移请使用 `scripts/migrate_mysql_to_postgres.sh`，并在切换前执行 `scripts/verify_mysql_postgres_consistency.sh`。
-
-## 许可证
-
-
----
-
-**注意**：本项目处于起步阶段，功能基本未实现。
+这份 README 只保留最常用的信息，历史规格、一次性迁移脚本和辅助文档已做清理。
