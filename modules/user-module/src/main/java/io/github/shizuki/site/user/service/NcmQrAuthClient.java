@@ -3,6 +3,9 @@ package io.github.shizuki.site.user.service;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.user.config.MusicNcmProperties;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -13,20 +16,22 @@ import org.springframework.web.client.RestClient;
 @Component
 public class NcmQrAuthClient {
 
+    private final String baseUrl;
     private final RestClient restClient;
 
     public NcmQrAuthClient(RestClient.Builder restClientBuilder, MusicNcmProperties musicNcmProperties) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(musicNcmProperties.getConnectTimeoutMs());
         requestFactory.setReadTimeout(musicNcmProperties.getReadTimeoutMs());
+        this.baseUrl = musicNcmProperties.getBaseUrl();
         this.restClient = restClientBuilder
-            .baseUrl(musicNcmProperties.getBaseUrl())
+            .baseUrl(this.baseUrl)
             .requestFactory(requestFactory)
             .build();
     }
 
     public QrCreateResult createQrSession() {
-        Map<String, Object> keyPayload = requestMap("/login/qr/key");
+        Map<String, Object> keyPayload = requestMap(buildUri("/login/qr/key?timestamp=" + System.currentTimeMillis()));
         int keyCode = readInt(keyPayload.get("code"), 0);
         Map<String, Object> keyData = asMap(keyPayload.get("data"));
         String qrKey = readString(keyData.get("unikey"), "");
@@ -37,7 +42,14 @@ public class NcmQrAuthClient {
             throw unavailable();
         }
 
-        Map<String, Object> qrPayload = requestMap("/login/qr/create?qrimg=true&key=" + qrKey);
+        String resolvedQrKey = qrKey;
+        Map<String, Object> qrPayload = requestMap(
+            buildUri(
+                "/login/qr/create?qrimg=true&key="
+                    + URLEncoder.encode(resolvedQrKey, StandardCharsets.UTF_8)
+                    + "&timestamp=" + System.currentTimeMillis()
+            )
+        );
         int qrCode = readInt(qrPayload.get("code"), 0);
         Map<String, Object> qrData = asMap(qrPayload.get("data"));
         String qrImage = readString(qrData.get("qrimg"), "");
@@ -52,8 +64,13 @@ public class NcmQrAuthClient {
         if (!StringUtils.hasText(qrKey)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "qr_key is required");
         }
-        String path = "/login/qr/check?key=" + qrKey + "&timestamp=" + System.currentTimeMillis();
-        Map<String, Object> payload = requestMap(path);
+        Map<String, Object> payload = requestMap(
+            buildUri(
+                "/login/qr/check?key="
+                    + URLEncoder.encode(qrKey, StandardCharsets.UTF_8)
+                    + "&timestamp=" + System.currentTimeMillis()
+            )
+        );
         int code = readInt(payload.get("code"), 0);
         String message = readString(payload.get("message"), readString(payload.get("msg"), ""));
         String cookie = readString(payload.get("cookie"), "");
@@ -64,10 +81,10 @@ public class NcmQrAuthClient {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> requestMap(String path) {
+    private Map<String, Object> requestMap(URI uri) {
         try {
             Map<?, ?> response = restClient.get()
-                .uri(path)
+                .uri(uri)
                 .retrieve()
                 .body(Map.class);
             if (response == null || response.isEmpty()) {
@@ -83,6 +100,19 @@ public class NcmQrAuthClient {
         } catch (Exception exception) {
             throw unavailable();
         }
+    }
+
+    private URI buildUri(String pathAndQuery) {
+        String normalized = readString(pathAndQuery, "");
+        if (!StringUtils.hasText(normalized)) {
+            return URI.create(baseUrl);
+        }
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            return URI.create(normalized);
+        }
+        return normalized.startsWith("/")
+            ? URI.create(baseUrl + normalized)
+            : URI.create(baseUrl + "/" + normalized);
     }
 
     private BusinessException unavailable() {
