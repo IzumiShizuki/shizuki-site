@@ -22,9 +22,12 @@ DEFAULT_DEPLOY_TIMEOUT_SECONDS = 5400
 DEFAULT_DEPLOY_POLL_INTERVAL_SECONDS = 10
 
 ROOT_LEVEL_EXCLUDES = {
+    ".antigravity",
     ".beads",
     ".git",
+    ".github",
     ".idea",
+    ".kiro",
     ".vscode",
     "data",
 }
@@ -254,12 +257,17 @@ def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
             ensure_remote_dir(sftp, remote_join(config.remote_app_dir, rel_dir))
 
         uploaded = 0
+        missing_local = 0
         skipped = 0
         total = len(local_files)
         for index, rel_file in enumerate(sorted(local_files), start=1):
             local_path = local_files[rel_file]
             remote_path = remote_join(config.remote_app_dir, rel_file)
-            local_stat = local_path.stat()
+            try:
+                local_stat = local_path.stat()
+            except FileNotFoundError:
+                missing_local += 1
+                continue
             remote_attr = remote_files.get(rel_file)
 
             if remote_attr is not None:
@@ -272,7 +280,11 @@ def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
             if rel_file in remote_dirs:
                 remove_remote_tree(sftp, remote_path)
 
-            sftp.put(str(local_path), remote_path)
+            try:
+                sftp.put(str(local_path), remote_path)
+            except FileNotFoundError:
+                missing_local += 1
+                continue
             try:
                 sftp.chmod(remote_path, desired_mode(local_path))
                 sftp.utime(
@@ -284,7 +296,7 @@ def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
             uploaded += 1
             if uploaded == 1 or uploaded % 100 == 0 or index == total:
                 print(
-                    f"[sync] uploaded {uploaded}, skipped {skipped}, scanned {index}/{total}"
+                    f"[sync] uploaded {uploaded}, skipped {skipped}, missing {missing_local}, scanned {index}/{total}"
                 )
 
         deleted_files = 0
@@ -309,7 +321,7 @@ def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
                     pass
 
         print(
-            f"[sync] uploaded {uploaded}, skipped {skipped}, deleted files {deleted_files}, deleted dirs {deleted_dirs}"
+            f"[sync] uploaded {uploaded}, skipped {skipped}, missing {missing_local}, deleted files {deleted_files}, deleted dirs {deleted_dirs}"
         )
     finally:
         sftp.close()
