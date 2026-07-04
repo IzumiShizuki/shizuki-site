@@ -2,7 +2,7 @@
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
-set "FRONTEND_DIR=%SCRIPT_DIR%fronted\vue3-merged"
+set "FRONTEND_DIR=%SCRIPT_DIR%vue3-merged"
 set "VITE_CMD=node_modules\.bin\vite.cmd"
 set "ROLLUP_NATIVE_DIR=node_modules\@rollup\rollup-win32-x64-msvc"
 

@@ -2,3 +2,4 @@ node_modules/
 .storage/
 .tmp/
 .storage-test/
+.tmp-smoke/

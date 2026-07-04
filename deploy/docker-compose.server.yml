@@ -61,7 +61,7 @@ services:
   presentation-generator:
     build:
       context: ..
-      dockerfile: Dockerfile.presentation-generator
+      dockerfile: docker/Dockerfile.presentation-generator
     image: shizuki-site/presentation-generator:latest
     container_name: shizuki-site-presentation-generator
     restart: unless-stopped
@@ -80,6 +80,7 @@ services:
   bill-sync-agent:
     build:
       context: ..
+      # NOTE: Dockerfile.bill-sync-agent is currently missing from this repository.
       dockerfile: Dockerfile.bill-sync-agent
     image: shizuki-site/bill-sync-agent:latest
     container_name: shizuki-site-bill-sync-agent
@@ -111,7 +112,7 @@ services:
   document-converter:
     build:
       context: ..
-      dockerfile: Dockerfile.document-converter
+      dockerfile: docker/Dockerfile.document-converter
     image: shizuki-site/document-converter:latest
     container_name: shizuki-site-document-converter
     restart: unless-stopped
@@ -135,7 +136,7 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: Dockerfile.backend
+      dockerfile: docker/Dockerfile.backend
     image: shizuki-site/backend:latest
     container_name: shizuki-site-backend
     restart: unless-stopped
@@ -196,7 +197,7 @@ services:
   site:
     build:
       context: ..
-      dockerfile: Dockerfile.frontend
+      dockerfile: docker/Dockerfile.frontend
       args:
         VITE_GATEWAY_BASE_URL: ${VITE_GATEWAY_BASE_URL:-/}
         VITE_METING_CONSOLE_URL: ${VITE_METING_CONSOLE_URL:-}

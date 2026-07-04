@@ -4,7 +4,7 @@ services:
   memoryos:
     build:
       context: ..
-      dockerfile: Dockerfile.memoryos
+      dockerfile: docker/Dockerfile.memoryos
       args:
         MEMORYOS_REF: ${MEMORYOS_REF:-8688d5128901a88a70a3ba961de8705a6cdab4c0}
     image: shizuki-site/memoryos:latest

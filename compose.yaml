@@ -60,7 +60,7 @@ services:
   document-converter:
     build:
       context: .
-      dockerfile: Dockerfile.document-converter
+      dockerfile: docker/Dockerfile.document-converter
     image: ${DOCUMENT_CONVERTER_IMAGE:-shizuki-site/document-converter:latest}
     container_name: shizuki-document-converter
     profiles: [ "app" ]

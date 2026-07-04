@@ -2966,3 +2966,5 @@ resouces/log/
 # Maven 本地仓库残留与子模块 .mvn 残留
 **/.mvn/repository/**
 modules/*/.mvn/
+**/__pycache__/
+**/*.pyc

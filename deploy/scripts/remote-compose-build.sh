@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEPLOY_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 STATUS_FILE="${DEPLOY_DIR}/.remote-deploy.status"
 LOG_FILE="${DEPLOY_DIR}/.remote-deploy.log"
 
