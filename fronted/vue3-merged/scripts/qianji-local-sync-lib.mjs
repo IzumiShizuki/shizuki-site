@@ -11,12 +11,27 @@ const DEFAULT_FILE_EXTENSIONS = ['.csv', '.json'];
 const DEFAULT_FALLBACK_ACCOUNT_NAME = '钱迹导入';
 const DEFAULT_STATUS_ANCHOR_MODE = 'first_group';
 const DEFAULT_ACCOUNT_MAPPING_KEY = '__default__';
+const PLACEHOLDER_SECRETS = new Set(['CHANGE_ME']);
 
 const NOTE_ACCOUNT_PATTERN = /(?:^|\|\s*)账户:([^|]+)/u;
 const NOTE_BOOK_PATTERN = /(?:^|\|\s*)账本:([^|]+)/u;
 
 function normalizeText(value) {
   return String(value == null ? '' : value).trim();
+}
+
+function resolveEnvTemplate(value) {
+  const raw = String(value == null ? '' : value);
+  return raw.replace(/\$\{([A-Z0-9_]+)\}/gi, (_, envName) => String(process.env[envName] ?? ''));
+}
+
+function normalizeConfigText(value) {
+  return normalizeText(resolveEnvTemplate(value));
+}
+
+function normalizeSecretText(value) {
+  const normalized = normalizeConfigText(value);
+  return PLACEHOLDER_SECRETS.has(normalized.toUpperCase()) ? '' : normalized;
 }
 
 function normalizeLookupKey(value) {
@@ -189,20 +204,23 @@ function normalizeAccountMappings(value) {
 export function normalizeSyncConfig(rawConfig, options = {}) {
   const source = ensurePlainObject(rawConfig);
   const baseDir = resolvePath(process.cwd(), options.baseDir || process.cwd()) || process.cwd();
-  const apiBaseUrl = normalizeText(source.apiBaseUrl || source.api_base_url).replace(/\/+$/, '');
+  const apiBaseUrl = normalizeConfigText(source.apiBaseUrl || source.api_base_url).replace(/\/+$/, '');
   if (!apiBaseUrl) {
     throw new Error('config.apiBaseUrl is required');
   }
 
-  const accessToken = normalizeText(source.accessToken || source.access_token);
-  const email = normalizeText(source.email);
-  const password = normalizeText(source.password);
+  const accessToken = normalizeConfigText(source.accessToken || source.access_token);
+  const email = normalizeConfigText(source.email);
+  const password = normalizeSecretText(source.password);
   const dryRun = toBoolean(source.dryRun, false);
   if (!dryRun && !accessToken && !(email && password)) {
     throw new Error('config.accessToken or config.email + config.password is required');
   }
 
-  const watchDir = resolvePath(baseDir, source.watchDir || source.watch_dir || source.exportDir || source.export_dir);
+  const watchDir = resolvePath(
+    baseDir,
+    normalizeConfigText(source.watchDir || source.watch_dir || source.exportDir || source.export_dir)
+  );
   if (!watchDir) {
     throw new Error('config.watchDir is required');
   }
@@ -214,10 +232,10 @@ export function normalizeSyncConfig(rawConfig, options = {}) {
       : DEFAULT_POLL_INTERVAL_MS;
 
   const processedStateFile =
-    resolvePath(baseDir, source.processedStateFile || source.processed_state_file)
+    resolvePath(baseDir, normalizeConfigText(source.processedStateFile || source.processed_state_file))
     || path.resolve(baseDir, '.qianji-local-sync-state.json');
 
-  const archiveDir = resolvePath(baseDir, source.archiveDir || source.archive_dir);
+  const archiveDir = resolvePath(baseDir, normalizeConfigText(source.archiveDir || source.archive_dir));
   const singleTargetAccountId = toPositiveInteger(source.singleTargetAccountId || source.single_target_account_id);
   const singleTargetAccountName = normalizeText(source.singleTargetAccountName || source.single_target_account_name);
   const groupByAccount = source.groupByAccount === undefined ? true : toBoolean(source.groupByAccount, true);

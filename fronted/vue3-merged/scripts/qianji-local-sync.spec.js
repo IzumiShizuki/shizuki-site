@@ -29,6 +29,18 @@ describe('qianji-local-sync-lib', () => {
     expect(stripped).not.toContain('block comment');
   });
 
+  it('treats placeholder passwords as missing credentials', () => {
+    expect(() => normalizeSyncConfig(
+      {
+        apiBaseUrl: 'http://example.com',
+        email: 'user@example.com',
+        password: 'CHANGE_ME',
+        watchDir: './exports'
+      },
+      { baseDir: path.resolve('fronted/vue3-merged/scripts') }
+    )).toThrow('config.accessToken or config.email + config.password is required');
+  });
+
   it('groups parsed transactions by qianji source account', () => {
     const config = normalizeSyncConfig(
       {
