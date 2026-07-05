@@ -8,9 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "sync:media": "node scripts/sync-media.mjs",
-    "sync:qianji": "node scripts/qianji-local-sync.mjs",
-    "sync:qianji:range": "node scripts/qianji-local-sync-range.mjs",
-    "sync:qianji:timeprism": "node scripts/qianji-timeprism-task.mjs",
+    "sync:qianji": "node ../../tools/qianji-sync/qianji-local-sync.mjs",
+    "sync:qianji:token": "node ../../tools/qianji-sync/qianji-local-sync-token.mjs",
+    "sync:qianji:range": "node ../../tools/qianji-sync/qianji-local-sync-range.mjs",
+    "sync:qianji:timeprism": "node ../../tools/qianji-sync/qianji-timeprism-task.mjs",
     "test:unit": "vitest run"
   },
   "dependencies": {

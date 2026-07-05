@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const targetScript = path.resolve(scriptDir, '../../../tools/qianji-sync/qianji-timeprism-task.mjs');
+const targetScript = path.resolve(scriptDir, '../../../tools/qianji-sync/qianji-local-sync-token.mjs');
 
 const child = spawn(process.execPath, [targetScript, ...process.argv.slice(2)], {
   stdio: 'inherit'

@@ -4,12 +4,14 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildLocalAccountPlan,
+  createSiteApiClient,
   groupParsedTransactionsByAccount,
   inferChannelFromAccountName,
   normalizeSyncConfig,
+  syncQianjiAuthTokens,
   syncQianjiFile,
   stripJsonComments
-} from './qianji-local-sync-lib.mjs';
+} from '../../../tools/qianji-sync/qianji-local-sync-lib.mjs';
 
 describe('qianji-local-sync-lib', () => {
   it('strips jsonc comments without touching string content', () => {
@@ -38,7 +40,21 @@ describe('qianji-local-sync-lib', () => {
         watchDir: './exports'
       },
       { baseDir: path.resolve('fronted/vue3-merged/scripts') }
-    )).toThrow('config.accessToken or config.email + config.password is required');
+    )).toThrow('config.accessToken or config.refreshToken or config.email + config.password is required');
+  });
+
+  it('accepts refresh token without password and assigns auth state file', () => {
+    const config = normalizeSyncConfig(
+      {
+        apiBaseUrl: 'http://example.com',
+        refreshToken: 'refresh-token-1',
+        watchDir: './exports'
+      },
+      { baseDir: path.resolve('fronted/vue3-merged/scripts') }
+    );
+
+    expect(config.refreshToken).toBe('refresh-token-1');
+    expect(config.authStateFile).toContain('.qianji-local-sync-auth.json');
   });
 
   it('groups parsed transactions by qianji source account', () => {
@@ -168,5 +184,115 @@ describe('qianji-local-sync-lib', () => {
 
     expect(result.processed).toBe(true);
     expect(result.groups).toBeGreaterThanOrEqual(0);
+  });
+
+  it('refreshes qianji auth tokens and persists rotated state', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'qianji-token-'));
+    const authStateFile = path.join(tempDir, 'auth.json');
+    const config = normalizeSyncConfig(
+      {
+        apiBaseUrl: 'http://example.com',
+        refreshToken: 'refresh-token-1',
+        watchDir: tempDir,
+        authStateFile
+      },
+      { baseDir: path.resolve('fronted/vue3-merged/scripts') }
+    );
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(
+      JSON.stringify({
+        data: {
+          result_type: 'TOKEN_ISSUED',
+          access_token: 'access-token-2',
+          refresh_token: 'refresh-token-2',
+          expires_in_sec: 1800,
+          refresh_expires_in_sec: 604800
+        }
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+
+    try {
+      const result = await syncQianjiAuthTokens(config, { mode: 'refresh' });
+      const persisted = JSON.parse(await fs.readFile(authStateFile, 'utf8'));
+
+      expect(result.accessToken).toBe('access-token-2');
+      expect(result.refreshToken).toBe('refresh-token-2');
+      expect(persisted.accessToken).toBe('access-token-2');
+      expect(persisted.refreshToken).toBe('refresh-token-2');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('uses refresh token to recover from 401 responses', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'qianji-client-'));
+    const authStateFile = path.join(tempDir, 'auth.json');
+    const config = normalizeSyncConfig(
+      {
+        apiBaseUrl: 'http://example.com',
+        accessToken: 'expired-access',
+        refreshToken: 'refresh-token-1',
+        watchDir: tempDir,
+        authStateFile
+      },
+      { baseDir: path.resolve('fronted/vue3-merged/scripts') }
+    );
+
+    const requests = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options = {}) => {
+      requests.push({
+        url: String(url),
+        method: String(options.method || 'GET'),
+        auth: options.headers?.Authorization || ''
+      });
+
+      if (String(url).endsWith('/api/v1/light-apps/balance/accounts') && options.headers?.Authorization === 'Bearer expired-access') {
+        return new Response(JSON.stringify({ message: 'expired' }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' }
+        });
+      }
+      if (String(url).endsWith('/api/v1/auth/tokens')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              result_type: 'TOKEN_ISSUED',
+              access_token: 'fresh-access',
+              refresh_token: 'refresh-token-2'
+            }
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          }
+        );
+      }
+      if (String(url).endsWith('/api/v1/light-apps/balance/accounts') && options.headers?.Authorization === 'Bearer fresh-access') {
+        return new Response(JSON.stringify({ data: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        });
+      }
+      throw new Error(`Unexpected request: ${String(url)} ${options.headers?.Authorization || ''}`);
+    };
+
+    try {
+      const client = createSiteApiClient(config);
+      const accounts = await client.listBalanceAccounts();
+      const persisted = JSON.parse(await fs.readFile(authStateFile, 'utf8'));
+
+      expect(accounts).toEqual([]);
+      expect(requests.map((item) => item.auth)).toEqual(['Bearer expired-access', '', 'Bearer fresh-access']);
+      expect(persisted.accessToken).toBe('fresh-access');
+      expect(persisted.refreshToken).toBe('refresh-token-2');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

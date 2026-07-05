@@ -4,7 +4,7 @@ import {
   DEFAULT_TIMEPRISM_TASK_MARKER,
   findExistingQianjiTimePrismRule,
   resolveTaskColumnCode
-} from './qianji-timeprism-task.mjs';
+} from '../../../tools/qianji-sync/qianji-timeprism-task.mjs';
 
 describe('qianji-timeprism-task', () => {
   it('prefers the requested enabled task column', () => {
