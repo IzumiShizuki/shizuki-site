@@ -10,7 +10,7 @@ public class AiChatProperties {
     private boolean enabled = false;
     private String baseUrl = "";
     private String apiKey = "";
-    private String model = "cpa-gpt-5.4-mini";
+    private String model = "gpt-5.5";
     private String systemPrompt = "";
     private long connectTimeoutMs = 2_500L;
     private long readTimeoutMs = 90_000L;
@@ -49,7 +49,7 @@ public class AiChatProperties {
 
     public void setModel(String model) {
         String normalized = model == null ? "" : model.trim();
-        this.model = normalized.isEmpty() ? "cpa-gpt-5.4-mini" : normalized;
+        this.model = normalized.isEmpty() ? "gpt-5.5" : normalized;
     }
 
     public String getSystemPrompt() {

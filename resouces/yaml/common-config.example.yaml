@@ -55,6 +55,18 @@ shizuki:
   admin:
     privilege:
       code-plain: "<ADMIN_PRIVILEGE_CODE>"
+  ai:
+    chat:
+      enabled: true
+      base-url: "http://${middleware.host}:3000"
+      api-key: "<AI_CHAT_API_KEY>"
+      model: "gpt-5.5"
+      connect-timeout-ms: 2500
+      read-timeout-ms: 90000
+      max-tokens: 800
+      max-context-messages: 12
+      max-worldbook-entries: 8
+      temperature: 0.7
   oauth:
     providers:
       github:
