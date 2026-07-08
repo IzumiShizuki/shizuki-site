@@ -154,6 +154,7 @@ const BalanceLedgerWindow = createAsyncWindowComponent(() => import('./balance/B
 const UrlLinksWindow = createAsyncWindowComponent(() => import('./url/UrlLinksWindow.vue'));
 const BoardCanvasWindow = createAsyncWindowComponent(() => import('./board/BoardCanvasWindow.vue'));
 const BlogSlidevWindow = createAsyncWindowComponent(() => import('./blog/BlogSlidevWindow.vue'));
+const QrToolsWindow = createAsyncWindowComponent(() => import('./qr/QrToolsWindow.vue'));
 
 const componentMap = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
@@ -161,7 +162,8 @@ const componentMap = Object.freeze({
   'balance-ledger': BalanceLedgerWindow,
   'url-links': UrlLinksWindow,
   'board-canvas': BoardCanvasWindow,
-  'blog-slidev': BlogSlidevWindow
+  'blog-slidev': BlogSlidevWindow,
+  'qr-tools': QrToolsWindow
 });
 
 const WINDOW_INTERACTIVE_SELECTOR = 'button, input, select, textarea, a, [role="button"], [contenteditable], .window-toolbar-hit';

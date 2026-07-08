@@ -46,6 +46,14 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
     iconClass: 'fas fa-person-chalkboard',
     source: 'Blog x LightApp',
     floatingAble: true
+  },
+  {
+    code: 'qr-tools',
+    title: 'QR Tools',
+    summary: '本地二维码轻应用：支持生成、识别，以及 WiFi 二维码卡片导出。',
+    iconClass: 'fas fa-qrcode',
+    source: 'Shizuki',
+    floatingAble: true
   }
 ]);
 
