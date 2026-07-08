@@ -146,7 +146,7 @@ public class NotionClient {
             if (StringUtils.hasText(cursor)) {
                 body.put("start_cursor", cursor);
             }
-            Map<String, Object> response = exchange("POST", "/data-sources/" + properties.getDataSourceId() + "/query", body);
+            Map<String, Object> response = exchange("POST", "/data_sources/" + properties.getDataSourceId() + "/query", body);
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> results = (List<Map<String, Object>>) response.getOrDefault("results", List.of());
             for (Map<String, Object> result : results) {
@@ -177,7 +177,7 @@ public class NotionClient {
                 )
             )
         );
-        Map<String, Object> response = exchange("POST", "/data-sources/" + properties.getDataSourceId() + "/query", body);
+        Map<String, Object> response = exchange("POST", "/data_sources/" + properties.getDataSourceId() + "/query", body);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> results = (List<Map<String, Object>>) response.getOrDefault("results", List.of());
         List<PageData> pages = new ArrayList<>();

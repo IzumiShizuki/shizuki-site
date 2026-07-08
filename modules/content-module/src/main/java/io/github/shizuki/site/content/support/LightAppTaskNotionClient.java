@@ -61,7 +61,7 @@ public class LightAppTaskNotionClient {
     }
 
     public TaskDataSourceSchema retrieveDataSourceSchema() {
-        Map<String, Object> response = exchange("GET", "/data-sources/" + properties.getDataSourceId(), null);
+        Map<String, Object> response = exchange("GET", "/data_sources/" + properties.getDataSourceId(), null);
         Map<String, Object> propertiesPayload = castMap(response.get("properties"));
         return new TaskDataSourceSchema(
             asString(response.get("id")),
@@ -113,7 +113,7 @@ public class LightAppTaskNotionClient {
             if (StringUtils.hasText(cursor)) {
                 body.put("start_cursor", cursor);
             }
-            Map<String, Object> response = exchange("POST", "/data-sources/" + properties.getDataSourceId() + "/query", body);
+            Map<String, Object> response = exchange("POST", "/data_sources/" + properties.getDataSourceId() + "/query", body);
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> results = (List<Map<String, Object>>) response.getOrDefault("results", List.of());
             for (Map<String, Object> result : results) {
