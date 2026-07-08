@@ -92,6 +92,12 @@
             <button class="icon-btn ripple-trigger" type="button" title="导出选区 PNG" :disabled="boardLoading" @click="exportPng('selection')">
               <i class="fas fa-vector-square" aria-hidden="true"></i>
             </button>
+            <button class="icon-btn ripple-trigger" type="button" title="发送到博客正文" :disabled="boardLoading" @click="sendToBlog('inline')">
+              <i class="fas fa-file-lines" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn ripple-trigger" type="button" title="设为博客封面" :disabled="boardLoading" @click="sendToBlog('cover')">
+              <i class="fas fa-image-portrait" aria-hidden="true"></i>
+            </button>
             <button
               class="icon-btn ripple-trigger"
               type="button"
@@ -197,6 +203,7 @@ import {
   updateGuestLightAppData,
   writeRemoteLightAppCache
 } from '../../../utils/lightAppsDataStore';
+import { emitBlogWhiteboardExport } from '../../../utils/blogWhiteboardBridge';
 import { notifyLightAppsChanged, readLightAppsState } from '../../../utils/lightAppsState';
 import { getBoardCanvasAvailability, mountBoardCanvas } from './boardCanvasBridge';
 import { parseMermaidTextToGraph } from './boardMermaid';
@@ -902,6 +909,56 @@ async function exportPng(scope) {
     setInfo(`PNG 导出成功（${result.shapeCount} 个图形）`);
   } catch (error) {
     setError(error?.message || 'PNG 导出失败');
+  }
+}
+
+function resolveBlogExportScope() {
+  const selectedCount = Number(boardBridge?.api?.getSelectedShapeCount?.() || 0);
+  return selectedCount > 0 ? 'selection' : 'board';
+}
+
+async function sendToBlog(target) {
+  if (boardCanvasUnavailable.value) {
+    setError(boardCanvasUnavailableText.value);
+    return;
+  }
+  if (!boardBridge?.api?.isReady()) {
+    setError('画板尚未准备好');
+    return;
+  }
+
+  const normalizedTarget = String(target || '').trim().toLowerCase() === 'cover' ? 'cover' : 'inline';
+
+  try {
+    const board = activeBoard.value;
+    const scope = resolveBlogExportScope();
+    const name = `${board?.title || 'board-canvas'}-${scope}`;
+    const result = await boardBridge.api.exportPng(scope, pngBackground.value, name, { download: false });
+    if (!result?.exported || !(result.blob instanceof Blob)) {
+      setError('当前范围没有可发送到博客的图片');
+      return;
+    }
+
+    const emitted = emitBlogWhiteboardExport({
+      target: normalizedTarget,
+      blob: result.blob,
+      fileName: result.fileName || `${name}.png`,
+      boardId: board?.whiteboardId || 0,
+      boardTitle: board?.title || 'Board Canvas'
+    });
+
+    if (!emitted) {
+      setError('白板图片发送失败，请确认当前页面已打开博客模块');
+      return;
+    }
+
+    setInfo(
+      normalizedTarget === 'cover'
+        ? `已发送白板图片到博客封面通道（${scope === 'selection' ? '优先使用选区' : '整板'}）`
+        : `已发送白板图片到博客正文通道（${scope === 'selection' ? '优先使用选区' : '整板'}）`
+    );
+  } catch (error) {
+    setError(error?.message || '发送白板图片到博客失败');
   }
 }
 

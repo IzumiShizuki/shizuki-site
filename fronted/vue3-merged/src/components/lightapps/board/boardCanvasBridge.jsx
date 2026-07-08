@@ -39,7 +39,6 @@ const GUIDE_STORAGE_KEY = 'shizuki.board-canvas.palette-guide-dismissed.v1';
 const BOARD_GRID_SIZE = 24;
 const STYLE_PANEL_COMPACT_BREAKPOINT = '(max-width: 980px)';
 const QUICK_CONNECT_SHAPE_TYPES = new Set(['geo', 'note', 'text', 'frame']);
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 const TLDRAW_LICENSE_KEY = String(import.meta.env.VITE_TLDRAW_LICENSE_KEY || '').trim();
 const PALETTE_QUICK_INSERT_TOOLS = new Set([
   ...QUICK_CONNECT_CHOICE_TOOLS.map((tool) => tool.id),
@@ -133,34 +132,10 @@ function toNumber(value, fallback = 0) {
 }
 
 export function getBoardCanvasAvailability() {
-  if (typeof window === 'undefined') {
-    return {
-      supported: true,
-      reason: 'ready',
-      requiresLicenseKey: false,
-      hasLicenseKey: Boolean(TLDRAW_LICENSE_KEY)
-    };
-  }
-
-  const protocol = String(window.location?.protocol || '').toLowerCase();
-  const hostname = String(window.location?.hostname || '').toLowerCase();
-  const isLocalHost = LOCAL_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost');
-  const isProductionBuild = import.meta.env.PROD === true;
-  const requiresLicenseKey = protocol === 'https:' && !isLocalHost && isProductionBuild;
-
-  if (requiresLicenseKey && !TLDRAW_LICENSE_KEY) {
-    return {
-      supported: false,
-      reason: 'missing-license-key',
-      requiresLicenseKey: true,
-      hasLicenseKey: false
-    };
-  }
-
   return {
     supported: true,
-    reason: 'ready',
-    requiresLicenseKey,
+    reason: TLDRAW_LICENSE_KEY ? 'license-key-configured' : 'license-key-optional',
+    requiresLicenseKey: false,
     hasLicenseKey: Boolean(TLDRAW_LICENSE_KEY)
   };
 }
@@ -1075,6 +1050,10 @@ function createCanvasApi(onReady) {
     isReady() {
       return Boolean(editor);
     },
+    getSelectedShapeCount() {
+      if (!editor) return 0;
+      return Array.from(editor.getSelectedShapeIds?.() || []).length;
+    },
     getSnapshot() {
       if (!editor) return null;
       return editor.getSnapshot();
@@ -1115,8 +1094,9 @@ function createCanvasApi(onReady) {
       const current = requireEditor();
       await defaultHandleExternalSvgTextContent(current, { text: String(svgText || '') });
     },
-    async exportPng(scope = 'board', background = 'white', fileName = 'board-canvas') {
+    async exportPng(scope = 'board', background = 'white', fileName = 'board-canvas', options = {}) {
       const current = requireEditor();
+      const download = options?.download !== false;
       let ids = [];
       if (scope === 'selection') {
         ids = Array.from(current.getSelectedShapeIds());
@@ -1140,15 +1120,29 @@ function createCanvasApi(onReady) {
           format: 'png',
           background: background !== 'transparent'
         });
-        downloadBlob(result.blob, `${safeName}.png`);
-        return { exported: true, shapeCount: ids.length };
-      } catch {
+        if (download) {
+          downloadBlob(result.blob, `${safeName}.png`);
+        }
+        return {
+          exported: true,
+          shapeCount: ids.length,
+          blob: result.blob,
+          fileName: `${safeName}.png`
+        };
+      } catch (error) {
+        if (!download) {
+          throw error instanceof Error ? error : new Error('Failed to export board image');
+        }
         await exportAs(current, ids, {
           format: 'png',
           name: safeName,
           background: background !== 'transparent'
         });
-        return { exported: true, shapeCount: ids.length };
+        return {
+          exported: true,
+          shapeCount: ids.length,
+          fileName: `${safeName}.png`
+        };
       }
     }
   };

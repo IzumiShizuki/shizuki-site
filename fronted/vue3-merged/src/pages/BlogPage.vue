@@ -458,6 +458,41 @@
                 <p v-if="editorPresentationState.error" class="error-text editor-meta-message">{{ editorPresentationState.error }}</p>
               </section>
 
+              <section class="editor-info-section liquid-material">
+                <div class="editor-info-section-head">
+                  <h3>白板图片</h3>
+                  <span class="editor-info-section-status">{{ whiteboardImportStatusText }}</span>
+                </div>
+                <div class="editor-info-section-actions">
+                  <button
+                    type="button"
+                    class="mini-btn ripple-trigger"
+                    :disabled="whiteboardImportState.uploading"
+                    @click="openBoardCanvasForBlog()"
+                  >
+                    打开白板
+                  </button>
+                  <button
+                    type="button"
+                    class="mini-btn ripple-trigger"
+                    :disabled="whiteboardImportState.uploading"
+                    @click="openBoardCanvasForBlog('inline')"
+                  >
+                    插入正文
+                  </button>
+                  <button
+                    type="button"
+                    class="mini-btn ripple-trigger"
+                    :disabled="whiteboardImportState.uploading"
+                    @click="openBoardCanvasForBlog('cover')"
+                  >
+                    设为封面
+                  </button>
+                </div>
+                <p class="side-tip">白板窗口现在支持直接把 PNG 发送到博客正文或封面。有选区时会优先导出选区，没有选区时会导出整板。</p>
+                <p class="side-tip">如果你已经打开白板，直接在白板工具栏点“发送到博客正文”或“设为博客封面”即可。</p>
+              </section>
+
               <div class="editor-grid">
                 <label class="field field-wide field-title">
                   <span>标题</span>
@@ -668,6 +703,7 @@ import {
   listMyPosts,
   listPosts,
   publishMyPost,
+  uploadBlogCoverImage,
   uploadBlogInlineImage,
   unpublishMyPost,
   updateMyPost
@@ -680,6 +716,7 @@ import {
   mergeBlogCategoryCatalog,
   resolveDefaultBlogCategoryCode
 } from '../utils/blogCategoryCatalog';
+import { onBlogWhiteboardExport } from '../utils/blogWhiteboardBridge';
 import { DEFAULT_BLOG_POST_TITLE, resolveBlogPostDisplayTitle } from '../utils/blogPostTitle';
 import { shouldSyncEditorRoute } from './blogEditorRouteState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
@@ -807,6 +844,12 @@ const detailPresentationState = reactive({
   data: null
 });
 
+const whiteboardImportState = reactive({
+  uploading: false,
+  target: '',
+  lastBoardTitle: ''
+});
+
 const routeMode = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
   if (name === 'blog-detail') return 'detail';
@@ -834,6 +877,7 @@ let headingDomNodes = [];
 let boundScrollRoot = null;
 let editorPresentationPollTimer = 0;
 let detailRenderJobToken = 0;
+let releaseBlogWhiteboardExport = null;
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -1088,6 +1132,15 @@ const detailPresentationReady = computed(() => String(detailPresentationState.da
 const detailPresentationPptReady = computed(() => detailPresentationReady.value && detailPresentationState.data?.pptReady === true);
 const editorPresentationStatusText = computed(() => resolvePresentationStatusText(editorPresentationState.data, editorPresentationState.loading || editorPresentationState.generating));
 const detailPresentationStatusText = computed(() => resolvePresentationStatusText(detailPresentationState.data, detailPresentationState.loading));
+const whiteboardImportStatusText = computed(() => {
+  if (whiteboardImportState.uploading) {
+    return whiteboardImportState.target === 'cover' ? '正在同步为封面...' : '正在插入到正文...';
+  }
+  if (whiteboardImportState.lastBoardTitle) {
+    return `最近接收：${whiteboardImportState.lastBoardTitle}`;
+  }
+  return '支持白板图片直连博客';
+});
 const editorStatusMeta = computed(() => resolvePostStatusMeta(writerState.editor.statusCode));
 const editorVisibilityMeta = computed(() => resolvePostVisibilityMeta(writerState.editor.visibility));
 const editorSyncStatusMeta = computed(() => resolveSyncStatusMeta(writerState.editor.syncStatusCode));
@@ -2015,6 +2068,99 @@ async function handleInlineImageUpload(file) {
   }
 }
 
+function openBoardCanvasForBlog(target = '') {
+  const normalizedTarget = String(target || '').trim().toLowerCase();
+  openLightAppWindow('board-canvas', {
+    source: normalizedTarget ? `blog_editor_whiteboard_${normalizedTarget}` : 'blog_editor_whiteboard'
+  });
+  if (normalizedTarget === 'cover') {
+    writerState.notice = '白板已打开：在白板工具栏点击“设为博客封面”即可同步。';
+    return;
+  }
+  if (normalizedTarget === 'inline') {
+    writerState.notice = '白板已打开：在白板工具栏点击“发送到博客正文”即可插入。';
+    return;
+  }
+  writerState.notice = '白板已打开：你可以把白板 PNG 直接发送到当前博客草稿。';
+}
+
+function createFileFromBlob(blob, fileName) {
+  if (blob instanceof File) return blob;
+  return new File([blob], String(fileName || 'whiteboard.png').trim() || 'whiteboard.png', {
+    type: String(blob?.type || 'image/png').trim() || 'image/png'
+  });
+}
+
+function buildWhiteboardImageMarkdown(url, boardTitle) {
+  const altText = String(boardTitle || 'Whiteboard').replace(/[\r\n[\]]+/g, ' ').trim() || 'Whiteboard';
+  return `\n\n![${altText}](${url})\n`;
+}
+
+function insertWhiteboardImageIntoEditor(url, boardTitle) {
+  const snippet = buildWhiteboardImageMarkdown(url, boardTitle);
+  const editor = richEditorRef.value;
+  if (editor && typeof editor.insertText === 'function') {
+    editor.insertText(snippet);
+    return;
+  }
+
+  const current = normalizeMarkdownForEditor(writerState.editor.markdown);
+  const appended = snippet.trim();
+  writerState.editor.markdown = current ? `${current}\n\n${appended}\n` : `${appended}\n`;
+}
+
+async function handleBlogWhiteboardExport(payload) {
+  if (!canWrite.value) return;
+  if (routeMode.value !== 'editor' && viewMode.value !== 'editor') {
+    writerState.notice = '已收到白板图片，请先进入博客编辑器后再重新发送一次。';
+    return;
+  }
+
+  const file = createFileFromBlob(payload.blob, payload.fileName);
+  const normalizedTarget = String(payload.target || '').trim().toLowerCase() === 'cover' ? 'cover' : 'inline';
+
+  whiteboardImportState.uploading = true;
+  whiteboardImportState.target = normalizedTarget;
+  whiteboardImportState.lastBoardTitle = String(payload.boardTitle || '').trim();
+  writerState.error = '';
+  writerState.notice = normalizedTarget === 'cover' ? '正在同步白板封面...' : '正在插入白板图片到正文...';
+
+  try {
+    if (normalizedTarget === 'cover') {
+      const uploaded = await uploadBlogCoverImage(file, auth.authorizedFetch);
+      const url = normalizeString(uploaded?.url).trim();
+      if (!url) {
+        throw new Error('白板封面上传后没有返回可用地址');
+      }
+      writerState.editor.coverImageUrl = url;
+      writerState.notice = whiteboardImportState.lastBoardTitle
+        ? `已将白板“${whiteboardImportState.lastBoardTitle}”设为当前文章封面`
+        : '已将白板图片设为当前文章封面';
+      return;
+    }
+
+    if (editorReadOnlyBecauseNotion.value) {
+      throw new Error('当前文章正文由 Notion 锁定，暂时不能插入白板图片到正文');
+    }
+
+    const uploaded = await uploadBlogInlineImage(file, auth.authorizedFetch);
+    const url = normalizeString(uploaded?.url).trim();
+    if (!url) {
+      throw new Error('白板正文图片上传后没有返回可用地址');
+    }
+    insertWhiteboardImageIntoEditor(url, whiteboardImportState.lastBoardTitle);
+    writerState.notice = whiteboardImportState.lastBoardTitle
+      ? `已把白板“${whiteboardImportState.lastBoardTitle}”插入到正文`
+      : '已把白板图片插入到正文';
+  } catch (error) {
+    writerState.notice = '';
+    writerState.error = normalizeErrorMessage(error, '同步白板图片到博客失败');
+  } finally {
+    whiteboardImportState.uploading = false;
+    whiteboardImportState.target = '';
+  }
+}
+
 function resetEditorForm() {
   writerState.error = '';
   writerState.notice = '';
@@ -2036,6 +2182,8 @@ function resetEditorForm() {
   writerState.editor.syncErrorText = '';
   writerState.editor.remoteLastEditedAt = null;
   writerState.editor.unsupportedBlockFlag = false;
+  whiteboardImportState.uploading = false;
+  whiteboardImportState.target = '';
   notionSyncState.submitting = false;
   notionSyncState.polling = false;
   notionSyncState.jobId = null;
@@ -2747,6 +2895,9 @@ watch(
 onMounted(async () => {
   window.addEventListener('pointerdown', handleGlobalPointerDown);
   window.addEventListener('keydown', handleEditorHotkey, true);
+  releaseBlogWhiteboardExport = onBlogWhiteboardExport((payload) => {
+    void handleBlogWhiteboardExport(payload);
+  });
   await auth.ensureReady();
   if (routeMode.value === 'list') {
     await loadPostList();
@@ -2763,6 +2914,10 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', handleGlobalPointerDown);
   window.removeEventListener('keydown', handleEditorHotkey, true);
+  if (typeof releaseBlogWhiteboardExport === 'function') {
+    releaseBlogWhiteboardExport();
+  }
+  releaseBlogWhiteboardExport = null;
   teardownReadingScroll();
   clearEditorPresentationPollTimer();
 });
