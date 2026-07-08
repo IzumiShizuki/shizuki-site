@@ -219,9 +219,6 @@ export function normalizeSyncConfig(rawConfig, options = {}) {
   const email = normalizeConfigText(source.email);
   const password = normalizeSecretText(source.password);
   const dryRun = toBoolean(source.dryRun, false);
-  if (!dryRun && !accessToken && !refreshToken && !(email && password)) {
-    throw new Error('config.accessToken or config.refreshToken or config.email + config.password is required');
-  }
 
   const watchDir = resolvePath(
     baseDir,
@@ -243,6 +240,9 @@ export function normalizeSyncConfig(rawConfig, options = {}) {
   const authStateFile =
     resolvePath(baseDir, normalizeConfigText(source.authStateFile || source.auth_state_file))
     || path.resolve(baseDir, '.qianji-local-sync-auth.json');
+  if (!dryRun && !accessToken && !refreshToken && !(email && password) && !authStateFile) {
+    throw new Error('config.accessToken or config.refreshToken or config.email + config.password is required');
+  }
 
   const archiveDir = resolvePath(baseDir, normalizeConfigText(source.archiveDir || source.archive_dir));
   const singleTargetAccountId = toPositiveInteger(source.singleTargetAccountId || source.single_target_account_id);
@@ -561,6 +561,12 @@ export function createSiteApiClient(config) {
         body: accountPayload
       });
     },
+    async updateBalanceAccount(accountId, accountPayload) {
+      return authorizedRequest(`/api/v1/light-apps/balance/accounts/${encodeURIComponent(accountId)}`, {
+        method: 'PUT',
+        body: accountPayload
+      });
+    },
     async upsertSourceAccount(provider, payload) {
       return authorizedRequest(`/api/v1/me/balance/source-accounts/${encodeURIComponent(provider)}`, {
         method: 'PUT',
@@ -570,6 +576,44 @@ export function createSiteApiClient(config) {
     async createLocalSyncImportJob(provider, payload) {
       return authorizedRequest(`/api/v1/me/balance/source-accounts/${encodeURIComponent(provider)}/local-sync`, {
         method: 'POST',
+        body: payload
+      });
+    },
+    async listBalanceTransactions(filters = {}) {
+      const query = new URLSearchParams();
+      const fromDatetime = normalizeText(filters.fromDatetime || filters.from_datetime);
+      const toDatetime = normalizeText(filters.toDatetime || filters.to_datetime);
+      const timeZone = normalizeText(filters.timeZone || filters.time_zone);
+      const channelCode = normalizeText(filters.channelCode || filters.channel_code);
+      const direction = normalizeText(filters.direction);
+      const accountId = Number(filters.accountId ?? filters.account_id) || 0;
+
+      if (fromDatetime) {
+        query.set('from_datetime', fromDatetime);
+      }
+      if (toDatetime) {
+        query.set('to_datetime', toDatetime);
+      }
+      if (timeZone) {
+        query.set('time_zone', timeZone);
+      }
+      if (channelCode) {
+        query.set('channel_code', channelCode);
+      }
+      if (accountId > 0) {
+        query.set('account_id', String(accountId));
+      }
+      if (direction) {
+        query.set('direction', direction);
+      }
+
+      const suffix = query.size ? `?${query.toString()}` : '';
+      const payload = await authorizedRequest(`/api/v1/light-apps/balance/transactions${suffix}`, { method: 'GET' });
+      return Array.isArray(payload) ? payload : [];
+    },
+    async updateBalanceTransaction(transactionId, payload) {
+      return authorizedRequest(`/api/v1/light-apps/balance/transactions/${encodeURIComponent(transactionId)}`, {
+        method: 'PUT',
         body: payload
       });
     },
@@ -725,9 +769,14 @@ function extractBookFromNote(note) {
   return normalizeText(matched?.[1] || '');
 }
 
+export function inferImportedTransactionSourceAccountName(transaction) {
+  const rawRecord = safeParseJsonRecord(transaction?.rawPayload || transaction?.raw_payload);
+  return normalizeText(extractQianjiRecordAccount(rawRecord) || extractAccountFromNote(transaction?.note));
+}
+
 function decorateTransaction(transaction) {
   const rawRecord = safeParseJsonRecord(transaction?.rawPayload);
-  const sourceAccountName = normalizeText(extractQianjiRecordAccount(rawRecord) || extractAccountFromNote(transaction?.note));
+  const sourceAccountName = inferImportedTransactionSourceAccountName(transaction);
   const sourceBookName = normalizeText(extractQianjiRecordBook(rawRecord) || extractBookFromNote(transaction?.note));
   return {
     ...transaction,

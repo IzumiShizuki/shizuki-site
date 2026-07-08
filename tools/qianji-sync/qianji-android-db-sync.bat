@@ -14,7 +14,6 @@ if exist "%SECRET_FILE%" call "%SECRET_FILE%"
 
 if not exist "%CONFIG_FILE%" (
   echo [qianji-sync] Missing config: "%CONFIG_FILE%"
-  echo [qianji-sync] Please copy "qianji-local-sync.config.example.jsonc" to "qianji-local-sync.config.jsonc" first.
   exit /b 1
 )
 
@@ -23,10 +22,5 @@ if not exist "%NODE_EXE%" (
 )
 
 cd /d "%PROJECT_DIR%"
-call "%SCRIPT_DIR%qianji-android-db-sync.bat"
-if errorlevel 1 (
-  echo [qianji-sync] Android DB sync skipped with code %ERRORLEVEL%.
-)
-"%NODE_EXE%" "%SCRIPT_DIR%qianji-local-sync.mjs" --config "%CONFIG_FILE%" --once %*
-set "EXIT_CODE=%ERRORLEVEL%"
-exit /b %EXIT_CODE%
+"%NODE_EXE%" "%SCRIPT_DIR%qianji-android-db-sync.mjs" --config "%CONFIG_FILE%" %*
+exit /b %ERRORLEVEL%

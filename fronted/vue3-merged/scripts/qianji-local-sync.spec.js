@@ -31,8 +31,8 @@ describe('qianji-local-sync-lib', () => {
     expect(stripped).not.toContain('block comment');
   });
 
-  it('treats placeholder passwords as missing credentials', () => {
-    expect(() => normalizeSyncConfig(
+  it('normalizes placeholder passwords to empty strings', () => {
+    const config = normalizeSyncConfig(
       {
         apiBaseUrl: 'http://example.com',
         email: 'user@example.com',
@@ -40,7 +40,10 @@ describe('qianji-local-sync-lib', () => {
         watchDir: './exports'
       },
       { baseDir: path.resolve('fronted/vue3-merged/scripts') }
-    )).toThrow('config.accessToken or config.refreshToken or config.email + config.password is required');
+    );
+
+    expect(config.email).toBe('user@example.com');
+    expect(config.password).toBe('');
   });
 
   it('accepts refresh token without password and assigns auth state file', () => {
@@ -55,6 +58,21 @@ describe('qianji-local-sync-lib', () => {
 
     expect(config.refreshToken).toBe('refresh-token-1');
     expect(config.authStateFile).toContain('.qianji-local-sync-auth.json');
+  });
+
+  it('accepts persisted auth state without inline credentials', () => {
+    const config = normalizeSyncConfig(
+      {
+        apiBaseUrl: 'http://example.com',
+        watchDir: './exports',
+        authStateFile: './persisted-auth.json'
+      },
+      { baseDir: path.resolve('fronted/vue3-merged/scripts') }
+    );
+
+    expect(config.accessToken).toBe('');
+    expect(config.refreshToken).toBe('');
+    expect(config.authStateFile).toContain('persisted-auth.json');
   });
 
   it('groups parsed transactions by qianji source account', () => {

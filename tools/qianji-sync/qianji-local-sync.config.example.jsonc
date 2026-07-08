@@ -1,6 +1,6 @@
 {
   // Your site backend. Use the real API origin, not localhost:7070.
-  "apiBaseUrl": "http://111.228.35.186:8080",
+  "apiBaseUrl": "https://site.shizuki.online",
 
   // Preferred: provide access/refresh token env placeholders and let the script rotate tokens automatically.
   "accessToken": "${QIANJI_SYNC_ACCESS_TOKEN}",

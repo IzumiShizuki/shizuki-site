@@ -26,6 +26,9 @@ if errorlevel 1 exit /b 1
 call "%SCRIPT_DIR%install-qianji-local-sync-startup-task.bat"
 if errorlevel 1 exit /b 1
 
+call "%SCRIPT_DIR%install-qianji-app-startup.bat"
+if errorlevel 1 exit /b 1
+
 if defined QIANJI_SYNC_PASSWORD (
   if /I not "%QIANJI_SYNC_PASSWORD%"=="CHANGE_ME" (
     call "%SCRIPT_DIR%register-qianji-timeprism-task.bat"

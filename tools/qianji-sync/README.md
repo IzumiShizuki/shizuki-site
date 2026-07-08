@@ -5,7 +5,7 @@
 它负责三件事：
 
 - 读取你本机导出的钱迹 `CSV / JSON`
-- 把账单同步到 `111.228.35.186:8080` 的站点账本
+- 把账单同步到 `https://site.shizuki.online` 的站点账本
 - 在 Windows 登录后常驻监听，并支持凌晨补跑
 
 ## 目录说明
@@ -31,6 +31,8 @@
 
 - [qianji-local-sync.auth.json](/D:/program/shizuki-site/data/qianji-sync/qianji-local-sync.auth.json)
 
+同步器现在也支持仅依赖 `qianji-local-sync.auth.json` 启动，所以只要成功刷出过一次 token，重启后不需要再把 token 明文写回配置。
+
 ## 常用命令
 
 ```bash
@@ -40,7 +42,15 @@ node qianji-local-sync.mjs --config .\qianji-local-sync.config.jsonc --once
 node qianji-local-sync.mjs --config .\qianji-local-sync.config.jsonc --watch
 node qianji-local-sync-range.mjs --config .\qianji-local-sync.config.jsonc --from 2026-07-01 --to 2026-07-03
 node qianji-timeprism-task.mjs --config .\qianji-local-sync.config.jsonc
+node qianji-android-db-sync.mjs --config .\qianji-local-sync.config.jsonc
 ```
+
+## Android 钱迹直连
+
+- [qianji-android-db-export.py](/D:/program/shizuki-site/tools/qianji-sync/qianji-android-db-export.py) 会直接读取腾讯 Androws 的 `data.vhd`，提取钱迹数据库。
+- [qianji-android-db-sync.mjs](/D:/program/shizuki-site/tools/qianji-sync/qianji-android-db-sync.mjs) 会先把旧的 `钱迹导入` 账单自动归位到对应账户，再把本地钱迹账户/账单同步到站点。
+- [qianji-local-sync-once.bat](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-once.bat) 和 [qianji-local-sync-watch-hidden.ps1](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-watch-hidden.ps1) 现在都会先跑这条安卓数据库同步链路。
+- 当前站点账户接口仍然不接受负余额，所以像 `微信 -89.16` 这种状态会保留账单明细，但不会把账户余额写成负数。
 
 ## Windows 启动
 
@@ -50,6 +60,9 @@ node qianji-timeprism-task.mjs --config .\qianji-local-sync.config.jsonc
 - Token 签发/刷新: [qianji-local-sync-token.bat](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-token.bat)
 - 安装登录后自启: [install-qianji-local-sync-startup-task.bat](/D:/program/shizuki-site/tools/qianji-sync/install-qianji-local-sync-startup-task.bat)
 - 删除登录后自启: [remove-qianji-local-sync-startup-task.bat](/D:/program/shizuki-site/tools/qianji-sync/remove-qianji-local-sync-startup-task.bat)
+- 启动钱迹本体: [launch-qianji-app.ps1](/D:/program/shizuki-site/tools/qianji-sync/launch-qianji-app.ps1)
+- 安装钱迹本体登录自启: [install-qianji-app-startup.bat](/D:/program/shizuki-site/tools/qianji-sync/install-qianji-app-startup.bat)
+- 删除钱迹本体登录自启: [remove-qianji-app-startup.bat](/D:/program/shizuki-site/tools/qianji-sync/remove-qianji-app-startup.bat)
 - 安装凌晨 `02:00` 补跑: [install-qianji-local-sync-2am-task.bat](/D:/program/shizuki-site/tools/qianji-sync/install-qianji-local-sync-2am-task.bat)
 - 删除凌晨 `02:00` 补跑: [remove-qianji-local-sync-2am-task.bat](/D:/program/shizuki-site/tools/qianji-sync/remove-qianji-local-sync-2am-task.bat)
 - 注册 TimePrism 提醒: [register-qianji-timeprism-task.bat](/D:/program/shizuki-site/tools/qianji-sync/register-qianji-timeprism-task.bat)
