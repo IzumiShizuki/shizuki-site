@@ -2,6 +2,7 @@ package io.github.shizuki.site.content.controller;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.content.response.LightAppBalanceAccountResponse;
 import io.github.shizuki.site.content.response.LightAppBalanceAnalyticsRange;
 import io.github.shizuki.site.content.response.LightAppBalanceAnalyticsResponse;
 import io.github.shizuki.site.content.response.LightAppBalanceAnalyticsSummary;
@@ -458,6 +459,37 @@ class LightAppControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].schedule_id").value(7));
+    }
+
+    @Test
+    void shouldCreateBalanceAccountWithNegativeBalanceSuccessfully() throws Exception {
+        Mockito.when(lightAppService.createBalanceAccount(ArgumentMatchers.any()))
+            .thenReturn(new LightAppBalanceAccountResponse(
+                9L,
+                "wechat",
+                "微信",
+                "微信零钱",
+                "CNY",
+                new BigDecimal("-89.16"),
+                10,
+                null
+            ));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/light-apps/balance/accounts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "channel_code": "wechat",
+                      "channel_name": "微信",
+                      "account_name": "微信零钱",
+                      "currency_code": "CNY",
+                      "balance_amount": -89.16
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.account_id").value(9))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.balance_amount").value(-89.16));
     }
 
     @Test

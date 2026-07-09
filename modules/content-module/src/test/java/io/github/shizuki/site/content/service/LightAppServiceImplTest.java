@@ -4,9 +4,14 @@ import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
+import io.github.shizuki.site.content.entity.LightAppBalanceAccountEntity;
+import io.github.shizuki.site.content.entity.LightAppBalanceDebtEntity;
+import io.github.shizuki.site.content.entity.LightAppBalanceRecurringChargeEntity;
 import io.github.shizuki.site.content.entity.LightAppTaskColumnEntity;
 import io.github.shizuki.site.content.response.LightAppBalanceAnalyticsResponse;
 import io.github.shizuki.site.content.response.LightAppTaskColumnResponse;
+import io.github.shizuki.site.content.request.LightAppBalanceAccountUpsertRequest;
+import io.github.shizuki.site.content.request.LightAppBalanceTransactionUpsertRequest;
 import io.github.shizuki.site.content.request.LightAppPomodoroUpsertRequest;
 import io.github.shizuki.site.content.request.LightAppTaskColumnsUpdateRequest;
 import io.github.shizuki.site.content.request.LightAppTodoReorderRequest;
@@ -47,6 +52,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
 @ExtendWith(MockitoExtension.class)
@@ -266,6 +272,136 @@ class LightAppServiceImplTest {
         Assertions.assertEquals(1, response.incomeCategoryBreakdown().size());
         Assertions.assertEquals("其他", response.incomeCategoryBreakdown().get(0).categoryName());
         Assertions.assertEquals(new BigDecimal("100.0000"), response.incomeCategoryBreakdown().get(0).ratioPercent());
+    }
+
+    @Test
+    void shouldCreateBalanceAccountWithNegativeBalance() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+        LightAppBalanceAccountEntity[] stored = new LightAppBalanceAccountEntity[1];
+
+        Mockito.when(balanceAccountMapper.selectMaxSortNumByUserId(7L)).thenReturn(0);
+        Mockito.when(balanceAccountMapper.insert(Mockito.<LightAppBalanceAccountEntity>any())).thenAnswer(invocation -> {
+            LightAppBalanceAccountEntity entity = invocation.getArgument(0);
+            entity.setId(11L);
+            stored[0] = entity;
+            return 1;
+        });
+        Mockito.when(balanceAccountMapper.selectOne(Mockito.any())).thenAnswer(invocation -> stored[0]);
+
+        LightAppBalanceAccountUpsertRequest request = new LightAppBalanceAccountUpsertRequest();
+        request.setChannelCode("wechat");
+        request.setChannelName("微信");
+        request.setAccountName("微信零钱");
+        request.setCurrencyCode("CNY");
+        request.setBalanceAmount(new BigDecimal("-89.16"));
+
+        var response = lightAppService.createBalanceAccount(request);
+
+        Assertions.assertEquals(new BigDecimal("-89.1600"), response.balanceAmount());
+        Assertions.assertEquals(new BigDecimal("-89.1600"), stored[0].getBalanceAmount());
+    }
+
+    @Test
+    void shouldAllowExpenseTransactionToDriveAccountNegative() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+
+        LightAppBalanceAccountEntity account = new LightAppBalanceAccountEntity();
+        account.setId(5L);
+        account.setUserId(7L);
+        account.setChannelCode("wechat");
+        account.setChannelName("微信");
+        account.setAccountName("微信零钱");
+        account.setCurrencyCode("CNY");
+        account.setBalanceAmount(new BigDecimal("10.00"));
+
+        LightAppBalanceTransactionEntity[] stored = new LightAppBalanceTransactionEntity[1];
+        Mockito.when(balanceAccountMapper.selectOne(Mockito.any())).thenReturn(account);
+        Mockito.when(balanceTransactionMapper.selectMaxSortNumByUserId(7L)).thenReturn(0);
+        Mockito.when(balanceTransactionMapper.insert(Mockito.<LightAppBalanceTransactionEntity>any())).thenAnswer(invocation -> {
+            LightAppBalanceTransactionEntity entity = invocation.getArgument(0);
+            entity.setId(21L);
+            stored[0] = entity;
+            return 1;
+        });
+        Mockito.when(balanceTransactionMapper.selectOne(Mockito.any())).thenAnswer(invocation -> stored[0]);
+
+        LightAppBalanceTransactionUpsertRequest request = new LightAppBalanceTransactionUpsertRequest();
+        request.setAccountId(5L);
+        request.setDirection("EXPENSE");
+        request.setAmount(new BigDecimal("25.00"));
+        request.setCurrencyCode("CNY");
+        request.setCategory("餐饮");
+        request.setNote("测试支出");
+        request.setOccurredAt(LocalDateTime.of(2026, 7, 9, 10, 0));
+
+        var response = lightAppService.createBalanceTransaction(request);
+
+        Assertions.assertEquals(new BigDecimal("-15.0000"), account.getBalanceAmount());
+        Assertions.assertEquals(21L, response.transactionId());
+        Mockito.verify(balanceAccountMapper).updateById(account);
+    }
+
+    @Test
+    void shouldKeepNegativeBalanceWhenDeletingIncomeTransaction() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+
+        LightAppBalanceAccountEntity account = new LightAppBalanceAccountEntity();
+        account.setId(5L);
+        account.setUserId(7L);
+        account.setBalanceAmount(new BigDecimal("-5.00"));
+
+        LightAppBalanceTransactionEntity transaction = new LightAppBalanceTransactionEntity();
+        transaction.setId(22L);
+        transaction.setUserId(7L);
+        transaction.setAccountId(5L);
+        transaction.setDirectionCode("INCOME");
+        transaction.setAmount(new BigDecimal("10.00"));
+        transaction.setCurrencyCode("CNY");
+        transaction.setOccurredAt(LocalDateTime.of(2026, 7, 9, 8, 0));
+
+        Mockito.when(balanceTransactionMapper.selectOne(Mockito.any())).thenReturn(transaction);
+        Mockito.when(balanceAccountMapper.selectOne(Mockito.any())).thenReturn(account);
+
+        lightAppService.deleteBalanceTransaction(22L);
+
+        Assertions.assertEquals(new BigDecimal("-15.0000"), account.getBalanceAmount());
+        Mockito.verify(balanceAccountMapper).updateById(account);
+        Mockito.verify(balanceTransactionMapper).deleteById(22L);
+    }
+
+    @Test
+    void shouldAllowRecurringChargeToKeepAccountNegativeWithoutCreatingDebt() {
+        LightAppBalanceAccountEntity account = new LightAppBalanceAccountEntity();
+        account.setId(5L);
+        account.setUserId(7L);
+        account.setChannelName("微信");
+        account.setBalanceAmount(new BigDecimal("-5.00"));
+
+        LightAppBalanceRecurringChargeEntity rule = new LightAppBalanceRecurringChargeEntity();
+        rule.setId(3L);
+        rule.setTitle("会员");
+        rule.setAccountId(5L);
+
+        LightAppBalanceTransactionEntity transaction = new LightAppBalanceTransactionEntity();
+        transaction.setId(30L);
+        transaction.setAccountId(5L);
+        transaction.setAmount(new BigDecimal("20.00"));
+        transaction.setCurrencyCode("CNY");
+
+        Mockito.when(balanceAccountMapper.selectOne(Mockito.any())).thenReturn(account);
+
+        ReflectionTestUtils.invokeMethod(
+            lightAppService,
+            "applyRecurringChargeAccounting",
+            7L,
+            rule,
+            transaction,
+            LocalDateTime.of(2026, 7, 9, 9, 0)
+        );
+
+        Assertions.assertEquals(new BigDecimal("-25.0000"), account.getBalanceAmount());
+        Mockito.verify(balanceAccountMapper).updateById(account);
+        Mockito.verify(balanceDebtMapper, Mockito.never()).insert(Mockito.<LightAppBalanceDebtEntity>any());
     }
 
     @Test

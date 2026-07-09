@@ -2279,7 +2279,7 @@ public class LightAppServiceImpl implements LightAppService {
         entity.setChannelName(normalizeRequiredText(request.getChannelName(), "channel_name"));
         entity.setAccountName(normalizeRequiredText(request.getAccountName(), "account_name"));
         entity.setCurrencyCode(normalizeCurrencyCode(request.getCurrencyCode(), BASE_CURRENCY_CNY));
-        entity.setBalanceAmount(normalizeMoney(request.getBalanceAmount(), true, "balance_amount"));
+        entity.setBalanceAmount(normalizeBalanceAmount(request.getBalanceAmount(), "balance_amount"));
     }
 
     private void applyBalanceTransactionUpsert(
@@ -2321,9 +2321,6 @@ public class LightAppServiceImpl implements LightAppService {
         }
         BigDecimal delta = DIRECTION_INCOME.equals(direction) ? amount : amount.negate();
         BigDecimal nextBalance = safeAmount(account.getBalanceAmount()).add(delta);
-        if (nextBalance.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Account balance is insufficient");
-        }
         account.setBalanceAmount(nextBalance.setScale(4, RoundingMode.HALF_UP));
         balanceAccountMapper.updateById(account);
     }
@@ -2344,9 +2341,6 @@ public class LightAppServiceImpl implements LightAppService {
             ? amount.negate()
             : amount;
         BigDecimal nextBalance = safeAmount(account.getBalanceAmount()).add(delta);
-        if (nextBalance.compareTo(BigDecimal.ZERO) < 0) {
-            nextBalance = BigDecimal.ZERO;
-        }
         account.setBalanceAmount(nextBalance.setScale(4, RoundingMode.HALF_UP));
         balanceAccountMapper.updateById(account);
     }
@@ -2721,33 +2715,10 @@ public class LightAppServiceImpl implements LightAppService {
         if (account == null) {
             return;
         }
-        BigDecimal available = safeAmount(account.getBalanceAmount());
-        if (available.compareTo(BigDecimal.ZERO) < 0) {
-            available = BigDecimal.ZERO;
-        }
         BigDecimal amount = safeAmount(transaction.getAmount());
-        BigDecimal deducted = available.min(amount);
-        BigDecimal remaining = amount.subtract(deducted);
-        BigDecimal nextBalance = available.subtract(deducted);
+        BigDecimal nextBalance = safeAmount(account.getBalanceAmount()).subtract(amount);
         account.setBalanceAmount(nextBalance.setScale(4, RoundingMode.HALF_UP));
         balanceAccountMapper.updateById(account);
-
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
-        }
-        LightAppBalanceDebtEntity debt = new LightAppBalanceDebtEntity();
-        debt.setUserId(userId);
-        debt.setTitle(rule.getTitle() + " (shortfall)");
-        debt.setCreditor(account.getChannelName());
-        debt.setAmount(remaining.setScale(4, RoundingMode.HALF_UP));
-        debt.setCurrencyCode(transaction.getCurrencyCode());
-        debt.setOccurredAt(triggerAt);
-        debt.setDueAt(null);
-        debt.setStatusCode(DEBT_STATUS_OPEN);
-        debt.setNote("Auto-created by recurring charge shortfall");
-        debt.setLinkedTransactionId(transaction.getId());
-        debt.setSortNum(resolveSortNum(null, balanceDebtMapper.selectMaxSortNumByUserId(userId)));
-        balanceDebtMapper.insert(debt);
     }
 
     private List<LightAppFxRateResponse> ensureFxRates(String baseCurrency, boolean forceRefresh) {
@@ -3005,6 +2976,13 @@ public class LightAppServiceImpl implements LightAppService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " must be " + (allowZero ? ">= 0" : "> 0"));
         }
         return normalized;
+    }
+
+    private BigDecimal normalizeBalanceAmount(BigDecimal amount, String fieldName) {
+        if (amount == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " is required");
+        }
+        return amount.setScale(4, RoundingMode.HALF_UP);
     }
 
     private BigDecimal safeAmount(BigDecimal amount) {

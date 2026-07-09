@@ -55,7 +55,7 @@
           <select v-model="accountDraft.currencyCode">
             <option v-for="item in currencyOptions" :key="`account_currency_${item}`" :value="item">{{ item }}</option>
           </select>
-          <input v-model.number="accountDraft.balanceAmount" type="number" step="0.01" min="0" placeholder="余额" />
+          <input v-model.number="accountDraft.balanceAmount" type="number" step="0.01" placeholder="余额" />
         </template>
 
         <template v-else-if="section === BALANCE_SECTION_TRANSACTIONS">

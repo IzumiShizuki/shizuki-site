@@ -501,12 +501,6 @@ async function main() {
     if (!accountId) {
       continue;
     }
-    if (assetSnapshot.currentBalance < 0) {
-      console.warn(
-        `qianji-android-db-sync skip negative balance reconcile ${assetSnapshot.accountName}: ${assetSnapshot.currentBalance}`
-      );
-      continue;
-    }
     await client.updateBalanceAccount(accountId, toBalanceAccountPayload(account, assetSnapshot.currentBalance));
     account.balanceAmount = assetSnapshot.currentBalance;
     account.balance_amount = assetSnapshot.currentBalance;

@@ -1,7 +1,6 @@
 package io.github.shizuki.site.content.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -31,8 +30,7 @@ public class LightAppBalanceAccountUpsertRequest {
     private String currencyCode;
 
     @NotNull
-    @DecimalMin(value = "0.0")
-    @Schema(description = "账户余额")
+    @Schema(description = "账户余额，可为负数")
     private BigDecimal balanceAmount;
 
     @Schema(description = "排序值")

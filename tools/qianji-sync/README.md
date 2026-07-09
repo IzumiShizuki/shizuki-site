@@ -50,7 +50,7 @@ node qianji-android-db-sync.mjs --config .\qianji-local-sync.config.jsonc
 - [qianji-android-db-export.py](/D:/program/shizuki-site/tools/qianji-sync/qianji-android-db-export.py) 会直接读取腾讯 Androws 的 `data.vhd`，提取钱迹数据库。
 - [qianji-android-db-sync.mjs](/D:/program/shizuki-site/tools/qianji-sync/qianji-android-db-sync.mjs) 会先把旧的 `钱迹导入` 账单自动归位到对应账户，再把本地钱迹账户/账单同步到站点。
 - [qianji-local-sync-once.bat](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-once.bat) 和 [qianji-local-sync-watch-hidden.ps1](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-watch-hidden.ps1) 现在都会先跑这条安卓数据库同步链路。
-- 当前站点账户接口仍然不接受负余额，所以像 `微信 -89.16` 这种状态会保留账单明细，但不会把账户余额写成负数。
+- 站点余额账户现在支持负余额，安卓钱迹数据库里的负数账户也会在同步时直接对齐到服务器。
 
 ## Windows 启动
 
