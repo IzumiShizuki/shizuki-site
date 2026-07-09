@@ -40,6 +40,10 @@ ANYWHERE_DIR_EXCLUDES = {
 PREFIX_EXCLUDES = {
     ".mvn/repository",
     "deploy/.env.server",
+    "fronted/vue3-merged/scripts/qianji-local-sync.config.jsonc",
+    "fronted/vue3-merged/scripts/qianji-local-sync.secret.bat",
+    "tools/qianji-sync/qianji-local-sync.config.jsonc",
+    "tools/qianji-sync/qianji-local-sync.secret.bat",
 }
 PROTECTED_REMOTE_PREFIXES = {
     "data",
