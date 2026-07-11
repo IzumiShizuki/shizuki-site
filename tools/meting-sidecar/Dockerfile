@@ -1,4 +1,4 @@
-FROM php:8.2-apache
+FROM m.daocloud.io/docker.io/library/php:8.2-apache
 
 RUN docker-php-ext-install bcmath \
     && a2enmod rewrite

@@ -12,20 +12,22 @@ timestamp() {
 
 echo "RUNNING $(timestamp)" > "${STATUS_FILE}"
 
-if {
+run_deploy() {
   echo "=== remote deploy started at $(timestamp) ==="
   cd "${DEPLOY_DIR}"
 
   if [ ! -s ../resouces/yaml/common-config.yaml ]; then
     echo "[ERROR] ../resouces/yaml/common-config.yaml is missing or empty" >&2
-    exit 1
+    return 1
   fi
 
   docker compose -f docker-compose.server.yml --env-file .env.server build
   docker compose -f docker-compose.server.yml --env-file .env.server up -d --no-build --force-recreate
   docker compose -f docker-compose.server.yml --env-file .env.server ps
   echo "=== remote deploy finished at $(timestamp) ==="
-} >> "${LOG_FILE}" 2>&1; then
+}
+
+if run_deploy >> "${LOG_FILE}" 2>&1; then
   echo "SUCCESS $(timestamp)" > "${STATUS_FILE}"
 else
   rc=$?
