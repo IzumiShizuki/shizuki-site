@@ -27,10 +27,12 @@ run_deploy() {
   echo "=== remote deploy finished at $(timestamp) ==="
 }
 
-if run_deploy >> "${LOG_FILE}" 2>&1; then
+run_deploy >> "${LOG_FILE}" 2>&1
+rc=$?
+
+if [ "${rc}" -eq 0 ]; then
   echo "SUCCESS $(timestamp)" > "${STATUS_FILE}"
 else
-  rc=$?
   echo "FAILED ${rc} $(timestamp)" > "${STATUS_FILE}"
   exit "${rc}"
 fi
