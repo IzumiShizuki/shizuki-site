@@ -68,6 +68,16 @@ public class NotionClient {
         return toPageData(response);
     }
 
+    public PageData createChildPage(String parentPageId, String title) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("parent", Map.of("page_id", parentPageId));
+        body.put("properties", Map.of(
+            "title", Map.of("title", richTextArray(title))
+        ));
+        Map<String, Object> response = exchange("POST", "/pages", body);
+        return toPageData(response);
+    }
+
     public PageData updatePage(String pageId, Map<String, Object> propertiesPayload, boolean eraseContent) {
         Map<String, Object> body = new LinkedHashMap<>();
         if (propertiesPayload != null && !propertiesPayload.isEmpty()) {
@@ -90,31 +100,40 @@ public class NotionClient {
     }
 
     public List<Map<String, Object>> listBlockChildrenRecursively(String blockId) {
+        List<Map<String, Object>> roots = listBlockChildren(blockId);
         List<Map<String, Object>> results = new ArrayList<>();
-        String cursor = null;
-        do {
-            StringBuilder path = new StringBuilder("/blocks/").append(blockId).append("/children?page_size=100");
-            if (StringUtils.hasText(cursor)) {
-                path.append("&start_cursor=").append(cursor);
+        for (Map<String, Object> child : roots) {
+            boolean hasChildren = Boolean.TRUE.equals(child.get("has_children"));
+            if (hasChildren && isSupportedNestedBlock(asString(child.get("type")))) {
+                String childId = asString(child.get("id"));
+                List<Map<String, Object>> nested = listBlockChildrenRecursively(childId);
+                Map<String, Object> typedPayload = castMap(child.get(child.get("type")));
+                Map<String, Object> mutable = new LinkedHashMap<>(typedPayload);
+                mutable.put("children", nested);
+                child.put(asString(child.get("type")), mutable);
             }
-            Map<String, Object> payload = exchange("GET", path.toString(), null);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> pageResults = (List<Map<String, Object>>) payload.getOrDefault("results", List.of());
-            for (Map<String, Object> child : pageResults) {
-                boolean hasChildren = Boolean.TRUE.equals(child.get("has_children"));
-                if (hasChildren && isSupportedNestedBlock(asString(child.get("type")))) {
-                    String childId = asString(child.get("id"));
-                    List<Map<String, Object>> nested = listBlockChildrenRecursively(childId);
-                    Map<String, Object> typedPayload = castMap(child.get(child.get("type")));
-                    Map<String, Object> mutable = new LinkedHashMap<>(typedPayload);
-                    mutable.put("children", nested);
-                    child.put(asString(child.get("type")), mutable);
-                }
-                results.add(child);
-            }
-            cursor = asString(payload.get("next_cursor"));
-        } while (StringUtils.hasText(cursor));
+            results.add(child);
+        }
         return results;
+    }
+
+    public List<ChildPageRef> listChildPages(String pageId) {
+        List<ChildPageRef> pages = new ArrayList<>();
+        for (Map<String, Object> block : listBlockChildren(pageId)) {
+            if (!"child_page".equals(asString(block.get("type")))) {
+                continue;
+            }
+            String childPageId = asString(block.get("id"));
+            String title = asString(castMap(block.get("child_page")).get("title"));
+            PageData pageData = retrievePage(childPageId);
+            pages.add(new ChildPageRef(
+                childPageId,
+                title,
+                pageData.lastEditedTime(),
+                pageData.inTrash()
+            ));
+        }
+        return pages;
     }
 
     public void replaceBlockChildren(String pageId, List<Map<String, Object>> blocks) {
@@ -195,6 +214,23 @@ public class NotionClient {
             properties.getRetryMaxBackoffMs()
         );
         return retryExecutor.execute(retrySpec, RETRYABLE_EXCEPTIONS, () -> exchangeOnce(method, path, body));
+    }
+
+    private List<Map<String, Object>> listBlockChildren(String blockId) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        String cursor = null;
+        do {
+            StringBuilder path = new StringBuilder("/blocks/").append(blockId).append("/children?page_size=100");
+            if (StringUtils.hasText(cursor)) {
+                path.append("&start_cursor=").append(cursor);
+            }
+            Map<String, Object> payload = exchange("GET", path.toString(), null);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> pageResults = (List<Map<String, Object>>) payload.getOrDefault("results", List.of());
+            results.addAll(pageResults);
+            cursor = asString(payload.get("next_cursor"));
+        } while (StringUtils.hasText(cursor));
+        return results;
     }
 
     private Map<String, Object> exchangeOnce(String method, String path, Map<String, Object> body) {
@@ -312,6 +348,14 @@ public class NotionClient {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    private List<Map<String, Object>> richTextArray(String value) {
+        String normalized = asString(value);
+        if (!StringUtils.hasText(normalized)) {
+            return List.of();
+        }
+        return List.of(Map.of("type", "text", "text", Map.of("content", normalized)));
+    }
+
     private PageData toPageData(Map<String, Object> payload) {
         Map<String, Object> propertiesPayload = castMap(payload.get("properties"));
         return new PageData(
@@ -334,6 +378,9 @@ public class NotionClient {
     }
 
     public record PageData(String pageId, Map<String, Object> properties, LocalDateTime lastEditedTime, boolean inTrash) {
+    }
+
+    public record ChildPageRef(String pageId, String title, LocalDateTime lastEditedTime, boolean inTrash) {
     }
 
     private static class TransientNotionException extends RuntimeException {

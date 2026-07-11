@@ -18,6 +18,7 @@ import io.github.shizuki.site.content.mapper.PostTagMapper;
 import io.github.shizuki.site.content.model.ContentVisibilityEnum;
 import io.github.shizuki.site.content.support.NotionBlockCodec.DecodeResult;
 import io.github.shizuki.site.content.support.NotionBlockCodec.EncodeResult;
+import io.github.shizuki.site.content.support.NotionClient.ChildPageRef;
 import io.github.shizuki.site.content.support.NotionClient.PageData;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -30,6 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +40,8 @@ import org.springframework.util.StringUtils;
 
 @Component
 public class PostNotionSyncService {
+
+    private static final Pattern TREE_TAG_PATTERN = Pattern.compile("#([\\p{L}\\p{N}_-]+)");
 
     public static final String DIRECTION_PULL = "PULL";
     public static final String DIRECTION_PUSH = "PUSH";
@@ -202,6 +207,9 @@ public class PostNotionSyncService {
     @Transactional
     public SyncExecutionResult pullAllOwnerPosts() {
         ensureNotionConfigured();
+        if (notionProperties.isPageTreeMode()) {
+            return pullAllOwnerTreePosts();
+        }
         List<PageData> remotePages = notionClient.queryOwnerPages(false).stream()
             .sorted(Comparator.comparing(PageData::lastEditedTime, Comparator.nullsLast(Comparator.naturalOrder())))
             .toList();
@@ -285,6 +293,10 @@ public class PostNotionSyncService {
         if (post == null || StringUtils.hasText(post.getNotionPageId()) || !notionClient.isConfigured()) {
             return;
         }
+        if (notionProperties.isPageTreeMode()) {
+            bootstrapTreePost(post);
+            return;
+        }
         String slug = normalizeSlug(post.getSlugCode());
         if (!StringUtils.hasText(slug)) {
             return;
@@ -326,6 +338,10 @@ public class PostNotionSyncService {
     }
 
     private void syncLocalFromRemote(PostEntity post, PageData pageData) {
+        if (notionProperties.isPageTreeMode()) {
+            syncLocalFromTree(post, pageData);
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         Map<String, Object> properties = pageData.properties();
         post.setUserId(notionProperties.getOwnerUserId());
@@ -383,6 +399,10 @@ public class PostNotionSyncService {
     }
 
     private void persistRemoteStateFromLocal(PostEntity post, PostContentEntity content) {
+        if (notionProperties.isPageTreeMode()) {
+            persistTreeRemoteStateFromLocal(post, content);
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         String markdown = readString(content.getMarkdownCache(), "");
         EncodeResult encodeResult = notionBlockCodec.encodeMarkdown(markdown);
@@ -405,6 +425,156 @@ public class PostNotionSyncService {
         }
         post.setNotionPageId(pageData.pageId());
         post.setNotionDataSourceId(notionProperties.getDataSourceId());
+        post.setNotionLastEditedTime(pageData.lastEditedTime());
+        post.setSyncStatusCode(SYNC_STATUS_SYNCED);
+        post.setSyncErrorText("");
+        post.setLastRemotePushTime(now);
+        post.setUpdatedAt(now);
+        postMapper.updateById(post);
+    }
+
+    private SyncExecutionResult pullAllOwnerTreePosts() {
+        List<TreeRemotePage> remotePages = loadTreeRemotePages().stream()
+            .sorted(Comparator.comparing(TreeRemotePage::lastEditedTime, Comparator.nullsLast(Comparator.naturalOrder())))
+            .toList();
+        int success = 0;
+        int errors = 0;
+        for (TreeRemotePage remotePage : remotePages) {
+            try {
+                syncLocalFromTree(resolveLocalTreePost(remotePage.pageData(), remotePage.categoryTitle()), remotePage);
+                success++;
+            } catch (Exception exception) {
+                errors++;
+            }
+        }
+        upsertCursor();
+        return new SyncExecutionResult(success, errors, 0, 0, "");
+    }
+
+    private List<TreeRemotePage> loadTreeRemotePages() {
+        List<TreeRemotePage> remotePages = new ArrayList<>();
+        for (ChildPageRef categoryPage : notionClient.listChildPages(notionProperties.getRootPageId())) {
+            if (categoryPage.inTrash()) {
+                continue;
+            }
+            for (ChildPageRef articlePage : notionClient.listChildPages(categoryPage.pageId())) {
+                if (articlePage.inTrash()) {
+                    continue;
+                }
+                remotePages.add(new TreeRemotePage(
+                    articlePage.title(),
+                    categoryPage.title(),
+                    notionClient.retrievePage(articlePage.pageId())
+                ));
+            }
+        }
+        return remotePages;
+    }
+
+    private void syncLocalFromTree(PostEntity post, PageData pageData) {
+        String categoryTitle = resolveTreeCategoryTitle(pageData.pageId());
+        syncLocalFromTree(post, new TreeRemotePage(readTreePageTitle(pageData), categoryTitle, pageData));
+    }
+
+    private void syncLocalFromTree(PostEntity post, TreeRemotePage remotePage) {
+        LocalDateTime now = LocalDateTime.now();
+        PageData pageData = remotePage.pageData();
+        String categoryCode = normalizeCategory(remotePage.categoryTitle(), "general");
+        List<Map<String, Object>> blocks = notionClient.listBlockChildrenRecursively(pageData.pageId());
+        DecodeResult decodeResult = notionBlockCodec.decodeBlocks(blocks);
+        TreeMarkdownPayload markdownPayload = parseTreeMarkdown(decodeResult.markdownCache());
+
+        post.setUserId(notionProperties.getOwnerUserId());
+        post.setPostNum(post.getPostNum() == null || post.getPostNum() <= 0 ? generatePostNum() : post.getPostNum());
+        post.setTitle(limit(remotePage.title(), 255));
+        post.setSummary(limit(extractSummary(markdownPayload.markdown()), 500));
+        post.setCategoryCode(categoryCode);
+        if (!StringUtils.hasText(post.getSlugCode())) {
+            post.setSlugCode(normalizeSlug(post.getTitle()));
+        }
+        post.setVisibility(ContentVisibilityEnum.PUBLIC.name());
+        post.setStatusCode("PUBLISHED");
+        post.setCoverImageUrl("");
+        if (post.getPublishedAt() == null) {
+            post.setPublishedAt(pageData.lastEditedTime());
+        }
+        post.setNotionPageId(pageData.pageId());
+        post.setNotionDataSourceId(notionProperties.getRootPageId());
+        post.setNotionLastEditedTime(pageData.lastEditedTime());
+        post.setSyncStatusCode(SYNC_STATUS_SYNCED);
+        post.setSyncErrorText("");
+        post.setLastRemotePullTime(now);
+        post.setUpdatedAt(now);
+        if (post.getId() == null || post.getId() <= 0) {
+            post.setCreatedAt(now);
+            postMapper.insert(post);
+        } else {
+            postMapper.updateById(post);
+        }
+
+        PostContentEntity content = findPostContent(post.getId());
+        if (content == null) {
+            content = new PostContentEntity();
+            content.setPostId(post.getId());
+            content.setCreatedAt(now);
+        }
+        content.setContentMode(CONTENT_MODE_NOTION_BLOCKS);
+        content.setNotionBlocksJson(notionBlockCodec.writeBlocksJson(blocks));
+        content.setMarkdownCache(markdownPayload.markdown());
+        content.setContentHash(decodeResult.contentHash());
+        content.setUnsupportedBlockFlag(decodeResult.unsupportedBlock() ? 1 : 0);
+        content.setUpdatedAt(now);
+        if (content.getId() == null || content.getId() <= 0) {
+            postContentMapper.insert(content);
+        } else {
+            postContentMapper.updateById(content);
+        }
+
+        replaceTags(post.getId(), markdownPayload.tags());
+        replaceGroups(post.getId(), List.of());
+        applyMarkdownMetrics(post, markdownPayload.markdown());
+        if (decodeResult.unsupportedBlock()) {
+            post.setSyncStatusCode(SYNC_STATUS_REMOTE_LOCKED);
+            post.setSyncErrorText("Page contains unsupported notion blocks");
+        }
+        postMapper.updateById(post);
+    }
+
+    private void persistTreeRemoteStateFromLocal(PostEntity post, PostContentEntity content) {
+        LocalDateTime now = LocalDateTime.now();
+        String markdown = buildTreeMarkdown(readString(content.getMarkdownCache(), ""), loadTags(post.getId()));
+        EncodeResult encodeResult = notionBlockCodec.encodeMarkdown(markdown);
+        content.setContentMode(CONTENT_MODE_NOTION_BLOCKS);
+        content.setNotionBlocksJson(notionBlockCodec.writeBlocksJson(encodeResult.blocks()));
+        content.setContentHash(encodeResult.contentHash());
+        content.setUpdatedAt(now);
+        postContentMapper.updateById(content);
+
+        String categoryTitle = readString(post.getCategoryCode(), "general");
+        ChildPageRef categoryPage = ensureChildPage(notionProperties.getRootPageId(), categoryTitle);
+        PageData pageData;
+        if (StringUtils.hasText(post.getNotionPageId())) {
+            notionClient.updatePage(post.getNotionPageId(), Map.of(
+                "title", Map.of("title", richTextArray(readString(post.getTitle(), "")))
+            ), false);
+            notionClient.replaceBlockChildren(post.getNotionPageId(), encodeResult.blocks());
+            pageData = notionClient.retrievePage(post.getNotionPageId());
+        } else {
+            ChildPageRef existing = findChildPage(categoryPage.pageId(), post.getTitle());
+            if (existing != null) {
+                notionClient.updatePage(existing.pageId(), Map.of(
+                    "title", Map.of("title", richTextArray(readString(post.getTitle(), "")))
+                ), false);
+                notionClient.replaceBlockChildren(existing.pageId(), encodeResult.blocks());
+                pageData = notionClient.retrievePage(existing.pageId());
+            } else {
+                pageData = notionClient.createChildPage(categoryPage.pageId(), readString(post.getTitle(), "Untitled"));
+                notionClient.replaceBlockChildren(pageData.pageId(), encodeResult.blocks());
+                pageData = notionClient.retrievePage(pageData.pageId());
+            }
+        }
+        post.setNotionPageId(pageData.pageId());
+        post.setNotionDataSourceId(notionProperties.getRootPageId());
         post.setNotionLastEditedTime(pageData.lastEditedTime());
         post.setSyncStatusCode(SYNC_STATUS_SYNCED);
         post.setSyncErrorText("");
@@ -438,6 +608,9 @@ public class PostNotionSyncService {
     }
 
     private PostEntity resolveLocalPost(PageData pageData) {
+        if (notionProperties.isPageTreeMode()) {
+            return resolveLocalTreePost(pageData);
+        }
         PostEntity post = postMapper.selectOne(
             new LambdaQueryWrapper<PostEntity>()
                 .eq(PostEntity::getDeleted, 0)
@@ -468,10 +641,192 @@ public class PostNotionSyncService {
         return created;
     }
 
+    private PostEntity resolveLocalTreePost(PageData pageData) {
+        return resolveLocalTreePost(pageData, resolveTreeCategoryTitle(pageData.pageId()));
+    }
+
+    private PostEntity resolveLocalTreePost(PageData pageData, String categoryTitle) {
+        PostEntity post = postMapper.selectOne(
+            new LambdaQueryWrapper<PostEntity>()
+                .eq(PostEntity::getDeleted, 0)
+                .eq(PostEntity::getNotionPageId, pageData.pageId())
+                .last("LIMIT 1")
+        );
+        if (post != null) {
+            return post;
+        }
+        String title = readTreePageTitle(pageData);
+        String categoryCode = normalizeCategory(categoryTitle, "general");
+        if (StringUtils.hasText(title)) {
+            post = postMapper.selectOne(
+                new LambdaQueryWrapper<PostEntity>()
+                    .eq(PostEntity::getDeleted, 0)
+                    .eq(PostEntity::getUserId, notionProperties.getOwnerUserId())
+                    .eq(PostEntity::getCategoryCode, categoryCode)
+                    .eq(PostEntity::getTitle, title)
+                    .last("LIMIT 1")
+            );
+        }
+        if (post != null) {
+            return post;
+        }
+        PostEntity created = new PostEntity();
+        created.setUserId(notionProperties.getOwnerUserId());
+        created.setPostNum(generatePostNum());
+        created.setCreatedAt(LocalDateTime.now());
+        created.setUpdatedAt(LocalDateTime.now());
+        return created;
+    }
+
+    private void bootstrapTreePost(PostEntity post) {
+        ChildPageRef categoryPage = findChildPage(notionProperties.getRootPageId(), post.getCategoryCode());
+        if (categoryPage == null) {
+            return;
+        }
+        ChildPageRef articlePage = findChildPage(categoryPage.pageId(), post.getTitle());
+        if (articlePage == null) {
+            return;
+        }
+        post.setNotionPageId(articlePage.pageId());
+        post.setNotionDataSourceId(notionProperties.getRootPageId());
+        post.setNotionLastEditedTime(articlePage.lastEditedTime());
+        post.setSyncStatusCode(SYNC_STATUS_SYNCED);
+        post.setSyncErrorText("");
+        postMapper.updateById(post);
+    }
+
+    private String resolveTreeCategoryTitle(String articlePageId) {
+        for (ChildPageRef categoryPage : notionClient.listChildPages(notionProperties.getRootPageId())) {
+            for (ChildPageRef articlePage : notionClient.listChildPages(categoryPage.pageId())) {
+                if (Objects.equals(articlePage.pageId(), articlePageId)) {
+                    return categoryPage.title();
+                }
+            }
+        }
+        return "general";
+    }
+
+    private String readTreePageTitle(PageData pageData) {
+        String title = readTitle(pageData.properties(), "title");
+        if (StringUtils.hasText(title)) {
+            return title;
+        }
+        title = readTitle(pageData.properties(), notionProperties.getProperties().getTitle());
+        return StringUtils.hasText(title) ? title : "Untitled";
+    }
+
+    private ChildPageRef ensureChildPage(String parentPageId, String title) {
+        ChildPageRef existing = findChildPage(parentPageId, title);
+        if (existing != null) {
+            return existing;
+        }
+        PageData created = notionClient.createChildPage(parentPageId, readString(title, "Untitled"));
+        return new ChildPageRef(
+            created.pageId(),
+            readString(title, "Untitled"),
+            created.lastEditedTime(),
+            created.inTrash()
+        );
+    }
+
+    private ChildPageRef findChildPage(String parentPageId, String title) {
+        String normalizedTitle = readString(title, "").trim();
+        if (!StringUtils.hasText(parentPageId) || !StringUtils.hasText(normalizedTitle)) {
+            return null;
+        }
+        return notionClient.listChildPages(parentPageId).stream()
+            .filter(item -> normalizedTitle.equals(readString(item.title(), "").trim()))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private TreeMarkdownPayload parseTreeMarkdown(String markdown) {
+        String normalized = readString(markdown, "").replace("\r\n", "\n").replace('\r', '\n');
+        String[] lines = normalized.split("\n", -1);
+        int firstContentIndex = -1;
+        for (int index = 0; index < lines.length; index++) {
+            if (StringUtils.hasText(lines[index].trim())) {
+                firstContentIndex = index;
+                break;
+            }
+        }
+        if (firstContentIndex < 0) {
+            return new TreeMarkdownPayload("", List.of());
+        }
+        String firstLine = lines[firstContentIndex].trim();
+        List<String> tags = extractTreeTags(firstLine);
+        if (tags.isEmpty()) {
+            return new TreeMarkdownPayload(normalized.strip(), List.of());
+        }
+        List<String> remainingLines = new ArrayList<>();
+        for (int index = 0; index < lines.length; index++) {
+            if (index == firstContentIndex) {
+                continue;
+            }
+            if (index == firstContentIndex + 1 && !StringUtils.hasText(lines[index].trim())) {
+                continue;
+            }
+            remainingLines.add(lines[index]);
+        }
+        return new TreeMarkdownPayload(String.join("\n", remainingLines).strip(), tags);
+    }
+
+    private List<String> extractTreeTags(String line) {
+        String normalized = readString(line, "").trim();
+        if (!StringUtils.hasText(normalized) || !normalized.contains("#")) {
+            return List.of();
+        }
+        String remainder = normalized.replaceAll("#[\\p{L}\\p{N}_-]+", "").replaceAll("[\\s,，、;；|/]+", "");
+        if (StringUtils.hasText(remainder)) {
+            return List.of();
+        }
+        List<String> tags = new ArrayList<>();
+        Matcher matcher = TREE_TAG_PATTERN.matcher(normalized);
+        while (matcher.find()) {
+            String tag = normalizeTag(matcher.group(1));
+            if (StringUtils.hasText(tag) && !tags.contains(tag)) {
+                tags.add(tag);
+            }
+        }
+        return tags;
+    }
+
+    private String buildTreeMarkdown(String markdown, List<String> tags) {
+        String body = readString(markdown, "").strip();
+        List<String> normalizedTags = normalizeTags(tags).stream().toList();
+        if (normalizedTags.isEmpty()) {
+            return body;
+        }
+        String tagLine = normalizedTags.stream()
+            .map(tag -> "#" + tag)
+            .collect(Collectors.joining(" "));
+        if (!StringUtils.hasText(body)) {
+            return tagLine;
+        }
+        return tagLine + "\n\n" + body;
+    }
+
+    private String extractSummary(String markdown) {
+        for (String rawLine : readString(markdown, "").split("\\R")) {
+            String line = rawLine.trim();
+            if (!StringUtils.hasText(line)) {
+                continue;
+            }
+            line = line.replaceFirst("^#{1,6}\\s+", "");
+            line = line.replaceFirst("^>\\s+", "");
+            line = line.replaceFirst("^[-*+]\\s+", "");
+            if (StringUtils.hasText(line)) {
+                return line;
+            }
+        }
+        return "";
+    }
+
     private void upsertCursor() {
         if (!notionClient.isConfigured()) {
             return;
         }
+        String sourceId = notionProperties.isPageTreeMode() ? notionProperties.getRootPageId() : notionProperties.getDataSourceId();
         NotionSyncCursorEntity cursor = notionSyncCursorMapper.selectOne(
             new LambdaQueryWrapper<NotionSyncCursorEntity>()
                 .eq(NotionSyncCursorEntity::getDeleted, 0)
@@ -481,9 +836,10 @@ public class PostNotionSyncService {
         if (cursor == null) {
             cursor = new NotionSyncCursorEntity();
             cursor.setSyncScopeCode("OWNER_" + notionProperties.getOwnerUserId());
-            cursor.setDataSourceId(notionProperties.getDataSourceId());
+            cursor.setDataSourceId(sourceId);
             cursor.setCreatedAt(LocalDateTime.now());
         }
+        cursor.setDataSourceId(sourceId);
         LocalDateTime maxEdited = postMapper.selectList(
             new LambdaQueryWrapper<PostEntity>()
                 .eq(PostEntity::getDeleted, 0)
@@ -751,11 +1107,13 @@ public class PostNotionSyncService {
 
     private String normalizeTag(String raw) {
         String value = readString(raw, "").trim().toLowerCase(Locale.ROOT);
-        return value.replaceAll("[^a-z0-9_-]", "");
+        value = value.replaceAll("\\s+", "-");
+        return value.replaceAll("[^\\p{L}\\p{N}_-]", "");
     }
 
     private String normalizeCategory(String raw, String fallback) {
-        String value = readString(raw, fallback).trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "");
+        String value = readString(raw, fallback).trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", "-");
+        value = value.replaceAll("[^\\p{L}\\p{N}_-]", "");
         return StringUtils.hasText(value) ? value : fallback;
     }
 
@@ -823,6 +1181,15 @@ public class PostNotionSyncService {
     private String readError(Exception exception) {
         String message = exception == null ? "" : readString(exception.getMessage(), "");
         return StringUtils.hasText(message) ? message : "Notion sync failed";
+    }
+
+    private record TreeRemotePage(String title, String categoryTitle, PageData pageData) {
+        private LocalDateTime lastEditedTime() {
+            return pageData == null ? null : pageData.lastEditedTime();
+        }
+    }
+
+    private record TreeMarkdownPayload(String markdown, List<String> tags) {
     }
 
     public record SyncExecutionResult(int successCount, int errorCount, int skippedCount, int conflictCount, String message) {

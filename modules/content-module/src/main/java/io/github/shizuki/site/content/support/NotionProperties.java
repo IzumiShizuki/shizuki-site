@@ -7,9 +7,14 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "shizuki.blog.notion")
 public class NotionProperties {
 
+    public static final String MODE_DATA_SOURCE = "DATA_SOURCE";
+    public static final String MODE_PAGE_TREE = "PAGE_TREE";
+
     private boolean enabled = false;
     private String token = "";
+    private String mode = MODE_DATA_SOURCE;
     private String dataSourceId = "";
+    private String rootPageId = "";
     private Long ownerUserId = 1L;
     private String version = "2026-03-11";
     private String apiBaseUrl = "https://api.notion.com/v1";
@@ -39,12 +44,33 @@ public class NotionProperties {
         this.token = token;
     }
 
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        String normalized = mode == null ? "" : mode.trim().toUpperCase();
+        if (MODE_PAGE_TREE.equals(normalized)) {
+            this.mode = MODE_PAGE_TREE;
+            return;
+        }
+        this.mode = MODE_DATA_SOURCE;
+    }
+
     public String getDataSourceId() {
         return dataSourceId;
     }
 
     public void setDataSourceId(String dataSourceId) {
         this.dataSourceId = dataSourceId;
+    }
+
+    public String getRootPageId() {
+        return rootPageId;
+    }
+
+    public void setRootPageId(String rootPageId) {
+        this.rootPageId = rootPageId;
     }
 
     public Long getOwnerUserId() {
@@ -139,12 +165,22 @@ public class NotionProperties {
         return properties;
     }
 
+    public boolean isDataSourceMode() {
+        return MODE_DATA_SOURCE.equals(mode);
+    }
+
+    public boolean isPageTreeMode() {
+        return MODE_PAGE_TREE.equals(mode);
+    }
+
     public boolean isConfigured() {
+        boolean hasSource = isPageTreeMode()
+            ? rootPageId != null && !rootPageId.trim().isEmpty()
+            : dataSourceId != null && !dataSourceId.trim().isEmpty();
         return enabled
             && token != null
             && !token.trim().isEmpty()
-            && dataSourceId != null
-            && !dataSourceId.trim().isEmpty();
+            && hasSource;
     }
 
     public static class PropertyMapping {

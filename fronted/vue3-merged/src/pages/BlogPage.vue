@@ -576,6 +576,14 @@
                     >
                       从 Notion 拉取
                     </button>
+                    <button
+                      type="button"
+                      class="mini-btn ripple-trigger"
+                      :disabled="!writerState.editor.postId || notionJobRunning"
+                      @click="handlePushToNotion"
+                    >
+                      推送到 Notion
+                    </button>
                     <span v-if="notionSyncState.statusCode" class="editor-status-note">
                       任务状态：{{ notionSyncState.statusCode }}
                     </span>
@@ -1986,6 +1994,39 @@ async function handlePullFromNotion() {
     writerState.error = completedJob?.errorText || 'Notion 拉取未完成';
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, 'Notion 拉取失败');
+  } finally {
+    notionSyncState.submitting = false;
+  }
+}
+
+async function handlePushToNotion() {
+  const postId = toSafeInt(writerState.editor.postId, 0);
+  if (postId <= 0 || notionJobRunning.value) return;
+  notionSyncState.submitting = true;
+  notionSyncState.errorText = '';
+  writerState.error = '';
+  writerState.notice = '';
+  try {
+    const createdJob = normalizeNotionSyncJob(
+      await createPostNotionSyncJob(
+        {
+          direction: 'PUSH',
+          targetType: 'POST',
+          postId
+        },
+        auth.authorizedFetch
+      )
+    );
+    notionSyncState.jobId = createdJob.jobId;
+    notionSyncState.statusCode = createdJob.statusCode;
+    const completedJob = await pollNotionSyncJobUntilDone(createdJob.jobId, postId);
+    if (completedJob?.statusCode === 'SUCCEEDED') {
+      writerState.notice = '已推送到 Notion';
+      return;
+    }
+    writerState.error = completedJob?.errorText || 'Notion 推送未完成';
+  } catch (error) {
+    writerState.error = normalizeErrorMessage(error, 'Notion 推送失败');
   } finally {
     notionSyncState.submitting = false;
   }

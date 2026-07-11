@@ -2201,7 +2201,8 @@ public class ContentServiceImpl implements ContentService {
         if (!StringUtils.hasText(value)) {
             return "";
         }
-        return value.replaceAll("[^a-z0-9_-]", "");
+        value = value.replaceAll("\\s+", "-");
+        return value.replaceAll("[^\\p{L}\\p{N}_-]", "");
     }
 
     private ContentVisibilityEnum normalizeVisibility(String raw) {
@@ -2429,7 +2430,8 @@ public class ContentServiceImpl implements ContentService {
 
     private String normalizeCategoryCode(String raw, boolean required) {
         String normalized = readString(raw, "").trim().toLowerCase(Locale.ROOT);
-        normalized = normalized.replaceAll("[^a-z0-9_-]", "");
+        normalized = normalized.replaceAll("\\s+", "-");
+        normalized = normalized.replaceAll("[^\\p{L}\\p{N}_-]", "");
         if (!StringUtils.hasText(normalized)) {
             if (required) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "Category code is required");
