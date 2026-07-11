@@ -266,6 +266,8 @@ const boardCanvasUnavailableText = computed(() => {
   return '白板编辑器暂时无法初始化，请检查前端运行环境后重试。';
 });
 
+const boardCanvasRuntimeErrorText = 'tldraw 初始化时发生运行时异常，现已降级为明确提示模式以避免白屏。请检查前端配置、构建资源或 License Key 后再试。';
+
 const statusText = computed(() => {
   if (boardCanvasUnavailable.value) return '白板已切换为授权降级模式：当前只保留面板展示，编辑能力已停用。';
   if (saving.value) return '同步中...';
@@ -314,6 +316,15 @@ function setInfo(message) {
 function setError(message) {
   errorText.value = String(message || '').trim() || '操作失败';
   infoText.value = '';
+}
+
+function handleBoardCanvasRuntimeError(error) {
+  boardCanvasAvailability.value = {
+    ...getBoardCanvasAvailability(),
+    supported: false,
+    reason: 'runtime-error'
+  };
+  setError(error?.message || boardCanvasRuntimeErrorText);
 }
 
 function sortBoards(items) {
@@ -1002,13 +1013,20 @@ onMounted(async () => {
   }
 
   if (canvasMountRef.value) {
-    boardBridge = mountBoardCanvas(canvasMountRef.value, {
-      onReady: () => {
-        if (activeBoardId.value) {
-          loadBoardIntoCanvas(activeBoardId.value);
+    try {
+      boardBridge = mountBoardCanvas(canvasMountRef.value, {
+        onReady: () => {
+          if (activeBoardId.value) {
+            loadBoardIntoCanvas(activeBoardId.value);
+          }
+        },
+        onError: (error) => {
+          handleBoardCanvasRuntimeError(error);
         }
-      }
-    });
+      });
+    } catch (error) {
+      handleBoardCanvasRuntimeError(error);
+    }
   }
 });
 
@@ -1261,6 +1279,33 @@ onBeforeUnmount(() => {
 :deep(.board-canvas-react-host__surface) {
   position: absolute;
   inset: 0;
+}
+
+:deep(.board-canvas-react-host .board-canvas-runtime-fallback) {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px;
+  text-align: center;
+  color: rgba(64, 77, 112, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(238, 244, 255, 0.94)),
+    rgba(233, 240, 255, 0.92);
+}
+
+:deep(.board-canvas-react-host .board-canvas-runtime-fallback strong) {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+:deep(.board-canvas-react-host .board-canvas-runtime-fallback p) {
+  max-width: 520px;
+  margin: 0;
+  line-height: 1.7;
 }
 
 :deep(.board-canvas-react-host .tl-container),

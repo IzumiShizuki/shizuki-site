@@ -39,6 +39,7 @@ const GUIDE_STORAGE_KEY = 'shizuki.board-canvas.palette-guide-dismissed.v1';
 const BOARD_GRID_SIZE = 24;
 const STYLE_PANEL_COMPACT_BREAKPOINT = '(max-width: 980px)';
 const QUICK_CONNECT_SHAPE_TYPES = new Set(['geo', 'note', 'text', 'frame']);
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 const TLDRAW_LICENSE_KEY = String(import.meta.env.VITE_TLDRAW_LICENSE_KEY || '').trim();
 const PALETTE_QUICK_INSERT_TOOLS = new Set([
   ...QUICK_CONNECT_CHOICE_TOOLS.map((tool) => tool.id),
@@ -132,10 +133,34 @@ function toNumber(value, fallback = 0) {
 }
 
 export function getBoardCanvasAvailability() {
+  if (typeof window === 'undefined') {
+    return {
+      supported: true,
+      reason: 'ready',
+      requiresLicenseKey: false,
+      hasLicenseKey: Boolean(TLDRAW_LICENSE_KEY)
+    };
+  }
+
+  const protocol = String(window.location?.protocol || '').toLowerCase();
+  const hostname = String(window.location?.hostname || '').toLowerCase();
+  const isLocalHost = LOCAL_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost');
+  const isProductionBuild = import.meta.env.PROD === true;
+  const requiresLicenseKey = protocol === 'https:' && !isLocalHost && isProductionBuild;
+
+  if (requiresLicenseKey && !TLDRAW_LICENSE_KEY) {
+    return {
+      supported: false,
+      reason: 'missing-license-key',
+      requiresLicenseKey: true,
+      hasLicenseKey: false
+    };
+  }
+
   return {
     supported: true,
-    reason: TLDRAW_LICENSE_KEY ? 'license-key-configured' : 'license-key-optional',
-    requiresLicenseKey: false,
+    reason: TLDRAW_LICENSE_KEY ? 'license-key-configured' : 'ready',
+    requiresLicenseKey,
     hasLicenseKey: Boolean(TLDRAW_LICENSE_KEY)
   };
 }
@@ -1760,7 +1785,40 @@ function BoardCanvasUiPortals({ leftHost, rightHost, zoomHost }) {
   );
 }
 
-function BoardCanvasReactHost({ api, initialSnapshot }) {
+class BoardCanvasErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      error: null
+    };
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      error
+    };
+  }
+
+  componentDidCatch(error) {
+    if (typeof this.props.onError === 'function') {
+      this.props.onError(error);
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="board-canvas-runtime-fallback" role="alert">
+          <strong>Board canvas is temporarily unavailable.</strong>
+          <p>The editor failed to initialize. Check the runtime configuration and reload the page.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function BoardCanvasReactHost({ api, initialSnapshot, onError }) {
   const [leftHost, setLeftHost] = React.useState(null);
   const [rightHost, setRightHost] = React.useState(null);
   const [zoomHost, setZoomHost] = React.useState(null);
@@ -1783,25 +1841,27 @@ function BoardCanvasReactHost({ api, initialSnapshot }) {
   return (
     <div className="board-canvas-react-host">
       <div className="board-canvas-react-host__surface">
-        <Tldraw
-          components={hiddenUiComponents}
-          licenseKey={TLDRAW_LICENSE_KEY || undefined}
-          onMount={(editor) => {
-            api.bindEditor(editor);
-            if (initializedRef.current) return;
-            initializedRef.current = true;
-            if (initialSnapshot && typeof initialSnapshot === 'object') {
-              try {
-                editor.loadSnapshot(initialSnapshot);
-              } catch {
-                // ignore invalid initial snapshot
+        <BoardCanvasErrorBoundary onError={onError}>
+          <Tldraw
+            components={hiddenUiComponents}
+            licenseKey={TLDRAW_LICENSE_KEY || undefined}
+            onMount={(editor) => {
+              api.bindEditor(editor);
+              if (initializedRef.current) return;
+              initializedRef.current = true;
+              if (initialSnapshot && typeof initialSnapshot === 'object') {
+                try {
+                  editor.loadSnapshot(initialSnapshot);
+                } catch {
+                  // ignore invalid initial snapshot
+                }
               }
-            }
-            ensureBoardCanvasDefaults(editor);
-          }}
-        >
-          <BoardCanvasUiPortals leftHost={leftHost} rightHost={rightHost} zoomHost={zoomHost} />
-        </Tldraw>
+              ensureBoardCanvasDefaults(editor);
+            }}
+          >
+            <BoardCanvasUiPortals leftHost={leftHost} rightHost={rightHost} zoomHost={zoomHost} />
+          </Tldraw>
+        </BoardCanvasErrorBoundary>
       </div>
       <div ref={setLeftHost} className="board-left-palette-host"></div>
       <div ref={setRightHost} className="board-right-style-host"></div>
@@ -1824,7 +1884,7 @@ export function mountBoardCanvas(target, options = {}) {
   }
   const api = createCanvasApi(options.onReady);
   const root = createRoot(target);
-  root.render(<BoardCanvasReactHost api={api} initialSnapshot={options.initialSnapshot} />);
+  root.render(<BoardCanvasReactHost api={api} initialSnapshot={options.initialSnapshot} onError={options.onError} />);
 
   return {
     api,
