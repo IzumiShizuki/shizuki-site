@@ -25,6 +25,10 @@
   // Persist rotated access/refresh tokens here so startup sync survives process restarts.
   "authStateFile": "./qianji-local-sync.auth.json",
 
+  // Safe aggregate-only daily report written after a successful sync. Meguri reads this file without credentials.
+  "dailyDigestFile": "../../data/qianji-sync/daily-billing-digest.json",
+  "dailyDigestTimeZone": "Asia/Shanghai",
+
   // Qianji local import currently works best when grouped by source account.
   "groupByAccount": true,
 

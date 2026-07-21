@@ -12,6 +12,7 @@ import {
   syncQianjiFile,
   stripJsonComments
 } from '../../../tools/qianji-sync/qianji-local-sync-lib.mjs';
+import { buildDailyBillingDigest, previousLocalDate, writeDailyBillingDigest } from '../../../tools/qianji-sync/qianji-daily-billing-digest.mjs';
 
 describe('qianji-local-sync-lib', () => {
   it('strips jsonc comments without touching string content', () => {
@@ -73,6 +74,8 @@ describe('qianji-local-sync-lib', () => {
     expect(config.accessToken).toBe('');
     expect(config.refreshToken).toBe('');
     expect(config.authStateFile).toContain('persisted-auth.json');
+    expect(config.dailyDigestFile).toContain('data');
+    expect(config.dailyDigestFile).toContain('daily-billing-digest.json');
   });
 
   it('groups parsed transactions by qianji source account', () => {
@@ -312,5 +315,42 @@ describe('qianji-local-sync-lib', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('writes an aggregate-only daily digest after sync', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'qianji-digest-'));
+    const digestFile = path.join(tempDir, 'daily-billing-digest.json');
+    const now = new Date('2026-07-21T18:00:00.000Z');
+    const digest = await writeDailyBillingDigest(
+      { dailyDigestFile: digestFile, dailyDigestTimeZone: 'Asia/Shanghai' },
+      {
+        async getBalanceAnalytics() {
+          return {
+            base_currency: 'CNY',
+            summary: { income_total: 1000, expense_total: 128.5, net_flow: 871.5, tx_count: 4 },
+            asset_snapshot: { net_asset: 3000 },
+            expense_category_breakdown: [{ category_name: '餐饮', amount_total: 80 }]
+          };
+        }
+      },
+      { processedFiles: 1, importedCount: 2, duplicateCount: 1, skippedCount: 0, groups: 1 },
+      { now }
+    );
+    const persisted = JSON.parse(await fs.readFile(digestFile, 'utf8'));
+
+    expect(previousLocalDate('Asia/Shanghai', now)).toBe('2026-07-21');
+    expect(digest.target_date).toBe('2026-07-21');
+    expect(persisted.analytics.expense_total).toBe(128.5);
+    expect(persisted.analytics.top_expense_categories).toEqual([{ category: '餐饮', amount: 80 }]);
+    expect(JSON.stringify(persisted)).not.toContain('accessToken');
+  });
+
+  it('builds deterministic digest fields from analytics data', () => {
+    const digest = buildDailyBillingDigest({
+      analytics: { summary: { income_total: 10, expense_total: 3, net_flow: 7, tx_count: 2 } },
+      syncSummary: {}, targetDate: '2026-07-20', timeZone: 'Asia/Shanghai', generatedAt: new Date('2026-07-21T00:00:00Z')
+    });
+    expect(digest.analytics.net_flow).toBe(7);
+    expect(digest.sync.imported_count).toBe(0);
   });
 });

@@ -7,6 +7,7 @@
 - 读取你本机导出的钱迹 `CSV / JSON`
 - 把账单同步到 `https://site.shizuki.online` 的站点账本
 - 在 Windows 登录后常驻监听，并支持凌晨补跑
+- 成功同步后生成前一天的聚合账单日报
 
 ## 目录说明
 
@@ -30,6 +31,12 @@
 轮换后的 token 会持久化到：
 
 - [qianji-local-sync.auth.json](/D:/program/shizuki-site/data/qianji-sync/qianji-local-sync.auth.json)
+
+成功同步后还会写入：
+
+- [daily-billing-digest.json](/D:/program/shizuki-site/data/qianji-sync/daily-billing-digest.json)
+
+日报只含收入、支出、净流、笔数、净资产、前三消费分类和同步计数；不会保存 token 或原始账单。Meguri 只应读取这份日报，不应读取钱迹认证文件。
 
 同步器现在也支持仅依赖 `qianji-local-sync.auth.json` 启动，所以只要成功刷出过一次 token，重启后不需要再把 token 明文写回配置。
 

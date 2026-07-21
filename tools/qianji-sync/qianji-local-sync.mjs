@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_POLL_INTERVAL_MS, normalizeSyncConfig, parseJsonc, runSyncCycle } from './qianji-local-sync-lib.mjs';
+import { DEFAULT_POLL_INTERVAL_MS, createSiteApiClient, normalizeSyncConfig, parseJsonc, runSyncCycle } from './qianji-local-sync-lib.mjs';
+import { writeDailyBillingDigest } from './qianji-daily-billing-digest.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -92,10 +93,22 @@ function logCycleSummary(summary) {
   );
 }
 
+function logDigestSummary(digest) {
+  const analytics = digest.analytics || {};
+  console.log(
+    `daily_digest status=${digest.status} date=${digest.target_date} tx_count=${analytics.tx_count} `
+      + `income=${analytics.income_total} expense=${analytics.expense_total} net=${analytics.net_flow}`
+  );
+}
+
 async function runOnce(config) {
   console.log(`qianji-local-sync start watch_dir=${config.watchDir} dry_run=${config.dryRun}`);
-  const { summary } = await runSyncCycle(config, { logger: console });
+  const client = createSiteApiClient(config);
+  const { summary } = await runSyncCycle(config, { logger: console, client });
   logCycleSummary(summary);
+  if (!config.dryRun) {
+    logDigestSummary(await writeDailyBillingDigest(config, client, summary));
+  }
 }
 
 async function runWatch(config) {
@@ -112,8 +125,12 @@ async function runWatch(config) {
 
   while (!stopped) {
     try {
-      const { summary } = await runSyncCycle(config, { logger: console });
+      const client = createSiteApiClient(config);
+      const { summary } = await runSyncCycle(config, { logger: console, client });
       logCycleSummary(summary);
+      if (!config.dryRun) {
+        logDigestSummary(await writeDailyBillingDigest(config, client, summary));
+      }
     } catch (error) {
       console.error(error?.message || error);
     }

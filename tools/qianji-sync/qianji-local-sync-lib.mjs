@@ -67,6 +67,20 @@ function resolvePath(baseDir, targetPath) {
   return path.isAbsolute(normalized) ? path.normalize(normalized) : path.resolve(baseDir, normalized);
 }
 
+function defaultDailyDigestFile(baseDir) {
+  let cursor = path.resolve(baseDir);
+  while (true) {
+    if (path.basename(cursor).toLowerCase() === 'shizuki-site') {
+      return path.join(cursor, 'data', 'qianji-sync', 'daily-billing-digest.json');
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      return path.resolve(baseDir, 'daily-billing-digest.json');
+    }
+    cursor = parent;
+  }
+}
+
 function ensurePlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -245,6 +259,9 @@ export function normalizeSyncConfig(rawConfig, options = {}) {
   }
 
   const archiveDir = resolvePath(baseDir, normalizeConfigText(source.archiveDir || source.archive_dir));
+  const dailyDigestFile =
+    resolvePath(baseDir, normalizeConfigText(source.dailyDigestFile || source.daily_digest_file))
+    || defaultDailyDigestFile(baseDir);
   const singleTargetAccountId = toPositiveInteger(source.singleTargetAccountId || source.single_target_account_id);
   const singleTargetAccountName = normalizeText(source.singleTargetAccountName || source.single_target_account_name);
   const groupByAccount = source.groupByAccount === undefined ? true : toBoolean(source.groupByAccount, true);
@@ -261,6 +278,8 @@ export function normalizeSyncConfig(rawConfig, options = {}) {
     processedStateFile,
     authStateFile,
     archiveDir,
+    dailyDigestFile,
+    dailyDigestTimeZone: normalizeText(source.dailyDigestTimeZone || source.daily_digest_time_zone) || 'Asia/Shanghai',
     provider: normalizeText(source.provider).toLowerCase() || DEFAULT_PROVIDER,
     sourceLabel: normalizeText(source.sourceLabel || source.source_label) || DEFAULT_SOURCE_LABEL,
     fileExtensions: normalizeFileExtensions(source.fileExtensions || source.file_extensions),
@@ -610,6 +629,23 @@ export function createSiteApiClient(config) {
       const suffix = query.size ? `?${query.toString()}` : '';
       const payload = await authorizedRequest(`/api/v1/light-apps/balance/transactions${suffix}`, { method: 'GET' });
       return Array.isArray(payload) ? payload : [];
+    },
+    async getBalanceAnalytics(filters = {}) {
+      const query = new URLSearchParams();
+      const baseCurrency = normalizeText(filters.baseCurrency || filters.base_currency || 'CNY').toUpperCase();
+      const fromDatetime = normalizeText(filters.fromDatetime || filters.from_datetime);
+      const toDatetime = normalizeText(filters.toDatetime || filters.to_datetime);
+      const timeZone = normalizeText(filters.timeZone || filters.time_zone);
+      const channelCode = normalizeText(filters.channelCode || filters.channel_code);
+      const accountId = Number(filters.accountId ?? filters.account_id) || 0;
+      if (baseCurrency) query.set('base_currency', baseCurrency);
+      if (fromDatetime) query.set('from_datetime', fromDatetime);
+      if (toDatetime) query.set('to_datetime', toDatetime);
+      if (timeZone) query.set('time_zone', timeZone);
+      if (channelCode) query.set('channel_code', channelCode);
+      if (accountId > 0) query.set('account_id', String(accountId));
+      const suffix = query.size ? `?${query.toString()}` : '';
+      return authorizedRequest(`/api/v1/light-apps/balance/analytics${suffix}`, { method: 'GET' });
     },
     async updateBalanceTransaction(transactionId, payload) {
       return authorizedRequest(`/api/v1/light-apps/balance/transactions/${encodeURIComponent(transactionId)}`, {
