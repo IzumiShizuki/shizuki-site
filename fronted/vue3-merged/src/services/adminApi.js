@@ -139,6 +139,13 @@ export async function listAdminOpsContainers(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getAdminPromptCacheMetrics(authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/ops/meguri/prompt-cache', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function actionAdminOpsContainer(containerId, action, authorizedFetch) {
   const normalizedId = String(containerId || '').trim();
   const normalizedAction = String(action || '').trim().toLowerCase();

@@ -197,6 +197,9 @@ shizuki:
       unlock-ttl-seconds: ${ADMIN_PRIVILEGE_UNLOCK_TTL_SECONDS:1800}
       code-hash: ${ADMIN_PRIVILEGE_CODE_HASH:}
       code-plain: ${ADMIN_PRIVILEGE_CODE:}
+    meguri-metrics:
+      ingest-token: ${MEGURI_METRICS_INGEST_TOKEN:}
+      stale-after-seconds: ${MEGURI_METRICS_STALE_AFTER_SECONDS:300}
   media:
     storage:
       private-bucket: ${OSS_PRIVATE_BUCKET:zhuowang-files}
@@ -277,6 +280,7 @@ shizuki:
       - /api/v1/auth/bindings/**
       - /api/v1/auth/captchas/**
       - /api/v1/auth/verifications/**
+      - /api/v1/internal/meguri/prompt-cache
       - /actuator/**
       guest-paths:
       - /api/v1/posts/**

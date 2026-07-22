@@ -139,6 +139,14 @@
             @action="handleOpsContainerAction"
           />
 
+          <AdminPromptCachePanel
+            v-else-if="activeTab === AdminTabKey.PROMPT_CACHE"
+            :loading="promptCacheLoading"
+            :error="promptCacheError"
+            :snapshot="promptCacheSnapshot"
+            @refresh="reloadPromptCacheMetrics"
+          />
+
           <AdminWallpapersPanel
             v-else-if="activeTab === AdminTabKey.WALLPAPERS"
             :loading="wallpapersLoading"
@@ -233,6 +241,7 @@ import AdminDangerDeleteDialog from '../components/admin/AdminDangerDeleteDialog
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
 import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue';
+import AdminPromptCachePanel from '../components/admin/AdminPromptCachePanel.vue';
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
 import AdminServerOpsPanel from '../components/admin/AdminServerOpsPanel.vue';
 import AdminUsersPanel from '../components/admin/AdminUsersPanel.vue';
@@ -281,6 +290,7 @@ const adminTabs = [
   { key: AdminTabKey.PERMISSIONS, label: 'Permissions', icon: 'fas fa-key' },
   { key: AdminTabKey.QUOTA, label: 'Quota', icon: 'fas fa-gauge-high' },
   { key: AdminTabKey.SERVER_OPS, label: 'Server Ops', icon: 'fas fa-server' },
+  { key: AdminTabKey.PROMPT_CACHE, label: 'Prompt Cache', icon: 'fas fa-chart-line' },
   { key: AdminTabKey.WALLPAPERS, label: 'Wallpapers', icon: 'far fa-image' },
   { key: AdminTabKey.BLOG_WHISPERS, label: 'Whispers', icon: 'fas fa-user-secret' },
   { key: AdminTabKey.BLOG_CATEGORIES, label: 'Categories', icon: 'fas fa-folder-tree' }
@@ -351,6 +361,10 @@ const opsActionError = ref('');
 const opsError = ref('');
 const opsOverview = ref({});
 const opsContainers = ref([]);
+
+const promptCacheLoading = ref(false);
+const promptCacheError = ref('');
+const promptCacheSnapshot = ref({});
 
 const categoryMetaLoading = ref(false);
 const categoryMetaSaving = ref(false);
@@ -578,6 +592,67 @@ function toOpsContainer(raw) {
     ports: Array.isArray(ports) ? ports.map((item) => String(item || '').trim()).filter(Boolean) : [],
     running: readField(raw, 'running', 'running', false) === true,
     manageable: readField(raw, 'manageable', 'manageable', false) === true
+  };
+}
+
+function toPromptCacheMetricsView(raw) {
+  const metricsRaw = readField(raw, 'metrics', 'metrics', {}) || {};
+  const dailyRaw = readField(metricsRaw, 'daily', 'daily', []);
+  const recentRaw = readField(metricsRaw, 'recent', 'recent', []);
+  const numericFields = [
+    'promptCharacters', 'totalRequests', 'successfulRequests', 'failedRequests',
+    'usageReportedRequests', 'cacheReportedRequests', 'promptTokens', 'outputTokens',
+    'totalTokens', 'cacheHitTokens', 'cacheMissTokens'
+  ];
+  const textFields = [
+    'sourceId', 'observedAt', 'collectingSince', 'provider', 'model', 'cacheMode',
+    'promptSha256', 'persistenceStatus', 'lastPersistenceError', 'exportStatus',
+    'lastExportAt', 'lastExportError'
+  ];
+  const metrics = {};
+  textFields.forEach((field) => {
+    const snake = field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    metrics[field] = String(readField(metricsRaw, field, snake, '') || '');
+  });
+  numericFields.forEach((field) => {
+    const snake = field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    metrics[field] = Number(readField(metricsRaw, field, snake, 0)) || 0;
+  });
+  metrics.cacheHitRate = Number(readField(metricsRaw, 'cacheHitRate', 'cache_hit_rate', Number.NaN));
+  metrics.usageCoverageRate = Number(readField(metricsRaw, 'usageCoverageRate', 'usage_coverage_rate', Number.NaN));
+  metrics.daily = Array.isArray(dailyRaw)
+    ? dailyRaw.map((item) => ({
+        date: String(readField(item, 'date', 'date', '') || ''),
+        requests: Number(readField(item, 'requests', 'requests', 0)) || 0,
+        successfulRequests: Number(readField(item, 'successfulRequests', 'successful_requests', 0)) || 0,
+        failedRequests: Number(readField(item, 'failedRequests', 'failed_requests', 0)) || 0,
+        promptTokens: Number(readField(item, 'promptTokens', 'prompt_tokens', 0)) || 0,
+        outputTokens: Number(readField(item, 'outputTokens', 'output_tokens', 0)) || 0,
+        cacheHitTokens: Number(readField(item, 'cacheHitTokens', 'cache_hit_tokens', 0)) || 0,
+        cacheMissTokens: Number(readField(item, 'cacheMissTokens', 'cache_miss_tokens', 0)) || 0
+      }))
+    : [];
+  metrics.recent = Array.isArray(recentRaw)
+    ? recentRaw.map((item) => ({
+        observedAt: String(readField(item, 'observedAt', 'observed_at', '') || ''),
+        operation: String(readField(item, 'operation', 'operation', '') || ''),
+        model: String(readField(item, 'model', 'model', '') || ''),
+        successful: readField(item, 'successful', 'successful', false) === true,
+        usageReported: readField(item, 'usageReported', 'usage_reported', false) === true,
+        cacheReported: readField(item, 'cacheReported', 'cache_reported', false) === true,
+        promptTokens: Number(readField(item, 'promptTokens', 'prompt_tokens', 0)) || 0,
+        outputTokens: Number(readField(item, 'outputTokens', 'output_tokens', 0)) || 0,
+        totalTokens: Number(readField(item, 'totalTokens', 'total_tokens', 0)) || 0,
+        cacheHitTokens: Number(readField(item, 'cacheHitTokens', 'cache_hit_tokens', 0)) || 0,
+        cacheMissTokens: Number(readField(item, 'cacheMissTokens', 'cache_miss_tokens', 0)) || 0
+      }))
+    : [];
+  return {
+    available: readField(raw, 'available', 'available', false) === true,
+    receivedAt: String(readField(raw, 'receivedAt', 'received_at', '') || ''),
+    ageSeconds: Number(readField(raw, 'ageSeconds', 'age_seconds', 0)) || 0,
+    stale: readField(raw, 'stale', 'stale', true) !== false,
+    metrics
   };
 }
 
@@ -1001,6 +1076,20 @@ async function reloadOpsContainers() {
     opsError.value = readErrorMessage(error);
   } finally {
     opsContainersLoading.value = false;
+  }
+}
+
+async function reloadPromptCacheMetrics() {
+  promptCacheError.value = '';
+  promptCacheLoading.value = true;
+  try {
+    const payload = await adminApi.getAdminPromptCacheMetrics(auth.authorizedFetch);
+    promptCacheSnapshot.value = toPromptCacheMetricsView(payload);
+  } catch (error) {
+    promptCacheSnapshot.value = {};
+    promptCacheError.value = readErrorMessage(error);
+  } finally {
+    promptCacheLoading.value = false;
   }
 }
 
@@ -1433,6 +1522,7 @@ onMounted(async () => {
       reloadQuota(),
       reloadOpsOverview(),
       reloadOpsContainers(),
+      reloadPromptCacheMetrics(),
       reloadPendingWallpapers(),
       reloadBlogWhispers(1),
       reloadCategoryMetas()

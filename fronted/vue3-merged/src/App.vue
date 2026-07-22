@@ -2242,7 +2242,7 @@ function openProfile(tabKey = 'profile') {
 
 function openAdmin(tabKey = 'overview') {
   const rawTab = String(tabKey || '').trim().toLowerCase();
-  const normalizedAdminTab = ['users', 'groups', 'permissions', 'quota', 'wallpapers', 'blog-categories'].includes(
+  const normalizedAdminTab = ['users', 'groups', 'permissions', 'quota', 'prompt-cache', 'wallpapers', 'blog-categories'].includes(
     rawTab.startsWith('admin:') ? rawTab.slice('admin:'.length) : rawTab
   )
     ? rawTab.startsWith('admin:') ? rawTab.slice('admin:'.length) : rawTab

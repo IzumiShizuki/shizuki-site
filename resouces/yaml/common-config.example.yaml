@@ -55,6 +55,9 @@ shizuki:
   admin:
     privilege:
       code-plain: "<ADMIN_PRIVILEGE_CODE>"
+    meguri-metrics:
+      ingest-token: "<MEGURI_METRICS_INGEST_TOKEN>"
+      stale-after-seconds: 300
   ai:
     chat:
       enabled: true

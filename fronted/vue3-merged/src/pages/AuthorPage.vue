@@ -1055,6 +1055,7 @@ const adminTabs = Object.freeze([
   { tab: AdminTabKey.GROUPS, label: '后台分组', icon: 'fas fa-layer-group' },
   { tab: AdminTabKey.PERMISSIONS, label: '后台权限', icon: 'fas fa-key' },
   { tab: AdminTabKey.QUOTA, label: '后台配额', icon: 'fas fa-gauge-high' },
+  { tab: AdminTabKey.PROMPT_CACHE, label: 'Prompt Cache', icon: 'fas fa-chart-line' },
   { tab: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
   { tab: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
 ]);

@@ -4,6 +4,7 @@ export const AdminTabKey = Object.freeze({
   PERMISSIONS: 'permissions',
   QUOTA: 'quota',
   SERVER_OPS: 'server-ops',
+  PROMPT_CACHE: 'prompt-cache',
   BLOG_WHISPERS: 'blog-whispers',
   BLOG_CATEGORIES: 'blog-categories',
   WALLPAPERS: 'wallpapers'
