@@ -33,13 +33,22 @@
         <section class="lyric-scroll-shell">
           <div class="lyric-center-guide" aria-hidden="true"></div>
 
-          <SubtleScrollArea class="lyric-scroll" ref="lyricListRef" @scroll.passive="handleLyricScroll">
+          <SubtleScrollArea
+            class="lyric-scroll"
+            ref="lyricListRef"
+            tabindex="0"
+            @scroll.passive="handleLyricScroll"
+            @wheel.passive="handleLyricInteraction"
+            @touchstart.passive="handleLyricInteraction"
+            @pointerdown.passive="handleLyricInteraction"
+            @keydown="handleLyricKeydown"
+          >
             <button
               v-for="(row, index) in renderedRows"
               :key="`lyric-row-${index}-${row.time}`"
               :ref="(el) => setLyricRowRef(el, index)"
               class="lyric-row ripple-trigger"
-              :class="{ active: row.time === activeLyricTime }"
+              :class="{ active: index === activeScrollIndex }"
               type="button"
               @click="seekToLyricRow(row.time)"
             >
@@ -103,9 +112,14 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import SubtleScrollArea from '../../components/SubtleScrollArea.vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
+import {
+  resolveClosestLyricRowIndex,
+  resolveLyricEdgePadding,
+  resolveLyricScrollTop
+} from '../../utils/lyricAlignment';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 
@@ -153,6 +167,8 @@ const modePanelOpen = ref(false);
 
 let centerTimeHideTimer = 0;
 let autoFollowSuspendUntil = 0;
+let lyricResizeObserver = null;
+let lyricResizeFrame = 0;
 
 const renderedRows = computed(() => {
   const rows = lyricTimeline.value;
@@ -212,12 +228,6 @@ const activeScrollIndex = computed(() => {
   return idx;
 });
 
-const activeLyricTime = computed(() => {
-  const idx = activeScrollIndex.value;
-  if (idx < 0) return null;
-  return Number(renderedRows.value[idx]?.time || 0);
-});
-
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
   const safeCover = safeCssUrl(track.value?.cover || fallback);
@@ -236,8 +246,9 @@ function cyclePlayMode() {
 }
 
 function setLyricRowRef(el, index) {
-  if (!el) return;
-  lyricRowRefs.value[index] = el;
+  if (el) {
+    lyricRowRefs.value[index] = el;
+  }
 }
 
 function getLyricListElement() {
@@ -277,28 +288,49 @@ function revealCenterTime(time) {
   }, 1400);
 }
 
+function handleLyricInteraction() {
+  autoFollowSuspendUntil = Date.now() + 1800;
+}
+
+function handleLyricKeydown(event) {
+  if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event?.key)) {
+    handleLyricInteraction();
+  }
+}
+
 function handleLyricScroll() {
   const container = getLyricListElement();
   if (!container) return;
+  if (Date.now() >= autoFollowSuspendUntil) return;
   autoFollowSuspendUntil = Date.now() + 1800;
 
   const centerY = container.scrollTop + container.clientHeight / 2;
-  let nearestIndex = -1;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (let i = 0; i < lyricRowRefs.value.length; i += 1) {
-    const rowEl = lyricRowRefs.value[i];
-    if (!rowEl) continue;
-    const rowCenter = rowEl.offsetTop + rowEl.offsetHeight / 2;
-    const distance = Math.abs(rowCenter - centerY);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestIndex = i;
-    }
-  }
+  const nearestIndex = resolveClosestLyricRowIndex(lyricRowRefs.value, centerY);
 
   if (nearestIndex >= 0) {
     revealCenterTime(renderedRows.value[nearestIndex]?.time || 0);
+  }
+}
+
+function collectLyricRows() {
+  const container = getLyricListElement();
+  if (!container) return;
+  lyricRowRefs.value = Array.from(container.querySelectorAll('.lyric-row'));
+}
+
+function syncLyricEdgePadding() {
+  const container = getLyricListElement();
+  const firstRow = lyricRowRefs.value[0];
+  const lastRow = lyricRowRefs.value[lyricRowRefs.value.length - 1];
+  if (!container || !firstRow || !lastRow) return;
+
+  const topPadding = `${Math.round(resolveLyricEdgePadding(container.clientHeight, firstRow.offsetHeight))}px`;
+  const bottomPadding = `${Math.round(resolveLyricEdgePadding(container.clientHeight, lastRow.offsetHeight))}px`;
+  if (container.style.getPropertyValue('--lyric-padding-top') !== topPadding) {
+    container.style.setProperty('--lyric-padding-top', topPadding);
+  }
+  if (container.style.getPropertyValue('--lyric-padding-bottom') !== bottomPadding) {
+    container.style.setProperty('--lyric-padding-bottom', bottomPadding);
   }
 }
 
@@ -306,8 +338,51 @@ function scrollToLyricIndex(index, behavior = 'smooth') {
   const container = getLyricListElement();
   const rowEl = lyricRowRefs.value[index];
   if (!container || !rowEl) return;
-  const targetTop = rowEl.offsetTop - container.clientHeight / 2 + rowEl.offsetHeight / 2;
-  container.scrollTo({ top: Math.max(0, targetTop), behavior });
+  const targetTop = resolveLyricScrollTop({
+    rowOffsetTop: rowEl.offsetTop,
+    rowHeight: rowEl.offsetHeight,
+    containerHeight: container.clientHeight,
+    scrollHeight: container.scrollHeight
+  });
+  if (typeof container.scrollTo === 'function') {
+    container.scrollTo({ top: targetTop, behavior });
+  } else {
+    container.scrollTop = targetTop;
+  }
+}
+
+function reconnectLyricResizeObserver() {
+  if (!lyricResizeObserver) return;
+  lyricResizeObserver.disconnect();
+  const container = getLyricListElement();
+  if (!container) return;
+  lyricResizeObserver.observe(container);
+  const firstRow = lyricRowRefs.value[0];
+  const lastRow = lyricRowRefs.value[lyricRowRefs.value.length - 1];
+  if (firstRow) lyricResizeObserver.observe(firstRow);
+  if (lastRow && lastRow !== firstRow) lyricResizeObserver.observe(lastRow);
+}
+
+function refreshLyricLayout(behavior = 'auto') {
+  collectLyricRows();
+  syncLyricEdgePadding();
+  reconnectLyricResizeObserver();
+  if (Date.now() >= autoFollowSuspendUntil && activeScrollIndex.value >= 0) {
+    scrollToLyricIndex(activeScrollIndex.value, behavior);
+  }
+}
+
+function scheduleLyricLayoutRefresh() {
+  if (lyricResizeFrame) {
+    window.cancelAnimationFrame(lyricResizeFrame);
+  }
+  lyricResizeFrame = window.requestAnimationFrame(() => {
+    lyricResizeFrame = 0;
+    syncLyricEdgePadding();
+    if (Date.now() >= autoFollowSuspendUntil && activeScrollIndex.value >= 0) {
+      scrollToLyricIndex(activeScrollIndex.value, 'auto');
+    }
+  });
 }
 
 function toggleModePanel() {
@@ -315,14 +390,10 @@ function toggleModePanel() {
 }
 
 watch(
-  () => renderedRows.value.length,
+  () => [lyricTimeline.value, lyricMode.value, track.value?.id],
   async () => {
-    lyricRowRefs.value = [];
     await nextTick();
-    const idx = activeScrollIndex.value;
-    if (idx >= 0) {
-      scrollToLyricIndex(idx, 'auto');
-    }
+    refreshLyricLayout('auto');
   },
   { immediate: true }
 );
@@ -343,14 +414,31 @@ watch(
     if (nextIndex < 0) return;
     if (Date.now() < autoFollowSuspendUntil) return;
     await nextTick();
+    syncLyricEdgePadding();
     scrollToLyricIndex(nextIndex, 'smooth');
   }
 );
+
+onMounted(async () => {
+  if (typeof ResizeObserver === 'function') {
+    lyricResizeObserver = new ResizeObserver(scheduleLyricLayoutRefresh);
+  }
+  await nextTick();
+  refreshLyricLayout('auto');
+});
 
 onBeforeUnmount(() => {
   if (centerTimeHideTimer) {
     window.clearTimeout(centerTimeHideTimer);
     centerTimeHideTimer = 0;
+  }
+  if (lyricResizeObserver) {
+    lyricResizeObserver.disconnect();
+    lyricResizeObserver = null;
+  }
+  if (lyricResizeFrame) {
+    window.cancelAnimationFrame(lyricResizeFrame);
+    lyricResizeFrame = 0;
   }
 });
 </script>
@@ -362,7 +450,7 @@ onBeforeUnmount(() => {
   --liquid-shadow: 0 24px 46px rgba(5, 8, 16, 0.46);
   height: 100%;
   border-radius: 18px;
-  padding: 16px;
+  padding: clamp(12px, 1.4vw, 18px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
@@ -397,25 +485,26 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(360px, 500px) minmax(0, 1fr) 86px;
-  gap: 28px;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(360px, 1.35fr) minmax(64px, 86px);
+  gap: clamp(14px, 2vw, 28px);
   overflow: hidden;
 }
 
 .vinyl-column {
   display: grid;
+  min-width: 0;
+  min-height: 0;
 }
 
 .vinyl-stage {
   position: relative;
   display: grid;
   place-items: center;
-  padding-top: 10px;
-  padding-left: 14px;
+  padding: 10px 0 0;
 }
 
 .vinyl-disc {
-  width: clamp(220px, 26vw, 360px);
+  width: clamp(190px, min(25vw, 44vh), 360px);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   display: grid;
@@ -445,10 +534,11 @@ onBeforeUnmount(() => {
 
 .content-column {
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
-  padding-left: 28px;
+  padding-left: clamp(0px, 1.8vw, 28px);
 }
 
 .track-meta h1 {
@@ -457,6 +547,7 @@ onBeforeUnmount(() => {
   color: rgba(246, 249, 255, 0.97);
   line-height: 1.08;
   letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
 }
 
 .track-meta .sub {
@@ -501,6 +592,7 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, rgba(18, 24, 36, 0.74), rgba(14, 18, 28, 0.7));
   min-height: 0;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .lyric-center-guide {
@@ -508,10 +600,10 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   top: 50%;
-  height: 52px;
-  transform: translateY(-50%);
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  height: 1px;
+  transform: translateY(-0.5px);
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.24) 22%, rgba(255, 255, 255, 0.18) 50%, rgba(var(--accent-rgb), 0.24) 78%, transparent);
+  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.16);
   pointer-events: none;
   z-index: 1;
 }
@@ -523,55 +615,68 @@ onBeforeUnmount(() => {
   max-height: none;
   min-height: 0;
   overflow-y: auto;
-  padding: 150px 32px;
+  box-sizing: border-box;
+  padding: var(--lyric-padding-top, 120px) clamp(18px, 3vw, 42px) var(--lyric-padding-bottom, 120px);
   display: grid;
-  gap: 14px;
-  scroll-behavior: smooth;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: clamp(8px, 1.4vh, 14px);
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+  scroll-snap-type: y proximity;
+  outline: none;
 }
 
 .lyric-row {
+  width: 100%;
+  min-width: 0;
+  min-height: 58px;
   border: 0;
+  border-radius: 12px;
   background: transparent;
   color: rgba(188, 199, 220, 0.88);
-  text-align: left;
-  padding: 8px 2px;
+  text-align: center;
+  padding: 8px 12px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  scroll-snap-align: center;
   transition:
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 300ms ease,
     color 300ms ease,
-    text-shadow 300ms ease;
+    text-shadow 300ms ease,
+    background-color 300ms ease;
 }
-
 .lyric-row .line-main,
 .lyric-row .line-sub {
+  max-width: 100%;
   margin: 0;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .lyric-row .line-main {
-  font-size: 30px;
+  font-size: clamp(22px, 2.1vw, 30px);
   font-weight: 600;
 }
 
 .lyric-row .line-sub {
-  margin-top: 2px;
-  font-size: 24px;
+  margin-top: 4px;
+  font-size: clamp(16px, 1.55vw, 22px);
   color: rgba(168, 182, 208, 0.82);
 }
 
 .lyric-row.active {
-  transform: translateY(-8px);
   color: rgba(248, 251, 255, 0.99);
   text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.25);
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.09) 25%, rgba(var(--accent-rgb), 0.12) 50%, rgba(var(--accent-rgb), 0.09) 75%, transparent);
 }
 
 .lyric-row.active .line-main {
-  font-size: 34px;
   font-weight: 700;
 }
 
 .lyric-row.active .line-sub {
-  font-size: 28px;
   color: rgba(232, 240, 255, 0.95);
 }
 
@@ -745,69 +850,71 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1220px) {
   .detail-layout {
-    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr) 70px;
+    grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr) 70px;
     gap: 14px;
   }
 
   .content-column {
-    padding-left: 10px;
+    padding-left: 0;
   }
 
-  .lyric-scroll {
-    padding-left: 24px;
-    padding-right: 24px;
+  .track-meta h1 {
+    font-size: clamp(24px, 3vw, 40px);
   }
 
   .lyric-row .line-main {
-    font-size: 26px;
-  }
-
-  .lyric-row.active .line-main {
-    font-size: 30px;
+    font-size: clamp(21px, 2.4vw, 26px);
   }
 
   .lyric-row .line-sub {
-    font-size: 21px;
-  }
-
-  .lyric-row.active .line-sub {
-    font-size: 24px;
+    font-size: clamp(15px, 1.85vw, 20px);
   }
 }
 
 @media (max-width: 980px) {
   .detail-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(170px, 0.62fr) minmax(0, 1.38fr);
+    grid-template-rows: minmax(0, 1fr) auto;
     overflow: hidden;
   }
 
-  .vinyl-column,
-  .side-column {
-    order: 0;
+  .vinyl-column {
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .content-column {
-    order: 1;
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .vinyl-stage {
-    position: static;
-    padding-top: 20px;
+    padding: 0;
+    align-content: start;
+  }
+
+  .vinyl-disc {
+    width: clamp(150px, min(28vw, 36vh), 250px);
   }
 
   .side-column {
-    grid-auto-flow: column;
-    justify-content: start;
-    justify-items: start;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     gap: 10px;
+    padding-top: 0;
+  }
+
+  .lyric-mode-stack {
+    padding: 6px 8px;
+    grid-auto-flow: column;
   }
 
   .lyric-scroll {
     min-height: 0;
     max-height: none;
-    padding-top: 120px;
-    padding-bottom: 120px;
   }
 
   .footer-row {
@@ -817,6 +924,124 @@ onBeforeUnmount(() => {
 
   .volume-row {
     width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .music-player-detail-view {
+    gap: 10px;
+  }
+
+  .detail-head p {
+    font-size: 13px;
+  }
+
+  .detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .vinyl-column {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .vinyl-stage {
+    padding: 0;
+  }
+
+  .vinyl-disc {
+    width: clamp(92px, 24vw, 126px);
+  }
+
+  .content-column {
+    grid-column: 1;
+    grid-row: 2;
+    gap: 8px;
+  }
+
+  .track-meta {
+    text-align: center;
+  }
+
+  .track-meta h1 {
+    font-size: clamp(21px, 6vw, 28px);
+  }
+
+  .track-meta .sub,
+  .track-meta .album {
+    margin-top: 3px;
+  }
+
+  .meta-actions {
+    margin-top: 8px;
+    justify-content: center;
+  }
+
+  .meta-collect-btn {
+    padding: 6px 11px;
+  }
+
+  .lyric-row {
+    min-height: 48px;
+    padding-inline: 6px;
+  }
+
+  .lyric-row .line-main {
+    font-size: clamp(19px, 5.4vw, 24px);
+  }
+
+  .lyric-row .line-sub {
+    font-size: clamp(14px, 4vw, 18px);
+  }
+
+  .center-time-pill {
+    right: 8px;
+  }
+
+  .side-column {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .vinyl-column {
+    display: none;
+  }
+
+  .detail-layout {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .content-column {
+    grid-row: 1;
+  }
+
+  .side-column {
+    grid-row: 2;
+  }
+
+  .detail-head p,
+  .track-meta .album {
+    display: none;
+  }
+}
+
+@media (max-height: 680px) and (min-width: 721px) {
+  .vinyl-disc {
+    width: clamp(150px, min(22vw, 34vh), 230px);
+  }
+
+  .track-meta h1 {
+    font-size: clamp(22px, 2.6vw, 34px);
+  }
+
+  .meta-actions {
+    margin-top: 8px;
   }
 }
 

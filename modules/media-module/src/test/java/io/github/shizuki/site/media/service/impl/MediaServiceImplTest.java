@@ -543,7 +543,20 @@ class MediaServiceImplTest {
 
     @Test
     void shouldReturnRealPlaylistWhenTypeIsPlaylist() {
-        Mockito.when(metingMusicProvider.searchPlaylists("th_test_default_key", "netease", "白色相簿", 1, 24))
+        List<MetingMusicProvider.SearchTrackResult> neteasePreview = List.of(
+            new MetingMusicProvider.SearchTrackResult(
+                "28712251",
+                "netease",
+                "WHITE ALBUM",
+                "平野绫",
+                "WHITE ALBUM",
+                "https://p1.music.126.net/cover.jpg",
+                275
+            )
+        );
+        Mockito.when(metingMusicProvider.searchTracks("th_test_default_key", "netease", "白色相簿", 1, 1))
+            .thenReturn(neteasePreview);
+        Mockito.when(metingMusicProvider.buildSearchPlaylists("netease", "白色相簿", neteasePreview))
             .thenReturn(
                 List.of(
                     new MetingMusicProvider.VirtualPlaylistSummary(
@@ -558,7 +571,9 @@ class MediaServiceImplTest {
                     )
                 )
             );
-        Mockito.when(metingMusicProvider.searchPlaylists("th_test_default_key", "kuwo", "白色相簿", 1, 24))
+        Mockito.when(metingMusicProvider.searchTracks("th_test_default_key", "kuwo", "白色相簿", 1, 1))
+            .thenReturn(List.of());
+        Mockito.when(metingMusicProvider.buildSearchPlaylists("kuwo", "白色相簿", List.of()))
             .thenReturn(List.of());
         Mockito.when(userMusicPlaylistMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
 
@@ -567,12 +582,62 @@ class MediaServiceImplTest {
         Assertions.assertFalse(response.partial());
         Assertions.assertTrue(response.tracks().isEmpty());
         // R6.1: legacy vh_tunehub_ playlist code should round-trip without rewrite.
-        Assertions.assertTrue(response.playlists().stream().anyMatch(item -> "vh_tunehub_netease_playlist_2400142669".equals(item.playlistCode())));
+        var playlist = response.playlists().stream()
+            .filter(item -> "vh_tunehub_netease_playlist_2400142669".equals(item.playlistCode()))
+            .findFirst()
+            .orElseThrow();
+        Assertions.assertEquals("https://p1.music.126.net/cover.jpg", playlist.cover());
+        Assertions.assertEquals(80, playlist.trackCount());
         Assertions.assertTrue(response.playlists().stream().noneMatch(item ->
             String.valueOf(item.playlistCode()).contains("_search_")
         ));
+        Mockito.verify(metingMusicProvider)
+            .searchTracks("th_test_default_key", "netease", "白色相簿", 1, 1);
+        Mockito.verify(metingMusicProvider)
+            .searchTracks("th_test_default_key", "kuwo", "白色相簿", 1, 1);
+    }
+
+    @Test
+    void shouldReuseTrackSearchForVirtualPlaylistPreviewWhenTypeIsAll() {
+        List<MetingMusicProvider.SearchTrackResult> preview = List.of(
+            new MetingMusicProvider.SearchTrackResult(
+                "1859245776",
+                "netease",
+                "夜曲",
+                "周杰伦",
+                "十一月的萧邦",
+                "https://cover.example/nocturne.png",
+                226
+            )
+        );
+        Mockito.when(metingMusicProvider.searchTracks("th_test_default_key", "netease", "夜曲", 1, 24))
+            .thenReturn(preview);
+        Mockito.when(metingMusicProvider.buildSearchPlaylists("netease", "夜曲", preview))
+            .thenReturn(
+                List.of(
+                    new MetingMusicProvider.VirtualPlaylistSummary(
+                        "netease",
+                        "search",
+                        "5aSc5puy",
+                        "网易云 搜索: 夜曲",
+                        "Meting 搜索虚拟歌单",
+                        "https://cover.example/nocturne.png",
+                        "vh_meting_netease_search_5aSc5puy",
+                        null
+                    )
+                )
+            );
+
+        MusicSearchResponse response = mediaService.searchMusic("夜曲", "all", "netease", 1, 24);
+
+        Assertions.assertEquals(1, response.tracks().size());
+        Assertions.assertEquals(1, response.playlists().size());
+        Assertions.assertEquals("https://cover.example/nocturne.png", response.playlists().get(0).cover());
+        Assertions.assertEquals(0, response.playlists().get(0).trackCount());
+        Mockito.verify(metingMusicProvider, Mockito.times(1))
+            .searchTracks("th_test_default_key", "netease", "夜曲", 1, 24);
         Mockito.verify(metingMusicProvider, Mockito.never())
-            .searchTracks(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyInt(), Mockito.anyInt());
+            .searchTracks("th_test_default_key", "netease", "夜曲", 1, 1);
     }
 
     @Test
@@ -710,6 +775,34 @@ class MediaServiceImplTest {
         Assertions.assertEquals("白色相簿2全人声曲", bundle.profile().name());
         Assertions.assertEquals("https://cover.example/playlist.png", bundle.profile().cover());
         Assertions.assertEquals(1, bundle.tracks().size());
+    }
+
+    @Test
+    void shouldUseFirstTrackCoverForVirtualSearchPlaylistBundle() {
+        Mockito.when(metingMusicProvider.loadVirtualPlaylistTracks("th_test_default_key", "netease", "search", "5asc5puy"))
+            .thenReturn(
+                List.of(
+                    new MusicTrackResponse(
+                        "1859245776",
+                        "netease",
+                        "夜曲",
+                        "周杰伦",
+                        "https://cover.example/nocturne.png",
+                        "",
+                        "",
+                        1,
+                        true,
+                        ""
+                    )
+                )
+            );
+
+        MusicPlaylistBundleResponse bundle =
+            mediaService.getMusicPlaylistBundle("vh_meting_netease_search_5aSc5puy");
+
+        Assertions.assertNotNull(bundle);
+        Assertions.assertEquals("https://cover.example/nocturne.png", bundle.profile().cover());
+        Assertions.assertEquals(1, bundle.profile().trackCount());
     }
 
     @Test

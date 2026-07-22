@@ -1,5 +1,6 @@
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
+import { buildAlignedLyricTimeline } from '../utils/lyricAlignment';
 import { parseLrc } from '../utils/lrc';
 import { formatMediaTime } from '../utils/mediaTime';
 
@@ -350,7 +351,7 @@ export function usePlayerEngine(options = {}) {
     const parsed = parseLrc(source);
     if (parsed.length) {
       logLyricDebug('parse_timeline_ok', { textLength: source.length, entryCount: parsed.length });
-      return parsed;
+      return parsed.map((entry) => ({ ...entry, synchronized: true }));
     }
     logLyricDebug('parse_timeline_fallback_to_plain_lines', { textLength: source.length });
     return source
@@ -358,24 +359,11 @@ export function usePlayerEngine(options = {}) {
       .map((line) => line.trim())
       .filter(Boolean)
       .slice(0, 120)
-      .map((text, idx) => ({ time: idx * 4, text }));
+      .map((text, idx) => ({ time: idx * 4, text, synchronized: false }));
   }
 
   function buildLyricTimelineFromTracks(originalEntries, translationEntries, furiganaEntries) {
-    const base = Array.isArray(originalEntries) ? originalEntries : [];
-    if (!base.length) return [];
-    const trans = Array.isArray(translationEntries) ? translationEntries : [];
-    const furi = Array.isArray(furiganaEntries) ? furiganaEntries : [];
-    return base.map((item, idx) => {
-      const byIndexTranslation = trans[idx]?.text || '';
-      const byIndexFurigana = furi[idx]?.text || '';
-      return {
-        time: Number(item.time || 0),
-        original: String(item.text || '').trim(),
-        translation: String(byIndexTranslation || '').trim(),
-        furigana: String(byIndexFurigana || '').trim()
-      };
-    });
+    return buildAlignedLyricTimeline(originalEntries, translationEntries, furiganaEntries);
   }
 
   function readLyricTrackTexts(track) {
