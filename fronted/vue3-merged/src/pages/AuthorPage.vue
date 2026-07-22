@@ -2,14 +2,26 @@
   <section class="route-page author-page motion-managed">
     <RailScaffold class="dashboard-layout">
       <template #rail>
-        <RouteDotRail
-          class="sidebar-dot-rail"
-          :items="tabs"
-          :active-key="activeTab"
-          :distribution="routeRailDistribution"
-          aria-label="关于网站导航"
-          @select="openTab"
-        />
+        <aside class="author-route-sidebar liquid-material">
+          <header class="author-route-heading">
+            <span class="author-route-mark" aria-hidden="true">
+              <i class="fas fa-compass"></i>
+            </span>
+            <span class="author-route-heading-copy">
+              <strong>站点导航</strong>
+              <small>{{ isAdminUser ? '浏览与管理' : '浏览站点内容' }}</small>
+            </span>
+          </header>
+
+          <RouteDotRail
+            class="sidebar-route-menu"
+            :items="tabs"
+            :active-key="activeTab"
+            variant="menu"
+            aria-label="关于网站导航"
+            @select="openTab"
+          />
+        </aside>
       </template>
 
       <SubtleScrollArea
@@ -436,10 +448,11 @@
                 class="about-hero-image"
                 :style="resolveSectionImageDisplayStyle('about.introImageUrl')"
                 :src="about.introImageUrl"
-                alt="about intro image"
+                alt="关于本站配图"
               />
               <div class="about-manifesto-copy">
-                <h2>关于网站</h2>
+                <span class="about-section-code" aria-hidden="true">ABOUT / 00</span>
+                <h2>关于这座小站</h2>
                 <p
                   v-for="(line, index) in about.intro"
                   :key="`about-intro-${index}`"
@@ -452,52 +465,88 @@
             </article>
 
             <section class="about-flow-grid">
-              <article class="author-card about-goal-stage reveal-node" :style="staggerStyle(3)">
-                <span class="about-goal-sweep" aria-hidden="true"></span>
+              <article
+                class="author-card about-goal-stage reveal-node"
+                :class="{ 'has-image': aboutMissionDisplayImage }"
+                :style="staggerStyle(3)"
+              >
+                <div class="about-card-copy">
+                  <header class="about-card-heading">
+                    <span class="about-card-index" aria-hidden="true">01</span>
+                    <span>
+                      <small aria-hidden="true">方向</small>
+                      <h3>长期目标</h3>
+                    </span>
+                  </header>
+                  <p class="line-text">{{ about.mission }}</p>
+                </div>
                 <img
-                  v-if="about.missionImageUrl"
+                  v-if="aboutMissionDisplayImage"
                   class="about-section-image"
                   :style="resolveSectionImageDisplayStyle('about.missionImageUrl')"
-                  :src="about.missionImageUrl"
-                  alt="about mission image"
+                  :src="aboutMissionDisplayImage"
+                  alt="长期目标配图"
                 />
-                <h3>长期目标</h3>
-                <p class="line-text">{{ about.mission }}</p>
               </article>
 
               <article class="author-card about-preference-stage reveal-node" :style="staggerStyle(4)">
-                <h3>偏好与灵感</h3>
-                <p class="mini-title">关注方向</p>
-                <div class="chip-row pulse-cloud">
-                  <span v-for="focus in about.focus" :key="`about-focus-${focus}`" class="chip">{{ focus }}</span>
+                <header class="about-card-heading">
+                  <span class="about-card-index" aria-hidden="true">02</span>
+                  <span>
+                    <small aria-hidden="true">收藏</small>
+                    <h3>偏好与灵感</h3>
+                  </span>
+                </header>
+                <div class="about-tag-section">
+                  <p class="mini-title">关注方向</p>
+                  <div class="chip-row about-chip-row">
+                    <span v-for="focus in about.focus" :key="`about-focus-${focus}`" class="chip">{{ focus }}</span>
+                  </div>
                 </div>
-                <p class="mini-title">音乐偏好</p>
-                <div class="chip-row pulse-cloud">
-                  <span v-for="music in about.music" :key="`about-music-${music}`" class="chip">{{ music }}</span>
+                <div class="about-tag-section">
+                  <p class="mini-title">音乐偏好</p>
+                  <div class="chip-row about-chip-row">
+                    <span v-for="music in about.music" :key="`about-music-${music}`" class="chip">{{ music }}</span>
+                  </div>
                 </div>
               </article>
 
-              <article class="author-card about-links-stage reveal-node" :style="staggerStyle(5)">
+              <article
+                class="author-card about-links-stage reveal-node"
+                :class="{ 'has-image': aboutLinksDisplayImage }"
+                :style="staggerStyle(5)"
+              >
                 <img
-                  v-if="about.linksImageUrl"
+                  v-if="aboutLinksDisplayImage"
                   class="about-section-image"
                   :style="resolveSectionImageDisplayStyle('about.linksImageUrl')"
-                  :src="about.linksImageUrl"
-                  alt="about links image"
+                  :src="aboutLinksDisplayImage"
+                  alt="站点外链配图"
                 />
-                <h3>站点外链</h3>
-                <div class="link-list">
-                  <button
-                    v-for="item in about.links"
-                    :key="`link-${item.label}-${item.url}`"
-                    type="button"
-                    class="link-btn ripple-trigger shine-link"
-                    @pointermove="handleMagneticPointerMove"
-                    @pointerleave="resetMagneticPointer"
-                    @click="openLink(item.url)"
-                  >
-                    {{ item.label }}
-                  </button>
+                <div class="about-card-copy">
+                  <header class="about-card-heading">
+                    <span class="about-card-index" aria-hidden="true">03</span>
+                    <span>
+                      <small aria-hidden="true">继续探索</small>
+                      <h3>站点外链</h3>
+                    </span>
+                  </header>
+                  <div class="link-list">
+                    <a
+                      v-for="item in about.links"
+                      :key="`link-${item.label}-${item.url}`"
+                      :href="resolveAboutLinkHref(item.url)"
+                      :target="opensAboutLinkInNewWindow(item.url) ? '_blank' : undefined"
+                      :rel="opensAboutLinkInNewWindow(item.url) ? 'noopener noreferrer' : undefined"
+                      class="link-btn ripple-trigger"
+                      :class="{ 'is-disabled': isInvalidAboutLink(item.url) }"
+                      :aria-disabled="isInvalidAboutLink(item.url) ? 'true' : undefined"
+                      @click="handleAboutLinkClick($event, item.url)"
+                    >
+                      <span>{{ item.label }}</span>
+                      <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                    </a>
+                  </div>
                 </div>
               </article>
             </section>
@@ -985,16 +1034,21 @@ import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } fr
 import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
 const AUTHOR_ADMIN_ROUTE_PREFIX = 'admin:';
+const AUTHOR_NAV_GROUP = Object.freeze({
+  SITE: 'site',
+  MANAGE: 'manage'
+});
+const DEFAULT_ABOUT_PLACEHOLDER_IMAGE = '/images/katanegai.jpg';
 const DEFAULT_SITE_BROWSER_TITLE = 'Levitation + Menu';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
 
 const baseTabs = [
-  { key: AuthorTabKey.OVERVIEW, label: '网站主页', icon: 'fas fa-user-astronaut' },
-  { key: AuthorTabKey.JOURNEY, label: '建站经历', icon: 'fas fa-route' },
-  { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed' },
-  { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting' }
+  { key: AuthorTabKey.OVERVIEW, label: '网站主页', icon: 'fas fa-user-astronaut', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
+  { key: AuthorTabKey.JOURNEY, label: '建站经历', icon: 'fas fa-route', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
+  { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
+  { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' }
 ];
 const adminTabs = Object.freeze([
   { tab: AdminTabKey.USERS, label: '后台用户', icon: 'fas fa-users' },
@@ -1171,21 +1225,24 @@ const isAdminUser = computed(() => {
 const tabs = computed(() => {
   const items = [...baseTabs];
   if (isAdminUser.value) {
-    items.push({ key: AuthorTabKey.SITE_SETTINGS, label: '站点设置', icon: 'fas fa-browser' });
+    items.push({
+      key: AuthorTabKey.SITE_SETTINGS,
+      label: '站点设置',
+      icon: 'fas fa-sliders',
+      group: AUTHOR_NAV_GROUP.MANAGE,
+      groupLabel: '站点管理'
+    });
     items.push(
       ...adminTabs.map((item) => ({
         key: `${AUTHOR_ADMIN_ROUTE_PREFIX}${item.tab}`,
         label: item.label,
-        icon: item.icon
+        icon: item.icon,
+        group: AUTHOR_NAV_GROUP.MANAGE,
+        groupLabel: '站点管理'
       }))
     );
   }
   return items;
-});
-
-const routeRailDistribution = computed(() => {
-  if (tabs.value.length > 6) return 'stack';
-  return tabs.value.length >= 6 ? 'full-sixths' : 'mid-sixths';
 });
 
 const activeTab = computed(() => {
@@ -1207,6 +1264,18 @@ const identity = computed(() => authorProfile.value.profileJson.identity);
 const skills = computed(() => authorProfile.value.profileJson.skills);
 const journey = computed(() => authorProfile.value.profileJson.journey);
 const about = computed(() => authorProfile.value.profileJson.about);
+const usesDefaultAboutArtwork = computed(() => {
+  const images = [about.value.introImageUrl, about.value.missionImageUrl, about.value.linksImageUrl].map((value) => String(value || '').trim());
+  return images.every((image) => image === DEFAULT_ABOUT_PLACEHOLDER_IMAGE);
+});
+const aboutMissionDisplayImage = computed(() => {
+  if (usesDefaultAboutArtwork.value) return '';
+  return String(about.value.missionImageUrl || '').trim();
+});
+const aboutLinksDisplayImage = computed(() => {
+  if (usesDefaultAboutArtwork.value) return '';
+  return String(about.value.linksImageUrl || '').trim();
+});
 const siteProfile = computed(() => authorProfile.value.profileJson.site);
 const currentActivityStatus = computed(() => {
   const status = String(identity.value.activityStatus || '').trim();
@@ -1807,22 +1876,6 @@ function resetParallax() {
   motionState.pointer.y = 0;
 }
 
-function handleMagneticPointerMove(event) {
-  if (!isDesktopPointerEnabled()) return;
-  const target = event.currentTarget;
-  if (!(target instanceof HTMLElement)) return;
-  const mapped = mapPointerToParallax(event.clientX, event.clientY, target.getBoundingClientRect(), 4);
-  target.style.setProperty('--mx', `${mapped.x.toFixed(2)}px`);
-  target.style.setProperty('--my', `${mapped.y.toFixed(2)}px`);
-}
-
-function resetMagneticPointer(event) {
-  const target = event.currentTarget;
-  if (!(target instanceof HTMLElement)) return;
-  target.style.setProperty('--mx', '0px');
-  target.style.setProperty('--my', '0px');
-}
-
 function disconnectRevealController() {
   if (revealController) {
     revealController.disconnect();
@@ -2283,6 +2336,47 @@ function openLink(url) {
   window.open(target, '_blank', 'noopener,noreferrer');
 }
 
+function resolveAboutLinkHref(url) {
+  const link = classifyAboutLink(url);
+  return link.kind === 'invalid' ? '#' : link.target;
+}
+
+function classifyAboutLink(url) {
+  const target = String(url || '').trim();
+  if (!target) return { kind: 'invalid', target: '' };
+  if (target.startsWith('/#/') || target.startsWith('#/') || (target.startsWith('/') && !target.startsWith('//'))) {
+    return { kind: 'internal', target };
+  }
+  if (target.startsWith('//') || /^https?:\/\//i.test(target)) {
+    return { kind: 'external-web', target };
+  }
+  if (/^(mailto|tel):/i.test(target)) {
+    return { kind: 'external-action', target };
+  }
+  return { kind: 'invalid', target: '' };
+}
+
+function opensAboutLinkInNewWindow(url) {
+  return classifyAboutLink(url).kind === 'external-web';
+}
+
+function isInvalidAboutLink(url) {
+  return classifyAboutLink(url).kind === 'invalid';
+}
+
+function handleAboutLinkClick(event, url) {
+  const link = classifyAboutLink(url);
+  if (link.kind === 'invalid') {
+    event.preventDefault();
+    return;
+  }
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  if (link.kind === 'internal') {
+    event.preventDefault();
+    openLink(link.target);
+  }
+}
+
 function readErrorMessage(error, fallback) {
   const detail = String(error?.detail || '').trim();
   if (detail) return detail;
@@ -2359,6 +2453,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .author-page {
+  container-name: author-page;
+  container-type: inline-size;
   min-height: 100%;
   height: 100%;
   color: rgba(239, 244, 255, 0.96);
@@ -2371,38 +2467,95 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  padding-left: 132px;
+  grid-template-columns: minmax(190px, 210px) minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+  padding-left: 0;
   overflow: hidden;
 }
 
-.sidebar-dot-rail {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
+.author-route-sidebar {
+  --liquid-bg: var(--theme-panel-surface, rgba(var(--glass-rgb), 0.32));
+  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.16));
+  --liquid-shadow: 0 14px 28px rgba(5, 10, 20, 0.2);
+  position: relative;
   z-index: 6;
-  width: 116px;
-  height: auto;
+  width: 100%;
+  height: 100%;
   min-height: 0;
-  padding-block: 6px;
-  overflow-y: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 13px 10px 10px;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.author-route-heading {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 2px 5px 11px;
+  border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
+}
+
+.author-route-mark {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  color: var(--accent-mode-text, rgba(234, 247, 255, 0.96));
+  background: var(--accent-mode-fill, linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.28), rgba(var(--accent-rgb), 0.14)));
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-soft-rgb), 0.34);
+}
+
+.author-route-heading-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.author-route-heading-copy strong {
+  overflow: hidden;
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.author-route-heading-copy small {
+  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-route-menu {
+  flex: 1;
+  min-height: 0;
+  padding-right: 3px;
   overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(123, 194, 236, 0.48) transparent;
 }
 
-.sidebar-dot-rail::-webkit-scrollbar {
-  width: 6px;
+.sidebar-route-menu::-webkit-scrollbar {
+  width: 5px;
 }
 
-.sidebar-dot-rail::-webkit-scrollbar-track {
+.sidebar-route-menu::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.sidebar-dot-rail::-webkit-scrollbar-thumb {
+.sidebar-route-menu::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(111, 196, 235, 0.62), rgba(84, 155, 221, 0.48));
+  background: rgba(var(--accent-rgb), 0.34);
 }
 
 .content-panel {
@@ -2412,7 +2565,8 @@ onBeforeUnmount(() => {
   --parallax-x: 0px;
   --parallax-y: 0px;
   --journey-progress: 0%;
-  border-radius: 14px;
+  border-radius: 16px;
+  min-width: 0;
   min-height: 0;
   height: 100%;
   padding: 14px 16px;
@@ -2425,6 +2579,8 @@ onBeforeUnmount(() => {
 .content-block {
   display: grid;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .site-settings-card {
@@ -2514,6 +2670,8 @@ onBeforeUnmount(() => {
   background: rgba(9, 14, 24, 0.46);
   box-shadow: 0 10px 24px rgba(6, 10, 18, 0.18);
   padding: 14px;
+  min-width: 0;
+  max-width: 100%;
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease, border-color 240ms ease;
   will-change: transform;
 }
@@ -2933,49 +3091,46 @@ onBeforeUnmount(() => {
 
 .link-list {
   display: grid;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 7px;
+  margin-top: 10px;
 }
 
 .link-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 13px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.15));
+  border-radius: 12px;
   text-align: left;
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(236, 243, 255, 0.95);
-  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  text-decoration: none;
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.06));
+  color: var(--theme-text-primary, rgba(236, 243, 255, 0.95));
+  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
 }
 
-.shine-link {
-  --mx: 0px;
-  --my: 0px;
-  position: relative;
-  overflow: hidden;
-  transform: translate3d(var(--mx), var(--my), 0);
+.link-btn i {
+  color: var(--theme-icon-muted, rgba(192, 211, 230, 0.68));
+  font-size: 11px;
 }
 
-.shine-link::after {
-  content: '';
-  position: absolute;
-  top: -120%;
-  left: -30%;
-  width: 32%;
-  height: 300%;
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0));
-  transform: translateX(-120%) rotate(18deg);
-  transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
+.link-btn:hover {
+  transform: translateX(2px);
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.54));
+  background: var(--theme-floating-surface-hover, rgba(255, 255, 255, 0.1));
 }
 
-.shine-link:hover {
-  border-color: rgba(var(--accent-rgb), 0.56);
-  box-shadow: 0 12px 24px rgba(16, 32, 52, 0.32);
+.link-btn.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
-.shine-link:hover::after {
-  transform: translateX(420%) rotate(18deg);
+.link-btn.is-disabled:hover {
+  transform: none;
+  border-color: var(--theme-border, rgba(255, 255, 255, 0.15));
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.06));
 }
 
 .overview-story-root,
@@ -3668,6 +3823,10 @@ onBeforeUnmount(() => {
   --liquid-shadow: 0 16px 32px rgba(88, 60, 50, 0.12);
 }
 
+:root[data-theme-mode='day'] .author-route-sidebar {
+  --liquid-shadow: 0 12px 24px rgba(88, 60, 50, 0.1);
+}
+
 :root[data-theme-mode='day'] .site-settings-preview,
 :root[data-theme-mode='day'] .author-card,
 :root[data-theme-mode='day'] .story-hero-preview,
@@ -3998,64 +4157,189 @@ onBeforeUnmount(() => {
 .about-manifesto {
   position: relative;
   overflow: hidden;
-  min-height: 230px;
+  min-height: 220px;
   display: grid;
-  grid-template-columns: minmax(200px, 320px) minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: minmax(210px, 0.82fr) minmax(0, 1.18fr);
+  gap: clamp(18px, 3vw, 32px);
   align-items: center;
+  padding: clamp(16px, 2.4vw, 24px);
+}
+
+.about-story-root .author-card {
+  border-color: var(--theme-border, rgba(255, 255, 255, 0.14)) !important;
+  background: var(--theme-panel-surface, linear-gradient(155deg, rgba(20, 27, 42, 0.48), rgba(11, 17, 29, 0.44))) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 22px rgba(6, 10, 18, 0.14) !important;
+}
+
+:root[data-theme-mode='day'] .about-story-root .author-card {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 10px 22px rgba(88, 60, 50, 0.08) !important;
 }
 
 .about-hero-image {
   width: 100%;
-  height: auto;
-  min-height: 0;
+  height: 100%;
+  min-height: 188px;
+  max-height: 280px;
   display: block;
   object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  align-self: start;
+  border-radius: 14px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
 }
 
 .about-manifesto-copy {
   display: grid;
-  gap: 6px;
+  gap: 7px;
+  align-content: center;
+}
+
+.about-section-code {
+  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.about-manifesto-copy h2 {
+  margin: 0;
+  color: var(--theme-text-primary, rgba(245, 248, 255, 0.98));
+  font-size: clamp(22px, 2.4vw, 32px);
+  letter-spacing: -0.02em;
 }
 
 .about-flow-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(250px, 0.8fr);
+  grid-template-areas:
+    'goal preference'
+    'links preference';
   gap: 12px;
+  align-items: stretch;
 }
 
 .about-goal-stage {
+  grid-area: goal;
   position: relative;
   overflow: hidden;
-}
-
-.about-goal-sweep {
-  pointer-events: none;
-  position: absolute;
-  inset: -25%;
-  background: conic-gradient(from 180deg, rgba(126, 217, 255, 0), rgba(126, 217, 255, 0.2), rgba(126, 217, 255, 0));
-  animation: sweep-border 6s linear infinite;
-}
-
-.about-preference-stage,
-.about-links-stage {
+  min-height: 160px;
   display: grid;
-  gap: 4px;
+  align-items: stretch;
 }
 
-.pulse-cloud .chip {
-  animation: pulse-cloud 4.8s ease-in-out infinite;
+.about-goal-stage.has-image {
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 0.72fr);
+  gap: 14px;
 }
 
-.pulse-cloud .chip:nth-child(2n) {
-  animation-delay: -1.4s;
+.about-goal-stage .about-card-copy {
+  align-self: center;
 }
 
-.pulse-cloud .chip:nth-child(3n) {
-  animation-delay: -2.7s;
+.about-goal-stage .about-section-image {
+  height: 100%;
+  min-height: 132px;
+  margin: 0;
+}
+
+.about-card-copy {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+}
+
+.about-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-card-heading > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.about-card-heading h3 {
+  margin: 0;
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+  font-size: 16px;
+}
+
+.about-card-heading small {
+  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.68));
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.about-card-index {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.14));
+  border-radius: 11px;
+  color: var(--accent-mode-text, rgba(228, 244, 255, 0.94));
+  background: var(--accent-mode-fill-soft, linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.22), rgba(var(--accent-rgb), 0.1)));
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.about-preference-stage {
+  grid-area: preference;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.about-tag-section {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--theme-border, rgba(255, 255, 255, 0.11));
+}
+
+.about-tag-section .mini-title {
+  margin-top: 0;
+}
+
+.about-chip-row {
+  gap: 7px;
+}
+
+.about-chip-row .chip {
+  animation: none;
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+  border-color: var(--theme-border, rgba(255, 255, 255, 0.13));
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.07));
+}
+
+.about-links-stage {
+  grid-area: links;
+  display: grid;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.about-links-stage.has-image {
+  grid-template-columns: minmax(140px, 0.62fr) minmax(0, 1.38fr);
+  gap: 14px;
+}
+
+.about-links-stage .about-section-image {
+  height: 100%;
+  min-height: 132px;
+  margin: 0;
+}
+
+.about-links-stage .about-card-copy {
+  align-self: center;
 }
 
 .is-reveal-ready {
@@ -4240,18 +4524,6 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes pulse-cloud {
-  0%,
-  100% {
-    filter: saturate(1);
-    transform: translateY(0);
-  }
-  50% {
-    filter: saturate(1.18);
-    transform: translateY(-2px);
-  }
-}
-
 .editor-card {
   display: grid;
   gap: 10px;
@@ -4367,10 +4639,8 @@ onBeforeUnmount(() => {
   .story-live-dot,
   .story-signal-pill,
   .mission-sweep,
-  .about-goal-sweep,
   .skill-slide-track,
   .focus-cloud .chip,
-  .pulse-cloud .chip,
   .timeline-item.is-active .timeline-node,
   .is-reveal-ready.is-revealed {
     animation: none !important;
@@ -4390,7 +4660,6 @@ onBeforeUnmount(() => {
   .story-notes,
   .story-focus-panel,
   .story-identity-ribbon,
-  .shine-link,
   .timeline-item,
   .journey-scene,
   .author-card,
@@ -4414,27 +4683,42 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 900px) {
+@container author-page (max-width: 1100px) {
   .dashboard-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 10px;
     padding-left: 0;
+    min-width: 0;
     overflow: visible;
   }
 
-  .sidebar-dot-rail {
+  .author-route-sidebar {
     position: static;
-    top: auto;
-    bottom: auto;
     z-index: 1;
-    width: auto;
+    width: 100%;
     min-height: auto;
     height: auto;
-    padding-block: 0;
+    padding: 10px 12px;
+    overflow: hidden;
+  }
+
+  .author-route-heading {
+    min-height: 40px;
+    padding-bottom: 9px;
+  }
+
+  .sidebar-route-menu {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    padding-right: 0;
     overflow: visible;
   }
 
   .content-panel {
+    width: 100%;
+    min-width: 0;
     height: auto;
     padding-top: 12px;
   }
@@ -4597,11 +4881,6 @@ onBeforeUnmount(() => {
     font-size: 18px;
   }
 
-  .about-manifesto,
-  .about-flow-grid {
-    grid-template-columns: 1fr;
-  }
-
   .kv-row {
     grid-template-columns: 86px minmax(0, 1fr);
   }
@@ -4625,7 +4904,31 @@ onBeforeUnmount(() => {
   }
 }
 
+@container author-page (max-width: 820px) {
+  .about-manifesto,
+  .about-flow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .about-flow-grid {
+    grid-template-areas:
+      'goal'
+      'preference'
+      'links';
+  }
+}
+
 @media (max-width: 640px) {
+  .about-goal-stage.has-image,
+  .about-links-stage.has-image {
+    grid-template-columns: 1fr;
+  }
+
+  .about-goal-stage .about-section-image,
+  .about-links-stage .about-section-image {
+    height: auto;
+  }
+
   .home-portal-grid {
     grid-template-columns: 1fr;
   }
