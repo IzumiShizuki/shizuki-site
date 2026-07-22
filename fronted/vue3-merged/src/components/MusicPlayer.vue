@@ -47,17 +47,37 @@
       </div>
 
       <div class="progress-row">
-        <button class="mode-btn ripple-trigger" type="button" :title="`播放模式: ${modeLabel}`" @click="emit('cycle-mode')">
-          <i :class="modeIcon"></i>
+        <button
+          class="mode-btn ripple-trigger"
+          type="button"
+          :title="`播放模式: ${modeLabel}`"
+          :aria-label="`播放模式: ${modeLabel}`"
+          @click="emit('cycle-mode')"
+        >
+          <span class="play-mode-icon" aria-hidden="true">
+            <i :class="modeIcon"></i>
+            <span v-if="playMode === 'single'" class="single-repeat-badge">1</span>
+          </span>
         </button>
 
         <div
           class="progress-wrap"
+          :class="{ disabled: !hasPlayableDuration }"
           ref="progressRef"
+          role="slider"
+          aria-label="歌曲播放进度"
+          :aria-disabled="!hasPlayableDuration"
+          :aria-valuemin="0"
+          :aria-valuemax="100"
+          :aria-valuenow="Math.round(progressPercent * 100)"
+          :aria-valuetext="progressTitle"
+          :tabindex="hasPlayableDuration ? 0 : -1"
+          :title="progressTitle"
           @mousemove="onProgressMove"
-          @mouseenter="previewVisible = true"
+          @mouseenter="previewVisible = hasPlayableDuration"
           @mouseleave="previewVisible = false"
           @click="onProgressClick"
+          @keydown="onProgressKeydown"
         >
           <div class="progress-track">
             <div class="progress-fill" :style="{ width: `${progressPercent * 100}%` }"></div>
@@ -67,7 +87,10 @@
           </div>
         </div>
 
-        <div class="time-mix">{{ playedText }} / -{{ remainText }}</div>
+        <div class="time-mix" :title="progressTitle">
+          <span v-if="isPreviewPlayback" class="preview-badge">试听</span>
+          {{ playedText }} / {{ durationText }}
+        </div>
       </div>
 
       <div class="pause-row">
@@ -190,6 +213,8 @@ const props = defineProps({
   },
   currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 },
+  expectedDuration: { type: Number, default: 0 },
+  isPreviewPlayback: { type: Boolean, default: false },
   isPlaying: { type: Boolean, default: false },
   isExpanded: { type: Boolean, default: false },
   isPinned: { type: Boolean, default: false },
@@ -254,7 +279,6 @@ const coverStyle = computed(() => {
 
 const modeIcon = computed(() => {
   if (props.playMode === 'random') return 'fas fa-shuffle';
-  if (props.playMode === 'single') return 'fas fa-repeat-1';
   return 'fas fa-repeat';
 });
 
@@ -302,10 +326,17 @@ const progressPercent = computed(() => {
   return Math.max(0, Math.min(1, props.currentTime / props.duration));
 });
 
+const hasPlayableDuration = computed(() => Number.isFinite(props.duration) && props.duration > 0);
 const playedText = computed(() => formatMediaTime(props.currentTime));
-const remainText = computed(() => {
-  const remain = Number.isFinite(props.duration) ? Math.max(0, props.duration - props.currentTime) : 0;
-  return formatMediaTime(remain);
+const durationText = computed(() => (hasPlayableDuration.value ? formatMediaTime(props.duration) : '--:--'));
+const progressTitle = computed(() => {
+  if (!hasPlayableDuration.value) return '等待音频时长信息';
+  if (!props.isPreviewPlayback) return `播放进度 ${playedText.value} / ${durationText.value}`;
+  const expected = Number(props.expectedDuration);
+  const fullText = Number.isFinite(expected) && expected > props.duration
+    ? `，完整时长 ${formatMediaTime(expected)}`
+    : '';
+  return `试听音频，可播放 ${durationText.value}${fullText}`;
 });
 
 const previewTimeText = computed(() => {
@@ -373,13 +404,28 @@ function pointToPercent(clientX) {
 }
 
 function onProgressMove(e) {
+  if (!hasPlayableDuration.value) return;
   previewPercent.value = pointToPercent(e.clientX);
 }
 
 function onProgressClick(e) {
+  if (!hasPlayableDuration.value) return;
   const pct = pointToPercent(e.clientX);
   previewPercent.value = pct;
   emit('seek', pct);
+}
+
+function onProgressKeydown(event) {
+  if (!hasPlayableDuration.value) return;
+  let next = progressPercent.value;
+  const step = Math.min(0.1, 5 / props.duration);
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next -= step;
+  else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next += step;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = 1;
+  else return;
+  event.preventDefault();
+  emit('seek', Math.max(0, Math.min(1, next)));
 }
 
 function onDiscGestureStart(e) {
@@ -807,12 +853,52 @@ onBeforeUnmount(() => {
   color: rgba(28, 31, 39, 0.82);
 }
 
+.play-mode-icon {
+  position: relative;
+  width: 1.3em;
+  height: 1.3em;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.play-mode-icon > i {
+  line-height: 1;
+}
+
+.single-repeat-badge {
+  position: absolute;
+  top: -7px;
+  right: -8px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #d73248;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(45, 8, 16, 0.35);
+  font-family: var(--font-ui, sans-serif);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
 .progress-wrap {
   position: relative;
   height: 20px;
   display: grid;
   align-items: center;
   cursor: pointer;
+}
+
+.progress-wrap.disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
 }
 
 .progress-track {
@@ -848,6 +934,19 @@ onBeforeUnmount(() => {
   font-size: 12px;
   min-width: 84px;
   text-align: right;
+}
+
+.preview-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  margin-right: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(215, 50, 72, 0.14);
+  color: #bc2c42;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .pause-row {

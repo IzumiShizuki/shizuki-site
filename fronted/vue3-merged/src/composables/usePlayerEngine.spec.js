@@ -97,6 +97,108 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.lyricContext.value.next).toBe('line2');
   });
 
+  it('synchronizes playback position and active lyrics immediately after seeking', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/seek.mp3',
+      lyricText: '[00:01.00]line1\n[00:05.00]line2'
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      {
+        provider: 'netease',
+        trackId: 'seek-track',
+        title: 'Seek',
+        artist: 'Singer'
+      },
+      true,
+      { replaceQueue: true }
+    );
+
+    engine.seekToTime(5.2);
+
+    expect(engine.audioElement.currentTime).toBe(5.2);
+    expect(engine.currentTime.value).toBe(5.2);
+    expect(engine.currentLyricEntryIndex.value).toBe(1);
+    expect(engine.currentLyricLine.value).toBe('line2');
+
+    engine.seekToPercent(0.5);
+
+    expect(engine.audioElement.currentTime).toBe(90);
+    expect(engine.currentTime.value).toBe(90);
+  });
+
+  it('refreshes an initially infinite duration when the media becomes finite', () => {
+    const engine = usePlayerEngine();
+
+    engine.audioElement.duration = Number.POSITIVE_INFINITY;
+    engine.audioElement._emit('loadedmetadata');
+    expect(engine.duration.value).toBe(0);
+
+    engine.audioElement.duration = 245;
+    engine.audioElement._emit('durationchange');
+    expect(engine.duration.value).toBe(245);
+
+    engine.audioElement.duration = 246;
+    engine.audioElement._emit('canplay');
+    expect(engine.duration.value).toBe(246);
+  });
+
+  it('marks a short resolved media source as a preview without losing the full track duration', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/preview.mp3',
+      lyricText: '[00:01.00]line1\n[01:00.00]line2'
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      {
+        provider: 'netease',
+        trackId: 'preview-track',
+        title: 'Preview',
+        artist: 'Singer',
+        durationSec: 240,
+        durationLabel: '04:00'
+      },
+      true,
+      { replaceQueue: true }
+    );
+
+    engine.audioElement.duration = 30;
+    engine.audioElement._emit('durationchange');
+
+    expect(engine.duration.value).toBe(30);
+    expect(engine.expectedDuration.value).toBe(240);
+    expect(engine.isPreviewPlayback.value).toBe(true);
+    expect(engine.currentTrack.value?.playableDurationSec).toBe(30);
+    expect(engine.currentTrack.value?.durationLabel).toBe('04:00');
+  });
+
+  it('recognizes a short preview when timed lyrics extend beyond media without catalog duration', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/preview-without-duration.mp3',
+      lyricText: '[00:01.00]line1\n[01:00.00]line2'
+    });
+
+    const engine = usePlayerEngine();
+    engine.audioElement.duration = 30;
+    await engine.enqueueExternalTrack(
+      {
+        provider: 'netease',
+        trackId: 'preview-without-duration',
+        title: 'Preview',
+        artist: 'Singer'
+      },
+      true,
+      { replaceQueue: true }
+    );
+
+    expect(engine.duration.value).toBe(30);
+    expect(engine.expectedDuration.value).toBe(30);
+    expect(engine.lyricTimeline.value.at(-1)?.time).toBe(60);
+    expect(engine.isPreviewPlayback.value).toBe(true);
+  });
+
   it('falls back to line-based lyric entries when lyricText has no time tags', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/plain.mp3',

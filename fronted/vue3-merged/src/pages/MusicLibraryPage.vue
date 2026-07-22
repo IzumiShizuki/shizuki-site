@@ -154,6 +154,8 @@
         :is-playing="player.isPlaying.value"
         :current-time="player.currentTime.value"
         :duration="player.duration.value"
+        :expected-duration="player.expectedDuration.value"
+        :is-preview-playback="player.isPreviewPlayback.value"
         :play-mode="player.playMode.value"
         :volume="player.volume.value"
         :detail-layout="isPlayerDetailRoute"
@@ -1872,6 +1874,9 @@ async function enqueueSpotifyTrack(item, autoPlay = false) {
       cover: '',
       audio: previewUrl,
       lyric: '',
+      durationSec: readPositiveDurationSec(item),
+      playbackKind: 'preview',
+      isPreview: true,
       enabled: true
     },
     autoPlay

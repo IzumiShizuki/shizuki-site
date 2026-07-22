@@ -79,6 +79,32 @@ function coerceLyricTracks(rawTracks) {
   };
 }
 
+function readPositiveTrackDurationSec(track, metadata = {}) {
+  const secondCandidates = [
+    track?.durationSec,
+    track?.duration_sec,
+    metadata?.durationSec,
+    metadata?.duration_sec,
+    typeof track?.duration === 'number' ? track.duration : null
+  ];
+  for (const candidate of secondCandidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+
+  const millisecondCandidates = [
+    track?.durationMs,
+    track?.duration_ms,
+    metadata?.durationMs,
+    metadata?.duration_ms
+  ];
+  for (const candidate of millisecondCandidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value) && value > 0) return value / 1000;
+  }
+  return 0;
+}
+
 function normalizeTrack(track, index) {
   const idRaw = track?.id ?? track?.trackId ?? track?.track_id;
   const id = idRaw != null ? String(idRaw) : `track-${index}`;
@@ -98,6 +124,21 @@ function normalizeTrack(track, index) {
       : `${import.meta.env.BASE_URL}${String(track.lyric).replace(/^\/+/, '')}`
     : null;
   const metadata = track?.metadata && typeof track.metadata === 'object' ? track.metadata : {};
+  const durationSec = readPositiveTrackDurationSec(track, metadata);
+  const durationLabel = pickFirstNonBlankString(
+    track?.durationLabel,
+    track?.duration,
+    metadata?.durationLabel,
+    metadata?.duration_label
+  ) || (durationSec > 0 ? formatMediaTime(durationSec, { fallback: '--:--' }) : '--:--');
+  const playbackKind = String(
+    track?.playbackKind || track?.playback_kind || metadata?.playbackKind || metadata?.playback_kind || ''
+  ).trim().toLowerCase();
+  const isPreview = track?.isPreview === true
+    || track?.is_preview === true
+    || metadata?.isPreview === true
+    || metadata?.is_preview === true
+    || playbackKind === 'preview';
   const metadataLyricTracks = coerceLyricTracks(
     metadata?.lyricTracks || metadata?.lyric_tracks || metadata?.lyrics || metadata?.lrcTracks
   );
@@ -153,7 +194,10 @@ function normalizeTrack(track, index) {
     translationLyricText,
     furiganaLyricText,
     cover,
-    durationLabel: track?.duration || '--:--',
+    durationSec,
+    durationLabel,
+    playbackKind: isPreview ? 'preview' : playbackKind,
+    isPreview,
     metadata: {
       ...metadata,
       lyricTracks: {
@@ -278,6 +322,29 @@ export function usePlayerEngine(options = {}) {
   const currentTrack = computed(() => {
     if (currentIndex.value < 0) return null;
     return tracks.value[currentIndex.value] || null;
+  });
+
+  const expectedDuration = computed(() => {
+    const value = Number(currentTrack.value?.durationSec);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  });
+
+  const isPreviewPlayback = computed(() => {
+    const track = currentTrack.value;
+    if (!track) return false;
+    if (track.isPreview === true || String(track.playbackKind || '').toLowerCase() === 'preview') return true;
+    const playable = Number(duration.value);
+    const expected = Number(expectedDuration.value);
+    const lyricExtendsBeyondPlayable = Number.isFinite(playable)
+      && playable > 0
+      && lyricTimeline.value.some((item) => Number(item?.time) > playable + 10);
+    return Number.isFinite(playable)
+      && playable > 0
+      && playable <= 45.5
+      && (
+        (Number.isFinite(expected) && expected > playable + 10)
+        || lyricExtendsBeyondPlayable
+      );
   });
 
   function resetRandomQueue(anchorId = currentTrackId.value) {
@@ -676,19 +743,59 @@ export function usePlayerEngine(options = {}) {
     await selectTrackByIndex(prevIndex, true);
   }
 
+  function syncDuration() {
+    const mediaDuration = Number(audioElement.duration);
+    duration.value = Number.isFinite(mediaDuration) && mediaDuration > 0 ? mediaDuration : 0;
+    const idx = tracks.value.findIndex((item) => item.id === currentTrackId.value);
+    if (idx >= 0 && duration.value > 0) {
+      const track = tracks.value[idx];
+      const next = {
+        ...track,
+        playableDurationSec: duration.value
+      };
+      if (!(Number(track?.durationSec) > 0)) {
+        next.durationSec = duration.value;
+        next.durationLabel = formatDuration(duration.value);
+      }
+      const list = tracks.value.slice();
+      list[idx] = next;
+      tracks.value = list;
+    }
+    return duration.value;
+  }
+
+  function syncPlaybackPosition() {
+    const mediaTime = Number(audioElement.currentTime);
+    if (!Number.isFinite(mediaTime)) return currentTime.value;
+    currentTime.value = Math.max(0, mediaTime);
+    updateLyricState(currentTime.value);
+    return currentTime.value;
+  }
+
   function seekToPercent(nextPercent) {
     if (!Number.isFinite(duration.value) || duration.value <= 0) return;
-    const safe = Math.max(0, Math.min(1, nextPercent));
-    audioElement.currentTime = safe * duration.value;
+    const percent = Number(nextPercent);
+    if (!Number.isFinite(percent)) return;
+    const safe = Math.max(0, Math.min(1, percent));
+    try {
+      audioElement.currentTime = safe * duration.value;
+      syncPlaybackPosition();
+    } catch {
+      // Ignore media seek failures while metadata or a seekable range is unavailable.
+    }
   }
 
   function seekToTime(nextTimeSec) {
     const target = Number(nextTimeSec);
     if (!Number.isFinite(target) || target < 0) return;
-    if (Number.isFinite(duration.value) && duration.value > 0) {
-      audioElement.currentTime = Math.max(0, Math.min(duration.value, target));
-    } else {
-      audioElement.currentTime = Math.max(0, target);
+    const nextTime = Number.isFinite(duration.value) && duration.value > 0
+      ? Math.max(0, Math.min(duration.value, target))
+      : Math.max(0, target);
+    try {
+      audioElement.currentTime = nextTime;
+      syncPlaybackPosition();
+    } catch {
+      // Ignore media seek failures while metadata or a seekable range is unavailable.
     }
   }
 
@@ -927,6 +1034,12 @@ export function usePlayerEngine(options = {}) {
         lrc: rawTrack?.lrc,
         tlyric: rawTrack?.tlyric,
         romalrc: rawTrack?.romalrc,
+        durationSec: rawTrack?.durationSec ?? rawTrack?.duration_sec,
+        durationMs: rawTrack?.durationMs ?? rawTrack?.duration_ms,
+        durationLabel: rawTrack?.durationLabel ?? rawTrack?.duration_label,
+        duration: rawTrack?.duration,
+        playbackKind: rawTrack?.playbackKind ?? rawTrack?.playback_kind,
+        isPreview: rawTrack?.isPreview === true || rawTrack?.is_preview === true,
         metadata: rawTrack?.metadata,
         sort: rawTrack?.sort || 0
       },
@@ -1027,18 +1140,13 @@ export function usePlayerEngine(options = {}) {
     return enqueueExternalTrack(rawTrack, true, options);
   }
 
-  audioElement.addEventListener('loadedmetadata', () => {
-    duration.value = Number.isFinite(audioElement.duration) ? audioElement.duration : 0;
-    const idx = tracks.value.findIndex((t) => t.id === currentTrackId.value);
-    if (idx >= 0 && duration.value > 0) {
-      tracks.value[idx].durationLabel = formatDuration(duration.value);
-    }
-  });
+  audioElement.addEventListener('loadedmetadata', syncDuration);
+  audioElement.addEventListener('durationchange', syncDuration);
+  audioElement.addEventListener('canplay', syncDuration);
 
-  audioElement.addEventListener('timeupdate', () => {
-    currentTime.value = audioElement.currentTime;
-    updateLyricState(currentTime.value);
-  });
+  audioElement.addEventListener('timeupdate', syncPlaybackPosition);
+  audioElement.addEventListener('seeking', syncPlaybackPosition);
+  audioElement.addEventListener('seeked', syncPlaybackPosition);
 
   audioElement.addEventListener('pause', () => {
     isPlaying.value = false;
@@ -1134,6 +1242,8 @@ export function usePlayerEngine(options = {}) {
     currentIndex,
     currentTime,
     duration,
+    expectedDuration,
+    isPreviewPlayback,
     isPlaying,
     playMode,
     volume,

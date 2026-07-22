@@ -89,6 +89,8 @@
         :lyric-context="player.lyricContext.value"
         :current-time="player.currentTime.value"
         :duration="player.duration.value"
+        :expected-duration="player.expectedDuration.value"
+        :is-preview-playback="player.isPreviewPlayback.value"
         :is-playing="player.isPlaying.value"
         :is-expanded="player.isPlayerExpanded.value"
         :is-pinned="player.isPinned.value"
@@ -623,6 +625,8 @@ const playerBridge = Object.freeze({
   isPlaying: player.isPlaying,
   currentTime: player.currentTime,
   duration: player.duration,
+  expectedDuration: player.expectedDuration,
+  isPreviewPlayback: player.isPreviewPlayback,
   currentLyricLine: player.currentLyricLine,
   lyricContext: player.lyricContext,
   lyricTimeline: player.lyricTimeline,

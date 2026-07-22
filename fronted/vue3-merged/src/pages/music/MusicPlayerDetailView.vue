@@ -22,6 +22,10 @@
           <h1>{{ track?.title || '暂无播放曲目' }}</h1>
           <p class="sub">{{ track?.artist || '未知歌手' }}</p>
           <p v-if="albumText" class="album">{{ albumText }}</p>
+          <p v-if="previewSummary" class="preview-summary">
+            <span>试听</span>
+            {{ previewSummary }}
+          </p>
           <div class="meta-actions">
             <button class="meta-collect-btn ripple-trigger" type="button" title="收藏到歌单" @click="music.openCollectDialog?.(track)">
               <i class="fas fa-folder-plus"></i>
@@ -48,8 +52,13 @@
               :key="`lyric-row-${index}-${row.time}`"
               :ref="(el) => setLyricRowRef(el, index)"
               class="lyric-row"
-              :class="{ active: index === activeScrollIndex }"
+              :class="{
+                active: index === activeScrollIndex,
+                unavailable: isLyricOutsidePlayableRange(row.time)
+              }"
               :aria-current="index === activeScrollIndex ? 'true' : undefined"
+              :disabled="isLyricOutsidePlayableRange(row.time)"
+              :title="lyricRowTitle(row.time)"
               type="button"
               @click="seekToLyricRow(row.time)"
             >
@@ -63,6 +72,8 @@
               v-if="centerTimeVisible"
               class="center-time-pill ripple-trigger"
               type="button"
+              :disabled="isLyricOutsidePlayableRange(centerLyricTime)"
+              :title="lyricRowTitle(centerLyricTime)"
               @click="seekToCenterLyric"
             >
               <i class="fas fa-play"></i>
@@ -73,8 +84,17 @@
       </section>
 
       <aside class="side-column">
-        <button class="mode-icon-btn ripple-trigger" type="button" :title="`播放顺序：${playModeLabel}`" @click="cyclePlayMode">
-          <i class="fas" :class="playModeIcon"></i>
+        <button
+          class="mode-icon-btn ripple-trigger"
+          type="button"
+          :title="`播放顺序：${playModeLabel}`"
+          :aria-label="`播放顺序：${playModeLabel}`"
+          @click="cyclePlayMode"
+        >
+          <span class="play-mode-icon" aria-hidden="true">
+            <i class="fas" :class="playModeIcon"></i>
+            <span v-if="isSinglePlayMode" class="single-repeat-badge">1</span>
+          </span>
         </button>
         <p class="side-caption">{{ playModeLabel }}</p>
 
@@ -131,12 +151,16 @@ const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || '
 const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
 const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
 const currentTimeSec = computed(() => Number(music.player.currentTime?.value || 0));
+const playableDurationSec = computed(() => Number(music.player.duration?.value || 0));
+const expectedDurationSec = computed(() => Number(music.player.expectedDuration?.value || 0));
+const isPreviewPlayback = computed(() => music.player.isPreviewPlayback?.value === true);
 const availableLyricModes = computed(() =>
   Array.isArray(music.player.availableLyricModes?.value) && music.player.availableLyricModes.value.length
     ? music.player.availableLyricModes.value
     : ['original']
 );
 const showLyricModeControls = computed(() => availableLyricModes.value.length > 1);
+const isSinglePlayMode = computed(() => String(music.player.playMode?.value || 'sequential') === 'single');
 const playModeLabel = computed(() => {
   const raw = String(music.player.playMode?.value || 'sequential');
   if (raw === 'random') return '随机';
@@ -146,7 +170,6 @@ const playModeLabel = computed(() => {
 const playModeIcon = computed(() => {
   const raw = String(music.player.playMode?.value || 'sequential');
   if (raw === 'random') return 'fa-shuffle';
-  if (raw === 'single') return 'fa-repeat-1';
   return 'fa-repeat';
 });
 const activeLyricModeLabel = computed(() => {
@@ -157,6 +180,16 @@ const activeLyricModeLabel = computed(() => {
 const albumText = computed(() => {
   const metadata = track.value?.metadata && typeof track.value.metadata === 'object' ? track.value.metadata : {};
   return String(track.value?.album || metadata?.album || metadata?.albumName || metadata?.album_name || '').trim();
+});
+const previewSummary = computed(() => {
+  if (!isPreviewPlayback.value) return '';
+  const playable = playableDurationSec.value;
+  const expected = expectedDurationSec.value;
+  if (playable > 0 && expected > playable) {
+    return `可播放 ${formatMediaTime(playable)}，完整时长 ${formatMediaTime(expected)}`;
+  }
+  if (playable > 0) return `可播放 ${formatMediaTime(playable)}`;
+  return '正在读取可播放时长';
 });
 
 const lyricListRef = ref(null);
@@ -269,7 +302,25 @@ function getLyricListElement() {
 function seekToLyricRow(time) {
   const target = Number(time);
   if (!Number.isFinite(target) || target < 0) return;
+  if (isLyricOutsidePlayableRange(target)) return;
   music.player.seekToTime?.(target);
+}
+
+function isLyricOutsidePlayableRange(time) {
+  const target = Number(time);
+  const playable = playableDurationSec.value;
+  if (!isPreviewPlayback.value || !Number.isFinite(target)) return false;
+  if (!Number.isFinite(playable) || playable <= 0) return true;
+  return target > playable + 0.25;
+}
+
+function lyricRowTitle(time) {
+  if (isPreviewPlayback.value && playableDurationSec.value <= 0) {
+    return '试听音频正在读取可跳转范围';
+  }
+  return isLyricOutsidePlayableRange(time)
+    ? `试听音频仅可跳转到 ${formatMediaTime(playableDurationSec.value)}`
+    : '点击跳转到这句歌词';
 }
 
 function seekToCenterLyric() {
@@ -562,6 +613,24 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+.preview-summary {
+  margin: 8px 0 0;
+  color: rgba(196, 207, 229, 0.88);
+  font-size: 12px;
+}
+
+.preview-summary span {
+  min-height: 20px;
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(215, 50, 72, 0.2);
+  color: #ff8fa0;
+  font-weight: 700;
+}
+
 .meta-actions {
   margin-top: 12px;
   display: flex;
@@ -678,6 +747,14 @@ onBeforeUnmount(() => {
   opacity: 0.82;
 }
 
+.music-player-detail-view .lyric-scroll .lyric-row.unavailable,
+.music-player-detail-view .lyric-scroll .lyric-row.unavailable:hover {
+  color: rgba(156, 165, 184, 0.62) !important;
+  opacity: 0.28;
+  cursor: not-allowed;
+  text-shadow: none;
+}
+
 .music-player-detail-view .lyric-scroll .lyric-row.active {
   border-color: transparent !important;
   color: rgba(248, 251, 255, 0.99) !important;
@@ -712,6 +789,11 @@ onBeforeUnmount(() => {
   z-index: 4;
 }
 
+.center-time-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .side-column {
   position: relative;
   display: grid;
@@ -738,6 +820,41 @@ onBeforeUnmount(() => {
   height: 40px;
   padding: 0;
   font-size: 14px;
+}
+
+.play-mode-icon {
+  position: relative;
+  width: 1.3em;
+  height: 1.3em;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.play-mode-icon > i {
+  line-height: 1;
+}
+
+.single-repeat-badge {
+  position: absolute;
+  top: -7px;
+  right: -8px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #d73248;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(45, 8, 16, 0.35);
+  font-family: var(--font-ui, sans-serif);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
 }
 
 .mode-pill {

@@ -1,8 +1,17 @@
 <template>
   <footer ref="rootRef" class="music-library-dock liquid-material" :class="{ 'detail-layout': detailLayout }" @click="handleRootClick">
     <div class="dock-progress-row" @click.stop>
-      <button class="play-mode-pill ripple-trigger icon-only" type="button" :title="`播放顺序：${modeLabel}`" @click.stop="emit('cycle-mode')">
-        <i class="fas" :class="modeIconClass"></i>
+      <button
+        class="play-mode-pill ripple-trigger icon-only"
+        type="button"
+        :title="`播放顺序：${modeLabel}`"
+        :aria-label="`播放顺序：${modeLabel}`"
+        @click.stop="emit('cycle-mode')"
+      >
+        <span class="play-mode-icon" aria-hidden="true">
+          <i class="fas" :class="modeIconClass"></i>
+          <span v-if="playMode === 'single'" class="single-repeat-badge">1</span>
+        </span>
       </button>
       <input
         class="progress-input"
@@ -10,10 +19,17 @@
         min="0"
         max="1000"
         :value="Math.round(progress * 1000)"
+        :disabled="!hasPlayableDuration"
+        aria-label="歌曲播放进度"
+        :aria-valuetext="progressTitle"
+        :title="progressTitle"
         :style="{ '--level-percent': `${progress * 100}%` }"
         @input="onSeek"
       />
-      <span class="time">{{ playedText }} / {{ durationText }}</span>
+      <span class="time" :title="progressTitle">
+        <span v-if="isPreviewPlayback" class="preview-badge">试听</span>
+        {{ playedText }} / {{ durationText }}
+      </span>
     </div>
 
     <div class="dock-main-row">
@@ -96,6 +112,8 @@ const props = defineProps({
   currentTrackId: { type: String, default: '' },
   currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 },
+  expectedDuration: { type: Number, default: 0 },
+  isPreviewPlayback: { type: Boolean, default: false },
   isPlaying: { type: Boolean, default: false },
   playMode: { type: String, default: 'sequential' },
   volume: { type: Number, default: 0.8 },
@@ -129,8 +147,18 @@ const progress = computed(() => {
   return Math.max(0, Math.min(1, props.currentTime / props.duration));
 });
 
+const hasPlayableDuration = computed(() => Number.isFinite(props.duration) && props.duration > 0);
 const playedText = computed(() => formatMediaTime(props.currentTime));
-const durationText = computed(() => formatMediaTime(props.duration));
+const durationText = computed(() => (hasPlayableDuration.value ? formatMediaTime(props.duration) : '--:--'));
+const progressTitle = computed(() => {
+  if (!hasPlayableDuration.value) return '等待音频时长信息';
+  if (!props.isPreviewPlayback) return `播放进度 ${playedText.value} / ${durationText.value}`;
+  const expected = Number(props.expectedDuration);
+  const fullText = Number.isFinite(expected) && expected > props.duration
+    ? `，完整时长 ${formatMediaTime(expected)}`
+    : '';
+  return `试听音频，可播放 ${durationText.value}${fullText}`;
+});
 
 const modeLabel = computed(() => {
   if (props.playMode === 'random') return '随机';
@@ -139,11 +167,11 @@ const modeLabel = computed(() => {
 });
 const modeIconClass = computed(() => {
   if (props.playMode === 'random') return 'fa-shuffle';
-  if (props.playMode === 'single') return 'fa-repeat-1';
   return 'fa-repeat';
 });
 
 function onSeek(event) {
+  if (!hasPlayableDuration.value) return;
   const raw = Number(event?.target?.value);
   emit('seek', Math.max(0, Math.min(1, raw / 1000)));
 }
@@ -241,11 +269,63 @@ useDismissiblePopover({
   padding: 0;
 }
 
+.play-mode-icon {
+  position: relative;
+  width: 1.3em;
+  height: 1.3em;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.play-mode-icon > i {
+  line-height: 1;
+}
+
+.single-repeat-badge {
+  position: absolute;
+  top: -7px;
+  right: -8px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #d73248;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(45, 8, 16, 0.35);
+  font-family: var(--font-ui, sans-serif);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
 .time {
   color: var(--theme-text-tertiary);
   font-size: 12px;
   min-width: 86px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  white-space: nowrap;
   text-align: right;
+}
+
+.preview-badge {
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(215, 50, 72, 0.16);
+  color: #df5368;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .progress-input {
@@ -255,6 +335,11 @@ useDismissiblePopover({
   height: 24px;
   background: transparent;
   cursor: pointer;
+}
+
+.progress-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .progress-input::-webkit-slider-runnable-track {
