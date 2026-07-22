@@ -48,14 +48,6 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
     floatingAble: true
   },
   {
-    code: 'web-toolbox',
-    title: 'Web Toolbox',
-    summary: '文本编码、URL、JSON/TOON、密码、时间戳与计算工具的一站式本地工具箱。',
-    iconClass: 'fas fa-toolbox',
-    source: 'Shizuki',
-    floatingAble: true
-  },
-  {
     code: 'qr-tools',
     title: 'QR Tools',
     summary: '本地二维码轻应用：支持生成、识别，以及 WiFi 二维码卡片导出。',

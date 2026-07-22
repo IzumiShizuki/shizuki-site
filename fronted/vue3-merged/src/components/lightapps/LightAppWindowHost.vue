@@ -155,7 +155,6 @@ const UrlLinksWindow = createAsyncWindowComponent(() => import('./url/UrlLinksWi
 const BoardCanvasWindow = createAsyncWindowComponent(() => import('./board/BoardCanvasWindow.vue'));
 const BlogSlidevWindow = createAsyncWindowComponent(() => import('./blog/BlogSlidevWindow.vue'));
 const QrToolsWindow = createAsyncWindowComponent(() => import('./qr/QrToolsWindow.vue'));
-const WebToolboxWindow = createAsyncWindowComponent(() => import('./toolbox/WebToolboxWindow.vue'));
 
 const componentMap = Object.freeze({
   'timeprism-todo': TimePrismTodoSuiteWindow,
@@ -164,8 +163,7 @@ const componentMap = Object.freeze({
   'url-links': UrlLinksWindow,
   'board-canvas': BoardCanvasWindow,
   'blog-slidev': BlogSlidevWindow,
-  'qr-tools': QrToolsWindow,
-  'web-toolbox': WebToolboxWindow
+  'qr-tools': QrToolsWindow
 });
 
 const WINDOW_INTERACTIVE_SELECTOR = 'button, input, select, textarea, a, [role="button"], [contenteditable], .window-toolbar-hit';

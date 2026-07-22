@@ -12,8 +12,7 @@ export const LIGHT_APP_SHARED_WINDOW_IDS = Object.freeze({
   'url-links': 910004,
   'board-canvas': 910005,
   'blog-slidev': 910006,
-  'qr-tools': 910007,
-  'web-toolbox': 910008
+  'qr-tools': 910007
 });
 const WINDOW_PRESETS = Object.freeze({
   'timeprism-todo': {
@@ -47,14 +46,6 @@ const WINDOW_PRESETS = Object.freeze({
     minHeight: 620,
     maxWidthRatio: 0.9,
     maxHeightRatio: 0.92
-  },
-  'web-toolbox': {
-    widthRatio: 0.82,
-    heightRatio: 0.86,
-    minWidth: 980,
-    minHeight: 660,
-    maxWidthRatio: 0.95,
-    maxHeightRatio: 0.94
   }
 });
 

@@ -38,15 +38,6 @@ importers:
       '@toast-ui/editor':
         specifier: ^3.2.2
         version: 3.2.2
-      '@toon-format/toon':
-        specifier: ^2.3.1
-        version: 2.3.1
-      blueimp-md5:
-        specifier: ^2.19.0
-        version: 2.19.0
-      json5:
-        specifier: ^2.2.3
-        version: 2.2.3
       jsqr:
         specifier: ^1.4.0
         version: 1.4.0
@@ -1456,9 +1447,6 @@ packages:
   '@toast-ui/editor@3.2.2':
     resolution: {integrity: sha512-ASX7LFjN2ZYQJrwmkUajPs7DRr9FsM1+RQ82CfTO0Y5ZXorBk1VZS4C2Dpxinx9kl55V4F8/A2h2QF4QMDtRbA==}
 
-  '@toon-format/toon@2.3.1':
-    resolution: {integrity: sha512-sWqEMeAJGMda9qRrfPKrX3C4c33CO9SJuvJzzrcBEn5sbDB+k6pSLkDsfN0rVnLQwR97MV3sDgVbcxQNsq8xVw==}
-
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
 
@@ -1751,9 +1739,6 @@ packages:
     resolution: {integrity: sha512-PCLz/LXGBsNTErbtB6i5u4eLpHeMfi93aUv5duMmj6caNu6IphS4q6UevDnL36sZQv9lrP11dbPKGMaXPwMKfQ==}
     engines: {node: '>=6.0.0'}
     hasBin: true
-
-  blueimp-md5@2.19.0:
-    resolution: {integrity: sha512-DRQrD6gJyy8FbiE4s+bDoXS9hiW3Vbx5uCdwvcCf3zLHL+Iv7LtGHLpr+GZV8rHG8tK766FGYBwRbu8pELTt+w==}
 
   brace-expansion@2.0.2:
     resolution: {integrity: sha512-Jt0vHyM+jmUBqojB7E1NIYadt0vI0Qxjxd2TErW94wDz+E2LAm5vKMXXwg6ZZBTHPuUlDgQHKXvjGBdfcF1ZDQ==}
@@ -4328,8 +4313,6 @@ snapshots:
       prosemirror-state: 1.4.4
       prosemirror-view: 1.41.6
 
-  '@toon-format/toon@2.3.1': {}
-
   '@types/babel__core@7.20.5':
     dependencies:
       '@babel/parser': 7.29.2
@@ -4669,8 +4652,6 @@ snapshots:
   balanced-match@1.0.2: {}
 
   baseline-browser-mapping@2.10.8: {}
-
-  blueimp-md5@2.19.0: {}
 
   brace-expansion@2.0.2:
     dependencies:

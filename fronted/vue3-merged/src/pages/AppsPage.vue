@@ -223,7 +223,6 @@ import UrlLinksWindow from '../components/lightapps/url/UrlLinksWindow.vue';
 import BoardCanvasWindow from '../components/lightapps/board/BoardCanvasWindow.vue';
 import BlogSlidevWindow from '../components/lightapps/blog/BlogSlidevWindow.vue';
 import QrToolsWindow from '../components/lightapps/qr/QrToolsWindow.vue';
-import WebToolboxWindow from '../components/lightapps/toolbox/WebToolboxWindow.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { listLightAppUrlLinks } from '../services/lightAppsApi';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
@@ -265,8 +264,7 @@ const PAGE_COMPONENT_MAP = Object.freeze({
   'url-links': UrlLinksWindow,
   'board-canvas': BoardCanvasWindow,
   'blog-slidev': BlogSlidevWindow,
-  'qr-tools': QrToolsWindow,
-  'web-toolbox': WebToolboxWindow
+  'qr-tools': QrToolsWindow
 });
 
 let syncTimer = 0;
