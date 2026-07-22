@@ -11,6 +11,7 @@ import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -88,6 +89,19 @@ class MetingMusicProviderTest {
         Assertions.assertNull(playlists.get(0).trackCount());
         Assertions.assertEquals("search", playlists.get(0).sourceType());
         server.verify();
+    }
+
+    @Test
+    void shouldUseDependencyInjectionConstructorWhenSpringCreatesBean() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(MetingMusicProperties.class);
+            context.registerBean(RestClient.Builder.class, () -> RestClient.builder());
+            context.registerBean(ObjectMapper.class);
+            context.register(MetingMusicProvider.class);
+            context.refresh();
+
+            Assertions.assertNotNull(context.getBean(MetingMusicProvider.class));
+        }
     }
 
     private void expectSearchResponse(String providerCode, String body) {

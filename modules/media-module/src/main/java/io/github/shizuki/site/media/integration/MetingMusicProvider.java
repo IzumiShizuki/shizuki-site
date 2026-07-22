@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -42,6 +43,7 @@ public class MetingMusicProvider {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public MetingMusicProvider(MetingMusicProperties properties,
                                RestClient.Builder restClientBuilder,
                                ObjectMapper objectMapper) {
