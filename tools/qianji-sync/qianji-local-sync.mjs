@@ -163,5 +163,7 @@ async function main() {
 
 main().catch((error) => {
   console.error(error?.message || error);
-  process.exit(1);
+  // Let active fetch/libuv handles drain before Node exits. A forced exit can
+  // trigger UV_HANDLE_CLOSING assertions on the bundled Windows Node runtime.
+  process.exitCode = 1;
 });
