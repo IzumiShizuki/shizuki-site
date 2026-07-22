@@ -30,8 +30,10 @@ if not exist "%NODE_EXE%" (
 
 cd /d "%PROJECT_DIR%"
 call "%SCRIPT_DIR%qianji-android-db-sync.bat"
-if errorlevel 1 (
-  echo [qianji-sync] Android DB sync skipped with code %ERRORLEVEL%.
+set "ANDROID_EXIT_CODE=%ERRORLEVEL%"
+if not "%ANDROID_EXIT_CODE%"=="0" (
+  echo [qianji-sync] Android DB sync failed with code %ANDROID_EXIT_CODE%.
+  exit /b %ANDROID_EXIT_CODE%
 )
 "%NODE_EXE%" "%SCRIPT_DIR%qianji-local-sync.mjs" --config "%CONFIG_FILE%" --once %*
 set "EXIT_CODE=%ERRORLEVEL%"

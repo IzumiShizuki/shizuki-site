@@ -64,6 +64,7 @@ node qianji-android-db-sync.mjs --config .\qianji-local-sync.config.jsonc
 - 常驻监听: [qianji-local-sync-watch.bat](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-watch.bat)
 - 隐藏启动器: [qianji-local-sync-watch-hidden.ps1](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-watch-hidden.ps1)
 - 单次同步: [qianji-local-sync-once.bat](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-once.bat)
+- 凌晨任务日志: [qianji-local-sync-2am.log](/D:/program/shizuki-site/data/qianji-sync/logs/qianji-local-sync-2am.log)
 - Token 签发/刷新: [qianji-local-sync-token.bat](/D:/program/shizuki-site/tools/qianji-sync/qianji-local-sync-token.bat)
 - 安装登录后自启: [install-qianji-local-sync-startup-task.bat](/D:/program/shizuki-site/tools/qianji-sync/install-qianji-local-sync-startup-task.bat)
 - 删除登录后自启: [remove-qianji-local-sync-startup-task.bat](/D:/program/shizuki-site/tools/qianji-sync/remove-qianji-local-sync-startup-task.bat)
