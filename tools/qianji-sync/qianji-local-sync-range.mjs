@@ -381,6 +381,6 @@ const isDirectRun = process.argv[1]
 if (isDirectRun) {
   main().catch((error) => {
     console.error(error?.message || error);
-    process.exitCode = 1;
+    process.exit(1);
   });
 }
