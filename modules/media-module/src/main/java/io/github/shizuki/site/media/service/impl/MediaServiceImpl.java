@@ -1292,20 +1292,23 @@ public class MediaServiceImpl implements MediaService {
                 continue;
             }
 
+            List<MetingMusicProvider.SearchTrackResult> providerSearchItems = List.of();
+            boolean providerTrackSearchSucceeded = false;
             boolean shouldProbeTracks = includeTracks && tracks.size() < trackCollectLimit;
             if (shouldProbeTracks) {
                 long trackFetchStartMs = System.currentTimeMillis();
                 try {
-                    List<MetingMusicProvider.SearchTrackResult> searchItems = metingMusicProvider.searchTracks(
+                    providerSearchItems = metingMusicProvider.searchTracks(
                         apiContext.apiKey(),
                         provider,
                         normalizedQuery,
                         safePage,
                         safeLimit
                     );
-                    providerRowCount = searchItems.size();
+                    providerTrackSearchSucceeded = true;
+                    providerRowCount = providerSearchItems.size();
                     int mappedCount = 0;
-                    for (MetingMusicProvider.SearchTrackResult item : searchItems) {
+                    for (MetingMusicProvider.SearchTrackResult item : providerSearchItems) {
                         String trackId = readString(item.trackId(), "");
                         if (!StringUtils.hasText(trackId)) {
                             continue;
@@ -1391,17 +1394,30 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
 
-            if (includePlaylists && MUSIC_REAL_PLAYLIST_SEARCH_PLATFORMS.contains(provider) && playlists.size() < playlistCollectLimit) {
+            if (includePlaylists
+                && MUSIC_REAL_PLAYLIST_SEARCH_PLATFORMS.contains(provider)
+                && playlists.size() < playlistCollectLimit
+                && !failedProviders.contains(provider)) {
                 long playlistSearchStartMs = System.currentTimeMillis();
                 int playlistMatchedCount = 0;
                 try {
-                    List<MetingMusicProvider.VirtualPlaylistSummary> searchPlaylists = metingMusicProvider.searchPlaylists(
-                        apiContext.apiKey(),
-                        provider,
-                        normalizedQuery,
-                        safePage,
-                        safeLimit
-                    );
+                    List<MetingMusicProvider.SearchTrackResult> playlistPreviewTracks;
+                    if (safePage == 1 && providerTrackSearchSucceeded) {
+                        playlistPreviewTracks = providerSearchItems;
+                    } else {
+                        // The virtual playlist always opens the first search page. Fetch only one
+                        // matching row when the current track page cannot be reused, so its cover
+                        // stays deterministic without repeating an entire search page.
+                        playlistPreviewTracks = metingMusicProvider.searchTracks(
+                            apiContext.apiKey(),
+                            provider,
+                            normalizedQuery,
+                            1,
+                            1
+                        );
+                    }
+                    List<MetingMusicProvider.VirtualPlaylistSummary> searchPlaylists =
+                        metingMusicProvider.buildSearchPlaylists(provider, normalizedQuery, playlistPreviewTracks);
                     for (MetingMusicProvider.VirtualPlaylistSummary item : searchPlaylists) {
                         String code = readString(item.playlistCode(), "");
                         if (!StringUtils.hasText(code) || !playlistCodes.add(code)) {
@@ -1415,7 +1431,7 @@ public class MediaServiceImpl implements MediaService {
                             PLAYLIST_TYPE_CUSTOM,
                             0L,
                             true,
-                            0,
+                            item.trackCount() == null ? 0 : Math.max(0, item.trackCount()),
                             normalizeSourceProvider(item.platform())
                         ));
                         playlistMatchedCount += 1;
@@ -3243,7 +3259,7 @@ public class MediaServiceImpl implements MediaService {
                 ref.sourceId(),
                 ref.provider().toUpperCase(Locale.ROOT) + " 歌单",
                 "Meting 虚拟歌单",
-                "",
+                firstTrackCover(tracks),
                 ref.playlistCode(),
                 tracks.size()
             );
@@ -3275,6 +3291,13 @@ public class MediaServiceImpl implements MediaService {
             normalizeSourceProvider(summary.platform())
         );
         return new MusicPlaylistBundleResponse(profile, tracks);
+    }
+
+    private String firstTrackCover(List<MusicTrackResponse> tracks) {
+        if (tracks == null || tracks.isEmpty() || tracks.get(0) == null) {
+            return "";
+        }
+        return readString(tracks.get(0).cover(), "");
     }
 
     private MusicVirtualPlaylistRef parseVirtualMusicPlaylistCode(String playlistCode) {

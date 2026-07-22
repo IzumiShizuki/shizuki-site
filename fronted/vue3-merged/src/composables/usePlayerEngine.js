@@ -1,5 +1,6 @@
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
+import { buildAlignedLyricTimeline } from '../utils/lyricAlignment';
 import { parseLrc } from '../utils/lrc';
 import { formatMediaTime } from '../utils/mediaTime';
 
@@ -9,6 +10,7 @@ const MODE_ORDER = ['sequential', 'random', 'single'];
 const VISUALIZER_STYLES = ['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
 const LYRIC_RENDER_MODES = ['original', 'original_translation', 'original_furigana'];
+const LYRIC_PREFERENCE_VERSION = 2;
 
 function loadPersistedState() {
   try {
@@ -53,9 +55,15 @@ function logLyricDebug(event, payload = {}) {
 
 function pickFirstNonBlankString(...candidates) {
   for (const candidate of candidates) {
-    if (typeof candidate !== 'string') continue;
-    if (!candidate.trim()) continue;
-    return candidate;
+    const value = typeof candidate === 'string'
+      ? candidate
+      : candidate && typeof candidate === 'object'
+        ? [candidate.lyric, candidate.text, candidate.value].find(
+            (item) => typeof item === 'string' && item.trim()
+          ) || ''
+        : '';
+    if (!value.trim()) continue;
+    return value;
   }
   return '';
 }
@@ -96,10 +104,12 @@ function normalizeTrack(track, index) {
   const lyricText = pickFirstNonBlankString(
     track?.lyricText,
     track?.lyric_text,
+    track?.lrc,
     track?.originalLyricText,
     track?.original_lyric_text,
     metadata?.lyricText,
     metadata?.lyric_text,
+    metadata?.lrc,
     metadataLyricTracks.original
   );
   const translationLyricText = pickFirstNonBlankString(
@@ -107,6 +117,7 @@ function normalizeTrack(track, index) {
     track?.translation_lyric_text,
     track?.translatedLyricText,
     track?.translated_lyric_text,
+    track?.tlyric,
     metadata?.translationLyricText,
     metadata?.translation_lyric_text,
     metadata?.translatedLyricText,
@@ -119,10 +130,12 @@ function normalizeTrack(track, index) {
     track?.furigana_lyric_text,
     track?.pronunciationLyricText,
     track?.pronunciation_lyric_text,
+    track?.romalrc,
     metadata?.furiganaLyricText,
     metadata?.furigana_lyric_text,
     metadata?.pronunciationLyricText,
     metadata?.pronunciation_lyric_text,
+    metadata?.romalrc,
     metadata?.romaji,
     metadataLyricTracks.furigana
   );
@@ -234,11 +247,13 @@ export function usePlayerEngine(options = {}) {
   const currentTime = ref(0);
   const duration = ref(0);
   const isPlaying = ref(false);
-  const lyricRenderMode = ref(
-    LYRIC_RENDER_MODES.includes(String(persisted.lyricRenderMode || ''))
-      ? String(persisted.lyricRenderMode)
-      : 'original_translation'
-  );
+  const persistedLyricRenderMode = String(persisted.lyricRenderMode || '');
+  const initialLyricRenderMode = Number(persisted.lyricPreferenceVersion || 0) >= LYRIC_PREFERENCE_VERSION
+    && LYRIC_RENDER_MODES.includes(persistedLyricRenderMode)
+    ? persistedLyricRenderMode
+    : 'original_translation';
+  const preferredLyricRenderMode = ref(initialLyricRenderMode);
+  const lyricRenderMode = ref(initialLyricRenderMode);
   const currentLyricLine = ref('');
   const lyricEntries = ref([]);
   const lyricTimeline = ref([]);
@@ -350,7 +365,7 @@ export function usePlayerEngine(options = {}) {
     const parsed = parseLrc(source);
     if (parsed.length) {
       logLyricDebug('parse_timeline_ok', { textLength: source.length, entryCount: parsed.length });
-      return parsed;
+      return parsed.map((entry) => ({ ...entry, synchronized: true }));
     }
     logLyricDebug('parse_timeline_fallback_to_plain_lines', { textLength: source.length });
     return source
@@ -358,24 +373,11 @@ export function usePlayerEngine(options = {}) {
       .map((line) => line.trim())
       .filter(Boolean)
       .slice(0, 120)
-      .map((text, idx) => ({ time: idx * 4, text }));
+      .map((text, idx) => ({ time: idx * 4, text, synchronized: false }));
   }
 
   function buildLyricTimelineFromTracks(originalEntries, translationEntries, furiganaEntries) {
-    const base = Array.isArray(originalEntries) ? originalEntries : [];
-    if (!base.length) return [];
-    const trans = Array.isArray(translationEntries) ? translationEntries : [];
-    const furi = Array.isArray(furiganaEntries) ? furiganaEntries : [];
-    return base.map((item, idx) => {
-      const byIndexTranslation = trans[idx]?.text || '';
-      const byIndexFurigana = furi[idx]?.text || '';
-      return {
-        time: Number(item.time || 0),
-        original: String(item.text || '').trim(),
-        translation: String(byIndexTranslation || '').trim(),
-        furigana: String(byIndexFurigana || '').trim()
-      };
-    });
+    return buildAlignedLyricTimeline(originalEntries, translationEntries, furiganaEntries);
   }
 
   function readLyricTrackTexts(track) {
@@ -694,6 +696,7 @@ export function usePlayerEngine(options = {}) {
     const mode = String(nextMode || '');
     if (!LYRIC_RENDER_MODES.includes(mode)) return;
     if (!availableLyricModes.value.includes(mode)) return;
+    preferredLyricRenderMode.value = mode;
     lyricRenderMode.value = mode;
   }
 
@@ -808,6 +811,14 @@ export function usePlayerEngine(options = {}) {
           audio: item?.audio || item?.audioUrl || item?.audio_url,
           lyric: item?.lyric || item?.lyricUrl || item?.lyric_url,
           lyricText: item?.lyricText || item?.lyric_text,
+          translationLyricText: item?.translationLyricText || item?.translation_lyric_text,
+          furiganaLyricText: item?.furiganaLyricText || item?.furigana_lyric_text,
+          translatedLyricText: item?.translatedLyricText || item?.translated_lyric_text,
+          pronunciationLyricText: item?.pronunciationLyricText || item?.pronunciation_lyric_text,
+          lrc: item?.lrc,
+          tlyric: item?.tlyric,
+          romalrc: item?.romalrc,
+          metadata: item?.metadata,
           sort: item?.sort
         },
         idx
@@ -909,6 +920,14 @@ export function usePlayerEngine(options = {}) {
         audio: rawTrack?.audio || rawTrack?.audioUrl || rawTrack?.audio_url,
         lyric: rawTrack?.lyric || rawTrack?.lyricUrl || rawTrack?.lyric_url,
         lyricText: rawTrack?.lyricText || rawTrack?.lyric_text,
+        translationLyricText: rawTrack?.translationLyricText || rawTrack?.translation_lyric_text,
+        furiganaLyricText: rawTrack?.furiganaLyricText || rawTrack?.furigana_lyric_text,
+        translatedLyricText: rawTrack?.translatedLyricText || rawTrack?.translated_lyric_text,
+        pronunciationLyricText: rawTrack?.pronunciationLyricText || rawTrack?.pronunciation_lyric_text,
+        lrc: rawTrack?.lrc,
+        tlyric: rawTrack?.tlyric,
+        romalrc: rawTrack?.romalrc,
+        metadata: rawTrack?.metadata,
         sort: rawTrack?.sort || 0
       },
       0
@@ -964,6 +983,14 @@ export function usePlayerEngine(options = {}) {
         audio: rawTrack?.audio || rawTrack?.audioUrl || rawTrack?.audio_url,
         lyric: rawTrack?.lyric || rawTrack?.lyricUrl || rawTrack?.lyric_url,
         lyricText: rawTrack?.lyricText || rawTrack?.lyric_text,
+        translationLyricText: rawTrack?.translationLyricText || rawTrack?.translation_lyric_text,
+        furiganaLyricText: rawTrack?.furiganaLyricText || rawTrack?.furigana_lyric_text,
+        translatedLyricText: rawTrack?.translatedLyricText || rawTrack?.translated_lyric_text,
+        pronunciationLyricText: rawTrack?.pronunciationLyricText || rawTrack?.pronunciation_lyric_text,
+        lrc: rawTrack?.lrc,
+        tlyric: rawTrack?.tlyric,
+        romalrc: rawTrack?.romalrc,
+        metadata: rawTrack?.metadata,
         sort: rawTrack?.sort || 0
       },
       0
@@ -1057,7 +1084,7 @@ export function usePlayerEngine(options = {}) {
   });
 
   watch(
-    [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle, lyricRenderMode],
+    [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle, preferredLyricRenderMode],
     () => {
       savePersistedState({
         playMode: playMode.value,
@@ -1068,7 +1095,8 @@ export function usePlayerEngine(options = {}) {
         listOpen: listOpen.value,
         visualizerMode: visualizerMode.value,
         visualizerStyle: visualizerStyle.value,
-        lyricRenderMode: lyricRenderMode.value
+        lyricRenderMode: preferredLyricRenderMode.value,
+        lyricPreferenceVersion: LYRIC_PREFERENCE_VERSION
       });
     }
   );
@@ -1081,9 +1109,11 @@ export function usePlayerEngine(options = {}) {
         lyricRenderMode.value = 'original';
         return;
       }
-      if (!modes.includes(lyricRenderMode.value)) {
-        lyricRenderMode.value = modes[0];
-      }
+      lyricRenderMode.value = modes.includes(preferredLyricRenderMode.value)
+        ? preferredLyricRenderMode.value
+        : modes.includes('original')
+          ? 'original'
+          : modes[0];
     },
     { immediate: true }
   );

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick } from 'vue';
 import { usePlayerEngine } from './usePlayerEngine';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 
@@ -191,5 +192,127 @@ describe('usePlayerEngine lyric chain', () => {
 
     engine.setLyricRenderMode('original_translation');
     expect(engine.lyricRenderMode.value).toBe('original');
+  });
+
+  it('groups Japanese original lyrics and translation on the same timeline rows', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/yoru-ni-kakeru.mp3',
+      metadata: {
+        lyricTracks: {
+          original: '[00:01.430]沈むように溶けてゆくように\n[00:05.120]二人だけの空が広がる夜に',
+          translation: '[00:01.430]像是沉溺溶化一般\n[00:05.120]在只有你我的夜空之中',
+          furigana: ''
+        }
+      }
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      {
+        provider: 'netease',
+        trackId: '1409311773',
+        title: '夜に駆ける',
+        artist: 'YOASOBI'
+      },
+      true,
+      { replaceQueue: true }
+    );
+    await nextTick();
+
+    expect(engine.availableLyricModes.value).toContain('original_translation');
+    expect(engine.lyricRenderMode.value).toBe('original_translation');
+    expect(engine.lyricTimeline.value[0]).toMatchObject({
+      original: '沈むように溶けてゆくように',
+      translation: '像是沉溺溶化一般'
+    });
+  });
+
+  it('restores the translation preference and unwraps nested English lyric payloads', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValueOnce({
+      audio: 'https://audio.example.com/original-only.mp3',
+      lyricText: '[00:01.00]only original'
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      { provider: 'netease', trackId: 'original-only', title: 'Original', artist: 'Singer' },
+      true,
+      { replaceQueue: true }
+    );
+    await nextTick();
+    expect(engine.lyricRenderMode.value).toBe('original');
+
+    await engine.enqueueExternalTrack(
+      {
+        provider: 'netease',
+        trackId: '451703096',
+        title: 'Shape of You',
+        artist: 'Ed Sheeran',
+        audio: 'https://audio.example.com/shape-of-you.mp3',
+        lrc: { lyric: "[00:09.480]The club isn't the best place to find a lover" },
+        tlyric: { lyric: '[00:09.480]这俱乐部不是个能找到安慰的地方' }
+      },
+      true,
+      { replaceQueue: true }
+    );
+    await nextTick();
+
+    expect(engine.lyricRenderMode.value).toBe('original_translation');
+    expect(engine.lyricTimeline.value[0]).toMatchObject({
+      original: "The club isn't the best place to find a lover",
+      translation: '这俱乐部不是个能找到安慰的地方'
+    });
+  });
+
+  it('migrates the legacy forced-original state back to bilingual-by-default', async () => {
+    window.localStorage.setItem(
+      'shizuki.musicPlayer.v2',
+      JSON.stringify({ lyricRenderMode: 'original' })
+    );
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/bilingual.mp3',
+      lyricText: '[00:01.00]English line',
+      translationLyricText: '[00:01.00]中文翻译'
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      { provider: 'netease', trackId: 'legacy-mode', title: 'Bilingual', artist: 'Singer' },
+      true,
+      { replaceQueue: true }
+    );
+    await nextTick();
+
+    expect(engine.lyricRenderMode.value).toBe('original_translation');
+    expect(JSON.parse(window.localStorage.getItem('shizuki.musicPlayer.v2'))).toMatchObject({
+      lyricRenderMode: 'original_translation',
+      lyricPreferenceVersion: 2
+    });
+  });
+
+  it('keeps an explicit v2 original-only preference', async () => {
+    window.localStorage.setItem(
+      'shizuki.musicPlayer.v2',
+      JSON.stringify({ lyricRenderMode: 'original', lyricPreferenceVersion: 2 })
+    );
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/bilingual.mp3',
+      lyricText: '[00:01.00]English line',
+      translationLyricText: '[00:01.00]中文翻译'
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      { provider: 'netease', trackId: 'v2-original-mode', title: 'Bilingual', artist: 'Singer' },
+      true,
+      { replaceQueue: true }
+    );
+    await nextTick();
+
+    expect(engine.lyricRenderMode.value).toBe('original');
+    expect(JSON.parse(window.localStorage.getItem('shizuki.musicPlayer.v2'))).toMatchObject({
+      lyricRenderMode: 'original',
+      lyricPreferenceVersion: 2
+    });
   });
 });

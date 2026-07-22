@@ -3,39 +3,6 @@
     <p v-if="displayErrorText" class="state-text error">{{ displayErrorText }}</p>
 
     <template v-if="music.hasActiveSearch.value">
-      <section class="panel liquid-material extension-preview-panel">
-        <header class="panel-head">
-          <div>
-            <p class="section-kicker">Listening Extension</p>
-            <h2>听觉延伸</h2>
-          </div>
-          <button class="inline-panel-action ripple-trigger" type="button" @click="openRadioNav">
-            查看全部
-          </button>
-        </header>
-
-        <div v-if="listeningExtensionLoading && !listeningExtensionPreview.length" class="empty-state compact">
-          正在加载音声推荐...
-        </div>
-        <p v-else-if="listeningExtensionError" class="state-text error">{{ listeningExtensionError }}</p>
-        <div v-else class="listening-extension-grid compact">
-          <button
-            v-for="item in listeningExtensionPreview"
-            :key="`extension-preview-${item.workId}`"
-            class="listening-card ripple-trigger"
-            type="button"
-            @click="openVoiceWork(item)"
-          >
-            <div class="listening-cover" :style="listeningCoverStyle(item)"></div>
-            <div class="listening-copy">
-              <p class="listening-title">{{ item.title }}</p>
-              <p class="listening-desc">{{ item.description }}</p>
-              <p class="listening-tags">{{ item.tagLine }}</p>
-            </div>
-          </button>
-        </div>
-      </section>
-
       <section class="panel liquid-material">
         <header class="panel-head">
           <h2>搜索结果</h2>
@@ -66,7 +33,7 @@
               type="button"
               @click="handleOpenPlaylist(item.playlistCode)"
             >
-              <div class="cover" :style="coverStyle(item)"></div>
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -112,9 +79,9 @@
           </div>
           <div class="table-head search-track-head">
             <span>#</span>
-            <span>标题</span>
+            <span>歌曲</span>
             <span>歌手</span>
-            <span>平台</span>
+            <span>专辑</span>
             <span>时长</span>
             <span>操作</span>
           </div>
@@ -128,10 +95,13 @@
             <span>{{ String(index + 1).padStart(2, '0') }}</span>
             <span class="title-col track-title-col">
               <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
-              <span class="track-title-text">{{ item.title || '未知标题' }}</span>
+              <span class="track-title-copy">
+                <span class="track-title-text">{{ item.title || '未知标题' }}</span>
+                <span class="provider-badge">{{ providerLabel(item.provider) }}</span>
+              </span>
             </span>
             <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
-            <span>{{ item.provider || '-' }}</span>
+            <span class="album-col">{{ item.album || '未知专辑' }}</span>
             <span>{{ item.durationLabel || '--:--' }}</span>
             <span class="row-actions">
               <button
@@ -264,12 +234,18 @@
       <section class="music-cozy-library cozy-home-block">
         <header class="music-cozy-hero liquid-material">
           <div class="hero-copy">
-            <p class="eyebrow">Cozy Music Room</p>
+            <p class="eyebrow">SHIZUKI CLOUD MUSIC</p>
             <h1>{{ cozyHeroTitle }}</h1>
             <p>{{ cozyHeroDescription }}</p>
             <div class="mood-chip-row">
-              <button v-for="item in cozyMoodChips" :key="item" class="mood-chip ripple-trigger" type="button">
-                {{ item }}
+              <button
+                v-for="item in cozyMoodChips"
+                :key="item.key"
+                class="mood-chip ripple-trigger"
+                type="button"
+                @click="handleMoodChip(item)"
+              >
+                {{ item.label }}
               </button>
             </div>
           </div>
@@ -278,6 +254,10 @@
             <h2 class="now-title">{{ cozyNowPlaying.title }}</h2>
             <p class="now-meta">{{ cozyNowPlaying.artist }} · {{ cozyNowPlaying.duration }}</p>
             <p class="now-note">{{ cozyNowPlaying.note }}</p>
+            <button class="now-play-btn ripple-trigger" type="button" @click="playPrimaryRecommendation">
+              <i class="fas" :class="music.player.currentTrack.value ? 'fa-expand' : 'fa-play'"></i>
+              {{ music.player.currentTrack.value ? '打开正在播放' : '播放今日推荐' }}
+            </button>
           </article>
         </header>
 
@@ -301,14 +281,28 @@
         </div>
       </section>
 
+      <MusicAccountSyncPanel
+        :authenticated="music.authState.value.isAuthenticated"
+        :account="neteaseAccount"
+        :session="neteaseBindSession"
+        :bind-busy="neteaseBindBusy"
+        :sync-busy="neteaseSyncBusy"
+        :sync-result="music.musicSourceSyncResult.value"
+        :error-text="music.musicSourceSyncError.value"
+        @require-login="music.requestMusicLogin()"
+        @bind="music.bindMusicSourceAccount('netease')"
+        @sync="music.importMusicSourcePlaylists('netease')"
+        @open-settings="music.openMusicAuthorization()"
+      />
+
       <section class="panel liquid-material">
         <header class="panel-head">
-          <h2>Meting 歌单</h2>
+          <h2>推荐歌单</h2>
           <span>{{ filteredMetingPlaylists.length }} 个</span>
         </header>
 
         <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state">
-          暂无可展示 Meting 歌单
+          暂无推荐歌单
         </div>
 
         <div class="playlist-grid">
@@ -320,7 +314,7 @@
             type="button"
             @click="handleOpenPlaylist(item.playlistCode)"
           >
-            <div class="cover" :style="coverStyle(item)"></div>
+            <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
             <div class="meta">
               <p class="name">{{ item.name || '未命名歌单' }}</p>
               <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -331,24 +325,7 @@
 
       <section class="panel liquid-material">
         <header class="panel-head">
-          <h2>Spotify 歌单</h2>
-          <span>即将接入</span>
-        </header>
-
-        <div class="playlist-grid">
-          <article v-for="item in spotifyPlaceholderPlaylists" :key="item.id" class="playlist-card is-placeholder">
-            <div class="cover placeholder-cover" :style="{ backgroundImage: item.cover ? `url('${item.cover}')` : '' }"></div>
-            <div class="meta">
-              <p class="name">{{ item.name }}</p>
-              <p class="desc">{{ item.description }}</p>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="panel liquid-material">
-        <header class="panel-head">
-          <h2>主列表推荐</h2>
+          <h2>为你推荐</h2>
           <span>{{ filteredTracks.length }} 首</span>
         </header>
 
@@ -356,6 +333,7 @@
           <span>#</span>
           <span>标题</span>
           <span>歌手</span>
+          <span>专辑</span>
           <span>时长</span>
           <span>操作</span>
         </div>
@@ -371,8 +349,12 @@
           @click="music.playFeaturedTrack(item, index)"
         >
           <span>{{ String(index + 1).padStart(2, '0') }}</span>
-          <span class="title-col">{{ item.title || '未知标题' }}</span>
+          <span class="title-col track-title-col">
+            <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
+            <span class="track-title-text">{{ item.title || '未知标题' }}</span>
+          </span>
           <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
+          <span class="album-col">{{ item.album || '未知专辑' }}</span>
           <span>{{ item.duration || item.durationLabel || '--:--' }}</span>
           <span class="row-actions">
             <button
@@ -406,8 +388,34 @@
       <section class="panel liquid-material">
         <header class="panel-head">
           <h2>歌单总览</h2>
-          <span>Meting + Spotify 占位</span>
+          <span>我的收藏与云端推荐</span>
         </header>
+
+        <section class="provider-block">
+          <div class="provider-head">
+            <h3>我创建的歌单</h3>
+            <span>{{ userCreatedPlaylists.length }}</span>
+          </div>
+          <div v-if="!userCreatedPlaylists.length" class="empty-state compact">
+            暂无自建歌单，可从左侧新建
+          </div>
+          <div class="playlist-grid">
+            <button
+              v-for="item in userCreatedPlaylists"
+              :key="`playlist-created-${item.playlistCode}`"
+              class="playlist-card ripple-trigger"
+              :class="{ opening: openingPlaylistCode === item.playlistCode }"
+              type="button"
+              @click="handleOpenPlaylist(item.playlistCode)"
+            >
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
+              <div class="meta">
+                <p class="name">{{ item.name || '未命名歌单' }}</p>
+                <p class="desc">{{ item.description || `${item.trackCount || 0} 首歌曲` }}</p>
+              </div>
+            </button>
+          </div>
+        </section>
 
         <section class="provider-block">
           <div class="provider-head">
@@ -426,7 +434,7 @@
               type="button"
               @click="handleOpenPlaylist(item.playlistCode)"
             >
-              <div class="cover" :style="coverStyle(item)"></div>
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -437,11 +445,11 @@
 
         <section class="provider-block">
           <div class="provider-head">
-            <h3>Meting</h3>
+            <h3>为你推荐</h3>
             <span>{{ filteredMetingPlaylists.length }}</span>
           </div>
           <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state compact">
-            暂无 Meting 歌单
+            暂无推荐歌单
           </div>
           <div class="playlist-grid">
             <button
@@ -452,7 +460,7 @@
               type="button"
               @click="handleOpenPlaylist(item.playlistCode)"
             >
-              <div class="cover" :style="coverStyle(item)"></div>
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -461,21 +469,6 @@
           </div>
         </section>
 
-        <section class="provider-block">
-          <div class="provider-head">
-            <h3>Spotify</h3>
-            <span>占位</span>
-          </div>
-          <div class="playlist-grid">
-            <article v-for="item in spotifyPlaceholderPlaylists" :key="`playlist-spotify-${item.id}`" class="playlist-card is-placeholder">
-              <div class="cover placeholder-cover" :style="{ backgroundImage: item.cover ? `url('${item.cover}')` : '' }"></div>
-              <div class="meta">
-                <p class="name">{{ item.name }}</p>
-                <p class="desc">{{ item.description }}</p>
-              </div>
-            </article>
-          </div>
-        </section>
       </section>
     </template>
 
@@ -552,6 +545,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
+import MusicAccountSyncPanel from '../../components/music/MusicAccountSyncPanel.vue';
 import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
 import * as musicApi from '../../services/musicApi';
 import { normalizeListeningExtensionWorks } from '../../utils/musicListeningExtension';
@@ -585,12 +579,6 @@ const PLAYLIST_CARD_GAP = 10;
 let openPlaylistTimer = 0;
 let playlistRowResizeObserver = null;
 
-const SPOTIFY_PLACEHOLDER = [
-  { id: 'sp-1', name: 'Spotify 热门精选', description: '即将接入 Spotify 歌单能力', cover: '' },
-  { id: 'sp-2', name: 'Spotify 沉浸电子', description: '后续支持拉取官方歌单', cover: '' },
-  { id: 'sp-3', name: 'Spotify 日推占位', description: '连接后可按账号推荐', cover: '' }
-];
-
 const PODCAST_PLACEHOLDER = [
   { id: 'pod-1', title: '夜间电台（预留）', description: '后续接入外部播客源后可播放', cover: '' },
   { id: 'pod-2', title: '学习频道（预留）', description: '暂为静态占位，不调用外部 API', cover: '' },
@@ -607,28 +595,49 @@ const filteredTracks = computed(() => {
   return Array.isArray(music.homeData.value?.featuredTracks) ? music.homeData.value.featuredTracks : [];
 });
 
-const spotifyPlaceholderPlaylists = computed(() => SPOTIFY_PLACEHOLDER);
 const filteredPodcastCards = computed(() => PODCAST_PLACEHOLDER);
-const listeningExtensionPreview = computed(() => listeningExtensionWorks.value.slice(0, 3));
+const userCreatedPlaylists = computed(() =>
+  (Array.isArray(music.createdPlaylists?.value) ? music.createdPlaylists.value : [])
+);
 const userCollectedPlaylists = computed(() =>
   (Array.isArray(music.collectedPlaylists?.value) ? music.collectedPlaylists.value : [])
 );
-const cozyHeroTitle = computed(() => (filteredTracks.value.length ? '今天想听点什么呀' : '推荐音乐正在准备中'));
+const neteaseAccount = computed(() => music.musicSourceAccounts?.value?.netease || {});
+const neteaseBindSession = computed(() => music.musicSourceBindSessions?.value?.netease || {});
+const neteaseBindBusy = computed(() => Boolean(music.musicSourceBindBusyMap?.value?.netease));
+const neteaseSyncBusy = computed(() => Boolean(music.musicSourceImportBusyMap?.value?.netease));
+const cozyHeroTitle = computed(() => (filteredTracks.value.length ? '今天，从喜欢的音乐开始' : '推荐音乐正在准备中'));
 const cozyHeroDescription = computed(() => {
   const playlistCount = filteredMetingPlaylists.value.length;
   const trackCount = filteredTracks.value.length;
   if (!playlistCount && !trackCount) {
-    return '首页恢复为更柔和的 cozy 入口，推荐歌单与曲目加载完成后会优先展示在这里。';
+    return '搜索多平台曲库、管理个人歌单，并把网易云收藏同步到本站音乐库。';
   }
-  return `已为你准备 ${playlistCount} 个 Meting 歌单和 ${trackCount} 首推荐曲目，保留当前三栏业务壳，只恢复首页的 cozy 入口氛围。`;
+  return `为你准备了 ${playlistCount} 个推荐歌单和 ${trackCount} 首歌曲；搜索、收藏、下一首播放与云歌单同步都在这里完成。`;
 });
 const cozyMoodChips = computed(() => {
-  const chips = [];
-  chips.push(filteredMetingPlaylists.value.length ? `${filteredMetingPlaylists.value.length} 个歌单` : 'Meting 推荐');
-  chips.push(filteredTracks.value.length ? `${filteredTracks.value.length} 首曲目` : '推荐待刷新');
-  chips.push(userCollectedPlaylists.value.length ? `${userCollectedPlaylists.value.length} 个收藏歌单` : 'Spotify 预览');
-  chips.push('继续播放');
-  return chips.slice(0, 4);
+  return [
+    {
+      key: 'playlists',
+      label: filteredMetingPlaylists.value.length ? `${filteredMetingPlaylists.value.length} 个推荐歌单` : '浏览歌单',
+      action: 'playlists'
+    },
+    {
+      key: 'tracks',
+      label: filteredTracks.value.length ? `${filteredTracks.value.length} 首今日推荐` : '刷新推荐',
+      action: 'tracks'
+    },
+    {
+      key: 'collections',
+      label: userCollectedPlaylists.value.length ? `${userCollectedPlaylists.value.length} 个收藏歌单` : '我的歌单',
+      action: 'collections'
+    },
+    {
+      key: 'continue',
+      label: music.player.currentTrack.value ? '继续播放' : '播放第一首',
+      action: 'continue'
+    }
+  ];
 });
 const cozyNowPlaying = computed(() => {
   const track = filteredTracks.value[0] || null;
@@ -637,7 +646,7 @@ const cozyNowPlaying = computed(() => {
     artist: String(track?.artist || 'Shizuki Music').trim() || 'Shizuki Music',
     duration: String(track?.duration || track?.durationLabel || '--:--').trim() || '--:--',
     note: filteredMetingPlaylists.value.length
-      ? `已同步 ${filteredMetingPlaylists.value.length} 个歌单，可以直接从下方卡片进入。`
+      ? `另有 ${filteredMetingPlaylists.value.length} 个推荐歌单，可以直接从下方卡片进入。`
       : '推荐歌单还在加载中，稍后刷新后会出现在下方。'
   };
 });
@@ -646,7 +655,7 @@ const cozyFeaturedCards = computed(() => {
     id: `playlist-${item.playlistCode || item.id || item.name || index}`,
     title: String(item?.name || '未命名歌单').trim() || '未命名歌单',
     description: String(item?.description || '点击进入歌单详情').trim() || '点击进入歌单详情',
-    tag: 'Meting 推荐',
+    tag: providerLabel(item?.sourceProvider || item?.provider) || '推荐歌单',
     cover: String(item?.cover || '').trim(),
     actionable: true,
     playlistCode: String(item?.playlistCode || '').trim()
@@ -663,19 +672,6 @@ const cozyFeaturedCards = computed(() => {
         actionable: true,
         track: item,
         trackIndex: index
-      });
-    });
-  }
-
-  if (cards.length < 4) {
-    spotifyPlaceholderPlaylists.value.slice(0, 4 - cards.length).forEach((item) => {
-      cards.push({
-        id: `spotify-placeholder-${item.id}`,
-        title: item.name,
-        description: item.description,
-        tag: 'Spotify 预览',
-        cover: String(item.cover || '').trim(),
-        actionable: false
       });
     });
   }
@@ -768,6 +764,17 @@ const displayErrorText = computed(() => {
   return String(music.homeError.value || '').trim();
 });
 
+function providerLabel(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  if (normalized === 'netease') return '网易云';
+  if (normalized === 'qq' || normalized === 'qqmusic' || normalized === 'tencent') return 'QQ 音乐';
+  if (normalized === 'kuwo') return '酷我';
+  if (normalized === 'kugou') return '酷狗';
+  if (normalized === 'spotify') return 'Spotify';
+  if (normalized === 'local') return '本站';
+  return normalized ? normalized.toUpperCase() : '';
+}
+
 function coverStyle(item) {
   const url = safeCoverUrl(item?.cover);
   return {
@@ -833,6 +840,46 @@ function handleCozyCardClick(item) {
   }
 }
 
+async function playPrimaryRecommendation() {
+  if (music.player.currentTrack.value) {
+    music.enterPlayerDetail();
+    return;
+  }
+  const firstTrack = filteredTracks.value[0];
+  if (firstTrack && typeof music.playFeaturedTrack === 'function') {
+    await music.playFeaturedTrack(firstTrack, 0);
+    return;
+  }
+  await music.reloadHomeData?.();
+}
+
+async function handleMoodChip(item) {
+  const action = String(item?.action || '').trim();
+  if (action === 'playlists') {
+    music.ui.setActiveNav('playlist');
+    return;
+  }
+  if (action === 'collections') {
+    const firstCollected = userCollectedPlaylists.value[0];
+    if (firstCollected?.playlistCode) {
+      handleOpenPlaylist(firstCollected.playlistCode);
+      return;
+    }
+    music.ui.setActiveNav('playlist');
+    return;
+  }
+  if (action === 'tracks') {
+    const firstTrack = filteredTracks.value[0];
+    if (firstTrack) {
+      await music.playFeaturedTrack(firstTrack, 0);
+      return;
+    }
+    await music.reloadHomeData?.();
+    return;
+  }
+  await playPrimaryRecommendation();
+}
+
 function parseErrorMessage(error, fallback = '听觉延伸内容加载失败，请稍后重试') {
   if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
   if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
@@ -863,10 +910,6 @@ async function loadListeningExtension(options = {}) {
   } finally {
     listeningExtensionLoading.value = false;
   }
-}
-
-function openRadioNav() {
-  music.ui.setActiveNav('radio');
 }
 
 function openVoiceWork(item) {
@@ -1031,6 +1074,88 @@ onBeforeUnmount(() => {
 .cozy-home-block {
   display: grid;
   gap: 14px;
+}
+
+.music-cozy-library .music-cozy-hero {
+  --liquid-bg: linear-gradient(135deg, rgba(229, 42, 48, 0.96), rgba(118, 21, 31, 0.94));
+  --liquid-border: rgba(255, 255, 255, 0.22);
+  --liquid-shadow: 0 22px 48px rgba(91, 10, 20, 0.34);
+  position: relative;
+  overflow: hidden;
+}
+
+.music-cozy-library .music-cozy-hero::after {
+  content: '';
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -74px;
+  top: -110px;
+  border-radius: 50%;
+  border: 44px solid rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.music-cozy-library .hero-copy,
+.music-cozy-library .hero-now-card {
+  position: relative;
+  z-index: 1;
+}
+
+.music-cozy-library .hero-copy .eyebrow,
+.music-cozy-library .hero-copy h1,
+.music-cozy-library .hero-copy p {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.music-cozy-library .hero-copy p {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.music-cozy-library .mood-chip {
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.94);
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.music-cozy-library .mood-chip:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.music-cozy-library .hero-now-card {
+  --liquid-bg: rgba(38, 10, 15, 0.32);
+  --liquid-border: rgba(255, 255, 255, 0.22);
+  --liquid-shadow: 0 16px 34px rgba(50, 5, 12, 0.25);
+}
+
+.music-cozy-library .now-label,
+.music-cozy-library .now-title,
+.music-cozy-library .now-meta,
+.music-cozy-library .now-note {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.music-cozy-library .now-meta,
+.music-cozy-library .now-note {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.now-play-btn {
+  justify-self: start;
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #b91f2c;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(62, 4, 12, 0.22);
 }
 
 .music-cozy-library .album-card.is-static {
@@ -1199,10 +1324,26 @@ onBeforeUnmount(() => {
 }
 
 .cover {
+  position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   background-size: cover;
   background-position: center;
+}
+
+.cover.empty {
+  background-image: linear-gradient(145deg, rgba(229, 42, 48, 0.88), rgba(72, 22, 34, 0.96));
+}
+
+.cover.empty::after {
+  content: '♫';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 38px;
+  text-shadow: 0 8px 18px rgba(25, 0, 4, 0.32);
 }
 
 .placeholder-cover {
@@ -1329,12 +1470,12 @@ onBeforeUnmount(() => {
 
 .search-track-head,
 .search-track-row {
-  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 84px 72px 132px;
+  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 0.95fr) minmax(0, 1.15fr) 72px 132px;
 }
 
 .recommend-track-head,
 .recommend-track-row {
-  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 1fr) 72px 132px;
+  grid-template-columns: 48px minmax(0, 2.1fr) minmax(0, 0.95fr) minmax(0, 1.15fr) 72px 132px;
 }
 
 .track-cover {
@@ -1363,6 +1504,35 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.track-title-copy {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+}
+
+.provider-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  border-radius: 999px;
+  padding: 0 7px;
+  background: rgba(229, 42, 48, 0.14);
+  color: rgba(244, 106, 111, 0.96);
+  border: 1px solid rgba(229, 42, 48, 0.28);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.artist-col,
+.album-col {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--theme-text-secondary);
 }
 
 .row-actions {
@@ -1544,13 +1714,13 @@ onBeforeUnmount(() => {
 
   .search-track-head,
   .search-track-row {
-    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) 66px 58px 122px;
+    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) minmax(0, 0.9fr) 58px 122px;
     gap: 6px;
   }
 
   .recommend-track-head,
   .recommend-track-row {
-    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) 66px 122px;
+    grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) minmax(0, 0.9fr) 58px 122px;
     gap: 6px;
   }
 }

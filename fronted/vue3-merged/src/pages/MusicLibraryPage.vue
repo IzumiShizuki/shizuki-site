@@ -219,6 +219,11 @@ import { formatMediaTime } from '../utils/mediaTime';
 import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
 import {
+  enrichSearchPlaylists,
+  readDurationLabel,
+  readPositiveDurationSec
+} from '../utils/musicSearchMetadata';
+import {
   SOURCE_ACCOUNT_PROVIDERS,
   normalizeMusicSourceModeValue,
   normalizeSourceAccountStatus,
@@ -302,6 +307,8 @@ const musicSourceBusyMap = ref({});
 const musicSourceImportBusyMap = ref({});
 const musicSourceBindBusyMap = ref({});
 const musicSourceBindSessions = ref({});
+const musicSourceSyncResult = ref(null);
+const musicSourceSyncError = ref('');
 const musicSourceMode = ref('meting_first');
 const musicAccountProviderOrder = ref(['netease', 'qqmusic', 'kugou']);
 
@@ -530,7 +537,10 @@ function normalizePlaylistSummary(raw, fallbackCode = DEFAULT_PLAYLIST_CODE) {
     playlistCode: String(raw?.playlistCode || raw?.playlist_code || fallbackCode || DEFAULT_PLAYLIST_CODE).trim(),
     name: String(raw?.name || '未命名歌单').trim() || '未命名歌单',
     description: String(raw?.description || '').trim(),
-    cover: String(raw?.cover || '').trim(),
+    cover: String(raw?.cover || raw?.coverUrl || raw?.cover_url || '').trim(),
+    sourceProvider: String(
+      raw?.sourceProvider || raw?.source_provider || raw?.provider || raw?.providerCode || raw?.provider_code || ''
+    ).trim().toLowerCase(),
     playlistType: String(raw?.playlistType || raw?.playlist_type || '').trim(),
     ownerUserId: Number(raw?.ownerUserId || raw?.owner_user_id || 0),
     isPublic: Boolean(raw?.isPublic ?? raw?.is_public),
@@ -541,25 +551,15 @@ function normalizePlaylistSummary(raw, fallbackCode = DEFAULT_PLAYLIST_CODE) {
 function normalizeApiTrack(raw, index = 0) {
   const id = String(raw?.trackId || raw?.track_id || raw?.id || `track-${index + 1}`);
   const metadata = raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
-  const durationSec = Number.isFinite(Number(
-    raw?.durationSec ?? raw?.duration_sec ?? metadata?.durationSec ?? metadata?.duration_sec
-  ))
-    ? Number(raw?.durationSec ?? raw?.duration_sec ?? metadata?.durationSec ?? metadata?.duration_sec)
-    : null;
-  const durationLabelRaw = String(
-    raw?.durationLabel
-    || raw?.duration_label
-    || raw?.duration
-    || metadata?.durationLabel
-    || metadata?.duration_label
-    || ''
-  ).trim();
+  const durationSec = readPositiveDurationSec(raw);
+  const durationLabelRaw = readDurationLabel(raw);
   const durationLabel = durationLabelRaw || (durationSec != null ? formatMediaTime(durationSec, { fallback: '--:--' }) : '--:--');
   return {
     id,
     trackId: id,
     title: String(raw?.title || id),
     artist: String(raw?.artist || ''),
+    album: String(raw?.album || metadata?.album || ''),
     cover: String(raw?.cover || raw?.coverUrl || raw?.cover_url || ''),
     audio: String(raw?.audio || raw?.audioUrl || raw?.audio_url || ''),
     lyric: String(raw?.lyric || raw?.lyricUrl || raw?.lyric_url || ''),
@@ -613,20 +613,24 @@ function normalizeSearchPlaylist(raw) {
 
 function normalizeSearchTrack(raw, index = 0) {
   const trackId = String(raw?.trackId || raw?.track_id || raw?.id || `search-${index + 1}`).trim() || `search-${index + 1}`;
+  const metadata = raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
+  const durationSec = readPositiveDurationSec(raw);
+  const durationLabelRaw = readDurationLabel(raw);
   return {
     id: trackId,
     trackId,
-    provider: String(raw?.provider || 'local').trim() || 'local',
+    provider: String(raw?.provider || raw?.providerCode || raw?.provider_code || 'local').trim().toLowerCase() || 'local',
     title: String(raw?.title || '').trim() || '未知标题',
     artist: String(raw?.artist || '').trim() || '未知歌手',
-    album: String(raw?.album || '').trim(),
-    cover: String(raw?.cover || '').trim(),
-    durationSec: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec)) ? Number(raw.durationSec ?? raw.duration_sec) : null,
-    durationLabel: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec))
-      ? formatMediaTime(Number(raw.durationSec ?? raw.duration_sec), { fallback: '--:--' })
-      : '--:--',
-    audio: '',
-    lyric: ''
+    album: String(raw?.album || metadata?.album || '').trim(),
+    cover: String(raw?.cover || raw?.coverUrl || raw?.cover_url || '').trim(),
+    durationSec,
+    durationLabel: durationLabelRaw || (durationSec != null ? formatMediaTime(durationSec, { fallback: '--:--' }) : '--:--'),
+    duration: durationLabelRaw || (durationSec != null ? formatMediaTime(durationSec, { fallback: '--:--' }) : '--:--'),
+    audio: String(raw?.audio || raw?.audioUrl || raw?.audio_url || '').trim(),
+    lyric: String(raw?.lyric || raw?.lyricUrl || raw?.lyric_url || '').trim(),
+    lyricText: String(raw?.lyricText || raw?.lyric_text || metadata?.lyricText || metadata?.lyric_text || '').trim(),
+    metadata
   };
 }
 
@@ -1097,12 +1101,13 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       const parsedTracksHasMore = parseSearchHasMore(tracksPayload || {}).tracks;
       const parsedArtistsHasMore = parseSearchHasMore(artistsPayload || {}).artists;
 
+      const hydratedPlaylists = enrichSearchPlaylists(playlists, tracks);
       searchResult.value = {
         query: String(playlistsPayload?.query || tracksPayload?.query || artistsPayload?.query || keyword),
         type: 'all',
         partial: Boolean(playlistsPayload?.partial || tracksPayload?.partial || artistsPayload?.partial || anyRejected),
         failedProviders: mergedFailedProviders,
-        playlists,
+        playlists: hydratedPlaylists,
         tracks,
         artists
       };
@@ -1130,6 +1135,12 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       page: targetPage,
       limit: SEARCH_PAGE_SIZE
     }, searchAuthorizedFetch);
+    const normalizedTracks = Array.isArray(payload?.tracks)
+      ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index))
+      : [];
+    const normalizedPlaylists = Array.isArray(payload?.playlists)
+      ? payload.playlists.map((item) => normalizeSearchPlaylist(item))
+      : [];
     const normalized = {
       query: String(payload?.query || keyword),
       type: String(payload?.type || type || 'all'),
@@ -1137,8 +1148,8 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       failedProviders: Array.isArray(payload?.failedProviders || payload?.failed_providers)
         ? (payload.failedProviders || payload.failed_providers).map((item) => String(item || '').trim()).filter(Boolean)
         : [],
-      playlists: Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [],
-      tracks: Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [],
+      playlists: enrichSearchPlaylists(normalizedPlaylists, normalizedTracks),
+      tracks: normalizedTracks,
       artists: Array.isArray(payload?.artists) ? payload.artists.map((item) => normalizeSearchArtist(item)) : []
     };
     const parsedHasMore = parseSearchHasMore(payload);
@@ -1541,6 +1552,8 @@ async function loadMusicSourceAccountsStatus() {
     musicSourceImportBusyMap.value = {};
     musicSourceBindBusyMap.value = {};
     musicSourceBindSessions.value = {};
+    musicSourceSyncResult.value = null;
+    musicSourceSyncError.value = '';
     return;
   }
   try {
@@ -1643,6 +1656,10 @@ async function handleBindMusicSourceAccount(provider) {
 
     if (String(currentSession?.status || '').trim().toUpperCase() === 'COMPLETED') {
       await loadMusicSourceAccountsStatus();
+      musicSourceBindSessions.value = {
+        ...musicSourceBindSessions.value,
+        [normalizedProvider]: {}
+      };
       return;
     }
 
@@ -1755,15 +1772,23 @@ async function handleImportMusicSourcePlaylists(provider) {
   }
   const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  musicSourceSyncError.value = '';
   musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: true };
   try {
     const payload = await musicApi.importMusicSourcePlaylists(normalizedProvider, auth.authorizedFetch);
+    const result = {
+      provider: normalizedProvider,
+      importedPlaylists: Math.max(0, Number(payload?.importedPlaylists ?? payload?.imported_playlists ?? 0) || 0),
+      importedTracks: Math.max(0, Number(payload?.importedTracks ?? payload?.imported_tracks ?? 0) || 0),
+      skippedPlaylists: Math.max(0, Number(payload?.skippedPlaylists ?? payload?.skipped_playlists ?? 0) || 0),
+      failedPlaylists: Math.max(0, Number(payload?.failedPlaylists ?? payload?.failed_playlists ?? 0) || 0),
+      syncedAt: new Date().toISOString()
+    };
+    musicSourceSyncResult.value = result;
     await loadSidebarData();
-    window.alert(
-      `导入完成：歌单 ${Number(payload?.importedPlaylists || 0)} 个，歌曲 ${Number(payload?.importedTracks || 0)} 首`
-    );
+    return result;
   } catch (error) {
-    window.alert(parseErrorMessage(error, '导入歌单失败'));
+    musicSourceSyncError.value = parseErrorMessage(error, '同步歌单失败，请稍后重试');
   } finally {
     musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: false };
   }
@@ -2296,6 +2321,12 @@ const musicContext = Object.freeze({
   hasActiveSearch,
   createdPlaylists,
   collectedPlaylists,
+  musicSourceAccounts,
+  musicSourceBindSessions,
+  musicSourceBindBusyMap,
+  musicSourceImportBusyMap,
+  musicSourceSyncResult,
+  musicSourceSyncError,
   collectPlaylistTargets,
   currentPlaylistProfile,
   currentPlaylistAllTracks,
@@ -2306,6 +2337,10 @@ const musicContext = Object.freeze({
   collectingPlaylist,
   isCurrentPlaylistCollected,
   requestMusicLogin,
+  bindMusicSourceAccount: handleBindMusicSourceAccount,
+  importMusicSourcePlaylists: handleImportMusicSourcePlaylists,
+  refreshMusicSourceAccounts: loadMusicSourceAccountsStatus,
+  openMusicAuthorization,
   reloadHomeData: loadHomeData,
   triggerMusicSearch,
   setSearchPlaylistRowCapacity,

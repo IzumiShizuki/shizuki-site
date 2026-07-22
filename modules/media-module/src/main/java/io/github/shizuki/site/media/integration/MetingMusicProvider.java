@@ -45,15 +45,25 @@ public class MetingMusicProvider {
     public MetingMusicProvider(MetingMusicProperties properties,
                                RestClient.Builder restClientBuilder,
                                ObjectMapper objectMapper) {
+        this(properties, buildRestClient(properties, restClientBuilder), objectMapper);
+    }
+
+    MetingMusicProvider(MetingMusicProperties properties,
+                        RestClient restClient,
+                        ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.restClient = restClient;
+    }
 
+    private static RestClient buildRestClient(MetingMusicProperties properties,
+                                              RestClient.Builder restClientBuilder) {
         HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
             .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));
-        this.restClient = restClientBuilder.requestFactory(requestFactory).build();
+        return restClientBuilder.requestFactory(requestFactory).build();
     }
 
     public Set<String> listSupportedPlatforms() {
@@ -244,16 +254,16 @@ public class MetingMusicProvider {
         return result;
     }
 
-    public List<VirtualPlaylistSummary> searchPlaylists(String apiKey,
-                                                        String platform,
-                                                        String keyword,
-                                                        int page,
-                                                        int limit) {
+    public List<VirtualPlaylistSummary> buildSearchPlaylists(String platform,
+                                                             String keyword,
+                                                             List<SearchTrackResult> previewTracks) {
         String normalizedPlatform = normalizePlatformCode(platform);
         String normalizedKeyword = readString(keyword, "");
         if (!StringUtils.hasText(normalizedPlatform) || !StringUtils.hasText(normalizedKeyword)) {
             return List.of();
         }
+        List<SearchTrackResult> safePreviewTracks = previewTracks == null ? List.of() : previewTracks;
+        String cover = safePreviewTracks.isEmpty() ? "" : readString(safePreviewTracks.get(0).cover(), "");
         String encodedKeyword = encodeVirtualSearchKeyword(normalizedKeyword);
         return List.of(
             new VirtualPlaylistSummary(
@@ -262,7 +272,7 @@ public class MetingMusicProvider {
                 encodedKeyword,
                 resolveProviderDisplayName(normalizedPlatform) + " 搜索: " + normalizedKeyword,
                 "Meting 搜索虚拟歌单",
-                "",
+                cover,
                 buildVirtualPlaylistCode(normalizedPlatform, "search", encodedKeyword),
                 null
             )

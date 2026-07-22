@@ -12,6 +12,38 @@ use Metowolf\Meting;
 
 const DEFAULT_SUPPORTED_PROVIDERS = ['netease', 'kuwo', 'qq'];
 
+/**
+ * Preserve duration metadata that upstream Meting currently drops while
+ * normalizing provider-specific search and playlist rows.
+ */
+final class ShizukiMeting extends Meting
+{
+    protected function format_netease($data)
+    {
+        $result = parent::format_netease($data);
+        $rawDuration = $data['dt'] ?? $data['duration'] ?? null;
+        $result['durationSec'] = normalizeDurationSeconds($rawDuration, true);
+        return $result;
+    }
+
+    protected function format_tencent($data)
+    {
+        $source = isset($data['musicData']) && is_array($data['musicData'])
+            ? $data['musicData']
+            : $data;
+        $result = parent::format_tencent($data);
+        $result['durationSec'] = normalizeDurationSeconds($source['interval'] ?? null);
+        return $result;
+    }
+
+    protected function format_kuwo($data)
+    {
+        $result = parent::format_kuwo($data);
+        $result['durationSec'] = normalizeDurationSeconds($data['duration'] ?? null);
+        return $result;
+    }
+}
+
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $uri = parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
 $path = rtrim((string)$uri, '/');
@@ -98,7 +130,7 @@ function handleSearch(): void
             'artist' => $artist,
             'album' => trim((string)($row['album'] ?? '')),
             'cover' => $cover,
-            'durationSec' => null
+            'durationSec' => readDurationSeconds($row)
         ];
     }
 
@@ -150,7 +182,7 @@ function handlePlaylist(): void
             'audio' => '',
             'lyricText' => '',
             'sort' => $sort,
-            'durationSec' => null
+            'durationSec' => readDurationSeconds($row)
         ];
         $sort += 1;
     }
@@ -213,7 +245,7 @@ function handleTrackResolve(): void
 function createMetingClient(string $provider): Meting
 {
     $server = mapProviderToMetingServer($provider);
-    $api = new Meting($server);
+    $api = new ShizukiMeting($server);
     $api->format(true);
     return $api;
 }
@@ -297,6 +329,42 @@ function joinArtists($rawArtist): string
         return implode(', ', $parts);
     }
     return trim((string)$rawArtist);
+}
+
+function readDurationSeconds(array $row): ?int
+{
+    return normalizeDurationSeconds($row['durationSec'] ?? null);
+}
+
+function normalizeDurationSeconds($value, bool $milliseconds = false): ?int
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    if (is_numeric($value)) {
+        $seconds = (float)$value;
+        if ($milliseconds) {
+            $seconds /= 1000;
+        }
+        $normalized = (int)floor($seconds);
+        return $normalized > 0 ? $normalized : null;
+    }
+
+    $parts = explode(':', trim((string)$value));
+    if (count($parts) < 2 || count($parts) > 3) {
+        return null;
+    }
+
+    $seconds = 0.0;
+    foreach ($parts as $part) {
+        if (!is_numeric($part)) {
+            return null;
+        }
+        $seconds = ($seconds * 60) + (float)$part;
+    }
+    $normalized = (int)floor($seconds);
+    return $normalized > 0 ? $normalized : null;
 }
 
 function sanitizeMessage(string $message): string
