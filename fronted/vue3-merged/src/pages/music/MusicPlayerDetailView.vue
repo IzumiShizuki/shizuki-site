@@ -31,7 +31,7 @@
         </header>
 
         <section class="lyric-scroll-shell">
-          <div class="lyric-center-guide" aria-hidden="true"></div>
+          <div v-show="centerTimeVisible" class="lyric-center-guide" aria-hidden="true"></div>
 
           <SubtleScrollArea
             class="lyric-scroll"
@@ -47,8 +47,9 @@
               v-for="(row, index) in renderedRows"
               :key="`lyric-row-${index}-${row.time}`"
               :ref="(el) => setLyricRowRef(el, index)"
-              class="lyric-row ripple-trigger"
+              class="lyric-row"
               :class="{ active: index === activeScrollIndex }"
+              :aria-current="index === activeScrollIndex ? 'true' : undefined"
               type="button"
               @click="seekToLyricRow(row.time)"
             >
@@ -587,9 +588,9 @@ onBeforeUnmount(() => {
 
 .lyric-scroll-shell {
   position: relative;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(180deg, rgba(18, 24, 36, 0.74), rgba(14, 18, 28, 0.7));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   min-height: 0;
   overflow: hidden;
   isolation: isolate;
@@ -620,56 +621,70 @@ onBeforeUnmount(() => {
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;
-  gap: clamp(8px, 1.4vh, 14px);
+  gap: clamp(1px, 0.45vh, 5px);
   scrollbar-gutter: stable;
   overflow-anchor: none;
-  scroll-snap-type: y proximity;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10%, #000 90%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 10%, #000 90%, transparent 100%);
   outline: none;
 }
 
-.lyric-row {
+.music-player-detail-view .lyric-scroll .lyric-row {
   width: 100%;
   min-width: 0;
-  min-height: 58px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: rgba(188, 199, 220, 0.88);
+  min-height: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(188, 199, 220, 0.88) !important;
   text-align: center;
-  padding: 8px 12px;
+  padding: clamp(5px, 0.8vh, 9px) 4px;
   display: grid;
   align-content: center;
   justify-items: center;
-  scroll-snap-align: center;
+  opacity: 0.54;
+  cursor: pointer;
   transition:
-    opacity 300ms ease,
-    color 300ms ease,
-    text-shadow 300ms ease,
-    background-color 300ms ease;
+    opacity 260ms ease,
+    color 260ms ease,
+    text-shadow 260ms ease;
 }
 .lyric-row .line-main,
 .lyric-row .line-sub {
   max-width: 100%;
   margin: 0;
-  line-height: 1.35;
+  line-height: 1.42;
   overflow-wrap: anywhere;
 }
 
 .lyric-row .line-main {
-  font-size: clamp(22px, 2.1vw, 30px);
-  font-weight: 600;
+  font-size: clamp(20px, 1.85vw, 27px);
+  font-weight: 560;
 }
 
 .lyric-row .line-sub {
-  margin-top: 4px;
-  font-size: clamp(16px, 1.55vw, 22px);
-  color: rgba(168, 182, 208, 0.82);
+  margin-top: 2px;
+  font-size: clamp(13px, 1.18vw, 17px);
+  color: rgba(178, 190, 214, 0.78);
+  font-weight: 450;
 }
 
-.lyric-row.active {
-  color: rgba(248, 251, 255, 0.99);
-  text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.25);
-  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.09) 25%, rgba(var(--accent-rgb), 0.12) 50%, rgba(var(--accent-rgb), 0.09) 75%, transparent);
+.music-player-detail-view .lyric-scroll .lyric-row:hover {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(225, 232, 245, 0.94) !important;
+  opacity: 0.82;
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row.active {
+  border-color: transparent !important;
+  color: rgba(248, 251, 255, 0.99) !important;
+  opacity: 1;
+  text-shadow: 0 0 18px rgba(var(--accent-rgb), 0.22);
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .lyric-row.active .line-main {
@@ -677,7 +692,7 @@ onBeforeUnmount(() => {
 }
 
 .lyric-row.active .line-sub {
-  color: rgba(232, 240, 255, 0.95);
+  color: rgba(225, 233, 248, 0.92);
 }
 
 .center-time-pill {
@@ -863,11 +878,11 @@ onBeforeUnmount(() => {
   }
 
   .lyric-row .line-main {
-    font-size: clamp(21px, 2.4vw, 26px);
+    font-size: clamp(19px, 2.2vw, 25px);
   }
 
   .lyric-row .line-sub {
-    font-size: clamp(15px, 1.85vw, 20px);
+    font-size: clamp(13px, 1.55vw, 17px);
   }
 }
 
@@ -984,16 +999,16 @@ onBeforeUnmount(() => {
   }
 
   .lyric-row {
-    min-height: 48px;
-    padding-inline: 6px;
+    min-height: 0;
+    padding: 5px 3px;
   }
 
   .lyric-row .line-main {
-    font-size: clamp(19px, 5.4vw, 24px);
+    font-size: clamp(18px, 5vw, 23px);
   }
 
   .lyric-row .line-sub {
-    font-size: clamp(14px, 4vw, 18px);
+    font-size: clamp(12px, 3.6vw, 16px);
   }
 
   .center-time-pill {
