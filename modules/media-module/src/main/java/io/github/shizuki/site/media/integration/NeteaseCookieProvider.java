@@ -115,7 +115,7 @@ public class NeteaseCookieProvider {
             }
         }
 
-        List<String> orderedTrackIds = extractTrackIds(playlist);
+        List<String> orderedTrackIds = new ArrayList<>(new LinkedHashSet<>(extractTrackIds(playlist)));
         if (orderedTrackIds.size() > safeLimit) {
             orderedTrackIds = new ArrayList<>(orderedTrackIds.subList(0, safeLimit));
         }
@@ -127,7 +127,7 @@ public class NeteaseCookieProvider {
                 }
             }
             if (!missingIds.isEmpty()) {
-                Map<String, Map<String, Object>> detailMap = loadSongDetails(missingIds);
+                Map<String, Map<String, Object>> detailMap = loadSongDetails(missingIds, normalizedCookie);
                 songRowsById.putAll(detailMap);
             }
         }
@@ -170,7 +170,7 @@ public class NeteaseCookieProvider {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
         }
         String normalizedCookie = normalizeCookie(cookie);
-        Map<String, Map<String, Object>> detailMap = loadSongDetails(List.of(normalizedTrackId));
+        Map<String, Map<String, Object>> detailMap = loadSongDetails(List.of(normalizedTrackId), normalizedCookie);
         Map<String, Object> song = detailMap.get(normalizedTrackId);
 
         String title = readString(song == null ? null : song.get("name"), "");
@@ -219,7 +219,7 @@ public class NeteaseCookieProvider {
         return userId;
     }
 
-    private Map<String, Map<String, Object>> loadSongDetails(List<String> trackIds) {
+    private Map<String, Map<String, Object>> loadSongDetails(List<String> trackIds, String cookie) {
         Map<String, Map<String, Object>> result = new LinkedHashMap<>();
         if (trackIds == null || trackIds.isEmpty()) {
             return result;
@@ -227,22 +227,56 @@ public class NeteaseCookieProvider {
         List<String> normalizedIds = trackIds.stream()
             .map(item -> readString(item, ""))
             .filter(StringUtils::hasText)
+            .distinct()
             .toList();
         for (int offset = 0; offset < normalizedIds.size(); offset += SONG_DETAIL_BATCH_SIZE) {
             int end = Math.min(normalizedIds.size(), offset + SONG_DETAIL_BATCH_SIZE);
             List<String> batch = normalizedIds.subList(offset, end);
-            String idsJson = "[" + batch.stream().map(id -> "\"" + id + "\"").reduce((a, b) -> a + "," + b).orElse("") + "]";
-            Map<String, Object> payload = requestJson(
-                "https://music.163.com/api/song/detail",
-                Map.of("ids", idsJson),
-                null
-            );
-            List<Map<String, Object>> songs = toObjectMapList(payload.get("songs"));
-            for (Map<String, Object> row : songs) {
-                String id = readString(row.get("id"), "");
-                if (StringUtils.hasText(id)) {
-                    result.put(id, row);
+            Map<String, Map<String, Object>> batchDetails = new LinkedHashMap<>();
+            try {
+                batchDetails.putAll(requestSongDetails(batch, null));
+            } catch (Exception ex) {
+                LOGGER.warn(
+                    "MUSIC_NETEASE_SONG_DETAIL_FAIL stage=anonymous batch_size={} reason_type={}",
+                    batch.size(),
+                    ex.getClass().getSimpleName()
+                );
+            }
+
+            List<String> missingIds = batch.stream()
+                .filter(id -> !batchDetails.containsKey(id))
+                .toList();
+            if (!missingIds.isEmpty() && StringUtils.hasText(cookie)) {
+                try {
+                    batchDetails.putAll(requestSongDetails(missingIds, cookie));
+                } catch (Exception ex) {
+                    LOGGER.warn(
+                        "MUSIC_NETEASE_SONG_DETAIL_FAIL stage=account_fallback batch_size={} reason_type={}",
+                        missingIds.size(),
+                        ex.getClass().getSimpleName()
+                    );
                 }
+            }
+            result.putAll(batchDetails);
+        }
+        return result;
+    }
+
+    private Map<String, Map<String, Object>> requestSongDetails(List<String> trackIds, String cookie) {
+        String idsJson = "[" + trackIds.stream()
+            .map(id -> "\"" + id + "\"")
+            .reduce((a, b) -> a + "," + b)
+            .orElse("") + "]";
+        Map<String, Object> payload = requestJson(
+            "https://music.163.com/api/song/detail",
+            Map.of("ids", idsJson),
+            cookie
+        );
+        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
+        for (Map<String, Object> row : toObjectMapList(payload.get("songs"))) {
+            String id = readString(row.get("id"), "");
+            if (StringUtils.hasText(id)) {
+                result.put(id, row);
             }
         }
         return result;
