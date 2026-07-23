@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -29,10 +30,19 @@ public class NeteaseCookieProvider {
 
     private final RestClient restClient;
 
+    @Autowired
     public NeteaseCookieProvider(RestClient.Builder restClientBuilder) {
+        this(buildRestClient(restClientBuilder));
+    }
+
+    NeteaseCookieProvider(RestClient restClient) {
+        this.restClient = restClient;
+    }
+
+    private static RestClient buildRestClient(RestClient.Builder restClientBuilder) {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory();
         requestFactory.setReadTimeout(java.time.Duration.ofSeconds(10));
-        this.restClient = restClientBuilder.requestFactory(requestFactory).build();
+        return restClientBuilder.requestFactory(requestFactory).build();
     }
 
     public boolean verifyCookie(String cookie) {
@@ -106,6 +116,9 @@ public class NeteaseCookieProvider {
         }
 
         List<String> orderedTrackIds = extractTrackIds(playlist);
+        if (orderedTrackIds.size() > safeLimit) {
+            orderedTrackIds = new ArrayList<>(orderedTrackIds.subList(0, safeLimit));
+        }
         if (!orderedTrackIds.isEmpty()) {
             List<String> missingIds = new ArrayList<>();
             for (String id : orderedTrackIds) {
@@ -114,7 +127,7 @@ public class NeteaseCookieProvider {
                 }
             }
             if (!missingIds.isEmpty()) {
-                Map<String, Map<String, Object>> detailMap = loadSongDetails(missingIds, normalizedCookie);
+                Map<String, Map<String, Object>> detailMap = loadSongDetails(missingIds);
                 songRowsById.putAll(detailMap);
             }
         }
@@ -157,7 +170,7 @@ public class NeteaseCookieProvider {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
         }
         String normalizedCookie = normalizeCookie(cookie);
-        Map<String, Map<String, Object>> detailMap = loadSongDetails(List.of(normalizedTrackId), normalizedCookie);
+        Map<String, Map<String, Object>> detailMap = loadSongDetails(List.of(normalizedTrackId));
         Map<String, Object> song = detailMap.get(normalizedTrackId);
 
         String title = readString(song == null ? null : song.get("name"), "");
@@ -206,7 +219,7 @@ public class NeteaseCookieProvider {
         return userId;
     }
 
-    private Map<String, Map<String, Object>> loadSongDetails(List<String> trackIds, String cookie) {
+    private Map<String, Map<String, Object>> loadSongDetails(List<String> trackIds) {
         Map<String, Map<String, Object>> result = new LinkedHashMap<>();
         if (trackIds == null || trackIds.isEmpty()) {
             return result;
@@ -222,7 +235,7 @@ public class NeteaseCookieProvider {
             Map<String, Object> payload = requestJson(
                 "https://music.163.com/api/song/detail",
                 Map.of("ids", idsJson),
-                cookie
+                null
             );
             List<Map<String, Object>> songs = toObjectMapList(payload.get("songs"));
             for (Map<String, Object> row : songs) {
@@ -289,9 +302,13 @@ public class NeteaseCookieProvider {
         String finalUrl = appendQuery(url, query);
         String body = restClient.get()
             .uri(finalUrl)
-            .header("Referer", "https://music.163.com/")
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .header("Cookie", normalizeCookie(cookie))
+            .headers(headers -> {
+                headers.set("Referer", "https://music.163.com/");
+                headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+                if (StringUtils.hasText(cookie)) {
+                    headers.set("Cookie", cookie.trim());
+                }
+            })
             .retrieve()
             .body(String.class);
         Map<String, Object> json = tryParseJson(body);
