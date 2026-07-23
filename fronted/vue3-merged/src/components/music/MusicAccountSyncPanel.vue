@@ -279,9 +279,19 @@ const resultStats = computed(() => ({
   skippedPlaylists: readCount(props.syncResult, 'skippedPlaylists', 'skipped_playlists'),
   failedPlaylists: readCount(props.syncResult, 'failedPlaylists', 'failed_playlists')
 }));
-const syncResultTitle = computed(() => (
-  resultStats.value.failedPlaylists > 0 ? '同步完成，部分歌单需重试' : '歌单同步完成'
-));
+const syncResultTitle = computed(() => {
+  if (resultStats.value.importedPlaylists === 0 && resultStats.value.failedPlaylists > 0) {
+    return '同步失败，没有导入歌单';
+  }
+  if (
+    resultStats.value.importedPlaylists === 0
+    && resultStats.value.importedTracks === 0
+    && resultStats.value.skippedPlaylists === 0
+  ) {
+    return '没有找到可同步歌单';
+  }
+  return resultStats.value.failedPlaylists > 0 ? '同步完成，部分歌单需重试' : '歌单同步完成';
+});
 </script>
 
 <style scoped>

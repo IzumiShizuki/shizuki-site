@@ -21,12 +21,15 @@ import io.github.shizuki.site.media.response.AssetDownloadResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.request.MusicResolvePlaybackRequest;
 import io.github.shizuki.site.media.response.MusicSearchResponse;
+import io.github.shizuki.site.media.response.MusicSourcePlaylistImportResponse;
 import io.github.shizuki.site.media.response.MusicTrackResponse;
 import io.github.shizuki.site.media.response.MusicVoiceWorkBundleResponse;
 import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.response.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaAssetGroupAclEntity;
+import io.github.shizuki.site.media.entity.UserMusicPlaylistEntity;
+import io.github.shizuki.site.media.entity.UserMusicPlaylistTrackEntity;
 import io.github.shizuki.site.media.mapper.MediaAssetGroupAclMapper;
 import io.github.shizuki.site.media.mapper.MediaAssetMapper;
 import io.github.shizuki.site.media.mapper.MediaAssetReportMapper;
@@ -54,7 +57,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.TransactionDefinition;
@@ -888,6 +893,203 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldImportSourcePlaylistAtomicallyAndExposeSourceProvider() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        NoOpTransactionManager transactionManager = new NoOpTransactionManager();
+        mediaService = buildMediaService(
+            "th_test_default_key",
+            new TransactionTemplate(transactionManager)
+        );
+        NeteaseCookieProvider.PlaylistSummary sourcePlaylist = new NeteaseCookieProvider.PlaylistSummary(
+            "playlist-1",
+            "同步歌单",
+            "来自网易云",
+            "https://cover.example.com/playlist.jpg",
+            2
+        );
+        List<NeteaseCookieProvider.TrackSummary> sourceTracks = List.of(
+            new NeteaseCookieProvider.TrackSummary(
+                "track-1",
+                "第一首",
+                "歌手甲",
+                "https://cover.example.com/track-1.jpg",
+                180,
+                "专辑甲"
+            ),
+            new NeteaseCookieProvider.TrackSummary(
+                "track-2",
+                "第二首",
+                "歌手乙",
+                "https://cover.example.com/track-2.jpg",
+                240,
+                "专辑乙"
+            )
+        );
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=9; token=test");
+        Mockito.when(neteaseCookieProvider.listUserPlaylists("MUSIC_U=9; token=test", 300))
+            .thenReturn(List.of(sourcePlaylist));
+        Mockito.when(neteaseCookieProvider.listPlaylistTracks("playlist-1", "MUSIC_U=9; token=test", 1000))
+            .thenReturn(sourceTracks);
+
+        MusicSourcePlaylistImportResponse response = mediaService.importSourceAccountPlaylists("netease");
+
+        Assertions.assertEquals(1, response.importedPlaylists());
+        Assertions.assertEquals(2, response.importedTracks());
+        Assertions.assertEquals(0, response.failedPlaylists());
+        Assertions.assertEquals(1, transactionManager.beginCount);
+        Assertions.assertEquals(1, transactionManager.commitCount);
+        Assertions.assertEquals(0, transactionManager.rollbackCount);
+
+        InOrder order = Mockito.inOrder(neteaseCookieProvider, userMusicPlaylistMapper);
+        order.verify(neteaseCookieProvider).listUserPlaylists("MUSIC_U=9; token=test", 300);
+        order.verify(neteaseCookieProvider).listPlaylistTracks("playlist-1", "MUSIC_U=9; token=test", 1000);
+        order.verify(userMusicPlaylistMapper, Mockito.times(2)).selectOne(ArgumentMatchers.any());
+
+        ArgumentCaptor<UserMusicPlaylistEntity> playlistCaptor = ArgumentCaptor.forClass(UserMusicPlaylistEntity.class);
+        Mockito.verify(userMusicPlaylistMapper).insert(playlistCaptor.capture());
+        UserMusicPlaylistEntity importedPlaylist = playlistCaptor.getValue();
+        Assertions.assertTrue(importedPlaylist.getMetadataJson().contains("\"sourceProvider\":\"netease\""));
+
+        Mockito.when(userMusicPlaylistMapper.selectOne(ArgumentMatchers.any())).thenReturn(importedPlaylist);
+        Mockito.when(userMusicPlaylistTrackMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
+        MusicPlaylistBundleResponse bundle = mediaService.getMusicPlaylistBundle(importedPlaylist.getPlaylistCode());
+
+        Assertions.assertEquals("netease", bundle.profile().sourceProvider());
+    }
+
+    @Test
+    void shouldRollbackFirstSourcePlaylistAndContinueWithSecond() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        NoOpTransactionManager transactionManager = new NoOpTransactionManager();
+        mediaService = buildMediaService(
+            "th_test_default_key",
+            new TransactionTemplate(transactionManager)
+        );
+        NeteaseCookieProvider.PlaylistSummary firstPlaylist = new NeteaseCookieProvider.PlaylistSummary(
+            "playlist-fail",
+            "失败歌单",
+            "",
+            "",
+            1
+        );
+        NeteaseCookieProvider.PlaylistSummary secondPlaylist = new NeteaseCookieProvider.PlaylistSummary(
+            "playlist-ok",
+            "成功歌单",
+            "",
+            "",
+            1
+        );
+        NeteaseCookieProvider.TrackSummary firstTrack = new NeteaseCookieProvider.TrackSummary(
+            "track-fail",
+            "失败曲目",
+            "歌手甲",
+            "",
+            180,
+            ""
+        );
+        NeteaseCookieProvider.TrackSummary secondTrack = new NeteaseCookieProvider.TrackSummary(
+            "track-ok",
+            "成功曲目",
+            "歌手乙",
+            "",
+            200,
+            ""
+        );
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=9; token=test");
+        Mockito.when(neteaseCookieProvider.listUserPlaylists("MUSIC_U=9; token=test", 300))
+            .thenReturn(List.of(firstPlaylist, secondPlaylist));
+        Mockito.when(neteaseCookieProvider.listPlaylistTracks("playlist-fail", "MUSIC_U=9; token=test", 1000))
+            .thenReturn(List.of(firstTrack));
+        Mockito.when(neteaseCookieProvider.listPlaylistTracks("playlist-ok", "MUSIC_U=9; token=test", 1000))
+            .thenReturn(List.of(secondTrack));
+        Mockito.when(userMusicPlaylistMapper.insert(ArgumentMatchers.any(UserMusicPlaylistEntity.class)))
+            .thenThrow(new IllegalStateException("first playlist insert failed"))
+            .thenReturn(1);
+
+        MusicSourcePlaylistImportResponse response = mediaService.importSourceAccountPlaylists("netease");
+
+        Assertions.assertEquals(1, response.importedPlaylists());
+        Assertions.assertEquals(1, response.importedTracks());
+        Assertions.assertEquals(1, response.failedPlaylists());
+        Assertions.assertEquals(2, transactionManager.beginCount);
+        Assertions.assertEquals(1, transactionManager.commitCount);
+        Assertions.assertEquals(1, transactionManager.rollbackCount);
+        Mockito.verify(neteaseCookieProvider).listPlaylistTracks("playlist-ok", "MUSIC_U=9; token=test", 1000);
+        Mockito.verify(userMusicPlaylistMapper, Mockito.times(2))
+            .insert(ArgumentMatchers.any(UserMusicPlaylistEntity.class));
+        Mockito.verify(userMusicPlaylistTrackMapper, Mockito.times(1)).delete(ArgumentMatchers.any());
+        Mockito.verify(userMusicPlaylistTrackMapper, Mockito.times(1))
+            .insert(ArgumentMatchers.<UserMusicPlaylistTrackEntity>argThat(
+                track -> "track-ok".equals(track.getTrackId())
+            ));
+    }
+
+    @Test
+    void shouldRejectEmptySourcePlaylistResult() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        NoOpTransactionManager transactionManager = new NoOpTransactionManager();
+        mediaService = buildMediaService(
+            "th_test_default_key",
+            new TransactionTemplate(transactionManager)
+        );
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=9; token=test");
+        Mockito.when(neteaseCookieProvider.listUserPlaylists("MUSIC_U=9; token=test", 300))
+            .thenReturn(List.of());
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> mediaService.importSourceAccountPlaylists("netease")
+        );
+
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+        Assertions.assertEquals(
+            "网易云没有返回可同步歌单，请重新绑定账号后重试",
+            exception.getMessage()
+        );
+        Assertions.assertEquals(0, transactionManager.beginCount);
+        Mockito.verifyNoInteractions(userMusicPlaylistMapper, userMusicPlaylistTrackMapper);
+    }
+
+    @Test
+    void shouldPreserveExistingPlaylistWhenSourceTracksUnexpectedlyEmpty() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        NoOpTransactionManager transactionManager = new NoOpTransactionManager();
+        mediaService = buildMediaService(
+            "th_test_default_key",
+            new TransactionTemplate(transactionManager)
+        );
+        NeteaseCookieProvider.PlaylistSummary sourcePlaylist = new NeteaseCookieProvider.PlaylistSummary(
+            "playlist-empty-tracks",
+            "曲目异常歌单",
+            "",
+            "",
+            3
+        );
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=9; token=test");
+        Mockito.when(neteaseCookieProvider.listUserPlaylists("MUSIC_U=9; token=test", 300))
+            .thenReturn(List.of(sourcePlaylist));
+        Mockito.when(neteaseCookieProvider.listPlaylistTracks(
+            "playlist-empty-tracks",
+            "MUSIC_U=9; token=test",
+            1000
+        )).thenReturn(List.of());
+
+        MusicSourcePlaylistImportResponse response = mediaService.importSourceAccountPlaylists("netease");
+
+        Assertions.assertEquals(0, response.importedPlaylists());
+        Assertions.assertEquals(0, response.importedTracks());
+        Assertions.assertEquals(1, response.failedPlaylists());
+        Assertions.assertEquals(0, transactionManager.beginCount);
+        Assertions.assertEquals(0, transactionManager.commitCount);
+        Assertions.assertEquals(0, transactionManager.rollbackCount);
+        Mockito.verifyNoInteractions(userMusicPlaylistMapper, userMusicPlaylistTrackMapper);
+    }
+
+    @Test
     void shouldReturnCoverAndLyricTextWhenResolvePlaybackUsesParseResult() {
         MusicResolvePlaybackRequest request = new MusicResolvePlaybackRequest();
         request.setProvider("netease");
@@ -966,6 +1168,13 @@ class MediaServiceImplTest {
     }
 
     private MediaServiceImpl buildMediaService(String defaultApiKey) {
+        return buildMediaService(
+            defaultApiKey,
+            new TransactionTemplate(new NoOpTransactionManager())
+        );
+    }
+
+    private MediaServiceImpl buildMediaService(String defaultApiKey, TransactionTemplate transactionTemplate) {
         MediaStorageProperties mediaStorageProperties = new MediaStorageProperties();
         mediaStorageProperties.setPublicBucket("shizuki-public");
         mediaStorageProperties.setPrivateBucket("shizuki-private");
@@ -1019,11 +1228,15 @@ class MediaServiceImplTest {
             metingMusicProperties,
             listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
-            new TransactionTemplate(new NoOpTransactionManager())
+            transactionTemplate
         );
     }
 
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {
+
+        private int beginCount;
+        private int commitCount;
+        private int rollbackCount;
 
         @Override
         protected Object doGetTransaction() {
@@ -1032,14 +1245,17 @@ class MediaServiceImplTest {
 
         @Override
         protected void doBegin(Object transaction, TransactionDefinition definition) {
+            beginCount += 1;
         }
 
         @Override
         protected void doCommit(DefaultTransactionStatus status) {
+            commitCount += 1;
         }
 
         @Override
         protected void doRollback(DefaultTransactionStatus status) {
+            rollbackCount += 1;
         }
     }
 }

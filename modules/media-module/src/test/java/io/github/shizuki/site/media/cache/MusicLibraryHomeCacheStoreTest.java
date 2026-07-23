@@ -3,8 +3,10 @@ package io.github.shizuki.site.media.cache;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.site.media.config.MusicLibraryHomeCacheProperties;
 import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.response.MusicTrackResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,52 @@ class MusicLibraryHomeCacheStoreTest {
     }
 
     @Test
+    void shouldReadCachedHomeWhenEveryFeaturedTrackHasPositiveDuration() throws Exception {
+        MusicLibraryHomeResponse expected = new MusicLibraryHomeResponse(
+            List.of(),
+            List.of(trackWithMetadata(Map.of("durationSec", 275)))
+        );
+        String payload = new ObjectMapper().writeValueAsString(expected);
+        Mockito.when(valueOperations.get("music:library:home:test")).thenReturn(payload);
+
+        MusicLibraryHomeResponse actual = cacheStore.read();
+
+        Assertions.assertNotNull(actual);
+        Assertions.assertEquals(275, actual.featuredTracks().get(0).metadata().get("durationSec"));
+        Mockito.verify(redisTemplate, Mockito.never()).delete(Mockito.anyString());
+    }
+
+    @Test
+    void shouldEvictCachedHomeWhenFeaturedTrackDurationIsMissing() throws Exception {
+        MusicLibraryHomeResponse stale = new MusicLibraryHomeResponse(
+            List.of(),
+            List.of(trackWithMetadata(Map.of("album", "WHITE ALBUM")))
+        );
+        String payload = new ObjectMapper().writeValueAsString(stale);
+        Mockito.when(valueOperations.get("music:library:home:test")).thenReturn(payload);
+
+        MusicLibraryHomeResponse actual = cacheStore.read();
+
+        Assertions.assertNull(actual);
+        Mockito.verify(redisTemplate).delete("music:library:home:test");
+    }
+
+    @Test
+    void shouldEvictCachedHomeWhenFeaturedTrackDurationIsNotPositive() throws Exception {
+        MusicLibraryHomeResponse stale = new MusicLibraryHomeResponse(
+            List.of(),
+            List.of(trackWithMetadata(Map.of("durationSec", 0)))
+        );
+        String payload = new ObjectMapper().writeValueAsString(stale);
+        Mockito.when(valueOperations.get("music:library:home:test")).thenReturn(payload);
+
+        MusicLibraryHomeResponse actual = cacheStore.read();
+
+        Assertions.assertNull(actual);
+        Mockito.verify(redisTemplate).delete("music:library:home:test");
+    }
+
+    @Test
     void shouldWriteCacheWithTtl() {
         MusicLibraryHomeResponse value = new MusicLibraryHomeResponse(List.of(), List.of());
 
@@ -56,6 +104,22 @@ class MusicLibraryHomeCacheStoreTest {
             Mockito.eq("music:library:home:test"),
             Mockito.anyString(),
             Mockito.eq(Duration.ofSeconds(3600L))
+        );
+    }
+
+    private MusicTrackResponse trackWithMetadata(Map<String, Object> metadata) {
+        return new MusicTrackResponse(
+            "track-1",
+            "netease",
+            "WHITE ALBUM",
+            "平野綾",
+            "https://cover.example/white-album.png",
+            "",
+            "",
+            1,
+            true,
+            "",
+            metadata
         );
     }
 }

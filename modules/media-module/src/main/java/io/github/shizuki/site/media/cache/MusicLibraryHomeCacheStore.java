@@ -4,7 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.site.media.config.MusicLibraryHomeCacheProperties;
 import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
+import io.github.shizuki.site.media.response.MusicTrackResponse;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -44,10 +47,50 @@ public class MusicLibraryHomeCacheStore {
             if (!StringUtils.hasText(payload)) {
                 return null;
             }
-            return objectMapper.readValue(payload, MusicLibraryHomeResponse.class);
+            MusicLibraryHomeResponse cached = objectMapper.readValue(payload, MusicLibraryHomeResponse.class);
+            if (hasMissingPositiveTrackDuration(cached)) {
+                LOGGER.info("MUSIC_LIBRARY_HOME_CACHE_STALE key={} reason=missing_positive_track_duration",
+                    properties.getRedisKey());
+                redisTemplate.delete(properties.getRedisKey());
+                return null;
+            }
+            return cached;
         } catch (Exception ex) {
             LOGGER.warn("MUSIC_LIBRARY_HOME_CACHE_READ_FAIL key={} reason={}", properties.getRedisKey(), ex.getMessage());
             return null;
+        }
+    }
+
+    private boolean hasMissingPositiveTrackDuration(MusicLibraryHomeResponse value) {
+        if (value == null || value.featuredTracks() == null) {
+            return true;
+        }
+        List<MusicTrackResponse> tracks = value.featuredTracks();
+        if (tracks.isEmpty()) {
+            return false;
+        }
+        return tracks.stream().anyMatch(track -> !hasPositiveDuration(track));
+    }
+
+    private boolean hasPositiveDuration(MusicTrackResponse track) {
+        if (track == null) {
+            return false;
+        }
+        Map<String, Object> metadata = track.metadata();
+        if (metadata == null) {
+            return false;
+        }
+        Object rawDuration = metadata.get("durationSec");
+        if (rawDuration instanceof Number number) {
+            return number.doubleValue() > 0D;
+        }
+        if (rawDuration == null) {
+            return false;
+        }
+        try {
+            return Double.parseDouble(String.valueOf(rawDuration)) > 0D;
+        } catch (NumberFormatException ex) {
+            return false;
         }
     }
 

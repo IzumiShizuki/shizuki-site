@@ -115,15 +115,21 @@ public class MetingMusicProvider {
         for (String platform : normalizedOrder) {
             String configuredPlaylistId = readString(properties.findDefaultPlaylistId(platform), "");
             if (StringUtils.hasText(configuredPlaylistId)) {
+                VirtualPlaylistSummary upstreamSummary = loadPlaylistSummary(
+                    apiKey,
+                    platform,
+                    "playlist",
+                    configuredPlaylistId
+                );
                 result.add(new VirtualPlaylistSummary(
                     platform,
                     "playlist",
                     configuredPlaylistId,
                     resolveProviderDisplayName(platform) + " 推荐歌单",
                     "Meting 推荐歌单",
-                    "",
+                    upstreamSummary == null ? "" : readString(upstreamSummary.cover(), ""),
                     buildVirtualPlaylistCode(platform, "playlist", configuredPlaylistId),
-                    null
+                    upstreamSummary == null ? null : upstreamSummary.trackCount()
                 ));
                 if (safeLimit <= 1) {
                     continue;
@@ -137,7 +143,7 @@ public class MetingMusicProvider {
                 encodeVirtualSearchKeyword(keyword),
                 resolveProviderDisplayName(platform) + " 热歌",
                 "Meting 搜索虚拟歌单",
-                "",
+                loadSearchPlaylistCover(apiKey, platform, keyword),
                 buildVirtualPlaylistCode(platform, "search", encodeVirtualSearchKeyword(keyword)),
                 null
             ));
@@ -314,6 +320,24 @@ public class MetingMusicProvider {
                 sanitizeLogMessage(ex.getMessage()));
             return null;
         }
+    }
+
+    private String loadSearchPlaylistCover(String apiKey, String platform, String keyword) {
+        try {
+            List<SearchTrackResult> previewTracks = searchTracks(apiKey, platform, keyword, 1, 1);
+            for (SearchTrackResult track : previewTracks) {
+                String cover = readString(track.cover(), "");
+                if (StringUtils.hasText(cover)) {
+                    return cover;
+                }
+            }
+        } catch (Exception ex) {
+            LOGGER.warn("MUSIC_METING_LOAD_SEARCH_PLAYLIST_COVER_FAIL provider={} keyword={} reason={}",
+                normalizePlatformCode(platform),
+                keyword,
+                sanitizeLogMessage(ex.getMessage()));
+        }
+        return "";
     }
 
     public ParseTrackResult parseSingleTrack(String apiKey,

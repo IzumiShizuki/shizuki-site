@@ -199,6 +199,8 @@ public class MediaServiceImpl implements MediaService {
     private static final String MUSIC_ERROR_CODE_SOURCE_PROVIDER_UNSUPPORTED = "MUSIC_SOURCE_PROVIDER_UNSUPPORTED";
     private static final String MUSIC_ERROR_CODE_SOURCE_IMPORT_PROVIDER_UNSUPPORTED =
         "MUSIC_SOURCE_IMPORT_PROVIDER_UNSUPPORTED";
+    private static final String MUSIC_ERROR_CODE_SOURCE_PLAYLISTS_EMPTY =
+        "MUSIC_SOURCE_PLAYLISTS_EMPTY";
     private static final String SOURCE_MODE_ACCOUNT_FIRST = "account_first";
     private static final String SOURCE_MODE_METING_FIRST = "meting_first";
     private static final String SOURCE_MODE_ACCOUNT_ONLY = "account_only";
@@ -850,7 +852,7 @@ public class MediaServiceImpl implements MediaService {
                         PLAYLIST_TYPE_CUSTOM,
                         0L,
                         true,
-                        0,
+                        item.trackCount() == null ? 0 : Math.max(0, item.trackCount()),
                         normalizeSourceProvider(item.platform())
                     ));
                 }
@@ -3117,7 +3119,6 @@ public class MediaServiceImpl implements MediaService {
      * {@inheritDoc}
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public MusicSourcePlaylistImportResponse importSourceAccountPlaylists(String provider) {
         Long userId = requireLoginUserId();
         String normalizedProvider = normalizeSourceAccountProvider(provider);
@@ -3143,7 +3144,18 @@ public class MediaServiceImpl implements MediaService {
             );
         }
 
-        List<NeteaseCookieProvider.PlaylistSummary> sourcePlaylists = neteaseCookieProvider.listUserPlaylists(cookie, 300);
+        List<NeteaseCookieProvider.PlaylistSummary> sourcePlaylists =
+            neteaseCookieProvider.listUserPlaylists(cookie, 300);
+        if (sourcePlaylists == null || sourcePlaylists.isEmpty()) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "网易云没有返回可同步歌单，请重新绑定账号后重试",
+                Map.of(
+                    "music_error_code", MUSIC_ERROR_CODE_SOURCE_PLAYLISTS_EMPTY,
+                    "provider", normalizedProvider
+                )
+            );
+        }
         int importedPlaylists = 0;
         int importedTracks = 0;
         int skippedPlaylists = 0;
@@ -3156,43 +3168,25 @@ public class MediaServiceImpl implements MediaService {
             }
             try {
                 String playlistCode = buildSourceImportPlaylistCode(normalizedProvider, sourcePlaylistId, userId);
-                UserMusicPlaylistEntity playlist = upsertSourceImportedPlaylist(userId, playlistCode, normalizedProvider, sourcePlaylist);
-
                 List<NeteaseCookieProvider.TrackSummary> sourceTracks =
                     neteaseCookieProvider.listPlaylistTracks(sourcePlaylistId, cookie, 1000);
-                userMusicPlaylistTrackMapper.delete(
-                    new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
-                        .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlist.getPlaylistCode())
-                );
-                int sort = 1;
-                for (NeteaseCookieProvider.TrackSummary sourceTrack : sourceTracks) {
-                    String trackId = readString(sourceTrack.trackId(), "");
-                    if (!StringUtils.hasText(trackId)) {
-                        continue;
-                    }
-                    UserMusicPlaylistTrackEntity trackEntity = new UserMusicPlaylistTrackEntity();
-                    trackEntity.setPlaylistCode(playlist.getPlaylistCode());
-                    trackEntity.setProviderCode(normalizedProvider);
-                    trackEntity.setTrackId(trackId);
-                    trackEntity.setTitle(readString(sourceTrack.title(), trackId));
-                    trackEntity.setArtist(readString(sourceTrack.artist(), "未知歌手"));
-                    trackEntity.setCoverUrl(readString(sourceTrack.cover(), ""));
-                    trackEntity.setAudioUrl("");
-                    trackEntity.setLyricUrl("");
-                    trackEntity.setSortNum(sort++);
-                    trackEntity.setEnabledFlag(true);
-                    trackEntity.setMetadataJson(writeJson(sanitizeTrackMetadata(Map.of(
-                        "provider", normalizedProvider,
-                        "album", readString(sourceTrack.album(), ""),
-                        "durationSec", sourceTrack.durationSec() == null ? 0 : Math.max(0, sourceTrack.durationSec()),
-                        "sourceScene", "account_import",
-                        "playlistCode", playlist.getPlaylistCode()
-                    ))));
-                    trackEntity.setCreatedAt(LocalDateTime.now());
-                    trackEntity.setUpdatedAt(LocalDateTime.now());
-                    userMusicPlaylistTrackMapper.insert(trackEntity);
-                    importedTracks += 1;
+                int sourceTrackCount = sourcePlaylist.trackCount() == null
+                    ? 0
+                    : Math.max(0, sourcePlaylist.trackCount());
+                if (sourceTrackCount > 0 && (sourceTracks == null || sourceTracks.isEmpty())) {
+                    throw new BusinessException(
+                        ErrorCode.BAD_REQUEST,
+                        "网易云歌单未返回曲目，已保留本站原有数据"
+                    );
                 }
+                Integer importedTrackCount = transactionTemplate.execute(status -> replaceSourceImportedPlaylist(
+                    userId,
+                    playlistCode,
+                    normalizedProvider,
+                    sourcePlaylist,
+                    sourceTracks
+                ));
+                importedTracks += importedTrackCount == null ? 0 : Math.max(0, importedTrackCount);
                 importedPlaylists += 1;
             } catch (Exception ex) {
                 failedPlaylists += 1;
@@ -4312,6 +4306,58 @@ public class MediaServiceImpl implements MediaService {
         return compact.substring(0, 64);
     }
 
+    private int replaceSourceImportedPlaylist(Long userId,
+                                              String playlistCode,
+                                              String provider,
+                                              NeteaseCookieProvider.PlaylistSummary sourcePlaylist,
+                                              List<NeteaseCookieProvider.TrackSummary> sourceTracks) {
+        UserMusicPlaylistEntity playlist = upsertSourceImportedPlaylist(
+            userId,
+            playlistCode,
+            provider,
+            sourcePlaylist
+        );
+        userMusicPlaylistTrackMapper.delete(
+            new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+                .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlist.getPlaylistCode())
+        );
+
+        int importedTracks = 0;
+        int sort = 1;
+        List<NeteaseCookieProvider.TrackSummary> tracksToImport = sourceTracks == null
+            ? List.of()
+            : sourceTracks;
+        for (NeteaseCookieProvider.TrackSummary sourceTrack : tracksToImport) {
+            String trackId = readString(sourceTrack.trackId(), "");
+            if (!StringUtils.hasText(trackId)) {
+                continue;
+            }
+            UserMusicPlaylistTrackEntity trackEntity = new UserMusicPlaylistTrackEntity();
+            trackEntity.setPlaylistCode(playlist.getPlaylistCode());
+            trackEntity.setProviderCode(provider);
+            trackEntity.setTrackId(trackId);
+            trackEntity.setTitle(readString(sourceTrack.title(), trackId));
+            trackEntity.setArtist(readString(sourceTrack.artist(), "未知歌手"));
+            trackEntity.setCoverUrl(readString(sourceTrack.cover(), ""));
+            trackEntity.setAudioUrl("");
+            trackEntity.setLyricUrl("");
+            trackEntity.setSortNum(sort++);
+            trackEntity.setEnabledFlag(true);
+            trackEntity.setMetadataJson(writeJson(sanitizeTrackMetadata(Map.of(
+                "provider", provider,
+                "album", readString(sourceTrack.album(), ""),
+                "durationSec", sourceTrack.durationSec() == null ? 0 : Math.max(0, sourceTrack.durationSec()),
+                "sourceScene", "account_import",
+                "playlistCode", playlist.getPlaylistCode()
+            ))));
+            trackEntity.setCreatedAt(LocalDateTime.now());
+            trackEntity.setUpdatedAt(LocalDateTime.now());
+            userMusicPlaylistTrackMapper.insert(trackEntity);
+            importedTracks += 1;
+        }
+        return importedTracks;
+    }
+
     private UserMusicPlaylistEntity upsertSourceImportedPlaylist(Long userId,
                                                                  String playlistCode,
                                                                  String provider,
@@ -4429,7 +4475,7 @@ public class MediaServiceImpl implements MediaService {
         }
     }
 
-    private Map<String, Object> readTrackMetadata(String rawJson) {
+    private Map<String, Object> readMetadataObject(String rawJson) {
         String json = readString(rawJson, "");
         if (!StringUtils.hasText(json)) {
             return Map.of();
@@ -4437,10 +4483,14 @@ public class MediaServiceImpl implements MediaService {
         try {
             Map<String, Object> parsed = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
             });
-            return sanitizeTrackMetadata(parsed);
+            return parsed;
         } catch (Exception ex) {
             return Map.of();
         }
+    }
+
+    private Map<String, Object> readTrackMetadata(String rawJson) {
+        return sanitizeTrackMetadata(readMetadataObject(rawJson));
     }
 
     private Map<String, Object> sanitizeTrackMetadata(Map<String, Object> rawMetadata) {
@@ -5102,6 +5152,12 @@ public class MediaServiceImpl implements MediaService {
             return new MusicPlaylistSummaryResponse("", "", "", "", PLAYLIST_TYPE_CUSTOM, 0L, false, 0);
         }
         String playlistType = readString(entity.getPlaylistType(), PLAYLIST_TYPE_CUSTOM).toUpperCase(Locale.ROOT);
+        String sourceProvider = normalizeSourceProvider(readMetadataString(
+            readMetadataObject(entity.getMetadataJson()),
+            "sourceProvider",
+            "source_provider",
+            "provider"
+        ));
         return new MusicPlaylistSummaryResponse(
             readString(entity.getPlaylistCode(), ""),
             readString(entity.getName(), "我的歌单"),
@@ -5111,7 +5167,7 @@ public class MediaServiceImpl implements MediaService {
             entity.getUserId() == null ? 0L : entity.getUserId(),
             Boolean.TRUE.equals(entity.getPublicFlag()),
             Math.max(0, trackCount),
-            ""
+            sourceProvider
         );
     }
 

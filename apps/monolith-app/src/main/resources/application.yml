@@ -160,7 +160,7 @@ shizuki:
       url-ttl-threshold-seconds: ${MUSIC_LISTEN_CACHE_URL_TTL_THRESHOLD_SECONDS:86400}
     library-home-cache:
       enabled: ${MUSIC_LIBRARY_HOME_CACHE_ENABLED:true}
-      redis-key: ${MUSIC_LIBRARY_HOME_CACHE_REDIS_KEY:music:library:home:v1}
+      redis-key: ${MUSIC_LIBRARY_HOME_CACHE_REDIS_KEY:music:library:home:v2}
       ttl-seconds: ${MUSIC_LIBRARY_HOME_CACHE_TTL_SECONDS:172800}
       refresh-cron: ${MUSIC_LIBRARY_HOME_CACHE_REFRESH_CRON:0 0 0 * * *}
       refresh-zone: ${MUSIC_LIBRARY_HOME_CACHE_REFRESH_ZONE:Asia/Shanghai}

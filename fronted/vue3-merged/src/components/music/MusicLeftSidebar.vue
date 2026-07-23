@@ -24,6 +24,11 @@
       </button>
     </nav>
 
+    <div v-if="errorText" class="sidebar-error" role="alert">
+      <span>{{ errorText }}</span>
+      <button class="retry-sidebar-btn ripple-trigger" type="button" @click="emit('retry')">重试</button>
+    </div>
+
     <section class="list-block">
       <h3>我的音乐</h3>
       <button
@@ -61,7 +66,7 @@
         type="button"
         @click="emit('select-playlist', item.playlistCode)"
       >
-        <i class="fas fa-record-vinyl"></i>
+        <i :class="item.sourceProvider ? 'fas fa-cloud-arrow-down' : 'fas fa-record-vinyl'"></i>
         <span>{{ item.name }}</span>
       </button>
 
@@ -97,10 +102,11 @@ defineProps({
   selectedPlaylistCode: { type: String, default: '' },
   canCreate: { type: Boolean, default: false },
   isMobile: { type: Boolean, default: false },
-  drawerOpen: { type: Boolean, default: false }
+  drawerOpen: { type: Boolean, default: false },
+  errorText: { type: String, default: '' }
 });
 
-const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'close-drawer']);
+const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'close-drawer', 'retry']);
 </script>
 
 <style scoped>
@@ -180,6 +186,30 @@ const emit = defineEmits(['select-nav', 'select-playlist', 'create-playlist', 'c
   text-transform: uppercase;
   color: var(--music-soft-text-dim, rgba(214, 203, 192, 0.74));
   margin: 0 2px 2px;
+}
+
+.sidebar-error {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(236, 65, 65, 0.42);
+  border-radius: 12px;
+  background: rgba(236, 65, 65, 0.1);
+  color: var(--music-soft-text, rgba(248, 244, 239, 0.96));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.retry-sidebar-btn {
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: rgba(236, 65, 65, 0.88);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .nav-item,

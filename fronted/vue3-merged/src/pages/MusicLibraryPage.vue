@@ -26,9 +26,11 @@
           :can-create="auth.isAuthenticated.value"
           :is-mobile="isMobileViewport"
           :drawer-open="ui.leftDrawerOpen.value"
+          :error-text="sidebarError"
           @select-nav="handleSelectNav"
           @select-playlist="openPlaylistDetail"
           @create-playlist="handleCreatePlaylist"
+          @retry="loadSidebarData"
           @close-drawer="ui.setLeftDrawerOpen(false)"
         />
 
@@ -293,6 +295,7 @@ const sidebarData = ref({
   createdPlaylists: [],
   collectedPlaylists: []
 });
+const sidebarError = ref('');
 
 const metingStatus = ref({ available: false, providers: ['netease', 'kuwo', 'qq'] });
 const metingStatusBusy = ref(false);
@@ -1412,6 +1415,7 @@ function maybeAutoLoadNextSearchPage() {
 
 async function loadSidebarData() {
   if (!auth.isAuthenticated.value) {
+    sidebarError.value = '';
     sidebarData.value = {
       defaultPlaylist: {
         playlistCode: DEFAULT_PLAYLIST_CODE,
@@ -1423,10 +1427,11 @@ async function loadSidebarData() {
       collectedPlaylists: []
     };
     likedTrackIds.value = new Set();
-    return;
+    return true;
   }
 
   try {
+    sidebarError.value = '';
     const payload = await musicApi.getMyMusicLibrarySidebar(auth.authorizedFetch);
     sidebarData.value = {
       defaultPlaylist: normalizePlaylistSummary(payload?.defaultPlaylist || payload?.default_playlist, DEFAULT_PLAYLIST_CODE),
@@ -1439,18 +1444,10 @@ async function loadSidebarData() {
         : []
     };
     await loadLikedTrackIds();
-  } catch {
-    sidebarData.value = {
-      defaultPlaylist: {
-        playlistCode: DEFAULT_PLAYLIST_CODE,
-        name: '默认歌单',
-        description: '全站共通默认歌单'
-      },
-      likedPlaylist: null,
-      createdPlaylists: [],
-      collectedPlaylists: []
-    };
-    likedTrackIds.value = new Set();
+    return true;
+  } catch (error) {
+    sidebarError.value = parseErrorMessage(error, '歌单加载失败，请重试');
+    return false;
   }
 }
 
@@ -1775,6 +1772,7 @@ async function handleImportMusicSourcePlaylists(provider) {
   const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
   musicSourceSyncError.value = '';
+  musicSourceSyncResult.value = null;
   musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: true };
   try {
     const payload = await musicApi.importMusicSourcePlaylists(normalizedProvider, auth.authorizedFetch);
@@ -1787,7 +1785,20 @@ async function handleImportMusicSourcePlaylists(provider) {
       syncedAt: new Date().toISOString()
     };
     musicSourceSyncResult.value = result;
-    await loadSidebarData();
+    if (result.importedPlaylists === 0 && result.failedPlaylists > 0) {
+      musicSourceSyncError.value = '本次没有导入任何歌单，所有歌单均同步失败，请重试';
+    } else if (
+      result.importedPlaylists === 0
+      && result.importedTracks === 0
+      && result.skippedPlaylists === 0
+      && result.failedPlaylists === 0
+    ) {
+      musicSourceSyncError.value = '网易云没有返回可同步歌单，请重新绑定账号后重试';
+    }
+    const sidebarLoaded = await loadSidebarData();
+    if (!sidebarLoaded) {
+      musicSourceSyncError.value = sidebarError.value || '歌单已同步，但列表刷新失败，请重试';
+    }
     return result;
   } catch (error) {
     musicSourceSyncError.value = parseErrorMessage(error, '同步歌单失败，请稍后重试');

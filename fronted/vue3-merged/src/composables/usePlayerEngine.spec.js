@@ -174,6 +174,46 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.currentTrack.value?.durationLabel).toBe('04:00');
   });
 
+  it('preserves duration and preview metadata when enqueuing the next track', async () => {
+    const engine = usePlayerEngine();
+
+    await engine.enqueueNextTrack({
+      provider: 'netease',
+      trackId: 'queued-duration-seconds',
+      title: 'Duration Seconds',
+      artist: 'Singer',
+      audio: 'https://audio.example.com/duration-seconds.mp3',
+      durationSec: 258,
+      durationLabel: '04:18',
+      playbackKind: 'preview'
+    });
+    await engine.enqueueNextTrack({
+      provider: 'netease',
+      trackId: 'queued-duration-milliseconds',
+      title: 'Duration Milliseconds',
+      artist: 'Singer',
+      audio: 'https://audio.example.com/duration-milliseconds.mp3',
+      durationMs: 248000,
+      duration: '04:08 catalog',
+      playbackKind: 'full',
+      isPreview: true
+    });
+
+    expect(engine.tracks.value).toHaveLength(2);
+    expect(engine.tracks.value[0]).toMatchObject({
+      durationSec: 258,
+      durationLabel: '04:18',
+      playbackKind: 'preview',
+      isPreview: true
+    });
+    expect(engine.tracks.value[1]).toMatchObject({
+      durationSec: 248,
+      durationLabel: '04:08 catalog',
+      playbackKind: 'preview',
+      isPreview: true
+    });
+  });
+
   it('recognizes a short preview when timed lyrics extend beyond media without catalog duration', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/preview-without-duration.mp3',

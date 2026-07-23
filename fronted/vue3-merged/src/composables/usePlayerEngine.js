@@ -1103,6 +1103,12 @@ export function usePlayerEngine(options = {}) {
         lrc: rawTrack?.lrc,
         tlyric: rawTrack?.tlyric,
         romalrc: rawTrack?.romalrc,
+        durationSec: rawTrack?.durationSec ?? rawTrack?.duration_sec,
+        durationMs: rawTrack?.durationMs ?? rawTrack?.duration_ms,
+        durationLabel: rawTrack?.durationLabel ?? rawTrack?.duration_label,
+        duration: rawTrack?.duration,
+        playbackKind: rawTrack?.playbackKind ?? rawTrack?.playback_kind,
+        isPreview: rawTrack?.isPreview === true || rawTrack?.is_preview === true,
         metadata: rawTrack?.metadata,
         sort: rawTrack?.sort || 0
       },

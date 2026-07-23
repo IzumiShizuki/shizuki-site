@@ -73,4 +73,19 @@ describe('MusicAccountSyncPanel', () => {
     expect(wrapper.get('[data-testid="sync-result"]').text()).toContain('126');
     expect(wrapper.get('[data-testid="sync-error"]').text()).toContain('私密歌单未能同步');
   });
+
+  it('does not present an all-failed import as a partial success', () => {
+    const wrapper = mountPanel({
+      authenticated: true,
+      syncResult: {
+        importedPlaylists: 0,
+        importedTracks: 0,
+        skippedPlaylists: 0,
+        failedPlaylists: 14
+      }
+    });
+
+    expect(wrapper.get('[data-testid="sync-result"]').text()).toContain('同步失败，没有导入歌单');
+    expect(wrapper.get('[data-testid="sync-result"]').text()).not.toContain('同步完成');
+  });
 });

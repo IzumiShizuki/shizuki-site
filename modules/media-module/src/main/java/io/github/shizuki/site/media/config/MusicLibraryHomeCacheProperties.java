@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class MusicLibraryHomeCacheProperties {
 
     private boolean enabled = true;
-    private String redisKey = "music:library:home:v1";
+    private String redisKey = "music:library:home:v2";
     private long ttlSeconds = 172_800L;
     private String refreshCron = "0 0 0 * * *";
     private String refreshZone = "Asia/Shanghai";
@@ -29,7 +29,7 @@ public class MusicLibraryHomeCacheProperties {
     }
 
     public void setRedisKey(String redisKey) {
-        this.redisKey = redisKey == null ? "music:library:home:v1" : redisKey.trim();
+        this.redisKey = redisKey == null ? "music:library:home:v2" : redisKey.trim();
     }
 
     public long getTtlSeconds() {
