@@ -76,6 +76,18 @@ describe('MusicRightPanel', () => {
     expect(wrapper.emitted('set-eq-level')).toEqual([[{ index: 1, value: 0.8 }]]);
   });
 
+  it('uses Chinese UI text for the Spotify settings workspace', () => {
+    const wrapper = mountPanel({ expandedProvider: 'spotify' });
+    const text = wrapper.text();
+
+    expect(text).toContain('音乐设置');
+    expect(text).toContain('连接账号');
+    expect(text).toContain('音乐发现');
+    expect(text).toContain('暂无匹配曲目');
+    expect(wrapper.find('.spotify-search-row input, .search-widget input').attributes('placeholder'))
+      .toBe('搜索 Spotify 歌曲、歌手或专辑');
+  });
+
   it('seeks to the clicked timestamped lyric line', async () => {
     const wrapper = mountPanel();
     const currentLine = wrapper.find('.lyric-card .line.current');

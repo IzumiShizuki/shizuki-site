@@ -140,7 +140,7 @@
                 </div>
               </div>
               <div class="tile-badge" :class="{ active: spotifyBound }">
-                {{ spotifyBound ? 'SYNCED' : 'READY' }}
+                {{ spotifyBound ? '已连接' : '可使用' }}
               </div>
             </div>
           </button>
@@ -149,20 +149,20 @@
             <div v-if="isSpotifyExpanded" class="tile-expanded-content">
               <div class="spotify-actions-top">
                 <button class="premium-btn ghost ripple-trigger" @click="emit('open-music-authorization')">
-                  Settings
+                  音乐设置
                 </button>
                 <button class="premium-btn accent ripple-trigger" @click="emit('bind-spotify')" :disabled="spotifyBusy || !isAuthenticated">
-                  {{ spotifyBound ? 'Reconnect' : 'Connect Account' }}
+                  {{ spotifyBound ? '重新连接' : '连接账号' }}
                 </button>
               </div>
 
               <div class="search-widget">
-                <div class="field-label">Music Discovery</div>
+                <div class="field-label">音乐发现</div>
                 <div class="input-with-action">
                   <input
                     :value="spotifyQuery"
                     type="text"
-                    placeholder="Search Spotify..."
+                    placeholder="搜索 Spotify 歌曲、歌手或专辑"
                     :disabled="!spotifySearchReady"
                     @input="emit('update:spotifyQuery', $event.target.value)"
                     @keydown.enter.prevent="emit('search-spotify')"
@@ -188,7 +188,7 @@
                     </button>
                   </div>
                 </div>
-                <p v-if="!spotifyResults.length" class="empty-notif">No tracks found</p>
+                <p v-if="!spotifyResults.length" class="empty-notif">暂无匹配曲目</p>
               </div>
             </div>
           </transition>
