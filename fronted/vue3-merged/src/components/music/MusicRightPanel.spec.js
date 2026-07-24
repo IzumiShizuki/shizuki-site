@@ -87,4 +87,19 @@ describe('MusicRightPanel', () => {
 
     expect(wrapper.emitted('seek-lyric')).toEqual([[12]]);
   });
+
+  it('disables lyric lines without a synchronized timestamp', () => {
+    const wrapper = mountPanel({
+      lyricContext: {
+        prev: '',
+        prevTime: null,
+        current: '纯音乐，无歌词',
+        currentTime: null,
+        next: '',
+        nextTime: null
+      }
+    });
+
+    expect(wrapper.find('.lyric-card .line.current').attributes('disabled')).toBeDefined();
+  });
 });

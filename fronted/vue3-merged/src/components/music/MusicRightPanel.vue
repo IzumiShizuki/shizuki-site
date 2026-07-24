@@ -400,7 +400,9 @@ const lyricDisplay = computed(() => {
 });
 
 function isSeekableLyricTime(value) {
-  return Number.isFinite(Number(value)) && Number(value) >= 0;
+  if (value === null || value === undefined || value === '') return false;
+  const time = Number(value);
+  return Number.isFinite(time) && time >= 0;
 }
 
 function lyricSeekTitle(value) {
