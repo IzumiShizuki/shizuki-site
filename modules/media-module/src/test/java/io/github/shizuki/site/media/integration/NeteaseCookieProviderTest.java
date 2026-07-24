@@ -184,6 +184,42 @@ class NeteaseCookieProviderTest {
     }
 
     @Test
+    void shouldRetryTransientNeteaseDetailCodeFailuresBeforeImportingTracks() {
+        expectPlaylistDetail("""
+            {
+              "code": 200,
+              "playlist": {
+                "trackIds": [{"id": 101}],
+                "tracks": []
+              }
+            }
+            """);
+        server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
+            .andExpect(request -> Assertions.assertFalse(request.getHeaders().containsKey("Cookie")))
+            .andRespond(withSuccess("""
+                {"code": -460}
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
+            .andExpect(request -> Assertions.assertFalse(request.getHeaders().containsKey("Cookie")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "songs": [
+                    {"id": 101, "name": "Retried track", "dt": 245000}
+                  ]
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        List<NeteaseCookieProvider.TrackSummary> tracks =
+            provider.listPlaylistTracks("playlist-1", ACCOUNT_COOKIE, 1);
+
+        Assertions.assertEquals(List.of("101"), tracks.stream()
+            .map(NeteaseCookieProvider.TrackSummary::trackId)
+            .toList());
+        server.verify();
+    }
+
+    @Test
     void shouldDeduplicateTrackIdsBeforeApplyingLimit() {
         expectPlaylistDetail("""
             {

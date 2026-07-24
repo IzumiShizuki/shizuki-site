@@ -27,6 +27,8 @@ public class NeteaseCookieProvider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NeteaseCookieProvider.class);
     private static final int SONG_DETAIL_BATCH_SIZE = 100;
+    private static final int SONG_DETAIL_RETRY_ATTEMPTS = 3;
+    private static final long SONG_DETAIL_RETRY_DELAY_MILLIS = 350L;
 
     private final RestClient restClient;
 
@@ -238,7 +240,7 @@ public class NeteaseCookieProvider {
             List<String> batch = normalizedIds.subList(offset, end);
             Map<String, Map<String, Object>> batchDetails = new LinkedHashMap<>();
             try {
-                batchDetails.putAll(requestSongDetails(batch, null));
+                batchDetails.putAll(requestSongDetailsWithRetry(batch, null));
             } catch (Exception ex) {
                 LOGGER.warn(
                     "MUSIC_NETEASE_SONG_DETAIL_FAIL stage=anonymous batch_size={} reason_type={}",
@@ -252,7 +254,7 @@ public class NeteaseCookieProvider {
                 .toList();
             if (!missingIds.isEmpty() && StringUtils.hasText(cookie)) {
                 try {
-                    batchDetails.putAll(requestSongDetails(missingIds, cookie));
+                    batchDetails.putAll(requestSongDetailsWithRetry(missingIds, cookie));
                 } catch (Exception ex) {
                     LOGGER.warn(
                         "MUSIC_NETEASE_SONG_DETAIL_FAIL stage=account_fallback batch_size={} reason_type={}",
@@ -264,6 +266,32 @@ public class NeteaseCookieProvider {
             result.putAll(batchDetails);
         }
         return result;
+    }
+
+    private Map<String, Map<String, Object>> requestSongDetailsWithRetry(List<String> trackIds, String cookie) {
+        BusinessException lastFailure = null;
+        for (int attempt = 1; attempt <= SONG_DETAIL_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return requestSongDetails(trackIds, cookie);
+            } catch (BusinessException ex) {
+                lastFailure = ex;
+                if (attempt < SONG_DETAIL_RETRY_ATTEMPTS) {
+                    waitForSongDetailRetry(attempt);
+                }
+            }
+        }
+        throw lastFailure == null
+            ? new BusinessException(ErrorCode.BAD_REQUEST, "Netease song detail request failed")
+            : lastFailure;
+    }
+
+    private void waitForSongDetailRetry(int completedAttempt) {
+        try {
+            Thread.sleep(SONG_DETAIL_RETRY_DELAY_MILLIS * Math.max(1, completedAttempt));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Netease song detail request interrupted");
+        }
     }
 
     private Map<String, Map<String, Object>> requestSongDetails(List<String> trackIds, String cookie) {
