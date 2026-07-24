@@ -4317,10 +4317,7 @@ public class MediaServiceImpl implements MediaService {
             provider,
             sourcePlaylist
         );
-        userMusicPlaylistTrackMapper.delete(
-            new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
-                .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlist.getPlaylistCode())
-        );
+        userMusicPlaylistTrackMapper.deleteAllByPlaylistCode(playlist.getPlaylistCode());
 
         int importedTracks = 0;
         int sort = 1;

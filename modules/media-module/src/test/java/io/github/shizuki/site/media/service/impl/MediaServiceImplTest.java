@@ -1072,7 +1072,8 @@ class MediaServiceImplTest {
         Mockito.verify(neteaseCookieProvider).listPlaylistTracks("playlist-ok", "MUSIC_U=9; token=test", 1000);
         Mockito.verify(userMusicPlaylistMapper, Mockito.times(2))
             .insert(ArgumentMatchers.any(UserMusicPlaylistEntity.class));
-        Mockito.verify(userMusicPlaylistTrackMapper, Mockito.times(1)).delete(ArgumentMatchers.any());
+        Mockito.verify(userMusicPlaylistTrackMapper, Mockito.times(1))
+            .deleteAllByPlaylistCode("src_netease_playlist-ok_u_9");
         Mockito.verify(userMusicPlaylistTrackMapper, Mockito.times(1))
             .insert(ArgumentMatchers.<UserMusicPlaylistTrackEntity>argThat(
                 track -> "track-ok".equals(track.getTrackId())
