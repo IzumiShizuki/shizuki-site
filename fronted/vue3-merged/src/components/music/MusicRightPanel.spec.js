@@ -12,8 +12,11 @@ function mountPanel(props = {}) {
       },
       lyricContext: {
         prev: 'prev',
+        prevTime: 8,
         current: 'current',
-        next: 'next'
+        currentTime: 12,
+        next: 'next',
+        nextTime: 16
       },
       volume: 0.42,
       eqLevels: [0.66, 0.52, 0.74],
@@ -71,5 +74,17 @@ describe('MusicRightPanel', () => {
     expect(wrapper.emitted('update:expandedProvider')).toEqual([['meting'], ['spotify']]);
     expect(wrapper.emitted('set-volume')).toEqual([[0.35]]);
     expect(wrapper.emitted('set-eq-level')).toEqual([[{ index: 1, value: 0.8 }]]);
+  });
+
+  it('seeks to the clicked timestamped lyric line', async () => {
+    const wrapper = mountPanel();
+    const currentLine = wrapper.find('.lyric-card .line.current');
+
+    expect(currentLine.element.tagName).toBe('BUTTON');
+    expect(currentLine.attributes('disabled')).toBeUndefined();
+
+    await currentLine.trigger('click');
+
+    expect(wrapper.emitted('seek-lyric')).toEqual([[12]]);
   });
 });

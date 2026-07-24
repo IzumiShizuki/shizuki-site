@@ -29,9 +29,9 @@
         </header>
         <transition name="lyric-soft" mode="out-in">
           <div :key="lyricTransitionKey" class="lyric-triplet">
-            <p class="line prev">{{ lyricDisplay.prev }}</p>
-            <p class="line current">{{ lyricDisplay.current }}</p>
-            <p class="line next">{{ lyricDisplay.next }}</p>
+            <button class="line prev" type="button" :disabled="!isSeekableLyricTime(lyricDisplay.prevTime)" :title="lyricSeekTitle(lyricDisplay.prevTime)" @click="handleLyricSeek(lyricDisplay.prevTime)">{{ lyricDisplay.prev }}</button>
+            <button class="line current" type="button" :disabled="!isSeekableLyricTime(lyricDisplay.currentTime)" :title="lyricSeekTitle(lyricDisplay.currentTime)" @click="handleLyricSeek(lyricDisplay.currentTime)">{{ lyricDisplay.current }}</button>
+            <button class="line next" type="button" :disabled="!isSeekableLyricTime(lyricDisplay.nextTime)" :title="lyricSeekTitle(lyricDisplay.nextTime)" @click="handleLyricSeek(lyricDisplay.nextTime)">{{ lyricDisplay.next }}</button>
           </div>
         </transition>
       </article>
@@ -254,6 +254,7 @@ const emit = defineEmits([
   'import-source-playlists',
   'bind-source-account',
   'detect-source-helper',
+  'seek-lyric',
   'open-source-helper-guide'
 ]);
 
@@ -390,10 +391,26 @@ const lyricDisplay = computed(() => {
   }
   return {
     prev: String(raw.prev || '').trim(),
+    prevTime: raw.prevTime,
     current,
-    next: String(raw.next || '').trim()
+    currentTime: raw.currentTime,
+    next: String(raw.next || '').trim(),
+    nextTime: raw.nextTime
   };
 });
+
+function isSeekableLyricTime(value) {
+  return Number.isFinite(Number(value)) && Number(value) >= 0;
+}
+
+function lyricSeekTitle(value) {
+  return isSeekableLyricTime(value) ? '点击跳转到这一句歌词' : '该歌词没有可跳转的时间轴';
+}
+
+function handleLyricSeek(value) {
+  if (!isSeekableLyricTime(value)) return;
+  emit('seek-lyric', Number(value));
+}
 
 const lyricTransitionKey = computed(() => {
   const raw = props.lyricContext && typeof props.lyricContext === 'object' ? props.lyricContext : {};
@@ -618,8 +635,27 @@ function providerLabel(provider) {
 }
 
 .lyric-card .line {
+  display: block;
+  width: 100%;
   margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   transition: all 0.3s ease;
+}
+
+.lyric-card .line:disabled {
+  cursor: default;
+}
+
+.lyric-card .line:not(:disabled):hover,
+.lyric-card .line:not(:disabled):focus-visible {
+  color: rgb(var(--accent-strong-rgb));
+  outline: none;
 }
 
 .lyric-card .line.prev,

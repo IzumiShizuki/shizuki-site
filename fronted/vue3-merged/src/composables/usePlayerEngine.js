@@ -394,20 +394,34 @@ export function usePlayerEngine(options = {}) {
     const idx = currentLyricEntryIndex.value;
     const list = lyricTimeline.value;
     if (!list.length) {
-      return { prev: '', current: '', next: '', key: 'empty' };
+      return {
+        prev: '',
+        prevTime: null,
+        current: '',
+        currentTime: null,
+        next: '',
+        nextTime: null,
+        key: 'empty'
+      };
     }
     if (idx < 0) {
       return {
         prev: '',
+        prevTime: null,
         current: list[0]?.original || '',
+        currentTime: list[0]?.time ?? null,
         next: list[1]?.original || '',
+        nextTime: list[1]?.time ?? null,
         key: 'l-prelude'
       };
     }
     return {
       prev: list[idx - 1]?.original || '',
+      prevTime: list[idx - 1]?.time ?? null,
       current: list[idx]?.original || '',
+      currentTime: list[idx]?.time ?? null,
       next: list[idx + 1]?.original || '',
+      nextTime: list[idx + 1]?.time ?? null,
       key: `l-${idx}`
     };
   });

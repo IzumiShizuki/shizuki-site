@@ -125,6 +125,7 @@
           :source-bind-busy-map="musicSourceBindBusyMap"
           @set-volume="handleSetVolume"
           @set-eq-level="handleSetEqLevel"
+          @seek-lyric="player.seekToTime($event)"
           @close-drawer="ui.setRightDrawerOpen(false)"
           @update:expanded-provider="ui.setExpandedProvider($event)"
           @refresh-meting-status="loadMetingStatus"
