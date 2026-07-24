@@ -905,7 +905,7 @@ class MediaServiceImplTest {
             "同步歌单",
             "来自网易云",
             "https://cover.example.com/playlist.jpg",
-            2
+            25
         );
         List<NeteaseCookieProvider.TrackSummary> sourceTracks = List.of(
             new NeteaseCookieProvider.TrackSummary(
@@ -950,12 +950,14 @@ class MediaServiceImplTest {
         Mockito.verify(userMusicPlaylistMapper).insert(playlistCaptor.capture());
         UserMusicPlaylistEntity importedPlaylist = playlistCaptor.getValue();
         Assertions.assertTrue(importedPlaylist.getMetadataJson().contains("\"sourceProvider\":\"netease\""));
+        Assertions.assertTrue(importedPlaylist.getMetadataJson().contains("\"sourceTrackCount\":25"));
 
         Mockito.when(userMusicPlaylistMapper.selectOne(ArgumentMatchers.any())).thenReturn(importedPlaylist);
         Mockito.when(userMusicPlaylistTrackMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
         MusicPlaylistBundleResponse bundle = mediaService.getMusicPlaylistBundle(importedPlaylist.getPlaylistCode());
 
         Assertions.assertEquals("netease", bundle.profile().sourceProvider());
+        Assertions.assertEquals(25, bundle.profile().trackCount());
     }
 
     @Test

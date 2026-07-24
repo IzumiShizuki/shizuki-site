@@ -4370,6 +4370,9 @@ public class MediaServiceImpl implements MediaService {
         Map<String, Object> metadata = Map.of(
             "sourceProvider", provider,
             "sourcePlaylistId", readString(sourcePlaylist.sourcePlaylistId(), ""),
+            "sourceTrackCount", sourcePlaylist.trackCount() == null
+                ? 0
+                : Math.max(0, sourcePlaylist.trackCount()),
             "lastSyncTime", now.toString()
         );
         if (existing == null) {
@@ -5150,12 +5153,18 @@ public class MediaServiceImpl implements MediaService {
             return new MusicPlaylistSummaryResponse("", "", "", "", PLAYLIST_TYPE_CUSTOM, 0L, false, 0);
         }
         String playlistType = readString(entity.getPlaylistType(), PLAYLIST_TYPE_CUSTOM).toUpperCase(Locale.ROOT);
+        Map<String, Object> metadata = readMetadataObject(entity.getMetadataJson());
         String sourceProvider = normalizeSourceProvider(readMetadataString(
-            readMetadataObject(entity.getMetadataJson()),
+            metadata,
             "sourceProvider",
             "source_provider",
             "provider"
         ));
+        int sourceTrackCount = readMetadataNonNegativeInt(
+            metadata,
+            "sourceTrackCount",
+            "source_track_count"
+        );
         return new MusicPlaylistSummaryResponse(
             readString(entity.getPlaylistCode(), ""),
             readString(entity.getName(), "我的歌单"),
@@ -5164,7 +5173,7 @@ public class MediaServiceImpl implements MediaService {
             playlistType,
             entity.getUserId() == null ? 0L : entity.getUserId(),
             Boolean.TRUE.equals(entity.getPublicFlag()),
-            Math.max(0, trackCount),
+            Math.max(Math.max(0, trackCount), sourceTrackCount),
             sourceProvider
         );
     }
@@ -5294,6 +5303,18 @@ public class MediaServiceImpl implements MediaService {
             }
         }
         return "";
+    }
+
+    private int readMetadataNonNegativeInt(Map<String, Object> metadata, String... keys) {
+        String value = readMetadataString(metadata, keys);
+        if (!StringUtils.hasText(value)) {
+            return 0;
+        }
+        try {
+            return Math.max(0, Integer.parseInt(value));
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 
     private UserMusicPlaylistEntity loadUserPlaylistByCode(String playlistCode) {

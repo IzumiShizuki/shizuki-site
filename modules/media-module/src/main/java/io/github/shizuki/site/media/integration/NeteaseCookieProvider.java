@@ -98,7 +98,11 @@ public class NeteaseCookieProvider {
         int safeLimit = Math.max(1, Math.min(1000, limit));
         Map<String, Object> payload = requestJson(
             "https://music.163.com/api/v6/playlist/detail",
-            Map.of("id", normalizedPlaylistId),
+            Map.of(
+                "id", normalizedPlaylistId,
+                "n", safeLimit,
+                "s", 0
+            ),
             normalizedCookie
         );
         Map<String, Object> playlist = toStringObjectMap(payload.get("playlist"));

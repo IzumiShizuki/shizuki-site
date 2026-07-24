@@ -32,10 +32,11 @@ class NeteaseCookieProviderTest {
     @Test
     void shouldFillMissingAnonymousSongDetailsWithCookieAndPreserveOrder() {
         server.expect(requestTo(containsString("https://music.163.com/api/v6/playlist/detail")))
-            .andExpect(request -> Assertions.assertEquals(
-                ACCOUNT_COOKIE,
-                request.getHeaders().getFirst("Cookie")
-            ))
+            .andExpect(request -> {
+                Assertions.assertEquals(ACCOUNT_COOKIE, request.getHeaders().getFirst("Cookie"));
+                Assertions.assertTrue(request.getURI().getQuery().contains("n=2"));
+                Assertions.assertTrue(request.getURI().getQuery().contains("s=0"));
+            })
             .andRespond(withSuccess("""
                 {
                   "code": 200,
