@@ -3,6 +3,7 @@ package io.github.shizuki.site.monolith.filter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.monolith.auth.GuestAuthorTokenService;
 import io.github.shizuki.site.monolith.config.GatewayAuthProperties;
 import io.github.shizuki.site.user.response.auth.AuthIntrospectResponse;
 import io.github.shizuki.site.user.service.AuthService;
@@ -44,18 +45,23 @@ public class AuthEntryFilter extends OncePerRequestFilter {
     private static final String USER_ID = "X-User-Id";
     private static final String USER_GROUPS = "X-User-Groups";
     private static final String USER_PERMISSIONS = "X-User-Permissions";
+    private static final String GUEST_AUTHOR_TOKEN = "X-Guest-Author-Token";
+    private static final String GUEST_AUTHOR_GROUP = "GUEST_AUTHOR";
 
     private final GatewayAuthProperties properties;
     private final AuthService authService;
+    private final GuestAuthorTokenService guestAuthorTokenService;
     private final ObjectMapper objectMapper;
     private final AntPathMatcher antPathMatcher = new AntPathMatcher();
     private final Map<String, CachedAuthContext> tokenCache = new ConcurrentHashMap<>();
 
     public AuthEntryFilter(GatewayAuthProperties properties,
                            AuthService authService,
+                           GuestAuthorTokenService guestAuthorTokenService,
                            ObjectMapper objectMapper) {
         this.properties = properties;
         this.authService = authService;
+        this.guestAuthorTokenService = guestAuthorTokenService;
         this.objectMapper = objectMapper;
     }
 
@@ -80,6 +86,21 @@ public class AuthEntryFilter extends OncePerRequestFilter {
         String authorization = sanitizedRequest.getHeader(AUTHORIZATION);
         if (!StringUtils.hasText(authorization)) {
             if (guestPath) {
+                if (isGuestAuthorPath(path)) {
+                    String guestAuthorToken = sanitizedRequest.getHeader(GUEST_AUTHOR_TOKEN);
+                    if (StringUtils.hasText(guestAuthorToken)) {
+                        GuestAuthorTokenService.GuestAuthorSession session = guestAuthorTokenService.verify(guestAuthorToken);
+                        if (session == null) {
+                            unauthorized(response, "Guest author session is invalid or expired");
+                            return;
+                        }
+                        filterChain.doFilter(
+                            withUserHeaders(sanitizedRequest, session.authorId(), Set.of(GUEST_AUTHOR_GROUP), Set.of()),
+                            response
+                        );
+                        return;
+                    }
+                }
                 filterChain.doFilter(withGuestHeaders(sanitizedRequest), response);
                 return;
             }
@@ -220,7 +241,13 @@ public class AuthEntryFilter extends OncePerRequestFilter {
     }
 
     private boolean isGuestPath(String path) {
-        return matchAny(path, properties.getGuestPaths());
+        return isGuestAuthorPath(path) || matchAny(path, properties.getGuestPaths());
+    }
+
+    private boolean isGuestAuthorPath(String path) {
+        return "/api/v1/me/posts".equals(path)
+            || path.matches("/api/v1/me/posts/\\d+")
+            || path.matches("/api/v1/me/posts/\\d+/(publish|unpublish)");
     }
 
     private boolean matchAny(String path, List<String> patterns) {

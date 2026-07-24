@@ -84,7 +84,7 @@ async function resolveVoiceRouteVisible(auth) {
 const routes = [
   { path: '/', name: 'home', component: HomePage },
   { path: '/blog', name: 'blog', component: BlogListPage },
-  { path: '/blog/editor/:postId?', name: 'blog-editor', component: BlogPage, meta: { requiresAuth: true } },
+  { path: '/blog/editor/:postId?', name: 'blog-editor', component: BlogPage },
   { path: '/blog/:postId/presentation', name: 'blog-presentation', component: BlogPresentationPage },
   { path: '/blog/:postId', name: 'blog-detail', component: BlogPage },
   {
@@ -114,7 +114,7 @@ const routes = [
   { path: '/ai-hub', alias: '/ai-tavern', name: 'ai-hub', component: AiHubPage },
   { path: '/auth', name: 'auth', component: AuthPage },
   { path: '/auth/callback', name: 'auth-callback', component: AuthCallbackPage },
-  { path: '/profile', name: 'profile', component: ProfilePage, meta: { requiresAuth: true } },
+  { path: '/profile', name: 'profile', component: ProfilePage },
   { path: '/admin', name: 'admin', component: AdminPage, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/author', name: 'author', component: AuthorPage }
 ];

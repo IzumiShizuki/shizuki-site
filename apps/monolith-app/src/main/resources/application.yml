@@ -29,6 +29,9 @@ sa-token:
   token-style: jwt
   jwt-secret-key: ${shizuki.auth.jwt.secret}
 shizuki:
+  guest-author:
+    signing-secret: ${GUEST_AUTHOR_SIGNING_SECRET:${AUTH_JWT_SECRET:${random.uuid}}}
+    ttl-seconds: ${GUEST_AUTHOR_TTL_SECONDS:2592000}
   audit:
     outbox:
       enabled: true
@@ -280,6 +283,7 @@ shizuki:
       - /api/v1/auth/bindings/**
       - /api/v1/auth/captchas/**
       - /api/v1/auth/verifications/**
+      - /api/v1/guest-author/sessions
       - /api/v1/internal/meguri/prompt-cache
       - /actuator/**
       guest-paths:

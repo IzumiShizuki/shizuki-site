@@ -35,6 +35,80 @@ function normalizeUpsertPayload(payload = {}) {
   };
 }
 
+const GUEST_AUTHOR_TOKEN_STORAGE_KEY = 'shizuki.guest-author.token.v1';
+
+let guestAuthorSessionPromise = null;
+
+function readGuestAuthorToken() {
+  if (typeof window === 'undefined') return '';
+  try {
+    return String(window.localStorage.getItem(GUEST_AUTHOR_TOKEN_STORAGE_KEY) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function writeGuestAuthorToken(token) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (token) {
+      window.localStorage.setItem(GUEST_AUTHOR_TOKEN_STORAGE_KEY, token);
+    } else {
+      window.localStorage.removeItem(GUEST_AUTHOR_TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // Keep the active in-memory request usable even when browser storage is unavailable.
+  }
+}
+
+async function ensureGuestAuthorToken() {
+  const existing = readGuestAuthorToken();
+  if (existing) return existing;
+  if (guestAuthorSessionPromise) return guestAuthorSessionPromise;
+
+  guestAuthorSessionPromise = (async () => {
+    const payload = unwrapApiResponse(
+      await httpRequest('/api/v1/guest-author/sessions', {
+        method: 'POST'
+      })
+    );
+    const token = String(payload?.token || '').trim();
+    if (!token) {
+      throw new Error('匿名作者身份创建失败');
+    }
+    writeGuestAuthorToken(token);
+    return token;
+  })();
+
+  try {
+    return await guestAuthorSessionPromise;
+  } finally {
+    guestAuthorSessionPromise = null;
+  }
+}
+
+async function guestAuthorFetch(path, options = {}) {
+  const token = await ensureGuestAuthorToken();
+  try {
+    return await httpRequest(path, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        'X-Guest-Author-Token': token
+      }
+    });
+  } catch (error) {
+    if (Number(error?.status) === 401) {
+      writeGuestAuthorToken('');
+    }
+    throw error;
+  }
+}
+
+function resolveWriterFetch(authorizedFetch) {
+  return typeof authorizedFetch === 'function' ? authorizedFetch : guestAuthorFetch;
+}
+
 export async function listPosts(query = {}, authorizedFetch) {
   const publishedFrom = String(query.publishedFrom || '').trim();
   const publishedTo = String(query.publishedTo || '').trim();
@@ -108,7 +182,7 @@ export async function getPostMarkdown(postId, authorizedFetch) {
 }
 
 export async function listMyPosts(query = {}, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveWriterFetch(authorizedFetch);
   const response = await request('/api/v1/me/posts', {
     method: 'GET',
     query: {
@@ -122,7 +196,7 @@ export async function listMyPosts(query = {}, authorizedFetch) {
 }
 
 export async function getMyPostDetail(postId, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveWriterFetch(authorizedFetch);
   const id = normalizePostId(postId);
   const response = await request(`/api/v1/me/posts/${id}`, {
     method: 'GET'
@@ -298,7 +372,7 @@ export async function uploadBlogInlineImage(file, authorizedFetch) {
 }
 
 export async function createMyPost(payload, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveWriterFetch(authorizedFetch);
   const response = await request('/api/v1/me/posts', {
     method: 'POST',
     body: normalizeUpsertPayload(payload)
@@ -307,7 +381,7 @@ export async function createMyPost(payload, authorizedFetch) {
 }
 
 export async function updateMyPost(postId, payload, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveWriterFetch(authorizedFetch);
   const id = normalizePostId(postId);
   const response = await request(`/api/v1/me/posts/${id}`, {
     method: 'PUT',
@@ -325,7 +399,7 @@ export async function listPublicPostWhispers(authorizedFetch) {
 }
 
 export async function deleteMyPost(postId, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveWriterFetch(authorizedFetch);
   const id = normalizePostId(postId);
   const response = await request(`/api/v1/me/posts/${id}`, {
     method: 'DELETE'
@@ -334,7 +408,7 @@ export async function deleteMyPost(postId, authorizedFetch) {
 }
 
 export async function publishMyPost(postId, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveWriterFetch(authorizedFetch);
   const id = normalizePostId(postId);
   const response = await request(`/api/v1/me/posts/${id}/publish`, {
     method: 'POST'
@@ -343,7 +417,7 @@ export async function publishMyPost(postId, authorizedFetch) {
 }
 
 export async function unpublishMyPost(postId, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveWriterFetch(authorizedFetch);
   const id = normalizePostId(postId);
   const response = await request(`/api/v1/me/posts/${id}/unpublish`, {
     method: 'POST'

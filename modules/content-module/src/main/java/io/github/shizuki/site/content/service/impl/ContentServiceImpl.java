@@ -110,6 +110,7 @@ public class ContentServiceImpl implements ContentService {
 
     private static final String POST_STATUS_DRAFT = "DRAFT";
     private static final String POST_STATUS_PUBLISHED = "PUBLISHED";
+    private static final String GUEST_AUTHOR_GROUP = "GUEST_AUTHOR";
     private static final long DEFAULT_POST_NUM_BASE = 500_000L;
     private static final String INITIAL_SEED_SLUG_CODE = "initial-overview-v01";
     private static final String INITIAL_SEED_MARKDOWN_CLASSPATH = "monolith/blog-seed/initial-overview-v0.1.md";
@@ -1092,7 +1093,7 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     public PageResponse<AuthorPostItemResponse> listMyPosts(long pageNo, long pageSize, String keyword, String statusCode) {
-        Long userId = requireLoginUserId();
+        Long userId = requirePostAuthorUserId();
         long normalizedPageNo = pageNo <= 0 ? 1 : pageNo;
         long normalizedPageSize = Math.max(1L, Math.min(pageSize <= 0 ? 10L : pageSize, 100L));
         String normalizedKeyword = normalizeKeyword(keyword);
@@ -1119,7 +1120,7 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     public PostDetailResponse getMyPostDetail(Long postId) {
-        Long userId = requireLoginUserId();
+        Long userId = requirePostAuthorUserId();
         PostEntity post = postMapper.selectById(postId);
         if (post == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
@@ -1182,13 +1183,14 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional
     public AuthorPostItemResponse createMyPost(AuthorPostUpsertRequest request) {
-        Long userId = requireLoginUserId();
-        requirePermission("blog.post.write");
+        Long userId = requirePostAuthorUserId();
+        requirePostWritePermission();
         if (request == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Request body is required");
         }
 
         PreparedPostPayload payload = preparePostPayload(request, null);
+        assertGuestAuthorPayloadAllowed(payload);
         LocalDateTime now = LocalDateTime.now();
         PostEntity post = new PostEntity();
         post.setUserId(userId);
@@ -1224,8 +1226,8 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional
     public AuthorPostItemResponse updateMyPost(Long postId, AuthorPostUpsertRequest request) {
-        Long userId = requireLoginUserId();
-        requirePermission("blog.post.write");
+        Long userId = requirePostAuthorUserId();
+        requirePostWritePermission();
         if (request == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Request body is required");
         }
@@ -1239,6 +1241,7 @@ public class ContentServiceImpl implements ContentService {
         }
 
         PreparedPostPayload payload = preparePostPayload(request, postId);
+        assertGuestAuthorPayloadAllowed(payload);
         LocalDateTime now = LocalDateTime.now();
         post.setTitle(payload.title());
         post.setSummary(payload.summary());
@@ -1269,8 +1272,8 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional
     public void deleteMyPost(Long postId) {
-        Long userId = requireLoginUserId();
-        requirePermission("blog.post.write");
+        Long userId = requirePostAuthorUserId();
+        requirePostWritePermission();
 
         PostEntity post = postMapper.selectById(postId);
         if (post == null) {
@@ -1309,8 +1312,8 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional
     public AuthorPostItemResponse publishMyPost(Long postId) {
-        Long userId = requireLoginUserId();
-        requirePermission("blog.post.publish");
+        Long userId = requirePostAuthorUserId();
+        requirePostPublishPermission();
 
         PostEntity post = postMapper.selectById(postId);
         if (post == null) {
@@ -1335,8 +1338,8 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional
     public AuthorPostItemResponse unpublishMyPost(Long postId) {
-        Long userId = requireLoginUserId();
-        requirePermission("blog.post.publish");
+        Long userId = requirePostAuthorUserId();
+        requirePostPublishPermission();
 
         PostEntity post = postMapper.selectById(postId);
         if (post == null) {
@@ -2257,6 +2260,15 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    private void assertGuestAuthorPayloadAllowed(PreparedPostPayload payload) {
+        if (!currentViewer().guestAuthor() || payload == null) {
+            return;
+        }
+        if (payload.visibility() != ContentVisibilityEnum.PUBLIC) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Guest authors can only create public posts");
+        }
+    }
+
     private void validatePostReadyForPublish(PostEntity post) {
         String title = readString(post.getTitle(), "").trim();
         String summary = readString(post.getSummary(), "").trim();
@@ -3032,21 +3044,22 @@ public class ContentServiceImpl implements ContentService {
     private ViewerContext currentViewer() {
         LoginUser loginUser = LoginUserContext.get().orElse(null);
         if (loginUser == null) {
-            return new ViewerContext(null, Set.of("GUEST"), false, Set.of());
+            return new ViewerContext(null, Set.of("GUEST"), false, false, Set.of());
         }
 
         Long userId = loginUser.getUserId();
+        Set<String> groups = normalizeGroupCodes(loginUser.getGroups());
+        boolean guestAuthor = groups.contains(GUEST_AUTHOR_GROUP) && userId != null && userId < 0;
         if (userId == null || userId <= 0) {
-            userId = null;
+            userId = guestAuthor ? userId : null;
         }
 
-        Set<String> groups = normalizeGroupCodes(loginUser.getGroups());
         if (groups.isEmpty()) {
             groups = Set.of("GUEST");
         }
         Set<String> permissions = normalizePermissionCodes(loginUser.getPermissions());
         boolean admin = groups.contains("ADMIN");
-        return new ViewerContext(userId, groups, admin, permissions);
+        return new ViewerContext(userId, groups, admin, guestAuthor, permissions);
     }
 
     private Long requireLoginUserId() {
@@ -3055,6 +3068,28 @@ public class ContentServiceImpl implements ContentService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login required");
         }
         return viewer.userId();
+    }
+
+    private Long requirePostAuthorUserId() {
+        ViewerContext viewer = currentViewer();
+        if (viewer.userId() == null || viewer.userId() == 0) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Login or guest author session required");
+        }
+        return viewer.userId();
+    }
+
+    private void requirePostWritePermission() {
+        if (currentViewer().guestAuthor()) {
+            return;
+        }
+        requirePermission("blog.post.write");
+    }
+
+    private void requirePostPublishPermission() {
+        if (currentViewer().guestAuthor()) {
+            return;
+        }
+        requirePermission("blog.post.publish");
     }
 
     private void requirePermission(String permissionCode) {
@@ -3090,7 +3125,7 @@ public class ContentServiceImpl implements ContentService {
         return StringUtils.hasText(value) ? value : fallback;
     }
 
-    private record ViewerContext(Long userId, Set<String> groups, boolean admin, Set<String> permissions) {
+    private record ViewerContext(Long userId, Set<String> groups, boolean admin, boolean guestAuthor, Set<String> permissions) {
     }
 
     private record MarkdownMetrics(long wordCount, long lineCount, int readingMinutes) {

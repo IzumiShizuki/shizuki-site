@@ -347,7 +347,7 @@
                 v-model="writerState.editor.markdown"
                 :default-mode="editorMode"
                 :read-only="editorReadOnlyBecauseNotion"
-                :image-upload-handler="handleInlineImageUpload"
+                :image-upload-handler="canUseAccountWriterFeatures ? handleInlineImageUpload : undefined"
                 placeholder="在这里写 Markdown 内容..."
                 @ready="handleRichEditorReady"
                 @mode-change="handleEditorModeChange"
@@ -411,7 +411,7 @@
             </div>
 
             <SubtleScrollArea tag="section" class="editor-info-panel">
-              <section class="editor-info-section liquid-material">
+              <section v-if="canUseAccountWriterFeatures" class="editor-info-section liquid-material">
                 <div class="editor-info-section-head">
                   <h3>演示文稿</h3>
                   <span class="editor-info-section-status">{{ editorPresentationStatusText }}</span>
@@ -458,7 +458,7 @@
                 <p v-if="editorPresentationState.error" class="error-text editor-meta-message">{{ editorPresentationState.error }}</p>
               </section>
 
-              <section class="editor-info-section liquid-material">
+              <section v-if="canUseAccountWriterFeatures" class="editor-info-section liquid-material">
                 <div class="editor-info-section-head">
                   <h3>白板图片</h3>
                   <span class="editor-info-section-status">{{ whiteboardImportStatusText }}</span>
@@ -535,11 +535,12 @@
                   <span>可见性</span>
                   <select v-model="writerState.editor.visibility" class="field-input">
                     <option value="PUBLIC">公开</option>
-                    <option value="PRIVATE">私密</option>
-                    <option value="GROUP">分组可见</option>
+                    <option v-if="canUseAccountWriterFeatures" value="PRIVATE">私密</option>
+                    <option v-if="canUseAccountWriterFeatures" value="GROUP">分组可见</option>
                   </select>
+                  <small v-if="isAnonymousWriter" class="field-tip">未登录文章仅可公开发布，并由当前浏览器的匿名作者身份管理。</small>
                 </label>
-                <label class="field field-wide">
+                <label v-if="canUseAccountWriterFeatures" class="field field-wide">
                   <span>GROUP 分组（仅 GROUP 可见性生效）</span>
                   <input v-model.trim="writerState.editor.allowedGroupCodesText" type="text" class="field-input" placeholder="USER,FRIEND,ADMIN" />
                 </label>
@@ -563,7 +564,7 @@
                       粘贴记忆：{{ pasteState.sessionDecision === 'markdown' ? '按 Markdown' : '按纯文本' }}
                     </span>
                   </div>
-                  <div class="editor-status editor-status--secondary">
+                  <div v-if="canUseAccountWriterFeatures" class="editor-status editor-status--secondary">
                     <span v-if="writerState.editor.notionPageId" class="editor-status-note">Notion 已绑定</span>
                     <span v-if="writerState.editor.remoteLastEditedAt" class="editor-status-note">
                       远端更新：{{ formatDateTime(writerState.editor.remoteLastEditedAt) }}
@@ -898,8 +899,12 @@ const permissionCodes = computed(() => {
 });
 
 const isAdminUser = computed(() => groupCodes.value.includes('ADMIN'));
-const canWrite = computed(() => isAdminUser.value || permissionCodes.value.includes('blog.post.write'));
-const canPublish = computed(() => isAdminUser.value || permissionCodes.value.includes('blog.post.publish'));
+const isAnonymousWriter = computed(() => !auth.isAuthenticated.value);
+const canWrite = computed(() => isAnonymousWriter.value || isAdminUser.value || permissionCodes.value.includes('blog.post.write'));
+const canPublish = computed(() => isAnonymousWriter.value || isAdminUser.value || permissionCodes.value.includes('blog.post.publish'));
+const canUseAccountWriterFeatures = computed(
+  () => auth.isAuthenticated.value && (isAdminUser.value || permissionCodes.value.includes('blog.post.write'))
+);
 const loadingAny = computed(() => listState.loading || detailState.loading || writerState.loading || writerState.saving || writerState.publishing);
 const leftNavMode = computed(() => (routeMode.value === 'editor' ? 'write' : 'read'));
 
@@ -1344,7 +1349,7 @@ async function hydrateUntitledMyPosts(posts, requestToken) {
 
   const details = await Promise.allSettled(
     pendingPosts.map(async (post) => {
-      const detail = await getMyPostDetail(post.postId, auth.authorizedFetch);
+      const detail = await getMyPostDetail(post.postId, resolveAuthorizedFetch());
       const normalized = normalizePostDetail(detail);
       return {
         postId: post.postId,
@@ -1642,6 +1647,10 @@ function resetDetailPresentationState() {
 
 async function loadEditorPresentation(postId, options = {}) {
   const normalizedPostId = toSafeInt(postId, 0);
+  if (!canUseAccountWriterFeatures.value) {
+    resetEditorPresentationState();
+    return null;
+  }
   clearEditorPresentationPollTimer();
   if (normalizedPostId <= 0) {
     resetEditorPresentationState();
@@ -1650,7 +1659,7 @@ async function loadEditorPresentation(postId, options = {}) {
   editorPresentationState.loading = options.silent === true ? editorPresentationState.loading : true;
   editorPresentationState.error = '';
   try {
-    const payload = normalizePresentation(await getMyPostPresentation(normalizedPostId, auth.authorizedFetch));
+    const payload = normalizePresentation(await getMyPostPresentation(normalizedPostId, resolveAuthorizedFetch()));
     editorPresentationState.data = payload;
     editorPresentationState.generating = payload.status === 'GENERATING';
     if (payload.status === 'GENERATING') {
@@ -1691,7 +1700,7 @@ async function loadDetailPresentation(postId) {
 }
 
 async function handleGeneratePresentation() {
-  if (!canWrite.value) return;
+  if (!canUseAccountWriterFeatures.value) return;
   writerState.error = '';
   writerState.notice = '';
   editorPresentationState.error = '';
@@ -1704,7 +1713,7 @@ async function handleGeneratePresentation() {
       throw new Error('请先保存草稿后再生成演示文稿');
     }
     editorPresentationState.generating = true;
-    const payload = normalizePresentation(await generateMyPostPresentation(postId, auth.authorizedFetch));
+    const payload = normalizePresentation(await generateMyPostPresentation(postId, resolveAuthorizedFetch()));
     editorPresentationState.data = payload;
     writerState.notice = payload.status === 'READY' ? '演示文稿已生成' : '演示文稿生成已开始';
     await loadEditorPresentation(postId, { silent: true });
@@ -1764,9 +1773,10 @@ async function openPresentationDownloadUrl(loader, postId, onError) {
 
 async function downloadEditorPresentationPpt() {
   const postId = toSafeInt(writerState.editor.postId, 0);
+  if (!canUseAccountWriterFeatures.value) return;
   if (postId <= 0 || !editorPresentationPptReady.value) return;
   await openPresentationDownloadUrl(
-    (id) => getMyPostPresentationPptDownloadUrl(id, auth.authorizedFetch),
+    (id) => getMyPostPresentationPptDownloadUrl(id, resolveAuthorizedFetch()),
     postId,
     (message) => {
       editorPresentationState.error = message;
@@ -1797,7 +1807,7 @@ async function loadMyPosts() {
   writerState.loading = true;
   writerState.error = '';
   try {
-    const payload = await listMyPosts({ pageNo: 1, pageSize: 80 }, auth.authorizedFetch);
+    const payload = await listMyPosts({ pageNo: 1, pageSize: 80 }, resolveAuthorizedFetch());
     if (requestToken !== myPostsLoadToken) return;
     const items = Array.isArray(payload?.items) ? payload.items : [];
     const normalizedPosts = items.map(normalizeAuthorPost).filter((post) => post.postId > 0);
@@ -1884,8 +1894,8 @@ async function handleSaveDraft(options = {}) {
   try {
     const payload = buildEditorPayload();
     const result = writerState.editor.postId
-      ? await updateMyPost(writerState.editor.postId, payload, auth.authorizedFetch)
-      : await createMyPost(payload, auth.authorizedFetch);
+      ? await updateMyPost(writerState.editor.postId, payload, resolveAuthorizedFetch())
+      : await createMyPost(payload, resolveAuthorizedFetch());
     applyAuthorPostToEditor(result);
     await syncEditorRouteToPost(writerState.editor.postId);
     writerState.notice = options.silent ? '' : '草稿已保存';
@@ -1905,7 +1915,7 @@ async function handlePublish() {
   writerState.notice = '';
   try {
     await handleSaveDraft({ silent: true });
-    const result = await publishMyPost(writerState.editor.postId, auth.authorizedFetch);
+    const result = await publishMyPost(writerState.editor.postId, resolveAuthorizedFetch());
     applyAuthorPostToEditor(result);
     await syncEditorRouteToPost(writerState.editor.postId);
     writerState.notice = '文章已发布';
@@ -1923,7 +1933,7 @@ async function handleUnpublish() {
   writerState.error = '';
   writerState.notice = '';
   try {
-    const result = await unpublishMyPost(writerState.editor.postId, auth.authorizedFetch);
+    const result = await unpublishMyPost(writerState.editor.postId, resolveAuthorizedFetch());
     applyAuthorPostToEditor(result);
     writerState.notice = '文章已下线';
     await Promise.all([loadMyPosts(), loadPostList()]);
@@ -1953,7 +1963,7 @@ async function pollNotionSyncJobUntilDone(jobId, postId) {
   notionSyncState.polling = true;
   let latest = null;
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    latest = normalizeNotionSyncJob(await getPostNotionSyncJob(normalizedJobId, auth.authorizedFetch));
+    latest = normalizeNotionSyncJob(await getPostNotionSyncJob(normalizedJobId, resolveAuthorizedFetch()));
     notionSyncState.statusCode = latest.statusCode;
     notionSyncState.errorText = latest.errorText;
     if (!['PENDING', 'RUNNING'].includes(latest.statusCode)) {
@@ -1967,6 +1977,7 @@ async function pollNotionSyncJobUntilDone(jobId, postId) {
 }
 
 async function handlePullFromNotion() {
+  if (!canUseAccountWriterFeatures.value) return;
   const postId = toSafeInt(writerState.editor.postId, 0);
   if (postId <= 0 || notionJobRunning.value) return;
   notionSyncState.submitting = true;
@@ -1981,7 +1992,7 @@ async function handlePullFromNotion() {
           targetType: 'POST',
           postId
         },
-        auth.authorizedFetch
+        resolveAuthorizedFetch()
       )
     );
     notionSyncState.jobId = createdJob.jobId;
@@ -2000,6 +2011,7 @@ async function handlePullFromNotion() {
 }
 
 async function handlePushToNotion() {
+  if (!canUseAccountWriterFeatures.value) return;
   const postId = toSafeInt(writerState.editor.postId, 0);
   if (postId <= 0 || notionJobRunning.value) return;
   notionSyncState.submitting = true;
@@ -2014,7 +2026,7 @@ async function handlePushToNotion() {
           targetType: 'POST',
           postId
         },
-        auth.authorizedFetch
+        resolveAuthorizedFetch()
       )
     );
     notionSyncState.jobId = createdJob.jobId;
@@ -2051,7 +2063,7 @@ async function confirmDeletePost() {
   writerState.error = '';
   writerState.notice = '';
   try {
-    await deleteMyPost(postId, auth.authorizedFetch);
+    await deleteMyPost(postId, resolveAuthorizedFetch());
     deleteDialogState.visible = false;
     const routeHasPostId = toSafeInt(route.params.postId, 0) > 0;
     resetEditorForm();
@@ -2091,6 +2103,9 @@ async function handleMarkdownFileUpload(event) {
 }
 
 async function handleInlineImageUpload(file) {
+  if (!canUseAccountWriterFeatures.value) {
+    throw new Error('匿名作者暂不支持上传图片，请使用外部图片链接。');
+  }
   if (!(file instanceof File)) {
     throw new Error('请选择图片文件');
   }
@@ -2099,7 +2114,7 @@ async function handleInlineImageUpload(file) {
   writerState.notice = '正在上传正文图片...';
 
   try {
-    const uploaded = await uploadBlogInlineImage(file, auth.authorizedFetch);
+    const uploaded = await uploadBlogInlineImage(file, resolveAuthorizedFetch());
     writerState.notice = '图片已上传并插入正文';
     return uploaded?.url || '';
   } catch (error) {
@@ -2151,7 +2166,7 @@ function insertWhiteboardImageIntoEditor(url, boardTitle) {
 }
 
 async function handleBlogWhiteboardExport(payload) {
-  if (!canWrite.value) return;
+  if (!canUseAccountWriterFeatures.value) return;
   if (routeMode.value !== 'editor' && viewMode.value !== 'editor') {
     writerState.notice = '已收到白板图片，请先进入博客编辑器后再重新发送一次。';
     return;
@@ -2168,7 +2183,7 @@ async function handleBlogWhiteboardExport(payload) {
 
   try {
     if (normalizedTarget === 'cover') {
-      const uploaded = await uploadBlogCoverImage(file, auth.authorizedFetch);
+      const uploaded = await uploadBlogCoverImage(file, resolveAuthorizedFetch());
       const url = normalizeString(uploaded?.url).trim();
       if (!url) {
         throw new Error('白板封面上传后没有返回可用地址');
@@ -2184,7 +2199,7 @@ async function handleBlogWhiteboardExport(payload) {
       throw new Error('当前文章正文由 Notion 锁定，暂时不能插入白板图片到正文');
     }
 
-    const uploaded = await uploadBlogInlineImage(file, auth.authorizedFetch);
+    const uploaded = await uploadBlogInlineImage(file, resolveAuthorizedFetch());
     const url = normalizeString(uploaded?.url).trim();
     if (!url) {
       throw new Error('白板正文图片上传后没有返回可用地址');
@@ -2341,7 +2356,7 @@ async function openMinePost(postId, options = {}) {
   notionSyncState.statusCode = '';
   notionSyncState.errorText = '';
   try {
-    const payload = await getMyPostDetail(normalizedPostId, auth.authorizedFetch);
+    const payload = await getMyPostDetail(normalizedPostId, resolveAuthorizedFetch());
     applyPostDetailToEditor(payload);
     await loadEditorPresentation(normalizedPostId);
     if (options.routeSync !== false && routeMode.value !== 'editor') {

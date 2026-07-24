@@ -689,9 +689,27 @@ describe('ProfilePage immediate account expansion', () => {
 
     expect(confirmSpy).toHaveBeenCalledWith('确认登出当前账号？');
     expect(mocked.auth.logout).toHaveBeenCalledTimes(1);
-    expect(router.currentRoute.value.path).toBe('/auth');
-    expect(router.currentRoute.value.query.reason).toBe('signed_out');
-    expect(router.currentRoute.value.query.redirect).toBe('/profile');
+    expect(router.currentRoute.value.path).toBe('/profile');
+    expect(router.currentRoute.value.hash).toBe('#settings');
+    wrapper.unmount();
+  });
+
+  it('keeps local settings available without an authenticated account', async () => {
+    mocked.auth = createAuthMock({
+      user: ref(null),
+      isAuthenticated: ref(false)
+    });
+
+    const { wrapper, router } = await mountProfilePageWithRouter('/profile#settings');
+
+    expect(router.currentRoute.value.path).toBe('/profile');
+    expect(router.currentRoute.value.hash).toBe('#settings');
+    expect(wrapper.text()).toContain('外观设置');
+
+    await router.push('/profile#account');
+    await flushPromises();
+    expect(wrapper.text()).toContain('账号功能需要登录');
+    expect(mocked.auth.getAccountProfile).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 });

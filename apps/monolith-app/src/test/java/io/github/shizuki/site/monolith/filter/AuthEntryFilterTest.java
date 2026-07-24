@@ -3,6 +3,7 @@ package io.github.shizuki.site.monolith.filter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.monolith.auth.GuestAuthorTokenService;
 import io.github.shizuki.site.monolith.config.GatewayAuthProperties;
 import io.github.shizuki.site.user.service.AuthService;
 import jakarta.servlet.FilterChain;
@@ -27,6 +28,8 @@ class AuthEntryFilterTest {
     private static final String TOWN_SCENE_DETAIL_PATH = "/api/v1/ai-town/scenes/library";
     private static final String TOWN_PUBLIC_MAP_PATH = "/api/v1/ai-town/public-map";
     private static final String ADMIN_TOWN_NPC_SESSION_PATH = "/api/v1/admin/ai-town/npcs/librarian/sessions";
+    private static final String GUEST_AUTHOR_POSTS_PATH = "/api/v1/me/posts";
+    private static final String GUEST_AUTHOR_CATEGORY_POLICIES_PATH = "/api/v1/me/posts/category-policies";
 
     @Test
     void shouldAllowGuestResolvePlaybackWithoutToken() throws Exception {
@@ -110,11 +113,57 @@ class AuthEntryFilterTest {
         Mockito.verifyNoInteractions(authService);
     }
 
+    @Test
+    void shouldResolveSignedGuestAuthorOnPostManagementPath() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        GuestAuthorTokenService tokenService = new GuestAuthorTokenService("test-guest-author-secret", 3600L);
+        AuthEntryFilter filter = newFilter(authService, List.of(GUEST_AUTHOR_POSTS_PATH + "/**"), tokenService);
+        GuestAuthorTokenService.GuestAuthorSession session = tokenService.issue();
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", GUEST_AUTHOR_POSTS_PATH);
+        request.addHeader("X-Guest-Author-Token", session.token());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(request, response, (chainRequest, chainResponse) -> {
+            invoked.set(true);
+            HttpServletRequest resolved = (HttpServletRequest) chainRequest;
+            assertThat(resolved.getHeader("X-User-Id")).isEqualTo(String.valueOf(session.authorId()));
+            assertThat(resolved.getHeader("X-User-Groups")).isEqualTo("GUEST_AUTHOR");
+        });
+
+        assertThat(invoked).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
+        Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
+    void shouldNotGrantGuestAuthorAccessToAccountEditorFeatures() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        GuestAuthorTokenService tokenService = new GuestAuthorTokenService("test-guest-author-secret", 3600L);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths(), tokenService);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", GUEST_AUTHOR_CATEGORY_POLICIES_PATH);
+        request.addHeader("X-Guest-Author-Token", tokenService.issue().token());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(request, response, (chainRequest, chainResponse) -> invoked.set(true));
+
+        assertThat(invoked).isFalse();
+        assertThat(response.getStatus()).isEqualTo(401);
+        Mockito.verifyNoInteractions(authService);
+    }
+
     private static AuthEntryFilter newFilter(AuthService authService, List<String> guestPaths) {
+        return newFilter(authService, guestPaths, new GuestAuthorTokenService("test-guest-author-secret", 3600L));
+    }
+
+    private static AuthEntryFilter newFilter(AuthService authService,
+                                             List<String> guestPaths,
+                                             GuestAuthorTokenService tokenService) {
         GatewayAuthProperties properties = new GatewayAuthProperties();
         properties.setGuestPaths(guestPaths);
         properties.setGuestInvalidTokenPolicy("downgrade");
-        return new AuthEntryFilter(properties, authService, new ObjectMapper());
+        return new AuthEntryFilter(properties, authService, tokenService, new ObjectMapper());
     }
 
     private static List<String> configuredGuestPaths() {

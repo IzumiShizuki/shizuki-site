@@ -61,23 +61,26 @@
 
             <template #section-quick-actions>
               <div class="quick-grid">
-                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.AVATAR)">
+                <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.AVATAR)">
                   修改头像
                 </button>
-                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.ACCOUNT_INFO)">
+                <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.ACCOUNT_INFO)">
                   查看账号信息
                 </button>
-                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.EMAIL_BIND)">
+                <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.EMAIL_BIND)">
                   绑定邮箱
                 </button>
-                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.OAUTH_BIND)">
+                <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.OAUTH_BIND)">
                   绑定 GitHub / LinuxDo
                 </button>
-                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.MUSIC_AUTH)">
+                <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.MUSIC_AUTH)">
                   音乐授权与排序
                 </button>
-                <button class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
+                <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
                   修改密码
+                </button>
+                <button v-else class="quick-btn ripple-trigger" type="button" @click="goToLogin">
+                  登录以管理账号或音乐
                 </button>
                 <button class="quick-btn ripple-trigger" type="button" @click="openSettingsAppearance">
                   外观设置
@@ -92,7 +95,7 @@
                   <span class="recent-value">{{ row.value }}</span>
                 </div>
               </div>
-              <div class="inline-actions compact">
+              <div v-if="auth.isAuthenticated.value" class="inline-actions compact">
                 <button data-testid="profile-core-logout" class="danger-btn ripple-trigger" type="button" @click="handleLogout">
                   安全退出
                 </button>
@@ -114,6 +117,7 @@
             <p class="group-caption">绑定、改密、授权与个人凭据管理。</p>
           </header>
 
+          <template v-if="auth.isAuthenticated.value">
           <p v-if="accountLoading" class="state-tip">正在同步账号数据...</p>
 
           <ProfileSectionAccordion
@@ -434,6 +438,12 @@
               </div>
             </template>
           </ProfileSectionAccordion>
+          </template>
+          <div v-else class="placeholder-card account-login-card">
+            <p class="placeholder-title">账号功能需要登录</p>
+            <p class="helper-text">账号资料、第三方绑定、音乐授权和云端偏好会与登录账号关联；外观设置、轻应用本地数据和匿名写文不需要登录。</p>
+            <button class="primary-btn ripple-trigger" type="button" @click="goToLogin">登录账号</button>
+          </div>
             </section>
 
             <section
@@ -892,13 +902,6 @@ async function navigateToGroup(groupKey) {
   await replaceRouteHash(normalized);
 }
 
-function normalizeRedirectPath(path) {
-  if (!path || typeof path !== 'string') return '/profile';
-  if (!path.startsWith('/')) return '/profile';
-  if (path.startsWith('/auth')) return '/profile';
-  return path;
-}
-
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -1191,7 +1194,7 @@ async function loadProfileArticles(force = false) {
   articlesState.error = '';
   let success = false;
   try {
-    const payload = await listMyPosts({ pageNo: 1, pageSize: 200 }, auth.authorizedFetch);
+    const payload = await listMyPosts({ pageNo: 1, pageSize: 200 }, auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
     const posts = Array.isArray(payload?.items) ? payload.items : [];
     applyArticlesSummary(summarizeAuthorPosts(posts));
     articlesState.loaded = true;
@@ -1713,9 +1716,22 @@ function queueAccountSectionFollowUp(sectionKey) {
 }
 
 async function openAccountSection(sectionKey) {
+  if (!auth.isAuthenticated.value) {
+    await goToLogin();
+    return;
+  }
   forceOpenSection(ProfileTabKey.ACCOUNT, sectionKey);
   await navigateToGroup(ProfileTabKey.ACCOUNT);
   queueAccountSectionFollowUp(sectionKey);
+}
+
+async function goToLogin() {
+  await router.push({
+    path: '/auth',
+    query: {
+      redirect: '/profile#account'
+    }
+  });
 }
 
 async function openSettingsAppearance() {
@@ -1730,23 +1746,17 @@ async function handleLogout() {
   }
 
   await auth.logout();
-  router.replace({
-    path: '/auth',
-    query: {
-      reason: 'signed_out',
-      redirect: '/profile'
-    }
-  });
+  await router.replace({ path: '/profile', hash: '#settings' });
 }
 
-const displayName = computed(() => auth.user.value?.nickname || account.nickname || '未命名用户');
+const displayName = computed(() => auth.user.value?.nickname || account.nickname || '本地访客');
 const userIdText = computed(() => {
   const id = toNumber(auth.user.value?.userId || account.userId);
-  return id > 0 ? String(id) : '未知';
+  return id > 0 ? String(id) : '本地';
 });
 const groupsText = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
-  return groups.length ? groups.join(' / ') : '未分组';
+  return groups.length ? groups.join(' / ') : '本地偏好';
 });
 const avatarPreview = computed(() => {
   if (selectedAvatarPreviewUrl.value) return selectedAvatarPreviewUrl.value;
@@ -1763,6 +1773,7 @@ const permissionCount = computed(() => {
   return permissions.length;
 });
 const canManagePosts = computed(() => {
+  if (!auth.isAuthenticated.value) return true;
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
   const permissions = Array.isArray(auth.user.value?.permissions) ? auth.user.value.permissions : [];
   const isAdmin = groups.some((group) => String(group || '').trim().toUpperCase() === 'ADMIN');
@@ -2139,17 +2150,6 @@ watch(
 
 onMounted(async () => {
   await auth.ensureReady();
-  if (!auth.isAuthenticated.value) {
-    router.replace({
-      path: '/auth',
-      query: {
-        reason: 'session_expired',
-        redirect: normalizeRedirectPath('/profile')
-      }
-    });
-    return;
-  }
-
   const initialGroup = resolveInitialGroupFromRoute();
   ensureGroupSectionVisible(initialGroup);
   activeGroup.value = initialGroup;

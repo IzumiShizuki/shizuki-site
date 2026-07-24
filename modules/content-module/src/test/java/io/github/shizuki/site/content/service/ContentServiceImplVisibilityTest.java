@@ -193,6 +193,19 @@ class ContentServiceImplVisibilityTest {
         Assertions.assertEquals(List.of(2L, 1L), response.items().stream().map(PostSummary::postId).toList());
     }
 
+    @Test
+    void shouldListPostsOwnedBySignedGuestAuthorIdentity() {
+        LoginUserContext.set(new LoginUser(-42L, Set.of("GUEST_AUTHOR"), Set.of()));
+        PostEntity draft = publishedPost(9L, -42L, "Guest draft", "life", "PUBLIC", LocalDateTime.of(2026, 7, 24, 9, 0));
+        draft.setStatusCode("DRAFT");
+        Mockito.when(postMapper.selectAuthorPosts(-42L)).thenReturn(List.of(draft));
+
+        PageResponse<?> response = contentService.listMyPosts(1, 10, null, null);
+
+        Assertions.assertEquals(1L, response.total());
+        Mockito.verify(postMapper).selectAuthorPosts(-42L);
+    }
+
     private PostEntity publishedPost(
         Long id,
         Long userId,
