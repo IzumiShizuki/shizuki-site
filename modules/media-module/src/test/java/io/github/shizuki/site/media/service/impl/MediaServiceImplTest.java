@@ -959,6 +959,59 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldDeduplicateSourceTracksBeforeWritingImportedPlaylist() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        NoOpTransactionManager transactionManager = new NoOpTransactionManager();
+        mediaService = buildMediaService(
+            "th_test_default_key",
+            new TransactionTemplate(transactionManager)
+        );
+        NeteaseCookieProvider.PlaylistSummary sourcePlaylist = new NeteaseCookieProvider.PlaylistSummary(
+            "playlist-with-duplicate-track",
+            "重复曲目歌单",
+            "",
+            "",
+            2
+        );
+        NeteaseCookieProvider.TrackSummary firstTrack = new NeteaseCookieProvider.TrackSummary(
+            "track-1",
+            "第一首",
+            "歌手甲",
+            "",
+            180,
+            "专辑甲"
+        );
+        NeteaseCookieProvider.TrackSummary duplicateTrack = new NeteaseCookieProvider.TrackSummary(
+            "track-1",
+            "第一首重复项",
+            "歌手乙",
+            "",
+            181,
+            "专辑乙"
+        );
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=9; token=test");
+        Mockito.when(neteaseCookieProvider.listUserPlaylists("MUSIC_U=9; token=test", 300))
+            .thenReturn(List.of(sourcePlaylist));
+        Mockito.when(neteaseCookieProvider.listPlaylistTracks(
+            "playlist-with-duplicate-track",
+            "MUSIC_U=9; token=test",
+            1000
+        )).thenReturn(List.of(firstTrack, duplicateTrack));
+
+        MusicSourcePlaylistImportResponse response = mediaService.importSourceAccountPlaylists("netease");
+
+        Assertions.assertEquals(1, response.importedPlaylists());
+        Assertions.assertEquals(1, response.importedTracks());
+        Assertions.assertEquals(0, response.failedPlaylists());
+        ArgumentCaptor<UserMusicPlaylistTrackEntity> trackCaptor =
+            ArgumentCaptor.forClass(UserMusicPlaylistTrackEntity.class);
+        Mockito.verify(userMusicPlaylistTrackMapper, Mockito.times(1)).insert(trackCaptor.capture());
+        Assertions.assertEquals("track-1", trackCaptor.getValue().getTrackId());
+        Assertions.assertEquals(1, trackCaptor.getValue().getSortNum());
+    }
+
+    @Test
     void shouldRollbackFirstSourcePlaylistAndContinueWithSecond() {
         LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
         NoOpTransactionManager transactionManager = new NoOpTransactionManager();

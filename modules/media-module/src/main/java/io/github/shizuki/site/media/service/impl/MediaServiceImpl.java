@@ -4324,12 +4324,13 @@ public class MediaServiceImpl implements MediaService {
 
         int importedTracks = 0;
         int sort = 1;
+        Set<String> importedTrackIds = new LinkedHashSet<>();
         List<NeteaseCookieProvider.TrackSummary> tracksToImport = sourceTracks == null
             ? List.of()
             : sourceTracks;
         for (NeteaseCookieProvider.TrackSummary sourceTrack : tracksToImport) {
             String trackId = readString(sourceTrack.trackId(), "");
-            if (!StringUtils.hasText(trackId)) {
+            if (!StringUtils.hasText(trackId) || !importedTrackIds.add(trackId)) {
                 continue;
             }
             UserMusicPlaylistTrackEntity trackEntity = new UserMusicPlaylistTrackEntity();
