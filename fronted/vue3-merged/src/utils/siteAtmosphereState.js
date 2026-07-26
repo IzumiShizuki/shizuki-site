@@ -15,7 +15,27 @@ export const SITE_ATMOSPHERE_PREFERENCE_KEY = 'site_atmosphere';
 export const SITE_ATMOSPHERE_STORAGE_KEY = 'shizuki.siteAtmosphere.v1';
 export const SITE_ATMOSPHERE_SESSION_UPLOADS_KEY = 'shizuki.siteAtmosphere.uploads.v1';
 
-const VALID_TABS = new Set(['music', 'ambient', 'effects']);
+const VALID_TABS = new Set(['scenes', 'music', 'ambient', 'effects', 'online']);
+
+/**
+ * 在线音源只允许来自以下主机，避免被篡改的本地缓存注入任意地址。
+ */
+export const REMOTE_AMBIENT_ALLOWED_HOSTS = Object.freeze([
+  'freesound.org',
+  'cdn.freesound.org'
+]);
+
+export function isAllowedRemoteAmbientUrl(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'https:') return false;
+    return REMOTE_AMBIENT_ALLOWED_HOSTS.includes(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
 
 function clampUnit(value, fallback) {
   const numeric = Number(value);
@@ -51,6 +71,7 @@ function normalizeTrackId(input) {
 function inferTrackSource(trackId, inputSource, sessionUploads) {
   const normalizedSource = String(inputSource || '').trim().toLowerCase();
   if (normalizedSource === 'asset' || /^asset:\d+$/.test(trackId)) return 'asset';
+  if (normalizedSource === 'remote' || /^freesound:[a-z0-9_-]+$/i.test(trackId)) return 'remote';
   if (normalizedSource === 'guest' || /^guest:[a-z0-9_-]+$/i.test(trackId)) {
     const guestCode = trackId.replace(/^guest:/i, '');
     return sessionUploads?.[guestCode] ? 'guest' : '';
@@ -80,6 +101,20 @@ function normalizeTrack(input, sessionUploads) {
     const builtin = findBuiltinAmbientById(trackId);
     if (!builtin) return null;
     next.title = String(source.title || builtin.label || builtin.title || trackId).trim();
+    return next;
+  }
+
+  if (resolvedSource === 'remote') {
+    const audioUrl = String(source.audioUrl || source.audio_url || '').trim();
+    if (!isAllowedRemoteAmbientUrl(audioUrl)) return null;
+    const pageUrl = String(source.pageUrl || source.page_url || '').trim();
+    next.trackId = /^freesound:/i.test(trackId) ? trackId : `freesound:${trackId}`;
+    next.title = String(source.title || '在线环境音').trim() || '在线环境音';
+    next.audioUrl = audioUrl;
+    next.author = String(source.author || '').trim();
+    next.license = String(source.license || '').trim();
+    next.licenseName = String(source.licenseName || source.license_name || '').trim();
+    next.pageUrl = isAllowedRemoteAmbientUrl(pageUrl) ? pageUrl : '';
     return next;
   }
 

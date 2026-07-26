@@ -64,6 +64,49 @@ const EFFECT_PREVIEW_TOKENS = Object.freeze({
     { kind: 'glow', style: toPreviewStyle({ x: 58, y: 36, size: 20, delay: 0.9, duration: 4.9, opacity: 0.92, blur: 1 }) },
     { kind: 'glow', style: toPreviewStyle({ x: 72, y: 54, size: 16, delay: 1.8, duration: 5.4, opacity: 0.68, blur: 2 }) },
     { kind: 'glow', style: toPreviewStyle({ x: 52, y: 78, size: 13, delay: 2.2, duration: 6.1, opacity: 0.62, blur: 3 }) }
+  ]),
+  leaves: Object.freeze([
+    { kind: 'leaf', style: toPreviewStyle({ x: 20, y: 18, size: 18, delay: 0.3, duration: 5.2, rotate: -24, opacity: 0.92 }) },
+    { kind: 'leaf', style: toPreviewStyle({ x: 38, y: 48, size: 15, delay: 1.2, duration: 5.9, rotate: 34, opacity: 0.84 }) },
+    { kind: 'leaf', style: toPreviewStyle({ x: 58, y: 22, size: 19, delay: 0.7, duration: 5.4, rotate: 12, opacity: 0.88 }) },
+    { kind: 'leaf', style: toPreviewStyle({ x: 74, y: 56, size: 16, delay: 1.8, duration: 5.1, rotate: -38, opacity: 0.78 }) },
+    { kind: 'leaf', style: toPreviewStyle({ x: 46, y: 74, size: 14, delay: 2.3, duration: 6.2, rotate: 52, opacity: 0.74 }) }
+  ]),
+  starfield: Object.freeze([
+    { kind: 'star', style: toPreviewStyle({ x: 18, y: 24, size: 5, delay: 0.1, duration: 3.4, opacity: 0.9 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 34, y: 52, size: 4, delay: 1.2, duration: 4.4, opacity: 0.66 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 52, y: 20, size: 7, delay: 0.7, duration: 3.8, opacity: 0.96 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 66, y: 46, size: 4, delay: 1.7, duration: 4.1, opacity: 0.7 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 80, y: 28, size: 6, delay: 0.4, duration: 3.6, opacity: 0.88 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 44, y: 72, size: 5, delay: 2.1, duration: 4.6, opacity: 0.6 }) }
+  ]),
+  meteor: Object.freeze([
+    { kind: 'star', style: toPreviewStyle({ x: 24, y: 30, size: 4, delay: 0.2, duration: 3.8, opacity: 0.82 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 70, y: 22, size: 5, delay: 1.1, duration: 4.2, opacity: 0.9 }) },
+    { kind: 'meteorline', style: toPreviewStyle({ x: 30, y: 16, size: 34, delay: 0.4, duration: 2.6, rotate: 38, opacity: 0.92 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 52, y: 58, size: 4, delay: 1.6, duration: 3.6, opacity: 0.66 }) },
+    { kind: 'meteorline', style: toPreviewStyle({ x: 62, y: 42, size: 26, delay: 1.9, duration: 3.1, rotate: 38, opacity: 0.78 }) }
+  ]),
+  bubbles: Object.freeze([
+    { kind: 'bubble', style: toPreviewStyle({ x: 22, y: 62, size: 13, delay: 0.2, duration: 4.4, opacity: 0.86 }) },
+    { kind: 'bubble', style: toPreviewStyle({ x: 38, y: 34, size: 9, delay: 1.1, duration: 5.2, opacity: 0.7 }) },
+    { kind: 'bubble', style: toPreviewStyle({ x: 56, y: 66, size: 15, delay: 0.6, duration: 4.7, opacity: 0.9 }) },
+    { kind: 'bubble', style: toPreviewStyle({ x: 72, y: 40, size: 10, delay: 1.7, duration: 5.5, opacity: 0.66 }) },
+    { kind: 'bubble', style: toPreviewStyle({ x: 46, y: 20, size: 7, delay: 2.2, duration: 5.9, opacity: 0.58 }) }
+  ]),
+  dust: Object.freeze([
+    { kind: 'mote', style: toPreviewStyle({ x: 24, y: 30, size: 9, delay: 0.3, duration: 6.2, opacity: 0.78, blur: 1 }) },
+    { kind: 'mote', style: toPreviewStyle({ x: 42, y: 58, size: 7, delay: 1.4, duration: 7.1, opacity: 0.6, blur: 2 }) },
+    { kind: 'mote', style: toPreviewStyle({ x: 60, y: 34, size: 10, delay: 0.8, duration: 6.6, opacity: 0.72, blur: 1 }) },
+    { kind: 'mote', style: toPreviewStyle({ x: 74, y: 60, size: 6, delay: 2.0, duration: 7.6, opacity: 0.54, blur: 2 }) },
+    { kind: 'mote', style: toPreviewStyle({ x: 50, y: 78, size: 8, delay: 2.6, duration: 6.9, opacity: 0.5, blur: 3 }) }
+  ]),
+  aurora: Object.freeze([
+    { kind: 'ribbon', style: toPreviewStyle({ x: 16, y: 8, size: 46, delay: 0.2, duration: 7.4, rotate: -14, opacity: 0.66, blur: 6 }) },
+    { kind: 'ribbon', style: toPreviewStyle({ x: 44, y: 4, size: 58, delay: 1.6, duration: 8.2, rotate: 8, opacity: 0.58, blur: 8 }) },
+    { kind: 'ribbon', style: toPreviewStyle({ x: 70, y: 10, size: 42, delay: 0.9, duration: 7.8, rotate: 18, opacity: 0.5, blur: 7 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 30, y: 64, size: 4, delay: 0.5, duration: 3.9, opacity: 0.7 }) },
+    { kind: 'star', style: toPreviewStyle({ x: 62, y: 70, size: 5, delay: 1.8, duration: 4.3, opacity: 0.62 }) }
   ])
 });
 

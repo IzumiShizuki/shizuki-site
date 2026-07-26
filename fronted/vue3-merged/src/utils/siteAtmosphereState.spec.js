@@ -5,6 +5,7 @@ import {
   applySiteAtmosphereToPreference,
   createDefaultSiteAtmosphereState,
   deleteAmbientPreset,
+  isAllowedRemoteAmbientUrl,
   normalizeGuestAmbientUploads,
   normalizeSiteAtmosphereState,
   readSiteAtmospherePreference,
@@ -49,6 +50,7 @@ describe('siteAtmosphereState', () => {
     );
 
     expect(normalized.panelTab).toBe('ambient');
+    expect(normalizeSiteAtmosphereState({ panelTab: 'scenes' }).panelTab).toBe('scenes');
     expect(normalized.effect.presetId).toBe('none');
     expect(normalized.effect.density).toBe(1.8);
     expect(normalized.effect.opacity).toBe(0);
@@ -100,6 +102,67 @@ describe('siteAtmosphereState', () => {
 
     expect(Object.keys(uploads)).toEqual(['demo']);
     expect(uploads.demo.title).toBe('Demo Upload');
+  });
+
+  it('accepts remote freesound tracks and rejects urls outside the allowlist', () => {
+    const allowed = normalizeSiteAtmosphereState({
+      ambient: {
+        tracks: [
+          {
+            trackId: 'freesound:12345',
+            source: 'remote',
+            enabled: true,
+            volume: 0.6,
+            title: 'Rain on window',
+            audioUrl: 'https://cdn.freesound.org/previews/123/12345_1-hq.mp3',
+            author: 'someone',
+            license: 'cc0',
+            licenseName: 'CC0 公有领域',
+            pageUrl: 'https://freesound.org/s/12345/'
+          },
+          {
+            trackId: 'freesound:66666',
+            source: 'remote',
+            enabled: true,
+            audioUrl: 'https://evil.example.com/payload.mp3'
+          },
+          {
+            trackId: 'freesound:77777',
+            source: 'remote',
+            enabled: true,
+            audioUrl: 'http://cdn.freesound.org/previews/7/77777-hq.mp3'
+          }
+        ]
+      }
+    });
+
+    expect(allowed.ambient.tracks).toHaveLength(1);
+    expect(allowed.ambient.tracks[0].trackId).toBe('freesound:12345');
+    expect(allowed.ambient.tracks[0].audioUrl).toBe('https://cdn.freesound.org/previews/123/12345_1-hq.mp3');
+    expect(allowed.ambient.tracks[0].pageUrl).toBe('https://freesound.org/s/12345/');
+    expect(allowed.ambient.tracks[0].author).toBe('someone');
+
+    expect(isAllowedRemoteAmbientUrl('https://freesound.org/s/1/')).toBe(true);
+    expect(isAllowedRemoteAmbientUrl('https://cdn.freesound.org.evil.com/x.mp3')).toBe(false);
+    expect(isAllowedRemoteAmbientUrl('javascript:alert(1)')).toBe(false);
+    expect(isAllowedRemoteAmbientUrl('')).toBe(false);
+  });
+
+  it('keeps a remote track through an upsert + toggle round trip', () => {
+    let state = createDefaultSiteAtmosphereState();
+    state = upsertAmbientTrack(state, {
+      trackId: 'freesound:900',
+      source: 'remote',
+      enabled: true,
+      volume: 0.5,
+      title: 'Creek',
+      audioUrl: 'https://cdn.freesound.org/previews/9/900-hq.mp3'
+    });
+    expect(state.ambient.tracks).toHaveLength(1);
+
+    state = toggleAmbientTrack(state, state.ambient.tracks[0]);
+    expect(state.ambient.tracks[0].enabled).toBe(false);
+    expect(state.ambient.tracks[0].audioUrl).toBe('https://cdn.freesound.org/previews/9/900-hq.mp3');
   });
 
   it('saves, applies and deletes ambient presets while keeping builtins restorable', () => {

@@ -110,6 +110,78 @@ export const BUILTIN_AMBIENT_DEFINITIONS = [
     icon: 'fas fa-shoe-prints',
     cover: 'linear-gradient(140deg, rgba(135, 118, 142, 0.95), rgba(52, 40, 61, 0.94))',
     license: 'Local generated ambience'
+  },
+  {
+    id: 'thunder',
+    title: 'Thunder Roll',
+    label: '雷雨',
+    category: 'scene',
+    kind: 'media',
+    assetPath: 'ambient/thunder-roll.wav',
+    description: '雨幕铺底，远处滚雷缓慢掠过。',
+    icon: 'fas fa-cloud-bolt',
+    cover: 'linear-gradient(140deg, rgba(96, 110, 148, 0.95), rgba(30, 34, 56, 0.95))',
+    license: 'Local generated ambience'
+  },
+  {
+    id: 'campfire',
+    title: 'Campfire Glow',
+    label: '篝火',
+    category: 'scene',
+    kind: 'media',
+    assetPath: 'ambient/campfire-glow.wav',
+    description: '低沉火焰与细碎噼啪，冬夜陪伴感十足。',
+    icon: 'fas fa-fire',
+    cover: 'linear-gradient(140deg, rgba(236, 150, 82, 0.95), rgba(96, 42, 24, 0.94))',
+    license: 'Local generated ambience'
+  },
+  {
+    id: 'creek',
+    title: 'Creek Babble',
+    label: '溪流',
+    category: 'scene',
+    kind: 'media',
+    assetPath: 'ambient/creek-babble.wav',
+    description: '轻快水流与偶尔的汩汩气泡声。',
+    icon: 'fas fa-droplet',
+    cover: 'linear-gradient(140deg, rgba(126, 194, 196, 0.95), rgba(30, 84, 92, 0.94))',
+    license: 'Local generated ambience'
+  },
+  {
+    id: 'birds',
+    title: 'Morning Birds',
+    label: '鸟鸣',
+    category: 'scene',
+    kind: 'media',
+    assetPath: 'ambient/morning-birds.wav',
+    description: '清晨林间鸟鸣，稀疏清亮不聒噪。',
+    icon: 'fas fa-dove',
+    cover: 'linear-gradient(140deg, rgba(170, 208, 148, 0.95), rgba(60, 104, 66, 0.94))',
+    license: 'Local generated ambience'
+  },
+  {
+    id: 'crickets',
+    title: 'Night Crickets',
+    label: '虫鸣',
+    category: 'scene',
+    kind: 'media',
+    assetPath: 'ambient/night-crickets.wav',
+    description: '夏夜虫鸣与安静的夜风底噪。',
+    icon: 'fas fa-moon',
+    cover: 'linear-gradient(140deg, rgba(88, 106, 156, 0.95), rgba(22, 26, 52, 0.95))',
+    license: 'Local generated ambience'
+  },
+  {
+    id: 'cafe',
+    title: 'Cafe Murmur',
+    label: '咖啡馆',
+    category: 'scene',
+    kind: 'media',
+    assetPath: 'ambient/cafe-murmur.wav',
+    description: '模糊人声与杯盏轻响，白天干活好搭档。',
+    icon: 'fas fa-mug-hot',
+    cover: 'linear-gradient(140deg, rgba(196, 156, 118, 0.95), rgba(84, 56, 40, 0.94))',
+    license: 'Local generated ambience'
   }
 ];
 
@@ -150,10 +222,150 @@ export const EFFECT_PRESET_DEFINITIONS = [
     title: 'Fireflies',
     description: '微弱的暖光漂浮，更适合夜景和 L2D。',
     cover: 'linear-gradient(140deg, rgba(245, 227, 129, 0.94), rgba(83, 57, 22, 0.94))'
+  },
+  {
+    id: 'leaves',
+    label: '落叶',
+    title: 'Autumn Leaves',
+    description: '暖色叶片打着旋缓缓飘落，秋日限定。',
+    cover: 'linear-gradient(140deg, rgba(244, 196, 134, 0.95), rgba(150, 78, 44, 0.93))'
+  },
+  {
+    id: 'starfield',
+    label: '星屑',
+    title: 'Starfield',
+    description: '满屏细小星光缓慢闪烁，夜景壁纸绝配。',
+    cover: 'linear-gradient(140deg, rgba(70, 86, 158, 0.92), rgba(12, 16, 44, 0.96))'
+  },
+  {
+    id: 'meteor',
+    label: '流星',
+    title: 'Meteor Shower',
+    description: '星幕之上偶有流星划过，稀疏而克制。',
+    cover: 'linear-gradient(140deg, rgba(104, 90, 178, 0.93), rgba(22, 14, 54, 0.96))'
+  },
+  {
+    id: 'bubbles',
+    label: '气泡',
+    title: 'Rising Bubbles',
+    description: '透亮气泡从底部轻轻升起，凉爽治愈。',
+    cover: 'linear-gradient(140deg, rgba(136, 208, 224, 0.94), rgba(26, 94, 128, 0.94))'
+  },
+  {
+    id: 'dust',
+    label: '光尘',
+    title: 'Light Dust',
+    description: '微光尘埃缓慢浮游，几乎无存在感的氛围层。',
+    cover: 'linear-gradient(140deg, rgba(240, 224, 188, 0.95), rgba(122, 100, 70, 0.92))'
+  },
+  {
+    id: 'aurora',
+    label: '极光',
+    title: 'Aurora Veil',
+    description: '柔和光幕在上方流动，冷色与夜空更出效果。',
+    cover: 'linear-gradient(140deg, rgba(104, 220, 190, 0.92), rgba(56, 34, 96, 0.95))'
   }
 ];
 
 export const EFFECT_PRESET_ID_SET = new Set(EFFECT_PRESET_DEFINITIONS.map((item) => item.id));
+
+export const ATMOSPHERE_SCENE_DEFINITIONS = [
+  {
+    id: 'rainy-study',
+    label: '雨夜书房',
+    title: 'Rainy Study',
+    description: '雨声铺底、远雷点缀，细雨落在窗外。',
+    icon: 'fas fa-book-open',
+    cover: 'linear-gradient(140deg, rgba(90, 114, 160, 0.95), rgba(26, 34, 60, 0.95))',
+    effect: { presetId: 'soft-rain', opacity: 0.56 },
+    tracks: [
+      { trackId: 'rain', volume: 0.66 },
+      { trackId: 'thunder', volume: 0.4 }
+    ]
+  },
+  {
+    id: 'forest-morning',
+    label: '林间晨光',
+    title: 'Forest Morning',
+    description: '鸟鸣与溪流交叠，光尘在晨光里浮动。',
+    icon: 'fas fa-sun',
+    cover: 'linear-gradient(140deg, rgba(178, 210, 150, 0.95), rgba(64, 108, 70, 0.94))',
+    effect: { presetId: 'dust', opacity: 0.6 },
+    tracks: [
+      { trackId: 'birds', volume: 0.6 },
+      { trackId: 'creek', volume: 0.52 }
+    ]
+  },
+  {
+    id: 'summer-night',
+    label: '夏夜萤火',
+    title: 'Summer Fireflies',
+    description: '虫鸣与夜风，萤火在屏幕上缓缓漂浮。',
+    icon: 'fas fa-moon',
+    cover: 'linear-gradient(140deg, rgba(94, 128, 116, 0.95), rgba(24, 40, 48, 0.95))',
+    effect: { presetId: 'fireflies', opacity: 0.72 },
+    tracks: [
+      { trackId: 'crickets', volume: 0.62 },
+      { trackId: 'wind', volume: 0.3 }
+    ]
+  },
+  {
+    id: 'winter-hearth',
+    label: '冬日炉火',
+    title: 'Winter Hearth',
+    description: '窗外落雪无声，屋里只有篝火噼啪。',
+    icon: 'fas fa-fire',
+    cover: 'linear-gradient(140deg, rgba(232, 158, 96, 0.95), rgba(88, 44, 28, 0.95))',
+    effect: { presetId: 'snow', opacity: 0.66 },
+    tracks: [
+      { trackId: 'campfire', volume: 0.68 },
+      { trackId: 'wind', volume: 0.34 }
+    ]
+  },
+  {
+    id: 'seaside-calm',
+    label: '海岸冥想',
+    title: 'Seaside Calm',
+    description: '潮汐往复，气泡轻轻上浮，放空专用。',
+    icon: 'fas fa-umbrella-beach',
+    cover: 'linear-gradient(140deg, rgba(110, 176, 196, 0.95), rgba(24, 66, 96, 0.95))',
+    effect: { presetId: 'bubbles', opacity: 0.5 },
+    tracks: [
+      { trackId: 'ocean', volume: 0.66 },
+      { trackId: 'wind', volume: 0.28 }
+    ]
+  },
+  {
+    id: 'cafe-afternoon',
+    label: '午后咖啡',
+    title: 'Cafe Afternoon',
+    description: '人声底噪配窗边细雨，专注效率翻倍。',
+    icon: 'fas fa-mug-hot',
+    cover: 'linear-gradient(140deg, rgba(202, 162, 122, 0.95), rgba(90, 60, 42, 0.95))',
+    effect: { presetId: 'dust', opacity: 0.42 },
+    tracks: [
+      { trackId: 'cafe', volume: 0.62 },
+      { trackId: 'rain', volume: 0.3 }
+    ]
+  },
+  {
+    id: 'starry-wish',
+    label: '星夜许愿',
+    title: 'Starry Wish',
+    description: '虫鸣渐远，星屑与流星铺满整片夜空。',
+    icon: 'fas fa-star',
+    cover: 'linear-gradient(140deg, rgba(96, 88, 168, 0.94), rgba(16, 12, 44, 0.96))',
+    effect: { presetId: 'meteor', opacity: 0.78 },
+    tracks: [
+      { trackId: 'crickets', volume: 0.3 },
+      { trackId: 'wind', volume: 0.26 }
+    ]
+  }
+];
+
+export function findAtmosphereSceneById(sceneId) {
+  return ATMOSPHERE_SCENE_DEFINITIONS.find((item) => item.id === String(sceneId || '').trim()) || null;
+}
 
 export function resolveBuiltinAmbientCatalog() {
   return BUILTIN_AMBIENT_DEFINITIONS.map((item) => ({

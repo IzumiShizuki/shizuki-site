@@ -256,6 +256,7 @@ export function createAmbientMixerEngine(options = {}) {
       destroyRuntime(runtime);
       runtimes.delete(trackId);
     });
+    refreshActiveTrackIds();
 
     for (const track of normalized) {
       if (track.kind === 'media' && !track.audioUrl) continue;
@@ -263,6 +264,7 @@ export function createAmbientMixerEngine(options = {}) {
         try {
           const runtime = await createRuntime(track);
           runtimes.set(track.trackId, runtime);
+          refreshActiveTrackIds();
         } catch (error) {
           lastError.value = error?.message || 'Failed to create ambient runtime';
         }

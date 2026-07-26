@@ -48,4 +48,13 @@ describe('atmosphereEffectPreview', () => {
     expect(vars['--effect-preview-opacity-scale']).toBe('1.222');
     expect(vars['--effect-preview-drift-scale']).toBe('0.700');
   });
+
+  it('provides preview tokens for the extended effect presets', () => {
+    expect(resolveEffectPreviewTokens('leaves')[0].kind).toBe('leaf');
+    expect(resolveEffectPreviewTokens('starfield')[0].kind).toBe('star');
+    expect(resolveEffectPreviewTokens('meteor').some((token) => token.kind === 'meteorline')).toBe(true);
+    expect(resolveEffectPreviewTokens('bubbles')[0].kind).toBe('bubble');
+    expect(resolveEffectPreviewTokens('dust')[0].kind).toBe('mote');
+    expect(resolveEffectPreviewTokens('aurora').some((token) => token.kind === 'ribbon')).toBe(true);
+  });
 });

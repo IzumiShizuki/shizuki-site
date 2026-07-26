@@ -77,4 +77,48 @@ describe('sceneEffectEngine', () => {
 
     expect(highSpawnCount).toBeGreaterThan(lowSpawnCount);
   });
+
+  it('creates rising bubbles that respawn at the bottom after leaving the top', () => {
+    const random = () => 0.5;
+    const created = createSceneEffectParticles('bubbles', 800, 600, 3, { fallSpeed: 1 }, random);
+    expect(created[0].speedY).toBeLessThan(0);
+
+    const nearTop = created.map((particle) => ({ ...particle, y: -40 }));
+    const stepped = stepSceneEffectParticles('bubbles', nearTop, 16, 800, 600, { fallSpeed: 1, spawnRate: 1 }, random);
+    expect(stepped[0].y).toBeGreaterThan(600);
+  });
+
+  it('mixes meteors with background stars and keeps starfield particles wrapped', () => {
+    const random = () => 0.5;
+    const meteorMix = createSceneEffectParticles('meteor', 800, 600, 10, { fallSpeed: 1 }, random);
+    const meteors = meteorMix.filter((particle) => particle.variant === 'meteor');
+    const stars = meteorMix.filter((particle) => particle.variant !== 'meteor');
+    expect(meteors.length).toBeGreaterThan(0);
+    expect(stars.length).toBeGreaterThan(meteors.length);
+    expect(meteors[0].speedY).toBeGreaterThan(100);
+
+    const starParticles = createSceneEffectParticles('starfield', 800, 600, 4, {}, random);
+    const pushedOut = starParticles.map((particle) => ({ ...particle, x: 900 }));
+    const stepped = stepSceneEffectParticles('starfield', pushedOut, 16, 800, 600, {}, random);
+    expect(stepped[0].x).toBeLessThanOrEqual(0);
+  });
+
+  it('keeps aurora ribbon count low while other new presets scale normally', () => {
+    const auroraCount = computeSceneEffectParticleCount({
+      enabled: true,
+      presetId: 'aurora',
+      density: 0.4,
+      spawnRate: 0.4
+    });
+    const dustCount = computeSceneEffectParticleCount({
+      enabled: true,
+      presetId: 'dust',
+      density: 1,
+      spawnRate: 1
+    });
+
+    expect(auroraCount).toBeGreaterThanOrEqual(3);
+    expect(auroraCount).toBeLessThan(10);
+    expect(dustCount).toBeGreaterThan(20);
+  });
 });
