@@ -305,6 +305,34 @@
               <span class="editor-topbar-mode">{{ editorMode === 'wysiwyg' ? '富文本模式' : 'Markdown 源码模式' }}</span>
             </div>
             <div class="editor-topbar-actions">
+              <div ref="insertMenuWrapRef" class="insert-menu-wrap">
+                <button
+                  type="button"
+                  class="mini-btn ripple-trigger editor-topbar-btn insert-menu-toggle"
+                  :class="{ active: insertMenuState.open }"
+                  :aria-expanded="insertMenuState.open ? 'true' : 'false'"
+                  :disabled="editorReadOnlyBecauseNotion"
+                  @click="toggleInsertMenu"
+                >
+                  <i class="fas fa-square-plus" aria-hidden="true"></i>
+                  插入块
+                </button>
+                <div v-if="insertMenuState.open" class="insert-menu liquid-material">
+                  <button
+                    v-for="item in insertBlockTemplates"
+                    :key="`insert-${item.key}`"
+                    type="button"
+                    class="insert-menu-item ripple-trigger"
+                    @click="applyInsertTemplate(item.key)"
+                  >
+                    <span class="insert-menu-icon" aria-hidden="true"><i :class="item.icon"></i></span>
+                    <span class="insert-menu-main">
+                      <strong>{{ item.label }}</strong>
+                      <small>{{ item.hint }}</small>
+                    </span>
+                  </button>
+                </div>
+              </div>
               <button
                 type="button"
                 class="mini-btn ripple-trigger editor-topbar-btn"
@@ -458,9 +486,9 @@
                 <p v-if="editorPresentationState.error" class="error-text editor-meta-message">{{ editorPresentationState.error }}</p>
               </section>
 
-              <section v-if="canUseAccountWriterFeatures" class="editor-info-section liquid-material">
+              <section class="editor-info-section liquid-material">
                 <div class="editor-info-section-head">
-                  <h3>白板图片</h3>
+                  <h3>白板</h3>
                   <span class="editor-info-section-status">{{ whiteboardImportStatusText }}</span>
                 </div>
                 <div class="editor-info-section-actions">
@@ -468,19 +496,21 @@
                     type="button"
                     class="mini-btn ripple-trigger"
                     :disabled="whiteboardImportState.uploading"
-                    @click="openBoardCanvasForBlog()"
+                    @click="openBoardCanvasForBlog('embed')"
                   >
-                    打开白板
+                    嵌入互动白板
                   </button>
                   <button
+                    v-if="canUseAccountWriterFeatures"
                     type="button"
                     class="mini-btn ripple-trigger"
                     :disabled="whiteboardImportState.uploading"
                     @click="openBoardCanvasForBlog('inline')"
                   >
-                    插入正文
+                    插入图片
                   </button>
                   <button
+                    v-if="canUseAccountWriterFeatures"
                     type="button"
                     class="mini-btn ripple-trigger"
                     :disabled="whiteboardImportState.uploading"
@@ -489,8 +519,8 @@
                     设为封面
                   </button>
                 </div>
-                <p class="side-tip">白板窗口现在支持直接把 PNG 发送到博客正文或封面。有选区时会优先导出选区，没有选区时会导出整板。</p>
-                <p class="side-tip">如果你已经打开白板，直接在白板工具栏点“发送到博客正文”或“设为博客封面”即可。</p>
+                <p class="side-tip">互动白板会把画板数据随文章保存：读者在文章里可以直接拖动、缩放浏览白板，无需登录。</p>
+                <p class="side-tip">白板窗口工具栏里：粉笔板图标 = 嵌入互动白板；文档 / 头像图标 = 发送 PNG 到正文或封面（有选区时优先导出选区）。</p>
               </section>
 
               <div class="editor-grid">
@@ -726,6 +756,7 @@ import {
   resolveDefaultBlogCategoryCode
 } from '../utils/blogCategoryCatalog';
 import { onBlogWhiteboardExport } from '../utils/blogWhiteboardBridge';
+import { createWhiteboardEmbedMarkdown, hydrateWhiteboardEmbeds } from '../utils/blogWhiteboardEmbed';
 import { DEFAULT_BLOG_POST_TITLE, resolveBlogPostDisplayTitle } from '../utils/blogPostTitle';
 import { shouldSyncEditorRoute } from './blogEditorRouteState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
@@ -859,6 +890,50 @@ const whiteboardImportState = reactive({
   lastBoardTitle: ''
 });
 
+const insertMenuState = reactive({
+  open: false
+});
+
+const INSERT_BLOCK_TEMPLATES = Object.freeze([
+  {
+    key: 'callout-info',
+    label: '提示块 Callout',
+    hint: ':::info / tip / warning / danger',
+    icon: 'fas fa-circle-info',
+    template: '\n:::info 提示\n在这里写提示内容，支持 **加粗**、列表等 Markdown 语法。\n:::\n'
+  },
+  {
+    key: 'toggle',
+    label: '折叠块 Toggle',
+    hint: '点击展开 / 收起的段落',
+    icon: 'fas fa-caret-down',
+    template: '\n:::details 展开查看\n这里的内容默认折叠，点击标题展开。\n:::\n'
+  },
+  {
+    key: 'task-list',
+    label: '任务清单',
+    hint: '- [ ] 待办 / - [x] 已完成',
+    icon: 'fas fa-list-check',
+    template: '\n- [ ] 待办事项\n- [x] 已完成事项\n'
+  },
+  {
+    key: 'video-embed',
+    label: '视频 / 链接卡片',
+    hint: '链接单独一行自动变卡片',
+    icon: 'fas fa-clapperboard',
+    template: '\nhttps://www.bilibili.com/video/BV1xx411c7mD\n'
+  },
+  {
+    key: 'whiteboard',
+    label: '互动白板',
+    hint: '打开白板窗口后点击嵌入',
+    icon: 'fas fa-chalkboard',
+    template: ''
+  }
+]);
+
+const insertBlockTemplates = INSERT_BLOCK_TEMPLATES;
+
 const routeMode = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
   if (name === 'blog-detail') return 'detail';
@@ -880,6 +955,7 @@ const tocListRef = ref(null);
 const markdownBodyRef = ref(null);
 const detailRelatedListRef = ref(null);
 const downloadWrapRef = ref(null);
+const insertMenuWrapRef = ref(null);
 const richEditorRef = ref(null);
 
 let headingDomNodes = [];
@@ -887,6 +963,7 @@ let boundScrollRoot = null;
 let editorPresentationPollTimer = 0;
 let detailRenderJobToken = 0;
 let releaseBlogWhiteboardExport = null;
+let releaseWhiteboardEmbeds = null;
 
 const groupCodes = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
@@ -1147,12 +1224,14 @@ const editorPresentationStatusText = computed(() => resolvePresentationStatusTex
 const detailPresentationStatusText = computed(() => resolvePresentationStatusText(detailPresentationState.data, detailPresentationState.loading));
 const whiteboardImportStatusText = computed(() => {
   if (whiteboardImportState.uploading) {
-    return whiteboardImportState.target === 'cover' ? '正在同步为封面...' : '正在插入到正文...';
+    if (whiteboardImportState.target === 'cover') return '正在同步为封面...';
+    if (whiteboardImportState.target === 'embed') return '正在嵌入互动白板...';
+    return '正在插入到正文...';
   }
   if (whiteboardImportState.lastBoardTitle) {
     return `最近接收：${whiteboardImportState.lastBoardTitle}`;
   }
-  return '支持白板图片直连博客';
+  return '支持互动白板与图片直连博客';
 });
 const editorStatusMeta = computed(() => resolvePostStatusMeta(writerState.editor.statusCode));
 const editorVisibilityMeta = computed(() => resolvePostVisibilityMeta(writerState.editor.visibility));
@@ -1575,11 +1654,64 @@ function selectDetailCategory(categoryCode) {
   loadDetailRelatedPosts(categoryCode);
 }
 
+function releaseWhiteboardEmbedHydration() {
+  if (typeof releaseWhiteboardEmbeds === 'function') {
+    releaseWhiteboardEmbeds();
+  }
+  releaseWhiteboardEmbeds = null;
+}
+
+function hydrateCodeCopyButtons(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  const blocks = Array.from(root.querySelectorAll('pre.md-code'));
+  blocks.forEach((preNode) => {
+    if (preNode.dataset.copyReady === 'true') return;
+    preNode.dataset.copyReady = 'true';
+
+    const codeNode = preNode.querySelector('code');
+    const lang = String(codeNode?.dataset?.lang || '').trim();
+    if (lang) {
+      preNode.dataset.lang = lang;
+    }
+
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'md-code-copy';
+    copyButton.title = '复制代码';
+    copyButton.innerHTML = '<i class="far fa-copy" aria-hidden="true"></i>';
+    copyButton.addEventListener('click', async () => {
+      const text = String(codeNode?.innerText || preNode.innerText || '').replace(/\n$/, '');
+      try {
+        await navigator.clipboard.writeText(text);
+        copyButton.classList.add('copied');
+        copyButton.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
+        window.setTimeout(() => {
+          copyButton.classList.remove('copied');
+          copyButton.innerHTML = '<i class="far fa-copy" aria-hidden="true"></i>';
+        }, 1600);
+      } catch {
+        copyButton.title = '复制失败，请手动选择文本';
+      }
+    });
+    preNode.appendChild(copyButton);
+  });
+}
+
 async function renderDetailMarkdownEnhancements(renderToken) {
   await nextTick();
   if (renderToken !== detailRenderJobToken) return;
   if (markdownBodyRef.value) {
     await renderMermaidBlocks(markdownBodyRef.value);
+  }
+  if (renderToken !== detailRenderJobToken) return;
+  if (markdownBodyRef.value) {
+    releaseWhiteboardEmbedHydration();
+    releaseWhiteboardEmbeds = hydrateWhiteboardEmbeds(markdownBodyRef.value, {
+      onError: (error) => {
+        console.error('[BlogPage] whiteboard embed failed', error);
+      }
+    });
+    hydrateCodeCopyButtons(markdownBodyRef.value);
   }
   if (renderToken !== detailRenderJobToken) return;
   setupReadingScroll();
@@ -2137,6 +2269,10 @@ function openBoardCanvasForBlog(target = '') {
     writerState.notice = '白板已打开：在白板工具栏点击“发送到博客正文”即可插入。';
     return;
   }
+  if (normalizedTarget === 'embed') {
+    writerState.notice = '白板已打开：画好后点击工具栏的粉笔板图标“嵌入互动白板到博客正文”。';
+    return;
+  }
   writerState.notice = '白板已打开：你可以把白板 PNG 直接发送到当前博客草稿。';
 }
 
@@ -2165,15 +2301,77 @@ function insertWhiteboardImageIntoEditor(url, boardTitle) {
   writerState.editor.markdown = current ? `${current}\n\n${appended}\n` : `${appended}\n`;
 }
 
+function insertMarkdownSnippetIntoEditor(snippet) {
+  const editor = richEditorRef.value;
+  if (editor && typeof editor.insertText === 'function') {
+    editor.insertText(snippet);
+    return;
+  }
+
+  const current = normalizeMarkdownForEditor(writerState.editor.markdown);
+  const appended = String(snippet || '').trim();
+  writerState.editor.markdown = current ? `${current}\n\n${appended}\n` : `${appended}\n`;
+}
+
+async function handleBlogWhiteboardEmbedExport(payload) {
+  whiteboardImportState.uploading = true;
+  whiteboardImportState.target = 'embed';
+  whiteboardImportState.lastBoardTitle = String(payload.boardTitle || '').trim();
+  writerState.error = '';
+  writerState.notice = '正在打包互动白板数据...';
+
+  try {
+    if (editorReadOnlyBecauseNotion.value) {
+      throw new Error('当前文章正文由 Notion 锁定，暂时不能嵌入互动白板');
+    }
+
+    let previewUrl = '';
+    if (payload.blob instanceof Blob && canUseAccountWriterFeatures.value) {
+      try {
+        const previewFile = createFileFromBlob(payload.blob, payload.fileName);
+        const uploaded = await uploadBlogInlineImage(previewFile, resolveAuthorizedFetch());
+        previewUrl = normalizeString(uploaded?.url).trim();
+      } catch {
+        previewUrl = '';
+      }
+    }
+
+    const snippet = await createWhiteboardEmbedMarkdown({
+      snapshot: payload.snapshot,
+      title: whiteboardImportState.lastBoardTitle,
+      preview: previewUrl,
+      background: payload.background
+    });
+    insertMarkdownSnippetIntoEditor(snippet);
+    writerState.notice = whiteboardImportState.lastBoardTitle
+      ? `已把互动白板“${whiteboardImportState.lastBoardTitle}”嵌入到正文，白板数据会随文章保存`
+      : '已把互动白板嵌入到正文，白板数据会随文章保存';
+  } catch (error) {
+    writerState.notice = '';
+    writerState.error = normalizeErrorMessage(error, '嵌入互动白板失败');
+  } finally {
+    whiteboardImportState.uploading = false;
+    whiteboardImportState.target = '';
+  }
+}
+
 async function handleBlogWhiteboardExport(payload) {
-  if (!canUseAccountWriterFeatures.value) return;
+  const normalizedTarget = String(payload.target || '').trim().toLowerCase();
+  if (normalizedTarget !== 'embed' && !canUseAccountWriterFeatures.value) return;
   if (routeMode.value !== 'editor' && viewMode.value !== 'editor') {
-    writerState.notice = '已收到白板图片，请先进入博客编辑器后再重新发送一次。';
+    writerState.notice =
+      normalizedTarget === 'embed'
+        ? '已收到互动白板，请先进入博客编辑器后再重新发送一次。'
+        : '已收到白板图片，请先进入博客编辑器后再重新发送一次。';
+    return;
+  }
+
+  if (normalizedTarget === 'embed') {
+    await handleBlogWhiteboardEmbedExport(payload);
     return;
   }
 
   const file = createFileFromBlob(payload.blob, payload.fileName);
-  const normalizedTarget = String(payload.target || '').trim().toLowerCase() === 'cover' ? 'cover' : 'inline';
 
   whiteboardImportState.uploading = true;
   whiteboardImportState.target = normalizedTarget;
@@ -2441,17 +2639,49 @@ function toggleDownloadMenu() {
 }
 
 function handleGlobalPointerDown(event) {
+  const target = event?.target;
+
+  if (insertMenuState.open) {
+    const insertWrap = insertMenuWrapRef.value;
+    if (!(insertWrap instanceof HTMLElement) || !(target instanceof Node) || !insertWrap.contains(target)) {
+      closeInsertMenu();
+    }
+  }
+
   if (!downloadState.open) return;
   const wrap = downloadWrapRef.value;
   if (!(wrap instanceof HTMLElement)) {
     closeDownloadMenu();
     return;
   }
-  const target = event?.target;
   if (target instanceof Node && wrap.contains(target)) {
     return;
   }
   closeDownloadMenu();
+}
+
+function closeInsertMenu() {
+  insertMenuState.open = false;
+}
+
+function toggleInsertMenu() {
+  insertMenuState.open = !insertMenuState.open;
+}
+
+function applyInsertTemplate(key) {
+  const item = INSERT_BLOCK_TEMPLATES.find((entry) => entry.key === key);
+  closeInsertMenu();
+  if (!item) return;
+
+  if (item.key === 'whiteboard') {
+    openBoardCanvasForBlog('embed');
+    return;
+  }
+
+  insertMarkdownSnippetIntoEditor(item.template);
+  if (item.key === 'video-embed') {
+    writerState.notice = '把 B 站 / YouTube 视频链接单独放一行即可自动变成播放器，普通链接会变成书签卡片。';
+  }
 }
 
 async function resolveCurrentMarkdownForDownload() {
@@ -2835,6 +3065,10 @@ async function syncRouteDrivenView() {
   const mode = routeMode.value;
   if (mode !== 'editor') {
     clearEditorPresentationPollTimer();
+    closeInsertMenu();
+  }
+  if (mode !== 'detail') {
+    releaseWhiteboardEmbedHydration();
   }
   if (mode === 'detail') {
     leftNavHint.value = '';
@@ -2974,6 +3208,7 @@ onBeforeUnmount(() => {
     releaseBlogWhiteboardExport();
   }
   releaseBlogWhiteboardExport = null;
+  releaseWhiteboardEmbedHydration();
   teardownReadingScroll();
   clearEditorPresentationPollTimer();
 });
@@ -3494,6 +3729,75 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.insert-menu-wrap {
+  position: relative;
+}
+
+.insert-menu-toggle i {
+  margin-right: 4px;
+}
+
+.insert-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  min-width: 252px;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  --liquid-bg: rgba(9, 13, 21, 0.94);
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 20px 40px rgba(2, 4, 8, 0.46);
+}
+
+.insert-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--theme-text-primary, rgba(240, 246, 255, 0.95));
+  text-align: left;
+  cursor: pointer;
+  transition: background 130ms ease;
+}
+
+.insert-menu-item:hover {
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+.insert-menu-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: rgba(var(--accent-rgb), 0.95);
+  font-size: 13px;
+}
+
+.insert-menu-main {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.insert-menu-main strong {
+  font-size: 13px;
+}
+
+.insert-menu-main small {
+  font-size: 11px;
+  color: var(--theme-text-tertiary, rgba(205, 214, 235, 0.72));
 }
 
 .editor-topbar-btn.active {
@@ -4255,6 +4559,553 @@ onBeforeUnmount(() => {
 
 .markdown-body :deep(a) {
   color: rgba(var(--accent-rgb), 0.96);
+}
+
+.markdown-body :deep(h1) {
+  font-size: 1.68em;
+  line-height: 1.32;
+}
+
+.markdown-body :deep(h2) {
+  font-size: 1.38em;
+  line-height: 1.36;
+  padding-bottom: 0.34em;
+  border-bottom: 1px solid var(--blog-divider-soft);
+}
+
+.markdown-body :deep(h3) {
+  font-size: 1.16em;
+}
+
+.markdown-body :deep(hr) {
+  border: 0;
+  height: 1px;
+  margin: 1.4em auto;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.45), transparent);
+}
+
+.markdown-body :deep(blockquote) {
+  border-radius: 0 10px 10px 0;
+  background: rgba(var(--accent-rgb), 0.08);
+  padding: 8px 12px;
+}
+
+.markdown-body :deep(.md-inline-image) {
+  box-shadow: 0 14px 30px rgba(4, 7, 12, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.markdown-body :deep(.md-table-wrap table tbody tr:nth-child(even)) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* code blocks: language chip + copy button */
+.markdown-body :deep(pre.md-code) {
+  position: relative;
+  padding: 34px 14px 12px;
+}
+
+.markdown-body :deep(pre.md-code)::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 9px;
+  left: 13px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--theme-text-tertiary, rgba(205, 214, 235, 0.7));
+}
+
+.markdown-body :deep(pre.md-code:not([data-lang]))::before {
+  content: 'code';
+}
+
+.markdown-body :deep(.md-code-copy) {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--blog-code-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--theme-text-secondary, rgba(220, 228, 246, 0.85));
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.markdown-body :deep(.md-code-copy:hover) {
+  color: rgba(var(--accent-rgb), 0.98);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.markdown-body :deep(.md-code-copy.copied) {
+  color: #7ee2a8;
+  border-color: rgba(126, 226, 168, 0.45);
+}
+
+/* callout blocks */
+.markdown-body :deep(.md-callout) {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 1.05em 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--md-callout-border, rgba(255, 255, 255, 0.16));
+  background: var(--md-callout-bg, rgba(255, 255, 255, 0.06));
+}
+
+.markdown-body :deep(.md-callout-icon) {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--md-callout-icon-bg, rgba(255, 255, 255, 0.1));
+  color: var(--md-callout-icon-color, rgba(255, 255, 255, 0.9));
+  font-size: 14px;
+}
+
+.markdown-body :deep(.md-callout-main) {
+  min-width: 0;
+  flex: 1;
+}
+
+.markdown-body :deep(.md-callout-title) {
+  margin: 2px 0 0;
+  font-weight: 700;
+  font-size: 0.98em;
+  color: var(--theme-text-primary, rgba(244, 249, 255, 0.98));
+}
+
+.markdown-body :deep(.md-callout-body > *:first-child) {
+  margin-top: 0.4em;
+}
+
+.markdown-body :deep(.md-callout-body > *:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-body :deep(.md-callout-info) {
+  --md-callout-bg: rgba(96, 165, 250, 0.1);
+  --md-callout-border: rgba(96, 165, 250, 0.3);
+  --md-callout-icon-bg: rgba(96, 165, 250, 0.18);
+  --md-callout-icon-color: #a8ccfb;
+}
+
+.markdown-body :deep(.md-callout-tip) {
+  --md-callout-bg: rgba(52, 211, 153, 0.1);
+  --md-callout-border: rgba(52, 211, 153, 0.28);
+  --md-callout-icon-bg: rgba(52, 211, 153, 0.16);
+  --md-callout-icon-color: #93e8c6;
+}
+
+.markdown-body :deep(.md-callout-warning) {
+  --md-callout-bg: rgba(251, 191, 36, 0.1);
+  --md-callout-border: rgba(251, 191, 36, 0.3);
+  --md-callout-icon-bg: rgba(251, 191, 36, 0.16);
+  --md-callout-icon-color: #f7d488;
+}
+
+.markdown-body :deep(.md-callout-danger) {
+  --md-callout-bg: rgba(248, 113, 113, 0.1);
+  --md-callout-border: rgba(248, 113, 113, 0.3);
+  --md-callout-icon-bg: rgba(248, 113, 113, 0.16);
+  --md-callout-icon-color: #fca5ad;
+}
+
+.markdown-body :deep(.md-callout-note) {
+  --md-callout-bg: rgba(var(--accent-rgb), 0.09);
+  --md-callout-border: rgba(var(--accent-rgb), 0.3);
+  --md-callout-icon-bg: rgba(var(--accent-rgb), 0.16);
+  --md-callout-icon-color: rgba(var(--accent-soft-rgb), 1);
+}
+
+/* toggle blocks */
+.markdown-body :deep(.md-toggle) {
+  margin: 1.05em 0;
+  border: 1px solid var(--blog-code-border);
+  border-radius: 12px;
+  background: var(--blog-panel-surface-elevated);
+  overflow: hidden;
+}
+
+.markdown-body :deep(.md-toggle-summary) {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+.markdown-body :deep(.md-toggle-summary::-webkit-details-marker) {
+  display: none;
+}
+
+.markdown-body :deep(.md-toggle-summary:hover) {
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.markdown-body :deep(.md-toggle-marker) {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(var(--accent-rgb), 0.14);
+  color: rgba(var(--accent-rgb), 0.95);
+  font-size: 11px;
+}
+
+.markdown-body :deep(.md-toggle-marker i) {
+  transition: transform 160ms ease;
+}
+
+.markdown-body :deep(.md-toggle[open] .md-toggle-marker i) {
+  transform: rotate(90deg);
+}
+
+.markdown-body :deep(.md-toggle-body) {
+  padding: 4px 14px 12px;
+  border-top: 1px dashed var(--blog-divider-soft);
+}
+
+/* task list */
+.markdown-body :deep(li.md-task-item) {
+  list-style: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0.3em 0 0.3em -1.2em;
+}
+
+.markdown-body :deep(.md-task-checkbox) {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.32em;
+  border-radius: 5px;
+  border: 1.5px solid rgba(var(--accent-rgb), 0.55);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #10141d;
+  background: transparent;
+}
+
+.markdown-body :deep(.md-task-item.is-checked .md-task-checkbox) {
+  background: rgba(var(--accent-rgb), 0.92);
+  border-color: transparent;
+}
+
+.markdown-body :deep(.md-task-item.is-checked .md-task-text) {
+  color: var(--theme-text-tertiary, rgba(205, 214, 235, 0.7));
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--accent-rgb), 0.55);
+}
+
+/* video / bookmark embeds */
+.markdown-body :deep(.md-embed) {
+  margin: 1.15em 0;
+}
+
+.markdown-body :deep(.md-embed-frame) {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--blog-code-border);
+  background: rgba(2, 4, 8, 0.9);
+  box-shadow: 0 16px 34px rgba(3, 5, 10, 0.36);
+}
+
+.markdown-body :deep(.md-embed-frame iframe) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.markdown-body :deep(.md-embed-caption) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--theme-text-tertiary, rgba(205, 214, 235, 0.72));
+}
+
+.markdown-body :deep(.md-embed-caption a) {
+  margin-left: auto;
+  color: rgba(var(--accent-rgb), 0.9);
+  text-decoration: none;
+}
+
+.markdown-body :deep(.md-link-card) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 1.05em 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--blog-code-border);
+  background: var(--blog-panel-surface-elevated);
+  text-decoration: none;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 180ms ease;
+}
+
+.markdown-body :deep(.md-link-card:hover) {
+  transform: translateY(-1px);
+  border-color: rgba(var(--accent-rgb), 0.42);
+  box-shadow: 0 12px 26px rgba(4, 7, 12, 0.3);
+}
+
+.markdown-body :deep(.md-link-card-icon) {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(var(--accent-rgb), 0.14);
+  color: rgba(var(--accent-rgb), 0.95);
+}
+
+.markdown-body :deep(.md-link-card-main) {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.markdown-body :deep(.md-link-card-title) {
+  font-weight: 600;
+  color: var(--theme-text-primary, rgba(244, 249, 255, 0.96));
+}
+
+.markdown-body :deep(.md-link-card-url) {
+  font-size: 12px;
+  color: var(--theme-text-tertiary, rgba(205, 214, 235, 0.7));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-body :deep(.md-link-card-arrow) {
+  margin-left: auto;
+  flex: none;
+  color: var(--theme-icon-muted, rgba(210, 220, 238, 0.7));
+  font-size: 12px;
+}
+
+/* interactive whiteboard embed */
+.markdown-body :deep(.md-whiteboard-embed) {
+  margin: 1.2em 0;
+  border-radius: 14px;
+  border: 1px solid var(--blog-code-border);
+  background: var(--blog-panel-surface-elevated);
+  overflow: hidden;
+}
+
+.markdown-body :deep(.md-whiteboard-embed-error) {
+  padding: 12px 14px;
+  border-color: rgba(255, 140, 160, 0.3);
+  background: rgba(255, 124, 146, 0.1);
+}
+
+.markdown-body :deep(.md-whiteboard-embed-error p) {
+  margin: 0;
+  color: rgba(255, 212, 220, 0.95);
+}
+
+.markdown-body :deep(.md-whiteboard-stage) {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-height: 190px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(var(--accent-rgb), 0.14), transparent 42%),
+    radial-gradient(circle at 82% 78%, rgba(96, 165, 250, 0.12), transparent 46%),
+    rgba(6, 9, 16, 0.6);
+}
+
+.markdown-body :deep(.md-whiteboard-stage[hidden]) {
+  display: none;
+}
+
+.markdown-body :deep(.md-whiteboard-preview) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #f6f7f9;
+}
+
+.markdown-body :deep(.md-whiteboard-preview-placeholder) {
+  font-size: 46px;
+  color: rgba(var(--accent-rgb), 0.5);
+}
+
+.markdown-body :deep(.md-whiteboard-overlay) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 26px 14px 10px;
+  background: linear-gradient(180deg, transparent, rgba(6, 9, 16, 0.85));
+  color: rgba(248, 250, 255, 0.96);
+  pointer-events: none;
+}
+
+.markdown-body :deep(.md-whiteboard-badge) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.85);
+  color: #17100c;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.markdown-body :deep(.md-whiteboard-title) {
+  font-weight: 600;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-body :deep(.md-whiteboard-hint) {
+  margin-left: auto;
+  flex: none;
+  font-size: 11.5px;
+  opacity: 0.82;
+}
+
+.markdown-body :deep(.md-whiteboard-load) {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(9, 13, 21, 0.74);
+  color: rgba(250, 251, 255, 0.97);
+  font-size: 13.5px;
+  cursor: pointer;
+  backdrop-filter: blur(6px) saturate(120%);
+  transition: transform 150ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.markdown-body :deep(.md-whiteboard-load:hover) {
+  transform: translateY(-1px);
+  background: rgba(var(--accent-rgb), 0.28);
+  border-color: rgba(var(--accent-rgb), 0.6);
+}
+
+.markdown-body :deep(.md-whiteboard-load:disabled) {
+  opacity: 0.72;
+  cursor: progress;
+}
+
+.markdown-body :deep(.md-whiteboard-error-text) {
+  position: absolute;
+  bottom: 54px;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(120, 30, 44, 0.7);
+  color: #ffd3db;
+  font-size: 12px;
+  z-index: 2;
+}
+
+.markdown-body :deep(.md-whiteboard-toolbar) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--blog-divider-soft);
+  background: rgba(8, 12, 20, 0.55);
+}
+
+.markdown-body :deep(.md-whiteboard-toolbar-title) {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--theme-text-secondary, rgba(220, 228, 246, 0.85));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-body :deep(.md-whiteboard-toolbar-actions) {
+  display: inline-flex;
+  gap: 8px;
+  flex: none;
+}
+
+.markdown-body :deep(.md-whiteboard-tool-btn) {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--blog-code-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--theme-text-primary, rgba(240, 246, 255, 0.94));
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.markdown-body :deep(.md-whiteboard-tool-btn:hover) {
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+.markdown-body :deep(.md-whiteboard-viewer-canvas) {
+  position: relative;
+  height: clamp(320px, 52vh, 560px);
+  background: #fdfdfd;
+}
+
+.markdown-body :deep(.md-whiteboard-viewer[data-wb-background='transparent'] .md-whiteboard-viewer-canvas) {
+  background: transparent;
+}
+
+.markdown-body :deep(.whiteboard-viewer-host) {
+  position: absolute;
+  inset: 0;
+}
+
+.markdown-body :deep(.whiteboard-viewer-fallback) {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  color: rgba(255, 212, 220, 0.95);
 }
 
 @media (max-width: 1365px) {

@@ -335,6 +335,7 @@ public class NotionClient {
             || "numbered_list_item".equals(type)
             || "to_do".equals(type)
             || "toggle".equals(type)
+            || "callout".equals(type)
             || "quote".equals(type);
     }
 
