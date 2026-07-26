@@ -51,6 +51,9 @@ import io.github.shizuki.site.user.mapper.OAuthLoginMapper;
 import io.github.shizuki.site.user.mapper.UserAccountMapper;
 import io.github.shizuki.site.user.mapper.UserPreferenceMapper;
 import io.github.shizuki.site.user.mapper.UserProviderSecretMapper;
+import io.github.shizuki.site.user.response.AdminPermissionOptionResponse;
+import io.github.shizuki.site.user.response.AdminQuotaOptionResponse;
+import io.github.shizuki.site.user.service.AdminCatalogDefaults;
 import io.github.shizuki.site.user.service.UserService;
 import io.github.shizuki.site.user.service.security.MusicApiKeyCryptoService;
 import java.net.URLEncoder;
@@ -85,6 +88,16 @@ public class UserServiceImpl implements UserService {
     private static final String GROUP_STATUS_ACTIVE = "ACTIVE";
     private static final String GROUP_STATUS_DISABLED = "DISABLED";
     private static final int DEFAULT_GROUP_PAGE_SIZE = 20;
+    /**
+     * 配额“无限”的统一表示：-1。
+     * AI / 音乐等消费方一直按 “值 < 0 即无限” 判断，这里在存取两侧统一归一。
+     */
+    private static final long UNLIMITED_QUOTA_VALUE = -1L;
+    /**
+     * 历史数据曾用 Long.MAX_VALUE 表示无限，但超过 JS Number 安全整数（2^53-1）的值
+     * 在前端会丢失精度并导致保存溢出报错，因此 ≥ 该阈值的值一律视为无限。
+     */
+    private static final long LEGACY_UNLIMITED_MIN = 9_007_199_254_740_991L;
     private static final Set<String> SUPPORTED_MUSIC_PROVIDERS = Set.of("spotify", "asmr");
     private static final Set<String> SUPPORTED_MUSIC_SOURCE_PROVIDERS = Set.of("netease", "qqmusic", "kugou", "spotify");
     private static final List<String> DEFAULT_SOURCE_PROVIDER_ORDER = List.of("netease", "qqmusic", "kugou", "spotify");
@@ -362,7 +375,7 @@ public class UserServiceImpl implements UserService {
         entity.setPolicyId(policyId);
         entity.setGroupCode(normalizeGroupCode(request.getGroupCode()));
         entity.setQuotaCode(normalizeQuotaCode(request.getQuotaCode()));
-        entity.setQuotaValue(request.getValue());
+        entity.setQuotaValue(normalizeQuotaValue(request.getValue()));
         entity.setUpdatedAt(LocalDateTime.now());
         groupQuotaPolicyMapper.updateById(entity);
         return toQuotaPolicyResponse(entity);
@@ -388,12 +401,13 @@ public class UserServiceImpl implements UserService {
 
             GroupQuotaPolicyEntity entity = findPolicyForUpsert(request.getPolicyId(), groupCode, quotaCode);
             LocalDateTime now = LocalDateTime.now();
+            Long normalizedValue = normalizeQuotaValue(request.getValue());
             if (entity == null) {
                 entity = new GroupQuotaPolicyEntity();
                 entity.setPolicyId(request.getPolicyId().trim());
                 entity.setGroupCode(groupCode);
                 entity.setQuotaCode(quotaCode);
-                entity.setQuotaValue(request.getValue());
+                entity.setQuotaValue(normalizedValue);
                 entity.setCreatedAt(now);
                 entity.setUpdatedAt(now);
                 try {
@@ -405,7 +419,7 @@ public class UserServiceImpl implements UserService {
                 entity.setPolicyId(request.getPolicyId().trim());
                 entity.setGroupCode(groupCode);
                 entity.setQuotaCode(quotaCode);
-                entity.setQuotaValue(request.getValue());
+                entity.setQuotaValue(normalizedValue);
                 entity.setUpdatedAt(now);
                 groupQuotaPolicyMapper.updateById(entity);
             }
@@ -676,9 +690,10 @@ public class UserServiceImpl implements UserService {
             return new AdminUserPageResponse(resolvedPage, resolvedPageSize, 0L, List.of());
         }
 
+        // 注意：分页必须使用 `LIMIT n OFFSET m` 写法，MySQL 式 `LIMIT m,n` 在 PostgreSQL 上是语法错误。
         LambdaQueryWrapper<UserAccountEntity> listWrapper = buildAdminUserSearchWrapper(normalizedKeyword)
             .orderByDesc(UserAccountEntity::getId)
-            .last("LIMIT " + offset + "," + resolvedPageSize);
+            .last("LIMIT " + resolvedPageSize + " OFFSET " + offset);
         List<UserAccountEntity> users = userAccountMapper.selectList(listWrapper);
 
         List<AdminUserItemResponse> items = new ArrayList<>(users.size());
@@ -716,10 +731,11 @@ public class UserServiceImpl implements UserService {
             return new AdminGroupPageResponse(resolvedPage, resolvedPageSize, 0L, List.of());
         }
 
+        // 同上：PostgreSQL 兼容分页写法。
         LambdaQueryWrapper<GroupCatalogEntity> listWrapper = buildAdminGroupSearchWrapper(normalizedKeyword, normalizedStatus)
             .orderByAsc(GroupCatalogEntity::getSortNum)
             .orderByAsc(GroupCatalogEntity::getGroupCode)
-            .last("LIMIT " + offset + "," + resolvedPageSize);
+            .last("LIMIT " + resolvedPageSize + " OFFSET " + offset);
         List<GroupCatalogEntity> groups = groupCatalogMapper.selectList(listWrapper);
         List<AdminGroupItemResponse> items = groups.stream()
             .map(this::toAdminGroupItemResponse)
@@ -840,7 +856,7 @@ public class UserServiceImpl implements UserService {
             ))
             .toList();
 
-        List<String> permissionCatalog = groupPermissionMapper.selectList(
+        List<String> discoveredPermissions = groupPermissionMapper.selectList(
             new LambdaQueryWrapper<GroupPermissionEntity>().orderByAsc(GroupPermissionEntity::getPermissionCode)
         ).stream()
             .map(GroupPermissionEntity::getPermissionCode)
@@ -849,7 +865,7 @@ public class UserServiceImpl implements UserService {
             .distinct()
             .toList();
 
-        List<String> quotaCatalog = groupQuotaPolicyMapper.selectList(
+        List<String> discoveredQuotas = groupQuotaPolicyMapper.selectList(
             new LambdaQueryWrapper<GroupQuotaPolicyEntity>().orderByAsc(GroupQuotaPolicyEntity::getQuotaCode)
         ).stream()
             .map(GroupQuotaPolicyEntity::getQuotaCode)
@@ -858,7 +874,30 @@ public class UserServiceImpl implements UserService {
             .distinct()
             .toList();
 
-        return new AdminOptionsResponse(groupOptions, permissionCatalog, quotaCatalog);
+        // 目录 = 内置定义（带中文标签/描述） + 数据库中新发现的自定义编码。
+        Map<String, AdminPermissionOptionResponse> permissionOptionMap = new LinkedHashMap<>();
+        AdminCatalogDefaults.builtinPermissions()
+            .forEach(option -> permissionOptionMap.put(option.code(), option));
+        discoveredPermissions.forEach(code ->
+            permissionOptionMap.computeIfAbsent(code, AdminCatalogDefaults::customPermission));
+
+        Map<String, AdminQuotaOptionResponse> quotaOptionMap = new LinkedHashMap<>();
+        AdminCatalogDefaults.builtinQuotas()
+            .forEach(option -> quotaOptionMap.put(option.code(), option));
+        discoveredQuotas.forEach(code ->
+            quotaOptionMap.computeIfAbsent(code, AdminCatalogDefaults::customQuota));
+
+        // 旧字段（纯编码）保持兼容，同时保证内置项也在其中。
+        List<String> permissionCatalog = List.copyOf(permissionOptionMap.keySet());
+        List<String> quotaCatalog = List.copyOf(quotaOptionMap.keySet());
+
+        return new AdminOptionsResponse(
+            groupOptions,
+            permissionCatalog,
+            quotaCatalog,
+            List.copyOf(permissionOptionMap.values()),
+            List.copyOf(quotaOptionMap.values())
+        );
     }
 
     @Override
@@ -918,7 +957,32 @@ public class UserServiceImpl implements UserService {
             return fallback;
         }
 
-        return policies.stream().map(GroupQuotaPolicyEntity::getQuotaValue).max(Long::compareTo).orElse(fallback);
+        // 任一分组策略为“无限”（负值或历史 Long.MAX 写法）时直接返回无限，否则取最大值。
+        List<Long> values = policies.stream()
+            .map(GroupQuotaPolicyEntity::getQuotaValue)
+            .filter(Objects::nonNull)
+            .map(this::normalizeQuotaValue)
+            .toList();
+        if (values.isEmpty()) {
+            return fallback;
+        }
+        if (values.stream().anyMatch(value -> value < 0)) {
+            return UNLIMITED_QUOTA_VALUE;
+        }
+        return values.stream().max(Long::compareTo).orElse(fallback);
+    }
+
+    /**
+     * 配额值归一：负值与历史 Long.MAX 写法统一收敛为 -1（无限），其余原样返回。
+     */
+    private Long normalizeQuotaValue(Long value) {
+        if (value == null) {
+            return null;
+        }
+        if (value < 0 || value >= LEGACY_UNLIMITED_MIN) {
+            return UNLIMITED_QUOTA_VALUE;
+        }
+        return value;
     }
 
     private LambdaQueryWrapper<UserAccountEntity> buildAdminUserSearchWrapper(String normalizedKeyword) {
@@ -927,12 +991,14 @@ public class UserServiceImpl implements UserService {
             return wrapper;
         }
 
+        // PostgreSQL 的 LIKE 区分大小写，这里统一 LOWER 后模糊匹配，行为与 MySQL 一致。
+        String likePattern = toLowerLikePattern(normalizedKeyword);
         wrapper.and(q -> {
-            q.like(UserAccountEntity::getUsername, normalizedKeyword)
+            q.apply("LOWER(username_code) LIKE {0}", likePattern)
                 .or()
-                .like(UserAccountEntity::getNickname, normalizedKeyword)
+                .apply("LOWER(nickname_text) LIKE {0}", likePattern)
                 .or()
-                .like(UserAccountEntity::getEmail, normalizedKeyword);
+                .apply("LOWER(email_text) LIKE {0}", likePattern);
             Long maybeUserId = parsePositiveLong(normalizedKeyword);
             if (maybeUserId != null) {
                 q.or().eq(UserAccountEntity::getId, maybeUserId);
@@ -947,13 +1013,22 @@ public class UserServiceImpl implements UserService {
             wrapper.eq(GroupCatalogEntity::getStatusCode, normalizedStatus);
         }
         if (StringUtils.hasText(normalizedKeyword)) {
-            wrapper.and(q -> q.like(GroupCatalogEntity::getGroupCode, normalizedKeyword)
+            String likePattern = toLowerLikePattern(normalizedKeyword);
+            wrapper.and(q -> q.apply("LOWER(group_code) LIKE {0}", likePattern)
                 .or()
-                .like(GroupCatalogEntity::getDisplayName, normalizedKeyword)
+                .apply("LOWER(display_name) LIKE {0}", likePattern)
                 .or()
-                .like(GroupCatalogEntity::getDescriptionText, normalizedKeyword));
+                .apply("LOWER(description_text) LIKE {0}", likePattern));
         }
         return wrapper;
+    }
+
+    private String toLowerLikePattern(String keyword) {
+        String escaped = keyword.toLowerCase(Locale.ROOT)
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_");
+        return "%" + escaped + "%";
     }
 
     private AdminGroupItemResponse toAdminGroupItemResponse(GroupCatalogEntity entity) {
@@ -1114,11 +1189,12 @@ public class UserServiceImpl implements UserService {
     }
 
     private QuotaPolicyResponse toQuotaPolicyResponse(GroupQuotaPolicyEntity entity) {
+        // 读取侧同样做归一，保证历史 Long.MAX 数据不会把超出 JS 安全整数的值发给前端。
         return new QuotaPolicyResponse(
             entity.getPolicyId(),
             entity.getGroupCode(),
             entity.getQuotaCode(),
-            entity.getQuotaValue()
+            normalizeQuotaValue(entity.getQuotaValue())
         );
     }
 

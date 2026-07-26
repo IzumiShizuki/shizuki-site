@@ -151,6 +151,47 @@ class UserServiceImplTest {
     }
 
     @Test
+    void should_return_unlimited_when_any_group_policy_is_unlimited() {
+        GroupQuotaPolicyEntity limitedPolicy = new GroupQuotaPolicyEntity();
+        limitedPolicy.setQuotaValue(20L);
+        GroupQuotaPolicyEntity unlimitedPolicy = new GroupQuotaPolicyEntity();
+        unlimitedPolicy.setQuotaValue(-1L);
+        Mockito.when(groupQuotaPolicyMapper.selectList(ArgumentMatchers.any()))
+            .thenReturn(List.of(limitedPolicy, unlimitedPolicy));
+
+        Long quota = userService.resolveQuota("ai_round_total", Set.of("USER", "ADMIN"), 5L);
+
+        Assertions.assertEquals(-1L, quota);
+    }
+
+    @Test
+    void should_treat_legacy_long_max_quota_as_unlimited() {
+        GroupQuotaPolicyEntity legacyUnlimitedPolicy = new GroupQuotaPolicyEntity();
+        legacyUnlimitedPolicy.setQuotaValue(Long.MAX_VALUE);
+        Mockito.when(groupQuotaPolicyMapper.selectList(ArgumentMatchers.any()))
+            .thenReturn(List.of(legacyUnlimitedPolicy));
+
+        Long quota = userService.resolveQuota("ai_round_total", Set.of("ADMIN"), 5L);
+
+        Assertions.assertEquals(-1L, quota);
+    }
+
+    @Test
+    void should_normalize_legacy_unlimited_value_when_listing_quota_policies() {
+        GroupQuotaPolicyEntity legacyPolicy = new GroupQuotaPolicyEntity();
+        legacyPolicy.setPolicyId("user-ai-rounds-admin");
+        legacyPolicy.setGroupCode("ADMIN");
+        legacyPolicy.setQuotaCode("ai_round_total");
+        legacyPolicy.setQuotaValue(Long.MAX_VALUE);
+        Mockito.when(groupQuotaPolicyMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of(legacyPolicy));
+
+        var policies = userService.listQuotaPolicies();
+
+        Assertions.assertEquals(1, policies.size());
+        Assertions.assertEquals(-1L, policies.get(0).value());
+    }
+
+    @Test
     void should_throw_unauthorized_when_save_preference_user_id_invalid() {
         BusinessException exception = Assertions.assertThrows(
             BusinessException.class,

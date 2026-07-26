@@ -37,4 +37,11 @@ const badgeStyle = computed(() => getGroupBadgeStyle(props.groupCode));
   box-shadow: inset 0 0 0 1px var(--group-badge-border);
   white-space: nowrap;
 }
+
+/* 日间模式使用深色文字与淡色底，避免亮底上文字发飘。 */
+:global(:root[data-theme-mode='day']) .group-badge {
+  color: var(--group-badge-day-text, var(--group-badge-text));
+  background: var(--group-badge-day-bg, var(--group-badge-bg));
+  box-shadow: inset 0 0 0 1px var(--group-badge-day-border, var(--group-badge-border));
+}
 </style>

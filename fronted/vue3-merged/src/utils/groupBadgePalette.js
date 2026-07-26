@@ -94,7 +94,11 @@ export function getGroupBadgePalette(groupCode) {
     base,
     border: `rgba(${r}, ${g}, ${b}, 0.74)`,
     background: `rgba(${r}, ${g}, ${b}, 0.24)`,
-    text: `rgb(${Math.min(255, r + 20)}, ${Math.min(255, g + 20)}, ${Math.min(255, b + 20)})`
+    text: `rgb(${Math.min(255, r + 20)}, ${Math.min(255, g + 20)}, ${Math.min(255, b + 20)})`,
+    // 日间模式：淡背景 + 深色文字，保证浅色页面上的对比度。
+    dayBackground: `rgba(${r}, ${g}, ${b}, 0.16)`,
+    dayBorder: `rgba(${Math.round(r * 0.7)}, ${Math.round(g * 0.7)}, ${Math.round(b * 0.7)}, 0.55)`,
+    dayText: `rgb(${Math.round(r * 0.52)}, ${Math.round(g * 0.52)}, ${Math.round(b * 0.52)})`
   };
 }
 
@@ -103,7 +107,10 @@ export function getGroupBadgeStyle(groupCode) {
   return {
     '--group-badge-bg': palette.background,
     '--group-badge-border': palette.border,
-    '--group-badge-text': palette.text
+    '--group-badge-text': palette.text,
+    '--group-badge-day-bg': palette.dayBackground,
+    '--group-badge-day-border': palette.dayBorder,
+    '--group-badge-day-text': palette.dayText
   };
 }
 

@@ -1,35 +1,37 @@
 <template>
   <section class="panel-grid">
     <header class="panel-head">
-      <h2>分组目录</h2>
-      <p class="helper-text">分组统一在这里维护，默认用表格操作与状态选择。</p>
+      <h2 class="adm-title">分组目录</h2>
+      <p class="adm-desc">分组统一在这里维护；选中分组后可在右侧编辑组名、描述与状态。</p>
     </header>
 
-    <div class="inline-actions">
+    <div class="adm-toolbar">
       <input
         :value="queryKeyword"
-        class="field-input grow"
-        type="text"
-        placeholder="搜索组编码/组名/描述"
+        class="adm-input adm-grow"
+        type="search"
+        placeholder="搜索组编码 / 组名 / 描述"
+        aria-label="搜索分组"
         @input="$emit('update:queryKeyword', $event.target.value)"
+        @keyup.enter="$emit('search', 1)"
       />
-      <select :value="queryStatus" class="field-select" @change="$emit('update:queryStatus', $event.target.value)">
+      <select :value="queryStatus" class="adm-select" aria-label="状态筛选" @change="$emit('update:queryStatus', $event.target.value)">
         <option value="">全部状态</option>
-        <option value="ACTIVE">ACTIVE</option>
-        <option value="DISABLED">DISABLED</option>
+        <option value="ACTIVE">启用</option>
+        <option value="DISABLED">停用</option>
       </select>
-      <button class="ghost-btn ripple-trigger" type="button" :disabled="loading" @click="$emit('search', 1)">
+      <button class="adm-btn adm-btn--ghost ripple-trigger" type="button" :disabled="loading" @click="$emit('search', 1)">
         {{ loading ? '查询中...' : '搜索' }}
       </button>
-      <button class="primary-btn ripple-trigger" type="button" @click="openCreateModal">新增分组</button>
+      <button class="adm-btn adm-btn--primary ripple-trigger" type="button" @click="openCreateModal">新增分组</button>
     </div>
 
     <div class="content-split">
-      <div class="table-wrap">
-        <table class="admin-table">
+      <div class="adm-table-wrap">
+        <table class="adm-table">
           <thead>
             <tr>
-              <th>组编码</th>
+              <th>分组</th>
               <th>组名</th>
               <th>状态</th>
               <th>内置</th>
@@ -42,51 +44,55 @@
             <tr
               v-for="item in groupsPage.items"
               :key="item.groupCode"
-              :class="{ active: selectedGroupCode === item.groupCode }"
+              :class="{ 'is-active': selectedGroupCode === item.groupCode }"
               @click="$emit('selectGroup', item)"
             >
-              <td>
-                <GroupBadge :group-code="item.groupCode" />
-              </td>
+              <td><GroupBadge :group-code="item.groupCode" /></td>
               <td>{{ item.displayName || item.groupCode }}</td>
-              <td>{{ item.status }}</td>
-              <td>{{ item.builtIn ? '是' : '否' }}</td>
-              <td>{{ item.userCount }}</td>
-              <td>{{ item.permissionCount }}</td>
-              <td>{{ item.quotaCount }}</td>
+              <td>
+                <span class="adm-flag" :class="item.status === 'ACTIVE' ? 'adm-flag--on' : 'adm-flag--off'">
+                  {{ item.status === 'ACTIVE' ? '启用' : '停用' }}
+                </span>
+              </td>
+              <td><span class="adm-cell-secondary">{{ item.builtIn ? '内置' : '自定义' }}</span></td>
+              <td><span class="adm-count">{{ item.userCount }}</span></td>
+              <td><span class="adm-count">{{ item.permissionCount }}</span></td>
+              <td><span class="adm-count">{{ item.quotaCount }}</span></td>
             </tr>
             <tr v-if="!groupsPage.items.length">
-              <td colspan="7">暂无分组数据</td>
+              <td colspan="7"><div class="adm-empty">{{ loading ? '正在加载...' : '暂无分组数据' }}</div></td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <aside class="side-editor liquid-material">
+      <aside class="adm-card">
         <h3>分组编辑</h3>
-        <p class="helper-text" v-if="!selectedGroup">请先在左侧选择一个分组。</p>
+        <p class="adm-desc" v-if="!selectedGroup">请先在左侧选择一个分组。</p>
         <template v-else>
           <div class="selected-group-line">
             <GroupBadge :group-code="selectedGroup.groupCode" :label="selectedGroup.displayName || selectedGroup.groupCode" />
+            <span class="adm-cell-secondary">{{ selectedGroup.groupCode }}</span>
           </div>
-          <label class="field-label" for="edit-display-name">组名</label>
-          <input id="edit-display-name" v-model.trim="editForm.displayName" class="field-input" type="text" maxlength="64" />
 
-          <label class="field-label" for="edit-description">描述</label>
-          <textarea id="edit-description" v-model.trim="editForm.description" class="field-textarea" rows="3"></textarea>
+          <label class="adm-label" for="edit-display-name">组名</label>
+          <input id="edit-display-name" v-model.trim="editForm.displayName" class="adm-input" type="text" maxlength="64" />
 
-          <label class="field-label" for="edit-status">状态</label>
-          <select id="edit-status" v-model="editForm.status" class="field-select">
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="DISABLED">DISABLED</option>
+          <label class="adm-label" for="edit-description">描述</label>
+          <textarea id="edit-description" v-model.trim="editForm.description" class="adm-textarea" rows="3"></textarea>
+
+          <label class="adm-label" for="edit-status">状态</label>
+          <select id="edit-status" v-model="editForm.status" class="adm-select" :disabled="selectedGroup.groupCode === 'ADMIN'">
+            <option value="ACTIVE">启用（ACTIVE）</option>
+            <option value="DISABLED">停用（DISABLED）</option>
           </select>
 
-          <div class="inline-actions">
-            <button class="primary-btn ripple-trigger" type="button" :disabled="submitting" @click="submitUpdate">
+          <div class="adm-toolbar">
+            <button class="adm-btn adm-btn--primary ripple-trigger" type="button" :disabled="submitting" @click="submitUpdate">
               {{ submitting ? '保存中...' : '保存分组' }}
             </button>
             <button
-              class="danger-btn ripple-trigger"
+              class="adm-btn adm-btn--danger ripple-trigger"
               type="button"
               :disabled="submitting || selectedGroup.groupCode === 'ADMIN'"
               @click="$emit('requestDelete', selectedGroup)"
@@ -94,34 +100,45 @@
               删除分组
             </button>
           </div>
-          <p class="helper-text" v-if="selectedGroup.groupCode === 'ADMIN'">ADMIN 为系统保留分组，不允许删除。</p>
+          <p class="adm-muted" v-if="selectedGroup.groupCode === 'ADMIN'">ADMIN 为系统保留分组，不允许停用或删除。</p>
         </template>
       </aside>
     </div>
 
-    <div class="pager">
-      <button class="ghost-btn ripple-trigger" type="button" :disabled="loading || groupsPage.page <= 1" @click="$emit('search', groupsPage.page - 1)">
+    <div class="adm-pager">
+      <button
+        class="adm-btn adm-btn--ghost adm-btn--sm ripple-trigger"
+        type="button"
+        :disabled="loading || groupsPage.page <= 1"
+        @click="$emit('search', groupsPage.page - 1)"
+      >
         上一页
       </button>
-      <span>第 {{ groupsPage.page }} 页 / 共 {{ totalPages }} 页（总计 {{ groupsPage.total }}）</span>
-      <button class="ghost-btn ripple-trigger" type="button" :disabled="loading || groupsPage.page >= totalPages" @click="$emit('search', groupsPage.page + 1)">
+      <span>第 {{ groupsPage.page }} / {{ totalPages }} 页 · 共 {{ groupsPage.total }} 个分组</span>
+      <button
+        class="adm-btn adm-btn--ghost adm-btn--sm ripple-trigger"
+        type="button"
+        :disabled="loading || groupsPage.page >= totalPages"
+        @click="$emit('search', groupsPage.page + 1)"
+      >
         下一页
       </button>
     </div>
 
-    <p v-if="error" class="error-text">{{ error }}</p>
+    <p v-if="error" class="adm-error">{{ error }}</p>
 
     <transition name="dialog-fade">
-      <div v-if="createVisible" class="dialog-mask" @click.self="closeCreateModal">
-        <section class="dialog-shell liquid-material" @click.stop>
+      <div v-if="createVisible" class="adm-dialog-mask" @click.self="closeCreateModal">
+        <section class="adm-dialog" @click.stop>
           <h3>新增分组</h3>
-          <label class="field-label" for="create-display-name">组名</label>
-          <input id="create-display-name" v-model.trim="createForm.displayName" class="field-input" type="text" maxlength="64" />
-          <label class="field-label" for="create-description">描述（可选）</label>
-          <textarea id="create-description" v-model.trim="createForm.description" class="field-textarea" rows="3"></textarea>
-          <div class="inline-actions">
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="submitting" @click="closeCreateModal">取消</button>
-            <button class="primary-btn ripple-trigger" type="button" :disabled="submitting" @click="submitCreate">
+          <p>只需填写组名，系统会自动生成分组编码（group_code）。</p>
+          <label class="adm-label" for="create-display-name">组名</label>
+          <input id="create-display-name" v-model.trim="createForm.displayName" class="adm-input" type="text" maxlength="64" />
+          <label class="adm-label" for="create-description">描述（可选）</label>
+          <textarea id="create-description" v-model.trim="createForm.description" class="adm-textarea" rows="3"></textarea>
+          <div class="adm-toolbar dialog-actions">
+            <button class="adm-btn adm-btn--ghost ripple-trigger" type="button" :disabled="submitting" @click="closeCreateModal">取消</button>
+            <button class="adm-btn adm-btn--primary ripple-trigger" type="button" :disabled="submitting" @click="submitCreate">
               {{ submitting ? '创建中...' : '创建分组' }}
             </button>
           </div>
@@ -219,165 +236,25 @@ function submitUpdate() {
 <style scoped>
 .panel-grid {
   display: grid;
-  gap: 10px;
-}
-
-.panel-head h2 {
-  font-size: 20px;
-}
-
-.helper-text {
-  color: rgba(223, 230, 249, 0.88);
-}
-
-.inline-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.field-label {
-  font-size: 12px;
-  color: rgba(218, 229, 247, 0.88);
-}
-
-.field-input,
-.field-select,
-.field-textarea {
-  border: 0;
-  border-radius: 10px;
-  min-height: 38px;
-  padding: 0 12px;
-  background: rgba(8, 14, 24, 0.56);
-  color: rgba(237, 245, 255, 0.96);
-  box-shadow: inset 0 0 0 1px rgba(165, 186, 223, 0.22);
-}
-
-.field-select {
-  min-width: 130px;
-}
-
-.field-textarea {
-  min-height: 100px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-
-.grow {
-  flex: 1;
+  gap: 12px;
 }
 
 .content-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
   gap: 12px;
-}
-
-.table-wrap {
-  border-radius: 12px;
-  overflow: auto;
-  box-shadow: inset 0 0 0 1px rgba(175, 198, 228, 0.18);
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 680px;
-  font-size: 13px;
-}
-
-.admin-table th,
-.admin-table td {
-  text-align: left;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(180, 203, 232, 0.14);
-  color: rgba(232, 241, 253, 0.92);
-}
-
-.admin-table th {
-  color: rgba(194, 218, 245, 0.92);
-  font-weight: 600;
-  background: rgba(11, 18, 29, 0.36);
-}
-
-.admin-table tbody tr {
-  cursor: pointer;
-}
-
-.admin-table tbody tr.active {
-  background: rgba(var(--accent-rgb), 0.18);
-}
-
-.side-editor {
-  --liquid-bg: rgba(20, 27, 42, 0.36);
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 12px;
-  display: grid;
-  gap: 8px;
-  align-content: start;
+  align-items: start;
 }
 
 .selected-group-line {
   display: flex;
   align-items: center;
-}
-
-.primary-btn,
-.ghost-btn,
-.danger-btn {
-  border: 0;
-  border-radius: 10px;
-  min-height: 36px;
-  padding: 0 14px;
-  color: rgba(242, 247, 255, 0.94);
-}
-
-.primary-btn {
-  background: rgba(var(--accent-rgb), 0.34);
-}
-
-.ghost-btn {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.danger-btn {
-  background: rgba(252, 96, 130, 0.34);
-}
-
-.pager {
-  display: flex;
   gap: 8px;
-  align-items: center;
   flex-wrap: wrap;
-  color: rgba(216, 232, 250, 0.92);
 }
 
-.error-text {
-  color: rgba(255, 188, 206, 0.96);
-}
-
-.dialog-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 1300;
-  display: grid;
-  place-items: center;
-  background: rgba(6, 10, 20, 0.44);
-  backdrop-filter: blur(4px);
-  padding: 12px;
-}
-
-.dialog-shell {
-  --liquid-bg: rgba(18, 24, 36, 0.78);
-  --liquid-border: rgba(255, 255, 255, 0.24);
-  --liquid-shadow: 0 22px 48px rgba(0, 0, 0, 0.35);
-  width: min(520px, 100%);
-  border-radius: 14px;
-  padding: 16px;
-  display: grid;
-  gap: 10px;
+.dialog-actions {
+  justify-content: flex-end;
 }
 
 .dialog-fade-enter-active,
