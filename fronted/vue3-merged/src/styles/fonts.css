@@ -1,8 +1,11 @@
 /* ============================================================
  * Shizuki Site · 字体系统
- * 显示/标题：Zen Maru Gothic（拉丁·假名圆体）+ LXGW 文楷（中文圆润）
- * 正文/界面：Roboto + Noto Sans SC 子集（清晰易读）
+ * 显示/标题：Zen Maru Gothic（仅拉丁圆体）+ LXGW 文楷（全部中日文：汉字+假名统一）
+ * 正文/界面：Roboto + Noto Sans SC 子集（含完整假名，日文歌名/歌词与中文同源渲染）
  * 全部自托管 woff2 子集，整体体积约 3.7MB（原 27MB 裸 TTF）
+ * 注：Zen Maru 子集只含拉丁字符，并用 unicode-range 显式限定，
+ *     保证任何 CJK（含日文汉字与假名）都稳定落到同一款中文字体上，
+ *     避免"假名一种字体、汉字另一种字体"的混排感。
  * ============================================================ */
 
 /* —— 正文拉丁 —— */
@@ -23,13 +26,14 @@
   font-display: swap;
 }
 
-/* —— 显示圆体·拉丁与假名（Zen Maru Gothic）—— */
+/* —— 显示圆体·仅拉丁（Zen Maru Gothic，unicode-range 限定拉丁区）—— */
 @font-face {
   font-family: 'Zen Maru Gothic';
   src: url('/fonts/ZenMaruGothic-400.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-206F, U+2070-20CF, U+2100-218F;
 }
 @font-face {
   font-family: 'Zen Maru Gothic';
@@ -37,6 +41,7 @@
   font-weight: 500;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-206F, U+2070-20CF, U+2100-218F;
 }
 @font-face {
   font-family: 'Zen Maru Gothic';
@@ -44,6 +49,7 @@
   font-weight: 700;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-206F, U+2070-20CF, U+2100-218F;
 }
 
 /* —— 显示圆体·中文（LXGW 文楷，温润手写感）—— */
@@ -56,8 +62,9 @@
 }
 
 :root {
-  /* 界面/正文：清晰优先 */
-  --font-ui: 'Roboto', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* 界面/正文：清晰优先。'LXGW WenKai Screen' 兜底极冷僻字，
+     避免子集缺字时退到系统字体造成中日文混排。 */
+  --font-ui: 'Roboto', 'Noto Sans SC', 'LXGW WenKai Screen', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* 显示/标题：圆润温馨（拉丁走 Zen Maru，中文走文楷）*/
   --font-display: 'Zen Maru Gothic', 'LXGW WenKai Screen', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   /* 治愈系点缀（问候、名言、页脚）：文楷手写感 */
