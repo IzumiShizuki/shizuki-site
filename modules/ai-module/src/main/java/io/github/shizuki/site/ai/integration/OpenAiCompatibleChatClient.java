@@ -5,12 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.ai.config.AiChatProperties;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -77,11 +80,93 @@ public class OpenAiCompatibleChatClient {
         }
     }
 
+    /**
+     * Streams a chat completion. Each content delta is forwarded to {@code onDelta} as soon as it
+     * arrives, and the full accumulated assistant message is returned once the stream ends.
+     */
+    public String streamComplete(List<ChatMessage> messages, Consumer<String> onDelta) {
+        ensureConfigured();
+        List<Map<String, String>> payloadMessages = normalizeMessages(messages);
+        if (payloadMessages.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "AI chat message cannot be empty");
+        }
+        try {
+            return restClient.post()
+                .uri("/v1/chat/completions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
+                .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(buildRequestBody(payloadMessages, true))
+                .exchange((request, clientResponse) -> {
+                    if (clientResponse.getStatusCode().isError()) {
+                        String payload = StreamUtils.copyToString(clientResponse.getBody(), StandardCharsets.UTF_8);
+                        throw new BusinessException(
+                            ErrorCode.INTERNAL_ERROR,
+                            resolveRemoteErrorMessage(payload, clientResponse.getStatusCode().value())
+                        );
+                    }
+                    return readSseContent(clientResponse.getBody(), onDelta);
+                });
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RestClientException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "AI chat request failed");
+        }
+    }
+
+    private String readSseContent(java.io.InputStream body, Consumer<String> onDelta) throws IOException {
+        StringBuilder accumulated = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || !trimmed.startsWith("data:")) {
+                    continue;
+                }
+                String data = trimmed.substring(5).trim();
+                if ("[DONE]".equals(data)) {
+                    break;
+                }
+                String delta = extractDeltaContent(data);
+                if (delta != null && !delta.isEmpty()) {
+                    accumulated.append(delta);
+                    if (onDelta != null) {
+                        onDelta.accept(delta);
+                    }
+                }
+            }
+        }
+        String content = accumulated.toString().trim();
+        if (!StringUtils.hasText(content)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "AI chat returned empty content");
+        }
+        return content;
+    }
+
+    private String extractDeltaContent(String data) {
+        try {
+            JsonNode root = objectMapper.readTree(data);
+            JsonNode delta = root.path("choices").path(0).path("delta");
+            JsonNode contentNode = delta.path("content");
+            if (contentNode.isTextual()) {
+                return contentNode.asText("");
+            }
+            JsonNode fallback = root.path("choices").path(0).path("message").path("content");
+            return fallback.isTextual() ? fallback.asText("") : "";
+        } catch (IOException exception) {
+            return "";
+        }
+    }
+
     private Map<String, Object> buildRequestBody(List<Map<String, String>> messages) {
+        return buildRequestBody(messages, false);
+    }
+
+    private Map<String, Object> buildRequestBody(List<Map<String, String>> messages, boolean stream) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", properties.getModel());
         body.put("messages", messages);
-        body.put("stream", false);
+        body.put("stream", stream);
         body.put("temperature", properties.getTemperature());
         body.put("max_tokens", properties.getMaxTokens());
         return body;

@@ -45,6 +45,111 @@ export async function sendAiMessage(sessionId, payload, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function listAiSessionSummaries(authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/ai-sessions/summaries', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAiSessionMessages(sessionId, authorizedFetch, limit) {
+  const normalizedSessionId = String(sessionId || '').trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required');
+  }
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/ai-sessions/${encodeURIComponent(normalizedSessionId)}/messages`, {
+    method: 'GET',
+    query: Number(limit) > 0 ? { limit: Number(limit) } : undefined
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function renameAiSession(sessionId, title, authorizedFetch) {
+  const normalizedSessionId = String(sessionId || '').trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required');
+  }
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/ai-sessions/${encodeURIComponent(normalizedSessionId)}`, {
+    method: 'PUT',
+    body: { title: String(title || '').trim() }
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function deleteAiSession(sessionId, authorizedFetch) {
+  const normalizedSessionId = String(sessionId || '').trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required');
+  }
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/ai-sessions/${encodeURIComponent(normalizedSessionId)}`, {
+    method: 'DELETE'
+  });
+  return unwrapApiResponse(response);
+}
+
+/**
+ * Streams an AI reply over SSE. Falls back to the caller to handle a thrown error
+ * (e.g. for retrying with the non-streaming endpoint on legacy deployments).
+ *
+ * handlers: { onDelta(text), onDone(payload), onError(eventPayload) }
+ * options:  { signal } — AbortController signal used by the stop-generation button.
+ */
+export async function sendAiMessageStream(sessionId, payload, handlers = {}, authorizedFetch, options = {}) {
+  const normalizedSessionId = String(sessionId || '').trim();
+  if (!normalizedSessionId) {
+    throw new Error('sessionId is required');
+  }
+  const request = resolveRequest(authorizedFetch);
+  let doneEvent = null;
+  let errorEvent = null;
+
+  await request(`/api/v1/ai-sessions/${encodeURIComponent(normalizedSessionId)}/messages/stream`, {
+    method: 'POST',
+    body: payload || {},
+    signal: options.signal,
+    stream: {
+      onEvent(event) {
+        const type = String(event?.type || '').trim();
+        if (type === 'delta') {
+          const content = String(event?.content ?? '');
+          if (content && typeof handlers.onDelta === 'function') {
+            handlers.onDelta(content);
+          }
+          return;
+        }
+        if (type === 'done') {
+          doneEvent = event?.payload ?? null;
+          return;
+        }
+        if (type === 'error') {
+          errorEvent = event;
+        }
+      }
+    }
+  });
+
+  if (errorEvent) {
+    if (typeof handlers.onError === 'function') {
+      handlers.onError(errorEvent);
+    }
+    const error = new Error(String(errorEvent.message || 'AI 流式请求失败'));
+    error.code = String(errorEvent.code || '');
+    error.details = errorEvent.details || null;
+    throw error;
+  }
+  if (!doneEvent) {
+    throw new Error('AI 流式响应未完成，请稍后再试。');
+  }
+  if (typeof handlers.onDone === 'function') {
+    handlers.onDone(doneEvent);
+  }
+  return doneEvent;
+}
+
 export async function getMyAiQuota(authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/ai-quotas/me', {

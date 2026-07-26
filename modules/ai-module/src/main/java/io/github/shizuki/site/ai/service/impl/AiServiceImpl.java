@@ -60,6 +60,7 @@ import io.github.shizuki.site.ai.mapper.AiTownAssetImportMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookEntryMapper;
 import io.github.shizuki.site.ai.mapper.AiWorldbookMapper;
 import io.github.shizuki.site.ai.service.AiService;
+import io.github.shizuki.site.ai.service.AiStreamChatService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,7 +85,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Service
-public class AiServiceImpl implements AiService {
+public class AiServiceImpl implements AiService, AiStreamChatService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AiServiceImpl.class);
     private static final String DEFAULT_SESSION_MODE = "quick_chat";
@@ -209,6 +210,15 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public AiMessageSendResponse sendMessage(String sessionId, SendMessageRequest request) {
+        return completeSendMessage(sessionId, request, null);
+    }
+
+    @Override
+    public AiMessageSendResponse streamMessage(String sessionId, SendMessageRequest request, AiStreamChatService.DeltaListener onDelta) {
+        return completeSendMessage(sessionId, request, onDelta);
+    }
+
+    private AiMessageSendResponse completeSendMessage(String sessionId, SendMessageRequest request, AiStreamChatService.DeltaListener onDelta) {
         Long userId = requireLoginUserId();
         AiSessionEntity session = loadOwnedSession(sessionId, userId);
         String sessionMode = normalizeSessionMode(session.getMode());
@@ -251,7 +261,8 @@ public class AiServiceImpl implements AiService {
             contextSize,
             memoryContext.enabled(),
             memoryContext.scopeId(),
-            memoryContext
+            memoryContext,
+            onDelta
         );
 
         persistMessage(session.getId(), userId, "user", normalizedMessage);
@@ -945,21 +956,24 @@ public class AiServiceImpl implements AiService {
                                        int contextSize,
                                        boolean memoryEnabled,
                                        String scopeId,
-                                       MemoryConversationContext memoryContext) {
+                                       MemoryConversationContext memoryContext,
+                                       AiStreamChatService.DeltaListener onDelta) {
         if (aiChatClient.isConfigured()) {
             try {
-                return aiChatClient.complete(
-                    buildAiChatMessages(
-                        sessionMode,
-                        session,
-                        worldbookIds,
-                        contextMessages,
-                        normalizedMessage,
-                        memoryEnabled,
-                        scopeId,
-                        memoryContext
-                    )
+                List<OpenAiCompatibleChatClient.ChatMessage> chatMessages = buildAiChatMessages(
+                    sessionMode,
+                    session,
+                    worldbookIds,
+                    contextMessages,
+                    normalizedMessage,
+                    memoryEnabled,
+                    scopeId,
+                    memoryContext
                 );
+                if (onDelta == null) {
+                    return aiChatClient.complete(chatMessages);
+                }
+                return aiChatClient.streamComplete(chatMessages, onDelta::onDelta);
             } catch (BusinessException exception) {
                 LOGGER.warn(
                     "AI chat fallback triggered. sessionId={} mode={} reason={}",
@@ -969,7 +983,7 @@ public class AiServiceImpl implements AiService {
                 );
             }
         }
-        return buildFallbackAssistantReply(
+        String fallback = buildFallbackAssistantReply(
             sessionMode,
             session,
             worldbookIds,
@@ -979,6 +993,10 @@ public class AiServiceImpl implements AiService {
             scopeId,
             memoryContext
         );
+        if (onDelta != null) {
+            onDelta.onDelta(fallback);
+        }
+        return fallback;
     }
 
     private List<OpenAiCompatibleChatClient.ChatMessage> buildAiChatMessages(String sessionMode,

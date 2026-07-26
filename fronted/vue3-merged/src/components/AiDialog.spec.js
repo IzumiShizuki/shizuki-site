@@ -18,6 +18,7 @@ const mocked = vi.hoisted(() => ({
   listAiCharacters: vi.fn(),
   listAiWorldbooks: vi.fn(),
   sendAiMessage: vi.fn(),
+  sendAiMessageStream: vi.fn(),
   updateAdminAiCompanionConfig: vi.fn(),
   updateAdminAiMemoryScope: vi.fn()
 }));
@@ -56,6 +57,7 @@ vi.mock('../services/aiApi', () => ({
   listAiCharacters: (...args) => mocked.listAiCharacters(...args),
   listAiWorldbooks: (...args) => mocked.listAiWorldbooks(...args),
   sendAiMessage: (...args) => mocked.sendAiMessage(...args),
+  sendAiMessageStream: (...args) => mocked.sendAiMessageStream(...args),
   updateAdminAiCompanionConfig: (...args) => mocked.updateAdminAiCompanionConfig(...args),
   updateAdminAiMemoryScope: (...args) => mocked.updateAdminAiMemoryScope(...args)
 }));
@@ -106,6 +108,7 @@ describe('AiDialog', () => {
     mocked.listAiCharacters.mockReset();
     mocked.listAiWorldbooks.mockReset();
     mocked.sendAiMessage.mockReset();
+    mocked.sendAiMessageStream.mockReset();
     mocked.updateAdminAiCompanionConfig.mockReset();
     mocked.updateAdminAiMemoryScope.mockReset();
 
@@ -149,12 +152,20 @@ describe('AiDialog', () => {
       townRoomCode: 'library',
       actorCode: 'librarian'
     });
-    mocked.sendAiMessage.mockResolvedValue({
-      assistantMessage: '馆长 Haru 已上线。',
-      totalRounds: 5,
-      usedRounds: 1,
-      remainingRounds: 4,
-      scopeId: '12:town_npc:librarian:library'
+    mocked.sendAiMessageStream.mockImplementation(async (sessionId, payload, handlers) => {
+      handlers.onDelta('馆长 Haru ');
+      handlers.onDelta('已上线。');
+      const done = {
+        assistantMessage: '馆长 Haru 已上线。',
+        totalRounds: 5,
+        usedRounds: 1,
+        remainingRounds: 4,
+        scopeId: '12:town_npc:librarian:library'
+      };
+      if (typeof handlers.onDone === 'function') {
+        handlers.onDone(done);
+      }
+      return done;
     });
 
     const wrapper = await mountDialog({
@@ -171,13 +182,74 @@ describe('AiDialog', () => {
 
     expect(mocked.createAdminTownNpcSession).toHaveBeenCalledWith('librarian', mocked.auth.authorizedFetch);
     expect(mocked.createAiSession).not.toHaveBeenCalled();
-    expect(mocked.sendAiMessage).toHaveBeenCalledWith(
+    expect(mocked.sendAiMessageStream).toHaveBeenCalledWith(
       'session-town-001',
       expect.objectContaining({
         message: '你好，馆长。',
         memoryEnabled: true
       }),
+      expect.any(Object),
+      mocked.auth.authorizedFetch,
+      expect.any(Object)
+    );
+    expect(wrapper.text()).toContain('馆长 Haru 已上线。');
+  });
+
+  it('streams assistant deltas into the chat bubble as they arrive', async () => {
+    mocked.createAiSession.mockResolvedValue({
+      sessionId: 'session-normal-001',
+      title: '普通对话会话',
+      mode: 'normal'
+    });
+    let capturedHandlers = null;
+    mocked.sendAiMessageStream.mockImplementation(async (sessionId, payload, handlers) => {
+      capturedHandlers = handlers;
+      handlers.onDelta('正在');
+      handlers.onDelta('输出中');
+      const done = { assistantMessage: '正在输出中…', totalRounds: 5, usedRounds: 1, remainingRounds: 4 };
+      if (typeof handlers.onDone === 'function') {
+        handlers.onDone(done);
+      }
+      return done;
+    });
+
+    const wrapper = await mountDialog({ chatMode: 'normal', allowedModes: ['normal'] });
+    await wrapper.get('.chat-input').setValue('讲个笑话');
+    await wrapper.get('.send-btn').trigger('click');
+    await flushPromises();
+
+    expect(capturedHandlers).toBeTruthy();
+    expect(mocked.sendAiMessage).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('正在输出中');
+  });
+
+  it('falls back to the non-streaming endpoint when streaming is unsupported', async () => {
+    mocked.createAiSession.mockResolvedValue({
+      sessionId: 'session-normal-002',
+      title: '普通对话会话',
+      mode: 'normal'
+    });
+    const notFound = new Error('Not Found');
+    notFound.status = 404;
+    mocked.sendAiMessageStream.mockRejectedValue(notFound);
+    mocked.sendAiMessage.mockResolvedValue({
+      assistantMessage: '这是一次性回复。',
+      totalRounds: 5,
+      usedRounds: 1,
+      remainingRounds: 4
+    });
+
+    const wrapper = await mountDialog({ chatMode: 'normal', allowedModes: ['normal'] });
+    await wrapper.get('.chat-input').setValue('你好');
+    await wrapper.get('.send-btn').trigger('click');
+    await flushPromises();
+
+    expect(mocked.sendAiMessageStream).toHaveBeenCalled();
+    expect(mocked.sendAiMessage).toHaveBeenCalledWith(
+      'session-normal-002',
+      expect.objectContaining({ message: '你好' }),
       mocked.auth.authorizedFetch
     );
+    expect(wrapper.text()).toContain('这是一次性回复。');
   });
 });

@@ -461,7 +461,7 @@
         </template>
       </section>
 
-      <div class="chat-stream">
+      <div ref="chatStreamRef" class="chat-stream" @scroll.passive="handleChatScroll">
         <div v-if="!activeState.messages.length" class="empty-state">
           <strong>{{ activeModeMeta.emptyTitle }}</strong>
           <p>{{ activeModeMeta.emptyBody }}</p>
@@ -471,22 +471,70 @@
           v-for="message in activeState.messages"
           :key="message.id"
           class="chat-row"
-          :class="[message.role, { pending: message.pending, failed: message.failed }]"
+          :class="[message.role, { pending: message.pending, failed: message.failed, streaming: message.streaming }]"
         >
-          <div class="bubble-meta">{{ messageRoleLabel(message.role) }}</div>
+          <div class="bubble-meta">
+            <span>{{ messageRoleLabel(message.role) }}</span>
+            <small v-if="messageTimeLabel(message)" class="bubble-time">{{ messageTimeLabel(message) }}</small>
+          </div>
           <div class="chat-bubble">
-            <p>{{ message.content }}</p>
-            <span v-if="message.pending" class="bubble-tag">发送中...</span>
+            <div
+              v-if="message.role === 'assistant' || message.role === 'system'"
+              class="bubble-markdown"
+              v-html="renderMessageHtml(message)"
+            ></div>
+            <p v-else class="bubble-plain">{{ message.content }}</p>
+            <span v-if="message.streaming" class="stream-cursor" aria-hidden="true"></span>
+            <span v-if="message.pending && !message.streaming" class="bubble-tag">发送中...</span>
             <span v-else-if="message.failed" class="bubble-tag error">发送失败</span>
+          </div>
+          <div class="bubble-actions">
+            <button
+              v-if="message.content && !message.pending"
+              class="bubble-action-btn ripple-trigger"
+              type="button"
+              :title="copiedMessageId === message.id ? '已复制' : '复制内容'"
+              @click="copyMessageContent(message)"
+            >
+              <i :class="copiedMessageId === message.id ? 'fas fa-check' : 'fas fa-copy'"></i>
+            </button>
+            <button
+              v-if="message.failed"
+              class="bubble-action-btn ripple-trigger"
+              type="button"
+              title="重新发送"
+              @click="retryFailedMessage(message)"
+            >
+              <i class="fas fa-rotate-right"></i>
+            </button>
+            <button
+              v-if="canRegenerateMessage(message)"
+              class="bubble-action-btn ripple-trigger"
+              type="button"
+              title="重新生成回复"
+              @click="regenerateAssistantMessage"
+            >
+              <i class="fas fa-arrows-rotate"></i>
+            </button>
           </div>
         </article>
 
-        <div v-if="activeState.pending" class="typing-row">
+        <div v-if="activeState.pending && !isStreamingReply" class="typing-row">
           <span class="typing-dot"></span>
           <span class="typing-dot"></span>
           <span class="typing-dot"></span>
         </div>
       </div>
+
+      <button
+        v-if="showJumpToLatest"
+        class="jump-latest-btn ripple-trigger"
+        type="button"
+        @click="scrollChatToBottom(true)"
+      >
+        <i class="fas fa-arrow-down"></i>
+        <span>回到最新</span>
+      </button>
 
       <p v-if="activeState.errorText" class="error-banner">{{ activeState.errorText }}</p>
       <p v-else-if="authorizationHint" class="feedback-banner warning">{{ authorizationHint }}</p>
@@ -500,7 +548,22 @@
           :placeholder="activeModeMeta.placeholder"
           @keydown.enter.exact.prevent="submitActiveMessage"
         ></textarea>
-        <button class="send-btn ripple-trigger" type="button" :disabled="!canSendActiveMessage" @click="submitActiveMessage">
+        <button
+          v-if="activeState.pending"
+          class="send-btn stop-btn ripple-trigger"
+          type="button"
+          title="停止生成"
+          @click="stopActiveGeneration"
+        >
+          <i class="fas fa-stop"></i>
+        </button>
+        <button
+          v-else
+          class="send-btn ripple-trigger"
+          type="button"
+          :disabled="!canSendActiveMessage"
+          @click="submitActiveMessage"
+        >
           <i class="fas fa-paper-plane"></i>
         </button>
       </footer>
@@ -509,7 +572,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { motion, useReducedMotion } from 'motion-v';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
@@ -526,10 +589,12 @@ import {
   listAiCharacters,
   listAiWorldbooks,
   sendAiMessage,
+  sendAiMessageStream,
   updateAdminAiCompanionConfig,
   updateAdminAiMemoryScope
 } from '../services/aiApi';
 import { buildAiCapabilityState, hasAdminGroup } from '../utils/aiAuthorizationState';
+import { formatAiMessageTime, renderAiMessageHtml } from '../utils/aiChatMarkdown';
 
 const CHAT_MODE_OPTIONS = [
   {
@@ -687,7 +752,9 @@ function createMessage(role, content, options = {}) {
     role,
     content: String(content || ''),
     pending: Boolean(options.pending),
-    failed: Boolean(options.failed)
+    failed: Boolean(options.failed),
+    streaming: Boolean(options.streaming),
+    at: Number.isFinite(Number(options.at)) && Number(options.at) > 0 ? Number(options.at) : Date.now()
   };
 }
 
@@ -915,7 +982,18 @@ const sessionStateByMode = reactive({
   companion: createModeState('companion')
 });
 
+const chatStreamRef = ref(null);
+const showJumpToLatest = ref(false);
+const copiedMessageId = ref('');
+const streamingMessageId = ref('');
+let activeSendAbortController = null;
+let copiedResetTimer = null;
+let chatAutoStick = true;
+
 const activeState = computed(() => sessionStateByMode[activeChatMode.value]);
+const isStreamingReply = computed(() =>
+  Boolean(streamingMessageId.value) && activeState.value.messages.some((item) => item.id === streamingMessageId.value)
+);
 const requestedChatModes = computed(() => {
   const normalized = normalizeAllowedModes(props.allowedModes);
   return normalized.length ? normalized : CHAT_MODE_OPTIONS.map((item) => item.value);
@@ -1118,6 +1196,29 @@ function syncStateFromSessionSummary(state, rawSummary) {
   if (summary.actorCode) state.config.actorCode = summary.actorCode;
 }
 
+function normalizeHistoryTimestamp(raw) {
+  if (raw == null) return Date.now();
+  if (Number.isFinite(Number(raw)) && Number(raw) > 0) {
+    return Number(raw);
+  }
+  const parsed = Date.parse(String(raw));
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function hydrateStateMessages(state, rawMessages) {
+  if (!Array.isArray(rawMessages)) return;
+  state.messages = rawMessages
+    .map((item) => {
+      const role = String(item?.role || item?.roleName || item?.role_name || 'user').trim().toLowerCase();
+      const content = String(item?.content ?? '');
+      if (!content.trim()) return null;
+      return createMessage(role === 'assistant' || role === 'system' ? role : 'user', content, {
+        at: normalizeHistoryTimestamp(item?.at ?? item?.createdAt ?? item?.created_at)
+      });
+    })
+    .filter(Boolean);
+}
+
 function applyOpenPayload(payload) {
   if (!payload || typeof payload !== 'object') return;
   const nextMode = resolveAllowedChatMode(payload.preferredMode || payload.mode || props.chatMode, allowedChatModes.value);
@@ -1129,6 +1230,7 @@ function applyOpenPayload(payload) {
   if (session) {
     syncStateFromSessionSummary(nextState, session);
   }
+  hydrateStateMessages(nextState, bootstrap.messages);
   if (config.characterId != null) {
     nextState.config.characterId = String(config.characterId);
   }
@@ -1150,6 +1252,8 @@ function applyOpenPayload(payload) {
 
   sessionStateByMode[nextMode] = nextState;
   activeChatMode.value = nextMode;
+  chatAutoStick = true;
+  scheduleChatScroll(true);
 }
 
 function setTavernFeedback(text, tone = 'success') {
@@ -1593,41 +1697,107 @@ function emitChatState(state, payload = {}) {
   });
 }
 
+function isStreamUnsupportedError(error) {
+  const status = Number(error?.status);
+  return status === 404 || status === 405 || status === 501;
+}
+
 async function submitActiveMessage() {
   const state = activeState.value;
   const draft = normalizeOptionalText(state.draft);
   if (!draft || state.pending || !aiCapabilityState.value.canSendMessage) return;
-
-  state.errorText = '';
-  const pendingMessage = createMessage('user', draft, { pending: true });
-  const context = toContextMessages(state.messages);
-  state.messages.push(pendingMessage);
   state.draft = '';
+  await sendMessageFlow(state, draft);
+}
+
+async function sendMessageFlow(state, draft, presetContext = null) {
+  state.errorText = '';
+  const context = presetContext || toContextMessages(state.messages);
+  const pendingMessage = createMessage('user', draft, { pending: true });
+  state.messages.push(pendingMessage);
   state.pending = true;
+  chatAutoStick = true;
+  scheduleChatScroll(true);
   let emittedAssistantSpeech = false;
   emitChatState(state, { status: 'thinking', phase: 'send-start', userMessage: draft });
 
+  const abortController = typeof AbortController === 'function' ? new AbortController() : null;
+  activeSendAbortController = abortController;
+  let assistantDraftMessage = null;
+  let stoppedByUser = false;
+
   try {
     await ensureSession(state, draft);
-    const response = normalizeSendResponse(
-      await sendAiMessage(
+    emitChatState(state, { phase: 'session-ready' });
+
+    const payload = {
+      message: draft,
+      context,
+      memoryEnabled: Boolean(state.config.memoryEnabled),
+      scopeId: normalizeOptionalText(state.sessionId || `${state.mode}-scope`)
+    };
+    const requestFetch = auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
+
+    let response = null;
+    try {
+      const doneEvent = await sendAiMessageStream(
         state.sessionId,
+        payload,
         {
-          message: draft,
-          context,
-          memoryEnabled: Boolean(state.config.memoryEnabled),
-          scopeId: normalizeOptionalText(state.sessionId || `${state.mode}-scope`)
+          onDelta(deltaText) {
+            if (!assistantDraftMessage) {
+              assistantDraftMessage = createMessage('assistant', '', { streaming: true });
+              state.messages.push(assistantDraftMessage);
+              streamingMessageId.value = assistantDraftMessage.id;
+              pendingMessage.pending = false;
+              emittedAssistantSpeech = true;
+              emitChatState(state, { status: 'speaking', phase: 'assistant-delta' });
+            }
+            assistantDraftMessage.content += deltaText;
+            scheduleChatScroll();
+          }
         },
-        auth.isAuthenticated.value ? auth.authorizedFetch : undefined
-      )
-    );
+        requestFetch,
+        abortController ? { signal: abortController.signal } : {}
+      );
+      response = normalizeSendResponse(doneEvent || {});
+    } catch (streamError) {
+      if (abortController && abortController.signal.aborted) {
+        stoppedByUser = true;
+        pendingMessage.pending = false;
+        if (assistantDraftMessage) {
+          assistantDraftMessage.streaming = false;
+          if (!normalizeOptionalText(assistantDraftMessage.content)) {
+            state.messages = state.messages.filter((item) => item.id !== assistantDraftMessage.id);
+            assistantDraftMessage = null;
+          }
+        }
+        emitChatState(state, { status: 'idle', phase: 'send-stopped' });
+        return;
+      }
+      if (assistantDraftMessage) {
+        state.messages = state.messages.filter((item) => item.id !== assistantDraftMessage.id);
+        assistantDraftMessage = null;
+        emittedAssistantSpeech = false;
+      }
+      if (!isStreamUnsupportedError(streamError)) {
+        throw streamError;
+      }
+      // 旧部署没有流式接口时回退到一次性发送。
+      response = normalizeSendResponse(await sendAiMessage(state.sessionId, payload, requestFetch));
+    }
 
     pendingMessage.pending = false;
     if (!state.title) {
       state.title = buildSessionTitle(state.mode, state.title, draft);
     }
     if (response.assistantMessage) {
-      state.messages.push(createMessage('assistant', response.assistantMessage));
+      if (assistantDraftMessage) {
+        assistantDraftMessage.content = response.assistantMessage;
+        assistantDraftMessage.streaming = false;
+      } else {
+        state.messages.push(createMessage('assistant', response.assistantMessage));
+      }
       emittedAssistantSpeech = true;
       emitChatState(state, {
         status: 'speaking',
@@ -1635,6 +1805,8 @@ async function submitActiveMessage() {
         assistantMessage: response.assistantMessage,
         scopeId: response.scopeId
       });
+    } else if (assistantDraftMessage) {
+      assistantDraftMessage.streaming = false;
     }
     if (Number.isFinite(Number(response.remainingRounds))) {
       quota.value = normalizeQuota({
@@ -1653,11 +1825,150 @@ async function submitActiveMessage() {
     emitChatState(state, { status: 'idle', phase: 'send-error', errorText: state.errorText });
   } finally {
     state.pending = false;
-    if (!emittedAssistantSpeech) {
+    streamingMessageId.value = '';
+    if (activeSendAbortController === abortController) {
+      activeSendAbortController = null;
+    }
+    if (!emittedAssistantSpeech && !stoppedByUser) {
       emitChatState(state, { status: 'idle', phase: 'send-end' });
+    }
+    scheduleChatScroll();
+  }
+}
+
+function stopActiveGeneration() {
+  if (activeSendAbortController) {
+    try {
+      activeSendAbortController.abort('user-stop');
+    } catch {
+      // ignore abort errors
     }
   }
 }
+
+function retryFailedMessage(message) {
+  const state = activeState.value;
+  if (state.pending || !message?.failed) return;
+  const content = normalizeOptionalText(message.content);
+  if (!content) return;
+  state.messages = state.messages.filter((item) => item.id !== message.id);
+  void sendMessageFlow(state, content);
+}
+
+function canRegenerateMessage(message) {
+  const state = activeState.value;
+  if (state.pending || message?.role !== 'assistant' || message?.pending || message?.streaming) return false;
+  const lastMessage = state.messages[state.messages.length - 1];
+  return Boolean(lastMessage && lastMessage.id === message.id && aiCapabilityState.value.canSendMessage);
+}
+
+function regenerateAssistantMessage() {
+  const state = activeState.value;
+  if (state.pending) return;
+  const lastMessage = state.messages[state.messages.length - 1];
+  if (!lastMessage || lastMessage.role !== 'assistant') return;
+
+  let lastUserIndex = -1;
+  for (let index = state.messages.length - 1; index >= 0; index -= 1) {
+    if (state.messages[index].role === 'user' && !state.messages[index].failed) {
+      lastUserIndex = index;
+      break;
+    }
+  }
+  if (lastUserIndex < 0) return;
+  const lastUserContent = normalizeOptionalText(state.messages[lastUserIndex].content);
+  if (!lastUserContent) return;
+
+  const retainedMessages = state.messages.slice(0, lastUserIndex);
+  state.messages = retainedMessages;
+  void sendMessageFlow(state, lastUserContent, toContextMessages(retainedMessages));
+}
+
+async function copyMessageContent(message) {
+  const content = String(message?.content || '');
+  if (!content) return;
+  let copied = false;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(content);
+      copied = true;
+    }
+  } catch {
+    copied = false;
+  }
+  if (!copied && typeof document !== 'undefined') {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = content;
+      textarea.setAttribute('readonly', 'readonly');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      copied = true;
+    } catch {
+      copied = false;
+    }
+  }
+  if (!copied) return;
+  copiedMessageId.value = message.id;
+  if (copiedResetTimer) {
+    globalThis.clearTimeout(copiedResetTimer);
+  }
+  copiedResetTimer = globalThis.setTimeout(() => {
+    copiedMessageId.value = '';
+    copiedResetTimer = null;
+  }, 1600);
+}
+
+function renderMessageHtml(message) {
+  return renderAiMessageHtml(message?.content);
+}
+
+function messageTimeLabel(message) {
+  return formatAiMessageTime(message?.at);
+}
+
+function scheduleChatScroll(force = false) {
+  if (!force && !chatAutoStick) return;
+  void nextTick(() => {
+    const element = chatStreamRef.value;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    showJumpToLatest.value = false;
+  });
+}
+
+function handleChatScroll() {
+  const element = chatStreamRef.value;
+  if (!element) return;
+  const distanceToBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+  chatAutoStick = distanceToBottom < 48;
+  showJumpToLatest.value = !chatAutoStick && element.scrollHeight > element.clientHeight + 160;
+}
+
+function scrollChatToBottom() {
+  chatAutoStick = true;
+  scheduleChatScroll(true);
+}
+
+watch(
+  () => activeChatMode.value,
+  () => {
+    chatAutoStick = true;
+    scheduleChatScroll(true);
+  }
+);
+
+onBeforeUnmount(() => {
+  stopActiveGeneration();
+  if (copiedResetTimer) {
+    globalThis.clearTimeout(copiedResetTimer);
+    copiedResetTimer = null;
+  }
+});
 
 function messageRoleLabel(role) {
   if (role === 'assistant') return 'Assistant';
@@ -2255,6 +2566,229 @@ function messageRoleLabel(role) {
   word-break: break-word;
 }
 
+.bubble-plain {
+  margin: 0;
+  color: rgba(243, 247, 255, 0.94);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble-time {
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+  color: rgba(158, 175, 205, 0.55);
+}
+
+.bubble-markdown {
+  color: rgba(243, 247, 255, 0.94);
+  line-height: 1.7;
+  word-break: break-word;
+  display: grid;
+  gap: 8px;
+}
+
+.bubble-markdown :deep(p) {
+  margin: 0;
+}
+
+.bubble-markdown :deep(h1),
+.bubble-markdown :deep(h2),
+.bubble-markdown :deep(h3),
+.bubble-markdown :deep(h4) {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: rgba(247, 251, 255, 0.96);
+}
+
+.bubble-markdown :deep(.md-list) {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.bubble-markdown :deep(code) {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(8, 12, 22, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 12px;
+  color: rgba(186, 222, 255, 0.95);
+}
+
+.bubble-markdown :deep(.md-code) {
+  position: relative;
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(6, 10, 19, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+}
+
+.bubble-markdown :deep(.md-code.has-highlight) {
+  padding-top: 26px;
+}
+
+.bubble-markdown :deep(.md-code .code-lang) {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(168, 186, 214, 0.6);
+  user-select: none;
+  pointer-events: none;
+}
+
+.bubble-markdown :deep(.md-code code) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  white-space: pre;
+  display: block;
+  line-height: 1.6;
+}
+
+/* 代码高亮 token 配色（暗色气泡） */
+.bubble-markdown :deep(.tok-keyword) {
+  color: #c792ea;
+}
+
+.bubble-markdown :deep(.tok-string) {
+  color: #c3e88d;
+}
+
+.bubble-markdown :deep(.tok-number) {
+  color: #f78c6c;
+}
+
+.bubble-markdown :deep(.tok-literal) {
+  color: #ff9cac;
+}
+
+.bubble-markdown :deep(.tok-comment) {
+  color: rgba(150, 165, 190, 0.62);
+  font-style: italic;
+}
+
+.bubble-markdown :deep(.tok-function) {
+  color: #82aaff;
+}
+
+.bubble-markdown :deep(blockquote) {
+  margin: 0;
+  padding: 6px 12px;
+  border-left: 3px solid rgba(var(--accent-rgb), 0.5);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0 10px 10px 0;
+  color: rgba(214, 226, 246, 0.88);
+}
+
+.bubble-markdown :deep(a) {
+  color: rgb(var(--accent-strong-rgb));
+}
+
+.bubble-markdown :deep(table) {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.bubble-markdown :deep(th),
+.bubble-markdown :deep(td) {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 6px 10px;
+}
+
+.stream-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  border-radius: 2px;
+  background: rgba(var(--accent-rgb), 0.85);
+  animation: ai-stream-cursor 0.9s steps(2, start) infinite;
+}
+
+.bubble-actions {
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.chat-row:hover .bubble-actions,
+.chat-row:focus-within .bubble-actions {
+  opacity: 1;
+}
+
+.chat-row.user .bubble-actions {
+  justify-content: flex-end;
+}
+
+.bubble-action-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(205, 219, 242, 0.82);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.bubble-action-btn:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+  color: rgba(247, 251, 255, 0.98);
+  transform: translateY(-1px);
+}
+
+.jump-latest-btn {
+  justify-self: center;
+  margin-top: -6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid rgba(var(--accent-rgb), 0.32);
+  border-radius: 999px;
+  background: rgba(14, 20, 33, 0.92);
+  color: rgba(233, 241, 255, 0.94);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(4, 8, 18, 0.4);
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.jump-latest-btn:hover {
+  background: rgba(var(--accent-rgb), 0.24);
+  transform: translateY(-1px);
+}
+
+.stop-btn {
+  background: rgba(255, 118, 118, 0.2);
+  color: rgba(255, 205, 205, 0.96);
+}
+
+.stop-btn:hover:not(:disabled) {
+  background: rgba(255, 118, 118, 0.34);
+  color: rgba(255, 231, 231, 0.99);
+}
+
+@keyframes ai-stream-cursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.15;
+  }
+}
+
 .bubble-tag {
   font-size: 11px;
   color: rgba(200, 214, 239, 0.72);
@@ -2402,7 +2936,17 @@ function messageRoleLabel(role) {
   }
 
   .mode-embedded .chat-bubble {
-    max-width: min(100%, 560px);
+    max-width: min(100%, 720px);
+  }
+
+  .mode-embedded .chat-row.assistant .chat-bubble,
+  .mode-embedded .chat-row.system .chat-bubble {
+    background: rgba(255, 255, 255, 0.035);
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .mode-embedded .chat-stream {
+    padding-right: 6px;
   }
 }
 
