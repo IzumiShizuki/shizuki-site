@@ -108,6 +108,85 @@ test('submits export job and serves artifact urls', async () => {
   }
 });
 
+test('export accepts compose options and reports slide count for blog markdown', async () => {
+  const app = await startServer();
+  const headers = {
+    Authorization: 'Bearer test-token',
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    const blogMarkdown = [
+      '# 博客标题',
+      '',
+      '## 第一章',
+      '',
+      '第一章内容。',
+      '',
+      '## 第二章',
+      '',
+      '- 甲',
+      '- 乙'
+    ].join('\n');
+
+    const submit = await requestJson(app.baseUrl, '/v1/exports', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        markdown: blogMarkdown,
+        formats: ['pptx'],
+        fileName: 'blog-demo',
+        title: '博客标题',
+        theme: 'dark',
+        withClicks: true
+      })
+    });
+
+    assert.equal(submit.response.status, 202);
+    assert.equal(submit.payload.composeMode, 'convert');
+    assert.ok(submit.payload.slideCount >= 5, `expected composed deck, got ${submit.payload.slideCount}`);
+
+    const job = await waitUntilSucceeded(app.baseUrl, `/v1/exports/${submit.payload.jobId}`, {
+      Authorization: 'Bearer test-token'
+    });
+    assert.equal(job.status, 'succeeded');
+    assert.equal(job.slideCount, submit.payload.slideCount);
+  } finally {
+    await app.close();
+  }
+});
+
+test('export with enhance disabled keeps raw markdown behavior', async () => {
+  const app = await startServer();
+  const headers = {
+    Authorization: 'Bearer test-token',
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    const submit = await requestJson(app.baseUrl, '/v1/exports', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        markdown: '# raw deck',
+        formats: ['pdf'],
+        enhance: false
+      })
+    });
+
+    assert.equal(submit.response.status, 202);
+    assert.equal(submit.payload.composeMode, 'raw');
+
+    const job = await waitUntilSucceeded(app.baseUrl, `/v1/exports/${submit.payload.jobId}`, {
+      Authorization: 'Bearer test-token'
+    });
+    assert.equal(job.status, 'succeeded');
+    assert.equal(job.artifacts.length, 1);
+  } finally {
+    await app.close();
+  }
+});
+
 test('builds preview and returns cache hit for repeated markdown', async () => {
   const app = await startServer();
   const headers = {

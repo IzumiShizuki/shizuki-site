@@ -4,6 +4,8 @@ import { promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { COMPOSER_VERSION, composeSlidevDeck } from './slidev-composer.mjs';
+import { STYLE_VERSION, buildGlobalBottomVue, buildSlidevStyleCss } from './slidev-assets.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SLIDEV_BIN = path.join(__dirname, 'node_modules', '.bin', process.platform === 'win32' ? 'slidev.cmd' : 'slidev');
@@ -31,6 +33,55 @@ function normalizeFileName(raw, fallback = 'slides') {
 
 function normalizeMarkdown(raw) {
   return String(raw ?? '').replace(/\r\n?/g, '\n').trim();
+}
+
+function normalizeBoolean(raw, fallback) {
+  if (raw === true || raw === false) return raw;
+  const text = String(raw ?? '').trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(text)) return true;
+  if (['0', 'false', 'no', 'off'].includes(text)) return false;
+  return fallback;
+}
+
+function normalizeComposeOptions(raw, config) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  return {
+    enhance: normalizeBoolean(source.enhance, true),
+    title: String(source.title ?? '').trim().slice(0, 160),
+    subtitle: String(source.subtitle ?? '').trim().slice(0, 200),
+    theme: String(source.theme ?? '').trim().toLowerCase() === 'light' ? 'light' : 'dark',
+    animate: normalizeBoolean(source.animate, true),
+    withClicks: normalizeBoolean(source.withClicks, true),
+    assetBaseUrl: String(source.assetBaseUrl ?? config.assetBaseUrl ?? '').trim()
+  };
+}
+
+function prepareDeck(markdown, composeOptions) {
+  const source = normalizeMarkdown(markdown);
+  if (!source) {
+    throw new Error('markdown is required');
+  }
+
+  if (!composeOptions.enhance) {
+    return {
+      markdown: source,
+      slideCount: 0,
+      mode: 'raw',
+      title: composeOptions.title,
+      fingerprint: sha256Hex(source)
+    };
+  }
+
+  const composed = composeSlidevDeck(source, composeOptions);
+  return {
+    markdown: composed.markdown,
+    slideCount: composed.slideCount,
+    mode: composed.mode,
+    title: composed.title || composeOptions.title,
+    fingerprint: sha256Hex(
+      [composed.markdown, COMPOSER_VERSION, STYLE_VERSION, composeOptions.theme].join('\n')
+    )
+  };
 }
 
 function sha256Hex(content) {
@@ -141,9 +192,15 @@ class SlidesApiService {
       previewCacheTtlSeconds: normalizeInt(config.previewCacheTtlSeconds, 86400),
       exportTimeoutMs: normalizeInt(config.exportTimeoutMs, 600000),
       pageTimeoutMs: normalizeInt(config.pageTimeoutMs, 180000),
+      // networkidle + 额外 wait：避免打印/截图发生在 Vue 应用完成挂载之前
+      // （冷启动时 'load' 事件早于水合完成，会导出整页空白，并导致
+      //  --with-clicks 的点击步骤枚举不到）
       waitUntil: ['networkidle', 'load', 'domcontentloaded', 'none'].includes(String(config.waitUntil || ''))
         ? String(config.waitUntil)
-        : 'load',
+        : 'networkidle',
+      exportWaitMs: normalizeInt(config.exportWaitMs, 3000, 0),
+      executablePath: String(config.executablePath || '').trim(),
+      assetBaseUrl: String(config.assetBaseUrl || '').trim(),
       mockExecutor: String(config.mockExecutor || '') === '1'
     };
 
@@ -176,11 +233,9 @@ class SlidesApiService {
     }
   }
 
-  submitExport(markdown, formats, fileName) {
-    const source = normalizeMarkdown(markdown);
-    if (!source) {
-      throw new Error('markdown is required');
-    }
+  submitExport(markdown, formats, fileName, rawOptions = {}) {
+    const composeOptions = normalizeComposeOptions(rawOptions, this.config);
+    const deck = prepareDeck(markdown, composeOptions);
 
     const normalizedFormats = Array.from(new Set((Array.isArray(formats) ? formats : [])
       .map((item) => String(item || '').trim().toLowerCase())
@@ -190,7 +245,7 @@ class SlidesApiService {
       throw new Error('formats must contain at least one of: pptx, pdf');
     }
 
-    const sourceHash = sha256Hex(source);
+    const sourceHash = deck.fingerprint;
     const jobId = this.createJobId('exp');
     const job = {
       jobId,
@@ -200,9 +255,15 @@ class SlidesApiService {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       payload: {
-        markdown: source,
+        markdown: deck.markdown,
         formats: normalizedFormats,
-        fileBaseName: normalizeFileName(fileName || 'slides', 'slides')
+        fileBaseName: normalizeFileName(fileName || 'slides', 'slides'),
+        enhance: composeOptions.enhance,
+        theme: composeOptions.theme,
+        title: deck.title,
+        withClicks: composeOptions.withClicks,
+        slideCount: deck.slideCount,
+        composeMode: deck.mode
       },
       artifacts: [],
       error: null
@@ -213,7 +274,9 @@ class SlidesApiService {
     return {
       jobId,
       status: job.status,
-      statusUrl: `/v1/exports/${jobId}`
+      statusUrl: `/v1/exports/${jobId}`,
+      slideCount: deck.slideCount,
+      composeMode: deck.mode
     };
   }
 
@@ -227,6 +290,8 @@ class SlidesApiService {
       jobId: job.jobId,
       status: job.status,
       sourceHash: job.sourceHash,
+      slideCount: job.payload.slideCount,
+      composeMode: job.payload.composeMode,
       artifacts: job.artifacts.map((artifact) => {
         const expiresAtMs = Date.now() + this.config.artifactUrlTtlSeconds * 1000;
         return {
@@ -245,15 +310,13 @@ class SlidesApiService {
     return response;
   }
 
-  submitPreview(markdown, ttlSeconds) {
-    const source = normalizeMarkdown(markdown);
-    if (!source) {
-      throw new Error('markdown is required');
-    }
+  submitPreview(markdown, ttlSeconds, rawOptions = {}) {
+    const composeOptions = normalizeComposeOptions(rawOptions, this.config);
+    const deck = prepareDeck(markdown, composeOptions);
 
     this.cleanupPreviewCache();
 
-    const sourceHash = sha256Hex(source);
+    const sourceHash = deck.fingerprint;
     const effectiveTtlSeconds = normalizeInt(ttlSeconds, this.config.previewCacheTtlSeconds);
     const cached = this.previewCache.get(sourceHash);
 
@@ -263,6 +326,7 @@ class SlidesApiService {
         sourceHash,
         previewUrl: this.createSignedUrl(URL_KIND_PREVIEW, cached.indexRelativePath, cached.expiresAtMs),
         expiresAt: toIsoDate(cached.expiresAtMs),
+        slideCount: cached.slideCount ?? deck.slideCount,
         cacheHit: true
       };
     }
@@ -276,8 +340,13 @@ class SlidesApiService {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       payload: {
-        markdown: source,
-        ttlSeconds: effectiveTtlSeconds
+        markdown: deck.markdown,
+        ttlSeconds: effectiveTtlSeconds,
+        enhance: composeOptions.enhance,
+        theme: composeOptions.theme,
+        title: deck.title,
+        slideCount: deck.slideCount,
+        composeMode: deck.mode
       },
       previewRelativePath: '',
       previewExpiresAtMs: 0,
@@ -292,6 +361,8 @@ class SlidesApiService {
       status: job.status,
       statusUrl: `/v1/previews/${jobId}`,
       sourceHash,
+      slideCount: deck.slideCount,
+      composeMode: deck.mode,
       cacheHit: false
     };
   }
@@ -305,7 +376,9 @@ class SlidesApiService {
     const response = {
       jobId: job.jobId,
       status: job.status,
-      sourceHash: job.sourceHash
+      sourceHash: job.sourceHash,
+      slideCount: job.payload.slideCount,
+      composeMode: job.payload.composeMode
     };
 
     if (job.previewRelativePath && job.previewExpiresAtMs > Date.now()) {
@@ -392,11 +465,14 @@ class SlidesApiService {
       const tempRoot = await fs.mkdtemp(path.join(this.config.workRoot, `export-${job.jobId}-`));
       const inputPath = path.join(tempRoot, 'slides.md');
       await fs.writeFile(inputPath, job.payload.markdown, 'utf8');
+      await this.writeDeckAssets(tempRoot, job.payload);
 
       const artifacts = [];
       for (const format of job.payload.formats) {
         const outputPath = path.join(tempRoot, `${job.payload.fileBaseName}.${format}`);
-        await this.runSlidevExport(inputPath, outputPath, format);
+        await this.runSlidevExport(inputPath, outputPath, format, {
+          withClicks: job.payload.withClicks && format === 'pptx'
+        });
 
         const relativePath = `exports/${job.jobId}/${path.basename(outputPath)}`;
         const targetPath = path.resolve(this.config.storageRoot, relativePath);
@@ -440,6 +516,7 @@ class SlidesApiService {
       const inputPath = path.join(tempRoot, 'slides.md');
       const outputDir = path.join(tempRoot, 'dist');
       await fs.writeFile(inputPath, job.payload.markdown, 'utf8');
+      await this.writeDeckAssets(tempRoot, job.payload);
 
       await this.runSlidevBuild(inputPath, outputDir);
 
@@ -458,7 +535,8 @@ class SlidesApiService {
       const indexRelativePath = `${previewRelativeDir}/index.html`;
       this.previewCache.set(job.sourceHash, {
         indexRelativePath,
-        expiresAtMs: previewExpiresAtMs
+        expiresAtMs: previewExpiresAtMs,
+        slideCount: job.payload.slideCount
       });
 
       job.previewRelativePath = indexRelativePath;
@@ -476,14 +554,20 @@ class SlidesApiService {
     }
   }
 
-  async runSlidevExport(inputPath, outputPath, format) {
+  async writeDeckAssets(tempRoot, payload) {
+    if (!payload.enhance) return;
+    await fs.writeFile(path.join(tempRoot, 'style.css'), buildSlidevStyleCss(payload.theme), 'utf8');
+    await fs.writeFile(path.join(tempRoot, 'global-bottom.vue'), buildGlobalBottomVue(payload.title), 'utf8');
+  }
+
+  async runSlidevExport(inputPath, outputPath, format, options = {}) {
     if (this.config.mockExecutor) {
       await ensureDirectory(path.dirname(outputPath));
       await fs.writeFile(outputPath, `mock-${format}-${path.basename(outputPath)}`, 'utf8');
       return;
     }
 
-    await this.runCommand([
+    const args = [
       'export',
       inputPath,
       '--format',
@@ -494,7 +578,15 @@ class SlidesApiService {
       String(this.config.pageTimeoutMs),
       '--wait-until',
       this.config.waitUntil
-    ], this.config.executablePath);
+    ];
+    if (this.config.exportWaitMs > 0) {
+      args.push('--wait', String(this.config.exportWaitMs));
+    }
+    if (options.withClicks) {
+      args.push('--with-clicks');
+    }
+
+    await this.runCommand(args, this.config.executablePath);
   }
 
   async runSlidevBuild(inputPath, outputDir) {
@@ -572,8 +664,10 @@ function createConfig(env = process.env) {
     previewCacheTtlSeconds: normalizeInt(env.SLIDES_API_PREVIEW_CACHE_TTL_SECONDS, 86400),
     exportTimeoutMs: normalizeInt(env.SLIDES_API_EXPORT_TIMEOUT_MS, 600000),
     pageTimeoutMs: normalizeInt(env.SLIDES_API_PAGE_TIMEOUT_MS, 180000),
-    waitUntil: env.SLIDES_API_WAIT_UNTIL || 'load',
+    waitUntil: env.SLIDES_API_WAIT_UNTIL || 'networkidle',
+    exportWaitMs: normalizeInt(env.SLIDES_API_EXPORT_WAIT_MS, 3000, 0),
     executablePath: env.SLIDEV_EXECUTABLE_PATH || env.PLAYWRIGHT_EXECUTABLE_PATH || '',
+    assetBaseUrl: env.SLIDES_API_ASSET_BASE_URL || '',
     mockExecutor: env.SLIDES_API_MOCK_EXECUTOR || ''
   };
 }
@@ -596,7 +690,7 @@ function createServer(service) {
       try {
         if (request.method === 'POST' && url.pathname === '/v1/exports') {
           const body = parseJsonOrEmpty(await readRequestBody(request));
-          const submitted = service.submitExport(body.markdown, body.formats, body.fileName);
+          const submitted = service.submitExport(body.markdown, body.formats, body.fileName, body);
           sendJson(response, 202, submitted);
           return;
         }
@@ -614,7 +708,7 @@ function createServer(service) {
 
         if (request.method === 'POST' && url.pathname === '/v1/previews') {
           const body = parseJsonOrEmpty(await readRequestBody(request));
-          const submitted = service.submitPreview(body.markdown, body.ttlSeconds);
+          const submitted = service.submitPreview(body.markdown, body.ttlSeconds, body);
           sendJson(response, submitted.cacheHit ? 200 : 202, submitted);
           return;
         }

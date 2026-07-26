@@ -140,13 +140,19 @@
           </aside>
 
           <section class="presentation-stage-wrap">
-            <article class="presentation-stage liquid-material">
-              <header class="presentation-stage-head">
-                <span>第 {{ activeSlideIndex }} / {{ slides.length }} 页</span>
-                <strong>{{ activeSlide?.title || presentationTitle }}</strong>
-              </header>
-              <div class="presentation-stage-body markdown-body" v-html="activeSlide?.html || ''"></div>
-            </article>
+            <Transition name="slide-swap" mode="out-in">
+              <article :key="activeSlideIndex" class="presentation-stage liquid-material">
+                <header class="presentation-stage-head">
+                  <span>第 {{ activeSlideIndex }} / {{ slides.length }} 页</span>
+                  <strong>{{ activeSlide?.title || presentationTitle }}</strong>
+                </header>
+                <div
+                  class="presentation-stage-body markdown-body"
+                  :class="stageLayoutClass"
+                  v-html="activeSlide?.html || ''"
+                ></div>
+              </article>
+            </Transition>
           </section>
         </template>
       </section>
@@ -168,6 +174,7 @@ import {
   listPosts
 } from '../../services/blogApi';
 import { parseSlidevDeck } from '../../utils/blogMarkdown';
+import { composeSlidevDeck } from '../../utils/slidevComposer';
 import {
   BLOG_PRESENTATION_SCOPE_MINE,
   BLOG_PRESENTATION_SCOPE_PUBLIC,
@@ -282,7 +289,14 @@ function resolveCurrentSummary() {
 function applyPresentationPayload(rawPayload) {
   const payload = normalizePresentation(rawPayload);
   presentation.value = payload;
-  slides.value = parseSlidevDeck(payload.slidevMarkdown || '');
+
+  // 与 slides-api 同一套增强逻辑：自动分页防溢出、补充版式与逐条动画标记，
+  // 保证站内预览和导出的 PPT 页面结构一致。
+  const composed = composeSlidevDeck(payload.slidevMarkdown || '', {
+    title: resolveCurrentSummary()?.title || '',
+    animate: true
+  });
+  slides.value = parseSlidevDeck(composed.markdown || '');
   activeSlideIndex.value = slides.value[0]?.index || 1;
   clearPollTimer();
 
@@ -297,6 +311,14 @@ function applyPresentationPayload(rawPayload) {
 }
 
 const activeSlide = computed(() => slides.value.find((item) => item.index === activeSlideIndex.value) || slides.value[0] || null);
+const stageLayoutClass = computed(() => {
+  const layout = String(activeSlide.value?.layout || 'default').trim() || 'default';
+  const classes = [`slide-layout-${layout}`];
+  if (String(activeSlide.value?.clazz || '').includes('text-center')) {
+    classes.push('slide-text-center');
+  }
+  return classes;
+});
 const canDownload = computed(() => presentation.value?.pptReady === true);
 const canGenerate = computed(() => props.allowGenerate && auth.isAuthenticated.value && currentScope.value === BLOG_PRESENTATION_SCOPE_MINE && currentPostId.value > 0);
 const busyRefreshing = computed(() => loading.value || libraryLoading.value);
@@ -876,6 +898,116 @@ onBeforeUnmount(() => {
 
 .presentation-stage-body :deep(code) {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.presentation-stage-body :deep(p),
+.presentation-stage-body :deep(li),
+.presentation-stage-body :deep(td),
+.presentation-stage-body :deep(th),
+.presentation-stage-body :deep(h1),
+.presentation-stage-body :deep(h2),
+.presentation-stage-body :deep(h3) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.presentation-stage-body :deep(pre),
+.presentation-stage-body :deep(pre code) {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---- 翻页过渡动画 ---- */
+.slide-swap-enter-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.slide-swap-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.slide-swap-enter-from {
+  opacity: 0;
+  transform: translateX(28px);
+}
+
+.slide-swap-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* ---- 列表逐条渐显（对应导出里的 v-clicks）---- */
+.presentation-stage-body :deep(.reveal-steps > li) {
+  opacity: 0;
+  animation: shz-reveal-item 0.5s ease forwards;
+}
+
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(1)) { animation-delay: 0.08s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(2)) { animation-delay: 0.2s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(3)) { animation-delay: 0.32s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(4)) { animation-delay: 0.44s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(5)) { animation-delay: 0.56s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(6)) { animation-delay: 0.68s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(7)) { animation-delay: 0.8s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(8)) { animation-delay: 0.92s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(9)) { animation-delay: 1.04s; }
+.presentation-stage-body :deep(.reveal-steps > li:nth-child(n + 10)) { animation-delay: 1.16s; }
+
+@keyframes shz-reveal-item {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-swap-enter-active,
+  .slide-swap-leave-active {
+    transition: none;
+  }
+
+  .presentation-stage-body :deep(.reveal-steps > li) {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* ---- 特殊版式的静态预览 ---- */
+.presentation-stage-body.slide-layout-cover,
+.presentation-stage-body.slide-layout-center,
+.presentation-stage-body.slide-layout-section,
+.presentation-stage-body.slide-layout-intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.presentation-stage-body.slide-layout-cover :deep(h1),
+.presentation-stage-body.slide-layout-center :deep(h1) {
+  font-size: 1.9em;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.99) 30%, rgba(var(--accent-rgb), 0.95) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.presentation-stage-body.slide-layout-section :deep(h1) {
+  font-size: 1.6em;
+  border-left: 8px solid rgba(var(--accent-rgb), 0.85);
+  border-radius: 4px;
+  padding-left: 0.55em;
+}
+
+.presentation-stage-body.slide-text-center {
+  text-align: center;
+}
+
+.presentation-stage-body.slide-text-center :deep(h1) {
+  margin-bottom: 0.4em;
 }
 
 .presentation-empty {
