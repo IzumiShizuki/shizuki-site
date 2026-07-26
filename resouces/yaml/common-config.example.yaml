@@ -70,6 +70,23 @@ shizuki:
       max-context-messages: 12
       max-worldbook-entries: 8
       temperature: 0.7
+  tools:
+    translate:
+      # Web Toolbox translation proxy. Configure at least one provider,
+      # or leave both empty to show the tool as "not configured".
+      enabled: true
+      default-provider: "baidu" # baidu / deepl
+      max-text-length: 3000
+      rate-limit-per-minute: 10 # per visitor IP
+      daily-char-budget: 100000 # site-wide daily character budget; 0 = unlimited
+      baidu:
+        # Apply at https://fanyi-api.baidu.com and whitelist the server IP.
+        app-id: "<BAIDU_TRANSLATE_APP_ID>"
+        app-secret: "<BAIDU_TRANSLATE_APP_SECRET>"
+      deepl:
+        # Free keys end with ":fx" and automatically use api-free.deepl.com.
+        auth-key: "<DEEPL_AUTH_KEY>"
+        endpoint: ""
   oauth:
     providers:
       github:

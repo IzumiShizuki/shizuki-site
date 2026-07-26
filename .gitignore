@@ -2972,3 +2972,11 @@ resouces/log/
 modules/*/.mvn/
 **/__pycache__/
 **/*.pyc
+
+# --- session additions (2026-07-26) ---
+_to_delete/
+fronted/vue3-merged/public/fonts/_unused_old_fonts/
+fronted/vue3-merged/shizuki-release.keystore
+tools/notion-mcp-sidecar/node_modules/
+deploy/logs/
+deploy/.local-deploy.status

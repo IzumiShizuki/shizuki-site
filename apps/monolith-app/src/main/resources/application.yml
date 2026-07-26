@@ -142,6 +142,17 @@ shizuki:
       retry-max-backoff-ms: ${MUSIC_SPOTIFY_RETRY_MAX_BACKOFF_MS:600}
       circuit-breaker-failure-threshold: ${MUSIC_SPOTIFY_CIRCUIT_BREAKER_FAILURE_THRESHOLD:3}
       circuit-breaker-open-seconds: ${MUSIC_SPOTIFY_CIRCUIT_BREAKER_OPEN_SECONDS:30}
+    freesound:
+      api-key: ${MUSIC_FREESOUND_API_KEY:}
+      search-url: ${MUSIC_FREESOUND_SEARCH_URL:https://freesound.org/apiv2/search/}
+      connect-timeout-ms: ${MUSIC_FREESOUND_CONNECT_TIMEOUT_MS:1200}
+      read-timeout-ms: ${MUSIC_FREESOUND_READ_TIMEOUT_MS:4000}
+      retry-count: ${MUSIC_FREESOUND_RETRY_COUNT:1}
+      retry-backoff-ms: ${MUSIC_FREESOUND_RETRY_BACKOFF_MS:120}
+      retry-max-backoff-ms: ${MUSIC_FREESOUND_RETRY_MAX_BACKOFF_MS:800}
+      max-page-size: ${MUSIC_FREESOUND_MAX_PAGE_SIZE:48}
+      min-duration-seconds: ${MUSIC_FREESOUND_MIN_DURATION_SECONDS:15}
+      max-duration-seconds: ${MUSIC_FREESOUND_MAX_DURATION_SECONDS:600}
     asmr:
       server: ${MUSIC_ASMR_SERVER:https://api.asmr-300.com}
       base-url: ${MUSIC_ASMR_BASE_URL:https://api.asmr.one}
@@ -195,6 +206,22 @@ shizuki:
   security:
     secret:
       enforce: ${SECRET_ENFORCE:false}
+  tools:
+    translate:
+      enabled: ${TOOLS_TRANSLATE_ENABLED:true}
+      default-provider: ${TOOLS_TRANSLATE_DEFAULT_PROVIDER:baidu}
+      max-text-length: ${TOOLS_TRANSLATE_MAX_TEXT_LENGTH:3000}
+      connect-timeout-ms: ${TOOLS_TRANSLATE_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${TOOLS_TRANSLATE_READ_TIMEOUT_MS:10000}
+      rate-limit-per-minute: ${TOOLS_TRANSLATE_RATE_LIMIT_PER_MINUTE:10}
+      daily-char-budget: ${TOOLS_TRANSLATE_DAILY_CHAR_BUDGET:100000}
+      baidu:
+        app-id: ${BAIDU_TRANSLATE_APP_ID:}
+        app-secret: ${BAIDU_TRANSLATE_APP_SECRET:}
+        endpoint: ${BAIDU_TRANSLATE_ENDPOINT:https://fanyi-api.baidu.com/api/trans/vip/translate}
+      deepl:
+        auth-key: ${DEEPL_AUTH_KEY:}
+        endpoint: ${DEEPL_ENDPOINT:}
   admin:
     privilege:
       unlock-ttl-seconds: ${ADMIN_PRIVILEGE_UNLOCK_TTL_SECONDS:1800}
@@ -203,6 +230,34 @@ shizuki:
     meguri-metrics:
       ingest-token: ${MEGURI_METRICS_INGEST_TOKEN:}
       stale-after-seconds: ${MEGURI_METRICS_STALE_AFTER_SECONDS:300}
+    ops:
+      portal-url: ${ADMIN_OPS_PORTAL_URL:https://panel.shizuki.online/}
+      enable-mutations: ${ADMIN_OPS_ENABLE_MUTATIONS:true}
+      connect-timeout-ms: ${ADMIN_OPS_CONNECT_TIMEOUT_MS:1200}
+      read-timeout-ms: ${ADMIN_OPS_READ_TIMEOUT_MS:5000}
+      logs-tail-lines: ${ADMIN_OPS_LOGS_TAIL_LINES:200}
+      logs-max-tail-lines: ${ADMIN_OPS_LOGS_MAX_TAIL_LINES:1000}
+      meguri-container-name: ${MEGURI_PET_CONTAINER_NAME:meguri-pet}
+      allowed-container-names: ${ADMIN_OPS_ALLOWED_CONTAINERS:meguri-pet,shizuki-memoryos,shizuki-site-backend,shizuki-site-frontend,shizuki-site-meting-api,shizuki-site-music-ncm-api,shizuki-site-music-web-auth-sidecar,shizuki-site-presentation-generator,shizuki-site-bill-sync-agent,shizuki-site-document-converter}
+      docker:
+        socket-path: ${ADMIN_OPS_DOCKER_SOCKET:/var/run/docker.sock}
+      service-health-targets:
+        - name: meguri-pet
+          url: ${MEGURI_PET_HEALTH_URL:}
+        - name: memoryos
+          url: ${MEMORYOS_HEALTH_URL:http://host.docker.internal:8788/health}
+        - name: meting-api
+          url: ${MUSIC_METING_BASE_URL:http://meting-api}/health
+        - name: music-ncm-api
+          url: ${MUSIC_NCM_BASE_URL:http://music-ncm-api:3000}/login/qr/key
+        - name: music-web-auth
+          url: ${MUSIC_WEB_AUTH_BASE_URL:http://music-web-auth-sidecar:39041}/healthz
+        - name: presentation-generator
+          url: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:http://presentation-generator:3210}/health
+        - name: document-converter
+          url: ${BLOG_VIDEO_CONVERTER_BASE_URL:http://document-converter:3220}/health
+        - name: bill-sync-agent
+          url: ${BILL_SYNC_AGENT_HEALTH_URL:http://bill-sync-agent:39031/healthz}
   media:
     storage:
       private-bucket: ${OSS_PRIVATE_BUCKET:zhuowang-files}
@@ -240,6 +295,15 @@ shizuki:
         workshop-app-id: ${WALLPAPER_WORKSHOP_APP_ID:431960}
         download-root: ${WALLPAPER_WORKSHOP_DOWNLOAD_ROOT:/tmp/steam-workshop}
         command-timeout-seconds: ${WALLPAPER_WORKSHOP_TIMEOUT_SECONDS:180}
+      discovery:
+        enabled: ${WALLPAPER_DISCOVERY_ENABLED:true}
+        workshop-browse-base-url: ${WALLPAPER_WORKSHOP_BROWSE_BASE_URL:https://steamcommunity.com}
+        steam-api-base-url: ${WALLPAPER_STEAM_API_BASE_URL:https://api.steampowered.com}
+        steam-api-key: ${WALLPAPER_STEAM_API_KEY:}
+        wallhaven-base-url: ${WALLPAPER_WALLHAVEN_BASE_URL:https://wallhaven.cc}
+        wallhaven-api-key: ${WALLPAPER_WALLHAVEN_API_KEY:}
+        request-timeout-seconds: ${WALLPAPER_DISCOVERY_TIMEOUT_SECONDS:15}
+        page-size: ${WALLPAPER_DISCOVERY_PAGE_SIZE:24}
   meguri:
     gateway:
       enabled: ${MEGURI_GATEWAY_ENABLED:false}
@@ -321,6 +385,9 @@ shizuki:
       - /api/v1/music/spotify/preview-url
       - /api/v1/author/profile/**
       - /api/v1/home-wallpapers/public
+      - /api/v1/tools/translate/**
+      - /api/v1/ambient-library/status
+      - /api/v1/ambient-library/search
   flyway:
     auto-repair-on-validate-error: ${FLYWAY_AUTO_REPAIR_ON_VALIDATE_ERROR:true}
     allow-auto-repair-in-prod: ${FLYWAY_ALLOW_AUTO_REPAIR_IN_PROD:false}

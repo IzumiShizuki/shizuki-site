@@ -30,9 +30,11 @@ ROOT_LEVEL_EXCLUDES = {
     ".kiro",
     ".vscode",
     "data",
+    "tmp",
 }
 ANYWHERE_DIR_EXCLUDES = {
     "__pycache__",
+    "_to_delete",
     "dist-temp",
     "node_modules",
     "target",
@@ -40,6 +42,10 @@ ANYWHERE_DIR_EXCLUDES = {
 PREFIX_EXCLUDES = {
     ".mvn/repository",
     "deploy/.env.server",
+    "fronted/vue3-merged/android",
+    "fronted/vue3-merged/dist",
+    "fronted/vue3-merged/public/fonts/_unused_old_fonts",
+    "fronted/vue3-merged/shizuki-release.keystore",
     "fronted/vue3-merged/scripts/qianji-local-sync.config.jsonc",
     "fronted/vue3-merged/scripts/qianji-local-sync.secret.bat",
     "tools/qianji-sync/qianji-local-sync.config.jsonc",
@@ -231,7 +237,10 @@ def list_remote_tree(
                     log(
                         f"[sync] remote index dirs {scanned_dirs}, files {scanned_files}"
                     )
-                if not is_protected_remote(child_rel):
+                # Excluded build/dependency/scratch trees are intentionally preserved
+                # on the server and must not make remote indexing scan thousands of
+                # irrelevant files on every deployment.
+                if not is_protected_remote(child_rel) and not is_excluded(child_rel):
                     walk(child_rel)
             elif stat.S_ISREG(entry.st_mode):
                 files[child_rel] = entry

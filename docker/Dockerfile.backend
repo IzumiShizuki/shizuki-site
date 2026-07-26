@@ -12,7 +12,23 @@ RUN mvn -B -DskipTests clean package -pl apps/monolith-app -am
 FROM m.daocloud.io/docker.io/library/eclipse-temurin:17-jre-jammy AS runtime
 WORKDIR /app
 
+# SteamCMD（用于 Wallpaper Engine 创意工坊壁纸的服务端下载）。
+# 构建时可用 --build-arg INSTALL_STEAMCMD=false 跳过；
+# 国内网络异常时可以换 STEAMCMD_TARBALL_URL 为镜像地址。
+ARG INSTALL_STEAMCMD=true
+ARG STEAMCMD_TARBALL_URL=https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+
 RUN addgroup --system app && adduser --system --ingroup app app
+RUN set -eux; \
+    if [ "${INSTALL_STEAMCMD}" = "true" ]; then \
+        apt-get update; \
+        apt-get install -y --no-install-recommends curl ca-certificates lib32gcc-s1; \
+        mkdir -p /opt/steamcmd; \
+        curl -fsSL "${STEAMCMD_TARBALL_URL}" | tar -xz -C /opt/steamcmd; \
+        mkdir -p /home/app /data/steam-workshop; \
+        chown -R app:app /opt/steamcmd /home/app /data/steam-workshop; \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
 COPY --from=build /workspace/apps/monolith-app/target /tmp/target
 RUN set -eux; \
     jar="$(find /tmp/target -maxdepth 1 -type f -name 'monolith-app-*.jar' ! -name '*.jar.original' | head -n1)"; \

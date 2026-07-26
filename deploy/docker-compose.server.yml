@@ -58,6 +58,31 @@ services:
       retries: 5
       start_period: 20s
 
+  notion-mcp-sidecar:
+    build:
+      context: ..
+      dockerfile: tools/notion-mcp-sidecar/Dockerfile
+    image: shizuki-site/notion-mcp-sidecar:latest
+    container_name: shizuki-site-notion-mcp-sidecar
+    restart: unless-stopped
+    env_file:
+      - .env.server
+    environment:
+      PORT: ${NOTION_MCP_PORT:-39051}
+      NOTION_MCP_SERVER_TOKEN: ${NOTION_MCP_SERVER_TOKEN:-}
+      NOTION_MCP_ENDPOINT_PATH: ${NOTION_MCP_ENDPOINT_PATH:-/mcp/notion}
+      NOTION_MCP_HEALTH_PATH: ${NOTION_MCP_HEALTH_PATH:-/healthz}
+      NOTION_MCP_CONFIG_FILE: ${NOTION_MCP_CONFIG_FILE:-/app/resouces/yaml/common-config.yaml}
+      NOTION_MCP_PREFERRED_SOURCE: ${NOTION_MCP_PREFERRED_SOURCE:-blog}
+    volumes:
+      - ../resouces/yaml:/app/resouces/yaml:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 39051) + (process.env.NOTION_MCP_HEALTH_PATH || '/healthz')).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   presentation-generator:
     build:
       context: ..
@@ -161,6 +186,7 @@ services:
       MUSIC_WEB_AUTH_CONNECT_TIMEOUT_MS: ${MUSIC_WEB_AUTH_CONNECT_TIMEOUT_MS:-1500}
       MUSIC_WEB_AUTH_READ_TIMEOUT_MS: ${MUSIC_WEB_AUTH_READ_TIMEOUT_MS:-5000}
       MUSIC_WEB_AUTH_POLL_INTERVAL_MS: ${MUSIC_WEB_AUTH_POLL_INTERVAL_MS:-1800}
+      MUSIC_FREESOUND_API_KEY: ${MUSIC_FREESOUND_API_KEY:-}
       BLOG_PRESENTATION_GENERATOR_BASE_URL: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:-http://presentation-generator:3210}
       BLOG_PRESENTATION_CONNECT_TIMEOUT_MS: ${BLOG_PRESENTATION_CONNECT_TIMEOUT_MS:-2000}
       BLOG_PRESENTATION_READ_TIMEOUT_MS: ${BLOG_PRESENTATION_READ_TIMEOUT_MS:-660000}
@@ -178,12 +204,29 @@ services:
       MEGURI_FORMAL_MEMORY_ALLOWED: ${MEGURI_FORMAL_MEMORY_ALLOWED:-false}
       MEGURI_SPRITE_DIR: ${MEGURI_SPRITE_DIR:-/app/meguri-assets/sprites/meguri}
       MEGURI_DEFAULT_SPRITE: ${MEGURI_DEFAULT_SPRITE:-ce04001l.png}
+      WALLPAPER_WORKSHOP_ENABLED: ${WALLPAPER_WORKSHOP_ENABLED:-false}
+      WALLPAPER_STEAMCMD_PATH: ${WALLPAPER_STEAMCMD_PATH:-/opt/steamcmd/steamcmd.sh}
+      WALLPAPER_STEAM_USERNAME: ${WALLPAPER_STEAM_USERNAME:-}
+      WALLPAPER_STEAM_PASSWORD: ${WALLPAPER_STEAM_PASSWORD:-}
+      WALLPAPER_WORKSHOP_APP_ID: ${WALLPAPER_WORKSHOP_APP_ID:-431960}
+      WALLPAPER_WORKSHOP_DOWNLOAD_ROOT: ${WALLPAPER_WORKSHOP_DOWNLOAD_ROOT:-/data/steam-workshop}
+      WALLPAPER_WORKSHOP_TIMEOUT_SECONDS: ${WALLPAPER_WORKSHOP_TIMEOUT_SECONDS:-600}
+      WALLPAPER_DISCOVERY_ENABLED: ${WALLPAPER_DISCOVERY_ENABLED:-true}
+      WALLPAPER_WORKSHOP_BROWSE_BASE_URL: ${WALLPAPER_WORKSHOP_BROWSE_BASE_URL:-https://steamcommunity.com}
+      WALLPAPER_STEAM_API_BASE_URL: ${WALLPAPER_STEAM_API_BASE_URL:-https://api.steampowered.com}
+      WALLPAPER_STEAM_API_KEY: ${WALLPAPER_STEAM_API_KEY:-}
+      WALLPAPER_WALLHAVEN_BASE_URL: ${WALLPAPER_WALLHAVEN_BASE_URL:-https://wallhaven.cc}
+      WALLPAPER_WALLHAVEN_API_KEY: ${WALLPAPER_WALLHAVEN_API_KEY:-}
+      WALLPAPER_DISCOVERY_TIMEOUT_SECONDS: ${WALLPAPER_DISCOVERY_TIMEOUT_SECONDS:-15}
+      WALLPAPER_DISCOVERY_PAGE_SIZE: ${WALLPAPER_DISCOVERY_PAGE_SIZE:-24}
     group_add:
       - "${DOCKER_SOCKET_GID:-988}"
     volumes:
       - ../resouces/yaml:/app/resouces/yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ${MEGURI_SPRITE_HOST_DIR:-/opt/shizuki-site/data/meguri-assets/sprites}:/app/meguri-assets/sprites:ro
+      - backend-steam-home:/home/app
+      - steam-workshop-data:/data/steam-workshop
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -220,3 +263,5 @@ services:
 
 volumes:
   document-converter-work:
+  backend-steam-home:
+  steam-workshop-data:

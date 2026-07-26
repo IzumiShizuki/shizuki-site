@@ -24,3 +24,12 @@ cd /opt/shizuki-site/deploy
 docker compose -f docker-compose.server.yml --env-file .env.server up -d --build
 docker compose -f docker-compose.server.yml --env-file .env.server ps
 ```
+
+## Notion MCP sidecar
+
+- Service name: `notion-mcp-sidecar`
+- Default port: `39051`
+- Default MCP endpoint: `/mcp/notion`
+- Health endpoint: `/healthz`
+- The sidecar reads Notion credentials from `resouces/yaml/common-config.yaml`
+- It also requires `NOTION_MCP_SERVER_TOKEN` in `deploy/.env.server`
