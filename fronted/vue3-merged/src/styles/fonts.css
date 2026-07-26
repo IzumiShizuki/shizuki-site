@@ -1,3 +1,11 @@
+/* ============================================================
+ * Shizuki Site · 字体系统
+ * 显示/标题：Zen Maru Gothic（拉丁·假名圆体）+ LXGW 文楷（中文圆润）
+ * 正文/界面：Roboto + Noto Sans SC 子集（清晰易读）
+ * 全部自托管 woff2 子集，整体体积约 3.7MB（原 27MB 裸 TTF）
+ * ============================================================ */
+
+/* —— 正文拉丁 —— */
 @font-face {
   font-family: 'Roboto';
   src: url('/fonts/Roboto-Regular.ttf') format('truetype');
@@ -6,26 +14,54 @@
   font-display: swap;
 }
 
+/* —— 正文中文（Noto Sans SC 可变字重子集）—— */
 @font-face {
-  font-family: 'Noto Sans JP Var';
-  src: url('/fonts/NotoSansJP-VF.ttf') format('truetype');
-  font-weight: 100 900;
+  font-family: 'Noto Sans SC';
+  src: url('/fonts/NotoSansSC-subset.woff2') format('woff2');
+  font-weight: 300 800;
   font-style: normal;
   font-display: swap;
 }
 
+/* —— 显示圆体·拉丁与假名（Zen Maru Gothic）—— */
 @font-face {
-  font-family: 'Noto Sans SC Var';
-  src: url('/fonts/NotoSansSC-VF.ttf') format('truetype');
-  font-weight: 100 900;
+  font-family: 'Zen Maru Gothic';
+  src: url('/fonts/ZenMaruGothic-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  src: url('/fonts/ZenMaruGothic-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  src: url('/fonts/ZenMaruGothic-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* —— 显示圆体·中文（LXGW 文楷，温润手写感）—— */
+@font-face {
+  font-family: 'LXGW WenKai Screen';
+  src: url('/fonts/LXGWWenKai.woff2') format('woff2');
+  font-weight: 400 700;
   font-style: normal;
   font-display: swap;
 }
 
 :root {
-  --font-ui: 'Roboto', 'Noto Sans SC Var', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-display: 'Zen Maru Gothic', 'Noto Sans JP Var', 'Noto Sans SC Var', 'PingFang SC', sans-serif;
-  --font-cute: 'Zen Maru Gothic', 'Noto Sans SC Var', 'Noto Sans JP Var', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  /* 界面/正文：清晰优先 */
+  --font-ui: 'Roboto', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* 显示/标题：圆润温馨（拉丁走 Zen Maru，中文走文楷）*/
+  --font-display: 'Zen Maru Gothic', 'LXGW WenKai Screen', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  /* 治愈系点缀（问候、名言、页脚）：文楷手写感 */
+  --font-cute: 'Zen Maru Gothic', 'LXGW WenKai Screen', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 html,

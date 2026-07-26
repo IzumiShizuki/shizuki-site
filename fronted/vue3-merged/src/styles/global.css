@@ -158,7 +158,7 @@ body {
   .hero-btn.primary,
   .ctrl-btn.primary,
   .mini-btn.primary,
-  .quick-btn,
+  .quick-btn.is-primary,
   .apply-btn,
   .search-btn,
   .stage-btn.primary,
@@ -168,6 +168,7 @@ body {
   border-width: 1px !important;
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3)) !important;
   color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96))) !important;
+  text-shadow: var(--accent-surface-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24)) !important;
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24)) !important;
 }
@@ -177,7 +178,7 @@ body {
   .hero-btn.primary,
   .ctrl-btn.primary,
   .mini-btn.primary,
-  .quick-btn,
+  .quick-btn.is-primary,
   .apply-btn,
   .search-btn,
   .stage-btn.primary,
@@ -213,6 +214,7 @@ body {
   .close-btn,
   .reset-btn,
   .track-action-btn,
+  .quick-btn:not(.is-primary),
   .soft-btn:not(.primary),
   .popover-item:not(.danger)
 ) {
@@ -246,6 +248,7 @@ body {
   .close-btn,
   .reset-btn,
   .track-action-btn,
+  .quick-btn:not(.is-primary),
   .soft-btn:not(.primary),
   .popover-item:not(.danger)
 ):not(:disabled):hover {
@@ -279,8 +282,50 @@ body {
 ) {
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3)) !important;
   color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96))) !important;
+  text-shadow: var(--accent-surface-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24)) !important;
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72)) !important;
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24)) !important;
+}
+
+/* 强主色底上的图标与内部文字也跟随墨色（否则会吃到外层的主题色 !important 规则）。 */
+:is(
+  .mode-btn.active,
+  .mode-tab.active,
+  .mini-btn.active,
+  .tab-btn.active,
+  .route-tab.active,
+  .preset-btn.active,
+  .gradient-btn.active,
+  .category-pill.active,
+  .page-btn.active,
+  .tag-chip.active,
+  .app-switch-btn.active
+) :is(i, .fas, .far, .fab, .fa-solid, .fa-regular, .fa-brands, span:not(.swatch):not(.gradient-swatch):not(.pill-count):not(.chip-count)) {
+  /* 计数徽标（.pill-count/.chip-count）有自己的主题底色，保持主题字色，不吃墨色。 */
+  color: inherit !important;
+}
+
+/* 选中行（整行铺强主色）内的主/次文字改用墨色，而不是主题昼夜色。 */
+:is(.queue-item.active, .table-row.active, .track-row.active, .playlist-card.opening) :is(
+  .queue-name,
+  .title,
+  .name,
+  .track-title-text,
+  .line-text
+) {
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96))) !important;
+}
+
+:is(.queue-item.active, .table-row.active, .track-row.active, .playlist-card.opening) :is(
+  .queue-meta,
+  .artist,
+  .album,
+  .time,
+  .duration,
+  .sub,
+  .meta-text
+) {
+  color: var(--accent-surface-text-muted, var(--accent-mode-text-muted, rgba(255, 233, 221, 0.84))) !important;
 }
 
 :where(
@@ -743,6 +788,57 @@ body {
   box-shadow: 0 10px 22px rgba(88, 60, 50, 0.08) !important;
 }
 
+/* ---- 日间模式：作者页文字对比度修复 ----
+ * 作者页原为纯暗色设计，正文写死浅色；日间面板转白后浅字→浅底不可读。
+ * 这里把内容文字翻回深墨，标题/次要文字分层，保留强调色。 */
+:root[data-theme-mode='day'] .author-page :is(
+  .hero-fact-value,
+  .identity-unit strong,
+  .home-portal-copy strong,
+  .story-side-panel strong,
+  .story-side-panel h2,
+  .story-side-panel h3,
+  .story-status-text,
+  .skill-node-label,
+  .story-preview-title,
+  .author-card h3,
+  .author-card strong,
+  .story-identity-ribbon strong
+) {
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96)) !important;
+  -webkit-text-fill-color: var(--theme-text-primary, rgba(52, 34, 29, 0.96)) !important;
+}
+
+:root[data-theme-mode='day'] .author-page :is(
+  .hero-fact-label,
+  .identity-label,
+  .home-portal-copy small,
+  .story-side-meta-line,
+  .story-side-caption,
+  .story-preview-text,
+  .story-greeting,
+  .story-quote,
+  .author-card p,
+  .author-card small,
+  .skill-focus-item small
+) {
+  color: var(--theme-text-secondary, rgba(96, 68, 54, 0.88)) !important;
+}
+
+/* 日间的 chip：浅底描边 + 深字，避免浅字浮在浅底上 */
+:root[data-theme-mode='day'] .author-page .chip {
+  background: rgba(var(--accent-rgb), 0.12) !important;
+  border-color: rgba(var(--accent-strong-rgb), 0.32) !important;
+  color: var(--theme-text-primary, rgba(52, 34, 29, 0.94)) !important;
+}
+
+/* 日间的入口卡：白底柔影 + 深字 */
+:root[data-theme-mode='day'] .author-page .home-portal-card {
+  background: var(--theme-panel-surface-elevated, rgba(255, 253, 250, 0.9)) !important;
+  border-color: var(--theme-border, rgba(255, 224, 208, 0.28)) !important;
+  box-shadow: 0 12px 26px rgba(88, 60, 50, 0.1) !important;
+}
+
 .auth-page .hero {
   background:
     radial-gradient(circle at 18% 15%, var(--theme-spot-a, rgba(var(--accent-rgb), 0.22)), transparent 58%),
@@ -781,6 +877,18 @@ body {
 
 .top-menu-root :is(.left-pill-group, .author-avatar-box, .avatar-box) {
   border-color: var(--theme-border-strong, rgba(255, 214, 194, 0.34)) !important;
+}
+
+/*
+ * 顶部菜单激活项：背景是强主色填充（--menu-active-bg），
+ * 其上的文字/图标必须用亮度计算出的墨色，而不是主题昼夜色或主色本身。
+ * 放在上面的 .top-menu-root 通用规则之后以确保覆盖。
+ */
+.top-menu-root .left-main-btn.active :is(.icon-minimal, .item-label),
+.top-menu-root .menu-item-stack.active .circle-icon-box,
+.top-menu-root :is(.author-info-item.route-active, .user-profile-item.route-active) .item-label {
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96))) !important;
+  text-shadow: var(--accent-surface-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24)) !important;
 }
 
 :where(.light-window-host, .lightapp-window) :is(
@@ -832,11 +940,13 @@ body {
   color: rgba(172, 44, 60, 0.88) !important;
 }
 
-:where(.light-window-host, .lightapp-window) :is(
-  .app-switch-btn.active,
-  .chip-btn.active
-) {
-  color: rgb(var(--accent-strong-rgb)) !important;
+/* app-switch 激活时整块是强主色底 → 用墨色；chip 激活只是浅色底 → 用可读化的主色。 */
+:where(.light-window-host, .lightapp-window) .app-switch-btn.active {
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96))) !important;
+}
+
+:where(.light-window-host, .lightapp-window) .chip-btn.active {
+  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb))) !important;
 }
 
 :root[data-accent-mode='gradient'] :is(
@@ -869,7 +979,8 @@ body {
 
 ::selection {
   background: rgba(var(--accent-rgb), 0.38);
-  color: rgba(43, 21, 16, 0.95);
+  /* 选区底是半透明主色叠在页面上：夜间整体仍偏暗用亮字，白天偏亮用深字。 */
+  color: var(--theme-text-primary, rgba(43, 21, 16, 0.95));
 }
 
 /*
@@ -940,4 +1051,57 @@ body {
   .dialog-field input
 ) {
   border-radius: 10px !important;
+}
+
+/* ============================================================
+ * 阶段 A · 全局精修
+ * ============================================================ */
+
+/* —— 1. 键盘可达：统一温柔的桃色焦点环 ——
+ * 只在键盘 :focus-visible 时出现，鼠标点击不打扰。 */
+:where(a, button, [role='button'], input, select, textarea, [tabindex]):focus-visible {
+  outline: none !important;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.36)) !important;
+  border-radius: var(--radius-sm, 10px);
+}
+
+/* —— 2. 原生下拉框统一美化 ——
+ * 去掉浏览器默认外观，换成暖桃小箭头，和玻璃主题一致。 */
+:where(select):not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(var(--accent-strong-rgb), 0.9) 50%),
+    linear-gradient(135deg, rgba(var(--accent-strong-rgb), 0.9) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px !important;
+  cursor: pointer;
+}
+
+/* —— 3. 冷色纠偏（全局兜底）——
+ * 把散落在页面里的冷蓝/薄荷绿主色，统一拉回暖桃系。
+ * 仅覆盖明显作为“主色/强调”的写死值，不动中性灰。 */
+:root {
+  /* 供组件替换写死冷色时引用 */
+  --warm-fill-soft: rgba(var(--accent-rgb), 0.12);
+  --warm-fill: rgba(var(--accent-rgb), 0.22);
+  --warm-fill-strong: linear-gradient(145deg, rgba(var(--accent-strong-rgb), 0.94), rgba(var(--accent-rgb), 0.84));
+  --warm-border: rgba(var(--accent-rgb), 0.42);
+  --warm-border-strong: rgba(var(--accent-strong-rgb), 0.66);
+  --warm-glow: 0 0 18px rgba(var(--accent-rgb), 0.2);
+}
+
+/* —— 4. 平滑滚动与文本渲染 —— */
+:where(.route-content, .content-panel, .profile-scroll-frame, .workspace-shell) {
+  scroll-behavior: smooth;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }

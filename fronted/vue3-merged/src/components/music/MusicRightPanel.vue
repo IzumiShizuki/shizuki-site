@@ -852,7 +852,7 @@ function providerLabel(provider) {
 }
 
 .tile-badge.active {
-  color: var(--music-accent-text, var(--accent-mode-text));
+  color: var(--accent-surface-text, var(--music-accent-text, var(--accent-mode-text)));
   background: var(--accent-mode-fill-strong);
   border-color: var(--accent-mode-border-strong);
   box-shadow: 0 6px 16px rgba(var(--accent-rgb), 0.18);
@@ -926,7 +926,7 @@ function providerLabel(provider) {
 
 .premium-btn.accent {
   background: var(--accent-mode-fill-strong);
-  color: var(--music-accent-text, var(--accent-mode-text));
+  color: var(--accent-surface-text, var(--music-accent-text, var(--accent-mode-text)));
   border-color: var(--accent-mode-border-strong);
 }
 

@@ -252,6 +252,8 @@ useDismissiblePopover({
 .play-mode-pill:hover {
   transform: translateY(-1px) scale(1.05);
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.35));
+  /* hover 底变成强主色填充，文字随之切换墨色。 */
+  color: var(--accent-surface-text, var(--music-accent-text, var(--accent-mode-text)));
   box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.18);
 }
 
@@ -459,16 +461,17 @@ useDismissiblePopover({
 }
 
 .ctrl-btn.primary {
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.55), rgba(var(--accent-soft-rgb), 0.45));
-  color: var(--music-accent-text, var(--accent-mode-text));
+  /* 全局 :where(.ctrl-btn.primary) 规则会以 !important 应用 fill-strong 背景与墨色，这里保持一致。 */
+  background: var(--accent-mode-fill-strong, linear-gradient(135deg, rgba(var(--accent-rgb), 0.55), rgba(var(--accent-soft-rgb), 0.45)));
+  color: var(--accent-surface-text, var(--music-accent-text, var(--accent-mode-text)));
   border-color: rgba(var(--accent-rgb), 0.55);
   box-shadow: 0 8px 22px rgba(var(--accent-rgb), 0.28);
 }
 
 .ctrl-btn.primary:hover {
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.65), rgba(var(--accent-soft-rgb), 0.55));
+  background: var(--accent-mode-fill-hover, linear-gradient(135deg, rgba(var(--accent-rgb), 0.65), rgba(var(--accent-soft-rgb), 0.55)));
   box-shadow: 0 10px 28px rgba(var(--accent-rgb), 0.35);
-  color: white;
+  color: var(--accent-surface-text, var(--music-accent-text, var(--accent-mode-text)));
 }
 
 .utility-block {

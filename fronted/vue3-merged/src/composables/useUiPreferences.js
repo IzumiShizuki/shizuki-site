@@ -64,6 +64,65 @@ function mixTuple(source, target, ratio) {
   ];
 }
 
+/*
+ * 对比度感知的“墨色”系统：
+ * 文字是黑还是白不再由昼/夜模式硬编码，而是根据文字实际所处的
+ * 背景色（用户所选主色 / 渐变合成后的表面色）计算 WCAG 相对亮度与
+ * 对比度，自动选择深墨或浅墨。
+ */
+const SURFACE_INK_DARK_RGB = [46, 30, 24];
+const SURFACE_INK_LIGHT_RGB = [255, 255, 255];
+const NIGHT_PAGE_RGB = [18, 24, 38];
+
+function srgbChannelToLinear(channel) {
+  const c = channel / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function relativeLuminance(tuple) {
+  return (
+    0.2126 * srgbChannelToLinear(tuple[0]) +
+    0.7152 * srgbChannelToLinear(tuple[1]) +
+    0.0722 * srgbChannelToLinear(tuple[2])
+  );
+}
+
+function contrastRatio(a, b) {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const brighter = Math.max(la, lb);
+  const darker = Math.min(la, lb);
+  return (brighter + 0.05) / (darker + 0.05);
+}
+
+/** 将半透明填充色合成到页面底色上，得到肉眼实际看到的表面色。 */
+function compositeOver(top, bottom, alpha) {
+  return mixTuple(bottom, top, alpha);
+}
+
+/**
+ * 在深墨 / 浅墨中选出对所有给定表面“最差情况对比度”更高的一种。
+ * （渐变有两个端点，取两端最小对比度做比较，避免一端可读一端糊掉。）
+ */
+function pickSurfaceInk(surfaces) {
+  const minContrastWith = (ink) =>
+    surfaces.reduce((min, surface) => Math.min(min, contrastRatio(surface, ink)), Infinity);
+  return minContrastWith(SURFACE_INK_DARK_RGB) >= minContrastWith(SURFACE_INK_LIGHT_RGB)
+    ? 'dark'
+    : 'light';
+}
+
+/** 把颜色向 towards 逐步混合，直到相对 bg 达到目标对比度（防止主色文字糊在背景里）。 */
+function ensureTextContrastOn(rgb, bg, targetRatio, towards) {
+  let out = [rgb[0], rgb[1], rgb[2]];
+  let guard = 0;
+  while (contrastRatio(out, bg) < targetRatio && guard < 18) {
+    out = mixTuple(out, towards, 0.12);
+    guard += 1;
+  }
+  return out;
+}
+
 function normalizeHex(input) {
   if (typeof input !== 'string') return '';
   let hex = input.trim().replace(/^#/, '').toUpperCase();
@@ -290,6 +349,33 @@ function applyAccentVariables() {
   const wallpaperHomeOverlayOpacity = isDayMode ? '0.38' : '0.9';
   const wallpaperHomeOverlayBackdrop = isDayMode ? 'blur(0px) saturate(102%)' : 'blur(1px) saturate(106%)';
 
+  // ---- 强主色表面上的文字墨色（黑/白自动切换） ----
+  // 估算 --accent-mode-fill-strong / -hover 实际呈现的表面色（含透明度合成），
+  // 再按对比度选择深墨或浅墨。渐变模式对两个端点分别评估，取最差情况。
+  const pageBase = isDayMode ? paperBase : NIGHT_PAGE_RGB;
+  const strongSurfaces = state.accentMode === 'gradient'
+    ? [
+        compositeOver(gradientStart, pageBase, 0.94),
+        compositeOver(gradientEnd, pageBase, 0.9)
+      ]
+    : [
+        compositeOver(mixTuple(strong, [r, g, b], 0.5), pageBase, 0.89),
+        compositeOver(mixTuple(soft, [r, g, b], 0.5), pageBase, 0.95)
+      ];
+  const surfaceInk = pickSurfaceInk(strongSurfaces);
+  const accentSurfaceText = surfaceInk === 'dark' ? 'rgba(46, 30, 24, 0.95)' : 'rgba(255, 255, 255, 0.97)';
+  const accentSurfaceTextMuted = surfaceInk === 'dark' ? 'rgba(46, 30, 24, 0.74)' : 'rgba(255, 246, 240, 0.86)';
+  // 深墨压在浅底上时，夜间模式全局的深色 text-shadow 会显脏，给一个匹配墨色的柔和投影。
+  const accentSurfaceTextShadow = surfaceInk === 'dark'
+    ? '0 1px 0 rgba(255, 255, 255, 0.18)'
+    : '0 1px 1px rgba(0, 0, 0, 0.28)';
+
+  // ---- 直接作为文字颜色使用的主色（页面底色上要保持可读） ----
+  const readableTowards = isDayMode ? [40, 26, 22] : [255, 250, 245];
+  const accentReadable = ensureTextContrastOn(strong, pageBase, 4.5, readableTowards);
+  const textGradientStart = ensureTextContrastOn(gradientStart, pageBase, 4.5, readableTowards);
+  const textGradientEnd = ensureTextContrastOn(gradientEnd, pageBase, 4.5, readableTowards);
+
   const root = document.documentElement;
   root.style.setProperty('--accent-hex', normalizeHex(state.accentHex) || DEFAULT_ACCENT_HEX);
   root.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
@@ -374,6 +460,22 @@ function applyAccentVariables() {
       : state.accentMode === 'gradient'
         ? 'rgba(255, 255, 255, 0.1)'
         : `rgba(${r}, ${g}, ${b}, 0.14)`
+  );
+  root.style.setProperty('--accent-surface-text', accentSurfaceText);
+  root.style.setProperty('--accent-surface-text-muted', accentSurfaceTextMuted);
+  root.style.setProperty('--accent-surface-text-shadow', accentSurfaceTextShadow);
+  root.style.setProperty('--accent-readable-rgb', `${accentReadable[0]}, ${accentReadable[1]}, ${accentReadable[2]}`);
+  root.style.setProperty(
+    '--accent-text-gradient-start-rgb',
+    `${textGradientStart[0]}, ${textGradientStart[1]}, ${textGradientStart[2]}`
+  );
+  root.style.setProperty(
+    '--accent-text-gradient-end-rgb',
+    `${textGradientEnd[0]}, ${textGradientEnd[1]}, ${textGradientEnd[2]}`
+  );
+  root.style.setProperty(
+    '--accent-text-gradient',
+    `linear-gradient(135deg, rgb(${textGradientStart.join(', ')}), rgb(${textGradientEnd.join(', ')}))`
   );
   root.style.setProperty('--theme-contrast-stroke-color', contrastStrokeColor);
   root.style.setProperty('--theme-contrast-stroke-soft', contrastStrokeSoft);

@@ -349,7 +349,7 @@ watch(
   --menu-icon-color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
   --menu-mobile-chip-bg: rgba(10, 16, 26, 0.42);
   --menu-mobile-chip-border: rgba(255, 255, 255, 0.22);
-  --icon-hover-color: rgb(var(--accent-strong-rgb));
+  --icon-hover-color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
@@ -439,7 +439,8 @@ watch(
 }
 
 .left-main-btn.active .icon-minimal {
-  color: rgb(var(--accent-strong-rgb));
+  /* 背景是强主色填充，图标用亮度计算的墨色（黑/白自动切换）。 */
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96)));
   transform: scale(1.06);
 }
 
@@ -541,14 +542,16 @@ watch(
 
 .menu-item-stack.active .circle-icon-box {
   --liquid-bg: var(--menu-active-bg);
-  color: rgb(var(--accent-strong-rgb));
+  /* 圆形底是强主色填充，图标改用墨色。 */
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96)));
   box-shadow:
     0 0 0 1px var(--menu-active-border),
     var(--menu-active-shadow);
 }
 
 .menu-item-stack.active .item-label {
-  color: rgb(var(--accent-strong-rgb));
+  /* 标签在玻璃条上（不是主色底），保留主色点缀但做了对比度校正。 */
+  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
   font-weight: 600;
 }
 
@@ -767,11 +770,10 @@ watch(
 
 .author-info-item.route-active .item-label,
 .user-profile-item.route-active .item-label {
-  color: rgb(var(--accent-strong-rgb));
+  /* 整块是强主色底（--menu-active-bg），文字用墨色。 */
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96)));
   font-weight: 600;
-  text-shadow:
-    var(--theme-contrast-text-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.54)),
-    0 0 1px rgba(var(--accent-rgb), 0.16);
+  text-shadow: var(--accent-surface-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24));
 }
 
 .fixed-nav-wrapper:not(.expanded) .menu-item-stack {

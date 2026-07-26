@@ -262,7 +262,7 @@ useDismissiblePopover({
 .search-btn {
   border: 1px solid var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
   background: var(--accent-mode-fill-strong, linear-gradient(145deg, rgba(var(--accent-strong-rgb), 0.94), rgba(var(--accent-rgb), 0.84)));
-  color: var(--music-accent-text, var(--accent-mode-text));
+  color: var(--accent-surface-text, var(--music-accent-text, var(--accent-mode-text)));
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
 

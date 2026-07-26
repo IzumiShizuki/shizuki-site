@@ -79,7 +79,7 @@
                 <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
                   修改密码
                 </button>
-                <button v-else class="quick-btn ripple-trigger" type="button" @click="goToLogin">
+                <button v-else class="quick-btn is-primary ripple-trigger" type="button" @click="goToLogin">
                   登录以管理账号或音乐
                 </button>
                 <button class="quick-btn ripple-trigger" type="button" @click="openSettingsAppearance">
@@ -2247,8 +2247,21 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: auto;
   overscroll-behavior: auto;
-  display: grid;
-  align-content: start;
+  /* flex 列布局：让 sticky hero 正常占位，避免 grid 下与首个分组标题重叠 */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* 定位/滚动到分组时，为顶部 sticky hero + 分组标题预留空间，避免标题被压在其下 */
+  scroll-padding-top: 288px;
+}
+
+.profile-scroll-frame > .profile-scroll-body {
+  flex: 1 1 auto;
+}
+
+/* 每个分组作为滚动锚点时也让出 hero 的高度 */
+.profile-group {
+  scroll-margin-top: 288px;
 }
 
 .profile-scroll-frame::-webkit-scrollbar {
@@ -2270,16 +2283,17 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   z-index: 8;
-  padding: 14px 16px 10px;
-  background:
-    linear-gradient(180deg, rgba(9, 18, 31, 0.98) 0%, rgba(9, 18, 31, 0.92) 68%, rgba(9, 18, 31, 0) 100%);
-  backdrop-filter: blur(12px);
+  padding: 14px 16px 12px;
+  margin-bottom: 4px;
+  /* 不透明遮罩：内容滚动到其下时被干净遮住，不再透出“个人概览”标题 */
+  background: var(--theme-scrim, rgba(20, 14, 22, 0.96));
+  backdrop-filter: blur(14px) saturate(120%);
 }
 
 .profile-scroll-body {
   display: grid;
   gap: 16px;
-  padding: 0 16px 22px;
+  padding: 8px 16px 22px;
   align-content: start;
 }
 
@@ -2351,28 +2365,48 @@ onBeforeUnmount(() => {
 }
 
 .quick-btn {
-  border: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-md, 14px);
   min-height: 48px;
-  padding: 10px 12px;
-  font-size: 12px;
-  color: rgba(229, 239, 251, 0.96);
-  background:
-    linear-gradient(145deg, rgba(21, 47, 75, 0.78), rgba(17, 32, 53, 0.66)),
-    radial-gradient(circle at top right, rgba(87, 198, 229, 0.16), transparent 42%);
-  box-shadow:
-    inset 0 0 0 1px rgba(147, 181, 207, 0.2),
-    0 10px 18px rgba(3, 8, 15, 0.16);
+  padding: 10px 14px 10px 30px;
+  font-size: 12.5px;
+  font-weight: 500;
+  position: relative;
   text-align: left;
+  display: flex;
+  align-items: center;
+  transition:
+    transform var(--dur-base, 0.28s) var(--ease-spring, ease),
+    box-shadow var(--dur-base, 0.28s) var(--ease-out, ease),
+    background var(--dur-base, 0.28s) var(--ease-out, ease);
 }
 
-.quick-btn:hover {
-  background:
-    linear-gradient(145deg, rgba(36, 84, 127, 0.9), rgba(30, 65, 101, 0.74)),
-    radial-gradient(circle at top right, rgba(104, 217, 242, 0.18), transparent 42%);
-  box-shadow:
-    inset 0 0 0 1px rgba(85, 199, 232, 0.38),
-    0 14px 22px rgba(3, 8, 15, 0.22);
+/* 每个快捷入口前一枚暖桃小圆点，弱化“7 个实心按钮”的堆叠感 */
+.quick-btn::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(var(--accent-strong-rgb), 0.85);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.5);
+  transition: transform var(--dur-base, 0.28s) var(--ease-spring, ease);
+}
+
+.quick-btn.is-primary {
+  padding-left: 14px;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.quick-btn.is-primary::before {
+  display: none;
+}
+
+.quick-btn:hover::before {
+  transform: translateY(-50%) scale(1.4);
 }
 
 .recent-grid {
@@ -2450,26 +2484,39 @@ select.field-input:focus-visible,
 .oauth-btn,
 .danger-btn {
   border: 0;
-  border-radius: 11px;
+  border-radius: var(--radius-sm, 10px);
   min-height: 36px;
-  padding: 0 13px;
+  padding: 0 14px;
   color: rgba(234, 244, 255, 0.96);
+  transition:
+    transform var(--dur-base, 0.28s) var(--ease-spring, ease),
+    box-shadow var(--dur-base, 0.28s) var(--ease-out, ease),
+    background var(--dur-base, 0.28s) var(--ease-out, ease);
 }
 
+/* primary/ghost/oauth 的配色由 global.css 统一注入暖桃；此处只保留兜底 */
 .primary-btn {
-  background: linear-gradient(145deg, rgba(66, 178, 211, 0.42), rgba(55, 117, 186, 0.36));
-  box-shadow: inset 0 0 0 1px rgba(96, 209, 239, 0.4);
+  background: var(--accent-mode-fill-strong, linear-gradient(145deg, rgba(var(--accent-strong-rgb), 0.9), rgba(var(--accent-rgb), 0.82)));
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-strong-rgb), 0.4);
 }
 
 .ghost-btn,
 .oauth-btn {
-  background: rgba(148, 183, 208, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(141, 176, 202, 0.24);
+  background: rgba(var(--accent-rgb), 0.14);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
 }
 
 .danger-btn {
-  background: rgba(225, 92, 124, 0.24);
-  box-shadow: inset 0 0 0 1px rgba(251, 154, 180, 0.36);
+  background: rgba(216, 92, 110, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(240, 150, 168, 0.4);
+}
+
+.danger-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  background: rgba(216, 92, 110, 0.32);
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 150, 168, 0.5),
+    0 10px 22px rgba(160, 50, 70, 0.24);
 }
 
 .status-chip {

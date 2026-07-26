@@ -251,7 +251,12 @@ const railClassName = computed(() => {
   width: 2px;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(84, 212, 238, 0), rgba(84, 212, 238, 0.62), rgba(84, 212, 238, 0));
+  background: linear-gradient(
+    180deg,
+    rgba(var(--accent-rgb), 0),
+    rgba(var(--accent-rgb), 0.5),
+    rgba(var(--accent-rgb), 0)
+  );
   pointer-events: none;
 }
 
@@ -306,10 +311,10 @@ const railClassName = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(195, 230, 250, 0.95);
-  background: rgba(150, 186, 212, 0.17);
-  box-shadow: inset 0 0 0 1px rgba(147, 181, 207, 0.26);
-  transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+  color: rgba(255, 240, 232, 0.95);
+  background: rgba(var(--accent-rgb), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .dot-rail-core i {
@@ -321,20 +326,21 @@ const railClassName = computed(() => {
 }
 
 .dot-rail-btn:hover .dot-rail-core {
-  background: rgba(167, 198, 223, 0.24);
-  box-shadow: inset 0 0 0 1px rgba(98, 209, 239, 0.42);
+  background: rgba(var(--accent-rgb), 0.2);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--accent-strong-rgb), 0.5),
+    0 0 14px rgba(var(--accent-rgb), 0.24);
 }
 
 .dot-rail-btn:focus-visible {
-  outline: 2px solid rgba(98, 219, 245, 0.75);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.24);
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.36));
 }
 
 .dot-rail-btn.active .dot-rail-core {
-  color: rgba(240, 248, 255, 0.98);
-  background: linear-gradient(145deg, rgba(63, 176, 209, 0.34), rgba(56, 121, 191, 0.3));
-  box-shadow: inset 0 0 0 1px rgba(89, 201, 233, 0.6);
+  color: var(--accent-surface-text, rgba(46, 30, 24, 0.95));
+  background: var(--accent-mode-fill-strong, linear-gradient(145deg, rgba(var(--accent-strong-rgb), 0.9), rgba(var(--accent-rgb), 0.82)));
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-strong-rgb), 0.62);
 }
 
 .dot-rail-btn.disabled,

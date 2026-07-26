@@ -11,8 +11,16 @@
     <div class="detail-layout">
       <aside class="vinyl-column">
         <div class="vinyl-stage">
-          <div class="vinyl-disc" :class="{ spinning: music.player.isPlaying.value }">
-            <div class="vinyl-cover" :style="coverStyle"></div>
+          <div class="vinyl-halo-wrap">
+            <MusicVisualizerLayer
+              class="vinyl-aura"
+              variant="vinyl"
+              :inner-ratio="VINYL_AURA_INNER_RATIO"
+              :active="music.player.isPlaying.value"
+            />
+            <div class="vinyl-disc" :class="{ spinning: music.player.isPlaying.value }">
+              <div class="vinyl-cover" :style="coverStyle"></div>
+            </div>
           </div>
         </div>
       </aside>
@@ -134,6 +142,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import MusicVisualizerLayer from '../../components/MusicVisualizerLayer.vue';
 import SubtleScrollArea from '../../components/SubtleScrollArea.vue';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import {
@@ -145,6 +154,9 @@ import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 
 const music = useMusicLibraryContext();
+
+// 唱片光环画布为唱片尺寸的 136%(CSS 中 inset: -18%),内圈比例与之严格对应。
+const VINYL_AURA_INNER_RATIO = 100 / 136;
 
 const track = computed(() => music.player.currentTrack.value);
 const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
@@ -500,6 +512,7 @@ onBeforeUnmount(() => {
   --liquid-bg: linear-gradient(160deg, rgba(14, 20, 30, 0.94), rgba(7, 10, 20, 0.92));
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 24px 46px rgba(5, 8, 16, 0.46);
+  --vinyl-size: clamp(190px, min(25vw, 44vh), 360px);
   height: 100%;
   border-radius: 18px;
   padding: clamp(12px, 1.4vw, 18px);
@@ -555,8 +568,25 @@ onBeforeUnmount(() => {
   padding: 10px 0 0;
 }
 
+.vinyl-halo-wrap {
+  position: relative;
+  width: var(--vinyl-size);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+}
+
+.vinyl-aura {
+  position: absolute;
+  inset: -18%;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .vinyl-disc {
-  width: clamp(190px, min(25vw, 44vh), 360px);
+  position: relative;
+  z-index: 1;
+  width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   display: grid;
@@ -937,7 +967,7 @@ onBeforeUnmount(() => {
   width: 54px;
   height: 54px;
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96)));
   border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
 }
@@ -1025,8 +1055,8 @@ onBeforeUnmount(() => {
     align-content: start;
   }
 
-  .vinyl-disc {
-    width: clamp(150px, min(28vw, 36vh), 250px);
+  .music-player-detail-view {
+    --vinyl-size: clamp(150px, min(28vw, 36vh), 250px);
   }
 
   .side-column {
@@ -1083,8 +1113,8 @@ onBeforeUnmount(() => {
     padding: 0;
   }
 
-  .vinyl-disc {
-    width: clamp(92px, 24vw, 126px);
+  .music-player-detail-view {
+    --vinyl-size: clamp(92px, 24vw, 126px);
   }
 
   .content-column {
@@ -1164,8 +1194,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-height: 680px) and (min-width: 721px) {
-  .vinyl-disc {
-    width: clamp(150px, min(22vw, 34vh), 230px);
+  .music-player-detail-view {
+    --vinyl-size: clamp(150px, min(22vw, 34vh), 230px);
   }
 
   .track-meta h1 {

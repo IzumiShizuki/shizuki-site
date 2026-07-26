@@ -61,10 +61,11 @@
     rgba(var(--accent-gradient-start-rgb), 0.24),
     rgba(var(--accent-gradient-end-rgb), 0.22)
   );
+  /* 文字用渐变：JS 会写入对比度安全的 --accent-text-gradient-*-rgb（相对页面底色至少 4.5:1）。 */
   --accent-text-gradient: linear-gradient(
     135deg,
-    rgba(var(--accent-gradient-start-rgb), 1),
-    rgba(var(--accent-gradient-end-rgb), 1)
+    rgba(var(--accent-text-gradient-start-rgb, var(--accent-gradient-start-rgb)), 1),
+    rgba(var(--accent-text-gradient-end-rgb, var(--accent-gradient-end-rgb)), 1)
   );
   --accent-mode-fill-soft: rgba(var(--accent-rgb), 0.12);
   --accent-mode-fill: rgba(var(--accent-rgb), 0.24);
@@ -87,5 +88,58 @@
   --accent-mode-glow: 0 0 18px rgba(var(--accent-rgb), 0.22);
   --accent-mode-text: rgba(255, 255, 255, 0.96);
   --accent-mode-text-muted: rgba(255, 233, 221, 0.84);
+  /*
+   * 强主色表面（--accent-mode-fill-strong / -hover）上的文字墨色。
+   * 由 useUiPreferences 按所选主色亮度自动写入黑或白；
+   * 这里的静态默认值对应默认奶杏桃粉（浅色 → 深墨）。
+   */
+  --accent-surface-text: rgba(46, 30, 24, 0.95);
+  --accent-surface-text-muted: rgba(46, 30, 24, 0.74);
+  --accent-surface-text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18);
+  /* 直接作为文字使用的主色（已按页面底色校正对比度，JS 写入）。 */
+  --accent-readable-rgb: var(--accent-strong-rgb);
   --accent-press-overlay: rgba(var(--accent-rgb), 0.14);
+}
+
+/* ============================================================
+ * 设计 Token（统一圆角 / 间距 / 阴影 / 动效 / 焦点环）
+ * 阶段 A 引入：全站按这一套走，逐步替换零散写死的数值。
+ * ============================================================ */
+:root {
+  /* 圆角：大面板 / 中卡·按钮 / 小控件·输入 / 胶囊 */
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+
+  /* 间距：4px 栅格 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* 阴影：暖色调柔影，三级 */
+  --shadow-sm: 0 6px 16px rgba(24, 12, 10, 0.16);
+  --shadow-md: 0 14px 30px rgba(20, 10, 9, 0.22);
+  --shadow-lg: 0 24px 52px rgba(14, 7, 8, 0.32);
+  --shadow-soft-warm: 0 12px 26px rgba(88, 60, 50, 0.12);
+
+  /* 动效：时长与缓动 */
+  --dur-fast: 0.18s;
+  --dur-base: 0.28s;
+  --dur-slow: 0.42s;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 焦点环：温柔桃色，键盘可达统一用它 */
+  --focus-ring: 0 0 0 3px rgba(var(--accent-rgb), 0.36);
+
+  /* 断点（供组件读取；媒体查询仍写字面值）：640 / 900 / 1200 */
+  --bp-sm: 640px;
+  --bp-md: 900px;
+  --bp-lg: 1200px;
 }

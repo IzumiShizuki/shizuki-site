@@ -1,0 +1,682 @@
+/**
+ * 管理后台共享样式（明暗双主题）。
+ *
+ * 全部颜色取自 useUiPreferences 注入的 --theme-* / --accent-* 变量，
+ * 因此日间（data-theme-mode='day'）与夜间模式都能保持可读性。
+ * 类名统一使用 .adm- 前缀并挂在 .admin-page 命名空间下，避免影响其他面板。
+ */
+
+.admin-page {
+  --adm-danger-rgb: 225, 83, 97;
+  --adm-danger-text: rgba(255, 179, 192, 0.96);
+  --adm-success-rgb: 61, 176, 130;
+  --adm-success-text: rgba(150, 230, 194, 0.96);
+  --adm-warn-text: rgba(250, 213, 145, 0.96);
+  --adm-row-hover: rgba(var(--accent-rgb), 0.1);
+  --adm-row-active: rgba(var(--accent-rgb), 0.2);
+  --adm-thead-bg: rgba(255, 224, 208, 0.08);
+  --adm-input-bg: var(--theme-surface-soft, rgba(241, 245, 249, 0.16));
+  --adm-chip-bg: rgba(255, 255, 255, 0.08);
+  --adm-chip-on-bg: rgba(var(--accent-rgb), 0.2);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .admin-page {
+  --adm-danger-text: rgba(164, 22, 46, 0.92);
+  --adm-success-text: rgba(15, 118, 78, 0.92);
+  --adm-warn-text: rgba(146, 94, 12, 0.94);
+  --adm-row-hover: rgba(var(--accent-strong-rgb), 0.1);
+  --adm-row-active: rgba(var(--accent-strong-rgb), 0.18);
+  --adm-thead-bg: rgba(255, 253, 250, 0.66);
+  --adm-input-bg: rgba(255, 255, 255, 0.62);
+  --adm-chip-bg: rgba(255, 255, 255, 0.55);
+  --adm-chip-on-bg: rgba(var(--accent-strong-rgb), 0.16);
+}
+
+/* ---------- 框架：KPI / 布局 / 面板 ---------- */
+
+.admin-page .kpi-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  animation: adm-fade-in-up 0.25s ease;
+}
+
+.admin-page .kpi-card {
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.14);
+  border-radius: 14px;
+  padding: 13px 14px;
+  display: grid;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-page .kpi-card::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.8));
+  opacity: 0.85;
+}
+
+.admin-page .kpi-card span {
+  color: var(--theme-text-tertiary);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.admin-page .kpi-card strong {
+  font-size: 22px;
+  color: var(--theme-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-page .content-panel {
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.12);
+  border-radius: 14px;
+  padding: 16px 18px;
+  overflow: auto;
+  animation: adm-fade-in-up 0.25s ease;
+}
+
+.admin-page .content-panel--embedded {
+  --liquid-bg: transparent;
+  --liquid-border: transparent;
+  --liquid-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.admin-page .state-tip {
+  color: var(--theme-text-secondary);
+}
+
+/* ---------- 通用文字 ---------- */
+
+.admin-page .adm-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+}
+
+.admin-page .adm-desc {
+  color: var(--theme-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.admin-page .adm-muted {
+  color: var(--theme-text-tertiary);
+  font-size: 12px;
+}
+
+.admin-page .adm-error {
+  color: var(--adm-danger-text);
+  font-size: 13px;
+}
+
+.admin-page .adm-dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--adm-warn-text);
+  font-size: 12px;
+}
+
+.admin-page .adm-dirty::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ---------- 工具条 / 表单控件 ---------- */
+
+.admin-page .adm-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-page .adm-grow {
+  flex: 1;
+  min-width: 160px;
+}
+
+.admin-page .adm-label {
+  font-size: 12px;
+  color: var(--theme-text-tertiary);
+}
+
+.admin-page .adm-input,
+.admin-page .adm-select,
+.admin-page .adm-textarea {
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  background: var(--adm-input-bg);
+  color: var(--theme-text-primary);
+  font-size: 13px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.admin-page .adm-textarea {
+  min-height: 96px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.admin-page .adm-input::placeholder,
+.admin-page .adm-textarea::placeholder {
+  color: var(--theme-text-tertiary);
+}
+
+.admin-page .adm-input:focus-visible,
+.admin-page .adm-select:focus-visible,
+.admin-page .adm-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-rgb), 0.7));
+  box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.22));
+}
+
+.admin-page .adm-select {
+  min-width: 132px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 34px;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(var(--accent-strong-rgb), 0.9) 50%),
+    linear-gradient(135deg, rgba(var(--accent-strong-rgb), 0.9) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.admin-page .adm-input--sm,
+.admin-page .adm-select--sm {
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+/* ---------- 按钮 ---------- */
+
+.admin-page .adm-btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-soft);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.12s ease, box-shadow 0.16s ease, background-color 0.16s ease, opacity 0.16s ease;
+}
+
+.admin-page .adm-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.admin-page .adm-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.admin-page .adm-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-page .adm-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.22));
+}
+
+.admin-page .adm-btn--primary {
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.4));
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+  color: var(--accent-mode-text, rgba(255, 255, 255, 0.96));
+  box-shadow: var(--accent-mode-shadow, none);
+}
+
+.admin-page .adm-btn--primary:hover:not(:disabled) {
+  background: var(--accent-mode-fill-hover, rgba(var(--accent-rgb), 0.5));
+}
+
+.admin-page .adm-btn--ghost {
+  border-color: var(--theme-border);
+  background: transparent;
+}
+
+.admin-page .adm-btn--ghost:hover:not(:disabled) {
+  background: var(--adm-row-hover);
+}
+
+.admin-page .adm-btn--danger {
+  background: rgba(var(--adm-danger-rgb), 0.16);
+  border-color: rgba(var(--adm-danger-rgb), 0.4);
+  color: var(--adm-danger-text);
+}
+
+.admin-page .adm-btn--danger:hover:not(:disabled) {
+  background: rgba(var(--adm-danger-rgb), 0.26);
+}
+
+.admin-page .adm-btn--sm {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* ---------- 表格 ---------- */
+
+.admin-page .adm-table-wrap {
+  border-radius: 12px;
+  overflow: auto;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  max-height: min(62vh, 640px);
+}
+
+.admin-page .adm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.admin-page .adm-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: left;
+  padding: 10px 10px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--theme-text-secondary);
+  background: var(--adm-thead-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--theme-border-strong);
+  white-space: nowrap;
+}
+
+.admin-page .adm-table td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--theme-divider-soft);
+  color: var(--theme-text-primary);
+  vertical-align: middle;
+}
+
+.admin-page .adm-table tbody tr {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.admin-page .adm-table tbody tr:hover {
+  background: var(--adm-row-hover);
+}
+
+.admin-page .adm-table tbody tr.is-active {
+  background: var(--adm-row-active);
+  box-shadow: inset 2px 0 0 rgba(var(--accent-rgb), 0.9);
+}
+
+.admin-page .adm-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-page .adm-table .adm-cell-secondary {
+  color: var(--theme-text-tertiary);
+  font-size: 12px;
+}
+
+.admin-page .adm-empty {
+  padding: 26px 12px;
+  text-align: center;
+  color: var(--theme-text-tertiary);
+  font-size: 13px;
+}
+
+/* ---------- 卡片 / 侧栏编辑器 ---------- */
+
+.admin-page .adm-card {
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: 0 10px 24px rgba(6, 10, 18, 0.1);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-panel-surface-elevated);
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.admin-page .adm-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+}
+
+.admin-page .adm-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--theme-text-tertiary);
+  text-transform: uppercase;
+}
+
+.admin-page .adm-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--theme-divider-soft);
+}
+
+/* ---------- 可勾选权限项 ---------- */
+
+.admin-page .adm-perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.admin-page .adm-perm {
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--adm-chip-bg);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  align-items: start;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-page .adm-perm:hover {
+  background: var(--adm-row-hover);
+}
+
+.admin-page .adm-perm.is-on {
+  background: var(--adm-chip-on-bg);
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+}
+
+.admin-page .adm-perm input {
+  margin: 3px 0 0;
+  accent-color: var(--accent-hex, #f2b39d);
+}
+
+.admin-page .adm-perm-label {
+  color: var(--theme-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-page .adm-perm-code {
+  color: var(--theme-text-tertiary);
+  font-size: 11px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  overflow-wrap: anywhere;
+}
+
+.admin-page .adm-perm-desc {
+  color: var(--theme-text-secondary);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* ---------- 开关（无限配额等） ---------- */
+
+.admin-page .adm-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+}
+
+.admin-page .adm-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.admin-page .adm-switch .adm-switch-track {
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--theme-surface-soft);
+  border: 1px solid var(--theme-border-strong);
+  position: relative;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+  flex: none;
+}
+
+.admin-page .adm-switch .adm-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--theme-text-tertiary);
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+
+.admin-page .adm-switch input:checked + .adm-switch-track {
+  background: rgba(var(--accent-rgb), 0.55);
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-rgb), 0.72));
+}
+
+.admin-page .adm-switch input:checked + .adm-switch-track::after {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+.admin-page .adm-switch input:focus-visible + .adm-switch-track {
+  box-shadow: var(--accent-mode-focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.22));
+}
+
+/* ---------- 配额编辑格 ---------- */
+
+.admin-page .adm-quota-cell {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.admin-page .adm-quota-value {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.admin-page .adm-quota-display {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  font-size: 12.5px;
+}
+
+.admin-page .adm-quota-display.is-unlimited {
+  color: var(--adm-success-text);
+}
+
+.admin-page .adm-quota-display.is-zero {
+  color: var(--adm-danger-text);
+}
+
+/* ---------- 徽标 / 计数 ---------- */
+
+.admin-page .adm-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(var(--accent-rgb), 0.18);
+  color: var(--theme-text-primary);
+}
+
+.admin-page .adm-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+  white-space: nowrap;
+}
+
+.admin-page .adm-flag--on {
+  border-color: rgba(var(--adm-success-rgb), 0.5);
+  color: var(--adm-success-text);
+  background: rgba(var(--adm-success-rgb), 0.12);
+}
+
+.admin-page .adm-flag--off {
+  border-color: rgba(var(--adm-danger-rgb), 0.42);
+  color: var(--adm-danger-text);
+  background: rgba(var(--adm-danger-rgb), 0.1);
+}
+
+/* ---------- 分页器 ---------- */
+
+.admin-page .adm-pager {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--theme-text-secondary);
+  font-size: 12.5px;
+}
+
+/* ---------- 弹窗 ---------- */
+
+.admin-page .adm-dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  background: var(--theme-scrim, rgba(6, 10, 20, 0.44));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 12px;
+}
+
+.admin-page .adm-dialog {
+  background: var(--theme-panel-surface-elevated);
+  border: 1px solid var(--theme-border-strong);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  width: min(500px, 100%);
+  border-radius: 14px;
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+  color: var(--theme-text-primary);
+}
+
+.admin-page .adm-dialog h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.admin-page .adm-dialog p {
+  color: var(--theme-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ---------- 滚动条 ---------- */
+
+.admin-page .adm-table-wrap::-webkit-scrollbar,
+.admin-page .adm-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.admin-page .adm-table-wrap::-webkit-scrollbar-thumb,
+.admin-page .adm-scroll::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.3);
+}
+
+.admin-page .adm-table-wrap::-webkit-scrollbar-track,
+.admin-page .adm-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- 动画 / 响应式 ---------- */
+
+@keyframes adm-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1080px) {
+  .admin-page .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-page .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-page .adm-table-wrap {
+    max-height: none;
+  }
+}

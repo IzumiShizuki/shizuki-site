@@ -57,6 +57,7 @@
             :selectedUser="selectedUser"
             :selectedUserGroups="selectedUserGroups"
             :groupOptions="groupOptions"
+            @update:pageSize="(size) => (usersQuery.pageSize = size)"
             @search="reloadUsers"
             @selectUser="selectUser"
             @toggleUserGroup="toggleSelectedUserGroup"
@@ -91,6 +92,7 @@
             :selectedGroupCode="selectedPermissionGroupCode"
             :selectedPermissions="selectedPermissionCodes"
             :permissionCatalog="permissionCatalog"
+            :permissionOptions="permissionOptions"
             :advanced="uiState.permissionsAdvanced"
             :customPermission="customPermissionCode"
             @selectGroup="selectPermissionGroup"
@@ -107,6 +109,8 @@
             :rows="quotaMatrixRows"
             :quotaCodes="quotaMatrixCodes"
             :quotaCatalog="quotaCatalog"
+            :quotaOptions="quotaOptions"
+            :baseline="quotaBaseline"
             :selectedGroupCode="selectedQuotaGroupCode"
             :saving="quotaSaving"
             :error="quotaError"
@@ -116,6 +120,7 @@
             @updateCell="updateQuotaCell"
             @saveSelected="saveSelectedQuotaGroup"
             @saveAll="saveAllQuotaGroups"
+            @reset="reloadQuota"
             @addCatalogQuota="addCatalogQuota"
             @update:advanced="(value) => (uiState.quotaAdvanced = value)"
             @update:customQuotaCode="setCustomQuotaCode"
@@ -134,9 +139,24 @@
             :error="opsError"
             :overview="opsOverview"
             :containers="opsContainers"
+            :meguri="opsMeguri"
+            :meguri-loading="opsMeguriLoading"
+            :services="opsServices"
+            :services-loading="opsServicesLoading"
+            :logs-open="opsLogsOpen"
+            :logs-loading="opsLogsLoading"
+            :logs-error="opsLogsError"
+            :logs-target="opsLogsTarget"
+            :logs-lines="opsLogsLines"
+            :logs-tail="opsLogsTail"
             @refresh-overview="reloadOpsOverview"
             @refresh-containers="reloadOpsContainers"
             @action="handleOpsContainerAction"
+            @refresh-meguri="reloadOpsMeguriStatus"
+            @refresh-services="reloadOpsServicesHealth"
+            @show-logs="openOpsContainerLogs"
+            @close-logs="closeOpsContainerLogs"
+            @refresh-logs="refreshOpsContainerLogs"
           />
 
           <AdminPromptCachePanel
@@ -145,6 +165,16 @@
             :error="promptCacheError"
             :snapshot="promptCacheSnapshot"
             @refresh="reloadPromptCacheMetrics"
+          />
+
+          <AdminMusicProvidersPanel
+            v-else-if="activeTab === AdminTabKey.MUSIC_PROVIDERS"
+            :loading="musicProvidersLoading"
+            :saving-provider="musicProviderSavingCode"
+            :error="musicProvidersError"
+            :items="musicProviders"
+            @refresh="reloadMusicProviders"
+            @update="updateMusicProvider"
           />
 
           <AdminWallpapersPanel
@@ -187,24 +217,24 @@
     </template>
 
     <transition name="dialog-fade">
-      <div v-if="unlockDialog.visible" class="dialog-mask" @click.self="cancelUnlockDialog">
-        <section class="dialog-shell liquid-material" @click.stop>
+      <div v-if="unlockDialog.visible" class="adm-dialog-mask" @click.self="cancelUnlockDialog">
+        <section class="adm-dialog" @click.stop>
           <h3>管理员权限码验证</h3>
           <p>当前写操作需要先验证管理员权限码，验证成功后自动重试。</p>
-          <label class="field-label" for="unlock-code-input">权限码</label>
+          <label class="adm-label" for="unlock-code-input">权限码</label>
           <input
             id="unlock-code-input"
             v-model.trim="unlockDialog.code"
-            class="field-input"
+            class="adm-input"
             type="password"
             autocomplete="off"
             placeholder="请输入权限码"
             @keyup.enter="submitUnlockDialog"
           />
-          <p v-if="unlockDialog.error" class="error-text">{{ unlockDialog.error }}</p>
-          <div class="inline-actions">
-            <button class="ghost-btn ripple-trigger" type="button" :disabled="unlockDialog.submitting" @click="cancelUnlockDialog">取消</button>
-            <button class="primary-btn ripple-trigger" type="button" :disabled="unlockDialog.submitting" @click="submitUnlockDialog">
+          <p v-if="unlockDialog.error" class="adm-error">{{ unlockDialog.error }}</p>
+          <div class="adm-toolbar unlock-actions">
+            <button class="adm-btn adm-btn--ghost ripple-trigger" type="button" :disabled="unlockDialog.submitting" @click="cancelUnlockDialog">取消</button>
+            <button class="adm-btn adm-btn--primary ripple-trigger" type="button" :disabled="unlockDialog.submitting" @click="submitUnlockDialog">
               {{ unlockDialog.submitting ? '验证中...' : '确认验证' }}
             </button>
           </div>
@@ -231,15 +261,19 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+// 共享后台样式需先于各面板加载，保证未改造面板的局部样式仍可覆盖同名规则。
+import '../styles/admin-console.css';
 import { useAuthSession } from '../composables/useAuthSession';
 import PageIntroHeader from '../components/common/PageIntroHeader.vue';
 import RailScaffold from '../components/common/RailScaffold.vue';
 import * as adminApi from '../services/adminApi';
+import * as musicApi from '../services/musicApi';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
 import AdminBlogWhispersPanel from '../components/admin/AdminBlogWhispersPanel.vue';
 import AdminDangerDeleteDialog from '../components/admin/AdminDangerDeleteDialog.vue';
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import AdminGroupsPanel from '../components/admin/AdminGroupsPanel.vue';
+import AdminMusicProvidersPanel from '../components/admin/AdminMusicProvidersPanel.vue';
 import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue';
 import AdminPromptCachePanel from '../components/admin/AdminPromptCachePanel.vue';
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
@@ -254,6 +288,7 @@ import {
   createAdminUiState,
   mergeCatalogCodes,
   normalizeCodeList,
+  normalizeQuotaValue,
   toggleCodeSelection,
   upsertQuotaCell
 } from './adminUiState';
@@ -279,6 +314,7 @@ const tabs = [
   { key: AdminTabKey.GROUPS, label: '分组目录', icon: 'fas fa-layer-group' },
   { key: AdminTabKey.PERMISSIONS, label: '分组权限', icon: 'fas fa-key' },
   { key: AdminTabKey.QUOTA, label: '配额策略', icon: 'fas fa-gauge-high' },
+  { key: AdminTabKey.MUSIC_PROVIDERS, label: '音乐源', icon: 'fas fa-music' },
   { key: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
   { key: AdminTabKey.BLOG_WHISPERS, label: '博客悄悄话', icon: 'fas fa-user-secret' },
   { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
@@ -291,6 +327,7 @@ const adminTabs = [
   { key: AdminTabKey.QUOTA, label: 'Quota', icon: 'fas fa-gauge-high' },
   { key: AdminTabKey.SERVER_OPS, label: 'Server Ops', icon: 'fas fa-server' },
   { key: AdminTabKey.PROMPT_CACHE, label: 'Prompt Cache', icon: 'fas fa-chart-line' },
+  { key: AdminTabKey.MUSIC_PROVIDERS, label: 'Music Sources', icon: 'fas fa-music' },
   { key: AdminTabKey.WALLPAPERS, label: 'Wallpapers', icon: 'far fa-image' },
   { key: AdminTabKey.BLOG_WHISPERS, label: 'Whispers', icon: 'fas fa-user-secret' },
   { key: AdminTabKey.BLOG_CATEGORIES, label: 'Categories', icon: 'fas fa-folder-tree' }
@@ -302,6 +339,9 @@ const globalHint = ref('');
 const groupOptions = ref([]);
 const permissionCatalog = ref([]);
 const quotaCatalog = ref([]);
+// 带标签/描述的完整目录（后端 permission_options / quota_options）。
+const permissionOptions = ref([]);
+const quotaOptions = ref([]);
 
 const usersLoading = ref(false);
 const usersSaving = ref(false);
@@ -348,6 +388,8 @@ const quotaSaving = ref(false);
 const quotaError = ref('');
 const quotaMatrixRows = ref([]);
 const quotaMatrixCodes = ref([]);
+// 服务端基线快照：{ groupCode: { quotaCode: value } }，用于脏值标记与“放弃更改”。
+const quotaBaseline = ref({});
 const selectedQuotaGroupCode = ref('');
 const customQuotaCode = ref('');
 
@@ -361,10 +403,25 @@ const opsActionError = ref('');
 const opsError = ref('');
 const opsOverview = ref({});
 const opsContainers = ref([]);
+const opsMeguri = ref({});
+const opsMeguriLoading = ref(false);
+const opsServices = ref([]);
+const opsServicesLoading = ref(false);
+const opsLogsOpen = ref(false);
+const opsLogsLoading = ref(false);
+const opsLogsError = ref('');
+const opsLogsTarget = ref({});
+const opsLogsLines = ref([]);
+const opsLogsTail = ref(200);
 
 const promptCacheLoading = ref(false);
 const promptCacheError = ref('');
 const promptCacheSnapshot = ref({});
+
+const musicProvidersLoading = ref(false);
+const musicProvidersError = ref('');
+const musicProviderSavingCode = ref('');
+const musicProviders = ref([]);
 
 const categoryMetaLoading = ref(false);
 const categoryMetaSaving = ref(false);
@@ -565,7 +622,8 @@ function toQuotaPolicyView(raw) {
     policyId: String(readField(raw, 'policyId', 'policy_id', '') || ''),
     groupCode: String(readField(raw, 'groupCode', 'group_code', '') || '').toUpperCase(),
     quotaCode: String(readField(raw, 'quotaCode', 'quota_code', '') || '').trim(),
-    value: Number(readField(raw, 'value', 'value', 0)) || 0
+    // 归一：负值/历史 Long.MAX 一律按“无限（-1）”处理，避免 JS 精度问题导致保存溢出。
+    value: normalizeQuotaValue(readField(raw, 'value', 'value', 0))
   };
 }
 
@@ -592,6 +650,45 @@ function toOpsContainer(raw) {
     ports: Array.isArray(ports) ? ports.map((item) => String(item || '').trim()).filter(Boolean) : [],
     running: readField(raw, 'running', 'running', false) === true,
     manageable: readField(raw, 'manageable', 'manageable', false) === true
+  };
+}
+
+function toOpsServiceHealth(raw) {
+  return {
+    name: String(readField(raw, 'name', 'name', '') || '').trim(),
+    url: String(readField(raw, 'url', 'url', '') || '').trim(),
+    healthy: readField(raw, 'healthy', 'healthy', false) === true,
+    statusCode: Number(readField(raw, 'statusCode', 'status_code', 0)) || 0,
+    latencyMs: Number(readField(raw, 'latencyMs', 'latency_ms', 0)) || 0,
+    message: String(readField(raw, 'message', 'message', '') || '').trim()
+  };
+}
+
+function toOpsMeguriStatus(raw) {
+  const healthRaw = readField(raw, 'health', 'health', null);
+  return {
+    containerFound: readField(raw, 'containerFound', 'container_found', false) === true,
+    containerId: String(readField(raw, 'containerId', 'container_id', '') || '').trim(),
+    containerName: String(readField(raw, 'containerName', 'container_name', '') || '').trim(),
+    state: String(readField(raw, 'state', 'state', '') || '').trim(),
+    status: String(readField(raw, 'status', 'status', '') || '').trim(),
+    running: readField(raw, 'running', 'running', false) === true,
+    manageable: readField(raw, 'manageable', 'manageable', false) === true,
+    metricsPresent: readField(raw, 'metricsPresent', 'metrics_present', false) === true,
+    metricsReceivedAt: String(readField(raw, 'metricsReceivedAt', 'metrics_received_at', '') || '').trim(),
+    metricsAgeSeconds: Number(readField(raw, 'metricsAgeSeconds', 'metrics_age_seconds', 0)) || 0,
+    metricsStale: readField(raw, 'metricsStale', 'metrics_stale', true) === true,
+    health: healthRaw && typeof healthRaw === 'object' ? toOpsServiceHealth(healthRaw) : null
+  };
+}
+
+function toOpsContainerLogs(raw) {
+  const lines = readField(raw, 'lines', 'lines', []);
+  return {
+    containerId: String(readField(raw, 'containerId', 'container_id', '') || '').trim(),
+    containerName: String(readField(raw, 'containerName', 'container_name', '') || '').trim(),
+    tailLines: Number(readField(raw, 'tailLines', 'tail_lines', 0)) || 0,
+    lines: Array.isArray(lines) ? lines.map((item) => String(item ?? '')) : []
   };
 }
 
@@ -724,10 +821,14 @@ async function reloadOptions() {
     const quotaRaw = Array.isArray(readField(payload, 'quotaCatalog', 'quota_catalog', []))
       ? readField(payload, 'quotaCatalog', 'quota_catalog', [])
       : [];
+    const permissionOptionsRaw = readField(payload, 'permissionOptions', 'permission_options', []);
+    const quotaOptionsRaw = readField(payload, 'quotaOptions', 'quota_options', []);
 
     groupOptions.value = groupsRaw.map(toGroupOption).filter((item) => item.groupCode);
     permissionCatalog.value = normalizeCodeList(permissionsRaw, false);
     quotaCatalog.value = normalizeCodeList(quotaRaw, false);
+    permissionOptions.value = Array.isArray(permissionOptionsRaw) ? permissionOptionsRaw : [];
+    quotaOptions.value = Array.isArray(quotaOptionsRaw) ? quotaOptionsRaw : [];
     ensureSelectedPermissionGroup();
   } catch (error) {
     const message = readErrorMessage(error);
@@ -1043,6 +1144,12 @@ async function reloadQuota() {
     const matrix = buildQuotaMatrix(groupOptions.value, mergedQuotaCatalog, policies);
     quotaMatrixRows.value = matrix.rows;
     quotaMatrixCodes.value = matrix.quotaCodes;
+    // 记录服务端基线，供配额面板显示脏值与“放弃更改”。
+    const baseline = {};
+    matrix.rows.forEach((row) => {
+      baseline[row.groupCode] = { ...row.values };
+    });
+    quotaBaseline.value = baseline;
     ensureSelectedQuotaGroup();
   } catch (error) {
     quotaError.value = readErrorMessage(error);
@@ -1079,6 +1186,76 @@ async function reloadOpsContainers() {
   }
 }
 
+async function reloadOpsMeguriStatus() {
+  opsMeguriLoading.value = true;
+  try {
+    const payload = await adminApi.getAdminOpsMeguriStatus(auth.authorizedFetch);
+    opsMeguri.value = toOpsMeguriStatus(payload);
+  } catch (error) {
+    opsMeguri.value = {};
+    opsError.value = readErrorMessage(error);
+  } finally {
+    opsMeguriLoading.value = false;
+  }
+}
+
+async function reloadOpsServicesHealth() {
+  opsServicesLoading.value = true;
+  try {
+    const payload = await adminApi.getAdminOpsServicesHealth(auth.authorizedFetch);
+    opsServices.value = Array.isArray(payload) ? payload.map(toOpsServiceHealth).filter((item) => item.name) : [];
+  } catch (error) {
+    opsServices.value = [];
+    opsError.value = readErrorMessage(error);
+  } finally {
+    opsServicesLoading.value = false;
+  }
+}
+
+async function loadOpsContainerLogs(tail) {
+  const target = opsLogsTarget.value || {};
+  const containerId = String(target.containerId || '').trim();
+  if (!containerId) return;
+  const normalizedTail = Number(tail) > 0 ? Math.trunc(Number(tail)) : opsLogsTail.value;
+  opsLogsTail.value = normalizedTail;
+  opsLogsLoading.value = true;
+  opsLogsError.value = '';
+  try {
+    const payload = await adminApi.getAdminOpsContainerLogs(containerId, normalizedTail, auth.authorizedFetch);
+    const view = toOpsContainerLogs(payload);
+    opsLogsLines.value = view.lines;
+    if (view.containerName) {
+      opsLogsTarget.value = { containerId: view.containerId || containerId, containerName: view.containerName };
+    }
+  } catch (error) {
+    opsLogsLines.value = [];
+    opsLogsError.value = readErrorMessage(error);
+  } finally {
+    opsLogsLoading.value = false;
+  }
+}
+
+function openOpsContainerLogs(target) {
+  const containerId = String(target?.containerId || '').trim();
+  if (!containerId) return;
+  opsLogsTarget.value = {
+    containerId,
+    containerName: String(target?.containerName || '').trim()
+  };
+  opsLogsOpen.value = true;
+  opsLogsLines.value = [];
+  loadOpsContainerLogs(opsLogsTail.value);
+}
+
+function refreshOpsContainerLogs(tail) {
+  loadOpsContainerLogs(tail);
+}
+
+function closeOpsContainerLogs() {
+  opsLogsOpen.value = false;
+  opsLogsError.value = '';
+}
+
 async function reloadPromptCacheMetrics() {
   promptCacheError.value = '';
   promptCacheLoading.value = true;
@@ -1090,6 +1267,69 @@ async function reloadPromptCacheMetrics() {
     promptCacheError.value = readErrorMessage(error);
   } finally {
     promptCacheLoading.value = false;
+  }
+}
+
+function toMusicProviderItem(raw) {
+  const provider = String(raw?.provider || raw?.providerCode || raw?.provider_code || '')
+    .trim()
+    .toLowerCase();
+  const sortValue = Number(raw?.sort ?? raw?.sortNum ?? raw?.sort_num);
+  return {
+    provider,
+    enabled: Boolean(raw?.enabled),
+    visible: Boolean(raw?.visible),
+    sort: Number.isFinite(sortValue) ? sortValue : 0
+  };
+}
+
+async function reloadMusicProviders() {
+  musicProvidersError.value = '';
+  musicProvidersLoading.value = true;
+  try {
+    const payload = await musicApi.listAdminProviders(auth.authorizedFetch);
+    musicProviders.value = (Array.isArray(payload) ? payload : [])
+      .map(toMusicProviderItem)
+      .filter((item) => item.provider);
+  } catch (error) {
+    musicProviders.value = [];
+    musicProvidersError.value = readErrorMessage(error);
+  } finally {
+    musicProvidersLoading.value = false;
+  }
+}
+
+async function updateMusicProvider(payload) {
+  const provider = String(payload?.provider || '').trim().toLowerCase();
+  const rawPatch = payload?.patch && typeof payload.patch === 'object' ? payload.patch : {};
+  const patch = {};
+  if (typeof rawPatch.enabled === 'boolean') patch.enabled = rawPatch.enabled;
+  if (typeof rawPatch.visible === 'boolean') patch.visible = rawPatch.visible;
+  if (!provider || !Object.keys(patch).length) {
+    musicProvidersError.value = '音乐源更新参数无效';
+    return;
+  }
+  musicProvidersError.value = '';
+  musicProviderSavingCode.value = provider;
+  try {
+    const saved = await withPrivilegeRetry(() =>
+      musicApi.updateAdminProviderVisibility(provider, patch, auth.authorizedFetch)
+    );
+    const normalized = toMusicProviderItem(saved);
+    const index = musicProviders.value.findIndex((item) => item.provider === provider);
+    if (index >= 0 && normalized.provider) {
+      musicProviders.value.splice(index, 1, normalized);
+    } else {
+      await reloadMusicProviders();
+    }
+    const stateText = [];
+    if (typeof patch.enabled === 'boolean') stateText.push(patch.enabled ? '已启用' : '已停用');
+    if (typeof patch.visible === 'boolean') stateText.push(patch.visible ? '入口已显示' : '入口已隐藏');
+    setGlobalHint(`音乐源 ${provider} ${stateText.join('，')}`);
+  } catch (error) {
+    musicProvidersError.value = readErrorMessage(error);
+  } finally {
+    musicProviderSavingCode.value = '';
   }
 }
 
@@ -1114,7 +1354,7 @@ async function handleOpsContainerAction(payload) {
     const targetName = String(response?.containerName || response?.container_name || containerName || containerId).trim();
     const targetAction = String(response?.action || action).trim().toLowerCase();
     opsActionReceipt.value = `${targetName} ${targetAction} accepted`;
-    await Promise.all([reloadOpsOverview(), reloadOpsContainers()]);
+    await Promise.all([reloadOpsOverview(), reloadOpsContainers(), reloadOpsMeguriStatus()]);
   } catch (error) {
     opsActionError.value = readErrorMessage(error);
   } finally {
@@ -1522,7 +1762,10 @@ onMounted(async () => {
       reloadQuota(),
       reloadOpsOverview(),
       reloadOpsContainers(),
+      reloadOpsMeguriStatus(),
+      reloadOpsServicesHealth(),
       reloadPromptCacheMetrics(),
+      reloadMusicProviders(),
       reloadPendingWallpapers(),
       reloadBlogWhispers(1),
       reloadCategoryMetas()
@@ -1542,9 +1785,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* 颜色与控件样式统一在 styles/admin-console.css（明暗双主题），此处只保留布局。 */
 .admin-page {
   min-height: 100%;
-  color: rgba(239, 244, 255, 0.96);
   display: grid;
   grid-template-rows: auto auto 1fr;
   gap: 12px;
@@ -1553,55 +1796,6 @@ onBeforeUnmount(() => {
 .admin-page--embedded {
   min-height: auto;
   grid-template-rows: auto 1fr;
-}
-
-.page-header {
-  padding: 8px 4px 0;
-}
-
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(var(--accent-soft-rgb), 0.95);
-}
-
-h1 {
-  margin-top: 4px;
-  font-size: clamp(24px, 3.6vw, 36px);
-}
-
-.page-header p {
-  margin-top: 10px;
-  max-width: 760px;
-  color: rgba(223, 230, 249, 0.86);
-}
-
-.kpi-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  animation: fade-in-up 0.25s ease;
-}
-
-.kpi-card {
-  --liquid-bg: rgba(20, 27, 42, 0.36);
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.22);
-  border-radius: 14px;
-  padding: 12px;
-  display: grid;
-  gap: 6px;
-}
-
-.kpi-card span {
-  color: rgba(201, 219, 243, 0.9);
-  font-size: 12px;
-}
-
-.kpi-card strong {
-  font-size: 22px;
-  color: rgba(236, 245, 255, 0.96);
 }
 
 .dashboard-layout {
@@ -1624,104 +1818,12 @@ h1 {
   padding-block: 6px;
 }
 
-.content-panel {
-  --liquid-bg: rgba(20, 27, 42, 0.32);
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.2);
-  border-radius: 14px;
-  padding: 14px 16px;
-  overflow: auto;
-  animation: fade-in-up 0.25s ease;
-}
-
-.content-panel--embedded {
-  --liquid-bg: transparent;
-  --liquid-border: transparent;
-  --liquid-shadow: none;
-  border-radius: 0;
-  padding: 0;
-  overflow: visible;
-}
-
 .embedded-hint {
   margin-bottom: 10px;
 }
 
-.state-tip {
-  color: rgba(204, 223, 252, 0.92);
-}
-
-.field-label {
-  font-size: 12px;
-  color: rgba(218, 229, 247, 0.88);
-}
-
-.field-input {
-  border: 0;
-  border-radius: 10px;
-  min-height: 38px;
-  padding: 0 12px;
-  background: rgba(8, 14, 24, 0.56);
-  color: rgba(237, 245, 255, 0.96);
-  box-shadow: inset 0 0 0 1px rgba(165, 186, 223, 0.22);
-}
-
-.inline-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.primary-btn,
-.ghost-btn {
-  border: 0;
-  border-radius: 10px;
-  min-height: 36px;
-  padding: 0 14px;
-  color: rgba(242, 247, 255, 0.94);
-}
-
-.primary-btn {
-  background: rgba(var(--accent-rgb), 0.34);
-}
-
-.ghost-btn {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.error-text {
-  color: rgba(255, 188, 206, 0.96);
-}
-
-.dialog-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: grid;
-  place-items: center;
-  background: rgba(6, 10, 20, 0.44);
-  backdrop-filter: blur(4px);
-  padding: 12px;
-}
-
-.dialog-shell {
-  --liquid-bg: rgba(18, 24, 36, 0.72);
-  --liquid-border: rgba(255, 255, 255, 0.24);
-  --liquid-shadow: 0 22px 48px rgba(0, 0, 0, 0.35);
-  width: min(480px, 100%);
-  border-radius: 14px;
-  padding: 16px;
-  display: grid;
-  gap: 10px;
-}
-
-.dialog-shell h3 {
-  font-size: 20px;
-}
-
-.dialog-shell p {
-  color: rgba(223, 230, 249, 0.88);
+.unlock-actions {
+  justify-content: flex-end;
 }
 
 .dialog-fade-enter-active,
@@ -1734,23 +1836,7 @@ h1 {
   opacity: 0;
 }
 
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @media (max-width: 1080px) {
-  .kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .dashboard-layout {
     grid-template-columns: 1fr;
   }
@@ -1759,12 +1845,6 @@ h1 {
     position: static;
     height: auto;
     min-height: auto;
-  }
-}
-
-@media (max-width: 640px) {
-  .kpi-grid {
-    grid-template-columns: 1fr;
   }
 }
 </style>

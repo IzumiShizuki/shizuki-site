@@ -5,9 +5,7 @@
         <h2>博客悄悄话</h2>
         <p>集中查看访客给作者留下的匿名留言与站点留言。</p>
       </div>
-      <button class="ghost-btn ripple-trigger" type="button" :disabled="loading" @click="$emit('refresh')">
-        {{ loading ? '刷新中...' : '刷新' }}
-      </button>
+      <AdminRefreshButton :busy="loading" @click="$emit('refresh')">刷新</AdminRefreshButton>
     </header>
 
     <p v-if="error" class="error-text">{{ error }}</p>
@@ -15,7 +13,7 @@
     <p v-else-if="!items.length" class="state-tip">暂无悄悄话记录。</p>
 
     <div v-else class="whisper-list">
-      <article v-for="item in items" :key="item.whisperId" class="whisper-card liquid-material">
+      <article v-for="item in items" :key="item.whisperId" class="whisper-card admin-card">
         <header class="whisper-head">
           <div class="whisper-head-main">
             <strong>{{ item.postTitle || '站点留言' }}</strong>
@@ -77,6 +75,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import AdminRefreshButton from './AdminRefreshButton.vue';
 
 const props = defineProps({
   loading: {
@@ -140,12 +139,12 @@ function formatDateTime(value) {
 
 .panel-head h2 {
   margin: 0;
-  color: rgba(236, 245, 255, 0.96);
+  color: var(--admin-text);
 }
 
 .panel-head p {
   margin: 6px 0 0;
-  color: rgba(205, 222, 243, 0.8);
+  color: var(--admin-text-soft);
 }
 
 .whisper-list {
@@ -154,13 +153,9 @@ function formatDateTime(value) {
 }
 
 .whisper-card {
-  --liquid-bg: rgba(10, 18, 30, 0.5);
-  --liquid-border: rgba(255, 255, 255, 0.18);
-  --liquid-shadow: 0 12px 26px rgba(5, 10, 20, 0.24);
   display: grid;
   gap: 10px;
   padding: 14px 16px;
-  border-radius: 16px;
 }
 
 .whisper-head {
@@ -178,7 +173,7 @@ function formatDateTime(value) {
 }
 
 .whisper-head-main strong {
-  color: rgba(239, 247, 255, 0.98);
+  color: var(--admin-text);
 }
 
 .meta-chip {
@@ -187,20 +182,20 @@ function formatDateTime(value) {
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(212, 227, 246, 0.86);
+  background: var(--admin-surface-soft);
+  color: var(--admin-text-soft);
   font-size: 12px;
 }
 
 .whisper-time {
-  color: rgba(190, 209, 232, 0.74);
+  color: var(--admin-text-faint);
   font-size: 12px;
   white-space: nowrap;
 }
 
 .whisper-content {
   margin: 0;
-  color: rgba(229, 238, 250, 0.92);
+  color: var(--admin-text);
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
@@ -216,17 +211,17 @@ function formatDateTime(value) {
 .whisper-meta div {
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--admin-surface-soft);
 }
 
 .whisper-meta dt {
-  color: rgba(174, 197, 224, 0.74);
+  color: var(--admin-text-faint);
   font-size: 12px;
 }
 
 .whisper-meta dd {
   margin: 6px 0 0;
-  color: rgba(234, 243, 255, 0.94);
+  color: var(--admin-text);
 }
 
 .whisper-actions {
@@ -244,13 +239,8 @@ function formatDateTime(value) {
   flex-wrap: wrap;
 }
 
-.page-indicator,
-.state-tip {
-  color: rgba(208, 226, 248, 0.88);
-}
-
-.error-text {
-  color: rgba(255, 168, 184, 0.94);
+.page-indicator {
+  color: var(--admin-text-soft);
 }
 
 @media (max-width: 760px) {

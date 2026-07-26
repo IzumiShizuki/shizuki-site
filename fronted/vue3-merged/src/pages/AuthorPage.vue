@@ -419,7 +419,8 @@
           </div>
 
           <div v-else-if="isAdminConsoleTab" class="content-block admin-console-block">
-            <AdminPage :key="`author-admin-${activeAdminTab}`" embedded :forced-tab="activeAdminTab" />
+            <!-- 不再按子标签 key 重挂载：管理台在子标签之间保持存活，由内部按需加载数据 -->
+            <AdminPage embedded :forced-tab="activeAdminTab" />
           </div>
 
           <div v-else-if="activeTab === 'posts'" class="content-block">
@@ -1056,6 +1057,7 @@ const adminTabs = Object.freeze([
   { tab: AdminTabKey.PERMISSIONS, label: '后台权限', icon: 'fas fa-key' },
   { tab: AdminTabKey.QUOTA, label: '后台配额', icon: 'fas fa-gauge-high' },
   { tab: AdminTabKey.PROMPT_CACHE, label: 'Prompt Cache', icon: 'fas fa-chart-line' },
+  { tab: AdminTabKey.MUSIC_PROVIDERS, label: '音乐源', icon: 'fas fa-music' },
   { tab: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
   { tab: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
 ]);
@@ -1258,7 +1260,9 @@ const activeAdminTab = computed(() => {
   return ADMIN_TAB_KEYS.has(tab) ? tab : AdminTabKey.USERS;
 });
 const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
-const contentPanelRenderKey = computed(() => `${activeTab.value}:${activeAdminTab.value || 'none'}`);
+// 管理台的所有子标签共用同一个 key：在 Users / Groups / Quota 之间切换时
+// 滚动容器与玻璃面板不再销毁重建，避免整块内容闪烁和重复请求。
+const contentPanelRenderKey = computed(() => (activeAdminTab.value ? 'admin-console' : activeTab.value));
 
 const hero = computed(() => authorProfile.value.profileJson.hero);
 const identity = computed(() => authorProfile.value.profileJson.identity);
@@ -2739,7 +2743,7 @@ onBeforeUnmount(() => {
   height: 136px;
   right: 28%;
   top: -22px;
-  background: radial-gradient(circle, rgba(118, 255, 226, 0.5), rgba(118, 255, 226, 0.08) 68%, rgba(118, 255, 226, 0));
+  background: radial-gradient(circle, rgba(246, 194, 161, 0.5), rgba(246, 194, 161, 0.08) 68%, rgba(246, 194, 161, 0));
   animation: float-orb-3 7.5s ease-in-out infinite;
 }
 
@@ -2759,12 +2763,12 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: -8px;
   border-radius: 999px;
-  border: 1px solid rgba(145, 218, 255, 0.56);
+  border: 1px solid rgba(246, 194, 161, 0.56);
   background: conic-gradient(
     from 0deg,
-    rgba(120, 230, 255, 0.12),
-    rgba(190, 143, 255, 0.24),
-    rgba(120, 230, 255, 0.12)
+    rgba(246, 194, 161, 0.16),
+    rgba(239, 160, 168, 0.26),
+    rgba(246, 194, 161, 0.16)
   );
   filter: blur(0.5px);
   animation: spin-slow 10s linear infinite;
@@ -3057,9 +3061,9 @@ onBeforeUnmount(() => {
   inset: -25%;
   background: conic-gradient(
     from 180deg,
-    rgba(126, 217, 255, 0),
-    rgba(126, 217, 255, 0.2),
-    rgba(126, 217, 255, 0)
+    rgba(246, 194, 161, 0),
+    rgba(246, 194, 161, 0.22),
+    rgba(246, 194, 161, 0)
   );
   animation: sweep-border 6s linear infinite;
 }
@@ -3220,7 +3224,7 @@ onBeforeUnmount(() => {
   height: 160px;
   right: 34%;
   top: -24px;
-  background: radial-gradient(circle, rgba(124, 255, 216, 0.42), rgba(124, 255, 216, 0.06) 70%, rgba(124, 255, 216, 0));
+  background: radial-gradient(circle, rgba(246, 194, 161, 0.42), rgba(246, 194, 161, 0.06) 70%, rgba(246, 194, 161, 0));
   animation: float-orb-3 8.2s ease-in-out infinite;
 }
 
@@ -3261,12 +3265,12 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: -8px;
   border-radius: 999px;
-  border: 1px solid rgba(145, 218, 255, 0.52);
+  border: 1px solid rgba(246, 194, 161, 0.52);
   background: conic-gradient(
     from 0deg,
-    rgba(120, 230, 255, 0.12),
-    rgba(190, 143, 255, 0.24),
-    rgba(120, 230, 255, 0.12)
+    rgba(246, 194, 161, 0.16),
+    rgba(239, 160, 168, 0.26),
+    rgba(246, 194, 161, 0.16)
   );
   animation: spin-slow 11s linear infinite;
 }

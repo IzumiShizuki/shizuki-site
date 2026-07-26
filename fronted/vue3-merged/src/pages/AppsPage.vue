@@ -44,7 +44,7 @@
               <button class="action-btn ripple-trigger" :disabled="!isEnabled(app.code)" @click="toggleAppInRail(app.code)">
                 {{ isInRailSlots(app.code) ? '移出悬浮栏' : '加入悬浮栏' }}
               </button>
-              <button class="action-btn ripple-trigger" :disabled="!isEnabled(app.code)" @click="useApp(app.code)">
+              <button class="action-btn is-primary ripple-trigger" :disabled="!isEnabled(app.code)" @click="useApp(app.code)">
                 使用
               </button>
               <button class="action-btn ripple-trigger" :disabled="!isEnabled(app.code)" @click="openAppInPage(app.code)">
@@ -1286,6 +1286,22 @@ onBeforeUnmount(() => {
 .action-btn:disabled {
   opacity: 0.46;
   cursor: not-allowed;
+}
+
+/* “使用”作为卡片主操作：实心暖桃，其余保持柔和，减轻 4 键同权的拥挤感 */
+.card-actions .action-btn.is-primary {
+  background: var(--accent-mode-fill-strong, linear-gradient(145deg, rgba(var(--accent-strong-rgb), 0.94), rgba(var(--accent-rgb), 0.84))) !important;
+  color: var(--accent-surface-text, rgba(46, 30, 24, 0.95)) !important;
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.7)) !important;
+  font-weight: 600;
+  box-shadow: var(--accent-mode-shadow, 0 8px 18px rgba(var(--accent-rgb), 0.22)) !important;
+}
+
+.card-actions .action-btn.is-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    var(--accent-mode-shadow, 0 12px 24px rgba(var(--accent-rgb), 0.28)),
+    var(--accent-mode-glow, 0 0 20px rgba(var(--accent-rgb), 0.24)) !important;
 }
 
 .url-source-block {

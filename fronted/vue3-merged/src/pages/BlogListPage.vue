@@ -101,7 +101,46 @@
               <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
 
               <article
-                v-for="(post, index) in listState.items"
+                v-if="featuredPost"
+                class="feed-hero liquid-material ripple-trigger"
+                @click="openPostDetail(featuredPost.postId)"
+              >
+                <img
+                  class="feed-hero-cover"
+                  :src="resolveCover(featuredPost.coverImageUrl)"
+                  :alt="featuredPost.title"
+                  loading="lazy"
+                />
+                <div class="feed-hero-scrim" aria-hidden="true"></div>
+                <div class="feed-hero-content">
+                  <div class="feed-hero-top">
+                    <span class="feed-hero-flag"><i class="fas fa-star" aria-hidden="true"></i> 最新文章</span>
+                    <span class="feed-hero-category">{{ featuredPost.categoryCode || 'uncategorized' }}</span>
+                  </div>
+                  <h2 class="feed-hero-title">{{ featuredPost.title }}</h2>
+                  <p class="feed-hero-summary">{{ resolveSummary(featuredPost.summary) }}</p>
+                  <div class="feed-hero-meta">
+                    <span><i class="far fa-calendar" aria-hidden="true"></i> {{ formatDate(featuredPost.publishedAt) }}</span>
+                    <span><i class="far fa-clock" aria-hidden="true"></i> {{ featuredPost.readingMinutes }} 分钟</span>
+                    <span><i class="far fa-file-lines" aria-hidden="true"></i> {{ featuredPost.wordCount }} 字</span>
+                    <span><i class="far fa-heart" aria-hidden="true"></i> {{ featuredPost.likeCount }}</span>
+                  </div>
+                  <div v-if="featuredPost.tags.length" class="tag-row feed-hero-tags">
+                    <button
+                      v-for="tag in featuredPost.tags"
+                      :key="`hero-${featuredPost.postId}-${tag}`"
+                      type="button"
+                      class="tag-chip ripple-trigger"
+                      @click.stop="applyTagFilter(tag)"
+                    >
+                      #{{ tag }}
+                    </button>
+                  </div>
+                </div>
+              </article>
+
+              <article
+                v-for="(post, index) in regularPosts"
                 :key="post.postId"
                 class="feed-card liquid-material ripple-trigger"
                 :class="{ reverse: index % 2 === 1 }"
@@ -110,14 +149,15 @@
               >
                 <div class="cover-pane">
                   <img :src="resolveCover(post.coverImageUrl)" :alt="post.title" loading="lazy" />
+                  <span class="cover-category">{{ post.categoryCode || 'uncategorized' }}</span>
                 </div>
                 <div class="content-pane">
                   <h2>{{ post.title }}</h2>
-                <div class="meta-row">
-                  <span>{{ formatDate(post.publishedAt) }}</span>
-                  <span>{{ post.categoryCode || 'uncategorized' }}</span>
-                  <span>{{ post.wordCount }} 字 · {{ post.readingMinutes }} 分钟</span>
-                </div>
+                  <div class="meta-row">
+                    <span><i class="far fa-calendar" aria-hidden="true"></i> {{ formatDate(post.publishedAt) }}</span>
+                    <span><i class="far fa-clock" aria-hidden="true"></i> {{ post.readingMinutes }} 分钟</span>
+                    <span><i class="far fa-file-lines" aria-hidden="true"></i> {{ post.wordCount }} 字</span>
+                  </div>
                   <p class="summary">{{ resolveSummary(post.summary) }}</p>
                   <div v-if="post.tags.length" class="tag-row">
                     <button
@@ -130,12 +170,22 @@
                       #{{ tag }}
                     </button>
                   </div>
+                  <span class="read-more">阅读全文 <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
                 </div>
               </article>
 
-              <p v-if="!listState.loading && !listState.items.length" class="empty-text">暂无符合条件的文章。</p>
+              <div v-if="!listState.loading && !listState.items.length" class="empty-state-cozy">
+                <svg width="72" height="54" viewBox="0 0 72 54" fill="none" aria-hidden="true">
+                  <ellipse cx="36" cy="47" rx="24" ry="4" fill="rgba(242,179,157,0.14)" />
+                  <path d="M16 24c0-6.6 5.4-12 12-12h15c6.6 0 12 5.4 12 12v6.5c0 5.5-4.5 10-10 10H26c-5.5 0-10-4.5-10-10V24z" fill="rgba(246,194,161,0.28)" stroke="rgba(242,179,157,0.85)" stroke-width="1.6" />
+                  <path d="M55 27h4.5a5.5 5.5 0 0 1 0 11H55" stroke="rgba(242,179,157,0.85)" stroke-width="1.6" fill="none" />
+                  <path d="M27 9c0-2.4 2.2-2.4 2.2-4.6M35.5 9c0-2.4 2.2-2.4 2.2-4.6M44 9c0-2.4 2.2-2.4 2.2-4.6" stroke="rgba(231,211,196,0.7)" stroke-width="1.6" stroke-linecap="round" />
+                </svg>
+                <p class="empty-cozy-title">这里还很安静</p>
+                <p class="empty-cozy-sub">泡杯茶，写下第一篇文章吧 ✎</p>
+              </div>
 
-              <footer class="pagination-wrap">
+              <footer v-if="pageCount > 1" class="pagination-wrap">
                 <button type="button" class="mini-btn ripple-trigger" :disabled="listState.pageNo <= 1" @click="goToPage(listState.pageNo - 1)">
                   上一页
                 </button>
@@ -496,6 +546,15 @@ const permissionCodes = computed(() => {
 const canWrite = computed(() => groupCodes.value.includes('ADMIN') || permissionCodes.value.includes('blog.post.write'));
 const canManageCategories = computed(() => groupCodes.value.includes('ADMIN'));
 const pageCount = computed(() => Math.max(1, Math.ceil(Math.max(0, listState.total) / listState.pageSize)));
+const hasActiveListFilters = computed(() =>
+  Boolean(filters.keyword || filters.category || filters.tag || filters.archiveMonth || filters.publishedFrom || filters.publishedTo)
+);
+const featuredPost = computed(() => {
+  if (hasActiveListFilters.value) return null;
+  if (listState.pageNo !== 1) return null;
+  return listState.items[0] || null;
+});
+const regularPosts = computed(() => (featuredPost.value ? listState.items.slice(1) : listState.items));
 const viewportZone = computed(() => {
   if (isMobileLike.value) return 'mobile';
   if (isNarrowDesktop.value) return 'narrow';
@@ -1480,14 +1539,150 @@ onBeforeUnmount(() => {
 }
 
 .feed-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 18px 30px rgba(2, 4, 8, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 34px rgba(2, 4, 8, 0.34);
+  --liquid-border: rgba(var(--accent-rgb), 0.34);
+}
+
+.feed-hero {
+  --liquid-bg: rgba(7, 10, 17, 0.72);
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 20px 38px rgba(4, 6, 11, 0.34);
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: clamp(240px, 30vw, 340px);
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+  animation: reveal-up 380ms ease both;
+  transition: transform 200ms ease, box-shadow 220ms ease;
+}
+
+.feed-hero:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 44px rgba(2, 4, 8, 0.42);
+  --liquid-border: rgba(var(--accent-rgb), 0.4);
+}
+
+.feed-hero-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 400ms ease;
+}
+
+.feed-hero:hover .feed-hero-cover {
+  transform: scale(1.03);
+}
+
+.feed-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 9, 16, 0.08) 26%, rgba(6, 9, 16, 0.78) 74%, rgba(6, 9, 16, 0.92)),
+    linear-gradient(120deg, rgba(6, 9, 16, 0.42), transparent 52%);
+}
+
+.feed-hero-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: clamp(14px, 2vw, 22px);
+}
+
+.feed-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.feed-hero-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.9);
+  color: #1a120d;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.feed-hero-category {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(8, 12, 20, 0.5);
+  color: rgba(248, 250, 255, 0.94);
+  font-size: 11.5px;
+  backdrop-filter: blur(4px);
+}
+
+.feed-hero-title {
+  font-size: clamp(20px, 2.5vw, 30px);
+  line-height: 1.22;
+  color: rgba(252, 253, 255, 0.98);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-hero-summary {
+  max-width: 72ch;
+  color: rgba(233, 239, 252, 0.88);
+  font-size: clamp(12.5px, 1.1vw, 14px);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11.5px;
+  color: rgba(226, 233, 248, 0.82);
+}
+
+.feed-hero-meta i {
+  margin-right: 4px;
+  color: rgba(var(--accent-rgb), 0.9);
+}
+
+.feed-hero-tags {
+  margin-top: 2px;
 }
 
 .cover-pane {
   grid-area: cover;
   position: relative;
   overflow: hidden;
+}
+
+.cover-category {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  max-width: calc(100% - 16px);
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(8, 12, 20, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(248, 250, 255, 0.94);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
 }
 
 .cover-pane img {
@@ -1526,6 +1721,38 @@ onBeforeUnmount(() => {
   color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
 }
 
+.meta-row i {
+  margin-right: 3px;
+  color: rgba(var(--accent-rgb), 0.8);
+}
+
+.read-more {
+  margin-top: auto;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(var(--accent-rgb), 0.92);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.feed-card:hover .read-more {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.read-more i {
+  font-size: 10.5px;
+  transition: transform 180ms ease;
+}
+
+.feed-card:hover .read-more i {
+  transform: translateX(2px);
+}
+
 .summary {
   color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88));
   line-height: 1.5;
@@ -1561,11 +1788,17 @@ onBeforeUnmount(() => {
   position: sticky;
   bottom: 0;
   z-index: 2;
-  padding: 8px 0 4px;
-  background: linear-gradient(180deg, rgba(8, 11, 18, 0) 0%, rgba(8, 11, 18, 0.82) 48%);
+  padding: 10px 0 6px;
+  /* 暖色柔和渐隐，替换原来突兀的黑色横条 */
+  background: linear-gradient(
+    180deg,
+    rgba(var(--accent-gradient-end-rgb, 239, 160, 168), 0) 0%,
+    var(--theme-scrim, rgba(20, 14, 22, 0.72)) 60%
+  );
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: center;
 }
 
 .page-btn {
@@ -1849,6 +2082,59 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+/* 温馨空状态：小唱片插画 + 一句轻语 */
+.empty-state-cozy {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 40px 16px 28px;
+  text-align: center;
+  animation: empty-cozy-in 0.5s var(--ease-out, ease);
+}
+
+.empty-state-cozy svg {
+  margin-bottom: 4px;
+  animation: empty-cozy-float 4.5s ease-in-out infinite;
+}
+
+.empty-cozy-title {
+  font-family: var(--font-cute, inherit);
+  font-size: 15px;
+  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.9));
+}
+
+.empty-cozy-sub {
+  font-size: 12.5px;
+  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.72));
+}
+
+@keyframes empty-cozy-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes empty-cozy-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state-cozy svg {
+    animation: none;
+  }
+}
+
 .search-slide-enter-active,
 .search-slide-leave-active {
   transition: all 220ms ease;
@@ -1940,6 +2226,19 @@ onBeforeUnmount(() => {
     min-height: 0;
   }
 
+  .feed-hero {
+    min-height: 220px;
+  }
+
+  .feed-hero-summary {
+    -webkit-line-clamp: 3;
+  }
+
+  .read-more {
+    opacity: 1;
+    transform: none;
+  }
+
   .cover-pane {
     min-height: 160px;
   }
@@ -1964,6 +2263,7 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .feed-card,
+  .feed-hero,
   .search-slide-enter-active,
   .search-slide-leave-active {
     animation: none !important;

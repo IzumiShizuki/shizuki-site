@@ -228,4 +228,63 @@ describe('useUiPreferences', () => {
       })
     );
   });
+
+  it('picks a dark ink on light accents and a light ink on dark accents', async () => {
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+    const readSurfaceText = () => document.documentElement.style.getPropertyValue('--accent-surface-text');
+
+    ui.initializeUiPreferences();
+
+    // 默认奶杏桃粉是浅色 → 强主色按钮上应是深墨
+    expect(readSurfaceText()).toContain('46, 30, 24');
+
+    // 深色主色 → 白墨（夜间模式）
+    ui.setAccentHex('#1F2937');
+    expect(readSurfaceText()).toContain('255, 255, 255');
+
+    // 白天模式下深色主色仍是白墨（不再按昼夜写死深字）
+    ui.setThemeMode('day');
+    expect(readSurfaceText()).toContain('255, 255, 255');
+
+    // 白天模式浅色主色 → 深墨
+    ui.setAccentHex('#F2B39D');
+    expect(readSurfaceText()).toContain('46, 30, 24');
+  });
+
+  it('computes the surface ink from gradient stops in gradient mode', async () => {
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+    const readSurfaceText = () => document.documentElement.style.getPropertyValue('--accent-surface-text');
+
+    ui.initializeUiPreferences();
+    ui.setAccentMode('gradient');
+
+    // 浅色渐变（奶杏桃粉）→ 深墨
+    ui.setAccentGradientPreset('apricot-blush');
+    expect(readSurfaceText()).toContain('46, 30, 24');
+
+    // 整体偏深的渐变 → 白墨
+    ui.setAccentGradientCustom('#334155', '#1E1B4B');
+    expect(readSurfaceText()).toContain('255, 255, 255');
+  });
+
+  it('keeps gradient title text readable against the page background', async () => {
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+    const readTextGradientStart = () =>
+      document.documentElement.style.getPropertyValue('--accent-text-gradient-start-rgb').trim();
+
+    ui.initializeUiPreferences();
+    ui.setAccentMode('gradient');
+    ui.setAccentGradientPreset('apricot-blush');
+
+    // 夜间深底上浅色渐变本身对比度足够，不需要调整
+    expect(readTextGradientStart()).toBe('246, 194, 161');
+
+    // 白天浅底上同样的浅渐变必须被压深，否则标题看不清
+    ui.setThemeMode('day');
+    expect(readTextGradientStart()).not.toBe('246, 194, 161');
+    expect(document.documentElement.style.getPropertyValue('--accent-text-gradient')).not.toBe('');
+  });
 });

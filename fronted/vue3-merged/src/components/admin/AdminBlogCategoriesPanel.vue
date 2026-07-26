@@ -5,12 +5,10 @@
         <h2>博客分类视觉</h2>
         <p>维护分类展示名、封面图、排序与启用状态。</p>
       </div>
-      <button class="ghost-btn ripple-trigger" type="button" :disabled="loading" @click="$emit('refresh')">
-        {{ loading ? '刷新中...' : '刷新' }}
-      </button>
+      <AdminRefreshButton :busy="loading" @click="$emit('refresh')">刷新</AdminRefreshButton>
     </header>
 
-    <section v-if="allowCreate" class="create-card liquid-material">
+    <section v-if="allowCreate" class="create-card admin-card admin-card--soft">
       <div class="create-card-head">
         <div>
           <h3>新增分类</h3>
@@ -74,7 +72,7 @@
     <p v-else-if="!viewItems.length" class="state-tip">暂无分类元数据。</p>
 
     <div v-else class="category-grid">
-      <article v-for="itemView in viewItems" :key="itemView.item.categoryCode" class="category-card liquid-material">
+      <article v-for="itemView in viewItems" :key="itemView.item.categoryCode" class="category-card admin-card">
         <div class="cover-col">
           <img
             v-if="itemView.draft.coverImageUrl || itemView.item.coverImageUrl"
@@ -161,6 +159,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
+import AdminRefreshButton from './AdminRefreshButton.vue';
 
 const props = defineProps({
   loading: {
@@ -414,11 +413,7 @@ function normalizeCategoryCode(value) {
 }
 
 .create-card {
-  --liquid-bg: rgba(11, 17, 29, 0.52);
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 14px 24px rgba(6, 9, 16, 0.2);
-  border-radius: 14px;
-  padding: 12px;
+  padding: 12px 14px;
   display: grid;
   gap: 8px;
 }
@@ -437,7 +432,7 @@ function normalizeCategoryCode(value) {
 .create-card-head p {
   margin-top: 4px;
   font-size: 12px;
-  color: rgba(214, 224, 246, 0.78);
+  color: var(--admin-text-soft);
 }
 
 .field-grid {
@@ -459,15 +454,7 @@ function normalizeCategoryCode(value) {
 
 .panel-head p {
   margin-top: 6px;
-  color: rgba(214, 224, 246, 0.88);
-}
-
-.state-tip {
-  color: rgba(208, 220, 246, 0.88);
-}
-
-.error-text {
-  color: #ffadb2;
+  color: var(--admin-text-soft);
 }
 
 .category-grid {
@@ -478,11 +465,7 @@ function normalizeCategoryCode(value) {
 }
 
 .category-card {
-  --liquid-bg: rgba(13, 19, 30, 0.48);
-  --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 14px 26px rgba(5, 9, 17, 0.2);
-  border-radius: 14px;
-  padding: 12px;
+  padding: 12px 14px;
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
   gap: 12px;
@@ -494,8 +477,8 @@ function normalizeCategoryCode(value) {
   height: 90px;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(8, 12, 20, 0.5);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
 }
 
 .cover-col img {
@@ -510,7 +493,7 @@ function normalizeCategoryCode(value) {
   display: grid;
   place-items: center;
   font-size: 12px;
-  color: rgba(193, 206, 236, 0.82);
+  color: var(--admin-text-faint);
 }
 
 .form-col {
@@ -525,16 +508,13 @@ function normalizeCategoryCode(value) {
 
 .field span {
   font-size: 12px;
-  color: rgba(216, 227, 249, 0.9);
+  color: var(--admin-text-soft);
 }
 
 .field-input {
   width: 100%;
   min-height: 34px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(8, 12, 20, 0.42);
-  color: rgba(236, 243, 255, 0.95);
   padding: 0 10px;
 }
 
@@ -571,26 +551,14 @@ function normalizeCategoryCode(value) {
   font-size: 13px;
 }
 
-.ghost-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(233, 241, 255, 0.94);
-}
-
-.primary-btn {
-  border: 1px solid rgba(var(--accent-rgb), 0.62);
-  background: rgba(var(--accent-rgb), 0.3);
-  color: rgba(246, 250, 255, 0.98);
-}
-
 .danger-btn {
   min-height: 34px;
   padding: 0 12px;
   border-radius: 10px;
   font-size: 13px;
-  border: 1px solid rgba(255, 112, 125, 0.55);
-  background: rgba(255, 112, 125, 0.14);
-  color: rgba(255, 213, 218, 0.98);
+  border: 1px solid rgba(226, 120, 104, 0.5);
+  background: var(--admin-bad-bg);
+  color: var(--admin-bad);
 }
 
 .upload-btn {

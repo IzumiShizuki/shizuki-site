@@ -1077,9 +1077,14 @@ onBeforeUnmount(() => {
 }
 
 .music-cozy-library .music-cozy-hero {
-  --liquid-bg: linear-gradient(135deg, rgba(229, 42, 48, 0.96), rgba(118, 21, 31, 0.94));
-  --liquid-border: rgba(255, 255, 255, 0.22);
-  --liquid-shadow: 0 22px 48px rgba(91, 10, 20, 0.34);
+  /* 暖桃晨光 hero，替换原来的网易云红，回到全站温馨语系 */
+  --liquid-bg: linear-gradient(
+    135deg,
+    rgba(var(--accent-gradient-start-rgb), 0.96),
+    rgba(var(--accent-gradient-end-rgb), 0.92)
+  );
+  --liquid-border: rgba(255, 255, 255, 0.28);
+  --liquid-shadow: 0 22px 48px rgba(var(--accent-strong-rgb), 0.3);
   position: relative;
   overflow: hidden;
 }
@@ -1105,41 +1110,51 @@ onBeforeUnmount(() => {
 .music-cozy-library .hero-copy .eyebrow,
 .music-cozy-library .hero-copy h1,
 .music-cozy-library .hero-copy p {
-  color: rgba(255, 255, 255, 0.96);
+  color: var(--accent-surface-text, rgba(58, 29, 22, 0.96));
+}
+
+/* 暖桃 hero 上的标题：撤销全局“渐变文字填充”，改回实心深墨，保证对比度 */
+.music-cozy-library .hero-copy h1,
+.music-cozy-library .hero-now-card .now-title {
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: var(--accent-surface-text, rgba(58, 29, 22, 0.96)) !important;
+  color: var(--accent-surface-text, rgba(58, 29, 22, 0.96)) !important;
 }
 
 .music-cozy-library .hero-copy p {
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--accent-surface-text-muted, rgba(58, 29, 22, 0.74));
 }
 
 .music-cozy-library .mood-chip {
-  border-color: rgba(255, 255, 255, 0.26);
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.94);
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.4);
+  color: var(--accent-surface-text, rgba(58, 29, 22, 0.92));
   transition: transform 160ms ease, background-color 160ms ease;
 }
 
 .music-cozy-library .mood-chip:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .music-cozy-library .hero-now-card {
-  --liquid-bg: rgba(38, 10, 15, 0.32);
-  --liquid-border: rgba(255, 255, 255, 0.22);
-  --liquid-shadow: 0 16px 34px rgba(50, 5, 12, 0.25);
+  --liquid-bg: rgba(255, 255, 255, 0.66);
+  --liquid-border: rgba(255, 255, 255, 0.5);
+  --liquid-shadow: 0 16px 34px rgba(var(--accent-strong-rgb), 0.22);
 }
 
 .music-cozy-library .now-label,
 .music-cozy-library .now-title,
 .music-cozy-library .now-meta,
 .music-cozy-library .now-note {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--accent-surface-text, rgba(58, 29, 22, 0.92));
 }
 
 .music-cozy-library .now-meta,
 .music-cozy-library .now-note {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--accent-surface-text-muted, rgba(58, 29, 22, 0.7));
 }
 
 .now-play-btn {
@@ -1152,10 +1167,10 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   background: rgba(255, 255, 255, 0.94);
-  color: #b91f2c;
+  color: rgb(var(--accent-strong-rgb));
   font-size: 12px;
   font-weight: 700;
-  box-shadow: 0 8px 20px rgba(62, 4, 12, 0.22);
+  box-shadow: 0 8px 20px rgba(var(--accent-strong-rgb), 0.24);
 }
 
 .music-cozy-library .album-card.is-static {
@@ -1332,7 +1347,11 @@ onBeforeUnmount(() => {
 }
 
 .cover.empty {
-  background-image: linear-gradient(145deg, rgba(229, 42, 48, 0.88), rgba(72, 22, 34, 0.96));
+  background-image: linear-gradient(
+    145deg,
+    rgba(var(--accent-gradient-start-rgb), 0.85),
+    rgba(var(--accent-strong-rgb), 0.92)
+  );
 }
 
 .cover.empty::after {
@@ -1519,9 +1538,9 @@ onBeforeUnmount(() => {
   min-height: 18px;
   border-radius: 999px;
   padding: 0 7px;
-  background: rgba(229, 42, 48, 0.14);
-  color: rgba(244, 106, 111, 0.96);
-  border: 1px solid rgba(229, 42, 48, 0.28);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: rgb(var(--accent-strong-rgb));
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   font-size: 10px;
   line-height: 1;
 }

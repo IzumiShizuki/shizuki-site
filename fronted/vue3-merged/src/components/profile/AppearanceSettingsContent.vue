@@ -256,7 +256,7 @@ function gradientPreviewStyle(startHex, endHex) {
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.72));
   box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  color: rgba(241, 249, 255, 0.98);
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(241, 249, 255, 0.98)));
 }
 
 .preset-grid,
@@ -369,7 +369,7 @@ function gradientPreviewStyle(startHex, endHex) {
   min-width: 80px;
   height: 38px;
   background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  color: rgba(241, 249, 255, 0.98);
+  color: var(--accent-surface-text, var(--accent-mode-text, rgba(241, 249, 255, 0.98)));
 }
 
 .mode-btn:focus-visible,
@@ -405,7 +405,8 @@ function gradientPreviewStyle(startHex, endHex) {
 :root[data-theme-mode='day'] .mode-btn.active,
 :root[data-theme-mode='day'] .preset-btn.active,
 :root[data-theme-mode='day'] .gradient-btn.active {
-  color: rgba(52, 34, 29, 0.96);
+  /* 激活态背景是强主色填充，文字颜色跟随亮度计算出的墨色，而非固定深色。 */
+  color: var(--accent-surface-text, rgba(52, 34, 29, 0.96));
 }
 
 @media (max-width: 700px) {
