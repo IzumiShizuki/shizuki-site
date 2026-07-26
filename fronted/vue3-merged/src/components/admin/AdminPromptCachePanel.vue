@@ -5,9 +5,7 @@
         <h2>Meguri Prompt Cache</h2>
         <p>只展示数值、哈希与运行状态，不保存人物提示词、用户消息、记忆或模型回复。</p>
       </div>
-      <button class="ghost-btn ripple-trigger" type="button" :disabled="loading" @click="$emit('refresh')">
-        {{ loading ? '刷新中...' : '刷新指标' }}
-      </button>
+      <AdminRefreshButton :busy="loading" @click="$emit('refresh')">刷新指标</AdminRefreshButton>
     </header>
 
     <p v-if="error" class="error-text">{{ error }}</p>
@@ -26,32 +24,32 @@
       </div>
 
       <section class="kpi-grid">
-        <article class="kpi-card liquid-material">
+        <article class="kpi-card admin-card">
           <span>缓存命中率</span>
           <strong>{{ formatPercent(cacheHitRate) }}</strong>
           <small>命中 {{ formatNumber(metrics.cacheHitTokens) }} / 已上报缓存 Token {{ formatNumber(knownCacheTokens) }}</small>
         </article>
-        <article class="kpi-card liquid-material">
+        <article class="kpi-card admin-card">
           <span>缓存命中 Token</span>
           <strong>{{ formatNumber(metrics.cacheHitTokens) }}</strong>
           <small>未命中 {{ formatNumber(metrics.cacheMissTokens) }}</small>
         </article>
-        <article class="kpi-card liquid-material">
+        <article class="kpi-card admin-card">
           <span>Prompt Token</span>
           <strong>{{ formatNumber(metrics.promptTokens) }}</strong>
           <small>输出 {{ formatNumber(metrics.outputTokens) }}</small>
         </article>
-        <article class="kpi-card liquid-material">
+        <article class="kpi-card admin-card">
           <span>模型调用</span>
           <strong>{{ formatNumber(metrics.totalRequests) }}</strong>
           <small>成功 {{ formatNumber(metrics.successfulRequests) }} / 失败 {{ formatNumber(metrics.failedRequests) }}</small>
         </article>
-        <article class="kpi-card liquid-material">
+        <article class="kpi-card admin-card">
           <span>Usage 覆盖率</span>
           <strong>{{ formatPercent(usageCoverageRate) }}</strong>
           <small>{{ formatNumber(metrics.usageReportedRequests) }} 次返回 Token Usage</small>
         </article>
-        <article class="kpi-card liquid-material">
+        <article class="kpi-card admin-card">
           <span>人物提示词版本</span>
           <strong class="hash-value">{{ shortHash(metrics.promptSha256) }}</strong>
           <small>{{ formatNumber(metrics.promptCharacters) }} 字符 · {{ text(metrics.cacheMode) }}</small>
@@ -59,7 +57,7 @@
       </section>
 
       <section class="detail-grid">
-        <article class="detail-card liquid-material">
+        <article class="detail-card admin-card">
           <header>
             <h3>每日趋势</h3>
             <span>最近 {{ daily.length }} 天</span>
@@ -75,7 +73,7 @@
           </div>
         </article>
 
-        <article class="detail-card liquid-material">
+        <article class="detail-card admin-card">
           <header>
             <h3>运行状态</h3>
             <span>{{ formatDate(metrics.collectingSince) }} 起</span>
@@ -91,7 +89,7 @@
         </article>
       </section>
 
-      <section class="recent-card liquid-material">
+      <section class="recent-card admin-card">
         <header>
           <h3>最近模型调用</h3>
           <span>仅保留数值，不包含对话内容</span>
@@ -130,6 +128,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import AdminRefreshButton from './AdminRefreshButton.vue';
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
@@ -226,7 +225,7 @@ p {
 .detail-card header span,
 .recent-card header span,
 .status-row {
-  color: rgba(205, 222, 243, 0.82);
+  color: var(--admin-text-soft);
 }
 
 .cache-head p {
@@ -241,21 +240,6 @@ p {
   font-size: 13px;
 }
 
-.state-pill {
-  border-radius: 999px;
-  padding: 4px 9px;
-}
-
-.state-pill--ok {
-  color: rgba(128, 245, 191, 0.96);
-  background: rgba(43, 161, 113, 0.18);
-}
-
-.state-pill--bad {
-  color: rgba(255, 188, 206, 0.96);
-  background: rgba(188, 58, 88, 0.18);
-}
-
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -265,11 +249,7 @@ p {
 .kpi-card,
 .detail-card,
 .recent-card {
-  --liquid-bg: rgba(20, 27, 42, 0.36);
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 14px 30px rgba(6, 10, 18, 0.22);
-  border-radius: 12px;
-  padding: 12px;
+  padding: 12px 14px;
 }
 
 .kpi-card {
@@ -279,11 +259,11 @@ p {
 
 .kpi-card span,
 .kpi-card small {
-  color: rgba(190, 209, 232, 0.82);
+  color: var(--admin-text-soft);
 }
 
 .kpi-card strong {
-  color: rgba(236, 245, 255, 0.96);
+  color: var(--admin-text);
   font-size: 22px;
 }
 
@@ -311,7 +291,7 @@ p {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--admin-surface-soft);
 }
 
 .bar-track i {
@@ -320,11 +300,11 @@ p {
 }
 
 .bar-hit {
-  background: rgba(79, 223, 164, 0.86);
+  background: rgba(132, 199, 155, 0.9);
 }
 
 .bar-miss {
-  background: rgba(255, 177, 91, 0.72);
+  background: rgba(240, 176, 112, 0.78);
 }
 
 .status-list {
@@ -340,7 +320,7 @@ p {
 }
 
 .status-list dt {
-  color: rgba(190, 209, 232, 0.82);
+  color: var(--admin-text-soft);
 }
 
 .status-list dd {
@@ -349,8 +329,6 @@ p {
 
 .table-wrap {
   overflow: auto;
-  border-radius: 10px;
-  box-shadow: inset 0 0 0 1px rgba(175, 198, 228, 0.18);
 }
 
 .admin-table {
@@ -363,19 +341,6 @@ p {
 .admin-table td {
   padding: 9px 10px;
   text-align: left;
-  border-bottom: 1px solid rgba(175, 198, 228, 0.14);
-}
-
-.error-text {
-  color: rgba(255, 188, 206, 0.96);
-}
-
-.ghost-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 9px;
-  padding: 8px 12px;
-  color: inherit;
-  background: rgba(255, 255, 255, 0.12);
 }
 
 @media (max-width: 900px) {

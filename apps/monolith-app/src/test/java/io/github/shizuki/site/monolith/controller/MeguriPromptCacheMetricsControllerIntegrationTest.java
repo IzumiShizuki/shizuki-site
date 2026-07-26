@@ -4,6 +4,7 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.site.admin.response.AdminPromptCacheMetricsResponse;
 import io.github.shizuki.site.admin.response.MeguriPromptCacheIngestResponse;
+import io.github.shizuki.site.monolith.auth.GuestAuthorTokenService;
 import io.github.shizuki.site.monolith.config.GatewayAuthProperties;
 import io.github.shizuki.site.monolith.ops.MeguriPromptCacheMetricsService;
 import io.github.shizuki.site.user.service.AuthService;
@@ -33,6 +34,8 @@ class MeguriPromptCacheMetricsControllerIntegrationTest {
     private GatewayAuthProperties gatewayAuthProperties;
     @MockBean
     private AuthService authService;
+    @MockBean
+    private GuestAuthorTokenService guestAuthorTokenService;
 
     @AfterEach
     void tearDown() {

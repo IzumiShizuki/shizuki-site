@@ -19,10 +19,21 @@ public class AdminOpsProperties {
     private int readTimeoutMs = 5000;
     private List<String> visibleContainerNames = new ArrayList<>();
     private List<String> allowedContainerNames = new ArrayList<>(List.of(
+        "meguri-pet",
+        "shizuki-memoryos",
         "shizuki-site-backend",
         "shizuki-site-frontend",
-        "shizuki-site-meting-api"
+        "shizuki-site-meting-api",
+        "shizuki-site-music-ncm-api",
+        "shizuki-site-music-web-auth-sidecar",
+        "shizuki-site-presentation-generator",
+        "shizuki-site-bill-sync-agent",
+        "shizuki-site-document-converter"
     ));
+    private String meguriContainerName = "meguri-pet";
+    private int logsTailLines = 200;
+    private int logsMaxTailLines = 1000;
+    private List<ServiceHealthTarget> serviceHealthTargets = new ArrayList<>();
     private final Docker docker = new Docker();
     private final Portainer portainer = new Portainer();
 
@@ -72,6 +83,40 @@ public class AdminOpsProperties {
 
     public void setAllowedContainerNames(List<String> allowedContainerNames) {
         this.allowedContainerNames = normalizeContainerNameList(allowedContainerNames);
+    }
+
+    public String getMeguriContainerName() {
+        return meguriContainerName;
+    }
+
+    public void setMeguriContainerName(String meguriContainerName) {
+        this.meguriContainerName = StringUtils.hasText(meguriContainerName)
+            ? normalizeContainerName(meguriContainerName)
+            : "meguri-pet";
+    }
+
+    public int getLogsTailLines() {
+        return logsTailLines;
+    }
+
+    public void setLogsTailLines(int logsTailLines) {
+        this.logsTailLines = Math.max(10, logsTailLines);
+    }
+
+    public int getLogsMaxTailLines() {
+        return logsMaxTailLines;
+    }
+
+    public void setLogsMaxTailLines(int logsMaxTailLines) {
+        this.logsMaxTailLines = Math.max(50, logsMaxTailLines);
+    }
+
+    public List<ServiceHealthTarget> getServiceHealthTargets() {
+        return serviceHealthTargets;
+    }
+
+    public void setServiceHealthTargets(List<ServiceHealthTarget> serviceHealthTargets) {
+        this.serviceHealthTargets = serviceHealthTargets == null ? new ArrayList<>() : serviceHealthTargets;
     }
 
     public Docker getDocker() {
@@ -127,6 +172,27 @@ public class AdminOpsProperties {
             }
         }
         return new ArrayList<>(normalized);
+    }
+
+    public static class ServiceHealthTarget {
+        private String name = "";
+        private String url = "";
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = StringUtils.hasText(name) ? name.trim() : "";
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = StringUtils.hasText(url) ? url.trim() : "";
+        }
     }
 
     public static class Docker {

@@ -42,11 +42,15 @@ public class DockerEngineTransport {
     }
 
     public Response get(String pathWithQuery) {
-        return execute("GET", pathWithQuery);
+        return toResponse(execute("GET", pathWithQuery));
     }
 
     public Response post(String pathWithQuery) {
-        return execute("POST", pathWithQuery);
+        return toResponse(execute("POST", pathWithQuery));
+    }
+
+    public RawResponse getRaw(String pathWithQuery) {
+        return execute("GET", pathWithQuery);
     }
 
     @PreDestroy
@@ -54,11 +58,11 @@ public class DockerEngineTransport {
         executor.shutdownNow();
     }
 
-    private Response execute(String method, String pathWithQuery) {
+    private RawResponse execute(String method, String pathWithQuery) {
         String normalizedMethod = StringUtils.hasText(method) ? method.trim().toUpperCase(Locale.ROOT) : "GET";
         String normalizedPath = normalizePath(pathWithQuery);
         long timeoutMs = Math.max(500L, (long) properties.getConnectTimeoutMs() + properties.getReadTimeoutMs());
-        Future<Response> future = executor.submit(() -> executeBlocking(normalizedMethod, normalizedPath));
+        Future<RawResponse> future = executor.submit(() -> executeBlocking(normalizedMethod, normalizedPath));
         try {
             return future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
@@ -84,7 +88,7 @@ public class DockerEngineTransport {
         }
     }
 
-    private Response executeBlocking(String method, String pathWithQuery) throws Exception {
+    private RawResponse executeBlocking(String method, String pathWithQuery) throws Exception {
         Path socketPath = Path.of(properties.getDocker().getSocketPath());
         UnixDomainSocketAddress address = UnixDomainSocketAddress.of(socketPath);
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
@@ -127,7 +131,7 @@ public class DockerEngineTransport {
         return buffer.toByteArray();
     }
 
-    private Response parseResponse(byte[] rawBytes) {
+    private RawResponse parseResponse(byte[] rawBytes) {
         int headerEnd = indexOf(rawBytes, HTTP_HEADER_DELIMITER, 0);
         if (headerEnd < 0) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Docker socket response was malformed");
@@ -184,8 +188,16 @@ public class DockerEngineTransport {
             }
         }
 
-        String body = new String(bodyBytes, StandardCharsets.UTF_8);
-        return new Response(statusCode, reasonPhrase, body, headers);
+        return new RawResponse(statusCode, reasonPhrase, bodyBytes, headers);
+    }
+
+    private Response toResponse(RawResponse raw) {
+        return new Response(
+            raw.statusCode(),
+            raw.reasonPhrase(),
+            new String(raw.bodyBytes(), StandardCharsets.UTF_8),
+            raw.headers()
+        );
     }
 
     private byte[] decodeChunkedBody(byte[] chunkedBytes) {
@@ -277,5 +289,8 @@ public class DockerEngineTransport {
     }
 
     public record Response(int statusCode, String reasonPhrase, String body, Map<String, String> headers) {
+    }
+
+    public record RawResponse(int statusCode, String reasonPhrase, byte[] bodyBytes, Map<String, String> headers) {
     }
 }

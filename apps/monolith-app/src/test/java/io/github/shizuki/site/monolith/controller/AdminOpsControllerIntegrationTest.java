@@ -6,6 +6,7 @@ import io.github.shizuki.common.security.service.AdminPrivilegeService;
 import io.github.shizuki.site.admin.response.AdminOpsContainerActionResponse;
 import io.github.shizuki.site.admin.response.AdminOpsOverviewResponse;
 import io.github.shizuki.site.media.response.MusicMetingStatusResponse;
+import io.github.shizuki.site.monolith.auth.GuestAuthorTokenService;
 import io.github.shizuki.site.monolith.config.GatewayAuthProperties;
 import io.github.shizuki.site.monolith.ops.AdminOpsService;
 import io.github.shizuki.site.user.service.AuthService;
@@ -37,6 +38,8 @@ class AdminOpsControllerIntegrationTest {
     private GatewayAuthProperties gatewayAuthProperties;
     @MockBean
     private AuthService authService;
+    @MockBean
+    private GuestAuthorTokenService guestAuthorTokenService;
 
     @AfterEach
     void tearDown() {

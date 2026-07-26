@@ -146,6 +146,37 @@ export async function getAdminPromptCacheMetrics(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getAdminOpsServicesHealth(authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/ops/services/health', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAdminOpsMeguriStatus(authorizedFetch) {
+  const response = await authorizedFetch('/api/v1/admin/ops/meguri/status', {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
+export async function getAdminOpsContainerLogs(containerId, tail, authorizedFetch) {
+  const normalizedId = String(containerId || '').trim();
+  if (!normalizedId) {
+    throw new Error('containerId is required');
+  }
+  const normalizedTail = Number(tail);
+  const query = {};
+  if (Number.isFinite(normalizedTail) && normalizedTail > 0) {
+    query.tail = Math.trunc(normalizedTail);
+  }
+  const response = await authorizedFetch(`/api/v1/admin/ops/containers/${encodeURIComponent(normalizedId)}/logs`, {
+    method: 'GET',
+    query
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function actionAdminOpsContainer(containerId, action, authorizedFetch) {
   const normalizedId = String(containerId || '').trim();
   const normalizedAction = String(action || '').trim().toLowerCase();
