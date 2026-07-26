@@ -70,4 +70,74 @@ describe('httpClient', () => {
       );
     }
   });
+
+  it('dispatches SSE data events to the stream handler', async () => {
+    const encoder = new TextEncoder();
+    const chunks = [
+      'data: {"type":"delta","content":"你好"}\n\n',
+      'data: {"type":"delta","content":"，世界"}\n\ndata: {"type":"done","payload":{"assistantMessage":"你好，世界"}}\n\n',
+      'data: [DONE]\n\n'
+    ];
+    let index = 0;
+    const stream = new ReadableStream({
+      pull(controller) {
+        if (index < chunks.length) {
+          controller.enqueue(encoder.encode(chunks[index]));
+          index += 1;
+        } else {
+          controller.close();
+        }
+      }
+    });
+    const response = new Response(stream, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' }
+    });
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(response);
+
+    const events = [];
+    const result = await httpRequest('/api/v1/ai-sessions/s1/messages/stream', {
+      method: 'POST',
+      body: { message: 'hi' },
+      stream: {
+        onEvent(event) {
+          events.push(event);
+        }
+      }
+    });
+
+    expect(events).toHaveLength(3);
+    expect(events[0]).toEqual({ type: 'delta', content: '你好' });
+    expect(events[1]).toEqual({ type: 'delta', content: '，世界' });
+    expect(events[2]).toEqual({ type: 'done', payload: { assistantMessage: '你好，世界' } });
+    expect(result).toEqual({ streamed: true, eventCount: 3 });
+  });
+
+  it('ignores non-data SSE lines and the [DONE] sentinel', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(': keep-alive comment\n\n'));
+        controller.enqueue(encoder.encode('event: message\n'));
+        controller.enqueue(encoder.encode('data: {"type":"delta","content":"x"}\n\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      }
+    });
+    const response = new Response(stream, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' }
+    });
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(response);
+
+    const events = [];
+    const result = await httpRequest('/api/v1/ai-sessions/s2/messages/stream', {
+      method: 'POST',
+      body: {},
+      stream: { onEvent: (event) => events.push(event) }
+    });
+
+    expect(events).toEqual([{ type: 'delta', content: 'x' }]);
+    expect(result.eventCount).toBe(1);
+  });
 });

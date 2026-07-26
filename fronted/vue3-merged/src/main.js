@@ -7,6 +7,7 @@ import App from './App.vue';
 import router from './router';
 import { initAosManager } from './utils/aosManager';
 import { initWindowLifecycleDiag } from './utils/windowLifecycleDiag';
+import { initNativeShell } from './mobile/nativeBootstrap';
 
 function settleBootLoader() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -26,3 +27,4 @@ initAosManager();
 initWindowLifecycleDiag({ router });
 app.mount('#app');
 settleBootLoader();
+initNativeShell(router);

@@ -2,6 +2,7 @@
   <MotionConfig reduced-motion="user">
     <div class="app-shell">
       <AppBackgroundStage
+        v-if="!isMobileShellRoute"
         :active-image-background="activeImageBackground"
         :active-video-background="activeVideoBackground"
         :video-failed="videoFailed"
@@ -20,6 +21,7 @@
       />
 
       <TopMenu
+        v-if="!isMobileShellRoute"
         :menu-expanded="menuExpanded"
         :theme-mode="ui.state.themeMode"
         :ai-chat-active="aiChatActive"
@@ -44,7 +46,11 @@
         @open-atmosphere-panel="openAtmospherePanel"
       />
 
-      <section class="workspace-shell" :class="{ expanded: menuExpanded, 'with-ai-panel': sidebarAiColumnMounted }">
+      <RouterView v-if="isMobileShellRoute" v-slot="{ Component }">
+        <component :is="Component" />
+      </RouterView>
+
+      <section v-else class="workspace-shell" :class="{ expanded: menuExpanded, 'with-ai-panel': sidebarAiColumnMounted }">
         <main
           class="route-content"
           :class="{
@@ -74,7 +80,7 @@
       </section>
 
       <AiDialog
-        v-if="showSheetAiPanel"
+        v-if="showSheetAiPanel && !isMobileShellRoute"
         :visible="true"
         mode="sheet"
         :chat-mode="activeAiChatMode"
@@ -83,6 +89,7 @@
       />
 
       <MusicPlayer
+        v-if="!isMobileShellRoute"
         :track="player.currentTrack.value"
         :tracks="player.tracks.value"
         :lyric-line="player.currentLyricLine.value"
@@ -120,7 +127,7 @@
 
       <transition name="lyric-fade">
         <div
-          v-if="subtitleVisible && !isMusicLibraryRoute"
+          v-if="subtitleVisible && !isMusicLibraryRoute && !isMobileShellRoute"
           class="global-lyric-bar liquid-material"
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
@@ -140,6 +147,7 @@
       </div>
 
       <AtmospherePanel
+        v-if="!isMobileShellRoute"
         :visible="atmospherePanelVisible"
         :active-tab="siteAtmosphere.panelTab"
         :music-track="player.currentTrack.value"
@@ -184,6 +192,7 @@
       />
 
       <BackgroundPickerDialog
+        v-if="!isMobileShellRoute"
         :visible="backgroundPickerVisible"
         :picker-mode="pickerMode"
         :bg-tabs="bgTabs"
@@ -226,11 +235,11 @@
         @select-background="selectBackground"
       />
 
-      <LightAppWindowHost :is-home-route="isHomeRoute" />
-      <TimePrismReminderHost />
-      <LevitationBall v-if="showLevitationBall" ref="levitationRef" />
+      <LightAppWindowHost v-if="!isMobileShellRoute" :is-home-route="isHomeRoute" />
+      <TimePrismReminderHost v-if="!isMobileShellRoute" />
+      <LevitationBall v-if="showLevitationBall && !isMobileShellRoute" ref="levitationRef" />
 
-      <div class="click-ripple-layer" aria-hidden="true">
+      <div v-if="!isMobileShellRoute" class="click-ripple-layer" aria-hidden="true">
         <span
           v-for="ripple in clickRipples"
           :key="ripple.id"
@@ -455,6 +464,7 @@ const isHomeRoute = computed(() => currentRouteKey.value === 'home');
 const isBlogRoute = computed(() => currentRouteKey.value === 'blog');
 const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
+const isMobileShellRoute = computed(() => route.path === '/m' || route.path.startsWith('/m/'));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiHubRoute = computed(() => currentRouteKey.value === 'ai-hub');
 const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall);

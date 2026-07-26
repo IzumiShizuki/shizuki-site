@@ -1,8 +1,21 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import HomePage from '../pages/HomePage.vue';
 import { useAuthSession } from '../composables/useAuthSession';
+import {
+  isMobileShellPath,
+  mapDesktopPathToMobile,
+  mapMobilePathToDesktop,
+  shouldUseMobileShell
+} from '../mobile/mobileMode';
 import * as musicApi from '../services/musicApi';
 import { resolveOAuthCallbackRedirect } from './oauthCallbackGuard';
+
+const MobileShell = () => import('../mobile/MobileShell.vue');
+const MobileMusicHomePage = () => import('../mobile/pages/MobileMusicHomePage.vue');
+const MobilePlaylistPage = () => import('../mobile/pages/MobilePlaylistPage.vue');
+const MobileSearchPage = () => import('../mobile/pages/MobileSearchPage.vue');
+const MobileProfilePage = () => import('../mobile/pages/MobileProfilePage.vue');
+const MobileAuthPage = () => import('../mobile/pages/MobileAuthPage.vue');
 
 const AiHubPage = () => import('../pages/AiHubPage.vue');
 const AdminPage = () => import('../pages/AdminPage.vue');
@@ -112,6 +125,18 @@ const routes = [
       { path: 'player', name: 'music-library-player', component: MusicPlayerDetailView }
     ]
   },
+  {
+    path: '/m',
+    component: MobileShell,
+    redirect: '/m/music',
+    children: [
+      { path: 'music', name: 'mobile-music', component: MobileMusicHomePage },
+      { path: 'playlist/:playlistCode', name: 'mobile-playlist', component: MobilePlaylistPage },
+      { path: 'search', name: 'mobile-search', component: MobileSearchPage },
+      { path: 'profile', name: 'mobile-profile', component: MobileProfilePage, meta: { requiresAuth: true } },
+      { path: 'auth', name: 'mobile-auth', component: MobileAuthPage }
+    ]
+  },
   { path: '/apps', name: 'apps', component: AppsPage },
   { path: '/ai-hub', alias: '/ai-tavern', name: 'ai-hub', component: AiHubPage },
   { path: '/meguri', name: 'meguri', component: MeguriPage, meta: { requiresAuth: true, requiresAdmin: true } },
@@ -139,10 +164,30 @@ router.beforeEach(async (to) => {
     return oauthCallbackRedirect;
   }
 
+  // 手机 / App 与桌面外壳互跳：手机浏览器自动进入移动版，桌面误入 /m 时回跳。
+  if (shouldUseMobileShell()) {
+    if (!isMobileShellPath(to.path)) {
+      const mobilePath = mapDesktopPathToMobile(to.path);
+      if (mobilePath) {
+        return { path: mobilePath };
+      }
+    }
+  } else if (isMobileShellPath(to.path)) {
+    return { path: mapMobilePathToDesktop(to.path) || '/' };
+  }
+
   const auth = useAuthSession();
   await auth.ensureReady();
 
   if (to.meta?.requiresAuth && !auth.isAuthenticated.value) {
+    if (isMobileShellPath(to.path)) {
+      return {
+        path: '/m/auth',
+        query: {
+          redirect: to.fullPath
+        }
+      };
+    }
     return {
       path: '/auth',
       query: {
@@ -180,6 +225,13 @@ router.beforeEach(async (to) => {
   if (to.path === '/auth' && auth.isAuthenticated.value) {
     const redirect = normalizeRedirectPath(typeof to.query.redirect === 'string' ? to.query.redirect : '/profile');
     return redirect;
+  }
+
+  if (to.path === '/m/auth' && auth.isAuthenticated.value) {
+    const rawRedirect = typeof to.query.redirect === 'string' ? to.query.redirect : '';
+    return rawRedirect && rawRedirect.startsWith('/m') && !rawRedirect.startsWith('/m/auth')
+      ? rawRedirect
+      : '/m/profile';
   }
 
   return true;

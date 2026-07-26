@@ -1,0 +1,357 @@
+/* ============================================================
+   Shizuki Mobile Shell — 「晚霞玻璃 / Dusk Glass」设计系统
+   竖屏优先，安全区自适应，兼容横屏与日间模式。
+   ============================================================ */
+
+:root {
+  --m-safe-top: env(safe-area-inset-top, 0px);
+  --m-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --m-safe-left: env(safe-area-inset-left, 0px);
+  --m-safe-right: env(safe-area-inset-right, 0px);
+
+  --m-accent-rgb: 242, 179, 157;
+  --m-accent-strong-rgb: 208, 150, 132;
+  --m-grad-a: 246, 194, 161;
+  --m-grad-b: 239, 160, 168;
+  --m-accent-gradient: linear-gradient(135deg, rgba(var(--m-grad-a), 0.96), rgba(var(--m-grad-b), 0.92));
+
+  --m-bg: linear-gradient(168deg, #10141f 0%, #141b2c 42%, #191627 100%);
+  --m-bg-glow-a: rgba(246, 194, 161, 0.14);
+  --m-bg-glow-b: rgba(148, 163, 224, 0.12);
+  --m-surface: rgba(30, 40, 63, 0.52);
+  --m-surface-strong: rgba(24, 32, 52, 0.78);
+  --m-surface-soft: rgba(255, 255, 255, 0.06);
+  --m-border: rgba(255, 224, 208, 0.16);
+  --m-border-strong: rgba(255, 220, 200, 0.3);
+  --m-text: rgba(255, 244, 236, 0.96);
+  --m-text-sub: rgba(226, 209, 197, 0.78);
+  --m-text-faint: rgba(200, 186, 178, 0.55);
+  --m-shadow: 0 18px 44px rgba(4, 8, 18, 0.44);
+  --m-shadow-soft: 0 10px 26px rgba(4, 8, 18, 0.32);
+  --m-blur: blur(22px) saturate(130%);
+  --m-radius-lg: 26px;
+  --m-radius-md: 18px;
+  --m-radius-sm: 12px;
+  --m-tabbar-height: 62px;
+  --m-mini-height: 58px;
+  --m-press-scale: 0.96;
+}
+
+:root[data-theme-mode='day'] {
+  --m-bg: linear-gradient(168deg, #f8f1e9 0%, #fbf4ee 46%, #f4ecf0 100%);
+  --m-bg-glow-a: rgba(242, 179, 157, 0.24);
+  --m-bg-glow-b: rgba(167, 187, 240, 0.2);
+  --m-surface: rgba(255, 255, 255, 0.66);
+  --m-surface-strong: rgba(255, 253, 250, 0.88);
+  --m-surface-soft: rgba(126, 96, 84, 0.07);
+  --m-border: rgba(163, 112, 92, 0.16);
+  --m-border-strong: rgba(163, 112, 92, 0.3);
+  --m-text: rgba(64, 50, 44, 0.96);
+  --m-text-sub: rgba(112, 92, 82, 0.8);
+  --m-text-faint: rgba(140, 122, 112, 0.55);
+  --m-shadow: 0 18px 40px rgba(120, 84, 66, 0.18);
+  --m-shadow-soft: 0 10px 24px rgba(120, 84, 66, 0.12);
+}
+
+/* ---------- 外壳 ---------- */
+
+.m-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--m-bg);
+  color: var(--m-text);
+  overflow: hidden;
+  font-family: 'HarmonyOS Sans SC', 'MiSans', 'Noto Sans SC', 'PingFang SC', 'Segoe UI', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 40;
+}
+
+.m-shell::before,
+.m-shell::after {
+  content: '';
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(60px);
+  z-index: 0;
+}
+
+.m-shell::before {
+  width: 62vw;
+  height: 62vw;
+  max-width: 420px;
+  max-height: 420px;
+  top: calc(-8vw + var(--m-safe-top));
+  right: -14vw;
+  background: radial-gradient(circle, var(--m-bg-glow-a), transparent 68%);
+}
+
+.m-shell::after {
+  width: 70vw;
+  height: 70vw;
+  max-width: 460px;
+  max-height: 460px;
+  bottom: 4vh;
+  left: -20vw;
+  background: radial-gradient(circle, var(--m-bg-glow-b), transparent 70%);
+}
+
+.m-shell-view {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: calc(var(--m-safe-top) + 14px) calc(var(--m-safe-right) + 18px)
+    calc(var(--m-safe-bottom) + var(--m-tabbar-height) + var(--m-mini-height) + 40px)
+    calc(var(--m-safe-left) + 18px);
+  scrollbar-width: none;
+}
+
+.m-shell-view::-webkit-scrollbar {
+  display: none;
+}
+
+.m-shell-view.no-mini {
+  padding-bottom: calc(var(--m-safe-bottom) + var(--m-tabbar-height) + 32px);
+}
+
+/* ---------- 通用元件 ---------- */
+
+.m-card {
+  background: var(--m-surface);
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-lg);
+  backdrop-filter: var(--m-blur);
+  -webkit-backdrop-filter: var(--m-blur);
+  box-shadow: var(--m-shadow-soft);
+}
+
+.m-press {
+  transition: transform 160ms ease, box-shadow 200ms ease, background 200ms ease;
+}
+
+.m-press:active {
+  transform: scale(var(--m-press-scale));
+}
+
+.m-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 26px 2px 12px;
+}
+
+.m-section-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.m-section-caption {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-text-faint);
+}
+
+.m-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--m-border);
+  background: var(--m-surface-soft);
+  color: var(--m-text-sub);
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.m-chip.active {
+  background: var(--m-accent-gradient);
+  border-color: transparent;
+  color: #3c2320;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(var(--m-accent-rgb), 0.35);
+}
+
+.m-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 16px;
+  background: var(--m-accent-gradient);
+  color: #3c2320;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 10px 24px rgba(var(--m-accent-rgb), 0.34);
+  cursor: pointer;
+}
+
+.m-btn-primary:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.m-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--m-border-strong);
+  background: transparent;
+  color: var(--m-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.m-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.m-input-label {
+  font-size: 12.5px;
+  color: var(--m-text-sub);
+  padding-left: 4px;
+}
+
+.m-input,
+.m-input-row input {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 15px;
+  border: 1px solid var(--m-border);
+  background: var(--m-surface-soft);
+  color: var(--m-text);
+  /* 16px 起步，避免移动端浏览器聚焦输入框时自动放大页面 */
+  font-size: 16px;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.m-input:focus,
+.m-input-row input:focus {
+  border-color: rgba(var(--m-accent-rgb), 0.66);
+  box-shadow: 0 0 0 3px rgba(var(--m-accent-rgb), 0.18);
+}
+
+.m-input::placeholder {
+  color: var(--m-text-faint);
+}
+
+.m-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.m-input-row .m-input-side {
+  flex-shrink: 0;
+  padding: 0 16px;
+  border-radius: 15px;
+  border: 1px solid var(--m-border-strong);
+  background: var(--m-surface-soft);
+  color: var(--m-text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.m-hint-error {
+  margin: 2px 4px 0;
+  font-size: 12.5px;
+  color: #ff9d9d;
+}
+
+:root[data-theme-mode='day'] .m-hint-error {
+  color: #d4514e;
+}
+
+.m-hint-ok {
+  margin: 2px 4px 0;
+  font-size: 12.5px;
+  color: #9fe3b9;
+}
+
+:root[data-theme-mode='day'] .m-hint-ok {
+  color: #2f9e63;
+}
+
+.m-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 44px 20px;
+  color: var(--m-text-faint);
+  font-size: 13.5px;
+  text-align: center;
+}
+
+.m-empty i {
+  font-size: 26px;
+  opacity: 0.7;
+}
+
+.m-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--m-surface-soft);
+  border-radius: var(--m-radius-sm);
+}
+
+.m-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+  animation: m-skeleton-sweep 1.4s infinite;
+}
+
+@keyframes m-skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ---------- 覆盖桌面全局的滚动限制 ---------- */
+
+body:has(.m-shell) {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-press,
+  .m-press:active {
+    transition: none;
+    transform: none;
+  }
+
+  .m-skeleton::after {
+    animation: none;
+  }
+}

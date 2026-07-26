@@ -135,6 +135,10 @@ export async function httpRequest(path, options = {}) {
     }
   }
 
+  if (options.stream && typeof options.stream.onEvent === 'function') {
+    headers.Accept = headers.Accept || 'text/event-stream';
+  }
+
   let response;
   try {
     response = await fetch(url, fetchOptions);
@@ -162,6 +166,10 @@ export async function httpRequest(path, options = {}) {
     }
   }
 
+  if (options.stream && typeof options.stream.onEvent === 'function' && response.ok && response.body) {
+    return consumeEventStream(response, options.stream.onEvent);
+  }
+
   const body = await parseResponseBody(response);
   if (response.ok) {
     return body;
@@ -178,6 +186,55 @@ export async function httpRequest(path, options = {}) {
   });
 }
 
+async function consumeEventStream(response, onEvent) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let eventCount = 0;
+
+  function dispatchLine(rawLine) {
+    const line = String(rawLine || '').trim();
+    if (!line.startsWith('data:')) return;
+    const data = line.slice(5).trim();
+    if (!data || data === '[DONE]') return;
+    let parsed = null;
+    try {
+      parsed = JSON.parse(data);
+    } catch {
+      return;
+    }
+    eventCount += 1;
+    onEvent(parsed);
+  }
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf('\n');
+      while (boundary >= 0) {
+        dispatchLine(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 1);
+        boundary = buffer.indexOf('\n');
+      }
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      dispatchLine(buffer);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore lock release issues on aborted streams
+    }
+  }
+
+  return { streamed: true, eventCount };
+}
+
+// 保留旧调用方使用的 URL 构造接口；请求本身仍统一由 httpRequest 处理。
 export function buildApiUrl(path, query) {
   return buildUrl(path, query);
 }

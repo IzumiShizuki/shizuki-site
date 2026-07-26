@@ -1,4 +1,5 @@
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
+import { absolutizeApiUrl } from '../services/apiBase';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 import { buildAlignedLyricTimeline } from '../utils/lyricAlignment';
 import { parseLrc } from '../utils/lrc';
@@ -110,17 +111,17 @@ function normalizeTrack(track, index) {
   const id = idRaw != null ? String(idRaw) : `track-${index}`;
   const cover = track?.cover
     ? track.cover.startsWith('http') || track.cover.startsWith('/')
-      ? track.cover
+      ? absolutizeApiUrl(track.cover)
       : `${import.meta.env.BASE_URL}${String(track.cover).replace(/^\/+/, '')}`
     : `${import.meta.env.BASE_URL}images/katanegai.jpg`;
   const audio = track?.audio
     ? track.audio.startsWith('http') || track.audio.startsWith('/')
-      ? track.audio
+      ? absolutizeApiUrl(track.audio)
       : `${import.meta.env.BASE_URL}${String(track.audio).replace(/^\/+/, '')}`
     : '';
   const lyric = track?.lyric
     ? track.lyric.startsWith('http') || track.lyric.startsWith('/')
-      ? track.lyric
+      ? absolutizeApiUrl(track.lyric)
       : `${import.meta.env.BASE_URL}${String(track.lyric).replace(/^\/+/, '')}`
     : null;
   const metadata = track?.metadata && typeof track.metadata === 'object' ? track.metadata : {};

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Shizuki</string>
+    <string name="title_activity_main">Shizuki</string>
+    <string name="package_name">online.shizuki.app</string>
+    <string name="custom_url_scheme">online.shizuki.app</string>
+</resources>
