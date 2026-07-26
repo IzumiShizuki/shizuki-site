@@ -9,6 +9,7 @@ export const WEB_TOOLBOX_GROUPS = Object.freeze([
     code: 'text',
     label: '文本与编码',
     tools: [
+      { code: 'translate', title: '文本翻译', summary: '多语种互译，站点代理百度 / DeepL', iconClass: 'fas fa-earth-asia' },
       { code: 'unicode', title: 'Unicode 转换', summary: '中文与 Unicode 转义互转', iconClass: 'fas fa-language' },
       { code: 'utf8', title: 'UTF-8 字节', summary: '文本与 Hex / 百分号字节互转', iconClass: 'fas fa-code' },
       { code: 'encoding', title: '编码解码器', summary: 'GBK / Big5 / Shift_JIS / EUC-KR 字节解码', iconClass: 'fas fa-font' },
@@ -33,6 +34,7 @@ export const WEB_TOOLBOX_GROUPS = Object.freeze([
       { code: 'password', title: '随机密码', summary: '使用安全随机数生成强密码', iconClass: 'fas fa-key' },
       { code: 'timestamp', title: 'Unix 时间戳', summary: '秒、毫秒与日期时间互转', iconClass: 'fas fa-clock' },
       { code: 'change-rate', title: '涨跌幅计算', summary: '计算差额、涨跌幅和倍数', iconClass: 'fas fa-chart-line' },
+      { code: 'address-gen', title: '地址生成器', summary: '德/美/英/日/法真实格式身份与地址', iconClass: 'fas fa-map-location-dot' },
       { code: 'qr-tools', title: '二维码工具', summary: '打开生成、识别和 WiFi 卡片', iconClass: 'fas fa-qrcode' }
     ]
   }

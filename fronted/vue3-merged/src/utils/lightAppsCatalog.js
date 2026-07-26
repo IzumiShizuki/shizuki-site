@@ -50,7 +50,7 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
   {
     code: 'web-toolbox',
     title: 'Web Toolbox',
-    summary: '文本编码、URL、JSON/TOON、密码、时间戳与计算工具的一站式本地工具箱。',
+    summary: '文本翻译、编码、URL、JSON/TOON、密码、时间戳、地址生成与计算工具的一站式工具箱。',
     iconClass: 'fas fa-toolbox',
     source: 'Shizuki',
     floatingAble: true

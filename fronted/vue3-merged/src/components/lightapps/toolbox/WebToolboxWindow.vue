@@ -27,7 +27,7 @@
           <span class="rail-icon"><i class="fas fa-sparkles" aria-hidden="true"></i></span>
           <span>
             <strong>Web Toolbox</strong>
-            <small>{{ WEB_TOOLBOX_TOOLS.length }} 个本地工具</small>
+            <small>{{ WEB_TOOLBOX_TOOLS.length }} 个便捷工具</small>
           </span>
         </button>
 
@@ -57,8 +57,8 @@
           <header class="toolbox-hero">
             <div>
               <p class="eyebrow">LOCAL FIRST · WEB UTILITY LAB</p>
-              <h2>随手处理文本、URL 与结构化数据</h2>
-              <p>无需上传文件，不依赖后端。输入和结果只停留在当前浏览器会话。</p>
+              <h2>随手处理文本、翻译、URL 与结构化数据</h2>
+              <p>输入和结果只停留在当前浏览器会话；除文本翻译经站点代理调用翻译引擎外，其余工具均在本地完成。</p>
             </div>
             <div class="hero-orbit" aria-hidden="true">
               <span><i class="fas fa-link"></i></span>
@@ -99,7 +99,46 @@
             </div>
           </header>
 
-          <section v-if="activeTool === 'unicode'" class="tool-panel two-pane">
+          <section v-if="activeTool === 'translate'" class="tool-panel two-pane">
+            <div class="input-pane">
+              <div class="pane-toolbar form-controls translate-controls">
+                <select v-model="translateState.provider" aria-label="翻译引擎">
+                  <option v-for="item in translateProviderOptions" :key="`engine_${item.code}`" :value="item.code" :disabled="item.disabled">
+                    {{ item.label }}
+                  </option>
+                </select>
+                <select v-model="translateState.from" aria-label="源语言">
+                  <option v-for="item in translateFromOptions" :key="`from_${item.code}`" :value="item.code">{{ item.label }}</option>
+                </select>
+                <button class="icon-action-btn ripple-trigger" type="button" title="互换语言" aria-label="互换语言" @click="swapTranslateLanguages">
+                  <i class="fas fa-right-left" aria-hidden="true"></i>
+                </button>
+                <select v-model="translateState.to" aria-label="目标语言">
+                  <option v-for="item in translateToOptions" :key="`to_${item.code}`" :value="item.code">{{ item.label }}</option>
+                </select>
+                <button
+                  class="primary-btn ripple-trigger"
+                  type="button"
+                  :disabled="translateBusy || !translateState.input.trim()"
+                  @click="runTranslate"
+                >
+                  <i class="fas" :class="translateBusy ? 'fa-circle-notch fa-spin' : 'fa-earth-asia'" aria-hidden="true"></i>
+                  {{ translateBusy ? '翻译中…' : '翻译' }}
+                </button>
+              </div>
+              <textarea
+                v-model="translateState.input"
+                class="tool-textarea"
+                rows="14"
+                placeholder="输入要翻译的文本，Ctrl + Enter 快速翻译"
+                @keydown="onTranslateInputKeydown"
+              ></textarea>
+              <p class="pane-hint">{{ translateHint }}</p>
+            </div>
+            <ResultPane :result="translateResult" />
+          </section>
+
+          <section v-else-if="activeTool === 'unicode'" class="tool-panel two-pane">
             <div class="input-pane">
               <div class="pane-toolbar">
                 <label class="segmented-control">
@@ -319,6 +358,90 @@
             </div>
           </section>
 
+          <section v-else-if="activeTool === 'address-gen'" class="tool-panel address-layout">
+            <div class="pane-toolbar form-controls address-controls">
+              <select v-model="addressState.country" aria-label="选择国家">
+                <option v-for="item in ADDRESS_COUNTRIES" :key="item.code" :value="item.code">{{ item.flag }} {{ item.label }}</option>
+              </select>
+              <select v-model="addressState.region" aria-label="选择地区">
+                <option value="random">随机{{ currentAddressCountry?.regionLabel || '地区' }}</option>
+                <option v-for="region in addressRegionOptions" :key="region.code" :value="region.code">
+                  {{ region.nameZh === region.name ? region.name : `${region.nameZh} (${region.name})` }}
+                </option>
+              </select>
+              <select v-model="addressState.gender" aria-label="选择性别">
+                <option v-for="item in ADDRESS_GENDERS" :key="item.code" :value="item.code">{{ item.label }}</option>
+              </select>
+              <select v-model.number="addressState.count" aria-label="生成数量">
+                <option :value="1">1 条</option>
+                <option :value="5">5 条</option>
+                <option :value="10">10 条</option>
+              </select>
+              <button class="primary-btn ripple-trigger" type="button" @click="generateAddresses()">
+                <i class="fas fa-dice" aria-hidden="true"></i> 生成地址
+              </button>
+            </div>
+            <p class="pane-hint">数据为真实城市 / 邮编 / 街道与常见姓名的本地随机组合，仅供开发测试与表单演示，请勿用于真实用途。</p>
+
+            <div v-if="!addressResults.length" class="address-empty">点击「生成地址」开始</div>
+
+            <article v-for="profile in addressResults" :key="profile.id" class="address-card">
+              <header class="address-card-head">
+                <div class="address-identity">
+                  <strong>{{ profile.fullName }}</strong>
+                  <small v-if="profile.fullNameEn !== profile.fullName">{{ profile.fullNameEn }}</small>
+                </div>
+                <div class="address-meta">
+                  <span class="address-pill">{{ profile.flag }} {{ profile.countryLabel }}</span>
+                  <span class="address-pill">{{ profile.genderLabel }} · {{ profile.age }} 岁</span>
+                  <button class="chip-btn ripple-trigger" type="button" @click="copyAddressProfile(profile)">复制全部</button>
+                </div>
+              </header>
+              <div class="address-grid">
+                <button
+                  v-for="field in addressCardFields(profile)"
+                  :key="field.key"
+                  class="address-field ripple-trigger"
+                  type="button"
+                  :title="`点击复制${field.label}`"
+                  @click="copyAddressField(field)"
+                >
+                  <span>{{ field.label }}</span>
+                  <strong>{{ field.value }}</strong>
+                  <i class="fas fa-copy" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="address-blocks">
+                <button class="address-block ripple-trigger" type="button" title="点击复制本地格式" @click="copyAddressField({ label: '本地格式', value: profile.addressLocal })">
+                  <span>本地格式</span>
+                  <pre>{{ profile.addressLocal }}</pre>
+                </button>
+                <button class="address-block ripple-trigger" type="button" title="点击复制国际格式" @click="copyAddressField({ label: '国际格式', value: profile.addressIntl })">
+                  <span>国际格式</span>
+                  <pre>{{ profile.addressIntl }}</pre>
+                </button>
+              </div>
+            </article>
+
+            <section v-if="addressHistory.length" class="address-history">
+              <div class="address-history-head">
+                <h3><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> 生成历史 · {{ addressHistory.length }} 条</h3>
+                <button class="chip-btn ripple-trigger" type="button" @click="clearAddressHistory">清空历史</button>
+              </div>
+              <ul class="address-history-list">
+                <li v-for="item in addressHistory" :key="`history_${item.id}`">
+                  <button class="history-main ripple-trigger" type="button" title="恢复到结果区" @click="restoreAddressHistory(item)">
+                    <strong>{{ item.fullName }}</strong>
+                    <span>{{ item.flag }} {{ item.city }} · {{ item.streetLine }}</span>
+                  </button>
+                  <button class="icon-action-btn ripple-trigger" type="button" title="复制该条" aria-label="复制该条" @click="copyAddressProfile(item)">
+                    <i class="fas fa-copy" aria-hidden="true"></i>
+                  </button>
+                </li>
+              </ul>
+            </section>
+          </section>
+
           <section v-else-if="activeTool === 'qr-tools'" class="tool-panel qr-launcher">
             <div class="qr-visual" aria-hidden="true">
               <i class="fas fa-qrcode"></i>
@@ -344,6 +467,14 @@ import { computed, defineComponent, h, onBeforeUnmount, reactive, ref, watch } f
 import { openLightAppWindow } from '../../../utils/lightAppWindowBus';
 import LightAppTopToolbar from '../LightAppTopToolbar.vue';
 import {
+  ADDRESS_COUNTRIES,
+  ADDRESS_GENDERS,
+  findAddressCountry,
+  formatAddressProfileText,
+  generateAddressProfiles,
+  listAddressRegions
+} from './addressGenCore';
+import {
   calculateChange,
   convertJsonToToon,
   convertToonToJson,
@@ -363,6 +494,16 @@ import {
   WEB_TOOLBOX_GROUPS,
   WEB_TOOLBOX_TOOLS
 } from './webToolboxCore';
+import {
+  describeTranslateError,
+  fetchTranslateProviders,
+  findTranslateLanguage,
+  isTranslateLanguageSupported,
+  requestTranslation,
+  TRANSLATE_PROVIDERS,
+  translateSourceLanguages,
+  translateTargetLanguages
+} from './webToolboxTranslate';
 
 const props = defineProps({
   windowId: {
@@ -397,6 +538,8 @@ const ResultPane = defineComponent({
 });
 
 const TOOLBOX_ACTIVE_STORAGE_KEY = 'shizuki.web-toolbox.active.v1';
+const ADDRESS_HISTORY_STORAGE_KEY = 'shizuki.web-toolbox.address-gen.history.v1';
+const ADDRESS_HISTORY_LIMIT = 20;
 const activeTool = ref(readInitialTool());
 const searchQuery = ref('');
 const infoText = ref('');
@@ -415,13 +558,75 @@ const toonState = reactive({ input: '{\n  users: [\n    { id: 1, name: "Shizuki"
 const passwordState = reactive({ length: 20, lowercase: true, uppercase: true, numbers: true, symbols: true, excludeAmbiguous: true });
 const timestampState = reactive({ input: String(Date.now()), unit: 'auto' });
 const changeState = reactive({ start: '100', end: '125' });
+const addressState = reactive({ country: 'DE', region: 'random', gender: 'random', count: 1 });
+const addressResults = ref([]);
+const addressHistory = ref(readAddressHistory());
+
+const TOOLBOX_TRANSLATE_STORAGE_KEY = 'shizuki.web-toolbox.translate.v1';
+const translateState = reactive(readTranslatePreferences());
+const translateBusy = ref(false);
+const translateResult = ref({ value: '', error: '' });
+const translateDetected = ref('');
+const translateProviders = ref(null);
+let translateAbortController = null;
+let translateProvidersPromise = null;
 
 let feedbackTimer = 0;
+
+function readTranslatePreferences() {
+  const fallback = { input: '', provider: 'baidu', from: 'auto', to: 'zh' };
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(TOOLBOX_TRANSLATE_STORAGE_KEY) || 'null');
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    const provider = TRANSLATE_PROVIDERS.some((item) => item.code === parsed.provider) ? parsed.provider : fallback.provider;
+    return {
+      input: '',
+      provider,
+      from: isTranslateLanguageSupported(provider, parsed.from) ? String(parsed.from) : fallback.from,
+      to: isTranslateLanguageSupported(provider, parsed.to, { target: true }) ? String(parsed.to) : fallback.to
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function persistTranslatePreferences() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(TOOLBOX_TRANSLATE_STORAGE_KEY, JSON.stringify({
+      provider: translateState.provider,
+      from: translateState.from,
+      to: translateState.to
+    }));
+  } catch {
+    /* 忽略私密模式等场景下的存储失败 */
+  }
+}
 
 function readInitialTool() {
   if (typeof window === 'undefined') return 'url-codec';
   const saved = String(window.localStorage.getItem(TOOLBOX_ACTIVE_STORAGE_KEY) || '').trim();
   return findWebTool(saved) ? saved : 'url-codec';
+}
+
+function readAddressHistory() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ADDRESS_HISTORY_STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.slice(0, ADDRESS_HISTORY_LIMIT) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function persistAddressHistory() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ADDRESS_HISTORY_STORAGE_KEY, JSON.stringify(addressHistory.value));
+  } catch (error) {
+    /* 存储失败时静默忽略 */
+  }
 }
 
 function resultOf(callback) {
@@ -464,12 +669,39 @@ const toonResult = computed(() => resultOf(() => toonState.mode === 'toon-to-jso
   : convertJsonToToon(toonState.input)));
 const timestampResult = computed(() => resultOf(() => resolveTimestamp(timestampState.input, timestampState.unit)));
 const changeResult = computed(() => resultOf(() => calculateChange(changeState.start, changeState.end)));
+
+const translateProviderOptions = computed(() => TRANSLATE_PROVIDERS.map((item) => {
+  const remote = translateProviders.value?.providers?.find((entry) => entry.code === item.code);
+  const configured = remote ? remote.configured : true;
+  return {
+    code: item.code,
+    label: configured ? item.label : `${item.label}（未配置）`,
+    disabled: !configured
+  };
+}));
+const translateFromOptions = computed(() => translateSourceLanguages(translateState.provider));
+const translateToOptions = computed(() => translateTargetLanguages(translateState.provider));
+const translateHint = computed(() => {
+  if (translateBusy.value) return '正在请求翻译服务…';
+  if (translateDetected.value) {
+    const language = findTranslateLanguage(translateDetected.value);
+    return `检测到源语言：${language ? language.label : translateDetected.value}`;
+  }
+  const info = translateProviders.value;
+  if (info && info.enabled === false) return '翻译服务当前未启用（TOOLS_TRANSLATE_ENABLED=false）。';
+  if (info && info.providers.length && info.providers.every((item) => !item.configured)) {
+    return '服务器还没有配置翻译引擎的 API Key，翻译请求会失败（见部署配置说明）。';
+  }
+  return '文本经站点后端代理调用所选引擎，API Key 只保存在服务器。';
+});
 const changeDirectionLabel = computed(() => {
   if (changeResult.value.error) return '-';
   if (changeResult.value.value.direction === 'up') return '上涨';
   if (changeResult.value.value.direction === 'down') return '下跌';
   return '持平';
 });
+const currentAddressCountry = computed(() => findAddressCountry(addressState.country));
+const addressRegionOptions = computed(() => listAddressRegions(addressState.country));
 
 const activeResultText = computed(() => {
   const resultMap = {
@@ -480,9 +712,11 @@ const activeResultText = computed(() => {
     md5: md5Result.value,
     'url-codec': urlCodecResult.value,
     json: jsonResult.value,
-    toon: toonResult.value
+    toon: toonResult.value,
+    translate: translateResult.value
   };
   if (activeTool.value === 'password') return passwordValue.value;
+  if (activeTool.value === 'address-gen') return addressResults.value.map(formatAddressProfileText).join('\n\n');
   if (activeTool.value === 'url-params' && !urlParamsResult.value.error) return JSON.stringify(urlParamsResult.value.value, null, 2);
   if (activeTool.value === 'timestamp' && !timestampResult.value.error) return JSON.stringify(timestampResult.value.value, null, 2);
   if (activeTool.value === 'change-rate' && !changeResult.value.error) return JSON.stringify(changeResult.value.value, null, 2);
@@ -494,6 +728,94 @@ function selectTool(code) {
   activeTool.value = code;
   searchQuery.value = '';
   if (code === 'password' && !passwordValue.value) refreshPassword();
+  if (code === 'translate') ensureTranslateProviders();
+  if (code === 'address-gen' && !addressResults.value.length) generateAddresses(false);
+}
+
+function ensureTranslateProviders() {
+  if (translateProvidersPromise) return translateProvidersPromise;
+  translateProvidersPromise = fetchTranslateProviders()
+    .then((info) => {
+      translateProviders.value = info;
+      const current = info.providers.find((item) => item.code === translateState.provider);
+      if (current && !current.configured) {
+        const preferred = info.providers.find((item) => item.code === info.defaultProvider && item.configured)
+          || info.providers.find((item) => item.configured);
+        if (preferred) translateState.provider = preferred.code;
+      }
+      return info;
+    })
+    .catch(() => {
+      translateProvidersPromise = null;
+      return null;
+    });
+  return translateProvidersPromise;
+}
+
+async function runTranslate() {
+  const text = translateState.input.trim();
+  if (!text || translateBusy.value) return;
+  if (translateState.from !== 'auto' && translateState.from === translateState.to) {
+    translateResult.value = { value: '', error: '源语言与目标语言相同，无需翻译' };
+    return;
+  }
+  const maxLength = translateProviders.value?.maxTextLength || 3000;
+  if (text.length > maxLength) {
+    translateResult.value = { value: '', error: `文本过长：最多 ${maxLength} 字符，当前 ${text.length} 字符` };
+    return;
+  }
+  if (translateAbortController) translateAbortController.abort();
+  const controller = new AbortController();
+  translateAbortController = controller;
+  translateBusy.value = true;
+  translateDetected.value = '';
+  try {
+    const result = await requestTranslation({
+      text,
+      from: translateState.from,
+      to: translateState.to,
+      provider: translateState.provider,
+      signal: controller.signal
+    });
+    if (translateAbortController !== controller) return;
+    translateResult.value = { value: result.text, error: '' };
+    if (translateState.from === 'auto' && result.detectedFrom) translateDetected.value = result.detectedFrom;
+  } catch (error) {
+    if (translateAbortController !== controller || controller.signal.aborted) return;
+    translateResult.value = { value: '', error: describeTranslateError(error) };
+  } finally {
+    if (translateAbortController === controller) {
+      translateBusy.value = false;
+      translateAbortController = null;
+    }
+  }
+}
+
+function swapTranslateLanguages() {
+  const currentFrom = translateState.from;
+  const currentTo = translateState.to;
+  if (currentFrom === 'auto') {
+    const detected = translateDetected.value && isTranslateLanguageSupported(translateState.provider, translateDetected.value, { target: true })
+      ? translateDetected.value
+      : '';
+    translateState.from = currentTo;
+    translateState.to = detected && detected !== currentTo ? detected : (currentTo === 'zh' ? 'en' : 'zh');
+  } else {
+    translateState.from = currentTo;
+    translateState.to = currentFrom;
+  }
+  if (!translateResult.value.error && translateResult.value.value) {
+    translateState.input = translateResult.value.value;
+    translateResult.value = { value: '', error: '' };
+  }
+  translateDetected.value = '';
+}
+
+function onTranslateInputKeydown(event) {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    event.preventDefault();
+    runTranslate();
+  }
 }
 
 function showFeedback(message, type = 'info') {
@@ -536,6 +858,64 @@ function openQrTools() {
   openLightAppWindow('qr-tools', { source: 'web_toolbox' });
 }
 
+function generateAddresses(saveHistory = true) {
+  try {
+    const profiles = generateAddressProfiles(addressState);
+    addressResults.value = profiles;
+    if (saveHistory) {
+      addressHistory.value = [...profiles, ...addressHistory.value].slice(0, ADDRESS_HISTORY_LIMIT);
+      persistAddressHistory();
+    }
+  } catch (error) {
+    showFeedback(error?.message || '地址生成失败', 'error');
+  }
+}
+
+function addressCardFields(profile) {
+  const regionLabel = profile.regionZh !== profile.regionName
+    ? `${profile.regionFieldLabel}（${profile.regionZh}）`
+    : profile.regionFieldLabel;
+  return [
+    { key: 'birthday', label: '生日', value: `${profile.birthday}` },
+    { key: 'email', label: '邮箱', value: profile.email },
+    { key: 'phone', label: '电话', value: profile.phone },
+    { key: 'phoneIntl', label: '国际电话', value: profile.phoneIntl },
+    { key: 'region', label: regionLabel, value: profile.regionName },
+    { key: 'city', label: '城市', value: profile.city },
+    { key: 'postalCode', label: '邮编', value: profile.postalCode },
+    { key: 'street', label: '街道', value: profile.streetLine }
+  ];
+}
+
+async function copyPlainText(text, message) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    showFeedback(message);
+  } catch (error) {
+    showFeedback(error?.message || '复制失败', 'error');
+  }
+}
+
+function copyAddressField(field) {
+  copyPlainText(String(field.value ?? ''), `${field.label}已复制`);
+}
+
+function copyAddressProfile(profile) {
+  copyPlainText(formatAddressProfileText(profile), '完整信息已复制');
+}
+
+function restoreAddressHistory(item) {
+  addressResults.value = [item];
+  showFeedback('已恢复到结果区');
+}
+
+function clearAddressHistory() {
+  addressHistory.value = [];
+  persistAddressHistory();
+  showFeedback('生成历史已清空');
+}
+
 function clearActiveTool() {
   const inputMap = {
     unicode: unicodeState,
@@ -547,7 +927,8 @@ function clearActiveTool() {
     json: jsonState,
     'url-params': urlParamsState,
     toon: toonState,
-    timestamp: timestampState
+    timestamp: timestampState,
+    translate: translateState
   };
   const target = inputMap[activeTool.value];
   if (target && Object.prototype.hasOwnProperty.call(target, 'input')) target.input = '';
@@ -556,6 +937,16 @@ function clearActiveTool() {
     changeState.end = '';
   }
   if (activeTool.value === 'password') passwordValue.value = '';
+  if (activeTool.value === 'address-gen') addressResults.value = [];
+  if (activeTool.value === 'translate') {
+    if (translateAbortController) {
+      translateAbortController.abort();
+      translateAbortController = null;
+    }
+    translateBusy.value = false;
+    translateResult.value = { value: '', error: '' };
+    translateDetected.value = '';
+  }
 }
 
 function formatNumber(value) {
@@ -574,12 +965,33 @@ watch(activeTool, (value) => {
   if (typeof window !== 'undefined' && findWebTool(value)) {
     window.localStorage.setItem(TOOLBOX_ACTIVE_STORAGE_KEY, value);
   }
-});
+  if (value === 'translate') ensureTranslateProviders();
+}, { immediate: true });
 
 watch(passwordState, refreshPassword, { deep: true, immediate: true });
 
+watch(() => translateState.provider, (provider) => {
+  if (!isTranslateLanguageSupported(provider, translateState.from)) translateState.from = 'auto';
+  if (!isTranslateLanguageSupported(provider, translateState.to, { target: true })) translateState.to = 'zh';
+});
+
+watch(
+  () => [translateState.provider, translateState.from, translateState.to],
+  persistTranslatePreferences
+);
+
+watch(() => addressState.country, () => {
+  addressState.region = 'random';
+});
+
+if (activeTool.value === 'address-gen') generateAddresses(false);
+
 onBeforeUnmount(() => {
   if (feedbackTimer) window.clearTimeout(feedbackTimer);
+  if (translateAbortController) {
+    translateAbortController.abort();
+    translateAbortController = null;
+  }
 });
 </script>
 
@@ -675,6 +1087,9 @@ onBeforeUnmount(() => {
 .result-textarea { background: rgba(var(--accent-rgb), 0.06); }
 .form-controls { justify-content: flex-start; }
 .form-controls select { width: auto; min-width: 130px; min-height: 34px; padding: 0 9px; }
+.translate-controls { row-gap: 8px; }
+.translate-controls select { min-width: 108px; }
+.translate-controls .primary-btn { margin-left: auto; }
 .segmented-control { display: inline-flex; align-items: center; border: 1px solid var(--tool-border); border-radius: 10px; overflow: hidden; }
 .segmented-control input { position: absolute; opacity: 0; pointer-events: none; }
 .segmented-control span { padding: 7px 12px; color: var(--tool-muted); font-size: 12px; }
@@ -715,6 +1130,37 @@ onBeforeUnmount(() => {
 .change-result-grid.is-up .change-primary strong { color: rgba(49, 140, 86, 0.96); }
 .change-result-grid.is-down .change-primary strong { color: rgba(196, 58, 82, 0.96); }
 
+.address-layout { display: grid; gap: 13px; align-content: start; }
+.address-controls { justify-content: flex-start; }
+.address-empty { border: 1px dashed var(--tool-border); border-radius: 14px; padding: 36px 16px; text-align: center; color: var(--tool-muted); }
+.address-card { border: 1px solid var(--tool-border); border-radius: 16px; background: var(--tool-panel); padding: 14px; display: grid; gap: 11px; }
+.address-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.address-identity strong { font-size: 17px; display: block; }
+.address-identity small { color: var(--tool-muted); font-size: 12px; }
+.address-meta { display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.address-pill { border-radius: 999px; background: rgba(var(--accent-rgb), 0.13); color: rgb(var(--accent-strong-rgb)); padding: 4px 10px; font-size: 12px; }
+.address-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.address-field { position: relative; border: 1px solid var(--tool-border); border-radius: 12px; background: var(--tool-panel-strong); color: inherit; text-align: left; padding: 10px 12px; display: grid; align-content: start; gap: 4px; min-width: 0; }
+.address-field:hover { border-color: rgba(var(--accent-rgb), 0.38); }
+.address-field span { color: var(--tool-muted); font-size: 11px; }
+.address-field strong { font-size: 13px; overflow-wrap: anywhere; }
+.address-field i { position: absolute; right: 9px; top: 9px; color: var(--tool-muted); font-size: 11px; opacity: 0; transition: opacity 140ms ease; }
+.address-field:hover i { opacity: 1; }
+.address-blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.address-block { border: 1px solid rgba(var(--accent-rgb), 0.24); border-radius: 12px; background: rgba(var(--accent-rgb), 0.06); color: inherit; text-align: left; padding: 10px 12px; display: grid; align-content: start; gap: 6px; min-width: 0; }
+.address-block:hover { border-color: rgba(var(--accent-rgb), 0.44); }
+.address-block span { color: var(--tool-muted); font-size: 11px; }
+.address-block pre { margin: 0; font: inherit; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.address-history { border-top: 1px solid var(--tool-border); padding-top: 12px; display: grid; gap: 9px; }
+.address-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.address-history-head h3 { margin: 0; font-size: 13px; color: var(--tool-muted); font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
+.address-history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.address-history-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.history-main { border: 1px solid var(--tool-border); border-radius: 11px; background: var(--tool-panel); color: inherit; text-align: left; padding: 8px 11px; display: grid; gap: 3px; min-width: 0; }
+.history-main:hover { border-color: rgba(var(--accent-rgb), 0.38); background: var(--tool-panel-strong); }
+.history-main strong { font-size: 12.5px; }
+.history-main span { color: var(--tool-muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .qr-launcher { min-height: 360px; display: grid; grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr); gap: 26px; align-items: center; border-radius: 20px; padding: clamp(22px, 5vw, 48px); background: radial-gradient(circle at 20% 20%, rgba(var(--accent-rgb), 0.24), transparent 38%), var(--tool-panel); border: 1px solid var(--tool-border); }
 .qr-launcher h3 { margin: 6px 0 8px; font-size: clamp(24px, 4vw, 38px); }
 .qr-launcher p:not(.eyebrow) { color: var(--tool-muted); line-height: 1.7; }
@@ -731,6 +1177,7 @@ onBeforeUnmount(() => {
   .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .two-pane, .password-layout { grid-template-columns: 1fr; }
   .tool-textarea { min-height: 210px; }
+  .address-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @container lightapp-window-body (max-width: 720px) {
@@ -747,6 +1194,8 @@ onBeforeUnmount(() => {
   .change-primary { grid-row: auto; }
   .qr-launcher { grid-template-columns: 1fr; }
   .qr-visual { max-width: 180px; }
+  .address-grid, .address-blocks { grid-template-columns: 1fr; }
+  .address-controls select { flex: 1 1 130px; }
   .toolbar-search-wrap { min-width: 180px; flex: 1 1 220px; }
 }
 

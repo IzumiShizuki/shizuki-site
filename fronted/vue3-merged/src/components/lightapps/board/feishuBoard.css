@@ -1,0 +1,570 @@
+/* feishuBoard.css — 自研白板 飞书风格 UI */
+
+.fsb-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: inherit;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  color: #1f2329;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+  isolation: isolate;
+}
+
+.fsb-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: default;
+}
+
+.fsb-root[data-tool='hand'] .fsb-canvas,
+.fsb-root.is-space-panning .fsb-canvas {
+  cursor: grab;
+}
+
+.fsb-root.is-panning .fsb-canvas {
+  cursor: grabbing !important;
+}
+
+.fsb-root[data-tool='pen'] .fsb-canvas,
+.fsb-root[data-tool='highlighter'] .fsb-canvas {
+  cursor: crosshair;
+}
+
+.fsb-root[data-tool='eraser'] .fsb-canvas {
+  cursor: cell;
+}
+
+.fsb-root[data-tool='text'] .fsb-canvas {
+  cursor: text;
+}
+
+.fsb-root[data-tool='geo'] .fsb-canvas,
+.fsb-root[data-tool='connector'] .fsb-canvas,
+.fsb-root[data-tool='note'] .fsb-canvas {
+  cursor: crosshair;
+}
+
+/* ---------------- 浮层通用 ---------------- */
+
+.fsb-panel {
+  position: absolute;
+  background: #ffffff;
+  border: 1px solid #dee0e3;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(31, 35, 41, 0.1), 0 0 1px rgba(31, 35, 41, 0.06);
+  z-index: 30;
+}
+
+.fsb-btn {
+  appearance: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  background: transparent;
+  color: #2b2f36;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.fsb-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.fsb-btn:hover {
+  background: #f2f3f5;
+}
+
+.fsb-btn:active {
+  background: #e8eaed;
+}
+
+.fsb-btn.is-active {
+  background: rgba(51, 112, 255, 0.12);
+  color: #3370ff;
+}
+
+.fsb-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.fsb-btn .fsb-caret {
+  position: absolute;
+  right: 2.5px;
+  bottom: 2.5px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-bottom: 4px solid currentColor;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ---------------- 左侧工具坞 ---------------- */
+
+.fsb-dock {
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+}
+
+.fsb-dock__divider {
+  width: 22px;
+  height: 1px;
+  background: #e5e6eb;
+  margin: 4px 0;
+}
+
+/* ---------------- 弹层（形状 / 画笔 / 便签 / 连线） ---------------- */
+
+.fsb-flyout {
+  padding: 10px;
+  z-index: 40;
+  min-width: 148px;
+}
+
+.fsb-flyout__title {
+  font-size: 12px;
+  color: #646a73;
+  margin: 0 2px 8px;
+}
+
+.fsb-flyout__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 32px);
+  gap: 4px;
+}
+
+.fsb-flyout__grid .fsb-btn {
+  width: 32px;
+  height: 32px;
+}
+
+.fsb-flyout__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fsb-flyout__row + .fsb-flyout__row,
+.fsb-flyout__row + .fsb-flyout__grid,
+.fsb-flyout__grid + .fsb-flyout__row {
+  margin-top: 8px;
+}
+
+.fsb-flyout__label {
+  font-size: 11px;
+  color: #8f959e;
+  margin-right: 2px;
+  min-width: 26px;
+}
+
+/* 色板 */
+.fsb-swatch {
+  appearance: none;
+  border: 1px solid rgba(31, 35, 41, 0.14);
+  margin: 0;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.1s ease;
+}
+
+.fsb-swatch:hover {
+  transform: scale(1.12);
+}
+
+.fsb-swatch.is-active::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 1.6px solid #3370ff;
+  border-radius: 50%;
+}
+
+.fsb-swatch.is-none {
+  background:
+    linear-gradient(to top right, transparent 44%, #f54a45 46%, #f54a45 54%, transparent 56%),
+    #ffffff;
+}
+
+.fsb-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 20px);
+  gap: 7px;
+  padding: 2px;
+}
+
+/* 笔宽点 */
+.fsb-dot-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #2b2f36;
+}
+
+.fsb-dot-btn:hover {
+  background: #f2f3f5;
+}
+
+.fsb-dot-btn.is-active {
+  background: rgba(51, 112, 255, 0.12);
+  color: #3370ff;
+}
+
+.fsb-dot-btn i {
+  display: block;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ---------------- 撤销重做 / 缩放 ---------------- */
+
+.fsb-undobar {
+  left: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+}
+
+.fsb-zoombar {
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+}
+
+.fsb-undobar .fsb-btn,
+.fsb-zoombar .fsb-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.fsb-undobar .fsb-btn svg,
+.fsb-zoombar .fsb-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fsb-zoombar__value {
+  min-width: 48px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2329;
+  cursor: pointer;
+  padding: 0 6px;
+}
+
+.fsb-zoombar__value:hover {
+  background: #f2f3f5;
+}
+
+.fsb-zoom-menu {
+  right: 14px;
+  bottom: 52px;
+  min-width: 120px;
+  padding: 4px;
+  z-index: 45;
+}
+
+.fsb-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: #1f2329;
+  cursor: pointer;
+  text-align: left;
+}
+
+.fsb-menu-item:hover {
+  background: #f2f3f5;
+}
+
+.fsb-menu-item span.fsb-menu-shortcut {
+  color: #8f959e;
+  font-size: 11px;
+}
+
+/* ---------------- 上下文工具栏 ---------------- */
+
+.fsb-context {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  z-index: 36;
+  white-space: nowrap;
+}
+
+.fsb-context .fsb-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.fsb-context .fsb-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fsb-context__divider {
+  width: 1px;
+  height: 18px;
+  background: #e5e6eb;
+  margin: 0 4px;
+}
+
+.fsb-context__swatch {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.fsb-context__swatch:hover {
+  background: #f2f3f5;
+}
+
+.fsb-context__swatch i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(31, 35, 41, 0.18);
+  display: block;
+}
+
+.fsb-context__swatch i.is-stroke {
+  border-radius: 50%;
+  border-width: 3px;
+  background: transparent !important;
+}
+
+.fsb-context__fontsize {
+  height: 28px;
+  min-width: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1f2329;
+  padding: 0 7px;
+}
+
+.fsb-context__fontsize:hover {
+  background: #f2f3f5;
+}
+
+.fsb-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  padding: 10px;
+  z-index: 46;
+}
+
+.fsb-popover--menu {
+  padding: 4px;
+  min-width: 96px;
+}
+
+/* ---------------- 文本编辑覆盖层 ---------------- */
+
+.fsb-editor-host {
+  position: absolute;
+  z-index: 34;
+  transform-origin: top left;
+  display: flex;
+}
+
+.fsb-editor {
+  flex: 1;
+  min-width: 12px;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  caret-color: #3370ff;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.fsb-editor-host.is-center {
+  align-items: center;
+}
+
+.fsb-editor-host.is-center .fsb-editor {
+  text-align: center;
+}
+
+.fsb-editor-host.is-label .fsb-editor {
+  background: #ffffff;
+  box-shadow: 0 0 0 1.4px #3370ff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  text-align: center;
+}
+
+/* ---------------- 快速连线：图形选择 ---------------- */
+
+.fsb-choice {
+  padding: 10px;
+  z-index: 44;
+  width: 168px;
+}
+
+.fsb-choice__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.fsb-choice__title {
+  font-size: 12px;
+  color: #646a73;
+}
+
+.fsb-choice__close {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #8f959e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.fsb-choice__close:hover {
+  background: #f2f3f5;
+  color: #1f2329;
+}
+
+.fsb-choice__close svg {
+  width: 13px;
+  height: 13px;
+}
+
+.fsb-choice__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 34px);
+  gap: 4px;
+}
+
+/* ---------------- 提示 ---------------- */
+
+.fsb-tip {
+  position: absolute;
+  z-index: 60;
+  background: #1f2329;
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.22);
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.fsb-tip.is-visible {
+  opacity: 1;
+}
+
+.fsb-tip .fsb-tip__key {
+  margin-left: 6px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.fsb-hidden-input {
+  display: none;
+}
+
+/* 小屏适配：工具坞贴底 */
+@container lightapp-window-body (max-width: 620px) {
+  .fsb-dock {
+    left: 50%;
+    top: auto;
+    bottom: 56px;
+    transform: translateX(-50%);
+    flex-direction: row;
+    max-width: calc(100% - 24px);
+    overflow-x: auto;
+  }
+
+  .fsb-dock__divider {
+    width: 1px;
+    height: 22px;
+    margin: 0 4px;
+  }
+
+  .fsb-flyout {
+    z-index: 48;
+  }
+}
