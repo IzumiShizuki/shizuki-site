@@ -495,7 +495,7 @@ const shouldRunVisualizer = computed(
 const activeVisualizerStyle = computed(() => {
   const style = player.visualizerStyle.value;
   if (style) return style;
-  return player.visualizerMode.value === 'ring' ? 'ring-halo' : 'bars-neon';
+  return player.visualizerMode.value === 'ring' ? 'ring-halo' : 'bars-aurora';
 });
 const siteAtmosphereSnapshot = computed(() =>
   normalizeSiteAtmosphereState(siteAtmosphere, {
@@ -2213,6 +2213,12 @@ function handleAuthorProfileCacheUpdated(event) {
 }
 
 function handleMainRouteSelect(routeKey) {
+  if (routeKey === 'meguri') {
+    // Meguri 已并入 AI Hub:顶栏入口直接打开 hub 的爱莉模式。
+    if (route.path === '/ai-hub' && route.query.mode === 'meguri') return;
+    router.push({ path: '/ai-hub', query: { mode: 'meguri' } });
+    return;
+  }
   const nextPath = routePathByKey[routeKey] || '/';
   if (route.path === nextPath) return;
   router.push(nextPath);

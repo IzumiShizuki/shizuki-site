@@ -21,17 +21,36 @@
             <i class="fas fa-comments" aria-hidden="true"></i>
             <span>普通对话模式</span>
           </button>
+          <button
+            v-if="isAdminUser"
+            class="mode-tab ripple-trigger"
+            :class="{ active: activePrimaryMode === 'meguri' }"
+            type="button"
+            @click="activateMeguriCompanion()"
+          >
+            <i class="fas fa-heart" aria-hidden="true"></i>
+            <span>爱莉伴聊</span>
+          </button>
         </div>
 
         <div class="topbar-status">
           <span class="status-pill muted">AI Chat 在 AI Hub 内已禁用</span>
           <span class="status-pill accent">
-            {{ activePrimaryMode === 'town' ? `当前场景 · ${selectedTownScene?.title || '载入中'}` : currentConversationLabel }}
+            {{
+              activePrimaryMode === 'town'
+                ? `当前场景 · ${selectedTownScene?.title || '载入中'}`
+                : activePrimaryMode === 'meguri'
+                  ? '爱莉 · Meguri Companion'
+                  : currentConversationLabel
+            }}
           </span>
         </div>
       </header>
 
-      <div class="workspace-grid" :class="{ conversation: activePrimaryMode === 'conversation' }">
+      <div
+        class="workspace-grid"
+        :class="{ conversation: activePrimaryMode === 'conversation', meguri: activePrimaryMode === 'meguri' }"
+      >
         <section class="workspace-main liquid-material">
           <template v-if="activePrimaryMode === 'town'">
             <template v-if="townSubView === 'editor'">
@@ -323,6 +342,10 @@
             </template>
           </template>
 
+          <template v-else-if="activePrimaryMode === 'meguri'">
+            <MeguriPage embedded />
+          </template>
+
           <template v-else>
             <div class="conversation-layout" :class="{ 'with-stage': isCompanionConversation }">
               <AiSessionRail
@@ -561,8 +584,10 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import AiDialog from '../components/AiDialog.vue';
 import AiSessionRail from '../components/AiSessionRail.vue';
+import MeguriPage from './MeguriPage.vue';
 import WallpaperL2dCanvas from '../components/WallpaperL2dCanvas.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
@@ -593,6 +618,7 @@ import { resolveCompanionStageStatus, selectCompanionL2dAsset } from '../utils/a
 import { readGuestLightAppData, readRemoteLightAppCache } from '../utils/lightAppsDataStore';
 
 const auth = useAuthSession();
+const route = useRoute();
 const activePrimaryMode = ref('town');
 const townSubView = ref('map');
 const conversationChatMode = ref('normal');
@@ -1059,6 +1085,12 @@ function activateStandardConversation() {
   conversationOpenPayload.value = null;
 }
 
+function activateMeguriCompanion() {
+  // 爱莉（Meguri）作为 AI Hub 的管理员专属模式；后端接口本身也有 ADMIN 校验。
+  if (!isAdminUser.value) return;
+  activePrimaryMode.value = 'meguri';
+}
+
 function openConversationWorkspace(mode, payload = null) {
   if (isAdminOnlyConversationMode(mode) && !isAdminUser.value) {
     conversationChatMode.value = 'normal';
@@ -1415,8 +1447,20 @@ function npcAvatarStyle(npc) {
 
 onMounted(async () => {
   await auth.ensureReady();
+  if (route.query.mode === 'meguri' && isAdminUser.value) {
+    activePrimaryMode.value = 'meguri';
+  }
   await loadTownExplorer();
 });
+
+watch(
+  () => isAdminUser.value,
+  (admin) => {
+    if (!admin && activePrimaryMode.value === 'meguri') {
+      activePrimaryMode.value = 'town';
+    }
+  }
+);
 
 watch(
   () => isCompanionConversation.value,
@@ -1462,14 +1506,21 @@ watch(
 }
 
 .workspace-shell {
-  --liquid-bg: linear-gradient(150deg, rgba(14, 20, 33, 0.86), rgba(10, 16, 26, 0.8));
-  --liquid-border: rgba(255, 255, 255, 0.14);
-  --liquid-shadow: 0 24px 48px rgba(3, 6, 16, 0.32);
+  /* 实底工作台：告别大面积毛玻璃，避免叠在壁纸上显得灰脏、文字看不清。 */
+  --liquid-bg: linear-gradient(150deg, rgba(30, 28, 38, 0.97), rgba(22, 20, 30, 0.96));
+  --liquid-border: rgba(255, 214, 229, 0.14);
+  --liquid-shadow: 0 24px 48px rgba(8, 6, 14, 0.4);
   border-radius: 30px;
   padding: 18px;
   display: grid;
   gap: 16px;
   min-height: calc(100vh - 180px);
+}
+
+:root[data-theme-mode='day'] .workspace-shell {
+  --liquid-bg: linear-gradient(150deg, rgba(255, 250, 247, 0.98), rgba(250, 241, 240, 0.97));
+  --liquid-border: rgba(190, 120, 130, 0.22);
+  --liquid-shadow: 0 22px 46px rgba(168, 120, 120, 0.18);
 }
 
 .workspace-topbar {
@@ -1550,7 +1601,8 @@ watch(
   gap: 16px;
 }
 
-.workspace-grid.conversation {
+.workspace-grid.conversation,
+.workspace-grid.meguri {
   grid-template-columns: 1fr;
 }
 

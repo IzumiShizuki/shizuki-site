@@ -1,5 +1,5 @@
 <template>
-  <section class="route-page meguri-page">
+  <section class="route-page meguri-page" :class="{ embedded }">
     <section class="meguri-shell liquid-material">
       <header class="meguri-topbar">
         <div class="meguri-title">
@@ -134,6 +134,11 @@ import {
 import { followMeguriTurn, isExpressionMeguriEventType } from '../utils/meguriTurnStream';
 
 const SESSION_STORAGE_PREFIX = 'shizuki.meguri.session.v1.';
+
+defineProps({
+  /** 在 AI Hub 内作为「爱莉伴聊」模式内嵌时为 true：去掉页面级留白。 */
+  embedded: { type: Boolean, default: false }
+});
 
 const auth = useAuthSession();
 
@@ -463,6 +468,16 @@ onBeforeUnmount(() => {
 <style scoped>
 .meguri-page {
   padding: 18px clamp(12px, 3vw, 32px) 32px;
+}
+
+/* AI Hub 内嵌形态：外层 hub 已提供留白与底板。 */
+.meguri-page.embedded {
+  padding: 0;
+}
+
+.meguri-page.embedded .meguri-shell {
+  --liquid-shadow: none;
+  border-radius: 18px;
 }
 
 .meguri-shell {
