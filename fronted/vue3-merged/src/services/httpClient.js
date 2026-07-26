@@ -178,6 +178,10 @@ export async function httpRequest(path, options = {}) {
   });
 }
 
+export function buildApiUrl(path, query) {
+  return buildUrl(path, query);
+}
+
 export function normalizeApiData(payload) {
   if (!payload || typeof payload !== 'object') return null;
   if (Object.prototype.hasOwnProperty.call(payload, 'data')) return payload.data;

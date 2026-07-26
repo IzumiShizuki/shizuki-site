@@ -198,13 +198,17 @@ const themeModeIcon = computed(() => (themeModeNormalized.value === 'day' ? 'fas
 const themeToggleActionLabel = computed(() => (themeModeNormalized.value === 'day' ? '切换到夜间模式' : '切换到白天模式'));
 
 const mainNavItems = computed(() => {
-  return [
+  const items = [
     { key: 'home', label: 'Home', icon: 'fas fa-house' },
     { key: 'blog', label: 'Blog', icon: 'far fa-file-alt' },
     { key: 'music-library', label: 'Music', icon: 'fas fa-music' },
     { key: 'apps', label: 'Apps', icon: 'fas fa-th-large' },
     { key: 'ai-hub', label: 'AI Hub', icon: 'fas fa-brain' }
   ];
+  if (props.isAdmin) {
+    items.push({ key: 'meguri', label: 'Meguri', icon: 'fas fa-heart' });
+  }
+  return items;
 });
 
 const activeMainRoute = computed(() => {

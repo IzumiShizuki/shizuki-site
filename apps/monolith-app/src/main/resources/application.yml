@@ -240,6 +240,21 @@ shizuki:
         workshop-app-id: ${WALLPAPER_WORKSHOP_APP_ID:431960}
         download-root: ${WALLPAPER_WORKSHOP_DOWNLOAD_ROOT:/tmp/steam-workshop}
         command-timeout-seconds: ${WALLPAPER_WORKSHOP_TIMEOUT_SECONDS:180}
+  meguri:
+    gateway:
+      enabled: ${MEGURI_GATEWAY_ENABLED:false}
+      base-url: ${MEGURI_CORE_BASE_URL:https://bot.shizuki.online/meguri-core}
+      token: ${MEGURI_CORE_TOKEN:}
+      token-file: ${MEGURI_CORE_TOKEN_FILE:}
+      tenant-id: ${MEGURI_TENANT_ID:meguri-staging}
+      owner-user-id: ${MEGURI_OWNER_USER_ID:local-airi-user}
+      formal-memory-allowed: ${MEGURI_FORMAL_MEMORY_ALLOWED:false}
+      sprite-dir: ${MEGURI_SPRITE_DIR:}
+      default-sprite: ${MEGURI_DEFAULT_SPRITE:ce04001l.png}
+      connect-timeout-ms: ${MEGURI_CONNECT_TIMEOUT_MS:3000}
+      turn-read-timeout-ms: ${MEGURI_TURN_READ_TIMEOUT_MS:30000}
+      health-read-timeout-ms: ${MEGURI_HEALTH_READ_TIMEOUT_MS:2500}
+      max-message-length: ${MEGURI_MAX_MESSAGE_LENGTH:4000}
   blog:
     storage:
       private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:zhuowang-files}}

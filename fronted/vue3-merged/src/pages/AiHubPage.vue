@@ -21,6 +21,14 @@
             <i class="fas fa-comments" aria-hidden="true"></i>
             <span>普通对话模式</span>
           </button>
+          <RouterLink
+            v-if="isAdminUser"
+            class="mode-tab meguri-tab ripple-trigger"
+            :to="{ name: 'meguri' }"
+          >
+            <i class="fas fa-heart" aria-hidden="true"></i>
+            <span>Meguri</span>
+          </RouterLink>
         </div>
 
         <div class="topbar-status">
@@ -1404,6 +1412,19 @@ watch(
   transform: translateY(-1px);
 }
 
+a.mode-tab {
+  text-decoration: none;
+}
+
+.meguri-tab {
+  color: rgba(255, 205, 226, 0.9);
+}
+
+.meguri-tab:hover {
+  background: rgba(255, 154, 197, 0.12);
+  color: rgba(255, 226, 238, 0.98);
+}
+
 .topbar-status {
   display: flex;
   flex-wrap: wrap;
@@ -2082,6 +2103,15 @@ watch(
   box-shadow:
     0 0 0 1px rgba(var(--accent-rgb), 0.24),
     0 10px 22px rgba(88, 60, 50, 0.08);
+}
+
+:root[data-theme-mode='day'] .meguri-tab {
+  color: rgba(178, 78, 122, 0.92);
+}
+
+:root[data-theme-mode='day'] .meguri-tab:hover {
+  background: rgba(255, 190, 216, 0.4);
+  color: rgba(150, 56, 98, 0.98);
 }
 
 :root[data-theme-mode='day'] .stage-btn,

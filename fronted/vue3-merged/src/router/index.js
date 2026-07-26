@@ -13,6 +13,7 @@ const AppsPage = () => import('../pages/AppsPage.vue');
 const BlogListPage = () => import('../pages/BlogListPage.vue');
 const BlogPage = () => import('../pages/BlogPage.vue');
 const BlogPresentationPage = () => import('../pages/BlogPresentationPage.vue');
+const MeguriPage = () => import('../pages/MeguriPage.vue');
 const MusicLibraryPage = () => import('../pages/MusicLibraryPage.vue');
 const MusicLibraryHomeView = () => import('../pages/music/MusicLibraryHomeView.vue');
 const MusicVoiceHomeView = () => import('../pages/music/MusicVoiceHomeView.vue');
@@ -27,6 +28,7 @@ export const routePathByKey = {
   'music-library': '/music-library/music',
   apps: '/apps',
   'ai-hub': '/ai-hub',
+  meguri: '/meguri',
   auth: '/auth',
   profile: '/profile',
   admin: '/admin',
@@ -112,6 +114,7 @@ const routes = [
   },
   { path: '/apps', name: 'apps', component: AppsPage },
   { path: '/ai-hub', alias: '/ai-tavern', name: 'ai-hub', component: AiHubPage },
+  { path: '/meguri', name: 'meguri', component: MeguriPage, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/auth', name: 'auth', component: AuthPage },
   { path: '/auth/callback', name: 'auth-callback', component: AuthCallbackPage },
   { path: '/profile', name: 'profile', component: ProfilePage },

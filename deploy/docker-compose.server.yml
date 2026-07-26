@@ -169,11 +169,21 @@ services:
       BLOG_VIDEO_READ_TIMEOUT_MS: ${BLOG_VIDEO_READ_TIMEOUT_MS:-900000}
       BLOG_VIDEO_MAX_KEYFRAMES: ${BLOG_VIDEO_MAX_KEYFRAMES:-12}
       BLOG_VIDEO_ALLOW_LOCAL_FILES: ${BLOG_VIDEO_ALLOW_LOCAL_FILES:-false}
+      MEGURI_GATEWAY_ENABLED: ${MEGURI_GATEWAY_ENABLED:-false}
+      MEGURI_CORE_BASE_URL: ${MEGURI_CORE_BASE_URL:-https://bot.shizuki.online/meguri-core}
+      MEGURI_CORE_TOKEN: ${MEGURI_CORE_TOKEN:-}
+      MEGURI_CORE_TOKEN_FILE: ${MEGURI_CORE_TOKEN_FILE:-}
+      MEGURI_TENANT_ID: ${MEGURI_TENANT_ID:-meguri-staging}
+      MEGURI_OWNER_USER_ID: ${MEGURI_OWNER_USER_ID:-local-airi-user}
+      MEGURI_FORMAL_MEMORY_ALLOWED: ${MEGURI_FORMAL_MEMORY_ALLOWED:-false}
+      MEGURI_SPRITE_DIR: ${MEGURI_SPRITE_DIR:-/app/meguri-assets/sprites/meguri}
+      MEGURI_DEFAULT_SPRITE: ${MEGURI_DEFAULT_SPRITE:-ce04001l.png}
     group_add:
       - "${DOCKER_SOCKET_GID:-988}"
     volumes:
       - ../resouces/yaml:/app/resouces/yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      - ${MEGURI_SPRITE_HOST_DIR:-/opt/shizuki-site/data/meguri-assets/sprites}:/app/meguri-assets/sprites:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

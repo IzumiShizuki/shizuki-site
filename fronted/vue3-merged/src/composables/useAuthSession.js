@@ -1,6 +1,6 @@
 import { computed, readonly, ref } from 'vue';
 import * as authApi from '../services/authApi';
-import { httpRequest, HttpError, isUnauthorizedProblem } from '../services/httpClient';
+import { buildApiUrl, httpRequest, HttpError, isUnauthorizedProblem } from '../services/httpClient';
 
 const AUTH_STORAGE_KEY = 'shizuki.auth.v1';
 const USER_STORAGE_KEY = 'shizuki.user.v1';
@@ -833,6 +833,29 @@ function createAuthSession() {
     );
   }
 
+  async function authorizedRawFetch(path, options = {}) {
+    await ensureReady();
+    return performAuthorizedRequest(async (token) => {
+      const { headers, ...rest } = options || {};
+      const response = await fetch(buildApiUrl(path), {
+        ...rest,
+        headers: {
+          ...(headers || {}),
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (response && response.status === 401) {
+        throw new HttpError('Unauthorized', {
+          status: 401,
+          problemCode: 'UNAUTHORIZED',
+          detail: 'Unauthorized',
+          url: path
+        });
+      }
+      return response;
+    }, currentRouteFromHash());
+  }
+
   return {
     ensureReady,
     isAuthenticated,
@@ -859,6 +882,7 @@ function createAuthSession() {
     confirmConflictBinding,
     logout,
     authorizedFetch,
+    authorizedRawFetch,
     refreshAccessToken,
     clearSession,
     redirectToAuth,
