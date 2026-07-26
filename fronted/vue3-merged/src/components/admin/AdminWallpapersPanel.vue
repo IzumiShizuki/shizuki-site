@@ -1,10 +1,8 @@
 <template>
   <div class="wallpaper-panel">
-    <header class="toolbar">
+    <header class="panel-toolbar">
       <h3>壁纸审核</h3>
-      <button class="primary-btn ripple-trigger" type="button" :disabled="loading || submitting" @click="$emit('refresh')">
-        {{ loading ? '加载中...' : '刷新待审' }}
-      </button>
+      <AdminRefreshButton :busy="loading" :disabled="submitting" @click="$emit('refresh')">刷新待审</AdminRefreshButton>
     </header>
 
     <p v-if="error" class="error-text">{{ error }}</p>
@@ -12,7 +10,7 @@
     <div v-if="!loading && !items.length" class="empty-tip">暂无待审核壁纸</div>
 
     <div class="wallpaper-grid">
-      <article v-for="item in items" :key="item.wallpaperId" class="wallpaper-card liquid-material">
+      <article v-for="item in items" :key="item.wallpaperId" class="wallpaper-card admin-card">
         <img class="preview" :src="item.previewUrl || item.visualUrl" :alt="item.title || 'wallpaper'" />
         <div class="meta">
           <h4>{{ item.title || `壁纸 #${item.wallpaperId}` }}</h4>
@@ -52,6 +50,8 @@
 </template>
 
 <script setup>
+import AdminRefreshButton from './AdminRefreshButton.vue';
+
 const props = defineProps({
   loading: {
     type: Boolean,
@@ -88,15 +88,16 @@ function audit(wallpaperId, auditStatus, visibility) {
   gap: 12px;
 }
 
-.toolbar {
+.panel-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 }
 
-.toolbar h3 {
+.panel-toolbar h3 {
   margin: 0;
-  color: rgba(233, 242, 255, 0.95);
+  color: var(--admin-text);
 }
 
 .wallpaper-grid {
@@ -106,14 +107,10 @@ function audit(wallpaperId, auditStatus, visibility) {
 }
 
 .wallpaper-card {
-  --liquid-bg: rgba(10, 18, 30, 0.5);
-  --liquid-border: rgba(255, 255, 255, 0.18);
-  --liquid-shadow: 0 12px 26px rgba(5, 10, 20, 0.24);
-  border-radius: 12px;
   overflow: hidden;
   display: grid;
   gap: 8px;
-  padding: 8px;
+  padding: 10px;
 }
 
 .preview {
@@ -126,13 +123,13 @@ function audit(wallpaperId, auditStatus, visibility) {
 .meta {
   display: grid;
   gap: 4px;
-  color: rgba(220, 232, 248, 0.9);
+  color: var(--admin-text-soft);
   font-size: 12px;
 }
 
 .meta h4 {
   margin: 0;
-  color: rgba(236, 246, 255, 0.96);
+  color: var(--admin-text);
   font-size: 14px;
 }
 
@@ -149,29 +146,13 @@ function audit(wallpaperId, auditStatus, visibility) {
 .primary-btn,
 .ghost-btn,
 .danger-btn {
-  border: 0;
-  border-radius: 10px;
   min-height: 34px;
-  color: rgba(240, 248, 255, 0.95);
-}
-
-.primary-btn {
-  background: rgba(var(--accent-rgb), 0.34);
-}
-
-.ghost-btn {
-  background: rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
 }
 
 .danger-btn {
-  background: rgba(236, 84, 112, 0.34);
-}
-
-.empty-tip {
-  color: rgba(208, 226, 248, 0.88);
-}
-
-.error-text {
-  color: rgba(255, 168, 184, 0.94);
+  border: 1px solid rgba(226, 120, 104, 0.5);
+  background: var(--admin-bad-bg);
+  color: var(--admin-bad);
 }
 </style>

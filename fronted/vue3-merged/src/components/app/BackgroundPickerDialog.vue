@@ -126,19 +126,7 @@
                 <h4>Workshop 搜索与导入</h4>
                 <span class="status-pill soft">可选</span>
               </div>
-              <p class="route-bg-note">先搜索并复制 Steam Workshop 条目链接。服务器会优先使用 Steam 公开文件地址；拿不到直链时需要 SteamCMD 和可访问该条目的账号。</p>
-              <div class="workshop-search-row">
-                <input
-                  v-model.trim="importState.workshopSearchQuery"
-                  class="field-input-lite"
-                  type="search"
-                  placeholder="搜索关键词，如 anime room / city rain"
-                  @keydown.enter.prevent="$emit('open-workshop-discovery-window')"
-                />
-                <button class="scope-btn ghost ripple-trigger" @click="$emit('open-workshop-discovery-window')">
-                  打开搜索
-                </button>
-              </div>
+              <p class="route-bg-note">推荐直接使用下方「在线壁纸浏览」搜索并点选；也可以手动粘贴 Steam Workshop 条目链接。服务器会优先使用公开直链，拿不到时走 SteamCMD 下载。</p>
               <input
                 v-model.trim="importState.workshopUrl"
                 class="field-input-lite"
@@ -158,10 +146,18 @@
                   小窗预览
                 </button>
               </div>
-              <p class="route-bg-note">导入任务是服务器异步执行的；创建后可以点“查询导入状态”确认是否下载成功。</p>
+              <p class="route-bg-note">导入任务创建后会自动轮询状态；也可以手动点“查询导入状态”。</p>
             </section>
           </div>
-          <p v-else class="route-bg-note">登录后可上传本地包或导入 Workshop 资源。</p>
+
+          <WallpaperDiscoveryPanel
+            v-if="isAuthenticated"
+            :authorized-fetch="authorizedFetch"
+            :busy="importState.busy"
+            @import-workshop="$emit('discovery-import-workshop', $event)"
+            @import-wallhaven="$emit('discovery-import-wallhaven', $event)"
+          />
+          <p v-if="!isAuthenticated" class="route-bg-note">登录后可上传本地包、在线浏览并拉取 Workshop / Wallhaven 壁纸。</p>
 
           <p class="format-guide-note">
             支持图片、视频、Live2D zip 与内嵌 BGM/BGV 媒体；上传后会自动按 L2D、动态、静态的顺序分类。
@@ -283,6 +279,8 @@
 </template>
 
 <script setup>
+import WallpaperDiscoveryPanel from './WallpaperDiscoveryPanel.vue';
+
 defineProps({
   visible: { type: Boolean, default: false },
   pickerMode: { type: String, default: 'select' },
@@ -299,6 +297,7 @@ defineProps({
     default: () => ({})
   },
   isAuthenticated: { type: Boolean, default: false },
+  authorizedFetch: { type: Function, default: null },
   packageDropActive: { type: Boolean, default: false },
   activeBackground: {
     type: Object,
@@ -332,7 +331,8 @@ defineEmits([
   'package-file-change',
   'submit-package-import',
   'submit-workshop-import',
-  'open-workshop-discovery-window',
+  'discovery-import-workshop',
+  'discovery-import-wallhaven',
   'open-workshop-preview-window',
   'check-wallpaper-import-job',
   'save-active-wallpaper-settings',
@@ -609,12 +609,6 @@ defineEmits([
   color: var(--picker-ink-soft) !important;
   font-size: 12px;
   line-height: 1.6;
-}
-
-.workshop-search-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
 }
 
 .field-input-lite {

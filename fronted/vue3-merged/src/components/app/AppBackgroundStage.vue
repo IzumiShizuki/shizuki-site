@@ -1,6 +1,13 @@
 <template>
   <div class="bg-layer" :class="{ home: isHomeRoute }" aria-hidden="true">
-    <img class="bg-image" :src="activeImageBackground" alt="background" />
+    <img
+      class="bg-image"
+      :src="activeImageBackground"
+      alt="background"
+      decoding="async"
+      @load="$emit('image-load')"
+      @error="$emit('image-error')"
+    />
     <video
       v-if="activeVideoBackground && !videoFailed"
       class="bg-video"
@@ -63,7 +70,7 @@ defineProps({
   setWallpaperBgvRef: { type: Function, default: null }
 });
 
-defineEmits(['video-error', 'l2d-error']);
+defineEmits(['video-error', 'l2d-error', 'image-load', 'image-error']);
 </script>
 
 <style scoped>
