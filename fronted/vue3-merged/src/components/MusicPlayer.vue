@@ -221,7 +221,7 @@ const props = defineProps({
   playMode: { type: String, default: 'sequential' },
   listOpen: { type: Boolean, default: false },
   visualizerMode: { type: String, default: 'bars' },
-  visualizerStyle: { type: String, default: 'bars-neon' },
+  visualizerStyle: { type: String, default: 'bars-aurora' },
   showVisualizerControls: { type: Boolean, default: false },
   isHomeRoute: { type: Boolean, default: true },
   isMobileViewport: { type: Boolean, default: false },
@@ -308,6 +308,7 @@ const shellClass = computed(() => ({
 }));
 
 const visualizerStyleOptions = [
+  { key: 'bars-aurora', label: '极光光柱', mode: 'bars' },
   { key: 'bars-neon', label: '霓虹脉冲', mode: 'bars' },
   { key: 'bars-crystal', label: '晶体频谱', mode: 'bars' },
   { key: 'bars-firefly', label: '萤火流光', mode: 'bars' },

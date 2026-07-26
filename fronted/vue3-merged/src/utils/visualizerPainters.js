@@ -90,8 +90,8 @@ function computeBarsLayout(width, height, count, gapRatio = 0.36) {
     slot,
     barWidth,
     left: sidePad + (slot - barWidth) / 2,
-    baseline: height * 0.76,
-    topPad: height * 0.06,
+    baseline: height * 0.8,
+    topPad: height * 0.04,
     radius: Math.min(4, barWidth / 2)
   };
 }
@@ -141,8 +141,8 @@ function createBarsNeonPainter() {
 
       // 辉光层(单次 shadow 应用整条路径,开销可控)。
       ctx.save();
-      ctx.shadowColor = rgba(accent, 0.55);
-      ctx.shadowBlur = 16;
+      ctx.shadowColor = rgba(accent, 0.72);
+      ctx.shadowBlur = 22;
       ctx.fillStyle = gradient;
       ctx.fill(bodyPath);
       ctx.restore();
@@ -153,12 +153,12 @@ function createBarsNeonPainter() {
       ctx.stroke(bodyPath);
 
       // 峰值帽。
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
       for (let index = 0; index < count; index += 1) {
         const peak = peakDisplay[index];
         const capY = layout.baseline - Math.max(3, peak * heightScale) - 5;
         if (capY < layout.baseline - 6) {
-          ctx.fillRect(layout.left + index * layout.slot, capY, layout.barWidth, 2.4);
+          ctx.fillRect(layout.left + index * layout.slot, capY, layout.barWidth, 3);
         }
       }
 
@@ -178,10 +178,10 @@ function createBarsNeonPainter() {
       // 基线光带。
       const lineGradient = ctx.createLinearGradient(0, 0, env.width, 0);
       lineGradient.addColorStop(0, rgba(accent, 0));
-      lineGradient.addColorStop(0.5, rgba(accentSoft, 0.5 + frame.energy.overall * 0.4));
+      lineGradient.addColorStop(0.5, rgba(accentSoft, 0.62 + frame.energy.overall * 0.34));
       lineGradient.addColorStop(1, rgba(accent, 0));
       ctx.fillStyle = lineGradient;
-      ctx.fillRect(layout.left, layout.baseline, env.width - layout.left * 2, 1.4);
+      ctx.fillRect(layout.left, layout.baseline, env.width - layout.left * 2, 2);
     },
     reset() {
       display = null;
@@ -454,16 +454,16 @@ function createRingHaloPainter() {
         const tint = mixColor(accentSoft, accentStrong, index % 2 === 0 ? level : level * 0.6);
 
         if (level > 0.3) {
-          ctx.strokeStyle = rgba(accent, 0.10 + level * 0.14);
-          ctx.lineWidth = 7.5;
+          ctx.strokeStyle = rgba(accent, 0.14 + level * 0.2);
+          ctx.lineWidth = 10;
           ctx.beginPath();
           ctx.moveTo(cos * (R + 2), sin * (R + 2));
           ctx.lineTo(cos * (R + 2 + outerLen), sin * (R + 2 + outerLen));
           ctx.stroke();
         }
 
-        ctx.strokeStyle = rgba(tint, 0.36 + level * 0.6);
-        ctx.lineWidth = 3.6;
+        ctx.strokeStyle = rgba(tint, 0.46 + level * 0.54);
+        ctx.lineWidth = 4.6;
         ctx.beginPath();
         ctx.moveTo(cos * (R + 2), sin * (R + 2));
         ctx.lineTo(cos * (R + 2 + outerLen), sin * (R + 2 + outerLen));
@@ -480,7 +480,7 @@ function createRingHaloPainter() {
       }
 
       // 峰值光点。
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       const peakDisplay = resampleLevels(frame.peaks, segments, true);
       for (let index = 0; index < segments; index += 2) {
         const peak = peakDisplay[index];
@@ -488,7 +488,7 @@ function createRingHaloPainter() {
         const angle = (index / segments) * TAU - Math.PI / 2;
         const r = R + 4 + peak * R * 0.62;
         ctx.beginPath();
-        ctx.arc(Math.cos(angle) * r, Math.sin(angle) * r, 1.1, 0, TAU);
+        ctx.arc(Math.cos(angle) * r, Math.sin(angle) * r, 1.5, 0, TAU);
         ctx.fill();
       }
       ctx.restore();
@@ -735,8 +735,8 @@ function createVinylAuraPainter() {
         const length = 2 + level * maxLen * 0.92;
         const tint = mixColor(accentSoft, accentStrong, 0.25 + level * 0.6);
 
-        ctx.strokeStyle = rgba(tint, 0.26 + level * 0.6);
-        ctx.lineWidth = 2.6;
+        ctx.strokeStyle = rgba(tint, 0.34 + level * 0.58);
+        ctx.lineWidth = 3.4;
         ctx.beginPath();
         ctx.moveTo(cos * (innerR + 2), sin * (innerR + 2));
         ctx.lineTo(cos * (innerR + 2 + length), sin * (innerR + 2 + length));
@@ -744,7 +744,7 @@ function createVinylAuraPainter() {
       }
 
       // 峰值光点。
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.66)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
       const peakDisplay = resampleLevels(frame.peaks, segments, true);
       for (let index = 0; index < segments; index += 3) {
         const peak = peakDisplay[index];
@@ -764,7 +764,100 @@ function createVinylAuraPainter() {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* bars-aurora 极光光柱:高可见度默认样式。                              */
+/* 粗光柱 + 暗色衬底 + 白热顶端 + 节拍闪光,任何壁纸上都清晰可读。       */
+/* ------------------------------------------------------------------ */
+function createBarsAuroraPainter() {
+  let display = null;
+  let peakDisplay = null;
+  let flash = 0;
+
+  return {
+    paint(ctx, frame, env) {
+      const count = 40;
+      display = resampleLevels(frame.levels, count, false, display);
+      peakDisplay = resampleLevels(frame.peaks, count, false, peakDisplay);
+      const layout = computeBarsLayout(env.width, env.height, count, 0.24);
+      const heightScale = layout.baseline - layout.topPad;
+      const { accent, accentSoft, accentStrong } = env.colors;
+      const dtSec = Math.min(env.dtMs, 100) / 1000;
+
+      // 节拍闪光包络。
+      if (frame.beat?.hit) flash = Math.min(1, flash + 0.5 + (frame.beat.strength || 0) * 0.5);
+      flash = Math.max(0, flash - dtSec * 2.6);
+
+      // 暗色衬底:让光柱在亮壁纸上也保持对比度。
+      const padTop = layout.topPad * 0.5;
+      const backdrop = ctx.createLinearGradient(0, padTop, 0, env.height);
+      backdrop.addColorStop(0, 'rgba(10, 8, 16, 0)');
+      backdrop.addColorStop(0.55, `rgba(10, 8, 16, ${0.22 + frame.energy.overall * 0.16})`);
+      backdrop.addColorStop(1, `rgba(10, 8, 16, ${0.38 + frame.energy.overall * 0.16})`);
+      ctx.fillStyle = backdrop;
+      ctx.fillRect(0, padTop, env.width, env.height - padTop);
+
+      paintBassUnderGlow(ctx, env, layout.baseline + 2, Math.min(1, frame.energy.bass * 1.25), accent);
+
+      // 主体光柱:感知增强曲线(低电平也可见)。
+      const bodyPath = new Path2D();
+      const boosted = display.map((level) => Math.min(1, Math.pow(level, 0.78) * 1.06));
+      traceBarsPath(bodyPath, boosted, layout, heightScale, 3);
+
+      const gradient = ctx.createLinearGradient(0, layout.topPad, 0, layout.baseline);
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.99)');
+      gradient.addColorStop(0.28, rgba(mixColor(accentSoft, [255, 255, 255], 0.5), 0.98));
+      gradient.addColorStop(0.62, rgba(accent, 0.96));
+      gradient.addColorStop(1, rgba(accentStrong, 0.92));
+
+      ctx.save();
+      ctx.shadowColor = rgba(accent, 0.8 + flash * 0.2);
+      ctx.shadowBlur = 26 + flash * 14;
+      ctx.fillStyle = gradient;
+      ctx.fill(bodyPath);
+      ctx.restore();
+
+      // 边缘描白,强化轮廓。
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.34 + flash * 0.2})`;
+      ctx.lineWidth = 1.2;
+      ctx.stroke(bodyPath);
+
+      // 粗峰值帽 + 顶端光球。
+      for (let index = 0; index < count; index += 1) {
+        const peak = peakDisplay[index];
+        const level = boosted[index];
+        const capY = layout.baseline - Math.max(4, peak * heightScale) - 6;
+        if (capY < layout.baseline - 8) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+          ctx.fillRect(layout.left + index * layout.slot, capY, layout.barWidth, 3.4);
+        }
+        if (level > 0.5 && !env.reducedMotion) {
+          const x = layout.left + index * layout.slot + layout.barWidth / 2;
+          const y = layout.baseline - level * heightScale;
+          ctx.fillStyle = rgba(mixColor(accentSoft, [255, 255, 255], 0.7), 0.25 + level * 0.45);
+          ctx.beginPath();
+          ctx.arc(x, y, layout.barWidth * 0.34, 0, TAU);
+          ctx.fill();
+        }
+      }
+
+      // 明亮基线光带。
+      const lineGradient = ctx.createLinearGradient(0, 0, env.width, 0);
+      lineGradient.addColorStop(0, rgba(accent, 0));
+      lineGradient.addColorStop(0.5, rgba(mixColor(accentSoft, [255, 255, 255], 0.4), 0.78 + frame.energy.overall * 0.2));
+      lineGradient.addColorStop(1, rgba(accent, 0));
+      ctx.fillStyle = lineGradient;
+      ctx.fillRect(layout.left, layout.baseline, env.width - layout.left * 2, 2.6);
+    },
+    reset() {
+      display = null;
+      peakDisplay = null;
+      flash = 0;
+    }
+  };
+}
+
 const PAINTER_FACTORIES = {
+  'bars-aurora': createBarsAuroraPainter,
   'bars-neon': createBarsNeonPainter,
   'bars-crystal': createBarsCrystalPainter,
   'bars-firefly': createBarsFireflyPainter,

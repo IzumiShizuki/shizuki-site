@@ -8,7 +8,7 @@ import { formatMediaTime } from '../utils/mediaTime';
 const STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const MODE_ORDER = ['sequential', 'random', 'single'];
-const VISUALIZER_STYLES = ['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];
+const VISUALIZER_STYLES = ['bars-aurora', 'bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse'];
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
 const LYRIC_RENDER_MODES = ['original', 'original_translation', 'original_furigana'];
 const LYRIC_PREFERENCE_VERSION = 2;
@@ -260,7 +260,7 @@ function styleBelongsToMode(style, mode) {
 
 function getDefaultStyleByMode(mode) {
   if (mode === 'ring') return 'ring-halo';
-  return 'bars-neon';
+  return 'bars-aurora';
 }
 
 export function usePlayerEngine(options = {}) {
@@ -280,7 +280,7 @@ export function usePlayerEngine(options = {}) {
 
   const playMode = ref(MODE_ORDER.includes(persisted.playMode) ? persisted.playMode : 'sequential');
   const visualizerMode = ref(['ring', 'bars', 'none'].includes(persisted.visualizerMode) ? persisted.visualizerMode : 'none');
-  const visualizerStyle = ref(VISUALIZER_STYLES.includes(persisted.visualizerStyle) ? persisted.visualizerStyle : 'bars-neon');
+  const visualizerStyle = ref(VISUALIZER_STYLES.includes(persisted.visualizerStyle) ? persisted.visualizerStyle : 'bars-aurora');
   const isPlayerExpanded = ref(Boolean(persisted.isPlayerExpanded));
   const isPinned = ref(Boolean(persisted.isPinned));
   const listOpen = ref(Boolean(persisted.listOpen));
