@@ -3,7 +3,7 @@
     <div class="wallpaper-home-orb orb-a" aria-hidden="true"></div>
     <div class="wallpaper-home-orb orb-b" aria-hidden="true"></div>
 
-    <article class="wallpaper-home-dock liquid-material">
+    <article class="wallpaper-home-dock">
       <p class="wallpaper-home-kicker">{{ greeting.en }}</p>
       <h1>{{ greeting.zh }}</h1>
       <p class="wallpaper-home-copy">
@@ -23,7 +23,7 @@
       </div>
     </article>
 
-    <div class="wallpaper-home-shortcuts liquid-material">
+    <div class="wallpaper-home-shortcuts">
       <button
         v-for="item in quickTools"
         :key="item.path"
@@ -89,10 +89,8 @@ function openPath(path) {
   overflow: hidden;
 }
 
+/* 实底卡片：不再用毛玻璃，深暖底色 + 细暖边，任何壁纸上都干净稳定。 */
 .wallpaper-home-dock {
-  --liquid-bg: linear-gradient(145deg, rgba(20, 24, 40, 0.62), rgba(44, 29, 55, 0.4));
-  --liquid-border: rgba(255, 255, 255, 0.26);
-  --liquid-shadow: 0 28px 60px rgba(8, 10, 24, 0.34);
   position: relative;
   z-index: 1;
   width: min(100%, 460px);
@@ -100,9 +98,10 @@ function openPath(path) {
   border-radius: 30px;
   display: grid;
   gap: 16px;
-  color: rgba(248, 249, 255, 0.98);
-  text-shadow: 0 4px 16px rgba(7, 8, 15, 0.36);
-  backdrop-filter: blur(22px) saturate(132%);
+  color: rgba(255, 244, 238, 0.98);
+  background: linear-gradient(150deg, rgba(52, 40, 48, 0.97), rgba(38, 29, 38, 0.96));
+  border: 1px solid rgba(255, 213, 224, 0.2);
+  box-shadow: 0 24px 52px rgba(20, 12, 18, 0.35);
 }
 
 .wallpaper-home-kicker {
@@ -169,9 +168,6 @@ function openPath(path) {
 }
 
 .wallpaper-home-shortcuts {
-  --liquid-bg: linear-gradient(145deg, rgba(12, 16, 32, 0.46), rgba(44, 38, 90, 0.28));
-  --liquid-border: rgba(255, 255, 255, 0.2);
-  --liquid-shadow: 0 20px 44px rgba(8, 10, 24, 0.26);
   position: relative;
   z-index: 1;
   min-width: 196px;
@@ -179,7 +175,10 @@ function openPath(path) {
   border-radius: 22px;
   display: grid;
   gap: 10px;
-  backdrop-filter: blur(18px) saturate(136%);
+  color: rgba(255, 244, 238, 0.96);
+  background: linear-gradient(150deg, rgba(48, 38, 46, 0.96), rgba(36, 28, 37, 0.95));
+  border: 1px solid rgba(255, 213, 224, 0.18);
+  box-shadow: 0 18px 40px rgba(20, 12, 18, 0.3);
 }
 
 .wallpaper-home-shortcut {
@@ -237,6 +236,41 @@ function openPath(path) {
   width: 260px;
   height: 260px;
   background: radial-gradient(circle, rgba(255, 205, 190, 0.2), rgba(255, 205, 190, 0));
+}
+
+/* 日间模式：暖白实底卡片 + 深墨文字。 */
+:root[data-theme-mode='day'] .wallpaper-home-dock {
+  color: rgba(64, 42, 40, 0.96);
+  background: linear-gradient(150deg, rgba(255, 251, 247, 0.98), rgba(251, 240, 238, 0.97));
+  border-color: rgba(190, 120, 130, 0.26);
+  box-shadow: 0 22px 48px rgba(168, 120, 120, 0.2);
+  text-shadow: none;
+}
+
+:root[data-theme-mode='day'] .wallpaper-home-kicker {
+  color: rgba(196, 92, 128, 0.95);
+}
+
+:root[data-theme-mode='day'] .wallpaper-home-copy {
+  color: rgba(84, 58, 54, 0.92);
+}
+
+:root[data-theme-mode='day'] .wallpaper-home-copy span {
+  color: rgba(178, 84, 118, 0.95);
+}
+
+:root[data-theme-mode='day'] .wallpaper-home-shortcuts {
+  color: rgba(64, 42, 40, 0.94);
+  background: linear-gradient(150deg, rgba(255, 250, 246, 0.97), rgba(250, 239, 237, 0.96));
+  border-color: rgba(190, 120, 130, 0.22);
+  box-shadow: 0 16px 36px rgba(168, 120, 120, 0.18);
+}
+
+:root[data-theme-mode='day'] .wallpaper-home-meta span,
+:root[data-theme-mode='day'] .wallpaper-home-shortcut {
+  border-color: rgba(190, 120, 130, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(72, 48, 46, 0.94);
 }
 
 @media (max-width: 920px) {
