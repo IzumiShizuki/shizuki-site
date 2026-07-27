@@ -50,9 +50,7 @@
           <section v-if="activeTab === 'scenes'" class="panel-body">
             <header class="block-head">
               <div>
-                <p class="section-kicker">One-tap Scenes</p>
                 <h3>一键氛围场景</h3>
-                <p class="head-copy">每个场景会同时应用一组环境音和搭配的背景特效。</p>
               </div>
               <button class="soft-btn ripple-trigger" type="button" @click="stopEverything">
                 <i class="fas fa-power-off" aria-hidden="true"></i>
@@ -60,7 +58,7 @@
               </button>
             </header>
 
-            <div class="scene-grid">
+            <div class="scene-grid fade-stagger">
               <button
                 v-for="scene in scenes"
                 :key="scene.id"
@@ -93,7 +91,6 @@
               </button>
             </div>
 
-            <p class="inline-note">场景只是快捷入口——应用后仍可到「环境音」「特效」页里单独微调每一项。</p>
           </section>
 
           <!-- ======================= 音乐 ======================= -->
@@ -102,7 +99,6 @@
               <section class="glass-card">
                 <header class="block-head">
                   <div>
-                    <p class="section-kicker">Mini Music Library</p>
                     <h3>歌单与歌曲列表</h3>
                   </div>
                   <div class="block-actions">
@@ -116,18 +112,17 @@
                 </header>
 
                 <p v-if="musicLibraryState?.errorText" class="inline-note warning">{{ musicLibraryState.errorText }}</p>
-                <p v-else-if="!isAuthenticated" class="inline-note">未登录时只展示默认/精选歌单；登录后会补充红心、创建和收藏歌单。</p>
+                <p v-else-if="!isAuthenticated" class="inline-note">登录后显示红心与收藏歌单。</p>
 
                 <section v-for="group in musicGroups" :key="group.key" class="playlist-group">
                   <div class="group-head">
                     <div>
-                      <p class="mini-label">{{ group.caption }}</p>
                       <h4>{{ group.label }}</h4>
                     </div>
                     <span class="count-pill">{{ group.items.length }}</span>
                   </div>
 
-                  <div class="playlist-grid">
+                  <div class="playlist-grid fade-stagger">
                     <button
                       v-for="playlist in group.items"
                       :key="playlist.playlistCode"
@@ -144,7 +139,7 @@
                       </div>
                       <div class="playlist-copy">
                         <strong>{{ playlist.name }}</strong>
-                        <small>{{ playlist.description || '点击查看这个歌单的曲目列表。' }}</small>
+                        <small v-if="playlist.description">{{ playlist.description }}</small>
                       </div>
                     </button>
                   </div>
@@ -153,7 +148,6 @@
                 <section class="track-sheet">
                   <header class="track-head">
                     <div>
-                      <p class="mini-label">Playlist Tracks</p>
                       <h4>{{ currentPlaylist.name || '歌单曲目' }}</h4>
                     </div>
                     <span class="count-pill">{{ currentTracks.length }}</span>
@@ -194,7 +188,6 @@
               <aside class="glass-card music-now-card">
                 <header class="block-head compact">
                   <div>
-                    <p class="section-kicker">Now Playing</p>
                     <h3>正在播放</h3>
                   </div>
                 </header>
@@ -212,7 +205,7 @@
 
                 <div class="music-now-copy">
                   <strong>{{ musicTrack?.title || '当前未播放音乐' }}</strong>
-                  <span>{{ musicTrack?.artist || '切换到歌单中的曲目即可播放。' }}</span>
+                  <span>{{ musicTrack?.artist || '未在播放' }}</span>
                 </div>
 
                 <div class="summary-actions">
@@ -229,7 +222,7 @@
 
                 <section class="lyrics-box">
                   <header class="lyrics-head">
-                    <p class="mini-label">Live Lyrics</p>
+                    <p class="mini-label">歌词</p>
                     <span>{{ musicPlaying ? '播放中' : '暂停中' }}</span>
                   </header>
                   <transition name="lyric-switch" mode="out-in">
@@ -312,7 +305,6 @@
             <section v-for="group in groupedLibrary" :key="group.key" class="playlist-group">
               <div class="group-head">
                 <div>
-                  <p class="mini-label">{{ group.caption }}</p>
                   <h4>{{ group.label }}</h4>
                 </div>
                 <span class="count-pill">{{ group.items.length }}</span>
@@ -382,7 +374,6 @@
             <section class="glass-card preset-card">
               <div class="group-head">
                 <div>
-                  <p class="mini-label">My Mixes</p>
                   <h4>我的混音组合</h4>
                 </div>
                 <div class="preset-actions">
@@ -426,9 +417,7 @@
           <section v-else-if="activeTab === 'online'" class="panel-body">
             <header class="block-head">
               <div>
-                <p class="section-kicker">Online Library · Freesound</p>
                 <h3>在线音源库</h3>
-                <p class="head-copy">直接搜 Freesound 的环境音，试听满意就加进混音，不用先下载再上传。</p>
               </div>
             </header>
 
@@ -1260,8 +1249,16 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .atmo-panel {
-  --liquid-bg: rgba(var(--glass-rgb), 0.44);
-  --liquid-border: rgba(255, 255, 255, 0.5);
+  /* 主题化面板配色：夜间深暖近实底、日间奶油暖白（替换原先的冷灰蓝浅玻璃）。 */
+  --ap-panel-bg: linear-gradient(160deg, rgba(44, 36, 44, 0.97), rgba(32, 26, 34, 0.96));
+  --ap-surface: rgba(255, 236, 230, 0.08);
+  --ap-surface-strong: rgba(255, 236, 230, 0.15);
+  --ap-border-strong: rgba(255, 214, 224, 0.2);
+  --ap-ink: rgba(255, 243, 238, 0.95);
+  --ap-ink-muted: rgba(228, 204, 200, 0.76);
+  --ap-scrollbar: rgba(228, 190, 186, 0.4);
+  --liquid-bg: var(--ap-panel-bg);
+  --liquid-border: var(--ap-border-strong);
   --liquid-shadow: 0 24px 64px rgba(8, 12, 20, 0.34);
   width: min(1040px, calc(100vw - 20px));
   max-height: min(86vh, 800px);
@@ -1271,7 +1268,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   flex-direction: column;
   gap: 12px;
   overflow: hidden;
-  color: rgba(28, 34, 42, 0.9);
+  color: var(--ap-ink);
 }
 
 .atmo-scroll {
@@ -1281,7 +1278,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   overscroll-behavior: contain;
   padding: 2px 2px 16px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(120, 130, 150, 0.4) transparent;
+  scrollbar-color: var(--ap-scrollbar) transparent;
 }
 
 .atmo-scroll::-webkit-scrollbar {
@@ -1356,8 +1353,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 999px;
   font-size: 12px;
   color: rgba(54, 66, 84, 0.86);
-  background: rgba(255, 255, 255, 0.44);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: var(--ap-surface-strong);
+  border: 1px solid var(--ap-border-strong);
 }
 
 .status-chip.timer {
@@ -1369,18 +1366,18 @@ function rangeFillStyle(value, min = 0, max = 1) {
   width: 36px;
   height: 36px;
   flex: none;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--ap-border-strong);
   border-radius: 12px;
   display: inline-grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--ap-surface-strong);
   color: rgba(40, 50, 64, 0.82);
   transition: background-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .icon-btn:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--ap-surface-strong);
   box-shadow: 0 10px 20px rgba(8, 12, 20, 0.1);
 }
 
@@ -1388,14 +1385,14 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .atmo-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-border-strong);
   width: fit-content;
   max-width: 100%;
-  overflow-x: auto;
 }
 
 .atmo-tab {
@@ -1409,12 +1406,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
   font-size: 13px;
   white-space: nowrap;
   background: transparent;
-  color: rgba(62, 74, 92, 0.78);
+  color: var(--ap-ink-muted);
   transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .atmo-tab:hover {
-  background: rgba(255, 255, 255, 0.42);
+  background: var(--ap-surface-strong);
 }
 
 .atmo-tab.active {
@@ -1427,8 +1424,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .glass-card {
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.46);
-  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--ap-border-strong);
+  background: var(--ap-surface);
   padding: 14px;
   display: grid;
   gap: 12px;
@@ -1493,7 +1490,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .preset-chip,
 .inline-link,
 .chip {
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  border: 1px solid var(--ap-border-strong);
   border-radius: 11px;
   min-height: 34px;
   padding: 0 13px;
@@ -1501,7 +1498,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   align-items: center;
   gap: 7px;
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.38);
+  background: var(--ap-surface);
   color: rgba(34, 42, 56, 0.82);
   transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
 }
@@ -1512,7 +1509,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .chip:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 22px rgba(8, 12, 20, 0.1);
-  background: rgba(255, 255, 255, 0.56);
+  background: var(--ap-surface-strong);
 }
 
 .soft-btn.primary {
@@ -1551,7 +1548,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.44);
+  background: var(--ap-surface-strong);
   color: rgba(47, 58, 74, 0.7);
   font-size: 12px;
 }
@@ -1615,7 +1612,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .atmo-range::-moz-range-track {
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.46);
+  background: var(--ap-surface-strong);
 }
 
 .atmo-range::-moz-range-progress {
@@ -1647,7 +1644,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .scene-card {
   position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid var(--ap-border-strong);
   border-radius: 18px;
   min-height: 168px;
   padding: 13px;
@@ -1699,7 +1696,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   place-items: center;
   font-size: 16px;
   background: rgba(255, 255, 255, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.36);
+  border: 1px solid var(--ap-border-strong);
   backdrop-filter: blur(4px);
 }
 
@@ -1750,7 +1747,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 999px;
   font-size: 11px;
   background: rgba(12, 16, 24, 0.32);
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid var(--ap-border-strong);
 }
 
 /* ================================ 环境音页 ================================ */
@@ -1841,8 +1838,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .sound-tile {
   position: relative;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.44);
-  background: rgba(255, 255, 255, 0.32);
+  border: 1px solid var(--ap-border-strong);
+  background: var(--ap-surface);
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
@@ -1997,7 +1994,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--ap-border-strong);
   background: rgba(240, 244, 250, 0.94);
   color: rgba(90, 100, 118, 0.9);
   font-size: 10px;
@@ -2016,8 +2013,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   min-width: 190px;
   min-height: 36px;
   border-radius: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.48);
-  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--ap-border-strong);
+  background: var(--ap-surface-strong);
   color: rgba(24, 30, 40, 0.86);
   padding: 0 12px;
   font-size: 13px;
@@ -2068,8 +2065,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   width: 100%;
   min-height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--ap-border-strong);
+  background: var(--ap-surface-strong);
   color: rgba(24, 30, 40, 0.88);
   padding: 0 36px 0 34px;
   font-size: 13.5px;
@@ -2116,8 +2113,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   gap: 4px;
   padding: 3px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.44);
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-border-strong);
 }
 
 .license-toggle .chip {
@@ -2141,8 +2138,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .online-card {
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.46);
-  background: rgba(255, 255, 255, 0.32);
+  border: 1px solid var(--ap-border-strong);
+  background: var(--ap-surface);
   padding: 12px;
   display: grid;
   gap: 10px;
@@ -2326,7 +2323,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   width: 52px;
   height: 30px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--ap-border-strong);
   background: rgba(148, 158, 174, 0.4);
   position: relative;
   transition: background-color 0.2s ease, border-color 0.2s ease;
@@ -2418,9 +2415,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .fx-card {
-  border: 1px solid rgba(255, 255, 255, 0.44);
+  border: 1px solid var(--ap-border-strong);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.32);
+  background: var(--ap-surface);
   padding: 9px;
   display: grid;
   gap: 8px;
@@ -2714,9 +2711,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .playlist-card {
-  border: 1px solid rgba(255, 255, 255, 0.44);
+  border: 1px solid var(--ap-border-strong);
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.34);
+  background: var(--ap-surface);
   padding: 10px;
   display: grid;
   grid-template-columns: 60px minmax(0, 1fr);
@@ -2741,7 +2738,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .track-cover {
   overflow: hidden;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--ap-surface-strong);
 }
 
 .playlist-cover {
@@ -2812,13 +2809,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
   align-items: center;
   border-radius: 13px;
   padding: 9px 10px;
-  background: rgba(255, 255, 255, 0.34);
+  background: var(--ap-surface);
   outline: none;
   transition: background-color 0.16s ease;
 }
 
 .track-row:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--ap-surface-strong);
 }
 
 .track-row:focus-visible {
@@ -2889,7 +2886,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   position: relative;
   z-index: 1;
   border: 3px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.36);
+  background: var(--ap-surface);
 }
 
 .vinyl-cover img,
@@ -2927,7 +2924,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   justify-self: stretch;
   border-radius: 15px;
   border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--ap-surface);
   padding: 12px;
   display: grid;
   gap: 10px;
@@ -3222,5 +3219,16 @@ function rangeFillStyle(value, min = 0, max = 1) {
     width: 168px;
     height: 168px;
   }
+}
+/* 日间模式：奶油暖白面板。 */
+:root[data-theme-mode='day'] .atmo-panel {
+  --ap-panel-bg: linear-gradient(160deg, rgba(255, 251, 247, 0.98), rgba(250, 241, 238, 0.97));
+  --ap-surface: rgba(255, 255, 255, 0.62);
+  --ap-surface-strong: rgba(255, 255, 255, 0.85);
+  --ap-border-strong: rgba(186, 124, 132, 0.3);
+  --ap-ink: rgba(64, 44, 42, 0.94);
+  --ap-ink-muted: rgba(122, 92, 88, 0.76);
+  --ap-scrollbar: rgba(186, 140, 140, 0.45);
+  --liquid-shadow: 0 24px 56px rgba(168, 120, 120, 0.22);
 }
 </style>
