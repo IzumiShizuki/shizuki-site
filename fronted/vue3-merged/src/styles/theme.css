@@ -10,26 +10,27 @@
     rgba(var(--accent-gradient-start-rgb), 0.94),
     rgba(var(--accent-gradient-end-rgb), 0.9)
   );
-  --theme-surface: linear-gradient(155deg, rgba(41, 55, 78, 0.32), rgba(15, 23, 42, 0.84));
-  --theme-surface-elevated: linear-gradient(145deg, rgba(62, 79, 107, 0.24), rgba(21, 31, 54, 0.74));
-  --theme-surface-soft: rgba(241, 245, 249, 0.16);
-  --theme-panel-surface: linear-gradient(155deg, rgba(41, 55, 78, 0.32), rgba(15, 23, 42, 0.84));
-  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(62, 79, 107, 0.24), rgba(21, 31, 54, 0.74));
-  --theme-reader-surface: linear-gradient(180deg, rgba(22, 33, 56, 0.68), rgba(13, 20, 36, 0.48));
-  --theme-code-surface: rgba(5, 10, 18, 0.62);
+  /* 夜间基底：统一为暖炭+微紫调，替换原先偏蓝灰的冷色面。 */
+  --theme-surface: linear-gradient(155deg, rgba(66, 52, 62, 0.34), rgba(26, 20, 28, 0.86));
+  --theme-surface-elevated: linear-gradient(145deg, rgba(86, 66, 76, 0.26), rgba(34, 26, 36, 0.78));
+  --theme-surface-soft: rgba(255, 240, 235, 0.14);
+  --theme-panel-surface: linear-gradient(155deg, rgba(66, 52, 62, 0.34), rgba(26, 20, 28, 0.86));
+  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(86, 66, 76, 0.26), rgba(34, 26, 36, 0.78));
+  --theme-reader-surface: linear-gradient(180deg, rgba(42, 32, 42, 0.7), rgba(24, 18, 26, 0.52));
+  --theme-code-surface: rgba(16, 10, 16, 0.64);
   --theme-code-border: rgba(255, 255, 255, 0.18);
   --theme-border: rgba(255, 224, 208, 0.24);
   --theme-border-strong: rgba(255, 210, 190, 0.34);
   --theme-text-primary: rgba(255, 242, 233, 0.96);
   --theme-text-secondary: rgba(231, 211, 196, 0.88);
   --theme-text-tertiary: rgba(205, 183, 168, 0.78);
-  --theme-icon-primary: rgba(236, 242, 255, 0.92);
-  --theme-icon-muted: rgba(210, 220, 238, 0.76);
-  --theme-icon-strong: rgba(248, 250, 255, 0.98);
-  --theme-divider-soft: rgba(193, 211, 244, 0.24);
-  --theme-floating-surface: linear-gradient(160deg, rgba(18, 24, 38, 0.78), rgba(12, 18, 30, 0.72));
-  --theme-floating-surface-hover: linear-gradient(160deg, rgba(74, 96, 132, 0.3), rgba(24, 32, 48, 0.74));
-  --theme-floating-ink: rgba(244, 248, 255, 0.94);
+  --theme-icon-primary: rgba(255, 244, 238, 0.92);
+  --theme-icon-muted: rgba(232, 214, 208, 0.76);
+  --theme-icon-strong: rgba(255, 250, 246, 0.98);
+  --theme-divider-soft: rgba(240, 212, 208, 0.24);
+  --theme-floating-surface: linear-gradient(160deg, rgba(38, 28, 36, 0.8), rgba(26, 19, 27, 0.74));
+  --theme-floating-surface-hover: linear-gradient(160deg, rgba(120, 88, 100, 0.32), rgba(44, 32, 42, 0.76));
+  --theme-floating-ink: rgba(255, 246, 242, 0.94);
   --theme-floating-close-surface: rgba(255, 255, 255, 0.12);
   --theme-contrast-stroke-color: rgba(5, 8, 14, 0.44);
   --theme-contrast-stroke-soft: rgba(5, 8, 14, 0.28);
@@ -40,14 +41,14 @@
   --theme-contrast-icon-shadow-strong: 0 1px 1px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.2);
   --theme-contrast-outline-width: 0.18px;
   --theme-contrast-outline-width-strong: 0.24px;
-  --theme-menu-text: rgba(236, 242, 255, 0.92);
-  --theme-menu-text-muted: rgba(235, 241, 255, 0.9);
-  --theme-menu-text-disabled: rgba(210, 220, 238, 0.72);
+  --theme-menu-text: rgba(255, 245, 240, 0.92);
+  --theme-menu-text-muted: rgba(250, 238, 233, 0.9);
+  --theme-menu-text-disabled: rgba(226, 208, 204, 0.72);
   --theme-menu-avatar-border: rgba(255, 255, 255, 0.86);
   --theme-spot-a: rgba(246, 194, 161, 0.22);
   --theme-spot-b: rgba(239, 160, 168, 0.16);
-  --theme-scrim: rgba(15, 23, 42, 0.64);
-  --app-shell-backdrop: linear-gradient(120deg, #0d1117, #131a28, #0e121a);
+  --theme-scrim: rgba(26, 18, 26, 0.66);
+  --app-shell-backdrop: linear-gradient(120deg, #161016, #221825, #171018);
   --app-workspace-content-max-width: 1320px;
   --wallpaper-stage-filter: brightness(0.64) saturate(118%);
   --wallpaper-home-filter: brightness(0.82) saturate(112%);
@@ -142,4 +143,41 @@
   --bp-sm: 640px;
   --bp-md: 900px;
   --bp-lg: 1200px;
+}
+
+/* ============================================================
+ * 日间主题令牌：奶油暖白基底 + 深墨文字。
+ * 组件优先消费这些令牌；已有的组件级 day 覆写保持兼容。
+ * ============================================================ */
+:root[data-theme-mode='day'] {
+  --theme-surface: linear-gradient(155deg, rgba(255, 252, 248, 0.92), rgba(250, 242, 240, 0.88));
+  --theme-surface-elevated: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(252, 244, 242, 0.9));
+  --theme-surface-soft: rgba(120, 84, 80, 0.1);
+  --theme-panel-surface: linear-gradient(155deg, rgba(255, 252, 248, 0.94), rgba(250, 242, 240, 0.9));
+  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(252, 244, 242, 0.92));
+  --theme-reader-surface: linear-gradient(180deg, rgba(255, 253, 250, 0.92), rgba(251, 244, 242, 0.86));
+  --theme-code-surface: rgba(58, 44, 48, 0.92);
+  --theme-code-border: rgba(120, 84, 90, 0.28);
+  --theme-border: rgba(178, 122, 122, 0.3);
+  --theme-border-strong: rgba(168, 108, 108, 0.42);
+  --theme-text-primary: rgba(64, 44, 42, 0.95);
+  --theme-text-secondary: rgba(102, 74, 70, 0.88);
+  --theme-text-tertiary: rgba(140, 106, 100, 0.76);
+  --theme-icon-primary: rgba(88, 58, 56, 0.9);
+  --theme-icon-muted: rgba(134, 100, 96, 0.74);
+  --theme-icon-strong: rgba(66, 42, 40, 0.96);
+  --theme-divider-soft: rgba(170, 120, 118, 0.26);
+  --theme-floating-surface: linear-gradient(160deg, rgba(255, 253, 250, 0.94), rgba(251, 243, 241, 0.9));
+  --theme-floating-surface-hover: linear-gradient(160deg, rgba(255, 236, 230, 0.96), rgba(252, 238, 236, 0.92));
+  --theme-floating-ink: rgba(72, 48, 46, 0.94);
+  --theme-floating-close-surface: rgba(120, 84, 80, 0.12);
+  --theme-menu-text: rgba(72, 48, 46, 0.92);
+  --theme-menu-text-muted: rgba(96, 66, 62, 0.88);
+  --theme-menu-text-disabled: rgba(150, 118, 112, 0.7);
+  --theme-scrim: rgba(88, 62, 60, 0.4);
+  --app-shell-backdrop: linear-gradient(120deg, #fbf4ef, #fdf7f3, #f8efeb);
+  --wallpaper-stage-filter: brightness(0.94) saturate(108%);
+  --wallpaper-home-filter: brightness(1) saturate(104%);
+  --wallpaper-stage-overlay-background: linear-gradient(180deg, rgba(255, 248, 244, 0.2), rgba(255, 244, 240, 0.34));
+  --wallpaper-home-overlay-background: linear-gradient(180deg, rgba(255, 250, 246, 0.08), rgba(255, 246, 242, 0.22));
 }
