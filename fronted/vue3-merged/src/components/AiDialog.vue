@@ -473,6 +473,10 @@
           class="chat-row"
           :class="[message.role, { pending: message.pending, failed: message.failed, streaming: message.streaming }]"
         >
+          <span class="chat-avatar" :class="message.role" aria-hidden="true">
+            <i :class="message.role === 'user' ? 'fas fa-user' : message.role === 'system' ? 'fas fa-gear' : 'fas fa-wand-magic-sparkles'"></i>
+          </span>
+          <div class="bubble-col">
           <div class="bubble-meta">
             <span>{{ messageRoleLabel(message.role) }}</span>
             <small v-if="messageTimeLabel(message)" class="bubble-time">{{ messageTimeLabel(message) }}</small>
@@ -516,6 +520,7 @@
             >
               <i class="fas fa-arrows-rotate"></i>
             </button>
+          </div>
           </div>
         </article>
 
@@ -2523,20 +2528,52 @@ function messageRoleLabel(role) {
   line-height: 1.6;
 }
 
+/* LobeChat 式布局：头像 + 内容列，双向气泡。 */
 .chat-row {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .chat-row.user {
+  flex-direction: row-reverse;
+}
+
+.bubble-col {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-row.user .bubble-col {
   justify-items: end;
+}
+
+.chat-avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-top: 15px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--accent-surface-text, rgba(46, 30, 24, 0.95));
+  background: var(--accent-mode-fill-strong);
+  border: 1px solid var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
+}
+
+.chat-avatar.user {
+  color: rgba(244, 240, 244, 0.92);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .bubble-meta {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(178, 194, 223, 0.68);
+  color: var(--theme-text-tertiary, rgba(216, 200, 198, 0.68));
 }
 
 .chat-bubble {
@@ -2549,9 +2586,15 @@ function messageRoleLabel(role) {
   gap: 8px;
 }
 
+.chat-row.assistant .chat-bubble,
+.chat-row.system .chat-bubble {
+  border-bottom-left-radius: 6px;
+}
+
 .chat-row.user .chat-bubble {
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.12));
-  border-color: rgba(var(--accent-rgb), 0.3);
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.16));
+  border-color: rgba(var(--accent-rgb), 0.34);
+  border-bottom-right-radius: 6px;
 }
 
 .chat-row.failed .chat-bubble {
@@ -2836,6 +2879,15 @@ function messageRoleLabel(role) {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  transition: border-color 0.2s ease;
+}
+
+.chat-input-wrap:focus-within {
+  border-color: rgba(var(--accent-rgb), 0.45);
 }
 
 .chat-input {
@@ -2847,16 +2899,16 @@ function messageRoleLabel(role) {
   width: 42px;
   height: 42px;
   border: 0;
-  border-radius: 14px;
-  background: rgba(var(--accent-rgb), 0.24);
-  color: rgba(247, 241, 255, 0.95);
+  border-radius: 999px;
+  background: var(--accent-mode-fill-strong);
+  color: var(--accent-surface-text, rgba(46, 30, 24, 0.95));
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  box-shadow: var(--accent-mode-shadow, none);
+  transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .send-btn:hover:not(:disabled) {
-  background: rgba(var(--accent-rgb), 0.38);
-  color: rgb(var(--accent-strong-rgb));
+  filter: brightness(1.06);
   transform: translateY(-1px);
 }
 
