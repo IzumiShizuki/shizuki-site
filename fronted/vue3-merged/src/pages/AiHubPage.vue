@@ -48,7 +48,7 @@
       </header>
 
       <div
-        class="workspace-grid"
+        class="workspace-grid fade-stagger"
         :class="{ conversation: activePrimaryMode === 'conversation', meguri: activePrimaryMode === 'meguri' }"
       >
         <section class="workspace-main liquid-material">

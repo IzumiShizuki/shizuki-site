@@ -3,7 +3,7 @@
     <div class="wallpaper-home-orb orb-a" aria-hidden="true"></div>
     <div class="wallpaper-home-orb orb-b" aria-hidden="true"></div>
 
-    <article class="wallpaper-home-dock">
+    <article class="wallpaper-home-dock fade-rise">
       <p class="wallpaper-home-kicker">{{ greeting.en }}</p>
       <h1>{{ greeting.zh }}</h1>
       <p class="wallpaper-home-copy">
@@ -23,7 +23,7 @@
       </div>
     </article>
 
-    <div class="wallpaper-home-shortcuts">
+    <div class="wallpaper-home-shortcuts fade-rise-late">
       <button
         v-for="item in quickTools"
         :key="item.path"

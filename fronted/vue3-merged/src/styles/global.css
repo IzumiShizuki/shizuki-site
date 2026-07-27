@@ -1105,3 +1105,48 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
+
+/* ============================================================
+ * 统一入场动效：页面元素淡入上浮，网格错峰。
+ * 路由级淡入由 App.vue 的 route-switch 过渡负责，这里补齐区块级。
+ * ============================================================ */
+@keyframes site-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.fade-rise {
+  animation: site-fade-rise 0.48s var(--ease-out, ease) both;
+}
+
+.fade-rise-late {
+  animation: site-fade-rise 0.48s var(--ease-out, ease) 0.12s both;
+}
+
+.fade-stagger > * {
+  animation: site-fade-rise 0.5s var(--ease-out, ease) both;
+}
+
+.fade-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.fade-stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.fade-stagger > *:nth-child(3) { animation-delay: 0.14s; }
+.fade-stagger > *:nth-child(4) { animation-delay: 0.2s; }
+.fade-stagger > *:nth-child(5) { animation-delay: 0.26s; }
+.fade-stagger > *:nth-child(6) { animation-delay: 0.32s; }
+.fade-stagger > *:nth-child(7) { animation-delay: 0.38s; }
+.fade-stagger > *:nth-child(8) { animation-delay: 0.44s; }
+.fade-stagger > *:nth-child(n + 9) { animation-delay: 0.5s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-rise,
+  .fade-rise-late,
+  .fade-stagger > * {
+    animation: none;
+  }
+}
