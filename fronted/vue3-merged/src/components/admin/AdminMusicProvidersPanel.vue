@@ -143,52 +143,91 @@ function emitPatch(item, field) {
 
 .panel-toolbar h3 {
   margin: 0;
-  color: var(--admin-text);
+  font-size: 16px;
+  color: var(--theme-text-primary, rgba(255, 244, 238, 0.96));
 }
 
+/* 顶部说明：柔和的信息卡 */
 .hint-card {
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+  background: var(--theme-surface-soft, rgba(255, 240, 235, 0.12));
+  border-radius: 12px;
   padding: 10px 12px;
   display: grid;
   gap: 6px;
   font-size: 12px;
-  color: var(--admin-text-soft);
+  color: var(--theme-text-secondary, rgba(226, 206, 198, 0.9));
 }
 
 .hint-card p {
   margin: 0;
 }
 
+.hint-card strong {
+  color: var(--theme-text-primary, rgba(255, 244, 238, 0.96));
+}
+
 .hint-card code {
   padding: 1px 6px;
   border-radius: 6px;
-  background: var(--admin-surface-soft);
-  color: var(--admin-text);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.2));
+  background: rgba(var(--accent-rgb, 242, 179, 157), 0.14);
+  color: var(--theme-text-primary, rgba(255, 244, 238, 0.96));
 }
 
 .asmr-hint {
-  color: var(--admin-warn);
+  color: var(--adm-warn-text, rgba(250, 213, 145, 0.96));
 }
 
+/* 三个音乐源：清晰的独立小卡片 */
 .provider-list {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
 .provider-card {
-  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.05));
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(6, 10, 18, 0.1);
+  padding: 14px 16px 14px 19px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   align-content: space-between;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+/* 左侧主题色竖条，与后台 KPI 卡片视觉语言一致 */
+.provider-card::before {
+  content: '';
+  position: absolute;
+  inset: 12px auto 12px 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb, 242, 179, 157), 0.8));
+  opacity: 0.9;
+}
+
+.provider-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb, 242, 179, 157), 0.45));
+  box-shadow: 0 14px 30px rgba(6, 10, 18, 0.16);
 }
 
 .provider-card--voice {
   border-color: rgba(255, 190, 120, 0.42);
 }
 
+.provider-card--voice::before {
+  background: linear-gradient(180deg, rgba(255, 198, 128, 0.92), rgba(255, 152, 112, 0.78));
+}
+
 .meta {
   display: grid;
-  gap: 6px;
+  gap: 7px;
 }
 
 .meta h4 {
@@ -197,16 +236,18 @@ function emitPatch(item, field) {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  color: var(--admin-text);
+  color: var(--theme-text-primary, rgba(255, 244, 238, 0.96));
   font-size: 14px;
 }
 
 .code-chip {
   padding: 1px 8px;
   border-radius: 999px;
-  border: 1px solid var(--admin-border);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+  background: var(--adm-chip-bg, rgba(255, 255, 255, 0.08));
   font-size: 11px;
-  color: var(--admin-text-soft);
+  font-weight: 500;
+  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
 }
 
 .state-line {
@@ -220,37 +261,46 @@ function emitPatch(item, field) {
 .state-chip {
   padding: 1px 8px;
   border-radius: 999px;
+  border: 1px solid transparent;
   font-size: 11px;
+  font-weight: 600;
 }
 
 .state-chip.on {
-  background: var(--admin-ok-bg);
-  color: var(--admin-ok);
+  background: rgba(var(--adm-success-rgb, 61, 176, 130), 0.12);
+  border-color: rgba(var(--adm-success-rgb, 61, 176, 130), 0.5);
+  color: var(--adm-success-text, rgba(150, 230, 194, 0.96));
 }
 
 .state-chip.off {
-  background: var(--admin-bad-bg);
-  color: var(--admin-bad);
+  background: rgba(var(--adm-danger-rgb, 225, 83, 97), 0.1);
+  border-color: rgba(var(--adm-danger-rgb, 225, 83, 97), 0.42);
+  color: var(--adm-danger-text, rgba(255, 179, 192, 0.96));
 }
 
 .sort-chip {
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--admin-surface-soft);
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.2));
+  background: var(--theme-surface-soft, rgba(255, 240, 235, 0.12));
   font-size: 11px;
-  color: var(--admin-text-soft);
+  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
 }
 
 .voice-note {
   margin: 0;
   font-size: 12px;
-  color: var(--admin-warn);
+  line-height: 1.5;
+  color: var(--adm-warn-text, rgba(250, 213, 145, 0.96));
 }
 
+/* 操作区：分隔线让按钮区与信息区界限清晰 */
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--theme-divider-soft, rgba(255, 224, 208, 0.14));
 }
 
 .primary-btn,

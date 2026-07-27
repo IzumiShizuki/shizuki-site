@@ -2498,9 +2498,23 @@ watch(
 
 .companion-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  /* L2D 模型是竖版构图：观看区收成一列“立绘位”，把主要宽度留给对话流。 */
+  grid-template-columns: minmax(272px, 360px) minmax(0, 1fr);
   gap: 16px;
+  min-height: min(78vh, 880px);
+  align-items: stretch;
+}
+
+/* 让内嵌对话壳吃满整行高度，聊天流内部自己滚动，配置面板折叠后不再把输入框顶出视口。 */
+.companion-workspace :deep(.ai-dialog-shell.mode-embedded) {
+  height: auto;
   min-height: 0;
+  display: flex;
+}
+
+.companion-workspace :deep(.mode-embedded .ai-dialog) {
+  height: auto;
+  min-height: 100%;
 }
 
 .companion-stage {
@@ -2508,12 +2522,16 @@ watch(
   --liquid-border: rgba(255, 255, 255, 0.1);
   position: relative;
   border-radius: 24px;
-  padding: 16px;
+  padding: 14px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 12px;
   overflow: hidden;
-  min-height: 420px;
+  min-height: 480px;
+}
+
+.companion-stage-head {
+  flex-wrap: wrap;
 }
 
 .companion-stage-head {
@@ -2525,7 +2543,7 @@ watch(
 
 .companion-stage-head h2 {
   margin: 4px 0 6px;
-  font-size: 19px;
+  font-size: 17px;
 }
 
 .companion-stage-head p {
@@ -2665,6 +2683,11 @@ watch(
 @media (max-width: 1180px) {
   .companion-workspace {
     grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .companion-workspace :deep(.mode-embedded .ai-dialog) {
+    min-height: min(70vh, 720px);
   }
 
   .companion-stage {

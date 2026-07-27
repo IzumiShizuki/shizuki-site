@@ -77,6 +77,13 @@ describe('WallpaperDiscoveryPanel', () => {
     expect(getWorkshopItemDetail).toHaveBeenCalledWith('2141505896', authorizedFetch);
     expect(wrapper.text()).toContain('无公开直链');
 
+    const selectEmitted = wrapper.emitted('select-workshop');
+    expect(selectEmitted).toHaveLength(1);
+    expect(selectEmitted[0][0]).toMatchObject({
+      itemId: '2141505896',
+      url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=2141505896'
+    });
+
     const importButton = wrapper.findAll('button').find((button) => button.text().includes('导入选中壁纸'));
     expect(importButton).toBeTruthy();
     await importButton.trigger('click');

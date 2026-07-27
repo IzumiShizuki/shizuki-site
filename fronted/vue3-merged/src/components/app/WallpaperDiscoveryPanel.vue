@@ -171,7 +171,7 @@ const props = defineProps({
   busy: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['import-workshop', 'import-wallhaven']);
+const emit = defineEmits(['import-workshop', 'import-wallhaven', 'select-workshop']);
 
 const source = ref('workshop');
 const query = ref('');
@@ -325,6 +325,11 @@ async function selectItem(item) {
   selected.value = item;
   importTitle.value = item.title || '';
   if (source.value !== 'workshop') return;
+  emit('select-workshop', {
+    itemId: item.itemId,
+    url: item.detailUrl || `https://steamcommunity.com/sharedfiles/filedetails/?id=${item.itemId}`,
+    title: item.title || ''
+  });
   workshopDetail.loading = true;
   workshopDetail.error = '';
   workshopDetail.hasDirectDownload = false;

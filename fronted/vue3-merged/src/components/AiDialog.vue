@@ -267,15 +267,18 @@
         </label>
       </section>
 
-      <section v-else-if="activeChatMode === 'companion'" class="mode-config liquid-material scene-mode-config">
-        <div class="config-field config-field-full config-toolbar">
-          <div>
-            <span class="config-title">自宅 companion 会话</span>
-            <p class="config-helper">
-              companion 配置会单独保存到管理员专属接口，首次发送时自动创建 `/admin/ai-companion/sessions` 会话。
-            </p>
-          </div>
-          <div v-if="auth.isAuthenticated.value && isAdminUser" class="config-toolbar-actions">
+      <section
+        v-else-if="activeChatMode === 'companion'"
+        class="mode-config liquid-material scene-mode-config config-accordion"
+        :class="{ collapsed: !companionConfigOpen }"
+      >
+        <div class="config-field config-field-full config-toolbar accordion-head">
+          <button class="accordion-toggle ripple-trigger" type="button" @click="companionConfigOpen = !companionConfigOpen">
+            <i class="fas fa-chevron-right accordion-chevron" :class="{ open: companionConfigOpen }" aria-hidden="true"></i>
+            <span class="config-title">companion 人格与配置</span>
+            <small class="accordion-hint">{{ companionConfigHint }}</small>
+          </button>
+          <div v-if="auth.isAuthenticated.value && isAdminUser && companionConfigOpen" class="config-toolbar-actions">
             <button class="toolbar-btn ripple-trigger" type="button" :disabled="companionProfile.loading || companionProfile.saving" @click="ensureCompanionConfigLoaded(true)">
               {{ companionProfile.loading ? '刷新中...' : '刷新配置' }}
             </button>
@@ -285,7 +288,13 @@
           </div>
         </div>
 
-        <p v-if="companionProfile.errorText" class="feedback-banner error">{{ companionProfile.errorText }}</p>
+        <div v-if="companionProfileErrorView.text" class="config-feedback error config-field-full">
+          <p class="feedback-main">{{ companionProfileErrorView.text }}</p>
+          <details v-if="companionProfileErrorView.detail" class="error-detail">
+            <summary>技术详情</summary>
+            <pre>{{ companionProfileErrorView.detail }}</pre>
+          </details>
+        </div>
         <p v-else-if="companionProfile.feedbackText" class="feedback-banner" :class="companionProfile.feedbackTone">{{ companionProfile.feedbackText }}</p>
 
         <p v-if="!auth.isAuthenticated.value" class="feedback-banner warning">
@@ -294,7 +303,11 @@
         <p v-else-if="!isAdminUser" class="feedback-banner warning">
           自宅 companion 仅对 ADMIN 开放。
         </p>
-        <template v-else>
+        <div v-else v-show="companionConfigOpen" class="accordion-body config-field-full">
+          <p class="config-helper config-field-full">
+            companion 配置会单独保存到管理员专属接口，首次发送时自动创建 `/admin/ai-companion/sessions` 会话。
+          </p>
+
           <label class="config-field">
             <span>companion 名称</span>
             <input v-model.trim="activeState.config.displayName" type="text" maxlength="128" placeholder="例如：小春" />
@@ -355,7 +368,7 @@
             <input v-model="activeState.config.memoryEnabled" type="checkbox" />
             <span>启用 companion 记忆开关</span>
           </label>
-        </template>
+        </div>
       </section>
 
       <section v-else class="mode-note">
@@ -364,14 +377,16 @@
 
       <section
         v-if="(activeChatMode === 'town_npc' || activeChatMode === 'companion') && auth.isAuthenticated.value && isAdminUser"
-        class="mode-config liquid-material scene-memory-config"
+        class="mode-config liquid-material scene-memory-config config-accordion"
+        :class="{ collapsed: !memoryScopeOpen }"
       >
-        <div class="config-field config-field-full config-toolbar">
-          <div>
-            <span class="config-title">当前记忆 scope</span>
-            <p class="config-helper">这里是场景模式下的最小管理入口，用来查看快照并切换该 scope 是否参与 MemoryOS 注入。</p>
-          </div>
-          <div class="config-toolbar-actions">
+        <div class="config-field config-field-full config-toolbar accordion-head">
+          <button class="accordion-toggle ripple-trigger" type="button" @click="memoryScopeOpen = !memoryScopeOpen">
+            <i class="fas fa-chevron-right accordion-chevron" :class="{ open: memoryScopeOpen }" aria-hidden="true"></i>
+            <span class="config-title">记忆 scope</span>
+            <small class="accordion-hint">{{ memoryScopeHint }}</small>
+          </button>
+          <div v-if="memoryScopeOpen" class="config-toolbar-actions">
             <button
               class="toolbar-btn ripple-trigger"
               type="button"
@@ -391,9 +406,18 @@
           </div>
         </div>
 
-        <p v-if="memoryScope.errorText" class="config-feedback error">{{ memoryScope.errorText }}</p>
-        <p v-else-if="!activeSceneScopeId" class="config-helper">发送首条消息后会生成稳定 `scope_id`，届时这里会显示最新快照。</p>
-        <template v-else>
+        <div v-if="memoryScopeErrorView.text" class="config-feedback error config-field-full">
+          <p class="feedback-main">{{ memoryScopeErrorView.text }}</p>
+          <details v-if="memoryScopeErrorView.detail" class="error-detail">
+            <summary>技术详情</summary>
+            <pre>{{ memoryScopeErrorView.detail }}</pre>
+          </details>
+        </div>
+
+        <div v-show="memoryScopeOpen" class="accordion-body config-field-full">
+          <p class="config-helper config-field-full">这里是场景模式下的最小管理入口，用来查看快照并切换该 scope 是否参与 MemoryOS 注入。</p>
+          <p v-if="!activeSceneScopeId" class="config-helper config-field-full">发送首条消息后会生成稳定 `scope_id`，届时这里会显示最新快照。</p>
+          <template v-else>
           <div class="memory-scope-grid">
             <label class="config-field config-field-full">
               <span>scope_id</span>
@@ -458,7 +482,8 @@
               <p v-else>暂无 journal 记录。</p>
             </article>
           </div>
-        </template>
+          </template>
+        </div>
       </section>
 
       <div ref="chatStreamRef" class="chat-stream" @scroll.passive="handleChatScroll">
@@ -662,6 +687,23 @@ const CHAT_MODE_OPTIONS = [
 ];
 
 const ADMIN_ONLY_CHAT_MODES = new Set(['town_npc', 'companion']);
+
+// 后端偶发把 SQL / 堆栈原文塞进 message（例如 "### Error querying database ... relation \"ai_memory_scope\" does not exist"）。
+// 面板里只展示人话，原文折叠进「技术详情」。
+const TECHNICAL_ERROR_PATTERN =
+  /###|PSQLException|SQLSyntaxErrorException|SQLState|relation\s+"?[\w."]+"?\s+does not exist|Error querying database|MyBatis|bad SQL grammar|java\.[\w.]+(?:Exception|Error)/i;
+
+function humanizeBackendError(raw, friendlyText) {
+  const text = String(raw || '').trim();
+  if (!text) return { text: '', detail: '' };
+  if (TECHNICAL_ERROR_PATTERN.test(text)) {
+    return { text: friendlyText, detail: text };
+  }
+  if (text.length > 200) {
+    return { text: `${text.slice(0, 200)}…`, detail: text };
+  }
+  return { text, detail: '' };
+}
 
 let messageSequence = 0;
 
@@ -979,6 +1021,9 @@ const quota = ref(null);
 const tavernAssets = reactive(createTavernAssetsState());
 const companionProfile = reactive(createCompanionProfileState());
 const memoryScope = reactive(createMemoryScopeState());
+// 配置类面板默认折叠，把纵向空间留给聊天流；未配置 / 出错时再自动展开。
+const companionConfigOpen = ref(false);
+const memoryScopeOpen = ref(false);
 const sessionStateByMode = reactive({
   quick_chat: createModeState('quick_chat'),
   normal: createModeState('normal'),
@@ -1040,6 +1085,32 @@ const activeSceneScopeId = computed(() => {
   if (!userId || !actorCode || !sceneCode) return '';
   return `${userId}:${activeChatMode.value}:${actorCode}:${sceneCode}`;
 });
+const companionConfigHint = computed(() => {
+  if (companionProfile.loading) return '配置加载中...';
+  const config = sessionStateByMode.companion.config;
+  const name = normalizeOptionalText(config.displayName);
+  if (!name) return '还没有保存 companion 人格，点开完成首次配置';
+  const code = normalizeOptionalText(config.companionCode) || 'my_home_ai';
+  return `${name} · ${code} · ${config.memoryEnabled ? '记忆已开启' : '记忆已关闭'}`;
+});
+const memoryScopeHint = computed(() => {
+  if (memoryScope.loading) return '快照读取中...';
+  if (!activeSceneScopeId.value) return '发送首条消息后生成 scope_id';
+  const scopeId = normalizeOptionalText(memoryScope.scopeId) || activeSceneScopeId.value;
+  return `${scopeId} · ${memoryScope.enabled ? '参与注入' : '已暂停注入'}`;
+});
+const memoryScopeErrorView = computed(() =>
+  humanizeBackendError(
+    memoryScope.errorText,
+    '记忆 scope 服务暂时不可用：后端数据库缺少 ai_memory_scope 表或查询失败。请先执行最新数据库迁移并重启后端，再点「刷新快照」。'
+  )
+);
+const companionProfileErrorView = computed(() =>
+  humanizeBackendError(
+    companionProfile.errorText,
+    'companion 配置读取 / 保存失败：后端返回了数据库错误。请确认数据库迁移已执行并重启后端后重试。'
+  )
+);
 const selectedCharacterSummary = computed(() => {
   const characterId = normalizeOptionalText(activeState.value.config.characterId);
   if (!characterId) return null;
@@ -1175,6 +1246,18 @@ watch(
     }
     await ensureMemoryScopeLoaded(scopeId);
   }
+);
+
+// 首次进入自宅且还没保存过人格时，自动展开配置面板引导管理员完成配置。
+watch(
+  () => [activeChatMode.value, companionProfile.loading],
+  () => {
+    if (activeChatMode.value !== 'companion' || companionProfile.loading) return;
+    if (!normalizeOptionalText(sessionStateByMode.companion.config.displayName)) {
+      companionConfigOpen.value = true;
+    }
+  },
+  { immediate: true }
 );
 
 function emitClose() {
@@ -2114,7 +2197,7 @@ function messageRoleLabel(role) {
 
 .mode-switcher {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 8px;
 }
 
@@ -2314,6 +2397,93 @@ function messageRoleLabel(role) {
 .toolbar-btn:disabled {
   cursor: not-allowed;
   opacity: 0.54;
+}
+
+/* ---------- 可折叠配置面板（companion 配置 / 记忆 scope） ---------- */
+
+.config-accordion {
+  padding: 10px 14px;
+}
+
+.config-accordion.collapsed {
+  gap: 8px;
+}
+
+.accordion-head {
+  min-height: 34px;
+}
+
+.accordion-toggle {
+  border: 0;
+  background: transparent;
+  padding: 4px 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.accordion-chevron {
+  flex: none;
+  font-size: 11px;
+  color: rgba(190, 204, 231, 0.72);
+  transition: transform 0.22s ease;
+}
+
+.accordion-chevron.open {
+  transform: rotate(90deg);
+}
+
+.accordion-toggle .config-title {
+  white-space: nowrap;
+}
+
+.accordion-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(186, 201, 231, 0.66);
+  font-size: 11px;
+}
+
+.accordion-body {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.feedback-main {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.error-detail {
+  margin-top: 8px;
+}
+
+.error-detail summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(255, 190, 190, 0.75);
+}
+
+.error-detail pre {
+  margin: 6px 0 0;
+  max-height: 140px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(7, 13, 22, 0.5);
+  color: rgba(255, 205, 205, 0.85);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .config-feedback {

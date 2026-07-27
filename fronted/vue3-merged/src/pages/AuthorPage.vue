@@ -36,13 +36,18 @@
         @scroll.passive="handleContentScroll"
       >
         <p v-if="loading" class="state-tip">正在同步关于网站资料...</p>
-        <p v-else-if="loadError" class="error-text">{{ loadError }}</p>
+        <div v-else-if="loadError" class="load-error-row">
+          <p class="error-text">{{ loadError }}</p>
+          <button class="mini-btn ripple-trigger" type="button" @click="copyErrorText(loadError)">
+            {{ errorCopyFeedback || '复制错误信息' }}
+          </button>
+        </div>
 
         <template v-else>
           <p v-if="cacheNotice" class="state-tip">{{ cacheNotice }}</p>
 
           <div v-if="activeTab === 'overview'" class="content-block overview-motion-root overview-story-root">
-            <section class="story-hero-stage author-card reveal-node" :style="[staggerStyle(0), resolveSectionImageDisplayStyle('hero.coverImageUrl')]">
+            <section class="story-hero-stage author-card reveal-node" :style="staggerStyle(0)">
               <button
                 v-if="canEditCurrentTab"
                 class="inline-edit-fab ripple-trigger"
@@ -411,7 +416,12 @@
                     </button>
                   </div>
                   <p v-if="editState.dirty" class="state-tip">你有未保存的修改。</p>
-                  <p v-if="editState.error" class="error-text">{{ editState.error }}</p>
+                  <p v-if="editState.error" class="error-text">
+                    {{ editState.error }}
+                    <button class="error-copy-btn" type="button" title="复制错误信息" @click="copyErrorText(editState.error)">
+                      {{ errorCopyFeedback || '复制' }}
+                    </button>
+                  </p>
                   <p v-if="editState.success" class="state-tip">{{ editState.success }}</p>
                 </footer>
               </template>
@@ -995,7 +1005,12 @@
                   </button>
                 </div>
                 <p v-if="editState.dirty" class="state-tip">你有未保存的修改。</p>
-                <p v-if="editState.error" class="error-text">{{ editState.error }}</p>
+                <p v-if="editState.error" class="error-text">
+                  {{ editState.error }}
+                  <button class="error-copy-btn" type="button" title="复制错误信息" @click="copyErrorText(editState.error)">
+                    {{ errorCopyFeedback || '复制' }}
+                  </button>
+                </p>
                 <p v-if="editState.success" class="state-tip">{{ editState.success }}</p>
               </footer>
             </section>
@@ -1129,7 +1144,7 @@ const SECTION_IMAGE_RULES = Object.freeze({
     stencilShape: 'rect',
     previewShape: 'rect',
     title: '裁剪主视觉背景图',
-    description: '建议选择横向舞台画面，裁剪比例会与作者页主视觉背景的最终展示比例保持一致。'
+    description: '建议选择横向舞台画面；主视觉高度会随内容自适应，背景图会按居中裁切方式铺满显示区域。'
   }),
   'about.introImageUrl': Object.freeze({
     aspectRatio: 5 / 4,
@@ -2384,9 +2399,60 @@ function handleAboutLinkClick(event, url) {
 
 function readErrorMessage(error, fallback) {
   const detail = String(error?.detail || '').trim();
-  if (detail) return detail;
-  const message = String(error?.message || '').trim();
-  return message || fallback;
+  const message = detail || String(error?.message || '').trim() || String(fallback || '').trim();
+  const code = String(error?.problemCode || error?.body?.code || '').trim().toUpperCase();
+  const status = Number.parseInt(error?.status, 10);
+  const marks = [];
+  if (code) marks.push(code);
+  if (Number.isFinite(status) && status > 0) marks.push(`HTTP ${status}`);
+  if (!marks.length) return message;
+  const suffix = `错误码 ${marks.join(' · ')}`;
+  return message.includes(suffix) ? message : `${message}（${suffix}）`;
+}
+
+const errorCopyFeedback = ref('');
+let errorCopyFeedbackTimer = null;
+
+function fallbackCopyErrorText(value) {
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
+async function copyErrorText(text) {
+  const value = String(text || '').trim();
+  if (!value) return;
+  let copied = false;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      copied = true;
+    }
+  } catch {
+    copied = false;
+  }
+  if (!copied) {
+    copied = fallbackCopyErrorText(value);
+  }
+  errorCopyFeedback.value = copied ? '已复制' : '复制失败，可直接选中文本复制';
+  if (errorCopyFeedbackTimer) {
+    globalThis.clearTimeout(errorCopyFeedbackTimer);
+  }
+  errorCopyFeedbackTimer = globalThis.setTimeout(() => {
+    errorCopyFeedback.value = '';
+    errorCopyFeedbackTimer = null;
+  }, 2200);
 }
 
 watch(quickStatusChoice, (nextChoice) => {
@@ -2452,6 +2518,10 @@ onBeforeUnmount(() => {
   disconnectJourneyObserver();
   if (typeof motionMediaCleanup === 'function') {
     motionMediaCleanup();
+  }
+  if (errorCopyFeedbackTimer) {
+    globalThis.clearTimeout(errorCopyFeedbackTimer);
+    errorCopyFeedbackTimer = null;
   }
 });
 </script>
@@ -2667,6 +2737,37 @@ onBeforeUnmount(() => {
 
 .error-text {
   color: rgba(255, 190, 197, 0.96);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.load-error-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.load-error-row .error-text {
+  margin: 0;
+}
+
+.error-copy-btn {
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 190, 197, 0.42);
+  background: rgba(255, 190, 197, 0.12);
+  color: rgba(255, 208, 214, 0.96);
+  font-size: 12px;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.error-copy-btn:hover {
+  background: rgba(255, 190, 197, 0.22);
+  border-color: rgba(255, 190, 197, 0.62);
 }
 
 .author-card {
@@ -3149,29 +3250,30 @@ onBeforeUnmount(() => {
   isolation: isolate;
 }
 
+/* 主视觉舞台：高度由内容撑开（不再强制裁切比例），信息永远完整可见 */
 .story-hero-stage {
   position: relative;
   overflow: hidden;
   min-height: 280px;
+  height: auto;
   padding: 18px 18px 20px;
   display: grid;
   gap: 14px;
   isolation: isolate;
   background:
-    linear-gradient(135deg, rgba(61, 84, 128, 0.2), rgba(24, 33, 49, 0.12) 46%, rgba(83, 126, 176, 0.18) 100%),
-    rgba(18, 25, 39, 0.22);
-  border-color: rgba(255, 255, 255, 0.24);
+    linear-gradient(150deg, rgba(30, 42, 66, 0.4), rgba(16, 23, 37, 0.3) 52%, rgba(26, 38, 60, 0.38) 100%),
+    rgba(14, 20, 32, 0.35);
+  border-color: rgba(255, 255, 255, 0.14);
   box-shadow: 0 16px 34px rgba(7, 12, 20, 0.22);
   transform: translate3d(calc(var(--parallax-x) * 0.24), calc(var(--parallax-y) * 0.18), 0);
 }
 
+/* 压暗遮罩：只为可读性服务，不再做玻璃高光 */
 .story-hero-stage::after {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 36%, rgba(0, 0, 0, 0.06)),
-    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 34%);
+  background: linear-gradient(180deg, rgba(9, 14, 24, 0.32), rgba(9, 14, 24, 0.16) 42%, rgba(7, 11, 19, 0.42));
   z-index: 0;
   pointer-events: none;
 }
@@ -3182,8 +3284,8 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.52;
-  filter: brightness(1.12) contrast(1.02) saturate(1.12);
+  opacity: 0.44;
+  filter: brightness(1.02) contrast(1.02) saturate(1.05);
   z-index: 0;
 }
 
@@ -3197,8 +3299,8 @@ onBeforeUnmount(() => {
 .story-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(1px);
-  opacity: 0.66;
+  filter: blur(6px);
+  opacity: 0.3;
 }
 
 .story-orb-a {
@@ -3324,14 +3426,14 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+/* 信息卡改为哑光实底：不再用玻璃拟态（高透明 + 模糊 + 反光） */
 .hero-fact-card,
 .story-hero-preview,
 .story-side-panel {
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(15, 22, 34, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(13, 19, 31, 0.68);
+  box-shadow: 0 8px 20px rgba(5, 9, 16, 0.24);
 }
 
 .hero-fact-card {
@@ -3363,19 +3465,6 @@ onBeforeUnmount(() => {
   padding: 14px 16px;
   display: grid;
   gap: 6px;
-}
-
-.story-hero-preview::after,
-.story-side-panel::after,
-.skill-focus-frame::after {
-  content: '';
-  position: absolute;
-  inset: -20% auto -20% -36%;
-  width: 28%;
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
-  transform: translateX(-160%) rotate(16deg);
-  animation: story-sweep 9.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-  pointer-events: none;
 }
 
 .story-preview-title {
@@ -3423,9 +3512,7 @@ onBeforeUnmount(() => {
   padding: 14px 16px;
   display: grid;
   gap: 8px;
-  background:
-    linear-gradient(145deg, rgba(30, 42, 64, 0.28), rgba(17, 25, 38, 0.16)),
-    rgba(14, 20, 32, 0.1);
+  background: rgba(16, 23, 37, 0.74);
 }
 
 .status-panel-block {
@@ -3569,24 +3656,13 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(15, 22, 34, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(13, 19, 31, 0.62);
   width: 100%;
   min-height: 132px;
-  height: 132px;
-  max-height: 132px;
+  height: auto;
   padding: 10px;
   transition: border-color 220ms ease, box-shadow 220ms ease;
-}
-
-.skill-focus-frame::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
-    radial-gradient(circle at 18% 20%, rgba(132, 189, 255, 0.14), rgba(132, 189, 255, 0) 38%);
-  pointer-events: none;
 }
 
 .skill-focus-frame:hover,
@@ -3893,17 +3969,6 @@ onBeforeUnmount(() => {
   background: var(--theme-surface-soft, rgba(255, 255, 255, 0.16));
   color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
   border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
-}
-
-@keyframes story-sweep {
-  0%,
-  16% {
-    transform: translateX(-160%) rotate(16deg);
-  }
-  48%,
-  100% {
-    transform: translateX(420%) rotate(16deg);
-  }
 }
 
 @keyframes float-pill {
@@ -4651,13 +4716,6 @@ onBeforeUnmount(() => {
     animation: none !important;
   }
 
-  .story-hero-preview::after,
-  .story-side-panel::after,
-  .skill-focus-frame::after {
-    animation: none !important;
-    opacity: 0 !important;
-  }
-
   .hero-stage,
   .story-hero-stage,
   .home-portal-card,
@@ -4775,8 +4833,7 @@ onBeforeUnmount(() => {
 
   .skill-focus-frame {
     min-height: 124px;
-    height: 124px;
-    max-height: 124px;
+    height: auto;
     padding: 8px;
   }
 

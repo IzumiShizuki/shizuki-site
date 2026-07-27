@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import BackgroundPickerDialog from './BackgroundPickerDialog.vue';
+import WallpaperDiscoveryPanel from './WallpaperDiscoveryPanel.vue';
 
 function mountDialog(props = {}) {
   return mount(BackgroundPickerDialog, {
@@ -102,5 +103,25 @@ describe('BackgroundPickerDialog wallpaper acquire flow', () => {
     expect(wrapper.emitted('save-active-wallpaper-settings')).toHaveLength(1);
     expect(wrapper.emitted('set-active-wallpaper-visibility')).toEqual([['PUBLIC'], ['PRIVATE']]);
     expect(wrapper.emitted('delete-active-wallpaper')).toHaveLength(1);
+  });
+
+  it('passes authorizedFetch to the discovery panel and relays its events', async () => {
+    const authorizedFetch = vi.fn().mockResolvedValue({ items: [], page: 1, has_more: false });
+    const wrapper = mountDialog({ authorizedFetch });
+
+    const panel = wrapper.findComponent(WallpaperDiscoveryPanel);
+    expect(panel.exists()).toBe(true);
+    expect(panel.props('authorizedFetch')).toBe(authorizedFetch);
+
+    panel.vm.$emit('import-workshop', { itemId: '2141505896' });
+    panel.vm.$emit('import-wallhaven', { wallhavenId: 'x8gxgz' });
+    panel.vm.$emit('select-workshop', {
+      itemId: '2141505896',
+      url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=2141505896'
+    });
+
+    expect(wrapper.emitted('discovery-import-workshop')).toHaveLength(1);
+    expect(wrapper.emitted('discovery-import-wallhaven')).toHaveLength(1);
+    expect(wrapper.emitted('discovery-select-workshop')).toHaveLength(1);
   });
 });

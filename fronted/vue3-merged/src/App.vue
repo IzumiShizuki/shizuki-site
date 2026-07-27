@@ -230,6 +230,7 @@
         :wallpaper-error-hint="wallpaperErrorHint"
         :import-state="importState"
         :is-authenticated="auth.isAuthenticated.value"
+        :authorized-fetch="auth.isAuthenticated.value ? auth.authorizedFetch : null"
         :package-drop-active="packageDropActive"
         :active-background="activeBackground"
         :can-edit-active-wallpaper="canEditActiveWallpaper"
@@ -251,6 +252,9 @@
         @package-file-change="onPackageFileChange"
         @submit-package-import="submitPackageImport"
         @submit-workshop-import="submitWorkshopImport"
+        @discovery-import-workshop="handleDiscoveryImportWorkshop"
+        @discovery-import-wallhaven="handleDiscoveryImportWallhaven"
+        @discovery-select-workshop="handleDiscoverySelectWorkshop"
         @open-workshop-discovery-window="openWorkshopDiscoveryWindow"
         @open-workshop-preview-window="openWorkshopPreviewWindow"
         @check-wallpaper-import-job="checkWallpaperImportJob"
@@ -1628,6 +1632,64 @@ async function submitWorkshopImport() {
   }
 }
 
+function handleDiscoverySelectWorkshop(payload) {
+  const url = String(payload?.url || '').trim();
+  if (!url) return;
+  importState.workshopUrl = url;
+  if (!importState.workshopTitle && payload?.title) {
+    importState.workshopTitle = String(payload.title);
+  }
+}
+
+async function handleDiscoveryImportWorkshop(payload) {
+  const url = String(payload?.url || '').trim();
+  if (!url) {
+    importState.hint = '请先选择要导入的 Workshop 壁纸。';
+    return;
+  }
+  importState.workshopUrl = url;
+  importState.workshopTitle = String(payload?.title || '');
+  importState.workshopVisibility = payload?.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
+  await submitWorkshopImport();
+}
+
+async function handleDiscoveryImportWallhaven(payload) {
+  if (!auth.isAuthenticated.value) {
+    importState.hint = '请先登录后再拉取 Wallhaven 壁纸。';
+    return;
+  }
+  const wallhavenId = String(payload?.wallhavenId || '').trim();
+  if (!wallhavenId) {
+    importState.hint = '请先选择要拉取的 Wallhaven 壁纸。';
+    return;
+  }
+  importState.busy = true;
+  importState.hint = '';
+  try {
+    const job = normalizeImportJobResponse(
+      await wallpaperApi.importWallhavenWallpaper(
+        {
+          wallhavenId,
+          title: String(payload?.title || ''),
+          visibility: payload?.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE'
+        },
+        auth.authorizedFetch
+      )
+    );
+    if (!job || !job.jobId) {
+      throw new Error('Wallhaven 拉取任务创建失败');
+    }
+    rememberImportJob(job, 'Wallhaven 拉取任务');
+    if (job.status === 'SUCCEEDED') {
+      await loadBackgroundLibrary();
+    }
+  } catch (error) {
+    importState.hint = String(error?.detail || error?.message || 'Wallhaven 拉取失败');
+  } finally {
+    importState.busy = false;
+  }
+}
+
 async function checkWallpaperImportJob() {
   const jobId = Number(importState.lastImportJobId || 0);
   if (!auth.isAuthenticated.value) {
@@ -1655,7 +1717,7 @@ async function checkWallpaperImportJob() {
 function openWorkshopPreviewWindow() {
   const source = String(importState.workshopUrl || '').trim();
   if (!source) {
-    importState.hint = '请输入 Workshop URL。';
+    importState.hint = '请先粘贴 Workshop 链接，或在下方「在线壁纸浏览」中点选一个条目。';
     return;
   }
   let normalized = '';
@@ -1669,11 +1731,17 @@ function openWorkshopPreviewWindow() {
     importState.hint = 'Workshop URL 格式无效。';
     return;
   }
-  window.open(
-    normalized,
-    'shizuki-workshop-preview',
-    'popup=yes,width=1120,height=760,noopener,noreferrer'
-  );
+  const popup = window.open(normalized, 'shizuki-workshop-preview', 'popup=yes,width=1120,height=760');
+  if (!popup) {
+    importState.hint = '预览窗口被浏览器拦截了：请允许本站的弹出窗口后重试，或使用条目上的「在浏览器打开详情页」。';
+    return;
+  }
+  try {
+    popup.opener = null;
+  } catch {
+    // 跨域窗口不允许访问时忽略即可
+  }
+  importState.hint = '';
 }
 
 function buildWorkshopDiscoveryUrl() {

@@ -142,7 +142,12 @@
                 <button class="scope-btn ripple-trigger" :disabled="importState.busy || !importState.workshopUrl" @click="$emit('submit-workshop-import')">
                   创建导入任务
                 </button>
-                <button class="scope-btn ghost ripple-trigger" :disabled="!importState.workshopUrl" @click="$emit('open-workshop-preview-window')">
+                <button
+                  class="scope-btn ghost ripple-trigger"
+                  :disabled="!importState.workshopUrl"
+                  :title="importState.workshopUrl ? '在小窗中打开该 Workshop 条目页' : '先粘贴链接或在下方「在线壁纸浏览」点选条目'"
+                  @click="$emit('open-workshop-preview-window')"
+                >
                   小窗预览
                 </button>
               </div>
@@ -156,6 +161,7 @@
             :busy="importState.busy"
             @import-workshop="$emit('discovery-import-workshop', $event)"
             @import-wallhaven="$emit('discovery-import-wallhaven', $event)"
+            @select-workshop="$emit('discovery-select-workshop', $event)"
           />
           <p v-if="!isAuthenticated" class="route-bg-note">登录后可上传本地包、在线浏览并拉取 Workshop / Wallhaven 壁纸。</p>
 
@@ -333,6 +339,7 @@ defineEmits([
   'submit-workshop-import',
   'discovery-import-workshop',
   'discovery-import-wallhaven',
+  'discovery-select-workshop',
   'open-workshop-preview-window',
   'check-wallpaper-import-job',
   'save-active-wallpaper-settings',
@@ -493,6 +500,13 @@ defineEmits([
 .scope-btn.ghost {
   background: rgba(255, 255, 255, 0.42) !important;
   color: var(--picker-ink-soft) !important;
+}
+
+.scope-btn:disabled,
+.tab-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none !important;
 }
 
 .route-bg-note {
