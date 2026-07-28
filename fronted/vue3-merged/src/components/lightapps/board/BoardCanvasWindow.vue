@@ -38,14 +38,10 @@
         </div>
 
         <div class="toolbar-right">
-          <label class="kind-picker">
-            <span>类型</span>
-            <select v-model="activeBoardKind" :disabled="!activeBoard || saving">
-              <option value="DRAWING">自由画板</option>
-              <option value="FLOWCHART">流程图</option>
-              <option value="MINDMAP">思维导图</option>
-            </select>
-          </label>
+          <span class="drawio-engine-badge" title="由开源 draw.io 编辑器驱动">
+            <i class="fas fa-diagram-project" aria-hidden="true"></i>
+            draw.io
+          </span>
 
           <label class="kind-picker compact">
             <span>背景</span>
@@ -56,41 +52,11 @@
           </label>
 
           <div class="toolbar-actions">
-            <button
-              class="icon-btn ripple-trigger"
-              type="button"
-              title="导入 Mermaid 文本"
-              :disabled="boardLoading"
-              @click="openImportPanel"
-            >
-              <i class="fas fa-code-branch" aria-hidden="true"></i>
-            </button>
-            <button
-              class="icon-btn ripple-trigger"
-              type="button"
-              title="导入 .mmd / .txt"
-              :disabled="boardLoading"
-              @click="triggerMermaidFile"
-            >
-              <i class="fas fa-file-import" aria-hidden="true"></i>
-            </button>
-            <button
-              class="icon-btn ripple-trigger"
-              type="button"
-              title="导出 Mermaid 文本"
-              :disabled="boardLoading"
-              @click="openExportPanel"
-            >
-              <i class="fas fa-file-export" aria-hidden="true"></i>
-            </button>
             <button class="icon-btn ripple-trigger" type="button" title="导出整板 PNG" :disabled="boardLoading" @click="exportPng('board')">
               <i class="fas fa-image" aria-hidden="true"></i>
             </button>
-            <button class="icon-btn ripple-trigger" type="button" title="导出视口 PNG" :disabled="boardLoading" @click="exportPng('viewport')">
-              <i class="fas fa-expand" aria-hidden="true"></i>
-            </button>
-            <button class="icon-btn ripple-trigger" type="button" title="导出选区 PNG" :disabled="boardLoading" @click="exportPng('selection')">
-              <i class="fas fa-vector-square" aria-hidden="true"></i>
+            <button class="icon-btn ripple-trigger" type="button" title="下载可编辑的 .drawio 文件" :disabled="boardLoading" @click="exportDrawio">
+              <i class="fas fa-download" aria-hidden="true"></i>
             </button>
             <button class="icon-btn ripple-trigger" type="button" title="发送到博客正文" :disabled="boardLoading" @click="sendToBlog('inline')">
               <i class="fas fa-file-lines" aria-hidden="true"></i>
@@ -144,35 +110,6 @@
       </section>
     </Transition>
 
-    <Transition name="panel-collapse">
-      <section v-if="mermaidPanel.visible" class="mermaid-panel liquid-material">
-        <header class="mermaid-head">
-          <strong>{{ mermaidPanel.mode === 'import' ? 'Mermaid 导入' : 'Mermaid 导出' }}</strong>
-          <div class="mermaid-head-actions">
-            <button class="icon-btn ripple-trigger" type="button" title="关闭 Mermaid 面板" @click="closeMermaidPanel">
-              <i class="fas fa-xmark" aria-hidden="true"></i>
-            </button>
-          </div>
-        </header>
-        <textarea
-          v-model="mermaidPanel.text"
-          :readonly="mermaidPanel.mode === 'export'"
-          :placeholder="mermaidPanel.mode === 'import' ? '粘贴 flowchart / mindmap Mermaid 文本' : '导出的 Mermaid 文本将在这里显示'"
-        ></textarea>
-        <div class="mermaid-actions">
-          <button v-if="mermaidPanel.mode === 'import'" class="icon-btn ripple-trigger" type="button" title="执行导入" @click="importMermaidText">
-            <i class="fas fa-arrow-down" aria-hidden="true"></i>
-          </button>
-          <button v-if="mermaidPanel.mode === 'export'" class="icon-btn ripple-trigger" type="button" title="复制 Mermaid 文本" @click="copyMermaidText">
-            <i class="fas fa-copy" aria-hidden="true"></i>
-          </button>
-          <button v-if="mermaidPanel.mode === 'export'" class="icon-btn ripple-trigger" type="button" title="下载 .mmd" @click="downloadMermaidText">
-            <i class="fas fa-download" aria-hidden="true"></i>
-          </button>
-        </div>
-      </section>
-    </Transition>
-
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
     <p v-else-if="infoText" class="info-text">{{ infoText }}</p>
     <p class="status-text">{{ statusText }}</p>
@@ -189,8 +126,6 @@
         <span>画板加载中...</span>
       </div>
     </section>
-
-    <input ref="mermaidFileInputRef" class="hidden-file" type="file" accept=".mmd,.txt,.mermaid,text/plain" @change="onMermaidFileChange" />
   </section>
 </template>
 
@@ -213,8 +148,7 @@ import {
 } from '../../../utils/lightAppsDataStore';
 import { emitBlogWhiteboardExport } from '../../../utils/blogWhiteboardBridge';
 import { notifyLightAppsChanged, readLightAppsState } from '../../../utils/lightAppsState';
-import { mountBoardCanvas } from './boardCanvasBridge';
-import { parseMermaidTextToGraph } from './boardMermaid';
+import { mountDrawioCanvas } from './drawioBoardBridge';
 import LightAppHeaderPortal from '../LightAppHeaderPortal.vue';
 
 const auth = useAuthSession();
@@ -238,17 +172,10 @@ const boardCanvasFailed = ref(false);
 const boardCanvasFailedText = ref('');
 
 const canvasMountRef = ref(null);
-const mermaidFileInputRef = ref(null);
 
 const renameState = reactive({
   open: false,
   value: ''
-});
-
-const mermaidPanel = reactive({
-  visible: false,
-  mode: 'import',
-  text: ''
 });
 
 let boardBridge = null;
@@ -256,44 +183,18 @@ let persistTimer = 0;
 let infoTimer = 0;
 let loadingBoardToken = 0;
 let switchingBoard = false;
-let mermaidRuntimePromise = null;
-
-const MERMAID_RUNTIME_OPTIONS = Object.freeze({
-  startOnLoad: false,
-  securityLevel: 'loose',
-  theme: 'default'
-});
 
 const activeBoard = computed(() =>
   boards.value.find((item) => Number(item.whiteboardId) === Number(activeBoardId.value)) || null
 );
 const statusText = computed(() => {
-  if (boardCanvasFailed.value) return '白板初始化失败，请刷新页面重试。';
+  if (boardCanvasFailed.value) return 'draw.io 初始化失败，请刷新页面重试。';
   if (saving.value) return '同步中...';
   if (dirty.value) return '存在未同步变更';
   if (boardLoading.value) return '加载中...';
-  if (auth.isAuthenticated.value) return '已登录：白板数据云端同步';
-  return '游客模式：白板数据仅保存在本地';
+  if (auth.isAuthenticated.value) return 'draw.io 编辑 · 白板数据云端同步';
+  return 'draw.io 编辑 · 游客数据仅保存在本地';
 });
-
-async function ensureMermaidRuntime() {
-  if (!mermaidRuntimePromise) {
-    mermaidRuntimePromise = import('mermaid')
-      .then((mod) => {
-        const runtime = mod?.default || mod;
-        if (!runtime || typeof runtime.parse !== 'function' || typeof runtime.render !== 'function') {
-          throw new Error('Mermaid 运行时加载失败');
-        }
-        runtime.initialize(MERMAID_RUNTIME_OPTIONS);
-        return runtime;
-      })
-      .catch((error) => {
-        mermaidRuntimePromise = null;
-        throw error;
-      });
-  }
-  return mermaidRuntimePromise;
-}
 
 function clearInfoLater() {
   if (infoTimer) {
@@ -339,11 +240,13 @@ function normalizeBoardKind(raw) {
   return 'DRAWING';
 }
 
-function createBoardDocument(snapshot, graphKind) {
+function createBoardDocument(snapshot, graphKind, legacySnapshot = null) {
   return JSON.stringify({
-    version: 1,
+    version: 2,
+    editor: 'drawio',
     graph_kind: normalizeBoardKind(graphKind),
-    snapshot: snapshot && typeof snapshot === 'object' ? snapshot : null
+    snapshot: snapshot && typeof snapshot === 'object' ? snapshot : null,
+    ...(legacySnapshot && typeof legacySnapshot === 'object' ? { legacy_snapshot: legacySnapshot } : {})
   });
 }
 
@@ -360,13 +263,20 @@ function parseBoardDocument(rawDocument) {
     if (parsed && typeof parsed === 'object' && parsed.snapshot && typeof parsed.snapshot === 'object') {
       return {
         graphKind: normalizeBoardKind(parsed.graph_kind || parsed.graphKind),
-        snapshot: parsed.snapshot
+        snapshot: parsed.snapshot,
+        legacySnapshot:
+          parsed.legacy_snapshot && typeof parsed.legacy_snapshot === 'object'
+            ? parsed.legacy_snapshot
+            : parsed.snapshot?.engine === 'drawio'
+              ? null
+              : parsed.snapshot
       };
     }
     if (parsed && typeof parsed === 'object') {
       return {
         graphKind: 'DRAWING',
-        snapshot: parsed
+        snapshot: parsed,
+        legacySnapshot: parsed?.engine === 'drawio' ? null : parsed
       };
     }
     return {
@@ -532,9 +442,13 @@ async function loadBoardIntoCanvas(boardId) {
     const parsed = parseBoardDocument(resolvedBoard.documentJson);
     activeBoardKind.value = normalizeBoardKind(parsed.graphKind || resolvedBoard.boardKind);
     resolvedBoard.boardKind = activeBoardKind.value;
+    resolvedBoard.legacySnapshot = parsed.legacySnapshot || null;
 
     if (parsed.snapshot) {
-      boardBridge.api.loadSnapshot(parsed.snapshot);
+      const loadResult = boardBridge.api.loadSnapshot(parsed.snapshot);
+      if (loadResult?.migrated) {
+        setInfo('旧白板已转换为可编辑的 draw.io 图形，原快照会作为迁移备份保留。');
+      }
     } else {
       boardBridge.api.clear();
     }
@@ -650,7 +564,7 @@ function syncSnapshotFromCanvas(options = {}) {
   }
   if (!snapshot || typeof snapshot !== 'object') return;
 
-  const nextDocumentJson = createBoardDocument(snapshot, activeBoardKind.value);
+  const nextDocumentJson = createBoardDocument(snapshot, activeBoardKind.value, board.legacySnapshot);
   if (String(board.documentJson || '') === nextDocumentJson) return;
   board.documentJson = nextDocumentJson;
   board.boardKind = normalizeBoardKind(activeBoardKind.value);
@@ -752,138 +666,6 @@ async function removeBoard() {
   }
 }
 
-function closeMermaidPanel() {
-  mermaidPanel.visible = false;
-}
-
-function openImportPanel() {
-  mermaidPanel.visible = true;
-  mermaidPanel.mode = 'import';
-  if (!mermaidPanel.text) {
-    mermaidPanel.text = '';
-  }
-}
-
-function openExportPanel() {
-  if (!boardBridge?.api?.isReady()) return;
-  const preferredKind = activeBoardKind.value === 'MINDMAP' ? 'MINDMAP' : 'FLOWCHART';
-  const result = boardBridge.api.exportMermaid(preferredKind);
-  mermaidPanel.mode = 'export';
-  mermaidPanel.visible = true;
-  mermaidPanel.text = result.text || '';
-  const ignoredCount = Number(result.ignored?.ignoredEdgeCount || 0);
-  if (ignoredCount > 0) {
-    setInfo(`导出完成，忽略 ${ignoredCount} 条不可映射连线。`);
-  } else {
-    setInfo('Mermaid 导出完成');
-  }
-}
-
-async function copyMermaidText() {
-  const text = String(mermaidPanel.text || '').trim();
-  if (!text) return;
-  try {
-    await navigator.clipboard.writeText(text);
-    setInfo('Mermaid 文本已复制');
-  } catch {
-    setError('复制失败，请手动复制文本');
-  }
-}
-
-function downloadMermaidText() {
-  const text = String(mermaidPanel.text || '').trim();
-  if (!text) return;
-  const board = activeBoard.value;
-  const name = `${String(board?.title || 'board-canvas').trim() || 'board-canvas'}.mmd`;
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-async function importMermaidText() {
-  const source = String(mermaidPanel.text || '').trim();
-  if (!source) {
-    setError('请输入 Mermaid 文本');
-    return;
-  }
-  if (!boardBridge?.api?.isReady()) {
-    setError('画板尚未准备好');
-    return;
-  }
-
-  let mermaidRuntime = null;
-  try {
-    mermaidRuntime = await ensureMermaidRuntime();
-    await mermaidRuntime.parse(source);
-  } catch (error) {
-    setError(error?.str || error?.message || 'Mermaid 语法解析失败');
-    return;
-  }
-
-  try {
-    const graph = parseMermaidTextToGraph(source);
-    const result = boardBridge.api.importGraph(graph);
-    activeBoardKind.value = graph.kind === 'mindmap' ? 'MINDMAP' : 'FLOWCHART';
-    if (activeBoard.value) {
-      activeBoard.value.boardKind = activeBoardKind.value;
-    }
-    dirty.value = true;
-    schedulePersist(activeBoardId.value);
-    setInfo(`已导入 Mermaid：${result.createdNodeCount} 个节点，${result.createdEdgeCount} 条连线`);
-    return;
-  } catch {
-    // try static svg fallback
-  }
-
-  try {
-    const runtime = mermaidRuntime || (await ensureMermaidRuntime());
-    const renderId = `board_canvas_${Date.now()}`;
-    const rendered = await runtime.render(renderId, source);
-    await boardBridge.api.insertSvg(rendered?.svg || '');
-    dirty.value = true;
-    schedulePersist(activeBoardId.value);
-    setInfo('此 Mermaid 语法无法完全结构化，已作为静态 SVG 插入。');
-  } catch (error) {
-    setError(error?.message || 'Mermaid 导入失败');
-  }
-}
-
-function triggerMermaidFile() {
-  mermaidFileInputRef.value?.click?.();
-}
-
-function readTextFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('读取文件失败'));
-    reader.readAsText(file, 'utf-8');
-  });
-}
-
-async function onMermaidFileChange(event) {
-  const files = Array.from(event?.target?.files || []);
-  if (!files.length) return;
-  const file = files[0];
-  try {
-    const text = await readTextFile(file);
-    mermaidPanel.visible = true;
-    mermaidPanel.mode = 'import';
-    mermaidPanel.text = text;
-    setInfo('Mermaid 文件已载入，请确认后执行导入');
-  } catch (error) {
-    setError(error?.message || '文件读取失败');
-  } finally {
-    if (event?.target) {
-      event.target.value = '';
-    }
-  }
-}
-
 async function exportPng(scope) {
   if (!boardBridge?.api?.isReady()) {
     setError('画板尚未准备好');
@@ -897,10 +679,20 @@ async function exportPng(scope) {
       setError('当前范围没有可导出的图形');
       return;
     }
-    setInfo(`PNG 导出成功（${result.shapeCount} 个图形）`);
+    setInfo('PNG 导出成功');
   } catch (error) {
     setError(error?.message || 'PNG 导出失败');
   }
+}
+
+function exportDrawio() {
+  if (!boardBridge?.api?.isReady()) {
+    setError('draw.io 尚未准备好');
+    return;
+  }
+  const board = activeBoard.value;
+  boardBridge.api.exportDrawio(board?.title || 'diagram');
+  setInfo('可编辑的 .drawio 文件已下载');
 }
 
 function resolveBlogExportScope() {
@@ -1030,14 +822,14 @@ onMounted(async () => {
 
   if (canvasMountRef.value) {
     try {
-      boardBridge = mountBoardCanvas(canvasMountRef.value, {
+      boardBridge = mountDrawioCanvas(canvasMountRef.value, {
         onReady: () => {
           if (activeBoardId.value) {
             loadBoardIntoCanvas(activeBoardId.value);
           }
         },
         onChange: () => {
-          // 自研引擎内容变更 → 自动同步快照并延迟保存
+          // draw.io autosave event -> local snapshot -> delayed backend persistence
           syncSnapshotFromCanvas();
         },
         onError: (error) => {
@@ -1103,7 +895,8 @@ onBeforeUnmount(() => {
 }
 
 .board-picker,
-.kind-picker {
+.kind-picker,
+.drawio-engine-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1111,6 +904,17 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.14);
+}
+
+.drawio-engine-badge {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(240, 245, 255, 0.96);
+}
+
+.drawio-engine-badge i {
+  color: #f59d56;
 }
 
 .kind-picker.compact {
@@ -1138,8 +942,7 @@ onBeforeUnmount(() => {
   color: #141b2c;
 }
 
-.rename-panel,
-.mermaid-panel {
+.rename-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1166,38 +969,6 @@ onBeforeUnmount(() => {
 }
 
 .rename-actions {
-  display: inline-flex;
-  gap: 6px;
-}
-
-.mermaid-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.mermaid-head strong {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(241, 246, 255, 0.95);
-}
-
-.mermaid-panel textarea {
-  width: 100%;
-  min-height: 168px;
-  resize: vertical;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: rgba(12, 20, 36, 0.18);
-  color: rgba(239, 245, 255, 0.98);
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.mermaid-actions {
   display: inline-flex;
   gap: 6px;
 }
@@ -1285,10 +1056,6 @@ onBeforeUnmount(() => {
   z-index: 3;
 }
 
-.hidden-file {
-  display: none;
-}
-
 @container lightapp-window-body (max-width: 980px) {
   .canvas-toolbar {
     flex-direction: column;
@@ -1310,8 +1077,6 @@ onBeforeUnmount(() => {
     min-width: 0;
     width: 100%;
   }
-
-
 }
 
 @container lightapp-window-body (max-width: 620px) {
@@ -1324,17 +1089,5 @@ onBeforeUnmount(() => {
     height: clamp(340px, 58vh, 640px);
   }
 
-
-
-
-
-
-
-
-
-
-  .mermaid-panel textarea {
-    min-height: 132px;
-  }
 }
 </style>

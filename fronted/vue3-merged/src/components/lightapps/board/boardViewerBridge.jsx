@@ -1,21 +1,25 @@
 /**
  * boardViewerBridge.jsx
- * 博客互动白板只读查看器（自研引擎版）。
- * 兼容 v2 快照与旧版 tldraw 快照（自动迁移），不再依赖 tldraw / React，
- * 也不再需要 License Key。保留原有导出接口：
+ * 博客互动白板只读查看器。
+ * draw.io 快照交给 draw.io viewer adapter，旧快照继续由自研渲染器显示。
+ * 保留原有导出接口：
  *   getWhiteboardViewerAvailability() / mountWhiteboardViewer(target, options)
  */
 
 import { FeishuBoardEngine } from './feishuBoardEngine';
 import { FeishuBoardRenderer } from './feishuBoardRenderer';
+import { mountDrawioViewer } from './drawioBoardBridge';
 
 export function getWhiteboardViewerAvailability() {
-  return { supported: true, reason: 'self-engine' };
+  return { supported: true, reason: 'drawio-with-legacy-fallback' };
 }
 
 export function mountWhiteboardViewer(target, options = {}) {
   if (!target) {
     throw new Error('mount target is required');
+  }
+  if (options.snapshot?.engine === 'drawio') {
+    return mountDrawioViewer(target, options);
   }
 
   let destroyed = false;
