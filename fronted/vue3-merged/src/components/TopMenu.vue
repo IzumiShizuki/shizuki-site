@@ -949,6 +949,9 @@ watch(
   --menu-glass-bg: linear-gradient(160deg, rgba(255, 252, 248, 0.92), rgba(244, 233, 225, 0.84));
   --menu-glass-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
   --menu-glass-shadow: 0 14px 28px rgba(88, 60, 50, 0.12);
+  --menu-active-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(var(--accent-rgb), 0.1));
+  --menu-active-border: rgba(var(--accent-strong-rgb), 0.28);
+  --menu-active-shadow: 0 8px 18px rgba(108, 76, 70, 0.1);
   --menu-mobile-chip-bg: rgba(255, 246, 240, 0.84);
   --menu-mobile-chip-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
 }

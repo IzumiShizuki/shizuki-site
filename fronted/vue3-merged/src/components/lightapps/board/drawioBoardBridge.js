@@ -211,11 +211,52 @@ function readCanvasBackground(xml) {
 
 function applyCanvasBackground(xml, background) {
   const source = String(xml || EMPTY_DRAWIO_XML);
-  const fill = normalizeCanvasBackground(background) === 'transparent' ? 'none' : '#ffffff';
+  const transparent = normalizeCanvasBackground(background) === 'transparent';
+  const fill = transparent ? 'none' : '#ffffff';
+  const page = transparent ? '0' : '1';
   return source.replace(/<mxGraphModel\b([^>]*)>/i, (_match, rawAttributes = '') => {
-    const attributes = rawAttributes.replace(/\sbackground=(?:"[^"]*"|'[^']*')/gi, '');
-    return `<mxGraphModel${attributes} background="${fill}">`;
+    const attributes = rawAttributes
+      .replace(/\sbackground=(?:"[^"]*"|'[^']*')/gi, '')
+      .replace(/\spage=(?:"[^"]*"|'[^']*')/gi, '');
+    return `<mxGraphModel${attributes} page="${page}" background="${fill}">`;
   });
+}
+
+async function decodeCompressedDiagram(payload) {
+  if (typeof DecompressionStream !== 'function') return '';
+  try {
+    const binary = atob(String(payload || '').trim());
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    const sourceStream = new Response(bytes).body;
+    if (!sourceStream) return '';
+    const stream = sourceStream.pipeThrough(new DecompressionStream('deflate-raw'));
+    const encodedXml = await new Response(stream).text();
+    try {
+      return decodeURIComponent(encodedXml);
+    } catch {
+      return encodedXml;
+    }
+  } catch {
+    return '';
+  }
+}
+
+async function applyCanvasBackgroundDocument(xml, background) {
+  const source = String(xml || EMPTY_DRAWIO_XML);
+  const direct = applyCanvasBackground(source, background);
+  if (direct !== source) return direct;
+
+  const diagramMatch = source.match(/<diagram\b([^>]*)>([^<]+)<\/diagram>/i);
+  if (!diagramMatch) return source;
+  const decoded = await decodeCompressedDiagram(diagramMatch[2]);
+  if (!decoded || !/<mxGraphModel\b/i.test(decoded)) return source;
+
+  const patched = applyCanvasBackground(decoded, background);
+  if (patched === decoded) return source;
+  return source.replace(diagramMatch[0], `<diagram${diagramMatch[1]}>${patched}</diagram>`);
 }
 
 export function createDrawioEditorUrl(rawUrl, options = {}) {
@@ -285,6 +326,10 @@ export function mountDrawioCanvas(target, options = {}) {
   let destroyed = false;
   let ready = false;
   let currentXml = normalizeDrawioSnapshot(options.initialSnapshot).xml;
+  let currentBackground = normalizeCanvasBackground(
+    options.initialSnapshot?.background || readCanvasBackground(currentXml)
+  );
+  let backgroundChangeToken = 0;
   let ignoreChangeUntil = 0;
   let pendingExport = null;
   const startupTimer = window.setTimeout(() => {
@@ -299,9 +344,10 @@ export function mountDrawioCanvas(target, options = {}) {
     }
   };
 
-  const loadXml = (xml) => {
+  const loadXml = (xml, background = readCanvasBackground(xml)) => {
     currentXml = String(xml || EMPTY_DRAWIO_XML);
-    iframe.style.background = readCanvasBackground(currentXml) === 'transparent' ? 'transparent' : '#ffffff';
+    currentBackground = normalizeCanvasBackground(background);
+    iframe.style.background = currentBackground === 'transparent' ? 'transparent' : '#ffffff';
     ignoreChangeUntil = Date.now() + 350;
     if (ready) {
       post({
@@ -386,22 +432,32 @@ export function mountDrawioCanvas(target, options = {}) {
   const api = {
     isReady: () => ready && !destroyed,
     getSelectedShapeCount: () => 0,
-    getSnapshot: () => ({ version: 1, engine: DRAWIO_ENGINE, format: 'xml', xml: currentXml }),
-    getBackground: () => readCanvasBackground(currentXml),
-    setBackground(background) {
+    getSnapshot: () => ({
+      version: 1,
+      engine: DRAWIO_ENGINE,
+      format: 'xml',
+      xml: currentXml,
+      background: currentBackground
+    }),
+    getBackground: () => currentBackground,
+    async setBackground(background) {
       const normalizedBackground = normalizeCanvasBackground(background);
-      const nextXml = applyCanvasBackground(currentXml, normalizedBackground);
-      const changed = nextXml !== currentXml;
-      if (changed) loadXml(nextXml);
+      const token = ++backgroundChangeToken;
+      const nextXml = await applyCanvasBackgroundDocument(currentXml, normalizedBackground);
+      if (token !== backgroundChangeToken) {
+        return { changed: false, background: currentBackground, stale: true };
+      }
+      const changed = nextXml !== currentXml || currentBackground !== normalizedBackground;
+      if (changed) loadXml(nextXml, normalizedBackground);
       return { changed, background: normalizedBackground };
     },
     loadSnapshot(snapshot) {
       const normalized = normalizeDrawioSnapshot(snapshot);
-      loadXml(normalized.xml);
+      loadXml(normalized.xml, snapshot?.background || readCanvasBackground(normalized.xml));
       return normalized;
     },
     clear() {
-      loadXml(EMPTY_DRAWIO_XML);
+      loadXml(EMPTY_DRAWIO_XML, 'white');
     },
     zoomToFit() {
       post({ action: 'fit', border: 12 });
@@ -458,5 +514,6 @@ export const __TEST__ = {
   sanitizeFileName,
   vertexXml,
   edgeXml,
-  applyCanvasBackground
+  applyCanvasBackground,
+  applyCanvasBackgroundDocument
 };

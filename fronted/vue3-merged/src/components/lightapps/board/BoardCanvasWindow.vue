@@ -791,9 +791,9 @@ async function sendEmbedToBlog() {
 
 watch(
   () => pngBackground.value,
-  (next) => {
+  async (next) => {
     if (!boardBridge?.api?.isReady() || boardLoading.value || switchingBoard) return;
-    const result = boardBridge.api.setBackground(next);
+    const result = await boardBridge.api.setBackground(next);
     if (!result?.changed) return;
     syncSnapshotFromCanvas();
     setInfo(next === 'transparent' ? '画布已切换为透明背景' : '画布已切换为白色背景');

@@ -908,6 +908,11 @@ body {
   text-shadow: var(--accent-surface-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24)) !important;
 }
 
+:root[data-theme-mode='day'] .top-menu-root .left-main-btn.active :is(.icon-minimal, .item-label) {
+  color: var(--theme-text-primary) !important;
+  text-shadow: none !important;
+}
+
 :where(.light-window-host, .lightapp-window) :is(
   .window-title,
   .window-title span,

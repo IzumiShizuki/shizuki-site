@@ -34,6 +34,36 @@
               <i class="fas fa-pen"></i>
               <span>写文</span>
             </button>
+            <transition name="write-drawer">
+              <section v-if="viewMode === 'editor' && canWrite" class="write-side-expansion" aria-label="写作草稿">
+                <div class="mine-head">
+                  <h2>我的文章</h2>
+                  <button type="button" class="mini-btn ripple-trigger" @click="startNewDraft">新建</button>
+                </div>
+                <div class="mine-list">
+                  <button
+                    v-for="mine in writerState.myPosts"
+                    :key="`editor-drawer-${mine.postId}`"
+                    type="button"
+                    class="mine-item ripple-trigger"
+                    :class="{ active: writerState.editor.postId === mine.postId }"
+                    @click="openMinePost(mine.postId)"
+                  >
+                    <span class="mine-title">{{ resolveMinePostDisplayTitle(mine) }}</span>
+                    <span class="mine-meta-badges">
+                      <span class="status-badge" :class="resolvePostStatusMeta(mine.statusCode).className">
+                        {{ resolvePostStatusMeta(mine.statusCode).label }}
+                      </span>
+                      <span class="status-badge" :class="resolvePostVisibilityMeta(mine.visibility).className">
+                        {{ resolvePostVisibilityMeta(mine.visibility).label }}
+                      </span>
+                    </span>
+                  </button>
+                  <p v-if="writerState.loading" class="side-tip">加载我的文章中...</p>
+                  <p v-else-if="!writerState.myPosts.length" class="side-tip">暂无草稿或文章。</p>
+                </div>
+              </section>
+            </transition>
             <button type="button" class="switch-btn ripple-trigger" @click="jumpToBlogCategories">
               <i class="fas fa-folder-open"></i>
               <span>分类</span>
@@ -109,7 +139,7 @@
           </section>
         </template>
 
-        <template v-else>
+        <template v-else-if="viewMode === 'list'">
           <section class="side-block">
             <h2>分类</h2>
             <div class="chip-group">
@@ -3357,6 +3387,33 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.write-side-expansion {
+  margin: 0 3px 2px 14px;
+  padding: 10px;
+  border-left: 2px solid rgba(var(--accent-rgb), 0.34);
+  border-radius: 0 12px 12px 0;
+  background: rgba(255, 255, 255, 0.055);
+  display: grid;
+  gap: 8px;
+}
+
+.write-side-expansion h2 {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(241, 246, 255, 0.92);
+}
+
+.write-drawer-enter-active,
+.write-drawer-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.write-drawer-enter-from,
+.write-drawer-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 .switch-btn {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
@@ -5153,6 +5210,15 @@ onBeforeUnmount(() => {
 :root[data-theme-mode='day'] .blog-page .mini-btn {
   background: rgba(255, 253, 250, 0.9);
   border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .blog-page .write-side-expansion {
+  background: rgba(120, 84, 80, 0.04);
+  border-left-color: rgba(var(--accent-strong-rgb), 0.32);
+}
+
+:root[data-theme-mode='day'] .blog-page .write-side-expansion h2 {
   color: var(--theme-text-primary);
 }
 

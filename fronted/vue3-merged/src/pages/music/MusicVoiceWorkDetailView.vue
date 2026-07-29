@@ -78,10 +78,35 @@
           v-for="node in flatTrackTree"
           :key="node.key"
           :style="{ paddingLeft: `${node.depth * 16 + 6}px` }"
-          :class="`node-${node.nodeType}`"
+          :class="[`node-${node.nodeType}`, { actionable: isPlayableTreeNode(node) || isViewableFileNode(node) }]"
         >
-          <span class="node-title">{{ node.title || node.nodeType || '节点' }}</span>
-          <span v-if="node.durationSec != null" class="node-duration">{{ formatDuration(node.durationSec) }}</span>
+          <button
+            v-if="isPlayableTreeNode(node)"
+            class="tree-node-action tree-node-play ripple-trigger"
+            type="button"
+            :aria-label="`播放 ${node.title || '音轨'}`"
+            @click="playTreeNode(node)"
+          >
+            <i class="fas fa-play" aria-hidden="true"></i>
+            <span class="node-title">{{ node.title || '未命名音轨' }}</span>
+            <span class="node-duration">{{ formatDuration(node.durationSec) }}</span>
+          </button>
+          <a
+            v-else-if="isViewableFileNode(node)"
+            class="tree-node-action tree-node-file ripple-trigger"
+            :href="resolveTreeNodeResourceUrl(node)"
+            target="_blank"
+            rel="noopener noreferrer"
+            :aria-label="`查看文件 ${node.title || ''}`"
+          >
+            <i class="fas fa-file-image" aria-hidden="true"></i>
+            <span class="node-title">{{ node.title || '查看文件' }}</span>
+            <span class="node-file-label">查看文件 <i class="fas fa-up-right-from-square" aria-hidden="true"></i></span>
+          </a>
+          <template v-else>
+            <span class="node-title">{{ node.title || node.nodeType || '节点' }}</span>
+            <span v-if="node.durationSec != null" class="node-duration">{{ formatDuration(node.durationSec) }}</span>
+          </template>
         </li>
       </ul>
     </section>
@@ -228,6 +253,9 @@ function normalizeTrackNode(raw) {
     nodeType: String(source?.nodeType || source?.node_type || '').trim().toLowerCase(),
     title: String(source?.title || '').trim(),
     hash: String(source?.hash || '').trim(),
+    mediaStreamUrl: String(source?.mediaStreamUrl || source?.media_stream_url || '').trim(),
+    streamLowQualityUrl: String(source?.streamLowQualityUrl || source?.stream_low_quality_url || '').trim(),
+    mediaDownloadUrl: String(source?.mediaDownloadUrl || source?.media_download_url || '').trim(),
     durationSec: Number.isFinite(Number(source?.durationSec ?? source?.duration_sec))
       ? Number(source.durationSec ?? source.duration_sec)
       : null,
@@ -312,6 +340,40 @@ function flattenTrackTree(nodes, depth, collector) {
       flattenTrackTree(node.children, depth + 1, collector);
     }
   });
+}
+
+function resolvePlayableTreeNodeIndex(node) {
+  const hash = String(node?.hash || '').trim();
+  if (hash) {
+    const hashIndex = playableTracks.value.findIndex((item) => String(item?.hash || '').trim() === hash);
+    if (hashIndex >= 0) return hashIndex;
+  }
+  const title = String(node?.title || '').trim();
+  if (!title) return -1;
+  return playableTracks.value.findIndex((item) => {
+    const itemTitle = String(item?.title || '').trim();
+    const itemPath = String(item?.path || '').trim();
+    return itemTitle === title || itemPath === title || itemPath.endsWith(`/${title}`);
+  });
+}
+
+function isPlayableTreeNode(node) {
+  return String(node?.nodeType || '').toLowerCase() === 'audio' && resolvePlayableTreeNodeIndex(node) >= 0;
+}
+
+function resolveTreeNodeResourceUrl(node) {
+  return String(node?.mediaDownloadUrl || node?.mediaStreamUrl || node?.streamLowQualityUrl || '').trim();
+}
+
+function isViewableFileNode(node) {
+  const nodeType = String(node?.nodeType || '').toLowerCase();
+  return ['image', 'file'].includes(nodeType) && Boolean(resolveTreeNodeResourceUrl(node));
+}
+
+async function playTreeNode(node) {
+  const index = resolvePlayableTreeNodeIndex(node);
+  if (index < 0) return;
+  await playSingleTrack(index);
 }
 
 function toPlayerTrack(item, index = 0) {
@@ -580,6 +642,53 @@ watch(
   background: rgba(255, 255, 255, 0.05);
   color: rgba(226, 236, 252, 0.92);
   padding-right: 8px;
+}
+
+.voice-track-tree li.actionable {
+  padding-right: 0;
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.tree-node-action {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tree-node-action:hover,
+.tree-node-action:focus-visible {
+  border-color: rgba(var(--accent-rgb), 0.34);
+  background: rgba(var(--accent-rgb), 0.13);
+}
+
+.tree-node-action > i {
+  color: rgba(var(--accent-soft-rgb), 0.94);
+  font-size: 11px;
+}
+
+.node-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-file-label {
+  color: rgba(184, 196, 220, 0.85);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .node-duration {

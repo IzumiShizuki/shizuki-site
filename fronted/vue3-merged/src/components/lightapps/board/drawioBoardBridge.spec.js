@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { deflateRawSync } from 'node:zlib';
 import {
   __TEST__,
   EMPTY_DRAWIO_XML,
@@ -8,6 +9,10 @@ import {
 } from './drawioBoardBridge';
 
 describe('drawioBoardBridge', () => {
+  function compressDiagram(xml) {
+    return deflateRawSync(Buffer.from(encodeURIComponent(xml))).toString('base64');
+  }
+
   it('builds an embed-mode editor URL', () => {
     const url = new URL(createDrawioEditorUrl('https://example.com/drawio/'));
     expect(url.origin).toBe('https://example.com');
@@ -71,8 +76,21 @@ describe('drawioBoardBridge', () => {
     const white = __TEST__.applyCanvasBackground(transparent, 'white');
 
     expect(transparent).toContain('background="none"');
+    expect(transparent).toContain('page="0"');
     expect(white).toContain('background="#ffffff"');
+    expect(white).toContain('page="1"');
     expect(white).not.toContain('background="none"');
+  });
+
+  it('patches compressed draw.io content without reopening the editor', async () => {
+    const model = '<mxGraphModel page="1"><root><mxCell id="0"/></root></mxGraphModel>';
+    const payload = compressDiagram(model);
+    const compressed = `<mxfile><diagram id="page-1">${payload}</diagram></mxfile>`;
+    const result = await __TEST__.applyCanvasBackgroundDocument(compressed, 'transparent');
+
+    expect(result).toContain('<mxGraphModel');
+    expect(result).toContain('page="0"');
+    expect(result).toContain('background="none"');
   });
 
   it('migrates old tldraw store snapshots before creating draw.io XML', () => {

@@ -159,6 +159,39 @@ describe('AiDialog', () => {
     expect(trigger.text()).toContain('收起配置');
   });
 
+  it('hides the mode switcher when an entry point allows only one mode', async () => {
+    mocked.auth = createAuth(['ADMIN']);
+    const wrapper = await mountDialog({
+      chatMode: 'companion',
+      allowedModes: ['companion']
+    });
+
+    expect(wrapper.find('.mode-switcher').exists()).toBe(false);
+    expect(wrapper.find('.mode-config').exists()).toBe(false);
+    expect(wrapper.text()).toContain('自宅 companion');
+  });
+
+  it('shows one tavern management task at a time', async () => {
+    const wrapper = await mountDialog({
+      chatMode: 'tavern',
+      allowedModes: ['tavern']
+    });
+
+    await wrapper.get('[data-testid="mode-config-trigger"]').trigger('click');
+    const management = wrapper.get('.management-shell');
+    await management.get('summary').trigger('click');
+
+    expect(management.findAll('[data-testid="tavern-management-panel"]')).toHaveLength(1);
+    expect(management.text()).toContain('创建结构化角色');
+    expect(management.text()).not.toContain('粘贴兼容角色卡的 JSON');
+
+    await management.get('[data-testid="tavern-management-import"]').trigger('click');
+
+    expect(management.findAll('[data-testid="tavern-management-panel"]')).toHaveLength(1);
+    expect(management.text()).toContain('粘贴兼容角色卡的 JSON');
+    expect(management.text()).not.toContain('先创建世界书与首条设定');
+  });
+
   it('creates town npc sessions through the admin endpoint instead of generic create', async () => {
     mocked.auth = createAuth(['ADMIN']);
     mocked.createAdminTownNpcSession.mockResolvedValue({

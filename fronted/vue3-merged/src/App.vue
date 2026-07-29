@@ -72,6 +72,7 @@
             :visible="showSidebarAiPanel"
             mode="sidebar"
             :chat-mode="activeAiChatMode"
+            :allowed-modes="activeAiChatAllowedModes"
             :open-payload="activeAiChatPayload"
             @close="closeAiChat"
           />
@@ -83,6 +84,7 @@
         :visible="true"
         mode="sheet"
         :chat-mode="activeAiChatMode"
+        :allowed-modes="activeAiChatAllowedModes"
         :open-payload="activeAiChatPayload"
         @close="closeAiChat"
       />
@@ -485,6 +487,9 @@ const aiChatActive = computed({
 });
 const activeAiChatMode = ref('quick_chat');
 const activeAiChatPayload = ref(null);
+const activeAiChatAllowedModes = computed(() =>
+  String(activeAiChatPayload.value?.source || '').trim() === 'home-room' ? ['companion'] : undefined
+);
 
 const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.value);
 const showSidebarAiPanel = computed(() => aiChatActive.value && canUseSidebarAi.value);

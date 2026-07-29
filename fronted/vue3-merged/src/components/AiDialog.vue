@@ -36,7 +36,7 @@
         <div v-else class="header-spacer" aria-hidden="true"></div>
       </header>
 
-      <nav v-if="visibleChatModeOptions.length" class="mode-switcher" aria-label="AI chat modes">
+      <nav v-if="visibleChatModeOptions.length > 1" class="mode-switcher" aria-label="AI chat modes">
         <button
           v-for="item in visibleChatModeOptions"
           :key="item.value"
@@ -159,14 +159,61 @@
           一期里普通对话和酒馆模式不会接入 MemoryOS。这里的角色卡、世界书和场景提示只参与当前会话上下文，不生成独立记忆 scope。
         </p>
 
-        <details v-if="auth.isAuthenticated.value" class="management-shell config-field-full" :open="!tavernAssets.characters.length || !tavernAssets.worldbooks.length">
-          <summary>管理角色卡与世界书</summary>
+        <details v-if="auth.isAuthenticated.value" class="management-shell config-field-full">
+          <summary>
+            <span>管理角色卡与世界书</span>
+            <small>{{ tavernAssets.characters.length }} 个角色 · {{ tavernAssets.worldbooks.length }} 本世界书</small>
+          </summary>
+
+          <div class="management-tabs" role="tablist" aria-label="酒馆资源管理">
+            <button
+              class="management-tab ripple-trigger"
+              :class="{ active: tavernManagementTab === 'character' }"
+              data-testid="tavern-management-character"
+              type="button"
+              role="tab"
+              :aria-selected="tavernManagementTab === 'character'"
+              @click="tavernManagementTab = 'character'"
+            >
+              <i class="fas fa-user-plus" aria-hidden="true"></i>
+              <span>新建角色</span>
+            </button>
+            <button
+              class="management-tab ripple-trigger"
+              :class="{ active: tavernManagementTab === 'import' }"
+              data-testid="tavern-management-import"
+              type="button"
+              role="tab"
+              :aria-selected="tavernManagementTab === 'import'"
+              @click="tavernManagementTab = 'import'"
+            >
+              <i class="fas fa-file-import" aria-hidden="true"></i>
+              <span>导入角色卡</span>
+            </button>
+            <button
+              class="management-tab ripple-trigger"
+              :class="{ active: tavernManagementTab === 'worldbook' }"
+              data-testid="tavern-management-worldbook"
+              type="button"
+              role="tab"
+              :aria-selected="tavernManagementTab === 'worldbook'"
+              @click="tavernManagementTab = 'worldbook'"
+            >
+              <i class="fas fa-book-atlas" aria-hidden="true"></i>
+              <span>创建世界书</span>
+            </button>
+          </div>
 
           <div class="management-grid">
-            <form class="management-card liquid-material" @submit.prevent="submitCreateCharacter">
+            <form
+              v-if="tavernManagementTab === 'character'"
+              class="management-card liquid-material"
+              data-testid="tavern-management-panel"
+              @submit.prevent="submitCreateCharacter"
+            >
               <header>
-                <strong>结构化角色</strong>
-                <span>走 `POST /ai-characters`</span>
+                <strong>创建结构化角色</strong>
+                <span>先建立最小角色档案，更多设定可在创建后继续补充。</span>
               </header>
               <input
                 v-model.trim="tavernAssets.createCharacterDraft.displayName"
@@ -191,10 +238,15 @@
               </button>
             </form>
 
-            <form class="management-card liquid-material" @submit.prevent="submitImportCharacterCard">
+            <form
+              v-else-if="tavernManagementTab === 'import'"
+              class="management-card liquid-material"
+              data-testid="tavern-management-panel"
+              @submit.prevent="submitImportCharacterCard"
+            >
               <header>
                 <strong>导入角色卡</strong>
-                <span>走 `POST /ai-character-cards/import`</span>
+                <span>粘贴兼容角色卡的 JSON / 元数据，导入后会出现在角色选择中。</span>
               </header>
               <input
                 v-model.trim="tavernAssets.importCardDraft.displayName"
@@ -213,10 +265,15 @@
               </button>
             </form>
 
-            <form class="management-card liquid-material" @submit.prevent="submitCreateWorldbook">
+            <form
+              v-else
+              class="management-card liquid-material"
+              data-testid="tavern-management-panel"
+              @submit.prevent="submitCreateWorldbook"
+            >
               <header>
                 <strong>创建世界书</strong>
-                <span>走 `POST /ai-worldbooks` + entries</span>
+                <span>先创建世界书与首条设定，之后可继续维护更多条目。</span>
               </header>
               <input
                 v-model.trim="tavernAssets.createWorldbookDraft.title"
@@ -1037,6 +1094,7 @@ const companionProfile = reactive(createCompanionProfileState());
 const memoryScope = reactive(createMemoryScopeState());
 // 配置从聊天流中抽离为按需抽屉，避免酒馆与 NPC 模式持续挤压消息区域。
 const modeConfigOpen = ref(false);
+const tavernManagementTab = ref('character');
 const companionConfigOpen = ref(false);
 const memoryScopeOpen = ref(false);
 const sessionStateByMode = reactive({
@@ -1265,13 +1323,12 @@ watch(
   }
 );
 
-// 首次进入自宅且还没保存过人格时，自动展开配置面板引导管理员完成配置。
+// 首次进入自宅时只预备配置内容，不抢占窄侧栏里的聊天空间。
 watch(
   () => [activeChatMode.value, companionProfile.loading],
   () => {
     if (activeChatMode.value !== 'companion' || companionProfile.loading) return;
     if (!normalizeOptionalText(sessionStateByMode.companion.config.displayName)) {
-      modeConfigOpen.value = true;
       companionConfigOpen.value = true;
     }
   },
@@ -2667,13 +2724,54 @@ function messageRoleLabel(role) {
   color: rgba(244, 248, 255, 0.94);
   font-size: 13px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  list-style-position: inside;
+}
+
+.management-shell summary small {
+  color: rgba(187, 201, 230, 0.72);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.management-tabs {
+  margin-top: 12px;
+  padding: 4px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 13, 24, 0.22);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.management-tab {
+  min-height: 42px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(198, 211, 237, 0.78);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 11px;
+}
+
+.management-tab.active {
+  border-color: rgba(var(--accent-rgb), 0.36);
+  background: rgba(var(--accent-rgb), 0.18);
+  color: rgba(247, 250, 255, 0.96);
 }
 
 .management-grid {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .management-card {
@@ -2681,9 +2779,9 @@ function messageRoleLabel(role) {
   --liquid-border: rgba(255, 255, 255, 0.08);
   --liquid-shadow: none;
   border-radius: 16px;
-  padding: 14px;
+  padding: 16px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .management-card header {
@@ -3151,6 +3249,21 @@ function messageRoleLabel(role) {
   border-color: var(--theme-border) !important;
 }
 
+:root[data-theme-mode='day'] .management-tabs {
+  background: rgba(120, 84, 80, 0.045);
+  border-color: var(--theme-border);
+}
+
+:root[data-theme-mode='day'] .management-tab {
+  color: var(--theme-text-secondary);
+}
+
+:root[data-theme-mode='day'] .management-tab.active {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: rgba(var(--accent-strong-rgb), 0.28);
+  color: var(--theme-text-primary);
+}
+
 :root[data-theme-mode='day'] .snapshot-card,
 :root[data-theme-mode='day'] .management-card {
   --liquid-bg: var(--theme-panel-surface-elevated);
@@ -3172,6 +3285,7 @@ function messageRoleLabel(role) {
 :root[data-theme-mode='day'] .config-field span,
 :root[data-theme-mode='day'] .config-toggle span,
 :root[data-theme-mode='day'] .management-shell summary,
+:root[data-theme-mode='day'] .management-tab.active,
 :root[data-theme-mode='day'] .management-card strong,
 :root[data-theme-mode='day'] .snapshot-card strong,
 :root[data-theme-mode='day'] .worldbook-option span,
@@ -3191,6 +3305,7 @@ function messageRoleLabel(role) {
 :root[data-theme-mode='day'] .worldbook-option small,
 :root[data-theme-mode='day'] .picker-empty,
 :root[data-theme-mode='day'] .management-card span,
+:root[data-theme-mode='day'] .management-shell summary small,
 :root[data-theme-mode='day'] .mode-note p,
 :root[data-theme-mode='day'] .empty-state p,
 :root[data-theme-mode='day'] .snapshot-card p,
@@ -3360,7 +3475,7 @@ function messageRoleLabel(role) {
 
   .mode-switcher,
   .mode-config,
-  .management-grid,
+  .management-tabs,
   .memory-snapshot {
     grid-template-columns: 1fr;
   }

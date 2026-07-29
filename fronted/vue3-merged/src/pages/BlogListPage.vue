@@ -1364,6 +1364,24 @@ onBeforeUnmount(() => {
   opacity: 0.48;
 }
 
+:root[data-theme-mode='day'] .blog-list-page .switch-btn {
+  border-color: rgba(146, 108, 101, 0.24);
+  background: rgba(255, 253, 250, 0.78);
+  color: var(--theme-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+:root[data-theme-mode='day'] .blog-list-page .switch-btn:not(.active):hover {
+  border-color: rgba(var(--accent-strong-rgb), 0.28);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+:root[data-theme-mode='day'] .blog-list-page .switch-btn.active {
+  border-color: rgba(var(--accent-strong-rgb), 0.34);
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.15), rgba(255, 253, 250, 0.94));
+  box-shadow: 0 8px 18px rgba(108, 76, 70, 0.09);
+}
+
 .action-hint {
   margin-top: 6px;
   font-size: 12px;
