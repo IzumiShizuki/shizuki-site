@@ -4431,7 +4431,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 120;
-  background: rgba(7, 10, 18, 0.62);
+  background: var(--theme-scrim, rgba(24, 14, 12, 0.64));
+  backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
   padding: 24px 18px;
@@ -4445,9 +4446,10 @@ onBeforeUnmount(() => {
   padding: 14px;
   display: grid;
   gap: 10px;
-  --liquid-bg: rgba(16, 24, 38, 0.84);
-  --liquid-border: rgba(255, 255, 255, 0.24);
-  --liquid-shadow: 0 24px 46px rgba(6, 10, 18, 0.5);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  --liquid-bg: var(--theme-panel-surface, rgba(16, 24, 38, 0.84));
+  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.24));
+  --liquid-shadow: 0 24px 46px rgba(18, 9, 8, 0.32);
 }
 
 .section-editor-header {
@@ -4464,9 +4466,9 @@ onBeforeUnmount(() => {
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(234, 241, 255, 0.98);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.28));
+  background: var(--theme-floating-close-surface, rgba(255, 255, 255, 0.12));
+  color: var(--theme-floating-ink, rgba(234, 241, 255, 0.98));
 }
 
 .editor-layout {
@@ -4477,7 +4479,10 @@ onBeforeUnmount(() => {
 .section-editor-footer {
   position: sticky;
   bottom: 0;
-  background: linear-gradient(180deg, rgba(14, 20, 32, 0), rgba(14, 20, 32, 0.92) 25%);
+  background:
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0), rgba(var(--accent-rgb), 0.08) 42%),
+    var(--theme-panel-surface, rgba(16, 24, 38, 0.92));
+  border-top: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.11));
   padding-top: 10px;
 }
 
@@ -4488,8 +4493,8 @@ onBeforeUnmount(() => {
   display: block;
   object-fit: cover;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.07));
 }
 
 .editor-preview-grid {
@@ -4604,13 +4609,13 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  color: rgba(226, 235, 252, 0.9);
+  color: var(--theme-text-primary, rgba(226, 235, 252, 0.9));
 }
 
 .form-section {
   display: grid;
   gap: 10px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+  border-top: 1px dashed var(--theme-divider-soft, rgba(255, 255, 255, 0.18));
   padding-top: 10px;
 }
 
@@ -4634,18 +4639,23 @@ onBeforeUnmount(() => {
 
 .field-block > span {
   font-size: 12px;
-  color: rgba(184, 201, 230, 0.9);
+  color: var(--theme-text-secondary, rgba(184, 201, 230, 0.9));
 }
 
 .field-block input,
 .field-block textarea {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
   border-radius: 10px;
-  background: rgba(6, 11, 19, 0.62);
-  color: rgba(236, 243, 255, 0.95);
+  background: var(--theme-surface-soft, rgba(6, 11, 19, 0.62));
+  color: var(--theme-text-primary, rgba(236, 243, 255, 0.95));
   padding: 9px 10px;
   resize: vertical;
+}
+
+.field-block input::placeholder,
+.field-block textarea::placeholder {
+  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
 }
 
 .field-block input:focus,
@@ -4656,9 +4666,9 @@ onBeforeUnmount(() => {
 }
 
 .tag-editor {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.06));
   padding: 8px;
   display: grid;
   gap: 8px;
@@ -4679,8 +4689,8 @@ onBeforeUnmount(() => {
 
 .nested-card {
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(7, 12, 22, 0.52);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.15));
+  background: var(--theme-panel-surface-elevated, rgba(7, 12, 22, 0.52));
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -4697,8 +4707,8 @@ onBeforeUnmount(() => {
   display: block;
   border-radius: 999px;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.25));
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.08));
 }
 
 @media (prefers-reduced-motion: reduce) {
