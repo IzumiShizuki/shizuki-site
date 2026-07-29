@@ -39,6 +39,10 @@ vi.mock('../composables/useAuthSession', () => ({
   useAuthSession: () => mocked.auth
 }));
 
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} })
+}));
+
 vi.mock('../services/aiApi', () => ({
   createAdminTownNpcSession: (...args) => mocked.createAdminTownNpcSession(...args),
   getAiTownPublicMap: (...args) => mocked.getAiTownPublicMap(...args),

@@ -1,64 +1,96 @@
 <template>
-  <section class="wallpaper-home-page" aria-label="Wallpaper Home">
+  <section class="wallpaper-home-page" aria-label="自宅">
     <div class="wallpaper-home-orb orb-a" aria-hidden="true"></div>
     <div class="wallpaper-home-orb orb-b" aria-hidden="true"></div>
 
-    <article class="wallpaper-home-dock fade-rise">
-      <p class="wallpaper-home-kicker">{{ greeting.en }}</p>
-      <h1>{{ greeting.zh }}</h1>
+    <div class="home-layout">
+      <article class="home-welcome-panel fade-rise">
+        <header class="home-welcome-head">
+          <p class="home-kicker">{{ greeting.en }}</p>
+          <span class="home-place-label">SHIZUKI HOME</span>
+        </header>
 
-      <div class="wallpaper-home-clock" aria-label="当前时间">
-        <span class="clock-time">
-          {{ clock.hm }}<small class="clock-seconds">:{{ clock.ss }}</small>
-        </span>
-        <span class="clock-date">
-          <span>{{ clock.date }}</span>
-          <span>{{ clock.weekday }}</span>
-        </span>
-      </div>
+        <h1>{{ greeting.zh }}</h1>
 
-      <p class="wallpaper-home-whisper" aria-live="off">
-        <span class="whisper-mark" aria-hidden="true">「</span>
-        <Transition name="whisper-fade" mode="out-in">
-          <span :key="whisperIndex" class="whisper-text">{{ activeWhisper }}</span>
-        </Transition>
-        <span class="whisper-mark" aria-hidden="true">」</span>
-      </p>
+        <div class="home-clock" aria-label="当前时间">
+          <span class="clock-time">
+            {{ clock.hm }}<small class="clock-seconds">:{{ clock.ss }}</small>
+          </span>
+          <span class="clock-date">
+            <span>{{ clock.date }}</span>
+            <span>{{ clock.weekday }}</span>
+          </span>
+        </div>
 
-      <div class="wallpaper-home-actions">
-        <button class="primary-btn ripple-trigger" type="button" @click="openAuthorIntro">
-          <i class="fas fa-circle-info" aria-hidden="true"></i>
-          网站介绍
+        <p class="home-whisper" aria-live="off">
+          <span class="whisper-mark" aria-hidden="true">「</span>
+          <Transition name="whisper-fade" mode="out-in">
+            <span :key="whisperIndex" class="whisper-text">{{ activeWhisper }}</span>
+          </Transition>
+          <span class="whisper-mark" aria-hidden="true">」</span>
+        </p>
+
+        <div class="home-actions">
+          <button class="primary-btn home-primary-action ripple-trigger" type="button" @click="openPath('/ai-hub')">
+            <i class="fas fa-brain" aria-hidden="true"></i>
+            进入 AI Hub
+          </button>
+          <button class="ghost-btn home-secondary-action ripple-trigger" type="button" @click="openAuthorIntro">
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
+            关于这里
+          </button>
+        </div>
+      </article>
+
+      <aside class="home-room-card fade-rise-late" aria-label="自宅伴聊">
+        <div class="room-door-sign" aria-hidden="true">
+          <span class="room-door-line"></span>
+          <span class="room-door-knob"></span>
+        </div>
+
+        <header class="room-card-head">
+          <div>
+            <p class="room-kicker">PRIVATE ROOM</p>
+            <h2>自宅</h2>
+          </div>
+          <span class="room-lamp" :class="`tone-${roomLamp.tone}`">
+            <i aria-hidden="true"></i>
+            {{ roomLamp.label }}
+          </span>
+        </header>
+
+        <div class="room-message">
+          <strong>欢迎回家。</strong>
+          <p>伴聊留在熟悉的壁纸与音乐旁边，不必先进入工作区。</p>
+        </div>
+
+        <button
+          class="home-companion-action ripple-trigger"
+          type="button"
+          :disabled="companionEntry.disabled"
+          @click="openCompanion"
+        >
+          <span class="companion-action-icon" aria-hidden="true"><i :class="companionEntry.icon"></i></span>
+          <span>
+            <strong>{{ companionEntry.title }}</strong>
+            <small>{{ companionEntry.caption }}</small>
+          </span>
+          <i class="fas fa-arrow-right companion-action-arrow" aria-hidden="true"></i>
         </button>
-        <button class="ghost-btn ripple-trigger" type="button" @click="openPath('/blog')">
-          <i class="fas fa-feather" aria-hidden="true"></i>
-          博客
-        </button>
-      </div>
 
-      <div class="wallpaper-home-meta">
-        <span>Wallpaper Focus</span>
-        <span>Music Nearby</span>
-        <span>Quick Tools Ready</span>
-      </div>
-    </article>
-
-    <div class="wallpaper-home-shortcuts fade-rise-late">
-      <p class="shortcuts-kicker">Quick Access</p>
-      <button
-        v-for="item in quickTools"
-        :key="item.path"
-        class="wallpaper-home-shortcut ripple-trigger"
-        type="button"
-        @click="openPath(item.path)"
-      >
-        <span class="shortcut-icon" aria-hidden="true"><i :class="item.icon"></i></span>
-        <span class="shortcut-text">
-          <span class="shortcut-label">{{ item.label }}</span>
-          <span class="shortcut-sub">{{ item.sub }}</span>
-        </span>
-        <i class="fas fa-arrow-right shortcut-arrow" aria-hidden="true"></i>
-      </button>
+        <nav class="home-quick-links" aria-label="自宅快捷入口">
+          <button
+            v-for="item in quickTools"
+            :key="item.path"
+            class="home-quick-link ripple-trigger"
+            type="button"
+            @click="openPath(item.path)"
+          >
+            <i :class="item.icon" aria-hidden="true"></i>
+            <span>{{ item.label }}</span>
+          </button>
+        </nav>
+      </aside>
     </div>
   </section>
 </template>
@@ -66,18 +98,20 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuthSession } from '../composables/useAuthSession';
 import { listPublicPostWhispers } from '../services/blogApi';
+import { openAiChat } from '../utils/aiChatBus';
 import { buildAuthorHomepageWhisperPool } from './authorHomepageWhispersState';
 
 const router = useRouter();
+const auth = useAuthSession();
 
 const quickTools = [
-  { path: '/music-library/music', label: 'Music', sub: '音乐资料馆', icon: 'fas fa-compact-disc' },
-  { path: '/apps', label: 'Apps', sub: '轻应用集', icon: 'fas fa-grip' },
-  { path: '/ai-hub', label: 'AI', sub: 'AI 中心', icon: 'fas fa-brain' }
+  { path: '/music-library/music', label: 'Music', icon: 'fas fa-compact-disc' },
+  { path: '/apps', label: 'Apps', icon: 'fas fa-grip' },
+  { path: '/blog', label: 'Blog', icon: 'fas fa-feather' }
 ];
 
-/* 实时时钟：秒级刷新，同时驱动时段问候跨时段自动切换。 */
 const now = ref(new Date());
 let clockTimer = null;
 
@@ -97,7 +131,6 @@ const clock = computed(() => {
   };
 });
 
-/* 时段问候：随打开时间变化的一点温度 */
 const greeting = computed(() => {
   const h = now.value.getHours();
   if (h >= 5 && h < 11) {
@@ -115,7 +148,44 @@ const greeting = computed(() => {
   return { en: 'Good Night', zh: '夜深了', note: '夜深了，注意休息，晚安。' };
 });
 
-/* 低语一言：优先站内公开低语，取不到时退回内置文案池；问候语的小注脚永远排在第一条。 */
+const roomLamp = computed(() => {
+  const h = now.value.getHours();
+  if (h >= 5 && h < 11) return { label: '晨光正好', tone: 'morning' };
+  if (h >= 11 && h < 18) return { label: '窗边明亮', tone: 'day' };
+  if (h >= 18 && h < 23) return { label: '暖灯亮着', tone: 'evening' };
+  return { label: '留一盏灯', tone: 'night' };
+});
+
+const isAdminUser = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((groupCode) => String(groupCode || '').trim().toUpperCase() === 'ADMIN');
+});
+
+const companionEntry = computed(() => {
+  if (!auth.isAuthenticated.value) {
+    return {
+      title: '登录后回家',
+      caption: '登录后打开自宅伴聊',
+      icon: 'fas fa-right-to-bracket',
+      disabled: false
+    };
+  }
+  if (!isAdminUser.value) {
+    return {
+      title: '自宅伴聊未开放',
+      caption: '当前仅限 ADMIN',
+      icon: 'fas fa-lock',
+      disabled: true
+    };
+  }
+  return {
+    title: '坐下来聊聊',
+    caption: '打开自宅伴聊',
+    icon: 'fas fa-comments',
+    disabled: false
+  };
+});
+
 const whisperPool = ref(buildAuthorHomepageWhisperPool(null));
 const whisperIndex = ref(0);
 let whisperTimer = null;
@@ -158,154 +228,182 @@ function openAuthorIntro() {
 function openPath(path) {
   router.push(path);
 }
+
+function openCompanion() {
+  if (!auth.isAuthenticated.value) {
+    auth.redirectToAuth('login_required', '/');
+    return;
+  }
+  if (!isAdminUser.value) return;
+
+  openAiChat({
+    source: 'home-room',
+    preferredMode: 'companion'
+  });
+}
 </script>
 
 <style scoped>
 .wallpaper-home-page {
   position: relative;
   min-height: 100%;
-  padding: clamp(118px, 18vh, 168px) clamp(18px, 5vw, 54px) clamp(132px, 20vh, 176px);
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
+  padding: clamp(116px, 17vh, 162px) clamp(22px, 5vw, 66px) clamp(132px, 19vh, 170px);
+  display: grid;
+  align-items: end;
   overflow: hidden;
+  font-family: var(--font-ui);
 
-  /* —— 首页毛玻璃材质（夜间默认）——
-   * 清透轻盈方向：低不透明度暖炭底 + 大半径模糊 + 顶部高光边，
-   * 让壁纸透进来的同时保证文字对比度；日间由下方 day 覆写整组变量。 */
-  --home-glass-bg: linear-gradient(160deg, rgba(46, 36, 46, 0.5), rgba(24, 18, 28, 0.56));
-  --home-glass-bg-soft: linear-gradient(160deg, rgba(46, 36, 46, 0.42), rgba(24, 18, 28, 0.48));
-  --home-glass-border: rgba(255, 231, 238, 0.24);
-  --home-glass-highlight: rgba(255, 255, 255, 0.18);
-  --home-glass-shadow: 0 24px 56px rgba(12, 7, 14, 0.42);
-  --home-glass-blur: blur(22px) saturate(150%);
-  --home-glass-blur-soft: blur(18px) saturate(145%);
-  --home-ink: rgba(255, 246, 240, 0.97);
-  --home-ink-secondary: rgba(240, 224, 216, 0.9);
-  --home-ink-tertiary: rgba(219, 199, 190, 0.78);
-  --home-chip-bg: rgba(255, 255, 255, 0.09);
-  --home-chip-border: rgba(255, 255, 255, 0.22);
-  --home-tile-bg: rgba(var(--accent-rgb), 0.16);
-  --home-hover-bg: rgba(255, 255, 255, 0.08);
+  --home-panel-bg: linear-gradient(155deg, rgba(43, 34, 42, 0.7), rgba(25, 20, 28, 0.76));
+  --home-room-bg: linear-gradient(150deg, rgba(50, 38, 45, 0.74), rgba(28, 22, 31, 0.82));
+  --home-border: rgba(255, 231, 224, 0.24);
+  --home-border-strong: rgba(255, 224, 213, 0.34);
+  --home-highlight: rgba(255, 255, 255, 0.16);
+  --home-shadow: 0 28px 64px rgba(12, 7, 14, 0.42);
+  --home-blur: blur(22px) saturate(145%);
+  --home-ink: rgba(255, 248, 244, 0.97);
+  --home-ink-secondary: rgba(239, 222, 214, 0.9);
+  --home-ink-tertiary: rgba(213, 193, 184, 0.76);
+  --home-soft-fill: rgba(255, 255, 255, 0.08);
+  --home-soft-fill-hover: rgba(255, 255, 255, 0.13);
+  --home-accent-fill: linear-gradient(135deg, rgba(242, 179, 157, 0.94), rgba(226, 137, 142, 0.92));
+  --home-accent-ink: rgba(54, 34, 30, 0.96);
 }
 
-/* 主停靠卡：真正的毛玻璃。 */
-.wallpaper-home-dock {
+.home-layout {
   position: relative;
   z-index: 1;
-  width: min(100%, 478px);
-  padding: clamp(24px, 4vw, 34px);
-  border-radius: 30px;
+  width: min(100%, 1160px);
+  margin: 0 auto;
   display: grid;
-  gap: 15px;
-  color: var(--home-ink);
-  background: var(--home-glass-bg);
-  border: 1px solid var(--home-glass-border);
-  box-shadow:
-    var(--home-glass-shadow),
-    inset 0 1px 0 var(--home-glass-highlight);
-  backdrop-filter: var(--home-glass-blur);
-  -webkit-backdrop-filter: var(--home-glass-blur);
-  text-shadow: var(--theme-contrast-text-shadow-soft, 0 1px 0 rgba(0, 0, 0, 0.18));
-  transition:
-    background var(--dur-slow, 0.42s) var(--ease-out, ease),
-    border-color var(--dur-slow, 0.42s) var(--ease-out, ease),
-    box-shadow var(--dur-slow, 0.42s) var(--ease-out, ease),
-    color var(--dur-slow, 0.42s) var(--ease-out, ease);
+  grid-template-columns: minmax(0, 540px) minmax(300px, 356px);
+  align-items: end;
+  justify-content: space-between;
+  gap: clamp(24px, 5vw, 72px);
 }
 
-.wallpaper-home-kicker {
+.home-welcome-panel,
+.home-room-card {
+  color: var(--home-ink);
+  border: 1px solid var(--home-border);
+  box-shadow:
+    var(--home-shadow),
+    inset 0 1px 0 var(--home-highlight);
+  backdrop-filter: var(--home-blur);
+  -webkit-backdrop-filter: var(--home-blur);
+  transition:
+    background var(--dur-slow) var(--ease-out),
+    border-color var(--dur-slow) var(--ease-out),
+    box-shadow var(--dur-slow) var(--ease-out),
+    color var(--dur-slow) var(--ease-out);
+}
+
+.home-welcome-panel {
+  padding: clamp(28px, 4vw, 42px);
+  border-radius: 32px;
+  display: grid;
+  gap: 17px;
+  background: var(--home-panel-bg);
+}
+
+.home-welcome-head,
+.room-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.home-kicker,
+.room-kicker {
   margin: 0;
-  color: rgba(var(--accent-soft-rgb), 0.95);
-  font-size: 12px;
+  color: rgba(var(--accent-soft-rgb), 0.96);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
 }
 
-.wallpaper-home-dock h1 {
-  margin: 0;
-  font-size: clamp(30px, 5vw, 46px);
-  line-height: 1.04;
+.home-place-label {
+  color: var(--home-ink-tertiary);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.18em;
 }
 
-/* 实时时钟：渐变数字 + 右侧日期堆叠。 */
-.wallpaper-home-clock {
+.home-welcome-panel h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(34px, 5vw, 50px);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+}
+
+.home-clock {
   display: flex;
   align-items: flex-end;
-  gap: 14px;
+  gap: 15px;
   flex-wrap: wrap;
 }
 
 .clock-time {
-  font-size: clamp(30px, 4.2vw, 40px);
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
   color: rgba(var(--accent-soft-rgb), 0.98);
-  background: var(--accent-text-gradient, none);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: none;
-  filter: drop-shadow(0 1px 6px rgba(var(--accent-rgb), 0.24));
+  font-size: clamp(32px, 4.2vw, 43px);
+  font-weight: 620;
+  line-height: 1;
+  letter-spacing: 0.035em;
+  font-variant-numeric: tabular-nums;
+  filter: drop-shadow(0 1px 6px rgba(var(--accent-rgb), 0.22));
 }
 
-/* 秒针刻意做成柔和的次级色：主时间强、秒数弱，日夜两版观感一致。 */
 .clock-seconds {
-  font-size: 0.52em;
-  font-weight: 600;
-  background: none;
-  -webkit-background-clip: initial;
-  background-clip: initial;
-  -webkit-text-fill-color: currentColor;
   color: var(--home-ink-tertiary);
+  font-size: 0.48em;
+  font-weight: 600;
 }
 
 .clock-date {
+  padding-bottom: 3px;
   display: grid;
   gap: 2px;
-  padding-bottom: 3px;
-  font-size: 12.5px;
-  line-height: 1.25;
-  letter-spacing: 0.08em;
   color: var(--home-ink-tertiary);
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
 }
 
 .clock-date span:first-child {
   color: var(--home-ink-secondary);
 }
 
-/* 低语一言：固定两行高度避免轮换时跳动。 */
-.wallpaper-home-whisper {
+.home-whisper {
+  min-height: 3.4em;
   margin: 0;
   display: flex;
   align-items: baseline;
-  gap: 2px;
-  min-height: calc(2em * 1.7);
+  gap: 3px;
   color: var(--home-ink-secondary);
-  font-size: clamp(13.5px, 1.8vw, 15.5px);
+  font-family: var(--font-cute);
+  font-size: clamp(14px, 1.8vw, 16px);
   line-height: 1.7;
 }
 
 .whisper-mark {
   flex: none;
-  color: rgba(var(--accent-soft-rgb), 0.9);
-  font-weight: 700;
+  color: rgba(var(--accent-soft-rgb), 0.92);
+  font-family: var(--font-display);
 }
 
 .whisper-text {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .whisper-fade-enter-active,
 .whisper-fade-leave-active {
-  transition: opacity 0.45s var(--ease-out, ease), transform 0.45s var(--ease-out, ease);
+  transition: opacity 0.42s var(--ease-out), transform 0.42s var(--ease-out);
 }
 
 .whisper-fade-enter-from {
@@ -318,210 +416,280 @@ function openPath(path) {
   transform: translateY(-6px);
 }
 
-.wallpaper-home-actions,
-.wallpaper-home-meta {
+.home-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-/* —— 主行动按钮：修复此前“无内边距的裸按钮”——
- * 尺寸、字体、圆角在此处定型；配色仍走全站统一的主题按钮皮肤。 */
-.wallpaper-home-actions :is(.primary-btn, .ghost-btn) {
+.home-actions :is(.home-primary-action, .home-secondary-action) {
+  min-height: 44px;
+  padding: 10px 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 42px;
-  padding: 10px 24px;
   border-radius: 999px !important;
-  font-family: inherit;
-  font-size: 14.5px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  line-height: 1;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 650;
   cursor: pointer;
-  text-shadow: none;
 }
 
-.wallpaper-home-actions :is(.primary-btn, .ghost-btn) i {
-  font-size: 13px;
-  transition: transform var(--dur-base, 0.28s) var(--ease-spring, ease);
+.home-primary-action {
+  border: 1px solid rgba(var(--accent-soft-rgb), 0.5) !important;
+  background: var(--home-accent-fill) !important;
+  color: var(--home-accent-ink) !important;
+  box-shadow: 0 12px 26px rgba(var(--accent-rgb), 0.22);
 }
 
-.wallpaper-home-actions :is(.primary-btn, .ghost-btn):hover i {
-  transform: scale(1.12) rotate(-6deg);
+.home-secondary-action {
+  border: 1px solid var(--home-border-strong) !important;
+  background: var(--home-soft-fill) !important;
+  color: var(--home-ink) !important;
 }
 
-.wallpaper-home-meta {
-  gap: 8px;
-}
-
-.wallpaper-home-meta span {
-  border-radius: 999px;
-  border: 1px solid var(--home-chip-border);
-  background: var(--home-chip-bg);
-  color: var(--home-ink-secondary);
-  padding: 7px 11px;
-  font-size: 11.5px;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  transition: background var(--dur-base, 0.28s) var(--ease-out, ease);
-}
-
-.wallpaper-home-meta span::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 7px;
-  border-radius: 999px;
-  background: rgba(var(--accent-rgb), 0.9);
-  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.6);
-  vertical-align: middle;
-}
-
-/* 快捷入口：毛玻璃面板 + 图标卡片行。 */
-.wallpaper-home-shortcuts {
+.home-room-card {
   position: relative;
-  z-index: 1;
-  min-width: 228px;
-  padding: 14px;
-  border-radius: 24px;
+  overflow: hidden;
+  padding: 26px 28px 22px;
+  border-radius: 28px 28px 15px 28px;
   display: grid;
-  gap: 6px;
-  color: var(--home-ink);
-  background: var(--home-glass-bg-soft);
-  border: 1px solid var(--home-glass-border);
-  box-shadow:
-    0 18px 44px rgba(12, 7, 14, 0.32),
-    inset 0 1px 0 var(--home-glass-highlight);
-  backdrop-filter: var(--home-glass-blur-soft);
-  -webkit-backdrop-filter: var(--home-glass-blur-soft);
-  transition:
-    background var(--dur-slow, 0.42s) var(--ease-out, ease),
-    border-color var(--dur-slow, 0.42s) var(--ease-out, ease),
-    box-shadow var(--dur-slow, 0.42s) var(--ease-out, ease),
-    color var(--dur-slow, 0.42s) var(--ease-out, ease);
+  gap: 22px;
+  background: var(--home-room-bg);
 }
 
-.shortcuts-kicker {
-  margin: 0 0 2px;
-  padding: 2px 6px 0;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--home-ink-tertiary);
+.room-door-sign {
+  position: absolute;
+  top: 58px;
+  right: 16px;
+  bottom: 58px;
+  width: 10px;
+  pointer-events: none;
 }
 
-.wallpaper-home-shortcut {
+.room-door-line {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--home-border-strong) 18%, var(--home-border-strong) 82%, transparent);
+}
+
+.room-door-knob {
+  position: absolute;
+  top: 57%;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid rgba(var(--accent-soft-rgb), 0.78);
+  border-radius: 50%;
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.52);
+}
+
+.room-card-head {
+  padding-right: 14px;
+  align-items: flex-start;
+}
+
+.room-card-head h2 {
+  margin: 5px 0 0;
+  font-family: var(--font-display);
+  font-size: 31px;
+  font-weight: 520;
+  line-height: 1;
+}
+
+.room-lamp {
+  margin-top: 2px;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--home-border);
+  border-radius: 999px;
+  background: var(--home-soft-fill);
+  color: var(--home-ink-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.room-lamp i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f2b39d;
+  box-shadow: 0 0 10px rgba(242, 179, 157, 0.78);
+}
+
+.room-lamp.tone-morning i {
+  background: #f5c77a;
+  box-shadow: 0 0 11px rgba(245, 199, 122, 0.8);
+}
+
+.room-lamp.tone-day i {
+  background: #e9ad88;
+  box-shadow: 0 0 11px rgba(233, 173, 136, 0.72);
+}
+
+.room-lamp.tone-evening i {
+  background: #ef947e;
+  box-shadow: 0 0 12px rgba(239, 148, 126, 0.82);
+}
+
+.room-message {
+  padding-right: 14px;
+}
+
+.room-message strong {
+  display: block;
+  font-family: var(--font-cute);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.room-message p {
+  margin: 8px 0 0;
+  color: var(--home-ink-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.home-companion-action {
   min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid transparent;
-  border-radius: 16px;
-  background: transparent;
-  color: inherit;
-  display: flex;
+  min-height: 64px;
+  padding: 10px 13px;
+  border: 1px solid var(--home-border-strong);
+  border-radius: 18px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
+  background: var(--home-soft-fill);
+  color: var(--home-ink);
   text-align: left;
   font: inherit;
   cursor: pointer;
   transition:
-    transform var(--dur-base, 0.28s) var(--ease-spring, ease),
-    background var(--dur-base, 0.28s) var(--ease-out, ease),
-    border-color var(--dur-base, 0.28s) var(--ease-out, ease),
-    box-shadow var(--dur-base, 0.28s) var(--ease-out, ease);
+    transform var(--dur-base) var(--ease-spring),
+    background var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
 }
 
-.shortcut-icon {
-  flex: none;
-  width: 38px;
-  height: 38px;
+.home-companion-action:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: var(--home-soft-fill-hover);
+  box-shadow: 0 14px 28px rgba(12, 7, 14, 0.2);
+}
+
+.home-companion-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.66;
+}
+
+.home-companion-action:disabled:hover {
+  transform: none;
+  border-color: var(--home-border-strong);
+  background: var(--home-soft-fill);
+  box-shadow: none;
+}
+
+.companion-action-icon {
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  border-radius: 13px;
-  font-size: 15px;
-  color: rgba(var(--accent-readable-rgb, var(--accent-soft-rgb)), 1);
-  background: var(--home-tile-bg);
-  border: 1px solid rgba(var(--accent-rgb), 0.28);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transition: transform var(--dur-base, 0.28s) var(--ease-spring, ease);
+  border-radius: 14px;
+  background: var(--home-accent-fill);
+  color: var(--home-accent-ink);
+  box-shadow: 0 8px 18px rgba(var(--accent-rgb), 0.22);
 }
 
-.shortcut-text {
-  flex: 1;
+.home-companion-action > span:nth-child(2) {
   min-width: 0;
   display: grid;
-  gap: 1px;
+  gap: 3px;
 }
 
-.shortcut-label {
+.home-companion-action strong {
   font-size: 14px;
-  font-weight: 650;
-  letter-spacing: 0.03em;
-  line-height: 1.2;
+  font-weight: 680;
 }
 
-.shortcut-sub {
-  font-size: 11px;
-  letter-spacing: 0.06em;
+.home-companion-action small {
   color: var(--home-ink-tertiary);
-  line-height: 1.2;
+  font-size: 11px;
 }
 
-.shortcut-arrow {
-  flex: none;
+.companion-action-arrow {
+  padding-right: 5px;
+  color: rgba(var(--accent-soft-rgb), 0.96);
   font-size: 12px;
-  opacity: 0;
-  transform: translateX(-6px);
-  color: rgba(var(--accent-soft-rgb), 0.95);
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+
+.home-companion-action:hover .companion-action-arrow {
+  transform: translateX(4px);
+}
+
+.home-quick-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.home-quick-link {
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: transparent;
+  color: var(--home-ink-tertiary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
   transition:
-    opacity var(--dur-base, 0.28s) var(--ease-out, ease),
-    transform var(--dur-base, 0.28s) var(--ease-spring, ease);
+    color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
 
-.wallpaper-home-shortcut:hover {
-  transform: translateY(-2px);
-  background: var(--home-hover-bg);
-  border-color: rgba(var(--accent-rgb), 0.34);
-  box-shadow: 0 10px 22px rgba(8, 6, 12, 0.18);
+.home-quick-link:hover {
+  border-color: var(--home-border);
+  background: var(--home-soft-fill);
+  color: var(--home-ink);
 }
 
-.wallpaper-home-shortcut:hover .shortcut-icon {
-  transform: scale(1.08) rotate(-4deg);
-}
-
-.wallpaper-home-shortcut:hover .shortcut-arrow {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* 氛围光斑：缓慢漂浮，reduce-motion 时静止。 */
 .wallpaper-home-orb {
   position: absolute;
   border-radius: 999px;
   pointer-events: none;
-  filter: blur(2px);
   animation: home-orb-drift 16s ease-in-out infinite alternate;
 }
 
 .orb-a {
-  left: 10%;
-  bottom: 18%;
-  width: 220px;
-  height: 220px;
-  background: radial-gradient(circle, rgba(255, 199, 223, 0.24), rgba(255, 199, 223, 0));
+  left: 9%;
+  bottom: 13%;
+  width: 230px;
+  height: 230px;
+  background: radial-gradient(circle, rgba(255, 199, 223, 0.2), rgba(255, 199, 223, 0));
 }
 
 .orb-b {
-  right: 12%;
-  top: 18%;
-  width: 260px;
-  height: 260px;
-  background: radial-gradient(circle, rgba(255, 205, 190, 0.2), rgba(255, 205, 190, 0));
+  right: 11%;
+  top: 15%;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(255, 205, 190, 0.18), rgba(255, 205, 190, 0));
   animation-delay: -8s;
   animation-duration: 20s;
 }
@@ -535,65 +703,48 @@ function openPath(path) {
   }
 }
 
-/* ============================================================
- * 日间模式：整组玻璃变量切换为霜白玻璃 + 深暖墨字。
- * ============================================================ */
 :root[data-theme-mode='day'] .wallpaper-home-page {
-  --home-glass-bg: linear-gradient(160deg, rgba(255, 253, 250, 0.62), rgba(253, 245, 242, 0.46));
-  --home-glass-bg-soft: linear-gradient(160deg, rgba(255, 253, 250, 0.56), rgba(253, 245, 242, 0.4));
-  --home-glass-border: rgba(255, 255, 255, 0.7);
-  --home-glass-highlight: rgba(255, 255, 255, 0.9);
-  --home-glass-shadow: 0 22px 48px rgba(150, 104, 100, 0.2);
-  --home-glass-blur: blur(22px) saturate(150%) brightness(1.04);
-  --home-glass-blur-soft: blur(18px) saturate(145%) brightness(1.04);
-  --home-ink: rgba(62, 42, 40, 0.96);
-  --home-ink-secondary: rgba(96, 68, 62, 0.9);
-  --home-ink-tertiary: rgba(134, 102, 94, 0.76);
-  --home-chip-bg: rgba(255, 255, 255, 0.55);
-  --home-chip-border: rgba(190, 130, 130, 0.3);
-  --home-tile-bg: rgba(var(--accent-rgb), 0.2);
-  --home-hover-bg: rgba(255, 255, 255, 0.6);
+  --home-panel-bg: linear-gradient(155deg, rgba(255, 251, 247, 0.9), rgba(250, 240, 237, 0.84));
+  --home-room-bg: linear-gradient(150deg, rgba(255, 249, 245, 0.94), rgba(247, 233, 229, 0.9));
+  --home-border: rgba(126, 88, 82, 0.24);
+  --home-border-strong: rgba(156, 101, 94, 0.34);
+  --home-highlight: rgba(255, 255, 255, 0.92);
+  --home-shadow: 0 24px 58px rgba(78, 53, 49, 0.2);
+  --home-blur: blur(19px) saturate(128%);
+  --home-ink: #4a3734;
+  --home-ink-secondary: rgba(92, 64, 60, 0.9);
+  --home-ink-tertiary: rgba(124, 88, 82, 0.76);
+  --home-soft-fill: rgba(255, 255, 255, 0.52);
+  --home-soft-fill-hover: rgba(255, 255, 255, 0.78);
+  --home-accent-fill: linear-gradient(135deg, #f2b39d, #e68f91);
+  --home-accent-ink: #3f2926;
 }
 
-:root[data-theme-mode='day'] .wallpaper-home-dock {
-  text-shadow: none;
-}
-
-:root[data-theme-mode='day'] .wallpaper-home-kicker {
-  color: rgba(var(--accent-readable-rgb, 196, 92, 128), 0.98);
-}
-
-:root[data-theme-mode='day'] .whisper-mark {
-  color: rgba(var(--accent-readable-rgb, var(--accent-strong-rgb)), 0.95);
+:root[data-theme-mode='day'] .home-kicker,
+:root[data-theme-mode='day'] .room-kicker,
+:root[data-theme-mode='day'] .whisper-mark,
+:root[data-theme-mode='day'] .companion-action-arrow {
+  color: rgba(var(--accent-readable-rgb, var(--accent-strong-rgb)), 1);
 }
 
 :root[data-theme-mode='day'] .clock-time {
   color: rgba(var(--accent-readable-rgb, var(--accent-strong-rgb)), 1);
-  filter: drop-shadow(0 1px 4px rgba(var(--accent-rgb), 0.18));
+  filter: none;
 }
 
-:root[data-theme-mode='day'] .shortcut-icon {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+:root[data-theme-mode='day'] .home-companion-action:hover {
+  box-shadow: 0 14px 28px rgba(78, 53, 49, 0.14);
 }
 
-:root[data-theme-mode='day'] .wallpaper-home-shortcut:hover {
-  box-shadow: 0 10px 22px rgba(150, 104, 100, 0.16);
-}
-
-:root[data-theme-mode='day'] .wallpaper-home-orb {
-  opacity: 0.55;
-}
-
-/* 不支持 backdrop-filter 的环境：退回近实底卡片，保证可读性。 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .wallpaper-home-page {
-    --home-glass-bg: linear-gradient(150deg, rgba(52, 40, 48, 0.97), rgba(38, 29, 38, 0.96));
-    --home-glass-bg-soft: linear-gradient(150deg, rgba(48, 38, 46, 0.96), rgba(36, 28, 37, 0.95));
+    --home-panel-bg: linear-gradient(150deg, rgba(52, 40, 48, 0.97), rgba(38, 29, 38, 0.96));
+    --home-room-bg: linear-gradient(150deg, rgba(48, 38, 46, 0.98), rgba(36, 28, 37, 0.97));
   }
 
   :root[data-theme-mode='day'] .wallpaper-home-page {
-    --home-glass-bg: linear-gradient(150deg, rgba(255, 251, 247, 0.98), rgba(251, 240, 238, 0.97));
-    --home-glass-bg-soft: linear-gradient(150deg, rgba(255, 250, 246, 0.97), rgba(250, 239, 237, 0.96));
+    --home-panel-bg: linear-gradient(150deg, #fff9f5, #f9eeeb);
+    --home-room-bg: linear-gradient(150deg, #fff9f5, #f5e5e2);
   }
 }
 
@@ -613,56 +764,47 @@ function openPath(path) {
   }
 }
 
-@media (max-width: 920px) {
+@media (max-width: 960px) {
   .wallpaper-home-page {
-    align-items: stretch;
-    flex-direction: column;
-    justify-content: flex-end;
+    align-items: end;
+    overflow: auto;
   }
 
-  .wallpaper-home-dock,
-  .wallpaper-home-shortcuts {
-    width: min(100%, 478px);
+  .home-layout {
+    grid-template-columns: minmax(0, 1fr);
+    width: min(100%, 560px);
+    gap: 16px;
   }
 
-  .wallpaper-home-shortcuts {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .shortcuts-kicker {
-    grid-column: 1 / -1;
-  }
-
-  .wallpaper-home-shortcut {
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 8px;
-    text-align: center;
-  }
-
-  .shortcut-text {
-    justify-items: center;
-  }
-
-  .shortcut-arrow {
-    display: none;
+  .home-room-card {
+    padding: 22px 24px 18px;
   }
 }
 
 @media (max-width: 640px) {
   .wallpaper-home-page {
-    padding-top: 112px;
-    padding-bottom: 148px;
+    padding: 108px 16px 146px;
   }
 
-  .wallpaper-home-dock {
-    border-radius: 24px;
-    padding: 20px 18px;
+  .home-welcome-panel {
+    padding: 23px 20px;
+    border-radius: 25px;
   }
 
-  .wallpaper-home-shortcuts {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .home-place-label {
+    display: none;
+  }
+
+  .home-actions > * {
+    flex: 1;
+  }
+
+  .home-room-card {
+    border-radius: 24px 24px 13px 24px;
+  }
+
+  .room-message p {
+    max-width: 28em;
   }
 }
 </style>

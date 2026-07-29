@@ -27,7 +27,6 @@
         :ai-chat-active="aiChatActive"
         :ai-chat-disabled="isAiHubRoute"
         :is-authenticated="auth.isAuthenticated.value"
-        :is-admin="isAdminUser"
         :display-name="authDisplayName"
         :avatar-url="authAvatarUrl"
         :author-avatar-url="authorMenuAvatarUrl"
@@ -69,32 +68,7 @@
         </main>
 
         <aside v-if="sidebarAiColumnMounted" class="ai-side-column">
-          <div v-if="isAdminUser" class="ai-side-switch" role="tablist" aria-label="侧栏伴聊切换">
-            <button
-              type="button"
-              class="ai-side-switch-btn ripple-trigger"
-              :class="{ active: sidebarCompanion === 'ai' }"
-              @click="sidebarCompanion = 'ai'"
-            >
-              AI 对话
-            </button>
-            <button
-              type="button"
-              class="ai-side-switch-btn ripple-trigger"
-              :class="{ active: sidebarCompanion === 'meguri' }"
-              @click="sidebarCompanion = 'meguri'"
-            >
-              爱莉
-            </button>
-          </div>
-          <SidebarMeguriPanel
-            v-if="isAdminUser && sidebarCompanion === 'meguri'"
-            class="ai-side-meguri"
-            embedded
-            variant="side"
-          />
           <AiDialog
-            v-show="!(isAdminUser && sidebarCompanion === 'meguri')"
             :visible="showSidebarAiPanel"
             mode="sidebar"
             :chat-mode="activeAiChatMode"
@@ -290,7 +264,6 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, p
 import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import AiDialog from './components/AiDialog.vue';
-const SidebarMeguriPanel = defineAsyncComponent(() => import('./pages/MeguriPage.vue'));
 import AtmospherePanel from './components/AtmospherePanel.vue';
 import AppBackgroundStage from './components/app/AppBackgroundStage.vue';
 import BackgroundPickerDialog from './components/app/BackgroundPickerDialog.vue';
@@ -363,7 +336,6 @@ const windowFocused = ref(typeof document === 'undefined' ? true : document.hasF
 const barLevels = ref(Array.from({ length: 44 }, () => 0));
 const ringLevels = ref(Array.from({ length: 72 }, () => 0));
 const sidebarAiColumnVisible = ref(false);
-const sidebarCompanion = ref('ai');
 const l2dRenderFailed = ref(false);
 const wallpaperBgmRef = ref(null);
 const wallpaperBgvRef = ref(null);
@@ -2308,12 +2280,6 @@ function handleAuthorProfileCacheUpdated(event) {
 }
 
 function handleMainRouteSelect(routeKey) {
-  if (routeKey === 'meguri') {
-    // Meguri 已并入 AI Hub:顶栏入口直接打开 hub 的爱莉模式。
-    if (route.path === '/ai-hub' && route.query.mode === 'meguri') return;
-    router.push({ path: '/ai-hub', query: { mode: 'meguri' } });
-    return;
-  }
   const nextPath = routePathByKey[routeKey] || '/';
   if (route.path === nextPath) return;
   router.push(nextPath);
@@ -2954,50 +2920,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
   transform-origin: right center;
   will-change: transform, opacity;
-}
-
-/* 侧栏伴聊切换（仅管理员可见）：AI 对话 <-> 爱莉。 */
-.ai-side-switch {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 6;
-  display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 999px;
-  background: rgba(26, 18, 28, 0.72);
-  border: 1px solid rgba(255, 214, 229, 0.18);
-  backdrop-filter: blur(6px);
-}
-
-:root[data-theme-mode='day'] .ai-side-switch {
-  background: rgba(255, 252, 250, 0.85);
-  border-color: rgba(178, 122, 122, 0.3);
-}
-
-.ai-side-switch-btn {
-  border: 0;
-  background: transparent;
-  color: var(--theme-menu-text-muted, rgba(250, 238, 233, 0.85));
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.ai-side-switch-btn.active {
-  background: var(--accent-mode-fill-strong);
-  color: var(--accent-surface-text, rgba(46, 30, 24, 0.95));
-}
-
-.ai-side-meguri {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  padding-top: 46px;
 }
 
 @media (prefers-reduced-motion: reduce) {

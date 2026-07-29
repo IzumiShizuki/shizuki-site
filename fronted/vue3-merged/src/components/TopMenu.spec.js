@@ -24,7 +24,6 @@ async function mountTopMenu(props = {}, initialPath = '/') {
       aiChatActive: false,
       aiChatDisabled: false,
       isAuthenticated: false,
-      isAdmin: false,
       displayName: '',
       avatarUrl: '',
       authorAvatarUrl: '',

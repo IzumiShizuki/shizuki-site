@@ -1447,7 +1447,7 @@ function npcAvatarStyle(npc) {
 
 onMounted(async () => {
   await auth.ensureReady();
-  if (route.query.mode === 'meguri' && isAdminUser.value) {
+  if (route?.query?.mode === 'meguri' && isAdminUser.value) {
     activePrimaryMode.value = 'meguri';
   }
   await loadTownExplorer();
