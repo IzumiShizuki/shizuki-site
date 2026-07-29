@@ -39,6 +39,29 @@
 
     <p v-if="errorText" class="state-text error">{{ errorText }}</p>
 
+    <section class="voice-age-panel liquid-material">
+      <header>
+        <div>
+          <h3>年龄分级</h3>
+          <p>默认隐藏 R18，优先显示全年龄与 R15 作品。</p>
+        </div>
+      </header>
+      <div class="age-filter-list" role="group" aria-label="音声年龄分级筛选">
+        <button
+          v-for="option in VOICE_AGE_FILTER_OPTIONS"
+          :key="`age-filter-${option.key}`"
+          class="age-filter-chip ripple-trigger"
+          :class="[`age-${option.key}`, { active: ageFilter === option.key }]"
+          type="button"
+          :aria-pressed="ageFilter === option.key"
+          :title="option.description"
+          @click="applyAgeFilter(option.key)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </section>
+
     <section v-if="availableTags.length" class="voice-tag-panel liquid-material">
       <header>
         <h3>标签筛选（多选 AND）</h3>
@@ -73,7 +96,14 @@
           class="voice-work-card ripple-trigger"
           @click="openWork(item)"
         >
-          <div class="cover" :style="coverStyle(item.cover)"></div>
+          <div class="cover" :style="coverStyle(item.cover)">
+            <span
+              class="voice-age-badge"
+              :class="`age-${normalizeVoiceAgeCategory(item.ageCategory, item.nsfw)}`"
+            >
+              {{ voiceAgeCategoryLabel(item.ageCategory, item.nsfw) }}
+            </span>
+          </div>
           <div class="meta">
             <p class="title">{{ item.title || '未命名作品' }}</p>
             <p class="circle">{{ item.circle || '未知社团' }}</p>
@@ -106,6 +136,13 @@ import { useRouter } from 'vue-router';
 import { useAuthSession } from '../../composables/useAuthSession';
 import * as musicApi from '../../services/musicApi';
 import { safeCssUrl } from '../../utils/url';
+import {
+  DEFAULT_VOICE_AGE_FILTER,
+  VOICE_AGE_FILTER_OPTIONS,
+  normalizeVoiceAgeCategory,
+  resolveVoiceAgeFilterCategories,
+  voiceAgeCategoryLabel
+} from '../../utils/voiceAgeCategory';
 
 const router = useRouter();
 const auth = useAuthSession();
@@ -122,9 +159,11 @@ const committedKeyword = ref('');
 const order = ref('release');
 const sort = ref('desc');
 const selectedTagIds = ref([]);
+const ageFilter = ref(DEFAULT_VOICE_AGE_FILTER);
 
 const PAGE_LIMIT = 24;
 const selectedTagSet = computed(() => new Set(selectedTagIds.value));
+const selectedAgeCategories = computed(() => resolveVoiceAgeFilterCategories(ageFilter.value));
 
 function normalizeTag(raw) {
   const tagId = Number(raw?.tagId ?? raw?.tag_id ?? 0);
@@ -216,7 +255,8 @@ async function fetchVoiceWorks(options = {}) {
         limit: PAGE_LIMIT,
         order: order.value,
         sort: sort.value,
-        tagIds: selectedTagIds.value
+        tagIds: selectedTagIds.value,
+        ageCategories: selectedAgeCategories.value
       },
       auth.isAuthenticated.value ? auth.authorizedFetch : undefined
     );
@@ -252,6 +292,13 @@ async function applySortChange() {
   await fetchVoiceWorks({ append: false });
 }
 
+async function applyAgeFilter(filterKey) {
+  if (ageFilter.value === filterKey) return;
+  ageFilter.value = filterKey;
+  page.value = 1;
+  await fetchVoiceWorks({ append: false });
+}
+
 async function toggleTag(tagId) {
   const id = Number(tagId || 0);
   if (!Number.isFinite(id) || id <= 0) return;
@@ -274,12 +321,18 @@ async function loadMore() {
 }
 
 function openWork(item) {
+  if (hasActiveTextSelection()) return;
   const workId = Number(item?.workId || 0);
   if (!Number.isFinite(workId) || workId <= 0) return;
   router.push({
     name: 'music-library-voice-work',
     params: { workId: String(workId) }
   });
+}
+
+function hasActiveTextSelection() {
+  const selection = globalThis.getSelection?.();
+  return Boolean(selection && !selection.isCollapsed && String(selection).trim());
 }
 
 onMounted(async () => {
@@ -294,13 +347,30 @@ onMounted(async () => {
 }
 
 .voice-home-view {
+  --voice-panel-shadow: 0 12px 28px rgba(12, 7, 12, 0.16);
+  --voice-card-surface: rgba(255, 240, 235, 0.06);
+  --voice-card-surface-hover: rgba(255, 240, 235, 0.1);
+  --voice-general-rgb: 108, 184, 139;
+  --voice-r15-rgb: 226, 177, 92;
+  --voice-adult-rgb: 210, 111, 116;
   align-content: start;
   grid-auto-rows: max-content;
+  color: var(--theme-text-primary);
+}
+
+:global(:root[data-theme-mode='day']) .voice-home-view {
+  --voice-panel-shadow: 0 12px 26px rgba(88, 60, 50, 0.08);
+  --voice-card-surface: rgba(255, 255, 255, 0.7);
+  --voice-card-surface-hover: rgba(255, 251, 248, 0.96);
+  --voice-general-rgb: 57, 132, 88;
+  --voice-r15-rgb: 176, 116, 32;
+  --voice-adult-rgb: 179, 72, 79;
 }
 
 .voice-toolbar {
-  --liquid-bg: linear-gradient(150deg, rgba(26, 20, 35, 0.84), rgba(18, 15, 26, 0.76));
-  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--voice-panel-shadow);
   border-radius: 14px;
   padding: 10px;
   display: grid;
@@ -315,9 +385,9 @@ onMounted(async () => {
   gap: 8px;
   border-radius: 12px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(226, 233, 246, 0.88);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-icon-muted);
 }
 
 .voice-search-box input {
@@ -325,7 +395,9 @@ onMounted(async () => {
   border: 0;
   outline: none;
   background: transparent;
-  color: rgba(236, 242, 255, 0.95);
+  color: var(--theme-text-primary);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .voice-toolbar-actions {
@@ -339,15 +411,15 @@ onMounted(async () => {
   display: grid;
   gap: 4px;
   font-size: 12px;
-  color: rgba(188, 201, 222, 0.88);
+  color: var(--theme-text-secondary);
 }
 
 .voice-toolbar-actions select {
   min-height: 32px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(19, 23, 34, 0.82);
-  color: rgba(234, 240, 253, 0.94);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
   padding: 0 8px;
 }
 
@@ -356,21 +428,24 @@ onMounted(async () => {
   border-radius: 10px;
   border: 1px solid rgba(var(--accent-rgb), 0.52);
   background: rgba(var(--accent-rgb), 0.2);
-  color: rgba(var(--accent-soft-rgb), 0.96);
+  color: var(--accent-surface-text);
   padding: 0 12px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
+.voice-age-panel,
 .voice-tag-panel,
 .voice-card-panel {
-  --liquid-bg: linear-gradient(148deg, rgba(18, 22, 33, 0.84), rgba(13, 16, 26, 0.78));
-  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--voice-panel-shadow);
   border-radius: 14px;
   padding: 10px;
 }
 
+.voice-age-panel header,
 .voice-tag-panel header,
 .voice-card-header {
   display: flex;
@@ -380,42 +455,97 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
+.voice-age-panel header {
+  align-items: start;
+}
+
+.voice-age-panel header p {
+  margin: 3px 0 0;
+  color: var(--theme-text-tertiary);
+  font-size: 12px;
+}
+
+.voice-age-panel h3,
 .voice-tag-panel h3,
 .voice-card-header h2 {
   margin: 0;
   font-size: 14px;
-  color: rgba(236, 243, 255, 0.94);
+  color: var(--theme-text-primary);
 }
 
 .clear-btn {
   min-height: 28px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(214, 226, 247, 0.9);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   padding: 0 10px;
 }
 
+.age-filter-list,
 .tag-chip-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
+.age-filter-chip,
 .tag-chip {
   min-height: 28px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(218, 229, 248, 0.9);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
   padding: 0 12px;
   font-size: 12px;
+}
+
+.age-filter-chip.active {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.age-filter-chip.age-safe.active {
+  border-color: rgba(var(--voice-general-rgb), 0.58);
+  background: linear-gradient(
+    110deg,
+    rgba(var(--voice-general-rgb), 0.2),
+    rgba(var(--voice-r15-rgb), 0.2)
+  );
+  color: var(--theme-text-primary);
+}
+
+.age-filter-chip.age-general.active,
+.voice-age-badge.age-general {
+  border-color: rgba(var(--voice-general-rgb), 0.58);
+  background: rgba(var(--voice-general-rgb), 0.18);
+  color: rgb(var(--voice-general-rgb));
+}
+
+.age-filter-chip.age-r15.active,
+.voice-age-badge.age-r15 {
+  border-color: rgba(var(--voice-r15-rgb), 0.6);
+  background: rgba(var(--voice-r15-rgb), 0.18);
+  color: rgb(var(--voice-r15-rgb));
+}
+
+.age-filter-chip.age-adult.active,
+.voice-age-badge.age-adult {
+  border-color: rgba(var(--voice-adult-rgb), 0.58);
+  background: rgba(var(--voice-adult-rgb), 0.17);
+  color: rgb(var(--voice-adult-rgb));
+}
+
+.age-filter-chip.age-all.active,
+.voice-age-badge.age-unknown {
+  border-color: var(--theme-border-strong);
+  background: var(--theme-surface-strong, var(--theme-surface-soft));
+  color: var(--theme-text-secondary);
 }
 
 .tag-chip.active {
   border-color: rgba(var(--accent-rgb), 0.58);
   background: rgba(var(--accent-rgb), 0.26);
-  color: rgba(255, 255, 255, 0.96);
+  color: var(--accent-surface-text);
 }
 
 .voice-card-grid {
@@ -426,18 +556,44 @@ onMounted(async () => {
 
 .voice-work-card {
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--theme-border);
+  background: var(--voice-card-surface);
   overflow: hidden;
   cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.voice-work-card:hover {
+  border-color: var(--accent-mode-border);
+  background: var(--voice-card-surface-hover);
+  transform: translateY(-1px);
 }
 
 .voice-work-card .cover {
+  position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   background-size: cover;
   background-position: center;
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--theme-surface-soft);
+}
+
+.voice-age-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-height: 24px;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--theme-panel-surface-elevated);
+  box-shadow: 0 4px 12px rgba(12, 7, 12, 0.18);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(10px);
 }
 
 .voice-work-card .meta {
@@ -449,7 +605,7 @@ onMounted(async () => {
 .voice-work-card .title {
   margin: 0;
   font-size: 14px;
-  color: rgba(236, 243, 255, 0.96);
+  color: var(--theme-text-primary);
   line-height: 1.35;
 }
 
@@ -458,7 +614,13 @@ onMounted(async () => {
 .voice-work-card .tags {
   margin: 0;
   font-size: 12px;
-  color: rgba(183, 198, 223, 0.86);
+  color: var(--theme-text-secondary);
+}
+
+.voice-work-card :is(.title, .circle, .stats, .tags, .voice-age-badge) {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .voice-work-card .stats {
@@ -478,14 +640,14 @@ onMounted(async () => {
   border-radius: 10px;
   border: 1px solid rgba(var(--accent-rgb), 0.54);
   background: rgba(var(--accent-rgb), 0.2);
-  color: rgba(var(--accent-soft-rgb), 0.96);
+  color: var(--accent-surface-text);
   padding: 0 14px;
 }
 
 .state-text {
   margin: 0;
   font-size: 12px;
-  color: rgba(187, 199, 222, 0.9);
+  color: var(--theme-text-secondary);
 }
 
 .state-text.error {
@@ -495,10 +657,10 @@ onMounted(async () => {
 .empty-state {
   min-height: 120px;
   border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border: 1px dashed var(--theme-border);
   display: grid;
   place-items: center;
-  color: rgba(178, 192, 218, 0.86);
+  color: var(--theme-text-tertiary);
 }
 
 @media (max-width: 720px) {

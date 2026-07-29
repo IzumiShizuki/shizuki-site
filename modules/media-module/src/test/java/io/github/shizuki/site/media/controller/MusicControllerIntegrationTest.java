@@ -130,8 +130,8 @@ class MusicControllerIntegrationTest {
                     88,
                     100,
                     4.8,
-                    true,
-                    "18+",
+                    false,
+                    "R15",
                     "RJ01001",
                     "https://www.dlsite.com/home/work/=/product_id/RJ01001.html",
                     List.of(new MusicVoiceTagResponse(1L, "耳搔")),
@@ -143,7 +143,8 @@ class MusicControllerIntegrationTest {
             true,
             List.of(new MusicVoiceTagResponse(1L, "耳搔"))
         );
-        Mockito.when(mediaService.searchVoiceWorks("", 1, 24, "release", "desc", "1")).thenReturn(response);
+        Mockito.when(mediaService.searchVoiceWorks("", 1, 24, "release", "desc", "1", "general,r15"))
+            .thenReturn(response);
 
         mockMvc.perform(
                 MockMvcRequestBuilders.get("/api/v1/music/voice/works")
@@ -153,10 +154,12 @@ class MusicControllerIntegrationTest {
                     .queryParam("order", "release")
                     .queryParam("sort", "desc")
                     .queryParam("tag_ids", "1")
+                    .queryParam("age_categories", "general,r15")
             )
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].work_id").value(1001))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].age_category").value("R15"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.available_tags[0].tag_id").value(1));
     }
 

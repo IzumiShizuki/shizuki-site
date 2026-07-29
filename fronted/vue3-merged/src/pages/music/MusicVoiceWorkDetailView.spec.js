@@ -45,7 +45,9 @@ describe('MusicVoiceWorkDetailView', () => {
         workId: 1610232,
         title: 'Voice work',
         circle: 'Circle',
-        cover: '/cover.webp'
+        cover: '/cover.webp',
+        ageCategory: 'R15',
+        nsfw: false
       },
       trackTree: [
         {
@@ -131,5 +133,14 @@ describe('MusicVoiceWorkDetailView', () => {
     expect(wrapper.find('.node-image .node-duration').exists()).toBe(false);
     expect(wrapper.find('.node-file .node-duration').exists()).toBe(false);
     expect(wrapper.get('.node-folder .folder-count').text()).toBe('3 项');
+  });
+
+  it('renders a normalized age badge and selectable content hooks', async () => {
+    const wrapper = mount(MusicVoiceWorkDetailView);
+    await flushPromises();
+
+    expect(wrapper.get('.voice-age-badge').text()).toBe('R15');
+    expect(wrapper.get('.voice-meta-panel p').text()).toBe('无');
+    expect(wrapper.get('.node-title').text()).toBe('Main');
   });
 });

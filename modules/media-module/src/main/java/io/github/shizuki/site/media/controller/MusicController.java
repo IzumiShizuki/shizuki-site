@@ -100,14 +100,23 @@ public class MusicController {
 
     @GetMapping("/voice/works")
     @RateLimit(key = "music.voice.works", limit = 80, windowSeconds = 60)
-    @Operation(summary = "音声作品搜索", description = "ASMR 专用搜索，支持默认榜单、排序与标签筛选")
+    @Operation(summary = "音声作品搜索", description = "ASMR 专用搜索，支持默认榜单、排序、标签与年龄分级筛选")
     public ApiResponse<MusicVoiceWorksResponse> voiceWorks(@RequestParam(value = "q", required = false) String query,
                                                            @RequestParam(value = "page", required = false) Integer page,
                                                            @RequestParam(value = "limit", required = false) Integer limit,
                                                            @RequestParam(value = "order", required = false) String order,
                                                            @RequestParam(value = "sort", required = false) String sort,
-                                                           @RequestParam(value = "tag_ids", required = false) String tagIds) {
-        return ApiResponse.success(mediaService.searchVoiceWorks(query, page, limit, order, sort, tagIds));
+                                                           @RequestParam(value = "tag_ids", required = false) String tagIds,
+                                                           @RequestParam(value = "age_categories", required = false) String ageCategories) {
+        return ApiResponse.success(mediaService.searchVoiceWorks(
+            query,
+            page,
+            limit,
+            order,
+            sort,
+            tagIds,
+            ageCategories
+        ));
     }
 
     @GetMapping("/voice/works/{workId}/bundle")

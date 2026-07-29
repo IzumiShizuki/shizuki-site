@@ -1633,7 +1633,8 @@ public class MediaServiceImpl implements MediaService {
                                                     Integer limit,
                                                     String order,
                                                     String sort,
-                                                    String tagIds) {
+                                                    String tagIds,
+                                                    String ageCategories) {
         requireAsmrAccess();
         int safePage = page == null ? 1 : Math.max(1, page);
         int safeLimit = limit == null ? 24 : Math.max(1, Math.min(60, limit));
@@ -1641,11 +1642,13 @@ public class MediaServiceImpl implements MediaService {
         String normalizedOrder = normalizeVoiceOrder(order);
         String normalizedSort = normalizeVoiceSort(sort);
         Set<Long> selectedTagIds = parseVoiceTagIds(tagIds);
+        Set<String> selectedAgeCategories = parseVoiceAgeCategories(ageCategories);
 
         boolean keywordMode = StringUtils.hasText(normalizedKeyword);
+        boolean hasClientFilters = !selectedTagIds.isEmpty() || !selectedAgeCategories.isEmpty();
         int fetchPage = safePage;
         int fetchRound = 0;
-        int effectiveFetchLimit = selectedTagIds.isEmpty() ? safeLimit : Math.min(60, Math.max(safeLimit, 30));
+        int effectiveFetchLimit = hasClientFilters ? Math.min(60, Math.max(safeLimit, 30)) : safeLimit;
         int totalCount = 0;
         int lastPage = safePage;
         int lastPageSize = safeLimit;
@@ -1667,6 +1670,9 @@ public class MediaServiceImpl implements MediaService {
                 if (!matchesVoiceTagFilter(item, selectedTagIds)) {
                     continue;
                 }
+                if (!matchesVoiceAgeFilter(item, selectedAgeCategories)) {
+                    continue;
+                }
                 if (!acceptedWorkIds.add(item.id())) {
                     continue;
                 }
@@ -1676,7 +1682,7 @@ public class MediaServiceImpl implements MediaService {
                 }
             }
             boolean upstreamHasMore = result.totalCount() > ((long) result.currentPage() * Math.max(1, result.pageSize()));
-            if (!upstreamHasMore || works.isEmpty() || selectedTagIds.isEmpty()) {
+            if (!upstreamHasMore || works.isEmpty() || !hasClientFilters) {
                 break;
             }
             fetchPage += 1;
@@ -3510,6 +3516,21 @@ public class MediaServiceImpl implements MediaService {
         return result;
     }
 
+    private Set<String> parseVoiceAgeCategories(String ageCategoriesRaw) {
+        String raw = readString(ageCategoriesRaw, "");
+        if (!StringUtils.hasText(raw)) {
+            return Set.of();
+        }
+        Set<String> result = new LinkedHashSet<>();
+        for (String part : raw.split(",")) {
+            String category = normalizeVoiceAgeCategory(part, false);
+            if (!"unknown".equals(category)) {
+                result.add(category);
+            }
+        }
+        return result;
+    }
+
     private boolean matchesVoiceTagFilter(AsmrMusicProvider.WorkSummary work, Set<Long> selectedTagIds) {
         if (selectedTagIds == null || selectedTagIds.isEmpty()) {
             return true;
@@ -3525,6 +3546,50 @@ public class MediaServiceImpl implements MediaService {
             workTagIds.add(item.tagId());
         }
         return workTagIds.containsAll(selectedTagIds);
+    }
+
+    private boolean matchesVoiceAgeFilter(AsmrMusicProvider.WorkSummary work, Set<String> selectedAgeCategories) {
+        if (selectedAgeCategories == null || selectedAgeCategories.isEmpty()) {
+            return true;
+        }
+        if (work == null) {
+            return false;
+        }
+        String category = normalizeVoiceAgeCategory(work.ageCategory(), work.nsfw());
+        return selectedAgeCategories.contains(category);
+    }
+
+    private String normalizeVoiceAgeCategory(String rawValue, boolean nsfw) {
+        String normalized = readString(rawValue, "")
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[\\s_-]+", "");
+        if ("general".equals(normalized)
+            || "allage".equals(normalized)
+            || "allages".equals(normalized)
+            || "everyone".equals(normalized)
+            || normalized.contains("全年龄")
+            || normalized.contains("全年齢")) {
+            return "general";
+        }
+        if ("r15".equals(normalized)
+            || "15+".equals(normalized)
+            || "15plus".equals(normalized)
+            || normalized.contains("r15")
+            || normalized.contains("15岁")
+            || normalized.contains("15歳")) {
+            return "r15";
+        }
+        if (nsfw
+            || "adult".equals(normalized)
+            || "18+".equals(normalized)
+            || "18plus".equals(normalized)
+            || normalized.contains("r18")
+            || normalized.contains("18岁")
+            || normalized.contains("18歳")
+            || normalized.contains("成人")) {
+            return "adult";
+        }
+        return "unknown";
     }
 
     private MusicVoiceWorkItemResponse toVoiceWorkItem(AsmrMusicProvider.WorkSummary work) {

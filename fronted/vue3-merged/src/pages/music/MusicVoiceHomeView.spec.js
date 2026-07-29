@@ -33,7 +33,15 @@ describe('MusicVoiceHomeView', () => {
     vi.clearAllMocks();
     vi.mocked(musicApi.searchVoiceWorks).mockResolvedValue(
       voicePayload(
-        [{ workId: 1, title: 'Default work', tags: [{ tagId: 11, name: 'Campus' }] }],
+        [
+          {
+            workId: 1,
+            title: 'Default work',
+            ageCategory: '全年齢',
+            nsfw: false,
+            tags: [{ tagId: 11, name: 'Campus' }]
+          }
+        ],
         [{ tagId: 11, name: 'Campus' }]
       )
     );
@@ -57,5 +65,31 @@ describe('MusicVoiceHomeView', () => {
       undefined
     );
     expect(wrapper.find('.tag-chip.active').exists()).toBe(false);
+  });
+
+  it('defaults to general and R15 works and can switch to R18', async () => {
+    const wrapper = mount(MusicVoiceHomeView);
+    await flushPromises();
+
+    expect(wrapper.get('.age-filter-chip.active').text()).toBe('全年龄 + R15');
+    expect(wrapper.get('.voice-age-badge').text()).toBe('全年龄');
+    expect(musicApi.searchVoiceWorks).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        ageCategories: ['general', 'r15']
+      }),
+      undefined
+    );
+
+    const adultFilter = wrapper.findAll('.age-filter-chip').find((item) => item.text() === 'R18');
+    expect(adultFilter).toBeTruthy();
+    await adultFilter.trigger('click');
+    await flushPromises();
+
+    expect(musicApi.searchVoiceWorks).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        ageCategories: ['adult']
+      }),
+      undefined
+    );
   });
 });

@@ -96,7 +96,10 @@ export async function searchVoiceWorks(options = {}, authorizedFetch) {
       sort: String(options?.sort || 'desc').trim(),
       tag_ids: Array.isArray(options?.tagIds)
         ? options.tagIds.map((item) => String(item || '').trim()).filter(Boolean).join(',')
-        : String(options?.tagIds || '').trim()
+        : String(options?.tagIds || '').trim(),
+      age_categories: Array.isArray(options?.ageCategories)
+        ? options.ageCategories.map((item) => String(item || '').trim()).filter(Boolean).join(',')
+        : String(options?.ageCategories || '').trim()
     }
   };
   const response = typeof authorizedFetch === 'function'

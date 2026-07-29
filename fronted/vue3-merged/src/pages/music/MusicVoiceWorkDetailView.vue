@@ -8,7 +8,15 @@
       <div class="cover" :style="coverStyle"></div>
 
       <div class="hero-main">
-        <p class="hero-type">音声详情</p>
+        <div class="hero-kicker">
+          <p class="hero-type">音声详情</p>
+          <span
+            class="voice-age-badge"
+            :class="`age-${normalizeVoiceAgeCategory(work.ageCategory, work.nsfw)}`"
+          >
+            {{ voiceAgeCategoryLabel(work.ageCategory, work.nsfw) }}
+          </span>
+        </div>
         <h1>{{ work.title || '未命名作品' }}</h1>
         <p class="hero-sub">{{ work.circle || '未知社团' }}</p>
         <p class="hero-meta">
@@ -16,7 +24,6 @@
           <span>销量 {{ work.dlCount ?? '-' }}</span>
           <span>评分 {{ scoreText(work.rateAverage) }}（{{ work.rateCount ?? 0 }}）</span>
           <span>评论 {{ work.reviewCount ?? 0 }}</span>
-          <span v-if="work.ageCategory">分级 {{ work.ageCategory }}</span>
         </p>
 
         <div class="hero-actions">
@@ -120,6 +127,7 @@
             target="_blank"
             rel="noopener noreferrer"
             :aria-label="`查看文件 ${node.title || ''}`"
+            @click="handleTreeFileClick"
           >
             <i :class="treeNodeIconClass(node)" aria-hidden="true"></i>
             <span class="node-title">{{ node.title || '查看文件' }}</span>
@@ -146,7 +154,7 @@
         v-for="(item, index) in playableTracks"
         :key="`playable-${item.trackId || index}`"
         class="playable-row ripple-trigger"
-        @click="playSingleTrack(index)"
+        @click="handlePlayableRowClick(index)"
       >
         <span>{{ String(index + 1).padStart(2, '0') }}</span>
         <span class="title-col">{{ item.title || item.path || '未知音轨' }}</span>
@@ -172,6 +180,7 @@ import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import * as musicApi from '../../services/musicApi';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
+import { normalizeVoiceAgeCategory, voiceAgeCategoryLabel } from '../../utils/voiceAgeCategory';
 
 const route = useRoute();
 const router = useRouter();
@@ -399,6 +408,7 @@ function isFolderExpanded(node) {
 }
 
 function toggleFolderNode(node) {
+  if (hasActiveTextSelection()) return;
   if (!isFolderTreeNode(node) || !node?.children?.length) return;
   const next = new Set(expandedFolderKeys.value);
   if (next.has(node.key)) {
@@ -454,9 +464,26 @@ function isViewableFileNode(node) {
 }
 
 async function playTreeNode(node) {
+  if (hasActiveTextSelection()) return;
   const index = resolvePlayableTreeNodeIndex(node);
   if (index < 0) return;
   await playSingleTrack(index);
+}
+
+function handleTreeFileClick(event) {
+  if (hasActiveTextSelection()) {
+    event.preventDefault();
+  }
+}
+
+function handlePlayableRowClick(index) {
+  if (hasActiveTextSelection()) return;
+  void playSingleTrack(index);
+}
+
+function hasActiveTextSelection() {
+  const selection = globalThis.getSelection?.();
+  return Boolean(selection && !selection.isCollapsed && String(selection).trim());
 }
 
 function toPlayerTrack(item, index = 0) {
@@ -584,6 +611,9 @@ watch(
   --voice-folder-surface: rgba(var(--accent-rgb), 0.1);
   --voice-tree-guide: rgba(240, 212, 208, 0.2);
   --voice-panel-shadow: 0 12px 28px rgba(12, 7, 12, 0.16);
+  --voice-general-rgb: 108, 184, 139;
+  --voice-r15-rgb: 226, 177, 92;
+  --voice-adult-rgb: 210, 111, 116;
   color: var(--theme-text-primary);
 }
 
@@ -593,6 +623,9 @@ watch(
   --voice-folder-surface: rgba(var(--accent-rgb), 0.13);
   --voice-tree-guide: rgba(168, 108, 108, 0.2);
   --voice-panel-shadow: 0 12px 26px rgba(88, 60, 50, 0.08);
+  --voice-general-rgb: 57, 132, 88;
+  --voice-r15-rgb: 176, 116, 32;
+  --voice-adult-rgb: 179, 72, 79;
 }
 
 .voice-hero {
@@ -633,6 +666,12 @@ watch(
   gap: 8px;
 }
 
+.hero-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .hero-main h1 {
   margin: 0;
   font-size: clamp(20px, 2vw, 30px);
@@ -651,6 +690,42 @@ watch(
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.voice-age-badge {
+  min-height: 23px;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 2px 9px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.voice-age-badge.age-general {
+  border-color: rgba(var(--voice-general-rgb), 0.58);
+  background: rgba(var(--voice-general-rgb), 0.16);
+  color: rgb(var(--voice-general-rgb));
+}
+
+.voice-age-badge.age-r15 {
+  border-color: rgba(var(--voice-r15-rgb), 0.6);
+  background: rgba(var(--voice-r15-rgb), 0.16);
+  color: rgb(var(--voice-r15-rgb));
+}
+
+.voice-age-badge.age-adult {
+  border-color: rgba(var(--voice-adult-rgb), 0.58);
+  background: rgba(var(--voice-adult-rgb), 0.15);
+  color: rgb(var(--voice-adult-rgb));
+}
+
+.voice-age-badge.age-unknown {
+  border-color: var(--theme-border-strong);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
 }
 
 .hero-meta {
@@ -719,6 +794,22 @@ watch(
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.voice-detail-view :is(
+  .hero-main h1,
+  .hero-sub,
+  .hero-meta span,
+  .voice-age-badge,
+  .voice-meta-panel p,
+  .node-title,
+  .node-duration,
+  .folder-count,
+  .playable-row > span
+) {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .voice-track-tree header,

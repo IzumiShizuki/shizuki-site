@@ -157,6 +157,7 @@ public interface MediaService {
      * @param order 排序字段
      * @param sort 排序方向（asc/desc）
      * @param tagIds 标签 ID 列表（逗号分隔，AND）
+     * @param ageCategories 年龄分级列表（逗号分隔，OR）
      * @return 音声作品列表与可用标签
      */
     MusicVoiceWorksResponse searchVoiceWorks(String query,
@@ -164,7 +165,8 @@ public interface MediaService {
                                              Integer limit,
                                              String order,
                                              String sort,
-                                             String tagIds);
+                                             String tagIds,
+                                             String ageCategories);
 
     /**
      * 音声作品聚合详情。

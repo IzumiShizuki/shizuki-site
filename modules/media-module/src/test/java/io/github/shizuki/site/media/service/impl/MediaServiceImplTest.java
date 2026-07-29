@@ -665,21 +665,34 @@ class MediaServiceImplTest {
             1001L,
             "夜色耳语",
             List.of(new AsmrMusicProvider.TagSummary(11L, "耳搔"), new AsmrMusicProvider.TagSummary(22L, "低语")),
-            List.of(new AsmrMusicProvider.VoiceActorSummary("va-1", "白樺玲奈"))
+            List.of(new AsmrMusicProvider.VoiceActorSummary("va-1", "白樺玲奈")),
+            false,
+            "全年齢"
         );
         AsmrMusicProvider.WorkSummary work2 = buildAsmrWorkSummary(
             1002L,
             "午后助眠",
             List.of(new AsmrMusicProvider.TagSummary(22L, "低语")),
-            List.of(new AsmrMusicProvider.VoiceActorSummary("va-2", "星野葵"))
+            List.of(new AsmrMusicProvider.VoiceActorSummary("va-2", "星野葵")),
+            true,
+            "18+"
         );
         Mockito.when(asmrMusicProvider.listWorks(1, 30, "release", "desc"))
             .thenReturn(new AsmrMusicProvider.SearchResult(List.of(work1, work2), 1, 30, 2));
 
-        MusicVoiceWorksResponse response = mediaService.searchVoiceWorks("", 1, 24, "release", "desc", "11,22");
+        MusicVoiceWorksResponse response = mediaService.searchVoiceWorks(
+            "",
+            1,
+            24,
+            "release",
+            "desc",
+            "11,22",
+            "general,r15"
+        );
 
         Assertions.assertEquals(1, response.items().size());
         Assertions.assertEquals(1001L, response.items().get(0).workId());
+        Assertions.assertEquals("全年齢", response.items().get(0).ageCategory());
         Assertions.assertFalse(response.availableTags().isEmpty());
         Assertions.assertTrue(response.availableTags().stream().anyMatch(tag -> tag.tagId() == 11L));
     }
@@ -691,7 +704,9 @@ class MediaServiceImplTest {
             2001L,
             "白噪声治愈室",
             List.of(new AsmrMusicProvider.TagSummary(31L, "雨声")),
-            List.of(new AsmrMusicProvider.VoiceActorSummary("va-3", "青山千夜"))
+            List.of(new AsmrMusicProvider.VoiceActorSummary("va-3", "青山千夜")),
+            false,
+            "R15"
         );
         AsmrMusicProvider.TrackNode rootNode = new AsmrMusicProvider.TrackNode(
             "folder",
@@ -1185,7 +1200,9 @@ class MediaServiceImplTest {
     private AsmrMusicProvider.WorkSummary buildAsmrWorkSummary(long workId,
                                                                String title,
                                                                List<AsmrMusicProvider.TagSummary> tags,
-                                                               List<AsmrMusicProvider.VoiceActorSummary> vas) {
+                                                               List<AsmrMusicProvider.VoiceActorSummary> vas,
+                                                               boolean nsfw,
+                                                               String ageCategory) {
         return new AsmrMusicProvider.WorkSummary(
             workId,
             title,
@@ -1199,8 +1216,8 @@ class MediaServiceImplTest {
             88,
             100,
             4.8,
-            true,
-            "18+",
+            nsfw,
+            ageCategory,
             tags == null ? List.of() : tags,
             vas == null ? List.of() : vas,
             List.of(Map.of("lang", "zh-cn")),
