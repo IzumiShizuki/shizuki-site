@@ -61,9 +61,7 @@
           }"
         >
           <RouterView v-slot="{ Component, route: viewRoute }">
-            <transition name="route-switch" mode="out-in">
-              <component :is="Component" :key="resolveRouteViewKey(viewRoute)" class="route-page-view" />
-            </transition>
+            <component :is="Component" :key="resolveRouteViewKey(viewRoute)" class="route-page-view" />
           </RouterView>
         </main>
 
@@ -2901,44 +2899,12 @@ onBeforeUnmount(() => {
   min-height: 100%;
 }
 
-.route-switch-enter-active,
-.route-switch-leave-active {
-  transition: opacity 260ms ease, transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
-  backface-visibility: hidden;
-  transform: translateZ(0);
-}
-
-.route-switch-enter-from {
-  opacity: 0;
-  transform: translateY(12px) scale(0.992);
-}
-
-.route-switch-leave-to {
-  opacity: 0;
-  transform: translateY(-8px) scale(0.995);
-}
-
 .ai-side-column {
   position: relative;
   min-height: 0;
   overflow: hidden;
   transform-origin: right center;
   will-change: transform, opacity;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .route-switch-enter-active,
-  .route-switch-leave-active {
-    transition: opacity 120ms linear;
-  }
-
-  .route-switch-enter-from,
-  .route-switch-leave-to {
-    transform: none;
-    opacity: 0;
-  }
-
 }
 
 .global-lyric-bar {

@@ -8,7 +8,20 @@ export function resolveAppRouteViewKey(viewRoute) {
     return 'music-library-shell';
   }
   if (path === '/blog') {
-    return 'blog-shell';
+    return 'blog-list-shell';
   }
-  return String(viewRoute?.fullPath || path || 'route');
+  if (
+    viewRoute?.name === 'blog-editor' ||
+    viewRoute?.name === 'blog-detail' ||
+    path.startsWith('/blog/editor/') ||
+    /^\/blog\/[^/]+$/.test(path)
+  ) {
+    return 'blog-workspace-shell';
+  }
+
+  const routeName = String(viewRoute?.name || '').trim();
+  if (routeName) {
+    return `${routeName}-shell`;
+  }
+  return `${path || 'route'}-shell`;
 }

@@ -92,9 +92,7 @@
           </header>
 
           <RouterView v-slot="{ Component, route: centerRoute }">
-            <transition :name="centerTransitionName" mode="out-in">
-              <component :is="Component" :key="resolveCenterViewKey(centerRoute)" class="music-center-view-shell" />
-            </transition>
+            <component :is="Component" :key="resolveMusicCenterViewKey(centerRoute)" class="music-center-view-shell" />
           </RouterView>
         </SubtleScrollArea>
 
@@ -223,6 +221,7 @@ import {
 import { formatMediaTime } from '../utils/mediaTime';
 import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
+import { resolveMusicCenterViewKey } from '../utils/musicRouteViewKey';
 import {
   enrichSearchPlaylists,
   readDurationLabel,
@@ -425,7 +424,6 @@ const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length
 const currentPlaylistLoading = computed(() => Boolean(playlistBrowseLoading.value));
 const currentPlaylistError = computed(() => String(playlistBrowseError.value || ''));
 const playerQueueTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
-const centerTransitionName = ref('music-center-fade');
 let allSearchCapacityRefreshTimer = 0;
 const fatalErrorText = ref('');
 
@@ -576,19 +574,6 @@ function normalizeApiTrack(raw, index = 0) {
     duration: durationLabel,
     metadata
   };
-}
-
-function isPlaylistPath(path) {
-  return String(path || '').startsWith('/music-library/playlist/');
-}
-
-function resolveCenterViewKey(viewRoute) {
-  const routeName = String(viewRoute?.name || '');
-  if (routeName === 'music-library-playlist') {
-    const code = String(viewRoute?.params?.playlistCode || '').trim();
-    return `playlist:${code}`;
-  }
-  return String(viewRoute?.fullPath || routeName || 'music-library/music');
 }
 
 function toPlaylistTrackUpsertPayload(track, fallbackSort = 0, targetPlaylistCode = '') {
@@ -2417,27 +2402,6 @@ watch(
     }
   },
   { immediate: true }
-);
-
-watch(
-  () => route.fullPath,
-  (nextPath, prevPath) => {
-    if (!prevPath) {
-      centerTransitionName.value = 'music-center-fade';
-      return;
-    }
-    const fromPlaylist = isPlaylistPath(prevPath);
-    const toPlaylist = isPlaylistPath(nextPath);
-    if (toPlaylist && !fromPlaylist) {
-      centerTransitionName.value = 'music-center-forward';
-      return;
-    }
-    if (!toPlaylist && fromPlaylist) {
-      centerTransitionName.value = 'music-center-backward';
-      return;
-    }
-    centerTransitionName.value = 'music-center-fade';
-  }
 );
 
 watch(
