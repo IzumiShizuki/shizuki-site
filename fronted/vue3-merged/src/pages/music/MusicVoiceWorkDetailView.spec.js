@@ -62,6 +62,11 @@ describe('MusicVoiceWorkDetailView', () => {
               nodeType: 'image',
               title: 'booklet.webp',
               mediaDownloadUrl: 'https://cdn.example.com/booklet.webp'
+            },
+            {
+              nodeType: 'file',
+              title: 'notes.txt',
+              durationSec: null
             }
           ]
         }
@@ -96,5 +101,35 @@ describe('MusicVoiceWorkDetailView', () => {
     const imageLink = wrapper.get('[aria-label="查看文件 booklet.webp"]');
     expect(imageLink.attributes('href')).toBe('https://cdn.example.com/booklet.webp');
     expect(imageLink.attributes('target')).toBe('_blank');
+  });
+
+  it('toggles folders without changing the total node count', async () => {
+    const wrapper = mount(MusicVoiceWorkDetailView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('4 节点');
+    expect(wrapper.find('[aria-label="播放 01-track.mp3"]').exists()).toBe(true);
+
+    const collapseButton = wrapper.get('[aria-label="收起目录 Main"]');
+    expect(collapseButton.attributes('aria-expanded')).toBe('true');
+    await collapseButton.trigger('click');
+
+    expect(wrapper.text()).toContain('4 节点');
+    expect(wrapper.find('[aria-label="播放 01-track.mp3"]').exists()).toBe(false);
+    expect(wrapper.get('[aria-label="展开目录 Main"]').attributes('aria-expanded')).toBe('false');
+
+    await wrapper.get('[aria-label="展开目录 Main"]').trigger('click');
+    expect(wrapper.find('[aria-label="播放 01-track.mp3"]').exists()).toBe(true);
+  });
+
+  it('renders duration only for audio nodes', async () => {
+    const wrapper = mount(MusicVoiceWorkDetailView);
+    await flushPromises();
+
+    expect(wrapper.get('.node-audio .node-duration').text()).toBe('01:35');
+    expect(wrapper.find('.node-folder .node-duration').exists()).toBe(false);
+    expect(wrapper.find('.node-image .node-duration').exists()).toBe(false);
+    expect(wrapper.find('.node-file .node-duration').exists()).toBe(false);
+    expect(wrapper.get('.node-folder .folder-count').text()).toBe('3 项');
   });
 });

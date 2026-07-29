@@ -70,18 +70,40 @@
     <section class="voice-track-tree liquid-material">
       <header>
         <h2>音轨树</h2>
-        <span>{{ flatTrackTree.length }} 节点</span>
+        <span>{{ totalTrackNodeCount }} 节点</span>
       </header>
       <div v-if="!flatTrackTree.length" class="empty-state compact">暂无轨道结构</div>
       <ul v-else>
         <li
           v-for="node in flatTrackTree"
           :key="node.key"
-          :style="{ paddingLeft: `${node.depth * 16 + 6}px` }"
-          :class="[`node-${node.nodeType}`, { actionable: isPlayableTreeNode(node) || isViewableFileNode(node) }]"
+          :style="{ '--tree-depth': node.depth, paddingLeft: `${node.depth * 16 + 6}px` }"
+          :class="[
+            `node-${node.nodeType}`,
+            {
+              actionable: isFolderTreeNode(node) || isPlayableTreeNode(node) || isViewableFileNode(node),
+              'is-nested': node.depth > 0
+            }
+          ]"
         >
           <button
-            v-if="isPlayableTreeNode(node)"
+            v-if="isFolderTreeNode(node)"
+            class="tree-node-action tree-node-folder ripple-trigger"
+            type="button"
+            :disabled="!node.children.length"
+            :aria-expanded="isFolderExpanded(node)"
+            :aria-label="`${isFolderExpanded(node) ? '收起' : '展开'}目录 ${node.title || '未命名目录'}`"
+            @click="toggleFolderNode(node)"
+          >
+            <span class="folder-leading" aria-hidden="true">
+              <i :class="['fas', isFolderExpanded(node) ? 'fa-chevron-down' : 'fa-chevron-right']"></i>
+              <i :class="['fas', isFolderExpanded(node) ? 'fa-folder-open' : 'fa-folder']"></i>
+            </span>
+            <span class="node-title">{{ node.title || '未命名目录' }}</span>
+            <span class="folder-count">{{ node.children.length }} 项</span>
+          </button>
+          <button
+            v-else-if="isPlayableTreeNode(node)"
             class="tree-node-action tree-node-play ripple-trigger"
             type="button"
             :aria-label="`播放 ${node.title || '音轨'}`"
@@ -99,14 +121,15 @@
             rel="noopener noreferrer"
             :aria-label="`查看文件 ${node.title || ''}`"
           >
-            <i class="fas fa-file-image" aria-hidden="true"></i>
+            <i :class="treeNodeIconClass(node)" aria-hidden="true"></i>
             <span class="node-title">{{ node.title || '查看文件' }}</span>
             <span class="node-file-label">查看文件 <i class="fas fa-up-right-from-square" aria-hidden="true"></i></span>
           </a>
-          <template v-else>
+          <div v-else class="tree-node-action tree-node-static">
+            <i :class="treeNodeIconClass(node)" aria-hidden="true"></i>
             <span class="node-title">{{ node.title || node.nodeType || '节点' }}</span>
-            <span v-if="node.durationSec != null" class="node-duration">{{ formatDuration(node.durationSec) }}</span>
-          </template>
+            <span v-if="isAudioTreeNode(node)" class="node-duration">{{ formatDuration(node.durationSec) }}</span>
+          </div>
         </li>
       </ul>
     </section>
@@ -160,6 +183,7 @@ const errorText = ref('');
 const work = ref(createEmptyWork());
 const trackTree = ref([]);
 const playableTracks = ref([]);
+const expandedFolderKeys = ref(new Set());
 
 const workId = computed(() => String(route.params.workId || '').trim());
 const coverStyle = computed(() => {
@@ -172,9 +196,10 @@ const coverStyle = computed(() => {
 
 const flatTrackTree = computed(() => {
   const collector = [];
-  flattenTrackTree(trackTree.value, 0, collector);
+  flattenTrackTree(trackTree.value, 0, collector, expandedFolderKeys.value);
   return collector;
 });
+const totalTrackNodeCount = computed(() => countTrackTreeNodes(trackTree.value));
 
 function createEmptyWork() {
   return {
@@ -220,9 +245,7 @@ function normalizeWork(raw) {
     nsfw: Boolean(source?.nsfw),
     ageCategory: String(source?.ageCategory || source?.age_category || '').trim(),
     releaseDate: String(source?.releaseDate || source?.release_date || '').trim(),
-    durationSec: Number.isFinite(Number(source?.durationSec ?? source?.duration_sec))
-      ? Number(source.durationSec ?? source.duration_sec)
-      : null,
+    durationSec: normalizeDurationSec(source?.durationSec ?? source?.duration_sec),
     dlCount: Number.isFinite(Number(source?.dlCount ?? source?.dl_count)) ? Number(source.dlCount ?? source.dl_count) : null,
     reviewCount: Number.isFinite(Number(source?.reviewCount ?? source?.review_count))
       ? Number(source.reviewCount ?? source.review_count)
@@ -245,21 +268,25 @@ function normalizeWork(raw) {
   };
 }
 
-function normalizeTrackNode(raw) {
+function normalizeTrackNode(raw, parentKey = 'root', index = 0) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const childrenRaw = source?.children;
+  const nodeType = String(source?.nodeType || source?.node_type || '').trim().toLowerCase();
+  const title = String(source?.title || '').trim();
+  const hash = String(source?.hash || '').trim();
+  const key = `${parentKey}/${index}:${nodeType || 'node'}:${hash || title || 'untitled'}`;
   return {
-    key: `${String(source?.nodeType || source?.node_type || 'node')}:${String(source?.hash || '')}:${String(source?.title || '')}`,
-    nodeType: String(source?.nodeType || source?.node_type || '').trim().toLowerCase(),
-    title: String(source?.title || '').trim(),
-    hash: String(source?.hash || '').trim(),
+    key,
+    nodeType,
+    title,
+    hash,
     mediaStreamUrl: String(source?.mediaStreamUrl || source?.media_stream_url || '').trim(),
     streamLowQualityUrl: String(source?.streamLowQualityUrl || source?.stream_low_quality_url || '').trim(),
     mediaDownloadUrl: String(source?.mediaDownloadUrl || source?.media_download_url || '').trim(),
-    durationSec: Number.isFinite(Number(source?.durationSec ?? source?.duration_sec))
-      ? Number(source.durationSec ?? source.duration_sec)
-      : null,
-    children: Array.isArray(childrenRaw) ? childrenRaw.map((item) => normalizeTrackNode(item)) : []
+    durationSec: normalizeDurationSec(source?.durationSec ?? source?.duration_sec),
+    children: Array.isArray(childrenRaw)
+      ? childrenRaw.map((item, childIndex) => normalizeTrackNode(item, key, childIndex))
+      : []
   };
 }
 
@@ -273,9 +300,7 @@ function normalizePlayableTrack(raw) {
     artist: String(source?.artist || '').trim(),
     cover: String(source?.cover || '').trim(),
     lyricUrl: String(source?.lyricUrl || source?.lyric_url || '').trim(),
-    durationSec: Number.isFinite(Number(source?.durationSec ?? source?.duration_sec))
-      ? Number(source.durationSec ?? source.duration_sec)
-      : null,
+    durationSec: normalizeDurationSec(source?.durationSec ?? source?.duration_sec),
     sourceId: String(source?.sourceId || source?.source_id || '').trim(),
     sourceUrl: String(source?.sourceUrl || source?.source_url || '').trim(),
     workTitle: String(source?.workTitle || source?.work_title || '').trim()
@@ -286,6 +311,12 @@ function parseErrorMessage(error, fallback = '音声详情加载失败，请稍�
   if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
   if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
   return fallback;
+}
+
+function normalizeDurationSec(value) {
+  if (value == null || value === '') return null;
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? duration : null;
 }
 
 function formatDuration(durationSec) {
@@ -332,14 +363,66 @@ function renderRankText(rank) {
   return labels.join(' / ');
 }
 
-function flattenTrackTree(nodes, depth, collector) {
+function countTrackTreeNodes(nodes) {
+  const rows = Array.isArray(nodes) ? nodes : [];
+  return rows.reduce((total, node) => total + 1 + countTrackTreeNodes(node?.children), 0);
+}
+
+function collectFolderKeys(nodes, collector = new Set()) {
+  const rows = Array.isArray(nodes) ? nodes : [];
+  rows.forEach((node) => {
+    if (isFolderTreeNode(node) && node?.children?.length) {
+      collector.add(node.key);
+    }
+    collectFolderKeys(node?.children, collector);
+  });
+  return collector;
+}
+
+function flattenTrackTree(nodes, depth, collector, expandedKeys) {
   const rows = Array.isArray(nodes) ? nodes : [];
   rows.forEach((node) => {
     collector.push({ ...node, depth });
-    if (Array.isArray(node.children) && node.children.length) {
-      flattenTrackTree(node.children, depth + 1, collector);
+    const canShowChildren = !isFolderTreeNode(node) || expandedKeys.has(node.key);
+    if (canShowChildren && Array.isArray(node.children) && node.children.length) {
+      flattenTrackTree(node.children, depth + 1, collector, expandedKeys);
     }
   });
+}
+
+function isFolderTreeNode(node) {
+  return String(node?.nodeType || '').toLowerCase() === 'folder';
+}
+
+function isFolderExpanded(node) {
+  return Boolean(node?.children?.length && expandedFolderKeys.value.has(node?.key));
+}
+
+function toggleFolderNode(node) {
+  if (!isFolderTreeNode(node) || !node?.children?.length) return;
+  const next = new Set(expandedFolderKeys.value);
+  if (next.has(node.key)) {
+    next.delete(node.key);
+  } else {
+    next.add(node.key);
+  }
+  expandedFolderKeys.value = next;
+}
+
+function isAudioTreeNode(node) {
+  return String(node?.nodeType || '').toLowerCase() === 'audio';
+}
+
+function treeNodeIconClass(node) {
+  const nodeType = String(node?.nodeType || '').toLowerCase();
+  const title = String(node?.title || '').toLowerCase();
+  if (nodeType === 'image' || /\.(avif|gif|jpe?g|png|webp)$/i.test(title)) {
+    return 'fas fa-file-image';
+  }
+  if (nodeType === 'audio') {
+    return 'fas fa-file-audio';
+  }
+  return 'fas fa-file-lines';
 }
 
 function resolvePlayableTreeNodeIndex(node) {
@@ -459,8 +542,9 @@ async function loadBundle() {
     );
     work.value = normalizeWork(payload?.work || {});
     trackTree.value = Array.isArray(payload?.trackTree || payload?.track_tree)
-      ? (payload.trackTree || payload.track_tree).map((item) => normalizeTrackNode(item))
+      ? (payload.trackTree || payload.track_tree).map((item, index) => normalizeTrackNode(item, 'root', index))
       : [];
+    expandedFolderKeys.value = collectFolderKeys(trackTree.value);
     playableTracks.value = Array.isArray(payload?.playableTracks || payload?.playable_tracks)
       ? (payload.playableTracks || payload.playable_tracks).map((item) => normalizePlayableTrack(item))
       : [];
@@ -468,6 +552,7 @@ async function loadBundle() {
     work.value = createEmptyWork();
     trackTree.value = [];
     playableTracks.value = [];
+    expandedFolderKeys.value = new Set();
     errorText.value = parseErrorMessage(error);
   } finally {
     loading.value = false;
@@ -493,9 +578,27 @@ watch(
   gap: 10px;
 }
 
+.voice-detail-view {
+  --voice-row-surface: rgba(255, 240, 235, 0.07);
+  --voice-row-surface-strong: rgba(255, 240, 235, 0.11);
+  --voice-folder-surface: rgba(var(--accent-rgb), 0.1);
+  --voice-tree-guide: rgba(240, 212, 208, 0.2);
+  --voice-panel-shadow: 0 12px 28px rgba(12, 7, 12, 0.16);
+  color: var(--theme-text-primary);
+}
+
+:global(:root[data-theme-mode='day']) .voice-detail-view {
+  --voice-row-surface: rgba(255, 255, 255, 0.72);
+  --voice-row-surface-strong: rgba(255, 251, 248, 0.92);
+  --voice-folder-surface: rgba(var(--accent-rgb), 0.13);
+  --voice-tree-guide: rgba(168, 108, 108, 0.2);
+  --voice-panel-shadow: 0 12px 26px rgba(88, 60, 50, 0.08);
+}
+
 .voice-hero {
-  --liquid-bg: linear-gradient(154deg, rgba(24, 18, 34, 0.84), rgba(16, 14, 26, 0.76));
-  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--voice-panel-shadow);
   border-radius: 16px;
   padding: 12px;
   display: grid;
@@ -508,9 +611,9 @@ watch(
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(232, 241, 255, 0.94);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-icon-primary);
   align-self: start;
 }
 
@@ -520,7 +623,8 @@ watch(
   border-radius: 14px;
   background-size: cover;
   background-position: center;
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--theme-surface-soft);
+  box-shadow: 0 0 0 1px var(--theme-border);
 }
 
 .hero-main {
@@ -532,7 +636,7 @@ watch(
 .hero-main h1 {
   margin: 0;
   font-size: clamp(20px, 2vw, 30px);
-  color: rgba(243, 248, 255, 0.96);
+  color: var(--theme-text-primary);
   line-height: 1.3;
 }
 
@@ -540,7 +644,7 @@ watch(
 .hero-sub,
 .hero-meta {
   margin: 0;
-  color: rgba(185, 199, 224, 0.9);
+  color: var(--theme-text-secondary);
 }
 
 .hero-type {
@@ -565,9 +669,9 @@ watch(
 .hero-btn {
   min-height: 34px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(232, 242, 255, 0.95);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
   padding: 0 12px;
   display: inline-flex;
   align-items: center;
@@ -576,16 +680,17 @@ watch(
 }
 
 .hero-btn.primary {
-  border-color: rgba(var(--accent-rgb), 0.58);
-  background: linear-gradient(132deg, rgba(var(--accent-rgb), 0.92), rgba(var(--accent-soft-rgb), 0.88));
-  color: rgba(255, 255, 255, 0.96);
+  border-color: var(--accent-mode-border-strong);
+  background: var(--accent-mode-fill-strong);
+  color: var(--accent-surface-text);
 }
 
 .voice-meta-panel,
 .voice-track-tree,
 .voice-playable-panel {
-  --liquid-bg: linear-gradient(148deg, rgba(18, 22, 33, 0.84), rgba(13, 16, 26, 0.78));
-  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--voice-panel-shadow);
   border-radius: 14px;
   padding: 10px;
 }
@@ -605,12 +710,12 @@ watch(
 .voice-playable-panel h2 {
   margin: 0;
   font-size: 14px;
-  color: rgba(235, 243, 255, 0.95);
+  color: var(--theme-text-primary);
 }
 
 .voice-meta-panel p {
   margin: 4px 0 0;
-  color: rgba(187, 201, 224, 0.9);
+  color: var(--theme-text-secondary);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -624,6 +729,12 @@ watch(
   margin-bottom: 8px;
 }
 
+.voice-track-tree header > span,
+.voice-playable-panel header > span {
+  color: var(--theme-text-tertiary);
+  font-size: 12px;
+}
+
 .voice-track-tree ul {
   list-style: none;
   margin: 0;
@@ -633,20 +744,38 @@ watch(
 }
 
 .voice-track-tree li {
-  min-height: 28px;
-  border-radius: 8px;
+  position: relative;
+  min-height: 34px;
+  border: 1px solid var(--theme-border);
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(226, 236, 252, 0.92);
+  background: var(--voice-row-surface);
+  color: var(--theme-text-primary);
   padding-right: 8px;
+}
+
+.voice-track-tree li.is-nested::before {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  left: calc(var(--tree-depth) * 16px - 5px);
+  width: 1px;
+  background: var(--voice-tree-guide);
+  content: '';
+  pointer-events: none;
 }
 
 .voice-track-tree li.actionable {
   padding-right: 0;
-  background: rgba(255, 255, 255, 0.075);
+  background: var(--voice-row-surface-strong);
+}
+
+.voice-track-tree li.node-folder {
+  border-color: rgba(var(--accent-strong-rgb), 0.24);
+  background: var(--voice-folder-surface);
 }
 
 .tree-node-action {
@@ -669,13 +798,43 @@ watch(
 
 .tree-node-action:hover,
 .tree-node-action:focus-visible {
-  border-color: rgba(var(--accent-rgb), 0.34);
-  background: rgba(var(--accent-rgb), 0.13);
+  border-color: var(--accent-mode-border);
+  background: rgba(var(--accent-rgb), 0.12);
+  outline: none;
+  box-shadow: var(--accent-mode-focus-ring);
 }
 
 .tree-node-action > i {
-  color: rgba(var(--accent-soft-rgb), 0.94);
+  color: var(--theme-icon-muted);
   font-size: 11px;
+}
+
+.tree-node-folder {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  font-weight: 650;
+}
+
+.tree-node-folder:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.folder-leading {
+  display: grid;
+  grid-template-columns: 10px 16px;
+  align-items: center;
+  gap: 5px;
+  color: rgba(var(--accent-readable-rgb), 0.92);
+}
+
+.folder-leading .fa-chevron-down,
+.folder-leading .fa-chevron-right {
+  font-size: 9px;
+}
+
+.folder-leading .fa-folder,
+.folder-leading .fa-folder-open {
+  font-size: 14px;
 }
 
 .node-title {
@@ -686,14 +845,26 @@ watch(
 }
 
 .node-file-label {
-  color: rgba(184, 196, 220, 0.85);
+  color: var(--theme-text-tertiary);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .node-duration {
   font-size: 12px;
-  color: rgba(184, 196, 220, 0.85);
+  color: var(--theme-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.folder-count {
+  color: var(--theme-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tree-node-static {
+  cursor: default;
 }
 
 .playable-row {
@@ -703,11 +874,12 @@ watch(
   gap: 8px;
   min-height: 40px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--theme-border);
+  background: var(--voice-row-surface);
   padding: 0 8px;
   margin-top: 6px;
   cursor: pointer;
-  color: rgba(231, 240, 255, 0.94);
+  color: var(--theme-text-primary);
 }
 
 .row-actions {
@@ -720,15 +892,15 @@ watch(
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(230, 239, 255, 0.94);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-icon-primary);
 }
 
 .state-text {
   margin: 0;
   font-size: 12px;
-  color: rgba(184, 197, 222, 0.9);
+  color: var(--theme-text-secondary);
 }
 
 .state-text.error {
@@ -737,11 +909,11 @@ watch(
 
 .empty-state {
   min-height: 90px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border: 1px dashed var(--theme-border);
   border-radius: 10px;
   display: grid;
   place-items: center;
-  color: rgba(179, 194, 219, 0.86);
+  color: var(--theme-text-tertiary);
 }
 
 .empty-state.compact {
