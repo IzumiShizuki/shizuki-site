@@ -12,6 +12,11 @@ const VISUALIZER_STYLES = ['bars-aurora', 'bars-neon', 'bars-crystal', 'bars-fir
 const LYRIC_DEBUG_KEY = 'shizuki.music.debug.lyric';
 const LYRIC_RENDER_MODES = ['original', 'original_translation', 'original_furigana'];
 const LYRIC_PREFERENCE_VERSION = 2;
+const RESOLVABLE_PLAYBACK_PROVIDERS = new Set(['netease', 'kuwo', 'qq', 'asmr']);
+
+function supportsPlaybackResolve(provider) {
+  return RESOLVABLE_PLAYBACK_PROVIDERS.has(String(provider || '').trim().toLowerCase());
+}
 
 function loadPersistedState() {
   try {
@@ -544,7 +549,7 @@ export function usePlayerEngine(options = {}) {
     const track = tracks.value[index];
     if (!track) return;
     const provider = String(track.provider || '').trim().toLowerCase();
-    if (!['netease', 'kuwo', 'qq', 'asmr'].includes(provider)) return;
+    if (!supportsPlaybackResolve(provider)) return;
     const trackId = String(track.trackId || track.id || '').trim();
     if (!trackId) return;
     const resolveKey = `${provider}:${trackId}`;
@@ -604,8 +609,7 @@ export function usePlayerEngine(options = {}) {
     if (!track || (!force && track.audio)) return track;
 
     const provider = String(track.provider || '').trim().toLowerCase();
-    const supported = provider === 'netease' || provider === 'kuwo' || provider === 'qq' || provider === 'asmr';
-    if (!supported) return track;
+    if (!supportsPlaybackResolve(provider)) return track;
 
     const trackId = String(track.trackId || track.id || '').trim();
     if (!trackId) return track;
@@ -652,8 +656,18 @@ export function usePlayerEngine(options = {}) {
     if (index < 0 || index >= tracks.value.length) return false;
     const shouldResolve = options?.resolveIfMissing === true || (options?.resolveIfMissing !== false && autoPlay);
     let track = tracks.value[index];
-    if (shouldResolve && !track?.audio) {
-      track = await resolveTrackPlayback(index);
+    const shouldRefreshPlayback = Boolean(
+      autoPlay
+      && track?.audio
+      && supportsPlaybackResolve(track?.provider)
+      && options?.refreshPlayback !== false
+    );
+    const resolveKey = buildResolveKey(track);
+    if (resolveKey) {
+      playbackResolveAttempted.value.delete(resolveKey);
+    }
+    if (shouldResolve && (!track?.audio || shouldRefreshPlayback)) {
+      track = await resolveTrackPlayback(index, { force: shouldRefreshPlayback });
     }
     if (!track) return false;
     if (!track.audio) {
@@ -1060,7 +1074,7 @@ export function usePlayerEngine(options = {}) {
       },
       0
     );
-    const canLazyResolve = ['netease', 'kuwo', 'qq', 'asmr'].includes(String(normalized.provider || '').toLowerCase())
+    const canLazyResolve = supportsPlaybackResolve(normalized.provider)
       && String(normalized.trackId || normalized.id || '').trim() !== '';
     if (!normalized.audio && !canLazyResolve) return false;
     const replaceQueue = options?.replaceQueue === true;
@@ -1130,7 +1144,7 @@ export function usePlayerEngine(options = {}) {
       0
     );
 
-    const canLazyResolve = ['netease', 'kuwo', 'qq', 'asmr'].includes(String(normalized.provider || '').toLowerCase())
+    const canLazyResolve = supportsPlaybackResolve(normalized.provider)
       && String(normalized.trackId || normalized.id || '').trim() !== '';
     if (!normalized.audio && !canLazyResolve) return false;
 

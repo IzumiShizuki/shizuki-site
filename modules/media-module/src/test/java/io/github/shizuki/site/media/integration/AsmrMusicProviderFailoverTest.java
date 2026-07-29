@@ -11,11 +11,45 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 class AsmrMusicProviderFailoverTest {
+
+    @Test
+    void shouldEncodeUnicodeSearchKeywordExactlyOnce() throws Exception {
+        AtomicReference<String> rawPath = new AtomicReference<>("");
+        HttpServer server = createServer("/", exchange -> {
+            rawPath.set(exchange.getRequestURI().getRawPath());
+            writeJson(
+                exchange,
+                200,
+                """
+                    {
+                      "works": [{"id": 101, "title": "学校"}],
+                      "pagination": {"currentPage": 1, "pageSize": 20, "totalCount": 1}
+                    }
+                    """
+            );
+        });
+        try {
+            AsmrMusicProperties properties = new AsmrMusicProperties();
+            String source = baseUrl(server);
+            properties.setServer(source);
+            properties.setBaseUrl(source);
+            properties.setBaseUrls(List.of(source));
+            AsmrMusicProvider provider = new AsmrMusicProvider(properties, RestClient.builder(), new ObjectMapper());
+
+            AsmrMusicProvider.SearchResult result = provider.searchWorks("学校", 1, 24, "release", "desc");
+
+            Assertions.assertEquals(1, result.works().size());
+            Assertions.assertEquals("/api/search/%E5%AD%A6%E6%A0%A1", rawPath.get());
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test
     void shouldFailoverAndPromoteHealthySourceWhenPrimaryReturns503() throws Exception {

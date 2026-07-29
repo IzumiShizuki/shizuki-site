@@ -97,6 +97,33 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.lyricContext.value.next).toBe('line2');
   });
 
+  it('refreshes a cached provider audio URL before replaying a previously heard track', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/fresh-signed-track.mp3'
+    });
+
+    const engine = usePlayerEngine();
+    const played = await engine.replaceQueueWithTracks(
+      [
+        {
+          provider: 'netease',
+          trackId: 'cached-track',
+          title: 'Previously heard',
+          artist: 'Singer',
+          audio: 'https://audio.example.com/expired-signed-track.mp3',
+          lyricText: '[00:01.00]cached lyric'
+        }
+      ],
+      0,
+      true
+    );
+
+    expect(played).toBe(true);
+    expect(resolvePlaybackTrack).toHaveBeenCalledTimes(1);
+    expect(engine.audioElement.src).toBe('https://audio.example.com/fresh-signed-track.mp3');
+    expect(engine.currentTrack.value?.lyricText).toBe('[00:01.00]cached lyric');
+  });
+
   it('synchronizes playback position and active lyrics immediately after seeking', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/seek.mp3',

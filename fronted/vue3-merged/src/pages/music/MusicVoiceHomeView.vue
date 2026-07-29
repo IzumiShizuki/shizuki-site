@@ -238,7 +238,11 @@ async function fetchVoiceWorks(options = {}) {
 }
 
 async function submitSearch() {
-  committedKeyword.value = String(keywordDraft.value || '').trim();
+  const nextKeyword = String(keywordDraft.value || '').trim();
+  if (nextKeyword && nextKeyword !== committedKeyword.value) {
+    selectedTagIds.value = [];
+  }
+  committedKeyword.value = nextKeyword;
   page.value = 1;
   await fetchVoiceWorks({ append: false });
 }
@@ -289,6 +293,11 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.voice-home-view {
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
 .voice-toolbar {
   --liquid-bg: linear-gradient(150deg, rgba(26, 20, 35, 0.84), rgba(18, 15, 26, 0.76));
   --liquid-border: rgba(255, 255, 255, 0.14);
@@ -296,6 +305,7 @@ onMounted(async () => {
   padding: 10px;
   display: grid;
   gap: 10px;
+  align-self: start;
 }
 
 .voice-search-box {

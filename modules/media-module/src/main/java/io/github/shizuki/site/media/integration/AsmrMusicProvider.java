@@ -368,11 +368,12 @@ public class AsmrMusicProvider {
         String lastCandidate = sourceCandidates.get(sourceCandidates.size() - 1);
         for (String sourceBase : sourceCandidates) {
             String url = joinBasePath(sourceBase, path);
+            URI targetUri = URI.create(url);
             try {
                 String response;
                 if (httpMethod == HttpMethod.POST) {
                     response = restClient.post()
-                        .uri(url)
+                        .uri(targetUri)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .body(body == null ? Map.of() : body)
@@ -380,7 +381,7 @@ public class AsmrMusicProvider {
                         .body(String.class);
                 } else {
                     response = restClient.get()
-                        .uri(url)
+                        .uri(targetUri)
                         .accept(MediaType.APPLICATION_JSON)
                         .retrieve()
                         .body(String.class);
