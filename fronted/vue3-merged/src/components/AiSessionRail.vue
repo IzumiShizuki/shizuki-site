@@ -555,6 +555,43 @@ defineExpose({ refresh });
   color: rgba(255, 200, 200, 0.9);
 }
 
+:root[data-theme-mode='day'] .new-chat-btn {
+  background: linear-gradient(140deg, rgba(var(--accent-rgb), 0.16), rgba(255, 253, 250, 0.9));
+  border-color: rgba(var(--accent-strong-rgb), 0.28);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .rail-collapse-btn,
+:root[data-theme-mode='day'] .rail-refresh-btn,
+:root[data-theme-mode='day'] .item-icon-btn,
+:root[data-theme-mode='day'] .mode-pill {
+  background: rgba(255, 253, 250, 0.88);
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+:root[data-theme-mode='day'] .rail-count,
+:root[data-theme-mode='day'] .group-label,
+:root[data-theme-mode='day'] .session-meta {
+  color: var(--theme-text-tertiary);
+}
+
+:root[data-theme-mode='day'] .rail-hint {
+  background: rgba(255, 253, 250, 0.62);
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+:root[data-theme-mode='day'] .session-title {
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .session-item:hover,
+:root[data-theme-mode='day'] .session-item.active {
+  background: rgba(var(--accent-rgb), 0.1);
+  border-color: rgba(var(--accent-strong-rgb), 0.24);
+}
+
 @keyframes rail-shimmer {
   0% {
     background-position: 120% 0;

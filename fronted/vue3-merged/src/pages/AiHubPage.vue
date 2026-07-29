@@ -21,16 +21,6 @@
             <i class="fas fa-comments" aria-hidden="true"></i>
             <span>普通对话模式</span>
           </button>
-          <button
-            v-if="isAdminUser"
-            class="mode-tab ripple-trigger"
-            :class="{ active: activePrimaryMode === 'meguri' }"
-            type="button"
-            @click="activateMeguriCompanion()"
-          >
-            <i class="fas fa-heart" aria-hidden="true"></i>
-            <span>爱莉伴聊</span>
-          </button>
         </div>
 
         <div class="topbar-status">
@@ -39,9 +29,7 @@
             {{
               activePrimaryMode === 'town'
                 ? `当前场景 · ${selectedTownScene?.title || '载入中'}`
-                : activePrimaryMode === 'meguri'
-                  ? '爱莉 · Meguri Companion'
-                  : currentConversationLabel
+                : currentConversationLabel
             }}
           </span>
         </div>
@@ -49,7 +37,7 @@
 
       <div
         class="workspace-grid fade-stagger"
-        :class="{ conversation: activePrimaryMode === 'conversation', meguri: activePrimaryMode === 'meguri' }"
+        :class="{ conversation: activePrimaryMode === 'conversation' }"
       >
         <section class="workspace-main liquid-material">
           <template v-if="activePrimaryMode === 'town'">
@@ -342,12 +330,8 @@
             </template>
           </template>
 
-          <template v-else-if="activePrimaryMode === 'meguri'">
-            <MeguriPage embedded />
-          </template>
-
           <template v-else>
-            <div class="conversation-layout" :class="{ 'with-stage': isCompanionConversation }">
+            <div class="conversation-layout">
               <AiSessionRail
                 ref="sessionRailRef"
                 class="conversation-rail"
@@ -357,62 +341,7 @@
                 @changed="handleSessionListChanged"
               />
 
-              <div v-if="isCompanionConversation" class="companion-workspace conversation-main">
-                <section class="companion-stage liquid-material" :data-companion-status="companionStage.status">
-                  <header class="companion-stage-head">
-                    <div>
-                      <span class="stage-kicker">Live2D Companion</span>
-                      <h2>自宅 companion 观看区</h2>
-                      <p>复用公开 L2D 资源契约，随右侧对话切换 idle / thinking / speaking 状态。</p>
-                    </div>
-                    <span class="companion-status" :class="`status-${companionStage.status}`">
-                      <span class="status-orb" aria-hidden="true"></span>
-                      {{ companionStageLabel }}
-                    </span>
-                  </header>
-
-                  <div class="companion-l2d-frame">
-                    <WallpaperL2dCanvas
-                      v-if="companionStageAsset && !companionStage.renderFailed"
-                      :model-url="companionStageAsset.modelUrl"
-                      :model-entry="companionStageAsset.modelEntry"
-                      :fallback-src="companionStageAsset.fallbackSrc"
-                      @error="handleCompanionL2dError"
-                    />
-                    <div v-else class="companion-l2d-empty">
-                      <strong>{{ companionStage.loading ? 'L2D 资源读取中...' : '还没有可用 L2D companion' }}</strong>
-                      <p>
-                        {{
-                          companionStage.errorText ||
-                          '请先在公开首页角色池中准备一个 LIVE2D_PACKAGE，并确保它包含 downloadUrl 与 l2dEntryModelJson。'
-                        }}
-                      </p>
-                    </div>
-                    <div class="companion-stage-glow" aria-hidden="true"></div>
-                  </div>
-
-                  <div class="companion-stage-footer">
-                    <span>{{ companionStageAsset?.title || '等待 L2D 资源' }}</span>
-                    <small v-if="companionStage.lastAssistantMessage">{{ companionStage.lastAssistantMessage }}</small>
-                    <small v-else>当前状态：{{ companionStageLabel }}</small>
-                  </div>
-                </section>
-
-                <AiDialog
-                  :visible="true"
-                  mode="embedded"
-                  chat-mode="companion"
-                  :allowed-modes="conversationAllowedModes"
-                  :open-payload="conversationOpenPayload"
-                  :show-header="false"
-                  :show-close-button="false"
-                  @mode-change="handleConversationModeChange"
-                  @chat-state="handleConversationChatState"
-                />
-              </div>
-
               <AiDialog
-                v-else
                 :visible="true"
                 class="conversation-main"
                 mode="embedded"
@@ -438,7 +367,7 @@
             <div class="side-info-list">
               <article class="side-info-card">
                 <strong>只做地图资源链路</strong>
-                <p>本轮编辑入口只承接上传、解析、预览、挂接，不混入场景运营或 companion 综合配置。</p>
+                <p>本轮编辑入口只承接上传、解析、预览和挂接，不混入场景运营配置。</p>
               </article>
               <article class="side-info-card">
                 <strong>管理员专属入口</strong>
@@ -518,14 +447,6 @@
               >
                 编辑地图
               </button>
-              <button
-                v-if="canOpenCompanion"
-                class="quick-btn primary ripple-trigger"
-                type="button"
-                @click="openCompanionWorkspace"
-              >
-                进入自宅 companion
-              </button>
             </div>
 
             <div class="highlight-list">
@@ -566,7 +487,7 @@
             <p v-else class="side-tip">
               {{
                 isAdminUser
-                  ? '管理员可以从这里直接切入特殊 NPC 或 companion 会话；普通对话模式里仍可切回 normal / tavern。'
+                  ? '管理员可以从这里直接切入特殊 NPC 会话；普通对话模式里仍可切回 normal / tavern。'
                   : '当前是公开漫游视角。你可以浏览场景和 NPC 展示，但特殊 NPC 对话只对管理员开放。'
               }}
             </p>
@@ -584,11 +505,8 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
 import AiDialog from '../components/AiDialog.vue';
 import AiSessionRail from '../components/AiSessionRail.vue';
-import MeguriPage from './MeguriPage.vue';
-import WallpaperL2dCanvas from '../components/WallpaperL2dCanvas.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminTownNpcSession,
@@ -604,7 +522,6 @@ import {
   listLightAppBalanceAccounts,
   listLightAppBalanceSourceAccountStatus
 } from '../services/lightAppsApi';
-import { listPublicHomeRoles } from '../services/wallpaperApi';
 import { openLightAppShellWindow } from '../components/lightapps/lightAppShellStore';
 import {
   BALANCE_SECTION_ACCOUNTS,
@@ -614,11 +531,9 @@ import {
   setBalanceWindowSection
 } from '../components/lightapps/balance/balanceWindowState';
 import { buildAiCapabilityState } from '../utils/aiAuthorizationState';
-import { resolveCompanionStageStatus, selectCompanionL2dAsset } from '../utils/aiCompanionStage';
 import { readGuestLightAppData, readRemoteLightAppCache } from '../utils/lightAppsDataStore';
 
 const auth = useAuthSession();
-const route = useRoute();
 const activePrimaryMode = ref('town');
 const townSubView = ref('map');
 const conversationChatMode = ref('normal');
@@ -635,10 +550,9 @@ const townMap = ref({ scenes: [] });
 const selectedTownSceneCode = ref('');
 const selectedTownScene = ref(null);
 const townAssetEditor = reactive(createTownAssetEditorState());
-const companionStage = reactive(createCompanionStageState());
 
 const STANDARD_CONVERSATION_MODES = ['normal', 'tavern'];
-const ADMIN_CONVERSATION_MODES = ['town_npc', 'companion'];
+const ADMIN_CONVERSATION_MODES = ['town_npc'];
 const FINANCE_TOWN_BUILDING_CODE = 'finance_vault';
 const FINANCE_SOURCE_METAS = Object.freeze([
   { provider: 'qianji', label: '钱迹', hint: '读取你手动导出的 CSV / JSON 账单文件。', tone: 'emerald' }
@@ -737,18 +651,6 @@ function createTownAssetEditorState() {
     selectedFileName: '',
     attachedSceneCode: '',
     preview: null
-  };
-}
-
-function createCompanionStageState() {
-  return {
-    loading: false,
-    loaded: false,
-    status: 'idle',
-    asset: null,
-    errorText: '',
-    renderFailed: false,
-    lastAssistantMessage: ''
   };
 }
 
@@ -1046,20 +948,8 @@ const currentConversationLabel = computed(() => {
   if (conversationChatMode.value === 'town_npc') {
     return '当前对话 · 小镇 NPC';
   }
-  if (conversationChatMode.value === 'companion') {
-    return '当前对话 · 自宅 companion';
-  }
   return '当前对话 · 普通模式';
 });
-
-const isCompanionConversation = computed(() => activePrimaryMode.value === 'conversation' && conversationChatMode.value === 'companion');
-const companionStageAsset = computed(() => companionStage.asset);
-const companionStageLabel = computed(() => {
-  if (companionStage.status === 'thinking') return 'Thinking';
-  if (companionStage.status === 'speaking') return 'Speaking';
-  return 'Idle';
-});
-const canOpenCompanion = computed(() => isAdminUser.value && selectedTownSceneCode.value === 'home_gate');
 
 function activateTownWorkspace(nextSubView = 'map') {
   if (nextSubView === 'editor' && !canManageTownAssets.value) {
@@ -1079,16 +969,10 @@ function activateTownWorkspace(nextSubView = 'map') {
 
 function activateStandardConversation() {
   activePrimaryMode.value = 'conversation';
-  if (conversationChatMode.value === 'town_npc' || conversationChatMode.value === 'companion') {
+  if (conversationChatMode.value === 'town_npc') {
     conversationChatMode.value = 'normal';
   }
   conversationOpenPayload.value = null;
-}
-
-function activateMeguriCompanion() {
-  // 爱莉（Meguri）作为 AI Hub 的管理员专属模式；后端接口本身也有 ADMIN 校验。
-  if (!isAdminUser.value) return;
-  activePrimaryMode.value = 'meguri';
 }
 
 function openConversationWorkspace(mode, payload = null) {
@@ -1108,16 +992,13 @@ function handleConversationModeChange(mode) {
   if (conversationChatMode.value === 'normal' || conversationChatMode.value === 'tavern') {
     conversationOpenPayload.value = null;
   }
-  if (conversationChatMode.value !== 'companion') {
-    resetCompanionStageStatus();
-  }
 }
 
 function resetAdminOnlyWorkspaceState() {
   if (townSubView.value === 'editor') {
     townSubView.value = 'map';
   }
-  if (conversationChatMode.value === 'town_npc' || conversationChatMode.value === 'companion') {
+  if (conversationChatMode.value === 'town_npc') {
     conversationChatMode.value = 'normal';
   }
   if (isAdminOnlyConversationMode(conversationOpenPayload.value?.preferredMode) || isAdminOnlyConversationMode(conversationOpenPayload.value?.mode)) {
@@ -1140,11 +1021,6 @@ async function loadTownScene(sceneCode) {
   }
 }
 
-function resetCompanionStageStatus() {
-  companionStage.status = 'idle';
-  companionStage.lastAssistantMessage = '';
-}
-
 function handleConversationChatState(event) {
   const sessionId = normalizeOptionalText(event?.sessionId);
   if (sessionId && sessionId !== activeConversationSessionId.value) {
@@ -1152,15 +1028,6 @@ function handleConversationChatState(event) {
   }
   if (event?.phase === 'session-ready' || event?.phase === 'assistant-message') {
     void sessionRailRef.value?.refresh?.({ silent: true });
-  }
-
-  if (event?.mode !== 'companion') return;
-  companionStage.status = resolveCompanionStageStatus(event, companionStage.status);
-  if (event?.assistantMessage || event?.assistant_message) {
-    companionStage.lastAssistantMessage = normalizeOptionalText(event.assistantMessage || event.assistant_message).slice(0, 120);
-  }
-  if (event?.phase === 'send-error') {
-    companionStage.lastAssistantMessage = normalizeOptionalText(event.errorText).slice(0, 120);
   }
 }
 
@@ -1208,7 +1075,7 @@ function handleNewConversation() {
   activeConversationSessionId.value = '';
   activePrimaryMode.value = 'conversation';
   const nextMode =
-    conversationChatMode.value === 'town_npc' || conversationChatMode.value === 'companion'
+    conversationChatMode.value === 'town_npc'
       ? conversationChatMode.value
       : resolveConversationMode(conversationChatMode.value);
   conversationOpenPayload.value = {
@@ -1221,34 +1088,6 @@ function handleNewConversation() {
 function handleSessionListChanged(change) {
   if (change?.type === 'deleted' && normalizeOptionalText(change?.sessionId) === activeConversationSessionId.value) {
     handleNewConversation();
-  }
-}
-
-function handleCompanionL2dError(message) {
-  companionStage.renderFailed = true;
-  companionStage.errorText = `L2D companion 渲染失败：${normalizeOptionalText(message) || 'runtime unavailable'}`;
-}
-
-async function loadCompanionStageAssets(force = false) {
-  if (companionStage.loading) return;
-  if (companionStage.loaded && !force) return;
-
-  companionStage.loading = true;
-  companionStage.errorText = '';
-  try {
-    const roles = await listPublicHomeRoles();
-    const preferredAssetId = toNumber(conversationOpenPayload.value?.bootstrap?.config?.avatarAssetId);
-    companionStage.asset = selectCompanionL2dAsset(roles, preferredAssetId);
-    companionStage.renderFailed = false;
-    companionStage.loaded = true;
-    if (!companionStage.asset) {
-      companionStage.errorText = '公开角色池里还没有可渲染的 L2D 资源。';
-    }
-  } catch (error) {
-    companionStage.asset = null;
-    companionStage.errorText = resolveTownError(error);
-  } finally {
-    companionStage.loading = false;
   }
 }
 
@@ -1395,19 +1234,6 @@ async function handleOpenTownNpc(npc) {
   }
 }
 
-function openCompanionWorkspace() {
-  if (!isAdminUser.value) return;
-  openConversationWorkspace('companion', {
-    preferredMode: 'companion',
-    bootstrap: {
-      config: {
-        townRoomCode: 'home',
-        actorCode: 'my_home_ai'
-      }
-    }
-  });
-}
-
 async function jumpToHomeExterior() {
   activateTownWorkspace('map');
   await loadTownScene('home_gate');
@@ -1447,31 +1273,8 @@ function npcAvatarStyle(npc) {
 
 onMounted(async () => {
   await auth.ensureReady();
-  if (route?.query?.mode === 'meguri' && isAdminUser.value) {
-    activePrimaryMode.value = 'meguri';
-  }
   await loadTownExplorer();
 });
-
-watch(
-  () => isAdminUser.value,
-  (admin) => {
-    if (!admin && activePrimaryMode.value === 'meguri') {
-      activePrimaryMode.value = 'town';
-    }
-  }
-);
-
-watch(
-  () => isCompanionConversation.value,
-  (active) => {
-    if (active) {
-      void loadCompanionStageAssets();
-      return;
-    }
-    resetCompanionStageStatus();
-  }
-);
 
 watch(
   () => [auth.isAuthenticated.value, isAdminUser.value],
@@ -1525,14 +1328,16 @@ watch(
 
 .workspace-topbar {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 16px;
   padding-bottom: 2px;
 }
 
 .mode-switch {
-  display: inline-grid;
+  display: grid;
+  flex: 1 1 680px;
+  width: min(100%, 760px);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
@@ -1542,7 +1347,8 @@ watch(
 }
 
 .mode-tab {
-  min-width: 170px;
+  min-width: 0;
+  min-height: 52px;
   border: 0;
   border-radius: 14px;
   padding: 12px 16px;
@@ -1601,8 +1407,7 @@ watch(
   gap: 16px;
 }
 
-.workspace-grid.conversation,
-.workspace-grid.meguri {
+.workspace-grid.conversation {
   grid-template-columns: 1fr;
 }
 

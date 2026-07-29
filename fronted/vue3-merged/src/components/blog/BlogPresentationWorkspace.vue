@@ -1032,6 +1032,73 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+:root[data-theme-mode='day'] .presentation-page {
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .presentation-toolbar,
+:root[data-theme-mode='day'] .presentation-shell,
+:root[data-theme-mode='day'] .presentation-library,
+:root[data-theme-mode='day'] .presentation-sidebar,
+:root[data-theme-mode='day'] .presentation-stage {
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: 0 14px 28px rgba(108, 76, 70, 0.12);
+}
+
+:root[data-theme-mode='day'] .presentation-toolbar-center p,
+:root[data-theme-mode='day'] .library-message,
+:root[data-theme-mode='day'] .library-empty,
+:root[data-theme-mode='day'] .library-item-top,
+:root[data-theme-mode='day'] .library-item p,
+:root[data-theme-mode='day'] .presentation-stage-head,
+:root[data-theme-mode='day'] .presentation-empty {
+  color: var(--theme-text-secondary);
+}
+
+:root[data-theme-mode='day'] .presentation-scope-toggle,
+:root[data-theme-mode='day'] .library-search,
+:root[data-theme-mode='day'] .library-item,
+:root[data-theme-mode='day'] .slide-nav-item,
+:root[data-theme-mode='day'] .presentation-empty,
+:root[data-theme-mode='day'] .mini-btn {
+  background: rgba(255, 253, 250, 0.9);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .library-item.active,
+:root[data-theme-mode='day'] .slide-nav-item.active,
+:root[data-theme-mode='day'] .scope-btn.active {
+  background: rgba(var(--accent-rgb), 0.16);
+  border-color: rgba(var(--accent-strong-rgb), 0.38);
+  color: var(--theme-text-primary);
+  box-shadow: none;
+}
+
+:root[data-theme-mode='day'] .scope-btn,
+:root[data-theme-mode='day'] .library-search input {
+  color: var(--theme-text-primary);
+  -webkit-text-fill-color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .presentation-stage-body :deep(h1),
+:root[data-theme-mode='day'] .presentation-stage-body :deep(h2),
+:root[data-theme-mode='day'] .presentation-stage-body :deep(h3),
+:root[data-theme-mode='day'] .presentation-stage-body :deep(h4),
+:root[data-theme-mode='day'] .presentation-stage-body :deep(p),
+:root[data-theme-mode='day'] .presentation-stage-body :deep(li) {
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .presentation-stage-body.slide-layout-cover :deep(h1),
+:root[data-theme-mode='day'] .presentation-stage-body.slide-layout-center :deep(h1) {
+  background: linear-gradient(120deg, var(--theme-text-primary) 30%, rgba(var(--accent-strong-rgb), 0.98) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 @media (max-width: 1280px) {
   .presentation-toolbar {
     grid-template-columns: minmax(0, 1fr);

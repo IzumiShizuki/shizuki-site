@@ -3,6 +3,7 @@ import {
   __resetApiBaseForTest,
   absolutizeApiUrl,
   getApiBaseUrl,
+  getDefaultApiBaseUrl,
   isNativeAppShell,
   setApiBaseUrl
 } from './apiBase';
@@ -14,9 +15,9 @@ afterEach(() => {
 });
 
 describe('apiBase', () => {
-  it('defaults to same-origin (empty base) on web', () => {
+  it('defaults to the configured environment base on web', () => {
     expect(isNativeAppShell()).toBe(false);
-    expect(getApiBaseUrl()).toBe('');
+    expect(getApiBaseUrl()).toBe(getDefaultApiBaseUrl());
   });
 
   it('keeps urls untouched on web', () => {
@@ -43,6 +44,6 @@ describe('apiBase', () => {
     window.Capacitor = { isNativePlatform: () => true };
     __resetApiBaseForTest();
     setApiBaseUrl('not-a-url');
-    expect(getApiBaseUrl()).toBe('');
+    expect(getApiBaseUrl()).toBe(getDefaultApiBaseUrl());
   });
 });

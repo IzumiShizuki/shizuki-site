@@ -199,6 +199,25 @@ export function normalizeDrawioSnapshot(snapshot) {
   return { xml: EMPTY_DRAWIO_XML, migrated: false };
 }
 
+function normalizeCanvasBackground(value) {
+  return String(value || '').toLowerCase() === 'transparent' ? 'transparent' : 'white';
+}
+
+function readCanvasBackground(xml) {
+  const match = String(xml || '').match(/<mxGraphModel\b[^>]*\sbackground=(?:"([^"]*)"|'([^']*)')/i);
+  const value = String(match?.[1] || match?.[2] || '').toLowerCase();
+  return value === 'none' || value === 'transparent' ? 'transparent' : 'white';
+}
+
+function applyCanvasBackground(xml, background) {
+  const source = String(xml || EMPTY_DRAWIO_XML);
+  const fill = normalizeCanvasBackground(background) === 'transparent' ? 'none' : '#ffffff';
+  return source.replace(/<mxGraphModel\b([^>]*)>/i, (_match, rawAttributes = '') => {
+    const attributes = rawAttributes.replace(/\sbackground=(?:"[^"]*"|'[^']*')/gi, '');
+    return `<mxGraphModel${attributes} background="${fill}">`;
+  });
+}
+
 export function createDrawioEditorUrl(rawUrl, options = {}) {
   const base = String(rawUrl || DEFAULT_EDITOR_URL).trim() || DEFAULT_EDITOR_URL;
   const url = new URL(base, window.location.href);
@@ -282,6 +301,7 @@ export function mountDrawioCanvas(target, options = {}) {
 
   const loadXml = (xml) => {
     currentXml = String(xml || EMPTY_DRAWIO_XML);
+    iframe.style.background = readCanvasBackground(currentXml) === 'transparent' ? 'transparent' : '#ffffff';
     ignoreChangeUntil = Date.now() + 350;
     if (ready) {
       post({
@@ -367,6 +387,14 @@ export function mountDrawioCanvas(target, options = {}) {
     isReady: () => ready && !destroyed,
     getSelectedShapeCount: () => 0,
     getSnapshot: () => ({ version: 1, engine: DRAWIO_ENGINE, format: 'xml', xml: currentXml }),
+    getBackground: () => readCanvasBackground(currentXml),
+    setBackground(background) {
+      const normalizedBackground = normalizeCanvasBackground(background);
+      const nextXml = applyCanvasBackground(currentXml, normalizedBackground);
+      const changed = nextXml !== currentXml;
+      if (changed) loadXml(nextXml);
+      return { changed, background: normalizedBackground };
+    },
     loadSnapshot(snapshot) {
       const normalized = normalizeDrawioSnapshot(snapshot);
       loadXml(normalized.xml);
@@ -429,5 +457,6 @@ export const __TEST__ = {
   escapeXml,
   sanitizeFileName,
   vertexXml,
-  edgeXml
+  edgeXml,
+  applyCanvasBackground
 };

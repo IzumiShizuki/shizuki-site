@@ -114,7 +114,7 @@
     <p v-else-if="infoText" class="info-text">{{ infoText }}</p>
     <p class="status-text">{{ statusText }}</p>
 
-    <section class="canvas-shell liquid-material">
+    <section class="canvas-shell liquid-material" :data-canvas-background="pngBackground">
       <div ref="canvasMountRef" class="canvas-host"></div>
       <div v-if="boardCanvasFailed" class="canvas-unavailable">
         <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
@@ -446,11 +446,13 @@ async function loadBoardIntoCanvas(boardId) {
 
     if (parsed.snapshot) {
       const loadResult = boardBridge.api.loadSnapshot(parsed.snapshot);
+      pngBackground.value = boardBridge.api.getBackground();
       if (loadResult?.migrated) {
         setInfo('旧白板已转换为可编辑的 draw.io 图形，原快照会作为迁移备份保留。');
       }
     } else {
       boardBridge.api.clear();
+      pngBackground.value = boardBridge.api.getBackground();
     }
     dirty.value = false;
   } catch (error) {
@@ -788,6 +790,17 @@ async function sendEmbedToBlog() {
 }
 
 watch(
+  () => pngBackground.value,
+  (next) => {
+    if (!boardBridge?.api?.isReady() || boardLoading.value || switchingBoard) return;
+    const result = boardBridge.api.setBackground(next);
+    if (!result?.changed) return;
+    syncSnapshotFromCanvas();
+    setInfo(next === 'transparent' ? '画布已切换为透明背景' : '画布已切换为白色背景');
+  }
+);
+
+watch(
   () => activeBoardKind.value,
   (next) => {
     const board = activeBoard.value;
@@ -1004,6 +1017,17 @@ onBeforeUnmount(() => {
   box-shadow: 0 10px 30px rgba(18, 26, 44, 0.16);
 }
 
+.canvas-shell[data-canvas-background='transparent'] {
+  background-color: #f7f3ef;
+  background-image:
+    linear-gradient(45deg, rgba(116, 92, 86, 0.1) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(116, 92, 86, 0.1) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(116, 92, 86, 0.1) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(116, 92, 86, 0.1) 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
 .canvas-host {
   position: relative;
   width: 100%;
@@ -1054,6 +1078,38 @@ onBeforeUnmount(() => {
   color: rgba(31, 35, 41, 0.82);
   font-size: 13px;
   z-index: 3;
+}
+
+:root[data-theme-mode='day'] .canvas-toolbar,
+:root[data-theme-mode='day'] .rename-panel {
+  background: var(--theme-panel-surface-elevated);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .board-picker,
+:root[data-theme-mode='day'] .kind-picker,
+:root[data-theme-mode='day'] .drawio-engine-badge {
+  background: rgba(255, 253, 250, 0.88);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .board-picker span,
+:root[data-theme-mode='day'] .kind-picker span,
+:root[data-theme-mode='day'] .board-picker select,
+:root[data-theme-mode='day'] .kind-picker select,
+:root[data-theme-mode='day'] .rename-panel label,
+:root[data-theme-mode='day'] .status-text {
+  color: var(--theme-text-primary);
+  -webkit-text-fill-color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .canvas-toolbar .icon-btn,
+:root[data-theme-mode='day'] .rename-panel .icon-btn {
+  background: var(--theme-surface-soft) !important;
+  border-color: var(--theme-border) !important;
+  color: var(--theme-icon-primary) !important;
 }
 
 @container lightapp-window-body (max-width: 980px) {

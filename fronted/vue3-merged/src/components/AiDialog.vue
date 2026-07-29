@@ -58,9 +58,22 @@
         <div class="summary-pills">
           <span class="summary-pill">{{ auth.isAuthenticated.value ? '已登录会话' : '游客临时会话' }}</span>
           <span v-if="quotaLabel" class="summary-pill accent">{{ quotaLabel }}</span>
+          <button
+            v-if="hasModeConfig"
+            class="mode-config-trigger ripple-trigger"
+            :class="{ active: modeConfigOpen }"
+            data-testid="mode-config-trigger"
+            type="button"
+            :aria-expanded="modeConfigOpen"
+            @click="modeConfigOpen = !modeConfigOpen"
+          >
+            <i class="fas fa-sliders" aria-hidden="true"></i>
+            {{ modeConfigOpen ? '收起配置' : '打开配置' }}
+          </button>
         </div>
       </section>
 
+      <div v-if="modeConfigOpen" class="mode-config-drawer-stack subtle-scroll-area axis-y">
       <section v-if="activeChatMode === 'tavern'" class="mode-config liquid-material">
         <div class="config-field config-field-full config-toolbar">
           <div>
@@ -371,13 +384,9 @@
         </div>
       </section>
 
-      <section v-else class="mode-note">
-        <p>{{ activeModeMeta.note }}</p>
-      </section>
-
       <section
         v-if="(activeChatMode === 'town_npc' || activeChatMode === 'companion') && auth.isAuthenticated.value && isAdminUser"
-        class="mode-config liquid-material scene-memory-config config-accordion"
+        class="mode-config memory-config-drawer liquid-material scene-memory-config config-accordion"
         :class="{ collapsed: !memoryScopeOpen }"
       >
         <div class="config-field config-field-full config-toolbar accordion-head">
@@ -484,6 +493,11 @@
           </div>
           </template>
         </div>
+      </section>
+      </div>
+
+      <section v-else class="mode-note">
+        <p>{{ activeModeMeta.note }}</p>
       </section>
 
       <div ref="chatStreamRef" class="chat-stream" @scroll.passive="handleChatScroll">
@@ -1021,7 +1035,8 @@ const quota = ref(null);
 const tavernAssets = reactive(createTavernAssetsState());
 const companionProfile = reactive(createCompanionProfileState());
 const memoryScope = reactive(createMemoryScopeState());
-// 配置类面板默认折叠，把纵向空间留给聊天流；未配置 / 出错时再自动展开。
+// 配置从聊天流中抽离为按需抽屉，避免酒馆与 NPC 模式持续挤压消息区域。
+const modeConfigOpen = ref(false);
 const companionConfigOpen = ref(false);
 const memoryScopeOpen = ref(false);
 const sessionStateByMode = reactive({
@@ -1056,6 +1071,7 @@ const visibleChatModeOptions = computed(() =>
   CHAT_MODE_OPTIONS.filter((item) => allowedChatModes.value.includes(item.value) && (!item.hidden || isAdminUser.value))
 );
 const activeModeMeta = computed(() => CHAT_MODE_OPTIONS.find((item) => item.value === activeChatMode.value) || CHAT_MODE_OPTIONS[0]);
+const hasModeConfig = computed(() => ['tavern', 'town_npc', 'companion'].includes(activeChatMode.value));
 const aiCapabilityState = computed(() =>
   buildAiCapabilityState({
     authenticated: auth.isAuthenticated.value,
@@ -1223,6 +1239,7 @@ watch(
 watch(
   () => activeChatMode.value,
   async (mode) => {
+    modeConfigOpen.value = false;
     emit('mode-change', mode);
     if ((mode === 'tavern' || mode === 'companion') && auth.isAuthenticated.value) {
       await ensureTavernAssetsLoaded();
@@ -1254,6 +1271,7 @@ watch(
   () => {
     if (activeChatMode.value !== 'companion' || companionProfile.loading) return;
     if (!normalizeOptionalText(sessionStateByMode.companion.config.displayName)) {
+      modeConfigOpen.value = true;
       companionConfigOpen.value = true;
     }
   },
@@ -2280,6 +2298,32 @@ function messageRoleLabel(role) {
   color: rgba(255, 255, 255, 0.96);
 }
 
+.mode-config-trigger {
+  min-height: 30px;
+  padding: 6px 11px;
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: rgba(244, 248, 255, 0.92);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.mode-config-trigger:hover,
+.mode-config-trigger.active {
+  transform: translateY(-1px);
+  border-color: rgba(var(--accent-rgb), 0.46);
+  background: rgba(var(--accent-rgb), 0.22);
+}
+
+.mode-config-drawer-stack {
+  display: grid;
+  gap: 12px;
+}
+
 .mode-config {
   border-radius: 18px;
   padding: 14px;
@@ -3087,6 +3131,110 @@ function messageRoleLabel(role) {
   opacity: 0.54;
 }
 
+:root[data-theme-mode='day'] .ai-dialog {
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: 0 18px 40px rgba(108, 76, 70, 0.14);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .mode-chip,
+:root[data-theme-mode='day'] .session-summary,
+:root[data-theme-mode='day'] .mode-note,
+:root[data-theme-mode='day'] .mode-config,
+:root[data-theme-mode='day'] .chat-input-wrap,
+:root[data-theme-mode='day'] .empty-state,
+:root[data-theme-mode='day'] .chat-bubble,
+:root[data-theme-mode='day'] .worldbook-option,
+:root[data-theme-mode='day'] .management-shell {
+  background: var(--theme-panel-surface-elevated) !important;
+  border-color: var(--theme-border) !important;
+}
+
+:root[data-theme-mode='day'] .snapshot-card,
+:root[data-theme-mode='day'] .management-card {
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: none;
+}
+
+:root[data-theme-mode='day'] .mode-chip.active,
+:root[data-theme-mode='day'] .chat-row.user .chat-bubble {
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(255, 253, 250, 0.92)) !important;
+  border-color: rgba(var(--accent-strong-rgb), 0.36) !important;
+}
+
+:root[data-theme-mode='day'] .dialog-title span,
+:root[data-theme-mode='day'] .mode-chip,
+:root[data-theme-mode='day'] .summary-copy strong,
+:root[data-theme-mode='day'] .summary-pill,
+:root[data-theme-mode='day'] .config-title,
+:root[data-theme-mode='day'] .config-field span,
+:root[data-theme-mode='day'] .config-toggle span,
+:root[data-theme-mode='day'] .management-shell summary,
+:root[data-theme-mode='day'] .management-card strong,
+:root[data-theme-mode='day'] .snapshot-card strong,
+:root[data-theme-mode='day'] .worldbook-option span,
+:root[data-theme-mode='day'] .empty-state strong,
+:root[data-theme-mode='day'] .chat-bubble p,
+:root[data-theme-mode='day'] .bubble-plain,
+:root[data-theme-mode='day'] .bubble-markdown {
+  color: var(--theme-text-primary) !important;
+}
+
+:root[data-theme-mode='day'] .dialog-title small,
+:root[data-theme-mode='day'] .mode-chip small,
+:root[data-theme-mode='day'] .summary-copy p,
+:root[data-theme-mode='day'] .config-helper,
+:root[data-theme-mode='day'] .config-inline-tip,
+:root[data-theme-mode='day'] .accordion-hint,
+:root[data-theme-mode='day'] .worldbook-option small,
+:root[data-theme-mode='day'] .picker-empty,
+:root[data-theme-mode='day'] .management-card span,
+:root[data-theme-mode='day'] .mode-note p,
+:root[data-theme-mode='day'] .empty-state p,
+:root[data-theme-mode='day'] .snapshot-card p,
+:root[data-theme-mode='day'] .snapshot-list,
+:root[data-theme-mode='day'] .bubble-meta,
+:root[data-theme-mode='day'] .bubble-time {
+  color: var(--theme-text-secondary) !important;
+}
+
+:root[data-theme-mode='day'] .config-field input,
+:root[data-theme-mode='day'] .config-field textarea,
+:root[data-theme-mode='day'] .config-select,
+:root[data-theme-mode='day'] .management-card input,
+:root[data-theme-mode='day'] .management-card textarea,
+:root[data-theme-mode='day'] .chat-input {
+  background: rgba(255, 253, 250, 0.92) !important;
+  border-color: var(--theme-border) !important;
+  color: var(--theme-text-primary) !important;
+  -webkit-text-fill-color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .mode-config-trigger,
+:root[data-theme-mode='day'] .mini-action,
+:root[data-theme-mode='day'] .management-btn,
+:root[data-theme-mode='day'] .toolbar-btn,
+:root[data-theme-mode='day'] .icon-btn {
+  color: var(--theme-text-primary) !important;
+  background: rgba(var(--accent-rgb), 0.15) !important;
+  border-color: rgba(var(--accent-strong-rgb), 0.3) !important;
+}
+
+:root[data-theme-mode='day'] .chat-avatar.user {
+  color: var(--theme-icon-primary);
+  background: var(--theme-surface-soft);
+  border-color: var(--theme-border);
+}
+
+:root[data-theme-mode='day'] .bubble-markdown :deep(h1),
+:root[data-theme-mode='day'] .bubble-markdown :deep(h2),
+:root[data-theme-mode='day'] .bubble-markdown :deep(h3),
+:root[data-theme-mode='day'] .bubble-markdown :deep(h4) {
+  color: var(--theme-text-primary);
+}
+
 @keyframes ai-typing {
   0%,
   80%,
@@ -3104,14 +3252,16 @@ function messageRoleLabel(role) {
 @media (min-width: 901px) {
   .mode-embedded .ai-dialog {
     display: grid;
-    grid-template-columns: minmax(0, 1.68fr) minmax(300px, 0.92fr);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      'header header'
-      'switch switch'
-      'summary summary'
-      'chat side'
-      'error side'
-      'input side';
+      'header'
+      'switch'
+      'summary'
+      'note'
+      'chat'
+      'error'
+      'input';
+    grid-template-rows: auto auto auto auto minmax(360px, 1fr) auto auto;
     align-content: start;
   }
 
@@ -3121,19 +3271,19 @@ function messageRoleLabel(role) {
 
   .mode-embedded .mode-switcher {
     grid-area: switch;
-    max-width: 420px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .mode-embedded .session-summary {
     grid-area: summary;
+    position: relative;
+    z-index: 22;
   }
 
-  .mode-embedded .mode-config,
   .mode-embedded .mode-note {
-    grid-area: side;
-    align-self: stretch;
-    height: 100%;
+    grid-area: note;
   }
 
   .mode-embedded .mode-note {
@@ -3143,9 +3293,27 @@ function messageRoleLabel(role) {
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
+  .mode-embedded .mode-config-drawer-stack {
+    position: absolute;
+    z-index: 20;
+    top: 176px;
+    right: 18px;
+    bottom: 18px;
+    width: min(480px, calc(100% - 36px));
+    padding: 12px;
+    align-content: start;
+    overflow: auto;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 22px;
+    background: linear-gradient(170deg, rgba(25, 34, 50, 0.97), rgba(13, 20, 32, 0.96));
+    box-shadow: -18px 20px 44px rgba(4, 7, 16, 0.34);
+    backdrop-filter: blur(22px) saturate(126%);
+    -webkit-backdrop-filter: blur(22px) saturate(126%);
+  }
+
   .mode-embedded .chat-stream {
     grid-area: chat;
-    min-height: clamp(320px, 44vh, 620px);
+    min-height: clamp(380px, 50vh, 680px);
     padding-right: 10px;
   }
 
@@ -3170,6 +3338,12 @@ function messageRoleLabel(role) {
   .mode-embedded .chat-stream {
     padding-right: 6px;
   }
+}
+
+:root[data-theme-mode='day'] .mode-embedded .mode-config-drawer-stack {
+  background: linear-gradient(165deg, rgba(255, 253, 250, 0.98), rgba(250, 241, 239, 0.97));
+  border-color: var(--theme-border);
+  box-shadow: -16px 20px 42px rgba(108, 76, 70, 0.16);
 }
 
 @media (max-width: 900px) {

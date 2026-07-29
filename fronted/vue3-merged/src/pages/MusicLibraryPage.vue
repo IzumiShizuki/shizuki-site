@@ -2604,4 +2604,37 @@ onBeforeUnmount(() => {
   background: rgba(255, 152, 183, 0.24);
   color: rgba(255, 242, 247, 0.96);
 }
+
+:root[data-theme-mode='day'] .music-library-page {
+  --theme-text-primary: rgba(64, 44, 42, 0.95);
+  --theme-text-secondary: rgba(102, 74, 70, 0.88);
+  --theme-text-tertiary: rgba(140, 106, 100, 0.76);
+  --theme-icon-primary: rgba(88, 58, 56, 0.9);
+  --theme-panel-surface: linear-gradient(155deg, rgba(255, 252, 248, 0.97), rgba(250, 242, 240, 0.94));
+  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(252, 244, 242, 0.95));
+  --theme-surface-soft: rgba(120, 84, 80, 0.08);
+  --theme-surface-strong: rgba(255, 250, 246, 0.94);
+  --theme-border: rgba(178, 122, 122, 0.28);
+  --theme-border-strong: rgba(168, 108, 108, 0.38);
+  --music-soft-text: rgba(64, 44, 42, 0.95);
+  --music-soft-text-muted: rgba(102, 74, 70, 0.86);
+  --music-soft-text-dim: rgba(140, 106, 100, 0.74);
+  --music-soft-fill: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(252, 242, 240, 0.82));
+  --music-soft-fill-hover: linear-gradient(145deg, rgba(255, 244, 239, 0.98), rgba(250, 234, 232, 0.9));
+  --music-soft-border: rgba(178, 122, 122, 0.24);
+  --music-soft-border-strong: rgba(168, 108, 108, 0.36);
+  --music-soft-shadow: 0 8px 20px rgba(108, 76, 70, 0.1);
+  --music-active-fill: linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(255, 253, 250, 0.92));
+  --music-accent-text: rgba(64, 44, 42, 0.95);
+  --music-accent-text-muted: rgba(102, 74, 70, 0.82);
+}
+
+:root[data-theme-mode='day'] .music-library-page :deep(.music-left-sidebar),
+:root[data-theme-mode='day'] .music-library-page :deep(.music-right-panel),
+:root[data-theme-mode='day'] .music-library-page :deep(.music-library-dock),
+:root[data-theme-mode='day'] .music-library-page :deep(.dock-queue) {
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  color: var(--theme-text-primary);
+}
 </style>

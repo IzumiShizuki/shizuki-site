@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  __TEST__,
   EMPTY_DRAWIO_XML,
   createDrawioEditorUrl,
   legacySnapshotToDrawioXml,
@@ -63,6 +64,15 @@ describe('drawioBoardBridge', () => {
 
   it('returns an empty native document for missing content', () => {
     expect(normalizeDrawioSnapshot(null)).toEqual({ xml: EMPTY_DRAWIO_XML, migrated: false });
+  });
+
+  it('applies white and transparent canvas backgrounds to the current document', () => {
+    const transparent = __TEST__.applyCanvasBackground(EMPTY_DRAWIO_XML, 'transparent');
+    const white = __TEST__.applyCanvasBackground(transparent, 'white');
+
+    expect(transparent).toContain('background="none"');
+    expect(white).toContain('background="#ffffff"');
+    expect(white).not.toContain('background="none"');
   });
 
   it('migrates old tldraw store snapshots before creating draw.io XML', () => {

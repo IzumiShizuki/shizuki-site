@@ -1,5 +1,5 @@
 <template>
-  <section class="lightapp-window">
+  <section class="lightapp-window balance-ledger-window">
     <LightAppTopToolbar :window-id="props.windowId">
         <div class="toolbar-switches with-divider" role="tablist" aria-label="Balance sections">
           <button
@@ -4083,6 +4083,60 @@ onBeforeUnmount(() => {
   .ledger-summary-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+:root[data-theme-mode='day'] .balance-ledger-window {
+  --glass-rgb: 255, 250, 246;
+  --la-border: var(--theme-border);
+  --la-input-bg: rgba(255, 253, 250, 0.94);
+  --la-btn-bg: rgba(252, 241, 238, 0.94);
+  --la-panel-bg: rgba(255, 252, 248, 0.94);
+  --la-card-bg: rgba(255, 253, 250, 0.96);
+  --la-text: rgba(64, 44, 42, 0.95);
+  --la-muted: rgba(112, 82, 78, 0.8);
+  --theme-text-primary: var(--la-text);
+  --theme-text-secondary: var(--la-muted);
+  --theme-icon-primary: rgba(88, 58, 56, 0.9);
+  --theme-border: rgba(178, 122, 122, 0.3);
+  --theme-border-strong: rgba(168, 108, 108, 0.42);
+  --theme-divider-soft: rgba(170, 120, 118, 0.22);
+  --theme-surface-soft: rgba(120, 84, 80, 0.08);
+  --theme-surface-elevated: rgba(255, 253, 250, 0.96);
+  --theme-panel-surface: linear-gradient(155deg, rgba(255, 252, 248, 0.96), rgba(250, 242, 240, 0.92));
+  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(252, 244, 242, 0.94));
+  --theme-floating-surface: rgba(255, 251, 247, 0.94);
+  --theme-floating-surface-hover: rgba(255, 238, 232, 0.96);
+  color: var(--la-text);
+  background:
+    radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(249, 241, 238, 0.96));
+}
+
+:root[data-theme-mode='day'] .balance-ledger-window .icon-btn,
+:root[data-theme-mode='day'] .balance-ledger-window .text-btn,
+:root[data-theme-mode='day'] .balance-ledger-window .filter-chip,
+:root[data-theme-mode='day'] .balance-ledger-window .source-file-input::file-selector-button {
+  background: var(--la-btn-bg);
+  border-color: var(--la-border);
+  color: var(--la-text);
+}
+
+:root[data-theme-mode='day'] .balance-ledger-window .source-guide-step,
+:root[data-theme-mode='day'] .balance-ledger-window .source-card.provider-qianji,
+:root[data-theme-mode='day'] .balance-ledger-window .source-file-input,
+:root[data-theme-mode='day'] .balance-ledger-window .source-warning-list,
+:root[data-theme-mode='day'] .balance-ledger-window .savings-meta span,
+:root[data-theme-mode='day'] .balance-ledger-window .compact-list li,
+:root[data-theme-mode='day'] .balance-ledger-window .ledger-summary-grid span {
+  background: var(--la-card-bg);
+  border-color: var(--la-border);
+  color: var(--la-text);
+}
+
+:root[data-theme-mode='day'] .balance-ledger-window input,
+:root[data-theme-mode='day'] .balance-ledger-window select,
+:root[data-theme-mode='day'] .balance-ledger-window textarea {
+  color-scheme: light;
 }
 
 @media (prefers-reduced-motion: reduce) {

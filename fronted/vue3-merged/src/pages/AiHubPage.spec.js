@@ -244,6 +244,21 @@ describe('AiHubPage', () => {
     expect(wrapper.text()).not.toContain('编辑地图');
   });
 
+  it('keeps the home companion out of the AI Hub for admin users', async () => {
+    mocked.auth = createAuth(['ADMIN']);
+
+    const wrapper = await mountPage();
+    const conversationButton = findButtonByText(wrapper, '普通对话模式');
+
+    expect(wrapper.text()).not.toContain('爱莉伴聊');
+    expect(conversationButton).toBeTruthy();
+    await conversationButton.trigger('click');
+    await flushPromises();
+
+    const dialog = wrapper.findComponent(AiDialogStub);
+    expect(dialog.props('allowedModes')).toEqual(['normal', 'tavern', 'town_npc']);
+  });
+
   it('shows fixed empty-preview feedback for admin scene refresh 404', async () => {
     mocked.auth = createAuth(['ADMIN']);
     mocked.previewAdminAiTownAsset

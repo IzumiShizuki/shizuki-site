@@ -602,6 +602,45 @@ defineExpose({
   text-align: center;
 }
 
+:root[data-theme-mode='day'] .rail-editor {
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .rail-head h3,
+:root[data-theme-mode='day'] .rail-item,
+:root[data-theme-mode='day'] .collection-zone-head h4,
+:root[data-theme-mode='day'] .collection-toggle,
+:root[data-theme-mode='day'] .collection-item {
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .rail-head span,
+:root[data-theme-mode='day'] .rail-empty,
+:root[data-theme-mode='day'] .collection-zone-head span,
+:root[data-theme-mode='day'] .collection-empty {
+  color: var(--theme-text-secondary);
+}
+
+:root[data-theme-mode='day'] .rail-slot,
+:root[data-theme-mode='day'] .rail-slot.enabled,
+:root[data-theme-mode='day'] .collection-zone,
+:root[data-theme-mode='day'] .collection-folder,
+:root[data-theme-mode='day'] .collection-toggle,
+:root[data-theme-mode='day'] .collection-item,
+:root[data-theme-mode='day'] .collection-rename-row input {
+  background: rgba(255, 253, 250, 0.86);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .slot-remove,
+:root[data-theme-mode='day'] .collection-rename-btn {
+  background: var(--theme-surface-soft);
+  color: var(--theme-icon-primary);
+}
+
 @media (max-width: 980px) {
   .rail-editor {
     width: 100%;

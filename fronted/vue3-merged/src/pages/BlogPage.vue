@@ -3449,23 +3449,48 @@ onBeforeUnmount(() => {
 }
 
 .mine-item {
+  position: relative;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.14);
-  padding: 8px;
+  background: rgba(255, 255, 255, 0.045) !important;
+  padding: 8px 8px 8px 10px;
   text-align: left;
   display: grid;
   gap: 3px;
+  box-shadow: none !important;
+}
+
+.mine-item::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: rgb(var(--accent-strong-rgb));
+  opacity: 0;
+  transition: opacity 0.18s ease;
 }
 
 .mine-item.active {
-  border-color: rgba(var(--accent-rgb), 0.58);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.5);
+  border-color: rgba(var(--accent-rgb), 0.28) !important;
+  background: rgba(var(--accent-rgb), 0.1) !important;
+  color: var(--theme-text-primary) !important;
+  text-shadow: none !important;
+}
+
+.mine-item.active::before {
+  opacity: 0.82;
 }
 
 .mine-title {
   font-size: 13px;
-  color: rgba(244, 248, 255, 0.95);
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.95)) !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -5106,6 +5131,55 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 16px;
   color: rgba(255, 212, 220, 0.95);
+}
+
+:root[data-theme-mode='day'] .blog-page {
+  --blog-panel-surface: linear-gradient(155deg, rgba(255, 252, 248, 0.97), rgba(250, 242, 240, 0.94));
+  --blog-panel-surface-elevated: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(252, 244, 242, 0.95));
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .blog-page .toolbar,
+:root[data-theme-mode='day'] .blog-page .left-panel,
+:root[data-theme-mode='day'] .blog-page .center-panel,
+:root[data-theme-mode='day'] .blog-page .right-panel {
+  --liquid-bg: var(--blog-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: 0 14px 28px rgba(108, 76, 70, 0.1);
+}
+
+:root[data-theme-mode='day'] .blog-page .switch-btn,
+:root[data-theme-mode='day'] .blog-page .chip-btn,
+:root[data-theme-mode='day'] .blog-page .mini-btn {
+  background: rgba(255, 253, 250, 0.9);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+:root[data-theme-mode='day'] .blog-page .switch-btn.active,
+:root[data-theme-mode='day'] .blog-page .chip-btn.active,
+:root[data-theme-mode='day'] .blog-page .mini-btn.active {
+  background: rgba(var(--accent-rgb), 0.14) !important;
+  border-color: rgba(var(--accent-strong-rgb), 0.32) !important;
+  color: var(--theme-text-primary) !important;
+  box-shadow: none;
+  text-shadow: none !important;
+}
+
+:root[data-theme-mode='day'] .blog-page .side-block h2,
+:root[data-theme-mode='day'] .blog-page .policy-block p,
+:root[data-theme-mode='day'] .blog-page .side-tip {
+  color: var(--theme-text-secondary);
+}
+
+:root[data-theme-mode='day'] .blog-page .mine-item {
+  background: rgba(120, 84, 80, 0.045) !important;
+  border-color: rgba(178, 122, 122, 0.2) !important;
+}
+
+:root[data-theme-mode='day'] .blog-page .mine-item.active {
+  background: rgba(var(--accent-rgb), 0.1) !important;
+  border-color: rgba(var(--accent-strong-rgb), 0.26) !important;
 }
 
 @media (max-width: 1365px) {

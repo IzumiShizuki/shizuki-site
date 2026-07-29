@@ -143,6 +143,22 @@ describe('AiDialog', () => {
     expect(wrapper.text()).not.toContain('自宅');
   });
 
+  it('opens tavern configuration on demand instead of occupying the chat column', async () => {
+    const wrapper = await mountDialog({
+      chatMode: 'tavern',
+      allowedModes: ['normal', 'tavern']
+    });
+
+    expect(wrapper.find('.mode-config').exists()).toBe(false);
+    const trigger = wrapper.get('[data-testid="mode-config-trigger"]');
+    expect(trigger.text()).toContain('打开配置');
+
+    await trigger.trigger('click');
+
+    expect(wrapper.find('.mode-config').exists()).toBe(true);
+    expect(trigger.text()).toContain('收起配置');
+  });
+
   it('creates town npc sessions through the admin endpoint instead of generic create', async () => {
     mocked.auth = createAuth(['ADMIN']);
     mocked.createAdminTownNpcSession.mockResolvedValue({
