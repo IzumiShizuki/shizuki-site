@@ -67,7 +67,7 @@ npm run dev
    素材为游戏解包立绘，只经 ADMIN 鉴权接口下发，勿放公开静态目录。
 2. **配置 `deploy/.env.server`**：参照 `.env.server.example` 新增 `MEGURI_*` 变量；
    `MEGURI_CORE_TOKEN` 填 meguri-core 接受的共享 Token（与桌宠端同源，不入 Git）。
-3. **发布**：正常走 `deploy/update-code-and-deploy.bat`（backend 与 site 镜像都会重建，
+3. **发布**：正常走 `build-push-deploy.bat`（backend 与 site 镜像都会重建，
    nginx 新增的 meguri location 随 site 镜像生效）。
 4. **验收**：
    - 未登录访问 `/meguri` → 跳转登录；非 ADMIN → 跳回 profile。

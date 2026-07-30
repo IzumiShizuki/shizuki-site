@@ -5,9 +5,8 @@
 ## 保留的主要入口
 
 - 前端目录：`fronted/vue3-merged`
-- 前端启动：`fronted/start_frontend.bat`
-- 服务器部署：`deploy/update-code-and-deploy.bat`
-- 服务器重启：`deploy/restart-only.bat`
+- 本地启动：`start-local.bat`
+- 构建、推送并部署：`build-push-deploy.bat`
 
 ## 项目结构
 
@@ -18,7 +17,7 @@
 - `fronted/vue3-merged`
   - 前端工程
 - `deploy`
-  - 服务器部署文件
+  - 服务器 Compose 配置和发布运行时
 - `docker`
   - Dockerfile 集中目录
 

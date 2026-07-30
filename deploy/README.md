@@ -1,20 +1,17 @@
-# Server Deploy
+# Server Deployment Runtime
 
-## Main entry points
+## Main entry point
 
-- Double click `deploy/update-code-and-deploy.bat`
-  - Upload the current project to `111.228.35.186:/opt/shizuki-site`
-  - Keep `deploy/.env.server` and `data/` on the server
-  - Trigger the remote rebuild runner and wait for the final result
-- Double click `deploy/restart-only.bat`
-  - Restart the existing containers on the server
-  - Do not upload code
-  - Do not rebuild images
+- Double click `../build-push-deploy.bat`
+  - Requires a clean, committed worktree
+  - Pulls the current branch, runs frontend tests and the production build
+  - Requests confirmation, then pushes to `origin` and deploys to `111.228.35.186:/opt/shizuki-site`
+  - Keeps `deploy/.env.server` and `data/` on the server
 
 ## Runtime
 
-- Both BAT files now call `deploy/server_deploy.py`
-- They no longer depend on WSL, Git Bash, `sshpass`, or local `rsync`
+- `server_deploy_fast.py` performs the Windows-native incremental upload and remote rebuild
+- It does not depend on WSL, Git Bash, `sshpass`, or local `rsync`
 - Required local runtime: `D:\environment\anaconda3\envs\py314\python.exe`
 
 ## Manual fallback

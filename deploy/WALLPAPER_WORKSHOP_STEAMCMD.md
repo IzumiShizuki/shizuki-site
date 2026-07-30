@@ -30,7 +30,7 @@
 - 关闭安装：构建时传 `--build-arg INSTALL_STEAMCMD=false`
 - 下载源替换（网络不通时）：`--build-arg STEAMCMD_TARBALL_URL=<镜像地址>`
 
-重新构建部署（本地双击 `deploy/update-code-and-deploy.bat`，或服务器上手动）：
+重新构建部署（本地双击 `build-push-deploy.bat`，或服务器上手动）：
 
 ```bash
 cd /opt/shizuki-site/deploy
