@@ -300,6 +300,7 @@ shizuki:
         workshop-browse-base-url: ${WALLPAPER_WORKSHOP_BROWSE_BASE_URL:https://steamcommunity.com}
         steam-api-base-url: ${WALLPAPER_STEAM_API_BASE_URL:https://api.steampowered.com}
         steam-api-key: ${WALLPAPER_STEAM_API_KEY:}
+        proxy-url: ${WALLPAPER_DISCOVERY_PROXY_URL:}
         wallhaven-base-url: ${WALLPAPER_WALLHAVEN_BASE_URL:https://wallhaven.cc}
         wallhaven-api-key: ${WALLPAPER_WALLHAVEN_API_KEY:}
         request-timeout-seconds: ${WALLPAPER_DISCOVERY_TIMEOUT_SECONDS:15}

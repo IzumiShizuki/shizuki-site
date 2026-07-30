@@ -24,8 +24,12 @@ import org.springframework.util.StringUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Authenticator;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.net.PasswordAuthentication;
+import java.net.ProxySelector;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -81,10 +85,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         this.mediaStorageProperties = mediaStorageProperties;
         this.wallpaperService = wallpaperService;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
+        this.httpClient = createHttpClient();
     }
 
     @Override
@@ -398,6 +399,21 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
                 .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
     }
 
+    private HttpClient createHttpClient() {
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(Math.max(5, discoveryProperties.getRequestTimeoutSeconds())))
+                .followRedirects(HttpClient.Redirect.NORMAL);
+        ProxyEndpoint proxy = parseProxyEndpoint(discoveryProperties.getProxyUrl());
+        if (proxy == null) {
+            return builder.build();
+        }
+        builder.proxy(ProxySelector.of(proxy.address()));
+        if (proxy.hasCredentials()) {
+            builder.authenticator(new ProxyAuthenticator(proxy));
+        }
+        return builder.build();
+    }
+
     private <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> handler) {
         try {
             return httpClient.send(request, handler);
@@ -501,5 +517,92 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
 
     private String readString(String value, String defaultValue) {
         return value == null ? defaultValue : value;
+    }
+
+    static ProxyEndpoint parseProxyEndpoint(String value) {
+        String rawValue = readStaticString(value).trim();
+        if (!StringUtils.hasText(rawValue)) {
+            return null;
+        }
+        URI uri;
+        try {
+            uri = URI.create(rawValue);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Wallpaper discovery proxy URL is invalid", exception);
+        }
+        if (!"http".equalsIgnoreCase(uri.getScheme()) || !StringUtils.hasText(uri.getHost())
+                || StringUtils.hasText(uri.getRawQuery()) || StringUtils.hasText(uri.getRawFragment())) {
+            throw new IllegalArgumentException("Wallpaper discovery proxy URL must be an HTTP URL without query or fragment");
+        }
+        String path = readStaticString(uri.getPath());
+        if (StringUtils.hasText(path) && !"/".equals(path)) {
+            throw new IllegalArgumentException("Wallpaper discovery proxy URL must not contain a path");
+        }
+        int port = uri.getPort() == -1 ? 80 : uri.getPort();
+        if (port < 1 || port > 65535) {
+            throw new IllegalArgumentException("Wallpaper discovery proxy port is invalid");
+        }
+        String userInfo = uri.getUserInfo();
+        if (!StringUtils.hasText(userInfo)) {
+            return new ProxyEndpoint(InetSocketAddress.createUnresolved(uri.getHost(), port), "", new char[0]);
+        }
+        int delimiter = userInfo.indexOf(':');
+        if (delimiter <= 0 || delimiter == userInfo.length() - 1) {
+            throw new IllegalArgumentException("Wallpaper discovery proxy credentials must use username:password");
+        }
+        return new ProxyEndpoint(
+                InetSocketAddress.createUnresolved(uri.getHost(), port),
+                userInfo.substring(0, delimiter),
+                userInfo.substring(delimiter + 1).toCharArray());
+    }
+
+    private static String readStaticString(String value) {
+        return value == null ? "" : value;
+    }
+
+    static final class ProxyEndpoint {
+
+        private final InetSocketAddress address;
+        private final String username;
+        private final char[] password;
+
+        private ProxyEndpoint(InetSocketAddress address, String username, char[] password) {
+            this.address = address;
+            this.username = username;
+            this.password = password.clone();
+        }
+
+        InetSocketAddress address() {
+            return address;
+        }
+
+        String username() {
+            return username;
+        }
+
+        char[] password() {
+            return password.clone();
+        }
+
+        boolean hasCredentials() {
+            return StringUtils.hasText(username) && password.length > 0;
+        }
+    }
+
+    private static final class ProxyAuthenticator extends Authenticator {
+
+        private final ProxyEndpoint proxy;
+
+        private ProxyAuthenticator(ProxyEndpoint proxy) {
+            this.proxy = proxy;
+        }
+
+        @Override
+        protected PasswordAuthentication getPasswordAuthentication() {
+            if (RequestorType.PROXY.equals(getRequestorType())) {
+                return new PasswordAuthentication(proxy.username(), proxy.password());
+            }
+            return null;
+        }
     }
 }

@@ -24,6 +24,9 @@ public class WallpaperDiscoveryProperties {
     /** Steam Web API Key（配置后搜索走 IPublishedFileService/QueryFiles，更稳定）。 */
     private String steamApiKey = "";
 
+    /** Optional authenticated HTTP proxy used only for wallpaper discovery upstream requests. */
+    private String proxyUrl = "";
+
     /** Wallhaven 基地址，可替换为镜像/反代地址。 */
     private String wallhavenBaseUrl = "https://wallhaven.cc";
 
@@ -66,6 +69,14 @@ public class WallpaperDiscoveryProperties {
 
     public void setSteamApiKey(String steamApiKey) {
         this.steamApiKey = steamApiKey;
+    }
+
+    public String getProxyUrl() {
+        return proxyUrl;
+    }
+
+    public void setProxyUrl(String proxyUrl) {
+        this.proxyUrl = proxyUrl;
     }
 
     public String getWallhavenBaseUrl() {
