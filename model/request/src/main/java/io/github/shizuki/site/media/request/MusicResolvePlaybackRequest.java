@@ -29,6 +29,9 @@ public class MusicResolvePlaybackRequest {
     @Schema(description = "是否仅补拉歌词（可选）", example = "true")
     private Boolean resolveLyric;
 
+    @Schema(description = "Force a fresh playback URL instead of reusing source cache", example = "true")
+    private Boolean forceRefresh;
+
     public String getProvider() {
         return provider;
     }
@@ -83,5 +86,13 @@ public class MusicResolvePlaybackRequest {
 
     public void setResolveLyric(Boolean resolveLyric) {
         this.resolveLyric = resolveLyric;
+    }
+
+    public Boolean getForceRefresh() {
+        return forceRefresh;
+    }
+
+    public void setForceRefresh(Boolean forceRefresh) {
+        this.forceRefresh = forceRefresh;
     }
 }

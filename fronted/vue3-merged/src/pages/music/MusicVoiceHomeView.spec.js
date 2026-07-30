@@ -92,4 +92,23 @@ describe('MusicVoiceHomeView', () => {
       undefined
     );
   });
+
+  it('retries once when the ASMR upstream times out', async () => {
+    vi.mocked(musicApi.searchVoiceWorks)
+      .mockRejectedValueOnce({
+        problemCode: 'INTERNAL_ERROR',
+        detail: 'ASMR upstream timeout',
+        body: { music_error_code: 'MUSIC_ASMR_UPSTREAM_TIMEOUT' }
+      })
+      .mockResolvedValueOnce(
+        voicePayload([{ workId: 9, title: 'Recovered work', ageCategory: 'general' }])
+      );
+
+    const wrapper = mount(MusicVoiceHomeView);
+    await flushPromises();
+
+    expect(musicApi.searchVoiceWorks).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('Recovered work');
+    expect(wrapper.find('.voice-error').exists()).toBe(false);
+  });
 });

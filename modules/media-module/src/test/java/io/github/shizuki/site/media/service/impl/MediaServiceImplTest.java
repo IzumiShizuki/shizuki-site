@@ -28,6 +28,7 @@ import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.response.UploadRelayResponse;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaAssetGroupAclEntity;
+import io.github.shizuki.site.media.entity.MusicTrackCacheEntity;
 import io.github.shizuki.site.media.entity.UserMusicPlaylistEntity;
 import io.github.shizuki.site.media.entity.UserMusicPlaylistTrackEntity;
 import io.github.shizuki.site.media.mapper.MediaAssetGroupAclMapper;
@@ -1259,6 +1260,48 @@ class MediaServiceImplTest {
         Assertions.assertEquals("[00:01.00]line1\n[00:03.00]line2", response.lyricText());
         Assertions.assertEquals("https://audio.example.com/track.mp3", response.audio());
         Assertions.assertTrue(response.metadata().containsKey("lyricTracks"));
+    }
+
+    @Test
+    void shouldBypassCachedSourceUrlWhenPlaybackRefreshIsForced() {
+        MusicTrackCacheEntity cache = new MusicTrackCacheEntity();
+        cache.setProviderCode("netease");
+        cache.setTrackId("cached-track");
+        cache.setSourceUrl("https://audio.example.com/expired-but-undetectable.mp3");
+        Mockito.when(musicTrackCacheMapper.selectOne(ArgumentMatchers.any())).thenReturn(cache);
+        Mockito.when(metingMusicProvider.parseSingleTrack(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("cached-track"),
+            Mockito.anyString()
+        )).thenReturn(new MetingMusicProvider.ParseTrackResult(
+            "cached-track",
+            "Cached track",
+            "Singer",
+            "",
+            "https://audio.example.com/fresh.mp3",
+            "",
+            "",
+            "",
+            ""
+        ));
+
+        MusicResolvePlaybackRequest request = new MusicResolvePlaybackRequest();
+        request.setProvider("netease");
+        request.setTrackId("cached-track");
+        request.setTitle("Cached track");
+        request.setArtist("Singer");
+        request.setForceRefresh(true);
+
+        MusicTrackResponse response = mediaService.resolvePlaybackTrack(request);
+
+        Assertions.assertEquals("https://audio.example.com/fresh.mp3", response.audio());
+        Mockito.verify(metingMusicProvider).parseSingleTrack(
+            Mockito.eq("th_test_default_key"),
+            Mockito.eq("netease"),
+            Mockito.eq("cached-track"),
+            Mockito.anyString()
+        );
     }
 
     private AsmrMusicProvider.WorkSummary buildAsmrWorkSummary(long workId,

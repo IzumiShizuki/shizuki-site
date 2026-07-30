@@ -624,7 +624,8 @@ export function usePlayerEngine(options = {}) {
           artist: String(track.artist || '').trim(),
           cover: String(track.cover || '').trim(),
           playlistCode: String(playlistProfile.value?.playlistCode || ''),
-          resolveLyric: shouldResolveLyric
+          resolveLyric: shouldResolveLyric,
+          forceRefresh: options?.bypassCache === true
         },
         getAuthorizedFetch()
       );
@@ -649,6 +650,31 @@ export function usePlayerEngine(options = {}) {
       return resolved;
     } catch {
       return track;
+    }
+  }
+
+  async function recoverPlaybackWithFreshSource(index, failedAudio) {
+    if (index < 0 || index >= tracks.value.length) return false;
+    const current = tracks.value[index];
+    const resolveKey = buildResolveKey(current);
+    if (!resolveKey || playbackResolveAttempted.value.has(resolveKey)) return false;
+
+    playbackResolveAttempted.value.add(resolveKey);
+    const previousAudio = String(failedAudio || current?.audio || '').trim();
+    const resolved = await resolveTrackPlayback(index, { force: true, bypassCache: true });
+    const nextAudio = String(resolved?.audio || '').trim();
+    if (!nextAudio || nextAudio === previousAudio) return false;
+
+    try {
+      audioElement.src = nextAudio;
+      audioElement.load();
+      await loadTrackLyric(resolved);
+      await audioElement.play();
+      isPlaying.value = true;
+      return true;
+    } catch {
+      isPlaying.value = false;
+      return false;
     }
   }
 
@@ -697,8 +723,7 @@ export function usePlayerEngine(options = {}) {
         isPlaying.value = true;
         return true;
       } catch {
-        isPlaying.value = false;
-        return false;
+        return recoverPlaybackWithFreshSource(index, track.audio);
       }
     }
     return true;
@@ -1197,27 +1222,8 @@ export function usePlayerEngine(options = {}) {
       isPlaying.value = false;
       return;
     }
-    const current = tracks.value[idx];
-    const resolveKey = buildResolveKey(current);
-    if (!resolveKey || playbackResolveAttempted.value.has(resolveKey)) {
-      isPlaying.value = false;
-      return;
-    }
-    playbackResolveAttempted.value.add(resolveKey);
-    const previousAudio = String(current?.audio || '').trim();
-    const resolved = await resolveTrackPlayback(idx, { force: true });
-    const nextAudio = String(resolved?.audio || '').trim();
-    if (!nextAudio || nextAudio === previousAudio) {
-      isPlaying.value = false;
-      return;
-    }
-    try {
-      audioElement.src = nextAudio;
-      audioElement.load();
-      await loadTrackLyric(resolved);
-      await audioElement.play();
-      isPlaying.value = true;
-    } catch {
+    const recovered = await recoverPlaybackWithFreshSource(idx, tracks.value[idx]?.audio);
+    if (!recovered) {
       isPlaying.value = false;
     }
   });

@@ -124,6 +124,83 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.currentTrack.value?.lyricText).toBe('[00:01.00]cached lyric');
   });
 
+  it('bypasses the server cache when a resolved audio URL emits an error', async () => {
+    vi.mocked(resolvePlaybackTrack)
+      .mockResolvedValueOnce({
+        audio: 'https://audio.example.com/still-expired.mp3',
+        lyricText: '[00:01.00]line'
+      })
+      .mockResolvedValueOnce({
+        audio: 'https://audio.example.com/recovered.mp3'
+      });
+
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks(
+      [
+        {
+          provider: 'netease',
+          trackId: 'expired-after-resolve',
+          title: 'Expired after resolve',
+          artist: 'Singer',
+          audio: 'https://audio.example.com/expired.mp3'
+        }
+      ],
+      0,
+      true
+    );
+
+    const callsBeforeError = resolvePlaybackTrack.mock.calls.length;
+    engine.audioElement._emit('error');
+
+    await vi.waitFor(() => expect(resolvePlaybackTrack.mock.calls.length).toBe(callsBeforeError + 1));
+    expect(resolvePlaybackTrack.mock.calls.at(-1)[0]).toMatchObject({
+      provider: 'netease',
+      trackId: 'expired-after-resolve',
+      forceRefresh: true
+    });
+    await vi.waitFor(() => {
+      expect(engine.audioElement.src).toBe('https://audio.example.com/recovered.mp3');
+    });
+  });
+
+  it('bypasses the server cache when audio play rejects before an error event', async () => {
+    vi.mocked(resolvePlaybackTrack)
+      .mockResolvedValueOnce({
+        audio: 'https://audio.example.com/still-expired.mp3',
+        lyricText: '[00:01.00]line'
+      })
+      .mockResolvedValueOnce({
+        audio: 'https://audio.example.com/recovered-after-rejection.mp3'
+      });
+
+    const engine = usePlayerEngine();
+    engine.audioElement.play = vi.fn()
+      .mockRejectedValueOnce(new Error('Media source is not supported'))
+      .mockResolvedValueOnce(undefined);
+
+    const played = await engine.replaceQueueWithTracks(
+      [
+        {
+          provider: 'netease',
+          trackId: 'rejected-playback',
+          title: 'Rejected playback',
+          artist: 'Singer',
+          audio: 'https://audio.example.com/expired.mp3'
+        }
+      ],
+      0,
+      true
+    );
+
+    expect(played).toBe(true);
+    expect(resolvePlaybackTrack.mock.calls.at(-1)[0]).toMatchObject({
+      trackId: 'rejected-playback',
+      forceRefresh: true
+    });
+    expect(engine.audioElement.src).toBe('https://audio.example.com/recovered-after-rejection.mp3');
+    expect(engine.audioElement.play).toHaveBeenCalledTimes(2);
+  });
+
   it('synchronizes playback position and active lyrics immediately after seeking', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/seek.mp3',

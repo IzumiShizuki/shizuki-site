@@ -225,6 +225,21 @@ function parseErrorMessage(error, fallback = '音声查询失败，请稍后重�
   return fallback;
 }
 
+function isAsmrUpstreamTimeout(error) {
+  const errorCode = String(error?.body?.music_error_code || '').trim().toUpperCase();
+  if (errorCode === 'MUSIC_ASMR_UPSTREAM_TIMEOUT') return true;
+  return String(error?.detail || error?.message || '').toLowerCase().includes('asmr upstream timeout');
+}
+
+async function requestVoiceWorks(requestOptions, authorizedFetch) {
+  try {
+    return await musicApi.searchVoiceWorks(requestOptions, authorizedFetch);
+  } catch (error) {
+    if (!isAsmrUpstreamTimeout(error)) throw error;
+    return musicApi.searchVoiceWorks(requestOptions, authorizedFetch);
+  }
+}
+
 function normalizeAvailableTags(payload) {
   const list = Array.isArray(payload) ? payload : [];
   const mapById = new Map();
@@ -248,7 +263,7 @@ async function fetchVoiceWorks(options = {}) {
     errorText.value = '';
   }
   try {
-    const payload = await musicApi.searchVoiceWorks(
+    const payload = await requestVoiceWorks(
       {
         q: committedKeyword.value,
         page: nextPage,

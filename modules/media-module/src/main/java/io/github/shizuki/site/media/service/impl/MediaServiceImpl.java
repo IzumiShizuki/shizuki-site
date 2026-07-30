@@ -1746,12 +1746,13 @@ public class MediaServiceImpl implements MediaService {
             request != null && Boolean.TRUE.equals(request.getResolveLyric()));
 
         boolean resolveLyric = request != null && Boolean.TRUE.equals(request.getResolveLyric());
+        boolean forceRefresh = request != null && Boolean.TRUE.equals(request.getForceRefresh());
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
         SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
         MusicListenCacheProperties.StorageMode storageMode = musicListenCacheProperties.resolveStorageMode();
         MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
         String cachedSourceAudio = readString(cache == null ? null : cache.getSourceUrl(), "");
-        if (cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
+        if (!forceRefresh && cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
             String translationLyricText = "";
@@ -1833,7 +1834,7 @@ public class MediaServiceImpl implements MediaService {
                 )
             );
         }
-        if (hasOssObjectCache(cache)) {
+        if (!forceRefresh && hasOssObjectCache(cache)) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
             String translationLyricText = "";
