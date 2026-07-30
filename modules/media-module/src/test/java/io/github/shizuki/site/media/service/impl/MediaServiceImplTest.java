@@ -698,6 +698,70 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldAdvanceFilteredVoiceWorksByUpstreamPageWithoutOverlappingWindows() {
+        LoginUserContext.set(new LoginUser(8L, Set.of("FRIEND"), Set.of("music.asmr.access")));
+        AsmrMusicProvider.WorkSummary firstGeneral = buildAsmrWorkSummary(
+            3001L,
+            "全年龄作品一",
+            List.of(),
+            List.of(),
+            false,
+            "全年齢"
+        );
+        AsmrMusicProvider.WorkSummary secondGeneral = buildAsmrWorkSummary(
+            3002L,
+            "全年龄作品二",
+            List.of(),
+            List.of(),
+            false,
+            "全年齢"
+        );
+        AsmrMusicProvider.WorkSummary adult = buildAsmrWorkSummary(
+            3999L,
+            "成人作品",
+            List.of(),
+            List.of(),
+            true,
+            "18+"
+        );
+        Mockito.when(asmrMusicProvider.listWorks(Mockito.anyInt(), Mockito.eq(30), Mockito.eq("release"), Mockito.eq("desc")))
+            .thenAnswer(invocation -> {
+                int upstreamPage = invocation.getArgument(0);
+                List<AsmrMusicProvider.WorkSummary> works = switch (upstreamPage) {
+                    case 1 -> List.of(firstGeneral, adult);
+                    case 2 -> List.of(secondGeneral, adult);
+                    default -> List.of(adult);
+                };
+                return new AsmrMusicProvider.SearchResult(works, upstreamPage, 2, 12);
+            });
+
+        MusicVoiceWorksResponse firstPage = mediaService.searchVoiceWorks(
+            "",
+            1,
+            2,
+            "release",
+            "desc",
+            "",
+            "general,r15"
+        );
+        MusicVoiceWorksResponse secondPage = mediaService.searchVoiceWorks(
+            "",
+            2,
+            2,
+            "release",
+            "desc",
+            "",
+            "general,r15"
+        );
+
+        Assertions.assertEquals(List.of(3001L), firstPage.items().stream().map(item -> item.workId()).toList());
+        Assertions.assertEquals(List.of(3002L), secondPage.items().stream().map(item -> item.workId()).toList());
+        Assertions.assertTrue(firstPage.hasMore());
+        Mockito.verify(asmrMusicProvider).listWorks(1, 30, "release", "desc");
+        Mockito.verify(asmrMusicProvider).listWorks(2, 30, "release", "desc");
+    }
+
+    @Test
     void shouldBuildVoiceWorkBundleSuccessfully() {
         LoginUserContext.set(new LoginUser(9L, Set.of("ADMIN"), Set.of("music.asmr.access")));
         AsmrMusicProvider.WorkSummary work = buildAsmrWorkSummary(

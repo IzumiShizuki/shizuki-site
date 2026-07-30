@@ -223,7 +223,6 @@ public class MediaServiceImpl implements MediaService {
     );
     private static final String VOICE_DEFAULT_ORDER = "release";
     private static final String VOICE_DEFAULT_SORT = "desc";
-    private static final int VOICE_MAX_FILTER_FETCH_ROUNDS = 4;
 
     private final ObjectStorageClient objectStorageClient;
     private final MediaStorageProperties mediaStorageProperties;
@@ -1646,57 +1645,28 @@ public class MediaServiceImpl implements MediaService {
 
         boolean keywordMode = StringUtils.hasText(normalizedKeyword);
         boolean hasClientFilters = !selectedTagIds.isEmpty() || !selectedAgeCategories.isEmpty();
-        int fetchPage = safePage;
-        int fetchRound = 0;
         int effectiveFetchLimit = hasClientFilters ? Math.min(60, Math.max(safeLimit, 30)) : safeLimit;
-        int totalCount = 0;
-        int lastPage = safePage;
-        int lastPageSize = safeLimit;
         List<AsmrMusicProvider.WorkSummary> accepted = new ArrayList<>();
-        Set<Long> acceptedWorkIds = new LinkedHashSet<>();
-
-        while (fetchRound < VOICE_MAX_FILTER_FETCH_ROUNDS && accepted.size() < safeLimit + 1) {
-            AsmrMusicProvider.SearchResult result = keywordMode
-                ? asmrMusicProvider.searchWorks(normalizedKeyword, fetchPage, effectiveFetchLimit, normalizedOrder, normalizedSort)
-                : asmrMusicProvider.listWorks(fetchPage, effectiveFetchLimit, normalizedOrder, normalizedSort);
-            List<AsmrMusicProvider.WorkSummary> works = result.works() == null ? List.of() : result.works();
-            totalCount = Math.max(totalCount, result.totalCount());
-            lastPage = Math.max(1, result.currentPage());
-            lastPageSize = Math.max(1, result.pageSize());
-            for (AsmrMusicProvider.WorkSummary item : works) {
-                if (item == null || item.id() <= 0L) {
-                    continue;
-                }
-                if (!matchesVoiceTagFilter(item, selectedTagIds)) {
-                    continue;
-                }
-                if (!matchesVoiceAgeFilter(item, selectedAgeCategories)) {
-                    continue;
-                }
-                if (!acceptedWorkIds.add(item.id())) {
-                    continue;
-                }
-                accepted.add(item);
-                if (accepted.size() >= safeLimit + 1) {
-                    break;
-                }
+        AsmrMusicProvider.SearchResult result = keywordMode
+            ? asmrMusicProvider.searchWorks(normalizedKeyword, safePage, effectiveFetchLimit, normalizedOrder, normalizedSort)
+            : asmrMusicProvider.listWorks(safePage, effectiveFetchLimit, normalizedOrder, normalizedSort);
+        List<AsmrMusicProvider.WorkSummary> works = result.works() == null ? List.of() : result.works();
+        for (AsmrMusicProvider.WorkSummary item : works) {
+            if (item == null || item.id() <= 0L) {
+                continue;
             }
-            boolean upstreamHasMore = result.totalCount() > ((long) result.currentPage() * Math.max(1, result.pageSize()));
-            if (!upstreamHasMore || works.isEmpty() || !hasClientFilters) {
-                break;
+            if (!matchesVoiceTagFilter(item, selectedTagIds)) {
+                continue;
             }
-            fetchPage += 1;
-            fetchRound += 1;
+            if (!matchesVoiceAgeFilter(item, selectedAgeCategories)) {
+                continue;
+            }
+            accepted.add(item);
         }
-
-        boolean hasMore = accepted.size() > safeLimit
-            || totalCount > ((long) lastPage * Math.max(1, lastPageSize));
-        List<AsmrMusicProvider.WorkSummary> visible = accepted.size() > safeLimit
-            ? accepted.subList(0, safeLimit)
-            : accepted;
+        boolean hasMore = result.totalCount() > ((long) result.currentPage() * Math.max(1, result.pageSize()));
 
         List<MusicVoiceWorkItemResponse> items = new ArrayList<>();
-        for (AsmrMusicProvider.WorkSummary item : visible) {
+        for (AsmrMusicProvider.WorkSummary item : accepted) {
             items.add(toVoiceWorkItem(item));
         }
         return new MusicVoiceWorksResponse(
@@ -1704,7 +1674,7 @@ public class MediaServiceImpl implements MediaService {
             safePage,
             safeLimit,
             hasMore,
-            aggregateVoiceAvailableTags(visible)
+            aggregateVoiceAvailableTags(accepted)
         );
     }
 
