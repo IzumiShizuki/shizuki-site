@@ -290,6 +290,10 @@ import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbien
 import { refreshAosManager } from './utils/aosManager';
 import { fileToDataUrl, uploadAmbientAudioAsset, validateAmbientAudioFile } from './utils/ambientAudioUpload';
 import { normalizePermanentPublicAssetUrl, resolveSignedStorageExpiryEpochMs } from './utils/publicAssetUrl';
+import {
+  canAttachMediaElementAudioGraph,
+  shouldPrepareVisualizerAudioGraph
+} from './utils/mediaElementAudioGraph';
 import { runtimeGuards } from './utils/runtimeGuards';
 import {
   applyAmbientPreset,
@@ -1961,7 +1965,15 @@ function applyEqLevels(levels) {
 }
 
 function ensureAudioAnalyser() {
-  if (analyser || !player.audioElement || typeof window === 'undefined' || !window.AudioContext) return;
+  if (analyser) return true;
+  if (
+    !player.audioElement ||
+    typeof window === 'undefined' ||
+    !window.AudioContext ||
+    !canAttachMediaElementAudioGraph(player.audioElement, window.location.href)
+  ) {
+    return false;
+  }
   audioCtx = new window.AudioContext();
   sourceNode = audioCtx.createMediaElementSource(player.audioElement);
   eqLowNode = audioCtx.createBiquadFilter();
@@ -1989,6 +2001,27 @@ function ensureAudioAnalyser() {
   analyser.connect(audioCtx.destination);
   freqData = new Uint8Array(analyser.frequencyBinCount);
   applyEqLevels(musicUi.eqLevels.value);
+  return true;
+}
+
+function prepareVisualizerAudioGraph() {
+  if (
+    !shouldPrepareVisualizerAudioGraph({
+      audioElement: player.audioElement,
+      isHomeRoute: isHomeRoute.value,
+      isPlaying: player.isPlaying.value,
+      pageUrl: window.location.href,
+      visualizerMode: player.visualizerMode.value
+    })
+  ) {
+    return false;
+  }
+
+  if (!ensureAudioAnalyser()) return false;
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  return true;
 }
 
 function handleEqChangeEvent(event) {
@@ -1997,7 +2030,7 @@ function handleEqChangeEvent(event) {
     : Array.isArray(musicUi.eqLevels.value)
       ? musicUi.eqLevels.value
       : [0.66, 0.52, 0.74];
-  ensureAudioAnalyser();
+  if (!ensureAudioAnalyser()) return;
   if (audioCtx?.state === 'suspended') {
     audioCtx.resume().catch(() => {});
   }
@@ -2041,7 +2074,6 @@ function pumpVisualizer(timestamp = 0) {
 
 function startVisualizerLoop() {
   if (rafId) return;
-  ensureAudioAnalyser();
   if (audioCtx?.state === 'suspended') {
     audioCtx.resume().catch(() => {});
   }
@@ -2376,8 +2408,8 @@ function onGlobalPointerDown(event) {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
-  if (shouldRunVisualizer.value && audioCtx?.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
+  if (prepareVisualizerAudioGraph() && shouldRunVisualizer.value && !visualizerPaused.value) {
+    startVisualizerLoop();
   }
   if (ambientMixer.needsUserGesture.value || ambientMixer.suspended.value) {
     ambientMixer.resumeFromGesture().catch(() => {});
