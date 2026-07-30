@@ -3,6 +3,7 @@ target/
 %BASE_WIN%/
 .pytest_cache/
 .codex
+.codex-tmp/
 **/target/
 **/.mvn/repository/
 .tools/edge-cdp-profile*/

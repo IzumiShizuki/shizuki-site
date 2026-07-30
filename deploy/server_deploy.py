@@ -28,6 +28,7 @@ ROOT_LEVEL_EXCLUDES = {
     ".github",
     ".idea",
     ".kiro",
+    ".codex-tmp",
     ".vscode",
     "data",
     "tmp",
