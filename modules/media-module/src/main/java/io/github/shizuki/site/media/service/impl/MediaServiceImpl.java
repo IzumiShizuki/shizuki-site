@@ -1644,8 +1644,7 @@ public class MediaServiceImpl implements MediaService {
         Set<String> selectedAgeCategories = parseVoiceAgeCategories(ageCategories);
 
         boolean keywordMode = StringUtils.hasText(normalizedKeyword);
-        boolean hasClientFilters = !selectedTagIds.isEmpty() || !selectedAgeCategories.isEmpty();
-        int effectiveFetchLimit = hasClientFilters ? Math.min(60, Math.max(safeLimit, 30)) : safeLimit;
+        int effectiveFetchLimit = safeLimit;
         List<AsmrMusicProvider.WorkSummary> accepted = new ArrayList<>();
         AsmrMusicProvider.SearchResult result = keywordMode
             ? asmrMusicProvider.searchWorks(normalizedKeyword, safePage, effectiveFetchLimit, normalizedOrder, normalizedSort)

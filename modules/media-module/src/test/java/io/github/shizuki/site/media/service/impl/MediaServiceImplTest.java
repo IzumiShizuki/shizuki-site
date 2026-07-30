@@ -678,8 +678,8 @@ class MediaServiceImplTest {
             true,
             "18+"
         );
-        Mockito.when(asmrMusicProvider.listWorks(1, 30, "release", "desc"))
-            .thenReturn(new AsmrMusicProvider.SearchResult(List.of(work1, work2), 1, 30, 2));
+        Mockito.when(asmrMusicProvider.listWorks(1, 24, "release", "desc"))
+            .thenReturn(new AsmrMusicProvider.SearchResult(List.of(work1, work2), 1, 24, 2));
 
         MusicVoiceWorksResponse response = mediaService.searchVoiceWorks(
             "",
@@ -725,7 +725,7 @@ class MediaServiceImplTest {
             true,
             "18+"
         );
-        Mockito.when(asmrMusicProvider.listWorks(Mockito.anyInt(), Mockito.eq(30), Mockito.eq("release"), Mockito.eq("desc")))
+        Mockito.when(asmrMusicProvider.listWorks(Mockito.anyInt(), Mockito.eq(2), Mockito.eq("release"), Mockito.eq("desc")))
             .thenAnswer(invocation -> {
                 int upstreamPage = invocation.getArgument(0);
                 List<AsmrMusicProvider.WorkSummary> works = switch (upstreamPage) {
@@ -758,8 +758,8 @@ class MediaServiceImplTest {
         Assertions.assertEquals(List.of(3001L), firstPage.items().stream().map(item -> item.workId()).toList());
         Assertions.assertEquals(List.of(3002L), secondPage.items().stream().map(item -> item.workId()).toList());
         Assertions.assertTrue(firstPage.hasMore());
-        Mockito.verify(asmrMusicProvider).listWorks(1, 30, "release", "desc");
-        Mockito.verify(asmrMusicProvider).listWorks(2, 30, "release", "desc");
+        Mockito.verify(asmrMusicProvider).listWorks(1, 2, "release", "desc");
+        Mockito.verify(asmrMusicProvider).listWorks(2, 2, "release", "desc");
     }
 
     @Test

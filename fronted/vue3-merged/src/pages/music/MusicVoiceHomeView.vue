@@ -1,5 +1,5 @@
 <template>
-  <section class="music-center-view voice-home-view">
+  <section ref="viewRootRef" class="music-center-view voice-home-view">
     <section class="voice-toolbar liquid-material">
       <div class="voice-search-box">
         <i class="fas fa-wave-square"></i>
@@ -39,14 +39,31 @@
 
     <p v-if="errorText" class="state-text error">{{ errorText }}</p>
 
-    <section class="voice-age-panel liquid-material">
+    <section class="voice-age-panel liquid-material" :class="{ collapsed: !ageFiltersExpanded }">
       <header>
         <div>
           <h3>年龄分级</h3>
           <p>默认隐藏 R18，优先显示全年龄与 R15 作品。</p>
         </div>
+        <button
+          class="filter-collapse-btn age-filter-toggle ripple-trigger"
+          type="button"
+          :aria-expanded="ageFiltersExpanded"
+          aria-controls="voice-age-filter-body"
+          :title="ageFiltersExpanded ? '收起年龄分级' : '展开年龄分级'"
+          :aria-label="ageFiltersExpanded ? '收起年龄分级' : '展开年龄分级'"
+          @click="ageFiltersExpanded = !ageFiltersExpanded"
+        >
+          <i class="fas" :class="ageFiltersExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
       </header>
-      <div class="age-filter-list" role="group" aria-label="音声年龄分级筛选">
+      <div
+        v-show="ageFiltersExpanded"
+        id="voice-age-filter-body"
+        class="age-filter-list filter-panel-body"
+        role="group"
+        aria-label="音声年龄分级筛选"
+      >
         <button
           v-for="option in VOICE_AGE_FILTER_OPTIONS"
           :key="`age-filter-${option.key}`"
@@ -62,12 +79,29 @@
       </div>
     </section>
 
-    <section v-if="availableTags.length" class="voice-tag-panel liquid-material">
+    <section
+      v-if="availableTags.length"
+      class="voice-tag-panel liquid-material"
+      :class="{ collapsed: !tagFiltersExpanded }"
+    >
       <header>
         <h3>标签筛选（多选 AND）</h3>
-        <button v-if="selectedTagIds.length" class="clear-btn ripple-trigger" type="button" @click="clearTags">清空</button>
+        <div class="filter-panel-actions">
+          <button v-if="selectedTagIds.length" class="clear-btn ripple-trigger" type="button" @click="clearTags">清空</button>
+          <button
+            class="filter-collapse-btn tag-filter-toggle ripple-trigger"
+            type="button"
+            :aria-expanded="tagFiltersExpanded"
+            aria-controls="voice-tag-filter-body"
+            :title="tagFiltersExpanded ? '收起标签筛选' : '展开标签筛选'"
+            :aria-label="tagFiltersExpanded ? '收起标签筛选' : '展开标签筛选'"
+            @click="tagFiltersExpanded = !tagFiltersExpanded"
+          >
+            <i class="fas" :class="tagFiltersExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+        </div>
       </header>
-      <div class="tag-chip-list">
+      <div v-show="tagFiltersExpanded" id="voice-tag-filter-body" class="tag-chip-list filter-panel-body">
         <button
           v-for="tag in availableTags"
           :key="`tag-${tag.tagId || tag.name}`"
@@ -122,16 +156,14 @@
           <i class="fas fa-spinner fa-spin"></i>
           加载中...
         </p>
-        <button v-else class="pager-load-btn ripple-trigger" type="button" @click="loadMore">
-          加载更多
-        </button>
+        <span v-else class="pager-sentinel" aria-hidden="true"></span>
       </footer>
     </section>
   </section>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthSession } from '../../composables/useAuthSession';
 import * as musicApi from '../../services/musicApi';
@@ -152,7 +184,8 @@ const errorText = ref('');
 const works = ref([]);
 const availableTags = ref([]);
 const hasMore = ref(false);
-const page = ref(1);
+const viewRootRef = ref(null);
+const nextAppendPage = ref(3);
 
 const keywordDraft = ref('');
 const committedKeyword = ref('');
@@ -160,8 +193,14 @@ const order = ref('release');
 const sort = ref('desc');
 const selectedTagIds = ref([]);
 const ageFilter = ref(DEFAULT_VOICE_AGE_FILTER);
+const ageFiltersExpanded = ref(true);
+const tagFiltersExpanded = ref(true);
 
-const PAGE_LIMIT = 24;
+const INITIAL_PAGE_LIMIT = 20;
+const APPEND_PAGE_LIMIT = 10;
+const FIRST_APPEND_PAGE = Math.floor(INITIAL_PAGE_LIMIT / APPEND_PAGE_LIMIT) + 1;
+const AUTO_LOAD_SCROLL_RATIO = 0.75;
+let scrollHost = null;
 const selectedTagSet = computed(() => new Set(selectedTagIds.value));
 const selectedAgeCategories = computed(() => resolveVoiceAgeFilterCategories(ageFilter.value));
 
@@ -255,19 +294,22 @@ function normalizeAvailableTags(payload) {
 
 async function fetchVoiceWorks(options = {}) {
   const append = Boolean(options?.append);
-  const nextPage = append ? page.value + 1 : 1;
+  const nextPage = append ? nextAppendPage.value : 1;
+  const requestLimit = append ? APPEND_PAGE_LIMIT : INITIAL_PAGE_LIMIT;
+  if (loading.value) return;
   if (append && !hasMore.value) return;
 
   loading.value = true;
   if (!append) {
     errorText.value = '';
   }
+  let requestSucceeded = false;
   try {
     const payload = await requestVoiceWorks(
       {
         q: committedKeyword.value,
         page: nextPage,
-        limit: PAGE_LIMIT,
+        limit: requestLimit,
         order: order.value,
         sort: sort.value,
         tagIds: selectedTagIds.value,
@@ -281,7 +323,8 @@ async function fetchVoiceWorks(options = {}) {
       : rows;
     availableTags.value = normalizeAvailableTags(payload?.availableTags || payload?.available_tags);
     hasMore.value = Boolean(payload?.hasMore ?? payload?.has_more);
-    page.value = nextPage;
+    nextAppendPage.value = append ? nextPage + 1 : FIRST_APPEND_PAGE;
+    requestSucceeded = true;
   } catch (error) {
     if (!append) {
       works.value = [];
@@ -289,7 +332,35 @@ async function fetchVoiceWorks(options = {}) {
     errorText.value = parseErrorMessage(error);
   } finally {
     loading.value = false;
+    if (requestSucceeded) {
+      scheduleAutoLoadCheck();
+    }
   }
+}
+
+function resetPagination() {
+  nextAppendPage.value = FIRST_APPEND_PAGE;
+}
+
+function hasReachedAutoLoadThreshold() {
+  if (!scrollHost || loading.value || !hasMore.value) return false;
+  const scrollHeight = Number(scrollHost.scrollHeight || 0);
+  const clientHeight = Number(scrollHost.clientHeight || 0);
+  if (scrollHeight <= 0 || clientHeight <= 0) return false;
+  if (scrollHeight <= clientHeight) return works.value.length > 0;
+  return (Number(scrollHost.scrollTop || 0) + clientHeight) / scrollHeight >= AUTO_LOAD_SCROLL_RATIO;
+}
+
+function handleVoiceScroll() {
+  if (hasReachedAutoLoadThreshold()) {
+    void loadMore();
+  }
+}
+
+function scheduleAutoLoadCheck() {
+  void nextTick(() => {
+    handleVoiceScroll();
+  });
 }
 
 async function submitSearch() {
@@ -298,19 +369,19 @@ async function submitSearch() {
     selectedTagIds.value = [];
   }
   committedKeyword.value = nextKeyword;
-  page.value = 1;
+  resetPagination();
   await fetchVoiceWorks({ append: false });
 }
 
 async function applySortChange() {
-  page.value = 1;
+  resetPagination();
   await fetchVoiceWorks({ append: false });
 }
 
 async function applyAgeFilter(filterKey) {
   if (ageFilter.value === filterKey) return;
   ageFilter.value = filterKey;
-  page.value = 1;
+  resetPagination();
   await fetchVoiceWorks({ append: false });
 }
 
@@ -321,13 +392,13 @@ async function toggleTag(tagId) {
   if (next.has(id)) next.delete(id);
   else next.add(id);
   selectedTagIds.value = [...next];
-  page.value = 1;
+  resetPagination();
   await fetchVoiceWorks({ append: false });
 }
 
 async function clearTags() {
   selectedTagIds.value = [];
-  page.value = 1;
+  resetPagination();
   await fetchVoiceWorks({ append: false });
 }
 
@@ -351,7 +422,14 @@ function hasActiveTextSelection() {
 }
 
 onMounted(async () => {
+  scrollHost = viewRootRef.value?.closest('.music-center-pane') || null;
+  scrollHost?.addEventListener('scroll', handleVoiceScroll, { passive: true });
   await submitSearch();
+});
+
+onBeforeUnmount(() => {
+  scrollHost?.removeEventListener('scroll', handleVoiceScroll);
+  scrollHost = null;
 });
 </script>
 
@@ -470,6 +548,11 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
+.voice-age-panel.collapsed header,
+.voice-tag-panel.collapsed header {
+  margin-bottom: 0;
+}
+
 .voice-age-panel header {
   align-items: start;
 }
@@ -495,6 +578,29 @@ onMounted(async () => {
   background: var(--theme-surface-soft);
   color: var(--theme-text-secondary);
   padding: 0 10px;
+}
+
+.filter-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-collapse-btn {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
+  display: inline-grid;
+  place-items: center;
+}
+
+.filter-collapse-btn:hover {
+  border-color: var(--accent-mode-border);
+  color: var(--theme-text-primary);
 }
 
 .age-filter-list,
@@ -650,13 +756,9 @@ onMounted(async () => {
   justify-content: center;
 }
 
-.pager-load-btn {
-  min-height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(var(--accent-rgb), 0.54);
-  background: rgba(var(--accent-rgb), 0.2);
-  color: var(--accent-surface-text);
-  padding: 0 14px;
+.pager-sentinel {
+  width: 100%;
+  height: 12px;
 }
 
 .state-text {

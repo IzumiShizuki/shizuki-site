@@ -20,11 +20,11 @@ vi.mock('../../services/musicApi', () => ({
   searchVoiceWorks: vi.fn()
 }));
 
-function voicePayload(items = [], availableTags = []) {
+function voicePayload(items = [], availableTags = [], hasMore = false) {
   return {
     items,
     availableTags,
-    hasMore: false
+    hasMore
   };
 }
 
@@ -110,5 +110,93 @@ describe('MusicVoiceHomeView', () => {
     expect(musicApi.searchVoiceWorks).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain('Recovered work');
     expect(wrapper.find('.voice-error').exists()).toBe(false);
+  });
+
+  it('loads 20 works initially and 10 more after the scroll container passes 75 percent', async () => {
+    const initialWorks = Array.from({ length: 20 }, (_, index) => ({
+      workId: index + 1,
+      title: `Initial ${index + 1}`,
+      ageCategory: 'general'
+    }));
+    const appendedWorks = Array.from({ length: 10 }, (_, index) => ({
+      workId: index + 21,
+      title: `Appended ${index + 1}`,
+      ageCategory: 'general'
+    }));
+    vi.mocked(musicApi.searchVoiceWorks)
+      .mockResolvedValueOnce(voicePayload(initialWorks, [{ tagId: 11, name: 'Campus' }], true))
+      .mockResolvedValueOnce(voicePayload(appendedWorks, [{ tagId: 11, name: 'Campus' }], false));
+
+    const scrollHost = document.createElement('div');
+    scrollHost.className = 'music-center-pane';
+    Object.defineProperty(scrollHost, 'clientHeight', { configurable: true, value: 200 });
+    Object.defineProperty(scrollHost, 'scrollHeight', { configurable: true, value: 1000 });
+    document.body.appendChild(scrollHost);
+    const wrapper = mount(MusicVoiceHomeView, { attachTo: scrollHost });
+    await flushPromises();
+
+    expect(musicApi.searchVoiceWorks).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ page: 1, limit: 20 }),
+      undefined
+    );
+
+    scrollHost.scrollTop = 600;
+    scrollHost.dispatchEvent(new Event('scroll'));
+    await flushPromises();
+
+    expect(musicApi.searchVoiceWorks).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ page: 3, limit: 10 }),
+      undefined
+    );
+    expect(wrapper.findAll('.voice-work-card')).toHaveLength(30);
+
+    wrapper.unmount();
+    scrollHost.remove();
+  });
+
+  it('does not loop automatic loading when an appended request fails', async () => {
+    const initialWorks = Array.from({ length: 20 }, (_, index) => ({
+      workId: index + 1,
+      title: `Initial ${index + 1}`,
+      ageCategory: 'general'
+    }));
+    vi.mocked(musicApi.searchVoiceWorks)
+      .mockResolvedValueOnce(voicePayload(initialWorks, [], true))
+      .mockRejectedValueOnce(new Error('upstream unavailable'));
+
+    const scrollHost = document.createElement('div');
+    scrollHost.className = 'music-center-pane';
+    Object.defineProperty(scrollHost, 'clientHeight', { configurable: true, value: 200 });
+    Object.defineProperty(scrollHost, 'scrollHeight', { configurable: true, value: 1000 });
+    document.body.appendChild(scrollHost);
+    const wrapper = mount(MusicVoiceHomeView, { attachTo: scrollHost });
+    await flushPromises();
+
+    scrollHost.scrollTop = 600;
+    scrollHost.dispatchEvent(new Event('scroll'));
+    await flushPromises();
+
+    expect(musicApi.searchVoiceWorks).toHaveBeenCalledTimes(2);
+    expect(wrapper.get('.state-text.error').text()).toContain('upstream unavailable');
+
+    wrapper.unmount();
+    scrollHost.remove();
+  });
+
+  it('collapses age and tag filters independently', async () => {
+    const wrapper = mount(MusicVoiceHomeView);
+    await flushPromises();
+
+    const ageToggle = wrapper.get('.age-filter-toggle');
+    await ageToggle.trigger('click');
+    expect(ageToggle.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.get('#voice-age-filter-body').attributes('style')).toContain('display: none');
+
+    const tagToggle = wrapper.get('.tag-filter-toggle');
+    await tagToggle.trigger('click');
+    expect(tagToggle.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.get('#voice-tag-filter-body').attributes('style')).toContain('display: none');
   });
 });
