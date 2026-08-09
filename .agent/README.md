@@ -13,6 +13,14 @@
    - 测试、发布或交付：阅读 [05-testing-and-delivery.md](05-testing-and-delivery.md)。
 4. 需要深入背景时，再从 [06-reference-index.md](06-reference-index.md) 进入详细设计、规范、API 和部署文档。
 
+如果任务涉及具体业务功能，继续阅读对应的模块链路指南：
+
+- [07-user-module.md](07-user-module.md)：认证、用户资料、分组权限、配额和音乐凭据；
+- [08-content-module.md](08-content-module.md)：博客、作者、互动、轻应用和外部同步；
+- [09-media-module.md](09-media-module.md)：资源、壁纸、对象存储、音乐和用户歌单；
+- [10-ai-module.md](10-ai-module.md)：AI 会话、SSE、配额、角色/世界书和记忆；
+- [11-cross-module-flows.md](11-cross-module-flows.md)：跨模块端到端链路和 Port/Gateway 边界。
+
 ## 2. 信息来源优先级
 
 当不同文档出现差异时，按下面顺序判断：
@@ -40,6 +48,8 @@
 | 任务 | 最少阅读 | 主要入口 |
 | --- | --- | --- |
 | 找模块/找类 | 01 + 02 | `rg --files`、模块 `src/main/java` |
+| 了解某业务功能 | 01 + 对应 07–10 | 先读模块功能矩阵，再从 Controller → Service → Mapper/迁移追踪 |
+| 追踪跨模块调用 | 02 + 11 | 先看 Port/Gateway，再看 monolith 装配和外部 client |
 | 新增后端 API | 02 + 03 + 06 | controller → service → mapper；同步 request/response 与测试 |
 | 修改前端页面 | 01 + 02 + 03 | `src/pages`、`src/components`、`src/services`、`src/router` |
 | 修改认证/权限 | 02 + 04 + 06 | `common-servlet`、`user-module`、现有安全测试和规范文档 |

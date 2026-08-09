@@ -41,6 +41,16 @@ shizuki-site/
 | `fronted/vue3-merged` | 页面、路由、组件、服务调用、组合式状态和移动端页面 | `src/pages`、`src/components`、`src/services` |
 | `deploy` / `docker` | 生产 Compose、反向代理、镜像和 Windows 发布辅助 | `deploy/README.md`、`docker/*.Dockerfile` |
 
+## 2.1 模块详细链路
+
+| 任务范围 | 详细指南 |
+| --- | --- |
+| 用户、认证、权限、配额、音乐凭据 | [07-user-module.md](07-user-module.md) |
+| 博客、作者、互动、轻应用、同步 | [08-content-module.md](08-content-module.md) |
+| 资源、壁纸、对象存储、音乐、歌单 | [09-media-module.md](09-media-module.md) |
+| AI 会话、SSE、角色、世界书、记忆 | [10-ai-module.md](10-ai-module.md) |
+| 认证、配额、音乐、存储、AI、运维的端到端链路 | [11-cross-module-flows.md](11-cross-module-flows.md) |
+
 ## 3. 常用源码入口
 
 ### 后端
