@@ -93,6 +93,7 @@
         :tracks="player.tracks.value"
         :lyric-line="player.currentLyricLine.value"
         :lyric-context="player.lyricContext.value"
+        :lyric-render-mode="player.lyricRenderMode.value"
         :current-time="player.currentTime.value"
         :duration="player.duration.value"
         :expected-duration="player.expectedDuration.value"
@@ -131,7 +132,26 @@
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
         >
-          <span>{{ player.currentLyricLine.value || '纯音乐，无歌词' }}</span>
+          <div class="global-lyric-content">
+            <div class="global-lyric-current">
+              <span>{{ player.lyricContext.value.current || player.currentLyricLine.value || '纯音乐，无歌词' }}</span>
+              <small
+                v-if="player.lyricRenderMode.value === 'original_translation' && player.lyricContext.value.currentTranslation"
+                class="global-lyric-translation"
+              >
+                {{ player.lyricContext.value.currentTranslation }}
+              </small>
+            </div>
+            <div v-if="player.lyricContext.value.next" class="global-lyric-next">
+              <span>{{ player.lyricContext.value.next }}</span>
+              <small
+                v-if="player.lyricRenderMode.value === 'original_translation' && player.lyricContext.value.nextTranslation"
+                class="global-lyric-translation"
+              >
+                {{ player.lyricContext.value.nextTranslation }}
+              </small>
+            </div>
+          </div>
         </div>
       </transition>
 
@@ -2949,6 +2969,7 @@ onBeforeUnmount(() => {
   min-width: min(82vw, 760px);
   max-width: 90vw;
   min-height: 50px;
+  padding: 8px 22px;
   border-radius: 25px;
   display: grid;
   place-items: center;
@@ -2957,6 +2978,30 @@ onBeforeUnmount(() => {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
   cursor: grab;
   user-select: none;
+}
+
+.global-lyric-content {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: center;
+}
+
+.global-lyric-current,
+.global-lyric-next {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.global-lyric-next {
+  opacity: 0.72;
+  font-size: 0.88em;
+}
+
+.global-lyric-translation {
+  font-weight: 400;
+  opacity: 0.8;
 }
 
 :root[data-theme-mode='day'] .route-content {

@@ -120,6 +120,9 @@ describe('usePlayerEngine lyric chain', () => {
 
     expect(played).toBe(true);
     expect(resolvePlaybackTrack).toHaveBeenCalledTimes(1);
+    expect(resolvePlaybackTrack.mock.calls[0][0]).toMatchObject({
+      forceRefresh: true
+    });
     expect(engine.audioElement.src).toBe('https://audio.example.com/fresh-signed-track.mp3');
     expect(engine.currentTrack.value?.lyricText).toBe('[00:01.00]cached lyric');
   });
@@ -470,6 +473,49 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.lyricTimeline.value[0]).toMatchObject({
       original: '沈むように溶けてゆくように',
       translation: '像是沉溺溶化一般'
+    });
+    expect(engine.lyricContext.value).toMatchObject({
+      current: '沈むように溶けてゆくように',
+      currentTranslation: '像是沉溺溶化一般',
+      next: '二人だけの空が広がる夜に',
+      nextTranslation: '在只有你我的夜空之中'
+    });
+  });
+
+  it('keeps missing adjacent lyric context empty at the timeline edges', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/edge-context.mp3',
+      metadata: {
+        lyricTracks: {
+          original: '[00:01.00]first line\n[00:05.00]last line',
+          translation: '[00:01.00]第一句\n[00:05.00]最后一句'
+        }
+      }
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      { provider: 'netease', trackId: 'edge-context', title: 'Edge', artist: 'Singer' },
+      true,
+      { replaceQueue: true }
+    );
+
+    expect(engine.lyricContext.value).toMatchObject({
+      prev: '',
+      current: 'first line',
+      currentTranslation: '第一句',
+      next: 'last line',
+      nextTranslation: '最后一句'
+    });
+
+    engine.seekToTime(5);
+    expect(engine.lyricContext.value).toMatchObject({
+      prev: 'first line',
+      prevTranslation: '第一句',
+      current: 'last line',
+      currentTranslation: '最后一句',
+      next: '',
+      nextTranslation: ''
     });
   });
 

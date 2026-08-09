@@ -1748,10 +1748,11 @@ public class MediaServiceImpl implements MediaService {
         boolean forceRefresh = request != null && Boolean.TRUE.equals(request.getForceRefresh());
         Long userId = currentLoginUser() == null ? 0L : currentLoginUser().getUserId();
         SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
+        boolean canUseNeteaseAccount = canUseNeteaseAccountSource(userId, sourcePolicy, provider);
         MusicListenCacheProperties.StorageMode storageMode = musicListenCacheProperties.resolveStorageMode();
         MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
         String cachedSourceAudio = readString(cache == null ? null : cache.getSourceUrl(), "");
-        if (!forceRefresh && cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
+        if (!forceRefresh && !canUseNeteaseAccount && cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
             String translationLyricText = "";
@@ -1833,7 +1834,7 @@ public class MediaServiceImpl implements MediaService {
                 )
             );
         }
-        if (!forceRefresh && hasOssObjectCache(cache)) {
+        if (!forceRefresh && !canUseNeteaseAccount && hasOssObjectCache(cache)) {
             touchTrackCacheLastListen(cache);
             String lyricText = "";
             String translationLyricText = "";
@@ -1921,7 +1922,6 @@ public class MediaServiceImpl implements MediaService {
         }
 
         MusicApiContext apiContext = resolveMusicApiContext();
-        boolean canUseNeteaseAccount = canUseNeteaseAccountSource(userId, sourcePolicy, provider);
         boolean hasBoundAccountSource = sourcePolicy.boundProviders().contains(provider);
         boolean accountFirst = SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode());
         boolean accountOnly = SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode());
@@ -4100,6 +4100,10 @@ public class MediaServiceImpl implements MediaService {
         if (sourcePolicy == null || sourcePolicy.boundProviders() == null) {
             return false;
         }
+        if (!SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode())
+            && !SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode())) {
+            return false;
+        }
         return sourcePolicy.boundProviders().contains("netease");
     }
 
@@ -4121,21 +4125,8 @@ public class MediaServiceImpl implements MediaService {
         }
         validateHttpUrlIfPresent(resolvedAudio, "audio");
 
-        boolean shouldCache = musicListenCacheProperties.isEnabled()
-            && (!musicListenCacheProperties.isLoginOnly() || userId > 0);
+        // Account-authorized URLs are user-bound/signed and must not enter the shared cache.
         boolean cacheEnqueued = false;
-        if (shouldCache) {
-            upsertTrackSourceCache("netease", trackId, resolvedAudio);
-            if (shouldEnqueueTrackToOss(storageMode, resolvedAudio)) {
-                cacheEnqueued = musicTrackCacheUploadPublisher.publish(
-                    "netease",
-                    trackId,
-                    resolvedAudio,
-                    readString(request == null ? null : request.getTitle(), readString(resolved.title(), "")),
-                    readString(request == null ? null : request.getArtist(), readString(resolved.artist(), ""))
-                );
-            }
-        }
 
         String resolvedCover = resolvePlaybackCover(
             readString(request == null ? null : request.getCover(), ""),
@@ -4143,13 +4134,16 @@ public class MediaServiceImpl implements MediaService {
             ""
         );
         String lyricText = readString(resolved.lyricText(), "");
+        String translationLyricText = readString(resolved.translationLyricText(), "");
+        String furiganaLyricText = readString(resolved.furiganaLyricText(), "");
         LOGGER.info(
-            "{} provider={} trackId={} source=account_netease lyricSource=account_netease cacheEnqueued={} lyricTextLength={} durationMs={}",
+            "{} provider={} trackId={} source=account_netease lyricSource=account_netease cacheEnqueued={} lyricTextLength={} translationLyricTextLength={} durationMs={}",
             LOG_EVENT_RESOLVE_STAGE_DONE,
             "netease",
             trackId,
             cacheEnqueued,
             lyricText.length(),
+            translationLyricText.length(),
             Math.max(1L, System.currentTimeMillis() - startMs)
         );
         return new MusicTrackResponse(
@@ -4171,8 +4165,8 @@ public class MediaServiceImpl implements MediaService {
                     "retry_count", 0
                 ),
                 lyricText,
-                "",
-                ""
+                translationLyricText,
+                furiganaLyricText
             )
         );
     }
