@@ -182,11 +182,16 @@ public class NeteaseCookieProvider {
         String title = readString(song == null ? null : song.get("name"), "");
         String artist = readArtist(song);
         String cover = readCover(song);
-        String audioUrl = "https://music.163.com/song/media/outer/url?id="
-            + URLEncoder.encode(normalizedTrackId, StandardCharsets.UTF_8)
-            + ".mp3";
+        String audioUrl = resolveAuthorizedAudioUrl(normalizedTrackId, normalizedCookie);
+        if (!StringUtils.hasText(audioUrl)) {
+            audioUrl = "https://music.163.com/song/media/outer/url?id="
+                + URLEncoder.encode(normalizedTrackId, StandardCharsets.UTF_8)
+                + ".mp3";
+        }
 
         String lyricText = "";
+        String translationLyricText = "";
+        String furiganaLyricText = "";
         if (resolveLyric) {
             Map<String, Object> lyricPayload = requestJson(
                 "https://music.163.com/api/song/lyric",
@@ -199,6 +204,8 @@ public class NeteaseCookieProvider {
                 normalizedCookie
             );
             lyricText = readString(toStringObjectMap(lyricPayload.get("lrc")).get("lyric"), "");
+            translationLyricText = readString(toStringObjectMap(lyricPayload.get("tlyric")).get("lyric"), "");
+            furiganaLyricText = readString(toStringObjectMap(lyricPayload.get("romalrc")).get("lyric"), "");
         }
 
         return new ResolvedTrack(
@@ -207,8 +214,48 @@ public class NeteaseCookieProvider {
             artist,
             cover,
             audioUrl,
-            lyricText
+            lyricText,
+            translationLyricText,
+            furiganaLyricText
         );
+    }
+
+    private String resolveAuthorizedAudioUrl(String trackId, String cookie) {
+        try {
+            Map<String, Object> payload = requestJson(
+                "https://music.163.com/api/song/url/v1",
+                Map.of("id", trackId, "level", "exhigh"),
+                cookie
+            );
+            String url = readAudioUrl(payload);
+            if (StringUtils.hasText(url)) {
+                return url;
+            }
+
+            payload = requestJson(
+                "https://music.163.com/api/song/url",
+                Map.of("id", trackId, "br", 320000),
+                cookie
+            );
+            return readAudioUrl(payload);
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_NETEASE_AUTH_AUDIO_RESOLVE_FAIL trackId={} reason_type={}",
+                trackId,
+                ex.getClass().getSimpleName()
+            );
+            return "";
+        }
+    }
+
+    private String readAudioUrl(Map<String, Object> payload) {
+        for (Map<String, Object> item : toObjectMapList(payload.get("data"))) {
+            String url = readString(item.get("url"), "");
+            if (StringUtils.hasText(url)) {
+                return url;
+            }
+        }
+        return "";
     }
 
     private Long resolveUserId(String cookie) {
@@ -532,6 +579,8 @@ public class NeteaseCookieProvider {
                                 String artist,
                                 String cover,
                                 String audioUrl,
-                                String lyricText) {
+                                String lyricText,
+                                String translationLyricText,
+                                String furiganaLyricText) {
     }
 }

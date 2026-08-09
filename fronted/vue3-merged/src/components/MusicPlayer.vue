@@ -40,8 +40,24 @@
         <transition name="lyric-switch" mode="out-in">
           <div class="lyrics-triplet" :key="lyricContext?.key || 'empty'">
             <div class="lyric prev">{{ lyricContext?.prev || '' }}</div>
-            <div class="lyric current">{{ lyricContext?.current || (lyricLine || '纯音乐，无歌词') }}</div>
-            <div class="lyric next">{{ lyricContext?.next || '' }}</div>
+            <div class="lyric current">
+              <span>{{ lyricContext?.current || (lyricLine || '纯音乐，无歌词') }}</span>
+              <span
+                v-if="lyricRenderMode === 'original_translation' && lyricContext?.currentTranslation"
+                class="lyric-translation"
+              >
+                {{ lyricContext.currentTranslation }}
+              </span>
+            </div>
+            <div class="lyric next">
+              <span>{{ lyricContext?.next || '' }}</span>
+              <span
+                v-if="lyricRenderMode === 'original_translation' && lyricContext?.nextTranslation"
+                class="lyric-translation"
+              >
+                {{ lyricContext.nextTranslation }}
+              </span>
+            </div>
           </div>
         </transition>
       </div>
@@ -211,6 +227,7 @@ const props = defineProps({
     type: Object,
     default: () => ({ prev: '', current: '', next: '', key: 'empty' })
   },
+  lyricRenderMode: { type: String, default: 'original_translation' },
   currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 },
   expectedDuration: { type: Number, default: 0 },
@@ -814,6 +831,18 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.lyric.current,
+.lyric.next {
+  display: grid;
+  gap: 1px;
+}
+
+.lyric-translation {
+  font-size: 0.82em;
+  font-weight: 400;
+  opacity: 0.74;
 }
 
 .lyric.prev,

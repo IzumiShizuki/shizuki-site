@@ -1304,6 +1304,48 @@ class MediaServiceImplTest {
         );
     }
 
+    @Test
+    void shouldPreferBoundNeteaseAccountOverGenericPlaybackCache() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        MusicTrackCacheEntity cache = new MusicTrackCacheEntity();
+        cache.setProviderCode("netease");
+        cache.setTrackId("member-track");
+        cache.setSourceUrl("https://audio.example.com/anonymous-cache.mp3");
+        Mockito.when(musicTrackCacheMapper.selectOne(ArgumentMatchers.any())).thenReturn(cache);
+        Mockito.when(userMusicClient.getPreference(9L)).thenReturn(Map.of("music.source_mode", "account_first"));
+        Mockito.when(userMusicClient.listSourceAccountStatus(9L)).thenReturn(List.of(
+            new UserMusicGateway.SourceAccountStatus("netease", "cookie", true, "", "BOUND")
+        ));
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=member-secret");
+        Mockito.when(neteaseCookieProvider.resolveTrack("member-track", "MUSIC_U=member-secret", true))
+            .thenReturn(new NeteaseCookieProvider.ResolvedTrack(
+                "member-track",
+                "Member track",
+                "Singer",
+                "https://cover.example.com/member.jpg",
+                "https://audio.example.com/member.mp3",
+                "[00:01.00]original",
+                "[00:01.00]translation",
+                "[00:01.00]pronunciation"
+            ));
+
+        MusicResolvePlaybackRequest request = new MusicResolvePlaybackRequest();
+        request.setProvider("netease");
+        request.setTrackId("member-track");
+        request.setResolveLyric(true);
+
+        MusicTrackResponse response = mediaService.resolvePlaybackTrack(request);
+
+        Assertions.assertEquals("https://audio.example.com/member.mp3", response.audio());
+        Assertions.assertEquals(
+            "[00:01.00]translation",
+            ((Map<?, ?>) response.metadata().get("lyricTracks")).get("translation")
+        );
+        Mockito.verify(neteaseCookieProvider).resolveTrack("member-track", "MUSIC_U=member-secret", true);
+        Mockito.verifyNoInteractions(metingMusicProvider);
+    }
+
     private AsmrMusicProvider.WorkSummary buildAsmrWorkSummary(long workId,
                                                                String title,
                                                                List<AsmrMusicProvider.TagSummary> tags,

@@ -403,10 +403,13 @@ export function usePlayerEngine(options = {}) {
       return {
         prev: '',
         prevTime: null,
+        prevTranslation: '',
         current: '',
         currentTime: null,
+        currentTranslation: '',
         next: '',
         nextTime: null,
+        nextTranslation: '',
         key: 'empty'
       };
     }
@@ -414,20 +417,26 @@ export function usePlayerEngine(options = {}) {
       return {
         prev: '',
         prevTime: null,
+        prevTranslation: '',
         current: list[0]?.original || '',
         currentTime: list[0]?.time ?? null,
+        currentTranslation: list[0]?.translation || '',
         next: list[1]?.original || '',
         nextTime: list[1]?.time ?? null,
+        nextTranslation: list[1]?.translation || '',
         key: 'l-prelude'
       };
     }
     return {
       prev: list[idx - 1]?.original || '',
       prevTime: list[idx - 1]?.time ?? null,
+      prevTranslation: list[idx - 1]?.translation || '',
       current: list[idx]?.original || '',
       currentTime: list[idx]?.time ?? null,
+      currentTranslation: list[idx]?.translation || '',
       next: list[idx + 1]?.original || '',
       nextTime: list[idx + 1]?.time ?? null,
+      nextTranslation: list[idx + 1]?.translation || '',
       key: `l-${idx}`
     };
   });
@@ -693,7 +702,10 @@ export function usePlayerEngine(options = {}) {
       playbackResolveAttempted.value.delete(resolveKey);
     }
     if (shouldResolve && (!track?.audio || shouldRefreshPlayback)) {
-      track = await resolveTrackPlayback(index, { force: shouldRefreshPlayback });
+      track = await resolveTrackPlayback(index, {
+        force: shouldRefreshPlayback,
+        bypassCache: shouldRefreshPlayback
+      });
     }
     if (!track) return false;
     if (!track.audio) {

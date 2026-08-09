@@ -114,6 +114,12 @@ class NeteaseCookieProviderTest {
                 request.getHeaders().getFirst("Cookie")
             ))
             .andRespond(withServerError());
+        server.expect(requestTo(containsString("https://music.163.com/api/song/url/v1")))
+            .andExpect(request -> Assertions.assertEquals(
+                ACCOUNT_COOKIE,
+                request.getHeaders().getFirst("Cookie")
+            ))
+            .andRespond(withServerError());
         server.expect(requestTo(containsString("https://music.163.com/api/song/lyric")))
             .andExpect(request -> Assertions.assertEquals(
                 ACCOUNT_COOKIE,
@@ -136,6 +142,54 @@ class NeteaseCookieProviderTest {
             resolved.audioUrl()
         );
         Assertions.assertEquals("[00:00.00]fallback lyric", resolved.lyricText());
+        server.verify();
+    }
+
+    @Test
+    void shouldUseCookieAuthorizedMemberStreamAndPreserveTranslatedLyrics() {
+        server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
+            .andExpect(request -> Assertions.assertFalse(request.getHeaders().containsKey("Cookie")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "songs": [
+                    {
+                      "id": 101,
+                      "name": "Member track",
+                      "ar": [{"name": "Singer"}],
+                      "al": {"picUrl": "https://cover.test/member.jpg"}
+                    }
+                  ]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://music.163.com/api/song/url/v1")))
+            .andExpect(request -> {
+                Assertions.assertEquals(ACCOUNT_COOKIE, request.getHeaders().getFirst("Cookie"));
+                Assertions.assertTrue(request.getURI().getQuery().contains("level=exhigh"));
+            })
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "data": [{"id": 101, "url": "https://stream.test/member-exhigh.mp3"}]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://music.163.com/api/song/lyric")))
+            .andExpect(request -> Assertions.assertEquals(ACCOUNT_COOKIE, request.getHeaders().getFirst("Cookie")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "lrc": {"lyric": "[00:01.00]original"},
+                  "tlyric": {"lyric": "[00:01.00]translation"},
+                  "romalrc": {"lyric": "[00:01.00]pronunciation"}
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        NeteaseCookieProvider.ResolvedTrack resolved = provider.resolveTrack("101", ACCOUNT_COOKIE, true);
+
+        Assertions.assertEquals("https://stream.test/member-exhigh.mp3", resolved.audioUrl());
+        Assertions.assertEquals("[00:01.00]original", resolved.lyricText());
+        Assertions.assertEquals("[00:01.00]translation", resolved.translationLyricText());
+        Assertions.assertEquals("[00:01.00]pronunciation", resolved.furiganaLyricText());
         server.verify();
     }
 
