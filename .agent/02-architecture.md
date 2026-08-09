@@ -25,6 +25,8 @@ monolith-app
        └─ 外部 OAuth、媒体、AI 或辅助服务
 ```
 
+模块级阅读入口：需要知道单个业务模块的功能和源码链路时，进入 [07-user-module.md](07-user-module.md)、[08-content-module.md](08-content-module.md)、[09-media-module.md](09-media-module.md) 或 [10-ai-module.md](10-ai-module.md)；需要追踪模块之间的协作时进入 [11-cross-module-flows.md](11-cross-module-flows.md)。
+
 ## 2. 后端分层规则
 
 - `controller`：HTTP 协议、参数校验、权限注解和响应包装；不承载复杂业务流程。

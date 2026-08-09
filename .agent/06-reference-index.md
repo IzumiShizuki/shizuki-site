@@ -66,3 +66,15 @@ rg --files apps modules deploy resouces | rg "migration|application|compose|\.ba
 ```
 
 遇到文档中的旧版本号、计划项或与源码不一致的描述时，保留它作为历史背景，但不要按它执行未经验证的操作；优先以当前 Git 工作树、测试、脚本和用户当前指令为准。
+
+## 6. Agent 模块与链路指南
+
+| 文件 | 适用场景 |
+| --- | --- |
+| [07-user-module.md](07-user-module.md) | 认证、用户资料、分组权限、配额、音乐凭据和 user Port |
+| [08-content-module.md](08-content-module.md) | 博客、作者、互动、可见性、轻应用、Notion/账单/生成工具 |
+| [09-media-module.md](09-media-module.md) | 资源上传、对象存储、壁纸导入、音乐 provider、缓存和歌单 |
+| [10-ai-module.md](10-ai-module.md) | AI 会话、SSE、配额、角色、世界书、陪伴、记忆和城镇 |
+| [11-cross-module-flows.md](11-cross-module-flows.md) | 跨模块端到端调用、Port/Gateway、管理员、Meguri 和迁移装配 |
+
+这些文件是源码阅读导航，不替代源码、测试、配置和迁移；当实现发生变化时先更新对应模块指南，再更新本页索引。
