@@ -11,7 +11,7 @@
         :model-entry="activeBackground?.l2dEntryModelJson || ''"
         :active-wallpaper-bgm-url="activeWallpaperBgmUrl"
         :active-wallpaper-bgv-url="activeWallpaperBgvUrl"
-        :is-home-route="isHomeRoute"
+        :is-home-route="isHomeRoute || isFocusActive"
         :effect="siteAtmosphereSnapshot.effect"
         :reduced-motion="reducedMotion"
         :set-wallpaper-bgm-ref="setWallpaperBgmRef"
@@ -21,7 +21,7 @@
       />
 
       <TopMenu
-        v-if="!isMobileShellRoute"
+        v-if="!isMobileShellRoute && !isFocusActive"
         :menu-expanded="menuExpanded"
         :theme-mode="ui.state.themeMode"
         :ai-chat-active="aiChatActive"
@@ -44,6 +44,8 @@
         @open-background-picker="backgroundPickerVisible = true"
         @open-atmosphere-panel="openAtmospherePanel"
       />
+
+      <FocusModeBar v-if="!isMobileShellRoute" />
 
       <RouterView v-if="isMobileShellRoute" v-slot="{ Component }">
         <component :is="Component" />
@@ -104,10 +106,10 @@
         :list-open="player.listOpen.value"
         :visualizer-mode="player.visualizerMode.value"
         :visualizer-style="activeVisualizerStyle"
-        :is-home-route="isHomeRoute"
+        :is-home-route="isHomeRoute || isFocusActive"
         :is-mobile-viewport="isMobileViewport"
-        :suppressed-by-route="isMusicLibraryRoute"
-        :show-visualizer-controls="isHomeRoute"
+        :suppressed-by-route="isMusicLibraryRoute && !isFocusActive"
+        :show-visualizer-controls="isHomeRoute || isFocusActive"
         @set-expanded="player.setPlayerExpanded"
         @set-pinned="player.setPinned"
         @toggle-play="player.togglePlay"
@@ -126,7 +128,7 @@
 
       <transition name="lyric-fade">
         <div
-          v-if="subtitleVisible && !isMusicLibraryRoute && !isMobileShellRoute"
+          v-if="subtitleVisible && (!isMusicLibraryRoute || isFocusActive) && !isMobileShellRoute"
           class="global-lyric-bar liquid-material"
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
@@ -238,7 +240,12 @@
         @select-background="selectBackground"
       />
 
-      <LightAppWindowHost v-if="!isMobileShellRoute" :is-home-route="isHomeRoute" />
+      <LightAppWindowHost
+        v-if="!isMobileShellRoute"
+        :is-home-route="isHomeRoute"
+        :is-focus-active="isFocusActive"
+        :focus-app-codes="focusAppCodes"
+      />
       <TimePrismReminderHost v-if="!isMobileShellRoute" />
       <LevitationBall v-if="showLevitationBall && !isMobileShellRoute" ref="levitationRef" />
 
@@ -267,6 +274,7 @@ import AiDialog from './components/AiDialog.vue';
 import AtmospherePanel from './components/AtmospherePanel.vue';
 import AppBackgroundStage from './components/app/AppBackgroundStage.vue';
 import BackgroundPickerDialog from './components/app/BackgroundPickerDialog.vue';
+import FocusModeBar from './components/app/FocusModeBar.vue';
 import TopMenu from './components/TopMenu.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
@@ -276,6 +284,7 @@ import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
 import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
+import { useFocusSession } from './utils/focusSessionState';
 import { readAuthorProfileCache, writeAuthorProfileCache, AUTHOR_PROFILE_CACHE_UPDATED_EVENT } from './pages/authorProfileCache';
 import { normalizeAuthorProfilePayload } from './pages/authorUiState';
 import { usePlayerEngine } from './composables/usePlayerEngine';
@@ -284,6 +293,7 @@ import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
 import { getAuthorProfile } from './services/authorApi';
 import { resolveAppRouteViewKey } from './utils/routeViewKey';
+import { openLightAppShellWindow } from './components/lightapps/lightAppShellStore';
 import { AI_CHAT_OPEN_EVENT } from './utils/aiChatBus';
 import * as wallpaperApi from './services/wallpaperApi';
 import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
@@ -429,6 +439,9 @@ const miniMusicLibrary = useMiniMusicLibrary({
 });
 const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
+const focus = useFocusSession();
+const isFocusActive = focus.isActive;
+const focusAppCodes = focus.activePresetAppCodes;
 
 const routeLabelMap = {
   home: '主页',
@@ -493,14 +506,14 @@ const activeAiChatAllowedModes = computed(() =>
   String(activeAiChatPayload.value?.source || '').trim() === 'home-room' ? ['companion'] : undefined
 );
 
-const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.value);
+const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.value && !isFocusActive.value);
 const showSidebarAiPanel = computed(() => aiChatActive.value && canUseSidebarAi.value);
 const sidebarAiColumnMounted = computed(() => canUseSidebarAi.value && (showSidebarAiPanel.value || sidebarAiColumnVisible.value));
-const showSheetAiPanel = computed(() => aiChatActive.value && isMobileViewport.value && !isAiHubRoute.value);
-const showBarsVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'bars');
-const showRingVisualizer = computed(() => isHomeRoute.value && player.visualizerMode.value === 'ring');
+const showSheetAiPanel = computed(() => aiChatActive.value && isMobileViewport.value && !isAiHubRoute.value && !isFocusActive.value);
+const showBarsVisualizer = computed(() => (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'bars');
+const showRingVisualizer = computed(() => (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'ring');
 const shouldRunVisualizer = computed(
-  () => isHomeRoute.value && ['bars', 'ring'].includes(player.visualizerMode.value) && player.isPlaying.value
+  () => (isHomeRoute.value || isFocusActive.value) && ['bars', 'ring'].includes(player.visualizerMode.value) && player.isPlaying.value
 );
 const activeVisualizerStyle = computed(() => {
   const style = player.visualizerStyle.value;
@@ -2214,7 +2227,7 @@ function toggleMenu() {
 }
 
 function toggleAiChat() {
-  if (isAiHubRoute.value) {
+  if (isAiHubRoute.value || isFocusActive.value) {
     return;
   }
   if (!aiChatActive.value) {
@@ -2231,7 +2244,7 @@ function closeAiChat() {
 }
 
 function handleAiChatOpenEvent(event) {
-  if (isAiHubRoute.value) {
+  if (isAiHubRoute.value || isFocusActive.value) {
     return;
   }
   const detail = event?.detail && typeof event.detail === 'object' ? event.detail : {};
@@ -2252,6 +2265,15 @@ watch(
   },
   { immediate: true }
 );
+
+watch(isFocusActive, (active) => {
+  if (!active) return;
+  menuExpanded.value = false;
+  aiChatActive.value = false;
+  focusAppCodes.value.forEach((code) => {
+    openLightAppShellWindow(code, { source: 'focus-session' });
+  });
+});
 
 function applySiteMetaToDocument(siteMeta) {
   if (typeof document === 'undefined') return;
@@ -2315,6 +2337,7 @@ function handleAuthorProfileCacheUpdated(event) {
 }
 
 function handleMainRouteSelect(routeKey) {
+  if (isFocusActive.value) return;
   const nextPath = routePathByKey[routeKey] || '/';
   if (route.path === nextPath) return;
   router.push(nextPath);

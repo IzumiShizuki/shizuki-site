@@ -244,7 +244,8 @@ import {
   filterTodosByViewAndProjects,
   normalizeProjectFilterIds
 } from './timePrismSuiteState';
-import { TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
+import { TIMEPRISM_COMPLETE_ITEM_EVENT, TIMEPRISM_FOCUS_ITEM_EVENT } from './timePrismFocusBus';
+import { resolveFocusTaskCompletion, setFocusTask } from '../../../utils/focusSessionState';
 import {
   convertTaskInputValue,
   formatTaskDateLabel,
@@ -810,11 +811,13 @@ async function createTodoItem() {
 
 async function toggleDone(item) {
   errorText.value = '';
+  const nextDone = !item.done;
   try {
     await auth.ensureReady();
     if (auth.isAuthenticated.value) {
-      await updateLightAppTodo(item.todoId, buildTodoPayload(item, { done: !item.done }), auth.authorizedFetch);
+      await updateLightAppTodo(item.todoId, buildTodoPayload(item, { done: nextDone }), auth.authorizedFetch);
       await refreshRemoteTodos();
+      if (nextDone) resolveFocusTaskCompletion({ itemId: item.todoId });
       return;
     }
 
@@ -823,10 +826,11 @@ async function toggleDone(item) {
         if (row.todoId !== item.todoId) return row;
         return {
           ...row,
-          done: !row.done
+          done: nextDone
         };
       })
     );
+    if (nextDone) resolveFocusTaskCompletion({ itemId: item.todoId });
   } catch (error) {
     errorText.value = error?.message || '待办状态更新失败';
   }
@@ -893,10 +897,12 @@ async function moveTodo(todoId, direction) {
 onMounted(() => {
   hydrate();
   window.addEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
+  window.addEventListener(TIMEPRISM_COMPLETE_ITEM_EVENT, handleCompleteFocusItemEvent);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
+  window.removeEventListener(TIMEPRISM_COMPLETE_ITEM_EVENT, handleCompleteFocusItemEvent);
 });
 
 function handleFocusItemEvent(event) {
@@ -906,7 +912,23 @@ function handleFocusItemEvent(event) {
   if (itemId <= 0) return;
   const target = todos.value.find((item) => item.todoId === itemId);
   if (!target) return;
+  setFocusTask({
+    moduleCode: moduleCode,
+    itemId: target.todoId,
+    title: target.title,
+    detail: target.detail
+  });
   startTodoEdit(target);
+}
+
+async function handleCompleteFocusItemEvent(event) {
+  const moduleCode = String(event?.detail?.moduleCode || '').trim().toLowerCase();
+  if (moduleCode !== TIMEPRISM_MODULE_TODO) return;
+  const itemId = Number(event?.detail?.itemId) || 0;
+  if (itemId <= 0) return;
+  const target = todos.value.find((item) => item.todoId === itemId);
+  if (!target || target.done) return;
+  await toggleDone(target);
 }
 
 if (suiteContext?.projectVersion) {

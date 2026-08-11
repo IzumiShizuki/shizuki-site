@@ -84,4 +84,25 @@ describe('lightAppWindowRuntime', () => {
     expect(getVisibleWindows(state, false)).toHaveLength(1);
     expect(getVisibleWindows(state, false)[0].code).toBe('timeprism-schedule');
   });
+
+  it('filters windows to the selected Focus app allow-list', () => {
+    let state = createWindowRuntimeState();
+    state = openOrFocusWindow(state, { code: 'timeprism-todo', title: 'Todo' }, { width: 1280, height: 720 });
+    state = openOrFocusWindow(state, { code: 'pomodoro-timer', title: 'Pomodoro' }, { width: 1280, height: 720 });
+    state = openOrFocusWindow(state, { code: 'url-links', title: 'URL Links' }, { width: 1280, height: 720 });
+
+    const visible = getVisibleWindows(state, {
+      mode: 'focus',
+      focusAppCodes: ['timeprism-todo', 'pomodoro-timer']
+    });
+
+    expect(visible.map((item) => item.code)).toEqual(['timeprism-todo', 'pomodoro-timer']);
+  });
+
+  it('keeps Focus empty when a quiet preset has no selected apps', () => {
+    let state = createWindowRuntimeState();
+    state = openOrFocusWindow(state, { code: 'timeprism-todo', title: 'Todo' }, { width: 1280, height: 720 });
+
+    expect(getVisibleWindows(state, { mode: 'focus', focusAppCodes: [] })).toEqual([]);
+  });
 });

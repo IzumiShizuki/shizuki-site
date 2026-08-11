@@ -249,8 +249,8 @@ export function normalizeLightAppWindowsToViewport(viewport) {
   replaceRuntime(next);
 }
 
-export function getVisibleLightAppWindows(isHomeRoute) {
-  return getVisibleWindows(shellState.runtime, Boolean(isHomeRoute));
+export function getVisibleLightAppWindows(viewOptions) {
+  return getVisibleWindows(shellState.runtime, viewOptions);
 }
 
 export function openLightAppPageMode(code, options = {}) {

@@ -102,6 +102,14 @@ const props = defineProps({
   isHomeRoute: {
     type: Boolean,
     default: false
+  },
+  isFocusActive: {
+    type: Boolean,
+    default: false
+  },
+  focusAppCodes: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -183,7 +191,13 @@ const interaction = reactive({
   captureTarget: null
 });
 
-const visibleWindows = computed(() => getVisibleLightAppWindows(props.isHomeRoute));
+const visibleWindows = computed(() =>
+  getVisibleLightAppWindows({
+    isHomeRoute: props.isHomeRoute,
+    isFocusActive: props.isFocusActive,
+    focusAppCodes: props.focusAppCodes
+  })
+);
 
 const activeWindowId = computed(() => {
   const windows = Array.isArray(visibleWindows.value) ? visibleWindows.value : [];

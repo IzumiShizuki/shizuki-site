@@ -31,9 +31,9 @@
         </p>
 
         <div class="home-actions">
-          <button class="primary-btn home-primary-action ripple-trigger" type="button" @click="openPath('/ai-hub')">
-            <i class="fas fa-brain" aria-hidden="true"></i>
-            进入 AI Hub
+          <button class="primary-btn home-primary-action ripple-trigger" type="button" @click="handleFocusAction">
+            <i :class="isFocusActive ? 'fas fa-arrow-right' : 'fas fa-bullseye'" aria-hidden="true"></i>
+            {{ isFocusActive ? '返回专注' : '进入专注' }}
           </button>
           <button class="ghost-btn home-secondary-action ripple-trigger" type="button" @click="openAuthorIntro">
             <i class="fas fa-circle-info" aria-hidden="true"></i>
@@ -62,6 +62,20 @@
         <div class="room-message">
           <strong>欢迎回家。</strong>
           <p>伴聊留在熟悉的壁纸与音乐旁边，不必先进入工作区。</p>
+        </div>
+
+        <div class="home-focus-summary" :class="{ 'is-active': isFocusActive }" data-testid="home-focus-summary">
+          <div class="home-focus-summary-icon" aria-hidden="true">
+            <i :class="isFocusActive ? 'fas fa-wave-square' : 'fas fa-feather-pointed'"></i>
+          </div>
+          <div class="home-focus-summary-copy">
+            <span>{{ focusSummary.label }}</span>
+            <strong>{{ focusSummary.title }}</strong>
+            <small>{{ focusSummary.caption }}</small>
+          </div>
+          <span class="home-focus-summary-state" aria-hidden="true">
+            <i :class="isFocusActive ? 'fas fa-circle-play' : 'fas fa-arrow-right'"></i>
+          </span>
         </div>
 
         <button
@@ -101,15 +115,19 @@ import { useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
 import { listPublicPostWhispers } from '../services/blogApi';
 import { openAiChat } from '../utils/aiChatBus';
+import { useFocusSession } from '../utils/focusSessionState';
 import { buildAuthorHomepageWhisperPool } from './authorHomepageWhispersState';
 
 const router = useRouter();
 const auth = useAuthSession();
+const focus = useFocusSession();
+const isFocusActive = focus.isActive;
+const currentFocusTask = focus.currentTask;
 
 const quickTools = [
   { path: '/music-library/music', label: 'Music', icon: 'fas fa-compact-disc' },
-  { path: '/apps', label: 'Apps', icon: 'fas fa-grip' },
-  { path: '/blog', label: 'Blog', icon: 'fas fa-feather' }
+  { path: '/blog', label: 'Blog', icon: 'fas fa-feather' },
+  { path: '/ai-hub', label: 'AI', icon: 'fas fa-brain' }
 ];
 
 const now = ref(new Date());
@@ -195,6 +213,28 @@ const activeWhisper = computed(() => {
   return pool[whisperIndex.value % pool.length] || greeting.value.note;
 });
 
+const focusSummary = computed(() => {
+  if (isFocusActive.value) {
+    return {
+      label: 'FOCUS ACTIVE',
+      title: currentFocusTask.value?.title || '环境已准备好',
+      caption: '播放器、时间和专注工具会留在这里'
+    };
+  }
+  if (currentFocusTask.value) {
+    return {
+      label: 'NEXT TASK',
+      title: currentFocusTask.value.title,
+      caption: '从这里回到专注，继续手上的事'
+    };
+  }
+  return {
+    label: 'READY WHEN YOU ARE',
+    title: '给自己一小段安静',
+    caption: '不需要先选任务，也可以直接开始'
+  };
+});
+
 function rotateWhisper() {
   const total = whisperPool.value.length + 1;
   whisperIndex.value = (whisperIndex.value + 1) % total;
@@ -227,6 +267,11 @@ function openAuthorIntro() {
 
 function openPath(path) {
   router.push(path);
+}
+
+function handleFocusAction() {
+  if (isFocusActive.value) return;
+  focus.startFocusSession({ presetId: 'desk' });
 }
 
 function openCompanion() {
@@ -555,6 +600,71 @@ function openCompanion() {
   color: var(--home-ink-secondary);
   font-size: 13px;
   line-height: 1.65;
+}
+
+.home-focus-summary {
+  min-width: 0;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--home-border);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.045);
+  transition: border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
+}
+
+.home-focus-summary.is-active {
+  border-color: rgba(var(--accent-soft-rgb), 0.46);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.home-focus-summary-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(var(--accent-rgb), 0.16);
+  color: rgba(var(--accent-soft-rgb), 0.98);
+}
+
+.home-focus-summary-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.home-focus-summary-copy span {
+  color: var(--home-ink-tertiary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.home-focus-summary-copy strong {
+  overflow: hidden;
+  color: var(--home-ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-focus-summary-copy small {
+  overflow: hidden;
+  color: var(--home-ink-tertiary);
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-focus-summary-state {
+  color: rgba(var(--accent-soft-rgb), 0.84);
+  font-size: 12px;
 }
 
 .home-companion-action {

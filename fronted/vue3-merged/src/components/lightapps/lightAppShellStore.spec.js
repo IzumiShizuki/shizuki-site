@@ -102,6 +102,13 @@ describe('lightAppShellStore', () => {
     expect(getVisibleLightAppWindows(false)).toHaveLength(1);
     expect(getVisibleLightAppWindows(false)[0].id).toBe(pomodoroWindowId);
 
+    expect(
+      getVisibleLightAppWindows({
+        isFocusActive: true,
+        focusAppCodes: ['pomodoro-timer']
+      }).map((item) => item.id)
+    ).toEqual([pomodoroWindowId]);
+
     expect(resolveLightAppHeaderPortalId(todoWindowId)).toBe(`lightapp-header-portal-shell-${todoWindowId}`);
     expect(resolveLightAppHeaderPortalSelector(todoWindowId)).toBe(`#lightapp-header-portal-shell-${todoWindowId}`);
     expect(resolveLightAppHeaderPortalId(0)).toBe('');

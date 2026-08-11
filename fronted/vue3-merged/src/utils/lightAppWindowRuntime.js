@@ -223,9 +223,36 @@ export function setWindowRect(state, id, rect, viewport) {
   return next;
 }
 
-export function getVisibleWindows(state, isHomeRoute) {
+function normalizeWindowViewOptions(viewOptions) {
+  if (typeof viewOptions === 'boolean') {
+    return {
+      mode: viewOptions ? 'home' : 'route',
+      focusAppCodes: []
+    };
+  }
+
+  const mode = String(viewOptions?.mode || '').trim().toLowerCase();
+  const isFocusMode = mode === 'focus' || viewOptions?.isFocusActive === true;
+  const focusAppCodes = Array.isArray(viewOptions?.focusAppCodes)
+    ? viewOptions.focusAppCodes.map((code) => String(code || '').trim()).filter(Boolean)
+    : [];
+
+  return {
+    mode: isFocusMode ? 'focus' : viewOptions?.isHomeRoute ? 'home' : 'route',
+    focusAppCodes
+  };
+}
+
+export function getVisibleWindows(state, viewOptions) {
   const source = Array.isArray(state?.windows) ? state.windows : [];
-  if (isHomeRoute) {
+  const options = normalizeWindowViewOptions(viewOptions);
+  if (options.mode === 'focus') {
+    const allowedCodes = new Set(options.focusAppCodes);
+    return source
+      .filter((item) => allowedCodes.has(String(item?.code || '').trim()))
+      .sort((left, right) => left.zIndex - right.zIndex);
+  }
+  if (options.mode === 'home') {
     return source.slice().sort((left, right) => left.zIndex - right.zIndex);
   }
   return source.filter((item) => !item.pinned).sort((left, right) => left.zIndex - right.zIndex);
