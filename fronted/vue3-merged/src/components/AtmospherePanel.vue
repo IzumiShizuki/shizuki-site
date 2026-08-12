@@ -357,6 +357,28 @@
                     <span class="tile-volume-num">{{ Math.round(activeTrackMap[item.id].volume * 100) }}</span>
                   </div>
 
+                  <div v-if="item.sourceProvider === 'freesound'" class="tile-source-actions">
+                    <a
+                      v-if="item.pageUrl"
+                      class="inline-link"
+                      :href="item.pageUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>来源
+                    </a>
+                    <button
+                      v-if="item.attributionRequired"
+                      class="inline-link ripple-trigger"
+                      type="button"
+                      :title="buildAmbientAttribution(item)"
+                      @click="copyAttribution(item)"
+                    >
+                      <i class="fas fa-copy" aria-hidden="true"></i>
+                      {{ copiedId === item.trackId ? '署名已复制' : '复制署名' }}
+                    </button>
+                  </div>
+
                   <button
                     v-if="item.source !== 'builtin'"
                     class="tile-remove ripple-trigger"
@@ -468,7 +490,13 @@
               </div>
             </div>
 
-            <p v-if="!onlineEnabled" class="inline-note warning">
+            <p v-if="!onlineLibraryChecked" class="inline-note">
+              正在连接 Freesound 在线音源库…
+            </p>
+            <p v-else-if="onlineLibraryError" class="inline-note warning">
+              {{ onlineLibraryError }}，请稍后重试；现有环境音不会受影响。
+            </p>
+            <p v-else-if="!onlineEnabled" class="inline-note warning">
               服务端还没有配置 Freesound Token，在线音源库暂时不可用。在 monolith-app 的环境变量里设置
               <code>MUSIC_FREESOUND_API_KEY</code> 后重启即可（Token 在 freesound.org 免费申请）。
             </p>
@@ -489,7 +517,7 @@
                 v-for="track in onlineResults"
                 :key="track.trackId"
                 class="online-card"
-                :class="{ added: Boolean(activeTrackMap[track.trackId]) }"
+                :class="{ added: onlineImportStatus(track).status === 'done' }"
               >
                 <div class="online-card-head">
                   <div class="online-card-copy">
@@ -515,15 +543,16 @@
                   </button>
                   <button
                     class="soft-btn ripple-trigger"
-                    :class="{ primary: !activeTrackMap[track.trackId] }"
+                    :class="{ primary: onlineImportStatus(track).status !== 'done' }"
                     type="button"
-                    @click="emit('import-remote-track', track)"
+                    :disabled="onlineImportStatus(track).status === 'pending' || onlineImportedTrackActive(track)"
+                    @click="requestOnlineImport(track)"
                   >
                     <i
-                      :class="activeTrackMap[track.trackId] ? 'fas fa-check' : 'fas fa-plus'"
+                      :class="onlineImportIcon(track)"
                       aria-hidden="true"
                     ></i>
-                    {{ activeTrackMap[track.trackId] ? '已加入' : '加入混音' }}
+                    {{ onlineImportButtonText(track) }}
                   </button>
                   <a
                     v-if="track.pageUrl"
@@ -536,6 +565,10 @@
                     <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
                   </a>
                 </div>
+
+                <p v-if="onlineImportStatus(track).status === 'error'" class="inline-note warning compact">
+                  {{ onlineImportStatus(track).error || '保存失败，请重试。' }}
+                </p>
 
                 <button
                   v-if="track.attributionRequired"
@@ -748,7 +781,10 @@ const props = defineProps({
   uploadHint: { type: String, default: '' },
   mixerNeedsGesture: { type: Boolean, default: false },
   mixerActiveTrackIds: { type: Array, default: () => [] },
-  onlineLibraryEnabled: { type: Boolean, default: false }
+  onlineLibraryChecked: { type: Boolean, default: false },
+  onlineLibraryEnabled: { type: Boolean, default: false },
+  onlineLibraryError: { type: String, default: '' },
+  onlineImportState: { type: Object, default: () => ({}) }
 });
 
 const emit = defineEmits([
@@ -773,6 +809,7 @@ const emit = defineEmits([
   'resume-ambient',
   'apply-scene',
   'import-remote-track',
+  'request-auth',
   'effect-toggle-enabled',
   'effect-select-preset',
   'effect-set-density',
@@ -791,9 +828,7 @@ const tabs = computed(() => {
     { key: 'effects', label: '特效', icon: 'fas fa-wand-magic-sparkles' },
     { key: 'music', label: '音乐', icon: 'fas fa-music' }
   ];
-  if (props.onlineLibraryEnabled) {
-    base.splice(2, 0, { key: 'online', label: '在线音源', icon: 'fas fa-cloud-arrow-down' });
-  }
+  base.splice(2, 0, { key: 'online', label: '在线音源', icon: 'fas fa-cloud-arrow-down' });
   return base;
 });
 
@@ -956,6 +991,55 @@ function stopPreview() {
     previewAudio = null;
   }
   previewingId.value = '';
+}
+
+function onlineImportStatus(track) {
+  const soundId = String(track?.soundId || '').trim();
+  const state = soundId && props.onlineImportState && typeof props.onlineImportState === 'object'
+    ? props.onlineImportState[soundId]
+    : null;
+  if (state && typeof state === 'object') return state;
+  const imported = (props.ambientState?.ambient?.tracks || []).find(
+    (item) => String(item?.sourceProvider || '').toLowerCase() === 'freesound'
+      && String(item?.sourceSoundId || '') === soundId
+  );
+  return imported
+    ? { status: 'done', error: '', assetId: imported.assetId }
+    : { status: 'idle', error: '' };
+}
+
+function onlineImportButtonText(track) {
+  if (!props.isAuthenticated) return '登录后保存';
+  const status = onlineImportStatus(track).status;
+  if (status === 'pending') return '保存中...';
+  if (status === 'done' && onlineImportedTrackActive(track)) return '已保存并播放';
+  if (status === 'done') return '重新加入播放';
+  if (status === 'error') return '重试保存';
+  return '保存并播放';
+}
+
+function onlineImportIcon(track) {
+  if (!props.isAuthenticated) return 'fas fa-right-to-bracket';
+  const status = onlineImportStatus(track).status;
+  if (status === 'pending') return 'fas fa-spinner fa-spin';
+  if (status === 'done') return 'fas fa-check';
+  if (status === 'error') return 'fas fa-rotate-right';
+  return 'fas fa-cloud-arrow-down';
+}
+
+function onlineImportedTrackActive(track) {
+  const assetId = Number(onlineImportStatus(track).assetId);
+  if (!Number.isInteger(assetId) || assetId <= 0) return false;
+  return Boolean(activeTrackMap.value[`asset:${assetId}`]?.enabled);
+}
+
+function requestOnlineImport(track) {
+  if (!props.isAuthenticated) {
+    emit('request-auth');
+    return;
+  }
+  if (onlineImportStatus(track).status === 'pending' || onlineImportedTrackActive(track)) return;
+  emit('import-remote-track', track);
 }
 
 function togglePreview(track) {
@@ -1985,6 +2069,26 @@ function rangeFillStyle(value, min = 0, max = 1) {
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: rgba(66, 78, 96, 0.78);
+}
+
+.tile-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 10px;
+  font-size: 12px;
+}
+
+.tile-source-actions .inline-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ap-ink-muted);
+  text-decoration: none;
+}
+
+.tile-source-actions .inline-link:hover {
+  color: rgba(var(--accent-strong-rgb), 0.96);
 }
 
 .tile-remove {

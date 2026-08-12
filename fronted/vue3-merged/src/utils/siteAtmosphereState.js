@@ -124,6 +124,13 @@ function normalizeTrack(input, sessionUploads) {
     next.assetId = assetId;
     next.trackId = `asset:${assetId}`;
     next.title = String(source.title || '已上传环境音').trim() || '已上传环境音';
+    next.sourceProvider = String(source.sourceProvider || source.source_provider || '').trim();
+    next.sourceSoundId = String(source.sourceSoundId || source.source_sound_id || '').trim();
+    next.author = String(source.author || '').trim();
+    next.license = String(source.license || '').trim();
+    next.licenseName = String(source.licenseName || source.license_name || '').trim();
+    const pageUrl = String(source.pageUrl || source.page_url || '').trim();
+    next.pageUrl = pageUrl && isAllowedRemoteAmbientUrl(pageUrl) ? pageUrl : '';
     return next;
   }
 

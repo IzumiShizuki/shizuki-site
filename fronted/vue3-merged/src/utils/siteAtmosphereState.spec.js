@@ -51,6 +51,7 @@ describe('siteAtmosphereState', () => {
 
     expect(normalized.panelTab).toBe('ambient');
     expect(normalizeSiteAtmosphereState({ panelTab: 'scenes' }).panelTab).toBe('scenes');
+    expect(normalizeSiteAtmosphereState({ panelTab: 'online' }).panelTab).toBe('online');
     expect(normalized.effect.presetId).toBe('none');
     expect(normalized.effect.density).toBe(1.8);
     expect(normalized.effect.opacity).toBe(0);
@@ -148,6 +149,35 @@ describe('siteAtmosphereState', () => {
     expect(isAllowedRemoteAmbientUrl('')).toBe(false);
   });
 
+  it('preserves Freesound attribution metadata on imported asset tracks', () => {
+    const normalized = normalizeSiteAtmosphereState({
+      ambient: {
+        tracks: [{
+          trackId: 'asset:88',
+          source: 'asset',
+          assetId: 88,
+          enabled: true,
+          title: 'Forest Rain',
+          sourceProvider: 'freesound',
+          sourceSoundId: '42001',
+          author: 'field-recorder',
+          license: 'by',
+          licenseName: 'CC-BY 需署名',
+          pageUrl: 'https://freesound.org/s/42001/'
+        }]
+      }
+    });
+
+    expect(normalized.ambient.tracks[0]).toMatchObject({
+      trackId: 'asset:88',
+      sourceSoundId: '42001',
+      sourceProvider: 'freesound',
+      author: 'field-recorder',
+      license: 'by',
+      pageUrl: 'https://freesound.org/s/42001/'
+    });
+  });
+
   it('keeps a remote track through an upsert + toggle round trip', () => {
     let state = createDefaultSiteAtmosphereState();
     state = upsertAmbientTrack(state, {
@@ -163,6 +193,31 @@ describe('siteAtmosphereState', () => {
     state = toggleAmbientTrack(state, state.ambient.tracks[0]);
     expect(state.ambient.tracks[0].enabled).toBe(false);
     expect(state.ambient.tracks[0].audioUrl).toBe('https://cdn.freesound.org/previews/9/900-hq.mp3');
+  });
+
+  it('keeps Freesound attribution on a durable asset track', () => {
+    const state = upsertAmbientTrack(createDefaultSiteAtmosphereState(), {
+      trackId: 'asset:88',
+      source: 'asset',
+      assetId: 88,
+      enabled: true,
+      title: 'Forest Rain',
+      sourceProvider: 'freesound',
+      sourceSoundId: '42001',
+      author: 'field-recorder',
+      license: 'by',
+      licenseName: 'CC-BY 需署名',
+      pageUrl: 'https://freesound.org/s/42001/'
+    });
+
+    expect(state.ambient.tracks[0]).toMatchObject({
+      trackId: 'asset:88',
+      sourceProvider: 'freesound',
+      sourceSoundId: '42001',
+      author: 'field-recorder',
+      license: 'by',
+      pageUrl: 'https://freesound.org/s/42001/'
+    });
   });
 
   it('saves, applies and deletes ambient presets while keeping builtins restorable', () => {

@@ -165,6 +165,11 @@
         :uploading="ambientUploading"
         :upload-hint="ambientUploadHint"
         :mixer-needs-gesture="ambientMixer.needsUserGesture.value"
+        :mixer-active-track-ids="ambientMixer.activeTrackIds.value"
+        :online-library-checked="ambientOnlineLibrary.checked"
+        :online-library-enabled="ambientOnlineLibrary.enabled"
+        :online-library-error="ambientOnlineLibrary.error"
+        :online-import-state="ambientOnlineImportViewState"
         @close="closeAtmospherePanel"
         @set-tab="setAtmospherePanelTab"
         @music-toggle-play="player.togglePlay"
@@ -183,6 +188,8 @@
         @ambient-mute-all="muteAllAmbientTracks"
         @ambient-remove-track="removeAmbientLibraryTrack"
         @ambient-upload="handleAmbientUpload"
+        @import-remote-track="handleAmbientOnlineImport"
+        @request-auth="openAuth(route.fullPath)"
         @resume-ambient="ambientMixer.resumeFromGesture()"
         @effect-toggle-enabled="toggleEffectEnabled"
         @effect-select-preset="selectEffectPreset"
@@ -292,6 +299,7 @@ import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
 import { getAuthorProfile } from './services/authorApi';
+import { fetchAmbientLibraryStatus, importAmbientLibraryTrack } from './services/ambientLibraryApi';
 import { resolveAppRouteViewKey } from './utils/routeViewKey';
 import { openLightAppShellWindow } from './components/lightapps/lightAppShellStore';
 import { AI_CHAT_OPEN_EVENT } from './utils/aiChatBus';
@@ -299,6 +307,12 @@ import * as wallpaperApi from './services/wallpaperApi';
 import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
 import { refreshAosManager } from './utils/aosManager';
 import { fileToDataUrl, uploadAmbientAudioAsset, validateAmbientAudioFile } from './utils/ambientAudioUpload';
+import {
+  createImportedAmbientAssetTrack,
+  indexImportedAmbientAssets,
+  normalizeAmbientLibraryAvailability,
+  normalizeAtmospherePanelTab
+} from './utils/ambientOnlineLibraryState';
 import { normalizePermanentPublicAssetUrl, resolveSignedStorageExpiryEpochMs } from './utils/publicAssetUrl';
 import {
   canAttachMediaElementAudioGraph,
@@ -359,6 +373,8 @@ const packageDragDepth = ref(0);
 const ambientUploading = ref(false);
 const ambientUploadHint = ref('');
 const ambientGuestUploads = ref({});
+const ambientOnlineLibrary = reactive({ checked: false, enabled: false, provider: 'freesound', error: '' });
+const ambientOnlineImportState = reactive({});
 const siteAtmosphere = reactive(createDefaultSiteAtmosphereState());
 const pendingPreferencePatches = reactive({});
 
@@ -559,10 +575,22 @@ const ambientLibrary = computed(() => {
       trackId: track.trackId,
       label: track.title,
       title: track.title,
-      description: track.source === 'asset' ? '已上传到账户，可全站继承播放。' : '当前浏览器会话内可用的临时环境音。',
+      description:
+        track.sourceProvider === 'freesound'
+          ? `来自 Freesound${track.author ? ` · ${track.author}` : ''}${track.licenseName ? ` · ${track.licenseName}` : ''}`
+          : track.source === 'asset'
+            ? '已上传到账户，可全站继承播放。'
+            : '当前浏览器会话内可用的临时环境音。',
       category: 'upload',
-      categoryLabel: track.source === 'asset' ? '账户上传' : '临时上传',
+      categoryLabel:
+        track.sourceProvider === 'freesound' ? '在线音源' : track.source === 'asset' ? '账户上传' : '临时上传',
       source: track.source,
+      sourceProvider: track.sourceProvider,
+      author: track.author,
+      license: track.license,
+      licenseName: track.licenseName,
+      attributionRequired: track.sourceProvider === 'freesound' && track.license !== 'cc0',
+      pageUrl: track.pageUrl,
       icon: 'fas fa-wave-square',
       cover:
         track.source === 'asset'
@@ -571,6 +599,22 @@ const ambientLibrary = computed(() => {
     }));
 
   return [...builtinItems, ...uploadItems];
+});
+const importedAmbientAssetsBySoundId = computed(() =>
+  indexImportedAmbientAssets(siteAtmosphereSnapshot.value.ambient.tracks)
+);
+const ambientOnlineImportViewState = computed(() => {
+  const next = { ...ambientOnlineImportState };
+  Object.entries(importedAmbientAssetsBySoundId.value).forEach(([soundId, track]) => {
+    if (next[soundId]?.status === 'pending') return;
+    next[soundId] = {
+      status: 'done',
+      error: '',
+      assetId: track.assetId,
+      alreadyImported: true
+    };
+  });
+  return next;
 });
 const ambientEffectPresets = EFFECT_PRESET_DEFINITIONS;
 const barsVisualizerClass = computed(() => (activeVisualizerStyle.value.startsWith('bars-') ? activeVisualizerStyle.value : 'bars-neon'));
@@ -909,7 +953,7 @@ async function syncAmbientMixer(snapshot = siteAtmosphereSnapshot.value) {
 
 async function openAtmospherePanel() {
   atmospherePanelVisible.value = true;
-  await miniMusicLibrary.ensureReady();
+  await Promise.all([miniMusicLibrary.ensureReady(), refreshAmbientLibraryStatus()]);
 }
 
 function closeAtmospherePanel() {
@@ -917,11 +961,19 @@ function closeAtmospherePanel() {
 }
 
 async function setAtmospherePanelTab(tabKey) {
-  const normalized = ['music', 'ambient', 'effects'].includes(String(tabKey || '').trim()) ? String(tabKey).trim() : 'music';
+  const normalized = normalizeAtmospherePanelTab(tabKey);
   siteAtmosphere.panelTab = normalized;
   if (normalized === 'music') {
     await miniMusicLibrary.ensureReady();
   }
+  if (normalized === 'online') {
+    await refreshAmbientLibraryStatus();
+  }
+}
+
+async function refreshAmbientLibraryStatus() {
+  const status = await fetchAmbientLibraryStatus();
+  Object.assign(ambientOnlineLibrary, normalizeAmbientLibraryAvailability(status));
 }
 
 async function handleAtmosphereMusicRefresh() {
@@ -1079,6 +1131,70 @@ async function handleAmbientUpload(file) {
     ambientUploadHint.value = error?.message || '环境音上传失败';
   } finally {
     ambientUploading.value = false;
+  }
+}
+
+async function handleAmbientOnlineImport(track) {
+  const soundId = String(track?.soundId || '').trim();
+  if (!soundId) return;
+  if (!auth.isAuthenticated.value) {
+    openAuth(route.fullPath);
+    return;
+  }
+  const current = ambientOnlineImportState[soundId];
+  if (current?.status === 'pending') return;
+
+  const savedTrack = importedAmbientAssetsBySoundId.value[soundId];
+  if (savedTrack) {
+    applySiteAtmosphereState(
+      upsertAmbientTrack(
+        siteAtmosphere,
+        { ...savedTrack, enabled: true },
+        { sessionUploads: ambientGuestUploads.value }
+      )
+    );
+    ambientOnlineImportState[soundId] = {
+      status: 'done',
+      error: '',
+      assetId: savedTrack.assetId,
+      alreadyImported: true
+    };
+    ambientUploadHint.value = '这个在线环境音已经保存，现已重新加入当前混音。';
+    return;
+  }
+
+  ambientOnlineImportState[soundId] = { status: 'pending', error: '', assetId: null };
+  try {
+    const imported = await importAmbientLibraryTrack(track, auth.authorizedFetch);
+    if (imported.downloadUrl) {
+      const expireSeconds = Math.max(30, Number(imported.expireSeconds) || 300);
+      ambientAssetDownloadCache.set(imported.assetId, {
+        url: imported.downloadUrl,
+        expireAt: Date.now() + Math.max(30, expireSeconds - 5) * 1000
+      });
+    }
+    applySiteAtmosphereState(
+      upsertAmbientTrack(
+        siteAtmosphere,
+        createImportedAmbientAssetTrack(imported),
+        { sessionUploads: ambientGuestUploads.value }
+      )
+    );
+    ambientOnlineImportState[soundId] = {
+      status: 'done',
+      error: '',
+      assetId: imported.assetId,
+      alreadyImported: imported.alreadyImported
+    };
+    ambientUploadHint.value = imported.alreadyImported
+      ? '这个在线环境音已保存过，现已重新加入当前混音。'
+      : '在线环境音已保存到账号并开始播放。';
+  } catch (error) {
+    ambientOnlineImportState[soundId] = {
+      status: 'error',
+      error: error?.detail || error?.message || '在线环境音保存失败，请稍后重试。',
+      assetId: null
+    };
   }
 }
 
@@ -2685,6 +2801,7 @@ watch(
 
 onMounted(async () => {
   await auth.ensureReady();
+  void refreshAmbientLibraryStatus();
   syncAuthorMenuAvatarFromCache();
   void refreshAuthorMenuAvatar();
   ui.initializeUiPreferences();

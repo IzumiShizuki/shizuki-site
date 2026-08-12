@@ -2,6 +2,7 @@ import { httpRequest, normalizeApiData } from './httpClient';
 
 const STATUS_PATH = '/api/v1/ambient-library/status';
 const SEARCH_PATH = '/api/v1/ambient-library/search';
+const IMPORT_PATH = '/api/v1/ambient-library/import';
 
 function toBoolean(value) {
   if (typeof value === 'boolean') return value;
@@ -41,7 +42,11 @@ export async function fetchAmbientLibraryStatus() {
       provider: String(payload?.provider || 'freesound')
     };
   } catch {
-    return { enabled: false, provider: 'freesound' };
+    return {
+      enabled: false,
+      provider: 'freesound',
+      error: '在线音源服务状态暂时无法获取'
+    };
   }
 }
 
@@ -77,6 +82,51 @@ export async function searchAmbientLibrary(query, options = {}) {
     total: Math.max(0, Number(payload?.total) || 0),
     pageNo: Math.max(1, Number(payload?.pageNo ?? payload?.page_no) || 1),
     pageSize: Math.max(0, Number(payload?.pageSize ?? payload?.page_size) || 0)
+  };
+}
+
+/**
+ * 将 Freesound 预览保存为登录用户的私有环境音资产。
+ * 浏览器只提交 soundId；下载地址和许可由服务端重新读取、校验。
+ */
+export async function importAmbientLibraryTrack(track, authorizedFetch) {
+  if (typeof authorizedFetch !== 'function') {
+    throw new Error('登录后才能保存在线环境音');
+  }
+  const soundId = String(track?.soundId ?? track?.sound_id ?? '').trim();
+  if (!/^[1-9]\d{0,19}$/.test(soundId)) {
+    throw new Error('Freesound 音源 ID 无效');
+  }
+
+  const payload = normalizeApiData(
+    await authorizedFetch(IMPORT_PATH, {
+      method: 'POST',
+      body: { soundId }
+    })
+  );
+  const assetId = Number(payload?.assetId ?? payload?.asset_id);
+  if (!Number.isInteger(assetId) || assetId <= 0) {
+    throw new Error('在线环境音保存失败');
+  }
+
+  return {
+    provider: String(payload?.provider || 'freesound'),
+    soundId: String(payload?.soundId ?? payload?.sound_id ?? soundId),
+    assetId,
+    title: String(payload?.title || track?.title || `Freesound #${soundId}`).trim(),
+    author: String(payload?.author || track?.author || '').trim(),
+    license: String(payload?.license || track?.license || '').trim(),
+    licenseName: String(payload?.licenseName ?? payload?.license_name ?? track?.licenseName ?? '').trim(),
+    attributionRequired: toBoolean(
+      payload?.attributionRequired ?? payload?.attribution_required ?? track?.attributionRequired
+    ),
+    pageUrl: String(payload?.pageUrl ?? payload?.page_url ?? track?.pageUrl ?? '').trim(),
+    duration: Math.max(0, Number(payload?.duration ?? track?.duration) || 0),
+    downloadUrl: String(
+      payload?.downloadUrl ?? payload?.download_url ?? payload?.publicUrl ?? payload?.public_url ?? ''
+    ).trim(),
+    expireSeconds: Math.max(0, Number(payload?.expireSeconds ?? payload?.expire_seconds) || 0),
+    alreadyImported: toBoolean(payload?.alreadyImported ?? payload?.already_imported)
   };
 }
 

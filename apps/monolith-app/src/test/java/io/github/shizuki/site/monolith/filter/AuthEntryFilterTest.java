@@ -30,6 +30,9 @@ class AuthEntryFilterTest {
     private static final String ADMIN_TOWN_NPC_SESSION_PATH = "/api/v1/admin/ai-town/npcs/librarian/sessions";
     private static final String GUEST_AUTHOR_POSTS_PATH = "/api/v1/me/posts";
     private static final String GUEST_AUTHOR_CATEGORY_POLICIES_PATH = "/api/v1/me/posts/category-policies";
+    private static final String AMBIENT_STATUS_PATH = "/api/v1/ambient-library/status";
+    private static final String AMBIENT_SEARCH_PATH = "/api/v1/ambient-library/search";
+    private static final String AMBIENT_IMPORT_PATH = "/api/v1/ambient-library/import";
 
     @Test
     void shouldAllowGuestResolvePlaybackWithoutToken() throws Exception {
@@ -153,6 +156,35 @@ class AuthEntryFilterTest {
         Mockito.verifyNoInteractions(authService);
     }
 
+    @Test
+    void shouldKeepAmbientDiscoveryPublicButRequireLoginForImport() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(
+            authService,
+            configuredGuestPaths(),
+            configuredPublicPaths(),
+            new GuestAuthorTokenService("test-guest-author-secret", 3600L)
+        );
+
+        for (String path : List.of(AMBIENT_STATUS_PATH, AMBIENT_SEARCH_PATH)) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean(false);
+            filter.doFilter(request, response, (chainRequest, chainResponse) -> invoked.set(true));
+            assertThat(invoked).as(path).isTrue();
+            assertThat(response.getStatus()).as(path).isEqualTo(200);
+        }
+
+        MockHttpServletRequest importRequest = new MockHttpServletRequest("POST", AMBIENT_IMPORT_PATH);
+        MockHttpServletResponse importResponse = new MockHttpServletResponse();
+        AtomicBoolean importInvoked = new AtomicBoolean(false);
+        filter.doFilter(importRequest, importResponse, (chainRequest, chainResponse) -> importInvoked.set(true));
+
+        assertThat(importInvoked).isFalse();
+        assertThat(importResponse.getStatus()).isEqualTo(401);
+        Mockito.verifyNoInteractions(authService);
+    }
+
     private static AuthEntryFilter newFilter(AuthService authService, List<String> guestPaths) {
         return newFilter(authService, guestPaths, new GuestAuthorTokenService("test-guest-author-secret", 3600L));
     }
@@ -160,25 +192,42 @@ class AuthEntryFilterTest {
     private static AuthEntryFilter newFilter(AuthService authService,
                                              List<String> guestPaths,
                                              GuestAuthorTokenService tokenService) {
+        return newFilter(authService, guestPaths, List.of(), tokenService);
+    }
+
+    private static AuthEntryFilter newFilter(AuthService authService,
+                                             List<String> guestPaths,
+                                             List<String> publicPaths,
+                                             GuestAuthorTokenService tokenService) {
         GatewayAuthProperties properties = new GatewayAuthProperties();
         properties.setGuestPaths(guestPaths);
+        properties.setPublicPaths(publicPaths);
         properties.setGuestInvalidTokenPolicy("downgrade");
         return new AuthEntryFilter(properties, authService, tokenService, new ObjectMapper());
     }
 
     private static List<String> configuredGuestPaths() {
+        return configuredPaths("guest-paths");
+    }
+
+    private static List<String> configuredPublicPaths() {
+        return configuredPaths("public-paths");
+    }
+
+    private static List<String> configuredPaths(String propertyName) {
         YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
         yaml.setResources(new ClassPathResource("application.yml"));
         Properties properties = yaml.getObject();
         assertThat(properties).isNotNull();
 
-        List<String> guestPaths = new ArrayList<>();
+        List<String> paths = new ArrayList<>();
         for (int index = 0; ; index++) {
-            String value = properties.getProperty("shizuki.gateway.auth.guest-paths[" + index + "]");
+            String value = properties.getProperty(
+                "shizuki.gateway.auth." + propertyName + "[" + index + "]");
             if (value == null) {
-                return guestPaths;
+                return paths;
             }
-            guestPaths.add(value);
+            paths.add(value);
         }
     }
 
