@@ -2,12 +2,14 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import WallpaperDiscoveryPanel from './WallpaperDiscoveryPanel.vue';
 import {
+  getWallpaperDiscoveryPreviewUrl,
   getWorkshopItemDetail,
   searchWallhavenWallpapers,
   searchWorkshopWallpapers
 } from '../../services/wallpaperApi';
 
 vi.mock('../../services/wallpaperApi', () => ({
+  getWallpaperDiscoveryPreviewUrl: vi.fn((source, itemId) => `/preview/${source}/${itemId}`),
   searchWorkshopWallpapers: vi.fn(),
   searchWallhavenWallpapers: vi.fn(),
   getWorkshopItemDetail: vi.fn(),
@@ -119,6 +121,27 @@ describe('WallpaperDiscoveryPanel', () => {
     const emitted = wrapper.emitted('import-wallhaven');
     expect(emitted).toHaveLength(1);
     expect(emitted[0][0]).toMatchObject({ wallhavenId: 'x8gxgz', visibility: 'PRIVATE' });
+  });
+
+  it('falls back through preview candidates and can retry the proxy preview', async () => {
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    const firstCard = wrapper.findAll('.discovery-item')[0];
+    const preview = firstCard.find('img');
+    expect(preview.attributes('src')).toBe('/preview/workshop/2141505896');
+
+    await preview.trigger('error');
+    await wrapper.vm.$nextTick();
+    expect(firstCard.find('img').attributes('src')).toBe('https://img.example/1.jpg');
+
+    await firstCard.find('img').trigger('error');
+    await wrapper.vm.$nextTick();
+    expect(firstCard.find('.discovery-thumb-empty').exists()).toBe(true);
+
+    await firstCard.find('.preview-retry').trigger('click');
+    await wrapper.vm.$nextTick();
+    expect(firstCard.find('img').attributes('src')).toBe('/preview/workshop/2141505896');
   });
 
   it('shows a login hint instead of calling the api without authorizedFetch', async () => {

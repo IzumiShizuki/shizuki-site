@@ -12,9 +12,14 @@ import io.github.shizuki.site.media.response.WorkshopSearchResponse;
  */
 public interface WallpaperDiscoveryService {
 
+    record WallpaperPreview(byte[] bytes, String contentType) {
+    }
+
     WorkshopSearchResponse searchWorkshop(String query, int page, String sort);
 
     WorkshopItemDetailResponse getWorkshopItem(String itemId);
+
+    WallpaperPreview fetchPreview(String source, String itemId);
 
     WallhavenSearchResponse searchWallhaven(String query, int page, String categories, String purity, String sorting, String atleast, String ratios);
 

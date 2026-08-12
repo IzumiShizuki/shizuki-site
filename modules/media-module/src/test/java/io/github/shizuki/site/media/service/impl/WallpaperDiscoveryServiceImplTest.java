@@ -1,8 +1,11 @@
 package io.github.shizuki.site.media.service.impl;
 
+import io.github.shizuki.common.core.error.BusinessException;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,5 +49,31 @@ class WallpaperDiscoveryServiceImplTest {
                 () -> WallpaperDiscoveryServiceImpl.parseProxyEndpoint("http://proxy.example.test:7890/path"));
         assertThrows(IllegalArgumentException.class,
                 () -> WallpaperDiscoveryServiceImpl.parseProxyEndpoint("http://username@proxy.example.test:7890"));
+    }
+
+    @Test
+    void resolvesPreviewContentTypeFromResponseOrImageUrl() {
+        assertEquals("image/webp", WallpaperDiscoveryServiceImpl.resolvePreviewContentType(
+                "image/webp; charset=binary", "https://cdn.example.test/preview"));
+        assertEquals("image/jpeg", WallpaperDiscoveryServiceImpl.resolvePreviewContentType(
+                "", "https://cdn.example.test/preview.jpg?size=large"));
+        assertEquals("", WallpaperDiscoveryServiceImpl.resolvePreviewContentType(
+                "text/html", "https://cdn.example.test/error"));
+    }
+
+    @Test
+    void recognizesCommonImagePayloadsAndRejectsHtml() {
+        assertTrue(WallpaperDiscoveryServiceImpl.isLikelyImagePayload(
+                new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, 0x00}));
+        assertTrue(WallpaperDiscoveryServiceImpl.isLikelyImagePayload(
+                "<svg viewBox='0 0 1 1'></svg>".getBytes(StandardCharsets.UTF_8)));
+        assertFalse(WallpaperDiscoveryServiceImpl.isLikelyImagePayload(
+                "<!doctype html><html>error</html>".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void enforcesPreviewResponseByteLimit() {
+        assertThrows(BusinessException.class, () -> WallpaperDiscoveryServiceImpl.readInputBytes(
+                new ByteArrayInputStream(new byte[] {1, 2, 3}), 2));
     }
 }

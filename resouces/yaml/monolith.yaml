@@ -223,6 +223,7 @@ shizuki:
       - /api/v1/music/spotify/search
       - /api/v1/music/spotify/preview-url
       - /api/v1/author/profile/**
+      - /api/v1/home-wallpapers/discovery/preview/*/*
 middleware:
   host: ${MIDDLEWARE_HOST:127.0.0.1}
   ports:

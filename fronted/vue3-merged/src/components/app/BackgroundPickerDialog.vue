@@ -1,7 +1,7 @@
 <template>
   <transition name="picker-fade">
     <div v-if="visible" class="bg-picker-mask" @click.self="$emit('close')">
-      <section class="bg-picker liquid-material">
+      <section class="bg-picker liquid-material" :class="{ 'wallpaper-picker-shell': pickerMode === 'acquire' }">
         <header class="picker-head">
           <div class="picker-head-main">
             <div class="picker-title">背景设置</div>
@@ -285,9 +285,11 @@
 </template>
 
 <script setup>
+import { onBeforeUnmount, onMounted } from 'vue';
 import WallpaperDiscoveryPanel from './WallpaperDiscoveryPanel.vue';
 
-defineProps({
+const props = defineProps({
+
   visible: { type: Boolean, default: false },
   pickerMode: { type: String, default: 'select' },
   bgTabs: { type: Array, default: () => [] },
@@ -323,7 +325,13 @@ defineProps({
   }
 });
 
-defineEmits([
+function handleEscape(event) {
+  if (event.key === 'Escape' && props.visible) {
+    emit('close');
+  }
+}
+
+const emit = defineEmits([
   'close',
   'update:pickerMode',
   'set-bg-tab',
@@ -347,6 +355,9 @@ defineEmits([
   'delete-active-wallpaper',
   'select-background'
 ]);
+
+onMounted(() => window.addEventListener('keydown', handleEscape));
+onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape));
 </script>
 
 <style scoped>
@@ -354,12 +365,10 @@ defineEmits([
   position: fixed;
   inset: 0;
   z-index: 1500;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 245, 246, 0.16)),
-    rgba(18, 15, 20, 0.18);
+  background: rgba(7, 10, 14, 0.66);
   display: grid;
   place-items: center;
-  backdrop-filter: blur(10px) saturate(1.05);
+  backdrop-filter: blur(12px) saturate(0.9);
 }
 
 .bg-picker {
@@ -377,6 +386,132 @@ defineEmits([
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.bg-picker.wallpaper-picker-shell {
+  width: min(96vw, 1440px);
+  max-height: min(94vh, 920px);
+  padding: 14px;
+  border: 1px solid rgba(220, 232, 242, 0.17);
+  border-radius: 14px;
+  background: rgba(13, 18, 24, 0.92);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.42);
+}
+
+.bg-picker.wallpaper-picker-shell .picker-head {
+  align-items: center;
+  padding: 1px 2px 3px;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-title {
+  color: #eef2f5 !important;
+  font-family: var(--font-display, 'Segoe UI', sans-serif);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-close {
+  min-width: 72px;
+  border-color: rgba(220, 232, 242, 0.17) !important;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #9ca8b5 !important;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-toolbar,
+.bg-picker.wallpaper-picker-shell > .route-bg-note {
+  padding-inline: 2px;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-toolbar {
+  margin-top: 2px;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-acquire-body {
+  overflow: auto;
+  padding: 0 2px 2px;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .picker-status,
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .status-stack,
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .format-guide-note,
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .picker-import-grid,
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .wallpaper-settings,
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .route-bg-note {
+  max-width: 1440px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .picker-import-grid,
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .wallpaper-settings,
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .format-guide-note {
+  margin-top: 10px;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .picker-status {
+  margin-bottom: 8px;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .picker-import-grid {
+  order: 2;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .wallpaper-settings {
+  order: 3;
+}
+
+.bg-picker.wallpaper-picker-shell .picker-acquire-body > .format-guide-note {
+  order: 4;
+}
+
+.bg-picker.wallpaper-picker-shell .status-stack,
+.bg-picker.wallpaper-picker-shell .import-card,
+.bg-picker.wallpaper-picker-shell .wallpaper-settings,
+.bg-picker.wallpaper-picker-shell .format-guide-note {
+  border-color: rgba(220, 232, 242, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: none;
+}
+
+.bg-picker.wallpaper-picker-shell .route-bg-note,
+.bg-picker.wallpaper-picker-shell .import-card h4,
+.bg-picker.wallpaper-picker-shell .wallpaper-settings,
+.bg-picker.wallpaper-picker-shell .format-guide-note,
+.bg-picker.wallpaper-picker-shell .scope-label {
+  color: #9ca8b5 !important;
+  text-shadow: none !important;
+}
+
+.bg-picker.wallpaper-picker-shell .field-input-lite,
+.bg-picker.wallpaper-picker-shell .package-dropzone {
+  border-color: rgba(220, 232, 242, 0.14);
+  background: rgba(4, 7, 10, 0.4);
+  color: #eef2f5 !important;
+  box-shadow: none;
+}
+
+.bg-picker.wallpaper-picker-shell .field-input-lite::placeholder {
+  color: #64717d;
+}
+
+.bg-picker.wallpaper-picker-shell .scope-btn {
+  border-color: rgba(220, 232, 242, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: #dbe4eb;
+}
+
+.bg-picker.wallpaper-picker-shell .scope-btn.active,
+.bg-picker.wallpaper-picker-shell .scope-btn:hover:not(:disabled) {
+  border-color: rgba(126, 184, 255, 0.52);
+  background: rgba(86, 153, 224, 0.18);
+  color: #f4f8fb;
+}
+
+.bg-picker.wallpaper-picker-shell :deep(.wallpaper-discovery) {
+  order: 1;
+  width: 100%;
 }
 
 .bg-picker :is(button, label, p, h4, .picker-title, .route-bg-note, .format-guide-note) {

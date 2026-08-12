@@ -12,6 +12,9 @@ import io.github.shizuki.site.media.service.WallpaperDiscoveryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/v1/home-wallpapers/discovery")
@@ -46,6 +51,24 @@ public class WallpaperDiscoveryController {
     @Operation(summary = "查询创意工坊条目详情", description = "返回标题、预览图，以及是否存在可直接下载的公开直链")
     public ApiResponse<WorkshopItemDetailResponse> getWorkshopItem(@PathVariable("item_id") String itemId) {
         return ApiResponse.success(wallpaperDiscoveryService.getWorkshopItem(itemId));
+    }
+
+    @GetMapping("/preview/{source}/{item_id}")
+    @RateLimit(key = "home.wallpapers.discovery.preview", limit = 120, windowSeconds = 60)
+    @Operation(summary = "获取壁纸预览图", description = "服务端代理受信任的 Workshop / Wallhaven 预览图片，避免浏览器直连上游 CDN 失败")
+    public ResponseEntity<byte[]> preview(@PathVariable("source") String source,
+                                          @PathVariable("item_id") String itemId) {
+        WallpaperDiscoveryService.WallpaperPreview preview = wallpaperDiscoveryService.fetchPreview(source, itemId);
+        MediaType contentType;
+        try {
+            contentType = MediaType.parseMediaType(preview.contentType());
+        } catch (IllegalArgumentException exception) {
+            contentType = MediaType.IMAGE_JPEG;
+        }
+        return ResponseEntity.ok()
+            .contentType(contentType)
+            .cacheControl(CacheControl.maxAge(Duration.ofMinutes(30)).cachePublic())
+            .body(preview.bytes());
     }
 
     @GetMapping("/wallhaven/search")

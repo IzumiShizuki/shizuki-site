@@ -124,4 +124,14 @@ describe('BackgroundPickerDialog wallpaper acquire flow', () => {
     expect(wrapper.emitted('discovery-import-wallhaven')).toHaveLength(1);
     expect(wrapper.emitted('discovery-select-workshop')).toHaveLength(1);
   });
+
+  it('closes the picker with Escape without changing the selected wallpaper', async () => {
+    const wrapper = mountDialog();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    expect(wrapper.emitted('select-background')).toBeUndefined();
+  });
 });

@@ -38,6 +38,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -61,10 +62,15 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
     private static final Pattern THREE_FLAG_PATTERN = Pattern.compile("^[01]{3}$");
     private static final Pattern ATLEAST_PATTERN = Pattern.compile("^\\d{2,5}x\\d{2,5}$");
     private static final Pattern RATIOS_PATTERN = Pattern.compile("^[0-9a-zA-Z,x]{1,64}$");
+    private static final Pattern OG_IMAGE_PATTERN = Pattern.compile(
+            "<meta[^>]+property=[\\\"']og:image[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']|"
+                    + "<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+property=[\\\"']og:image[\\\"']",
+            Pattern.CASE_INSENSITIVE);
     private static final List<String> WALLHAVEN_SORTINGS = List.of(
             "date_added", "relevance", "random", "views", "favorites", "toplist");
     private static final int MAX_QUERY_LENGTH = 120;
     private static final int MAX_PAGE = 200;
+    private static final long MAX_PREVIEW_BYTES = 16L * 1024L * 1024L;
     private static final String DESKTOP_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
@@ -160,6 +166,9 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         if (!WORKSHOP_ITEM_ID_PATTERN.matcher(itemId).matches()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "workshop item id is invalid");
         }
+        if (!StringUtils.hasText(discoveryProperties.getSteamApiKey())) {
+            return getWorkshopItemByScrape(itemId);
+        }
         String url = trimTrailingSlash(discoveryProperties.getSteamApiBaseUrl())
                 + "/ISteamRemoteStorage/GetPublishedFileDetails/v1/?format=json";
         String body = "itemcount=1&publishedfileids%5B0%5D=" + urlEncode(itemId);
@@ -178,6 +187,59 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
                 detail.path("file_size").asLong(0),
                 detail.path("time_updated").asLong(0)
         );
+    }
+
+    private WorkshopItemDetailResponse getWorkshopItemByScrape(String itemId) {
+        String detailUrl = WORKSHOP_DETAIL_URL_BASE + itemId;
+        String browseBase = trimTrailingSlash(discoveryProperties.getWorkshopBrowseBaseUrl());
+        String html = httpGet(browseBase + "/sharedfiles/filedetails/?id=" + urlEncode(itemId), "text/html");
+        List<WorkshopSearchItemResponse> parsedItems = WorkshopBrowseHtmlParser.parse(html, detailUrl);
+        WorkshopSearchItemResponse parsed = parsedItems.stream()
+                .filter(item -> itemId.equals(item.itemId()))
+                .findFirst()
+                .orElse(null);
+        String previewUrl = parsed == null ? "" : parsed.previewUrl();
+        if (!StringUtils.hasText(previewUrl)) {
+            previewUrl = firstNonBlankHtmlGroup(OG_IMAGE_PATTERN.matcher(html));
+        }
+        if (!StringUtils.hasText(previewUrl)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Workshop preview not found");
+        }
+        return new WorkshopItemDetailResponse(
+                itemId,
+                parsed == null ? "" : parsed.title(),
+                previewUrl,
+                detailUrl,
+                false,
+                0,
+                0
+        );
+    }
+
+    @Override
+    public WallpaperPreview fetchPreview(String sourceRaw, String itemIdRaw) {
+        requireDiscoveryEnabled();
+        String source = readString(sourceRaw, "").trim().toLowerCase(Locale.ROOT);
+        String itemId = readString(itemIdRaw, "").trim();
+        String previewUrl;
+
+        if ("workshop".equals(source)) {
+            if (!WORKSHOP_ITEM_ID_PATTERN.matcher(itemId).matches()) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "workshop item id is invalid");
+            }
+            previewUrl = getWorkshopItem(itemId).previewUrl();
+            requireTrustedWorkshopPreviewHost(parseHttpUri(previewUrl));
+        } else if ("wallhaven".equals(source)) {
+            if (!WALLHAVEN_ID_PATTERN.matcher(itemId).matches()) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "wallhaven id is invalid");
+            }
+            previewUrl = fetchWallhavenPreviewUrl(itemId);
+            requireTrustedWallhavenHost(parseHttpUri(previewUrl));
+        } else {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "preview source is unsupported");
+        }
+
+        return httpGetPreview(previewUrl, source);
     }
 
     @Override
@@ -281,6 +343,24 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         RemoteDownloadedMultipartFile file = new RemoteDownloadedMultipartFile(
                 "file", fileName, StringUtils.hasText(fileType) ? fileType : "image/jpeg", bytes);
         return wallpaperService.importPackage(file, request.getVisibility(), title);
+    }
+
+    private String fetchWallhavenPreviewUrl(String wallhavenId) {
+        String detailUrl = trimTrailingSlash(discoveryProperties.getWallhavenBaseUrl())
+                + "/api/v1/w/" + urlEncode(wallhavenId)
+                + (StringUtils.hasText(discoveryProperties.getWallhavenApiKey())
+                ? "?apikey=" + urlEncode(discoveryProperties.getWallhavenApiKey())
+                : "");
+        JsonNode data = readJson(httpGet(detailUrl, "application/json"), "Wallhaven 壁纸信息解析失败").path("data");
+        String previewUrl = firstNonBlank(
+                data.path("thumbs").path("large").asText(""),
+                data.path("thumbs").path("original").asText(""),
+                data.path("path").asText("")
+        );
+        if (!StringUtils.hasText(previewUrl)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Wallhaven preview not found");
+        }
+        return previewUrl;
     }
 
     private void requireDiscoveryEnabled() {
@@ -391,6 +471,43 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         }
     }
 
+    private WallpaperPreview httpGetPreview(String url, String source) {
+        HttpRequest request = baseRequest(url)
+                .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                .GET()
+                .build();
+        HttpResponse<InputStream> response = send(request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            closeQuietly(response.body());
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Preview request failed with status " + response.statusCode());
+        }
+        long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+        if (contentLength > MAX_PREVIEW_BYTES) {
+            closeQuietly(response.body());
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Preview file is too large");
+        }
+        if ("workshop".equals(source)) {
+            requireTrustedWorkshopPreviewHost(response.uri());
+        } else {
+            requireTrustedWallhavenHost(response.uri());
+        }
+        try (InputStream inputStream = response.body()) {
+            byte[] bytes = readInputBytes(inputStream, MAX_PREVIEW_BYTES);
+            String rawContentType = response.headers().firstValue("Content-Type").orElse("");
+            String contentType = resolvePreviewContentType(
+                    rawContentType, firstNonBlank(response.uri().toString(), url));
+            boolean declaredImage = readStaticString(rawContentType).trim().toLowerCase(Locale.ROOT)
+                    .startsWith("image/");
+            if (!StringUtils.hasText(contentType)
+                    || (!declaredImage && !isLikelyImagePayload(bytes))) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Preview response is not an image");
+            }
+            return new WallpaperPreview(bytes, contentType);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Download preview failed");
+        }
+    }
+
     private HttpRequest.Builder baseRequest(String url) {
         return HttpRequest.newBuilder()
                 .uri(parseHttpUri(url))
@@ -425,7 +542,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         }
     }
 
-    private byte[] readInputBytes(InputStream inputStream, long maxBytes) throws IOException {
+    static byte[] readInputBytes(InputStream inputStream, long maxBytes) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         byte[] chunk = new byte[8192];
         long totalRead = 0;
@@ -517,6 +634,93 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
 
     private String readString(String value, String defaultValue) {
         return value == null ? defaultValue : value;
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private String firstNonBlankHtmlGroup(Matcher matcher) {
+        if (!matcher.find()) {
+            return "";
+        }
+        for (int group = 1; group <= matcher.groupCount(); group++) {
+            String value = matcher.group(group);
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    static String resolvePreviewContentType(String rawContentType, String url) {
+        String contentType = readStaticString(rawContentType).split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        if (contentType.startsWith("image/")) {
+            return contentType;
+        }
+        String normalizedUrl = readStaticString(url).toLowerCase(Locale.ROOT);
+        if (normalizedUrl.contains(".png")) return "image/png";
+        if (normalizedUrl.contains(".webp")) return "image/webp";
+        if (normalizedUrl.contains(".gif")) return "image/gif";
+        if (normalizedUrl.contains(".avif")) return "image/avif";
+        if (normalizedUrl.contains(".svg")) return "image/svg+xml";
+        if (normalizedUrl.contains(".jpg") || normalizedUrl.contains(".jpeg")) return "image/jpeg";
+        return "";
+    }
+
+    static boolean isLikelyImagePayload(byte[] bytes) {
+        if (bytes == null || bytes.length < 4) {
+            return false;
+        }
+        if ((bytes[0] & 0xff) == 0xff && (bytes[1] & 0xff) == 0xd8 && (bytes[2] & 0xff) == 0xff) {
+            return true;
+        }
+        if ((bytes[0] & 0xff) == 0x89 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') {
+            return true;
+        }
+        if (bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == '8') {
+            return true;
+        }
+        if (bytes.length >= 12 && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
+            return true;
+        }
+        if (bytes.length >= 12 && bytes[4] == 'f' && bytes[5] == 't' && bytes[6] == 'y' && bytes[7] == 'p') {
+            String brand = new String(bytes, 8, Math.min(4, bytes.length - 8), StandardCharsets.US_ASCII)
+                    .toLowerCase(Locale.ROOT);
+            return "avif".equals(brand) || "avis".equals(brand);
+        }
+        String prefix = new String(bytes, 0, Math.min(bytes.length, 256), StandardCharsets.UTF_8)
+                .trim().toLowerCase(Locale.ROOT);
+        return prefix.startsWith("<svg") || prefix.startsWith("<?xml") && prefix.contains("<svg");
+    }
+
+    private void requireTrustedWorkshopPreviewHost(URI uri) {
+        String host = readString(uri.getHost(), "").toLowerCase(Locale.ROOT);
+        String configuredHost = readString(parseHttpUri(discoveryProperties.getWorkshopBrowseBaseUrl()).getHost(), "")
+                .toLowerCase(Locale.ROOT);
+        boolean trusted = (StringUtils.hasText(configuredHost)
+                && (host.equals(configuredHost) || host.endsWith("." + configuredHost)))
+                || host.equals("steamuserimages-a.akamaihd.net")
+                || host.endsWith(".steamstatic.com")
+                || host.endsWith(".steamusercontent.com");
+        if (!trusted) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop preview host is not trusted");
+        }
+    }
+
+    private void closeQuietly(InputStream inputStream) {
+        if (inputStream == null) return;
+        try {
+            inputStream.close();
+        } catch (IOException ignored) {
+            // ignore cleanup failure
+        }
     }
 
     static ProxyEndpoint parseProxyEndpoint(String value) {

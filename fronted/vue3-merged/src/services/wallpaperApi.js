@@ -1,5 +1,8 @@
 import { httpRequest, normalizeApiData } from './httpClient';
 
+const RAW_API_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || '/').trim() || '/';
+const API_BASE = RAW_API_BASE === '/' ? '' : RAW_API_BASE.replace(/\/+$/, '');
+
 function unwrapApiResponse(response) {
   return normalizeApiData(response);
 }
@@ -9,6 +12,13 @@ function requireAuthorizedFetch(authorizedFetch) {
     throw new Error('authorizedFetch is required for this request');
   }
   return authorizedFetch;
+}
+
+export function getWallpaperDiscoveryPreviewUrl(source, itemId) {
+  const normalizedSource = String(source || '').trim().toLowerCase();
+  const normalizedItemId = String(itemId || '').trim();
+  if (!['workshop', 'wallhaven'].includes(normalizedSource) || !normalizedItemId) return '';
+  return `${API_BASE}/api/v1/home-wallpapers/discovery/preview/${encodeURIComponent(normalizedSource)}/${encodeURIComponent(normalizedItemId)}`;
 }
 
 export async function listPublicWallpapers() {
