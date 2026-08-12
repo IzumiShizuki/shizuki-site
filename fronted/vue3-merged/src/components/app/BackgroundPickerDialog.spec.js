@@ -7,7 +7,7 @@ function mountDialog(props = {}) {
   return mount(BackgroundPickerDialog, {
     props: {
       visible: true,
-      pickerMode: 'acquire',
+      pickerMode: 'select',
       bgTabs: [
         { key: 'all', label: '全部' },
         { key: 'static', label: '静态壁纸' }
@@ -23,14 +23,13 @@ function mountDialog(props = {}) {
         packageVisibility: 'PRIVATE',
         packageTitle: '',
         packageFile: null,
-        workshopSearchQuery: 'city rain',
         workshopUrl: 'https://steamcommunity.com/sharedfiles/filedetails/?id=2141505896',
         workshopVisibility: 'PRIVATE',
         workshopTitle: '',
         lastImportJobId: 9002,
         lastImportJobStatus: 'RUNNING',
         statusBusy: false,
-        hint: 'Workshop 导入任务 #9002 正在下载和解析，请稍后查询状态。',
+        hint: '导入任务 #9002 正在处理。',
         busy: false
       },
       isAuthenticated: true,
@@ -39,6 +38,10 @@ function mountDialog(props = {}) {
         id: 'wp-3001',
         wallpaperId: 3001,
         name: 'Steam 雨夜',
+        preview: '/images/rain.jpg',
+        src: '/images/rain.jpg',
+        type: 'dynamic',
+        visibility: 'PRIVATE',
         importSource: 'WORKSHOP',
         workshopItemId: '2141505896'
       },
@@ -59,7 +62,16 @@ function mountDialog(props = {}) {
         deleting: false,
         error: ''
       },
-      filteredBackgroundItems: [],
+      filteredBackgroundItems: [
+        {
+          id: 'wp-3001',
+          name: 'Steam 雨夜',
+          preview: '/images/rain.jpg',
+          src: '/images/rain.jpg',
+          type: 'dynamic',
+          importSource: 'WORKSHOP'
+        }
+      ],
       activeBackgroundId: 'wp-3001',
       formatPercent: (value) => `${Math.round(Number(value || 0) * 100)}%`,
       ...props
@@ -67,33 +79,59 @@ function mountDialog(props = {}) {
   });
 }
 
-describe('BackgroundPickerDialog wallpaper acquire flow', () => {
-  it('shows workshop import status and emits manual job checks', async () => {
+describe('BackgroundPickerDialog unified wallpaper workspace', () => {
+  it('renders installed wallpaper cards and the selected detail preview', () => {
     const wrapper = mountDialog();
 
-    expect(wrapper.text()).toContain('Workshop 搜索与导入');
-    expect(wrapper.text()).toContain('#9002 RUNNING');
-    expect(wrapper.text()).toContain('Workshop 导入任务 #9002 正在下载和解析');
+    expect(wrapper.find('.wallpaper-grid').exists()).toBe(true);
+    expect(wrapper.find('.wallpaper-detail img').attributes('src')).toBe('/images/rain.jpg');
+    expect(wrapper.text()).toContain('Steam 雨夜');
+    expect(wrapper.text()).toContain('动态');
+    expect(wrapper.text()).toContain('Workshop');
+    expect(wrapper.find('.workspace-tab.active').text()).toBe('我的壁纸');
+  });
 
-    const statusButton = wrapper.findAll('button').find((button) => button.text() === '查询导入状态');
-    expect(statusButton).toBeTruthy();
+  it('maps the three workspace tabs onto the existing picker contract and online sources', async () => {
+    const wrapper = mountDialog();
+    const tabs = wrapper.findAll('.workspace-tab');
+
+    await tabs[1].trigger('click');
+    expect(wrapper.emitted('update:pickerMode')).toEqual([['acquire']]);
+    await wrapper.setProps({ pickerMode: 'acquire' });
+    expect(wrapper.findComponent(WallpaperDiscoveryPanel).props('source')).toBe('wallhaven');
+    expect(wrapper.find('.workspace-tab.active').text()).toBe('发现');
+
+    await tabs[2].trigger('click');
+    expect(wrapper.findComponent(WallpaperDiscoveryPanel).props('source')).toBe('workshop');
+    expect(wrapper.find('.workspace-tab.active').text()).toBe('创意工坊');
+
+    await tabs[0].trigger('click');
+    expect(wrapper.emitted('update:pickerMode')).toEqual([['acquire'], ['acquire'], ['select']]);
+  });
+
+  it('keeps import status concise and emits manual job checks', async () => {
+    const wrapper = mountDialog({ pickerMode: 'acquire' });
+
+    expect(wrapper.text()).toContain('#9002 RUNNING');
+    expect(wrapper.text()).toContain('导入任务 #9002 正在处理。');
+    expect(wrapper.text()).not.toContain('上传后资源会落到服务器对象存储');
+
+    const statusButton = wrapper.findAll('button').find((button) => button.text() === '查询状态');
     await statusButton.trigger('click');
 
     expect(wrapper.emitted('check-wallpaper-import-job')).toHaveLength(1);
   });
 
-  it('shows owned wallpaper management actions and emits edit/delete events', async () => {
+  it('keeps owned wallpaper settings in the installed detail rail', async () => {
     const wrapper = mountDialog();
 
-    expect(wrapper.text()).toContain('Wallpaper 设置');
-    expect(wrapper.text()).toContain('来源：WORKSHOP');
-    expect(wrapper.text()).toContain('Workshop ID: 2141505896');
-    expect(wrapper.find('input[placeholder="请输入壁纸标题"]').element.value).toBe('Steam 雨夜');
+    expect(wrapper.find('input[placeholder="壁纸标题"]').element.value).toBe('Steam 雨夜');
+    expect(wrapper.text()).toContain('主音量');
 
-    const saveButton = wrapper.findAll('button').find((button) => button.text() === '保存设置');
-    const publicButton = wrapper.findAll('button').find((button) => button.text() === '提交公开');
-    const privateButton = wrapper.findAll('button').find((button) => button.text() === '设为私有');
-    const deleteButton = wrapper.findAll('button').find((button) => button.text() === '删除壁纸');
+    const saveButton = wrapper.findAll('button').find((button) => button.text() === '保存');
+    const publicButton = wrapper.findAll('button').find((button) => button.text() === '公开');
+    const privateButton = wrapper.findAll('button').find((button) => button.text() === '私有');
+    const deleteButton = wrapper.findAll('button').find((button) => button.text() === '删除');
 
     await saveButton.trigger('click');
     await publicButton.trigger('click');
@@ -105,27 +143,31 @@ describe('BackgroundPickerDialog wallpaper acquire flow', () => {
     expect(wrapper.emitted('delete-active-wallpaper')).toHaveLength(1);
   });
 
-  it('passes authorizedFetch to the discovery panel and relays its events', async () => {
+  it('passes authorizedFetch to discovery and relays import events', async () => {
     const authorizedFetch = vi.fn().mockResolvedValue({ items: [], page: 1, has_more: false });
-    const wrapper = mountDialog({ authorizedFetch });
+    const wrapper = mountDialog({ pickerMode: 'acquire', authorizedFetch });
 
     const panel = wrapper.findComponent(WallpaperDiscoveryPanel);
-    expect(panel.exists()).toBe(true);
     expect(panel.props('authorizedFetch')).toBe(authorizedFetch);
 
     panel.vm.$emit('import-workshop', { itemId: '2141505896' });
     panel.vm.$emit('import-wallhaven', { wallhavenId: 'x8gxgz' });
-    panel.vm.$emit('select-workshop', {
-      itemId: '2141505896',
-      url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=2141505896'
-    });
+    panel.vm.$emit('select-workshop', { itemId: '2141505896' });
 
     expect(wrapper.emitted('discovery-import-workshop')).toHaveLength(1);
     expect(wrapper.emitted('discovery-import-wallhaven')).toHaveLength(1);
     expect(wrapper.emitted('discovery-select-workshop')).toHaveLength(1);
   });
 
-  it('closes the picker with Escape without changing the selected wallpaper', async () => {
+  it('opens compact add controls and protects them for guests', async () => {
+    const wrapper = mountDialog({ isAuthenticated: false });
+
+    await wrapper.find('.head-action').trigger('click');
+    expect(wrapper.text()).toContain('登录后可上传或导入壁纸');
+    expect(wrapper.find('.add-wallpaper-grid').exists()).toBe(false);
+  });
+
+  it('closes the workspace with Escape without selecting a wallpaper', async () => {
     const wrapper = mountDialog();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -133,13 +175,5 @@ describe('BackgroundPickerDialog wallpaper acquire flow', () => {
 
     expect(wrapper.emitted('close')).toHaveLength(1);
     expect(wrapper.emitted('select-background')).toBeUndefined();
-  });
-
-  it('keeps the original picker mask when switching to library selection', async () => {
-    const wrapper = mountDialog({ pickerMode: 'select' });
-
-    expect(wrapper.find('.bg-picker-mask').classes()).not.toContain('wallpaper-picker-mask');
-    expect(wrapper.find('.bg-picker').classes()).not.toContain('wallpaper-picker-shell');
-    expect(wrapper.find('.picker-grid').exists()).toBe(true);
   });
 });

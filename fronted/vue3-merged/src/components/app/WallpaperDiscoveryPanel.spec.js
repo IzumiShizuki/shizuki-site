@@ -21,6 +21,7 @@ const authorizedFetch = vi.fn();
 function mountPanel(props = {}) {
   return mount(WallpaperDiscoveryPanel, {
     props: {
+      source: 'workshop',
       authorizedFetch,
       isAuthenticated: true,
       busy: false,
@@ -78,7 +79,7 @@ describe('WallpaperDiscoveryPanel', () => {
     await flushPromises();
 
     expect(getWorkshopItemDetail).toHaveBeenCalledWith('2141505896', authorizedFetch);
-    expect(wrapper.text()).toContain('无公开直链');
+    expect(wrapper.text()).toContain('需 SteamCMD 通道');
 
     const selectEmitted = wrapper.emitted('select-workshop');
     expect(selectEmitted).toHaveLength(1);
@@ -87,7 +88,7 @@ describe('WallpaperDiscoveryPanel', () => {
       url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=2141505896'
     });
 
-    const importButton = wrapper.findAll('button').find((button) => button.text().includes('导入选中壁纸'));
+    const importButton = wrapper.findAll('button').find((button) => button.text() === '导入壁纸');
     expect(importButton).toBeTruthy();
     await importButton.trigger('click');
 
@@ -100,12 +101,11 @@ describe('WallpaperDiscoveryPanel', () => {
     });
   });
 
-  it('switches to wallhaven source and emits wallhaven import payload', async () => {
+  it('reacts to the controlled wallhaven source and emits wallhaven import payload', async () => {
     const wrapper = mountPanel();
     await flushPromises();
 
-    const wallhavenTab = wrapper.findAll('button').find((button) => button.text() === 'Wallhaven');
-    await wallhavenTab.trigger('click');
+    await wrapper.setProps({ source: 'wallhaven' });
     await flushPromises();
 
     expect(searchWallhavenWallpapers).toHaveBeenCalledWith(
@@ -116,7 +116,7 @@ describe('WallpaperDiscoveryPanel', () => {
     expect(wrapper.text()).toContain('3840x2160');
 
     await wrapper.find('.discovery-item').trigger('click');
-    const importButton = wrapper.findAll('button').find((button) => button.text().includes('拉取选中壁纸'));
+    const importButton = wrapper.findAll('button').find((button) => button.text() === '添加壁纸');
     await importButton.trigger('click');
 
     const emitted = wrapper.emitted('import-wallhaven');
@@ -156,6 +156,6 @@ describe('WallpaperDiscoveryPanel', () => {
     expect(wrapper.find('.discovery-item')).toBeTruthy();
     await wrapper.find('.discovery-item').trigger('click');
     await flushPromises();
-    expect(wrapper.find('.inspector-import-button').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.import-button').attributes('disabled')).toBeDefined();
   });
 });
