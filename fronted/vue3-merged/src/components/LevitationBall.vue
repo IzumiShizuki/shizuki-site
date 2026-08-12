@@ -2,7 +2,7 @@
   <div
     ref="containerRef"
     class="float-ball"
-    :class="{ expanded: ui.expanded, dragging: ui.dragging }"
+    :class="[{ expanded: ui.expanded, dragging: ui.dragging, snapping: ui.snapping }, `side-${ui.side}`]"
     :style="containerStyle"
     @pointerdown="onPointerDown"
     @click="onContainerClick"
@@ -52,6 +52,13 @@ import { getLightAppByCode, LIGHT_APPS_CATALOG } from '../utils/lightAppsCatalog
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { readGuestLightAppData, readRemoteLightAppCache } from '../utils/lightAppsDataStore';
 import { LIGHT_APPS_CHANGED_EVENT, readLightAppsState } from '../utils/lightAppsState';
+import {
+  readLevitationBallPosition,
+  resolveLevitationBallCoordinates,
+  resolveLevitationBallYRatio,
+  resolveNearestLevitationBallSide,
+  writeLevitationBallPosition
+} from '../utils/levitationBallPosition';
 
 const router = useRouter();
 const containerRef = ref(null);
@@ -59,8 +66,11 @@ const appState = ref(readLightAppsState());
 
 const ui = reactive({
   x: 0,
-  y: 120,
+  y: 0,
+  side: 'right',
+  yRatio: 0.32,
   dragging: false,
+  snapping: false,
   expanded: false,
   panelKind: '',
   activeCollectionId: '',
@@ -71,6 +81,7 @@ const ui = reactive({
   clickStartY: 0
 });
 const urlLinks = ref([]);
+let snapTimer = 0;
 
 const activeSlots = computed(() => {
   const railSlots = Array.isArray(appState.value?.rail_slots) && appState.value.rail_slots.length
@@ -250,17 +261,59 @@ function clampPosition() {
   if (ui.y > maxY) ui.y = maxY;
 }
 
+function applyEdgePosition({ animate = false, persist = false } = {}) {
+  const width = ui.expanded ? 70 : 58;
+  const height = ui.expanded ? panelHeight.value : 58;
+  const saved = {
+    side: ui.side,
+    yRatio: ui.yRatio
+  };
+  const point = resolveLevitationBallCoordinates(saved, {
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    width,
+    height
+  });
+
+  ui.side = point.side;
+  ui.x = point.x;
+  ui.y = point.y;
+  if (animate) {
+    ui.snapping = true;
+    if (snapTimer) window.clearTimeout(snapTimer);
+    snapTimer = window.setTimeout(() => {
+      ui.snapping = false;
+      snapTimer = 0;
+    }, 360);
+  }
+  if (persist) writeLevitationBallPosition(saved);
+}
+
+function restorePosition() {
+  const saved = readLevitationBallPosition();
+  ui.side = saved.side;
+  ui.yRatio = saved.yRatio;
+  const point = resolveLevitationBallCoordinates(saved, {
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    width: 58,
+    height: 58
+  });
+  ui.x = point.x;
+  ui.y = point.y;
+}
+
 function expandMenu() {
   ui.expanded = true;
   ui.panelKind = '';
-  clampPosition();
+  applyEdgePosition();
 }
 
 function collapseMenu() {
   ui.expanded = false;
   ui.panelKind = '';
   ui.activeCollectionId = '';
-  clampPosition();
+  applyEdgePosition();
 }
 
 function toggleMenu() {
@@ -319,7 +372,18 @@ function onPointerUp(event) {
 
   if (clickLike && !ui.expanded) {
     toggleMenu();
+    return;
   }
+
+  ui.side = resolveNearestLevitationBallSide(ui.x, {
+    viewportWidth: window.innerWidth,
+    width: ui.expanded ? 70 : 58
+  });
+  ui.yRatio = resolveLevitationBallYRatio(ui.y, {
+    viewportHeight: window.innerHeight,
+    height: ui.expanded ? panelHeight.value : 58
+  });
+  applyEdgePosition({ animate: true, persist: true });
 }
 
 function slotIcon(slot) {
@@ -406,7 +470,7 @@ function onDocumentPointerDown(event) {
 }
 
 function onResize() {
-  clampPosition();
+  applyEdgePosition();
 }
 
 defineExpose({
@@ -433,9 +497,7 @@ defineExpose({
 onMounted(() => {
   syncState();
   syncUrlLinks();
-  ui.x = Math.max(8, window.innerWidth - 92);
-  ui.y = 120;
-  clampPosition();
+  restorePosition();
 
   window.addEventListener(LIGHT_APPS_CHANGED_EVENT, onLightAppsChanged);
   window.addEventListener('resize', onResize);
@@ -448,6 +510,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onDocumentPointerDown);
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', onPointerUp);
+  if (snapTimer) window.clearTimeout(snapTimer);
 });
 </script>
 
@@ -461,6 +524,10 @@ onBeforeUnmount(() => {
   touch-action: none;
   cursor: pointer;
   transition: width 0.35s var(--ease-elastic), height 0.35s var(--ease-elastic);
+}
+
+.float-ball.snapping {
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), width 0.35s var(--ease-elastic), height 0.35s var(--ease-elastic);
 }
 
 .float-ball.dragging {
@@ -612,6 +679,18 @@ onBeforeUnmount(() => {
   animation: dock-panel-in 320ms cubic-bezier(0.18, 0.92, 0.24, 1.2) forwards;
 }
 
+.float-ball.side-right .dock-panel {
+  right: calc(100% + 10px);
+  left: auto;
+  transform-origin: right center;
+}
+
+.float-ball.side-left .dock-panel {
+  right: auto;
+  left: calc(100% + 10px);
+  transform-origin: left center;
+}
+
 @keyframes dock-panel-in {
   0% {
     opacity: 0;
@@ -652,11 +731,13 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-@media (max-width: 860px) {
-  .dock-panel {
-    left: auto;
-    right: calc(100% + 10px);
-    transform-origin: right center;
+@media (prefers-reduced-motion: reduce) {
+  .float-ball,
+  .float-ball.snapping,
+  .ball-body,
+  .menu-list {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
   }
 }
 </style>

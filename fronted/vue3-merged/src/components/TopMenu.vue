@@ -37,12 +37,122 @@
           class="menu-item-stack ripple-trigger theme-toggle-item"
           role="button"
           :aria-label="themeToggleActionLabel"
-          @click="toggleThemeMode"
+          :aria-expanded="appearancePanelOpen"
+          @click.stop="toggleAppearancePanel"
         >
           <div class="circle-icon-box liquid-material theme-toggle-box" :class="themeModeNormalized">
             <i :class="themeModeIcon"></i>
           </div>
-          <span class="item-label">{{ themeModeLabel }}</span>
+          <span class="item-label">主题</span>
+
+          <Transition name="appearance-popover">
+            <section
+              v-if="appearancePanelOpen"
+              class="appearance-popover liquid-material"
+              data-testid="appearance-popover"
+              aria-label="主题与主页外观"
+              @click.stop
+            >
+              <header class="appearance-popover-head">
+                <span>APPEARANCE</span>
+                <strong>主题与主页</strong>
+              </header>
+
+              <div class="appearance-group">
+                <span class="appearance-label">昼夜主题</span>
+                <div class="appearance-segment appearance-segment-two">
+                  <button
+                    v-for="option in themeOptions"
+                    :key="option.value"
+                    type="button"
+                    :class="{ active: themeModeNormalized === option.value }"
+                    @click="setThemeMode(option.value)"
+                  >
+                    <i :class="option.icon" aria-hidden="true"></i>
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
+              <template v-if="isHomeRoute">
+                <div class="appearance-group">
+                  <span class="appearance-label">主页时钟 · 全局</span>
+                  <div class="appearance-segment appearance-segment-three">
+                    <button
+                      v-for="option in clockOptions"
+                      :key="option.value"
+                      type="button"
+                      :class="{ active: homeClockBehavior === option.value }"
+                      @click="emit('set-home-clock-behavior', option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="appearance-group">
+                  <span class="appearance-label">当前壁纸覆盖</span>
+                  <div class="appearance-segment appearance-segment-three">
+                    <button
+                      v-for="option in wallpaperClockOptions"
+                      :key="option.value"
+                      type="button"
+                      :class="{ active: homeWallpaperClockOverride === option.value }"
+                      @click="emit('set-home-wallpaper-clock-override', option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                  <small>当前结果：{{ homeClockVisible ? '显示时钟' : '隐藏时钟' }}</small>
+                </div>
+
+                <div class="appearance-group">
+                  <span class="appearance-label">壁纸取色</span>
+                  <div class="appearance-segment appearance-segment-two">
+                    <button
+                      type="button"
+                      :class="{ active: homeColorMode === 'auto' }"
+                      @click="emit('set-home-color-mode', 'auto')"
+                    >
+                      自动取色
+                    </button>
+                    <button
+                      type="button"
+                      :class="{ active: homeColorMode === 'manual' }"
+                      @click="emit('set-home-color-mode', 'manual')"
+                    >
+                      手动覆盖
+                    </button>
+                  </div>
+                  <label v-if="homeColorMode === 'manual'" class="appearance-color-control">
+                    <input
+                      type="color"
+                      :value="homeAccentHex"
+                      aria-label="主页手动主色"
+                      @input="emit('set-home-manual-accent-hex', $event.target.value)"
+                    />
+                    <span>{{ homeAccentHex }}</span>
+                  </label>
+                  <small v-else>静态图取壁纸，动态壁纸取预览代表帧</small>
+                </div>
+
+                <div class="appearance-group">
+                  <span class="appearance-label">Material 动效</span>
+                  <div class="appearance-segment appearance-segment-three">
+                    <button
+                      v-for="option in motionOptions"
+                      :key="option.value"
+                      type="button"
+                      :class="{ active: homeMotionLevel === option.value }"
+                      @click="emit('set-home-motion-level', option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </section>
+          </Transition>
         </div>
 
         <div class="menu-item-stack ripple-trigger" @click="openBackgroundPicker">
@@ -167,12 +277,45 @@ const props = defineProps({
   effectActive: {
     type: Boolean,
     default: false
+  },
+  isHomeRoute: {
+    type: Boolean,
+    default: false
+  },
+  homeClockBehavior: {
+    type: String,
+    default: 'auto'
+  },
+  homeClockVisible: {
+    type: Boolean,
+    default: true
+  },
+  homeWallpaperClockOverride: {
+    type: String,
+    default: ''
+  },
+  homeMotionLevel: {
+    type: String,
+    default: 'vivid'
+  },
+  homeColorMode: {
+    type: String,
+    default: 'auto'
+  },
+  homeAccentHex: {
+    type: String,
+    default: '#F2B39D'
   }
 });
 
 const emit = defineEmits([
   'toggle-menu',
-  'toggle-theme-mode',
+  'set-theme-mode',
+  'set-home-clock-behavior',
+  'set-home-wallpaper-clock-override',
+  'set-home-motion-level',
+  'set-home-color-mode',
+  'set-home-manual-accent-hex',
   'toggle-ai-chat',
   'select-main-route',
   'open-atmosphere-panel',
@@ -184,14 +327,34 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive } = toRefs(props);
+const { menuExpanded, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive, isHomeRoute, homeClockBehavior, homeClockVisible, homeWallpaperClockOverride, homeMotionLevel, homeColorMode, homeAccentHex } = toRefs(props);
 const avatarLoadFailed = ref(false);
 const authorAvatarLoadFailed = ref(false);
+const appearancePanelOpen = ref(false);
 const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
 const themeModeNormalized = computed(() => (String(themeMode.value || '').trim().toLowerCase() === 'day' ? 'day' : 'night'));
 const themeModeLabel = computed(() => (themeModeNormalized.value === 'day' ? '白天模式' : '夜间模式'));
 const themeModeIcon = computed(() => (themeModeNormalized.value === 'day' ? 'fas fa-sun' : 'fas fa-moon'));
 const themeToggleActionLabel = computed(() => (themeModeNormalized.value === 'day' ? '切换到夜间模式' : '切换到白天模式'));
+const themeOptions = Object.freeze([
+  { value: 'day', label: '白天', icon: 'fas fa-sun' },
+  { value: 'night', label: '夜间', icon: 'fas fa-moon' }
+]);
+const clockOptions = Object.freeze([
+  { value: 'auto', label: '自动' },
+  { value: 'show', label: '显示' },
+  { value: 'hide', label: '隐藏' }
+]);
+const wallpaperClockOptions = Object.freeze([
+  { value: '', label: '继承' },
+  { value: 'show', label: '显示' },
+  { value: 'hide', label: '隐藏' }
+]);
+const motionOptions = Object.freeze([
+  { value: 'vivid', label: '明显' },
+  { value: 'calm', label: '克制' },
+  { value: 'off', label: '关闭' }
+]);
 
 const mainNavItems = computed(() => {
   return [
@@ -261,8 +424,12 @@ function toggleSwitch() {
   emit('toggle-menu');
 }
 
-function toggleThemeMode() {
-  emit('toggle-theme-mode');
+function toggleAppearancePanel() {
+  appearancePanelOpen.value = !appearancePanelOpen.value;
+}
+
+function setThemeMode(mode) {
+  emit('set-theme-mode', mode);
 }
 
 function onAvatarError() {
@@ -324,6 +491,20 @@ watch(
   () => authorAvatarUrl.value,
   () => {
     authorAvatarLoadFailed.value = false;
+  }
+);
+
+watch(
+  () => menuExpanded.value,
+  (expanded) => {
+    if (!expanded) appearancePanelOpen.value = false;
+  }
+);
+
+watch(
+  () => route.fullPath,
+  () => {
+    appearancePanelOpen.value = false;
   }
 );
 </script>
@@ -945,6 +1126,146 @@ watch(
   color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
 }
 
+.appearance-popover {
+  --liquid-bg: var(--theme-panel-surface-elevated, rgba(28, 21, 29, 0.94));
+  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.24));
+  --liquid-shadow: 0 24px 48px rgba(10, 7, 12, 0.32);
+  position: absolute;
+  top: calc(100% + 18px);
+  left: 50%;
+  width: 286px;
+  padding: 16px;
+  border-radius: 24px;
+  display: grid;
+  gap: 15px;
+  transform: translateX(-50%);
+  color: var(--theme-text-primary);
+  text-align: left;
+  cursor: default;
+  z-index: 20;
+}
+
+.appearance-popover::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid var(--theme-border-strong);
+  border-left: 1px solid var(--theme-border-strong);
+  background: var(--theme-panel-surface-elevated);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.appearance-popover-head,
+.appearance-group {
+  display: grid;
+}
+
+.appearance-popover-head {
+  gap: 3px;
+}
+
+.appearance-popover-head span,
+.appearance-label {
+  color: var(--theme-text-tertiary);
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: 0.17em;
+}
+
+.appearance-popover-head strong {
+  font-size: 15px;
+  font-weight: 680;
+}
+
+.appearance-group {
+  gap: 7px;
+}
+
+.appearance-group small {
+  color: var(--theme-text-tertiary);
+  font-size: 9px;
+}
+
+.appearance-color-control {
+  min-height: 36px;
+  padding: 5px 9px;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.appearance-color-control input {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.appearance-segment {
+  padding: 3px;
+  border: 1px solid var(--theme-border);
+  border-radius: 13px;
+  display: grid;
+  gap: 3px;
+  background: var(--theme-surface-soft);
+}
+
+.appearance-segment-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.appearance-segment-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.appearance-segment button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.appearance-segment button:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--theme-text-primary);
+}
+
+.appearance-segment button.active {
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.26));
+  color: var(--accent-surface-text, var(--theme-text-primary));
+  box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.32));
+}
+
+.appearance-segment button:active { transform: scale(0.96); }
+.appearance-segment button:focus-visible { outline: 2px solid rgb(var(--accent-strong-rgb)); outline-offset: 2px; }
+
+.appearance-popover-enter-active,
+.appearance-popover-leave-active {
+  transition: opacity 220ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.appearance-popover-enter-from,
+.appearance-popover-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px) scale(0.96);
+}
+
 :root[data-theme-mode='day'] .top-menu-root {
   --menu-glass-bg: linear-gradient(160deg, rgba(255, 252, 248, 0.92), rgba(244, 233, 225, 0.84));
   --menu-glass-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
@@ -978,6 +1299,71 @@ watch(
   }
   100% {
     transform: translateY(0) scale(1);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .top-bar {
+    width: calc(100% - 20px);
+    padding: 0 14px;
+    gap: 8px;
+  }
+
+  .nav-section.center {
+    flex: 0 0 auto;
+    gap: 9px;
+  }
+
+  .nav-section.right {
+    gap: 7px;
+  }
+
+  .left-pill-group {
+    --left-main-gap: 4px;
+    --left-main-item-width: 76px;
+    --left-main-padding-x: 8px;
+  }
+
+  .left-main-btn {
+    padding-inline: 8px;
+    gap: 5px;
+  }
+
+  .left-main-btn .item-label,
+  .author-info-item .item-label {
+    font-size: 10px;
+  }
+
+  .menu-item-stack {
+    gap: 4px;
+  }
+
+  .circle-icon-box,
+  .pill-btn-box,
+  .github-style-box,
+  .author-avatar-box,
+  .avatar-box {
+    width: 40px;
+    height: 40px;
+  }
+
+  .github-style-box {
+    font-size: 24px;
+  }
+
+  .appearance-popover {
+    left: auto;
+    right: -94px;
+    transform: none;
+  }
+
+  .appearance-popover::before {
+    left: calc(100% - 111px);
+  }
+
+  .appearance-popover-enter-from,
+  .appearance-popover-leave-to {
+    transform: translateY(-8px) scale(0.96);
   }
 }
 

@@ -33,8 +33,20 @@
         :music-active="musicMenuActive"
         :ambient-active="ambientMenuActive"
         :effect-active="effectMenuActive"
+        :is-home-route="isHomeRoute"
+        :home-clock-behavior="homeAppearance.state.clockBehavior"
+        :home-clock-visible="homeClockVisible"
+        :home-wallpaper-clock-override="homeWallpaperClockOverride"
+        :home-motion-level="homeAppearance.state.motionLevel"
+        :home-color-mode="homeAppearance.state.colorMode"
+        :home-accent-hex="homeAccentHex"
         @toggle-menu="toggleMenu"
-        @toggle-theme-mode="ui.toggleThemeMode()"
+        @set-theme-mode="ui.setThemeMode($event)"
+        @set-home-clock-behavior="homeAppearance.setClockBehavior($event)"
+        @set-home-wallpaper-clock-override="setActiveWallpaperClockOverride"
+        @set-home-motion-level="homeAppearance.setMotionLevel($event)"
+        @set-home-color-mode="homeAppearance.setColorMode($event)"
+        @set-home-manual-accent-hex="homeAppearance.setManualAccentHex($event)"
         @toggle-ai-chat="toggleAiChat"
         @select-main-route="handleMainRouteSelect"
         @open-profile="openProfile"
@@ -292,6 +304,8 @@ import { useAuthSession } from './composables/useAuthSession';
 import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { useFocusSession } from './utils/focusSessionState';
+import { HOME_STAGE_CONTEXT_KEY, resolveHomeClockVisibility, useHomeAppearance } from './utils/homeTimeStageState';
+import { sampleWallpaperAccent } from './utils/wallpaperAccentSampler';
 import { readAuthorProfileCache, writeAuthorProfileCache, AUTHOR_PROFILE_CACHE_UPDATED_EVENT } from './pages/authorProfileCache';
 import { normalizeAuthorProfilePayload } from './pages/authorUiState';
 import { usePlayerEngine } from './composables/usePlayerEngine';
@@ -456,6 +470,8 @@ const miniMusicLibrary = useMiniMusicLibrary({
 const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
 const focus = useFocusSession();
+const homeAppearance = useHomeAppearance();
+const sampledWallpaperAccentHex = ref('');
 const isFocusActive = focus.isActive;
 const focusAppCodes = focus.activePresetAppCodes;
 
@@ -676,6 +692,47 @@ const activeL2dVisible = computed(() => {
   if (item.type !== 'l2d') return false;
   return Boolean(item.src) && Boolean(item.l2dEntryModelJson);
 });
+
+const homeStageWallpaper = computed(() => ({
+  id: String(activeBackgroundId.value || ''),
+  isDynamic: Boolean(activeVideoBackground.value || activeBackground.value?.type === 'l2d'),
+  type: activeBackground.value?.type || 'static',
+  src: String(activeBackground.value?.src || activeImageBackground.value || ''),
+  preview: String(activeBackground.value?.preview || activeImageBackground.value || '')
+}));
+const homeClockVisible = computed(() => resolveHomeClockVisibility({
+  clockBehavior: homeAppearance.state.clockBehavior,
+  wallpaperClockOverrides: homeAppearance.state.wallpaperClockOverrides,
+  wallpaperId: homeStageWallpaper.value.id,
+  isDynamic: homeStageWallpaper.value.isDynamic
+}));
+const homeWallpaperClockOverride = computed(
+  () => homeAppearance.state.wallpaperClockOverrides?.[homeStageWallpaper.value.id] || ''
+);
+const homeAccentHex = computed(() => (
+  homeAppearance.state.colorMode === 'manual'
+    ? homeAppearance.state.manualAccentHex
+    : sampledWallpaperAccentHex.value || ui.state.accentHex
+));
+
+provide(HOME_STAGE_CONTEXT_KEY, Object.freeze({ wallpaper: homeStageWallpaper, accentHex: homeAccentHex }));
+
+function setActiveWallpaperClockOverride(value) {
+  homeAppearance.setWallpaperClockOverride(homeStageWallpaper.value.id, value);
+}
+
+let wallpaperAccentSampleId = 0;
+
+async function refreshHomeWallpaperAccent() {
+  const sampleId = ++wallpaperAccentSampleId;
+  if (homeAppearance.state.colorMode !== 'auto') {
+    sampledWallpaperAccentHex.value = '';
+    return;
+  }
+  const sampled = await sampleWallpaperAccent(homeStageWallpaper.value);
+  if (sampleId !== wallpaperAccentSampleId || homeAppearance.state.colorMode !== 'auto') return;
+  sampledWallpaperAccentHex.value = sampled;
+}
 
 const activeWallpaperBgmUrl = computed(() => String(activeBackground.value?.embeddedBgmUrl || '').trim());
 const activeWallpaperBgvUrl = computed(() => String(activeBackground.value?.embeddedBgvUrl || '').trim());
@@ -2655,6 +2712,13 @@ watch(activeBackgroundId, () => {
   applyWallpaperAudioState();
   scheduleWallpaperSignedUrlRefresh();
 });
+watch(
+  () => [homeStageWallpaper.value.id, homeStageWallpaper.value.src, homeStageWallpaper.value.preview, homeAppearance.state.colorMode],
+  () => {
+    refreshHomeWallpaperAccent();
+  },
+  { immediate: true }
+);
 watch(
   () => [activeWallpaperBgmUrl.value, activeWallpaperBgvUrl.value],
   () => {

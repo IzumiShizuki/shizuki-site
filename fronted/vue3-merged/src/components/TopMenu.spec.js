@@ -91,17 +91,43 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.emitted('open-profile')).toBeUndefined();
   });
 
-  it('emits theme toggle events and reflects the current mode label', async () => {
+  it('opens route-aware appearance controls and emits explicit theme and Home preference changes', async () => {
     const { wrapper } = await mountTopMenu({
-      themeMode: 'day'
+      themeMode: 'day',
+      isHomeRoute: true,
+      homeClockBehavior: 'auto',
+      homeClockVisible: true,
+      homeMotionLevel: 'vivid',
+      homeColorMode: 'auto',
+      homeAccentHex: '#F2B39D'
     });
 
-    expect(wrapper.get('.theme-toggle-item .item-label').text()).toBe('白天模式');
+    expect(wrapper.get('.theme-toggle-item .item-label').text()).toBe('主题');
     expect(wrapper.get('.theme-toggle-box').classes()).toContain('day');
     expect(wrapper.get('.theme-toggle-box .fa-sun').exists()).toBe(true);
 
     await wrapper.get('.theme-toggle-item').trigger('click');
+    expect(wrapper.get('[data-testid="appearance-popover"]').text()).toContain('主页时钟');
 
-    expect(wrapper.emitted('toggle-theme-mode')).toHaveLength(1);
+    const buttons = wrapper.findAll('.appearance-popover button');
+    await buttons.find((button) => button.text().includes('夜间')).trigger('click');
+    await buttons.find((button) => button.text() === '隐藏').trigger('click');
+    await buttons.find((button) => button.text() === '克制').trigger('click');
+    await buttons.find((button) => button.text() === '手动覆盖').trigger('click');
+
+    expect(wrapper.emitted('set-theme-mode')?.[0]).toEqual(['night']);
+    expect(wrapper.emitted('set-home-clock-behavior')?.[0]).toEqual(['hide']);
+    expect(wrapper.emitted('set-home-motion-level')?.[0]).toEqual(['calm']);
+    expect(wrapper.emitted('set-home-color-mode')?.[0]).toEqual(['manual']);
+  });
+
+  it('keeps Home-only options out of the appearance panel on content routes', async () => {
+    const { wrapper } = await mountTopMenu({ isHomeRoute: false }, '/author');
+
+    await wrapper.get('.theme-toggle-item').trigger('click');
+
+    expect(wrapper.get('[data-testid="appearance-popover"]').text()).toContain('昼夜主题');
+    expect(wrapper.get('[data-testid="appearance-popover"]').text()).not.toContain('主页时钟');
+    expect(wrapper.get('[data-testid="appearance-popover"]').text()).not.toContain('Material 动效');
   });
 });
