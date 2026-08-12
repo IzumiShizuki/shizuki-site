@@ -22,6 +22,7 @@ function mountPanel(props = {}) {
   return mount(WallpaperDiscoveryPanel, {
     props: {
       authorizedFetch,
+      isAuthenticated: true,
       busy: false,
       ...props
     }
@@ -144,11 +145,17 @@ describe('WallpaperDiscoveryPanel', () => {
     expect(firstCard.find('img').attributes('src')).toBe('/preview/workshop/2141505896');
   });
 
-  it('shows a login hint instead of calling the api without authorizedFetch', async () => {
-    const wrapper = mountPanel({ authorizedFetch: null });
+  it('keeps online discovery available to guests while protecting import actions', async () => {
+    const wrapper = mountPanel({ authorizedFetch: null, isAuthenticated: false });
     await flushPromises();
 
-    expect(searchWorkshopWallpapers).not.toHaveBeenCalled();
-    expect(wrapper.text()).toContain('登录后才能使用在线壁纸浏览');
+    expect(searchWorkshopWallpapers).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, sort: 'trend' }),
+      null
+    );
+    expect(wrapper.find('.discovery-item')).toBeTruthy();
+    await wrapper.find('.discovery-item').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.inspector-import-button').attributes('disabled')).toBeDefined();
   });
 });

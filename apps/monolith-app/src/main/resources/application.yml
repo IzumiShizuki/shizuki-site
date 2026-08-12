@@ -392,6 +392,9 @@ shizuki:
       - /api/v1/music/spotify/preview-url
       - /api/v1/author/profile/**
       - /api/v1/home-wallpapers/public
+      - /api/v1/home-wallpapers/discovery/workshop/search
+      - /api/v1/home-wallpapers/discovery/workshop/items/**
+      - /api/v1/home-wallpapers/discovery/wallhaven/search
       - /api/v1/home-wallpapers/discovery/preview/*/*
       - /api/v1/tools/translate/**
       - /api/v1/ambient-library/status

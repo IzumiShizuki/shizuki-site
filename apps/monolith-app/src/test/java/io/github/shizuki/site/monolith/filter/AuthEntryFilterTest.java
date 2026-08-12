@@ -33,6 +33,9 @@ class AuthEntryFilterTest {
     private static final String AMBIENT_STATUS_PATH = "/api/v1/ambient-library/status";
     private static final String AMBIENT_SEARCH_PATH = "/api/v1/ambient-library/search";
     private static final String AMBIENT_IMPORT_PATH = "/api/v1/ambient-library/import";
+    private static final String WALLPAPER_WORKSHOP_SEARCH_PATH = "/api/v1/home-wallpapers/discovery/workshop/search";
+    private static final String WALLPAPER_WORKSHOP_ITEM_PATH = "/api/v1/home-wallpapers/discovery/workshop/items/2141505896";
+    private static final String WALLPAPER_WALLHAVEN_SEARCH_PATH = "/api/v1/home-wallpapers/discovery/wallhaven/search";
 
     @Test
     void shouldAllowGuestResolvePlaybackWithoutToken() throws Exception {
@@ -89,6 +92,28 @@ class AuthEntryFilterTest {
         AuthEntryFilter filter = newFilter(authService, configuredGuestPaths());
 
         for (String path : List.of(TOWN_SCENES_PATH, TOWN_SCENE_DETAIL_PATH, TOWN_PUBLIC_MAP_PATH)) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean(false);
+
+            filter.doFilter(request, response, captureGuestChain(invoked));
+
+            assertThat(invoked).as(path).isTrue();
+            assertThat(response.getStatus()).as(path).isEqualTo(200);
+        }
+        Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
+    void shouldAllowConfiguredWallpaperDiscoveryReadsWithoutToken() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths());
+
+        for (String path : List.of(
+            WALLPAPER_WORKSHOP_SEARCH_PATH,
+            WALLPAPER_WORKSHOP_ITEM_PATH,
+            WALLPAPER_WALLHAVEN_SEARCH_PATH
+        )) {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
             MockHttpServletResponse response = new MockHttpServletResponse();
             AtomicBoolean invoked = new AtomicBoolean(false);

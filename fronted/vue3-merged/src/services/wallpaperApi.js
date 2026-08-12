@@ -14,6 +14,10 @@ function requireAuthorizedFetch(authorizedFetch) {
   return authorizedFetch;
 }
 
+function resolveReadRequest(authorizedFetch) {
+  return typeof authorizedFetch === 'function' ? authorizedFetch : httpRequest;
+}
+
 export function getWallpaperDiscoveryPreviewUrl(source, itemId) {
   const normalizedSource = String(source || '').trim().toLowerCase();
   const normalizedItemId = String(itemId || '').trim();
@@ -78,7 +82,7 @@ export async function importWallpaperWorkshop(payload, authorizedFetch) {
 }
 
 export async function searchWorkshopWallpapers(params, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveReadRequest(authorizedFetch);
   const response = await request('/api/v1/home-wallpapers/discovery/workshop/search', {
     method: 'GET',
     query: {
@@ -91,7 +95,7 @@ export async function searchWorkshopWallpapers(params, authorizedFetch) {
 }
 
 export async function getWorkshopItemDetail(itemId, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveReadRequest(authorizedFetch);
   const normalizedId = String(itemId || '').trim();
   if (!/^\d{3,20}$/.test(normalizedId)) {
     throw new Error('itemId is required');
@@ -103,7 +107,7 @@ export async function getWorkshopItemDetail(itemId, authorizedFetch) {
 }
 
 export async function searchWallhavenWallpapers(params, authorizedFetch) {
-  const request = requireAuthorizedFetch(authorizedFetch);
+  const request = resolveReadRequest(authorizedFetch);
   const response = await request('/api/v1/home-wallpapers/discovery/wallhaven/search', {
     method: 'GET',
     query: {

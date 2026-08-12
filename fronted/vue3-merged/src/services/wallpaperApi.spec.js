@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { getWallpaperDiscoveryPreviewUrl } from './wallpaperApi';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getWallpaperDiscoveryPreviewUrl, searchWorkshopWallpapers } from './wallpaperApi';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('wallpaperApi', () => {
   it('builds same-origin preview URLs for supported sources', () => {
@@ -14,5 +18,21 @@ describe('wallpaperApi', () => {
   it('rejects unsupported or empty preview identifiers', () => {
     expect(getWallpaperDiscoveryPreviewUrl('steam', '2141505896')).toBe('');
     expect(getWallpaperDiscoveryPreviewUrl('workshop', '')).toBe('');
+  });
+
+  it('uses the public http client for guest discovery reads', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ code: 'OK', data: { items: [] } })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await searchWorkshopWallpapers({ query: 'rain', page: 2, sort: 'trend' }, null);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/home-wallpapers\/discovery\/workshop\/search\?query=rain&page=2&sort=trend/),
+      expect.objectContaining({ method: 'GET' })
+    );
   });
 });

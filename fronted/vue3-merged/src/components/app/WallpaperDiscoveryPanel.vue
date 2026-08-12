@@ -17,7 +17,7 @@
       <button
         type="button"
         class="window-refresh"
-        :disabled="loading || !authorizedFetch"
+        :disabled="loading"
         aria-label="刷新搜索结果"
         @click="runSearch(page)"
       >
@@ -125,7 +125,7 @@
           <button
             type="button"
             class="discovery-search-button"
-            :disabled="loading || !authorizedFetch"
+            :disabled="loading"
             @click="runSearch(1)"
           >
             {{ loading ? '搜索中…' : '搜索' }}
@@ -155,11 +155,7 @@
           </button>
         </div>
 
-        <p v-if="!authorizedFetch" class="discovery-placeholder discovery-login-state">
-          <span class="placeholder-mark">LOCKED</span>
-          登录后才能使用在线壁纸浏览。
-        </p>
-        <div v-else-if="loading && !items.length" class="discovery-skeleton-grid" aria-label="正在加载壁纸列表">
+        <div v-if="loading && !items.length" class="discovery-skeleton-grid" aria-label="正在加载壁纸列表">
           <span v-for="index in 8" :key="`skeleton-${index}`" class="discovery-skeleton-card">
             <span class="skeleton-block"></span>
             <span class="skeleton-line short"></span>
@@ -294,8 +290,8 @@
               <option value="PRIVATE">私有壁纸</option>
               <option value="PUBLIC">公开壁纸</option>
             </select>
-            <button type="button" class="inspector-import-button" :disabled="busy" @click="importSelected">
-              {{ busy ? '导入中…' : source === 'workshop' ? '导入选中壁纸' : '拉取选中壁纸' }}
+            <button type="button" class="inspector-import-button" :disabled="busy || !isAuthenticated" @click="importSelected">
+              {{ busy ? '导入中…' : !isAuthenticated ? '登录后导入' : source === 'workshop' ? '导入选中壁纸' : '拉取选中壁纸' }}
             </button>
           </div>
         </template>
@@ -321,6 +317,7 @@ import {
 
 const props = defineProps({
   authorizedFetch: { type: Function, default: null },
+  isAuthenticated: { type: Boolean, default: false },
   busy: { type: Boolean, default: false }
 });
 
@@ -501,10 +498,6 @@ function wallhavenCategories() {
 }
 
 async function runSearch(targetPage = 1) {
-  if (typeof props.authorizedFetch !== 'function') {
-    errorHint.value = '登录后才能使用在线壁纸浏览。';
-    return;
-  }
   const seq = ++searchSeq;
   loading.value = true;
   errorHint.value = '';
@@ -615,7 +608,7 @@ async function selectItem(item) {
 
 function importSelected() {
   const item = selected.value;
-  if (!item || props.busy) return;
+  if (!item || props.busy || !props.isAuthenticated) return;
   if (source.value === 'workshop') {
     emit('import-workshop', {
       itemId: item.itemId,

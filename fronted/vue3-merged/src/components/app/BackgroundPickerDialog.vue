@@ -1,6 +1,11 @@
 <template>
   <transition name="picker-fade">
-    <div v-if="visible" class="bg-picker-mask" @click.self="$emit('close')">
+    <div
+      v-if="visible"
+      class="bg-picker-mask"
+      :class="{ 'wallpaper-picker-mask': pickerMode === 'acquire' }"
+      @click.self="$emit('close')"
+    >
       <section class="bg-picker liquid-material" :class="{ 'wallpaper-picker-shell': pickerMode === 'acquire' }">
         <header class="picker-head">
           <div class="picker-head-main">
@@ -156,14 +161,14 @@
           </div>
 
           <WallpaperDiscoveryPanel
-            v-if="isAuthenticated"
             :authorized-fetch="authorizedFetch"
+            :is-authenticated="isAuthenticated"
             :busy="importState.busy"
             @import-workshop="$emit('discovery-import-workshop', $event)"
             @import-wallhaven="$emit('discovery-import-wallhaven', $event)"
             @select-workshop="$emit('discovery-select-workshop', $event)"
           />
-          <p v-if="!isAuthenticated" class="route-bg-note">登录后可上传本地包、在线浏览并拉取 Workshop / Wallhaven 壁纸。</p>
+          <p v-if="!isAuthenticated" class="route-bg-note">在线搜索和预览无需登录；上传本地包、导入 Workshop / Wallhaven 壁纸请先登录。</p>
 
           <p class="format-guide-note">
             支持图片、视频、Live2D zip 与内嵌 BGM/BGV 媒体；上传后会自动按 L2D、动态、静态的顺序分类。
@@ -365,9 +370,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape));
   position: fixed;
   inset: 0;
   z-index: 1500;
-  background: rgba(7, 10, 14, 0.66);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 245, 246, 0.16)),
+    rgba(18, 15, 20, 0.18);
   display: grid;
   place-items: center;
+  backdrop-filter: blur(10px) saturate(1.05);
+}
+
+.bg-picker-mask.wallpaper-picker-mask {
+  background: rgba(7, 10, 14, 0.66);
   backdrop-filter: blur(12px) saturate(0.9);
 }
 

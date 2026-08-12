@@ -6,12 +6,17 @@ Provide a focused Wallpaper-style discovery workspace where users can search sup
 
 ### Requirement: Users can open a dedicated discovery workspace
 
-The system SHALL present the wallpaper acquisition flow as a focused workspace with its own title bar, source navigation, search area, result gallery, detail inspector, and close action. The workspace MUST remain inside the existing application context and MUST NOT require opening an uncontrolled third-party page to browse results.
+The system SHALL present the wallpaper acquisition flow as a focused workspace with its own title bar, source navigation, search area, result gallery, detail inspector, and close action. The workspace MUST remain inside the existing application context and MUST NOT require opening an uncontrolled third-party page to browse results. Its dark Wallpaper-style mask and shell MUST apply only to acquisition mode and MUST NOT restyle the existing library-selection mode.
 
 #### Scenario: Open the acquisition workspace
 
-- **WHEN** an authenticated user switches to the wallpaper acquisition flow
+- **WHEN** a user switches to the wallpaper acquisition flow
 - **THEN** the system shows the Wallpaper-style discovery workspace and keeps the existing background picker available as the close/return boundary
+
+#### Scenario: Return to wallpaper selection
+
+- **WHEN** the user switches from acquisition back to wallpaper selection
+- **THEN** the system restores the existing selection mask and picker appearance and shows the available wallpaper library
 
 #### Scenario: Close the acquisition workspace
 
@@ -20,7 +25,12 @@ The system SHALL present the wallpaper acquisition flow as a focused workspace w
 
 ### Requirement: Users can search and filter supported sources
 
-The system SHALL support source-specific discovery controls for Steam Workshop and Wallhaven. Steam Workshop MUST expose keyword search, sorting, and pagination. Wallhaven MUST expose keyword search, sorting, category/purity controls, minimum resolution, ratios, and pagination. Search MUST be triggerable by Enter and by an explicit search action.
+The system SHALL support source-specific discovery controls for Steam Workshop and Wallhaven. Steam Workshop MUST expose keyword search, sorting, and pagination. Wallhaven MUST expose keyword search, sorting, category/purity controls, minimum resolution, ratios, and pagination. Search MUST be triggerable by Enter and by an explicit search action. Discovery search, item detail, and preview reads MUST remain available without authentication.
+
+#### Scenario: Browse discovery as a guest
+
+- **WHEN** an unauthenticated user opens acquisition mode and submits a supported source search
+- **THEN** the system requests and displays the available results and previews without replacing the workspace with a login-only empty state
 
 #### Scenario: Search Steam Workshop
 
@@ -58,7 +68,7 @@ The system SHALL render each result as a visual card with a thumbnail, title, so
 
 ### Requirement: Users can inspect and import a selected result
 
-The system SHALL provide a persistent detail inspector for the selected result. The inspector MUST show the largest available preview, title, source, resolution or other source metadata when available, a link to the source detail page, visibility selection, and the appropriate import action. Selecting a result MUST update the inspector without navigating away from the workspace.
+The system SHALL provide a persistent detail inspector for the selected result. The inspector MUST show the largest available preview, title, source, resolution or other source metadata when available, a link to the source detail page, visibility selection, and the appropriate import action. Selecting a result MUST update the inspector without navigating away from the workspace. Import actions MUST remain protected by authentication even though discovery reads are public.
 
 #### Scenario: Select a Workshop result
 
@@ -72,8 +82,13 @@ The system SHALL provide a persistent detail inspector for the selected result. 
 
 #### Scenario: Import with a chosen visibility
 
-- **WHEN** the user chooses Private or Public and activates the import action
+- **WHEN** an authenticated user chooses Private or Public and activates the import action
 - **THEN** the system emits the selected source identifier, title, and visibility exactly once and disables the action while the parent import task is busy
+
+#### Scenario: Guest inspects a result without importing
+
+- **WHEN** an unauthenticated user selects a discovery result
+- **THEN** the inspector remains usable but labels and disables the import action until the user signs in
 
 ### Requirement: Existing wallpaper operations remain reachable
 

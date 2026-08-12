@@ -134,4 +134,12 @@ describe('BackgroundPickerDialog wallpaper acquire flow', () => {
     expect(wrapper.emitted('close')).toHaveLength(1);
     expect(wrapper.emitted('select-background')).toBeUndefined();
   });
+
+  it('keeps the original picker mask when switching to library selection', async () => {
+    const wrapper = mountDialog({ pickerMode: 'select' });
+
+    expect(wrapper.find('.bg-picker-mask').classes()).not.toContain('wallpaper-picker-mask');
+    expect(wrapper.find('.bg-picker').classes()).not.toContain('wallpaper-picker-shell');
+    expect(wrapper.find('.picker-grid').exists()).toBe(true);
+  });
 });

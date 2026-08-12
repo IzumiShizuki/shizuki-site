@@ -22,3 +22,9 @@
 - [x] 4.1 Update/add frontend component tests for source filters, preview fallback/retry, selection, and import payloads.
 - [x] 4.2 Add backend unit coverage for preview source validation and bounded response handling.
 - [x] 4.3 Run the targeted frontend tests, backend media tests, frontend build, and a local browser smoke check; fix regressions found by verification.
+
+## 5. User-acceptance regressions
+
+- [x] 5.1 Scope the dark Wallpaper-style mask and enlarged shell to acquisition mode while restoring the original library-selection appearance.
+- [x] 5.2 Keep discovery search, item detail, and preview available to guests while leaving upload and import operations authentication-protected.
+- [x] 5.3 Add frontend and backend regression coverage for selection styling, guest discovery reads, and disabled guest imports.

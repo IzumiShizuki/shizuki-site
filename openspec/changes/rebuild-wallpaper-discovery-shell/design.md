@@ -27,6 +27,8 @@ The redesign needs to stay compatible with the existing parent event contract (`
 
 `WallpaperDiscoveryPanel.vue` will become the visual shell for acquisition while retaining its current public event names. `BackgroundPickerDialog.vue` will give the acquisition state a larger dark treatment and keep local upload/manual import and owned-wallpaper settings below the workspace. This allows the feature to look and behave like a separate app without introducing a new router route or duplicating `App.vue` import logic.
 
+The dark mask and enlarged shell are applied through acquisition-only modifier classes. Selection mode retains the pre-existing translucent picker mask and sizing, so switching tabs changes the workflow rather than unintentionally reskinning both workflows.
+
 Alternative considered: create a new top-level route. This would require moving auth/import state out of `App.vue`, would complicate closing and preserving route background scope, and would make the workflow feel disconnected from the picker.
 
 ### 2. Give the shell an opinionated Wallpaper visual language
@@ -68,7 +70,15 @@ Alternative considered: only add a client-side `onerror` placeholder. That impro
 
 The discovery component owns browsing and selection, but emits the same source payloads as before. `App.vue` continues to create import jobs, refresh the library on success, persist selection scope, and manage owned-wallpaper settings. This avoids a second source of truth for background state and keeps the change reversible.
 
+### 5. Separate guest discovery reads from authenticated imports
+
+Search, item detail, and preview requests use the normal HTTP client when no authorized fetch function is available. The matching backend paths are guest-readable and continue to apply the existing discovery rate limits. The discovery panel therefore renders for both guests and signed-in users instead of becoming an empty login placeholder.
+
+Upload and import endpoints remain authenticated. The inspector keeps its preview and metadata available to guests but disables the import action and labels it as requiring sign-in. This preserves a useful public browsing experience without expanding write permissions.
+
 ## Risks / Trade-offs
+
+- [Guest discovery increases upstream traffic] -> Keep existing search/preview rate limits and expose only read endpoints; all imports remain authenticated.
 
 - [Upstream CDN changes] → Keep direct thumbnail/full URL candidates after the same-origin proxy and show an explicit retry state instead of silently hiding cards.
 - [Preview proxy bandwidth] → Enforce an image-only response and a bounded byte limit, add a public cache header, and retain the existing discovery rate-limit family.
