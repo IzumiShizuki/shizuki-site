@@ -61,9 +61,9 @@
         >
           <span class="island-icon" aria-hidden="true"><i class="fas fa-bullseye"></i></span>
           <span class="island-copy">
-            <small>{{ currentFocusTask ? 'NEXT TASK' : 'FOCUS DESK' }}</small>
+            <small>{{ focusIslandState.eyebrow }}</small>
             <strong>{{ currentFocusTask?.title || '开始一段专注' }}</strong>
-            <span>Todo + 番茄钟会留在桌面</span>
+            <span>{{ focusIslandState.caption }}</span>
           </span>
           <i class="fas fa-arrow-right island-trailing" aria-hidden="true"></i>
         </button>
@@ -84,6 +84,30 @@
         </button>
       </div>
 
+      <nav class="home-room-utilities" aria-label="自宅入口" data-testid="home-room-utilities">
+        <button
+          class="home-room-utility ripple-trigger"
+          type="button"
+          data-testid="home-intro-action"
+          @click="openAuthorIntro"
+        >
+          <i class="fas fa-circle-info" aria-hidden="true"></i>
+          <span>关于这里</span>
+        </button>
+        <button
+          class="home-room-utility home-companion-utility ripple-trigger"
+          :class="{ locked: companionEntry.disabled }"
+          type="button"
+          data-testid="home-companion-action"
+          :disabled="companionEntry.disabled"
+          @click="openCompanion"
+        >
+          <i :class="companionEntry.icon" aria-hidden="true"></i>
+          <span>{{ companionEntry.title }}</span>
+          <small>{{ companionEntry.caption }}</small>
+        </button>
+      </nav>
+
       <footer class="stage-footer">
         <Transition name="whisper-fade" mode="out-in">
           <p :key="whisperIndex">{{ activeWhisper }}</p>
@@ -100,13 +124,16 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { PLAYER_BRIDGE_KEY } from '../composables/playerBridge';
+import { useAuthSession } from '../composables/useAuthSession';
 import { listPublicPostWhispers } from '../services/blogApi';
+import { openAiChat } from '../utils/aiChatBus';
 import { useFocusSession } from '../utils/focusSessionState';
 import { HOME_STAGE_CONTEXT_KEY, resolveHomeClockVisibility, useHomeAppearance } from '../utils/homeTimeStageState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 import { buildAuthorHomepageWhisperPool } from './authorHomepageWhispersState';
 
 const router = useRouter();
+const auth = useAuthSession();
 const player = inject(PLAYER_BRIDGE_KEY, null);
 const stageContext = inject(HOME_STAGE_CONTEXT_KEY, null);
 const focus = useFocusSession();
@@ -199,6 +226,49 @@ const activeWhisper = computed(() => {
   return pool[whisperIndex.value % pool.length] || fallback;
 });
 
+const focusIslandState = computed(() => {
+  if (currentFocusTask.value) {
+    return {
+      eyebrow: 'NEXT TASK',
+      caption: '进入专注继续这件事'
+    };
+  }
+  return {
+    eyebrow: 'FOCUS DESK',
+    caption: 'Todo + 番茄钟会留在桌面'
+  };
+});
+
+const isAdminUser = computed(() => {
+  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
+  return groups.some((groupCode) => String(groupCode || '').trim().toUpperCase() === 'ADMIN');
+});
+
+const companionEntry = computed(() => {
+  if (!auth.isAuthenticated.value) {
+    return {
+      title: '登录后回家',
+      caption: '开启自宅伴聊',
+      icon: 'fas fa-right-to-bracket',
+      disabled: false
+    };
+  }
+  if (!isAdminUser.value) {
+    return {
+      title: '伴聊未开放',
+      caption: '当前仅限 ADMIN',
+      icon: 'fas fa-lock',
+      disabled: true
+    };
+  }
+  return {
+    title: '自宅伴聊',
+    caption: '坐下来聊聊',
+    icon: 'fas fa-comments',
+    disabled: false
+  };
+});
+
 function handleMusicAction() {
   if (player?.currentTrack?.value && typeof player.togglePlay === 'function') {
     player.togglePlay();
@@ -213,6 +283,22 @@ function handleFocusAction() {
 
 function openTodo() {
   openLightAppWindow('timeprism-todo', { source: 'home-context-island' });
+}
+
+function openAuthorIntro() {
+  router.push('/author');
+}
+
+function openCompanion() {
+  if (!auth.isAuthenticated.value) {
+    auth.redirectToAuth('login_required', '/');
+    return;
+  }
+  if (!isAdminUser.value) return;
+  openAiChat({
+    source: 'home-room',
+    preferredMode: 'companion'
+  });
 }
 
 onMounted(() => {
@@ -496,6 +582,61 @@ onBeforeUnmount(() => {
   color: rgb(var(--accent-soft-rgb));
 }
 
+.home-room-utilities {
+  position: absolute;
+  left: clamp(30px, 5vw, 76px);
+  bottom: clamp(28px, 5vh, 52px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-room-utility {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid var(--stage-border);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(22, 18, 25, 0.28);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  color: var(--stage-ink-soft);
+  font: inherit;
+  font-size: 10px;
+  text-shadow: inherit;
+  cursor: pointer;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), border-color 200ms ease, background 200ms ease, color 200ms ease;
+}
+
+.home-room-utility:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(var(--accent-soft-rgb), 0.42);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--stage-ink);
+}
+
+.home-room-utility:focus-visible {
+  outline: 2px solid rgb(var(--accent-soft-rgb));
+  outline-offset: 2px;
+}
+
+.home-room-utility i {
+  color: rgb(var(--accent-soft-rgb));
+}
+
+.home-companion-utility small {
+  color: var(--stage-ink-faint);
+  font-size: 8px;
+}
+
+.home-room-utility.locked {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .stage-footer {
   position: absolute;
   right: clamp(30px, 5vw, 76px);
@@ -593,7 +734,8 @@ onBeforeUnmount(() => {
 }
 
 :root[data-theme-mode='day'] .clock-date,
-:root[data-theme-mode='day'] .clock-hidden-note {
+:root[data-theme-mode='day'] .clock-hidden-note,
+:root[data-theme-mode='day'] .home-room-utility {
   background: rgba(255, 250, 247, 0.48);
 }
 
@@ -614,6 +756,14 @@ onBeforeUnmount(() => {
     width: 38px;
     height: 38px;
   }
+
+  .home-companion-utility small {
+    display: none;
+  }
+
+  .home-room-utilities {
+    left: 124px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -630,6 +780,12 @@ onBeforeUnmount(() => {
 
   .stage-footer {
     display: none;
+  }
+
+  .home-room-utilities {
+    position: static;
+    justify-self: center;
+    margin-top: 14px;
   }
 }
 
