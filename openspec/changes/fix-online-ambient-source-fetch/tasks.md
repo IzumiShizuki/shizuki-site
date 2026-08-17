@@ -9,4 +9,4 @@
 ## 3. Verification and Rollout
 
 - [x] 3.1 Run focused backend tests and strict OpenSpec validation.
-- [ ] 3.2 Deploy the backend and verify the public ambient search returns a usable result.
+- [x] 3.2 Deploy the backend and verify the public ambient search returns a usable result.
