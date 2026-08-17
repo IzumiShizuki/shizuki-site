@@ -7,6 +7,7 @@ import io.github.shizuki.common.core.resilience.SpringRetryExecutor;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.site.media.config.FreesoundProperties;
 import io.github.shizuki.site.media.response.FreesoundTrackResponse;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
@@ -155,7 +156,7 @@ public class FreesoundProvider {
     private Map<String, Object> getJsonOnce(String url) {
         try {
             Map<String, Object> response = restClient.get()
-                .uri(url)
+                .uri(URI.create(url))
                 .header("Authorization", "Token " + freesoundProperties.getApiKey())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
