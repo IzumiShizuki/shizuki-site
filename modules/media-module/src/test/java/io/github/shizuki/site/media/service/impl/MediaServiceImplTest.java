@@ -14,6 +14,7 @@ import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
+import io.github.shizuki.site.media.request.AdminAssetUpdateRequest;
 import io.github.shizuki.site.media.request.AdminMusicDefaultPlaylistBundleReplaceRequest;
 import io.github.shizuki.site.media.request.AdminMusicPlaylistProfileUpsertRequest;
 import io.github.shizuki.site.media.request.AdminMusicTrackUpsertRequest;
@@ -142,6 +143,71 @@ class MediaServiceImplTest {
     @AfterEach
     void tearDown() {
         LoginUserContext.clear();
+    }
+
+    @Test
+    void shouldPersistNumericDisabledHomeFlagWhenCreatingAudioAsset() {
+        LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
+        Mockito.when(objectStorageClient.objectExists("shizuki-private", "ambient/rain.ogg"))
+            .thenReturn(true);
+        Mockito.when(userMusicClient.resolveQuota(
+                Mockito.eq("music_upload_bytes_total"),
+                Mockito.anySet(),
+                Mockito.anyLong()))
+            .thenReturn(104857600L);
+
+        AssetCreateRequest request = new AssetCreateRequest();
+        request.setBucket("shizuki-private");
+        request.setKey("ambient/rain.ogg");
+        request.setAssetKind("AUDIO");
+        request.setContentType("audio/ogg");
+        request.setVisibility("PRIVATE");
+        request.setMetadata(Map.of("title", "Rain"));
+
+        mediaService.createAsset(request);
+
+        ArgumentCaptor<MediaAssetEntity> assetCaptor = ArgumentCaptor.forClass(MediaAssetEntity.class);
+        Mockito.verify(mediaAssetMapper).insert(assetCaptor.capture());
+        Assertions.assertEquals(Integer.valueOf(0), assetCaptor.getValue().getHomeEnabledFlag());
+    }
+
+    @Test
+    void shouldPersistNumericEnabledHomeFlagDuringAdminUpdate() {
+        MediaAssetEntity asset = buildAsset(107L, 3L, AssetVisibilityEnum.PUBLIC.getCode(), "APPROVED");
+        Mockito.when(mediaAssetMapper.selectById(107L)).thenReturn(asset);
+        AdminAssetUpdateRequest request = new AdminAssetUpdateRequest();
+        request.setHomeEnabled(true);
+
+        mediaService.auditAsset(107L, request);
+
+        ArgumentCaptor<MediaAssetEntity> assetCaptor = ArgumentCaptor.forClass(MediaAssetEntity.class);
+        Mockito.verify(mediaAssetMapper).updateById(assetCaptor.capture());
+        Assertions.assertEquals(Integer.valueOf(1), assetCaptor.getValue().getHomeEnabledFlag());
+    }
+
+    @Test
+    void shouldFilterPublicHomeAssetsWithNumericEnabledFlag() {
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+            new org.apache.ibatis.builder.MapperBuilderAssistant(
+                new com.baomidou.mybatisplus.core.MybatisConfiguration(),
+                "media-asset-home-flag-test"
+            ),
+            MediaAssetEntity.class
+        );
+        Mockito.when(mediaAssetMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
+
+        mediaService.listPublicHomeRoles();
+
+        @SuppressWarnings("rawtypes")
+        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper> wrapperCaptor =
+            ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+        Mockito.verify(mediaAssetMapper).selectList(wrapperCaptor.capture());
+        com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?> wrapper =
+            (com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?>) wrapperCaptor.getValue();
+        wrapper.getSqlSegment();
+        Map<String, Object> parameters = wrapper.getParamNameValuePairs();
+        Assertions.assertTrue(parameters.containsValue(Integer.valueOf(1)), () -> "parameters=" + parameters);
+        Assertions.assertFalse(parameters.containsValue(Boolean.TRUE), () -> "parameters=" + parameters);
     }
 
     @Test

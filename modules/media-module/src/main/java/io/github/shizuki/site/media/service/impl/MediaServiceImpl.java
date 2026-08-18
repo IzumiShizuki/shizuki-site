@@ -516,7 +516,7 @@ public class MediaServiceImpl implements MediaService {
                 : assetKind.name());
             asset.setAssetKindCode(assetKind.getCode());
             asset.setVisibilityCode(visibility.getCode());
-            asset.setHomeEnabledFlag(false);
+            asset.setHomeEnabledFlag(0);
             asset.setHomeSortNum(0);
             asset.setContentTypeText(request.getContentType());
             asset.setObjectHash(inspectionResult == null ? null : inspectionResult.objectHash());
@@ -657,7 +657,7 @@ public class MediaServiceImpl implements MediaService {
         }
 
         if (request.getHomeEnabled() != null) {
-            asset.setHomeEnabledFlag(request.getHomeEnabled());
+            asset.setHomeEnabledFlag(Boolean.TRUE.equals(request.getHomeEnabled()) ? 1 : 0);
         }
 
         if (request.getHomeSortNum() != null) {
@@ -704,7 +704,7 @@ public class MediaServiceImpl implements MediaService {
         return new AdminAssetAuditResponse(
             assetId,
             asset.getAuditStatus(),
-            Boolean.TRUE.equals(asset.getHomeEnabledFlag()),
+            Integer.valueOf(1).equals(asset.getHomeEnabledFlag()),
             asset.getHomeSortNum(),
             targetVisibility.name(),
             assetKind.name()
@@ -720,7 +720,7 @@ public class MediaServiceImpl implements MediaService {
             new LambdaQueryWrapper<MediaAssetEntity>()
                 .eq(MediaAssetEntity::getVisibilityCode, AssetVisibilityEnum.PUBLIC.getCode())
                 .eq(MediaAssetEntity::getAuditStatus, AssetAuditStatusEnum.APPROVED.name())
-                .eq(MediaAssetEntity::getHomeEnabledFlag, true)
+                .eq(MediaAssetEntity::getHomeEnabledFlag, 1)
                 .orderByAsc(MediaAssetEntity::getHomeSortNum)
                 .orderByAsc(MediaAssetEntity::getId)
         );

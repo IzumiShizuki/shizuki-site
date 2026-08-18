@@ -151,7 +151,7 @@ public class OssMediaDerivativeProcessor implements MediaDerivativeProcessor {
         asset.setVisibilityCode(scope == MediaDerivativeDeliveryScope.PUBLIC_MATERIALIZED
             ? AssetVisibilityEnum.PUBLIC.getCode()
             : AssetVisibilityEnum.PRIVATE.getCode());
-        asset.setHomeEnabledFlag(false);
+        asset.setHomeEnabledFlag(0);
         asset.setHomeSortNum(0);
         asset.setContentTypeText(contentType(variant));
         asset.setObjectHash(inspection.sha256());

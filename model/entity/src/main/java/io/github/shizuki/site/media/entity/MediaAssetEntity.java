@@ -41,7 +41,7 @@ public class MediaAssetEntity extends BaseEntity {
      * 是否加入首页角色池。
      */
     @TableField("home_enabled_flag")
-    private Boolean homeEnabledFlag;
+    private Integer homeEnabledFlag;
 
     /**
      * 首页排序值，数值越小越靠前。
@@ -134,11 +134,11 @@ public class MediaAssetEntity extends BaseEntity {
         this.visibilityCode = visibilityCode;
     }
 
-    public Boolean getHomeEnabledFlag() {
+    public Integer getHomeEnabledFlag() {
         return homeEnabledFlag;
     }
 
-    public void setHomeEnabledFlag(Boolean homeEnabledFlag) {
+    public void setHomeEnabledFlag(Integer homeEnabledFlag) {
         this.homeEnabledFlag = homeEnabledFlag;
     }
 

@@ -140,7 +140,7 @@ public class WallpaperBootstrapInitializer implements ApplicationRunner {
         changed |= ensureEquals(existing.getAuditStatus(), AssetAuditStatusEnum.APPROVED.name(), existing::setAuditStatus);
         changed |= ensureEquals(existing.getContentTypeText(), binary.contentType(), existing::setContentTypeText);
         changed |= ensureEquals(existing.getMetadataJson(), DEFAULT_ASSET_METADATA_JSON, existing::setMetadataJson);
-        changed |= ensureEquals(existing.getHomeEnabledFlag(), false, existing::setHomeEnabledFlag);
+        changed |= ensureEquals(existing.getHomeEnabledFlag(), 0, existing::setHomeEnabledFlag);
         changed |= ensureEquals(existing.getHomeSortNum(), 0, existing::setHomeSortNum);
         if (changed) {
             existing.setUpdatedAt(LocalDateTime.now());
@@ -197,7 +197,7 @@ public class WallpaperBootstrapInitializer implements ApplicationRunner {
         asset.setAssetType(AssetKindEnum.STATIC_IMAGE.name());
         asset.setAssetKindCode(AssetKindEnum.STATIC_IMAGE.getCode());
         asset.setVisibilityCode(AssetVisibilityEnum.PUBLIC.getCode());
-        asset.setHomeEnabledFlag(false);
+        asset.setHomeEnabledFlag(0);
         asset.setHomeSortNum(0);
         asset.setContentTypeText(contentType);
         asset.setMetadataJson(DEFAULT_ASSET_METADATA_JSON);

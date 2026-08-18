@@ -533,7 +533,7 @@ public class WallpaperServiceImpl implements WallpaperService {
         asset.setAssetType(detectedAsset.assetKind().name());
         asset.setAssetKindCode(detectedAsset.assetKind().getCode());
         asset.setVisibilityCode(visibility.getCode());
-        asset.setHomeEnabledFlag(false);
+        asset.setHomeEnabledFlag(0);
         asset.setHomeSortNum(0);
         asset.setContentTypeText(detectedAsset.contentType());
         asset.setMetadataJson(writeJson(Map.of(
