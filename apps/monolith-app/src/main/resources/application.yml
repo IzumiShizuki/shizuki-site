@@ -171,6 +171,10 @@ shizuki:
       default-sort: ${MUSIC_ASMR_DEFAULT_SORT:desc}
       connect-timeout-ms: ${MUSIC_ASMR_CONNECT_TIMEOUT_MS:1000}
       read-timeout-ms: ${MUSIC_ASMR_READ_TIMEOUT_MS:5000}
+      proxy-host: ${MUSIC_ASMR_PROXY_HOST:}
+      proxy-port: ${MUSIC_ASMR_PROXY_PORT:0}
+      proxy-username: ${MUSIC_ASMR_PROXY_USERNAME:}
+      proxy-password: ${MUSIC_ASMR_PROXY_PASSWORD:}
     listen-cache:
       enabled: ${MUSIC_LISTEN_CACHE_ENABLED:true}
       retention-days: ${MUSIC_LISTEN_CACHE_RETENTION_DAYS:30}

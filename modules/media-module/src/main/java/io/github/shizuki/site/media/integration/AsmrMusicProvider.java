@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.media.config.AsmrMusicProperties;
+import java.net.Authenticator;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -38,6 +42,7 @@ import org.springframework.web.client.RestClientResponseException;
 public class AsmrMusicProvider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AsmrMusicProvider.class);
+    private static final String TUNNELING_DISABLED_SCHEMES_PROPERTY = "jdk.http.auth.tunneling.disabledSchemes";
 
     private final AsmrMusicProperties properties;
     private final RestClient restClient;
@@ -50,17 +55,50 @@ public class AsmrMusicProvider {
                              ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
-            .build();
+        HttpClient httpClient = createHttpClient(HttpClient.Redirect.NEVER);
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));
         this.restClient = restClientBuilder.requestFactory(requestFactory).build();
-        this.rawHttpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build();
+        this.rawHttpClient = createHttpClient(HttpClient.Redirect.NEVER);
         this.preferredBaseUrl = normalizeBaseUrl(properties.getServer());
+    }
+
+    private HttpClient createHttpClient(HttpClient.Redirect redirectPolicy) {
+        HttpClient.Builder builder = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
+            .followRedirects(redirectPolicy);
+        if (!properties.isProxyEnabled()) {
+            return builder.build();
+        }
+        InetSocketAddress proxyAddress = InetSocketAddress.createUnresolved(
+            properties.getProxyHost(),
+            properties.getProxyPort()
+        );
+        builder.proxy(ProxySelector.of(proxyAddress));
+        if (properties.hasProxyCredentials()) {
+            enableBasicProxyTunneling();
+            builder.authenticator(new ProxyAuthenticator(
+                properties.getProxyUsername(),
+                properties.getProxyPassword().toCharArray()
+            ));
+        }
+        return builder.build();
+    }
+
+    private static synchronized void enableBasicProxyTunneling() {
+        String configured = System.getProperty(TUNNELING_DISABLED_SCHEMES_PROPERTY);
+        if (!StringUtils.hasText(configured)) {
+            System.setProperty(TUNNELING_DISABLED_SCHEMES_PROPERTY, "");
+            return;
+        }
+        List<String> remaining = new ArrayList<>();
+        for (String item : configured.split(",")) {
+            String scheme = item == null ? "" : item.trim();
+            if (StringUtils.hasText(scheme) && !"basic".equalsIgnoreCase(scheme)) {
+                remaining.add(scheme);
+            }
+        }
+        System.setProperty(TUNNELING_DISABLED_SCHEMES_PROPERTY, String.join(",", remaining));
     }
 
     /**
@@ -1055,6 +1093,25 @@ public class AsmrMusicProvider {
             }
         }
         return "";
+    }
+
+    private static final class ProxyAuthenticator extends Authenticator {
+
+        private final String username;
+        private final char[] password;
+
+        private ProxyAuthenticator(String username, char[] password) {
+            this.username = username;
+            this.password = password.clone();
+        }
+
+        @Override
+        protected PasswordAuthentication getPasswordAuthentication() {
+            if (RequestorType.PROXY.equals(getRequestorType())) {
+                return new PasswordAuthentication(username, password.clone());
+            }
+            return null;
+        }
     }
 
     public record Pagination(int currentPage, int pageSize, int totalCount) {
