@@ -108,7 +108,12 @@ describe('createMeguriTurnTracker', () => {
         envelope({
           type: 'semantic.completed',
           sequence: 4,
-          data: { expression_tag: 'gentle_happy', expression_intensity: 'medium', sprite_file: 'ce03005l.png' }
+          data: {
+            expression_tag: 'gentle_happy',
+            expression_intensity: 'medium',
+            sprite_file: 'ce03005l.png',
+            motion_tag: 'soft_sway'
+          }
         })
       )
     );
@@ -118,7 +123,8 @@ describe('createMeguriTurnTracker', () => {
     expect(tracker.state.status).toBe('completed');
     expect(tracker.state.expression).toMatchObject({
       expressionTag: 'gentle_happy',
-      spriteFile: 'ce03005l.png'
+      spriteFile: 'ce03005l.png',
+      motionTag: 'soft_sway'
     });
     expect(tracker.isTerminal()).toBe(true);
   });

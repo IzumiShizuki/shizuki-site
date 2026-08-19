@@ -1,128 +1,240 @@
 <template>
   <section class="route-page meguri-page" :class="{ embedded, side: variant === 'side' }">
-    <section class="meguri-shell" :data-stage-status="stageStatus">
-      <!-- 立绘舞台层 -->
-      <div class="stage-layer" aria-hidden="false">
+    <main
+      class="meguri-web-shell"
+      :class="{
+        'chat-visible': chatVisible && pageReady && bootstrap.enabled,
+        'chat-expanded': historyOpen,
+        'controls-expanded': controlsOpen,
+        'reduced-motion': reducedMotion
+      }"
+      :data-stage-status="stageStatus"
+      aria-label="爱莉 Web companion"
+      @contextmenu.prevent="controlsOpen = true"
+    >
+      <div class="stage-atmosphere" aria-hidden="true">
+        <span class="ambient-orbit orbit-one"></span>
+        <span class="ambient-orbit orbit-two"></span>
+        <span class="ambient-light"></span>
+        <span class="stage-grid"></span>
+      </div>
+
+      <header class="meguri-brand-strip">
+        <span class="meguri-mark" aria-hidden="true">巡</span>
+        <div>
+          <span class="brand-kicker">MEGURI · WEB COMPANION</span>
+          <strong>爱莉</strong>
+        </div>
+        <span class="stage-status" :class="statusTone" role="status">
+          <i aria-hidden="true"></i>
+          {{ statusText }}
+        </span>
+      </header>
+
+      <section class="character-stage" :class="{ speaking: sending }" aria-label="爱莉角色舞台">
         <img
           v-if="spriteBaseUrl"
-          class="stage-sprite base"
+          class="character-sprite base"
+          :class="motionClass"
           :src="spriteBaseUrl"
-          alt="Meguri 立绘"
+          alt="爱莉"
+          draggable="false"
         />
         <img
           v-if="spriteOverlayUrl"
-          class="stage-sprite overlay"
-          :class="{ visible: spriteOverlayVisible }"
+          class="character-sprite overlay"
+          :class="[{ visible: spriteOverlayVisible }, motionClass]"
           :src="spriteOverlayUrl"
           alt=""
           aria-hidden="true"
+          draggable="false"
         />
         <div v-if="!spriteBaseUrl && pageReady && bootstrap.enabled" class="stage-empty">
+          <span class="empty-mark">巡</span>
           <strong>{{ spriteHint || '立绘尚未就绪' }}</strong>
         </div>
-        <div class="stage-glow" aria-hidden="true"></div>
-        <div class="stage-scrim" aria-hidden="true"></div>
+        <span class="character-shadow" aria-hidden="true"></span>
+      </section>
+
+      <div v-if="pageReady && bootstrap.enabled" class="presentation-badge" aria-live="polite">
+        <span>{{ presentation.expressionTag }}</span>
+        <small>{{ presentation.expressionIntensity }} · outfit {{ presentation.outfitCode }}</small>
       </div>
 
-      <!-- 顶部悬浮：标题 + 状态 + 控制 -->
-      <header class="meguri-topbar">
-        <div class="meguri-title">
-          <h1>爱莉</h1>
-        </div>
-        <div class="meguri-topbar-side">
-          <span class="status-pill" :class="coreStatusTone">{{ coreStatusLabel }}</span>
-          <span v-if="bootstrap.buildId" class="status-pill muted">build · {{ bootstrap.buildId }}</span>
+      <aside
+        v-if="pageReady && bootstrap.enabled"
+        class="controls-island"
+        :class="{ expanded: controlsOpen }"
+        aria-label="爱莉网页控制"
+        @mouseenter="cancelControlsCollapse"
+        @mouseleave="scheduleControlsCollapse"
+      >
+        <div class="controls-rail">
           <button
-            class="quick-btn ripple-trigger"
+            class="control-button"
             type="button"
-            :disabled="sending"
-            aria-label="新会话"
-            @click="startNewSession"
+            :class="{ active: chatVisible }"
+            :aria-pressed="chatVisible"
+            :title="chatVisible ? '隐藏聊天' : '显示聊天'"
+            @click="toggleChat"
           >
-            <i class="fas fa-rotate" aria-hidden="true"></i>
-            新会话
+            <i class="fas fa-message" aria-hidden="true"></i>
           </button>
           <button
-            class="quick-btn ripple-trigger"
+            class="control-button"
             type="button"
-            :class="{ active: historyOpen }"
-            aria-label="展开完整对话记录"
-            @click="historyOpen = !historyOpen"
+            :aria-expanded="controlsOpen"
+            :title="controlsOpen ? '收起控制' : '展开控制'"
+            @click="controlsOpen = !controlsOpen"
           >
-            <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
-            记录
+            <i class="fas fa-chevron-down" :class="{ rotated: controlsOpen }" aria-hidden="true"></i>
           </button>
         </div>
-      </header>
 
-      <div v-if="!pageReady" class="meguri-placeholder">
-        <strong>正在连接 Meguri Core...</strong>
-      </div>
-
-      <div v-else-if="!bootstrap.enabled" class="meguri-placeholder">
-        <strong>Meguri 网关尚未启用</strong>
-        <p>请在服务端配置 <code>MEGURI_GATEWAY_ENABLED=true</code> 与 Core Token 后刷新本页。</p>
-      </div>
-
-      <!-- 浮层对话：最近气泡贴在立绘下方，可展开完整记录 -->
-      <div v-else class="float-dialog" :class="{ 'history-open': historyOpen }">
-        <div ref="messageListEl" class="dialog-scroll">
-          <div v-if="!messages.length" class="dialog-empty">
-            <strong>和爱莉打个招呼吧</strong>
-          </div>
-          <article
-            v-for="message in visibleMessages"
-            :key="message.id"
-            class="chat-row"
-            :class="[message.role, { pending: message.pending, failed: message.failed }]"
-          >
-            <div class="bubble-meta">{{ message.role === 'user' ? '你' : '爱莉' }}</div>
-            <div class="chat-bubble">
-              <p>{{ message.content || (message.pending ? '...' : '') }}</p>
-              <span v-if="message.pending" class="bubble-tag">回复中...</span>
-              <span v-else-if="message.failed" class="bubble-tag error">{{ message.failedReason || '回复失败' }}</span>
+        <Transition name="controls-drawer">
+          <div v-if="controlsOpen" class="controls-drawer">
+            <div class="controls-status" :class="statusTone">
+              <span aria-hidden="true"></span>
+              <div>
+                <strong>{{ statusText }}</strong>
+                <small v-if="bootstrap.buildId">build · {{ bootstrap.buildId }}</small>
+                <small v-else>owner-only gateway</small>
+              </div>
             </div>
-          </article>
-        </div>
 
-        <p v-if="errorText" class="error-banner">{{ errorText }}</p>
+            <section class="outfit-picker" aria-label="立绘换装">
+              <header>
+                <strong>立绘换装</strong>
+                <small>保留当前表情</small>
+              </header>
+              <div>
+                <button
+                  v-for="code in outfitCodes"
+                  :key="code"
+                  type="button"
+                  :class="{ active: presentation.outfitCode === code }"
+                  :aria-pressed="presentation.outfitCode === code"
+                  :disabled="presentationBusy"
+                  @click="selectOutfit(code)"
+                >
+                  {{ code }}
+                </button>
+              </div>
+            </section>
 
-        <form class="dialog-composer" @submit.prevent="handleSend">
-          <textarea
-            v-model="draft"
-            class="composer-input"
-            rows="1"
-            :placeholder="composerPlaceholder"
-            :disabled="sending || !bootstrap.enabled"
-            @keydown.enter.exact.prevent="handleSend"
-          ></textarea>
-          <div class="composer-actions">
+            <div class="control-grid">
+              <button type="button" @click="toggleChat">
+                <i class="fas fa-message" aria-hidden="true"></i><small>{{ chatVisible ? '隐藏聊天' : '显示聊天' }}</small>
+              </button>
+              <button type="button" :disabled="!chatVisible" @click="toggleHistory">
+                <i class="fas fa-clock-rotate-left" aria-hidden="true"></i><small>{{ historyOpen ? '收起记录' : '展开记录' }}</small>
+              </button>
+              <button type="button" :disabled="sending" @click="startNewSession">
+                <i class="fas fa-plus" aria-hidden="true"></i><small>新对话</small>
+              </button>
+              <button type="button" :disabled="refreshing" @click="refreshCompanion">
+                <i class="fas fa-rotate" :class="{ spinning: refreshing }" aria-hidden="true"></i><small>刷新状态</small>
+              </button>
+            </div>
+
+            <p class="control-note">
+              Web 版保留对话与角色控制；窗口置顶、穿透和本地文件能力仍由桌面版负责。
+            </p>
+          </div>
+        </Transition>
+      </aside>
+
+      <Transition name="dock">
+        <section
+          v-if="pageReady && bootstrap.enabled && chatVisible"
+          class="chat-dock"
+          :class="{ expanded: historyOpen }"
+          aria-label="与爱莉对话"
+        >
+          <header class="chat-header">
+            <div class="chat-title">
+              <span class="chat-presence" aria-hidden="true"></span>
+              <div>
+                <strong>Meguri</strong>
+                <small>{{ sending ? (toolHint || '正在回应') : '陪在你身边' }}</small>
+              </div>
+            </div>
+            <div class="chat-actions">
+              <button type="button" title="开始新对话" aria-label="开始新对话" :disabled="sending" @click="startNewSession">＋</button>
+              <button
+                type="button"
+                :title="historyOpen ? '收起记录' : '展开记录'"
+                :aria-label="historyOpen ? '收起聊天记录' : '展开聊天记录'"
+                @click="toggleHistory"
+              >
+                {{ historyOpen ? '⌄' : '⌃' }}
+              </button>
+            </div>
+          </header>
+
+          <div ref="messageListEl" class="chat-history" :class="{ empty: !messages.length }">
+            <div v-if="!messages.length" class="empty-conversation">
+              <span>傍晚好。</span>
+              <p>想聊点什么，或者让我帮你理一理今天？</p>
+            </div>
+            <article
+              v-for="message in visibleMessages"
+              v-else
+              :key="message.id"
+              class="message chat-row"
+              :class="[message.role, { pending: message.pending, failed: message.failed }]"
+            >
+              <span class="message-role">{{ message.role === 'user' ? '你' : 'Meguri' }}</span>
+              <p>{{ message.content || (message.pending ? '…' : '') }}</p>
+              <small v-if="message.failed" class="message-error">{{ message.failedReason || '回复失败' }}</small>
+            </article>
+          </div>
+
+          <div v-if="errorText" class="conversation-error error-banner" role="alert">
+            <span>{{ errorText }}</span>
+            <button v-if="lastFailedUserText" type="button" :disabled="sending" @click="retryLastMessage">重试</button>
+          </div>
+
+          <form class="composer dialog-composer" @submit.prevent="handleSend">
+            <textarea
+              ref="composerEl"
+              v-model="draft"
+              class="composer-input"
+              rows="1"
+              maxlength="4000"
+              :placeholder="composerPlaceholder"
+              :disabled="sending || !bootstrap.coreOnline"
+              aria-label="发给爱莉的消息"
+              @keydown.enter.exact.prevent="handleSend"
+            ></textarea>
             <button
               v-if="sending"
-              class="quick-btn ripple-trigger"
               type="button"
+              class="send-button cancel"
               aria-label="停止回复"
+              title="停止回复"
               @click="handleCancel"
             >
-              <i class="fas fa-stop" aria-hidden="true"></i>
+              ■
             </button>
-            <button
-              class="quick-btn primary ripple-trigger"
-              type="submit"
-              aria-label="发送"
-              :disabled="sending || !draft.trim()"
-            >
-              <i class="fas fa-paper-plane" aria-hidden="true"></i>
-            </button>
-          </div>
-        </form>
-      </div>
+            <button v-else type="submit" class="send-button" :disabled="!canSend" aria-label="发送消息">↑</button>
+          </form>
+        </section>
+      </Transition>
 
-      <footer v-if="pageReady && bootstrap.enabled" class="stage-footer">
-        <span class="expression-caption">{{ expressionCaption }}</span>
-        <span v-if="toolHint" class="status-pill accent">{{ toolHint }}</span>
-      </footer>
-    </section>
+      <section v-if="!pageReady || refreshing" class="meguri-placeholder" aria-live="polite">
+        <span class="placeholder-orbit" aria-hidden="true"><i></i></span>
+        <strong>正在连接 Meguri Core...</strong>
+        <small>检查网关、角色资源与会话通道</small>
+      </section>
+
+      <section v-else-if="!bootstrap.enabled" class="meguri-placeholder is-error">
+        <span class="empty-mark" aria-hidden="true">巡</span>
+        <strong>Meguri 网关尚未启用</strong>
+        <p>请在服务端配置 <code>MEGURI_GATEWAY_ENABLED=true</code> 与 Core Token 后重试。</p>
+        <button type="button" class="retry-button" @click="refreshCompanion">重新检查</button>
+      </section>
+    </main>
   </section>
 </template>
 
@@ -137,15 +249,19 @@ import {
   getMeguriBootstrap,
   isValidMeguriSessionId
 } from '../services/meguriApi';
+import {
+  DEFAULT_MEGURI_PRESENTATION,
+  resolveMeguriMotionClass,
+  resolveMeguriPresentation
+} from '../utils/meguriCharacterPresentation';
 import { followMeguriTurn, isExpressionMeguriEventType } from '../utils/meguriTurnStream';
 
 const SESSION_STORAGE_PREFIX = 'shizuki.meguri.session.v1.';
 const RECENT_MESSAGE_COUNT = 4;
+const outfitCodes = ['01', '02', '03', '04', '05', '06'];
 
 defineProps({
-  /** 在 AI Hub / 其他容器内嵌时为 true：去掉页面级留白。 */
   embedded: { type: Boolean, default: false },
-  /** stage = 大立绘舞台（默认）；side = 右侧栏紧凑形态。 */
   variant: {
     type: String,
     default: 'stage',
@@ -154,8 +270,8 @@ defineProps({
 });
 
 const auth = useAuthSession();
-
 const pageReady = ref(false);
+const refreshing = ref(false);
 const bootstrap = ref({
   enabled: false,
   coreOnline: false,
@@ -170,52 +286,63 @@ const draft = ref('');
 const sending = ref(false);
 const errorText = ref('');
 const toolHint = ref('');
-const expression = ref(null);
+const lastFailedUserText = ref('');
+const chatVisible = ref(true);
 const historyOpen = ref(false);
+const controlsOpen = ref(false);
+const reducedMotion = ref(false);
+const presentationBusy = ref(false);
+const presentation = ref({ ...DEFAULT_MEGURI_PRESENTATION });
 
 const spriteBaseUrl = ref('');
 const spriteOverlayUrl = ref('');
 const spriteOverlayVisible = ref(false);
 const spriteHint = ref('');
-
 const messageListEl = ref(null);
+const composerEl = ref(null);
 
 let sessionId = '';
 let activeTurnId = '';
 let sessionLastSequence = 0;
 let followAbortController = null;
 let messageSeed = 0;
-const spriteUrlCache = new Map();
+let sessionRecordLoaded = false;
 let spriteSwapTimer = null;
+let controlsCollapseTimer = null;
+let motionMediaQuery = null;
+const spriteUrlCache = new Map();
 
 const visibleMessages = computed(() =>
   historyOpen.value ? messages.value : messages.value.slice(-RECENT_MESSAGE_COUNT)
 );
-
-const coreStatusLabel = computed(() => {
-  if (!pageReady.value) return '连接中...';
+const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value && bootstrap.value.coreOnline);
+const stageStatus = computed(() => {
+  if (!pageReady.value || refreshing.value) return 'loading';
+  if (!bootstrap.value.enabled || errorText.value) return 'error';
+  if (!bootstrap.value.coreOnline) return 'offline';
+  return sending.value ? 'speaking' : 'ready';
+});
+const statusTone = computed(() => {
+  if (stageStatus.value === 'speaking' || stageStatus.value === 'loading') return 'busy';
+  if (stageStatus.value === 'error' || stageStatus.value === 'offline') return 'error';
+  return 'ready';
+});
+const statusText = computed(() => {
+  if (!pageReady.value || refreshing.value) return '正在连接';
   if (!bootstrap.value.enabled) return '网关未启用';
-  return bootstrap.value.coreOnline ? 'Meguri Core 在线' : 'Core 暂时离线';
+  if (!bootstrap.value.coreOnline) return 'Core 暂时离线';
+  if (sending.value) return toolHint.value || '正在回应';
+  return 'Meguri 已就绪';
 });
-const coreStatusTone = computed(() => {
-  if (!pageReady.value || !bootstrap.value.enabled) return 'muted';
-  return bootstrap.value.coreOnline ? 'accent' : 'warning';
-});
-const stageStatus = computed(() => (sending.value ? 'speaking' : 'idle'));
 const composerPlaceholder = computed(() =>
-  bootstrap.value.coreOnline ? '对爱莉说点什么...' : 'Core 离线，稍后再试'
+  bootstrap.value.coreOnline ? '输入消息，和爱莉说点什么…' : 'Core 离线，稍后再试'
 );
-const expressionCaption = computed(() => {
-  if (!expression.value) return 'neutral · low';
-  const parts = [expression.value.expressionTag || 'neutral', expression.value.expressionIntensity || 'low'];
-  if (expression.value.outfitCode) parts.push(`outfit ${expression.value.outfitCode}`);
-  return parts.join(' · ');
-});
+const motionClass = computed(() =>
+  resolveMeguriMotionClass(presentation.value.motionTag, reducedMotion.value)
+);
 
 function resolveErrorMessage(error) {
-  if (error instanceof Error && String(error.message || '').trim()) {
-    return error.message;
-  }
+  if (error instanceof Error && String(error.message || '').trim()) return error.message;
   return '操作失败，请稍后再试。';
 }
 
@@ -241,24 +368,38 @@ function loadSessionRecord() {
 }
 
 function persistSessionRecord() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || !sessionId) return;
   try {
     window.localStorage.setItem(
       storageKey(),
-      JSON.stringify({ version: 1, sessionId, activeTurnId: activeTurnId || undefined })
+      JSON.stringify({
+        version: 1,
+        sessionId,
+        activeTurnId: activeTurnId || undefined,
+        presentation: {
+          chatVisible: chatVisible.value,
+          historyOpen: historyOpen.value,
+          outfitCode: presentation.value.outfitCode
+        }
+      })
     );
   } catch {
-    // storage may be unavailable; the session still works in memory
+    // Storage can be unavailable; the current session still works in memory.
   }
 }
 
 function ensureSession() {
-  if (!sessionId) {
-    const saved = loadSessionRecord();
-    sessionId = saved?.sessionId || createMeguriSessionId();
-    activeTurnId = saved?.activeTurnId || '';
-    persistSessionRecord();
-  }
+  if (sessionRecordLoaded) return sessionId;
+  const saved = loadSessionRecord();
+  sessionId = saved?.sessionId || createMeguriSessionId();
+  activeTurnId = saved?.activeTurnId || '';
+  chatVisible.value = saved?.presentation?.chatVisible !== false;
+  historyOpen.value = Boolean(saved?.presentation?.historyOpen);
+  presentation.value = resolveMeguriPresentation(DEFAULT_MEGURI_PRESENTATION, {
+    outfitCode: saved?.presentation?.outfitCode
+  });
+  sessionRecordLoaded = true;
+  persistSessionRecord();
   return sessionId;
 }
 
@@ -273,16 +414,14 @@ function appendMessage(role, content, extra = {}) {
     failedReason: '',
     ...extra
   });
-  scrollMessagesToEnd();
-  // Return the reactive proxy (not the raw object) so streaming mutations
-  // trigger re-renders while text deltas arrive.
+  void scrollMessagesToEnd();
   return messages.value[messages.value.length - 1];
 }
 
 async function scrollMessagesToEnd() {
   await nextTick();
-  const el = messageListEl.value;
-  if (el) el.scrollTop = el.scrollHeight;
+  const element = messageListEl.value;
+  if (element) element.scrollTop = element.scrollHeight;
 }
 
 async function resolveSpriteUrl(fileName) {
@@ -295,15 +434,18 @@ async function resolveSpriteUrl(fileName) {
 }
 
 async function showSprite(fileName) {
-  if (!bootstrap.value.spriteAvailable) return;
+  if (!bootstrap.value.spriteAvailable) return false;
   try {
     const url = await resolveSpriteUrl(fileName);
-    if (!url) return;
-    if (!spriteBaseUrl.value) {
+    if (!url) return false;
+    spriteHint.value = '';
+    if (!spriteBaseUrl.value || reducedMotion.value) {
       spriteBaseUrl.value = url;
-      return;
+      spriteOverlayUrl.value = '';
+      spriteOverlayVisible.value = false;
+      return true;
     }
-    if (url === spriteBaseUrl.value) return;
+    if (url === spriteBaseUrl.value) return true;
     spriteOverlayUrl.value = url;
     spriteOverlayVisible.value = false;
     await nextTick();
@@ -313,24 +455,40 @@ async function showSprite(fileName) {
       spriteBaseUrl.value = url;
       spriteOverlayUrl.value = '';
       spriteOverlayVisible.value = false;
-    }, 360);
+    }, 280);
+    return true;
   } catch (error) {
     spriteHint.value = resolveErrorMessage(error);
+    return false;
   }
 }
 
-function handleTurnEvent(envelope, trackerState, assistantMessage) {
-  if (envelope.sequence > sessionLastSequence) {
-    sessionLastSequence = envelope.sequence;
+async function applyPresentationCue(cue) {
+  const next = resolveMeguriPresentation(presentation.value, cue);
+  const spriteChanged = next.spriteFile !== presentation.value.spriteFile || !spriteBaseUrl.value;
+  if (spriteChanged && !(await showSprite(next.spriteFile))) return false;
+  presentation.value = next;
+  persistSessionRecord();
+  return true;
+}
+
+async function selectOutfit(code) {
+  if (presentationBusy.value || presentation.value.outfitCode === code) return;
+  presentationBusy.value = true;
+  try {
+    await applyPresentationCue({ outfitCode: code, spriteFile: '' });
+  } finally {
+    presentationBusy.value = false;
   }
+}
+
+async function handleTurnEvent(envelope, trackerState, assistantMessage) {
+  if (envelope.sequence > sessionLastSequence) sessionLastSequence = envelope.sequence;
   if (envelope.type === 'text.delta' || envelope.type === 'text.completed') {
     assistantMessage.content = trackerState.text;
-    scrollMessagesToEnd();
-  } else if (isExpressionMeguriEventType(envelope.type)) {
-    expression.value = trackerState.expression;
-    if (trackerState.expression?.spriteFile) {
-      showSprite(trackerState.expression.spriteFile);
-    }
+    void scrollMessagesToEnd();
+  } else if (isExpressionMeguriEventType(envelope.type) && trackerState.expression) {
+    await applyPresentationCue(trackerState.expression);
   }
   toolHint.value = trackerState.toolHint || '';
 }
@@ -343,9 +501,7 @@ function finalizeAssistantMessage(assistantMessage, trackerState) {
   } else if (trackerState.status === 'cancelled') {
     assistantMessage.failed = !assistantMessage.content;
     assistantMessage.failedReason = '已停止';
-    if (assistantMessage.content) {
-      assistantMessage.content += '（已停止）';
-    }
+    if (assistantMessage.content) assistantMessage.content += '（已停止）';
   }
 }
 
@@ -361,6 +517,7 @@ async function followActiveTurn(assistantMessage, afterSequence = 0) {
       onEvent: (envelope, state) => handleTurnEvent(envelope, state, assistantMessage)
     });
     finalizeAssistantMessage(assistantMessage, trackerState);
+    return trackerState;
   } finally {
     followAbortController = null;
     activeTurnId = '';
@@ -369,22 +526,20 @@ async function followActiveTurn(assistantMessage, afterSequence = 0) {
   }
 }
 
-async function handleSend() {
-  const text = draft.value.trim();
-  if (!text || sending.value || !bootstrap.value.enabled) return;
-
+async function submitMessage(text, { appendUser = true } = {}) {
+  const normalized = String(text || '').trim();
+  if (!normalized || sending.value || !bootstrap.value.enabled) return;
   errorText.value = '';
-  draft.value = '';
+  lastFailedUserText.value = '';
   sending.value = true;
   ensureSession();
-
-  appendMessage('user', text);
+  if (appendUser) appendMessage('user', normalized);
   const assistantMessage = appendMessage('assistant', '', { pending: true });
 
   try {
     const created = await createMeguriTurn(
       {
-        message: text,
+        message: normalized,
         sessionId,
         idempotencyKey: `website-${Date.now()}-${messageSeed}`
       },
@@ -393,16 +548,38 @@ async function handleSend() {
     sessionId = created.sessionId || sessionId;
     activeTurnId = created.turnId;
     persistSessionRecord();
-    await followActiveTurn(assistantMessage, sessionLastSequence);
+    const trackerState = await followActiveTurn(assistantMessage, sessionLastSequence);
+    if (trackerState.status === 'failed') {
+      lastFailedUserText.value = normalized;
+      errorText.value = trackerState.error || '回复失败，请重试。';
+    }
   } catch (error) {
     assistantMessage.pending = false;
     assistantMessage.failed = true;
-    assistantMessage.failedReason = '发送失败';
-    errorText.value = resolveErrorMessage(error);
+    assistantMessage.failedReason = error?.name === 'AbortError' ? '已停止' : '发送失败';
+    if (error?.name !== 'AbortError') {
+      lastFailedUserText.value = normalized;
+      errorText.value = resolveErrorMessage(error);
+    }
   } finally {
     sending.value = false;
-    scrollMessagesToEnd();
+    void scrollMessagesToEnd();
   }
+}
+
+async function handleSend() {
+  const text = draft.value.trim();
+  if (!canSend.value) return;
+  draft.value = '';
+  await submitMessage(text);
+}
+
+async function retryLastMessage() {
+  const text = lastFailedUserText.value;
+  if (!text || sending.value) return;
+  const failedIndex = messages.value.findLastIndex((message) => message.role === 'assistant' && message.failed);
+  if (failedIndex >= 0) messages.value.splice(failedIndex, 1);
+  await submitMessage(text, { appendUser: false });
 }
 
 async function handleCancel() {
@@ -424,10 +601,11 @@ async function resumeInterruptedTurn() {
   const assistantMessage = appendMessage('assistant', '', { pending: true });
   try {
     await followActiveTurn(assistantMessage, 0);
-  } catch {
+  } catch (error) {
     assistantMessage.pending = false;
     assistantMessage.failed = true;
     assistantMessage.failedReason = '上次回复未能恢复';
+    errorText.value = resolveErrorMessage(error);
   } finally {
     sending.value = false;
   }
@@ -440,25 +618,93 @@ function startNewSession() {
   activeTurnId = '';
   sessionLastSequence = 0;
   messages.value = [];
+  draft.value = '';
   errorText.value = '';
-  expression.value = null;
+  lastFailedUserText.value = '';
   persistSessionRecord();
+  void nextTick(() => composerEl.value?.focus());
+}
+
+function toggleChat() {
+  chatVisible.value = !chatVisible.value;
+  if (!chatVisible.value) historyOpen.value = false;
+  persistSessionRecord();
+}
+
+function toggleHistory() {
+  if (!chatVisible.value) return;
+  historyOpen.value = !historyOpen.value;
+  persistSessionRecord();
+  void scrollMessagesToEnd();
 }
 
 async function loadBootstrap() {
   const payload = await getMeguriBootstrap(auth.authorizedFetch);
   bootstrap.value = payload;
-  if (payload.enabled && payload.spriteAvailable && payload.defaultSprite) {
-    await showSprite(payload.defaultSprite);
+  if (payload.enabled && payload.spriteAvailable) {
+    const initial = resolveMeguriPresentation(DEFAULT_MEGURI_PRESENTATION, {
+      spriteFile: payload.defaultSprite || DEFAULT_MEGURI_PRESENTATION.spriteFile
+    });
+    const preferred = resolveMeguriPresentation(initial, {
+      outfitCode: presentation.value.outfitCode,
+      spriteFile: presentation.value.outfitCode === initial.outfitCode ? initial.spriteFile : ''
+    });
+    await applyPresentationCue(preferred);
   } else if (payload.enabled && !payload.spriteAvailable) {
     spriteHint.value = '服务端未配置立绘目录（MEGURI_SPRITE_DIR）';
   }
+}
+
+async function refreshCompanion() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  errorText.value = '';
+  try {
+    await loadBootstrap();
+  } catch (error) {
+    errorText.value = resolveErrorMessage(error);
+  } finally {
+    refreshing.value = false;
+    pageReady.value = true;
+  }
+}
+
+function scheduleControlsCollapse() {
+  if (controlsCollapseTimer) clearTimeout(controlsCollapseTimer);
+  controlsCollapseTimer = setTimeout(() => {
+    controlsOpen.value = false;
+  }, 1800);
+}
+
+function cancelControlsCollapse() {
+  if (controlsCollapseTimer) clearTimeout(controlsCollapseTimer);
+}
+
+function handleWindowKeydown(event) {
+  if (event.key === 'Escape') {
+    controlsOpen.value = false;
+    return;
+  }
+  if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'm') {
+    event.preventDefault();
+    toggleChat();
+  }
+}
+
+function syncReducedMotion(event) {
+  reducedMotion.value = Boolean(event?.matches);
 }
 
 onMounted(async () => {
   try {
     await auth.ensureReady();
     ensureSession();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', handleWindowKeydown);
+      motionMediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') || null;
+      reducedMotion.value = Boolean(motionMediaQuery?.matches);
+      motionMediaQuery?.addEventListener?.('change', syncReducedMotion);
+    }
     await loadBootstrap();
     await resumeInterruptedTurn();
   } catch (error) {
@@ -471,561 +717,18 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   followAbortController?.abort();
   if (spriteSwapTimer) clearTimeout(spriteSwapTimer);
+  if (controlsCollapseTimer) clearTimeout(controlsCollapseTimer);
+  if (typeof window !== 'undefined') window.removeEventListener('keydown', handleWindowKeydown);
+  motionMediaQuery?.removeEventListener?.('change', syncReducedMotion);
   for (const url of spriteUrlCache.values()) {
     try {
       URL.revokeObjectURL(url);
     } catch {
-      // ignore revoke failures
+      // Ignore browsers that already released the object URL.
     }
   }
   spriteUrlCache.clear();
 });
 </script>
 
-<style scoped>
-/* ============ AIRI 式立绘舞台：立绘为主角，对话浮层贴底 ============ */
-
-.meguri-page {
-  padding: 12px clamp(12px, 3vw, 32px) 24px;
-}
-
-.meguri-page.embedded {
-  padding: 0;
-}
-
-.meguri-shell {
-  position: relative;
-  min-height: min(78vh, 860px);
-  border-radius: 22px;
-  overflow: hidden;
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(255, 154, 197, 0.12), transparent 58%),
-    linear-gradient(180deg, rgba(40, 30, 42, 0.97), rgba(24, 18, 28, 0.98));
-  border: 1px solid rgba(255, 214, 229, 0.14);
-  box-shadow: 0 24px 48px rgba(10, 6, 14, 0.4);
-}
-
-.meguri-page.embedded .meguri-shell {
-  min-height: 640px;
-  box-shadow: none;
-}
-
-/* —— 立绘层 —— */
-.stage-layer {
-  position: absolute;
-  inset: 0;
-}
-
-.stage-sprite {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: bottom center;
-  padding: 44px 8px 0;
-}
-
-.stage-sprite.overlay {
-  opacity: 0;
-  transition: opacity 0.32s ease;
-}
-
-.stage-sprite.overlay.visible {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stage-sprite.overlay {
-    transition: none;
-  }
-}
-
-.stage-empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  color: rgba(255, 231, 240, 0.7);
-  font-size: 0.9rem;
-}
-
-.stage-glow {
-  position: absolute;
-  inset: auto 8% 0;
-  height: 24%;
-  background: radial-gradient(60% 100% at 50% 100%, rgba(255, 154, 197, 0.26), transparent 70%);
-  pointer-events: none;
-}
-
-/* 底部渐暗压底，保证浮层文字在亮立绘上也可读。 */
-.stage-scrim {
-  position: absolute;
-  inset: 46% 0 0;
-  background: linear-gradient(180deg, transparent, rgba(16, 10, 20, 0.62) 78%, rgba(14, 9, 18, 0.78));
-  pointer-events: none;
-}
-
-[data-stage-status='speaking'] .stage-glow {
-  animation: meguri-breathe 1.6s ease-in-out infinite alternate;
-}
-
-@keyframes meguri-breathe {
-  from { opacity: 0.7; }
-  to { opacity: 1; }
-}
-
-/* —— 顶部悬浮条 —— */
-.meguri-topbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  color: rgba(255, 243, 240, 0.96);
-  background: linear-gradient(180deg, rgba(18, 12, 22, 0.55), transparent);
-  pointer-events: none;
-}
-
-.meguri-topbar > * {
-  pointer-events: auto;
-}
-
-.meguri-title h1 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-family: var(--font-cute, inherit);
-  letter-spacing: 0.04em;
-}
-
-.meguri-topbar-side {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.status-pill {
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(24, 16, 26, 0.55);
-}
-
-.status-pill.accent {
-  border-color: rgba(255, 154, 197, 0.5);
-  background: rgba(255, 154, 197, 0.16);
-  color: #ffd3e4;
-}
-
-.status-pill.warning {
-  border-color: rgba(255, 196, 128, 0.5);
-  background: rgba(255, 176, 96, 0.16);
-  color: #ffdcb0;
-}
-
-.status-pill.muted {
-  opacity: 0.72;
-}
-
-.quick-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(26, 18, 28, 0.6);
-  color: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
-}
-
-.quick-btn.primary {
-  border-color: rgba(255, 154, 197, 0.55);
-  background: rgba(255, 122, 178, 0.3);
-}
-
-.quick-btn.active {
-  border-color: rgba(255, 154, 197, 0.6);
-  background: rgba(255, 154, 197, 0.22);
-}
-
-.quick-btn:hover:not(:disabled) {
-  border-color: rgba(255, 154, 197, 0.6);
-  transform: translateY(-1px);
-}
-
-.quick-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.meguri-placeholder {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: grid;
-  place-content: center;
-  gap: 8px;
-  text-align: center;
-  color: rgba(255, 240, 244, 0.92);
-  padding: 24px;
-}
-
-.meguri-placeholder p {
-  margin: 0;
-  font-size: 0.85rem;
-  opacity: 0.7;
-}
-
-/* —— 浮层对话 —— */
-.float-dialog {
-  position: absolute;
-  left: clamp(10px, 3vw, 28px);
-  right: clamp(10px, 3vw, 28px);
-  bottom: 12px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 46%;
-}
-
-.float-dialog.history-open {
-  top: 64px;
-  max-height: none;
-  background: rgba(20, 13, 24, 0.82);
-  border: 1px solid rgba(255, 214, 229, 0.16);
-  border-radius: 18px;
-  padding: 12px;
-  backdrop-filter: blur(6px);
-}
-
-.dialog-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 190, 210, 0.35) transparent;
-}
-
-.dialog-empty {
-  margin: auto auto 8px 4px;
-  color: rgba(255, 236, 243, 0.75);
-  font-size: 0.85rem;
-}
-
-.chat-row {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-width: min(76%, 560px);
-  animation: meguri-bubble-in 0.32s var(--ease-out, ease) both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-row {
-    animation: none;
-  }
-}
-
-@keyframes meguri-bubble-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
-
-.chat-row.user {
-  align-self: flex-end;
-  align-items: flex-end;
-}
-
-.chat-row.assistant {
-  align-self: flex-start;
-  align-items: flex-start;
-}
-
-.bubble-meta {
-  font-size: 0.68rem;
-  opacity: 0.62;
-  color: #ffe6ef;
-}
-
-.chat-bubble {
-  padding: 9px 13px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(30, 20, 32, 0.78);
-  color: rgba(255, 246, 248, 0.96);
-  backdrop-filter: blur(4px);
-}
-
-.chat-row.user .chat-bubble {
-  border-color: rgba(255, 154, 197, 0.45);
-  background: linear-gradient(145deg, rgba(255, 122, 178, 0.4), rgba(214, 92, 148, 0.36));
-  border-bottom-right-radius: 6px;
-}
-
-.chat-row.assistant .chat-bubble {
-  border-bottom-left-radius: 6px;
-}
-
-.chat-bubble p {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 0.88rem;
-  line-height: 1.6;
-}
-
-.bubble-tag {
-  display: inline-block;
-  margin-top: 5px;
-  font-size: 0.68rem;
-  opacity: 0.7;
-}
-
-.bubble-tag.error {
-  color: #ffb4c4;
-}
-
-.chat-row.failed .chat-bubble {
-  border-color: rgba(255, 120, 140, 0.5);
-}
-
-.error-banner {
-  margin: 0;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 120, 140, 0.45);
-  background: rgba(60, 18, 28, 0.85);
-  color: #ffc9d4;
-  font-size: 0.8rem;
-}
-
-/* —— 输入条 —— */
-.dialog-composer {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-  padding: 8px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 214, 229, 0.2);
-  background: rgba(24, 16, 26, 0.82);
-  backdrop-filter: blur(6px);
-}
-
-.composer-input {
-  flex: 1;
-  resize: none;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 247, 249, 0.96);
-  font-size: 0.9rem;
-  line-height: 1.5;
-  font-family: inherit;
-  max-height: 96px;
-}
-
-.composer-input:focus {
-  outline: none;
-  border-color: rgba(255, 154, 197, 0.55);
-}
-
-.composer-actions {
-  display: flex;
-  gap: 6px;
-}
-
-/* —— 底部状态 —— */
-.stage-footer {
-  position: absolute;
-  right: 14px;
-  bottom: 12px;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.85;
-}
-
-.expression-caption {
-  font-size: 0.72rem;
-  color: rgba(255, 205, 226, 0.8);
-}
-
-/* ============ side 变体：右侧栏紧凑形态 ============ */
-.meguri-page.side {
-  padding: 0;
-  height: 100%;
-}
-
-.meguri-page.side .meguri-shell {
-  min-height: 0;
-  height: 100%;
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-}
-
-.meguri-page.side .stage-layer {
-  position: relative;
-  inset: auto;
-  height: 190px;
-  flex: none;
-}
-
-.meguri-page.side .stage-sprite {
-  padding: 34px 6px 0;
-}
-
-.meguri-page.side .stage-scrim {
-  inset: 30% 0 0;
-}
-
-.meguri-page.side .float-dialog {
-  position: relative;
-  left: auto;
-  right: auto;
-  bottom: auto;
-  flex: 1;
-  min-height: 0;
-  max-height: none;
-  padding: 8px 10px 10px;
-}
-
-.meguri-page.side .float-dialog.history-open {
-  top: auto;
-  background: none;
-  border: 0;
-  backdrop-filter: none;
-  padding: 8px 10px 10px;
-}
-
-.meguri-page.side .chat-row {
-  max-width: 92%;
-}
-
-.meguri-page.side .stage-footer {
-  display: none;
-}
-
-.meguri-page.side .meguri-title h1 {
-  font-size: 0.95rem;
-}
-
-/* ============ 日间模式 ============ */
-:root[data-theme-mode='day'] .meguri-shell {
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(255, 170, 205, 0.24), transparent 58%),
-    linear-gradient(180deg, rgba(255, 248, 251, 0.98), rgba(250, 238, 244, 0.98));
-  border-color: rgba(190, 120, 140, 0.24);
-  box-shadow: 0 22px 44px rgba(170, 120, 130, 0.2);
-}
-
-:root[data-theme-mode='day'] .meguri-topbar {
-  color: rgba(72, 42, 54, 0.95);
-  background: linear-gradient(180deg, rgba(255, 244, 249, 0.7), transparent);
-}
-
-:root[data-theme-mode='day'] .stage-scrim {
-  background: linear-gradient(180deg, transparent, rgba(255, 240, 246, 0.6) 78%, rgba(255, 236, 244, 0.78));
-}
-
-:root[data-theme-mode='day'] .status-pill {
-  border-color: rgba(150, 90, 110, 0.24);
-  background: rgba(255, 255, 255, 0.66);
-  color: #6d3a52;
-}
-
-:root[data-theme-mode='day'] .status-pill.accent {
-  border-color: rgba(230, 120, 170, 0.5);
-  background: rgba(255, 190, 216, 0.5);
-  color: #a03e6c;
-}
-
-:root[data-theme-mode='day'] .quick-btn {
-  border-color: rgba(150, 90, 110, 0.26);
-  background: rgba(255, 255, 255, 0.72);
-  color: #5d3348;
-}
-
-:root[data-theme-mode='day'] .quick-btn.primary {
-  border-color: rgba(230, 120, 170, 0.55);
-  background: rgba(255, 178, 210, 0.6);
-}
-
-:root[data-theme-mode='day'] .meguri-placeholder {
-  color: rgba(90, 52, 66, 0.9);
-}
-
-:root[data-theme-mode='day'] .dialog-empty {
-  color: rgba(120, 74, 92, 0.8);
-}
-
-:root[data-theme-mode='day'] .bubble-meta {
-  color: rgba(150, 84, 110, 0.85);
-}
-
-:root[data-theme-mode='day'] .chat-bubble {
-  border-color: rgba(150, 90, 110, 0.22);
-  background: rgba(255, 255, 255, 0.85);
-  color: #4a2c3a;
-}
-
-:root[data-theme-mode='day'] .chat-row.user .chat-bubble {
-  border-color: rgba(230, 120, 170, 0.42);
-  background: linear-gradient(145deg, rgba(255, 202, 224, 0.9), rgba(255, 184, 214, 0.85));
-}
-
-:root[data-theme-mode='day'] .dialog-composer {
-  border-color: rgba(150, 90, 110, 0.24);
-  background: rgba(255, 252, 253, 0.92);
-}
-
-:root[data-theme-mode='day'] .composer-input {
-  background: rgba(255, 255, 255, 0.9);
-  color: #402334;
-}
-
-:root[data-theme-mode='day'] .error-banner {
-  border-color: rgba(220, 90, 120, 0.5);
-  background: rgba(255, 210, 220, 0.7);
-  color: #9c2f4a;
-}
-
-:root[data-theme-mode='day'] .float-dialog.history-open {
-  background: rgba(255, 248, 251, 0.9);
-  border-color: rgba(190, 120, 140, 0.24);
-}
-
-/* ============ 响应式 ============ */
-@media (max-width: 900px) {
-  .meguri-shell {
-    min-height: 70vh;
-  }
-
-  .float-dialog {
-    max-height: 54%;
-  }
-
-  .chat-row {
-    max-width: 88%;
-  }
-}
-</style>
+<style scoped src="../styles/meguri-web-companion.css"></style>

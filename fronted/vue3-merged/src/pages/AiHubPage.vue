@@ -21,23 +21,27 @@
             <i class="fas fa-comments" aria-hidden="true"></i>
             <span>普通对话模式</span>
           </button>
+          <button
+            v-if="isAdminUser"
+            class="mode-tab ripple-trigger"
+            :class="{ active: activePrimaryMode === 'meguri' }"
+            type="button"
+            @click="activateMeguriCompanion()"
+          >
+            <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
+            <span>爱莉伴聊</span>
+          </button>
         </div>
 
         <div class="topbar-status">
-          <span class="status-pill muted">AI Chat 在 AI Hub 内已禁用</span>
-          <span class="status-pill accent">
-            {{
-              activePrimaryMode === 'town'
-                ? `当前场景 · ${selectedTownScene?.title || '载入中'}`
-                : currentConversationLabel
-            }}
-          </span>
+          <span class="status-pill muted">{{ workspaceBoundaryLabel }}</span>
+          <span class="status-pill accent">{{ currentWorkspaceLabel }}</span>
         </div>
       </header>
 
       <div
         class="workspace-grid fade-stagger"
-        :class="{ conversation: activePrimaryMode === 'conversation' }"
+        :class="{ conversation: activePrimaryMode === 'conversation' || activePrimaryMode === 'meguri' }"
       >
         <section class="workspace-main liquid-material">
           <template v-if="activePrimaryMode === 'town'">
@@ -330,6 +334,10 @@
             </template>
           </template>
 
+          <template v-else-if="activePrimaryMode === 'meguri' && isAdminUser">
+            <MeguriPage class="meguri-companion-main" embedded />
+          </template>
+
           <template v-else>
             <div class="conversation-layout">
               <AiSessionRail
@@ -507,6 +515,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AiDialog from '../components/AiDialog.vue';
 import AiSessionRail from '../components/AiSessionRail.vue';
+import MeguriPage from './MeguriPage.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminTownNpcSession,
@@ -950,6 +959,18 @@ const currentConversationLabel = computed(() => {
   }
   return '当前对话 · 普通模式';
 });
+const workspaceBoundaryLabel = computed(() =>
+  activePrimaryMode.value === 'meguri' ? 'Owner-only · Meguri Core' : 'AI Chat 在 AI Hub 内已禁用'
+);
+const currentWorkspaceLabel = computed(() => {
+  if (activePrimaryMode.value === 'town') {
+    return `当前场景 · ${selectedTownScene.value?.title || '载入中'}`;
+  }
+  if (activePrimaryMode.value === 'meguri') {
+    return '当前陪伴 · 爱莉';
+  }
+  return currentConversationLabel.value;
+});
 
 function activateTownWorkspace(nextSubView = 'map') {
   if (nextSubView === 'editor' && !canManageTownAssets.value) {
@@ -972,6 +993,12 @@ function activateStandardConversation() {
   if (conversationChatMode.value === 'town_npc') {
     conversationChatMode.value = 'normal';
   }
+  conversationOpenPayload.value = null;
+}
+
+function activateMeguriCompanion() {
+  if (!isAdminUser.value) return;
+  activePrimaryMode.value = 'meguri';
   conversationOpenPayload.value = null;
 }
 
@@ -1000,6 +1027,9 @@ function resetAdminOnlyWorkspaceState() {
   }
   if (conversationChatMode.value === 'town_npc') {
     conversationChatMode.value = 'normal';
+  }
+  if (activePrimaryMode.value === 'meguri') {
+    activePrimaryMode.value = 'town';
   }
   if (isAdminOnlyConversationMode(conversationOpenPayload.value?.preferredMode) || isAdminOnlyConversationMode(conversationOpenPayload.value?.mode)) {
     conversationOpenPayload.value = null;
@@ -1338,7 +1368,7 @@ watch(
   display: grid;
   flex: 1 1 680px;
   width: min(100%, 760px);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
   border-radius: 20px;
@@ -1377,6 +1407,7 @@ watch(
 
 .topbar-status {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
@@ -2295,6 +2326,11 @@ watch(
 }
 
 .conversation-main {
+  min-width: 0;
+  min-height: 0;
+}
+
+.meguri-companion-main {
   min-width: 0;
   min-height: 0;
 }

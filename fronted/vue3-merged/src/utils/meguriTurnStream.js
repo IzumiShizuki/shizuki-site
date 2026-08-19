@@ -94,7 +94,8 @@ export function createMeguriTurnTracker(turnId) {
       expressionTag: String(data.expression_tag || data.expressionTag || 'neutral').trim() || 'neutral',
       expressionIntensity: String(data.expression_intensity || data.expressionIntensity || 'low').trim() || 'low',
       outfitCode: String(data.outfit_code || data.outfitCode || '').trim(),
-      spriteFile: String(data.sprite_file || data.spriteFile || '').trim()
+      spriteFile: String(data.sprite_file || data.spriteFile || '').trim(),
+      motionTag: String(data.motion_tag || data.motionTag || '').trim()
     };
   }
 

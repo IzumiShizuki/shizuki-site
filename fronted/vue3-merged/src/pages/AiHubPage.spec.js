@@ -35,6 +35,17 @@ const AiDialogStub = defineComponent({
   template: '<div class="ai-dialog-stub">{{ chatMode }}</div>'
 });
 
+const MeguriPageStub = defineComponent({
+  name: 'MeguriPage',
+  props: {
+    embedded: {
+      type: Boolean,
+      default: false
+    }
+  },
+  template: '<div class="meguri-page-stub">Meguri Web Companion</div>'
+});
+
 vi.mock('../composables/useAuthSession', () => ({
   useAuthSession: () => mocked.auth
 }));
@@ -145,7 +156,8 @@ async function mountPage() {
   const wrapper = mount(AiHubPage, {
     global: {
       stubs: {
-        AiDialog: AiDialogStub
+        AiDialog: AiDialogStub,
+        MeguriPage: MeguriPageStub
       }
     }
   });
@@ -242,15 +254,26 @@ describe('AiHubPage', () => {
     expect(dialog.exists()).toBe(true);
     expect(dialog.props('allowedModes')).toEqual(['normal', 'tavern']);
     expect(wrapper.text()).not.toContain('编辑地图');
+    expect(wrapper.text()).not.toContain('爱莉伴聊');
   });
 
-  it('keeps the home companion out of the AI Hub for admin users', async () => {
+  it('exposes and activates the owner-only Meguri companion for admin users', async () => {
     mocked.auth = createAuth(['ADMIN']);
 
     const wrapper = await mountPage();
+    const companionButton = findButtonByText(wrapper, '爱莉伴聊');
     const conversationButton = findButtonByText(wrapper, '普通对话模式');
 
-    expect(wrapper.text()).not.toContain('爱莉伴聊');
+    expect(companionButton).toBeTruthy();
+    await companionButton.trigger('click');
+    await flushPromises();
+
+    const companion = wrapper.findComponent(MeguriPageStub);
+    expect(companion.exists()).toBe(true);
+    expect(companion.props('embedded')).toBe(true);
+    expect(wrapper.text()).toContain('当前陪伴 · 爱莉');
+    expect(wrapper.get('.workspace-grid').classes()).toContain('conversation');
+
     expect(conversationButton).toBeTruthy();
     await conversationButton.trigger('click');
     await flushPromises();
