@@ -4,12 +4,14 @@ import {
   absolutizeApiUrl,
   getApiBaseUrl,
   getDefaultApiBaseUrl,
+  isDesktopAppShell,
   isNativeAppShell,
   setApiBaseUrl
 } from './apiBase';
 
 afterEach(() => {
   delete window.Capacitor;
+  delete window.shizukiDesktop;
   window.localStorage.removeItem('shizuki.apiBase.v1');
   __resetApiBaseForTest();
 });
@@ -28,6 +30,16 @@ describe('apiBase', () => {
   it('detects the native shell via Capacitor global', () => {
     window.Capacitor = { isNativePlatform: () => true };
     expect(isNativeAppShell()).toBe(true);
+  });
+
+  it('detects Electron while keeping relative API paths on the secure app protocol', () => {
+    window.shizukiDesktop = { isDesktop: true };
+    __resetApiBaseForTest();
+    expect(isDesktopAppShell()).toBe(true);
+    expect(isNativeAppShell()).toBe(true);
+    expect(absolutizeApiUrl('/api/v1/music/stream/1')).toBe('/api/v1/music/stream/1');
+    setApiBaseUrl('https://untrusted-override.example.com');
+    expect(getApiBaseUrl()).toBe(getDefaultApiBaseUrl());
   });
 
   it('prefixes /api/ paths with the gateway base in native shell', () => {

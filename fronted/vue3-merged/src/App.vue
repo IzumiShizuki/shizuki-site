@@ -385,6 +385,7 @@ import {
   writeSiteAtmosphereToStorage
 } from './utils/siteAtmosphereState';
 import { recordWindowDiag } from './utils/windowLifecycleDiag';
+import { installDesktopControlBridge } from './desktop/desktopControlBridge';
 
 const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
@@ -478,6 +479,7 @@ let sidebarAiCloseTimer = 0;
 let wallpaperPreferenceSaveTimer = 0;
 let wallpaperSignedUrlRefreshTimer = 0;
 let wallpaperSignedUrlRefreshRunning = false;
+let disposeDesktopControlBridge = () => {};
 const AI_SIDEBAR_EXIT_MS = 260;
 const VISUALIZER_TARGET_FPS = 30;
 const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
@@ -2948,6 +2950,7 @@ watch(
 );
 
 onMounted(async () => {
+  disposeDesktopControlBridge = installDesktopControlBridge({ router, player });
   await auth.ensureReady();
   void refreshAmbientLibraryStatus();
   syncAuthorMenuAvatarFromCache();
@@ -2986,6 +2989,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  disposeDesktopControlBridge();
+  disposeDesktopControlBridge = () => {};
   clearWallpaperSignedUrlRefreshTimer();
   if (wallpaperPreferenceSaveTimer) {
     window.clearTimeout(wallpaperPreferenceSaveTimer);

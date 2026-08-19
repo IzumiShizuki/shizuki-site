@@ -21,6 +21,7 @@ function mockMatchMedia(results) {
 afterEach(() => {
   delete window.matchMedia;
   delete window.Capacitor;
+  delete window.shizukiDesktop;
   window.localStorage.removeItem(MOBILE_SHELL_PREF_KEY);
 });
 
@@ -120,6 +121,16 @@ describe('shouldUseMobileShell', () => {
     window.Capacitor = { isNativePlatform: () => true };
     writeMobileShellPreference('desktop');
     expect(shouldUseMobileShell()).toBe(true);
+  });
+
+  it('keeps desktop routes inside the Electron shell', () => {
+    mockMatchMedia({
+      '(max-width: 767px)': true,
+      '(pointer: coarse)': true
+    });
+    window.shizukiDesktop = { isDesktop: true };
+    writeMobileShellPreference('mobile');
+    expect(shouldUseMobileShell()).toBe(false);
   });
 
   it('tolerates missing matchMedia', () => {

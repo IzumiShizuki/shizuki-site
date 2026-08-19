@@ -66,6 +66,8 @@ tmp/
 ### Frontend Media / Build Artifacts ###
 /fronted/vue3-merged/node_modules/
 /fronted/vue3-merged/dist/
+/fronted/vue3-merged/release/
+/fronted/vue3-merged/desktop-release/
 /fronted/vue3-merged/public/media/
 /fronted/vue3-merged/public/media/**
 

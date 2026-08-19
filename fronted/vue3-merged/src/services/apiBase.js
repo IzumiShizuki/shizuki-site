@@ -12,6 +12,28 @@ function sanitizeBase(raw) {
 export function isNativeAppShell() {
   if (typeof window === 'undefined') return false;
   try {
+    if (window.shizukiDesktop?.isDesktop === true) return true;
+    const cap = window.Capacitor;
+    if (!cap) return false;
+    if (typeof cap.isNativePlatform === 'function') return cap.isNativePlatform();
+    return Boolean(cap.isNative);
+  } catch {
+    return false;
+  }
+}
+
+export function isDesktopAppShell() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.shizukiDesktop?.isDesktop === true;
+  } catch {
+    return false;
+  }
+}
+
+function isCapacitorAppShell() {
+  if (typeof window === 'undefined') return false;
+  try {
     const cap = window.Capacitor;
     if (!cap) return false;
     if (typeof cap.isNativePlatform === 'function') return cap.isNativePlatform();
@@ -35,7 +57,7 @@ let runtimeBase = null;
 function resolveInitialBase() {
   const envBase = sanitizeBase(ENV_BASE);
   // 仅原生 App 允许运行时覆盖网关地址，网页端始终跟随部署环境。
-  if (isNativeAppShell()) {
+  if (isCapacitorAppShell()) {
     return readStoredBase() || envBase;
   }
   return envBase;
@@ -54,8 +76,12 @@ export function getDefaultApiBaseUrl() {
 
 export function setApiBaseUrl(nextBase) {
   const sanitized = sanitizeBase(nextBase);
+  if (isDesktopAppShell()) {
+    runtimeBase = sanitizeBase(ENV_BASE);
+    return runtimeBase;
+  }
   runtimeBase = sanitized || sanitizeBase(ENV_BASE);
-  if (typeof window !== 'undefined' && isNativeAppShell()) {
+  if (typeof window !== 'undefined' && isCapacitorAppShell()) {
     try {
       if (sanitized && sanitized !== sanitizeBase(ENV_BASE)) {
         window.localStorage.setItem(API_BASE_STORAGE_KEY, sanitized);
@@ -77,6 +103,7 @@ export function absolutizeApiUrl(raw) {
   const url = String(raw || '');
   if (!url) return url;
   if (!isNativeAppShell()) return url;
+  if (isDesktopAppShell()) return url;
   if (!url.startsWith('/api/')) return url;
   const base = getApiBaseUrl();
   if (!base) return url;

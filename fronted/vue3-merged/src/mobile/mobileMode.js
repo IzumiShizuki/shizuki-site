@@ -1,4 +1,4 @@
-import { isNativeAppShell } from '../services/apiBase';
+import { isDesktopAppShell, isNativeAppShell } from '../services/apiBase';
 
 export const MOBILE_SHELL_PREF_KEY = 'shizuki.mobileShell.pref.v1';
 export const MOBILE_SHELL_PREFS = Object.freeze(['auto', 'mobile', 'desktop']);
@@ -44,6 +44,7 @@ export function isPhoneViewport() {
 }
 
 export function shouldUseMobileShell() {
+  if (isDesktopAppShell()) return false;
   if (isNativeAppShell()) return true;
   const pref = readMobileShellPreference();
   if (pref === 'mobile') return true;

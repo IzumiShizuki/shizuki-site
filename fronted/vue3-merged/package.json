@@ -1,12 +1,22 @@
 {
-  "name": "vue3-merged",
+  "name": "shizuki-desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Shizuki personal site and desktop application",
+  "author": "Izumi",
+  "packageManager": "pnpm@11.8.0",
   "type": "module",
+  "main": "desktop/main.mjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "desktop:dev": "node desktop/dev.mjs",
+    "desktop:start": "electron desktop/main.mjs",
+    "desktop:smoke": "node desktop/smoke.mjs",
+    "desktop:dir": "pnpm build && electron-builder --dir",
+    "desktop:build": "pnpm build && electron-builder --win nsis",
+    "test:desktop": "vitest run desktop src/desktop",
     "sync:media": "node scripts/sync-media.mjs",
     "sync:qianji": "node ../../tools/qianji-sync/qianji-local-sync.mjs",
     "sync:qianji:token": "node ../../tools/qianji-sync/qianji-local-sync-token.mjs",
@@ -49,6 +59,8 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^26.1.0",
+    "electron": "43.1.1",
+    "electron-builder": "26.8.1",
     "vite": "^5.4.11",
     "vitest": "^2.1.9"
   },
@@ -80,6 +92,38 @@
       "@tiptap/extension-text": "3.12.1",
       "@tiptap/extension-bubble-menu": "3.12.1",
       "@tiptap/extension-floating-menu": "3.12.1"
+    }
+  },
+  "build": {
+    "appId": "com.shizuki.site.desktop",
+    "productName": "Shizuki",
+    "asar": true,
+    "electronDist": "node_modules/electron/dist",
+    "directories": {
+      "output": "desktop-release"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/**/*",
+      "package.json",
+      "!node_modules/**/*",
+      "!release/**/*",
+      "!desktop-release/**/*"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Shizuki-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Shizuki"
     }
   }
 }
