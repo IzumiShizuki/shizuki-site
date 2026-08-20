@@ -79,6 +79,13 @@ export function installDesktopControlBridge({ router, player, desktopApi } = {})
       });
     }
   });
+  const unsubscribeRoute = api.onRouteRequested?.(async request => {
+    const route = String(request?.route || '');
+    if (route.startsWith('/')) {
+      await router.push(route);
+      reportState();
+    }
+  }) || (() => {});
 
   const stopWatch = watch(
     [
@@ -95,6 +102,7 @@ export function installDesktopControlBridge({ router, player, desktopApi } = {})
   return () => {
     stopWatch();
     unsubscribe?.();
+    unsubscribeRoute();
     api.reportState({ ready: false });
   };
 }

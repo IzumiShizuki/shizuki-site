@@ -15,6 +15,7 @@ const COMMAND_DEFINITIONS = [
   {
     name: 'app.navigate',
     target: 'renderer',
+    requiredCapability: 'app.navigation',
     payload: {
       type: 'object',
       required: ['destination'],
@@ -27,11 +28,13 @@ const COMMAND_DEFINITIONS = [
   ...['show', 'hide', 'focus', 'minimize', 'toggleVisibility'].map(action => ({
     name: `window.${action}`,
     target: 'native',
+    requiredCapability: 'window.control',
     payload: { type: 'object', additionalProperties: false }
   })),
   ...['play', 'pause', 'toggle', 'next', 'previous'].map(action => ({
     name: `music.${action}`,
     target: 'renderer',
+    requiredCapability: 'music.control',
     payload: { type: 'object', additionalProperties: false }
   }))
 ];
@@ -40,6 +43,7 @@ export const CONTROL_CAPABILITIES = Object.freeze(
   COMMAND_DEFINITIONS.map(definition => Object.freeze({
     name: definition.name,
     target: definition.target,
+    requiredCapability: definition.requiredCapability,
     payload: definition.payload
   }))
 );
@@ -98,17 +102,32 @@ export function validateControlCommand(input) {
 
   return {
     ok: true,
-    value: Object.freeze({ id: input.id, command: definition.name, payload: { ...payload }, target: definition.target })
+    value: Object.freeze({
+      id: input.id,
+      command: definition.name,
+      payload: { ...payload },
+      target: definition.target,
+      requiredCapability: definition.requiredCapability
+    })
   };
 }
 
-export function capabilitiesDocument() {
+export function requiredCapabilityForCommand(name) {
+  return COMMANDS_BY_NAME.get(name)?.requiredCapability || null;
+}
+
+export function capabilitiesDocument({ grants } = {}) {
+  const allowed = grants === undefined ? null : new Set(grants);
   return {
     protocolVersion: CONTROL_PROTOCOL_VERSION,
-    commands: CONTROL_CAPABILITIES,
+    commands: allowed
+      ? CONTROL_CAPABILITIES.filter(command => allowed.has(command.requiredCapability))
+      : CONTROL_CAPABILITIES,
     transports: {
       commands: 'POST /v1/commands',
-      events: 'GET /v1/events'
+      events: 'GET /v1/events',
+      pairingRequests: 'POST /v1/pairing-requests',
+      pairingStatus: 'GET /v1/pairing-requests/{requestId}'
     }
   };
 }

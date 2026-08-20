@@ -21,8 +21,15 @@
         @l2d-error="handleL2dRenderError"
       />
 
+      <DesktopHomeMenu
+        v-if="isDesktopHomeSurface && !isFocusActive"
+        @open-background-picker="backgroundPickerVisible = true"
+      />
+
+      <DesktopPairingPrompt v-if="isDesktopManagedSurface" />
+
       <TopMenu
-        v-if="!isMobileShellRoute && !isFocusActive"
+        v-if="!isMobileShellRoute && !isFocusActive && !isDesktopManagedSurface"
         :menu-expanded="menuExpanded"
         :theme-mode="ui.state.themeMode"
         :ai-chat-active="aiChatActive"
@@ -100,7 +107,7 @@
       </section>
 
       <AiDialog
-        v-if="showSheetAiPanel && !isMobileShellRoute"
+        v-if="showSheetAiPanel && !isMobileShellRoute && !isDesktopHomeSurface"
         :visible="true"
         mode="sheet"
         :chat-mode="activeAiChatMode"
@@ -110,7 +117,7 @@
       />
 
       <MusicPlayer
-        v-if="!isMobileShellRoute"
+        v-if="!isMobileShellRoute && !isDesktopHomeSurface"
         :track="player.currentTrack.value"
         :tracks="player.tracks.value"
         :lyric-line="player.currentLyricLine.value"
@@ -149,7 +156,7 @@
 
       <transition name="lyric-fade">
         <div
-          v-if="subtitleVisible && (!isMusicLibraryRoute || isFocusActive) && !isMobileShellRoute"
+          v-if="subtitleVisible && (!isMusicLibraryRoute || isFocusActive) && !isMobileShellRoute && !isDesktopHomeSurface"
           class="global-lyric-bar liquid-material"
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
@@ -288,13 +295,13 @@
       />
 
       <LightAppWindowHost
-        v-if="!isMobileShellRoute"
+        v-if="!isMobileShellRoute && !isDesktopHomeSurface"
         :is-home-route="isHomeRoute"
         :is-focus-active="isFocusActive"
         :focus-app-codes="focusAppCodes"
       />
-      <TimePrismReminderHost v-if="!isMobileShellRoute" />
-      <LevitationBall v-if="showLevitationBall && !isMobileShellRoute" ref="levitationRef" />
+      <TimePrismReminderHost v-if="!isMobileShellRoute && !isDesktopHomeSurface" />
+      <LevitationBall v-if="showLevitationBall && !isMobileShellRoute && !isDesktopManagedSurface" ref="levitationRef" />
 
       <div v-if="!isMobileShellRoute" class="click-ripple-layer" aria-hidden="true">
         <span
@@ -323,6 +330,8 @@ import AppBackgroundStage from './components/app/AppBackgroundStage.vue';
 import BackgroundPickerDialog from './components/app/BackgroundPickerDialog.vue';
 import FocusModeBar from './components/app/FocusModeBar.vue';
 import TopMenu from './components/TopMenu.vue';
+import DesktopHomeMenu from './components/desktop/DesktopHomeMenu.vue';
+import DesktopPairingPrompt from './components/desktop/DesktopPairingPrompt.vue';
 import LevitationBall from './components/LevitationBall.vue';
 import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
 import TimePrismReminderHost from './components/lightapps/timeprism/TimePrismReminderHost.vue';
@@ -386,7 +395,12 @@ import {
 } from './utils/siteAtmosphereState';
 import { recordWindowDiag } from './utils/windowLifecycleDiag';
 import { installDesktopControlBridge } from './desktop/desktopControlBridge';
+import { installDesktopPointerBridge } from './desktop/desktopPointerBridge';
+import { resolveDesktopSurface } from './desktop/desktopSurfaceMode';
 
+const desktopSurface = resolveDesktopSurface();
+const isDesktopManagedSurface = desktopSurface.managed;
+const isDesktopHomeSurface = desktopSurface.role === 'desktop';
 const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const MUSIC_EQ_CHANGE_EVENT = 'shizuki:music:eq-change';
@@ -480,6 +494,7 @@ let wallpaperPreferenceSaveTimer = 0;
 let wallpaperSignedUrlRefreshTimer = 0;
 let wallpaperSignedUrlRefreshRunning = false;
 let disposeDesktopControlBridge = () => {};
+let disposeDesktopPointerBridge = () => {};
 const AI_SIDEBAR_EXIT_MS = 260;
 const VISUALIZER_TARGET_FPS = 30;
 const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
@@ -2950,7 +2965,12 @@ watch(
 );
 
 onMounted(async () => {
-  disposeDesktopControlBridge = installDesktopControlBridge({ router, player });
+  if (desktopSurface.role === 'main') {
+    disposeDesktopControlBridge = installDesktopControlBridge({ router, player });
+  }
+  if (isDesktopHomeSurface) {
+    disposeDesktopPointerBridge = installDesktopPointerBridge();
+  }
   await auth.ensureReady();
   void refreshAmbientLibraryStatus();
   syncAuthorMenuAvatarFromCache();
@@ -2991,6 +3011,8 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   disposeDesktopControlBridge();
   disposeDesktopControlBridge = () => {};
+  disposeDesktopPointerBridge();
+  disposeDesktopPointerBridge = () => {};
   clearWallpaperSignedUrlRefreshTimer();
   if (wallpaperPreferenceSaveTimer) {
     window.clearTimeout(wallpaperPreferenceSaveTimer);

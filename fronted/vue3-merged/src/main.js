@@ -5,7 +5,9 @@ import './styles/liquid-material.css';
 import './styles/liquid-surface.css';
 import './styles/theme.css';
 import App from './App.vue';
+import DesktopControlOrb from './components/desktop/DesktopControlOrb.vue';
 import router from './router';
+import { guardDesktopHomeRoute, resolveDesktopSurface, shouldMountOrbSurface } from './desktop/desktopSurfaceMode';
 import { initAosManager } from './utils/aosManager';
 import { initWindowLifecycleDiag } from './utils/windowLifecycleDiag';
 import { initNativeShell } from './mobile/nativeBootstrap';
@@ -22,10 +24,15 @@ function settleBootLoader() {
   });
 }
 
-const app = createApp(App);
-app.use(router);
-initAosManager();
-initWindowLifecycleDiag({ router });
+const desktopSurface = resolveDesktopSurface();
+const orbSurface = shouldMountOrbSurface(desktopSurface);
+const app = createApp(orbSurface ? DesktopControlOrb : App);
+if (!orbSurface) {
+  router.beforeEach(destination => guardDesktopHomeRoute(desktopSurface, destination));
+  app.use(router);
+  initAosManager();
+  initWindowLifecycleDiag({ router });
+}
 app.mount('#app');
 settleBootLoader();
-initNativeShell(router);
+if (!orbSurface) initNativeShell(router);

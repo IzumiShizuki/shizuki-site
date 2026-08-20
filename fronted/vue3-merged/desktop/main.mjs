@@ -1,10 +1,22 @@
-import { app, BrowserWindow, ipcMain, net, protocol, screen, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  Menu,
+  nativeImage,
+  net,
+  protocol,
+  screen,
+  shell,
+  Tray
+} from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAppProtocol } from './app-protocol.mjs';
 import { DesktopCommandDispatcher } from './command-dispatcher.mjs';
 import { ControlEventHub, startControlService } from './control-service.mjs';
-import { readWindowState, writeWindowState } from './window-state.mjs';
+import { DesktopEnvironmentHost } from './desktop-environment-host.mjs';
+import { PairedClientStore } from './pairing-store.mjs';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -24,7 +36,9 @@ const distRoot = path.resolve(__dirname, '..', 'dist');
 const preloadPath = path.join(__dirname, 'preload.cjs');
 const gatewayOrigin = process.env.SHIZUKI_GATEWAY_ORIGIN || 'http://111.228.35.186:8080';
 const devUrl = String(process.env.SHIZUKI_DESKTOP_DEV_URL || '').trim();
+const baseUrl = devUrl || 'app://shizuki/index.html';
 const smokeMode = process.env.SHIZUKI_DESKTOP_SMOKE === '1';
+const loginStart = process.argv.includes('--login-start');
 const channels = Object.freeze({
   commandResult: 'shizuki-desktop:command-result',
   rendererState: 'shizuki-desktop:renderer-state'
@@ -37,17 +51,13 @@ if (process.env.SHIZUKI_USER_DATA_DIR) {
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
-let mainWindow = null;
+let desktopHost = null;
 let controlService = null;
 let dispatcher = null;
+let pairingStore = null;
 let quitting = false;
 let allowQuit = false;
-
-function displayAreas() {
-  const primary = screen.getPrimaryDisplay();
-  return [primary, ...screen.getAllDisplays().filter(display => display.id !== primary.id)]
-    .map(display => display.workArea);
-}
+let shutdownPromise = null;
 
 function trustedRendererUrl(rawUrl) {
   try {
@@ -63,22 +73,6 @@ function trustedIpcEvent(event) {
   return trustedRendererUrl(event.senderFrame?.url || event.sender?.getURL?.() || '');
 }
 
-function persistWindowState() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  const bounds = mainWindow.getNormalBounds();
-  writeWindowState(path.join(app.getPath('userData'), 'window-state.json'), {
-    ...bounds,
-    maximized: mainWindow.isMaximized()
-  });
-}
-
-function focusMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.show();
-  mainWindow.focus();
-}
-
 function handleExternalUrl(rawUrl) {
   try {
     const url = new URL(rawUrl);
@@ -89,108 +83,130 @@ function handleExternalUrl(rawUrl) {
   }
 }
 
-function createMainWindow() {
-  const saved = readWindowState(path.join(app.getPath('userData'), 'window-state.json'), displayAreas());
-  mainWindow = new BrowserWindow({
-    title: 'Shizuki',
-    x: saved.x,
-    y: saved.y,
-    width: saved.width,
-    height: saved.height,
-    minWidth: 720,
-    minHeight: 520,
-    show: false,
-    backgroundColor: '#111827',
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true
-    }
-  });
-  if (saved.maximized) mainWindow.maximize();
-
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (trustedRendererUrl(url)) return { action: 'allow' };
-    handleExternalUrl(url);
-    return { action: 'deny' };
-  });
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (trustedRendererUrl(url)) return;
-    event.preventDefault();
-    handleExternalUrl(url);
-  });
-  mainWindow.once('ready-to-show', () => {
-    if (!smokeMode) mainWindow?.show();
-  });
-  mainWindow.on('close', persistWindowState);
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
-  void mainWindow.loadURL(devUrl || 'app://shizuki/index.html');
-  return mainWindow;
+function openRecoveryDiagnostics() {
+  shell.showItemInFolder(path.join(app.getPath('userData'), 'desktop-recovery.json'));
 }
 
-function registerIpc() {
+function registerRendererIpc() {
   ipcMain.on(channels.rendererState, (event, state) => {
     if (!trustedIpcEvent(event)) return;
+    if (desktopHost?.getMainWindow()?.webContents !== event.sender) return;
     dispatcher?.updateRendererState(state);
   });
   ipcMain.on(channels.commandResult, (event, result) => {
     if (!trustedIpcEvent(event)) return;
+    if (desktopHost?.getMainWindow()?.webContents !== event.sender) return;
     dispatcher?.completeRendererCommand(result);
   });
+}
+
+async function handleImmediateAction(action) {
+  if (action === 'music') return desktopHost.openRoute('music');
+  if (action === 'todo' || action === 'focus') return desktopHost.openRoute('apps');
+  if (action === 'home') return desktopHost.openRoute('home');
+  if (action === 'edit') {
+    const editing = desktopHost.preferences?.interactionMode === 'edit';
+    return desktopHost.setEditMode(!editing);
+  }
+  throw Object.assign(new Error(`Unsupported immediate action: ${action}`), { code: 'UNSUPPORTED_ACTION' });
+}
+
+async function performShutdown() {
+  if (shutdownPromise) return shutdownPromise;
+  quitting = true;
+  shutdownPromise = (async () => {
+    dispatcher?.close();
+    const results = await Promise.allSettled([
+      controlService?.close?.(),
+      desktopHost?.stop?.({ restore: true })
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected') console.error('Shizuki shutdown step failed.', result.reason);
+    }
+    allowQuit = true;
+    app.quit();
+  })();
+  return shutdownPromise;
 }
 
 async function startApplication() {
   if (!hasSingleInstanceLock) return;
   registerAppProtocol({ protocol, net, distRoot, gatewayOrigin });
-  createMainWindow();
+
+  pairingStore = new PairedClientStore(path.join(app.getPath('userData'), 'paired-clients.json'));
+  await pairingStore.load();
+
+  desktopHost = new DesktopEnvironmentHost({
+    app,
+    BrowserWindow,
+    screen,
+    ipcMain,
+    Tray,
+    Menu,
+    nativeImage,
+    preloadPath,
+    baseUrl,
+    userDataPath: app.getPath('userData'),
+    pairingStore,
+    trustedIpcEvent,
+    onExternalUrl: handleExternalUrl,
+    onFullExit: () => void performShutdown(),
+    onImmediateAction: handleImmediateAction,
+    onOpenRecoveryDiagnostics: openRecoveryDiagnostics
+  });
+  await desktopHost.start();
+
   const eventHub = new ControlEventHub();
-  dispatcher = new DesktopCommandDispatcher({ getWindow: () => mainWindow, eventHub });
-  registerIpc();
-  controlService = await startControlService({
-    manifestPath: path.join(app.getPath('userData'), 'control-api.json'),
-    getState: () => dispatcher.getState(),
-    dispatchCommand: command => dispatcher.dispatch(command),
+  dispatcher = new DesktopCommandDispatcher({
+    getWindow: () => desktopHost.getMainWindow(),
+    ensureWindow: () => desktopHost.getMainWindow() || desktopHost.openRoute('home'),
+    navigate: destination => desktopHost.openRoute(destination),
     eventHub
   });
-  eventHub.publish('host.ready', dispatcher.getState());
+  registerRendererIpc();
+  controlService = await startControlService({
+    manifestPath: path.join(app.getPath('userData'), 'control-api.json'),
+    getState: () => ({
+      ...dispatcher.getState(),
+      desktop: desktopHost.stateSnapshot()
+    }),
+    dispatchCommand: command => dispatcher.dispatch(command),
+    eventHub,
+    pairingStore
+  });
+  eventHub.publish('host.ready', {
+    ...dispatcher.getState(),
+    desktop: desktopHost.stateSnapshot()
+  });
+
   if (smokeMode) {
     const exitDelay = Math.max(5_000, Number(process.env.SHIZUKI_DESKTOP_SMOKE_EXIT_MS) || 12_000);
-    setTimeout(() => app.quit(), exitDelay).unref();
+    setTimeout(() => void performShutdown(), exitDelay).unref();
   }
 }
 
-app.on('second-instance', focusMainWindow);
+async function startReadyApplication() {
+  if (loginStart) await new Promise(resolve => setTimeout(resolve, 4_000));
+  return startApplication();
+}
 
-app.on('activate', () => {
-  if (!mainWindow) createMainWindow();
-  else focusMainWindow();
-});
+app.on('second-instance', () => desktopHost?.focusMainWindow());
+
+app.on('activate', () => desktopHost?.focusMainWindow());
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // The tray owns desktop lifetime. Full exit is explicit.
 });
 
 app.on('before-quit', event => {
-  if (allowQuit || quitting) return;
+  if (allowQuit) return;
   event.preventDefault();
-  quitting = true;
-  persistWindowState();
-  dispatcher?.close();
-  Promise.resolve(controlService?.close())
-    .catch(error => console.error('Failed to stop Shizuki control service.', error))
-    .finally(() => {
-      allowQuit = true;
-      app.quit();
-    });
+  if (!quitting) void performShutdown();
 });
 
 app.whenReady()
-  .then(startApplication)
+  .then(startReadyApplication)
   .catch(error => {
     console.error('Failed to start Shizuki desktop.', error);
-    app.quit();
+    void performShutdown();
   });

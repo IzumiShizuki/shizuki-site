@@ -10,6 +10,9 @@ describe('desktop preload contract', () => {
     expect(source).toContain('onCommand(listener)');
     expect(source).toContain('reportState(state)');
     expect(source).toContain('respondToCommand(result)');
+    expect(source).toContain('getPairingSnapshot()');
+    expect(source).toContain('approvePairing(requestId, capabilities)');
+    expect(source).toContain('revokePairedClient(clientId)');
     expect(source).not.toMatch(/remote|webFrame|executeJavaScript|child_process|fs\b/);
   });
 });

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -70,7 +71,9 @@ function resolvePath(baseDir, targetPath) {
 function defaultDailyDigestFile(baseDir) {
   let cursor = path.resolve(baseDir);
   while (true) {
-    if (path.basename(cursor).toLowerCase() === 'shizuki-site') {
+    const isRepositoryRoot = existsSync(path.join(cursor, 'fronted', 'vue3-merged'))
+      && existsSync(path.join(cursor, 'tools', 'qianji-sync'));
+    if (path.basename(cursor).toLowerCase() === 'shizuki-site' || isRepositoryRoot) {
       return path.join(cursor, 'data', 'qianji-sync', 'daily-billing-digest.json');
     }
     const parent = path.dirname(cursor);

@@ -66,8 +66,10 @@ function windowSnapshot(window) {
 }
 
 export class DesktopCommandDispatcher {
-  constructor({ getWindow, eventHub, rendererTimeoutMs = RENDERER_TIMEOUT_MS }) {
+  constructor({ getWindow, ensureWindow, navigate, eventHub, rendererTimeoutMs = RENDERER_TIMEOUT_MS }) {
     this.getWindow = getWindow;
+    this.ensureWindow = typeof ensureWindow === 'function' ? ensureWindow : getWindow;
+    this.navigate = typeof navigate === 'function' ? navigate : null;
     this.eventHub = eventHub;
     this.rendererTimeoutMs = rendererTimeoutMs;
     this.rendererState = { ready: false };
@@ -107,12 +109,22 @@ export class DesktopCommandDispatcher {
   }
 
   async dispatch(command) {
+    if (command.command === 'app.navigate' && this.navigate) {
+      const window = await this.navigate(command.payload.destination);
+      const result = {
+        destination: command.payload.destination,
+        window: windowSnapshot(window)
+      };
+      this.eventHub.publish('command.completed', { id: command.id, command: command.command, result });
+      this.eventHub.publish('state.changed', this.getState());
+      return result;
+    }
     if (command.target === 'native') return this.#dispatchNative(command);
     return this.#dispatchRenderer(command);
   }
 
   async #dispatchNative(command) {
-    const window = this.getWindow();
+    const window = this.getWindow() || this.ensureWindow?.();
     if (!window || window.isDestroyed()) {
       throw new CommandDispatchError('WINDOW_UNAVAILABLE', 'Desktop window is unavailable.');
     }
@@ -144,7 +156,7 @@ export class DesktopCommandDispatcher {
   }
 
   #dispatchRenderer(command) {
-    const window = this.getWindow();
+    const window = this.getWindow() || this.ensureWindow?.();
     if (!window || window.isDestroyed() || window.webContents.isDestroyed() || !this.rendererState.ready) {
       throw new CommandDispatchError('RENDERER_UNAVAILABLE', 'Shizuki renderer is not ready.');
     }

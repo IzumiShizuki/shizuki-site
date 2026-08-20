@@ -14,6 +14,7 @@
     "desktop:dev": "node desktop/dev.mjs",
     "desktop:start": "electron desktop/main.mjs",
     "desktop:smoke": "node desktop/smoke.mjs",
+    "desktop:diagnose": "node desktop/windows-diagnostic.mjs",
     "desktop:dir": "pnpm build && electron-builder --dir",
     "desktop:build": "pnpm build && electron-builder --win nsis",
     "test:desktop": "vitest run desktop src/desktop",

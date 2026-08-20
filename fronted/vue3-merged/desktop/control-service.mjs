@@ -39,6 +39,34 @@ export function isAuthorizedRequest(request, token) {
   return tokensMatch(header.slice(prefix.length), token);
 }
 
+async function authenticateRequest(request, token, pairingStore) {
+  if (isAuthorizedRequest(request, token)) {
+    return { kind: 'bootstrap', client: null, capabilities: null };
+  }
+  const header = String(request.headers.authorization || '');
+  const prefix = 'ShizukiClient ';
+  if (!pairingStore || !header.startsWith(prefix)) return null;
+  const credential = header.slice(prefix.length);
+  const separator = credential.indexOf(':');
+  if (separator < 1) return null;
+  const clientId = credential.slice(0, separator);
+  const secret = credential.slice(separator + 1);
+  const client = await pairingStore.verify(clientId, secret);
+  return client ? { kind: 'paired', client, capabilities: client.capabilities } : null;
+}
+
+async function requireCapability(response, authentication, capability, pairingStore) {
+  if (authentication?.kind === 'bootstrap' || authentication?.capabilities?.includes(capability)) return true;
+  if (authentication?.client && pairingStore) {
+    await pairingStore.recordDeniedCapability(authentication.client.clientId, capability);
+  }
+  jsonResponse(response, 403, {
+    ok: false,
+    error: controlError('INSUFFICIENT_CAPABILITY', `The client is not granted ${capability}.`, { capability })
+  });
+  return false;
+}
+
 async function readJsonBody(request, maxBytes = MAX_BODY_BYTES) {
   const chunks = [];
   let size = 0;
@@ -148,7 +176,13 @@ function commandFailureStatus(code) {
   return 422;
 }
 
-export async function startControlService({ manifestPath, getState, dispatchCommand, eventHub = new ControlEventHub() }) {
+export async function startControlService({
+  manifestPath,
+  getState,
+  dispatchCommand,
+  eventHub = new ControlEventHub(),
+  pairingStore = null
+}) {
   if (!manifestPath) throw new TypeError('manifestPath is required.');
   if (typeof getState !== 'function' || typeof dispatchCommand !== 'function') {
     throw new TypeError('getState and dispatchCommand are required.');
@@ -162,20 +196,63 @@ export async function startControlService({ manifestPath, getState, dispatchComm
       return;
     }
 
-    if (!isAuthorizedRequest(request, token)) {
+    const authentication = await authenticateRequest(request, token, pairingStore);
+    if (!authentication) {
       jsonResponse(response, 401, { ok: false, error: controlError('UNAUTHORIZED', 'A valid bearer token is required.') });
       return;
     }
 
+    if (request.method === 'POST' && url.pathname === '/v1/pairing-requests') {
+      if (authentication.kind !== 'bootstrap' || !pairingStore) {
+        jsonResponse(response, pairingStore ? 403 : 404, {
+          ok: false,
+          error: controlError(pairingStore ? 'BOOTSTRAP_REQUIRED' : 'NOT_FOUND', pairingStore
+            ? 'The bootstrap bearer token is required to request pairing.'
+            : 'Pairing is not enabled.')
+        });
+        return;
+      }
+      try {
+        const pairingRequest = await pairingStore.createRequest(await readJsonBody(request));
+        eventHub.publish('pairing.requested', pairingRequest);
+        jsonResponse(response, 202, { ok: true, request: pairingRequest });
+      } catch (error) {
+        const bodyError = ['BODY_TOO_LARGE', 'INVALID_JSON'].includes(error?.code);
+        jsonResponse(response, error?.code === 'BODY_TOO_LARGE' ? 413 : bodyError ? 400 : 422, {
+          ok: false,
+          error: controlError(error?.code || 'PAIRING_REQUEST_INVALID', error?.message || 'Pairing request is invalid.', error?.details)
+        });
+      }
+      return;
+    }
+
+    const pairingStatus = url.pathname.match(/^\/v1\/pairing-requests\/([A-Za-z0-9-]+)$/);
+    if (request.method === 'GET' && pairingStatus) {
+      if (authentication.kind !== 'bootstrap' || !pairingStore) {
+        jsonResponse(response, pairingStore ? 403 : 404, {
+          ok: false,
+          error: controlError(pairingStore ? 'BOOTSTRAP_REQUIRED' : 'NOT_FOUND', pairingStore
+            ? 'The bootstrap bearer token is required to read pairing status.'
+            : 'Pairing is not enabled.')
+        });
+        return;
+      }
+      const result = await pairingStore.consumeCredential(pairingStatus[1]);
+      jsonResponse(response, result.status === 'not_found' ? 404 : 200, result);
+      return;
+    }
+
     if (request.method === 'GET' && url.pathname === '/v1/capabilities') {
-      jsonResponse(response, 200, capabilitiesDocument());
+      jsonResponse(response, 200, capabilitiesDocument({ grants: authentication.capabilities ?? undefined }));
       return;
     }
     if (request.method === 'GET' && url.pathname === '/v1/state') {
+      if (!await requireCapability(response, authentication, 'desktop.read', pairingStore)) return;
       jsonResponse(response, 200, getState());
       return;
     }
     if (request.method === 'GET' && url.pathname === '/v1/events') {
+      if (!await requireCapability(response, authentication, 'desktop.read', pairingStore)) return;
       eventHub.connect(response, request.headers['last-event-id'] || url.searchParams.get('after'));
       return;
     }
@@ -196,6 +273,7 @@ export async function startControlService({ manifestPath, getState, dispatchComm
         jsonResponse(response, 422, { ok: false, error: validation.error });
         return;
       }
+      if (!await requireCapability(response, authentication, validation.value.requiredCapability, pairingStore)) return;
       try {
         const result = await dispatchCommand(validation.value);
         jsonResponse(response, 200, { id: validation.value.id, ok: true, result });
