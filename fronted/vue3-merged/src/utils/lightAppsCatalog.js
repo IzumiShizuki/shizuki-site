@@ -56,6 +56,14 @@ export const LIGHT_APPS_CATALOG = Object.freeze([
     floatingAble: true
   },
   {
+    code: 'kj-tool-source',
+    title: 'KJ Tool Source',
+    summary: '浏览 KJ 应用社区，搜索并在隔离沙箱中获取、打开兼容的社区工具。',
+    iconClass: 'fas fa-cloud-arrow-down',
+    source: 'KJ OS / Shizuki',
+    floatingAble: true
+  },
+  {
     code: 'qr-tools',
     title: 'QR Tools',
     summary: '本地二维码轻应用：支持生成、识别，以及 WiFi 二维码卡片导出。',

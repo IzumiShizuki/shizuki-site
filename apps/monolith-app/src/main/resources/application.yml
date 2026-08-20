@@ -213,6 +213,16 @@ shizuki:
     secret:
       enforce: ${SECRET_ENFORCE:false}
   tools:
+    kj-source:
+      enabled: ${TOOLS_KJ_SOURCE_ENABLED:true}
+      endpoint: ${TOOLS_KJ_SOURCE_ENDPOINT:https://oa.sgguo.com/}
+      source-home-url: ${TOOLS_KJ_SOURCE_HOME_URL:https://kj.sgguo.com/}
+      connect-timeout-ms: ${TOOLS_KJ_SOURCE_CONNECT_TIMEOUT_MS:2500}
+      read-timeout-ms: ${TOOLS_KJ_SOURCE_READ_TIMEOUT_MS:8000}
+      cache-ttl-seconds: ${TOOLS_KJ_SOURCE_CACHE_TTL_SECONDS:300}
+      max-catalog-items: ${TOOLS_KJ_SOURCE_MAX_CATALOG_ITEMS:300}
+      max-response-bytes: ${TOOLS_KJ_SOURCE_MAX_RESPONSE_BYTES:2097152}
+      max-detail-cache-entries: ${TOOLS_KJ_SOURCE_MAX_DETAIL_CACHE_ENTRIES:128}
     translate:
       enabled: ${TOOLS_TRANSLATE_ENABLED:true}
       default-provider: ${TOOLS_TRANSLATE_DEFAULT_PROVIDER:baidu}
@@ -397,6 +407,7 @@ shizuki:
       - /api/v1/home-wallpapers/discovery/wallhaven/search
       - /api/v1/home-wallpapers/discovery/preview/*/*
       - /api/v1/tools/translate/**
+      - /api/v1/tools/kj-source/**
       - /api/v1/ambient-library/status
       - /api/v1/ambient-library/search
   flyway:

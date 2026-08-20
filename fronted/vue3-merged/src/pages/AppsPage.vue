@@ -224,6 +224,7 @@ import BoardCanvasWindow from '../components/lightapps/board/BoardCanvasWindow.v
 import BlogSlidevWindow from '../components/lightapps/blog/BlogSlidevWindow.vue';
 import QrToolsWindow from '../components/lightapps/qr/QrToolsWindow.vue';
 import WebToolboxWindow from '../components/lightapps/toolbox/WebToolboxWindow.vue';
+import KjToolSourceWindow from '../components/lightapps/kj/KjToolSourceWindow.vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import { listLightAppUrlLinks } from '../services/lightAppsApi';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
@@ -266,7 +267,8 @@ const PAGE_COMPONENT_MAP = Object.freeze({
   'board-canvas': BoardCanvasWindow,
   'blog-slidev': BlogSlidevWindow,
   'qr-tools': QrToolsWindow,
-  'web-toolbox': WebToolboxWindow
+  'web-toolbox': WebToolboxWindow,
+  'kj-tool-source': KjToolSourceWindow
 });
 
 let syncTimer = 0;
