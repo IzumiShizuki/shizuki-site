@@ -7,6 +7,7 @@ error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED & ~E_WARNING & ~E_NOT
 ini_set('display_errors', '0');
 
 require_once '/opt/meting/Meting.php';
+require_once '/opt/meting/lib/playback_url.php';
 
 use Metowolf\Meting;
 
@@ -218,7 +219,7 @@ function handleTrackResolve(): void
     $album = trim((string)($song['album'] ?? ''));
     $picId = trim((string)($song['pic_id'] ?? ''));
     $cover = $picId === '' ? '' : readUrlField($api->pic($picId, 300));
-    $audio = readUrlField($api->url($trackId, $bitrate));
+    $audio = normalizePlaybackUrl(readUrlField($api->url($trackId, $bitrate)));
 
     $lyricPayload = json_decode((string)$api->lyric($trackId), true);
     $lyricText = '';
