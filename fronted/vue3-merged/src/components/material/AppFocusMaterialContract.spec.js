@@ -10,7 +10,9 @@ describe('App Focus material contract', () => {
     const topMenuEnd = appSource.indexOf('/>', topMenuStart);
     const topMenuMarkup = appSource.slice(topMenuStart, topMenuEnd);
 
-    expect(topMenuMarkup).toContain('v-if="!isMobileShellRoute && !isFocusActive"');
+    expect(topMenuMarkup).toContain(
+      'v-if="!isMobileShellRoute && !isFocusActive && !isDesktopManagedSurface"',
+    );
     expect(topMenuMarkup).not.toContain('v-show');
     expect(menuSource).toContain('class="compact-dock"');
     expect(menuSource).toContain('class="mobile-top-dock"');

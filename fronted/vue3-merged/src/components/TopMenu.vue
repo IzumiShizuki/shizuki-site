@@ -869,10 +869,6 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-.top-menu-root.motion-managed .menu-item-stack {
-  transition: none !important;
-}
-
 .menu-item-stack:not(.theme-control-cluster):active .icon-minimal,
 .menu-item-stack:not(.theme-control-cluster):active .circle-icon-box,
 .menu-item-stack:not(.theme-control-cluster):active .github-style-box,

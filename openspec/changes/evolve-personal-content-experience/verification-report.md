@@ -36,7 +36,7 @@ No production feature flag, deployment, push, provider request, or destructive o
 - Production build: pass on 2026-08-30.
 - Personal-content, motion-preference, About/Blog failure-isolation, weather and quote
   targeted Vitest groups: pass.
-- The full suite reports 870/870 passing across 175 test files. The two earlier wallpaper
+- The full suite reports 939/939 passing across 193 test files. The two earlier wallpaper
   query/filter regressions were reproduced and fixed without weakening their assertions.
 - `package.json` does not define a lint script, so the requested lint gate cannot be run
   without first selecting and configuring a lint tool.
