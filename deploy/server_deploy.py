@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import posixpath
+import re
 import shlex
 import stat
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
 import paramiko
@@ -53,6 +55,7 @@ ANYWHERE_DIR_EXCLUDES = {
 PREFIX_EXCLUDES = {
     ".mvn/repository",
     "deploy/.env.server",
+    "deploy/.deployed-commit",
     "deploy/.local-deploy.status",
     "deploy/logs",
     "fronted/vue3-merged/android",
@@ -71,6 +74,7 @@ PREFIX_EXCLUDES = {
 }
 PROTECTED_REMOTE_PREFIXES = {
     "data",
+    "deploy/.deployed-commit",
     "deploy/.env.server",
     "deploy/.local-deploy.status",
     "deploy/logs",
@@ -117,6 +121,14 @@ class RemoteBackup:
     database_archive: str
     volume_list: str
     snapshot_id: str
+
+
+@dataclass(frozen=True)
+class IncrementalSyncPlan:
+    base_commit: str
+    target_commit: str
+    upload_paths: tuple[str, ...]
+    delete_paths: tuple[str, ...]
 
 
 def parse_args() -> tuple[str, DeployConfig, Path | None]:
@@ -256,6 +268,18 @@ def run_git(*args: str) -> str:
     if completed.returncode != 0:
         raise RuntimeError(f"Git preflight failed while running git {' '.join(args[:2])}.")
     return completed.stdout.strip()
+
+
+def run_git_bytes(*args: str) -> bytes:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo_root(),
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"Git preflight failed while running git {' '.join(args[:2])}.")
+    return completed.stdout
 
 
 def require_clean_master() -> str:
@@ -404,6 +428,123 @@ def is_protected_remote(rel_posix: str) -> bool:
     return False
 
 
+def decode_git_path(raw_path: bytes) -> str:
+    try:
+        rel_posix = raw_path.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RuntimeError("Git delta contains a path that is not valid UTF-8.") from error
+
+    parts = rel_posix.split("/")
+    if (
+        not rel_posix
+        or rel_posix.startswith("/")
+        or "\\" in rel_posix
+        or any(part in {"", ".", ".."} for part in parts)
+        or PurePosixPath(rel_posix).is_absolute()
+    ):
+        raise RuntimeError("Git delta contains an unsafe repository-relative path.")
+    return rel_posix
+
+
+def parse_git_name_status(raw_status: bytes) -> tuple[set[str], set[str]]:
+    tokens = raw_status.split(b"\0")
+    if tokens and tokens[-1] == b"":
+        tokens.pop()
+
+    uploads: set[str] = set()
+    deletions: set[str] = set()
+    index = 0
+    while index < len(tokens):
+        status_token = tokens[index]
+        index += 1
+        if not status_token:
+            raise RuntimeError("Git delta contains an empty status token.")
+        status = chr(status_token[0])
+
+        if status in {"R", "C"}:
+            if index + 1 >= len(tokens):
+                raise RuntimeError("Git delta contains an incomplete rename or copy record.")
+            old_path = decode_git_path(tokens[index])
+            new_path = decode_git_path(tokens[index + 1])
+            index += 2
+            uploads.add(new_path)
+            if status == "R":
+                deletions.add(old_path)
+            continue
+
+        if index >= len(tokens):
+            raise RuntimeError("Git delta contains an incomplete file record.")
+        rel_posix = decode_git_path(tokens[index])
+        index += 1
+        if status in {"A", "M", "T"}:
+            uploads.add(rel_posix)
+        elif status == "D":
+            deletions.add(rel_posix)
+        else:
+            raise RuntimeError(f"Git delta contains unsupported status {status!r}.")
+
+    return uploads, deletions
+
+
+def is_incremental_payload_path(rel_posix: str) -> bool:
+    return not is_excluded(rel_posix) and not is_protected_remote(rel_posix)
+
+
+def incremental_plan_from_git_status(
+    base_commit: str, target_commit: str, raw_status: bytes
+) -> IncrementalSyncPlan:
+    uploads, deletions = parse_git_name_status(raw_status)
+    filtered_uploads = tuple(
+        sorted(path for path in uploads if is_incremental_payload_path(path))
+    )
+    filtered_deletions = tuple(
+        sorted(path for path in deletions if is_incremental_payload_path(path))
+    )
+    return IncrementalSyncPlan(
+        base_commit=base_commit,
+        target_commit=target_commit,
+        upload_paths=filtered_uploads,
+        delete_paths=filtered_deletions,
+    )
+
+
+def prepare_incremental_sync_plan(
+    ssh: paramiko.SSHClient, config: DeployConfig, target_commit: str
+) -> IncrementalSyncPlan | None:
+    marker_file = f"{config.remote_deploy_dir}/.deployed-commit"
+    try:
+        code, out, _ = read_command(
+            ssh, f"cat {shlex.quote(marker_file)} 2>/dev/null || exit 3"
+        )
+    except (OSError, paramiko.SSHException, TimeoutError):
+        log("[sync] deployed commit marker could not be read; using full reconciliation.")
+        return None
+    base_commit = out.strip()
+    if code != 0:
+        log("[sync] deployed commit marker unavailable; using full reconciliation.")
+        return None
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", base_commit):
+        log("[sync] deployed commit marker is invalid; using full reconciliation.")
+        return None
+
+    try:
+        run_git("cat-file", "-e", f"{base_commit}^{{commit}}")
+        run_git("merge-base", "--is-ancestor", base_commit, target_commit)
+        raw_status = run_git_bytes(
+            "diff",
+            "--name-status",
+            "-z",
+            "--find-renames",
+            "--find-copies",
+            base_commit,
+            target_commit,
+        )
+        return incremental_plan_from_git_status(base_commit, target_commit, raw_status)
+    except RuntimeError:
+        log("[sync] deployed commit is not a trusted ancestor; using full reconciliation.")
+        return None
+
+
 def build_local_tree(root: Path) -> tuple[set[str], dict[str, Path]]:
     dirs: set[str] = set()
     files: dict[str, Path] = {}
@@ -513,7 +654,113 @@ def desired_mode(local_path: Path) -> int:
     return 0o755 if local_path.suffix == ".sh" else 0o644
 
 
-def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
+def ensure_incremental_parent_dir(
+    sftp: paramiko.SFTPClient, remote_base: str, rel_parent: str
+) -> None:
+    ensure_remote_dir(sftp, remote_base)
+    current = remote_base
+    if not rel_parent or rel_parent == ".":
+        return
+    for part in rel_parent.split("/"):
+        current = posixpath.join(current, part)
+        try:
+            attrs = sftp.stat(current)
+            if stat.S_ISDIR(attrs.st_mode):
+                continue
+            remove_remote_tree(sftp, current)
+            sftp.mkdir(current)
+        except OSError:
+            sftp.mkdir(current)
+
+
+def sha256_local_file(local_path: Path) -> str:
+    digest = hashlib.sha256()
+    with local_path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def sha256_remote_file(sftp: paramiko.SFTPClient, remote_path: str) -> str:
+    digest = hashlib.sha256()
+    with sftp.open(remote_path, "rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_remote_upload(
+    sftp: paramiko.SFTPClient, local_path: Path, remote_path: str
+) -> None:
+    if sha256_local_file(local_path) != sha256_remote_file(sftp, remote_path):
+        raise RuntimeError(
+            f"Incremental upload verification failed for {local_path.name!r}."
+        )
+
+
+def apply_incremental_sync(
+    ssh: paramiko.SSHClient, config: DeployConfig, plan: IncrementalSyncPlan
+) -> None:
+    root = repo_root()
+    sftp = ssh.open_sftp()
+    try:
+        ensure_remote_dir(sftp, config.remote_app_dir)
+
+        deleted = 0
+        for rel_posix in sorted(
+            plan.delete_paths, key=lambda path: (path.count("/"), path), reverse=True
+        ):
+            if not is_incremental_payload_path(rel_posix):
+                raise RuntimeError("Incremental deletion escaped the approved payload.")
+            remove_remote_tree(
+                sftp, remote_join(config.remote_app_dir, rel_posix)
+            )
+            deleted += 1
+
+        uploaded = 0
+        for rel_posix in plan.upload_paths:
+            if not is_incremental_payload_path(rel_posix):
+                raise RuntimeError("Incremental upload escaped the approved payload.")
+            local_path = root.joinpath(*rel_posix.split("/"))
+            if not local_path.is_file():
+                raise RuntimeError(
+                    f"Incremental upload source is missing or not a file: {rel_posix}"
+                )
+
+            rel_parent = PurePosixPath(rel_posix).parent.as_posix()
+            ensure_incremental_parent_dir(
+                sftp, config.remote_app_dir, rel_parent
+            )
+            remote_path = remote_join(config.remote_app_dir, rel_posix)
+            try:
+                remote_attrs = sftp.stat(remote_path)
+                if stat.S_ISDIR(remote_attrs.st_mode):
+                    remove_remote_tree(sftp, remote_path)
+            except OSError:
+                pass
+
+            local_stat = local_path.stat()
+            sftp.put(str(local_path), remote_path)
+            try:
+                sftp.chmod(remote_path, desired_mode(local_path))
+                sftp.utime(
+                    remote_path,
+                    (int(local_stat.st_atime), int(local_stat.st_mtime)),
+                )
+            except OSError:
+                pass
+            verify_remote_upload(sftp, local_path, remote_path)
+            uploaded += 1
+
+        log(
+            f"[sync] incremental base {plan.base_commit[:12]}: "
+            f"uploaded {uploaded}, deleted {deleted}, verified {uploaded}"
+        )
+    finally:
+        sftp.close()
+
+
+def full_sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
     root = repo_root()
     local_dirs, local_files = build_local_tree(root)
     log(f"[sync] local files: {len(local_files)}, local dirs: {len(local_dirs)}")
@@ -603,6 +850,20 @@ def sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
         )
     finally:
         sftp.close()
+
+
+def sync_project(
+    ssh: paramiko.SSHClient, config: DeployConfig, target_commit: str
+) -> None:
+    plan = prepare_incremental_sync_plan(ssh, config, target_commit)
+    if plan is None:
+        full_sync_project(ssh, config)
+        return
+    log(
+        f"[sync] using commit delta {plan.base_commit[:12]}..{target_commit[:12]} "
+        f"({len(plan.upload_paths)} uploads, {len(plan.delete_paths)} deletions)"
+    )
+    apply_incremental_sync(ssh, config, plan)
 
 
 def read_command(
@@ -983,23 +1244,38 @@ def discard_failed_app_tree(
     read_command(ssh, f"rm -rf {shlex.quote(failed_app_dir)}")
 
 
+def log_phase_timing(phase: str, started_at: float) -> None:
+    elapsed = time.perf_counter() - started_at
+    log(f"[timing] {phase}: {elapsed:.1f}s")
+
+
 def run_update(config: DeployConfig, commit: str) -> None:
     backup: RemoteBackup | None = None
+    deployment_started = time.perf_counter()
     try:
         with open_ssh(config) as ssh:
             log("[0/6] Checking SSH connectivity...")
             require_success(ssh, "echo ok >/dev/null")
+            phase_started = time.perf_counter()
             backup = create_remote_backup(ssh, config, commit)
+            log_phase_timing("backup", phase_started)
             log("[2/6] Uploading approved local payload to server...")
-            sync_project(ssh, config)
+            phase_started = time.perf_counter()
+            sync_project(ssh, config, commit)
+            log_phase_timing("synchronization", phase_started)
             log("[3/6] Starting remote rebuild...")
+            phase_started = time.perf_counter()
             start_remote_rebuild(ssh, config)
             log("[4/6] Polling remote rebuild status...")
             poll_remote_rebuild(ssh, config)
+            log_phase_timing("remote rebuild", phase_started)
             log("[5/6] Checking API health and site entry...")
+            phase_started = time.perf_counter()
             verify_remote_post_deploy(ssh, config)
             record_remote_deployed_commit(ssh, config, commit)
+            log_phase_timing("verification", phase_started)
             log("[6/6] Deployment gates passed; retaining restore point for recovery.")
+            log_phase_timing("total update", deployment_started)
             log("Update code + deploy finished.")
             return
     except Exception as deploy_error:

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import sys
+import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import server_deploy as deploy
@@ -30,6 +32,162 @@ def config() -> deploy.DeployConfig:
 
 
 class ServerDeploySafetyTest(unittest.TestCase):
+    def test_git_name_status_parser_handles_file_and_tree_changes(self) -> None:
+        raw = (
+            b"A\0apps/new.java\0"
+            b"M\0deploy/server_deploy.py\0"
+            b"D\0docs/old.md\0"
+            b"R100\0fronted/old.vue\0fronted/new.vue\0"
+            b"C100\0docs/source.md\0docs/copy.md\0"
+        )
+
+        uploads, deletions = deploy.parse_git_name_status(raw)
+
+        self.assertEqual(
+            uploads,
+            {
+                "apps/new.java",
+                "deploy/server_deploy.py",
+                "fronted/new.vue",
+                "docs/copy.md",
+            },
+        )
+        self.assertEqual(deletions, {"docs/old.md", "fronted/old.vue"})
+
+    def test_incremental_plan_filters_excluded_and_protected_paths(self) -> None:
+        raw = (
+            b"M\0deploy/server_deploy.py\0"
+            b"M\0resouces/yaml/common-config.yaml\0"
+            b"D\0data/private.bin\0"
+            b"R100\0deploy/.env.server\0deploy/public.env.example\0"
+        )
+
+        plan = deploy.incremental_plan_from_git_status("a" * 40, "b" * 40, raw)
+
+        self.assertEqual(
+            plan.upload_paths,
+            ("deploy/public.env.example", "deploy/server_deploy.py"),
+        )
+        self.assertEqual(plan.delete_paths, ())
+
+    def test_valid_ancestor_marker_selects_incremental_plan(self) -> None:
+        base = "a" * 40
+        target = "b" * 40
+        with (
+            patch.object(deploy, "read_command", return_value=(0, base + "\n", "")),
+            patch.object(deploy, "run_git", return_value="") as run_git,
+            patch.object(
+                deploy,
+                "run_git_bytes",
+                return_value=b"M\0deploy/server_deploy.py\0",
+            ),
+        ):
+            plan = deploy.prepare_incremental_sync_plan(object(), config(), target)
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.base_commit, base)
+        self.assertEqual(plan.target_commit, target)
+        self.assertEqual(plan.upload_paths, ("deploy/server_deploy.py",))
+        self.assertEqual(run_git.call_count, 2)
+
+    def test_untrusted_markers_fall_back_to_full_reconciliation(self) -> None:
+        target = "b" * 40
+        cases = [
+            (1, "", "missing"),
+            (0, "not-a-commit\n", ""),
+        ]
+        for code, out, err in cases:
+            with self.subTest(out=out, code=code), patch.object(
+                deploy, "read_command", return_value=(code, out, err)
+            ):
+                self.assertIsNone(
+                    deploy.prepare_incremental_sync_plan(object(), config(), target)
+                )
+
+        with (
+            patch.object(deploy, "read_command", return_value=(0, "a" * 40, "")),
+            patch.object(deploy, "run_git", side_effect=RuntimeError("unknown commit")),
+        ):
+            self.assertIsNone(
+                deploy.prepare_incremental_sync_plan(object(), config(), target)
+            )
+
+        with patch.object(deploy, "read_command", side_effect=OSError("read failed")):
+            self.assertIsNone(
+                deploy.prepare_incremental_sync_plan(object(), config(), target)
+            )
+
+    def test_incremental_sync_routes_to_fast_path_or_full_fallback(self) -> None:
+        plan = deploy.IncrementalSyncPlan(
+            base_commit="a" * 40,
+            target_commit="b" * 40,
+            upload_paths=("deploy/server_deploy.py",),
+            delete_paths=(),
+        )
+        with (
+            patch.object(deploy, "prepare_incremental_sync_plan", return_value=plan),
+            patch.object(deploy, "apply_incremental_sync") as apply_incremental,
+            patch.object(deploy, "full_sync_project") as full_sync,
+        ):
+            deploy.sync_project(object(), config(), "b" * 40)
+        apply_incremental.assert_called_once()
+        full_sync.assert_not_called()
+
+        with (
+            patch.object(deploy, "prepare_incremental_sync_plan", return_value=None),
+            patch.object(deploy, "apply_incremental_sync") as apply_incremental,
+            patch.object(deploy, "full_sync_project") as full_sync,
+        ):
+            deploy.sync_project(object(), config(), "b" * 40)
+        apply_incremental.assert_not_called()
+        full_sync.assert_called_once()
+
+    def test_incremental_upload_hash_must_match_remote_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            local_path = Path(temporary_dir) / "payload.txt"
+            local_path.write_bytes(b"verified payload")
+            sftp = Mock()
+            sftp.open.return_value = io.BytesIO(b"verified payload")
+
+            deploy.verify_remote_upload(sftp, local_path, "/remote/payload.txt")
+
+            sftp.open.return_value = io.BytesIO(b"corrupted payload")
+            with self.assertRaisesRegex(RuntimeError, "verification failed"):
+                deploy.verify_remote_upload(sftp, local_path, "/remote/payload.txt")
+
+    def test_incremental_deletion_targets_only_the_exact_approved_path(self) -> None:
+        plan = deploy.IncrementalSyncPlan(
+            base_commit="a" * 40,
+            target_commit="b" * 40,
+            upload_paths=(),
+            delete_paths=("docs/obsolete.md",),
+        )
+        sftp = Mock()
+        ssh = Mock()
+        ssh.open_sftp.return_value = sftp
+        with (
+            patch.object(deploy, "ensure_remote_dir"),
+            patch.object(deploy, "remove_remote_tree") as remove_remote_tree,
+        ):
+            deploy.apply_incremental_sync(ssh, config(), plan)
+
+        remove_remote_tree.assert_called_once_with(
+            sftp, "/opt/shizuki-site/docs/obsolete.md"
+        )
+        sftp.close.assert_called_once()
+
+    def test_phase_timing_output_contains_no_private_command(self) -> None:
+        messages: list[str] = []
+        with (
+            patch.object(deploy.time, "perf_counter", return_value=15.25),
+            patch.object(deploy, "log", side_effect=messages.append),
+        ):
+            deploy.log_phase_timing("synchronization", 10.0)
+
+        self.assertEqual(messages, ["[timing] synchronization: 5.2s"])
+        self.assertNotIn("database", messages[0].lower())
+
     def test_remote_runner_records_terminal_status_even_with_errexit(self) -> None:
         runner = Path(__file__).resolve().parent / "scripts" / "remote-compose-build.sh"
         source = runner.read_text(encoding="utf-8")
@@ -47,6 +205,23 @@ class ServerDeploySafetyTest(unittest.TestCase):
         self.assertIn("pnpm install --frozen-lockfile", source)
         self.assertIn("RUN pnpm build", source)
         self.assertNotIn("RUN npm ci", source)
+
+    def test_backend_image_reuses_maven_repository_cache(self) -> None:
+        dockerfile = Path(__file__).resolve().parent.parent / "docker" / "Dockerfile.backend"
+        source = dockerfile.read_text(encoding="utf-8")
+
+        self.assertIn("# syntax=docker/dockerfile:", source)
+        self.assertIn("--mount=type=cache", source)
+        self.assertIn("target=/root/.m2/repository", source)
+        self.assertIn("sharing=locked", source)
+        self.assertNotIn("clean package", source)
+
+    def test_remote_runner_does_not_force_recreate_unchanged_services(self) -> None:
+        runner = Path(__file__).resolve().parent / "scripts" / "remote-compose-build.sh"
+        source = runner.read_text(encoding="utf-8")
+
+        self.assertIn("up -d --no-build", source)
+        self.assertNotIn("--force-recreate", source)
 
     def test_snapshot_id_rejects_non_git_commit(self) -> None:
         self.assertRegex(

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM m.daocloud.io/docker.io/library/maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 
@@ -7,7 +8,8 @@ COPY model ./model
 COPY modules ./modules
 COPY apps ./apps
 
-RUN mvn -B -DskipTests clean package -pl apps/monolith-app -am
+RUN --mount=type=cache,id=shizuki-maven-repository,target=/root/.m2/repository,sharing=locked \
+    mvn -B -DskipTests package -pl apps/monolith-app -am
 
 FROM m.daocloud.io/docker.io/library/eclipse-temurin:17-jre-jammy AS runtime
 WORKDIR /app

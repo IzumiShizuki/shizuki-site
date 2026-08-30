@@ -22,7 +22,7 @@ run_deploy() {
   fi
 
   docker compose -f docker-compose.server.yml --env-file .env.server build
-  docker compose -f docker-compose.server.yml --env-file .env.server up -d --no-build --force-recreate
+  docker compose -f docker-compose.server.yml --env-file .env.server up -d --no-build
   docker compose -f docker-compose.server.yml --env-file .env.server ps
   echo "=== remote deploy finished at $(timestamp) ==="
 }
