@@ -144,6 +144,23 @@ class ServerDeploySafetyTest(unittest.TestCase):
         self.assertIn("READY", commands[0][1])
         self.assertIn("docker compose", commands[-1][1])
 
+    def test_successful_deploy_records_exact_commit_atomically(self) -> None:
+        commands: list[tuple[str, str]] = []
+
+        def record(_ssh, command: str, operation: str, timeout=None) -> None:
+            commands.append((operation, command))
+
+        commit = "d" * 40
+        with patch.object(deploy, "require_success_silently", side_effect=record):
+            deploy.record_remote_deployed_commit(object(), config(), commit)
+
+        self.assertEqual([operation for operation, _ in commands], ["Deployed commit recording"])
+        command = commands[0][1]
+        self.assertIn(commit, command)
+        self.assertIn(".deployed-commit.tmp", command)
+        self.assertIn(".deployed-commit", command)
+        self.assertIn("mv", command)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -731,6 +731,19 @@ def verify_remote_post_deploy(ssh: paramiko.SSHClient, config: DeployConfig) -> 
     verify_remote_site_entry(ssh, config)
 
 
+def record_remote_deployed_commit(
+    ssh: paramiko.SSHClient, config: DeployConfig, commit: str
+) -> None:
+    commit_file = f"{config.remote_deploy_dir}/.deployed-commit"
+    temporary_file = f"{commit_file}.tmp"
+    command = (
+        "set -e; "
+        f"printf '%s\\n' {shlex.quote(commit)} > {shlex.quote(temporary_file)}; "
+        f"mv {shlex.quote(temporary_file)} {shlex.quote(commit_file)}"
+    )
+    require_success_silently(ssh, command, "Deployed commit recording")
+
+
 def restart_remote(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
     command = (
         "set -e; "
@@ -985,6 +998,7 @@ def run_update(config: DeployConfig, commit: str) -> None:
             poll_remote_rebuild(ssh, config)
             log("[5/6] Checking API health and site entry...")
             verify_remote_post_deploy(ssh, config)
+            record_remote_deployed_commit(ssh, config, commit)
             log("[6/6] Deployment gates passed; retaining restore point for recovery.")
             log("Update code + deploy finished.")
             return
