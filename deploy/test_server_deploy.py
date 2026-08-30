@@ -30,6 +30,23 @@ def config() -> deploy.DeployConfig:
 
 
 class ServerDeploySafetyTest(unittest.TestCase):
+    def test_remote_runner_records_terminal_status_even_with_errexit(self) -> None:
+        runner = Path(__file__).resolve().parent / "scripts" / "remote-compose-build.sh"
+        source = runner.read_text(encoding="utf-8")
+
+        self.assertIn("trap finalize_deploy EXIT", source)
+        self.assertIn('echo "FAILED ${rc}', source)
+        self.assertNotIn("run_deploy >> \"${LOG_FILE}\" 2>&1\nrc=$?", source)
+
+    def test_frontend_image_uses_declared_pnpm_lockfile(self) -> None:
+        dockerfile = Path(__file__).resolve().parent.parent / "docker" / "Dockerfile.frontend"
+        source = dockerfile.read_text(encoding="utf-8")
+
+        self.assertIn("pnpm-lock.yaml", source)
+        self.assertIn("pnpm install --frozen-lockfile", source)
+        self.assertIn("RUN pnpm build", source)
+        self.assertNotIn("RUN npm ci", source)
+
     def test_snapshot_id_rejects_non_git_commit(self) -> None:
         self.assertRegex(
             deploy.make_snapshot_id("a" * 40),
