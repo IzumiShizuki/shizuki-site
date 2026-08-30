@@ -19,4 +19,4 @@
 
 - [x] 4.1 Run focused frontend and backend tests, production builds, and strict OpenSpec validation.
 - [ ] 4.2 Verify dark-mode readability plus search, import, download, and two-track playback against the deployed site.
-- [ ] 4.3 Commit the completed change and merge it into the local main branch without pushing unless explicitly authorized.
+- [x] 4.3 Commit the completed change and merge it into the local main branch without pushing unless explicitly authorized.
