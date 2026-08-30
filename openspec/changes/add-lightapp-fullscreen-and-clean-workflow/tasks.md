@@ -33,5 +33,5 @@
 - [x] 6.1 Remove hard-coded deployment credentials, require an existing private secret/SSH source, exclude private config and generated desktop artifacts, and add clean-master plus health-gate preflights.
 - [ ] 6.2 Commit the current personal-content/fullscreen work in coherent conventional commits, fetch/prune remote refs, and record the exact branch graph and deployed commit.
 - [x] 6.3 Integrate only non-ancestor, non-superseded unique work from the desktop, music subtitle/HTTPS, wallpaper and Qianji branches, resolving conflicts from their primary specs and running focused tests after each stage.
-- [ ] 6.4 Run final frontend/backend/OpenSpec gates on a clean integration result, update local master from fetched `origin/master`, merge or fast-forward the validated integration result, and push master.
+- [x] 6.4 Run final frontend/backend/OpenSpec gates on a clean integration result, update local master from fetched `origin/master`, merge or fast-forward the validated integration result, and push master.
 - [ ] 6.5 Back up the personal-site database/volumes/configuration, deploy the recorded master commit to `111.228.35.186`, verify service health and core routes, and roll back on any failed gate.
