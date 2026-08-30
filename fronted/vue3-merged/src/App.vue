@@ -357,7 +357,7 @@ import { getAuthorProfile } from './services/authorApi';
 import { fetchAmbientLibraryStatus, importAmbientLibraryTrack } from './services/ambientLibraryApi';
 import { resolveAppRouteViewKey } from './utils/routeViewKey';
 import { resolveTopMenuPresentation } from './utils/topMenuPresentation';
-import { openLightAppShellWindow } from './components/lightapps/lightAppShellStore';
+import { applyFocusSessionEntryUiState } from './utils/focusSessionEntry';
 import { AI_CHAT_OPEN_EVENT } from './utils/aiChatBus';
 import * as wallpaperApi from './services/wallpaperApi';
 import { EFFECT_PRESET_DEFINITIONS, findBuiltinAmbientById, resolveBuiltinAmbientCatalog } from './utils/atmosphereCatalog';
@@ -2513,11 +2513,7 @@ watch(
 
 watch(isFocusActive, (active) => {
   if (!active) return;
-  menuExpanded.value = false;
-  aiChatActive.value = false;
-  focusAppCodes.value.forEach((code) => {
-    openLightAppShellWindow(code, { source: 'focus-session' });
-  });
+  applyFocusSessionEntryUiState({ menuExpanded, aiChatActive });
 });
 
 function applySiteMetaToDocument(siteMeta) {
