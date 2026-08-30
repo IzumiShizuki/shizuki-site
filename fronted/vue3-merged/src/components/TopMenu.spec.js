@@ -116,7 +116,35 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.emitted('open-profile')).toBeUndefined();
   });
 
-  it('opens route-aware appearance controls and emits explicit theme and Home preference changes', async () => {
+  it('switches from day to night immediately without opening a popover', async () => {
+    const { wrapper } = await mountTopMenu({
+      themeMode: 'day',
+      isHomeRoute: true
+    });
+
+    const themeToggle = wrapper.get('.theme-toggle-item');
+    expect(themeToggle.attributes('aria-label')).toBe('切换到夜间模式');
+    expect(wrapper.get('.theme-toggle-box').classes()).toContain('day');
+    expect(wrapper.get('.theme-toggle-box .fa-sun').exists()).toBe(true);
+
+    await themeToggle.trigger('click');
+
+    expect(wrapper.emitted('set-theme-mode')?.[0]).toEqual(['night']);
+    expect(wrapper.find('[data-testid="appearance-popover"]').exists()).toBe(false);
+  });
+
+  it('switches from night to day immediately without opening a popover', async () => {
+    const { wrapper } = await mountTopMenu({ themeMode: 'night' });
+    const themeToggle = wrapper.get('.theme-toggle-item');
+
+    expect(themeToggle.attributes('aria-label')).toBe('切换到白天模式');
+    await themeToggle.trigger('click');
+
+    expect(wrapper.emitted('set-theme-mode')?.[0]).toEqual(['day']);
+    expect(wrapper.find('[data-testid="appearance-popover"]').exists()).toBe(false);
+  });
+
+  it('opens Home appearance controls from a separate settings action', async () => {
     const { wrapper } = await mountTopMenu({
       themeMode: 'day',
       isHomeRoute: true,
@@ -127,35 +155,37 @@ describe('TopMenu profile entry', () => {
       homeAccentHex: '#F2B39D'
     });
 
-    expect(wrapper.get('.theme-toggle-item .item-label').text()).toBe('主题');
-    expect(wrapper.get('.theme-toggle-box').classes()).toContain('day');
-    expect(wrapper.get('.theme-toggle-box .fa-sun').exists()).toBe(true);
+    const settingsTrigger = wrapper.get('.appearance-settings-trigger');
+    expect(settingsTrigger.attributes('aria-label')).toBe('主页外观设置');
+    expect(settingsTrigger.attributes('aria-expanded')).toBe('false');
 
-    await wrapper.get('.theme-toggle-item').trigger('click');
-    expect(wrapper.get('[data-testid="appearance-popover"]').text()).toContain('主页时钟');
+    await settingsTrigger.trigger('click');
+    const appearancePanel = wrapper.get('[data-testid="appearance-popover"]');
+    expect(settingsTrigger.attributes('aria-expanded')).toBe('true');
+    expect(appearancePanel.text()).toContain('主页时钟');
+    expect(appearancePanel.text()).not.toContain('昼夜主题');
+    expect(appearancePanel.text()).not.toContain('白天');
+    expect(appearancePanel.text()).not.toContain('夜间');
 
     const buttons = wrapper.findAll('.appearance-popover button');
-    await buttons.find((button) => button.text().includes('夜间')).trigger('click');
     await buttons.find((button) => button.text() === '隐藏').trigger('click');
     await buttons.find((button) => button.text() === '舒缓').trigger('click');
     await buttons.find((button) => button.text() === '手动覆盖').trigger('click');
 
-    expect(wrapper.emitted('set-theme-mode')?.[0]).toEqual(['night']);
+    expect(wrapper.emitted('set-theme-mode')).toBeUndefined();
     expect(wrapper.emitted('set-home-clock-behavior')?.[0]).toEqual(['hide']);
     expect(wrapper.emitted('set-home-motion-level')?.[0]).toEqual(['soothing']);
     expect(wrapper.emitted('set-home-color-mode')?.[0]).toEqual(['manual']);
   });
 
-  it('keeps Home-only controls hidden while exposing the same two global motion choices on content routes', async () => {
+  it('keeps the Home appearance trigger out of content routes', async () => {
     const { wrapper } = await mountTopMenu({ isHomeRoute: false }, '/author');
 
     await wrapper.get('.theme-toggle-item').trigger('click');
 
-    const popover = wrapper.get('[data-testid="appearance-popover"]');
-    const motionButtons = wrapper.get('[data-testid="motion-preference-options"]').findAll('button');
-    expect(popover.text()).toContain('昼夜主题');
-    expect(popover.text()).not.toContain('主页时钟');
-    expect(motionButtons.map((button) => button.text().trim())).toEqual(['沉浸', '舒缓']);
+    expect(wrapper.emitted('set-theme-mode')?.[0]).toEqual(['day']);
+    expect(wrapper.find('.appearance-settings-trigger').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="appearance-popover"]').exists()).toBe(false);
   });
 
   it('consumes App-owned route scroll state without installing its own scroll source', async () => {

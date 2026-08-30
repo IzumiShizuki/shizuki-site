@@ -45,67 +45,44 @@
           <span class="item-label">MENU</span>
         </div>
 
-        <div
-          class="menu-item-stack ripple-trigger theme-toggle-item"
-          role="button"
-          :aria-label="themeToggleActionLabel"
-          :aria-expanded="appearancePanelOpen"
-          @click.stop="toggleAppearancePanel"
-        >
-          <div class="circle-icon-box liquid-material theme-toggle-box" :class="themeModeNormalized">
-            <i :class="themeModeIcon"></i>
-          </div>
-          <span class="item-label">主题</span>
+        <div class="menu-item-stack theme-control-cluster">
+          <button
+            class="theme-toggle-action ripple-trigger theme-toggle-item"
+            type="button"
+            :aria-label="themeToggleActionLabel"
+            @click.stop="toggleThemeMode"
+          >
+            <span class="circle-icon-box liquid-material theme-toggle-box" :class="themeModeNormalized">
+              <i :class="themeModeIcon"></i>
+            </span>
+            <span class="item-label">主题</span>
+          </button>
+
+          <button
+            v-if="isHomeRoute"
+            class="appearance-settings-trigger liquid-material"
+            type="button"
+            aria-label="主页外观设置"
+            :aria-expanded="appearancePanelOpen"
+            @click.stop="toggleAppearancePanel"
+          >
+            <i class="fas fa-sliders" aria-hidden="true"></i>
+          </button>
 
           <Transition name="appearance-popover">
             <section
-              v-if="appearancePanelOpen"
+              v-if="isHomeRoute && appearancePanelOpen"
               class="appearance-popover liquid-material"
               data-testid="appearance-popover"
-              aria-label="主题与主页外观"
+              aria-label="主页外观设置"
               @click.stop
             >
               <header class="appearance-popover-head">
                 <span>APPEARANCE</span>
-                <strong>主题与主页</strong>
+                <strong>主页外观</strong>
               </header>
 
               <div class="appearance-group">
-                <span class="appearance-label">昼夜主题</span>
-                <div class="appearance-segment appearance-segment-two">
-                  <button
-                    v-for="option in themeOptions"
-                    :key="option.value"
-                    type="button"
-                    :class="{ active: themeModeNormalized === option.value }"
-                    @click="setThemeMode(option.value)"
-                  >
-                    <i :class="option.icon" aria-hidden="true"></i>
-                    {{ option.label }}
-                  </button>
-                </div>
-              </div>
-
-              <div class="appearance-group">
-                <span class="appearance-label">全站动效</span>
-                <div
-                  class="appearance-segment appearance-segment-two"
-                  data-testid="motion-preference-options"
-                >
-                  <button
-                    v-for="option in motionOptions"
-                    :key="option.value"
-                    type="button"
-                    :class="{ active: homeMotionLevel === option.value }"
-                    @click="emit('set-home-motion-level', option.value)"
-                  >
-                    {{ option.label }}
-                  </button>
-                </div>
-              </div>
-
-              <template v-if="isHomeRoute">
-                <div class="appearance-group">
                   <span class="appearance-label">主页时钟 · 全局</span>
                   <div class="appearance-segment appearance-segment-three">
                     <button
@@ -118,9 +95,9 @@
                       {{ option.label }}
                     </button>
                   </div>
-                </div>
+              </div>
 
-                <div class="appearance-group">
+              <div class="appearance-group">
                   <span class="appearance-label">当前壁纸覆盖</span>
                   <div class="appearance-segment appearance-segment-three">
                     <button
@@ -134,9 +111,9 @@
                     </button>
                   </div>
                   <small>当前结果：{{ homeClockVisible ? '显示时钟' : '隐藏时钟' }}</small>
-                </div>
+              </div>
 
-                <div class="appearance-group">
+              <div class="appearance-group">
                   <span class="appearance-label">壁纸取色</span>
                   <div class="appearance-segment appearance-segment-two">
                     <button
@@ -164,8 +141,22 @@
                     <span>{{ homeAccentHex }}</span>
                   </label>
                   <small v-else>静态图取壁纸，动态壁纸取预览代表帧</small>
-                </div>
-              </template>
+              </div>
+
+              <div class="appearance-group">
+                  <span class="appearance-label">全站动效</span>
+                  <div class="appearance-segment appearance-segment-two" data-testid="motion-preference-options">
+                    <button
+                      v-for="option in motionOptions"
+                      :key="option.value"
+                      type="button"
+                      :class="{ active: homeMotionLevel === option.value }"
+                      @click="emit('set-home-motion-level', option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+              </div>
             </section>
           </Transition>
         </div>
@@ -466,7 +457,6 @@ let mobileMediaQuery = null;
 let mobileMediaListener = null;
 const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
 const themeModeNormalized = computed(() => (String(themeMode.value || '').trim().toLowerCase() === 'day' ? 'day' : 'night'));
-const themeModeLabel = computed(() => (themeModeNormalized.value === 'day' ? '白天模式' : '夜间模式'));
 const themeModeIcon = computed(() => (themeModeNormalized.value === 'day' ? 'fas fa-sun' : 'fas fa-moon'));
 const themeToggleActionLabel = computed(() => (themeModeNormalized.value === 'day' ? '切换到夜间模式' : '切换到白天模式'));
 const normalizedRouteScrollTop = computed(() => {
@@ -477,10 +467,6 @@ const menuPresentation = computed(() => resolveTopMenuPresentation({
   scrollTop: normalizedRouteScrollTop.value,
   manualExpanded: menuExpanded.value
 }));
-const themeOptions = Object.freeze([
-  { value: 'day', label: '白天', icon: 'fas fa-sun' },
-  { value: 'night', label: '夜间', icon: 'fas fa-moon' }
-]);
 const clockOptions = Object.freeze([
   { value: 'auto', label: '自动' },
   { value: 'show', label: '显示' },
@@ -574,8 +560,9 @@ function toggleAppearancePanel() {
   appearancePanelOpen.value = !appearancePanelOpen.value;
 }
 
-function setThemeMode(mode) {
-  emit('set-theme-mode', mode);
+function toggleThemeMode() {
+  appearancePanelOpen.value = false;
+  emit('set-theme-mode', themeModeNormalized.value === 'day' ? 'night' : 'day');
 }
 
 function onAvatarError() {
@@ -882,11 +869,15 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-.menu-item-stack:active .icon-minimal,
-.menu-item-stack:active .circle-icon-box,
-.menu-item-stack:active .github-style-box,
-.menu-item-stack:active .author-avatar-box,
-.menu-item-stack:active .avatar-box,
+.top-menu-root.motion-managed .menu-item-stack {
+  transition: none !important;
+}
+
+.menu-item-stack:not(.theme-control-cluster):active .icon-minimal,
+.menu-item-stack:not(.theme-control-cluster):active .circle-icon-box,
+.menu-item-stack:not(.theme-control-cluster):active .github-style-box,
+.menu-item-stack:not(.theme-control-cluster):active .author-avatar-box,
+.menu-item-stack:not(.theme-control-cluster):active .avatar-box,
 .menu-item-stack.ai-chat-item:active .pill-btn-box {
   animation: press-wobble 280ms ease;
 }
@@ -1384,6 +1375,78 @@ button.author-info-item:focus-visible {
   overflow: hidden;
 }
 
+.theme-control-cluster {
+  min-width: 68px;
+  cursor: default;
+}
+
+.theme-toggle-action {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.theme-toggle-action:active .theme-toggle-box {
+  animation: press-wobble 280ms ease;
+}
+
+.theme-toggle-action:focus-visible {
+  outline: 0;
+}
+
+.theme-toggle-action:focus-visible .theme-toggle-box,
+.appearance-settings-trigger:focus-visible {
+  outline: 2px solid rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  outline-offset: 2px;
+}
+
+.appearance-settings-trigger {
+  --liquid-bg: var(--theme-floating-surface, rgba(28, 21, 29, 0.88));
+  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.26));
+  position: absolute;
+  top: -4px;
+  right: 0;
+  z-index: 2;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: 1px solid var(--liquid-border);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--liquid-bg);
+  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.82));
+  box-shadow: 0 5px 12px rgba(8, 5, 10, 0.2);
+  font: inherit;
+  font-size: 8px;
+  cursor: pointer;
+  opacity: 0.76;
+  transition: transform 180ms ease, opacity 180ms ease, color 180ms ease, background 180ms ease;
+}
+
+.appearance-settings-trigger:hover,
+.appearance-settings-trigger[aria-expanded='true'] {
+  --liquid-bg: var(--menu-hover-bg);
+  color: var(--icon-hover-color);
+  opacity: 1;
+  transform: translateY(-1px) rotate(8deg);
+}
+
+.appearance-settings-trigger:active {
+  transform: scale(0.92);
+}
+
 .theme-toggle-box::before {
   content: '';
   position: absolute;
@@ -1628,6 +1691,16 @@ button.author-info-item:focus-visible {
 
   .menu-item-stack {
     gap: 4px;
+  }
+
+  .theme-control-cluster {
+    min-width: 62px;
+  }
+
+  .appearance-settings-trigger {
+    width: 18px;
+    height: 18px;
+    font-size: 7px;
   }
 
   .circle-icon-box,
@@ -1933,6 +2006,24 @@ button.author-info-item:focus-visible {
     gap: 0;
     background: var(--menu-mobile-chip-bg);
     box-shadow: inset 0 0 0 1px var(--menu-mobile-chip-border);
+  }
+
+  .theme-control-cluster {
+    width: 64px;
+    min-width: 64px;
+    border-radius: 999px;
+  }
+
+  .theme-toggle-action {
+    margin-left: 8px;
+  }
+
+  .appearance-settings-trigger {
+    top: 0;
+    right: 0;
+    width: 18px;
+    height: 18px;
+    font-size: 7px;
   }
 
   .menu-item-stack.active {
