@@ -11,7 +11,7 @@
 
 ## 2. 建立个人内容领域与数据库基础
 
-- [x] 2.1 创建 `V431` 与 `V1011` 配对迁移，新增 `CTN_PHOTO`、`CTN_ALBUM`、`CTN_ALBUM_PHOTO`、`CTN_MOMENT`、`CTN_MOMENT_PHOTO` 表及必要外键、唯一约束、查询索引、safe-restore 状态与 `purge_after`。
+- [x] 2.1 创建 `V431` 与 `V1012` 配对迁移，新增 `CTN_PHOTO`、`CTN_ALBUM`、`CTN_ALBUM_PHOTO`、`CTN_MOMENT`、`CTN_MOMENT_PHOTO` 表及必要外键、唯一约束、查询索引、safe-restore 状态与 `purge_after`。
 - [x] 2.2 在同一对迁移中新增 `CTN_SITE_LOCATION`、单例 `CTN_SITE_WIDGET_CONFIG`、`CTN_QUOTE`、`CTN_DAILY_QUOTE_SNAPSHOT`、`CTN_WEATHER_SNAPSHOT` 与 `MDA_ASSET_VARIANT`，明确时区、精度、状态、唯一默认地点和引用约束。
 - [x] 2.3 为迁移添加空库与既有数据升级验证，确认两个数据库方言结构等价、`quote_date`/variant scope/association media ref 唯一约束有效、可重复启动且不生成示例相册、动态或照片。
 - [x] 2.4 实现相册、照片、动态、地点、语录、快照与媒体派生的实体和 Mapper，并用持久化测试覆盖字段映射、排序、可查询的 `RECYCLED` 与仅永久清理后使用的逻辑删除 tombstone。

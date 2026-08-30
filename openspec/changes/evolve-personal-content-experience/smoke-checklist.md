@@ -31,7 +31,7 @@
 - [ ] effective PostgreSQL/Redis/Kafka/API 地址属于个人站范围。
 - [ ] effective OSS endpoint/private/public bucket 属于个人站；未使用示例或跨项目 fallback bucket。
 - [ ] cursor、gateway capability、认证密钥来自受保护配置，未出现在日志、构建产物或本记录中。
-- [ ] PostgreSQL 备份可恢复；V431/V1011 已在目标 PostgreSQL 验证。
+- [ ] PostgreSQL 备份可恢复；V431/V1012 已在目标 PostgreSQL 验证。
 - [ ] `/actuator/health`、Redis、Kafka 和 OSS preflight 健康。
 - [ ] 媒体自动清理保持关闭；AVIF 未经区域预检不启用。
 

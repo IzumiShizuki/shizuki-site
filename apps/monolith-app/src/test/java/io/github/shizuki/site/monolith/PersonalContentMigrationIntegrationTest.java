@@ -32,7 +32,7 @@ class PersonalContentMigrationIntegrationTest {
     private static final String MYSQL_MIGRATION =
         "monolith/db/migration/V431__personal_content_foundation.sql";
     private static final String POSTGRES_MIGRATION =
-        "monolith/db/migration-pg/V1011__personal_content_foundation.sql";
+        "monolith/db/migration-pg/V1012__personal_content_foundation.sql";
 
     private static final List<String> FOUNDATION_TABLES = List.of(
         "CTN_PHOTO",

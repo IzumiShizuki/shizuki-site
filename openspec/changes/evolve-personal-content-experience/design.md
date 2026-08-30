@@ -276,7 +276,7 @@ Permanent purge uses a two-step server contract. A dry-run returns blocking refe
 - [Risk] Third-party APIs can time out, change schema, or rate-limit. -> Cache local facts, lock refreshes, validate bounded responses, persist last-good snapshots, and isolate failure per widget.
 - [Risk] Visitor coordinates could leak through logs or cache keys. -> Accept them only after explicit consent, normalize before use, keep them out of persistence/analytics/logs, and test logging filters.
 - [Risk] Variant generation and retained originals increase storage and processing cost. -> Use a small named variant set, record processor versions, expose metrics, and perform reference-aware delayed cleanup.
-- [Risk] Paired SQL migration tracks can drift. -> Add equivalent `V431` and PostgreSQL `V1011` migrations plus schema/constraint tests in the monolith integration suite.
+- [Risk] Paired SQL migration tracks can drift. -> Add equivalent `V431` and PostgreSQL `V1012` migrations plus schema/constraint tests in the monolith integration suite.
 - [Risk] The configured fallback private bucket name may not reflect the personal-site boundary. -> Deployment preflight MUST verify effective OSS endpoint/bucket environment values belong to `111.228.35.186`'s personal-site deployment before processing production photos.
 
 ## Migration Plan

@@ -14,7 +14,7 @@
 发布负责人在变更单中记录以下事实，但不得粘贴密钥、签名 URL、精确访客坐标或完整对象键：
 
 - 已记录候选 commit、前后端构建产物校验值、部署时间窗、负责人和回滚负责人。
-- PostgreSQL 已完成可恢复备份，并已在目标环境演练 V431/V1011 配对迁移与非破坏性回滚方案。
+- PostgreSQL 已完成可恢复备份，并已在目标环境演练 V431/V1012 配对迁移与非破坏性回滚方案。
 - Redis、PostgreSQL、Kafka、API 与 OSS 可用；`/actuator/health` 健康。
 - 有效 OSS endpoint、private bucket、public bucket 均属于个人站边界；不得依赖 `application.yml` 中的示例/后备 bucket 名。
 - `SITE_PERSONAL_CONTENT_CURSOR_SECRET`、媒体 capability secret 与认证 secret 已由受保护配置提供，长度和轮换策略合格。
