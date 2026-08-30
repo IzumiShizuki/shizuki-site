@@ -2,7 +2,6 @@
 .gitignore
 .idea
 .vscode
-.beads
 .antigravity
 .claude
 .codex
@@ -16,3 +15,9 @@
 **/*.log
 fronted/vue3-merged/dist
 fronted/vue3-merged/dist-temp
+fronted/vue3-merged/desktop-release
+fronted/vue3-merged/release
+fronted/vue3-merged/prototypes
+deploy/.env.server
+resouces/yaml/common-config.yaml
+resouces/yaml/middleware-config.yaml

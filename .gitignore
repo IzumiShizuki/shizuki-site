@@ -2981,3 +2981,7 @@ fronted/vue3-merged/shizuki-release.keystore
 tools/notion-mcp-sidecar/node_modules/
 deploy/logs/
 deploy/.local-deploy.status
+fronted/vue3-merged/desktop-release/
+fronted/vue3-merged/release/
+fronted/vue3-merged/prototypes/
+deploy/deploy-manifest*.json
