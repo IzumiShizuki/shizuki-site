@@ -40,12 +40,12 @@ public interface AlbumPublicationMediaMapper {
         WHERE ap.album_id = #{albumId}
           AND ap.deleted_flag = 0
           AND (
-            p.processing_status <> 'READY'
+            p.processing_status != 'READY'
             OR v.id IS NULL
-            OR v.process_status <> 'READY'
+            OR v.process_status != 'READY'
             OR v.variant_asset_id IS NULL
             OR va.id IS NULL
-            OR va.audit_status <> 'APPROVED'
+            OR va.audit_status != 'APPROVED'
           )
         ORDER BY ap.sort_num ASC, ap.id ASC, required.variant_code ASC
         </script>
