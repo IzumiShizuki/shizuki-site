@@ -43,4 +43,3 @@ The desktop host MUST run the Vue renderer with context isolation enabled, Node 
 #### Scenario: Frontend code accesses native features
 - **WHEN** the bundled frontend needs desktop metadata or control-bridge functions
 - **THEN** it can access only the explicitly exposed immutable preload API and cannot import Node.js or Electron modules
-

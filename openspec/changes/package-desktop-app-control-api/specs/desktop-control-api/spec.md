@@ -66,4 +66,3 @@ The control service SHALL provide a resumable server-sent event stream for rende
 #### Scenario: Client reconnects after interruption
 - **WHEN** a client reconnects with the last accepted event identifier and buffered newer events still exist
 - **THEN** the service replays the newer events in order before sending live updates
-
