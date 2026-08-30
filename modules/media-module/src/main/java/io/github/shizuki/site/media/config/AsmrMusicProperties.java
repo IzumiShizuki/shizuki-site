@@ -38,6 +38,10 @@ public class AsmrMusicProperties {
     private String defaultSort = "desc";
     private long connectTimeoutMs = 1000L;
     private long readTimeoutMs = 5000L;
+    private String proxyHost = "";
+    private int proxyPort;
+    private String proxyUsername = "";
+    private String proxyPassword = "";
 
     public String getServer() {
         return server;
@@ -102,6 +106,46 @@ public class AsmrMusicProperties {
 
     public void setReadTimeoutMs(long readTimeoutMs) {
         this.readTimeoutMs = Math.max(500L, readTimeoutMs);
+    }
+
+    public String getProxyHost() {
+        return proxyHost;
+    }
+
+    public void setProxyHost(String proxyHost) {
+        this.proxyHost = proxyHost == null ? "" : proxyHost.trim();
+    }
+
+    public int getProxyPort() {
+        return proxyPort;
+    }
+
+    public void setProxyPort(int proxyPort) {
+        this.proxyPort = proxyPort >= 1 && proxyPort <= 65535 ? proxyPort : 0;
+    }
+
+    public String getProxyUsername() {
+        return proxyUsername;
+    }
+
+    public void setProxyUsername(String proxyUsername) {
+        this.proxyUsername = proxyUsername == null ? "" : proxyUsername.trim();
+    }
+
+    public String getProxyPassword() {
+        return proxyPassword;
+    }
+
+    public void setProxyPassword(String proxyPassword) {
+        this.proxyPassword = proxyPassword == null ? "" : proxyPassword;
+    }
+
+    public boolean isProxyEnabled() {
+        return StringUtils.hasText(proxyHost) && proxyPort > 0;
+    }
+
+    public boolean hasProxyCredentials() {
+        return isProxyEnabled() && StringUtils.hasText(proxyUsername) && StringUtils.hasText(proxyPassword);
     }
 
     private List<String> sanitizeBaseUrlList(List<String> rawUrls) {

@@ -19,6 +19,82 @@ import org.springframework.web.client.RestClient;
 class AsmrMusicProviderFailoverTest {
 
     @Test
+    void shouldRouteMetadataAndStreamRequestsThroughConfiguredProxy() throws Exception {
+        AtomicInteger metadataCalls = new AtomicInteger(0);
+        AtomicInteger streamCalls = new AtomicInteger(0);
+        HttpServer proxyServer = createServer("/", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if ("/api/work/42".equals(path)) {
+                metadataCalls.incrementAndGet();
+                writeJson(exchange, 200, "{\"id\":42,\"title\":\"work-42\",\"name\":\"asmr\"}");
+                return;
+            }
+            if ("/api/media/stream/42/7".equals(path)) {
+                streamCalls.incrementAndGet();
+                exchange.getResponseHeaders().add("Location", "https://media.example/audio.mp3");
+                exchange.sendResponseHeaders(302, -1);
+                exchange.close();
+                return;
+            }
+            writeJson(exchange, 404, "{\"code\":404}");
+        });
+        try {
+            AsmrMusicProperties properties = unreachableProperties();
+            properties.setProxyHost("127.0.0.1");
+            properties.setProxyPort(proxyServer.getAddress().getPort());
+            AsmrMusicProvider provider = new AsmrMusicProvider(properties, RestClient.builder(), new ObjectMapper());
+
+            AsmrMusicProvider.WorkSummary work = provider.getWork(42);
+            String streamUrl = provider.resolveStreamUrlByHash("42/7");
+
+            Assertions.assertEquals(42L, work.id());
+            Assertions.assertEquals(1, metadataCalls.get());
+            Assertions.assertEquals(1, streamCalls.get());
+            Assertions.assertEquals("https://media.example/audio.mp3", streamUrl);
+        } finally {
+            proxyServer.stop(0);
+        }
+    }
+
+    @Test
+    void shouldAuthenticateToConfiguredProxyWithoutLeakingCredentialsInRequestUri() throws Exception {
+        AtomicInteger challengeCalls = new AtomicInteger(0);
+        AtomicReference<String> authenticatedHeader = new AtomicReference<>("");
+        AtomicReference<String> requestUri = new AtomicReference<>("");
+        HttpServer proxyServer = createServer("/", exchange -> {
+            requestUri.set(exchange.getRequestURI().toString());
+            String proxyAuthorization = exchange.getRequestHeaders().getFirst("Proxy-Authorization");
+            if (proxyAuthorization == null || proxyAuthorization.isBlank()) {
+                challengeCalls.incrementAndGet();
+                exchange.getResponseHeaders().add("Proxy-Authenticate", "Basic realm=\"asmr-test\"");
+                exchange.sendResponseHeaders(407, -1);
+                exchange.close();
+                return;
+            }
+            authenticatedHeader.set(proxyAuthorization);
+            writeJson(exchange, 200, "{\"id\":7,\"title\":\"work-7\",\"name\":\"asmr\"}");
+        });
+        try {
+            AsmrMusicProperties properties = unreachableProperties();
+            properties.setProxyHost("127.0.0.1");
+            properties.setProxyPort(proxyServer.getAddress().getPort());
+            properties.setProxyUsername("voice-user");
+            properties.setProxyPassword("voice-password");
+            AsmrMusicProvider provider = new AsmrMusicProvider(properties, RestClient.builder(), new ObjectMapper());
+
+            AsmrMusicProvider.WorkSummary work = provider.getWork(7);
+
+            Assertions.assertEquals(7L, work.id());
+            Assertions.assertEquals(1, challengeCalls.get());
+            Assertions.assertTrue(authenticatedHeader.get().startsWith("Basic "));
+            Assertions.assertFalse(requestUri.get().contains("voice-user"));
+            Assertions.assertFalse(requestUri.get().contains("voice-password"));
+        } finally {
+            proxyServer.stop(0);
+        }
+    }
+
+    @Test
     void shouldEncodeUnicodeSearchKeywordExactlyOnce() throws Exception {
         AtomicReference<String> rawPath = new AtomicReference<>("");
         HttpServer server = createServer("/", exchange -> {
@@ -113,6 +189,17 @@ class AsmrMusicProviderFailoverTest {
         server.createContext(path, handler);
         server.start();
         return server;
+    }
+
+    private AsmrMusicProperties unreachableProperties() {
+        AsmrMusicProperties properties = new AsmrMusicProperties();
+        String unreachableSource = "http://voice-upstream.invalid";
+        properties.setServer(unreachableSource);
+        properties.setBaseUrl(unreachableSource);
+        properties.setBaseUrls(List.of(unreachableSource));
+        properties.setConnectTimeoutMs(200L);
+        properties.setReadTimeoutMs(500L);
+        return properties;
     }
 
     private String baseUrl(HttpServer server) {
