@@ -42,6 +42,7 @@ class ServerDeploySafetyTest(unittest.TestCase):
         dockerfile = Path(__file__).resolve().parent.parent / "docker" / "Dockerfile.frontend"
         source = dockerfile.read_text(encoding="utf-8")
 
+        self.assertIn("library/node:24-alpine", source)
         self.assertIn("pnpm-lock.yaml", source)
         self.assertIn("pnpm install --frozen-lockfile", source)
         self.assertIn("RUN pnpm build", source)
