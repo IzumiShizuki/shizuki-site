@@ -210,7 +210,10 @@ class ServerDeploySafetyTest(unittest.TestCase):
         dockerfile = Path(__file__).resolve().parent.parent / "docker" / "Dockerfile.backend"
         source = dockerfile.read_text(encoding="utf-8")
 
-        self.assertIn("# syntax=docker/dockerfile:", source)
+        self.assertIn(
+            "# syntax=m.daocloud.io/docker.io/docker/dockerfile:1.7", source
+        )
+        self.assertNotIn("# syntax=docker/dockerfile:", source)
         self.assertIn("--mount=type=cache", source)
         self.assertIn("target=/root/.m2/repository", source)
         self.assertIn("sharing=locked", source)
