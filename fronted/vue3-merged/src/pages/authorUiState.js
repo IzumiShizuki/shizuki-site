@@ -57,7 +57,7 @@ export function createDefaultAuthorProfileJson() {
         title: '完善作者主页与展示能力',
         description: '升级作者介绍、建站经历和关于模块，提升站点表达与可维护性。',
         imageUrl: '/images/katanegai.jpg',
-        stack: ['Vue3', 'Spring Boot', 'Beads']
+        stack: ['Vue3', 'Spring Boot', 'OpenSpec']
       }
     ],
     about: {

@@ -20,4 +20,4 @@
 
 - [x] 4.1 Run focused tests, lint/build checks, `openspec validate --strict`, and a credential/temporary-URL leakage review.
 - [x] 4.2 Update the runbook incident section with the root cause, repair, rollback, and post-repair evidence.
-- [x] 4.3 Update task state, run `bd sync` when the existing bd runtime is available, review `git status`, and create the required local conventional commit without pushing.
+- [x] 4.3 Update OpenSpec task state, validate the change, review `git status`, and create the required local conventional commit without pushing.

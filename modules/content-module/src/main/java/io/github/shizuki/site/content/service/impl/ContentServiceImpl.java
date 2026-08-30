@@ -780,7 +780,7 @@ public class ContentServiceImpl implements ContentService {
         phase3.put("title", "完善作者主页与展示能力");
         phase3.put("description", "升级作者介绍、建站经历和关于模块，提升站点表达与可维护性。");
         phase3.put("image_url", "/images/katanegai.jpg");
-        phase3.put("stack", List.of("Vue3", "Spring Boot", "Beads"));
+        phase3.put("stack", List.of("Vue3", "Spring Boot", "OpenSpec"));
         journey.add(phase3);
 
         return journey;

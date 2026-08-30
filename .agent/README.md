@@ -4,7 +4,7 @@
 
 ## 1. 推荐阅读顺序
 
-1. [根目录 AGENTS.md](../AGENTS.md)：硬性约束、`bd` 任务流、服务器边界和会话收尾要求。
+1. [根目录 AGENTS.md](../AGENTS.md)：硬性约束、OpenSpec/Git 工作流、服务器边界和会话收尾要求。
 2. [01-project-map.md](01-project-map.md)：仓库结构、模块职责和源码入口。
 3. 按当前任务选择一份主题文档：
    - 后端或架构：阅读 [02-architecture.md](02-architecture.md)。
@@ -63,7 +63,7 @@
 - `111.228.52.91` 属于另一个项目；除非用户明确要求，不要把本项目或个人站点部署到那里。
 - `resouces/yaml/common-config.yaml`、`deploy/.env.server` 等文件可能含私有配置。只读取完成任务所需的键名或结构，不把密码、Token、私钥和完整配置输出到聊天、日志或新文档。
 - 未经用户明确授权，不执行 `git push`、生产部署或会造成数据覆盖的操作。
-- `bd` 是项目约定的任务引擎；如果当前环境找不到 `bd`，记录为环境限制，仍完成可行的本地检查，不要伪造同步成功。
+- 材料性变更使用 OpenSpec 记录 proposal、design、spec 与 tasks；实现过程中及时更新任务状态，交付前执行严格校验。
 
 ## 6. 文档维护
 

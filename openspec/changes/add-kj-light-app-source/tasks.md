@@ -18,4 +18,4 @@
 ## Verification Notes
 
 - The public KJ catalog and one compatible detail payload were sampled through a read-only PowerShell request because the `agent-browser` CLI is not available in this environment.
-- The repository's `bd` executable is not installed or on `PATH`, so `bd onboard` and `bd sync` could not be run in this session.
+- The change was completed before the repository standardized its current OpenSpec validation and delivery workflow.

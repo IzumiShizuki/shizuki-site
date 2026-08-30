@@ -49,7 +49,7 @@
 - `.agent/02-architecture.md`：单体模块化后端、前端分层、请求/数据迁移边界。
 - `.agent/03-development.md`：环境准备、后端/前端启动、常用构建与本地调试命令。
 - `.agent/04-configuration-and-boundaries.md`：配置来源、远端中间件、服务器归属和敏感信息规则。
-- `.agent/05-testing-and-delivery.md`：测试、构建、发布前检查、bd/git 收尾和回滚提示。
+- `.agent/05-testing-and-delivery.md`：测试、构建、发布前检查、OpenSpec/Git 收尾和回滚提示。
 - `.agent/06-reference-index.md`：已有设计、规范、部署、API 和专题文档索引。
 
 ## Risks / Trade-offs

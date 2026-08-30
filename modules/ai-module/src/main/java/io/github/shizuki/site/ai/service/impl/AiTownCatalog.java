@@ -77,7 +77,7 @@ final class AiTownCatalog {
             "home_gate",
             "自宅外部",
             "home_exterior",
-            "作为自宅入口场景，先承接公开浏览，再为 companion bead 预留过渡入口。",
+            "作为自宅入口场景，先承接公开浏览，再为 companion 后续任务预留过渡入口。",
             "门牌、庭院与门口提示牌共同定义管理员专属入口氛围。",
             List.of("自宅入口", "管理员专属", "companion 预留"),
             78,

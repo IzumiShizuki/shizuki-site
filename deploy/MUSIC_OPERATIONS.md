@@ -31,7 +31,7 @@ pwsh -File .\deploy\scripts\check-music.ps1
 ## 1. 不可违反的边界
 
 1. `111.228.35.186` 才是本项目个人站服务器。除非用户在当前对话明确要求，不得访问、修改或部署到 `111.228.52.91`。
-2. 不得运行 `git push`，除非用户明确授权。正常交付终点是测试、`bd sync`、本地 Commit 和清晰交接。
+2. 不得运行 `git push`，除非用户明确授权。正常交付终点是测试、OpenSpec 任务状态更新与严格校验、本地 Commit 和清晰交接。
 3. 不得打印或提交以下内容：
    - `deploy/.env.server` 的值；
    - `resouces/yaml/common-config.yaml` 中的口令；

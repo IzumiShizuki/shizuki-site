@@ -374,7 +374,7 @@
                 <p>编辑按钮只对管理员显示，普通用户仍然停留在公开漫游视角，不暴露后台编辑语义。</p>
               </article>
               <article class="side-info-card">
-                <strong>为后续 bead 预留结构</strong>
+                <strong>为后续任务预留结构</strong>
                 <p>这一层已经接上真实上传、解析和预览链路；后续只需要继续细化挂接表现，而不用重做 AI Hub 壳层。</p>
               </article>
             </div>

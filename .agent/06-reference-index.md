@@ -6,7 +6,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [AGENTS.md](../AGENTS.md) | 智能体协作协议、服务器归属、bd/git 收尾和推送限制 |
+| [AGENTS.md](../AGENTS.md) | 智能体协作协议、服务器归属、OpenSpec/Git 收尾和推送限制 |
 | [README.md](../README.md) | 项目保留入口、常用启动/构建命令和顶层结构 |
 | [pom.xml](../pom.xml) | Java 版本、Spring Boot 版本、Maven 模块和依赖管理 |
 | [fronted/vue3-merged/package.json](../fronted/vue3-merged/package.json) | 前端脚本、依赖和 pnpm overrides |

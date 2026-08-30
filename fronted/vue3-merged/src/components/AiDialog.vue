@@ -718,7 +718,7 @@ const CHAT_MODE_OPTIONS = [
     note: '普通对话只保留当前会话上下文，适合日常问答、一次性任务和轻陪伴。',
     placeholder: '输入你的问题或任务...',
     emptyTitle: '普通对话已接入共享聊天壳',
-    emptyBody: '这里会创建 normal 模式会话，后续权限和配额 bead 会继续收口。'
+    emptyBody: '这里会创建 normal 模式会话，后续权限和配额任务会继续收口。'
   },
   {
     value: 'tavern',

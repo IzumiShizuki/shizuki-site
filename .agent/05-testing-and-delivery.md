@@ -40,9 +40,9 @@ Get-ChildItem .agent -Filter *.md | ForEach-Object {
 
 遵循根 [AGENTS.md](../AGENTS.md) 的项目协议：
 
-1. 检查是否有未完成事项；必要时创建/更新 beads issue。
+1. 检查是否有未完成事项；必要时更新 OpenSpec `tasks.md` 或项目 Issue。
 2. 运行适用的测试、Lint、构建和文档检查。
-3. 更新任务状态并执行 `bd sync`；如果 `bd` 不可用，明确记录环境限制。
+3. 更新 OpenSpec 任务状态，并对当前 change 执行严格校验。
 4. 查看 `git status` 和 `git diff`，确认没有无关文件、构建产物或秘密。
 5. 在本地创建符合 `type: description` 格式的 commit；未经授权不要 `git push`。
 6. 给下一位智能体留下完成项、未完成项、验证命令和已知阻塞。
