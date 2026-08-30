@@ -49,9 +49,9 @@ public interface PublicAlbumReadMapper {
                 WHERE verify_ap.album_id = a.id
                   AND verify_ap.deleted_flag = 0
                   AND (
-                      verify_ap.delivery_revoked_flag <> 0
+                      verify_ap.delivery_revoked_flag != 0
                       OR verify_p.id IS NULL
-                      OR verify_p.processing_status <> 'READY'
+                      OR verify_p.processing_status != 'READY'
                       OR (
                           SELECT COUNT(DISTINCT verify_v.variant_code)
                             FROM MDA_ASSET_VARIANT verify_v
@@ -68,7 +68,7 @@ public interface PublicAlbumReadMapper {
                              AND verify_v.variant_code IN ('THUMB_WEBP', 'DISPLAY_WEBP', 'FULL_SANITIZED')
                              AND verify_v.process_status = 'READY'
                              AND verify_v.deleted_flag = 0
-                      ) <> 3
+                      ) != 3
                   )
            )
         """;
