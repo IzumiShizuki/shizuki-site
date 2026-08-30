@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LightAppWindowHost from './LightAppWindowHost.vue';
 import { LIGHT_APP_WINDOW_OPEN_EVENT } from '../../utils/lightAppWindowBus';
 import { __resetLightAppShellForTests } from './lightAppShellStore';
+import { LIGHT_APPS_CATALOG } from '../../utils/lightAppsCatalog';
 
 vi.mock('./pomodoro/PomodoroWindow.vue', () => ({
   default: { template: '<section />' }
@@ -22,6 +23,15 @@ vi.mock('./board/BoardCanvasWindow.vue', () => ({
 vi.mock('./blog/BlogSlidevWindow.vue', () => ({
   default: { template: '<section />' }
 }));
+vi.mock('./qr/QrToolsWindow.vue', () => ({
+  default: { template: '<section />' }
+}));
+vi.mock('./toolbox/WebToolboxWindow.vue', () => ({
+  default: { template: '<section />' }
+}));
+vi.mock('./kj/KjToolSourceWindow.vue', () => ({
+  default: { template: '<section />' }
+}));
 
 async function mountHost(props = {}) {
   const wrapper = mount(LightAppWindowHost, {
@@ -29,7 +39,8 @@ async function mountHost(props = {}) {
       isHomeRoute: true,
       ...props
     },
-    shallow: true
+    shallow: true,
+    attachTo: document.body
   });
 
   await flushPromises();
@@ -140,6 +151,91 @@ describe('LightAppWindowHost', () => {
     const pomodoroAfterPin = wrapper.get('article[data-window-code="pomodoro-timer"]');
     expect(todoAfterPin.find('button[title="取消固定"]').exists()).toBe(true);
     expect(pomodoroAfterPin.find('button[title="取消固定"]').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it.each(LIGHT_APPS_CATALOG.map((app) => [app.code, app.title]))(
+    'gives %s (%s) a labeled edge-to-edge fullscreen control',
+    async (code) => {
+      const wrapper = await mountHost();
+      await openWindow(code);
+
+      const appWindow = wrapper.get(`article[data-window-code="${code}"]`);
+      const enterButton = appWindow.get('button[aria-label="进入全屏"]');
+      await enterButton.trigger('click');
+      await flushPromises();
+
+      const fullscreenWindow = wrapper.get(`article[data-window-code="${code}"]`);
+      expect(fullscreenWindow.classes()).toContain('is-fullscreen');
+      expect(fullscreenWindow.attributes('role')).toBe('dialog');
+      expect(fullscreenWindow.attributes('aria-modal')).toBe('true');
+      expect(fullscreenWindow.get('button[aria-label="退出全屏"]').exists()).toBe(true);
+      expect(fullscreenWindow.find('.window-resize-handle').exists()).toBe(false);
+      expect(fullscreenWindow.get('.window-drag-zone').classes()).toContain('is-disabled');
+
+      await fullscreenWindow.get('button[aria-label="退出全屏"]').trigger('click');
+      await flushPromises();
+      expect(wrapper.get(`article[data-window-code="${code}"]`).classes()).not.toContain('is-fullscreen');
+      wrapper.unmount();
+    }
+  );
+
+  it('locks and isolates the page, traps Tab, exits on Escape, and restores focus', async () => {
+    const wrapper = await mountHost();
+    const backgroundButton = document.createElement('button');
+    backgroundButton.textContent = 'background';
+    wrapper.element.parentElement.append(backgroundButton);
+    backgroundButton.focus();
+    await openWindow('timeprism-todo');
+
+    await wrapper.get('button[aria-label="进入全屏"]').trigger('click');
+    await flushPromises();
+
+    const fullscreenWindow = wrapper.get('article.is-fullscreen');
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(backgroundButton.hasAttribute('inert')).toBe(true);
+    expect(fullscreenWindow.element.contains(document.activeElement)).toBe(true);
+
+    const focusable = fullscreenWindow.findAll('button:not([disabled])');
+    focusable.at(-1).element.focus();
+    await fullscreenWindow.trigger('keydown', { key: 'Tab' });
+    expect(document.activeElement).toBe(focusable[0].element);
+
+    await fullscreenWindow.trigger('keydown', { key: 'Escape' });
+    await flushPromises();
+    expect(wrapper.find('article.is-fullscreen').exists()).toBe(false);
+    expect(document.body.style.overflow).toBe('');
+    expect(backgroundButton.hasAttribute('inert')).toBe(false);
+    expect(document.activeElement).toBe(backgroundButton);
+
+    backgroundButton.remove();
+    wrapper.unmount();
+  });
+
+  it('does not consume Escape from editable fields or nested application dialogs', async () => {
+    const wrapper = await mountHost();
+    await openWindow('timeprism-todo');
+    await wrapper.get('button[aria-label="进入全屏"]').trigger('click');
+    await flushPromises();
+    const fullscreenWindow = wrapper.get('article.is-fullscreen');
+
+    const input = document.createElement('input');
+    fullscreenWindow.element.append(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await flushPromises();
+    expect(wrapper.find('article.is-fullscreen').exists()).toBe(true);
+
+    const nestedDialog = document.createElement('section');
+    nestedDialog.setAttribute('role', 'dialog');
+    const nestedButton = document.createElement('button');
+    nestedDialog.append(nestedButton);
+    fullscreenWindow.element.append(nestedDialog);
+    nestedButton.focus();
+    nestedButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await flushPromises();
+    expect(wrapper.find('article.is-fullscreen').exists()).toBe(true);
 
     wrapper.unmount();
   });

@@ -25,12 +25,14 @@ import {
   setBlogPresentationWindowEntry
 } from './blog/blogPresentationWindowState';
 
-export const LIGHT_APP_PAGE_MODE_WINDOW_ID_OFFSET = 5000000;
+/** @deprecated Page mode now reuses the shared fullscreen window identity. */
+export const LIGHT_APP_PAGE_MODE_WINDOW_ID_OFFSET = 0;
 
 const HEADER_PORTAL_PREFIX = 'lightapp-header-portal-shell';
 
 const shellState = reactive({
   runtime: createWindowRuntimeState(),
+  fullscreenWindowId: 0,
   pageMode: {
     code: '',
     source: '',
@@ -71,6 +73,17 @@ function normalizeWindowId(value) {
   const normalized = Number(value);
   if (!Number.isInteger(normalized) || normalized <= 0) return 0;
   return normalized;
+}
+
+function findRuntimeWindow(windowId) {
+  const normalizedId = normalizeWindowId(windowId);
+  if (!normalizedId) return null;
+  return shellState.runtime.windows.find((item) => item.id === normalizedId) || null;
+}
+
+function dispatchFullscreenResize() {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  window.dispatchEvent(new Event('resize'));
 }
 
 function releaseWindowLinkedStateByCode(code, windowId) {
@@ -164,7 +177,7 @@ export function resolveLightAppPageModeWindowId(code) {
   if (!Number.isInteger(sharedWindowId) || sharedWindowId <= 0) {
     return 0;
   }
-  return sharedWindowId + LIGHT_APP_PAGE_MODE_WINDOW_ID_OFFSET;
+  return sharedWindowId;
 }
 
 export function resolveLightAppWindowIdByCode(code) {
@@ -195,7 +208,44 @@ export function openLightAppShellWindow(code, options = {}, viewport) {
 
   const targetWindowId = resolveLightAppWindowIdByCode(normalizedCode);
   applyOpenPayload(normalizedCode, targetWindowId, options);
+  if (options?.fullscreen === true) {
+    enterLightAppWindowFullscreen(targetWindowId);
+  }
   return targetWindowId;
+}
+
+export function enterLightAppWindowFullscreen(windowId) {
+  const normalizedId = normalizeWindowId(windowId);
+  const target = findRuntimeWindow(normalizedId);
+  if (!target) return 0;
+
+  if (target.minimized) {
+    replaceRuntime(setWindowMinimized(shellState.runtime, normalizedId, false));
+  }
+  replaceRuntime(focusWindow(shellState.runtime, normalizedId));
+  shellState.fullscreenWindowId = normalizedId;
+  dispatchFullscreenResize();
+  return normalizedId;
+}
+
+export function exitLightAppWindowFullscreen(windowId) {
+  const activeId = normalizeWindowId(shellState.fullscreenWindowId);
+  if (!activeId) return 0;
+  const requestedId = normalizeWindowId(windowId);
+  if (windowId !== undefined && windowId !== null && requestedId !== activeId) return 0;
+
+  shellState.fullscreenWindowId = 0;
+  dispatchFullscreenResize();
+  return activeId;
+}
+
+export function toggleLightAppWindowFullscreen(windowId) {
+  const normalizedId = normalizeWindowId(windowId);
+  if (!findRuntimeWindow(normalizedId)) return 0;
+  if (normalizeWindowId(shellState.fullscreenWindowId) === normalizedId) {
+    return exitLightAppWindowFullscreen(normalizedId);
+  }
+  return enterLightAppWindowFullscreen(normalizedId);
 }
 
 export function focusLightAppWindow(windowId) {
@@ -211,6 +261,15 @@ export function closeLightAppWindow(windowId) {
   const target = shellState.runtime.windows.find((item) => item.id === normalizedId);
   if (target) {
     releaseWindowLinkedStateByCode(target.code, normalizedId);
+  }
+  if (normalizeWindowId(shellState.fullscreenWindowId) === normalizedId) {
+    shellState.fullscreenWindowId = 0;
+    dispatchFullscreenResize();
+  }
+  if (normalizeCode(shellState.pageMode.code) === normalizeCode(target?.code)) {
+    shellState.pageMode.code = '';
+    shellState.pageMode.source = '';
+    shellState.pageMode.openedAt = 0;
   }
   replaceRuntime(closeWindow(shellState.runtime, normalizedId));
   return normalizedId;
@@ -228,6 +287,9 @@ export function toggleLightAppWindowMinimized(windowId) {
   if (!normalizedId) return 0;
   const target = shellState.runtime.windows.find((item) => item.id === normalizedId);
   if (!target) return 0;
+  if (!target.minimized && normalizeWindowId(shellState.fullscreenWindowId) === normalizedId) {
+    exitLightAppWindowFullscreen(normalizedId);
+  }
   replaceRuntime(setWindowMinimized(shellState.runtime, normalizedId, !target.minimized));
   return normalizedId;
 }
@@ -250,7 +312,12 @@ export function normalizeLightAppWindowsToViewport(viewport) {
 }
 
 export function getVisibleLightAppWindows(viewOptions) {
-  return getVisibleWindows(shellState.runtime, viewOptions);
+  const visible = getVisibleWindows(shellState.runtime, viewOptions);
+  const fullscreenWindow = findRuntimeWindow(shellState.fullscreenWindowId);
+  if (!fullscreenWindow || visible.some((item) => item.id === fullscreenWindow.id)) {
+    return visible;
+  }
+  return [...visible, fullscreenWindow].sort((left, right) => left.zIndex - right.zIndex);
 }
 
 export function openLightAppPageMode(code, options = {}) {
@@ -262,12 +329,14 @@ export function openLightAppPageMode(code, options = {}) {
   shellState.pageMode.source = String(options?.source || '').trim();
   shellState.pageMode.openedAt = Date.now();
 
-  const pageWindowId = resolveLightAppPageModeWindowId(app.code);
-  applyOpenPayload(app.code, pageWindowId, options);
-  return pageWindowId;
+  return openLightAppShellWindow(app.code, { ...options, fullscreen: true });
 }
 
 export function closeLightAppPageMode() {
+  const pageWindowId = resolveLightAppPageModeWindowId(shellState.pageMode.code);
+  if (pageWindowId > 0) {
+    exitLightAppWindowFullscreen(pageWindowId);
+  }
   shellState.pageMode.code = '';
   shellState.pageMode.source = '';
   shellState.pageMode.openedAt = 0;
@@ -280,15 +349,10 @@ export function __resetLightAppShellForTests() {
     releaseWindowLinkedStateByCode(item.code, item.id);
   });
 
-  const pageCode = normalizeCode(shellState.pageMode.code);
-  if (pageCode) {
-    const pageWindowId = resolveLightAppPageModeWindowId(pageCode);
-    if (pageWindowId > 0) {
-      releaseWindowLinkedStateByCode(pageCode, pageWindowId);
-    }
-  }
-
-  closeLightAppPageMode();
+  shellState.fullscreenWindowId = 0;
+  shellState.pageMode.code = '';
+  shellState.pageMode.source = '';
+  shellState.pageMode.openedAt = 0;
   replaceRuntime(createWindowRuntimeState());
   activeConsumers = 0;
   unbindListeners();

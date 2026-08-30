@@ -141,90 +141,14 @@
       />
     </div>
 
-    <Teleport to="body">
-      <Transition name="page-mode-overlay">
-        <section
-          v-if="activePageApp && activePageComponent"
-          class="page-mode-overlay"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="`${activePageApp.title} 页面模式`"
-          @click.self="closePageMode"
-        >
-          <article class="page-mode-shell liquid-material" @click.stop>
-            <header class="page-mode-head">
-              <div class="page-mode-title">
-                <i :class="activePageApp.iconClass" aria-hidden="true"></i>
-                <strong>{{ activePageApp.title }}</strong>
-              </div>
-
-              <div v-if="activePageTabItems.length" class="page-mode-tabs" role="tablist" :aria-label="`${activePageApp.title} tabs`">
-                <button
-                  v-for="item in activePageTabItems"
-                  :key="`page_tab_${activePageCode}_${item.value}`"
-                  class="tab-btn ripple-trigger"
-                  :class="{ active: activePageTabCode === item.value }"
-                  type="button"
-                  role="tab"
-                  :aria-selected="activePageTabCode === item.value"
-                  :title="item.label"
-                  :aria-label="item.label"
-                  @click="setActivePageTab(item.value)"
-                >
-                  <i :class="item.iconClass" aria-hidden="true"></i>
-                </button>
-              </div>
-
-              <button class="tab-btn ripple-trigger" type="button" title="关闭页面模式" aria-label="关闭页面模式" @click="closePageMode">
-                <i class="fas fa-xmark" aria-hidden="true"></i>
-              </button>
-            </header>
-
-            <section class="page-mode-body">
-              <component :is="activePageComponent" :window-id="activePageWindowId" />
-            </section>
-            <p class="page-mode-foot-hint">按 Esc 或点击遮罩空白区域可关闭页面模式</p>
-          </article>
-        </section>
-      </Transition>
-    </Teleport>
   </section>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router';
 import LightAppRailEditor from '../components/lightapps/LightAppRailEditor.vue';
-import BalanceLedgerWindow from '../components/lightapps/balance/BalanceLedgerWindow.vue';
-import {
-  BALANCE_SECTION_ITEMS,
-  resolveBalanceWindowState,
-  setBalanceWindowSection
-} from '../components/lightapps/balance/balanceWindowState';
-import PomodoroWindow from '../components/lightapps/pomodoro/PomodoroWindow.vue';
-import {
-  POMODORO_MODE_ITEMS,
-  resolvePomodoroWindowState,
-  setPomodoroWindowMode
-} from '../components/lightapps/pomodoro/pomodoroWindowState';
-import TimePrismTodoSuiteWindow from '../components/lightapps/timeprism/TimePrismTodoSuiteWindow.vue';
-import {
-  resolveTimePrismSuiteSession,
-  setSuiteActiveModule,
-  TIMEPRISM_MODULE_ITEMS
-} from '../components/lightapps/timeprism/timePrismSuiteState';
-import {
-  closeLightAppPageMode,
-  openLightAppPageMode,
-  resolveLightAppPageModeWindowId,
-  useLightAppShellState
-} from '../components/lightapps/lightAppShellStore';
-import UrlLinksWindow from '../components/lightapps/url/UrlLinksWindow.vue';
-import BoardCanvasWindow from '../components/lightapps/board/BoardCanvasWindow.vue';
-import BlogSlidevWindow from '../components/lightapps/blog/BlogSlidevWindow.vue';
-import QrToolsWindow from '../components/lightapps/qr/QrToolsWindow.vue';
-import WebToolboxWindow from '../components/lightapps/toolbox/WebToolboxWindow.vue';
-import KjToolSourceWindow from '../components/lightapps/kj/KjToolSourceWindow.vue';
+import { openLightAppShellWindow } from '../components/lightapps/lightAppShellStore';
 import { useAuthSession } from '../composables/useAuthSession';
 import { listLightAppUrlLinks } from '../services/lightAppsApi';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
@@ -249,7 +173,6 @@ import {
 const DRAG_MIME = 'application/x-shizuki-lightapp-item';
 
 const catalog = LIGHT_APPS_CATALOG;
-const shellState = useLightAppShellState();
 const appState = ref(createDefaultLightAppsState());
 const syncHint = ref('');
 const urlLinks = ref([]);
@@ -259,56 +182,11 @@ const railEditorRef = ref(null);
 
 const auth = useAuthSession();
 
-const PAGE_COMPONENT_MAP = Object.freeze({
-  'timeprism-todo': TimePrismTodoSuiteWindow,
-  'pomodoro-timer': PomodoroWindow,
-  'balance-ledger': BalanceLedgerWindow,
-  'url-links': UrlLinksWindow,
-  'board-canvas': BoardCanvasWindow,
-  'blog-slidev': BlogSlidevWindow,
-  'qr-tools': QrToolsWindow,
-  'web-toolbox': WebToolboxWindow,
-  'kj-tool-source': KjToolSourceWindow
-});
-
 let syncTimer = 0;
 let syncHintTimer = 0;
 let remoteHydrating = false;
 
-const activePageCode = computed(() => String(shellState.pageMode.code || '').trim());
-const activePageApp = computed(() => getLightAppByCode(activePageCode.value));
-const activePageWindowId = computed(() => resolveLightAppPageModeWindowId(activePageCode.value));
-const activePageComponent = computed(() => PAGE_COMPONENT_MAP[activePageCode.value] || null);
-const hasActivePageOverlay = computed(() => Boolean(activePageApp.value && activePageComponent.value));
 const isUrlSourceIconMode = computed(() => urlSourceViewMode.value === 'icon');
-
-const activePageTabItems = computed(() => {
-  if (activePageCode.value === 'timeprism-todo') {
-    return TIMEPRISM_MODULE_ITEMS.map((item) => ({ value: item.code, label: item.label, iconClass: item.iconClass }));
-  }
-  if (activePageCode.value === 'pomodoro-timer') {
-    return POMODORO_MODE_ITEMS.map((item) => ({ value: item.mode, label: item.label, iconClass: item.iconClass }));
-  }
-  if (activePageCode.value === 'balance-ledger') {
-    return BALANCE_SECTION_ITEMS.map((item) => ({ value: item.code, label: item.label, iconClass: item.iconClass }));
-  }
-  return [];
-});
-
-const activePageTabCode = computed(() => {
-  const windowId = activePageWindowId.value;
-  if (!windowId) return '';
-  if (activePageCode.value === 'timeprism-todo') {
-    return resolveTimePrismSuiteSession(windowId).activeModule;
-  }
-  if (activePageCode.value === 'pomodoro-timer') {
-    return resolvePomodoroWindowState(windowId).mode;
-  }
-  if (activePageCode.value === 'balance-ledger') {
-    return resolveBalanceWindowState(windowId).section;
-  }
-  return '';
-});
 
 function showHint(message) {
   syncHint.value = String(message || '').trim();
@@ -588,9 +466,6 @@ function toggleEnabled(code) {
     enabledSet.delete(code);
     nextState = removeAppRefsFromState(code, nextState);
     delete nextConfigs[code];
-    if (activePageCode.value === code) {
-      closePageMode();
-    }
     showHint('应用已停用。');
   } else {
     enabledSet.add(code);
@@ -941,9 +816,6 @@ function openCollectionItem(payload) {
 function useApp(code) {
   const app = getLightAppByCode(code);
   if (!app || !isEnabled(code)) return;
-  if (activePageCode.value === code) {
-    closePageMode();
-  }
   openLightAppWindow(code, { source: 'apps_center' });
 }
 
@@ -957,38 +829,7 @@ function openUrlManager() {
 function openAppInPage(code) {
   const app = getLightAppByCode(code);
   if (!app || !isEnabled(code)) return;
-  openLightAppPageMode(code, { source: 'apps_page' });
-}
-
-function closePageMode() {
-  closeLightAppPageMode();
-}
-
-function setActivePageTab(tabCode) {
-  const windowId = activePageWindowId.value;
-  if (!windowId) return;
-
-  if (activePageCode.value === 'timeprism-todo') {
-    const session = resolveTimePrismSuiteSession(windowId);
-    setSuiteActiveModule(session, tabCode);
-    return;
-  }
-
-  if (activePageCode.value === 'pomodoro-timer') {
-    setPomodoroWindowMode(windowId, tabCode);
-    return;
-  }
-
-  if (activePageCode.value === 'balance-ledger') {
-    setBalanceWindowSection(windowId, tabCode);
-  }
-}
-
-function onOverlayKeydown(event) {
-  if (!hasActivePageOverlay.value) return;
-  if (event.key === 'Escape') {
-    closePageMode();
-  }
+  openLightAppShellWindow(code, { source: 'apps_page', fullscreen: true });
 }
 
 function findUrlLink(urlLinkId) {
@@ -1068,16 +909,7 @@ async function runBallRailAnimation(direction) {
   }
 }
 
-watch(hasActivePageOverlay, (open) => {
-  if (typeof document === 'undefined') return;
-  document.body.classList.toggle('apps-page-overlay-open', open);
-});
-
 onMounted(async () => {
-  if (typeof window !== 'undefined') {
-    window.addEventListener('keydown', onOverlayKeydown);
-  }
-
   await hydrateState();
   await nextTick();
   await runBallRailAnimation('in');
@@ -1087,9 +919,7 @@ onMounted(async () => {
 });
 
 onBeforeRouteLeave(async () => {
-  closePageMode();
   if (typeof document !== 'undefined') {
-    document.body.classList.remove('apps-page-overlay-open');
     document.body.classList.remove('apps-rail-mode');
   }
   await runBallRailAnimation('out');
@@ -1105,11 +935,7 @@ onBeforeUnmount(() => {
     syncHintTimer = 0;
   }
 
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('keydown', onOverlayKeydown);
-  }
   if (typeof document !== 'undefined') {
-    document.body.classList.remove('apps-page-overlay-open');
     document.body.classList.remove('apps-rail-mode');
   }
 });
@@ -1441,47 +1267,6 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.page-mode-shell {
-  --liquid-bg: rgba(16, 24, 40, 0.74);
-  --liquid-border: rgba(255, 255, 255, 0.34);
-  --liquid-shadow: 0 28px 72px rgba(4, 7, 14, 0.5);
-  width: min(1320px, calc(100vw - 34px));
-  max-height: calc(100vh - 32px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 16px;
-  background: rgba(10, 16, 28, 0.42);
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  overflow: hidden;
-}
-
-.page-mode-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.page-mode-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(237, 244, 255, 0.96);
-}
-
-.page-mode-tabs {
-  justify-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.tab-btn,
 .icon-btn {
   width: 30px;
   height: 30px;
@@ -1496,77 +1281,10 @@ onBeforeUnmount(() => {
     box-shadow 180ms ease;
 }
 
-.tab-btn:hover,
 .icon-btn:hover {
   transform: translateY(-1px);
   border-color: rgba(193, 217, 255, 0.46);
   background: rgba(27, 37, 58, 0.7);
-}
-
-.tab-btn.active {
-  border-color: rgba(var(--accent-rgb), 0.62);
-  background: rgba(var(--accent-rgb), 0.22);
-  color: rgba(244, 248, 255, 0.98);
-}
-
-.page-mode-body {
-  min-height: 60vh;
-  max-height: calc(100vh - 130px);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  padding: 10px;
-  overflow: auto;
-}
-
-.page-mode-foot-hint {
-  margin: 0;
-  font-size: 12px;
-  color: rgba(213, 226, 249, 0.72);
-}
-
-.page-mode-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2500;
-  padding: 16px;
-  display: grid;
-  place-items: center;
-  background: rgba(8, 12, 21, 0.5);
-  backdrop-filter: blur(5px);
-}
-
-.page-mode-overlay-enter-active,
-.page-mode-overlay-leave-active {
-  transition: opacity 240ms ease;
-}
-
-.page-mode-overlay-enter-active .page-mode-shell,
-.page-mode-overlay-leave-active .page-mode-shell {
-  transition:
-    transform 260ms cubic-bezier(0.2, 0.88, 0.34, 1),
-    opacity 200ms ease;
-}
-
-.page-mode-overlay-enter-from,
-.page-mode-overlay-leave-to {
-  opacity: 0;
-}
-
-.page-mode-overlay-enter-from .page-mode-shell,
-.page-mode-overlay-leave-to .page-mode-shell {
-  opacity: 0;
-  transform: translateY(10px) scale(0.97);
-}
-
-.page-mode-overlay-enter-to .page-mode-shell,
-.page-mode-overlay-leave-from .page-mode-shell {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-:global(body.apps-page-overlay-open) {
-  overflow: hidden;
 }
 
 :global(body.apps-rail-mode .float-ball) {
@@ -1618,36 +1336,12 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .page-mode-head {
-    grid-template-columns: 1fr;
-    justify-items: flex-start;
-  }
-
-  .page-mode-tabs {
-    justify-self: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .page-mode-shell {
-    width: calc(100vw - 14px);
-    max-height: calc(100vh - 12px);
-    padding: 10px;
-  }
-
-  .page-mode-overlay {
-    padding: 6px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .app-card,
   .action-btn,
-  .tab-btn,
-  .icon-btn,
-  .page-mode-overlay-enter-active,
-  .page-mode-overlay-leave-active,
-  .page-mode-overlay-enter-active .page-mode-shell,
-  .page-mode-overlay-leave-active .page-mode-shell {
+  .icon-btn {
     transition-duration: 80ms !important;
     animation-duration: 80ms !important;
   }

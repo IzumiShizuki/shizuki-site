@@ -1,5 +1,10 @@
 <template>
-  <div class="light-window-host" aria-live="polite">
+  <div
+    ref="hostElement"
+    class="light-window-host"
+    :class="{ 'is-fullscreen-active': fullscreenWindowId > 0 }"
+    aria-live="polite"
+  >
     <TransitionGroup appear name="light-window-stretch" tag="div" class="light-window-layer">
       <article
         v-for="win in visibleWindows"
@@ -7,16 +12,27 @@
         class="light-window liquid-material"
         :class="{
           'is-minimized': win.minimized,
-          'is-active': Number(win.id) === activeWindowId
+          'is-active': Number(win.id) === activeWindowId,
+          'is-fullscreen': isFullscreenWindow(win.id)
         }"
+        :ref="(element) => setWindowElement(win.id, element)"
         :data-window-id="win.id"
         :data-window-code="win.code"
+        :role="isFullscreenWindow(win.id) ? 'dialog' : undefined"
+        :aria-modal="isFullscreenWindow(win.id) ? 'true' : undefined"
+        :aria-label="isFullscreenWindow(win.id) ? `${win.title} 全屏工作区` : undefined"
+        :tabindex="isFullscreenWindow(win.id) ? -1 : undefined"
         :style="windowStyle(win)"
         @pointerdown="handleWindowPointerDown($event, win.id)"
+        @keydown="handleFullscreenKeydown($event, win)"
       >
         <header class="window-header">
           <div class="window-head-row">
-            <div class="window-drag-zone" @pointerdown="startDrag($event, win)">
+            <div
+              class="window-drag-zone"
+              :class="{ 'is-disabled': isFullscreenWindow(win.id) }"
+              @pointerdown="startDrag($event, win)"
+            >
               <div class="window-title">
                 <i :class="win.iconClass" aria-hidden="true"></i>
                 <span>{{ win.title }}</span>
@@ -26,6 +42,19 @@
           </div>
 
           <div class="window-actions-zone" @pointerdown.stop>
+            <button
+              class="icon-btn icon-btn-action ripple-trigger"
+              :title="isFullscreenWindow(win.id) ? '退出全屏' : '进入全屏'"
+              :aria-label="isFullscreenWindow(win.id) ? '退出全屏' : '进入全屏'"
+              type="button"
+              @pointerdown.stop="handleActionPointerDown($event, win.id)"
+              @click.stop.prevent="handleActionClick('fullscreen', win.id)"
+            >
+              <i
+                :class="isFullscreenWindow(win.id) ? 'fas fa-compress' : 'fas fa-expand'"
+                aria-hidden="true"
+              ></i>
+            </button>
             <button
               class="icon-btn icon-btn-action ripple-trigger"
               :title="win.pinned ? '取消固定' : '固定到主页'"
@@ -70,7 +99,7 @@
 
         <Transition name="window-collapse">
           <button
-            v-if="!win.minimized"
+            v-if="!win.minimized && !isFullscreenWindow(win.id)"
             class="window-resize-handle"
             type="button"
             title="拖拽缩放"
@@ -85,7 +114,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, h, onBeforeUnmount, onMounted, reactive } from 'vue';
+import { computed, defineAsyncComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import {
   closeLightAppWindow,
   focusLightAppWindow,
@@ -94,8 +123,10 @@ import {
   resolveLightAppHeaderPortalId,
   retainLightAppShell,
   setLightAppWindowRect,
+  toggleLightAppWindowFullscreen,
   toggleLightAppWindowMinimized,
-  toggleLightAppWindowPinned
+  toggleLightAppWindowPinned,
+  useLightAppShellState
 } from './lightAppShellStore';
 
 const props = defineProps({
@@ -179,6 +210,23 @@ const componentMap = Object.freeze({
 });
 
 const WINDOW_INTERACTIVE_SELECTOR = 'button, input, select, textarea, a, [role="button"], [contenteditable], .window-toolbar-hit';
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])'
+].join(',');
+const EDITABLE_SELECTOR = 'input, textarea, select, [contenteditable="true"], [contenteditable=""]';
+
+const shellState = useLightAppShellState();
+const hostElement = ref(null);
+const windowElements = new Map();
+let isolationRecords = [];
+let bodyStyleSnapshot = null;
+let fullscreenReturnFocus = null;
 
 const interaction = reactive({
   mode: '',
@@ -214,6 +262,8 @@ const activeWindowId = computed(() => {
   return id;
 });
 
+const fullscreenWindowId = computed(() => Number(shellState.fullscreenWindowId) || 0);
+
 function viewport() {
   if (typeof window === 'undefined') {
     return { width: 1280, height: 720 };
@@ -238,7 +288,31 @@ function resolveWindowComponent(code) {
   return componentMap[code] || TimePrismTodoSuiteWindow;
 }
 
+function setWindowElement(windowId, element) {
+  const normalizedId = Number(windowId) || 0;
+  if (!normalizedId) return;
+  if (element instanceof HTMLElement) {
+    windowElements.set(normalizedId, element);
+    return;
+  }
+  windowElements.delete(normalizedId);
+}
+
+function isFullscreenWindow(windowId) {
+  return fullscreenWindowId.value > 0 && fullscreenWindowId.value === Number(windowId);
+}
+
 function windowStyle(win) {
+  if (isFullscreenWindow(win.id)) {
+    return {
+      inset: '0',
+      left: '0',
+      top: '0',
+      width: '100vw',
+      height: '100dvh',
+      zIndex: '2600'
+    };
+  }
   return {
     left: `${win.x}px`,
     top: `${win.y}px`,
@@ -278,6 +352,11 @@ function handleActionClick(action, windowId) {
   const normalized = String(action || '').trim().toLowerCase();
   focusById(windowId);
 
+  if (normalized === 'fullscreen') {
+    clearInteraction();
+    toggleLightAppWindowFullscreen(windowId);
+    return;
+  }
   if (normalized === 'pin') {
     toggleLightAppWindowPinned(windowId);
     return;
@@ -339,6 +418,7 @@ function beginInteraction(mode, event, win) {
 
 function startDrag(event, win) {
   if (!win || !isPrimaryPointer(event)) return;
+  if (isFullscreenWindow(win.id)) return;
   if (isInteractiveTarget(event?.target)) return;
   focusById(win.id);
   beginInteraction('drag', event, win);
@@ -346,6 +426,7 @@ function startDrag(event, win) {
 
 function startResize(event, win) {
   if (!win || !isPrimaryPointer(event)) return;
+  if (isFullscreenWindow(win.id)) return;
   focusById(win.id);
   beginInteraction('resize', event, win);
 }
@@ -415,6 +496,135 @@ function onInteractionPointerCancel() {
   clearInteraction();
 }
 
+function isVisibleFocusable(element) {
+  if (!(element instanceof HTMLElement)) return false;
+  if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+  return true;
+}
+
+function getFullscreenFocusables(fullscreenElement) {
+  if (!(fullscreenElement instanceof HTMLElement)) return [];
+  return Array.from(fullscreenElement.querySelectorAll(FOCUSABLE_SELECTOR)).filter(isVisibleFocusable);
+}
+
+function shouldKeepEscapeInsideApp(event, fullscreenElement) {
+  const target = event?.target;
+  if (!(target instanceof Element)) return false;
+  if (target.matches(EDITABLE_SELECTOR) || target.closest(EDITABLE_SELECTOR)) return true;
+  const nestedDialog = target.closest('[role="dialog"], [aria-modal="true"]');
+  return Boolean(nestedDialog && nestedDialog !== fullscreenElement);
+}
+
+function handleFullscreenKeydown(event, win) {
+  if (!isFullscreenWindow(win?.id)) return;
+  const fullscreenElement = windowElements.get(Number(win.id));
+  if (!(fullscreenElement instanceof HTMLElement)) return;
+
+  if (event.key === 'Escape') {
+    if (event.defaultPrevented || shouldKeepEscapeInsideApp(event, fullscreenElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleLightAppWindowFullscreen(win.id);
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+  const focusable = getFullscreenFocusables(fullscreenElement);
+  if (!focusable.length) {
+    event.preventDefault();
+    fullscreenElement.focus({ preventScroll: true });
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && (document.activeElement === first || !fullscreenElement.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus({ preventScroll: true });
+    return;
+  }
+  if (!event.shiftKey && (document.activeElement === last || !fullscreenElement.contains(document.activeElement))) {
+    event.preventDefault();
+    first.focus({ preventScroll: true });
+  }
+}
+
+function isolateBackground() {
+  if (typeof document === 'undefined') return;
+  const host = hostElement.value;
+  const parent = host?.parentElement;
+  isolationRecords = [];
+  if (parent) {
+    Array.from(parent.children).forEach((element) => {
+      if (element === host || !(element instanceof HTMLElement)) return;
+      isolationRecords.push({
+        element,
+        inert: element.hasAttribute('inert'),
+        ariaHidden: element.getAttribute('aria-hidden')
+      });
+      element.setAttribute('inert', '');
+      element.setAttribute('aria-hidden', 'true');
+    });
+  }
+
+  bodyStyleSnapshot = {
+    overflow: document.body.style.overflow,
+    overscrollBehavior: document.body.style.overscrollBehavior
+  };
+  document.body.style.overflow = 'hidden';
+  document.body.style.overscrollBehavior = 'none';
+}
+
+function restoreBackground() {
+  isolationRecords.forEach(({ element, inert, ariaHidden }) => {
+    if (!(element instanceof HTMLElement)) return;
+    if (!inert) element.removeAttribute('inert');
+    if (ariaHidden === null) {
+      element.removeAttribute('aria-hidden');
+    } else {
+      element.setAttribute('aria-hidden', ariaHidden);
+    }
+  });
+  isolationRecords = [];
+
+  if (bodyStyleSnapshot && typeof document !== 'undefined') {
+    document.body.style.overflow = bodyStyleSnapshot.overflow;
+    document.body.style.overscrollBehavior = bodyStyleSnapshot.overscrollBehavior;
+  }
+  bodyStyleSnapshot = null;
+}
+
+async function focusFullscreenWindow(windowId) {
+  await nextTick();
+  const fullscreenElement = windowElements.get(Number(windowId));
+  if (!(fullscreenElement instanceof HTMLElement)) return;
+  const focusable = getFullscreenFocusables(fullscreenElement);
+  (focusable[0] || fullscreenElement).focus({ preventScroll: true });
+}
+
+function restoreFullscreenFocus() {
+  const target = fullscreenReturnFocus;
+  fullscreenReturnFocus = null;
+  if (target instanceof HTMLElement && target.isConnected && typeof target.focus === 'function') {
+    target.focus({ preventScroll: true });
+  }
+}
+
+watch(fullscreenWindowId, (nextId, previousId) => {
+  if (nextId > 0 && previousId <= 0) {
+    fullscreenReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    isolateBackground();
+  }
+  if (nextId > 0) {
+    focusFullscreenWindow(nextId);
+    return;
+  }
+  if (previousId > 0) {
+    restoreBackground();
+    nextTick(restoreFullscreenFocus);
+  }
+});
+
 onMounted(() => {
   retainLightAppShell();
 });
@@ -422,6 +632,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   releaseLightAppShell();
   clearInteraction();
+  restoreBackground();
+  restoreFullscreenFocus();
+  windowElements.clear();
 });
 </script>
 
@@ -431,6 +644,10 @@ onBeforeUnmount(() => {
   inset: 0;
   pointer-events: none;
   z-index: 2400;
+}
+
+.light-window-host.is-fullscreen-active {
+  z-index: 2700;
 }
 
 .light-window-layer {
@@ -453,8 +670,53 @@ onBeforeUnmount(() => {
   --liquid-shadow: 0 16px 36px rgba(18, 9, 8, 0.16);
   overflow: hidden;
   transition:
+    left 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    top 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 320ms cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 220ms ease,
-    border-color 180ms ease;
+    border-color 180ms ease,
+    background-color 240ms ease;
+}
+
+.light-window.is-fullscreen {
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  border-color: color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.5)) 72%, transparent);
+  --liquid-bg: color-mix(
+    in srgb,
+    var(--theme-panel-surface, rgba(var(--glass-rgb), 0.72)) 88%,
+    rgba(var(--accent-rgb), 0.08)
+  );
+  --liquid-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 12% -8%, rgba(var(--accent-rgb), 0.18), transparent 38%),
+    radial-gradient(circle at 92% 4%, rgba(255, 255, 255, 0.12), transparent 32%),
+    var(--liquid-bg);
+  isolation: isolate;
+}
+
+.light-window.is-fullscreen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent 68%);
+}
+
+.light-window.is-fullscreen:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.7);
+  outline-offset: -2px;
 }
 
 .light-window.is-active {
@@ -517,10 +779,19 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 6px;
   padding: 8px 10px 6px;
-  padding-right: 112px;
+  padding-right: 154px;
   border-bottom: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.26));
   user-select: none;
   transition: background-color 180ms ease;
+}
+
+.light-window.is-fullscreen .window-header {
+  min-height: 52px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  padding-right: max(158px, calc(148px + env(safe-area-inset-right)));
+  padding-left: max(12px, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.12)) 86%, transparent);
+  backdrop-filter: blur(24px) saturate(132%);
 }
 
 .window-header:hover {
@@ -543,6 +814,10 @@ onBeforeUnmount(() => {
   padding: 2px 4px 2px 0;
   position: relative;
   z-index: 1;
+}
+
+.window-drag-zone.is-disabled {
+  cursor: default;
 }
 
 .window-title {
@@ -577,6 +852,11 @@ onBeforeUnmount(() => {
   gap: 6px;
   z-index: 3;
   pointer-events: auto;
+}
+
+.light-window.is-fullscreen .window-actions-zone {
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
 }
 
 .window-toolbar-zone {
@@ -626,7 +906,7 @@ onBeforeUnmount(() => {
 }
 
 .light-window.is-minimized .window-header {
-  padding-right: 112px;
+  padding-right: 154px;
   padding-bottom: 8px;
 }
 
@@ -642,6 +922,15 @@ onBeforeUnmount(() => {
   container-name: lightapp-window-body;
   scrollbar-width: thin;
   scrollbar-color: rgba(110, 122, 146, 0.44) rgba(255, 255, 255, 0.1);
+}
+
+.light-window.is-fullscreen .window-body {
+  padding:
+    clamp(10px, 1.4vw, 22px)
+    max(clamp(10px, 1.6vw, 26px), env(safe-area-inset-right))
+    max(clamp(12px, 1.6vw, 26px), env(safe-area-inset-bottom))
+    max(clamp(10px, 1.6vw, 26px), env(safe-area-inset-left));
+  overscroll-behavior: contain;
 }
 
 .window-body::-webkit-scrollbar {
@@ -728,6 +1017,23 @@ onBeforeUnmount(() => {
   .window-title span {
     max-width: 118px;
   }
+
+  .light-window.is-fullscreen .window-header {
+    padding-right: max(150px, calc(140px + env(safe-area-inset-right)));
+  }
+
+  .light-window.is-fullscreen .window-title span {
+    max-width: min(30vw, 132px);
+  }
+}
+
+:global(:root[data-effective-motion-mode='soothing']) .light-window {
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+:global(:root[data-effective-motion-mode='soothing']) .light-window.is-fullscreen::after {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
