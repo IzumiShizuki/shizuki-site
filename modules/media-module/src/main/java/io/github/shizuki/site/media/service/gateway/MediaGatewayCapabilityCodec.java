@@ -81,6 +81,10 @@ public class MediaGatewayCapabilityCodec {
         }
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(token);
+            String canonicalToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            if (!canonicalToken.equals(token)) {
+                return Optional.empty();
+            }
             if (bytes.length <= SIGNATURE_BYTES) {
                 return Optional.empty();
             }

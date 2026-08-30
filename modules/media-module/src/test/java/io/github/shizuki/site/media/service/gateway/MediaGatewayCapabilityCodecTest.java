@@ -48,6 +48,16 @@ class MediaGatewayCapabilityCodecTest {
         assertThat(codec.verify(token, Instant.ofEpochSecond(expiry + 1))).isEmpty();
     }
 
+    @Test
+    void rejectsNonCanonicalBase64UrlEncoding() {
+        long expiry = Instant.now().plusSeconds(60).getEpochSecond();
+        String token = codec.issue(claims(expiry));
+        int paddingLength = (4 - token.length() % 4) % 4;
+
+        assertThat(paddingLength).isGreaterThan(0);
+        assertThat(codec.verify(token + "=".repeat(paddingLength), Instant.now())).isEmpty();
+    }
+
     private MediaGatewayCapabilityClaims claims(long expiry) {
         return new MediaGatewayCapabilityClaims(
             mediaRef,
