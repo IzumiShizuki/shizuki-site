@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PLAYER_BRIDGE_KEY } from '../composables/playerBridge';
 import BlogListPage from './BlogListPage.vue';
 
 const mocked = vi.hoisted(() => ({
@@ -9,6 +10,12 @@ const mocked = vi.hoisted(() => ({
   listPosts: vi.fn(),
   getPostSidebar: vi.fn(),
   submitPostWhisper: vi.fn(),
+  getFeaturedAlbums: vi.fn(),
+  getFeaturedMoments: vi.fn(),
+  getSiteWeather: vi.fn(),
+  getNearbyWeather: vi.fn(),
+  getTodayQuote: vi.fn(),
+  getQuoteAlternative: vi.fn(),
   listBlogCategoryMetas: vi.fn(),
   updateBlogCategoryMeta: vi.fn(),
   uploadBlogCategoryCover: vi.fn(),
@@ -23,6 +30,18 @@ vi.mock('../services/blogApi', () => ({
   listPosts: (...args) => mocked.listPosts(...args),
   getPostSidebar: (...args) => mocked.getPostSidebar(...args),
   submitPostWhisper: (...args) => mocked.submitPostWhisper(...args)
+}));
+
+vi.mock('../services/lifeContentApi', () => ({
+  getFeaturedAlbums: (...args) => mocked.getFeaturedAlbums(...args),
+  getFeaturedMoments: (...args) => mocked.getFeaturedMoments(...args)
+}));
+
+vi.mock('../services/siteWidgetsApi', () => ({
+  getSiteWeather: (...args) => mocked.getSiteWeather(...args),
+  getNearbyWeather: (...args) => mocked.getNearbyWeather(...args),
+  getTodayQuote: (...args) => mocked.getTodayQuote(...args),
+  getQuoteAlternative: (...args) => mocked.getQuoteAlternative(...args)
 }));
 
 vi.mock('../services/adminApi', () => ({
@@ -70,13 +89,17 @@ async function settle() {
   await nextTick();
 }
 
-async function mountPage(initialPath = '/blog') {
+async function mountPage(initialPath = '/blog', { playerBridge = null } = {}) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: '/blog', name: 'blog', component: BlogListPage },
       { path: '/blog/editor/:postId?', name: 'blog-editor', component: { template: '<div />' } },
-      { path: '/blog/:postId', name: 'blog-detail', component: { template: '<div />' } }
+      { path: '/blog/:postId', name: 'blog-detail', component: { template: '<div />' } },
+      { path: '/albums', name: 'albums', component: { template: '<div />' } },
+      { path: '/albums/:publicSlug', name: 'album-detail', component: { template: '<div />' } },
+      { path: '/moments', name: 'moments', component: { template: '<div />' } },
+      { path: '/moments/:publicId', name: 'moment-detail', component: { template: '<div />' } }
     ]
   });
 
@@ -86,6 +109,7 @@ async function mountPage(initialPath = '/blog') {
   const wrapper = mount(BlogListPage, {
     global: {
       plugins: [router],
+      provide: playerBridge ? { [PLAYER_BRIDGE_KEY]: playerBridge } : {},
       stubs: {
         SubtleScrollArea: {
           props: ['tag'],
@@ -191,6 +215,12 @@ describe('BlogListPage category panel', () => {
     mocked.listPosts.mockReset().mockResolvedValue(createListPayload());
     mocked.getPostSidebar.mockReset().mockResolvedValue(createSidebarPayload());
     mocked.submitPostWhisper.mockReset().mockResolvedValue({});
+    mocked.getFeaturedAlbums.mockReset().mockResolvedValue([]);
+    mocked.getFeaturedMoments.mockReset().mockResolvedValue([]);
+    mocked.getSiteWeather.mockReset().mockResolvedValue({ available: false, forecast: [] });
+    mocked.getNearbyWeather.mockReset().mockResolvedValue({ available: false, forecast: [] });
+    mocked.getTodayQuote.mockReset().mockResolvedValue({ available: false });
+    mocked.getQuoteAlternative.mockReset().mockResolvedValue({ available: false });
     mocked.listBlogCategoryMetas.mockReset().mockResolvedValue(createCategoryMetaPayload());
     mocked.updateBlogCategoryMeta.mockReset().mockResolvedValue({});
     mocked.uploadBlogCategoryCover.mockReset().mockResolvedValue({});
@@ -219,6 +249,8 @@ describe('BlogListPage category panel', () => {
         value: originalReleasePointerCapture
       });
     }
+    delete document.startViewTransition;
+    delete document.documentElement.dataset.routeTransition;
     document.body.innerHTML = '';
   });
 
@@ -236,6 +268,143 @@ describe('BlogListPage category panel', () => {
     expect(mocked.listBlogCategoryMetas).toHaveBeenCalledTimes(1);
     expect(categoryCodes).toContain('设计');
     expect(categoryCodes).toContain('笔记');
+  });
+
+  it('uses the shared responsive shell and injects only real featured life content', async () => {
+    mocked.getFeaturedAlbums.mockResolvedValueOnce([{
+      publicSlug: 'album-real-1',
+      title: '真实相册',
+      summary: '一组照片',
+      photoCount: 3,
+      cover: null
+    }]);
+    mocked.getFeaturedMoments.mockResolvedValueOnce([{
+      publicId: 'moment-real-1',
+      body: '真实动态',
+      photos: [],
+      cover: null
+    }]);
+
+    const { wrapper } = await mountPage('/blog');
+    mountedWrappers.push(wrapper);
+
+    expect(wrapper.get('[data-content-layout="responsive"]').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__left .left-switch').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__main .feed-column').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__right .sidebar-column').exists()).toBe(true);
+    expect(wrapper.findAll('.life-preview-card').map((item) => item.text())).toEqual(
+      expect.arrayContaining([expect.stringContaining('真实相册'), expect.stringContaining('真实动态')])
+    );
+    expect(wrapper.findAll('.feed-card')).toHaveLength(0);
+    expect(wrapper.get('.feed-hero-title').text()).toBe('Dev Post');
+  });
+
+  it('uses the restrained content-flow transition when opening an article card', async () => {
+    const finished = Promise.resolve();
+    document.startViewTransition = vi.fn((update) => {
+      void update();
+      return { finished };
+    });
+    const { wrapper, router } = await mountPage('/blog');
+    mountedWrappers.push(wrapper);
+
+    await wrapper.get('.feed-hero').trigger('click');
+    await settle();
+
+    expect(document.startViewTransition).toHaveBeenCalledOnce();
+    expect(router.currentRoute.value).toMatchObject({ name: 'blog-detail', params: { postId: '101' } });
+  });
+
+  it('keeps the blog, navigation and global player usable when every auxiliary source fails', async () => {
+    mocked.getFeaturedAlbums.mockRejectedValueOnce(new Error('albums unavailable'));
+    mocked.getFeaturedMoments.mockRejectedValueOnce(new Error('moments unavailable'));
+    mocked.getSiteWeather.mockRejectedValueOnce(new Error('weather unavailable'));
+    mocked.getTodayQuote.mockRejectedValueOnce(new Error('quote unavailable'));
+
+    const playerBridge = {
+      tracks: ref([{ id: 'track-still-ready', title: '仍可打开的曲目', artist: '全局播放器', cover: '' }]),
+      playlistProfile: ref({ name: '站点推荐' }),
+      playlistLoading: ref(false),
+      playlistError: ref(''),
+      currentTrack: ref(null),
+      isPlaying: ref(false),
+      setPlayerExpanded: vi.fn(),
+      setListOpen: vi.fn()
+    };
+    const { wrapper } = await mountPage('/blog', { playerBridge });
+    mountedWrappers.push(wrapper);
+
+    expect(wrapper.get('.feed-hero-title').text()).toBe('Dev Post');
+    expect(wrapper.get('.content-shell__left .left-switch').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="albums-rail-error"]').text()).toContain('相册暂时没有读到');
+    expect(wrapper.get('[data-testid="moments-rail-error"]').text()).toContain('动态暂时没有读到');
+    expect(wrapper.get('.weather-card').text()).toContain('天气暂时不可用');
+    expect(wrapper.get('.quote-card').text()).toContain('今日一言暂时不可用');
+    expect(wrapper.get('.music-projection').text()).toContain('仍可打开的曲目');
+
+    await wrapper.get('.music-projection button').trigger('click');
+    expect(playerBridge.setPlayerExpanded).toHaveBeenCalledWith(true);
+    expect(playerBridge.setListOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('preserves filtering, pagination and cover fallback behavior inside the new shell', async () => {
+    mocked.listPosts.mockResolvedValue({
+      items: [
+        ...createListPayload().items,
+        {
+          postId: 102,
+          title: 'Second Post',
+          summary: 'second summary',
+          categoryCode: 'dev',
+          tags: [],
+          wordCount: 800,
+          readingMinutes: 3,
+          publishedAt: '2026-03-19T08:00:00Z',
+          coverImageUrl: ''
+        }
+      ],
+      total: 25
+    });
+
+    const { wrapper } = await mountPage('/blog');
+    mountedWrappers.push(wrapper);
+
+    expect(wrapper.get('.feed-hero-cover').attributes('src')).toBe('/images/katanegai.jpg');
+    const pageTwo = wrapper.findAll('.page-btn').find((button) => button.text().trim() === '2');
+    await pageTwo.trigger('click');
+    await settle();
+    expect(mocked.listPosts.mock.calls.at(-1)[0]).toMatchObject({ pageNo: 2, pageSize: 10 });
+
+    const devCategory = wrapper.findAll('.category-pill').find((button) => button.text().includes('开发'));
+    await devCategory.trigger('click');
+    await settle();
+    expect(mocked.listPosts.mock.calls.at(-1)[0]).toMatchObject({ pageNo: 1, category: 'dev' });
+    expect(wrapper.findAll('.feed-card')).toHaveLength(2);
+    expect(wrapper.find('.author-life-rail').exists()).toBe(false);
+  });
+
+  it('moves blog filters and life widgets behind an explicit drawer on mobile', async () => {
+    window.matchMedia.mockImplementation((query) => ({
+      matches: query.includes('max-width: 899.98px'),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn()
+    }));
+
+    const { wrapper } = await mountPage('/blog');
+    mountedWrappers.push(wrapper);
+
+    expect(wrapper.find('.content-shell__right').exists()).toBe(false);
+    await wrapper.get('.blog-auxiliary-trigger').trigger('click');
+    await settle();
+
+    const drawer = document.body.querySelector('[data-auxiliary-drawer]');
+    expect(drawer).not.toBeNull();
+    expect(drawer.textContent).toContain('分类筛选');
+    expect(drawer.textContent).toContain('站点天气');
+    expect(drawer.textContent).toContain('今日一言');
   });
 
   it('shows a loading state until admin auth is ready on direct categories entry', async () => {

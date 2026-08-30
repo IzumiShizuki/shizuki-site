@@ -28,8 +28,12 @@ function getAosInstance() {
   return window.AOS || null;
 }
 
-function prefersReducedMotion() {
-  if (!hasWindow() || typeof window.matchMedia !== 'function') return false;
+function prefersSoothingMotion() {
+  if (!hasWindow()) return false;
+  const effectiveMode = document.documentElement?.dataset?.effectiveMotionMode;
+  if (effectiveMode === 'soothing') return true;
+  if (effectiveMode === 'immersive') return false;
+  if (typeof window.matchMedia !== 'function') return false;
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
@@ -57,7 +61,7 @@ function applyAosFadeUp(root = document) {
   let visibleOrder = 0;
 
   nodes.forEach((node) => {
-    if (shouldIgnoreNode(node)) {
+    if (prefersSoothingMotion() || shouldIgnoreNode(node)) {
       clearAosState(node);
       return;
     }
@@ -129,7 +133,7 @@ export function initAosManager() {
     duration: Number(DEFAULT_DURATION),
     easing: DEFAULT_EASING,
     offset: Number(DEFAULT_OFFSET),
-    disable: () => prefersReducedMotion(),
+    disable: () => prefersSoothingMotion(),
     startEvent: 'DOMContentLoaded'
   });
 

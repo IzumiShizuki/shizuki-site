@@ -21,8 +21,8 @@ public class LoggingAuditLogService implements AuditLogService {
      */
     @Override
     public void save(AuditLogEntry entry) {
-        LOGGER.info("audit action={} resource={} result={} userId={} traceId={} costMs={} errorCode={}",
-            entry.getAction(), entry.getResource(), entry.getResult(), entry.getUserId(), entry.getTraceId(),
-            entry.getCostMs(), entry.getErrorCode());
+        LOGGER.info("audit action={} resource={} target={} result={} userId={} traceId={} costMs={} errorCode={} details={}",
+            entry.getAction(), entry.getResource(), entry.getTarget(), entry.getResult(), entry.getUserId(),
+            entry.getTraceId(), entry.getCostMs(), entry.getErrorCode(), entry.getDetails());
     }
 }

@@ -1122,6 +1122,10 @@ body {
 :where(.route-content, .content-panel, .profile-scroll-frame, .workspace-shell) {
   scroll-behavior: smooth;
 }
+:root[data-effective-motion-mode='soothing']
+  :where(.route-content, .content-panel, .profile-scroll-frame, .workspace-shell) {
+  scroll-behavior: auto;
+}
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -1170,5 +1174,53 @@ body {
   .fade-rise-late,
   .fade-stagger > * {
     animation: none;
+  }
+}
+
+:root[data-effective-motion-mode='soothing'] .fade-rise,
+:root[data-effective-motion-mode='soothing'] .fade-rise-late,
+:root[data-effective-motion-mode='soothing'] .fade-stagger > * {
+  animation: none;
+}
+html[data-route-transition='memory-lens']::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes blog-content-flow-out {
+  to {
+    opacity: 0.72;
+    transform: translateY(-4px) scale(0.995);
+  }
+}
+
+@keyframes blog-content-flow-in {
+  from {
+    opacity: 0.72;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+html[data-route-transition='content-flow']::view-transition-group(*) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.22, 0.72, 0.24, 1);
+}
+
+html[data-route-transition='content-flow']::view-transition-old(root) {
+  animation-name: blog-content-flow-out;
+}
+
+html[data-route-transition='content-flow']::view-transition-new(root) {
+  animation-name: blog-content-flow-in;
+}
+
+html[data-effective-motion-mode='soothing']::view-transition-group(*) {
+  animation-duration: 120ms;
+  animation-timing-function: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-route-transition='content-flow']::view-transition-group(*) {
+    animation-duration: 1ms;
   }
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { MOTION_PREFERENCE_STORAGE_KEY } from '../composables/useMotionPreference';
 import {
   HOME_APPEARANCE_STORAGE_KEY,
   __resetHomeAppearanceForTests,
@@ -18,11 +19,11 @@ describe('home time stage appearance state', () => {
     __resetHomeAppearanceForTests();
   });
 
-  it('uses automatic clock behavior and vivid motion by default', () => {
+  it('uses automatic clock behavior and immersive motion by default', () => {
     expect(normalizeHomeAppearance()).toEqual({
       version: 1,
       clockBehavior: 'auto',
-      motionLevel: 'vivid',
+      motionLevel: 'immersive',
       colorMode: 'auto',
       manualAccentHex: '#F2B39D',
       wallpaperClockOverrides: {}
@@ -53,8 +54,11 @@ describe('home time stage appearance state', () => {
     expect(JSON.parse(window.localStorage.getItem(HOME_APPEARANCE_STORAGE_KEY))).toMatchObject({
       version: 1,
       clockBehavior: 'hide',
-      motionLevel: 'calm',
       wallpaperClockOverrides: { 'wallpaper-7': 'show' }
+    });
+    expect(JSON.parse(window.localStorage.getItem(HOME_APPEARANCE_STORAGE_KEY))).not.toHaveProperty('motionLevel');
+    expect(JSON.parse(window.localStorage.getItem(MOTION_PREFERENCE_STORAGE_KEY))).toMatchObject({
+      mode: 'soothing'
     });
 
     setWallpaperClockOverride('wallpaper-7', 'inherit');
@@ -70,7 +74,7 @@ describe('home time stage appearance state', () => {
 
     expect(initializeHomeAppearance()).toMatchObject({
       clockBehavior: 'auto',
-      motionLevel: 'vivid',
+      motionLevel: 'immersive',
       wallpaperClockOverrides: { keep: 'show' }
     });
   });

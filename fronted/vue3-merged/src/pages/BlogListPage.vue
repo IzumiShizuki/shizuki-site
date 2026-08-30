@@ -1,10 +1,24 @@
 <template>
-  <section class="route-page blog-list-page motion-managed">
-    <div
+  <section
+    class="route-page blog-list-page motion-managed"
+    data-scroll-owner="app"
+    :data-motion-mode="motionPreference.effectiveMode.value"
+  >
+    <ThreeColumnContentShell
       class="blog-shell"
       :class="{ 'left-panel-collapsed': leftPanelCollapsed, 'right-panel-collapsed': rightPanelCollapsed }"
+      :style="{
+        '--content-shell-left': 'var(--blog-left-width)',
+        '--content-shell-right': 'var(--blog-right-effective-width)',
+        '--content-shell-gap': 'var(--blog-gap)'
+      }"
     >
-      <SubtleScrollArea tag="aside" class="left-switch liquid-material" :class="{ collapsed: leftPanelCollapsed }">
+      <template v-if="!leftPanelCollapsed" #left>
+        <SubtleScrollArea
+          tag="aside"
+          class="left-switch liquid-material"
+          :scrollable="false"
+        >
         <div class="left-switch-head">
           <button
             type="button"
@@ -52,8 +66,9 @@
           <i class="fas fa-user-secret"></i>
           <span>悄悄话</span>
         </button>
-        <p v-if="uiState.actionHint" class="action-hint">{{ uiState.actionHint }}</p>
-      </SubtleScrollArea>
+          <p v-if="uiState.actionHint" class="action-hint">{{ uiState.actionHint }}</p>
+        </SubtleScrollArea>
+      </template>
 
       <section class="main-column">
         <transition name="search-slide">
@@ -96,14 +111,14 @@
             <span class="strip-meta">共 {{ listState.total }} 篇</span>
           </section>
 
-          <div class="content-layout" :class="{ 'right-panel-collapsed': rightPanelCollapsed }">
-            <SubtleScrollArea tag="main" class="feed-column">
+          <SubtleScrollArea tag="main" class="feed-column" :scrollable="false">
               <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
 
               <article
                 v-if="featuredPost"
                 class="feed-hero liquid-material ripple-trigger"
-                @click="openPostDetail(featuredPost.postId)"
+                data-transform-owner="cover"
+                @click="openPostDetail(featuredPost.postId, $event)"
               >
                 <img
                   class="feed-hero-cover"
@@ -139,13 +154,23 @@
                 </div>
               </article>
 
+              <AuthorLifeCardRail
+                v-if="shouldShowLifePreviews"
+                kind="albums"
+                :items="featuredAlbums.data.value || []"
+                :loading="featuredAlbums.loading.value"
+                :error="featuredAlbums.error.value"
+                @retry="featuredAlbums.refresh('blog-retry')"
+              />
+
               <article
                 v-for="(post, index) in regularPosts"
                 :key="post.postId"
                 class="feed-card liquid-material ripple-trigger"
                 :class="{ reverse: index % 2 === 1 }"
                 :style="{ '--stagger': index }"
-                @click="openPostDetail(post.postId)"
+                data-transform-owner="cover"
+                @click="openPostDetail(post.postId, $event)"
               >
                 <div class="cover-pane">
                   <img :src="resolveCover(post.coverImageUrl)" :alt="post.title" loading="lazy" />
@@ -173,6 +198,15 @@
                   <span class="read-more">阅读全文 <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
                 </div>
               </article>
+
+              <AuthorLifeCardRail
+                v-if="shouldShowLifePreviews"
+                kind="moments"
+                :items="featuredMoments.data.value || []"
+                :loading="featuredMoments.loading.value"
+                :error="featuredMoments.error.value"
+                @retry="featuredMoments.refresh('blog-retry')"
+              />
 
               <div v-if="!listState.loading && !listState.items.length" class="empty-state-cozy">
                 <svg width="72" height="54" viewBox="0 0 72 54" fill="none" aria-hidden="true">
@@ -208,117 +242,15 @@
                   下一页
                 </button>
               </footer>
-            </SubtleScrollArea>
-
-            <SubtleScrollArea tag="aside" class="sidebar-column" :class="{ collapsed: rightPanelCollapsed }">
-              <header class="sidebar-column-head">
-                <span>侧栏</span>
-                <button
-                  type="button"
-                  class="icon-circle-btn ripple-trigger sidebar-collapse-btn"
-                  aria-label="收起右栏"
-                  title="收起右栏"
-                  @click="toggleRightPanelCollapsed"
-                >
-                  <i class="fas fa-angles-right"></i>
-                </button>
-              </header>
-              <section class="side-card liquid-material">
-                <header class="side-head">
-                  <h3>最新文章</h3>
-                  <div class="head-actions">
-                    <button type="button" class="icon-btn ripple-trigger" @click="searchState.open = !searchState.open">
-                      <i class="fas fa-search"></i>
-                      <span>搜索</span>
-                    </button>
-                    <button v-if="canWrite" type="button" class="icon-btn ripple-trigger" @click="openEditor">
-                      <i class="fas fa-pen"></i>
-                      <span>写文</span>
-                    </button>
-                  </div>
-                </header>
-                <div v-if="sidebarState.error" class="side-tip">{{ sidebarState.error }}</div>
-                <button
-                  v-for="item in sidebarState.latestPosts"
-                  :key="`latest-${item.postId}`"
-                  type="button"
-                  class="latest-item ripple-trigger"
-                  @click="openPostDetail(item.postId)"
-                >
-                  <img :src="resolveCover(item.coverImageUrl)" :alt="item.title" loading="lazy" />
-                  <span class="latest-text">
-                    <strong>{{ item.title }}</strong>
-                    <small>{{ formatDate(item.publishedAt) }}</small>
-                  </span>
-                </button>
-              </section>
-
-              <section class="side-card liquid-material">
-                <header class="side-head">
-                  <h3>分类</h3>
-                </header>
-                <button
-                  v-for="item in sidebarState.categories"
-                  :key="`category-${item.categoryCode}`"
-                  type="button"
-                  class="list-row ripple-trigger"
-                  :class="{ active: filters.category === item.categoryCode }"
-                  @click="applyCategoryFilter(item.categoryCode)"
-                >
-                  <span class="category-row-main">
-                    <img
-                      v-if="item.coverImageUrl"
-                      class="category-row-cover"
-                      :src="resolveCover(item.coverImageUrl)"
-                      :alt="item.displayName || item.categoryCode"
-                      loading="lazy"
-                    />
-                    <span>{{ item.displayName || item.categoryCode }}</span>
-                  </span>
-                  <strong>{{ item.count }}</strong>
-                </button>
-              </section>
-
-              <section class="side-card liquid-material">
-                <header class="side-head">
-                  <h3>标签</h3>
-                </header>
-                <div class="tag-cloud">
-                  <button
-                    v-for="item in sidebarState.tags"
-                    :key="`tag-${item.tagCode}`"
-                    type="button"
-                    class="tag-chip ripple-trigger"
-                    :class="{ active: filters.tag === item.tagCode }"
-                    @click="applyTagFilter(item.tagCode)"
-                  >
-                    {{ item.tagCode }}
-                    <span>{{ item.count }}</span>
-                  </button>
-                </div>
-              </section>
-
-              <section class="side-card liquid-material">
-                <header class="side-head">
-                  <h3>归档</h3>
-                </header>
-                <button
-                  v-for="item in sidebarState.archives"
-                  :key="`archive-${item.month}`"
-                  type="button"
-                  class="list-row ripple-trigger"
-                  :class="{ active: filters.archiveMonth === item.month }"
-                  @click="applyArchiveFilter(item.month)"
-                >
-                  <span>{{ item.month }}</span>
-                  <strong>{{ item.count }}</strong>
-                </button>
-              </section>
-            </SubtleScrollArea>
-          </div>
+          </SubtleScrollArea>
         </template>
 
-        <SubtleScrollArea v-else-if="uiState.panel === 'categories'" tag="section" class="category-panel liquid-material">
+        <SubtleScrollArea
+          v-else-if="uiState.panel === 'categories'"
+          tag="section"
+          class="category-panel liquid-material"
+          :scrollable="false"
+        >
           <template v-if="showCategoryPanelLoading">
             <h2>{{ categoryPanelHeading }}</h2>
             <p class="state-tip">正在同步分类目录...</p>
@@ -369,7 +301,7 @@
           </template>
         </SubtleScrollArea>
 
-        <SubtleScrollArea v-else tag="section" class="whisper-panel liquid-material">
+        <SubtleScrollArea v-else tag="section" class="whisper-panel liquid-material" :scrollable="false">
           <h2>悄悄话</h2>
           <p>支持匿名发送给作者，不登录也可以提交。备注可留空。</p>
           <form class="whisper-form" @submit.prevent="submitWhisper">
@@ -414,7 +346,153 @@
           </form>
         </SubtleScrollArea>
       </section>
-    </div>
+
+      <template v-if="uiState.panel === 'read' && !rightPanelCollapsed && !contentMobileLayout" #right>
+        <SubtleScrollArea tag="aside" class="sidebar-column" :scrollable="false">
+          <header class="sidebar-column-head">
+            <span>发现侧栏</span>
+            <button
+              type="button"
+              class="icon-circle-btn ripple-trigger sidebar-collapse-btn"
+              aria-label="收起右栏"
+              title="收起右栏"
+              @click="toggleRightPanelCollapsed"
+            >
+              <i class="fas fa-angles-right"></i>
+            </button>
+          </header>
+          <section class="side-card liquid-material">
+            <header class="side-head">
+              <h3>最新文章</h3>
+              <div class="head-actions">
+                <button type="button" class="icon-btn ripple-trigger" @click="searchState.open = !searchState.open">
+                  <i class="fas fa-search"></i>
+                  <span>搜索</span>
+                </button>
+                <button v-if="canWrite" type="button" class="icon-btn ripple-trigger" @click="openEditor">
+                  <i class="fas fa-pen"></i>
+                  <span>写文</span>
+                </button>
+              </div>
+            </header>
+            <div v-if="sidebarState.error" class="side-tip">{{ sidebarState.error }}</div>
+            <button
+              v-for="item in sidebarState.latestPosts"
+              :key="`latest-${item.postId}`"
+              type="button"
+              class="latest-item ripple-trigger"
+              @click="openPostDetail(item.postId, $event)"
+            >
+              <img :src="resolveCover(item.coverImageUrl)" :alt="item.title" loading="lazy" />
+              <span class="latest-text">
+                <strong>{{ item.title }}</strong>
+                <small>{{ formatDate(item.publishedAt) }}</small>
+              </span>
+            </button>
+          </section>
+
+          <section class="side-card liquid-material">
+            <header class="side-head"><h3>分类</h3></header>
+            <button
+              v-for="item in sidebarState.categories"
+              :key="`category-${item.categoryCode}`"
+              type="button"
+              class="list-row ripple-trigger"
+              :class="{ active: filters.category === item.categoryCode }"
+              @click="applyCategoryFilter(item.categoryCode)"
+            >
+              <span class="category-row-main">
+                <img
+                  v-if="item.coverImageUrl"
+                  class="category-row-cover"
+                  :src="resolveCover(item.coverImageUrl)"
+                  :alt="item.displayName || item.categoryCode"
+                  loading="lazy"
+                />
+                <span>{{ item.displayName || item.categoryCode }}</span>
+              </span>
+              <strong>{{ item.count }}</strong>
+            </button>
+          </section>
+
+          <section class="side-card liquid-material">
+            <header class="side-head"><h3>标签</h3></header>
+            <div class="tag-cloud">
+              <button
+                v-for="item in sidebarState.tags"
+                :key="`tag-${item.tagCode}`"
+                type="button"
+                class="tag-chip ripple-trigger"
+                :class="{ active: filters.tag === item.tagCode }"
+                @click="applyTagFilter(item.tagCode)"
+              >
+                {{ item.tagCode }}
+                <span>{{ item.count }}</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="side-card liquid-material">
+            <header class="side-head"><h3>归档</h3></header>
+            <button
+              v-for="item in sidebarState.archives"
+              :key="`archive-${item.month}`"
+              type="button"
+              class="list-row ripple-trigger"
+              :class="{ active: filters.archiveMonth === item.month }"
+              @click="applyArchiveFilter(item.month)"
+            >
+              <span>{{ item.month }}</span>
+              <strong>{{ item.count }}</strong>
+            </button>
+          </section>
+
+          <RecommendedMusicCard />
+          <WeatherCard />
+          <DailyQuoteCard />
+        </SubtleScrollArea>
+      </template>
+
+      <template #auxiliary-trigger>
+        <button
+          v-if="uiState.panel === 'read' && contentMobileLayout"
+          type="button"
+          class="blog-auxiliary-trigger"
+          aria-haspopup="dialog"
+          :aria-expanded="blogAuxiliaryOpen"
+          @click="blogAuxiliaryOpen = true"
+        >
+          <i class="fas fa-sliders" aria-hidden="true"></i>
+          筛选与生活侧栏
+        </button>
+      </template>
+    </ThreeColumnContentShell>
+
+    <AuxiliaryDrawer v-if="contentMobileLayout" v-model="blogAuxiliaryOpen" title="博客筛选与生活侧栏">
+      <nav class="blog-drawer-nav" aria-label="博客功能">
+        <button type="button" @click="selectAuxiliaryPanel('read')">主页</button>
+        <button type="button" @click="selectAuxiliaryPanel('categories')">分类</button>
+        <button type="button" @click="selectAuxiliaryPanel('whisper')">悄悄话</button>
+        <button v-if="canWrite" type="button" @click="openEditor">写文</button>
+      </nav>
+      <section class="blog-drawer-filter">
+        <header class="side-head"><h3>分类筛选</h3></header>
+        <button
+          v-for="item in sidebarState.categories"
+          :key="`drawer-category-${item.categoryCode}`"
+          type="button"
+          class="list-row"
+          :class="{ active: filters.category === item.categoryCode }"
+          @click="applyAuxiliaryCategory(item.categoryCode)"
+        >
+          <span>{{ item.displayName || item.categoryCode }}</span>
+          <strong>{{ item.count }}</strong>
+        </button>
+      </section>
+      <RecommendedMusicCard />
+      <WeatherCard />
+      <DailyQuoteCard />
+    </AuxiliaryDrawer>
 
     <button
       v-if="leftPanelCollapsed"
@@ -441,15 +519,28 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
+import AuthorLifeCardRail from '../components/author/AuthorLifeCardRail.vue';
+import AuxiliaryDrawer from '../components/content/AuxiliaryDrawer.vue';
+import DailyQuoteCard from '../components/content/DailyQuoteCard.vue';
+import RecommendedMusicCard from '../components/content/RecommendedMusicCard.vue';
+import ThreeColumnContentShell from '../components/content/ThreeColumnContentShell.vue';
+import WeatherCard from '../components/content/WeatherCard.vue';
+import { useAppScrollRoot } from '../composables/useAppScrollRoot';
+import { useAsyncResource } from '../composables/useAsyncResource';
 import { useAuthSession } from '../composables/useAuthSession';
 import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
+import { useMotionPreference } from '../composables/useMotionPreference';
+import { useViewTransitionNavigation } from '../composables/useViewTransitionNavigation';
 import { getPostSidebar, listPosts, submitPostWhisper } from '../services/blogApi';
 import { deleteBlogCategoryMeta, listBlogCategoryMetas, updateBlogCategoryMeta, uploadBlogCategoryCover } from '../services/adminApi';
+import { getFeaturedAlbums, getFeaturedMoments } from '../services/lifeContentApi';
 import { filterEnabledBlogCategories, mergeBlogCategoryCatalog } from '../utils/blogCategoryCatalog';
+
+const motionPreference = useMotionPreference();
 
 const DEFAULT_COVER_IMAGE = '/images/katanegai.jpg';
 const PAGE_SIZE = 10;
@@ -458,10 +549,30 @@ const BLOG_LEFT_PANEL_STATE_KEY = 'blog_left_panel_collapsed';
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthSession();
+const appScrollRoot = useAppScrollRoot();
+const transitionNavigation = useViewTransitionNavigation({ router });
 const categoryStripRef = ref(null);
 const leftPanelCollapsed = ref(readPersistedLeftPanelCollapsed());
 const rightPanelCollapsed = ref(false);
 const rightPanelTouchedByUser = ref(false);
+const blogAuxiliaryOpen = ref(false);
+
+function createContentMobileQuery() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
+  return window.matchMedia('(max-width: 899.98px)');
+}
+
+const contentMobileQuery = createContentMobileQuery();
+const contentMobileLayout = ref(Boolean(contentMobileQuery?.matches));
+
+function syncContentMobileLayout(event) {
+  contentMobileLayout.value = Boolean(event.matches);
+  if (!contentMobileLayout.value) blogAuxiliaryOpen.value = false;
+}
+
+if (contentMobileQuery?.addEventListener) contentMobileQuery.addEventListener('change', syncContentMobileLayout);
+else contentMobileQuery?.addListener?.(syncContentMobileLayout);
+
 const { isNarrowDesktop, isMobileLike, recommendedRightCollapsed } = useBlogResponsiveLayout({
   desktopBreakpoint: 1366,
   mobileBreakpoint: 980
@@ -503,6 +614,15 @@ const filters = reactive({
 const searchState = reactive({
   open: false
 });
+
+const featuredAlbums = useAsyncResource(
+  ({ signal }) => getFeaturedAlbums(4, signal),
+  { immediate: true, initialValue: [] }
+);
+const featuredMoments = useAsyncResource(
+  ({ signal }) => getFeaturedMoments(4, signal),
+  { immediate: true, initialValue: [] }
+);
 
 const listState = reactive({
   loading: false,
@@ -555,6 +675,9 @@ const featuredPost = computed(() => {
   return listState.items[0] || null;
 });
 const regularPosts = computed(() => (featuredPost.value ? listState.items.slice(1) : listState.items));
+const shouldShowLifePreviews = computed(() => (
+  uiState.panel === 'read' && listState.pageNo === 1 && !hasActiveListFilters.value
+));
 const viewportZone = computed(() => {
   if (isMobileLike.value) return 'mobile';
   if (isNarrowDesktop.value) return 'narrow';
@@ -636,6 +759,18 @@ function normalizePanel(panel) {
 
 function syncPanelFromRouteQuery() {
   uiState.panel = normalizePanel(route.query.panel);
+}
+
+function resetAppScrollPosition() {
+  void nextTick(() => {
+    const root = appScrollRoot.isActive.value ? appScrollRoot.element.value : null;
+    if (!(root instanceof HTMLElement)) return;
+    if (typeof root.scrollTo === 'function') {
+      root.scrollTo({ top: 0, behavior: 'auto' });
+    } else {
+      root.scrollTop = 0;
+    }
+  });
 }
 
 function syncRouteQueryFromPanel(panel) {
@@ -1091,6 +1226,16 @@ function openEditor() {
   router.push({ name: 'blog-editor' });
 }
 
+function selectAuxiliaryPanel(panel) {
+  blogAuxiliaryOpen.value = false;
+  setPanel(panel);
+}
+
+function applyAuxiliaryCategory(categoryCode) {
+  blogAuxiliaryOpen.value = false;
+  applyCategoryFilter(categoryCode);
+}
+
 function goToPage(pageNo) {
   const target = Math.max(1, Math.min(pageCount.value, Number(pageNo) || 1));
   if (target === listState.pageNo) return;
@@ -1140,10 +1285,19 @@ function applyArchiveFilter(monthText) {
   loadPostList();
 }
 
-function openPostDetail(postId) {
+function openPostDetail(postId, event) {
   const normalized = Number(postId) || 0;
   if (normalized <= 0) return;
-  router.push({ name: 'blog-detail', params: { postId: normalized } });
+  const sourceElement = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  return transitionNavigation.navigate(
+    { name: 'blog-detail', params: { postId: normalized } },
+    {
+      sourceElement,
+      sharedName: `post-${normalized}`,
+      transitionKind: 'content-flow',
+      focusTarget: `blog-reader-title-${normalized}`
+    }
+  );
 }
 
 function handleCategoryStripPointerDown(event) {
@@ -1189,7 +1343,11 @@ onMounted(async () => {
 watch(
   () => route.query.panel,
   () => {
+    const previousPanel = uiState.panel;
     syncPanelFromRouteQuery();
+    if (uiState.panel !== previousPanel) {
+      resetAppScrollPosition();
+    }
     if (!authReady.value) {
       return;
     }
@@ -1236,6 +1394,8 @@ watch(
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', handleCategoryStripPointerMove);
   window.removeEventListener('pointerup', handleCategoryStripPointerUp);
+  if (contentMobileQuery?.removeEventListener) contentMobileQuery.removeEventListener('change', syncContentMobileLayout);
+  else contentMobileQuery?.removeListener?.(syncContentMobileLayout);
 });
 </script>
 
@@ -1247,19 +1407,16 @@ onBeforeUnmount(() => {
   --blog-right-width: clamp(190px, 20vw, 288px);
   --blog-right-effective-width: var(--blog-right-width);
   --blog-sidebar-button-size: clamp(28px, 2.2vw, 34px);
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
+  min-height: 100%;
+  overflow: visible;
   position: relative;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
   font-family: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
 
 .blog-shell {
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: var(--blog-left-width) minmax(0, 1fr);
+  min-height: 100%;
+  align-items: start;
   gap: var(--blog-gap);
   transition: grid-template-columns 200ms ease;
 }
@@ -1287,6 +1444,57 @@ onBeforeUnmount(() => {
     opacity 0.2s ease,
     padding 0.2s ease,
     border-color 0.2s ease;
+}
+
+.left-switch,
+.sidebar-column {
+  position: sticky;
+  top: calc(var(--app-topbar-height, 72px) + 16px);
+}
+
+.blog-auxiliary-trigger {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 18px;
+  border: 1px solid var(--theme-border-strong, rgba(255, 255, 255, 0.25));
+  border-radius: 999px;
+  color: var(--theme-text-primary);
+  background: color-mix(in srgb, var(--theme-panel-surface-elevated) 92%, transparent);
+  box-shadow: 0 14px 30px rgba(8, 10, 20, 0.2);
+  backdrop-filter: blur(18px) saturate(1.18);
+}
+
+.blog-auxiliary-trigger:focus-visible {
+  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline-offset: 3px;
+}
+
+.blog-drawer-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.blog-drawer-nav button {
+  min-height: 44px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.18));
+  border-radius: 12px;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.08));
+}
+
+.blog-drawer-filter {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.14));
+  border-radius: 14px;
+  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.06));
 }
 
 .left-switch.collapsed {
@@ -1389,12 +1597,11 @@ onBeforeUnmount(() => {
 }
 
 .main-column {
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--blog-gap);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .search-panel {
@@ -1511,12 +1718,12 @@ onBeforeUnmount(() => {
 }
 
 .content-layout {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, var(--blog-right-effective-width));
+  align-items: start;
   gap: var(--blog-gap);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .content-layout.right-panel-collapsed {
@@ -1525,7 +1732,6 @@ onBeforeUnmount(() => {
 
 .feed-column {
   min-height: 0;
-  height: 100%;
   display: grid;
   align-content: start;
   gap: var(--blog-gap);
@@ -1546,7 +1752,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 180ms ease, box-shadow 200ms ease;
+  transition: box-shadow 200ms ease;
   animation: reveal-up 350ms ease both;
   animation-delay: calc(var(--stagger) * 36ms);
 }
@@ -1557,7 +1763,6 @@ onBeforeUnmount(() => {
 }
 
 .feed-card:hover {
-  transform: translateY(-2px);
   box-shadow: 0 20px 34px rgba(2, 4, 8, 0.34);
   --liquid-border: rgba(var(--accent-rgb), 0.34);
 }
@@ -1574,11 +1779,10 @@ onBeforeUnmount(() => {
   align-items: flex-end;
   cursor: pointer;
   animation: reveal-up 380ms ease both;
-  transition: transform 200ms ease, box-shadow 220ms ease;
+  transition: box-shadow 220ms ease;
 }
 
 .feed-hero:hover {
-  transform: translateY(-2px);
   box-shadow: 0 24px 44px rgba(2, 4, 8, 0.42);
   --liquid-border: rgba(var(--accent-rgb), 0.4);
 }
@@ -1753,22 +1957,15 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: rgba(var(--accent-rgb), 0.92);
   opacity: 0;
-  transform: translateX(-4px);
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: opacity 180ms ease;
 }
 
 .feed-card:hover .read-more {
   opacity: 1;
-  transform: translateX(0);
 }
 
 .read-more i {
   font-size: 10.5px;
-  transition: transform 180ms ease;
-}
-
-.feed-card:hover .read-more i {
-  transform: translateX(2px);
 }
 
 .summary {
@@ -1825,7 +2022,6 @@ onBeforeUnmount(() => {
 
 .sidebar-column {
   min-height: 0;
-  height: 100%;
   display: grid;
   gap: var(--blog-gap);
   align-content: start;
@@ -2153,6 +2349,37 @@ onBeforeUnmount(() => {
   }
 }
 
+.blog-list-page[data-motion-mode='soothing'] .empty-state-cozy svg,
+.blog-list-page[data-motion-mode='soothing'] .feed-card,
+.blog-list-page[data-motion-mode='soothing'] .feed-hero {
+  animation: none !important;
+}
+
+.blog-list-page[data-motion-mode='soothing'] .feed-card,
+.blog-list-page[data-motion-mode='soothing'] .feed-hero,
+.blog-list-page[data-motion-mode='soothing'] .feed-hero-cover,
+.blog-list-page[data-motion-mode='soothing'] .cover-pane img {
+  transition: border-color 120ms ease, box-shadow 120ms ease !important;
+}
+
+.blog-list-page[data-motion-mode='soothing'] .feed-card:hover,
+.blog-list-page[data-motion-mode='soothing'] .feed-hero:hover,
+.blog-list-page[data-motion-mode='soothing'] .feed-hero:hover .feed-hero-cover,
+.blog-list-page[data-motion-mode='soothing'] .feed-card:hover .cover-pane img {
+  transform: none;
+}
+
+.blog-list-page[data-motion-mode='soothing'] .read-more,
+.blog-list-page[data-motion-mode='soothing'] .feed-card:hover .read-more,
+.blog-list-page[data-motion-mode='soothing'] .feed-card:hover .read-more i {
+  transform: none;
+}
+
+.blog-list-page[data-motion-mode='soothing'] .search-slide-enter-active,
+.blog-list-page[data-motion-mode='soothing'] .search-slide-leave-active {
+  transition: opacity 120ms linear;
+}
+
 .search-slide-enter-active,
 .search-slide-leave-active {
   transition: all 220ms ease;
@@ -2201,7 +2428,6 @@ onBeforeUnmount(() => {
     --blog-left-width: 1fr;
     --blog-right-width: 1fr;
     --blog-right-effective-width: 1fr;
-    grid-template-columns: 1fr;
   }
 
   .content-layout,
@@ -2276,6 +2502,17 @@ onBeforeUnmount(() => {
 
   .whisper-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 980px) {
+  .left-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .left-switch-head,
+  .action-hint {
+    grid-column: auto;
   }
 }
 

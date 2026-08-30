@@ -44,7 +44,21 @@ beforeEach(() => {
   });
   searchWallhavenWallpapers.mockResolvedValue({
     items: [
-      { id: 'x8gxgz', thumb_url: 'https://th.example/x8gxgz.jpg', full_url: 'https://w.example/full.jpg', detail_url: 'https://wallhaven.cc/w/x8gxgz', resolution: '3840x2160', file_size_bytes: 2048000, file_type: 'image/jpeg' }
+      {
+        id: 'x8gxgz',
+        thumb_url: 'https://th.example/x8gxgz.jpg',
+        full_url: 'https://w.example/full.jpg',
+        detail_url: 'https://wallhaven.cc/w/x8gxgz',
+        resolution: '3840x2160',
+        ratio: '1.78',
+        file_size_bytes: 2048000,
+        file_type: 'image/jpeg',
+        category: 'anime',
+        purity: 'sfw',
+        views: 42100,
+        favorites: 860,
+        created_at: '2026-08-01 12:30:00'
+      }
     ],
     page: 1,
     last_page: 5,
@@ -112,8 +126,10 @@ describe('WallpaperDiscoveryPanel', () => {
       expect.objectContaining({ page: 1, purity: '100' }),
       authorizedFetch
     );
-    expect(wrapper.text()).toContain('Wallhaven x8gxgz');
+    expect(wrapper.text()).toContain('动漫壁纸 · x8gxgz');
     expect(wrapper.text()).toContain('3840x2160');
+    expect(wrapper.text()).toContain('动漫');
+    expect(wrapper.text()).toContain('4.2万浏览');
 
     await wrapper.find('.discovery-item').trigger('click');
     const importButton = wrapper.findAll('button').find((button) => button.text() === '添加壁纸');
@@ -122,6 +138,33 @@ describe('WallpaperDiscoveryPanel', () => {
     const emitted = wrapper.emitted('import-wallhaven');
     expect(emitted).toHaveLength(1);
     expect(emitted[0][0]).toMatchObject({ wallhavenId: 'x8gxgz', visibility: 'PRIVATE' });
+  });
+
+  it('submits Workshop tags and complete Wallhaven filters', async () => {
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    await wrapper.find('[aria-label="Workshop 类型"]').setValue('Scene');
+    await wrapper.find('[aria-label="Workshop 风格"]').setValue('Anime');
+    await wrapper.find('[aria-label="Workshop 分辨率"]').setValue('1920 x 1080');
+    await flushPromises();
+
+    expect(searchWorkshopWallpapers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tags: ['Scene', 'Anime', '1920 x 1080'] }),
+      authorizedFetch
+    );
+
+    await wrapper.setProps({ source: 'wallhaven' });
+    await flushPromises();
+    await wrapper.find('[aria-label="Wallhaven 纯净度"]').setValue('110');
+    await wrapper.find('[aria-label="Wallhaven 比例"]').setValue('21x9,32x9');
+    await wrapper.find('[aria-label="Wallhaven 顺序"]').setValue('asc');
+    await flushPromises();
+
+    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ purity: '110', ratios: '21x9,32x9', order: 'asc' }),
+      authorizedFetch
+    );
   });
 
   it('falls back through preview candidates and can retry the proxy preview', async () => {

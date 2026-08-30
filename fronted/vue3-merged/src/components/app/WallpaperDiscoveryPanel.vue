@@ -71,8 +71,23 @@
         <label class="filter-chip"><input v-model="wallhavenGeneral" type="checkbox" @change="runSearch(1)" /> 综合</label>
         <label class="filter-chip"><input v-model="wallhavenAnime" type="checkbox" @change="runSearch(1)" /> 动漫</label>
         <label class="filter-chip"><input v-model="wallhavenPeople" type="checkbox" @change="runSearch(1)" /> 人物</label>
+        <select v-model="wallhavenPurity" class="filter-control compact-filter" aria-label="Wallhaven 纯净度" @change="runSearch(1)">
+          <option value="100">安全</option>
+          <option value="110">含轻微敏感</option>
+        </select>
+        <select v-model="wallhavenRatios" class="filter-control compact-filter" aria-label="Wallhaven 比例" @change="runSearch(1)">
+          <option value="">全部比例</option>
+          <option value="16x9,16x10">横屏</option>
+          <option value="21x9,32x9">超宽屏</option>
+          <option value="9x16,10x16">竖屏</option>
+          <option value="1x1">方形</option>
+        </select>
+        <select v-model="wallhavenOrder" class="filter-control compact-filter" aria-label="Wallhaven 顺序" @change="runSearch(1)">
+          <option value="desc">降序</option>
+          <option value="asc">升序</option>
+        </select>
         <button
-          v-if="query || wallhavenAtleast || wallhavenSorting !== 'toplist'"
+          v-if="hasCustomWallhavenFilters"
           type="button"
           class="reset-button"
           @click="resetFilters"
@@ -82,10 +97,36 @@
         <span class="result-count">{{ searched ? `${items.length} 项` : '' }}</span>
       </div>
       <div v-else class="quick-row">
+        <select v-model="workshopType" class="filter-control compact-filter" aria-label="Workshop 类型" @change="runSearch(1)">
+          <option value="">全部类型</option>
+          <option value="Scene">场景</option>
+          <option value="Video">视频</option>
+          <option value="Web">网页</option>
+        </select>
+        <select v-model="workshopGenre" class="filter-control compact-filter" aria-label="Workshop 风格" @change="runSearch(1)">
+          <option value="">全部风格</option>
+          <option value="Anime">动漫</option>
+          <option value="Landscape">风景</option>
+          <option value="Nature">自然</option>
+          <option value="Relaxing">放松</option>
+          <option value="Game">游戏</option>
+          <option value="Cyberpunk">赛博朋克</option>
+          <option value="Sci-Fi">科幻</option>
+          <option value="Pixel art">像素</option>
+        </select>
+        <select v-model="workshopResolution" class="filter-control compact-filter" aria-label="Workshop 分辨率" @change="runSearch(1)">
+          <option value="">全部分辨率</option>
+          <option value="1280 x 720">720P</option>
+          <option value="1920 x 1080">1080P</option>
+          <option value="2560 x 1440">2K</option>
+          <option value="3440 x 1440">超宽屏</option>
+          <option value="3840 x 2160">4K</option>
+          <option value="Dynamic Resolution">动态分辨率</option>
+        </select>
         <button type="button" class="quick-chip" @click="applyQuickSearch('anime')">动漫</button>
         <button type="button" class="quick-chip" @click="applyQuickSearch('rain')">雨夜</button>
         <button type="button" class="quick-chip" @click="applyQuickSearch('landscape')">风景</button>
-        <button v-if="query" type="button" class="reset-button" @click="resetFilters">清除筛选</button>
+        <button v-if="query || workshopType || workshopGenre || workshopResolution" type="button" class="reset-button" @click="resetFilters">清除筛选</button>
         <span class="result-count">{{ searched ? `${items.length} 项` : '' }}</span>
       </div>
 
@@ -124,7 +165,7 @@
               v-if="previewSrc(item) && !previewState(item).failed"
               class="discovery-thumb"
               :src="previewSrc(item)"
-              :alt="item.title || '未命名壁纸'"
+              :alt="item.title || item.key"
               loading="lazy"
               decoding="async"
               referrerpolicy="no-referrer"
@@ -147,7 +188,7 @@
             <span v-if="selected && selected.key === item.key" class="selected-check" aria-label="已选择">✓</span>
           </span>
           <span class="item-copy">
-            <strong>{{ item.title || '未命名壁纸' }}</strong>
+            <strong>{{ item.title }}</strong>
             <small>{{ item.meta }}</small>
           </span>
         </button>
@@ -167,7 +208,7 @@
           <img
             v-if="previewSrc(selected) && !previewState(selected).failed"
             :src="previewSrc(selected)"
-            :alt="selected.title || '未命名壁纸'"
+            :alt="selected.title || selected.key"
             decoding="async"
             referrerpolicy="no-referrer"
             @load="handlePreviewLoad(selected)"
@@ -181,10 +222,14 @@
 
         <div class="inspector-heading">
           <div>
-            <h2>{{ selected.title || '未命名壁纸' }}</h2>
+            <h2>{{ selected.title }}</h2>
             <p>{{ selected.meta }}</p>
           </div>
           <span class="inspector-source">{{ source === 'workshop' ? 'Workshop' : 'Wallhaven' }}</span>
+        </div>
+
+        <div v-if="selected.details && selected.details.length" class="inspector-metadata">
+          <span v-for="detail in selected.details" :key="detail">{{ detail }}</span>
         </div>
 
         <a
@@ -246,8 +291,14 @@ const emit = defineEmits(['import-workshop', 'import-wallhaven', 'select-worksho
 const source = ref(normalizeSource(props.source));
 const query = ref('');
 const workshopSort = ref('trend');
+const workshopType = ref('');
+const workshopGenre = ref('');
+const workshopResolution = ref('');
 const wallhavenSorting = ref('toplist');
 const wallhavenAtleast = ref('');
+const wallhavenPurity = ref('100');
+const wallhavenRatios = ref('');
+const wallhavenOrder = ref('desc');
 const wallhavenGeneral = ref(true);
 const wallhavenAnime = ref(true);
 const wallhavenPeople = ref(false);
@@ -278,6 +329,18 @@ const canGoNext = computed(() => {
   return hasMore.value;
 });
 
+const hasCustomWallhavenFilters = computed(() => Boolean(
+  query.value
+  || wallhavenAtleast.value
+  || wallhavenSorting.value !== 'toplist'
+  || wallhavenPurity.value !== '100'
+  || wallhavenRatios.value
+  || wallhavenOrder.value !== 'desc'
+  || !wallhavenGeneral.value
+  || !wallhavenAnime.value
+  || wallhavenPeople.value
+));
+
 function normalizeSource(value) {
   return value === 'wallhaven' ? 'wallhaven' : 'workshop';
 }
@@ -297,6 +360,26 @@ function formatFileSize(bytes) {
   return `${size}B`;
 }
 
+function formatCompactCount(value, suffix) {
+  const count = Number(value || 0);
+  if (!Number.isFinite(count) || count <= 0) return '';
+  if (count >= 10000) return `${(count / 10000).toFixed(count >= 100000 ? 0 : 1)}万${suffix}`;
+  return `${Math.round(count)}${suffix}`;
+}
+
+function wallhavenCategoryLabel(category) {
+  return ({ anime: '动漫', general: '综合', people: '人物' })[String(category || '').toLowerCase()] || '壁纸';
+}
+
+function wallhavenPurityLabel(purity) {
+  return ({ sfw: '安全', sketchy: '轻微敏感', nsfw: '成人' })[String(purity || '').toLowerCase()] || '';
+}
+
+function formatCreatedDate(value) {
+  const raw = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : '';
+}
+
 function normalizeWorkshopItem(raw) {
   const itemId = String(readField(raw, 'itemId', 'item_id', '')).trim();
   if (!itemId) return null;
@@ -305,11 +388,12 @@ function normalizeWorkshopItem(raw) {
   return {
     key: `workshop-${itemId}`,
     itemId,
-    title,
+    title: title || `Workshop #${itemId}`,
     thumb,
     fullUrl: '',
     detailUrl: String(readField(raw, 'detailUrl', 'detail_url', '')).trim(),
-    meta: `Workshop #${itemId}`
+    meta: `Workshop #${itemId}`,
+    details: [`ID ${itemId}`]
   };
 }
 
@@ -321,16 +405,38 @@ function normalizeWallhavenItem(raw) {
   const sizeText = formatFileSize(readField(raw, 'fileSizeBytes', 'file_size_bytes', 0));
   const thumb = String(readField(raw, 'thumbUrl', 'thumb_url', '')).trim();
   const fullUrl = String(readField(raw, 'fullUrl', 'full_url', readField(raw, 'path', 'path', ''))).trim();
+  const category = String(readField(raw, 'category', 'category', '')).trim();
+  const purity = String(readField(raw, 'purity', 'purity', '')).trim();
+  const categoryLabel = wallhavenCategoryLabel(category);
+  const viewsText = formatCompactCount(readField(raw, 'views', 'views', 0), '浏览');
+  const favoritesText = formatCompactCount(readField(raw, 'favorites', 'favorites', 0), '收藏');
+  const createdText = formatCreatedDate(readField(raw, 'createdAt', 'created_at', ''));
+  const colors = readField(raw, 'colors', 'colors', []);
   return {
     key: `wallhaven-${id}`,
     wallhavenId: id,
-    title: `Wallhaven ${id}`,
+    title: `${categoryLabel}壁纸 · ${id}`,
     thumb,
     fullUrl,
     detailUrl: String(readField(raw, 'detailUrl', 'detail_url', '')).trim(),
     resolution,
     ratio,
-    meta: [resolution, ratio, sizeText].filter(Boolean).join(' · ') || 'Wallhaven'
+    category,
+    purity,
+    views: Number(readField(raw, 'views', 'views', 0)) || 0,
+    favorites: Number(readField(raw, 'favorites', 'favorites', 0)) || 0,
+    createdAt: String(readField(raw, 'createdAt', 'created_at', '')).trim(),
+    colors: Array.isArray(colors) ? colors.filter((color) => /^#[0-9a-f]{6}$/i.test(String(color || ''))) : [],
+    sourceUrl: String(readField(raw, 'sourceUrl', 'source_url', '')).trim(),
+    meta: [resolution, categoryLabel, viewsText].filter(Boolean).join(' · ') || `Wallhaven #${id}`,
+    details: [
+      `ID ${id}`,
+      wallhavenPurityLabel(purity),
+      sizeText,
+      viewsText,
+      favoritesText,
+      createdText
+    ].filter(Boolean)
   };
 }
 
@@ -416,7 +522,12 @@ async function runSearch(targetPage = 1) {
   try {
     if (source.value === 'workshop') {
       const payload = await searchWorkshopWallpapers(
-        { query: query.value, page: targetPage, sort: workshopSort.value },
+        {
+          query: query.value,
+          page: targetPage,
+          sort: workshopSort.value,
+          tags: [workshopType.value, workshopGenre.value, workshopResolution.value].filter(Boolean)
+        },
         props.authorizedFetch
       );
       if (seq !== searchSeq) return;
@@ -434,9 +545,11 @@ async function runSearch(targetPage = 1) {
           query: query.value,
           page: targetPage,
           categories: wallhavenCategories(),
-          purity: '100',
+          purity: wallhavenPurity.value,
           sorting: wallhavenSorting.value,
-          atleast: wallhavenAtleast.value
+          order: wallhavenOrder.value,
+          atleast: wallhavenAtleast.value,
+          ratios: wallhavenRatios.value
         },
         props.authorizedFetch
       );
@@ -485,9 +598,18 @@ function resetFilters() {
   query.value = '';
   if (source.value === 'workshop') {
     workshopSort.value = 'trend';
+    workshopType.value = '';
+    workshopGenre.value = '';
+    workshopResolution.value = '';
   } else {
     wallhavenSorting.value = 'toplist';
     wallhavenAtleast.value = '';
+    wallhavenPurity.value = '100';
+    wallhavenRatios.value = '';
+    wallhavenOrder.value = 'desc';
+    wallhavenGeneral.value = true;
+    wallhavenAnime.value = true;
+    wallhavenPeople.value = false;
   }
   runSearch(1);
 }
@@ -510,7 +632,10 @@ async function selectItem(item) {
     if (!selected.value || selected.value.key !== item.key) return;
     workshopDetail.hasDirectDownload = Boolean(readField(payload, 'hasDirectDownload', 'has_direct_download', false));
     const detailTitle = String(readField(payload, 'title', 'title', '')).trim();
-    if (detailTitle && !importTitle.value) importTitle.value = detailTitle;
+    if (detailTitle && detailTitle !== item.title) {
+      item.title = detailTitle;
+      importTitle.value = detailTitle;
+    }
   } catch {
     if (!selected.value || selected.value.key !== item.key) return;
     workshopDetail.error = '通道检查失败，仍可尝试导入。';
@@ -652,6 +777,13 @@ defineExpose({ runSearch, switchSource });
   min-width: 88px;
 }
 
+.compact-filter {
+  min-width: 92px;
+  min-height: 27px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
 .filter-control:focus,
 .inspector-control:focus {
   border-color: var(--accent-mode-border-strong) !important;
@@ -698,6 +830,7 @@ defineExpose({ runSearch, switchSource });
   border-bottom: 1px solid var(--theme-border);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -1050,6 +1183,21 @@ defineExpose({ runSearch, switchSource });
   margin: 4px 0 0;
   color: var(--theme-text-tertiary);
   font-size: 10px;
+}
+
+.inspector-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.inspector-metadata span {
+  padding: 4px 7px;
+  border: 1px solid var(--theme-border);
+  border-radius: 5px;
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
+  font-size: 9px;
 }
 
 .inspector-source {

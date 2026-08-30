@@ -1,6 +1,7 @@
 <template>
-  <MotionConfig reduced-motion="user">
+  <MotionConfig :reduced-motion="motionConfigReducedMotion">
     <div class="app-shell">
+      <LiquidFilterDefinitions />
       <AppBackgroundStage
         v-if="!isMobileShellRoute"
         :active-image-background="activeImageBackground"
@@ -37,18 +38,20 @@
         :home-clock-behavior="homeAppearance.state.clockBehavior"
         :home-clock-visible="homeClockVisible"
         :home-wallpaper-clock-override="homeWallpaperClockOverride"
-        :home-motion-level="homeAppearance.state.motionLevel"
+        :home-motion-level="motionPreference.storedMode.value"
         :home-color-mode="homeAppearance.state.colorMode"
         :home-accent-hex="homeAccentHex"
+        :route-scroll-top="routeScrollTop"
         @toggle-menu="toggleMenu"
         @set-theme-mode="ui.setThemeMode($event)"
         @set-home-clock-behavior="homeAppearance.setClockBehavior($event)"
         @set-home-wallpaper-clock-override="setActiveWallpaperClockOverride"
-        @set-home-motion-level="homeAppearance.setMotionLevel($event)"
+        @set-home-motion-level="motionPreference.setMode($event)"
         @set-home-color-mode="homeAppearance.setColorMode($event)"
         @set-home-manual-accent-hex="homeAppearance.setManualAccentHex($event)"
         @toggle-ai-chat="toggleAiChat"
         @select-main-route="handleMainRouteSelect"
+        @select-site-route="handleSiteRouteSelect"
         @open-profile="openProfile"
         @open-admin="openAdmin"
         @open-author="openAuthor"
@@ -63,16 +66,21 @@
         <component :is="Component" />
       </RouterView>
 
-      <section v-else class="workspace-shell" :class="{ expanded: menuExpanded, 'with-ai-panel': sidebarAiColumnMounted }">
+      <section v-else class="workspace-shell" :class="{ expanded: fullNavigationVisible, 'with-ai-panel': sidebarAiColumnMounted }">
         <main
+          ref="routeContentRef"
           class="route-content"
           :class="{
             'route-content-home': isHomeRoute,
-            'route-content-blog': isBlogRoute,
+            'route-content-app-scroll': isAppScrollRoute,
+            'route-content-fixed-workspace': !isAppScrollRoute,
+            'route-content-blog-workspace': isBlogWorkspaceRoute,
             'route-content-profile': isProfileRoute,
             'route-content-music-player': isMusicPlayerDetailRoute,
             'route-content-music-shell': isMusicLibraryRoute && !isMusicPlayerDetailRoute
           }"
+          :data-scroll-mode="routeScrollMode"
+          :data-motion-mode="motionPreference.effectiveMode.value"
         >
           <RouterView v-slot="{ Component, route: viewRoute }">
             <component :is="Component" :key="resolveRouteViewKey(viewRoute)" class="route-page-view" />
@@ -319,9 +327,12 @@ import LevitationBall from './components/LevitationBall.vue';
 import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
 import TimePrismReminderHost from './components/lightapps/timeprism/TimePrismReminderHost.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
+import LiquidFilterDefinitions from './components/material/LiquidFilterDefinitions.vue';
 import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
 import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
+import { useMotionPreference } from './composables/useMotionPreference';
+import { provideAppScrollRoot, useActiveScrollSource } from './composables/useAppScrollRoot';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { useFocusSession } from './utils/focusSessionState';
 import { HOME_STAGE_CONTEXT_KEY, resolveHomeClockVisibility, useHomeAppearance } from './utils/homeTimeStageState';
@@ -332,9 +343,11 @@ import { usePlayerEngine } from './composables/usePlayerEngine';
 import { useMusicLibraryUiState } from './pages/musicLibraryUiState';
 import { useUiPreferences } from './composables/useUiPreferences';
 import { routePathByKey } from './router';
+import { resolveRouteScrollMode, RouteScrollMode } from './router/routeScrollMode';
 import { getAuthorProfile } from './services/authorApi';
 import { fetchAmbientLibraryStatus, importAmbientLibraryTrack } from './services/ambientLibraryApi';
 import { resolveAppRouteViewKey } from './utils/routeViewKey';
+import { resolveTopMenuPresentation } from './utils/topMenuPresentation';
 import { openLightAppShellWindow } from './components/lightapps/lightAppShellStore';
 import { AI_CHAT_OPEN_EVENT } from './utils/aiChatBus';
 import * as wallpaperApi from './services/wallpaperApi';
@@ -377,6 +390,7 @@ const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const MUSIC_EQ_CHANGE_EVENT = 'shizuki:music:eq-change';
 const menuExpanded = ref(false);
+const routeContentRef = ref(null);
 const levitationRef = ref(null);
 const clickRipples = ref([]);
 const videoFailed = ref(false);
@@ -392,7 +406,6 @@ const atmospherePanelVisible = ref(false);
 const subtitleVisible = ref(true);
 const lyricOffset = ref({ x: 0, y: 0 });
 const isMobileViewport = ref(false);
-const reducedMotion = ref(false);
 const pageVisible = ref(typeof document === 'undefined' ? true : !document.hidden);
 const windowFocused = ref(typeof document === 'undefined' ? true : document.hasFocus());
 const barLevels = ref(Array.from({ length: 44 }, () => 0));
@@ -465,7 +478,6 @@ let sidebarAiCloseTimer = 0;
 let wallpaperPreferenceSaveTimer = 0;
 let wallpaperSignedUrlRefreshTimer = 0;
 let wallpaperSignedUrlRefreshRunning = false;
-let reducedMotionMediaQuery = null;
 const AI_SIDEBAR_EXIT_MS = 260;
 const VISUALIZER_TARGET_FPS = 30;
 const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
@@ -490,6 +502,9 @@ const miniMusicLibrary = useMiniMusicLibrary({
 const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
 const focus = useFocusSession();
+const motionPreference = useMotionPreference();
+const reducedMotion = computed(() => motionPreference.effectiveMode.value === 'soothing');
+const motionConfigReducedMotion = computed(() => (reducedMotion.value ? 'always' : 'never'));
 const homeAppearance = useHomeAppearance();
 const sampledWallpaperAccentHex = ref('');
 const isFocusActive = focus.isActive;
@@ -510,7 +525,11 @@ const routeLabelMap = {
   'auth-callback': '登录回调',
   profile: '个人页面',
   admin: '管理后台',
-  author: '关于网站'
+  author: '关于网站',
+  albums: '相册',
+  'album-detail': '相册详情',
+  moments: '动态',
+  'moment-detail': '动态详情'
 };
 const DEFAULT_BROWSER_TITLE = 'Levitation + Menu';
 const DEFAULT_FAVICON_URL = '/images/katanegai.jpg';
@@ -533,7 +552,9 @@ const currentRouteKey = computed(() => {
 
 const currentRouteLabel = computed(() => routeLabelMap[currentRouteKey.value] || '主页');
 const isHomeRoute = computed(() => currentRouteKey.value === 'home');
-const isBlogRoute = computed(() => currentRouteKey.value === 'blog');
+const routeScrollMode = computed(() => resolveRouteScrollMode(route));
+const isAppScrollRoute = computed(() => routeScrollMode.value === RouteScrollMode.APP);
+const isBlogWorkspaceRoute = computed(() => route.name === 'blog-editor' || route.name === 'blog-presentation');
 const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMobileShellRoute = computed(() => route.path === '/m' || route.path.startsWith('/m/'));
@@ -546,6 +567,50 @@ const authorMenuAvatarUrl = ref('/images/katanegai.jpg');
 const isAdminUser = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
   return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
+});
+
+const activeRouteScrollSource = computed(() => (isAppScrollRoute.value ? routeContentRef.value : null));
+const { scrollTop: routeScrollTop } = useActiveScrollSource(activeRouteScrollSource);
+const topMenuPresentation = computed(() => resolveTopMenuPresentation({
+  scrollTop: routeScrollTop.value,
+  manualExpanded: menuExpanded.value
+}));
+const fullNavigationVisible = computed(() => topMenuPresentation.value.full);
+provideAppScrollRoot({
+  element: routeContentRef,
+  isActive: isAppScrollRoute,
+  scrollTop: routeScrollTop
+});
+
+const routeScrollIdentity = computed(() => {
+  const postId = route.params?.postId == null ? '' : String(route.params.postId);
+  const publicSlug = route.params?.publicSlug == null ? '' : String(route.params.publicSlug);
+  const publicId = route.params?.publicId == null ? '' : String(route.params.publicId);
+  return `${String(route.name || '')}:${postId}:${publicSlug}:${publicId}`;
+});
+const routeScrollPositions = new Map();
+
+function rememberRouteScrollPosition(identity, scrollTop) {
+  if (!identity) return;
+  routeScrollPositions.set(identity, Math.max(0, Number(scrollTop) || 0));
+  if (routeScrollPositions.size <= 40) return;
+  const oldestIdentity = routeScrollPositions.keys().next().value;
+  if (oldestIdentity) routeScrollPositions.delete(oldestIdentity);
+}
+
+watch(routeScrollIdentity, async (nextIdentity, previousIdentity) => {
+  if (!previousIdentity || nextIdentity === previousIdentity) return;
+  if (routeContentRef.value instanceof HTMLElement) {
+    rememberRouteScrollPosition(previousIdentity, routeContentRef.value.scrollTop);
+  }
+  await nextTick();
+  if (!isAppScrollRoute.value || !(routeContentRef.value instanceof HTMLElement)) return;
+  const targetScrollTop = routeScrollPositions.get(nextIdentity) || 0;
+  if (typeof routeContentRef.value.scrollTo === 'function') {
+    routeContentRef.value.scrollTo({ top: targetScrollTop, behavior: 'auto' });
+  } else {
+    routeContentRef.value.scrollTop = targetScrollTop;
+  }
 });
 
 const aiChatActive = computed({
@@ -565,7 +630,10 @@ const showSheetAiPanel = computed(() => aiChatActive.value && isMobileViewport.v
 const showBarsVisualizer = computed(() => (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'bars');
 const showRingVisualizer = computed(() => (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'ring');
 const shouldRunVisualizer = computed(
-  () => (isHomeRoute.value || isFocusActive.value) && ['bars', 'ring'].includes(player.visualizerMode.value) && player.isPlaying.value
+  () => !reducedMotion.value
+    && (isHomeRoute.value || isFocusActive.value)
+    && ['bars', 'ring'].includes(player.visualizerMode.value)
+    && player.isPlaying.value
 );
 const activeVisualizerStyle = computed(() => {
   const style = player.visualizerStyle.value;
@@ -800,6 +868,7 @@ const playerBridge = Object.freeze({
   seekToPercent: player.seekToPercent,
   seekToTime: player.seekToTime,
   setVolume: player.setVolume,
+  setPlayerExpanded: player.setPlayerExpanded,
   setLyricRenderMode: player.setLyricRenderMode,
   setListOpen: player.setListOpen,
   cyclePlayMode: player.cyclePlayMode,
@@ -911,40 +980,6 @@ async function loadRemoteSiteAtmospherePreference() {
   } catch {
     // keep local cache when remote preference unavailable
   }
-}
-
-function updateReducedMotionPreference() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    reducedMotion.value = false;
-    return;
-  }
-  reducedMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-function bindReducedMotionPreference() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-  reducedMotionMediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-  updateReducedMotionPreference();
-  const handler = updateReducedMotionPreference;
-  reducedMotionMediaQuery.__handler__ = handler;
-  if (typeof reducedMotionMediaQuery.addEventListener === 'function') {
-    reducedMotionMediaQuery.addEventListener('change', handler);
-    return;
-  }
-  if (typeof reducedMotionMediaQuery.addListener === 'function') {
-    reducedMotionMediaQuery.addListener(handler);
-  }
-}
-
-function unbindReducedMotionPreference() {
-  if (!reducedMotionMediaQuery || !reducedMotionMediaQuery.__handler__) return;
-  const handler = reducedMotionMediaQuery.__handler__;
-  if (typeof reducedMotionMediaQuery.removeEventListener === 'function') {
-    reducedMotionMediaQuery.removeEventListener('change', handler);
-  } else if (typeof reducedMotionMediaQuery.removeListener === 'function') {
-    reducedMotionMediaQuery.removeListener(handler);
-  }
-  reducedMotionMediaQuery = null;
 }
 
 async function resolveAmbientAssetDownloadUrl(assetId) {
@@ -2536,6 +2571,27 @@ function handleMainRouteSelect(routeKey) {
   router.push(nextPath);
 }
 
+function handleSiteRouteSelect(selection = {}) {
+  if (isFocusActive.value) return;
+  const destination = String(selection?.destination || '').trim();
+  if (destination === 'about') {
+    openAuthor('about');
+    return;
+  }
+  if (destination === 'album-detail' && selection?.publicSlug) {
+    router.push(`/albums/${encodeURIComponent(String(selection.publicSlug))}`);
+    return;
+  }
+  if (destination === 'moments') {
+    const publicId = String(selection?.publicId || '').trim();
+    router.push(publicId ? `/moments/${encodeURIComponent(publicId)}` : '/moments');
+    return;
+  }
+  if (destination === 'albums') {
+    router.push('/albums');
+  }
+}
+
 function resolveRouteViewKey(viewRoute) {
   return resolveAppRouteViewKey(viewRoute);
 }
@@ -2632,7 +2688,7 @@ function onGlobalPointerDown(event) {
   }
 
   const trigger = target.closest('.ripple-trigger');
-  if (!trigger) return;
+  if (!trigger || reducedMotion.value) return;
 
   const rect = trigger.getBoundingClientRect();
   const baseSize = Math.max(rect.width, rect.height);
@@ -2824,6 +2880,14 @@ watch(
   { immediate: true }
 );
 watch(
+  motionPreference.effectiveMode,
+  async () => {
+    await nextTick();
+    refreshAosManager();
+  },
+  { immediate: true }
+);
+watch(
   canUseSidebarAi,
   (allowed) => {
     if (allowed) return;
@@ -2897,7 +2961,6 @@ onMounted(async () => {
   await loadBackgroundLibrary();
   applyWallpaperCustomVariables();
   applyWallpaperAudioState();
-  bindReducedMotionPreference();
   updateViewportMode();
   recordWindowDiag('app.guard.state', runtimeGuards);
 
@@ -2933,7 +2996,6 @@ onBeforeUnmount(() => {
     sidebarAiCloseTimer = 0;
   }
 
-  unbindReducedMotionPreference();
   window.removeEventListener('resize', updateViewportMode);
   document.removeEventListener('visibilitychange', onVisibilityChange);
   window.removeEventListener('blur', onWindowBlur);
@@ -3080,6 +3142,12 @@ onBeforeUnmount(() => {
     padding 260ms ease;
 }
 
+.route-content.route-content-app-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+}
+
 .route-content::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -3111,13 +3179,13 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: none;
 }
 
-.route-content.route-content-blog {
+.route-content.route-content-blog-workspace {
   display: flex;
   overflow: hidden;
   height: calc(100dvh - var(--music-top-offset-current) - var(--music-bottom-offset));
 }
 
-.route-content.route-content-blog > .route-page-view {
+.route-content.route-content-blog-workspace > .route-page-view {
   flex: 1;
   min-width: 0;
   min-height: 0;

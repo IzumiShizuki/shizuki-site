@@ -1,19 +1,12 @@
 <template>
-  <section class="route-page blog-page">
-    <div v-if="viewMode === 'list'" class="toolbar liquid-material">
-      <form class="search-form" @submit.prevent="handleSearchSubmit">
-        <input v-model.trim="filters.keyword" type="text" class="field-input" placeholder="搜索标题/摘要/标签" />
-        <button type="submit" class="mini-btn ripple-trigger">搜索</button>
-        <button type="button" class="mini-btn ripple-trigger" @click="resetFilters">重置</button>
-      </form>
-      <div class="toolbar-meta">
-        <span>共 {{ listState.total }} 篇</span>
-        <span v-if="loadingAny">加载中...</span>
-      </div>
-    </div>
-
-    <div class="blog-layout">
-      <SubtleScrollArea tag="aside" class="left-panel liquid-material">
+  <section
+    class="route-page blog-page motion-managed"
+    :class="{ 'blog-page--public': viewMode === 'detail', 'blog-page--workspace': viewMode === 'editor' }"
+    :data-scroll-owner="viewMode === 'editor' ? 'workspace' : 'app'"
+    :data-motion-mode="motionPreference.effectiveMode.value"
+  >
+    <component :is="activeWorkspaceComponent">
+      <template #navigation>
         <section class="side-block side-switch-block">
           <div class="side-switch">
             <button
@@ -138,106 +131,13 @@
             </div>
           </section>
         </template>
+      </template>
 
-        <template v-else-if="viewMode === 'list'">
-          <section class="side-block">
-            <h2>分类</h2>
-            <div class="chip-group">
-              <button
-                v-for="category in sidebarCategoryOptions"
-                :key="category.code || 'all'"
-                type="button"
-                class="chip-btn ripple-trigger"
-                :class="{ active: filters.category === category.code }"
-                @click="applyCategoryFilter(category.code)"
-              >
-                {{ category.label }}
-              </button>
-            </div>
-          </section>
-
-          <section class="side-block">
-            <h2>标签</h2>
-            <div class="chip-group">
-              <button
-                v-for="tag in tagOptions"
-                :key="tag"
-                type="button"
-                class="chip-btn ripple-trigger"
-                :class="{ active: filters.tag === tag }"
-                @click="applyTagFilter(tag)"
-              >
-                #{{ tag }}
-              </button>
-            </div>
-          </section>
-
-          <section v-if="canWrite" class="side-block">
-            <div class="mine-head">
-              <h2>我的文章</h2>
-              <button type="button" class="mini-btn ripple-trigger" @click="startNewDraft">新建</button>
-            </div>
-            <div class="mine-list">
-              <button
-                v-for="mine in writerState.myPosts"
-                :key="mine.postId"
-                type="button"
-                class="mine-item ripple-trigger"
-                :class="{ active: viewMode === 'editor' && writerState.editor.postId === mine.postId }"
-                @click="openMinePost(mine.postId)"
-              >
-                <span class="mine-title">{{ resolveMinePostDisplayTitle(mine) }}</span>
-                <span class="mine-meta-badges">
-                  <span class="status-badge" :class="resolvePostStatusMeta(mine.statusCode).className">
-                    {{ resolvePostStatusMeta(mine.statusCode).label }}
-                  </span>
-                  <span class="status-badge" :class="resolvePostVisibilityMeta(mine.visibility).className">
-                    {{ resolvePostVisibilityMeta(mine.visibility).label }}
-                  </span>
-                </span>
-              </button>
-              <p v-if="writerState.loading" class="side-tip">加载我的文章中...</p>
-              <p v-else-if="!writerState.myPosts.length" class="side-tip">暂无草稿或文章。</p>
-            </div>
-          </section>
-        </template>
-      </SubtleScrollArea>
-
-      <section class="center-panel liquid-material">
-        <SubtleScrollArea v-if="viewMode === 'list'" class="list-view">
-          <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
-          <div class="post-list">
-            <article
-              v-for="post in listState.items"
-              :key="post.postId"
-              class="post-card liquid-material ripple-trigger"
-              @click="openPostDetail(post.postId)"
-            >
-              <header class="card-head">
-                <h3>{{ post.title }}</h3>
-                <span class="visibility status-badge" :class="resolvePostVisibilityMeta(post.visibility).className">
-                  {{ resolvePostVisibilityMeta(post.visibility).label }}
-                </span>
-              </header>
-              <p class="summary">{{ resolveSummary(post.summary) }}</p>
-              <div class="meta-row">
-                <span>{{ post.categoryCode || 'uncategorized' }}</span>
-                <span>{{ post.wordCount }} 字 · {{ post.readingMinutes }} 分钟</span>
-                <span>❤ {{ post.likeCount }}</span>
-                <span>{{ formatDateTime(post.publishedAt) }}</span>
-              </div>
-              <div v-if="post.tags.length" class="tag-row">
-                <span v-for="tag in post.tags" :key="`${post.postId}-${tag}`" class="tag-chip">#{{ tag }}</span>
-              </div>
-            </article>
-            <p v-if="!listState.loading && !listState.items.length" class="empty-text">暂无符合条件的文章。</p>
-          </div>
-        </SubtleScrollArea>
-
-        <div v-else-if="viewMode === 'detail'" class="detail-view">
+      <template #default>
+        <div v-if="viewMode === 'detail'" class="detail-view" :style="readerTransitionStyle">
           <p v-if="detailState.error" class="error-text">{{ detailState.error }}</p>
           <template v-else-if="detailState.post">
-            <SubtleScrollArea ref="articleScrollRef" class="detail-scroll">
+            <SubtleScrollArea ref="articleScrollRef" class="detail-scroll" :scrollable="false">
               <header class="detail-head">
                 <div class="detail-top-actions">
                   <button
@@ -304,7 +204,7 @@
                   </div>
                 </div>
                 <div class="detail-title-row">
-                  <h2>{{ detailState.post.displayTitle }}</h2>
+                  <h2 ref="detailTitleRef" tabindex="-1">{{ detailState.post.displayTitle }}</h2>
                 </div>
                 <p class="detail-summary">{{ resolveSummary(detailState.post.summary) }}</p>
                 <div class="meta-row">
@@ -333,6 +233,9 @@
             <div class="editor-topbar-main">
               <h3>文章编辑</h3>
               <span class="editor-topbar-mode">{{ editorMode === 'wysiwyg' ? '富文本模式' : 'Markdown 源码模式' }}</span>
+              <span class="editor-save-state" :class="{ 'editor-save-state--dirty': editorHasUnsavedChanges }">
+                {{ editorHasUnsavedChanges ? '有未保存更改' : '更改已保存' }}
+              </span>
             </div>
             <div class="editor-topbar-actions">
               <div ref="insertMenuWrapRef" class="insert-menu-wrap">
@@ -414,9 +317,10 @@
             </section>
           </div>
         </div>
-      </section>
+      </template>
 
-      <aside :key="rightPanelRenderKey" class="right-panel liquid-material">
+      <template #auxiliary>
+        <div :key="rightPanelRenderKey" class="right-panel-content">
         <div class="toc-head">
           <h2>{{ rightPanelTitle }}</h2>
           <button
@@ -612,7 +516,7 @@
 
               <div class="editor-info-panel-footer">
                 <div class="editor-info-panel-footer-actions">
-                  <button type="button" class="mini-btn ripple-trigger" @click="resetEditorForm">清空</button>
+                  <button type="button" class="mini-btn ripple-trigger" @click="requestResetEditorForm">清空</button>
                   <button type="button" class="mini-btn ripple-trigger" @click="resetPasteSessionDecision">重置粘贴判断</button>
                 </div>
                 <div class="editor-info-panel-status">
@@ -668,7 +572,12 @@
               <p>{{ detailWordCount }} 字 · {{ detailReadingMinutes }} 分钟</p>
               <p>已读 {{ progressPercent }}%</p>
             </div>
-            <SubtleScrollArea ref="tocListRef" tag="nav" class="toc-list">
+            <SubtleScrollArea
+              ref="tocListRef"
+              tag="nav"
+              class="toc-list"
+              :scrollable="viewMode === 'editor'"
+            >
               <button
                 v-for="heading in visibleTocTreeHeadings"
                 :key="heading.id"
@@ -696,8 +605,9 @@
           </div>
         </template>
         <p v-else class="side-tip toc-empty">进入文章详情或写文编辑后，这里会显示目录。</p>
-      </aside>
-    </div>
+        </div>
+      </template>
+    </component>
 
     <button
       v-if="showProgressFab"
@@ -752,9 +662,14 @@
 
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
+import BlogEditorWorkspace from '../components/blog/BlogEditorWorkspace.vue';
+import BlogReaderWorkspace from '../components/blog/BlogReaderWorkspace.vue';
+import { useAppScrollRoot } from '../composables/useAppScrollRoot';
 import { useAuthSession } from '../composables/useAuthSession';
+import { useMotionPreference } from '../composables/useMotionPreference';
+import { activeRouteTransitionName, consumeRouteFocusTarget } from '../composables/useViewTransitionNavigation';
 import {
   createPostNotionSyncJob,
   createMyPost,
@@ -789,11 +704,13 @@ import { onBlogWhiteboardExport } from '../utils/blogWhiteboardBridge';
 import { createWhiteboardEmbedMarkdown, hydrateWhiteboardEmbeds } from '../utils/blogWhiteboardEmbed';
 import { DEFAULT_BLOG_POST_TITLE, resolveBlogPostDisplayTitle } from '../utils/blogPostTitle';
 import { shouldSyncEditorRoute } from './blogEditorRouteState';
+import { createBlogEditorSnapshot, hasBlogEditorUnsavedChanges } from './blogEditorUnsavedState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
+
+const motionPreference = useMotionPreference();
 
 const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
 
-const ROOT_CATEGORY_OPTION = Object.freeze({ code: '', label: '全部' });
 const POST_STATUS_META = Object.freeze({
   DRAFT: { label: '草稿', className: 'status-badge--draft' },
   PUBLISHED: { label: '已发布', className: 'status-badge--published' },
@@ -815,21 +732,7 @@ const POST_SYNC_STATUS_META = Object.freeze({
 const auth = useAuthSession();
 const route = useRoute();
 const router = useRouter();
-
-const filters = reactive({
-  keyword: '',
-  category: '',
-  tag: ''
-});
-
-const listState = reactive({
-  loading: false,
-  error: '',
-  items: [],
-  pageNo: 1,
-  pageSize: 24,
-  total: 0
-});
+const appScrollRoot = useAppScrollRoot();
 
 const detailState = reactive({
   loading: false,
@@ -966,21 +869,29 @@ const insertBlockTemplates = INSERT_BLOCK_TEMPLATES;
 
 const routeMode = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
-  if (name === 'blog-detail') return 'detail';
   if (name === 'blog-editor') return 'editor';
-  return 'list';
+  return 'detail';
 });
 
 const viewMode = ref(routeMode.value);
+const activeWorkspaceComponent = computed(() =>
+  viewMode.value === 'editor' ? BlogEditorWorkspace : BlogReaderWorkspace
+);
+const readerTransitionStyle = computed(() => {
+  const transitionName = String(activeRouteTransitionName.value || '');
+  return transitionName.startsWith('content-flow-') ? { viewTransitionName: transitionName } : undefined;
+});
 const tocMode = ref('all');
 const activeHeadingId = ref('');
 const readingProgress = ref(0);
 const editorMode = ref('wysiwyg');
 const editorInfoVisible = ref(false);
 const leftNavHint = ref('');
+const savedEditorSnapshot = ref(null);
 let myPostsLoadToken = 0;
 
 const articleScrollRef = ref(null);
+const detailTitleRef = ref(null);
 const tocListRef = ref(null);
 const markdownBodyRef = ref(null);
 const detailRelatedListRef = ref(null);
@@ -1012,25 +923,11 @@ const canPublish = computed(() => isAnonymousWriter.value || isAdminUser.value |
 const canUseAccountWriterFeatures = computed(
   () => auth.isAuthenticated.value && (isAdminUser.value || permissionCodes.value.includes('blog.post.write'))
 );
-const loadingAny = computed(() => listState.loading || detailState.loading || writerState.loading || writerState.saving || writerState.publishing);
 const leftNavMode = computed(() => (routeMode.value === 'editor' ? 'write' : 'read'));
 
 const categoryCatalogItems = computed(() => mergeBlogCategoryCatalog(detailNavState.categories));
 const enabledCategoryCatalogItems = computed(() => filterEnabledBlogCategories(categoryCatalogItems.value));
 const defaultEditorCategoryCode = computed(() => resolveDefaultBlogCategoryCode(categoryCatalogItems.value));
-const sidebarCategoryOptions = computed(() => {
-  const options = enabledCategoryCatalogItems.value.map((item) => ({
-    code: normalizeString(item.categoryCode).toLowerCase(),
-    label: normalizeString(item.displayName || item.categoryCode) || normalizeString(item.categoryCode).toLowerCase()
-  }));
-  if (filters.category && !options.some((item) => item.code === filters.category)) {
-    options.push({
-      code: filters.category,
-      label: filters.category
-    });
-  }
-  return [ROOT_CATEGORY_OPTION, ...options];
-});
 const editorCategoryOptions = computed(() => buildEditorCategoryOptions(categoryCatalogItems.value, writerState.editor.categoryCode));
 const currentEditorCategoryDisabled = computed(() => {
   const currentCode = normalizeString(writerState.editor.categoryCode).toLowerCase();
@@ -1038,13 +935,9 @@ const currentEditorCategoryDisabled = computed(() => {
   return !enabledCategoryCatalogItems.value.some((item) => item.categoryCode === currentCode);
 });
 
-const tagOptions = computed(() => {
-  const tags = new Set();
-  listState.items.forEach((post) => {
-    post.tags.forEach((tag) => tags.add(tag));
-  });
-  return Array.from(tags).sort((a, b) => a.localeCompare(b)).slice(0, 48);
-});
+const editorHasUnsavedChanges = computed(() =>
+  viewMode.value === 'editor' && hasBlogEditorUnsavedChanges(writerState.editor, savedEditorSnapshot.value)
+);
 
 function collectCurrentFamilyHeadingIds(headings, activeId) {
   if (!Array.isArray(headings) || !headings.length) {
@@ -1559,32 +1452,6 @@ function resolveSummary(value) {
   return normalized || '暂无简介';
 }
 
-async function loadPostList() {
-  listState.loading = true;
-  listState.error = '';
-  try {
-    const payload = await listPosts(
-      {
-        pageNo: listState.pageNo,
-        pageSize: listState.pageSize,
-        keyword: filters.keyword,
-        category: filters.category,
-        tag: filters.tag
-      },
-      resolveAuthorizedFetch()
-    );
-    const items = Array.isArray(payload?.items) ? payload.items : [];
-    listState.items = items.map(normalizePostSummary).filter((post) => post.postId > 0);
-    listState.total = toSafeInt(payload?.total, listState.items.length);
-  } catch (error) {
-    listState.items = [];
-    listState.total = 0;
-    listState.error = normalizeErrorMessage(error, '加载文章列表失败');
-  } finally {
-    listState.loading = false;
-  }
-}
-
 function resetDetailNavigationState() {
   detailNavState.loading = false;
   detailNavState.relatedLoading = false;
@@ -1747,6 +1614,19 @@ async function renderDetailMarkdownEnhancements(renderToken) {
   setupReadingScroll();
 }
 
+async function focusReaderEntryTitle(postId) {
+  const focusTarget = `blog-reader-title-${toSafeInt(postId, 0)}`;
+  if (!consumeRouteFocusTarget(focusTarget)) return;
+  await nextTick();
+  const title = detailTitleRef.value;
+  if (!(title instanceof HTMLElement)) return;
+  try {
+    title.focus({ preventScroll: true });
+  } catch {
+    title.focus();
+  }
+}
+
 async function loadPostDetail(postId) {
   detailState.loading = true;
   detailState.error = '';
@@ -1765,6 +1645,7 @@ async function loadPostDetail(postId) {
     await loadDetailSidebarContext(normalized);
     void loadDetailPresentation(normalized.postId);
     await renderDetailMarkdownEnhancements(renderToken);
+    await focusReaderEntryTitle(normalized.postId);
   } catch (error) {
     detailRenderJobToken += 1;
     teardownReadingScroll();
@@ -2020,6 +1901,7 @@ function applyPostDetailToEditor(postDetail) {
   writerState.editor.remoteLastEditedAt = normalized.remoteLastEditedAt;
   writerState.editor.unsupportedBlockFlag = normalized.unsupportedBlockFlag;
   mergeMyPostSnapshot(postDetail);
+  markEditorSnapshotSaved();
 }
 
 function applyAuthorPostToEditor(post) {
@@ -2059,9 +1941,10 @@ async function handleSaveDraft(options = {}) {
       ? await updateMyPost(writerState.editor.postId, payload, resolveAuthorizedFetch())
       : await createMyPost(payload, resolveAuthorizedFetch());
     applyAuthorPostToEditor(result);
+    markEditorSnapshotSaved();
     await syncEditorRouteToPost(writerState.editor.postId);
     writerState.notice = options.silent ? '' : '草稿已保存';
-    await Promise.all([loadMyPosts(), loadPostList()]);
+    await loadMyPosts();
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, '保存草稿失败');
     throw error;
@@ -2081,7 +1964,7 @@ async function handlePublish() {
     applyAuthorPostToEditor(result);
     await syncEditorRouteToPost(writerState.editor.postId);
     writerState.notice = '文章已发布';
-    await Promise.all([loadMyPosts(), loadPostList()]);
+    await loadMyPosts();
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, '发布失败');
   } finally {
@@ -2098,7 +1981,7 @@ async function handleUnpublish() {
     const result = await unpublishMyPost(writerState.editor.postId, resolveAuthorizedFetch());
     applyAuthorPostToEditor(result);
     writerState.notice = '文章已下线';
-    await Promise.all([loadMyPosts(), loadPostList()]);
+    await loadMyPosts();
   } catch (error) {
     writerState.error = normalizeErrorMessage(error, '下线失败');
   } finally {
@@ -2115,7 +1998,7 @@ async function refreshEditorAfterNotionSync(postId) {
   if (normalizedPostId > 0) {
     await openMinePost(normalizedPostId, { routeSync: false });
   }
-  await Promise.all([loadMyPosts(), loadPostList()]);
+  await loadMyPosts();
 }
 
 async function pollNotionSyncJobUntilDone(jobId, postId) {
@@ -2230,7 +2113,7 @@ async function confirmDeletePost() {
     const routeHasPostId = toSafeInt(route.params.postId, 0) > 0;
     resetEditorForm();
     editorMode.value = 'wysiwyg';
-    await Promise.all([loadMyPosts(), loadPostList()]);
+    await loadMyPosts();
     if (routeHasPostId) {
       await router.replace({ name: 'blog-editor' });
       await nextTick();
@@ -2445,6 +2328,20 @@ async function handleBlogWhiteboardExport(payload) {
   }
 }
 
+function markEditorSnapshotSaved() {
+  savedEditorSnapshot.value = createBlogEditorSnapshot(writerState.editor);
+}
+
+function confirmDiscardUnsavedEditorChanges() {
+  if (!editorHasUnsavedChanges.value) return true;
+  return window.confirm('当前文章有未保存更改，确定放弃这些更改吗？');
+}
+
+function requestResetEditorForm() {
+  if (!confirmDiscardUnsavedEditorChanges()) return;
+  resetEditorForm();
+}
+
 function resetEditorForm() {
   writerState.error = '';
   writerState.notice = '';
@@ -2474,9 +2371,11 @@ function resetEditorForm() {
   notionSyncState.statusCode = '';
   notionSyncState.errorText = '';
   resetEditorPresentationState();
+  markEditorSnapshotSaved();
 }
 
 async function startNewDraft() {
+  if (!confirmDiscardUnsavedEditorChanges()) return;
   await ensureCategoryCatalogLoaded();
   resetEditorForm();
   editorMode.value = 'wysiwyg';
@@ -2487,10 +2386,6 @@ async function startNewDraft() {
 function switchViewMode(mode) {
   if (mode === 'editor' && !canWrite.value) return;
   if (mode === 'detail' && !detailState.post) return;
-  if (mode === 'list' && routeMode.value !== 'list') {
-    goBackToBlogList();
-    return;
-  }
   if (mode === 'detail' && routeMode.value !== 'detail' && detailState.post?.postId) {
     router.push({ name: 'blog-detail', params: { postId: detailState.post.postId } });
     return;
@@ -2505,34 +2400,7 @@ function switchViewMode(mode) {
     closeDownloadMenu();
     teardownReadingScroll();
     readingProgress.value = 0;
-  } else {
-    nextTick(() => setupReadingScroll());
   }
-}
-
-function applyCategoryFilter(categoryCode) {
-  filters.category = String(categoryCode || '').toLowerCase();
-  listState.pageNo = 1;
-  loadPostList();
-}
-
-function applyTagFilter(tag) {
-  filters.tag = String(tag || '').toLowerCase();
-  listState.pageNo = 1;
-  loadPostList();
-}
-
-function resetFilters() {
-  filters.keyword = '';
-  filters.category = '';
-  filters.tag = '';
-  listState.pageNo = 1;
-  loadPostList();
-}
-
-function handleSearchSubmit() {
-  listState.pageNo = 1;
-  loadPostList();
 }
 
 async function jumpToBlogList() {
@@ -2566,18 +2434,24 @@ async function jumpToBlogWhisper() {
 async function openPostDetail(postId) {
   const normalizedPostId = toSafeInt(postId, 0);
   if (normalizedPostId <= 0) return;
-  if (routeMode.value !== 'detail') {
+  if (routeMode.value !== 'detail' || toSafeInt(route.params.postId, 0) !== normalizedPostId) {
     closeDownloadMenu();
     await router.push({ name: 'blog-detail', params: { postId: normalizedPostId } });
     return;
   }
-  viewMode.value = 'detail';
-  await loadPostDetail(normalizedPostId);
 }
 
 async function openMinePost(postId, options = {}) {
   const normalizedPostId = toSafeInt(postId, 0);
   if (normalizedPostId <= 0) return;
+  if (
+    options.routeSync !== false &&
+    routeMode.value === 'editor' &&
+    toSafeInt(writerState.editor.postId, 0) === normalizedPostId
+  ) {
+    return;
+  }
+  if (options.routeSync !== false && !confirmDiscardUnsavedEditorChanges()) return;
   writerState.error = '';
   writerState.notice = '';
   notionSyncState.jobId = null;
@@ -2587,7 +2461,7 @@ async function openMinePost(postId, options = {}) {
     const payload = await getMyPostDetail(normalizedPostId, resolveAuthorizedFetch());
     applyPostDetailToEditor(payload);
     await loadEditorPresentation(normalizedPostId);
-    if (options.routeSync !== false && routeMode.value !== 'editor') {
+    if (options.routeSync !== false && shouldSyncEditorRoute(route.name, route.params.postId, normalizedPostId)) {
       await router.push({ name: 'blog-editor', params: { postId: normalizedPostId } });
       return;
     }
@@ -2800,6 +2674,9 @@ function resolveTocIcon(depth, isActive = false) {
 }
 
 function resolveScrollRoot() {
+  if (appScrollRoot.isActive.value && appScrollRoot.element.value instanceof HTMLElement) {
+    return appScrollRoot.element.value;
+  }
   const source = articleScrollRef.value;
   if (!source) return null;
   if (source instanceof HTMLElement) return source;
@@ -3091,6 +2968,30 @@ function handleEditorHotkey(event) {
   if (altKey && !shiftKey && code === 'KeyT') return exec('table', { rowCount: 2, columnCount: 2 });
 }
 
+function shouldConfirmEditorNavigation(to) {
+  if (!editorHasUnsavedChanges.value) return false;
+  const nextName = String(to?.name || '');
+  const nextPostId = toSafeInt(to?.params?.postId, 0);
+  const currentPostId = toSafeInt(route.params.postId, 0);
+  return nextName !== 'blog-editor' || nextPostId !== currentPostId;
+}
+
+function handleBeforeUnload(event) {
+  if (!editorHasUnsavedChanges.value) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+onBeforeRouteUpdate((to) => {
+  if (!shouldConfirmEditorNavigation(to)) return true;
+  return confirmDiscardUnsavedEditorChanges();
+});
+
+onBeforeRouteLeave((to) => {
+  if (!shouldConfirmEditorNavigation(to)) return true;
+  return confirmDiscardUnsavedEditorChanges();
+});
+
 async function syncRouteDrivenView() {
   const mode = routeMode.value;
   if (mode !== 'editor') {
@@ -3106,6 +3007,9 @@ async function syncRouteDrivenView() {
     viewMode.value = 'detail';
     if (postId > 0 && detailState.post?.postId !== postId) {
       await loadPostDetail(postId);
+    } else if (postId > 0) {
+      await nextTick();
+      setupReadingScroll();
     }
     return;
   }
@@ -3136,12 +3040,6 @@ async function syncRouteDrivenView() {
     refreshEditorLayout();
     return;
   }
-
-  resetDetailNavigationState();
-  resetDetailPresentationState();
-  leftNavHint.value = '';
-  closeDownloadMenu();
-  viewMode.value = 'list';
 }
 
 watch(
@@ -3154,7 +3052,7 @@ watch(
     writerState.myPosts = [];
     resetEditorPresentationState();
     if (viewMode.value === 'editor') {
-      viewMode.value = 'list';
+      await router.replace({ name: 'blog' });
     }
   },
   { immediate: false }
@@ -3180,9 +3078,7 @@ watch(
 watch(
   () => viewMode.value,
   (mode) => {
-    if (mode === 'detail') {
-      nextTick(() => setupReadingScroll());
-    } else {
+    if (mode !== 'detail') {
       teardownReadingScroll();
       readingProgress.value = 0;
     }
@@ -3215,13 +3111,11 @@ watch(
 onMounted(async () => {
   window.addEventListener('pointerdown', handleGlobalPointerDown);
   window.addEventListener('keydown', handleEditorHotkey, true);
+  window.addEventListener('beforeunload', handleBeforeUnload);
   releaseBlogWhiteboardExport = onBlogWhiteboardExport((payload) => {
     void handleBlogWhiteboardExport(payload);
   });
   await auth.ensureReady();
-  if (routeMode.value === 'list') {
-    await loadPostList();
-  }
   if (canWrite.value) {
     await loadMyPosts();
   }
@@ -3234,6 +3128,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', handleGlobalPointerDown);
   window.removeEventListener('keydown', handleEditorHotkey, true);
+  window.removeEventListener('beforeunload', handleBeforeUnload);
   if (typeof releaseBlogWhiteboardExport === 'function') {
     releaseBlogWhiteboardExport();
   }
@@ -3724,6 +3619,16 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.detail-title-row h2:focus {
+  outline: none;
+}
+
+.detail-title-row h2:focus-visible {
+  border-radius: 8px;
+  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline-offset: 5px;
+}
+
 .detail-head h2 {
   font-size: clamp(22px, 3vw, 30px);
 }
@@ -3803,6 +3708,21 @@ onBeforeUnmount(() => {
 .editor-topbar-mode {
   font-size: 12px;
   color: var(--theme-text-secondary, rgba(211, 223, 248, 0.9));
+}
+
+.editor-save-state {
+  width: max-content;
+  max-width: 100%;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--theme-text-secondary, rgba(211, 223, 248, 0.9));
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+}
+
+.editor-save-state--dirty {
+  color: var(--theme-warning-text, #ffe3a4);
+  background: rgba(214, 150, 48, 0.2);
 }
 
 .editor-topbar-actions {
@@ -5351,6 +5271,62 @@ onBeforeUnmount(() => {
   .progress-fab-percent {
     font-size: 11px;
     bottom: 4px;
+  }
+}
+
+.blog-page.blog-page--public {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.blog-page--public .blog-layout {
+  flex: 0 0 auto;
+  height: auto;
+  min-block-size: 0;
+  overflow: visible;
+  grid-template-rows: auto;
+  align-items: start;
+}
+
+.blog-page--public .left-panel,
+.blog-page--public .center-panel,
+.blog-page--public .right-panel {
+  height: auto;
+  align-self: start;
+}
+
+.blog-page--public .left-panel,
+.blog-page--public .right-panel {
+  position: sticky;
+  top: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.blog-page--public .center-panel,
+.blog-page--public .detail-view,
+.blog-page--public .detail-scroll,
+.blog-page--public .toc-body,
+.blog-page--public .toc-list {
+  height: auto;
+  overflow: visible;
+}
+
+.blog-page--public .center-panel,
+.blog-page--public .detail-view {
+  display: block;
+}
+
+.blog-page--public .toc-body {
+  grid-template-rows: auto auto;
+}
+
+@media (max-width: 980px) {
+  .blog-page--public .left-panel,
+  .blog-page--public .right-panel {
+    position: static;
+    max-height: none;
   }
 }
 </style>

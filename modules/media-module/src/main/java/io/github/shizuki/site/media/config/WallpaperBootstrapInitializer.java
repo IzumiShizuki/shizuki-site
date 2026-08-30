@@ -120,7 +120,7 @@ public class WallpaperBootstrapInitializer implements ApplicationRunner {
                 new ByteArrayInputStream(binary.bytes()),
                 metadata
             );
-            LOGGER.info("WALLPAPER_BOOTSTRAP_OSS_UPLOADED bucket={} key={} source={}", bucket, DEFAULT_OBJECT_KEY, binary.sourceTag());
+            LOGGER.info("WALLPAPER_BOOTSTRAP_OSS_UPLOADED source={}", binary.sourceTag());
         }
 
         if (existing == null) {

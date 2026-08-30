@@ -44,14 +44,14 @@ public class OssBucketStartupValidator implements ApplicationRunner {
         String accessKeyId = requireSecretValue(ossProperties.getAccessKeyId(), "shizuki.oss.access-key-id");
         String accessKeySecret = requireSecretValue(ossProperties.getAccessKeySecret(), "shizuki.oss.access-key-secret");
         Set<String> buckets = collectBuckets();
-        LOGGER.debug("OSS_BUCKET_VALIDATE_START endpoint={} bucketCount={}", endpoint, buckets.size());
+        LOGGER.debug("OSS_BUCKET_VALIDATE_START bucketCount={}", buckets.size());
 
         OSS ossClient = createClient(endpoint, accessKeyId, accessKeySecret);
         try {
             for (String bucket : buckets) {
-                validateBucketExists(ossClient, endpoint, bucket);
+                validateBucketExists(ossClient, bucket);
             }
-            LOGGER.info("OSS_BUCKET_VALIDATE_DONE endpoint={} bucketCount={}", endpoint, buckets.size());
+            LOGGER.info("OSS_BUCKET_VALIDATE_DONE bucketCount={}", buckets.size());
         } finally {
             try {
                 ossClient.shutdown();
@@ -64,28 +64,24 @@ public class OssBucketStartupValidator implements ApplicationRunner {
         return new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
     }
 
-    void validateBucketExists(OSS ossClient, String endpoint, String bucket) {
+    void validateBucketExists(OSS ossClient, String bucket) {
         try {
             boolean exists = ossClient.doesBucketExist(bucket);
             if (!exists) {
-                LOGGER.error("OSS_BUCKET_VALIDATE_FAIL endpoint={} bucket={} reason=NoSuchBucket", endpoint, bucket);
+                LOGGER.error("OSS_BUCKET_VALIDATE_FAIL reason=NoSuchBucket");
                 throw new IllegalStateException(
-                    "OSS bucket validation failed: bucket '" + bucket + "' does not exist (endpoint=" + endpoint + "). "
-                        + "Please create the bucket or fix shizuki.media.storage/public-bucket/private-bucket."
+                    "OSS bucket validation failed: a configured bucket does not exist. "
+                        + "Check the media storage bucket configuration."
                 );
             }
-            LOGGER.debug("OSS_BUCKET_VALIDATE_OK endpoint={} bucket={}", endpoint, bucket);
+            LOGGER.debug("OSS_BUCKET_VALIDATE_OK");
         } catch (OSSException | ClientException ex) {
             LOGGER.error(
-                "OSS_BUCKET_VALIDATE_FAIL endpoint={} bucket={} error_type={} error_msg={}",
-                endpoint,
-                bucket,
-                ex.getClass().getSimpleName(),
-                ex.getMessage()
+                "OSS_BUCKET_VALIDATE_FAIL error_type={}",
+                ex.getClass().getSimpleName()
             );
             throw new IllegalStateException(
-                "OSS bucket validation failed for bucket '" + bucket + "' (endpoint=" + endpoint + "): " + ex.getMessage(),
-                ex
+                "OSS bucket validation failed; inspect the storage provider state."
             );
         }
     }

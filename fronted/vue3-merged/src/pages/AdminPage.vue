@@ -37,7 +37,7 @@
             class="sidebar-dot-rail"
             :items="adminTabs"
             :active-key="activeTab"
-            distribution="full-sixths"
+            variant="menu"
             aria-label="管理后台导航"
             @select="openTab"
           />
@@ -202,7 +202,7 @@
           />
 
           <AdminBlogCategoriesPanel
-            v-else
+            v-else-if="activeTab === AdminTabKey.BLOG_CATEGORIES"
             :loading="categoryMetaLoading"
             :saving="categoryMetaSaving"
             :error="categoryMetaError"
@@ -212,6 +212,13 @@
             @save="saveCategoryMetaItem"
             @upload="uploadCategoryMetaCover"
           />
+
+          <AdminStudioPanelHost
+            v-else-if="studioTabKeys.has(activeTab)"
+            :active-tab="activeTab"
+          />
+
+          <p v-else class="state-tip">当前管理入口不可用，请从左侧选择有权限的工作区。</p>
         </section>
       </RailScaffold>
     </template>
@@ -278,6 +285,7 @@ import AdminPermissionsPanel from '../components/admin/AdminPermissionsPanel.vue
 import AdminPromptCachePanel from '../components/admin/AdminPromptCachePanel.vue';
 import AdminQuotaPanel from '../components/admin/AdminQuotaPanel.vue';
 import AdminServerOpsPanel from '../components/admin/AdminServerOpsPanel.vue';
+import AdminStudioPanelHost from '../components/admin/AdminStudioPanelHost.vue';
 import AdminUsersPanel from '../components/admin/AdminUsersPanel.vue';
 import AdminWallpapersPanel from '../components/admin/AdminWallpapersPanel.vue';
 import { normalizeAdminWhisperItem, normalizeAdminWhisperPage } from './adminWhispersState';
@@ -292,6 +300,7 @@ import {
   toggleCodeSelection,
   upsertQuotaCell
 } from './adminUiState';
+import { buildAdminNavigationItems, isAdminPrincipal } from './adminNavigation';
 
 const props = defineProps({
   embedded: {
@@ -309,29 +318,17 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
 
-const tabs = [
-  { key: AdminTabKey.USERS, label: '用户管理', icon: 'fas fa-users' },
-  { key: AdminTabKey.GROUPS, label: '分组目录', icon: 'fas fa-layer-group' },
-  { key: AdminTabKey.PERMISSIONS, label: '分组权限', icon: 'fas fa-key' },
-  { key: AdminTabKey.QUOTA, label: '配额策略', icon: 'fas fa-gauge-high' },
-  { key: AdminTabKey.MUSIC_PROVIDERS, label: '音乐源', icon: 'fas fa-music' },
-  { key: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
-  { key: AdminTabKey.BLOG_WHISPERS, label: '博客悄悄话', icon: 'fas fa-user-secret' },
-  { key: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
-];
-
-const adminTabs = [
-  { key: AdminTabKey.USERS, label: 'Users', icon: 'fas fa-users' },
-  { key: AdminTabKey.GROUPS, label: 'Groups', icon: 'fas fa-layer-group' },
-  { key: AdminTabKey.PERMISSIONS, label: 'Permissions', icon: 'fas fa-key' },
-  { key: AdminTabKey.QUOTA, label: 'Quota', icon: 'fas fa-gauge-high' },
-  { key: AdminTabKey.SERVER_OPS, label: 'Server Ops', icon: 'fas fa-server' },
-  { key: AdminTabKey.PROMPT_CACHE, label: 'Prompt Cache', icon: 'fas fa-chart-line' },
-  { key: AdminTabKey.MUSIC_PROVIDERS, label: 'Music Sources', icon: 'fas fa-music' },
-  { key: AdminTabKey.WALLPAPERS, label: 'Wallpapers', icon: 'far fa-image' },
-  { key: AdminTabKey.BLOG_WHISPERS, label: 'Whispers', icon: 'fas fa-user-secret' },
-  { key: AdminTabKey.BLOG_CATEGORIES, label: 'Categories', icon: 'fas fa-folder-tree' }
-];
+const adminTabs = computed(() => buildAdminNavigationItems(auth.user.value).map((item) => ({
+  ...item,
+  label: item.shortLabel || item.label
+})));
+const studioTabKeys = new Set([
+  AdminTabKey.ALBUMS,
+  AdminTabKey.MOMENTS,
+  AdminTabKey.RECYCLE_BIN,
+  AdminTabKey.DAILY_QUOTES,
+  AdminTabKey.SITE_WIDGETS
+]);
 
 const booting = ref(true);
 const globalHint = ref('');
@@ -470,8 +467,7 @@ const activeTab = computed(() => {
 });
 
 const isAdminUser = computed(() => {
-  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
-  return groups.some((item) => String(item || '').toUpperCase() === 'ADMIN');
+  return isAdminPrincipal(auth.user.value);
 });
 
 const usersTotalPages = computed(() => {
@@ -492,7 +488,7 @@ const selectedCatalogGroup = computed(() => {
 
 function normalizeTab(raw) {
   const normalized = String(raw || '');
-  return adminTabs.some((item) => item.key === normalized) ? normalized : AdminTabKey.USERS;
+  return adminTabs.value.some((item) => item.key === normalized) ? normalized : (adminTabs.value[0]?.key || AdminTabKey.USERS);
 }
 
 function setGlobalHint(message) {

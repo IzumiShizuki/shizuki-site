@@ -98,7 +98,8 @@ public class AuditLogQueryController {
         long offset = (pageNo - 1) * pageSize;
         // 字段别名统一成 API 返回约定的 snake_case 字段名。
         String dataSql = "SELECT id, trace_code AS trace_id, user_id, action_code AS action_name, "
-            + "resource_code AS resource_name, result_status AS result, error_code, cost_value AS cost_ms, "
+            + "resource_code AS resource_name, target_code AS target, detail_json AS details, "
+            + "result_status AS result, error_code, cost_value AS cost_ms, "
             + "create_time AS created_at "
             + "FROM AUD_LOG" + where + " ORDER BY id DESC LIMIT ? OFFSET ?";
 

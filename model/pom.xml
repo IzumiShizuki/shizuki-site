@@ -34,6 +34,11 @@
             <artifactId>springdoc-openapi-starter-common</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -51,6 +56,7 @@
                         </goals>
                         <configuration>
                             <sources>
+                                <source>contract/src/main/java</source>
                                 <source>entity/src/main/java</source>
                                 <source>request/src/main/java</source>
                                 <source>response/src/main/java</source>
@@ -61,4 +67,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>

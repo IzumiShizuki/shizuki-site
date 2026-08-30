@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.audit.model.AuditLogEntry;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Primary;
@@ -62,12 +63,14 @@ public class JdbcAuditLogService implements AuditLogService {
         try {
             // 主表落审计记录。
             jdbcTemplate.update(
-                "INSERT INTO AUD_LOG(trace_code, user_id, action_code, resource_code, result_status, error_code, cost_value, create_time) "
-                    + "VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO AUD_LOG(trace_code, user_id, action_code, resource_code, target_code, detail_json, "
+                    + "result_status, error_code, cost_value, create_time) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 entry.getTraceId(),
                 entry.getUserId(),
                 entry.getAction(),
                 entry.getResource(),
+                entry.getTarget(),
+                toDetailsJson(entry),
                 entry.getResult(),
                 entry.getErrorCode(),
                 entry.getCostMs(),
@@ -96,18 +99,28 @@ public class JdbcAuditLogService implements AuditLogService {
      */
     private String toPayloadJson(AuditLogEntry entry) {
         try {
-            return objectMapper.writeValueAsString(Map.of(
-                "trace_id", entry.getTraceId(),
-                "user_id", entry.getUserId(),
-                "action", entry.getAction(),
-                "resource", entry.getResource(),
-                "result", entry.getResult(),
-                "error_code", entry.getErrorCode(),
-                "cost_ms", entry.getCostMs(),
-                "created_at", entry.getCreatedAt()
-            ));
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("trace_id", entry.getTraceId());
+            payload.put("user_id", entry.getUserId());
+            payload.put("action", entry.getAction());
+            payload.put("resource", entry.getResource());
+            payload.put("target", entry.getTarget());
+            payload.put("details", entry.getDetails());
+            payload.put("result", entry.getResult());
+            payload.put("error_code", entry.getErrorCode());
+            payload.put("cost_ms", entry.getCostMs());
+            payload.put("created_at", entry.getCreatedAt());
+            return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
             // 序列化失败时返回空 JSON，避免因脏字段导致整条审计写入失败。
+            return "{}";
+        }
+    }
+
+    private String toDetailsJson(AuditLogEntry entry) {
+        try {
+            return objectMapper.writeValueAsString(entry.getDetails());
+        } catch (JsonProcessingException e) {
             return "{}";
         }
     }

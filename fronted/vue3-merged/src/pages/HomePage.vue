@@ -1,8 +1,9 @@
 <template>
   <section
     class="home-time-stage"
-    :class="`motion-${homeAppearance.state.motionLevel}`"
-    :data-motion-level="homeAppearance.state.motionLevel"
+    :class="`motion-${homeAppearance.state.effectiveMotionLevel}`"
+    :data-motion-level="homeAppearance.state.effectiveMotionLevel"
+    :data-stored-motion-level="homeAppearance.state.motionLevel"
     :style="stageAccentStyle"
     aria-label="主页时间舞台"
   >
@@ -705,22 +706,15 @@ onBeforeUnmount(() => {
   50% { transform: scale(1.06); box-shadow: inset 0 0 0 1px rgba(var(--accent-soft-rgb), 0.22), 0 0 20px rgba(var(--accent-rgb), 0.2); }
 }
 
-.home-time-stage.motion-calm .stage-ambient,
-.home-time-stage.motion-calm .island-icon.is-playing {
+.home-time-stage.motion-soothing .stage-ambient,
+.home-time-stage.motion-soothing .island-icon.is-playing {
   animation: none;
 }
 
-.home-time-stage.motion-calm .context-island,
-.home-time-stage.motion-calm .stage-greeting {
+.home-time-stage.motion-soothing .context-island,
+.home-time-stage.motion-soothing .stage-greeting {
   animation-duration: 300ms;
   animation-delay: 0ms;
-}
-
-.home-time-stage.motion-off *,
-.home-time-stage.motion-off *::before,
-.home-time-stage.motion-off *::after {
-  animation: none !important;
-  transition-duration: 0ms !important;
 }
 
 :root[data-theme-mode='day'] .home-time-stage {

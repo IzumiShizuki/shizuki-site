@@ -1,6 +1,18 @@
 <template>
-  <nav class="fixed-nav-wrapper top-menu-root motion-managed" :class="{ expanded: menuExpanded }">
-    <div class="top-bar liquid-material">
+  <nav
+    ref="menuRootRef"
+    class="fixed-nav-wrapper top-menu-root motion-managed"
+    :class="{
+      expanded: menuPresentation.full,
+      compact: menuPresentation.compact,
+      'route-scrolled': menuPresentation.pastThreshold,
+      'manual-expanded': menuExpanded
+    }"
+    :data-route-scroll-top="normalizedRouteScrollTop"
+    data-transform-owner="menu-shell"
+    @keydown.esc.stop.prevent="closeSiteMenu({ returnFocus: true })"
+  >
+    <LiquidSurface v-if="menuPresentation.full" as="div" class="top-bar" variant="navigation">
       <div class="nav-section left">
         <div
           class="left-pill-group liquid-material"
@@ -74,6 +86,24 @@
                 </div>
               </div>
 
+              <div class="appearance-group">
+                <span class="appearance-label">全站动效</span>
+                <div
+                  class="appearance-segment appearance-segment-two"
+                  data-testid="motion-preference-options"
+                >
+                  <button
+                    v-for="option in motionOptions"
+                    :key="option.value"
+                    type="button"
+                    :class="{ active: homeMotionLevel === option.value }"
+                    @click="emit('set-home-motion-level', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
               <template v-if="isHomeRoute">
                 <div class="appearance-group">
                   <span class="appearance-label">主页时钟 · 全局</span>
@@ -135,21 +165,6 @@
                   </label>
                   <small v-else>静态图取壁纸，动态壁纸取预览代表帧</small>
                 </div>
-
-                <div class="appearance-group">
-                  <span class="appearance-label">Material 动效</span>
-                  <div class="appearance-segment appearance-segment-three">
-                    <button
-                      v-for="option in motionOptions"
-                      :key="option.value"
-                      type="button"
-                      :class="{ active: homeMotionLevel === option.value }"
-                      @click="emit('set-home-motion-level', option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  </div>
-                </div>
               </template>
             </section>
           </Transition>
@@ -182,16 +197,20 @@
           <span class="item-label">项目github</span>
         </div>
 
-        <div
+        <button
+          type="button"
           class="menu-item-stack author-info-item ripple-trigger"
-          :class="{ 'route-active': isAuthorRoute }"
-          @click.stop="openAuthorPage"
+          :class="{ 'route-active': isSiteRoute }"
+          :aria-expanded="siteMenuOpen"
+          aria-controls="site-personal-menu"
+          aria-haspopup="dialog"
+          @click.stop="toggleSiteMenu"
         >
           <div class="author-avatar-box">
             <img class="author-avatar-image" :src="resolvedAuthorAvatarUrl" alt="author-avatar" @error="onAuthorAvatarError" />
           </div>
           <span class="item-label">Site</span>
-        </div>
+        </button>
 
         <div
           v-if="!isAuthenticated"
@@ -217,21 +236,123 @@
           <span class="item-label">{{ displayName || '个人页面' }}</span>
         </div>
       </div>
-    </div>
+    </LiquidSurface>
 
-    <div class="toggle-tab liquid-material ripple-trigger" @click="toggleSwitch">
+    <LiquidSurface
+      v-else
+      as="div"
+      class="compact-dock"
+      variant="navigation"
+      aria-label="紧凑主导航"
+      data-testid="compact-navigation"
+    >
+      <button
+        v-for="item in mainNavItems"
+        :key="`compact-${item.key}`"
+        type="button"
+        class="compact-nav-item ripple-trigger"
+        :class="{ active: activeMainRoute === item.key }"
+        :aria-current="activeMainRoute === item.key ? 'page' : undefined"
+        @click="selectMainRoute(item.key)"
+      >
+        <i :class="item.icon" aria-hidden="true"></i>
+        <span>{{ item.label }}</span>
+      </button>
+      <span class="compact-nav-divider" aria-hidden="true"></span>
+      <button
+        type="button"
+        class="compact-nav-item compact-site-item ripple-trigger"
+        :class="{ active: isSiteRoute }"
+        :aria-current="isSiteRoute ? 'page' : undefined"
+        :aria-expanded="siteMenuOpen"
+        aria-controls="site-personal-menu"
+        aria-haspopup="dialog"
+        @click.stop="toggleSiteMenu"
+      >
+        <i class="fas fa-compass" aria-hidden="true"></i>
+        <span>Site</span>
+      </button>
+    </LiquidSurface>
+
+    <LiquidSurface
+      as="div"
+      class="mobile-top-dock"
+      variant="navigation"
+      aria-label="移动端主导航"
+      data-testid="mobile-top-navigation"
+    >
+      <button
+        v-for="item in mainNavItems"
+        :key="`mobile-${item.key}`"
+        type="button"
+        class="mobile-top-nav-item ripple-trigger"
+        :class="{ active: activeMainRoute === item.key }"
+        :aria-current="activeMainRoute === item.key ? 'page' : undefined"
+        :aria-label="item.label"
+        @click="selectMainRoute(item.key)"
+      >
+        <i :class="item.icon" aria-hidden="true"></i>
+        <span>{{ item.label }}</span>
+      </button>
+      <button
+        type="button"
+        class="mobile-top-nav-item mobile-site-item ripple-trigger"
+        :class="{ active: isSiteRoute }"
+        :aria-current="isSiteRoute ? 'page' : undefined"
+        :aria-expanded="siteMenuOpen"
+        aria-controls="site-personal-menu"
+        aria-haspopup="dialog"
+        aria-label="Life"
+        @click.stop="toggleSiteMenu"
+      >
+        <i class="fas fa-compass" aria-hidden="true"></i>
+        <span>Life</span>
+      </button>
+      <button
+        type="button"
+        class="mobile-top-nav-item mobile-more-item ripple-trigger"
+        :class="{ active: menuExpanded }"
+        :aria-expanded="menuExpanded"
+        aria-label="更多站点控制"
+        @click="toggleSwitch"
+      >
+        <i class="fas fa-ellipsis" aria-hidden="true"></i>
+        <span>More</span>
+      </button>
+    </LiquidSurface>
+
+    <SiteMenuPopover
+      ref="siteMenuComponentRef"
+      :open="siteMenuOpen"
+      :active-destination="activeSiteDestination"
+      :anchor-mode="menuPresentation.full ? 'full' : 'compact'"
+      :mobile="isMobileViewport"
+      @select="handleSiteSelection"
+      @request-close="closeSiteMenu({ returnFocus: true })"
+    />
+
+    <button
+      v-if="menuPresentation.pastThreshold"
+      type="button"
+      class="toggle-tab liquid-material ripple-trigger"
+      :aria-label="menuPresentation.compact ? '展开完整导航' : '收拢为紧凑导航'"
+      @click="toggleSwitch"
+    >
       <div class="switch-content">
         <span class="bar-line top"></span>
         <div class="menu-label-text">MENU</div>
         <span class="bar-line bottom"></span>
       </div>
-    </div>
+    </button>
   </nav>
 </template>
 
 <script setup>
-import { computed, ref, toRefs, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import LiquidSurface from './material/LiquidSurface.vue';
+import SiteMenuPopover from './navigation/SiteMenuPopover.vue';
+import { resolveTopMenuPresentation } from '../utils/topMenuPresentation';
 
 const props = defineProps({
   menuExpanded: {
@@ -296,7 +417,7 @@ const props = defineProps({
   },
   homeMotionLevel: {
     type: String,
-    default: 'vivid'
+    default: 'immersive'
   },
   homeColorMode: {
     type: String,
@@ -305,6 +426,10 @@ const props = defineProps({
   homeAccentHex: {
     type: String,
     default: '#F2B39D'
+  },
+  routeScrollTop: {
+    type: Number,
+    default: 0
   }
 });
 
@@ -318,6 +443,7 @@ const emit = defineEmits([
   'set-home-manual-accent-hex',
   'toggle-ai-chat',
   'select-main-route',
+  'select-site-route',
   'open-atmosphere-panel',
   'open-background-picker',
   'open-profile',
@@ -327,15 +453,30 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive, isHomeRoute, homeClockBehavior, homeClockVisible, homeWallpaperClockOverride, homeMotionLevel, homeColorMode, homeAccentHex } = toRefs(props);
+const { menuExpanded, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive, isHomeRoute, homeClockBehavior, homeClockVisible, homeWallpaperClockOverride, homeMotionLevel, homeColorMode, homeAccentHex, routeScrollTop } = toRefs(props);
 const avatarLoadFailed = ref(false);
 const authorAvatarLoadFailed = ref(false);
 const appearancePanelOpen = ref(false);
+const siteMenuOpen = ref(false);
+const menuRootRef = ref(null);
+const siteTriggerRef = ref(null);
+const siteMenuComponentRef = ref(null);
+const isMobileViewport = ref(false);
+let mobileMediaQuery = null;
+let mobileMediaListener = null;
 const menuHubActive = computed(() => musicActive.value || ambientActive.value || effectActive.value);
 const themeModeNormalized = computed(() => (String(themeMode.value || '').trim().toLowerCase() === 'day' ? 'day' : 'night'));
 const themeModeLabel = computed(() => (themeModeNormalized.value === 'day' ? '白天模式' : '夜间模式'));
 const themeModeIcon = computed(() => (themeModeNormalized.value === 'day' ? 'fas fa-sun' : 'fas fa-moon'));
 const themeToggleActionLabel = computed(() => (themeModeNormalized.value === 'day' ? '切换到夜间模式' : '切换到白天模式'));
+const normalizedRouteScrollTop = computed(() => {
+  const value = Number(routeScrollTop.value);
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+});
+const menuPresentation = computed(() => resolveTopMenuPresentation({
+  scrollTop: normalizedRouteScrollTop.value,
+  manualExpanded: menuExpanded.value
+}));
 const themeOptions = Object.freeze([
   { value: 'day', label: '白天', icon: 'fas fa-sun' },
   { value: 'night', label: '夜间', icon: 'fas fa-moon' }
@@ -351,9 +492,8 @@ const wallpaperClockOptions = Object.freeze([
   { value: 'hide', label: '隐藏' }
 ]);
 const motionOptions = Object.freeze([
-  { value: 'vivid', label: '明显' },
-  { value: 'calm', label: '克制' },
-  { value: 'off', label: '关闭' }
+  { value: 'immersive', label: '沉浸' },
+  { value: 'soothing', label: '舒缓' }
 ]);
 
 const mainNavItems = computed(() => {
@@ -388,10 +528,15 @@ const isProfileRoute = computed(() => {
   return name === 'profile' || name === 'admin';
 });
 
-const isAuthorRoute = computed(() => {
+const activeSiteDestination = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
-  return name === 'author';
+  if (name === 'author') return 'about';
+  if (name.startsWith('albums') || name.startsWith('album-')) return 'albums';
+  if (name.startsWith('moments') || name.startsWith('moment-')) return 'moments';
+  return '';
 });
+
+const isSiteRoute = computed(() => activeSiteDestination.value !== '');
 
 const isAuthRoute = computed(() => {
   const name = typeof route.name === 'string' ? route.name : '';
@@ -425,6 +570,7 @@ function toggleSwitch() {
 }
 
 function toggleAppearancePanel() {
+  closeSiteMenu({ returnFocus: false });
   appearancePanelOpen.value = !appearancePanelOpen.value;
 }
 
@@ -464,8 +610,64 @@ function openProjectGithub() {
   window.open(PROJECT_GITHUB_URL, '_blank', 'noopener,noreferrer');
 }
 
-function openAuthorPage() {
-  emit('open-author');
+async function toggleSiteMenu(event) {
+  if (siteMenuOpen.value) {
+    closeSiteMenu({ returnFocus: true });
+    return;
+  }
+  appearancePanelOpen.value = false;
+  if (event?.currentTarget instanceof HTMLElement) {
+    siteTriggerRef.value = event.currentTarget;
+  }
+  siteMenuOpen.value = true;
+  await nextTick();
+  await siteMenuComponentRef.value?.focusFirst?.();
+}
+
+function closeSiteMenu({ returnFocus = false } = {}) {
+  if (!siteMenuOpen.value) return;
+  siteMenuOpen.value = false;
+  if (returnFocus) {
+    nextTick(() => siteTriggerRef.value?.focus?.());
+  }
+}
+
+function handleSiteSelection(selection) {
+  closeSiteMenu({ returnFocus: true });
+  emit('select-site-route', selection);
+}
+
+function handleOutsidePointer(event) {
+  if (!siteMenuOpen.value) return;
+  if (menuRootRef.value?.contains?.(event.target)) return;
+  if (siteMenuComponentRef.value?.containsTarget?.(event.target)) return;
+  closeSiteMenu({ returnFocus: true });
+}
+
+function bindMobileViewport() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+  mobileMediaQuery = window.matchMedia('(max-width: 899.98px)');
+  const update = (event) => {
+    isMobileViewport.value = Boolean(event?.matches ?? mobileMediaQuery?.matches);
+  };
+  mobileMediaListener = update;
+  update(mobileMediaQuery);
+  if (typeof mobileMediaQuery.addEventListener === 'function') {
+    mobileMediaQuery.addEventListener('change', update);
+  } else if (typeof mobileMediaQuery.addListener === 'function') {
+    mobileMediaQuery.addListener(update);
+  }
+}
+
+function unbindMobileViewport() {
+  if (!mobileMediaQuery || !mobileMediaListener) return;
+  if (typeof mobileMediaQuery.removeEventListener === 'function') {
+    mobileMediaQuery.removeEventListener('change', mobileMediaListener);
+  } else if (typeof mobileMediaQuery.removeListener === 'function') {
+    mobileMediaQuery.removeListener(mobileMediaListener);
+  }
+  mobileMediaQuery = null;
+  mobileMediaListener = null;
 }
 
 function openProfileHome() {
@@ -505,8 +707,24 @@ watch(
   () => route.fullPath,
   () => {
     appearancePanelOpen.value = false;
+    closeSiteMenu({ returnFocus: true });
   }
 );
+
+watch(siteMenuOpen, (open) => {
+  if (typeof document === 'undefined') return;
+  if (open) document.addEventListener('pointerdown', handleOutsidePointer);
+  else document.removeEventListener('pointerdown', handleOutsidePointer);
+});
+
+onMounted(bindMobileViewport);
+
+onBeforeUnmount(() => {
+  unbindMobileViewport();
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('pointerdown', handleOutsidePointer);
+  }
+});
 </script>
 
 <style scoped>
@@ -545,15 +763,22 @@ watch(
   display: flex;
   flex-direction: column;
   align-items: center;
-  transform: translateY(-90px);
-  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(15px);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .fixed-nav-wrapper.expanded {
   transform: translateY(15px);
 }
 
+.fixed-nav-wrapper.compact {
+  transform: translateY(10px);
+}
+
 .top-bar {
+  --liquid-fill: var(--menu-glass-bg);
+  --liquid-border: var(--menu-glass-border);
+  --liquid-shadow: var(--menu-glass-shadow);
   width: 98%;
   max-width: 1500px;
   height: 86px;
@@ -563,6 +788,66 @@ watch(
   align-items: center;
   justify-content: space-between;
   z-index: 2;
+}
+
+.compact-dock {
+  --liquid-fill: color-mix(in srgb, var(--menu-glass-bg) 92%, transparent);
+  --liquid-border: var(--menu-glass-border);
+  --liquid-shadow: 0 18px 42px rgba(8, 10, 20, 0.24);
+  min-height: 54px;
+  max-width: min(calc(100vw - 32px), 760px);
+  padding: 6px 9px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.compact-nav-item {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.compact-nav-item:hover {
+  color: var(--icon-hover-color);
+  background: var(--menu-hover-bg);
+}
+
+.compact-nav-item.active {
+  color: var(--accent-surface-text, var(--theme-text-primary));
+  background: var(--menu-active-bg);
+  box-shadow: inset 0 0 0 1px var(--menu-active-border);
+}
+
+.compact-nav-item:focus-visible,
+.toggle-tab:focus-visible {
+  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline-offset: 3px;
+}
+
+.compact-nav-divider {
+  width: 1px;
+  height: 26px;
+  margin-inline: 3px;
+  background: var(--theme-border-strong, rgba(255, 255, 255, 0.24));
+}
+
+.mobile-top-dock {
+  display: none;
 }
 
 .nav-section {
@@ -593,13 +878,8 @@ watch(
   gap: 6px;
   cursor: pointer;
   opacity: 1;
-  transform: translateY(0);
-  transition: all 0.3s ease;
+  transition: opacity 0.3s ease;
   position: relative;
-}
-
-.top-menu-root.motion-managed .menu-item-stack {
-  transition: none !important;
 }
 
 .menu-item-stack:active .icon-minimal,
@@ -847,6 +1127,18 @@ watch(
   padding: 2px 6px 4px;
 }
 
+button.author-info-item {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+button.author-info-item:focus-visible {
+  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline-offset: 3px;
+}
+
 .github-style-box:hover {
   --liquid-bg: var(--menu-hover-bg);
   transform: scale(1.1);
@@ -951,66 +1243,64 @@ watch(
 
 .fixed-nav-wrapper:not(.expanded) .menu-item-stack {
   opacity: 0;
-  transform: translateY(-20px);
   pointer-events: none;
 }
 
 .fixed-nav-wrapper.expanded .menu-item-stack {
   opacity: 1;
-  transform: translateY(0);
   pointer-events: auto;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(1) {
-  transition: all 0.4s 0.05s ease;
+  transition: opacity 0.4s 0.05s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(2) {
-  transition: all 0.4s 0.1s ease;
+  transition: opacity 0.4s 0.1s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(3) {
-  transition: all 0.4s 0.15s ease;
+  transition: opacity 0.4s 0.15s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(4) {
-  transition: all 0.4s 0.2s ease;
+  transition: opacity 0.4s 0.2s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(5) {
-  transition: all 0.4s 0.25s ease;
+  transition: opacity 0.4s 0.25s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(1) {
-  transition: all 0.4s 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: opacity 0.4s 0.25s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(2) {
-  transition: all 0.4s 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: opacity 0.4s 0.3s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(3) {
-  transition: all 0.4s 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: opacity 0.4s 0.35s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(4) {
-  transition: all 0.4s 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: opacity 0.4s 0.4s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(1) {
-  transition: all 0.4s 0.45s ease;
+  transition: opacity 0.4s 0.45s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(2) {
-  transition: all 0.4s 0.5s ease;
+  transition: opacity 0.4s 0.5s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(3) {
-  transition: all 0.4s 0.55s ease;
+  transition: opacity 0.4s 0.55s ease;
 }
 
 .fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(4) {
-  transition: all 0.4s 0.6s ease;
+  transition: opacity 0.4s 0.6s ease;
 }
 
 .toggle-tab {
@@ -1027,6 +1317,8 @@ watch(
   padding-bottom: 8px;
   transition: all 0.3s;
   z-index: 1001;
+  border: 0;
+  color: inherit;
 }
 
 .toggle-tab:hover {
@@ -1368,6 +1660,78 @@ watch(
 }
 
 @media (max-width: 900px) {
+  .mobile-top-dock {
+    --liquid-fill: color-mix(in srgb, var(--menu-glass-bg) 94%, transparent);
+    --liquid-border: var(--menu-glass-border);
+    --liquid-shadow: 0 16px 38px rgba(8, 10, 20, 0.24);
+    position: absolute;
+    z-index: 12;
+    top: 0;
+    left: 50%;
+    width: min(calc(100vw - 16px), 680px);
+    min-height: 54px;
+    padding: 5px 7px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    overflow-x: auto;
+    transform: translateX(-50%);
+    pointer-events: auto;
+    scrollbar-width: none;
+  }
+
+  .mobile-top-dock::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-top-nav-item {
+    flex: 1 0 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border: 0;
+    border-radius: 999px;
+    padding: 0 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    color: var(--theme-menu-text, var(--theme-text-primary));
+    background: transparent;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 650;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .mobile-top-nav-item.active {
+    color: var(--accent-surface-text, var(--theme-text-primary));
+    background: var(--menu-active-bg);
+    box-shadow: inset 0 0 0 1px var(--menu-active-border);
+  }
+
+  .mobile-top-nav-item:focus-visible {
+    outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+    outline-offset: 2px;
+  }
+
+  .top-bar {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .fixed-nav-wrapper.manual-expanded .top-bar {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .toggle-tab {
+    display: none;
+  }
+
   .fixed-nav-wrapper {
     transform: translateY(-72px);
   }
@@ -1470,6 +1834,17 @@ watch(
     align-items: flex-start;
     transform: none;
     pointer-events: none;
+  }
+
+  .mobile-top-dock {
+    position: absolute;
+    top: 0;
+    left: calc(50% + 22px);
+    width: min(calc(100vw - 54px), 620px);
+  }
+
+  .mobile-top-nav-item span {
+    display: none;
   }
 
   .top-bar {

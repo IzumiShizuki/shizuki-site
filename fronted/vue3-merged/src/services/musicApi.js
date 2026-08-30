@@ -257,6 +257,15 @@ export async function getAdminDefaultPlaylistBundle(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function updateAdminDefaultPlaylistProfile(payload, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request('/api/v1/admin/music/default-playlist/profile', {
+    method: 'PUT',
+    body: payload || {}
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function replaceAdminDefaultPlaylistBundle(payload, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request('/api/v1/admin/music/default-playlist/bundle', {

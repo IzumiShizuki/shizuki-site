@@ -1,20 +1,35 @@
 import { computed, reactive, readonly } from 'vue';
+import {
+  __resetMotionPreferenceForTests,
+  normalizeMotionMode,
+  setMotionMode,
+  useMotionPreference
+} from '../composables/useMotionPreference';
 
 export const HOME_APPEARANCE_STORAGE_KEY = 'shizuki.homeAppearance.v1';
 export const HOME_STAGE_CONTEXT_KEY = Symbol('shizuki.homeTimeStage');
 export const HOME_CLOCK_BEHAVIORS = Object.freeze(['auto', 'show', 'hide']);
-export const HOME_MOTION_LEVELS = Object.freeze(['vivid', 'calm', 'off']);
+export const HOME_MOTION_LEVELS = Object.freeze(['immersive', 'soothing']);
 
 const DEFAULT_HOME_APPEARANCE = Object.freeze({
   version: 1,
   clockBehavior: 'auto',
-  motionLevel: 'vivid',
+  motionLevel: 'immersive',
   colorMode: 'auto',
   manualAccentHex: '#F2B39D',
   wallpaperClockOverrides: Object.freeze({})
 });
 
-const state = reactive(createDefaultHomeAppearance());
+const motionPreference = useMotionPreference();
+const state = reactive({
+  ...createDefaultHomeAppearance(),
+  get motionLevel() {
+    return motionPreference.storedMode.value;
+  },
+  get effectiveMotionLevel() {
+    return motionPreference.effectiveMode.value;
+  }
+});
 const readonlyState = readonly(state);
 let initialized = false;
 
@@ -22,7 +37,6 @@ function createDefaultHomeAppearance() {
   return {
     version: DEFAULT_HOME_APPEARANCE.version,
     clockBehavior: DEFAULT_HOME_APPEARANCE.clockBehavior,
-    motionLevel: DEFAULT_HOME_APPEARANCE.motionLevel,
     colorMode: DEFAULT_HOME_APPEARANCE.colorMode,
     manualAccentHex: DEFAULT_HOME_APPEARANCE.manualAccentHex,
     wallpaperClockOverrides: {}
@@ -49,7 +63,7 @@ export function normalizeHomeAppearance(input) {
   return {
     version: DEFAULT_HOME_APPEARANCE.version,
     clockBehavior: normalizeEnum(source.clockBehavior, HOME_CLOCK_BEHAVIORS, DEFAULT_HOME_APPEARANCE.clockBehavior),
-    motionLevel: normalizeEnum(source.motionLevel, HOME_MOTION_LEVELS, DEFAULT_HOME_APPEARANCE.motionLevel),
+    motionLevel: normalizeMotionMode(source.motionLevel),
     colorMode: normalizeEnum(source.colorMode, ['auto', 'manual'], DEFAULT_HOME_APPEARANCE.colorMode),
     manualAccentHex: normalizeHex(source.manualAccentHex) || DEFAULT_HOME_APPEARANCE.manualAccentHex,
     wallpaperClockOverrides: normalizeWallpaperOverrides(source.wallpaperClockOverrides)
@@ -82,7 +96,6 @@ function applySnapshot(input) {
   const snapshot = normalizeHomeAppearance(input);
   state.version = snapshot.version;
   state.clockBehavior = snapshot.clockBehavior;
-  state.motionLevel = snapshot.motionLevel;
   state.colorMode = snapshot.colorMode;
   state.manualAccentHex = snapshot.manualAccentHex;
   state.wallpaperClockOverrides = snapshot.wallpaperClockOverrides;
@@ -92,13 +105,15 @@ function applySnapshot(input) {
 function persist(storage = typeof window !== 'undefined' ? window.localStorage : null) {
   if (!storage?.setItem) return;
   try {
-    storage.setItem(HOME_APPEARANCE_STORAGE_KEY, JSON.stringify(normalizeHomeAppearance(state)));
+    const { motionLevel: _globalMotionPreference, ...homeAppearance } = normalizeHomeAppearance(state);
+    storage.setItem(HOME_APPEARANCE_STORAGE_KEY, JSON.stringify(homeAppearance));
   } catch {
     // Keep the in-memory preference usable when storage is unavailable.
   }
 }
 
 export function initializeHomeAppearance(storage = typeof window !== 'undefined' ? window.localStorage : null) {
+  motionPreference.initialize({ storage });
   if (initialized) return normalizeHomeAppearance(state);
   initialized = true;
   if (!storage?.getItem) return normalizeHomeAppearance(state);
@@ -118,9 +133,7 @@ export function setHomeClockBehavior(value) {
 }
 
 export function setHomeMotionLevel(value) {
-  state.motionLevel = normalizeEnum(value, HOME_MOTION_LEVELS, DEFAULT_HOME_APPEARANCE.motionLevel);
-  persist();
-  return state.motionLevel;
+  return setMotionMode(value);
 }
 
 export function setHomeColorMode(value) {
@@ -169,6 +182,7 @@ export function useHomeAppearance() {
 }
 
 export function __resetHomeAppearanceForTests() {
+  __resetMotionPreferenceForTests();
   initialized = false;
   applySnapshot(DEFAULT_HOME_APPEARANCE);
 }

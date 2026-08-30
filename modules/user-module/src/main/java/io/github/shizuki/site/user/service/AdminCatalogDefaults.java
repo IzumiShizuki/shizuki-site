@@ -34,7 +34,13 @@ public final class AdminCatalogDefaults {
         new AdminPermissionOptionResponse(
             "quota.policy.read", "配额策略查看", "查看分组配额策略", "后台·配额", true),
         new AdminPermissionOptionResponse(
-            "quota.policy.write", "配额策略管理", "修改分组配额策略（写操作需二次验证）", "后台·配额", true)
+            "quota.policy.write", "配额策略管理", "修改分组配额策略（写操作需二次验证）", "后台·配额", true),
+        new AdminPermissionOptionResponse(
+            "life.content.manage", "生活内容管理", "管理个人相册、照片与生活动态", "后台·内容", true),
+        new AdminPermissionOptionResponse(
+            "site.widgets.manage", "站点组件管理", "维护天气、今日一言与站点组件配置", "后台·站点", true),
+        new AdminPermissionOptionResponse(
+            "media.derivative.manage", "媒体派生管理", "处理并审计隐私安全的媒体派生资源", "后台·媒体", true)
     );
 
     private static final List<AdminQuotaOptionResponse> BUILTIN_QUOTAS = List.of(
@@ -86,6 +92,9 @@ public final class AdminCatalogDefaults {
             case "user" -> "后台·用户";
             case "group" -> "后台·权限";
             case "quota" -> "后台·配额";
+            case "life" -> "后台·内容";
+            case "site" -> "后台·站点";
+            case "media" -> "后台·媒体";
             case "blog", "post" -> "博客";
             case "ai" -> "AI";
             default -> "其他";

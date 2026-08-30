@@ -154,9 +154,16 @@ shizuki:
     secret:
       enforce: ${SECRET_ENFORCE:false}
   media:
+    photo-retention:
+      retention-days: ${MEDIA_PHOTO_RETENTION_DAYS:30}
+      automatic-cleanup-enabled: false
+    gateway:
+      capability-secret: ${MEDIA_GATEWAY_CAPABILITY_SECRET:${AUTH_JWT_SECRET:${random.uuid}}}
+      capability-ttl-seconds: ${MEDIA_GATEWAY_CAPABILITY_TTL_SECONDS:300}
+      public-max-age-seconds: ${MEDIA_GATEWAY_PUBLIC_MAX_AGE_SECONDS:0}
     storage:
-      private-bucket: ${OSS_PRIVATE_BUCKET:zhuowang-files}
-      public-bucket: ${OSS_PUBLIC_BUCKET:izumi-test-01}
+      private-bucket: ${OSS_PRIVATE_BUCKET:shizuki-private}
+      public-bucket: ${OSS_PUBLIC_BUCKET:shizuki-public}
       public-base-url: ${OSS_PUBLIC_BASE_URL:}
       sign-expire-seconds: 600
       max-upload-size: 52428800
@@ -180,7 +187,7 @@ shizuki:
       - audio/ogg
   blog:
     storage:
-      private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:zhuowang-files}}
+      private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:shizuki-private}}
       max-upload-size: ${BLOG_MAX_UPLOAD_SIZE:1048576}
   content:
     author-profile:
@@ -212,6 +219,7 @@ shizuki:
       - /api/v1/ai-sessions/**
       - /api/v1/assets/public/**
       - /api/v1/assets/*/download-url
+      - /api/v1/media/**
       - /api/v1/music/playlist/default/**
       - /api/v1/music/playlists/**
       - /api/v1/music/library/home

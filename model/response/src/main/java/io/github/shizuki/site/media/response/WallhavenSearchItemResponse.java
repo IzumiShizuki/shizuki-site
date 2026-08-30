@@ -1,5 +1,7 @@
 package io.github.shizuki.site.media.response;
 
+import java.util.List;
+
 public record WallhavenSearchItemResponse(
         String id,
         String thumbUrl,
@@ -10,6 +12,11 @@ public record WallhavenSearchItemResponse(
         long fileSizeBytes,
         String fileType,
         String purity,
-        String category
+        String category,
+        long views,
+        long favorites,
+        String createdAt,
+        List<String> colors,
+        String sourceUrl
 ) {
 }

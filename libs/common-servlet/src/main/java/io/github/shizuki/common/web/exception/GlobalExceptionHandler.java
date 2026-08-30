@@ -42,6 +42,9 @@ public class GlobalExceptionHandler {
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;
             case TOO_MANY_REQUESTS -> HttpStatus.TOO_MANY_REQUESTS;
+            case INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
+            case FEATURE_DISABLED -> HttpStatus.NOT_FOUND;
+            case MEDIA_NOT_READY, UPSTREAM_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
 

@@ -9,6 +9,7 @@ import {
 } from '../mobile/mobileMode';
 import * as musicApi from '../services/musicApi';
 import { resolveOAuthCallbackRedirect } from './oauthCallbackGuard';
+import { RouteScrollMode } from './routeScrollMode';
 
 const MobileShell = () => import('../mobile/MobileShell.vue');
 const MobileMusicHomePage = () => import('../mobile/pages/MobileMusicHomePage.vue');
@@ -20,6 +21,8 @@ const MobileAuthPage = () => import('../mobile/pages/MobileAuthPage.vue');
 const AiHubPage = () => import('../pages/AiHubPage.vue');
 const AdminPage = () => import('../pages/AdminPage.vue');
 const AuthorPage = () => import('../pages/AuthorPage.vue');
+const AlbumsPage = () => import('../pages/AlbumsPage.vue');
+const AlbumDetailPage = () => import('../pages/AlbumDetailPage.vue');
 const AuthCallbackPage = () => import('../pages/AuthCallbackPage.vue');
 const AuthPage = () => import('../pages/AuthPage.vue');
 const AppsPage = () => import('../pages/AppsPage.vue');
@@ -32,6 +35,7 @@ const MusicVoiceHomeView = () => import('../pages/music/MusicVoiceHomeView.vue')
 const MusicVoiceWorkDetailView = () => import('../pages/music/MusicVoiceWorkDetailView.vue');
 const MusicPlaylistDetailView = () => import('../pages/music/MusicPlaylistDetailView.vue');
 const MusicPlayerDetailView = () => import('../pages/music/MusicPlayerDetailView.vue');
+const MomentsPage = () => import('../pages/MomentsPage.vue');
 const ProfilePage = () => import('../pages/ProfilePage.vue');
 
 export const routePathByKey = {
@@ -43,7 +47,9 @@ export const routePathByKey = {
   auth: '/auth',
   profile: '/profile',
   admin: '/admin',
-  author: '/author'
+  author: '/author',
+  albums: '/albums',
+  moments: '/moments'
 };
 
 const VOICE_ACCESS_CACHE_TTL_MS = 60 * 1000;
@@ -95,16 +101,27 @@ async function resolveVoiceRouteVisible(auth) {
 }
 
 const routes = [
-  { path: '/', name: 'home', component: HomePage },
-  { path: '/blog', name: 'blog', component: BlogListPage },
-  { path: '/blog/editor/:postId?', name: 'blog-editor', component: BlogPage },
-  { path: '/blog/:postId/presentation', name: 'blog-presentation', component: BlogPresentationPage },
-  { path: '/blog/:postId', name: 'blog-detail', component: BlogPage },
+  { path: '/', name: 'home', component: HomePage, meta: { scrollMode: RouteScrollMode.WORKSPACE } },
+  { path: '/blog', name: 'blog', component: BlogListPage, meta: { scrollMode: RouteScrollMode.APP } },
+  {
+    path: '/blog/editor/:postId?',
+    name: 'blog-editor',
+    component: BlogPage,
+    meta: { scrollMode: RouteScrollMode.WORKSPACE }
+  },
+  {
+    path: '/blog/:postId/presentation',
+    name: 'blog-presentation',
+    component: BlogPresentationPage,
+    meta: { scrollMode: RouteScrollMode.WORKSPACE }
+  },
+  { path: '/blog/:postId', name: 'blog-detail', component: BlogPage, meta: { scrollMode: RouteScrollMode.APP } },
   {
     path: '/music-library',
     name: 'music-library',
     redirect: '/music-library/music',
     component: MusicLibraryPage,
+    meta: { scrollMode: RouteScrollMode.WORKSPACE },
     children: [
       { path: 'music', name: 'music-library-music', component: MusicLibraryHomeView },
       {
@@ -135,13 +152,43 @@ const routes = [
       { path: 'auth', name: 'mobile-auth', component: MobileAuthPage }
     ]
   },
-  { path: '/apps', name: 'apps', component: AppsPage },
-  { path: '/ai-hub', alias: '/ai-tavern', name: 'ai-hub', component: AiHubPage },
-  { path: '/auth', name: 'auth', component: AuthPage },
-  { path: '/auth/callback', name: 'auth-callback', component: AuthCallbackPage },
-  { path: '/profile', name: 'profile', component: ProfilePage },
-  { path: '/admin', name: 'admin', component: AdminPage, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/author', name: 'author', component: AuthorPage }
+  { path: '/apps', name: 'apps', component: AppsPage, meta: { scrollMode: RouteScrollMode.WORKSPACE } },
+  {
+    path: '/ai-hub',
+    alias: '/ai-tavern',
+    name: 'ai-hub',
+    component: AiHubPage,
+    meta: { scrollMode: RouteScrollMode.WORKSPACE }
+  },
+  { path: '/auth', name: 'auth', component: AuthPage, meta: { scrollMode: RouteScrollMode.WORKSPACE } },
+  {
+    path: '/auth/callback',
+    name: 'auth-callback',
+    component: AuthCallbackPage,
+    meta: { scrollMode: RouteScrollMode.WORKSPACE }
+  },
+  { path: '/profile', name: 'profile', component: ProfilePage, meta: { scrollMode: RouteScrollMode.WORKSPACE } },
+  {
+    path: '/admin',
+    name: 'admin',
+    component: AdminPage,
+    meta: { requiresAuth: true, requiresAdmin: true, scrollMode: RouteScrollMode.WORKSPACE }
+  },
+  { path: '/author', name: 'author', component: AuthorPage, meta: { scrollMode: RouteScrollMode.APP } },
+  { path: '/albums', name: 'albums', component: AlbumsPage, meta: { scrollMode: RouteScrollMode.APP } },
+  {
+    path: '/albums/:publicSlug',
+    name: 'album-detail',
+    component: AlbumDetailPage,
+    meta: { scrollMode: RouteScrollMode.APP }
+  },
+  { path: '/moments', name: 'moments', component: MomentsPage, meta: { scrollMode: RouteScrollMode.APP } },
+  {
+    path: '/moments/:publicId',
+    name: 'moment-detail',
+    component: MomentsPage,
+    meta: { scrollMode: RouteScrollMode.APP }
+  }
 ];
 
 const router = createRouter({

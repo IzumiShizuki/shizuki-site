@@ -9,3 +9,7 @@ export function usePlayerBridge() {
   }
   return bridge;
 }
+
+export function useOptionalPlayerBridge() {
+  return inject(PLAYER_BRIDGE_KEY, null);
+}

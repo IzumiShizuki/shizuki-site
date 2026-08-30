@@ -20,6 +20,7 @@
         <sa-token.version>1.39.0</sa-token.version>
         <owasp-sanitizer.version>20240325.1</owasp-sanitizer.version>
         <springdoc.version>2.6.0</springdoc.version>
+        <twelvemonkeys.version>3.14.0</twelvemonkeys.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
@@ -58,6 +59,11 @@
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-database-postgresql</artifactId>
                 <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.twelvemonkeys.imageio</groupId>
+                <artifactId>imageio-webp</artifactId>
+                <version>${twelvemonkeys.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -1,27 +1,20 @@
 <template>
-  <section class="route-page author-page motion-managed">
-    <RailScaffold class="dashboard-layout">
+  <section
+    class="route-page author-page motion-managed"
+    :class="{ 'author-page--public': !isAdminConsoleTab, 'author-page--workspace': isAdminConsoleTab }"
+    :data-scroll-owner="isAdminConsoleTab ? 'workspace' : 'app'"
+    :data-motion-mode="motionPreference.effectiveMode.value"
+  >
+    <RailScaffold class="dashboard-layout" :class="{ 'dashboard-layout--about': isPublicAboutTab }">
       <template #rail>
-        <aside class="author-route-sidebar liquid-material">
-          <header class="author-route-heading">
-            <span class="author-route-mark" aria-hidden="true">
-              <i class="fas fa-compass"></i>
-            </span>
-            <span class="author-route-heading-copy">
-              <strong>站点导航</strong>
-              <small>{{ isAdminUser ? '浏览与管理' : '浏览站点内容' }}</small>
-            </span>
-          </header>
-
-          <RouteDotRail
-            class="sidebar-route-menu"
-            :items="tabs"
-            :active-key="activeTab"
-            variant="menu"
-            aria-label="关于网站导航"
-            @select="openTab"
-          />
-        </aside>
+        <AuthorProfileRail
+          v-if="!isPublicAboutTab"
+          :items="tabs"
+          :active-key="activeTab"
+          :admin-user="isAdminUser"
+          :public-mode="!isAdminConsoleTab"
+          @select="openTab"
+        />
       </template>
 
       <SubtleScrollArea
@@ -29,7 +22,9 @@
         ref="contentPanelRef"
         tag="section"
         :contain-overscroll="false"
+        :scrollable="isAdminConsoleTab"
         class="content-panel liquid-material"
+        :class="{ 'content-panel--about': isPublicAboutTab }"
         :style="contentPanelStyle"
         @pointermove="handleContentPointerMove"
         @pointerleave="resetParallax"
@@ -443,125 +438,26 @@
             </article>
           </div>
 
-          <div v-else-if="activeTab === 'about'" class="content-block about-motion-root about-story-root">
-            <article class="author-card about-manifesto reveal-node" :style="staggerStyle(0)">
-              <button
-                v-if="canEditCurrentTab"
-                class="inline-edit-fab ripple-trigger"
-                type="button"
-                title="编辑关于网站"
-                @click="openSectionEditor(AuthorTabKey.ABOUT)"
-              >
-                <i class="fas fa-pen"></i>
-              </button>
-              <img
-                v-if="about.introImageUrl"
-                class="about-hero-image"
-                :style="resolveSectionImageDisplayStyle('about.introImageUrl')"
-                :src="about.introImageUrl"
-                alt="关于本站配图"
-              />
-              <div class="about-manifesto-copy">
-                <span class="about-section-code" aria-hidden="true">ABOUT / 00</span>
-                <h2>关于这座小站</h2>
-                <p
-                  v-for="(line, index) in about.intro"
-                  :key="`about-intro-${index}`"
-                  class="line-text reveal-line"
-                  :style="staggerStyle(index + 1)"
-                >
-                  {{ line }}
-                </p>
-              </div>
-            </article>
-
-            <section class="about-flow-grid">
-              <article
-                class="author-card about-goal-stage reveal-node"
-                :class="{ 'has-image': aboutMissionDisplayImage }"
-                :style="staggerStyle(3)"
-              >
-                <div class="about-card-copy">
-                  <header class="about-card-heading">
-                    <span class="about-card-index" aria-hidden="true">01</span>
-                    <span>
-                      <small aria-hidden="true">方向</small>
-                      <h3>长期目标</h3>
-                    </span>
-                  </header>
-                  <p class="line-text">{{ about.mission }}</p>
-                </div>
-                <img
-                  v-if="aboutMissionDisplayImage"
-                  class="about-section-image"
-                  :style="resolveSectionImageDisplayStyle('about.missionImageUrl')"
-                  :src="aboutMissionDisplayImage"
-                  alt="长期目标配图"
-                />
-              </article>
-
-              <article class="author-card about-preference-stage reveal-node" :style="staggerStyle(4)">
-                <header class="about-card-heading">
-                  <span class="about-card-index" aria-hidden="true">02</span>
-                  <span>
-                    <small aria-hidden="true">收藏</small>
-                    <h3>偏好与灵感</h3>
-                  </span>
-                </header>
-                <div class="about-tag-section">
-                  <p class="mini-title">关注方向</p>
-                  <div class="chip-row about-chip-row">
-                    <span v-for="focus in about.focus" :key="`about-focus-${focus}`" class="chip">{{ focus }}</span>
-                  </div>
-                </div>
-                <div class="about-tag-section">
-                  <p class="mini-title">音乐偏好</p>
-                  <div class="chip-row about-chip-row">
-                    <span v-for="music in about.music" :key="`about-music-${music}`" class="chip">{{ music }}</span>
-                  </div>
-                </div>
-              </article>
-
-              <article
-                class="author-card about-links-stage reveal-node"
-                :class="{ 'has-image': aboutLinksDisplayImage }"
-                :style="staggerStyle(5)"
-              >
-                <img
-                  v-if="aboutLinksDisplayImage"
-                  class="about-section-image"
-                  :style="resolveSectionImageDisplayStyle('about.linksImageUrl')"
-                  :src="aboutLinksDisplayImage"
-                  alt="站点外链配图"
-                />
-                <div class="about-card-copy">
-                  <header class="about-card-heading">
-                    <span class="about-card-index" aria-hidden="true">03</span>
-                    <span>
-                      <small aria-hidden="true">继续探索</small>
-                      <h3>站点外链</h3>
-                    </span>
-                  </header>
-                  <div class="link-list">
-                    <a
-                      v-for="item in about.links"
-                      :key="`link-${item.label}-${item.url}`"
-                      :href="resolveAboutLinkHref(item.url)"
-                      :target="opensAboutLinkInNewWindow(item.url) ? '_blank' : undefined"
-                      :rel="opensAboutLinkInNewWindow(item.url) ? 'noopener noreferrer' : undefined"
-                      class="link-btn ripple-trigger"
-                      :class="{ 'is-disabled': isInvalidAboutLink(item.url) }"
-                      :aria-disabled="isInvalidAboutLink(item.url) ? 'true' : undefined"
-                      @click="handleAboutLinkClick($event, item.url)"
-                    >
-                      <span>{{ item.label }}</span>
-                      <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                    </a>
-                  </div>
-                </div>
-              </article>
-            </section>
-          </div>
+          <AuthorAboutExperience
+            v-else-if="activeTab === 'about'"
+            :tabs="tabs"
+            :active-tab="activeTab"
+            :admin-user="isAdminUser"
+            :profile="authorProfile"
+            :about="about"
+            :journey="journeyTimelineItems"
+            :can-edit="canEditCurrentTab"
+            :albums="featuredAlbums.data.value || []"
+            :albums-loading="featuredAlbums.loading.value"
+            :albums-error="featuredAlbums.error.value"
+            :moments="featuredMoments.data.value || []"
+            :moments-loading="featuredMoments.loading.value"
+            :moments-error="featuredMoments.error.value"
+            @select-tab="openTab"
+            @edit="openSectionEditor(AuthorTabKey.ABOUT)"
+            @retry-albums="featuredAlbums.refresh('about-retry')"
+            @retry-moments="featuredMoments.refresh('about-retry')"
+          />
         </template>
 
         <input
@@ -1025,12 +921,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
+import { useAppScrollRoot } from '../composables/useAppScrollRoot';
+import { useAsyncResource } from '../composables/useAsyncResource';
+import { useMotionPreference } from '../composables/useMotionPreference';
 import AdminPage from './AdminPage.vue';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
+import AuthorAboutExperience from '../components/author/AuthorAboutExperience.vue';
+import AuthorProfileRail from '../components/author/AuthorProfileRail.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
 import RailScaffold from '../components/common/RailScaffold.vue';
-import RouteDotRail from '../components/common/RouteDotRail.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
+import { getFeaturedAlbums, getFeaturedMoments } from '../services/lifeContentApi';
 import {
   AuthorTabKey,
   createDefaultAuthorProfilePayload,
@@ -1046,19 +947,20 @@ import {
   createEmptyLinkRow
 } from './authorEditFormState';
 import { AdminTabKey } from './adminUiState';
+import { AdminNavigationGroup, buildAdminNavigationItems, isAdminPrincipal } from './adminNavigation';
 import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
 import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
 const AUTHOR_ADMIN_ROUTE_PREFIX = 'admin:';
 const AUTHOR_NAV_GROUP = Object.freeze({
-  SITE: 'site',
-  MANAGE: 'manage'
+  SITE: 'site'
 });
-const DEFAULT_ABOUT_PLACEHOLDER_IMAGE = '/images/katanegai.jpg';
 const DEFAULT_SITE_BROWSER_TITLE = 'Levitation + Menu';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
+const motionPreference = useMotionPreference();
+const appScrollRoot = useAppScrollRoot();
 
 const baseTabs = [
   { key: AuthorTabKey.OVERVIEW, label: '网站主页', icon: 'fas fa-user-astronaut', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
@@ -1066,18 +968,6 @@ const baseTabs = [
   { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
   { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' }
 ];
-const adminTabs = Object.freeze([
-  { tab: AdminTabKey.USERS, label: '后台用户', icon: 'fas fa-users' },
-  { tab: AdminTabKey.GROUPS, label: '后台分组', icon: 'fas fa-layer-group' },
-  { tab: AdminTabKey.PERMISSIONS, label: '后台权限', icon: 'fas fa-key' },
-  { tab: AdminTabKey.QUOTA, label: '后台配额', icon: 'fas fa-gauge-high' },
-  { tab: AdminTabKey.PROMPT_CACHE, label: 'Prompt Cache', icon: 'fas fa-chart-line' },
-  { tab: AdminTabKey.MUSIC_PROVIDERS, label: '音乐源', icon: 'fas fa-music' },
-  { tab: AdminTabKey.WALLPAPERS, label: '壁纸审核', icon: 'far fa-image' },
-  { tab: AdminTabKey.BLOG_CATEGORIES, label: '博客分类', icon: 'fas fa-folder-tree' }
-]);
-const ADMIN_TAB_KEYS = new Set(adminTabs.map((item) => item.tab));
-
 const SKILL_ICON_RULES = [
   { pattern: /(c\+\+|cpp|c\/c\+\+|clang|gcc)/i, icon: 'fas fa-code', tone: 'tone-cyan' },
   { pattern: /(unreal|ue5|ue4)/i, icon: 'fas fa-gamepad', tone: 'tone-blue' },
@@ -1212,7 +1102,9 @@ const quickStatusChoice = ref('');
 const quickStatusCustomInput = ref('');
 const quickStatusSaving = ref(false);
 const quickStatusError = ref('');
-const motionState = reactive(createAuthorMotionState({ reducedMotion: readReducedMotionPreference() }));
+const motionState = reactive(createAuthorMotionState({
+  reducedMotion: motionPreference.effectiveMode.value !== 'immersive'
+}));
 
 const editState = reactive({
   loading: false,
@@ -1232,33 +1124,34 @@ const tagInputs = reactive({
 let suppressDirtyTracking = false;
 let revealController = null;
 let journeyObserver = null;
-let motionMediaCleanup = null;
 const journeyRatioMap = new Map();
 
 const isAdminUser = computed(() => {
-  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
-  return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
+  return isAdminPrincipal(auth.user.value);
 });
+
+const eligibleAdminTabs = computed(() => buildAdminNavigationItems(auth.user.value));
+const eligibleAdminTabKeys = computed(() => new Set(eligibleAdminTabs.value.map((item) => item.key)));
 
 const tabs = computed(() => {
   const items = [...baseTabs];
   if (isAdminUser.value) {
-    items.push({
+    const managementItems = eligibleAdminTabs.value.map((item) => ({
+      key: `${AUTHOR_ADMIN_ROUTE_PREFIX}${item.key}`,
+      label: item.label,
+      icon: item.icon,
+      group: item.group,
+      groupLabel: item.groupLabel
+    }));
+    const siteAppearanceIndex = managementItems.findIndex((item) => item.group === AdminNavigationGroup.SITE_APPEARANCE);
+    managementItems.splice(siteAppearanceIndex >= 0 ? siteAppearanceIndex : managementItems.length, 0, {
       key: AuthorTabKey.SITE_SETTINGS,
       label: '站点设置',
       icon: 'fas fa-sliders',
-      group: AUTHOR_NAV_GROUP.MANAGE,
-      groupLabel: '站点管理'
+      group: AdminNavigationGroup.SITE_APPEARANCE,
+      groupLabel: 'Site Appearance · 站点外观'
     });
-    items.push(
-      ...adminTabs.map((item) => ({
-        key: `${AUTHOR_ADMIN_ROUTE_PREFIX}${item.tab}`,
-        label: item.label,
-        icon: item.icon,
-        group: AUTHOR_NAV_GROUP.MANAGE,
-        groupLabel: '站点管理'
-      }))
-    );
+    items.push(...managementItems);
   }
   return items;
 });
@@ -1272,30 +1165,42 @@ const activeAdminTab = computed(() => {
   const raw = String(activeTab.value || '').trim().toLowerCase();
   if (!raw.startsWith(AUTHOR_ADMIN_ROUTE_PREFIX)) return '';
   const tab = raw.slice(AUTHOR_ADMIN_ROUTE_PREFIX.length);
-  return ADMIN_TAB_KEYS.has(tab) ? tab : AdminTabKey.USERS;
+  return eligibleAdminTabKeys.value.has(tab) ? tab : (eligibleAdminTabs.value[0]?.key || '');
 });
 const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
+const isPublicAboutTab = computed(() => activeTab.value === AuthorTabKey.ABOUT && !isAdminConsoleTab.value);
 // 管理台的所有子标签共用同一个 key：在 Users / Groups / Quota 之间切换时
 // 滚动容器与玻璃面板不再销毁重建，避免整块内容闪烁和重复请求。
 const contentPanelRenderKey = computed(() => (activeAdminTab.value ? 'admin-console' : activeTab.value));
+
+const featuredAlbums = useAsyncResource(
+  ({ signal }) => getFeaturedAlbums(6, signal),
+  { initialValue: [] }
+);
+const featuredMoments = useAsyncResource(
+  ({ signal }) => getFeaturedMoments(6, signal),
+  { initialValue: [] }
+);
+
+watch(
+  () => isPublicAboutTab.value,
+  (aboutActive) => {
+    if (!aboutActive) return;
+    if (!featuredAlbums.hasResolved.value && !featuredAlbums.loading.value) {
+      void featuredAlbums.refresh('about-enter');
+    }
+    if (!featuredMoments.hasResolved.value && !featuredMoments.loading.value) {
+      void featuredMoments.refresh('about-enter');
+    }
+  },
+  { immediate: true }
+);
 
 const hero = computed(() => authorProfile.value.profileJson.hero);
 const identity = computed(() => authorProfile.value.profileJson.identity);
 const skills = computed(() => authorProfile.value.profileJson.skills);
 const journey = computed(() => authorProfile.value.profileJson.journey);
 const about = computed(() => authorProfile.value.profileJson.about);
-const usesDefaultAboutArtwork = computed(() => {
-  const images = [about.value.introImageUrl, about.value.missionImageUrl, about.value.linksImageUrl].map((value) => String(value || '').trim());
-  return images.every((image) => image === DEFAULT_ABOUT_PLACEHOLDER_IMAGE);
-});
-const aboutMissionDisplayImage = computed(() => {
-  if (usesDefaultAboutArtwork.value) return '';
-  return String(about.value.missionImageUrl || '').trim();
-});
-const aboutLinksDisplayImage = computed(() => {
-  if (usesDefaultAboutArtwork.value) return '';
-  return String(about.value.linksImageUrl || '').trim();
-});
 const siteProfile = computed(() => authorProfile.value.profileJson.site);
 const currentActivityStatus = computed(() => {
   const status = String(identity.value.activityStatus || '').trim();
@@ -1449,7 +1354,10 @@ function normalizeTab(raw) {
       return AuthorTabKey.OVERVIEW;
     }
     const adminTab = text.slice(AUTHOR_ADMIN_ROUTE_PREFIX.length);
-    return `${AUTHOR_ADMIN_ROUTE_PREFIX}${ADMIN_TAB_KEYS.has(adminTab) ? adminTab : AdminTabKey.USERS}`;
+    const normalizedAdminTab = eligibleAdminTabKeys.value.has(adminTab)
+      ? adminTab
+      : (eligibleAdminTabs.value[0]?.key || AdminTabKey.USERS);
+    return `${AUTHOR_ADMIN_ROUTE_PREFIX}${normalizedAdminTab}`;
   }
   const normalized = normalizeAuthorTabKey(text);
   if (normalized === AuthorTabKey.EDIT) {
@@ -1772,11 +1680,6 @@ function resolveSectionImageExtension(mimeType, sourceName = '') {
   return '.webp';
 }
 
-function readReducedMotionPreference() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function isDisplayTab(tabKey = activeTab.value) {
   return tabKey === AuthorTabKey.OVERVIEW || tabKey === AuthorTabKey.JOURNEY || tabKey === AuthorTabKey.ABOUT;
 }
@@ -1880,6 +1783,13 @@ function resolveContentPanelElement() {
   return null;
 }
 
+function resolveContentScrollRoot() {
+  if (appScrollRoot.isActive.value && appScrollRoot.element.value instanceof HTMLElement) {
+    return appScrollRoot.element.value;
+  }
+  return resolveContentPanelElement();
+}
+
 function handleContentPointerMove(event) {
   if (!isDisplayTab() || !isDesktopPointerEnabled()) return;
   const panel = resolveContentPanelElement();
@@ -1923,12 +1833,13 @@ function getRevealSelectorByTab(tabKey = activeTab.value) {
 function setupActiveRevealObserver() {
   disconnectRevealController();
   const panel = resolveContentPanelElement();
-  if (!(panel instanceof HTMLElement)) return;
+  const scrollRoot = resolveContentScrollRoot();
+  if (!(panel instanceof HTMLElement) || !(scrollRoot instanceof HTMLElement)) return;
 
   const selector = getRevealSelectorByTab(activeTab.value);
   if (!selector) return;
   revealController = setupRevealObserver(panel, selector, {
-    root: panel,
+    root: scrollRoot,
     threshold: 0.16,
     once: true,
     baseDelay: 0,
@@ -1966,7 +1877,7 @@ function updateJourneyProgressFromRatios(totalCount) {
 
 function syncJourneyProgressByScroll() {
   if (activeTab.value !== AuthorTabKey.JOURNEY) return;
-  const panel = resolveContentPanelElement();
+  const panel = resolveContentScrollRoot();
   const total = journeyTimelineItems.value.length;
   if (!(panel instanceof HTMLElement) || total <= 0) {
     motionState.activeJourneyIndex = -1;
@@ -1983,7 +1894,7 @@ function setupJourneyProgressObserver() {
   disconnectJourneyObserver();
   if (activeTab.value !== AuthorTabKey.JOURNEY) return;
 
-  const panel = resolveContentPanelElement();
+  const panel = resolveContentScrollRoot();
   const timelineEl = journeyTimelineRef.value;
   if (!(panel instanceof HTMLElement) || !(timelineEl instanceof HTMLElement)) return;
   const items = Array.from(timelineEl.querySelectorAll('.timeline-item')).filter((node) => node instanceof HTMLElement);
@@ -2037,32 +1948,6 @@ function refreshActiveTabMotion() {
       syncJourneyProgressByScroll();
     }
   });
-}
-
-function bindReducedMotionWatcher() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-  const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const applyMotionPreference = () => {
-    motionState.motionEnabled = !mediaQuery.matches;
-    if (!motionState.motionEnabled) {
-      resetParallax();
-    }
-    refreshActiveTabMotion();
-  };
-
-  applyMotionPreference();
-
-  if (typeof mediaQuery.addEventListener === 'function') {
-    mediaQuery.addEventListener('change', applyMotionPreference);
-    motionMediaCleanup = () => mediaQuery.removeEventListener('change', applyMotionPreference);
-    return;
-  }
-  if (typeof mediaQuery.addListener === 'function') {
-    mediaQuery.addListener(applyMotionPreference);
-    motionMediaCleanup = () => mediaQuery.removeListener(applyMotionPreference);
-    return;
-  }
-  motionMediaCleanup = null;
 }
 
 function resetTagInputs() {
@@ -2356,47 +2241,6 @@ function openLink(url) {
   window.open(target, '_blank', 'noopener,noreferrer');
 }
 
-function resolveAboutLinkHref(url) {
-  const link = classifyAboutLink(url);
-  return link.kind === 'invalid' ? '#' : link.target;
-}
-
-function classifyAboutLink(url) {
-  const target = String(url || '').trim();
-  if (!target) return { kind: 'invalid', target: '' };
-  if (target.startsWith('/#/') || target.startsWith('#/') || (target.startsWith('/') && !target.startsWith('//'))) {
-    return { kind: 'internal', target };
-  }
-  if (target.startsWith('//') || /^https?:\/\//i.test(target)) {
-    return { kind: 'external-web', target };
-  }
-  if (/^(mailto|tel):/i.test(target)) {
-    return { kind: 'external-action', target };
-  }
-  return { kind: 'invalid', target: '' };
-}
-
-function opensAboutLinkInNewWindow(url) {
-  return classifyAboutLink(url).kind === 'external-web';
-}
-
-function isInvalidAboutLink(url) {
-  return classifyAboutLink(url).kind === 'invalid';
-}
-
-function handleAboutLinkClick(event, url) {
-  const link = classifyAboutLink(url);
-  if (link.kind === 'invalid') {
-    event.preventDefault();
-    return;
-  }
-  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  if (link.kind === 'internal') {
-    event.preventDefault();
-    openLink(link.target);
-  }
-}
-
 function readErrorMessage(error, fallback) {
   const detail = String(error?.detail || '').trim();
   const message = detail || String(error?.message || '').trim() || String(fallback || '').trim();
@@ -2490,8 +2334,36 @@ watch(
     if (nextTab === AuthorTabKey.SITE_SETTINGS && isAdminUser.value && previousTab !== AuthorTabKey.SITE_SETTINGS) {
       void refreshSectionEditor();
     }
+    if (appScrollRoot.isActive.value) {
+      void nextTick(() => {
+        const root = appScrollRoot.element.value;
+        if (!(root instanceof HTMLElement)) return;
+        if (typeof root.scrollTo === 'function') {
+          root.scrollTo({ top: 0, behavior: 'auto' });
+        } else {
+          root.scrollTop = 0;
+        }
+      });
+    }
     refreshActiveTabMotion();
   }
+);
+
+watch(appScrollRoot.scrollTop, () => {
+  if (!appScrollRoot.isActive.value) return;
+  handleContentScroll();
+});
+
+watch(
+  motionPreference.effectiveMode,
+  (mode) => {
+    motionState.motionEnabled = mode === 'immersive';
+    if (!motionState.motionEnabled) {
+      resetParallax();
+    }
+    refreshActiveTabMotion();
+  },
+  { immediate: true }
 );
 
 watch(
@@ -2508,7 +2380,6 @@ watch(
 );
 
 onMounted(() => {
-  bindReducedMotionWatcher();
   loadPublicProfile();
   refreshActiveTabMotion();
 });
@@ -2516,9 +2387,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disconnectRevealController();
   disconnectJourneyObserver();
-  if (typeof motionMediaCleanup === 'function') {
-    motionMediaCleanup();
-  }
   if (errorCopyFeedbackTimer) {
     globalThis.clearTimeout(errorCopyFeedbackTimer);
     errorCopyFeedbackTimer = null;
@@ -2547,6 +2415,12 @@ onBeforeUnmount(() => {
   min-width: 0;
   padding-left: 0;
   overflow: hidden;
+}
+
+.dashboard-layout.dashboard-layout--about {
+  display: block;
+  height: auto;
+  overflow: visible;
 }
 
 .author-route-sidebar {
@@ -2649,6 +2523,15 @@ onBeforeUnmount(() => {
   overscroll-behavior: auto;
   perspective: 1200px;
   position: relative;
+}
+
+.content-panel.content-panel--about {
+  --liquid-bg: transparent;
+  --liquid-border: transparent;
+  --liquid-shadow: none;
+  padding: 0;
+  border-radius: 0;
+  perspective: none;
 }
 
 .content-block {
@@ -4709,6 +4592,33 @@ onBeforeUnmount(() => {
   object-fit: cover;
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.25));
   background: var(--theme-surface-soft, rgba(255, 255, 255, 0.08));
+}
+
+.author-page.author-page--public {
+  height: auto;
+  min-height: 100%;
+  display: block;
+}
+
+.author-page--public .dashboard-layout {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  align-items: start;
+}
+
+.author-page--public .author-route-sidebar {
+  position: sticky;
+  top: 0;
+  height: auto;
+  align-self: start;
+  overflow: visible;
+}
+
+.author-page--public .sidebar-route-menu,
+.author-page--public .content-panel {
+  height: auto;
+  overflow: visible;
 }
 
 @media (prefers-reduced-motion: reduce) {

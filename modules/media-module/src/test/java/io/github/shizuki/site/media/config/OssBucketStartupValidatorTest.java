@@ -36,7 +36,8 @@ class OssBucketStartupValidatorTest {
             () -> validator.run(new DefaultApplicationArguments(new String[0]))
         );
 
-        Assertions.assertTrue(exception.getMessage().contains("shizuki-public"));
+        Assertions.assertTrue(exception.getMessage().contains("configured bucket"));
+        Assertions.assertFalse(exception.getMessage().contains("shizuki-public"));
         Assertions.assertTrue(validator.shutdownCalled());
     }
 

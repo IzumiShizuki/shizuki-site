@@ -5,6 +5,8 @@ import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+import java.time.LocalDateTime;
 
 @Mapper
 public interface MediaAssetMapper extends BaseMapper<MediaAssetEntity> {
@@ -22,4 +24,26 @@ public interface MediaAssetMapper extends BaseMapper<MediaAssetEntity> {
           AND object_hash = #{objectHash}
         """)
     Boolean existsByUserIdAndObjectHash(@Param("userId") Long userId, @Param("objectHash") String objectHash);
+
+    @Select("""
+        SELECT *
+        FROM MDA_ASSET
+        WHERE bucket_code = #{bucket}
+          AND object_code = #{objectKey}
+          AND deleted_flag = 0
+        LIMIT 1
+        """)
+    MediaAssetEntity findByStorageIdentity(@Param("bucket") String bucket,
+                                           @Param("objectKey") String objectKey);
+
+    @Update("""
+        UPDATE MDA_ASSET
+        SET deleted_flag = 1,
+            update_time = #{purgedAt},
+            version_num = version_num + 1
+        WHERE id = #{assetId}
+          AND deleted_flag = 0
+        """)
+    int tombstonePurgedAsset(@Param("assetId") Long assetId,
+                             @Param("purgedAt") LocalDateTime purgedAt);
 }

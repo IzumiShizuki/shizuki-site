@@ -88,7 +88,10 @@ export async function searchWorkshopWallpapers(params, authorizedFetch) {
     query: {
       query: String(params?.query || '').trim(),
       page: Number(params?.page) > 0 ? Number(params.page) : 1,
-      sort: String(params?.sort || 'trend')
+      sort: String(params?.sort || 'trend'),
+      tags: Array.isArray(params?.tags)
+        ? params.tags.map((item) => String(item || '').trim()).filter(Boolean).join(',')
+        : String(params?.tags || '').trim()
     }
   });
   return unwrapApiResponse(response);
@@ -116,6 +119,7 @@ export async function searchWallhavenWallpapers(params, authorizedFetch) {
       categories: String(params?.categories || ''),
       purity: String(params?.purity || ''),
       sorting: String(params?.sorting || ''),
+      order: String(params?.order || ''),
       atleast: String(params?.atleast || ''),
       ratios: String(params?.ratios || '')
     }

@@ -63,6 +63,48 @@ class WorkshopBrowseHtmlParserTest {
     }
 
     @Test
+    void parsesCurrentGeneratedBrowseCardUsingImageMetadata() {
+        String html = """
+                <div class="UNowfeldbNg- Panel">
+                  <div class="QZ-BCWkxxn0- aspectratio_square">
+                    <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=3785079299" class="tK5agp5sRy8-">
+                      <img src="https://images.steamusercontent.com/ugc/114/E523/?ima=fit&amp;imw=288"
+                           alt="4K60fps Lieselotte &#x00B7; &#x8389;&#x6CFD;&#x6D1B;&#x7279;" loading="lazy" class="" />
+                    </a>
+                  </div>
+                  <div class="author">By creator</div>
+                </div>
+                <div class="UNowfeldbNg- Panel">
+                  <a href='https://steamcommunity.com/sharedfiles/filedetails/?id=3787382101'>
+                    <img alt='City &amp; Rain' src='https://images.steamusercontent.com/ugc/115/ABC/' />
+                  </a>
+                </div>
+                """;
+
+        List<WorkshopSearchItemResponse> items = WorkshopBrowseHtmlParser.parse(html, DETAIL_BASE);
+
+        assertEquals(2, items.size());
+        assertEquals("4K60fps Lieselotte · 莉泽洛特", items.get(0).title());
+        assertEquals("https://images.steamusercontent.com/ugc/114/E523/?ima=fit&imw=288", items.get(0).previewUrl());
+        assertEquals("City & Rain", items.get(1).title());
+        assertEquals("https://images.steamusercontent.com/ugc/115/ABC/", items.get(1).previewUrl());
+    }
+
+    @Test
+    void usesDeterministicTitleWhenUpstreamTitleIsMissing() {
+        String html = """
+                <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=555000222">
+                  <img src="https://images.steamusercontent.com/ugc/x/2/" alt="" />
+                </a>
+                """;
+
+        List<WorkshopSearchItemResponse> items = WorkshopBrowseHtmlParser.parse(html, DETAIL_BASE);
+
+        assertEquals(1, items.size());
+        assertEquals("Workshop #555000222", items.get(0).title());
+    }
+
+    @Test
     void returnsEmptyListForBlankOrUnrelatedHtml() {
         assertTrue(WorkshopBrowseHtmlParser.parse("", DETAIL_BASE).isEmpty());
         assertTrue(WorkshopBrowseHtmlParser.parse(null, DETAIL_BASE).isEmpty());

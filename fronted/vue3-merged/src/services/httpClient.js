@@ -43,7 +43,9 @@ function buildUrl(path, query) {
     params.set(key, String(value));
   });
 
-  const queryString = params.toString();
+  // URLSearchParams serializes spaces as `+`, while our API URL contract uses
+  // percent-encoding so generated links remain stable across clients.
+  const queryString = params.toString().replace(/\+/g, '%20');
   if (!queryString) return url;
   return `${url}?${queryString}`;
 }

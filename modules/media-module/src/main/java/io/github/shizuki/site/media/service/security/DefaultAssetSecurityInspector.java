@@ -11,6 +11,8 @@ import io.github.shizuki.site.media.model.AssetSecurityScanStatusEnum;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.io.IOException;
+import java.io.InputStream;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -47,6 +49,7 @@ public class DefaultAssetSecurityInspector implements AssetSecurityInspector {
     private final ObjectStorageClient objectStorageClient;
     private final MediaAssetMapper mediaAssetMapper;
     private final MediaStorageProperties mediaStorageProperties;
+    private final PhotoUploadDraftValidator photoUploadDraftValidator;
 
     public DefaultAssetSecurityInspector(ObjectStorageClient objectStorageClient,
                                          MediaAssetMapper mediaAssetMapper,
@@ -54,6 +57,7 @@ public class DefaultAssetSecurityInspector implements AssetSecurityInspector {
         this.objectStorageClient = objectStorageClient;
         this.mediaAssetMapper = mediaAssetMapper;
         this.mediaStorageProperties = mediaStorageProperties;
+        this.photoUploadDraftValidator = new DefaultPhotoUploadDraftValidator(mediaStorageProperties);
     }
 
     @Override
@@ -80,6 +84,24 @@ public class DefaultAssetSecurityInspector implements AssetSecurityInspector {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Storage content type is not allowed for asset kind");
         }
 
+        ImageUploadDraftMetadata imageDraft = null;
+        if (assetKind == AssetKindEnum.STATIC_IMAGE || assetKind == AssetKindEnum.ANIMATED_IMAGE) {
+            try (InputStream objectStream = objectStorageClient.getObjectStream(bucket, key)) {
+                ProtectedPhotoProcessingContext context = photoUploadDraftValidator.validate(
+                    objectStream,
+                    objectMetadata.getContentLength(),
+                    normalizedRequestContentType,
+                    assetKind
+                );
+                imageDraft = context.draftMetadata();
+                objectHash = imageDraft.sha256();
+            } catch (BusinessException exception) {
+                throw exception;
+            } catch (IOException exception) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Uploaded image stream could not be closed safely");
+            }
+        }
+
         // 一期默认按“同用户 + object_hash”做轻量去重，防止重复上传同内容对象。
         if (mediaStorageProperties.isEnableObjectHashDedup() && StringUtils.hasText(objectHash)) {
             Boolean exists = mediaAssetMapper.existsByUserIdAndObjectHash(userId, objectHash);
@@ -100,7 +122,8 @@ public class DefaultAssetSecurityInspector implements AssetSecurityInspector {
             scanStatus.name(),
             scanMessage,
             objectMetadata.getContentLength() > 0 ? objectMetadata.getContentLength() : null,
-            normalizedStorageContentType
+            normalizedStorageContentType,
+            imageDraft
         );
     }
 

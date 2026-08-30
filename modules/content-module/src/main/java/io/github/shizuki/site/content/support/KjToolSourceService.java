@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -45,6 +46,7 @@ public class KjToolSourceService {
     private final ConcurrentHashMap<String, CacheEntry<ToolDetailView>> detailCache = new ConcurrentHashMap<>();
     private volatile CacheEntry<CatalogView> catalogCache;
 
+    @Autowired
     public KjToolSourceService(KjToolSourceProperties properties, ObjectMapper objectMapper) {
         this(properties, objectMapper, new HttpUpstreamGateway(properties), System::currentTimeMillis);
     }

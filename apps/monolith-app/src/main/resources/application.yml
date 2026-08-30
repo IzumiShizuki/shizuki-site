@@ -29,6 +29,44 @@ sa-token:
   token-style: jwt
   jwt-secret-key: ${shizuki.auth.jwt.secret}
 shizuki:
+  site:
+    personal-content:
+      enabled: ${SITE_PERSONAL_CONTENT_ENABLED:false}
+      public-api-enabled: ${SITE_PERSONAL_CONTENT_PUBLIC_API_ENABLED:false}
+      studio-enabled: ${SITE_PERSONAL_CONTENT_STUDIO_ENABLED:false}
+      default-page-size: ${SITE_PERSONAL_CONTENT_DEFAULT_PAGE_SIZE:20}
+      max-page-size: ${SITE_PERSONAL_CONTENT_MAX_PAGE_SIZE:50}
+      cursor:
+        secret: ${SITE_PERSONAL_CONTENT_CURSOR_SECRET:${AUTH_JWT_SECRET:}}
+    external-widgets:
+      enabled: ${SITE_EXTERNAL_WIDGETS_ENABLED:false}
+      weather-enabled: ${SITE_WEATHER_ENABLED:false}
+      quote-enabled: ${SITE_QUOTE_ENABLED:false}
+      upstream-requests-enabled: ${SITE_WIDGET_UPSTREAM_REQUESTS_ENABLED:false}
+      connect-timeout-ms: ${SITE_WIDGET_CONNECT_TIMEOUT_MS:2000}
+      read-timeout-ms: ${SITE_WIDGET_READ_TIMEOUT_MS:5000}
+      max-response-bytes: ${SITE_WIDGET_MAX_RESPONSE_BYTES:262144}
+    weather-cache:
+      fresh-for: ${SITE_WEATHER_FRESH_FOR:15m}
+      value-ttl: ${SITE_WEATHER_CACHE_TTL:20m}
+      refresh-lock-ttl: ${SITE_WEATHER_REFRESH_LOCK_TTL:30s}
+    nearby-weather:
+      coordinate-precision: ${SITE_NEARBY_WEATHER_COORDINATE_PRECISION:2}
+      cache-ttl: ${SITE_NEARBY_WEATHER_CACHE_TTL:5m}
+      max-cache-entries: ${SITE_NEARBY_WEATHER_MAX_CACHE_ENTRIES:512}
+      caller-capacity: ${SITE_NEARBY_WEATHER_CALLER_CAPACITY:6}
+      caller-refill-per-minute: ${SITE_NEARBY_WEATHER_CALLER_REFILL_PER_MINUTE:12}
+      global-capacity: ${SITE_NEARBY_WEATHER_GLOBAL_CAPACITY:120}
+      global-refill-per-minute: ${SITE_NEARBY_WEATHER_GLOBAL_REFILL_PER_MINUTE:120}
+      max-local-caller-buckets: ${SITE_NEARBY_WEATHER_MAX_CALLER_BUCKETS:4096}
+      bucket-ttl: ${SITE_NEARBY_WEATHER_BUCKET_TTL:10m}
+      caller-key-secret: ${SITE_NEARBY_WEATHER_CALLER_KEY_SECRET:${random.uuid}}
+      # Comma-separated transport peer addresses allowed to supply X-Forwarded-For/X-Real-IP.
+      # Leave empty unless the reverse proxy strips client-provided forwarding headers.
+      trusted-proxy-addresses: ${SITE_NEARBY_WEATHER_TRUSTED_PROXY_ADDRESSES:}
+    daily-quote:
+      refresh-lock-ttl: ${SITE_DAILY_QUOTE_REFRESH_LOCK_TTL:45s}
+      refresh-cron: '${SITE_DAILY_QUOTE_REFRESH_CRON:0 */15 * * * *}'
   guest-author:
     signing-secret: ${GUEST_AUTHOR_SIGNING_SECRET:${AUTH_JWT_SECRET:${random.uuid}}}
     ttl-seconds: ${GUEST_AUTHOR_TTL_SECONDS:2592000}
@@ -275,9 +313,26 @@ shizuki:
         - name: bill-sync-agent
           url: ${BILL_SYNC_AGENT_HEALTH_URL:http://bill-sync-agent:39031/healthz}
   media:
+    photo-retention:
+      retention-days: ${MEDIA_PHOTO_RETENTION_DAYS:30}
+      automatic-cleanup-enabled: false
+    gateway:
+      capability-secret: ${MEDIA_GATEWAY_CAPABILITY_SECRET:${AUTH_JWT_SECRET:${random.uuid}}}
+      capability-ttl-seconds: ${MEDIA_GATEWAY_CAPABILITY_TTL_SECONDS:300}
+      public-max-age-seconds: ${MEDIA_GATEWAY_PUBLIC_MAX_AGE_SECONDS:0}
+    derivatives:
+      enabled: ${MEDIA_DERIVATIVES_ENABLED:false}
+      worker-enabled: ${MEDIA_DERIVATIVE_WORKER_ENABLED:false}
+      oss-processing-enabled: ${MEDIA_DERIVATIVE_OSS_PROCESSING_ENABLED:false}
+      processor-version: ${MEDIA_DERIVATIVE_PROCESSOR_VERSION:v1}
+      max-retries: ${MEDIA_DERIVATIVE_MAX_RETRIES:3}
+      batch-size: ${MEDIA_DERIVATIVE_BATCH_SIZE:8}
+      lease-timeout-seconds: ${MEDIA_DERIVATIVE_LEASE_TIMEOUT_SECONDS:300}
+      worker-poll-interval-ms: ${MEDIA_DERIVATIVE_WORKER_POLL_INTERVAL_MS:5000}
+      avif-enabled: ${MEDIA_DERIVATIVE_AVIF_ENABLED:false}
     storage:
-      private-bucket: ${OSS_PRIVATE_BUCKET:zhuowang-files}
-      public-bucket: ${OSS_PUBLIC_BUCKET:izumi-test-01}
+      private-bucket: ${OSS_PRIVATE_BUCKET:shizuki-private}
+      public-bucket: ${OSS_PUBLIC_BUCKET:shizuki-public}
       public-base-url: ${OSS_PUBLIC_BASE_URL:}
       sign-expire-seconds: 600
       max-upload-size: 52428800
@@ -338,7 +393,7 @@ shizuki:
       max-message-length: ${MEGURI_MAX_MESSAGE_LENGTH:4000}
   blog:
     storage:
-      private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:zhuowang-files}}
+      private-bucket: ${BLOG_PRIVATE_BUCKET:${OSS_PRIVATE_BUCKET:shizuki-private}}
       max-upload-size: ${BLOG_MAX_UPLOAD_SIZE:1048576}
     presentation:
       generator-base-url: ${BLOG_PRESENTATION_GENERATOR_BASE_URL:}
@@ -357,6 +412,10 @@ shizuki:
       - bilibili.com
       - b23.tv
   content:
+    public-cache:
+      list-ttl: ${PUBLIC_CONTENT_LIST_CACHE_TTL:30s}
+      featured-ttl: ${PUBLIC_CONTENT_FEATURED_CACHE_TTL:30s}
+      detail-ttl: ${PUBLIC_CONTENT_DETAIL_CACHE_TTL:45s}
     author-profile:
       cache:
         ttl-seconds: ${AUTHOR_PROFILE_CACHE_TTL_SECONDS:120}
@@ -390,6 +449,7 @@ shizuki:
       - /api/v1/ai-town/public-map
       - /api/v1/assets/public/**
       - /api/v1/assets/*/download-url
+      - /api/v1/media/**
       - /api/v1/music/playlist/default/**
       - /api/v1/music/playlists/**
       - /api/v1/music/library/home
@@ -401,6 +461,11 @@ shizuki:
       - /api/v1/music/spotify/search
       - /api/v1/music/spotify/preview-url
       - /api/v1/author/profile/**
+      - /api/v1/albums/**
+      - /api/v1/site/weather/**
+      - /api/v1/site/quote/**
+      - /api/v1/moments/**
+      - /api/v1/life/featured
       - /api/v1/home-wallpapers/public
       - /api/v1/home-wallpapers/discovery/workshop/search
       - /api/v1/home-wallpapers/discovery/workshop/items/**

@@ -114,6 +114,33 @@ class AdminMusicControllerIntegrationTest {
     }
 
     @Test
+    void shouldUpdatePlaylistProfileWithoutUsingBundleReplacement() throws Exception {
+        MusicPlaylistProfileResponse response = new MusicPlaylistProfileResponse(
+            "default_public",
+            "夜航推荐",
+            "安静陪伴",
+            "https://cdn.example.com/night.png"
+        );
+        Mockito.when(mediaService.updateAdminDefaultPlaylistProfile(ArgumentMatchers.any())).thenReturn(response);
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/admin/music/default-playlist/profile")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "playlist_code": "default_public",
+                      "name": "夜航推荐",
+                      "description": "安静陪伴",
+                      "cover": "https://cdn.example.com/night.png"
+                    }
+                    """))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.name").value("夜航推荐"));
+
+        Mockito.verify(mediaService).updateAdminDefaultPlaylistProfile(ArgumentMatchers.any());
+        Mockito.verify(mediaService, Mockito.never()).replaceAdminDefaultPlaylistBundle(ArgumentMatchers.any());
+    }
+
+    @Test
     void shouldUpsertDefaultPlaylistTrackSuccessfully() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/admin/music/default-playlist/tracks")
                 .contentType(MediaType.APPLICATION_JSON)

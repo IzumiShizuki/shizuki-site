@@ -11,6 +11,18 @@ function jsonResponse(status, payload, contentType = 'application/json') {
 }
 
 describe('httpClient', () => {
+  it('percent-encodes spaces in query parameters', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+    globalThis.fetch = fetchMock;
+
+    await httpRequest('/api/v1/search', {
+      query: { tag: 'snow mountain' }
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/search\?tag=snow%20mountain$/);
+  });
+
   it('parses application/problem+json into HttpError.body', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
       jsonResponse(

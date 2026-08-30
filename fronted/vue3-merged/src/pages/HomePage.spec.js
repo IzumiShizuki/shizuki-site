@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import { PLAYER_BRIDGE_KEY } from '../composables/playerBridge';
 import { AI_CHAT_OPEN_EVENT } from '../utils/aiChatBus';
-import { __resetFocusSessionForTests, getFocusSessionSnapshot, setFocusTask } from '../utils/focusSessionState';
+import { __resetFocusSessionForTests, exitFocusSession, getFocusSessionSnapshot, setFocusTask } from '../utils/focusSessionState';
 import {
   HOME_STAGE_CONTEXT_KEY,
   __resetHomeAppearanceForTests,
@@ -113,6 +113,12 @@ describe('HomePage time stage', () => {
     expect(wrapper.find('[data-testid="home-stage-clock"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="home-room-utilities"]').exists()).toBe(false);
 
+    exitFocusSession();
+    await wrapper.vm.$nextTick();
+    expect(router.currentRoute.value.path).toBe('/');
+    expect(wrapper.get('[data-testid="home-intro-action"]').exists()).toBe(true);
+    expect(wrapper.findAll('.context-island')).toHaveLength(3);
+
     wrapper.unmount();
   });
 
@@ -217,9 +223,30 @@ describe('HomePage time stage', () => {
     setHomeMotionLevel('calm');
     const { wrapper } = await mountPage();
 
-    expect(wrapper.attributes('data-motion-level')).toBe('calm');
-    expect(wrapper.classes()).toContain('motion-calm');
+    expect(wrapper.attributes('data-motion-level')).toBe('soothing');
+    expect(wrapper.attributes('data-stored-motion-level')).toBe('soothing');
+    expect(wrapper.classes()).toContain('motion-soothing');
 
     wrapper.unmount();
+  });
+
+  it('keeps an immersive choice stored while system reduced motion makes Home effectively soothing', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    });
+    __resetHomeAppearanceForTests();
+
+    const { wrapper } = await mountPage();
+
+    expect(wrapper.attributes('data-stored-motion-level')).toBe('immersive');
+    expect(wrapper.attributes('data-motion-level')).toBe('soothing');
+    expect(wrapper.classes()).toContain('motion-soothing');
+
+    wrapper.unmount();
+    __resetHomeAppearanceForTests();
+    window.matchMedia = originalMatchMedia;
   });
 });

@@ -3,7 +3,7 @@
     :is="tag"
     ref="rootRef"
     class="subtle-scroll-area"
-    :class="[axisClass, { 'overscroll-contained': containOverscroll }]"
+    :class="[axisClass, { 'overscroll-contained': containOverscroll, 'scroll-disabled': !scrollable }]"
   >
     <slot></slot>
   </component>
@@ -23,6 +23,10 @@ const props = defineProps({
     validator: (value) => ['y', 'x', 'both'].includes(value)
   },
   containOverscroll: {
+    type: Boolean,
+    default: true
+  },
+  scrollable: {
     type: Boolean,
     default: true
   }
@@ -69,6 +73,11 @@ defineExpose({
 
 .overscroll-contained {
   overscroll-behavior: contain;
+}
+
+.subtle-scroll-area.scroll-disabled {
+  overflow: visible;
+  overscroll-behavior: auto;
 }
 
 .subtle-scroll-area::-webkit-scrollbar {

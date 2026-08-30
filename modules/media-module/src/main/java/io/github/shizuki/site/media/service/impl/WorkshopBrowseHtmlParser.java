@@ -22,6 +22,13 @@ final class WorkshopBrowseHtmlParser {
             "<img[^>]+class=\"[^\"]*workshopItemPreviewImage[^\"]*\"[^>]+src=\"([^\"]+)\"|<img[^>]+src=\"([^\"]+)\"[^>]+class=\"[^\"]*workshopItemPreviewImage[^\"]*\"");
     private static final Pattern TITLE_PATTERN = Pattern.compile(
             "class=\"[^\"]*workshopItemTitle[^\"]*\"[^>]*>(.*?)</div>", Pattern.DOTALL);
+    private static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<img\\b[^>]*>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern SRC_ATTRIBUTE_PATTERN = Pattern.compile(
+            "\\bsrc\\s*=\\s*([\"'])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern ALT_ATTRIBUTE_PATTERN = Pattern.compile(
+            "\\balt\\s*=\\s*([\"'])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern NUMERIC_ENTITY_PATTERN = Pattern.compile("&#(x[0-9a-fA-F]+|\\d+);");
 
     private WorkshopBrowseHtmlParser() {
     }
@@ -52,14 +59,34 @@ final class WorkshopBrowseHtmlParser {
             String block = html.substring(blockStart, blockEnd);
             String previewUrl = firstNonBlankGroup(PREVIEW_IMG_PATTERN.matcher(block));
             String title = firstNonBlankGroup(TITLE_PATTERN.matcher(block));
+            Matcher imageMatcher = IMAGE_TAG_PATTERN.matcher(block);
+            if (imageMatcher.find()) {
+                String imageTag = imageMatcher.group();
+                if (previewUrl == null || previewUrl.isBlank()) {
+                    previewUrl = readAttribute(imageTag, SRC_ATTRIBUTE_PATTERN);
+                }
+                if (title == null || title.isBlank()) {
+                    title = readAttribute(imageTag, ALT_ATTRIBUTE_PATTERN);
+                }
+            }
+            String itemId = anchorIds.get(i);
+            String normalizedTitle = unescapeHtml(stripTags(title));
+            if (normalizedTitle.isBlank()) {
+                normalizedTitle = "Workshop #" + itemId;
+            }
             items.add(new WorkshopSearchItemResponse(
-                    anchorIds.get(i),
-                    unescapeHtml(stripTags(title)),
+                    itemId,
+                    normalizedTitle,
                     previewUrl == null ? "" : unescapeHtml(previewUrl),
-                    detailUrlBase + anchorIds.get(i)
+                    detailUrlBase + itemId
             ));
         }
         return items;
+    }
+
+    private static String readAttribute(String tag, Pattern attributePattern) {
+        Matcher matcher = attributePattern.matcher(tag);
+        return matcher.find() ? matcher.group(2).trim() : "";
     }
 
     private static String firstNonBlankGroup(Matcher matcher) {
@@ -82,11 +109,11 @@ final class WorkshopBrowseHtmlParser {
         return value.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
     }
 
-    private static String unescapeHtml(String value) {
+    static String unescapeHtml(String value) {
         if (value == null) {
             return "";
         }
-        return value
+        String namedEntities = value
                 .replace("&amp;", "&")
                 .replace("&quot;", "\"")
                 .replace("&#39;", "'")
@@ -94,5 +121,22 @@ final class WorkshopBrowseHtmlParser {
                 .replace("&lt;", "<")
                 .replace("&gt;", ">")
                 .replace("&nbsp;", " ");
+        Matcher matcher = NUMERIC_ENTITY_PATTERN.matcher(namedEntities);
+        StringBuffer decoded = new StringBuffer(namedEntities.length());
+        while (matcher.find()) {
+            String rawCodePoint = matcher.group(1);
+            try {
+                int radix = rawCodePoint.startsWith("x") ? 16 : 10;
+                int codePoint = Integer.parseInt(rawCodePoint.substring(radix == 16 ? 1 : 0), radix);
+                String replacement = Character.isValidCodePoint(codePoint)
+                        ? new String(Character.toChars(codePoint))
+                        : matcher.group();
+                matcher.appendReplacement(decoded, Matcher.quoteReplacement(replacement));
+            } catch (IllegalArgumentException exception) {
+                matcher.appendReplacement(decoded, Matcher.quoteReplacement(matcher.group()));
+            }
+        }
+        matcher.appendTail(decoded);
+        return decoded.toString();
     }
 }

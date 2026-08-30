@@ -17,6 +17,7 @@ import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.request.AdminMusicDefaultPlaylistBundleReplaceRequest;
 import io.github.shizuki.site.media.request.AdminMusicPlaylistProfileUpsertRequest;
 import io.github.shizuki.site.media.request.AdminMusicTrackUpsertRequest;
+import io.github.shizuki.site.media.request.AssetCreateRequest;
 import io.github.shizuki.site.media.response.AssetDownloadResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
 import io.github.shizuki.site.media.request.MusicResolvePlaybackRequest;
@@ -696,6 +697,54 @@ class MediaServiceImplTest {
         Assertions.assertEquals("全年齢", response.items().get(0).ageCategory());
         Assertions.assertFalse(response.availableTags().isEmpty());
         Assertions.assertTrue(response.availableTags().stream().anyMatch(tag -> tag.tagId() == 11L));
+    }
+
+    @Test
+    void shouldUpdatePlaylistProfileWithoutReplacingTracks() {
+        AdminMusicPlaylistProfileUpsertRequest profile = new AdminMusicPlaylistProfileUpsertRequest();
+        profile.setPlaylistCode("default_public");
+        profile.setName("夜航推荐");
+        profile.setDescription("安静陪伴");
+        profile.setCover("https://cdn.example.com/night.png");
+
+        Mockito.when(musicPlaylistProfileMapper.selectOne(ArgumentMatchers.any())).thenReturn(null);
+
+        var updated = mediaService.updateAdminDefaultPlaylistProfile(profile);
+
+        Assertions.assertEquals("夜航推荐", updated.name());
+        Mockito.verify(musicPlaylistProfileMapper).insert(
+            ArgumentMatchers.<io.github.shizuki.site.media.entity.MusicPlaylistProfileEntity>any()
+        );
+        Mockito.verifyNoInteractions(musicPlaylistMapper);
+    }
+
+    @Test
+    void shouldNotPersistImageWhenUploadDraftInspectionFails() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        AssetCreateRequest request = new AssetCreateRequest();
+        request.setBucket("shizuki-private");
+        request.setKey("user/9/life/damaged.png");
+        request.setAssetKind("STATIC_IMAGE");
+        request.setAssetType("STATIC_IMAGE");
+        request.setContentType("image/png");
+        request.setVisibility("PRIVATE");
+        Mockito.when(objectStorageClient.objectExists(request.getBucket(), request.getKey())).thenReturn(true);
+        Mockito.when(assetSecurityInspector.inspect(
+            9L,
+            request.getBucket(),
+            request.getKey(),
+            io.github.shizuki.site.media.model.AssetKindEnum.STATIC_IMAGE,
+            request.getContentType(),
+            null
+        )).thenThrow(new BusinessException(ErrorCode.BAD_REQUEST, "Uploaded image is damaged"));
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> mediaService.createAsset(request)
+        );
+
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+        Mockito.verify(mediaAssetMapper, Mockito.never()).insert(Mockito.any(MediaAssetEntity.class));
     }
 
     @Test

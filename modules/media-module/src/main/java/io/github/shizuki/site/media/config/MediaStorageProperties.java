@@ -35,6 +35,18 @@ public class MediaStorageProperties {
      */
     private long maxUploadSize = 50 * 1024 * 1024L;
     /**
+     * 单帧图片最大解码像素数。
+     */
+    private long maxImagePixels = 40_000_000L;
+    /**
+     * 动态图片所有帧累计最大解码像素数。
+     */
+    private long maxImageTotalPixels = 120_000_000L;
+    /**
+     * 动态图片最大帧数。
+     */
+    private int maxAnimatedImageFrames = 240;
+    /**
      * L2D ZIP entry 最大数量。
      */
     private int maxL2dZipEntryCount = 2048;
@@ -109,6 +121,30 @@ public class MediaStorageProperties {
 
     public Set<String> getAllowedContentTypes() {
         return allowedContentTypes;
+    }
+
+    public long getMaxImagePixels() {
+        return maxImagePixels;
+    }
+
+    public void setMaxImagePixels(long maxImagePixels) {
+        this.maxImagePixels = maxImagePixels;
+    }
+
+    public long getMaxImageTotalPixels() {
+        return maxImageTotalPixels;
+    }
+
+    public void setMaxImageTotalPixels(long maxImageTotalPixels) {
+        this.maxImageTotalPixels = maxImageTotalPixels;
+    }
+
+    public int getMaxAnimatedImageFrames() {
+        return maxAnimatedImageFrames;
+    }
+
+    public void setMaxAnimatedImageFrames(int maxAnimatedImageFrames) {
+        this.maxAnimatedImageFrames = maxAnimatedImageFrames;
     }
 
     public void setAllowedContentTypes(Set<String> allowedContentTypes) {

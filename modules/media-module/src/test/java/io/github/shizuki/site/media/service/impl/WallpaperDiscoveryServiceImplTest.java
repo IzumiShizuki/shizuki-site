@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -75,5 +76,33 @@ class WallpaperDiscoveryServiceImplTest {
     void enforcesPreviewResponseByteLimit() {
         assertThrows(BusinessException.class, () -> WallpaperDiscoveryServiceImpl.readInputBytes(
                 new ByteArrayInputStream(new byte[] {1, 2, 3}), 2));
+    }
+
+    @Test
+    void normalizesAndEncodesSupportedWorkshopTags() {
+        List<String> tags = WallpaperDiscoveryServiceImpl.normalizeWorkshopTags(
+                "Scene,Anime,1920 x 1080,Unsupported,Anime");
+
+        assertEquals(List.of("Scene", "Anime", "1920 x 1080"), tags);
+        assertEquals(
+                "&requiredtags%5B0%5D=Scene&requiredtags%5B1%5D=Anime&requiredtags%5B2%5D=1920+x+1080",
+                WallpaperDiscoveryServiceImpl.buildWorkshopRequiredTagsQuery(tags, true));
+        assertEquals(
+                "&requiredtags%5B%5D=Scene&requiredtags%5B%5D=Anime&requiredtags%5B%5D=1920+x+1080",
+                WallpaperDiscoveryServiceImpl.buildWorkshopRequiredTagsQuery(tags, false));
+    }
+
+    @Test
+    void preservesGuestSketchyPurityButRemovesNsfw() {
+        assertEquals("110", WallpaperDiscoveryServiceImpl.normalizeWallhavenPurity("110", false));
+        assertEquals("110", WallpaperDiscoveryServiceImpl.normalizeWallhavenPurity("111", false));
+        assertEquals("100", WallpaperDiscoveryServiceImpl.normalizeWallhavenPurity("001", false));
+        assertEquals("111", WallpaperDiscoveryServiceImpl.normalizeWallhavenPurity("111", true));
+    }
+
+    @Test
+    void normalizesWallhavenOrder() {
+        assertEquals("asc", WallpaperDiscoveryServiceImpl.normalizeWallhavenOrder("asc"));
+        assertEquals("desc", WallpaperDiscoveryServiceImpl.normalizeWallhavenOrder("unsupported"));
     }
 }

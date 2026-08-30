@@ -5,11 +5,13 @@ import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.security.annotation.RequireGroup;
 import io.github.shizuki.site.media.request.AdminMusicDefaultPlaylistBundleReplaceRequest;
 import io.github.shizuki.site.media.request.AdminMusicPlaylistReplaceRequest;
+import io.github.shizuki.site.media.request.AdminMusicPlaylistProfileUpsertRequest;
 import io.github.shizuki.site.media.request.AdminMusicProviderGuideUpsertRequest;
 import io.github.shizuki.site.media.request.AdminMusicProviderVisibilityUpdateRequest;
 import io.github.shizuki.site.media.request.AdminMusicTrackUpsertRequest;
 import io.github.shizuki.site.media.response.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicKeyGuideResponse;
+import io.github.shizuki.site.media.response.MusicPlaylistProfileResponse;
 import io.github.shizuki.site.media.response.MusicProviderResponse;
 import io.github.shizuki.site.media.response.MusicTrackResponse;
 import io.github.shizuki.site.media.service.MediaService;
@@ -53,6 +55,17 @@ public class AdminMusicController {
     @Operation(summary = "查询默认歌单聚合", description = "管理员查看歌单资料与全量曲目")
     public ApiResponse<MusicDefaultPlaylistBundleResponse> getDefaultPlaylistBundle() {
         return ApiResponse.success(mediaService.getAdminDefaultPlaylistBundle());
+    }
+
+    @PutMapping("/default-playlist/profile")
+    @AuditLog(action = "music.admin.default-playlist.profile.update", resource = "music_playlist_profile")
+    @Operation(summary = "更新默认推荐歌单资料", description = "仅更新名称、简介与封面，不替换已有曲目")
+    public ApiResponse<MusicPlaylistProfileResponse> updateDefaultPlaylistProfile(
+        @RequestBody(required = false) AdminMusicPlaylistProfileUpsertRequest request
+    ) {
+        return ApiResponse.success(mediaService.updateAdminDefaultPlaylistProfile(
+            request == null ? new AdminMusicPlaylistProfileUpsertRequest() : request
+        ));
     }
 
     @PutMapping("/default-playlist")

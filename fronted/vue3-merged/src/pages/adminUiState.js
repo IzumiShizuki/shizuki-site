@@ -8,7 +8,12 @@ export const AdminTabKey = Object.freeze({
   MUSIC_PROVIDERS: 'music-providers',
   BLOG_WHISPERS: 'blog-whispers',
   BLOG_CATEGORIES: 'blog-categories',
-  WALLPAPERS: 'wallpapers'
+  WALLPAPERS: 'wallpapers',
+  ALBUMS: 'albums',
+  MOMENTS: 'moments',
+  RECYCLE_BIN: 'recycle-bin',
+  DAILY_QUOTES: 'daily-quotes',
+  SITE_WIDGETS: 'site-widgets'
 });
 
 // 配额“无限”的统一表示（与后端一致）。
@@ -25,7 +30,10 @@ export const FALLBACK_PERMISSION_OPTIONS = Object.freeze([
   { code: 'group.permission.read', label: '分组权限查看', description: '查看各分组的权限配置', category: '后台·权限', builtIn: true },
   { code: 'group.permission.write', label: '分组权限管理', description: '修改分组权限映射（写操作需二次验证）', category: '后台·权限', builtIn: true },
   { code: 'quota.policy.read', label: '配额策略查看', description: '查看分组配额策略', category: '后台·配额', builtIn: true },
-  { code: 'quota.policy.write', label: '配额策略管理', description: '修改分组配额策略（写操作需二次验证）', category: '后台·配额', builtIn: true }
+  { code: 'quota.policy.write', label: '配额策略管理', description: '修改分组配额策略（写操作需二次验证）', category: '后台·配额', builtIn: true },
+  { code: 'life.content.manage', label: '个人内容管理', description: '管理相册、动态及其媒体工作流', category: '后台·内容', builtIn: true },
+  { code: 'site.widgets.manage', label: '站点组件管理', description: '管理天气地点、每日语录与站点组件', category: '后台·站点', builtIn: true },
+  { code: 'media.derivative.manage', label: '媒体派生管理', description: '管理个人内容媒体的处理与派生版本', category: '后台·媒体', builtIn: true }
 ]);
 
 export const FALLBACK_QUOTA_OPTIONS = Object.freeze([

@@ -1,6 +1,7 @@
 package io.github.shizuki.common.audit.model;
 
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * 审计日志领域对象。
@@ -23,6 +24,14 @@ public class AuditLogEntry {
      * 审计资源编码。
      */
     private String resource;
+    /**
+     * 被操作目标的稳定标识，不包含对象存储键或签名地址。
+     */
+    private String target;
+    /**
+     * 已脱敏的审计补充信息。
+     */
+    private Map<String, Object> details = Map.of();
     /**
      * 执行结果（SUCCESS/FAILED）。
      */
@@ -110,6 +119,42 @@ public class AuditLogEntry {
      */
     public void setResource(String resource) {
         this.resource = resource;
+    }
+
+    /**
+     * 获取被操作目标。
+     *
+     * @return 被操作目标
+     */
+    public String getTarget() {
+        return target;
+    }
+
+    /**
+     * 设置被操作目标。
+     *
+     * @param target 被操作目标
+     */
+    public void setTarget(String target) {
+        this.target = target;
+    }
+
+    /**
+     * 获取已脱敏的补充信息。
+     *
+     * @return 补充信息
+     */
+    public Map<String, Object> getDetails() {
+        return details;
+    }
+
+    /**
+     * 设置已脱敏的补充信息。
+     *
+     * @param details 补充信息
+     */
+    public void setDetails(Map<String, Object> details) {
+        this.details = details == null ? Map.of() : details;
     }
 
     /**

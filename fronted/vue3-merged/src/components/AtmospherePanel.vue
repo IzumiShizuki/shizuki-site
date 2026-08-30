@@ -638,7 +638,7 @@
               </button>
             </div>
 
-            <p v-if="reducedMotion" class="inline-note warning">系统启用了「减少动态」，特效会自动降级或暂停。</p>
+            <p v-if="reducedMotion" class="inline-note warning">当前为「舒缓」模式，特效会自动降级或暂停。</p>
 
             <div class="fx-stage-layout">
               <div class="effect-stage" :style="{ '--cover-bg': activeEffectPreset.cover }">

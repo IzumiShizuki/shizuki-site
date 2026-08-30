@@ -29,6 +29,22 @@ public enum ErrorCode {
      */
     TOO_MANY_REQUESTS("TOO_MANY_REQUESTS", "请求过于频繁"),
     /**
+     * 请求引用的游标无效、过期或与当前查询不兼容。
+     */
+    INVALID_CURSOR("INVALID_CURSOR", "分页游标无效"),
+    /**
+     * 对应能力尚未发布或已被回滚开关关闭。
+     */
+    FEATURE_DISABLED("FEATURE_DISABLED", "功能暂未开放"),
+    /**
+     * 访客所需的安全媒体派生仍在处理或处理失败。
+     */
+    MEDIA_NOT_READY("MEDIA_NOT_READY", "媒体暂不可用"),
+    /**
+     * 外部数据源不可用且不存在可用的本地事实或回退。
+     */
+    UPSTREAM_UNAVAILABLE("UPSTREAM_UNAVAILABLE", "外部数据暂不可用"),
+    /**
      * 服务器内部错误。
      */
     INTERNAL_ERROR("INTERNAL_ERROR", "服务器内部错误");

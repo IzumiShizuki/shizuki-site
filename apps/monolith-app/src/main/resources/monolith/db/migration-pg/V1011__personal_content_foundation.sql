@@ -1,0 +1,216 @@
+-- PostgreSQL counterpart of V431. Additive only; no fictional content rows.
+
+ALTER TABLE AUD_LOG ADD COLUMN IF NOT EXISTS target_code VARCHAR(256);
+ALTER TABLE AUD_LOG ADD COLUMN IF NOT EXISTS detail_json TEXT;
+
+CREATE TABLE IF NOT EXISTS CTN_PHOTO (
+    id BIGSERIAL PRIMARY KEY,
+    original_asset_id BIGINT NOT NULL REFERENCES MDA_ASSET(id),
+    title_text VARCHAR(256) NOT NULL DEFAULT '',
+    alt_text VARCHAR(512) NOT NULL DEFAULT '',
+    captured_at_draft TIMESTAMP NULL,
+    published_location_label VARCHAR(256) NULL,
+    processing_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    recycle_time TIMESTAMP NULL,
+    purge_after TIMESTAMP NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_CTN_PHOTO_1 UNIQUE (original_asset_id)
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_PHOTO_1 ON CTN_PHOTO (processing_status, deleted_flag);
+CREATE INDEX IF NOT EXISTS IX_CTN_PHOTO_2 ON CTN_PHOTO (recycle_time, purge_after);
+
+CREATE TABLE IF NOT EXISTS CTN_ALBUM (
+    id BIGSERIAL PRIMARY KEY,
+    public_slug VARCHAR(96) NOT NULL,
+    title_text VARCHAR(256) NOT NULL,
+    summary_text TEXT NULL,
+    cover_photo_id BIGINT NULL REFERENCES CTN_PHOTO(id),
+    lifecycle_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    visibility_status VARCHAR(32) NOT NULL DEFAULT 'PRIVATE',
+    featured_flag SMALLINT NOT NULL DEFAULT 0,
+    sort_num INTEGER NOT NULL DEFAULT 0,
+    publish_time TIMESTAMP NULL,
+    restore_lifecycle_status VARCHAR(32) NULL,
+    recycle_time TIMESTAMP NULL,
+    purge_after TIMESTAMP NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_CTN_ALBUM_1 UNIQUE (public_slug)
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_ALBUM_1 ON CTN_ALBUM (lifecycle_status, visibility_status, publish_time, id);
+CREATE INDEX IF NOT EXISTS IX_CTN_ALBUM_2 ON CTN_ALBUM (featured_flag, sort_num, publish_time);
+CREATE INDEX IF NOT EXISTS IX_CTN_ALBUM_3 ON CTN_ALBUM (recycle_time, purge_after);
+
+CREATE TABLE IF NOT EXISTS CTN_ALBUM_PHOTO (
+    id BIGSERIAL PRIMARY KEY,
+    album_id BIGINT NOT NULL REFERENCES CTN_ALBUM(id),
+    photo_id BIGINT NOT NULL REFERENCES CTN_PHOTO(id),
+    media_ref_id VARCHAR(96) NOT NULL,
+    sort_num INTEGER NOT NULL DEFAULT 0,
+    caption_text TEXT NULL,
+    download_mode VARCHAR(32) NOT NULL DEFAULT 'NONE',
+    delivery_revoked_flag SMALLINT NOT NULL DEFAULT 1,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_CTN_ALBUM_PHOTO_1 UNIQUE (album_id, photo_id),
+    CONSTRAINT AK_CTN_ALBUM_PHOTO_2 UNIQUE (media_ref_id)
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_ALBUM_PHOTO_1 ON CTN_ALBUM_PHOTO (album_id, sort_num, id);
+CREATE INDEX IF NOT EXISTS IX_CTN_ALBUM_PHOTO_2 ON CTN_ALBUM_PHOTO (photo_id);
+
+CREATE TABLE IF NOT EXISTS CTN_MOMENT (
+    id BIGSERIAL PRIMARY KEY,
+    public_id VARCHAR(96) NOT NULL,
+    body_text TEXT NOT NULL,
+    lifecycle_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    visibility_status VARCHAR(32) NOT NULL DEFAULT 'PRIVATE',
+    featured_flag SMALLINT NOT NULL DEFAULT 0,
+    pinned_flag SMALLINT NOT NULL DEFAULT 0,
+    publish_time TIMESTAMP NULL,
+    restore_lifecycle_status VARCHAR(32) NULL,
+    recycle_time TIMESTAMP NULL,
+    purge_after TIMESTAMP NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_CTN_MOMENT_1 UNIQUE (public_id)
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_MOMENT_1 ON CTN_MOMENT (lifecycle_status, visibility_status, publish_time, id);
+CREATE INDEX IF NOT EXISTS IX_CTN_MOMENT_2 ON CTN_MOMENT (featured_flag, pinned_flag, publish_time);
+CREATE INDEX IF NOT EXISTS IX_CTN_MOMENT_3 ON CTN_MOMENT (recycle_time, purge_after);
+
+CREATE TABLE IF NOT EXISTS CTN_MOMENT_PHOTO (
+    id BIGSERIAL PRIMARY KEY,
+    moment_id BIGINT NOT NULL REFERENCES CTN_MOMENT(id),
+    photo_id BIGINT NOT NULL REFERENCES CTN_PHOTO(id),
+    media_ref_id VARCHAR(96) NOT NULL,
+    sort_num INTEGER NOT NULL DEFAULT 0,
+    delivery_revoked_flag SMALLINT NOT NULL DEFAULT 1,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_CTN_MOMENT_PHOTO_1 UNIQUE (moment_id, photo_id),
+    CONSTRAINT AK_CTN_MOMENT_PHOTO_2 UNIQUE (media_ref_id)
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_MOMENT_PHOTO_1 ON CTN_MOMENT_PHOTO (moment_id, sort_num, id);
+CREATE INDEX IF NOT EXISTS IX_CTN_MOMENT_PHOTO_2 ON CTN_MOMENT_PHOTO (photo_id);
+
+CREATE TABLE IF NOT EXISTS CTN_SITE_LOCATION (
+    id BIGSERIAL PRIMARY KEY,
+    display_name VARCHAR(128) NOT NULL,
+    latitude_value NUMERIC(9,6) NOT NULL,
+    longitude_value NUMERIC(9,6) NOT NULL,
+    timezone_code VARCHAR(64) NOT NULL,
+    enabled_flag SMALLINT NOT NULL DEFAULT 1,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_SITE_LOCATION_1 ON CTN_SITE_LOCATION (enabled_flag, deleted_flag);
+
+CREATE TABLE IF NOT EXISTS CTN_SITE_WIDGET_CONFIG (
+    singleton_key VARCHAR(32) PRIMARY KEY,
+    active_location_id BIGINT NULL REFERENCES CTN_SITE_LOCATION(id),
+    weather_enabled_flag SMALLINT NOT NULL DEFAULT 0,
+    weather_max_stale_minutes INTEGER NOT NULL DEFAULT 360,
+    quote_source_mode VARCHAR(32) NOT NULL DEFAULT 'LOCAL',
+    hitokoto_enabled_flag SMALLINT NOT NULL DEFAULT 0,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS CTN_QUOTE (
+    id BIGSERIAL PRIMARY KEY,
+    quote_text TEXT NOT NULL,
+    author_text VARCHAR(256) NULL,
+    source_title VARCHAR(256) NULL,
+    category_code VARCHAR(64) NULL,
+    provider_code VARCHAR(32) NOT NULL DEFAULT 'LOCAL',
+    provider_uuid VARCHAR(128) NULL,
+    source_url VARCHAR(1024) NULL,
+    approval_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    enabled_flag SMALLINT NOT NULL DEFAULT 0,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_CTN_QUOTE_1 UNIQUE (provider_code, provider_uuid)
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_QUOTE_1 ON CTN_QUOTE (approval_status, enabled_flag, deleted_flag);
+
+CREATE TABLE IF NOT EXISTS CTN_DAILY_QUOTE_SNAPSHOT (
+    id BIGSERIAL PRIMARY KEY,
+    quote_date DATE NOT NULL,
+    quote_id BIGINT NULL REFERENCES CTN_QUOTE(id),
+    quote_text TEXT NOT NULL,
+    author_text VARCHAR(256) NULL,
+    source_title VARCHAR(256) NULL,
+    category_code VARCHAR(64) NULL,
+    provider_code VARCHAR(32) NOT NULL,
+    provider_uuid VARCHAR(128) NULL,
+    source_url VARCHAR(1024) NULL,
+    stale_flag SMALLINT NOT NULL DEFAULT 0,
+    fetched_at TIMESTAMP NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_CTN_DAILY_QUOTE_SNAPSHOT_1 UNIQUE (quote_date)
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_DAILY_QUOTE_SNAPSHOT_1 ON CTN_DAILY_QUOTE_SNAPSHOT (fetched_at);
+
+CREATE TABLE IF NOT EXISTS CTN_WEATHER_SNAPSHOT (
+    id BIGSERIAL PRIMARY KEY,
+    site_location_id BIGINT NOT NULL REFERENCES CTN_SITE_LOCATION(id),
+    provider_code VARCHAR(32) NOT NULL DEFAULT 'OPEN_METEO',
+    payload_json JSONB NOT NULL,
+    observed_at TIMESTAMP NOT NULL,
+    fetched_at TIMESTAMP NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS IX_CTN_WEATHER_SNAPSHOT_1 ON CTN_WEATHER_SNAPSHOT (site_location_id, fetched_at);
+
+CREATE TABLE IF NOT EXISTS MDA_ASSET_VARIANT (
+    id BIGSERIAL PRIMARY KEY,
+    source_asset_id BIGINT NOT NULL REFERENCES MDA_ASSET(id),
+    variant_asset_id BIGINT NULL REFERENCES MDA_ASSET(id),
+    variant_code VARCHAR(32) NOT NULL,
+    delivery_scope VARCHAR(32) NOT NULL,
+    width_value INTEGER NULL,
+    height_value INTEGER NULL,
+    processor_version VARCHAR(64) NOT NULL,
+    process_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    last_error VARCHAR(1024) NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_flag SMALLINT NOT NULL DEFAULT 0,
+    version_num INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT AK_MDA_ASSET_VARIANT_1 UNIQUE (source_asset_id, variant_code, delivery_scope, processor_version),
+    CONSTRAINT AK_MDA_ASSET_VARIANT_2 UNIQUE (variant_asset_id)
+);
+CREATE INDEX IF NOT EXISTS IX_MDA_ASSET_VARIANT_1 ON MDA_ASSET_VARIANT (process_status, update_time);
+
+INSERT INTO USR_GROUP_PERMISSION (group_code, permission_code)
+VALUES
+    ('ADMIN', 'life.content.manage'),
+    ('ADMIN', 'site.widgets.manage'),
+    ('ADMIN', 'media.derivative.manage')
+ON CONFLICT (group_code, permission_code) DO UPDATE
+SET update_time = CURRENT_TIMESTAMP,
+    deleted_flag = 0;

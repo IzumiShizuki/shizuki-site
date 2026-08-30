@@ -34,4 +34,12 @@ describe('resolveAppRouteViewKey', () => {
       'author-shell'
     );
   });
+
+  it('keeps the Moments shell alive between its feed and direct-detail routes', () => {
+    expect(resolveAppRouteViewKey({ name: 'moments', path: '/moments' })).toBe('moments-shell');
+    expect(resolveAppRouteViewKey({
+      name: 'moment-detail',
+      path: '/moments/moment_ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    })).toBe('moments-shell');
+  });
 });

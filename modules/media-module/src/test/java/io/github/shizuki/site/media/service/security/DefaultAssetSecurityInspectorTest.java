@@ -7,6 +7,7 @@ import io.github.shizuki.common.storage.model.StorageObjectMetadata;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.mapper.MediaAssetMapper;
 import io.github.shizuki.site.media.model.AssetKindEnum;
+import java.io.ByteArrayInputStream;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -23,11 +24,15 @@ class DefaultAssetSecurityInspectorTest {
         properties.setEnableSecurityScanHook(false);
 
         StorageObjectMetadata metadata = new StorageObjectMetadata();
+        byte[] png = ImageUploadTestFixtures.png(3, 2);
         metadata.setEtag("\"ABCDEF123456\"");
-        metadata.setContentLength(2048L);
+        metadata.setContentLength(png.length);
         metadata.setContentType("image/png");
         Mockito.when(objectStorageClient.getObjectMetadata("shizuki-private", "user/1/a.png")).thenReturn(metadata);
-        Mockito.when(mediaAssetMapper.existsByUserIdAndObjectHash(1L, "abcdef123456")).thenReturn(false);
+        Mockito.when(objectStorageClient.getObjectStream("shizuki-private", "user/1/a.png"))
+            .thenReturn(new ByteArrayInputStream(png));
+        String sha256 = ImageUploadTestFixtures.sha256(png);
+        Mockito.when(mediaAssetMapper.existsByUserIdAndObjectHash(1L, sha256)).thenReturn(false);
 
         DefaultAssetSecurityInspector inspector = new DefaultAssetSecurityInspector(
             objectStorageClient,
@@ -44,11 +49,13 @@ class DefaultAssetSecurityInspectorTest {
             null
         );
 
-        Assertions.assertEquals("abcdef123456", result.objectHash());
+        Assertions.assertEquals(sha256, result.objectHash());
         Assertions.assertEquals("BYPASSED", result.scanStatus());
         Assertions.assertEquals("SECURITY_SCAN_BYPASSED", result.scanMessage());
-        Assertions.assertEquals(2048L, result.objectSizeBytes());
+        Assertions.assertEquals(png.length, result.objectSizeBytes());
         Assertions.assertEquals("image/png", result.storageContentType());
+        Assertions.assertNotNull(result.imageDraft());
+        Assertions.assertFalse(result.imageDraft().publishable());
     }
 
     @Test
@@ -60,9 +67,15 @@ class DefaultAssetSecurityInspectorTest {
         properties.setEnableSecurityScanHook(false);
 
         StorageObjectMetadata metadata = new StorageObjectMetadata();
+        byte[] png = ImageUploadTestFixtures.png(2, 2);
+        String sha256 = ImageUploadTestFixtures.sha256(png);
         metadata.setEtag("duplicated-hash");
+        metadata.setContentLength(png.length);
+        metadata.setContentType("image/png");
         Mockito.when(objectStorageClient.getObjectMetadata("shizuki-private", "user/1/b.png")).thenReturn(metadata);
-        Mockito.when(mediaAssetMapper.existsByUserIdAndObjectHash(1L, "duplicated-hash")).thenReturn(true);
+        Mockito.when(objectStorageClient.getObjectStream("shizuki-private", "user/1/b.png"))
+            .thenReturn(new ByteArrayInputStream(png));
+        Mockito.when(mediaAssetMapper.existsByUserIdAndObjectHash(1L, sha256)).thenReturn(true);
 
         DefaultAssetSecurityInspector inspector = new DefaultAssetSecurityInspector(
             objectStorageClient,

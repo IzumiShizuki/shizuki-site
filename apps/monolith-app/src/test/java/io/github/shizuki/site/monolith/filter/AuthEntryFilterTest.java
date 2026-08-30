@@ -36,6 +36,8 @@ class AuthEntryFilterTest {
     private static final String WALLPAPER_WORKSHOP_SEARCH_PATH = "/api/v1/home-wallpapers/discovery/workshop/search";
     private static final String WALLPAPER_WORKSHOP_ITEM_PATH = "/api/v1/home-wallpapers/discovery/workshop/items/2141505896";
     private static final String WALLPAPER_WALLHAVEN_SEARCH_PATH = "/api/v1/home-wallpapers/discovery/wallhaven/search";
+    private static final String MEDIA_GATEWAY_PATH =
+        "/api/v1/media/med_012345678901234567890123456/variants/DISPLAY_WEBP";
 
     @Test
     void shouldAllowGuestResolvePlaybackWithoutToken() throws Exception {
@@ -123,6 +125,21 @@ class AuthEntryFilterTest {
             assertThat(invoked).as(path).isTrue();
             assertThat(response.getStatus()).as(path).isEqualTo(200);
         }
+        Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
+    void shouldAllowConfiguredMediaGatewayReadWithoutToken() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths());
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", MEDIA_GATEWAY_PATH);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(request, response, captureGuestChain(invoked));
+
+        assertThat(invoked).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
         Mockito.verifyNoInteractions(authService);
     }
 

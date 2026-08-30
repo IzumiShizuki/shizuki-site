@@ -8,6 +8,7 @@ import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.GeneratePresignedUrlRequest;
 import com.aliyun.oss.model.OSSObject;
 import com.aliyun.oss.model.ObjectMetadata;
+import com.aliyun.oss.model.ProcessObjectRequest;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.storage.config.OssProperties;
@@ -16,6 +17,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.List;
 import java.util.Date;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -64,6 +66,46 @@ public class AliyunOssClient implements ObjectStorageClient {
     @Override
     public String generatePutUrl(String bucket, String key, long expireSeconds) {
         return generatePresignedUrl(bucket, key, expireSeconds, HttpMethod.PUT);
+    }
+
+    @Override
+    public String generateProcessedGetUrl(
+        String bucket,
+        String key,
+        List<String> operations,
+        long expireSeconds
+    ) {
+        OSS ossClient = createClient();
+        try {
+            Date expiration = new Date(System.currentTimeMillis() + Math.max(1, expireSeconds) * 1000L);
+            GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucket, key, HttpMethod.GET);
+            request.setExpiration(expiration);
+            request.setProcess(OssImageProcessCommand.transform(operations));
+            return ossClient.generatePresignedUrl(request).toString();
+        } finally {
+            ossClient.shutdown();
+        }
+    }
+
+    @Override
+    public void saveProcessedObject(
+        String sourceBucket,
+        String sourceKey,
+        String destinationBucket,
+        String destinationKey,
+        List<String> operations
+    ) {
+        OSS ossClient = createClient();
+        try {
+            String process = OssImageProcessCommand.saveAs(
+                operations,
+                destinationBucket,
+                destinationKey
+            );
+            ossClient.processObject(new ProcessObjectRequest(sourceBucket, sourceKey, process));
+        } finally {
+            ossClient.shutdown();
+        }
     }
 
     @Override

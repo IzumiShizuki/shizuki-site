@@ -42,8 +42,10 @@ public class WallpaperDiscoveryController {
     public ApiResponse<WorkshopSearchResponse> searchWorkshop(
             @RequestParam(value = "query", required = false) String query,
             @RequestParam(value = "page", required = false, defaultValue = "1") Integer page,
-            @RequestParam(value = "sort", required = false) String sort) {
-        return ApiResponse.success(wallpaperDiscoveryService.searchWorkshop(query, page == null ? 1 : page, sort));
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "tags", required = false) String tags) {
+        return ApiResponse.success(wallpaperDiscoveryService.searchWorkshop(
+                query, page == null ? 1 : page, sort, tags));
     }
 
     @GetMapping("/workshop/items/{item_id}")
@@ -81,9 +83,10 @@ public class WallpaperDiscoveryController {
             @RequestParam(value = "purity", required = false) String purity,
             @RequestParam(value = "sorting", required = false) String sorting,
             @RequestParam(value = "atleast", required = false) String atleast,
-            @RequestParam(value = "ratios", required = false) String ratios) {
+            @RequestParam(value = "ratios", required = false) String ratios,
+            @RequestParam(value = "order", required = false) String order) {
         return ApiResponse.success(wallpaperDiscoveryService.searchWallhaven(
-                query, page == null ? 1 : page, categories, purity, sorting, atleast, ratios));
+                query, page == null ? 1 : page, categories, purity, sorting, atleast, ratios, order));
     }
 
     @PostMapping("/imports/wallhaven")

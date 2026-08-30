@@ -2,6 +2,7 @@ package io.github.shizuki.site.media.service;
 
 import io.github.shizuki.site.media.request.AdminAssetUpdateRequest;
 import io.github.shizuki.site.media.request.AdminMusicDefaultPlaylistBundleReplaceRequest;
+import io.github.shizuki.site.media.request.AdminMusicPlaylistProfileUpsertRequest;
 import io.github.shizuki.site.media.response.AdminAssetAuditResponse;
 import io.github.shizuki.site.media.request.AdminMusicPlaylistReplaceRequest;
 import io.github.shizuki.site.media.request.AdminMusicProviderGuideUpsertRequest;
@@ -25,6 +26,7 @@ import io.github.shizuki.site.media.response.MusicDefaultPlaylistBundleResponse;
 import io.github.shizuki.site.media.response.MusicLibraryHomeResponse;
 import io.github.shizuki.site.media.response.MusicMetingStatusResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
+import io.github.shizuki.site.media.response.MusicPlaylistProfileResponse;
 import io.github.shizuki.site.media.response.MusicSearchResponse;
 import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
 import io.github.shizuki.site.media.request.MusicResolvePlaybackRequest;
@@ -244,6 +246,14 @@ public interface MediaService {
      * @return 默认歌单聚合
      */
     MusicDefaultPlaylistBundleResponse getAdminDefaultPlaylistBundle();
+
+    /**
+     * 管理端仅更新默认推荐歌单资料，不触碰现有曲目。
+     *
+     * @param request 歌单名称、简介与封面
+     * @return 更新后的歌单资料
+     */
+    MusicPlaylistProfileResponse updateAdminDefaultPlaylistProfile(AdminMusicPlaylistProfileUpsertRequest request);
 
     /**
      * 管理端替换默认歌单。

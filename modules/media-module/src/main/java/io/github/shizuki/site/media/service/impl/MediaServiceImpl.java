@@ -2587,6 +2587,17 @@ public class MediaServiceImpl implements MediaService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public MusicPlaylistProfileResponse updateAdminDefaultPlaylistProfile(
+        AdminMusicPlaylistProfileUpsertRequest request
+    ) {
+        return upsertDefaultPlaylistProfile(request);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<MusicTrackResponse> replaceAdminDefaultPlaylist(AdminMusicPlaylistReplaceRequest request) {
         List<MusicPlaylistEntity> existing = musicPlaylistMapper.selectList(new LambdaQueryWrapper<>());
         for (MusicPlaylistEntity item : existing) {
@@ -4490,6 +4501,14 @@ public class MediaServiceImpl implements MediaService {
             if (StringUtils.hasText(inspectionResult.storageContentType())) {
                 merged.put("storage_content_type", inspectionResult.storageContentType());
             }
+            if (inspectionResult.imageDraft() != null) {
+                merged.put("detected_content_type", inspectionResult.imageDraft().detectedContentType());
+                merged.put("image_width", inspectionResult.imageDraft().width());
+                merged.put("image_height", inspectionResult.imageDraft().height());
+                merged.put("image_frame_count", inspectionResult.imageDraft().frameCount());
+                merged.put("original_metadata_present", inspectionResult.imageDraft().originalMetadataPresent());
+                merged.put("upload_draft_publishable", inspectionResult.imageDraft().publishable());
+            }
         }
         return merged;
     }
@@ -5493,7 +5512,7 @@ public class MediaServiceImpl implements MediaService {
         );
     }
 
-    private void upsertDefaultPlaylistProfile(AdminMusicPlaylistProfileUpsertRequest request) {
+    private MusicPlaylistProfileResponse upsertDefaultPlaylistProfile(AdminMusicPlaylistProfileUpsertRequest request) {
         String playlistCode = readString(request == null ? null : request.getPlaylistCode(), DEFAULT_PLAYLIST_CODE);
         if (!DEFAULT_PLAYLIST_CODE.equals(playlistCode)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "playlist_code must be default_public");
@@ -5525,6 +5544,7 @@ public class MediaServiceImpl implements MediaService {
         } else {
             musicPlaylistProfileMapper.updateById(entity);
         }
+        return new MusicPlaylistProfileResponse(playlistCode, name, description, cover);
     }
 
     /**

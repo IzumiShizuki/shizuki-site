@@ -10,6 +10,9 @@ export function resolveAppRouteViewKey(viewRoute) {
   if (path === '/blog') {
     return 'blog-list-shell';
   }
+  if (path === '/moments' || path.startsWith('/moments/')) {
+    return 'moments-shell';
+  }
   if (
     viewRoute?.name === 'blog-editor' ||
     viewRoute?.name === 'blog-detail' ||
