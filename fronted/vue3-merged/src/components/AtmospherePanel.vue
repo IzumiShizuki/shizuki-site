@@ -302,6 +302,10 @@
             </p>
             <p v-if="uploadHint" class="inline-note">{{ uploadHint }}</p>
 
+            <div v-if="!groupedLibrary.length" class="glass-card empty-note ambient-empty-state">
+              尚未保存在线环境音。请在“在线音源”中搜索并保存喜欢的声音。
+            </div>
+
             <section v-for="group in groupedLibrary" :key="group.key" class="playlist-group">
               <div class="group-head">
                 <div>
@@ -898,23 +902,14 @@ const masterVolume = computed(() => {
 const mixerActiveSet = computed(() => new Set((props.mixerActiveTrackIds || []).map((item) => String(item))));
 
 const groupedLibrary = computed(() => {
-  const groups = [
-    { key: 'noise', label: '白噪音底', caption: 'Noise Base', items: [] },
-    { key: 'scene', label: '自然与场景声', caption: 'Nature & Scenes', items: [] },
-    { key: 'upload', label: '我的上传', caption: 'Custom Uploads', items: [] }
-  ];
+  const saved = { key: 'saved-online', label: '已保存在线音源', caption: 'Saved Online Sounds', items: [] };
 
   (props.ambientLibrary || []).forEach((item) => {
-    const target =
-      item.source === 'builtin' && item.category === 'noise'
-        ? groups[0]
-        : item.source === 'builtin'
-          ? groups[1]
-          : groups[2];
-    target.items.push(item);
+    if (item?.source === 'builtin') return;
+    saved.items.push(item);
   });
 
-  return groups.filter((group) => group.items.length);
+  return saved.items.length ? [saved] : [];
 });
 
 function tileStatus(item) {
@@ -1340,6 +1335,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
   --ap-border-strong: rgba(255, 214, 224, 0.2);
   --ap-ink: rgba(255, 243, 238, 0.95);
   --ap-ink-muted: rgba(228, 204, 200, 0.76);
+  --ap-control-ink: rgba(255, 246, 242, 0.9);
+  --ap-ink-subtle: rgba(208, 184, 184, 0.62);
+  --ap-warning-ink: rgba(255, 196, 128, 0.96);
+  --ap-danger-ink: rgba(255, 145, 132, 0.96);
+  --ap-success-ink: rgba(151, 232, 174, 0.96);
+  --ap-on-accent: rgba(255, 251, 247, 0.98);
   --ap-scrollbar: rgba(228, 190, 186, 0.4);
   --liquid-bg: var(--ap-panel-bg);
   --liquid-border: var(--ap-border-strong);
@@ -1417,7 +1418,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .atmo-title-copy p {
   margin: 2px 0 0;
   font-size: 12px;
-  color: rgba(80, 92, 110, 0.76);
+  color: var(--ap-ink-muted);
 }
 
 .atmo-header-side {
@@ -1436,7 +1437,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   padding: 0 11px;
   border-radius: 999px;
   font-size: 12px;
-  color: rgba(54, 66, 84, 0.86);
+  color: var(--ap-control-ink);
   background: var(--ap-surface-strong);
   border: 1px solid var(--ap-border-strong);
 }
@@ -1455,7 +1456,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: inline-grid;
   place-items: center;
   background: var(--ap-surface-strong);
-  color: rgba(40, 50, 64, 0.82);
+  color: var(--ap-control-ink);
   transition: background-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -1541,7 +1542,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   font-size: 10.5px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(96, 110, 130, 0.68);
+  color: var(--ap-ink-subtle);
 }
 
 .head-copy,
@@ -1549,7 +1550,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .empty-note {
   margin: 0;
   font-size: 13px;
-  color: rgba(54, 66, 82, 0.74);
+  color: var(--ap-ink-muted);
 }
 
 .head-copy {
@@ -1557,7 +1558,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .inline-note.warning {
-  color: rgba(158, 92, 42, 0.92);
+  color: var(--ap-warning-ink);
 }
 
 .block-actions,
@@ -1583,7 +1584,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   gap: 7px;
   font-size: 13px;
   background: var(--ap-surface);
-  color: rgba(34, 42, 56, 0.82);
+  color: var(--ap-control-ink);
   transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
 }
 
@@ -1599,7 +1600,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .soft-btn.primary {
   border-color: transparent;
   background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.96), rgba(var(--accent-strong-rgb), 0.92));
-  color: rgba(255, 251, 247, 0.98);
+  color: var(--ap-on-accent);
 }
 
 .soft-btn.primary:hover {
@@ -1633,7 +1634,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: inline-flex;
   align-items: center;
   background: var(--ap-surface-strong);
-  color: rgba(47, 58, 74, 0.7);
+  color: var(--ap-ink-muted);
   font-size: 12px;
 }
 
@@ -1739,7 +1740,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   text-align: left;
   overflow: hidden;
   background: var(--cover-bg);
-  color: rgba(252, 253, 255, 0.97);
+  color: var(--ap-on-accent);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
@@ -1811,7 +1812,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .scene-copy small {
   font-size: 12px;
   line-height: 1.5;
-  color: rgba(240, 244, 250, 0.85);
+  color: var(--ap-on-accent);
   text-shadow: 0 1px 4px rgba(8, 10, 16, 0.3);
 }
 
@@ -1860,12 +1861,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
   align-items: baseline;
   justify-content: space-between;
   font-size: 12.5px;
-  color: rgba(66, 78, 96, 0.78);
+  color: var(--ap-ink-muted);
 }
 
 .console-volume-head strong {
   font-variant-numeric: tabular-nums;
-  color: rgba(30, 38, 50, 0.92);
+  color: var(--ap-ink);
 }
 
 .console-side {
@@ -1886,7 +1887,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: rgba(80, 92, 110, 0.76);
+  color: var(--ap-ink-muted);
   margin-right: 2px;
 }
 
@@ -1972,7 +1973,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .tile-copy strong {
   font-size: 13.5px;
-  color: rgba(24, 30, 40, 0.92);
+  color: var(--ap-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1980,7 +1981,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .tile-copy small {
   font-size: 11.5px;
-  color: rgba(90, 102, 120, 0.72);
+  color: var(--ap-ink-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1999,7 +2000,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .tile-play-hint {
   font-size: 11px;
-  color: rgba(120, 132, 150, 0.5);
+  color: var(--ap-ink-subtle);
   opacity: 0;
   transition: opacity 0.16s ease;
 }
@@ -2010,7 +2011,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .tile-paused {
   font-size: 12px;
-  color: rgba(158, 92, 42, 0.9);
+  color: var(--ap-warning-ink);
 }
 
 .tile-spinner {
@@ -2068,7 +2069,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   text-align: right;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
-  color: rgba(66, 78, 96, 0.78);
+  color: var(--ap-ink-muted);
 }
 
 .tile-source-actions {
@@ -2100,7 +2101,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 50%;
   border: 1px solid var(--ap-border-strong);
   background: rgba(240, 244, 250, 0.94);
-  color: rgba(90, 100, 118, 0.9);
+  color: var(--ap-control-ink);
   font-size: 10px;
   display: none;
   place-items: center;
@@ -2119,7 +2120,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 11px;
   border: 1px solid var(--ap-border-strong);
   background: var(--ap-surface-strong);
-  color: rgba(24, 30, 40, 0.86);
+  color: var(--ap-control-ink);
   padding: 0 12px;
   font-size: 13px;
 }
@@ -2135,12 +2136,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .preset-chip .preset-remove {
-  color: rgba(140, 100, 90, 0.6);
+  color: var(--ap-ink-subtle);
   transition: color 0.15s ease;
 }
 
 .preset-chip .preset-remove:hover {
-  color: rgba(190, 84, 62, 0.95);
+  color: var(--ap-danger-ink);
 }
 
 /* ============================== 在线音源库 ============================== */
@@ -2161,7 +2162,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   position: absolute;
   left: 13px;
   font-size: 12.5px;
-  color: rgba(110, 122, 140, 0.7);
+  color: var(--ap-ink-subtle);
   pointer-events: none;
 }
 
@@ -2171,7 +2172,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 12px;
   border: 1px solid var(--ap-border-strong);
   background: var(--ap-surface-strong);
-  color: rgba(24, 30, 40, 0.88);
+  color: var(--ap-control-ink);
   padding: 0 36px 0 34px;
   font-size: 13.5px;
 }
@@ -2201,7 +2202,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
   place-items: center;
   font-size: 10px;
   background: rgba(140, 150, 168, 0.24);
-  color: rgba(60, 70, 86, 0.82);
+  color: var(--ap-control-ink);
+}
+
+.ambient-empty-state {
+  min-height: 96px;
+  place-items: center;
+  text-align: center;
 }
 
 .search-actions {
@@ -2276,7 +2283,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .online-card-copy strong {
   font-size: 13.5px;
-  color: rgba(24, 30, 40, 0.92);
+  color: var(--ap-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2287,7 +2294,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   align-items: center;
   gap: 5px;
   font-size: 11.5px;
-  color: rgba(90, 102, 120, 0.74);
+  color: var(--ap-ink-muted);
 }
 
 .online-card-copy small .dot {
@@ -2307,12 +2314,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .license-pill.free {
   background: rgba(126, 196, 148, 0.26);
-  color: rgba(42, 104, 66, 0.96);
+  color: var(--ap-success-ink);
 }
 
 .license-pill.attrib {
   background: rgba(232, 178, 108, 0.28);
-  color: rgba(140, 84, 26, 0.96);
+  color: var(--ap-warning-ink);
 }
 
 .online-card-actions {
@@ -2341,7 +2348,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   gap: 7px;
   font-size: 11.5px;
   background: rgba(255, 250, 240, 0.42);
-  color: rgba(130, 96, 46, 0.94);
+  color: var(--ap-warning-ink);
   transition: background-color 0.16s ease;
 }
 
@@ -2383,7 +2390,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .pager-info {
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
-  color: rgba(80, 92, 110, 0.8);
+  color: var(--ap-ink-muted);
 }
 
 .inline-note code {
@@ -2414,12 +2421,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .fx-console-copy strong {
-  color: rgba(24, 30, 40, 0.92);
+  color: var(--ap-ink);
 }
 
 .fx-console-copy small {
   font-size: 12px;
-  color: rgba(90, 102, 120, 0.74);
+  color: var(--ap-ink-muted);
 }
 
 .fx-switch {
@@ -2490,7 +2497,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   align-items: baseline;
   justify-content: space-between;
   font-size: 12.5px;
-  color: rgba(66, 78, 96, 0.78);
+  color: var(--ap-ink-muted);
 }
 
 .fx-slider-name {
@@ -2507,7 +2514,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .fx-slider-head strong {
   font-variant-numeric: tabular-nums;
-  color: rgba(30, 38, 50, 0.92);
+  color: var(--ap-ink);
 }
 
 /* --------------------------------- 特效卡片 -------------------------------- */
@@ -2574,13 +2581,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .fx-card-copy strong {
   font-size: 13.5px;
-  color: rgba(24, 30, 40, 0.92);
+  color: var(--ap-ink);
 }
 
 .fx-card-copy small {
   font-size: 11.5px;
   line-height: 1.45;
-  color: rgba(90, 102, 120, 0.72);
+  color: var(--ap-ink-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -2869,7 +2876,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .playlist-fallback,
 .track-cover-fallback {
   background: linear-gradient(155deg, rgba(135, 191, 228, 0.38), rgba(255, 230, 197, 0.4));
-  color: rgba(45, 60, 79, 0.72);
+  color: var(--ap-ink-muted);
 }
 
 .playlist-copy,
@@ -2883,13 +2890,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .track-copy small,
 .music-now-copy span {
   margin: 0;
-  color: rgba(54, 66, 82, 0.72);
+  color: var(--ap-ink-muted);
 }
 
 .playlist-copy strong,
 .track-copy strong,
 .music-now-copy strong {
-  color: rgba(24, 30, 40, 0.9);
+  color: var(--ap-ink);
 }
 
 .track-sheet {
@@ -2930,7 +2937,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .track-duration {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: rgba(71, 82, 98, 0.68);
+  color: var(--ap-ink-subtle);
 }
 
 .music-now-card {
@@ -3036,7 +3043,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .lyrics-head span {
   font-size: 12px;
-  color: rgba(77, 88, 104, 0.66);
+  color: var(--ap-ink-subtle);
 }
 
 .lyrics-triplet {
@@ -3050,11 +3057,11 @@ function rangeFillStyle(value, min = 0, max = 1) {
   margin: 0;
   line-height: 1.6;
   text-align: center;
-  color: rgba(54, 66, 82, 0.72);
+  color: var(--ap-ink-muted);
 }
 
 .lyric-line.current {
-  color: rgba(31, 39, 52, 0.94);
+  color: var(--ap-ink);
   font-weight: 700;
 }
 
@@ -3332,6 +3339,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
   --ap-border-strong: rgba(186, 124, 132, 0.3);
   --ap-ink: rgba(64, 44, 42, 0.94);
   --ap-ink-muted: rgba(122, 92, 88, 0.76);
+  --ap-control-ink: rgba(72, 48, 46, 0.9);
+  --ap-ink-subtle: rgba(132, 98, 96, 0.66);
+  --ap-warning-ink: rgba(145, 82, 30, 0.96);
+  --ap-danger-ink: rgba(177, 64, 54, 0.96);
+  --ap-success-ink: rgba(36, 112, 62, 0.96);
+  --ap-on-accent: rgba(255, 251, 247, 0.98);
   --ap-scrollbar: rgba(186, 140, 140, 0.45);
   --liquid-shadow: 0 24px 56px rgba(168, 120, 120, 0.22);
 }

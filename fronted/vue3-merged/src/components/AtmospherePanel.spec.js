@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AtmospherePanel from './AtmospherePanel.vue';
+import atmospherePanelSource from './AtmospherePanel.vue?raw';
 import { searchAmbientLibrary } from '../services/ambientLibraryApi';
 
 vi.mock('../services/ambientLibraryApi', () => ({
@@ -29,6 +30,11 @@ async function searchForRain(wrapper) {
   expect(searchButton).toBeTruthy();
   await searchButton.trigger('click');
   await flushPromises();
+}
+
+function cssRule(selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return atmospherePanelSource.match(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`))?.[1] || '';
 }
 
 describe('AtmospherePanel online ambient library', () => {
@@ -129,5 +135,91 @@ describe('AtmospherePanel online ambient library', () => {
 
     expect(wrapper.get('a[href="https://freesound.org/s/42001/"]').text()).toContain('来源');
     expect(wrapper.findAll('button').some((button) => button.text() === '复制署名')).toBe(true);
+  });
+
+  it('uses semantic foreground tokens for dark panel surfaces and controls', () => {
+    expect(atmospherePanelSource).toContain('--ap-control-ink:');
+    expect(atmospherePanelSource).toContain('--ap-ink-subtle:');
+    expect(atmospherePanelSource).toContain('--ap-warning-ink:');
+    expect(atmospherePanelSource).toContain('--ap-danger-ink:');
+    expect(atmospherePanelSource).toContain('--ap-success-ink:');
+
+    expect(cssRule('.atmo-title-copy p')).toContain('var(--ap-ink-muted)');
+    expect(cssRule('.status-chip')).toContain('var(--ap-control-ink)');
+    expect(cssRule('.tile-copy strong')).toContain('var(--ap-ink)');
+    expect(cssRule('.tile-copy small')).toContain('var(--ap-ink-muted)');
+    expect(cssRule('.search-input')).toContain('var(--ap-control-ink)');
+    expect(cssRule('.online-card-copy strong')).toContain('var(--ap-ink)');
+    expect(cssRule('.online-card-copy small')).toContain('var(--ap-ink-muted)');
+    expect(cssRule('.inline-note.warning')).toContain('var(--ap-warning-ink)');
+    expect(cssRule('.fx-console-copy strong')).toContain('var(--ap-ink)');
+  });
+
+  it('shows only saved online assets in the ambient catalog and keeps two tracks active', async () => {
+    const savedTracks = [
+      {
+        id: 'asset:88',
+        trackId: 'asset:88',
+        label: 'Forest Rain',
+        title: 'Forest Rain',
+        source: 'asset',
+        sourceProvider: 'freesound',
+        category: 'upload',
+        categoryLabel: '在线音源',
+        icon: 'fas fa-wave-square'
+      },
+      {
+        id: 'asset:89',
+        trackId: 'asset:89',
+        label: 'Night Cafe',
+        title: 'Night Cafe',
+        source: 'asset',
+        sourceProvider: 'freesound',
+        category: 'upload',
+        categoryLabel: '在线音源',
+        icon: 'fas fa-wave-square'
+      }
+    ];
+    const wrapper = mountPanel({
+      activeTab: 'ambient',
+      ambientLibrary: [
+        {
+          id: 'builtin:rain',
+          trackId: 'builtin:rain',
+          label: 'Bundled Rain',
+          source: 'builtin',
+          category: 'noise',
+          categoryLabel: '内置噪声',
+          icon: 'fas fa-cloud-rain'
+        },
+        ...savedTracks
+      ],
+      ambientState: {
+        ambient: {
+          masterVolume: 0.65,
+          tracks: savedTracks.map((track, index) => ({
+            trackId: track.trackId,
+            source: 'asset',
+            assetId: 88 + index,
+            title: track.title,
+            enabled: true,
+            volume: index === 0 ? 0.42 : 0.68
+          })),
+          presets: []
+        }
+      },
+      mixerActiveTrackIds: ['asset:88', 'asset:89']
+    });
+
+    expect(wrapper.text()).not.toContain('Bundled Rain');
+    expect(wrapper.text()).toContain('Forest Rain');
+    expect(wrapper.text()).toContain('Night Cafe');
+    expect(wrapper.findAll('.sound-tile')).toHaveLength(2);
+    expect(wrapper.findAll('.sound-tile .tile-eq')).toHaveLength(2);
+    expect(wrapper.findAll('.tile-volume input[type="range"]')).toHaveLength(2);
+
+    await wrapper.findAll('.tile-face')[0].trigger('click');
+    await wrapper.findAll('.tile-face')[1].trigger('click');
+    expect(wrapper.emitted('ambient-toggle-track')).toEqual([[savedTracks[0]], [savedTracks[1]]]);
   });
 });

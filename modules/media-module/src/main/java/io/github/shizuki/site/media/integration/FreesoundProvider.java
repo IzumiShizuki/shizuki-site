@@ -207,8 +207,8 @@ public class FreesoundProvider {
         return items;
     }
 
-    private FreesoundTrackResponse parseTrack(Map<String, Object> sound, boolean requireHighQualityPreview) {
-        String previewUrl = resolvePreviewUrl(sound.get("previews"), requireHighQualityPreview);
+    private FreesoundTrackResponse parseTrack(Map<String, Object> sound, boolean preferLightweightPreview) {
+        String previewUrl = resolvePreviewUrl(sound.get("previews"), preferLightweightPreview);
         if (previewUrl.isEmpty()) {
             return null;
         }
@@ -232,19 +232,20 @@ public class FreesoundProvider {
     }
 
     @SuppressWarnings("unchecked")
-    private String resolvePreviewUrl(Object rawPreviews, boolean requireHighQualityPreview) {
+    private String resolvePreviewUrl(Object rawPreviews, boolean preferLightweightPreview) {
         if (!(rawPreviews instanceof Map<?, ?> previewMap)) {
             return "";
         }
         Map<String, Object> previews = (Map<String, Object>) previewMap;
+        String lq = toStringValue(previews.get("preview-lq-mp3"));
+        if (preferLightweightPreview && !lq.isEmpty()) {
+            return lq;
+        }
         String hq = toStringValue(previews.get("preview-hq-mp3"));
         if (!hq.isEmpty()) {
             return hq;
         }
-        if (requireHighQualityPreview) {
-            return "";
-        }
-        return toStringValue(previews.get("preview-lq-mp3"));
+        return lq;
     }
 
     private String resolveLicenseCode(String licenseUrl) {

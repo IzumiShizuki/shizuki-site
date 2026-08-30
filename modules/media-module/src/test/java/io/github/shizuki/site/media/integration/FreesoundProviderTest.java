@@ -37,7 +37,7 @@ class FreesoundProviderTest {
     }
 
     @Test
-    void shouldResolveTrustedMetadataFromSoundId() {
+    void shouldPreferLightweightMp3WhenResolvingSoundForImport() {
         server.expect(requestTo(org.hamcrest.Matchers.startsWith(
                 "https://freesound.org/apiv2/sounds/123456/?fields=")))
             .andExpect(method(HttpMethod.GET))
@@ -51,7 +51,8 @@ class FreesoundProviderTest {
                   "duration": 82.5,
                   "url": "https://freesound.org/people/field-recorder/sounds/123456/",
                   "previews": {
-                    "preview-hq-mp3": "https://cdn.freesound.org/previews/123/123456_1-hq.mp3"
+                    "preview-hq-mp3": "https://cdn.freesound.org/previews/123/123456_1-hq.mp3",
+                    "preview-lq-mp3": "https://cdn.freesound.org/previews/123/123456_1-lq.mp3"
                   }
                 }
                 """, MediaType.APPLICATION_JSON));
@@ -60,7 +61,7 @@ class FreesoundProviderTest {
 
         assertThat(result.soundId()).isEqualTo("123456");
         assertThat(result.title()).isEqualTo("Forest Rain");
-        assertThat(result.previewUrl()).endsWith("123456_1-hq.mp3");
+        assertThat(result.previewUrl()).endsWith("123456_1-lq.mp3");
         assertThat(result.license()).isEqualTo("cc0");
         assertThat(result.attributionRequired()).isFalse();
         server.verify();
