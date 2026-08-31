@@ -6,10 +6,12 @@ import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
+import io.github.shizuki.site.media.config.WallpaperDiscoveryProperties;
 import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
 import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
 import io.github.shizuki.site.media.response.WallpaperProfileResponse;
 import io.github.shizuki.site.media.request.WallpaperSettingsUpdateRequest;
+import io.github.shizuki.site.media.request.WorkshopImportCreateRequest;
 import io.github.shizuki.site.media.entity.MediaAssetEntity;
 import io.github.shizuki.site.media.entity.MediaWallpaperImportJobEntity;
 import io.github.shizuki.site.media.entity.MediaWallpaperProfileEntity;
@@ -21,10 +23,16 @@ import io.github.shizuki.site.media.model.AssetAuditStatusEnum;
 import io.github.shizuki.site.media.model.AssetKindEnum;
 import io.github.shizuki.site.media.model.AssetVisibilityEnum;
 import io.github.shizuki.site.media.model.WallpaperSceneTypeEnum;
+import io.github.shizuki.site.media.model.WallpaperImportStatusEnum;
+import io.github.shizuki.site.media.model.WallpaperImportSourceEnum;
 import io.github.shizuki.site.media.service.l2d.L2dValidationResult;
 import io.github.shizuki.site.media.service.l2d.L2dZipValidator;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -52,6 +60,8 @@ class WallpaperServiceImplTest {
     private MediaWallpaperProfileMapper wallpaperProfileMapper;
     private MediaWallpaperImportJobMapper wallpaperImportJobMapper;
     private L2dZipValidator l2dZipValidator;
+    private WorkshopMetadataProvider workshopMetadataProvider;
+    private HttpClient workshopHttpClient;
 
     private final Map<Long, MediaAssetEntity> assetStore = new LinkedHashMap<>();
     private final Map<Long, MediaWallpaperProfileEntity> profileStore = new LinkedHashMap<>();
@@ -83,6 +93,12 @@ class WallpaperServiceImplTest {
         ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
 
         WallpaperWorkshopProperties workshopProperties = new WallpaperWorkshopProperties();
+        workshopMetadataProvider = Mockito.mock(WorkshopMetadataProvider.class);
+        workshopHttpClient = Mockito.mock(HttpClient.class);
+        WallpaperOutboundClient outboundClient = new WallpaperOutboundClient(
+            new WallpaperDiscoveryProperties(), workshopHttpClient);
+        WorkshopDownloadChannelResolver downloadChannelResolver =
+            new WorkshopDownloadChannelResolver(workshopProperties);
 
         Mockito.when(objectStorageClient.generateGetUrl(
                 ArgumentMatchers.anyString(),
@@ -162,7 +178,10 @@ class WallpaperServiceImplTest {
             l2dZipValidator,
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new TransactionTemplate(new NoOpTransactionManager()),
-            workshopImportWorker
+            workshopImportWorker,
+            workshopMetadataProvider,
+            outboundClient,
+            downloadChannelResolver
         );
     }
 
@@ -196,6 +215,94 @@ class WallpaperServiceImplTest {
         MediaAssetEntity visual = assetStore.get(profile.getVisualAssetId());
         Assertions.assertNotNull(visual);
         Assertions.assertEquals(AssetKindEnum.ANIMATED_IMAGE.getCode(), visual.getAssetKindCode());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldUseSharedOutboundClientForWorkshopDirectDownload() throws Exception {
+        long jobId = 6001L;
+        MediaWallpaperImportJobEntity job = new MediaWallpaperImportJobEntity();
+        job.setId(jobId);
+        job.setOwnerUserId(41L);
+        job.setSourceType(WallpaperImportSourceEnum.WORKSHOP.name());
+        job.setWorkshopItemId("3789790717");
+        job.setStatusText(WallpaperImportStatusEnum.PENDING.name());
+        job.setVisibilityCode(AssetVisibilityEnum.PRIVATE.getCode());
+        jobStore.put(jobId, job);
+        Mockito.when(workshopMetadataProvider.resolve("3789790717")).thenReturn(
+            new WorkshopMetadataProvider.WorkshopMetadata(
+                "3789790717",
+                "Proxy Wallpaper",
+                "https://cdn.example.test/preview.jpg",
+                "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+                "https://cdn.example.test/wallpaper.png",
+                3L,
+                0L,
+                "api"
+            )
+        );
+        HttpResponse<java.io.InputStream> response = Mockito.mock(HttpResponse.class);
+        Mockito.when(response.statusCode()).thenReturn(200);
+        Mockito.when(response.headers()).thenReturn(HttpHeaders.of(Map.of(
+            "Content-Length", java.util.List.of("3"),
+            "Content-Type", java.util.List.of("image/png")
+        ), (name, value) -> true));
+        Mockito.when(response.body()).thenReturn(new ByteArrayInputStream(new byte[] {1, 2, 3}));
+        Mockito.doReturn(response).when(workshopHttpClient).send(
+            ArgumentMatchers.any(), ArgumentMatchers.any());
+        WorkshopImportCreateRequest request = new WorkshopImportCreateRequest();
+        request.setTitle("Proxy Wallpaper");
+
+        wallpaperService.handleWorkshopImport(
+            jobId,
+            41L,
+            "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+            "3789790717",
+            AssetVisibilityEnum.PRIVATE,
+            request
+        );
+
+        Assertions.assertEquals(WallpaperImportStatusEnum.SUCCEEDED.name(), job.getStatusText());
+        Assertions.assertNotNull(job.getWallpaperId());
+        Mockito.verify(workshopHttpClient).send(ArgumentMatchers.any(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldReachFallbackStateWhenRecoveredMetadataHasNoAvailableChannel() {
+        long jobId = 6002L;
+        MediaWallpaperImportJobEntity job = new MediaWallpaperImportJobEntity();
+        job.setId(jobId);
+        job.setOwnerUserId(41L);
+        job.setSourceType(WallpaperImportSourceEnum.WORKSHOP.name());
+        job.setWorkshopItemId("3789790717");
+        job.setStatusText(WallpaperImportStatusEnum.PENDING.name());
+        job.setVisibilityCode(AssetVisibilityEnum.PRIVATE.getCode());
+        jobStore.put(jobId, job);
+        Mockito.when(workshopMetadataProvider.resolve("3789790717")).thenReturn(
+            new WorkshopMetadataProvider.WorkshopMetadata(
+                "3789790717",
+                "Recovered Wallpaper",
+                "https://cdn.example.test/preview.jpg",
+                "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+                "",
+                0L,
+                0L,
+                "page"
+            )
+        );
+
+        wallpaperService.handleWorkshopImport(
+            jobId,
+            41L,
+            "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+            "3789790717",
+            AssetVisibilityEnum.PRIVATE,
+            new WorkshopImportCreateRequest()
+        );
+
+        Assertions.assertEquals(WallpaperImportStatusEnum.FALLBACK_REQUIRED.name(), job.getStatusText());
+        Assertions.assertEquals("服务器未启用 SteamCMD", job.getErrorMessage());
+        Assertions.assertTrue(job.getFallbackHint().contains("本地包上传"));
     }
 
     @Test

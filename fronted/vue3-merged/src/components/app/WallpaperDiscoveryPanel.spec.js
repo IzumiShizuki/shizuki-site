@@ -67,7 +67,10 @@ beforeEach(() => {
   getWorkshopItemDetail.mockResolvedValue({
     item_id: '2141505896',
     title: 'Rainy Night Cafe',
-    has_direct_download: false
+    has_direct_download: false,
+    download_channel: 'STEAMCMD',
+    download_available: true,
+    channel_message: '可通过 SteamCMD 导入'
   });
 });
 
@@ -93,7 +96,7 @@ describe('WallpaperDiscoveryPanel', () => {
     await flushPromises();
 
     expect(getWorkshopItemDetail).toHaveBeenCalledWith('2141505896', authorizedFetch);
-    expect(wrapper.text()).toContain('需 SteamCMD 通道');
+    expect(wrapper.text()).toContain('可通过 SteamCMD 导入');
 
     const selectEmitted = wrapper.emitted('select-workshop');
     expect(selectEmitted).toHaveLength(1);
@@ -113,6 +116,38 @@ describe('WallpaperDiscoveryPanel', () => {
       url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=2141505896',
       visibility: 'PRIVATE'
     });
+  });
+
+  it('renders the backend unavailable reason without hiding the selected item', async () => {
+    getWorkshopItemDetail.mockResolvedValueOnce({
+      item_id: '2141505896',
+      title: 'Rainy Night Cafe',
+      has_direct_download: false,
+      download_channel: 'UNAVAILABLE',
+      download_available: false,
+      channel_message: '服务器未配置 SteamCMD 账号'
+    });
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    await wrapper.findAll('.discovery-item')[0].trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Rainy Night Cafe');
+    expect(wrapper.text()).toContain('服务器未配置 SteamCMD 账号');
+  });
+
+  it('keeps the selected item visible when the channel request can be retried', async () => {
+    getWorkshopItemDetail.mockRejectedValueOnce(new Error('upstream unavailable'));
+    const wrapper = mountPanel();
+    await flushPromises();
+
+    await wrapper.findAll('.discovery-item')[0].trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Rainy Night Cafe');
+    expect(wrapper.text()).toContain('暂时无法检查，可重试');
+    expect(wrapper.text()).not.toContain('通道检查失败');
   });
 
   it('reacts to the controlled wallhaven source and emits wallhaven import payload', async () => {

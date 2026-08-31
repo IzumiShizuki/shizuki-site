@@ -243,11 +243,13 @@
         </a>
 
         <div v-if="source === 'workshop'" class="channel-status">
-          <span class="status-dot" :class="{ ready: workshopDetail.hasDirectDownload, checking: workshopDetail.loading }"></span>
+          <span class="status-dot" :class="{ ready: workshopDetail.downloadAvailable, checking: workshopDetail.loading }"></span>
           <span v-if="workshopDetail.loading">检查下载通道…</span>
           <span v-else-if="workshopDetail.error">{{ workshopDetail.error }}</span>
-          <span v-else-if="workshopDetail.hasDirectDownload">可直接导入</span>
-          <span v-else>需 SteamCMD 通道</span>
+          <span v-else-if="workshopDetail.channelMessage">{{ workshopDetail.channelMessage }}</span>
+          <span v-else-if="workshopDetail.downloadChannel === 'DIRECT'">可直接导入</span>
+          <span v-else-if="workshopDetail.downloadChannel === 'STEAMCMD'">可通过 SteamCMD 导入</span>
+          <span v-else>下载通道不可用</span>
         </div>
 
         <div class="import-controls">
@@ -317,6 +319,9 @@ const previewStates = reactive({});
 const workshopDetail = reactive({
   loading: false,
   hasDirectDownload: false,
+  downloadChannel: 'UNKNOWN',
+  downloadAvailable: false,
+  channelMessage: '',
   error: ''
 });
 
@@ -627,10 +632,29 @@ async function selectItem(item) {
   workshopDetail.loading = true;
   workshopDetail.error = '';
   workshopDetail.hasDirectDownload = false;
+  workshopDetail.downloadChannel = 'UNKNOWN';
+  workshopDetail.downloadAvailable = false;
+  workshopDetail.channelMessage = '';
   try {
     const payload = await getWorkshopItemDetail(item.itemId, props.authorizedFetch);
     if (!selected.value || selected.value.key !== item.key) return;
     workshopDetail.hasDirectDownload = Boolean(readField(payload, 'hasDirectDownload', 'has_direct_download', false));
+    workshopDetail.downloadChannel = String(readField(
+      payload,
+      'downloadChannel',
+      'download_channel',
+      workshopDetail.hasDirectDownload ? 'DIRECT' : 'UNKNOWN'
+    )).trim().toUpperCase();
+    workshopDetail.downloadAvailable = Boolean(readField(
+      payload,
+      'downloadAvailable',
+      'download_available',
+      workshopDetail.hasDirectDownload
+    ));
+    workshopDetail.channelMessage = String(readField(payload, 'channelMessage', 'channel_message', '')).trim();
+    if (!workshopDetail.channelMessage && workshopDetail.downloadChannel === 'UNKNOWN') {
+      workshopDetail.channelMessage = '需 SteamCMD 通道';
+    }
     const detailTitle = String(readField(payload, 'title', 'title', '')).trim();
     if (detailTitle && detailTitle !== item.title) {
       item.title = detailTitle;
@@ -638,7 +662,7 @@ async function selectItem(item) {
     }
   } catch {
     if (!selected.value || selected.value.key !== item.key) return;
-    workshopDetail.error = '通道检查失败，仍可尝试导入。';
+    workshopDetail.error = '暂时无法检查，可重试';
   } finally {
     if (selected.value && selected.value.key === item.key) workshopDetail.loading = false;
   }

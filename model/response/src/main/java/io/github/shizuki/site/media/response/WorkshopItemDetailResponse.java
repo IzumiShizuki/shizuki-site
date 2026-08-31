@@ -7,6 +7,9 @@ public record WorkshopItemDetailResponse(
         String detailUrl,
         boolean hasDirectDownload,
         long fileSizeBytes,
-        long timeUpdated
+        long timeUpdated,
+        String downloadChannel,
+        boolean downloadAvailable,
+        String channelMessage
 ) {
 }

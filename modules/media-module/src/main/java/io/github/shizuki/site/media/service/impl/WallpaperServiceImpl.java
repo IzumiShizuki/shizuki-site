@@ -46,8 +46,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -97,6 +95,9 @@ public class WallpaperServiceImpl implements WallpaperService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final WorkshopImportWorker workshopImportWorker;
+    private final WorkshopMetadataProvider workshopMetadataProvider;
+    private final WallpaperOutboundClient outboundClient;
+    private final WorkshopDownloadChannelResolver downloadChannelResolver;
 
     public WallpaperServiceImpl(ObjectStorageClient objectStorageClient,
                                 MediaStorageProperties mediaStorageProperties,
@@ -109,7 +110,10 @@ public class WallpaperServiceImpl implements WallpaperService {
                                 L2dZipValidator l2dZipValidator,
                                 ObjectMapper objectMapper,
                                 TransactionTemplate transactionTemplate,
-                                WorkshopImportWorker workshopImportWorker) {
+                                WorkshopImportWorker workshopImportWorker,
+                                WorkshopMetadataProvider workshopMetadataProvider,
+                                WallpaperOutboundClient outboundClient,
+                                WorkshopDownloadChannelResolver downloadChannelResolver) {
         this.objectStorageClient = objectStorageClient;
         this.mediaStorageProperties = mediaStorageProperties;
         this.ossProperties = ossProperties;
@@ -122,6 +126,9 @@ public class WallpaperServiceImpl implements WallpaperService {
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
         this.workshopImportWorker = workshopImportWorker;
+        this.workshopMetadataProvider = workshopMetadataProvider;
+        this.outboundClient = outboundClient;
+        this.downloadChannelResolver = downloadChannelResolver;
     }
 
     @Override
@@ -424,7 +431,8 @@ public class WallpaperServiceImpl implements WallpaperService {
                               WorkshopImportCreateRequest request) {
         markJobRunning(jobId);
         try {
-            WorkshopMeta workshopMeta = fetchWorkshopMeta(workshopItemId);
+            WorkshopMetadataProvider.WorkshopMetadata workshopMeta =
+                workshopMetadataProvider.resolve(workshopItemId);
             DetectedPackage detected = null;
             String requestedTitle = request == null ? "" : readString(request.getTitle(), "");
             String sourceTitle = StringUtils.hasText(requestedTitle)
@@ -438,7 +446,9 @@ public class WallpaperServiceImpl implements WallpaperService {
                     directDownloadFailure = exception;
                 }
             }
-            if (detected == null && canRunSteamCmd()) {
+            WorkshopDownloadChannelResolver.ChannelState steamCmdChannel =
+                downloadChannelResolver.resolve(false);
+            if (detected == null && steamCmdChannel.available()) {
                 Path downloadedDir = downloadWorkshopBySteamCmd(workshopItemId);
                 detected = detectFromDirectory(downloadedDir);
             }
@@ -448,9 +458,9 @@ public class WallpaperServiceImpl implements WallpaperService {
                     WallpaperImportStatusEnum.FALLBACK_REQUIRED,
                     null,
                     directDownloadFailure == null
-                        ? "Workshop file_url is unavailable and SteamCMD is not configured"
+                        ? steamCmdChannel.message()
                         : directDownloadFailure.getMessage(),
-                    "请配置 SteamCMD 账号或改用本地包上传导入"
+                    "请检查下载通道或改用本地包上传导入"
                 );
                 return;
             }
@@ -820,43 +830,6 @@ public class WallpaperServiceImpl implements WallpaperService {
         return matcher.group(1);
     }
 
-    private WorkshopMeta fetchWorkshopMeta(String workshopItemId) {
-        try {
-            String body = "itemcount=1&publishedfileids[0]=" + URLEncoder.encode(workshopItemId, StandardCharsets.UTF_8);
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/"))
-                .timeout(Duration.ofSeconds(12))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-            HttpResponse<String> response = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(8))
-                .build()
-                .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            JsonNode root = objectMapper.readTree(response.body());
-            JsonNode detail = root.path("response").path("publishedfiledetails");
-            if (!detail.isArray() || detail.isEmpty()) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop item metadata not found");
-            }
-            JsonNode first = detail.get(0);
-            return new WorkshopMeta(
-                readString(first.path("title").asText(), ""),
-                readString(first.path("preview_url").asText(), ""),
-                readString(first.path("file_url").asText(), "")
-            );
-        } catch (BusinessException businessException) {
-            throw businessException;
-        } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Fetch workshop metadata failed");
-        }
-    }
-
-    private boolean canRunSteamCmd() {
-        return workshopProperties.isEnabled()
-            && StringUtils.hasText(workshopProperties.getSteamcmdPath())
-            && StringUtils.hasText(workshopProperties.getWorkshopAppId());
-    }
-
     private Path downloadWorkshopBySteamCmd(String workshopItemId) {
         try {
             Path root = Paths.get(readString(workshopProperties.getDownloadRoot(), "/tmp/steam-workshop"));
@@ -903,7 +876,8 @@ public class WallpaperServiceImpl implements WallpaperService {
         }
     }
 
-    private DetectedPackage downloadWorkshopByFileUrl(WorkshopMeta workshopMeta, String workshopItemId) {
+    private DetectedPackage downloadWorkshopByFileUrl(
+            WorkshopMetadataProvider.WorkshopMetadata workshopMeta, String workshopItemId) {
         String fileUrl = readString(workshopMeta.fileUrl(), "");
         if (!StringUtils.hasText(fileUrl)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop file_url is unavailable");
@@ -920,22 +894,20 @@ public class WallpaperServiceImpl implements WallpaperService {
         }
 
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(uri)
-                .timeout(WORKSHOP_DIRECT_DOWNLOAD_TIMEOUT)
+            HttpRequest request = outboundClient.request(fileUrl, WORKSHOP_DIRECT_DOWNLOAD_TIMEOUT)
+                .header("Accept", "*/*")
                 .GET()
                 .build();
-            HttpResponse<InputStream> response = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build()
-                .send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = outboundClient.send(
+                request, HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                closeQuietly(response.body());
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop file_url download failed");
             }
             long maxBytes = mediaStorageProperties.getMaxUploadSize();
             long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
             if (contentLength > maxBytes) {
+                closeQuietly(response.body());
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop file is too large");
             }
             String contentType = response.headers().firstValue("Content-Type").orElse("");
@@ -947,9 +919,17 @@ public class WallpaperServiceImpl implements WallpaperService {
             throw exception;
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Download workshop file_url failed");
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Download workshop file_url interrupted");
+        }
+    }
+
+    private void closeQuietly(InputStream inputStream) {
+        if (inputStream == null) {
+            return;
+        }
+        try {
+            inputStream.close();
+        } catch (IOException ignored) {
+            // The upstream response is already unusable; cleanup failure is non-actionable.
         }
     }
 
@@ -1523,8 +1503,4 @@ public class WallpaperServiceImpl implements WallpaperService {
     private record ImportedWallpaper(Long wallpaperId) {
     }
 
-    private record WorkshopMeta(String title,
-                                String previewUrl,
-                                String fileUrl) {
-    }
 }
