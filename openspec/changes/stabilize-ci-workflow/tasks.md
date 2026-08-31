@@ -14,6 +14,6 @@
 
 ## 3. Verification and Delivery
 
-- [ ] 3.1 Run the focused contract test, full frontend test suite, frontend production build, and backend Maven tests.
+- [x] 3.1 Run the focused contract test, full frontend test suite, frontend production build, and backend Maven tests.
 - [x] 3.2 Validate the OpenSpec change strictly and record verification evidence.
-- [ ] 3.3 Commit the CI stabilization, push `master`, and confirm the triggered GitHub Actions run completes successfully without the known annotations.
+- [x] 3.3 Commit the CI stabilization, push `master`, and confirm the triggered GitHub Actions run completes successfully without the known annotations.
