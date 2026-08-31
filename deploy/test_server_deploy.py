@@ -185,6 +185,31 @@ class ServerDeploySafetyTest(unittest.TestCase):
 
         self.assertEqual(services, ())
 
+    def test_every_compose_build_input_maps_to_its_owning_service(self) -> None:
+        build_inputs = {
+            "apps/monolith-app/pom.xml": "backend",
+            "libs/common-core/pom.xml": "backend",
+            "model/pom.xml": "backend",
+            "modules/content-module/pom.xml": "backend",
+            "docker/Dockerfile.backend": "backend",
+            "tools/document-converter/requirements.txt": "document-converter",
+            "docker/Dockerfile.document-converter": "document-converter",
+            "third_party/meting-api/src/Meting.php": "meting-api",
+            "tools/meting-sidecar/Dockerfile": "meting-api",
+            "tools/music-ncm-sidecar/Dockerfile": "music-ncm-api",
+            "tools/music-web-auth-sidecar/package.json": "music-web-auth-sidecar",
+            "tools/notion-mcp-sidecar/package.json": "notion-mcp-sidecar",
+            "tools/presentation-generator/package.json": "presentation-generator",
+            "docker/Dockerfile.presentation-generator": "presentation-generator",
+            "fronted/vue3-merged/package.json": "site",
+            "docker/Dockerfile.frontend": "site",
+            "deploy/nginx.frontend.conf": "site",
+        }
+
+        for path, service in build_inputs.items():
+            with self.subTest(path=path):
+                self.assertEqual(deploy.build_services_for_paths({path}), (service,))
+
     def test_compose_or_unknown_docker_changes_build_every_service(self) -> None:
         self.assertEqual(
             deploy.build_services_for_paths({"deploy/docker-compose.server.yml"}),

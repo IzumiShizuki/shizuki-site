@@ -21,4 +21,4 @@
 
 - [x] 4.1 Run all deployment safety tests, Dockerfile/runner contract checks, syntax checks, and strict OpenSpec validation.
 - [x] 4.2 Measure tracked project source/test/config/documentation line counts by language and review declared frontend/backend libraries against custom infrastructure code.
-- [ ] 4.3 Commit and push the clean master, deploy through the guarded path, confirm incremental selection and phase timings, then verify commit marker, READY snapshot, services, API, site entry, and staged content gates.
+- [x] 4.3 Commit and push the clean master, deploy through the guarded path, confirm incremental selection and phase timings, then verify commit marker, READY snapshot, services, API, site entry, and staged content gates.
