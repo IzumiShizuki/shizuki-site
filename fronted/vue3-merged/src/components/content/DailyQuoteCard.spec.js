@@ -108,9 +108,26 @@ describe('DailyQuoteCard', () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('今日一言暂时不可用');
+    expect(wrapper.text()).toContain('一言来源尚未配置');
     expect(wrapper.find('blockquote').exists()).toBe(false);
+    expect(wrapper.find('.widget-actions').exists()).toBe(false);
+    expect(wrapper.find('.widget-provenance button').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('风经过书页');
+    wrapper.unmount();
+  });
+
+  it('keeps retry for a transient initial quote failure', async () => {
+    const loadToday = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary outage'))
+      .mockResolvedValueOnce(todayQuote);
+    const wrapper = mountCard({ loadToday });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('今日一言读取失败');
+    await wrapper.get('.widget-provenance button').trigger('click');
+    await flushPromises();
+    expect(loadToday).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('风经过书页');
     wrapper.unmount();
   });
 });

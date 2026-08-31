@@ -217,6 +217,24 @@ describe('TopMenu profile entry', () => {
     expect(source).not.toMatch(/(?:window|document)\.addEventListener\(['"]scroll['"]/);
   });
 
+  it('keeps the desktop collapse control available at the top of the page', async () => {
+    const { wrapper } = await mountTopMenu({
+      routeScrollTop: 0,
+      menuExpanded: false,
+      menuCollapsed: false
+    }, '/author');
+
+    const toggle = wrapper.get('.toggle-tab');
+    expect(toggle.attributes('aria-label')).toBe('收拢为紧凑导航');
+
+    await toggle.trigger('click');
+    expect(wrapper.emitted('toggle-menu')).toHaveLength(1);
+
+    await wrapper.setProps({ menuCollapsed: true });
+    expect(wrapper.get('.top-menu-root').classes()).toContain('compact');
+    expect(wrapper.get('.toggle-tab').attributes('aria-label')).toBe('展开完整导航');
+  });
+
   it('closes Site with Escape, returns focus, and also dismisses on outside pointer input', async () => {
     const { wrapper } = await mountTopMenu({}, '/albums');
     const trigger = wrapper.get('.author-info-item');

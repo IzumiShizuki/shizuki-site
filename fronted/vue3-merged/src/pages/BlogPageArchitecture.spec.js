@@ -16,7 +16,9 @@ describe('BlogPage workspace architecture', () => {
     expect(source).toContain("import BlogEditorWorkspace from '../components/blog/BlogEditorWorkspace.vue'");
     expect(source).toContain(':is="activeWorkspaceComponent"');
     expect(reader).toContain('data-blog-workspace="reader"');
-    expect(reader).toContain('data-scroll-owner="app"');
+    expect(reader).toContain('data-scroll-owner="center"');
+    expect(source).toContain(':app-scroll-owner="!isMobileLike"');
+    expect(source).toContain('tag="section"');
     expect(editor).toContain('data-blog-workspace="editor"');
     expect(editor).toContain('data-scroll-owner="workspace"');
   });

@@ -1,5 +1,5 @@
 <template>
-  <aside class="author-route-sidebar liquid-material" :class="{ 'is-public': publicMode }">
+  <aside class="author-route-sidebar liquid-material" :class="{ 'is-public': publicMode, 'is-workspace': workspace }">
     <section v-if="showProfile" class="author-profile-summary" aria-label="作者资料与统计">
       <img class="author-profile-avatar" :src="hero.avatarUrl" :alt="hero.name" />
       <div class="author-profile-copy">
@@ -60,6 +60,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  workspace: {
+    type: Boolean,
+    default: false
+  },
   showProfile: {
     type: Boolean,
     default: false
@@ -104,6 +108,11 @@ const profileStats = computed(() => [
 .author-route-sidebar.is-public {
   height: auto;
   overflow: visible;
+}
+
+.author-route-sidebar.is-public.is-workspace {
+  height: 100%;
+  overflow: hidden;
 }
 
 .author-profile-summary {
@@ -264,6 +273,13 @@ const profileStats = computed(() => [
 .is-public .sidebar-route-menu {
   height: auto;
   overflow: visible;
+}
+
+.is-public.is-workspace .sidebar-route-menu {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .sidebar-route-menu::-webkit-scrollbar {

@@ -6,13 +6,24 @@
           <span>{{ kind === 'albums' ? 'MEMORY ARCHIVE' : 'LIFE LOG' }}</span>
           <h2>{{ railTitle }}</h2>
         </div>
-        <RouterLink :to="allRoute">查看全部</RouterLink>
+        <RouterLink v-if="!featureDisabled" :to="allRoute">查看全部</RouterLink>
       </div>
     </template>
 
     <article v-if="loading && items.length === 0" class="life-preview-state" role="status">
       <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
       <strong>正在读取{{ contentLabel }}……</strong>
+    </article>
+
+    <article
+      v-else-if="featureDisabled && items.length === 0"
+      class="life-preview-state is-unavailable"
+      :data-testid="`${kind}-rail-disabled`"
+      role="status"
+    >
+      <i class="fas fa-lock" aria-hidden="true"></i>
+      <strong>{{ contentLabel }}尚未开放</strong>
+      <span>站点暂未公开这个栏目，开放后内容会自动出现在这里。</span>
     </article>
 
     <article v-else-if="error && items.length === 0" class="life-preview-state is-error" :data-testid="`${kind}-rail-error`">
@@ -62,6 +73,7 @@
 <script setup>
 import { computed, reactive } from 'vue';
 import HorizontalCardRail from '../content/HorizontalCardRail.vue';
+import { isFeatureDisabledProblem } from '../../utils/optionalCapabilityState';
 
 const props = defineProps({
   kind: {
@@ -90,6 +102,7 @@ const railLabel = computed(() => props.kind === 'albums' ? '精选相册' : '精
 const railTitle = computed(() => props.kind === 'albums' ? '记忆相册' : '最近动态');
 const allRoute = computed(() => props.kind === 'albums' ? { name: 'albums' } : { name: 'moments' });
 const contentLabel = computed(() => props.kind === 'albums' ? '相册' : '动态');
+const featureDisabled = computed(() => isFeatureDisabledProblem(props.error));
 const emptyDescription = computed(() => props.kind === 'albums'
   ? '第一组真实相册发布后会出现在这里，不会用头像或壁纸代替。'
   : '第一条真实动态发布后会出现在这里。');

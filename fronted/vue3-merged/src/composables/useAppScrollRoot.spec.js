@@ -1,6 +1,6 @@
 import { effectScope, nextTick, ref } from 'vue';
 import { afterEach, describe, expect, it } from 'vitest';
-import { useActiveScrollSource } from './useAppScrollRoot';
+import { createAppScrollOwnerController, useActiveScrollSource } from './useAppScrollRoot';
 
 describe('useActiveScrollSource', () => {
   const scopes = [];
@@ -67,5 +67,30 @@ describe('useActiveScrollSource', () => {
     publicRoot.scrollTop = 80;
     publicRoot.dispatchEvent(new Event('scroll'));
     expect(state.scrollTop.value).toBe(0);
+  });
+});
+
+describe('createAppScrollOwnerController', () => {
+  it('keeps the newest owner when an older claim releases late', () => {
+    const first = document.createElement('section');
+    const second = document.createElement('section');
+    const controller = createAppScrollOwnerController();
+
+    const releaseFirst = controller.claim(first);
+    const releaseSecond = controller.claim(second);
+    releaseFirst();
+
+    expect(controller.element.value).toBe(second);
+    releaseSecond();
+    expect(controller.element.value).toBeNull();
+  });
+
+  it('can clear the active owner during a route transition', () => {
+    const controller = createAppScrollOwnerController();
+    controller.claim(document.createElement('section'));
+
+    controller.clear();
+
+    expect(controller.element.value).toBeNull();
   });
 });

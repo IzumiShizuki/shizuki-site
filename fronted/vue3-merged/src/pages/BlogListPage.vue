@@ -1,11 +1,12 @@
 <template>
   <section
     class="route-page blog-list-page motion-managed"
-    data-scroll-owner="app"
+    :data-scroll-owner="isMobileLike ? 'app' : 'center'"
     :data-motion-mode="motionPreference.effectiveMode.value"
   >
     <ThreeColumnContentShell
       class="blog-shell"
+      main-tag="div"
       :class="{ 'left-panel-collapsed': leftPanelCollapsed, 'right-panel-collapsed': rightPanelCollapsed }"
       :style="{
         '--content-shell-left': 'var(--blog-left-width)',
@@ -17,7 +18,8 @@
         <SubtleScrollArea
           tag="aside"
           class="left-switch liquid-material"
-          :scrollable="false"
+          aria-label="博客导航"
+          :scrollable="!isMobileLike"
         >
         <div class="left-switch-head">
           <button
@@ -70,7 +72,13 @@
         </SubtleScrollArea>
       </template>
 
-      <section class="main-column">
+      <SubtleScrollArea
+        tag="section"
+        class="main-column"
+        aria-label="博客内容"
+        :scrollable="!isMobileLike"
+        :app-scroll-owner="!isMobileLike"
+      >
         <transition name="search-slide">
           <div v-if="searchState.open && uiState.panel === 'read'" class="search-panel liquid-material">
             <form class="search-form" @submit.prevent="handleSearchSubmit">
@@ -111,7 +119,7 @@
             <span class="strip-meta">共 {{ listState.total }} 篇</span>
           </section>
 
-          <SubtleScrollArea tag="main" class="feed-column" :scrollable="false">
+          <section class="feed-column">
               <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
 
               <article
@@ -242,15 +250,10 @@
                   下一页
                 </button>
               </footer>
-          </SubtleScrollArea>
+          </section>
         </template>
 
-        <SubtleScrollArea
-          v-else-if="uiState.panel === 'categories'"
-          tag="section"
-          class="category-panel liquid-material"
-          :scrollable="false"
-        >
+        <section v-else-if="uiState.panel === 'categories'" class="category-panel liquid-material">
           <template v-if="showCategoryPanelLoading">
             <h2>{{ categoryPanelHeading }}</h2>
             <p class="state-tip">正在同步分类目录...</p>
@@ -299,9 +302,9 @@
               <p v-if="!enabledCategoryCatalogItems.length && !sidebarState.loading" class="empty-text">暂无可见分类。</p>
             </div>
           </template>
-        </SubtleScrollArea>
+        </section>
 
-        <SubtleScrollArea v-else tag="section" class="whisper-panel liquid-material" :scrollable="false">
+        <section v-else class="whisper-panel liquid-material">
           <h2>悄悄话</h2>
           <p>支持匿名发送给作者，不登录也可以提交。备注可留空。</p>
           <form class="whisper-form" @submit.prevent="submitWhisper">
@@ -344,11 +347,11 @@
             <p v-if="whisperState.error" class="error-text">{{ whisperState.error }}</p>
             <p v-if="whisperState.notice" class="side-tip">{{ whisperState.notice }}</p>
           </form>
-        </SubtleScrollArea>
-      </section>
+        </section>
+      </SubtleScrollArea>
 
       <template v-if="uiState.panel === 'read' && !rightPanelCollapsed && !contentMobileLayout" #right>
-        <SubtleScrollArea tag="aside" class="sidebar-column" :scrollable="false">
+        <SubtleScrollArea tag="aside" class="sidebar-column" aria-label="博客发现侧栏" :scrollable="!isMobileLike">
           <header class="sidebar-column-head">
             <span>发现侧栏</span>
             <button
@@ -573,7 +576,7 @@ function syncContentMobileLayout(event) {
 if (contentMobileQuery?.addEventListener) contentMobileQuery.addEventListener('change', syncContentMobileLayout);
 else contentMobileQuery?.addListener?.(syncContentMobileLayout);
 
-const { isNarrowDesktop, isMobileLike, recommendedRightCollapsed } = useBlogResponsiveLayout({
+const { isNarrowDesktop, isMobileLike } = useBlogResponsiveLayout({
   desktopBreakpoint: 1366,
   mobileBreakpoint: 980
 });
@@ -1376,16 +1379,9 @@ watch(
       rightPanelTouchedByUser.value = false;
       return;
     }
-    if (zone === 'wide') {
+    if (!previousZone || previousZone === 'mobile') {
       rightPanelCollapsed.value = false;
       rightPanelTouchedByUser.value = false;
-      return;
-    }
-    if (zone === 'narrow') {
-      if (previousZone !== 'narrow' || !rightPanelTouchedByUser.value) {
-        rightPanelCollapsed.value = recommendedRightCollapsed.value;
-        rightPanelTouchedByUser.value = false;
-      }
     }
   },
   { immediate: true }
@@ -1407,18 +1403,32 @@ onBeforeUnmount(() => {
   --blog-right-width: clamp(190px, 20vw, 288px);
   --blog-right-effective-width: var(--blog-right-width);
   --blog-sidebar-button-size: clamp(28px, 2.2vw, 34px);
-  min-height: 100%;
-  overflow: visible;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   position: relative;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
   font-family: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
 
 .blog-shell {
-  min-height: 100%;
-  align-items: start;
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  align-items: stretch;
   gap: var(--blog-gap);
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1fr);
   transition: grid-template-columns 200ms ease;
+}
+
+:deep(.blog-shell > .content-shell__left),
+:deep(.blog-shell > .content-shell__main),
+:deep(.blog-shell > .content-shell__right) {
+  height: 100%;
+  min-height: 0;
 }
 
 .blog-shell.left-panel-collapsed {
@@ -1448,8 +1458,10 @@ onBeforeUnmount(() => {
 
 .left-switch,
 .sidebar-column {
-  position: sticky;
-  top: calc(var(--app-topbar-height, 72px) + 16px);
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  align-self: stretch;
 }
 
 .blog-auxiliary-trigger {
@@ -1597,11 +1609,11 @@ onBeforeUnmount(() => {
 }
 
 .main-column {
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--blog-gap);
-  overflow: visible;
 }
 
 .search-panel {
@@ -2021,7 +2033,6 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-column {
-  min-height: 0;
   display: grid;
   gap: var(--blog-gap);
   align-content: start;
@@ -2424,6 +2435,28 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 980px) {
+  .blog-list-page {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    display: block;
+  }
+
+  .blog-shell {
+    height: auto;
+    min-height: 0;
+    align-items: start;
+    overflow: visible;
+  }
+
+  .main-column,
+  .left-switch,
+  .sidebar-column {
+    height: auto;
+    max-height: none;
+    overflow: visible !important;
+  }
+
   .blog-shell {
     --blog-left-width: 1fr;
     --blog-right-width: 1fr;

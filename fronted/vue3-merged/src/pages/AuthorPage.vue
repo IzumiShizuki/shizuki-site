@@ -1,14 +1,18 @@
 <template>
   <section
     class="route-page author-page motion-managed"
-    :class="{ 'author-page--public': !isAdminConsoleTab, 'author-page--workspace': isAdminConsoleTab }"
-    :data-scroll-owner="isAdminConsoleTab ? 'workspace' : 'app'"
+    :class="{
+      'author-page--public': !isAdminConsoleTab,
+      'author-page--workspace': isAdminConsoleTab,
+      'author-page--public-workspace': isPublicExperienceTab
+    }"
+    :data-scroll-owner="isAdminConsoleTab ? 'workspace' : (isPublicExperienceTab ? 'center' : 'app')"
     :data-motion-mode="motionPreference.effectiveMode.value"
   >
-    <RailScaffold class="dashboard-layout" :class="{ 'dashboard-layout--about': isPublicAboutTab }">
+    <RailScaffold class="dashboard-layout" :class="{ 'dashboard-layout--public-experience': isPublicExperienceTab }">
       <template #rail>
         <AuthorProfileRail
-          v-if="!isPublicAboutTab"
+          v-if="!isPublicExperienceTab"
           :items="tabs"
           :active-key="activeTab"
           :admin-user="isAdminUser"
@@ -24,7 +28,7 @@
         :contain-overscroll="false"
         :scrollable="isAdminConsoleTab"
         class="content-panel liquid-material"
-        :class="{ 'content-panel--about': isPublicAboutTab }"
+        :class="{ 'content-panel--public-experience': isPublicExperienceTab }"
         :style="contentPanelStyle"
         @pointermove="handleContentPointerMove"
         @pointerleave="resetParallax"
@@ -428,18 +432,8 @@
             <AdminPage embedded :forced-tab="activeAdminTab" />
           </div>
 
-          <div v-else-if="activeTab === 'posts'" class="content-block">
-            <article class="author-card">
-              <h2>站点文章</h2>
-              <p class="line-text">文章列表继续复用博客模块接口，这里提供统一入口。</p>
-              <div class="inline-actions compact">
-                <button class="mini-btn ripple-trigger" type="button" @click="openBlogList">前往博客列表</button>
-              </div>
-            </article>
-          </div>
-
           <AuthorAboutExperience
-            v-else-if="activeTab === 'about'"
+            v-else-if="isPublicExperienceTab"
             :tabs="tabs"
             :active-tab="activeTab"
             :admin-user="isAdminUser"
@@ -1169,6 +1163,9 @@ const activeAdminTab = computed(() => {
 });
 const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
 const isPublicAboutTab = computed(() => activeTab.value === AuthorTabKey.ABOUT && !isAdminConsoleTab.value);
+const isPublicExperienceTab = computed(() => (
+  !isAdminConsoleTab.value && [AuthorTabKey.ABOUT, AuthorTabKey.POSTS].includes(activeTab.value)
+));
 // 管理台的所有子标签共用同一个 key：在 Users / Groups / Quota 之间切换时
 // 滚动容器与玻璃面板不再销毁重建，避免整块内容闪烁和重复请求。
 const contentPanelRenderKey = computed(() => (activeAdminTab.value ? 'admin-console' : activeTab.value));
@@ -1332,7 +1329,8 @@ const contentPanelStyle = computed(() => {
   return {
     '--parallax-x': `${motionState.pointer.x.toFixed(2)}px`,
     '--parallax-y': `${motionState.pointer.y.toFixed(2)}px`,
-    '--journey-progress': `${Math.round(Math.max(0, Math.min(1, motionState.journeyProgress || 0)) * 100)}%`
+    '--journey-progress': `${Math.round(Math.max(0, Math.min(1, motionState.journeyProgress || 0)) * 100)}%`,
+    ...(isPublicExperienceTab.value ? { overflow: 'hidden' } : {})
   };
 });
 
@@ -2218,10 +2216,6 @@ function moveLinkRow(index, direction) {
   list.splice(nextIndex, 0, row);
 }
 
-function openBlogList() {
-  router.push({ name: 'blog' });
-}
-
 function openLink(url) {
   const target = String(url || '').trim();
   if (!target) return;
@@ -2417,10 +2411,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.dashboard-layout.dashboard-layout--about {
+.dashboard-layout.dashboard-layout--public-experience {
   display: block;
-  height: auto;
-  overflow: visible;
+  height: 100%;
+  overflow: hidden;
 }
 
 .author-route-sidebar {
@@ -2525,12 +2519,14 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-.content-panel.content-panel--about {
+.content-panel.content-panel--public-experience {
   --liquid-bg: transparent;
   --liquid-border: transparent;
   --liquid-shadow: none;
   padding: 0;
   border-radius: 0;
+  height: 100%;
+  overflow: hidden;
   perspective: none;
 }
 
@@ -4594,20 +4590,20 @@ onBeforeUnmount(() => {
   background: var(--theme-surface-soft, rgba(255, 255, 255, 0.08));
 }
 
-.author-page.author-page--public {
+.author-page.author-page--public:not(.author-page--public-workspace) {
   height: auto;
   min-height: 100%;
   display: block;
 }
 
-.author-page--public .dashboard-layout {
+.author-page--public:not(.author-page--public-workspace) .dashboard-layout {
   height: auto;
   min-height: 100%;
   overflow: visible;
   align-items: start;
 }
 
-.author-page--public .author-route-sidebar {
+.author-page--public:not(.author-page--public-workspace) .author-route-sidebar {
   position: sticky;
   top: 0;
   height: auto;
@@ -4615,10 +4611,17 @@ onBeforeUnmount(() => {
   overflow: visible;
 }
 
-.author-page--public .sidebar-route-menu,
-.author-page--public .content-panel {
+.author-page--public:not(.author-page--public-workspace) .sidebar-route-menu,
+.author-page--public:not(.author-page--public-workspace) .content-panel {
   height: auto;
   overflow: visible;
+}
+
+.author-page.author-page--public-workspace {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4663,6 +4666,20 @@ onBeforeUnmount(() => {
   .story-skill-ribbon {
     mask-image: none;
     -webkit-mask-image: none;
+  }
+}
+
+@media (max-width: 1199.98px) {
+  .author-page.author-page--public-workspace,
+  .dashboard-layout.dashboard-layout--public-experience,
+  .content-panel.content-panel--public-experience {
+    height: auto;
+    min-height: 100%;
+    overflow: visible !important;
+  }
+
+  .author-page.author-page--public-workspace {
+    display: block;
   }
 }
 

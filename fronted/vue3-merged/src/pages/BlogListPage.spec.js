@@ -112,8 +112,8 @@ async function mountPage(initialPath = '/blog', { playerBridge = null } = {}) {
       provide: playerBridge ? { [PLAYER_BRIDGE_KEY]: playerBridge } : {},
       stubs: {
         SubtleScrollArea: {
-          props: ['tag'],
-          template: '<component :is="tag || \'div\'"><slot /></component>'
+          props: ['tag', 'scrollable', 'appScrollOwner'],
+          template: '<component :is="tag || \'div\'" :data-scrollable="scrollable" :data-app-scroll-owner="appScrollOwner"><slot /></component>'
         },
         AdminBlogCategoriesPanel: {
           props: ['items'],
@@ -292,6 +292,9 @@ describe('BlogListPage category panel', () => {
     expect(wrapper.get('.content-shell__left .left-switch').exists()).toBe(true);
     expect(wrapper.get('.content-shell__main .feed-column').exists()).toBe(true);
     expect(wrapper.get('.content-shell__right .sidebar-column').exists()).toBe(true);
+    expect(wrapper.findAll('main')).toHaveLength(0);
+    expect(wrapper.get('.main-column').attributes('data-scrollable')).toBe('true');
+    expect(wrapper.get('.main-column').attributes('data-app-scroll-owner')).toBe('true');
     expect(wrapper.findAll('.life-preview-card').map((item) => item.text())).toEqual(
       expect.arrayContaining([expect.stringContaining('真实相册'), expect.stringContaining('真实动态')])
     );
@@ -338,8 +341,8 @@ describe('BlogListPage category panel', () => {
     expect(wrapper.get('.content-shell__left .left-switch').exists()).toBe(true);
     expect(wrapper.get('[data-testid="albums-rail-error"]').text()).toContain('相册暂时没有读到');
     expect(wrapper.get('[data-testid="moments-rail-error"]').text()).toContain('动态暂时没有读到');
-    expect(wrapper.get('.weather-card').text()).toContain('天气暂时不可用');
-    expect(wrapper.get('.quote-card').text()).toContain('今日一言暂时不可用');
+    expect(wrapper.get('.weather-card').text()).toContain('天气读取失败');
+    expect(wrapper.get('.quote-card').text()).toContain('今日一言读取失败');
     expect(wrapper.get('.music-projection').text()).toContain('仍可打开的曲目');
 
     await wrapper.get('.music-projection button').trigger('click');

@@ -31,4 +31,23 @@ describe('top menu presentation', () => {
       pastThreshold: true
     });
   });
+
+  it('allows the full navigation to collapse before the page scrolls', () => {
+    expect(resolveTopMenuPresentation({
+      scrollTop: 0,
+      manualCollapsed: true
+    })).toMatchObject({
+      compact: true,
+      full: false,
+      pastThreshold: false
+    });
+  });
+
+  it('gives an explicit collapsed choice precedence over expand state', () => {
+    expect(resolveTopMenuPresentation({
+      scrollTop: 480,
+      manualExpanded: true,
+      manualCollapsed: true
+    }).compact).toBe(true);
+  });
 });

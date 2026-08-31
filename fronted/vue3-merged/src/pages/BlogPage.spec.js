@@ -115,8 +115,8 @@ async function mountRoute(initialPath) {
       stubs: {
         SubtleScrollArea: {
           name: 'SubtleScrollArea',
-          props: ['tag', 'scrollable'],
-          template: '<component :is="tag || \'div\'"><slot /></component>'
+          props: ['tag', 'scrollable', 'appScrollOwner'],
+          template: '<component :is="tag || \'div\'" :data-scrollable="scrollable" :data-app-scroll-owner="appScrollOwner"><slot /></component>'
         },
         AsyncBlogRichEditor: {
           name: 'AsyncBlogRichEditor',
@@ -181,12 +181,14 @@ describe('BlogPage reader/editor regression', () => {
     HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
-  it('loads reader deep links through the public scroll workspace and keeps related navigation canonical', async () => {
+  it('loads reader deep links through the center-owned scroll workspace and keeps related navigation canonical', async () => {
     const { wrapper, router } = await mountRoute('/blog/42');
     const page = wrapper.findComponent(BlogPage);
 
     expect(mocked.api.getPostDetail).toHaveBeenCalledWith(42, mocked.auth.authorizedFetch);
-    expect(page.find('[data-blog-workspace="reader"]').attributes('data-scroll-owner')).toBe('app');
+    expect(page.find('[data-blog-workspace="reader"]').attributes('data-scroll-owner')).toBe('center');
+    expect(page.find('.detail-scroll').attributes('data-app-scroll-owner')).toBe('true');
+    expect(page.find('.detail-scroll').attributes('data-scrollable')).toBe('true');
     expect(page.text()).toContain('文章 42');
 
     const related = page.findAll('.detail-nav-list button').find((button) => button.text().includes('文章 43'));

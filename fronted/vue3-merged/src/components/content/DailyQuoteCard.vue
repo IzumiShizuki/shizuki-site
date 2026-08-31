@@ -21,11 +21,11 @@
     </blockquote>
     <div v-else class="widget-state unavailable" role="status">
       <i class="fas fa-quote-left" aria-hidden="true"></i>
-      <strong>今日一言暂时不可用</strong>
-      <span>当前没有今日快照、本地精选或可用的历史回退。</span>
+      <strong>{{ error ? '今日一言读取失败' : '一言来源尚未配置' }}</strong>
+      <span>{{ error ? '这次没有连接到一言服务，可以稍后重新读取。' : '站点还没有可展示的今日快照或本地精选。' }}</span>
     </div>
 
-    <div class="widget-actions">
+    <div v-if="quote?.available" class="widget-actions">
       <button type="button" :disabled="loading" @click="showAlternative">
         <i class="fas fa-shuffle" aria-hidden="true"></i>
         换一句本地精选
@@ -53,7 +53,7 @@
       <div v-if="quote.sourceUrl"><dt>来源链接</dt><dd><a :href="quote.sourceUrl" target="_blank" rel="noopener noreferrer">查看保存的来源</a></dd></div>
     </dl>
 
-    <footer class="widget-provenance">
+    <footer v-if="quote?.available || error" class="widget-provenance">
       <span v-if="quote?.available">来源：{{ providerLabel }}</span>
       <button v-if="error && !loading" type="button" @click="returnToToday">重新读取</button>
     </footer>

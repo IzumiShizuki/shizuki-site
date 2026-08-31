@@ -35,6 +35,12 @@ describe('personal content layout primitives', () => {
     expect(wrapper.get('.content-shell__left').element.tagName).toBe('ASIDE');
     expect(wrapper.get('.content-shell__right').element.tagName).toBe('ASIDE');
 
+    const landmarkFree = mount(ThreeColumnContentShell, {
+      props: { mainTag: 'div' },
+      slots: { default: '<article>nested workspace</article>' }
+    });
+    expect(landmarkFree.get('.content-shell__main').element.tagName).toBe('DIV');
+
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/content/ThreeColumnContentShell.vue'),
       'utf8'

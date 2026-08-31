@@ -1,6 +1,6 @@
 <template>
-  <div class="blog-layout blog-layout--reader" data-blog-workspace="reader" data-scroll-owner="app">
-    <SubtleScrollArea tag="aside" class="left-panel liquid-material" :scrollable="false">
+  <div class="blog-layout blog-layout--reader" data-blog-workspace="reader" data-scroll-owner="center">
+    <SubtleScrollArea tag="aside" class="left-panel liquid-material" aria-label="博客导航">
       <slot name="navigation" />
     </SubtleScrollArea>
 
@@ -8,9 +8,9 @@
       <slot />
     </section>
 
-    <aside class="right-panel liquid-material">
+    <SubtleScrollArea tag="aside" class="right-panel liquid-material" aria-label="博客上下文">
       <slot name="auxiliary" />
-    </aside>
+    </SubtleScrollArea>
   </div>
 </template>
 
@@ -28,17 +28,14 @@ defineOptions({ name: 'BlogReaderWorkspace' });
 .left-panel,
 .center-panel,
 .right-panel {
-  height: auto;
+  height: 100%;
   min-height: 0;
-  align-self: start;
+  align-self: stretch;
 }
 
 .left-panel,
 .right-panel {
-  position: sticky;
-  top: 0;
-  max-height: none;
-  overflow: visible;
+  max-height: 100%;
 }
 
 .left-panel {
@@ -52,7 +49,7 @@ defineOptions({ name: 'BlogReaderWorkspace' });
 
 .center-panel {
   min-width: 0;
-  overflow: visible;
+  overflow: hidden;
   container: blog-center / inline-size;
 }
 
@@ -64,12 +61,9 @@ defineOptions({ name: 'BlogReaderWorkspace' });
 @media (max-width: 980px) {
   .left-panel,
   .right-panel {
-    position: static;
+    height: auto;
     max-height: none;
-  }
-
-  .left-panel {
-    max-height: 280px;
+    overflow: visible !important;
   }
 }
 </style>

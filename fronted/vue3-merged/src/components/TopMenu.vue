@@ -6,7 +6,8 @@
       expanded: menuPresentation.full,
       compact: menuPresentation.compact,
       'route-scrolled': menuPresentation.pastThreshold,
-      'manual-expanded': menuExpanded
+      'manual-expanded': menuExpanded,
+      'manual-collapsed': menuCollapsed
     }"
     :data-route-scroll-top="normalizedRouteScrollTop"
     data-transform-owner="menu-shell"
@@ -323,7 +324,6 @@
     />
 
     <button
-      v-if="menuPresentation.pastThreshold"
       type="button"
       class="toggle-tab liquid-material ripple-trigger"
       :aria-label="menuPresentation.compact ? '展开完整导航' : '收拢为紧凑导航'"
@@ -347,6 +347,10 @@ import { resolveTopMenuPresentation } from '../utils/topMenuPresentation';
 
 const props = defineProps({
   menuExpanded: {
+    type: Boolean,
+    default: false
+  },
+  menuCollapsed: {
     type: Boolean,
     default: false
   },
@@ -444,7 +448,7 @@ const emit = defineEmits([
 ]);
 const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
-const { menuExpanded, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive, isHomeRoute, homeClockBehavior, homeClockVisible, homeWallpaperClockOverride, homeMotionLevel, homeColorMode, homeAccentHex, routeScrollTop } = toRefs(props);
+const { menuExpanded, menuCollapsed, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive, isHomeRoute, homeClockBehavior, homeClockVisible, homeWallpaperClockOverride, homeMotionLevel, homeColorMode, homeAccentHex, routeScrollTop } = toRefs(props);
 const avatarLoadFailed = ref(false);
 const authorAvatarLoadFailed = ref(false);
 const appearancePanelOpen = ref(false);
@@ -465,7 +469,8 @@ const normalizedRouteScrollTop = computed(() => {
 });
 const menuPresentation = computed(() => resolveTopMenuPresentation({
   scrollTop: normalizedRouteScrollTop.value,
-  manualExpanded: menuExpanded.value
+  manualExpanded: menuExpanded.value,
+  manualCollapsed: menuCollapsed.value
 }));
 const clockOptions = Object.freeze([
   { value: 'auto', label: '自动' },
@@ -2063,6 +2068,7 @@ button.author-info-item:focus-visible {
   }
 
   .toggle-tab {
+    display: none;
     position: fixed;
     left: 8px;
     top: 50%;

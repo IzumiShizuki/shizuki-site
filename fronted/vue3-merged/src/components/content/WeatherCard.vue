@@ -38,11 +38,11 @@
 
     <div v-else class="widget-state unavailable" role="status">
       <i class="fas fa-cloud" aria-hidden="true"></i>
-      <strong>天气暂时不可用</strong>
-      <span>目前没有足够新的站点观测或可用回退。</span>
+      <strong>{{ error ? '天气读取失败' : '天气源尚未配置' }}</strong>
+      <span>{{ error ? '这次没有连接到天气服务，可以稍后重新读取。' : '站点还没有可展示的观测，配置完成后会自动出现。' }}</span>
     </div>
 
-    <div class="widget-actions">
+    <div v-if="weather?.available" class="widget-actions">
       <button type="button" :aria-expanded="detailsOpen" :aria-controls="detailsId" @click="toggleDetails">
         <span>{{ detailsOpen ? '收起详情' : '查看详情' }}</span>
         <i class="fas fa-chevron-down" :class="{ rotated: detailsOpen }" aria-hidden="true"></i>
@@ -86,7 +86,7 @@
       >
         Weather data by {{ weather.attribution.name }}
       </a>
-      <button v-if="(error || !weather?.available) && !loading" type="button" @click="retryCurrent">重新读取</button>
+      <button v-if="error && !loading" type="button" @click="retryCurrent">重新读取</button>
     </footer>
   </section>
 </template>

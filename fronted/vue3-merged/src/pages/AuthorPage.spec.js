@@ -12,6 +12,7 @@ const mocked = vi.hoisted(() => ({
   getAdminAuthorProfile: vi.fn(),
   updateAdminAuthorProfile: vi.fn(),
   uploadAuthorAvatar: vi.fn(),
+  listPosts: vi.fn(),
   listPublicPostWhispers: vi.fn(),
   getFeaturedAlbums: vi.fn(),
   getFeaturedMoments: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('../services/authorApi', () => ({
 }));
 
 vi.mock('../services/blogApi', () => ({
+  listPosts: (...args) => mocked.listPosts(...args),
   listPublicPostWhispers: (...args) => mocked.listPublicPostWhispers(...args)
 }));
 
@@ -106,6 +108,7 @@ async function mountPage(initialPath, groups = ['USER'], permissions = []) {
     routes: [
       { path: '/author', name: 'author', component: { template: '<div />' } },
       { path: '/blog', name: 'blog', component: { template: '<div />' } },
+      { path: '/blog/:postId', name: 'blog-detail', component: { template: '<div />' } },
       { path: '/albums', name: 'albums', component: { template: '<div />' } },
       { path: '/albums/:publicSlug', name: 'album-detail', component: { template: '<div />' } },
       { path: '/moments', name: 'moments', component: { template: '<div />' } },
@@ -145,6 +148,18 @@ describe('AuthorPage admin tab handling', () => {
     mocked.getAdminAuthorProfile.mockReset().mockResolvedValue(payload);
     mocked.updateAdminAuthorProfile.mockReset().mockResolvedValue(payload);
     mocked.uploadAuthorAvatar.mockReset().mockResolvedValue({ assetId: 1, url: 'https://example.com/avatar.png' });
+    mocked.listPosts.mockReset().mockResolvedValue({
+      items: [{
+        postId: 101,
+        title: '真实站点文章',
+        summary: '这是一段真实文章摘要。',
+        categoryCode: 'notes',
+        tags: ['site'],
+        readingMinutes: 4,
+        publishedAt: '2026-08-30T10:00:00Z'
+      }],
+      total: 1
+    });
     mocked.listPublicPostWhispers.mockReset().mockResolvedValue([]);
     mocked.getFeaturedAlbums.mockReset().mockResolvedValue([]);
     mocked.getFeaturedMoments.mockReset().mockResolvedValue([]);
@@ -187,6 +202,19 @@ describe('AuthorPage admin tab handling', () => {
     expect(wrapper.findAll('.about-card-index').map((item) => item.text())).toEqual(['01', '02', '03']);
     expect(wrapper.findAll('a.link-btn').map((item) => item.attributes('href'))).toEqual(['/#/blog', '/#/']);
     expect(wrapper.findAll('.life-rail-heading > a').map((item) => item.attributes('href'))).toEqual(['/albums', '/moments']);
+  });
+
+  it('keeps the shared public workspace while rendering real posts in the posts tab', async () => {
+    const { wrapper } = await mountPage('/author?tab=posts', ['USER']);
+
+    expect(wrapper.get('[data-author-about-layout="responsive"]').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__left .author-route-sidebar').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__right .author-life-widgets').exists()).toBe(true);
+    expect(wrapper.get('.author-public-posts h2').text()).toBe('站点文章');
+    expect(wrapper.get('.post-entry h3').text()).toBe('真实站点文章');
+    expect(mocked.listPosts).toHaveBeenCalledWith({ pageNo: 1, pageSize: 12 });
+
+    expect(wrapper.get('.post-entry').attributes('href')).toBe('/blog/101');
   });
 
   it('preserves intentionally repeated custom artwork in the about composition', async () => {
@@ -239,8 +267,8 @@ describe('AuthorPage admin tab handling', () => {
     expect(wrapper.get('.about-manifesto-copy h2').text()).toBe('关于这座小站');
     expect(wrapper.get('[data-testid="albums-rail-error"]').text()).toContain('相册暂时没有读到');
     expect(wrapper.get('[data-testid="moments-rail-error"]').text()).toContain('动态暂时没有读到');
-    expect(wrapper.get('.weather-card').text()).toContain('天气暂时不可用');
-    expect(wrapper.get('.quote-card').text()).toContain('今日一言暂时不可用');
+    expect(wrapper.get('.weather-card').text()).toContain('天气源尚未配置');
+    expect(wrapper.get('.quote-card').text()).toContain('一言来源尚未配置');
     expect(mocked.getNearbyWeather).not.toHaveBeenCalled();
   });
 

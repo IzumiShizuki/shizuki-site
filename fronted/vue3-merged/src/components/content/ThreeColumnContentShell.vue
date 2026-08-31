@@ -11,9 +11,9 @@
       <slot name="left" />
     </aside>
 
-    <main class="content-shell__main">
+    <component :is="mainTag" class="content-shell__main">
       <slot />
-    </main>
+    </component>
 
     <aside v-if="$slots.right" class="content-shell__right" aria-label="生活辅助信息">
       <slot name="right" />
@@ -24,6 +24,15 @@
     </div>
   </div>
 </template>
+
+<script setup>
+defineProps({
+  mainTag: {
+    type: String,
+    default: 'main'
+  }
+});
+</script>
 
 <style scoped>
 .content-shell {

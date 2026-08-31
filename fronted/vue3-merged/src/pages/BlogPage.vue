@@ -2,7 +2,7 @@
   <section
     class="route-page blog-page motion-managed"
     :class="{ 'blog-page--public': viewMode === 'detail', 'blog-page--workspace': viewMode === 'editor' }"
-    :data-scroll-owner="viewMode === 'editor' ? 'workspace' : 'app'"
+    :data-scroll-owner="viewMode === 'editor' ? 'workspace' : (isMobileLike ? 'app' : 'center')"
     :data-motion-mode="motionPreference.effectiveMode.value"
   >
     <component :is="activeWorkspaceComponent">
@@ -137,7 +137,14 @@
         <div v-if="viewMode === 'detail'" class="detail-view" :style="readerTransitionStyle">
           <p v-if="detailState.error" class="error-text">{{ detailState.error }}</p>
           <template v-else-if="detailState.post">
-            <SubtleScrollArea ref="articleScrollRef" class="detail-scroll" :scrollable="false">
+            <SubtleScrollArea
+              ref="articleScrollRef"
+              tag="section"
+              class="detail-scroll"
+              aria-label="文章正文"
+              :scrollable="!isMobileLike"
+              :app-scroll-owner="!isMobileLike"
+            >
               <header class="detail-head">
                 <div class="detail-top-actions">
                   <button
@@ -668,6 +675,7 @@ import BlogEditorWorkspace from '../components/blog/BlogEditorWorkspace.vue';
 import BlogReaderWorkspace from '../components/blog/BlogReaderWorkspace.vue';
 import { useAppScrollRoot } from '../composables/useAppScrollRoot';
 import { useAuthSession } from '../composables/useAuthSession';
+import { useBlogResponsiveLayout } from '../composables/useBlogResponsiveLayout';
 import { useMotionPreference } from '../composables/useMotionPreference';
 import { activeRouteTransitionName, consumeRouteFocusTarget } from '../composables/useViewTransitionNavigation';
 import {
@@ -708,6 +716,10 @@ import { createBlogEditorSnapshot, hasBlogEditorUnsavedChanges } from './blogEdi
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
 
 const motionPreference = useMotionPreference();
+const { isMobileLike } = useBlogResponsiveLayout({
+  desktopBreakpoint: 1366,
+  mobileBreakpoint: 980
+});
 
 const AsyncBlogRichEditor = defineAsyncComponent(() => import('../components/blog/BlogRichEditor.vue'));
 
@@ -5232,10 +5244,6 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .left-panel {
-    max-height: 280px;
-  }
-
   .editor-topbar {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -5274,58 +5282,49 @@ onBeforeUnmount(() => {
   }
 }
 
-.blog-page.blog-page--public {
-  height: auto;
-  min-height: 100%;
-  overflow: visible;
-}
-
-.blog-page--public .blog-layout {
-  flex: 0 0 auto;
-  height: auto;
-  min-block-size: 0;
-  overflow: visible;
-  grid-template-rows: auto;
-  align-items: start;
-}
-
-.blog-page--public .left-panel,
-.blog-page--public .center-panel,
-.blog-page--public .right-panel {
-  height: auto;
-  align-self: start;
-}
-
-.blog-page--public .left-panel,
-.blog-page--public .right-panel {
-  position: sticky;
-  top: 0;
-  max-height: none;
-  overflow: visible;
-}
-
-.blog-page--public .center-panel,
-.blog-page--public .detail-view,
-.blog-page--public .detail-scroll,
-.blog-page--public .toc-body,
-.blog-page--public .toc-list {
-  height: auto;
-  overflow: visible;
-}
-
-.blog-page--public .center-panel,
-.blog-page--public .detail-view {
-  display: block;
-}
-
-.blog-page--public .toc-body {
-  grid-template-rows: auto auto;
-}
-
 @media (max-width: 980px) {
+  .blog-page.blog-page--public {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .blog-page--public .blog-layout {
+    flex: 0 0 auto;
+    height: auto;
+    min-block-size: 0;
+    overflow: visible;
+    grid-template-rows: auto;
+    align-items: start;
+  }
+
+  .blog-page--public .left-panel,
+  .blog-page--public .center-panel,
+  .blog-page--public .right-panel {
+    height: auto;
+    align-self: start;
+  }
+
+  .blog-page--public .center-panel,
+  .blog-page--public .detail-view,
+  .blog-page--public .detail-scroll,
+  .blog-page--public .toc-body,
+  .blog-page--public .toc-list {
+    height: auto;
+    overflow: visible !important;
+  }
+
+  .blog-page--public .center-panel,
+  .blog-page--public .detail-view {
+    display: block;
+  }
+
+  .blog-page--public .toc-body {
+    grid-template-rows: auto auto;
+  }
+
   .blog-page--public .left-panel,
   .blog-page--public .right-panel {
-    position: static;
     max-height: none;
   }
 }

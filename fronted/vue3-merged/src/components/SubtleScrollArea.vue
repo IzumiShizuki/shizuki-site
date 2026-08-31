@@ -10,7 +10,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useAppScrollRoot } from '../composables/useAppScrollRoot';
 
 const props = defineProps({
   tag: {
@@ -29,10 +30,22 @@ const props = defineProps({
   scrollable: {
     type: Boolean,
     default: true
+  },
+  appScrollOwner: {
+    type: Boolean,
+    default: false
+  },
+  appScrollOwnerMedia: {
+    type: String,
+    default: '(min-width: 901px) and (orientation: landscape)'
   }
 });
 
 const rootRef = ref(null);
+const appScrollRoot = useAppScrollRoot();
+const mediaMatches = ref(false);
+let ownerMediaQuery = null;
+let releaseScrollOwner = null;
 
 const axisClass = computed(() => {
   if (props.axis === 'x') return 'axis-x';
@@ -43,6 +56,43 @@ const axisClass = computed(() => {
 function getElement() {
   return rootRef.value;
 }
+
+function releaseOwner() {
+  releaseScrollOwner?.();
+  releaseScrollOwner = null;
+}
+
+function syncOwner() {
+  releaseOwner();
+  if (!props.appScrollOwner || !props.scrollable || !mediaMatches.value || !rootRef.value) return;
+  releaseScrollOwner = appScrollRoot.claimScrollOwner(rootRef.value);
+}
+
+function updateMediaMatch(event) {
+  mediaMatches.value = Boolean(event?.matches ?? ownerMediaQuery?.matches);
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    mediaMatches.value = true;
+  } else {
+    ownerMediaQuery = window.matchMedia(props.appScrollOwnerMedia);
+    mediaMatches.value = ownerMediaQuery.matches;
+    ownerMediaQuery.addEventListener?.('change', updateMediaMatch);
+  }
+  syncOwner();
+});
+
+watch(
+  () => [props.appScrollOwner, props.scrollable, mediaMatches.value, rootRef.value],
+  syncOwner,
+  { flush: 'post' }
+);
+
+onBeforeUnmount(() => {
+  ownerMediaQuery?.removeEventListener?.('change', updateMediaMatch);
+  releaseOwner();
+});
 
 defineExpose({
   el: rootRef,

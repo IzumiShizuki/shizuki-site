@@ -155,10 +155,27 @@ describe('WeatherCard', () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('天气暂时不可用');
+    expect(wrapper.text()).toContain('天气源尚未配置');
     expect(wrapper.text()).not.toContain('0°');
     expect(wrapper.find('.weather-primary').exists()).toBe(false);
+    expect(wrapper.find('.widget-actions').exists()).toBe(false);
+    expect(wrapper.find('.widget-provenance button').exists()).toBe(false);
     expect(wrapper.get('.widget-provenance a').text()).toContain('Open-Meteo');
+    wrapper.unmount();
+  });
+
+  it('keeps retry for a transient initial weather failure', async () => {
+    const loadSite = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary outage'))
+      .mockResolvedValueOnce(siteWeather);
+    const wrapper = mountCard({ loadSite });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('天气读取失败');
+    await wrapper.get('.widget-provenance button').trigger('click');
+    await flushPromises();
+    expect(loadSite).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('杭州');
     wrapper.unmount();
   });
 });

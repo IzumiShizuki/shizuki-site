@@ -1,7 +1,7 @@
 <template>
   <div class="author-about-experience" data-author-about-layout="responsive">
-    <ThreeColumnContentShell>
-      <template v-if="!mobileLayout" #left>
+    <ThreeColumnContentShell class="author-public-content-shell" main-tag="div">
+      <template v-if="!compactLayout" #left>
         <StickyCardStack>
           <AuthorProfileRail
             :items="tabs"
@@ -9,43 +9,53 @@
             :admin-user="adminUser"
             :profile="profile"
             public-mode
+            workspace
             show-profile
             @select="$emit('select-tab', $event)"
           />
         </StickyCardStack>
       </template>
 
-      <div class="author-about-center">
-        <AuthorAboutStoryColumn
+      <SubtleScrollArea
+        tag="section"
+        class="author-about-center"
+        :scrollable="!compactLayout"
+        :app-scroll-owner="!compactLayout"
+        aria-label="作者公开内容"
+      >
+        <template v-if="activeTab === 'about'">
+          <AuthorAboutStoryColumn
           :about="about"
           :journey="journey"
           :can-edit="canEdit"
           @edit="$emit('edit')"
           @open-journey="$emit('select-tab', 'journey')"
-        />
-        <AuthorLifeCardRail
+          />
+          <AuthorLifeCardRail
           kind="albums"
           :items="albums"
           :loading="albumsLoading"
           :error="albumsError"
           @retry="$emit('retry-albums')"
-        />
-        <AuthorLifeCardRail
+          />
+          <AuthorLifeCardRail
           kind="moments"
           :items="moments"
           :loading="momentsLoading"
           :error="momentsError"
           @retry="$emit('retry-moments')"
-        />
-      </div>
+          />
+        </template>
+        <AuthorPublicPostsColumn v-else-if="activeTab === 'posts'" />
+      </SubtleScrollArea>
 
-      <template v-if="!mobileLayout" #right>
+      <template v-if="!compactLayout" #right>
         <AuthorLifeWidgetRail />
       </template>
 
       <template #auxiliary-trigger>
         <button
-          v-if="mobileLayout"
+          v-if="compactLayout"
           type="button"
           class="life-drawer-trigger"
           aria-haspopup="dialog"
@@ -58,7 +68,7 @@
       </template>
     </ThreeColumnContentShell>
 
-    <AuxiliaryDrawer v-if="mobileLayout" v-model="drawerOpen" title="生活侧栏">
+    <AuxiliaryDrawer v-if="compactLayout" v-model="drawerOpen" title="生活侧栏">
       <AuthorProfileRail
         :items="tabs"
         :active-key="activeTab"
@@ -75,12 +85,14 @@
 
 <script setup>
 import { onBeforeUnmount, ref } from 'vue';
+import SubtleScrollArea from '../SubtleScrollArea.vue';
 import AuxiliaryDrawer from '../content/AuxiliaryDrawer.vue';
 import StickyCardStack from '../content/StickyCardStack.vue';
 import ThreeColumnContentShell from '../content/ThreeColumnContentShell.vue';
 import AuthorAboutStoryColumn from './AuthorAboutStoryColumn.vue';
 import AuthorLifeCardRail from './AuthorLifeCardRail.vue';
 import AuthorLifeWidgetRail from './AuthorLifeWidgetRail.vue';
+import AuthorPublicPostsColumn from './AuthorPublicPostsColumn.vue';
 import AuthorProfileRail from './AuthorProfileRail.vue';
 
 defineProps({
@@ -140,18 +152,18 @@ defineProps({
 
 const emit = defineEmits(['select-tab', 'edit', 'retry-albums', 'retry-moments']);
 
-function createMobileQuery() {
+function createCompactQuery() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
-  return window.matchMedia('(max-width: 899.98px)');
+  return window.matchMedia('(max-width: 1199.98px)');
 }
 
-const mobileQuery = createMobileQuery();
-const mobileLayout = ref(Boolean(mobileQuery?.matches));
+const compactQuery = createCompactQuery();
+const compactLayout = ref(Boolean(compactQuery?.matches));
 const drawerOpen = ref(false);
 
-function syncMobileLayout(event) {
-  mobileLayout.value = Boolean(event.matches);
-  if (!mobileLayout.value) drawerOpen.value = false;
+function syncCompactLayout(event) {
+  compactLayout.value = Boolean(event.matches);
+  if (!compactLayout.value) drawerOpen.value = false;
 }
 
 function selectFromDrawer(tabKey) {
@@ -159,12 +171,12 @@ function selectFromDrawer(tabKey) {
   emit('select-tab', tabKey);
 }
 
-if (mobileQuery?.addEventListener) mobileQuery.addEventListener('change', syncMobileLayout);
-else mobileQuery?.addListener?.(syncMobileLayout);
+if (compactQuery?.addEventListener) compactQuery.addEventListener('change', syncCompactLayout);
+else compactQuery?.addListener?.(syncCompactLayout);
 
 onBeforeUnmount(() => {
-  if (mobileQuery?.removeEventListener) mobileQuery.removeEventListener('change', syncMobileLayout);
-  else mobileQuery?.removeListener?.(syncMobileLayout);
+  if (compactQuery?.removeEventListener) compactQuery.removeEventListener('change', syncCompactLayout);
+  else compactQuery?.removeListener?.(syncCompactLayout);
 });
 </script>
 
@@ -174,9 +186,41 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.author-about-experience,
+.author-public-content-shell,
+.author-about-center {
+  min-height: 0;
+}
+
+.author-about-experience,
+.author-public-content-shell {
+  height: 100%;
+}
+
+.author-public-content-shell {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+:deep(.author-public-content-shell .content-shell__left),
+:deep(.author-public-content-shell .content-shell__main),
+:deep(.author-public-content-shell .content-shell__right) {
+  min-height: 0;
+  height: 100%;
+}
+
+:deep(.author-public-content-shell .content-shell__left),
+:deep(.author-public-content-shell .content-shell__right) {
+  align-self: stretch;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .author-about-center {
   display: grid;
   gap: 18px;
+  height: 100%;
+  padding: 2px 4px 8px;
+  overscroll-behavior: contain;
 }
 
 .life-drawer-trigger {
@@ -198,5 +242,18 @@ onBeforeUnmount(() => {
 .life-drawer-trigger:focus-visible {
   outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
   outline-offset: 3px;
+}
+
+@media (max-width: 1199.98px) {
+  .author-about-experience,
+  .author-public-content-shell,
+  .author-about-center {
+    height: auto;
+  }
+
+  .author-about-center {
+    padding: 0;
+    overflow: visible;
+  }
 }
 </style>

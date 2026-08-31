@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 import AuthorLifeCardRail from './AuthorLifeCardRail.vue';
+import { HttpError } from '../../services/httpClient';
 
 async function mountRail(props) {
   const router = createRouter({
@@ -50,5 +51,20 @@ describe('AuthorLifeCardRail', () => {
     expect(wrapper.get('.life-preview-card').attributes('href')).toBe('/moments/mom_public_2');
     expect(wrapper.get('.life-preview-card img').attributes('src')).toContain('/variants/THUMB_WEBP');
     expect(wrapper.text()).toContain('一条真实动态');
+  });
+
+  it('does not offer dead navigation or retry when the capability is disabled', async () => {
+    const wrapper = await mountRail({
+      kind: 'albums',
+      items: [],
+      error: new HttpError('disabled', {
+        status: 404,
+        problemCode: 'FEATURE_DISABLED'
+      })
+    });
+
+    expect(wrapper.get('[data-testid="albums-rail-disabled"]').text()).toContain('相册尚未开放');
+    expect(wrapper.find('.life-rail-heading > a').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="albums-rail-disabled"] button').exists()).toBe(false);
   });
 });

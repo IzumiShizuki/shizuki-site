@@ -11,6 +11,35 @@ function isScrollableElement(value) {
   return typeof HTMLElement !== 'undefined' && value instanceof HTMLElement;
 }
 
+export function createAppScrollOwnerController() {
+  const element = shallowRef(null);
+  let activeClaim = null;
+
+  function claim(nextElement) {
+    if (!isScrollableElement(nextElement)) return () => {};
+    const claimToken = Symbol('app-scroll-owner-claim');
+    activeClaim = claimToken;
+    element.value = nextElement;
+
+    return () => {
+      if (activeClaim !== claimToken) return;
+      activeClaim = null;
+      element.value = null;
+    };
+  }
+
+  function clear() {
+    activeClaim = null;
+    element.value = null;
+  }
+
+  return {
+    element,
+    claim,
+    clear
+  };
+}
+
 export function useActiveScrollSource(sourceRef) {
   const activeSource = shallowRef(null);
   const scrollTop = ref(0);
@@ -72,6 +101,8 @@ export function useAppScrollRoot() {
   return {
     element: context?.element || emptyElement,
     isActive: context?.isActive || inactive,
-    scrollTop: context?.scrollTop || emptyScrollTop
+    scrollTop: context?.scrollTop || emptyScrollTop,
+    claimScrollOwner: context?.claimScrollOwner || (() => () => {}),
+    clearScrollOwner: context?.clearScrollOwner || (() => {})
   };
 }

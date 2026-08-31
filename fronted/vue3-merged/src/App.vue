@@ -31,6 +31,7 @@
       <TopMenu
         v-if="!isMobileShellRoute && !isFocusActive && !isDesktopManagedSurface"
         :menu-expanded="menuExpanded"
+        :menu-collapsed="menuCollapsed"
         :theme-mode="ui.state.themeMode"
         :ai-chat-active="aiChatActive"
         :ai-chat-disabled="isAiHubRoute"
@@ -73,14 +74,14 @@
         <component :is="Component" />
       </RouterView>
 
-      <section v-else class="workspace-shell" :class="{ expanded: fullNavigationVisible, 'with-ai-panel': sidebarAiColumnMounted }">
+      <section v-else class="workspace-shell" :class="{ expanded: workspaceNavigationSpaceReserved, 'with-ai-panel': sidebarAiColumnMounted }">
         <main
           ref="routeContentRef"
           class="route-content"
           :class="{
             'route-content-home': isHomeRoute,
-            'route-content-app-scroll': isAppScrollRoute,
-            'route-content-fixed-workspace': !isAppScrollRoute,
+            'route-content-app-scroll': routeContentOwnsScroll,
+            'route-content-fixed-workspace': !routeContentOwnsScroll,
             'route-content-blog-workspace': isBlogWorkspaceRoute,
             'route-content-profile': isProfileRoute,
             'route-content-music-player': isMusicPlayerDetailRoute,
@@ -341,7 +342,7 @@ import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
 import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
 import { useMotionPreference } from './composables/useMotionPreference';
-import { provideAppScrollRoot, useActiveScrollSource } from './composables/useAppScrollRoot';
+import { createAppScrollOwnerController, provideAppScrollRoot, useActiveScrollSource } from './composables/useAppScrollRoot';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { useFocusSession } from './utils/focusSessionState';
 import { HOME_STAGE_CONTEXT_KEY, resolveHomeClockVisibility, useHomeAppearance } from './utils/homeTimeStageState';
@@ -405,6 +406,7 @@ const PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v2';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
 const MUSIC_EQ_CHANGE_EVENT = 'shizuki:music:eq-change';
 const menuExpanded = ref(false);
+const menuCollapsed = ref(false);
 const routeContentRef = ref(null);
 const levitationRef = ref(null);
 const clickRipples = ref([]);
@@ -586,17 +588,27 @@ const isAdminUser = computed(() => {
   return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
 });
 
-const activeRouteScrollSource = computed(() => (isAppScrollRoute.value ? routeContentRef.value : null));
+const nestedScrollOwner = createAppScrollOwnerController();
+const activeRouteScrollSource = computed(() => (
+  nestedScrollOwner.element.value || (isAppScrollRoute.value ? routeContentRef.value : null)
+));
+const routeContentOwnsScroll = computed(() => isAppScrollRoute.value && !nestedScrollOwner.element.value);
 const { scrollTop: routeScrollTop } = useActiveScrollSource(activeRouteScrollSource);
 const topMenuPresentation = computed(() => resolveTopMenuPresentation({
   scrollTop: routeScrollTop.value,
-  manualExpanded: menuExpanded.value
+  manualExpanded: menuExpanded.value,
+  manualCollapsed: menuCollapsed.value
 }));
 const fullNavigationVisible = computed(() => topMenuPresentation.value.full);
+const workspaceNavigationSpaceReserved = computed(() => (
+  fullNavigationVisible.value || Boolean(nestedScrollOwner.element.value)
+));
 provideAppScrollRoot({
-  element: routeContentRef,
-  isActive: isAppScrollRoute,
-  scrollTop: routeScrollTop
+  element: activeRouteScrollSource,
+  isActive: computed(() => Boolean(activeRouteScrollSource.value)),
+  scrollTop: routeScrollTop,
+  claimScrollOwner: nestedScrollOwner.claim,
+  clearScrollOwner: nestedScrollOwner.clear
 });
 
 const routeScrollIdentity = computed(() => {
@@ -617,16 +629,19 @@ function rememberRouteScrollPosition(identity, scrollTop) {
 
 watch(routeScrollIdentity, async (nextIdentity, previousIdentity) => {
   if (!previousIdentity || nextIdentity === previousIdentity) return;
-  if (routeContentRef.value instanceof HTMLElement) {
-    rememberRouteScrollPosition(previousIdentity, routeContentRef.value.scrollTop);
+  const previousScrollSource = activeRouteScrollSource.value;
+  if (previousScrollSource instanceof HTMLElement) {
+    rememberRouteScrollPosition(previousIdentity, previousScrollSource.scrollTop);
   }
   await nextTick();
-  if (!isAppScrollRoute.value || !(routeContentRef.value instanceof HTMLElement)) return;
+  await nextTick();
+  const nextScrollSource = activeRouteScrollSource.value;
+  if (!(nextScrollSource instanceof HTMLElement)) return;
   const targetScrollTop = routeScrollPositions.get(nextIdentity) || 0;
-  if (typeof routeContentRef.value.scrollTo === 'function') {
-    routeContentRef.value.scrollTo({ top: targetScrollTop, behavior: 'auto' });
+  if (typeof nextScrollSource.scrollTo === 'function') {
+    nextScrollSource.scrollTo({ top: targetScrollTop, behavior: 'auto' });
   } else {
-    routeContentRef.value.scrollTop = targetScrollTop;
+    nextScrollSource.scrollTop = targetScrollTop;
   }
 });
 
@@ -2468,7 +2483,13 @@ function updateViewportMode() {
 }
 
 function toggleMenu() {
-  menuExpanded.value = !menuExpanded.value;
+  if (topMenuPresentation.value.full) {
+    menuExpanded.value = false;
+    menuCollapsed.value = true;
+    return;
+  }
+  menuCollapsed.value = false;
+  menuExpanded.value = true;
 }
 
 function toggleAiChat() {
@@ -3169,6 +3190,11 @@ onBeforeUnmount(() => {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: auto;
+}
+
+.route-content.route-content-fixed-workspace {
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .route-content::-webkit-scrollbar {
