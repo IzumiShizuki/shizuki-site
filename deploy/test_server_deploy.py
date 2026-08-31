@@ -143,6 +143,77 @@ class ServerDeploySafetyTest(unittest.TestCase):
         apply_incremental.assert_not_called()
         full_sync.assert_called_once()
 
+    def test_changed_paths_select_only_affected_compose_services(self) -> None:
+        self.assertEqual(
+            deploy.build_services_for_paths(
+                {
+                    "modules/content-module/src/main/java/Example.java",
+                    "docker/Dockerfile.backend",
+                }
+            ),
+            ("backend",),
+        )
+        self.assertEqual(
+            deploy.build_services_for_paths(
+                {
+                    "fronted/vue3-merged/src/App.vue",
+                    "deploy/nginx.frontend.conf",
+                }
+            ),
+            ("site",),
+        )
+        self.assertEqual(
+            deploy.build_services_for_paths(
+                {
+                    "tools/meting-sidecar/public/index.php",
+                    "third_party/meting-api/src/Meting.php",
+                    "tools/document-converter/video_pipeline.py",
+                }
+            ),
+            ("document-converter", "meting-api"),
+        )
+
+    def test_documentation_and_deployer_changes_require_no_image_build(self) -> None:
+        services = deploy.build_services_for_paths(
+            {
+                "README.md",
+                "openspec/changes/example/tasks.md",
+                "deploy/server_deploy.py",
+                "deploy/scripts/remote-compose-build.sh",
+            }
+        )
+
+        self.assertEqual(services, ())
+
+    def test_compose_or_unknown_docker_changes_build_every_service(self) -> None:
+        self.assertEqual(
+            deploy.build_services_for_paths({"deploy/docker-compose.server.yml"}),
+            deploy.ALL_BUILD_SERVICES,
+        )
+        self.assertEqual(
+            deploy.build_services_for_paths({"docker/Dockerfile.future-service"}),
+            deploy.ALL_BUILD_SERVICES,
+        )
+
+    def test_remote_build_plan_is_written_atomically(self) -> None:
+        commands: list[tuple[str, str]] = []
+
+        def record(_ssh, command: str, operation: str, timeout=None) -> None:
+            commands.append((operation, command))
+
+        with patch.object(deploy, "require_success_silently", side_effect=record):
+            deploy.write_remote_build_plan(
+                object(), config(), ("backend", "site")
+            )
+
+        self.assertEqual([item[0] for item in commands], ["Remote build plan"])
+        command = commands[0][1]
+        self.assertIn(".remote-deploy.services.tmp", command)
+        self.assertIn(".remote-deploy.services", command)
+        self.assertIn("backend", command)
+        self.assertIn("site", command)
+        self.assertIn("mv", command)
+
     def test_incremental_upload_hash_must_match_remote_content(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             local_path = Path(temporary_dir) / "payload.txt"
@@ -225,6 +296,9 @@ class ServerDeploySafetyTest(unittest.TestCase):
 
         self.assertIn("up -d --no-build", source)
         self.assertNotIn("--force-recreate", source)
+        self.assertIn("BUILD_PLAN_FILE", source)
+        self.assertIn('build "${build_services[@]}"', source)
+        self.assertIn("no image builds required", source)
 
     def test_snapshot_id_rejects_non_git_commit(self) -> None:
         self.assertRegex(

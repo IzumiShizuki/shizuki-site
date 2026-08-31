@@ -15,6 +15,7 @@
 - [x] 3.1 Add a named locked BuildKit Maven repository cache and remove the redundant backend `clean` goal.
 - [x] 3.2 Remove unconditional Compose `--force-recreate` while preserving build, dependency health ordering, and final health gates.
 - [x] 3.3 Add sanitized elapsed-time reporting for backup, sync, remote rebuild, and verification phases.
+- [x] 3.4 Map validated changed paths to affected Compose services, atomically publish a remote build plan, and skip builds entirely for documentation/deployer-only updates.
 
 ## 4. Verification and delivery
 

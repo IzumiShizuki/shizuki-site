@@ -33,6 +33,16 @@ DEFAULT_SITE_URL = "http://127.0.0.1:5173/"
 DEFAULT_HEALTH_ATTEMPTS = 24
 DEFAULT_REMOTE_BACKUP_DIR = "/opt/shizuki-site-backups"
 DEFAULT_BACKUP_HELPER_IMAGE = "busybox:1.36"
+ALL_BUILD_SERVICES = (
+    "backend",
+    "document-converter",
+    "meting-api",
+    "music-ncm-api",
+    "music-web-auth-sidecar",
+    "notion-mcp-sidecar",
+    "presentation-generator",
+    "site",
+)
 
 ROOT_LEVEL_EXCLUDES = {
     ".antigravity",
@@ -57,6 +67,7 @@ PREFIX_EXCLUDES = {
     "deploy/.env.server",
     "deploy/.deployed-commit",
     "deploy/.local-deploy.status",
+    "deploy/.remote-deploy.services",
     "deploy/logs",
     "fronted/vue3-merged/android",
     "fronted/vue3-merged/desktop-release",
@@ -77,6 +88,7 @@ PROTECTED_REMOTE_PREFIXES = {
     "deploy/.deployed-commit",
     "deploy/.env.server",
     "deploy/.local-deploy.status",
+    "deploy/.remote-deploy.services",
     "deploy/logs",
     "fronted/vue3-merged/desktop-release",
     "fronted/vue3-merged/prototypes",
@@ -508,6 +520,52 @@ def incremental_plan_from_git_status(
     )
 
 
+def build_services_for_paths(paths: set[str]) -> tuple[str, ...]:
+    services: set[str] = set()
+    known_dockerfiles = {
+        "docker/Dockerfile.backend": "backend",
+        "docker/Dockerfile.document-converter": "document-converter",
+        "docker/Dockerfile.frontend": "site",
+        "docker/Dockerfile.presentation-generator": "presentation-generator",
+    }
+    prefix_services = {
+        "apps/": "backend",
+        "libs/": "backend",
+        "model/": "backend",
+        "modules/": "backend",
+        "fronted/vue3-merged/": "site",
+        "third_party/meting-api/": "meting-api",
+        "tools/meting-sidecar/": "meting-api",
+        "tools/music-ncm-sidecar/": "music-ncm-api",
+        "tools/music-web-auth-sidecar/": "music-web-auth-sidecar",
+        "tools/notion-mcp-sidecar/": "notion-mcp-sidecar",
+        "tools/presentation-generator/": "presentation-generator",
+        "tools/document-converter/": "document-converter",
+    }
+
+    for rel_posix in paths:
+        if rel_posix in {".dockerignore", "deploy/docker-compose.server.yml"}:
+            return ALL_BUILD_SERVICES
+        if rel_posix == "pom.xml":
+            services.add("backend")
+            continue
+        if rel_posix == "deploy/nginx.frontend.conf":
+            services.add("site")
+            continue
+        if rel_posix.startswith("docker/"):
+            service = known_dockerfiles.get(rel_posix)
+            if service is None:
+                return ALL_BUILD_SERVICES
+            services.add(service)
+            continue
+        for prefix, service in prefix_services.items():
+            if rel_posix.startswith(prefix):
+                services.add(service)
+                break
+
+    return tuple(sorted(services))
+
+
 def prepare_incremental_sync_plan(
     ssh: paramiko.SSHClient, config: DeployConfig, target_commit: str
 ) -> IncrementalSyncPlan | None:
@@ -854,16 +912,17 @@ def full_sync_project(ssh: paramiko.SSHClient, config: DeployConfig) -> None:
 
 def sync_project(
     ssh: paramiko.SSHClient, config: DeployConfig, target_commit: str
-) -> None:
+) -> tuple[str, ...]:
     plan = prepare_incremental_sync_plan(ssh, config, target_commit)
     if plan is None:
         full_sync_project(ssh, config)
-        return
+        return ALL_BUILD_SERVICES
     log(
         f"[sync] using commit delta {plan.base_commit[:12]}..{target_commit[:12]} "
         f"({len(plan.upload_paths)} uploads, {len(plan.delete_paths)} deletions)"
     )
     apply_incremental_sync(ssh, config, plan)
+    return build_services_for_paths(set(plan.upload_paths) | set(plan.delete_paths))
 
 
 def read_command(
@@ -1064,6 +1123,24 @@ def require_success_silently(
         raise RuntimeError(f"{operation} failed.")
 
 
+def write_remote_build_plan(
+    ssh: paramiko.SSHClient,
+    config: DeployConfig,
+    services: tuple[str, ...],
+) -> None:
+    if any(service not in ALL_BUILD_SERVICES for service in services):
+        raise RuntimeError("Remote build plan contains an unknown Compose service.")
+    plan_file = f"{config.remote_deploy_dir}/.remote-deploy.services"
+    temporary_file = f"{plan_file}.tmp"
+    payload = "".join(f"{service}\n" for service in services)
+    command = (
+        "set -e; "
+        f"printf '%s' {shlex.quote(payload)} > {shlex.quote(temporary_file)}; "
+        f"mv {shlex.quote(temporary_file)} {shlex.quote(plan_file)}"
+    )
+    require_success_silently(ssh, command, "Remote build plan")
+
+
 def run_database_hook(
     ssh: paramiko.SSHClient,
     command: str,
@@ -1261,7 +1338,12 @@ def run_update(config: DeployConfig, commit: str) -> None:
             log_phase_timing("backup", phase_started)
             log("[2/6] Uploading approved local payload to server...")
             phase_started = time.perf_counter()
-            sync_project(ssh, config, commit)
+            build_services = sync_project(ssh, config, commit)
+            write_remote_build_plan(ssh, config, build_services)
+            if build_services:
+                log(f"[build-plan] services: {', '.join(build_services)}")
+            else:
+                log("[build-plan] no image builds required")
             log_phase_timing("synchronization", phase_started)
             log("[3/6] Starting remote rebuild...")
             phase_started = time.perf_counter()

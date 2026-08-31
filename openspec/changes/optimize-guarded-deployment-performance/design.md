@@ -49,11 +49,11 @@ The backend Dockerfile declares a modern Dockerfile syntax and mounts a named, l
 
 A project-local `.m2` directory was rejected because it would enlarge the build context and risk accidental repository pollution. Baking all dependencies into a separate image layer was also rejected because the multi-module POM layout makes that layer brittle and still benefits from the same cache mount.
 
-### 5. Let Compose decide which services need replacement
+### 5. Build only services affected by the validated commit delta
 
-The remote runner keeps `docker compose build` so every declared image remains buildable and cacheable, but changes `up` from `--force-recreate` to the normal convergent `up -d --no-build`. Compose then recreates services only when their image or configuration changed. Health ordering and final health gates remain unchanged.
+The local deployer maps approved changed paths to the Compose services whose Dockerfiles copy those paths, writes an atomic remote build-plan file, and uses an explicit complete service list when full reconciliation is required. Known backend, frontend, and sidecar inputs select only their owning services; Compose/Docker context-wide inputs conservatively select every buildable service; documentation, OpenSpec, and deployer-only changes select none. The remote runner validates every planned service name, skips `docker compose build` for an empty plan, and runs the normal convergent `up -d --no-build` afterward.
 
-Path-to-service build planning was considered but deferred: the current build step becomes comparatively cheap with image/Maven caches, while an incomplete path map could silently omit a required shared-image rebuild.
+Initially relying on a full `docker compose build` plus convergent `up` was rejected after production measurement: BuildKit emitted fresh image metadata for cached builds, causing Compose to replace otherwise unchanged containers even without `--force-recreate`. Explicit service selection prevents that churn while an unknown or full-reconciliation state still fails safe by building the complete declared set.
 
 ### 6. Time the existing safety phases
 
@@ -66,6 +66,7 @@ The local update flow records monotonic elapsed time after backup, sync, rebuild
 - [Git rename/copy output is parsed incorrectly] → Use a NUL-delimited parser with focused tests for add, modify, delete, rename, copy, and excluded paths.
 - [BuildKit cache grows over time] → Use a named Docker builder cache that can be inspected/pruned independently; do not place it in application volumes or backups.
 - [Removing force recreation leaves a stale unhealthy service] → Compose still replaces changed images/configuration, and the API/site health gates fail the deployment if the resulting application is unhealthy.
+- [A changed build input is missing from the service map] → Treat Compose files, shared Docker context controls, and unknown Dockerfile paths as affecting all buildable services; cover every current Dockerfile COPY root with contract tests.
 
 ## Migration Plan
 
