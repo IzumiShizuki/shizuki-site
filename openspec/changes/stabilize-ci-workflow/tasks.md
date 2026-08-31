@@ -10,6 +10,7 @@
 - [x] 2.3 Switch frontend dependency setup to pnpm 11 with Node.js 24 and frozen-lockfile installation.
 - [x] 2.4 Migrate deprecated pnpm overrides to workspace configuration without changing dependency resolution.
 - [x] 2.5 Run frontend unit tests before the production build while preserving build artifacts.
+- [x] 2.6 Normalize the confirmed `VARCHAR`/`CHARACTER VARYING` migration metadata alias without weakening constraint comparison.
 
 ## 3. Verification and Delivery
 

@@ -12,6 +12,11 @@ The CI system SHALL compile and test the Java 17 reactor without invoking files 
 - **THEN** CI compiles the Maven reactor and runs its unit tests
 - **AND** no stage invokes the removed SQL convention script
 
+#### Scenario: Cross-dialect migration schemas are semantically equivalent
+- **WHEN** the migration parity test compares MySQL `VARCHAR` columns with PostgreSQL `CHARACTER VARYING` columns
+- **THEN** it treats the vendor type names as one equivalent text type
+- **AND** it continues to compare column nullability and unique constraint scopes
+
 #### Scenario: Backend stage fails
 - **WHEN** backend compilation or unit tests fail
 - **THEN** the backend job fails with the responsible stage identified

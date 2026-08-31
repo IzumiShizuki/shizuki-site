@@ -10,6 +10,7 @@ GitHub Actions still invokes a SQL convention script that was intentionally remo
 - Run the frontend unit suite before the production build.
 - Upgrade first-party checkout, Java setup, and artifact upload actions to their current supported major versions.
 - Preserve backend compile/test diagnostics and artifacts while eliminating obsolete cache/runtime warnings.
+- Normalize equivalent MySQL/PostgreSQL text type aliases in the migration parity test so it reports semantic schema differences instead of vendor naming differences.
 - Add a repository-runnable workflow contract check so stale paths and toolchain drift fail quickly before a push.
 
 ## Capabilities
@@ -25,6 +26,6 @@ None.
 ## Impact
 
 - Affected workflow: `.github/workflows/ci.yml`.
-- Affected validation tooling and package-manager configuration: a small repository-local workflow contract test, frontend `package.json`, and `pnpm-workspace.yaml`.
+- Affected validation tooling and package-manager configuration: a small repository-local workflow contract test, the cross-dialect migration parity test, frontend `package.json`, and `pnpm-workspace.yaml`.
 - External systems: GitHub Actions runners and artifact storage.
 - No production API, database, or runtime behavior changes.

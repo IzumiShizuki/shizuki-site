@@ -362,6 +362,7 @@ class PersonalContentMigrationIntegrationTest {
             case "tinyint", "smallint" -> "SMALLINT";
             case "int", "integer" -> "INTEGER";
             case "decimal", "numeric" -> "DECIMAL";
+            case "varchar", "character varying" -> "VARCHAR";
             case "datetime", "timestamp", "timestamp without time zone" -> "TIMESTAMP";
             case "json", "jsonb" -> "JSON";
             default -> databaseType.toUpperCase(Locale.ROOT);

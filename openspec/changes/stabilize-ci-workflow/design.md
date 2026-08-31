@@ -35,6 +35,10 @@ Use `actions/checkout@v7`, `actions/setup-java@v6`, and `actions/upload-artifact
 
 Compile and test commands continue to capture logs and run with `continue-on-error`, followed by a final assertion step that determines the job result. Removing only the deleted SQL outcome keeps artifacts available even when an earlier backend stage fails.
 
+### Compare migration schemas by semantic type
+
+The cross-dialect test already normalizes vendor aliases such as `SMALLINT`/`TINYINT`, `DECIMAL`/`NUMERIC`, and `JSON`/`JSONB`. Extend the same boundary to `VARCHAR`/`CHARACTER VARYING`, which PostgreSQL documents and exposes as equivalent names. Changing either migration SQL was rejected because the discrepancy exists only in metadata spelling; column nullability and unique constraints remain separately compared.
+
 ### Lock the workflow contract with a fast Vitest test
 
 A dependency-free test reads `.github/workflows/ci.yml`, verifies supported action/toolchain markers, and checks that every explicitly invoked repository shell script exists. The test is fast enough for local use and runs automatically inside the frontend CI suite. A full YAML parser was rejected because it would add a dependency for a narrow static contract.
@@ -44,6 +48,7 @@ A dependency-free test reads `.github/workflows/ci.yml`, verifies supported acti
 - [Risk] Running the full frontend unit suite increases CI duration. → Mitigation: the suite is deterministic and currently completes in under one minute locally; concurrency already cancels superseded runs.
 - [Risk] Text-based workflow assertions can require updates when equivalent YAML is reformatted. → Mitigation: assert stable semantic markers rather than complete snapshots.
 - [Risk] A new action major could change hosted behavior. → Mitigation: use documented stable majors and validate the first pushed run before declaring completion.
+- [Risk] Type normalization could hide a meaningful difference. → Mitigation: normalize only the confirmed alias pair and keep every other type, nullable flag, and unique scope in the snapshot comparison.
 
 ## Migration Plan
 

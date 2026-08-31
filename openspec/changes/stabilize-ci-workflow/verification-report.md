@@ -4,8 +4,8 @@
 
 | Dimension | Status |
 |---|---|
-| Completeness | 8/10 tasks complete; 3/3 requirements implemented |
-| Correctness | 7/7 scenarios covered by workflow behavior or automated checks |
+| Completeness | 9/11 tasks complete; 3/3 requirements implemented |
+| Correctness | 8/8 scenarios covered by workflow behavior or automated checks |
 | Coherence | Implementation follows all recorded design decisions |
 
 ### Implementation Evidence
@@ -20,6 +20,8 @@
 - Frontend production build: passed with 2,772 modules transformed.
 - Backend Maven reactor compile: 10/10 modules passed.
 - CI YAML parsing and OpenSpec strict validation: passed.
+- CI #109 confirmed Frontend Build success and isolated the remaining backend failure to the `VARCHAR`/`CHARACTER VARYING` migration metadata alias; the alias normalization is implemented and awaiting the next hosted run.
+- The focused migration-test reactor compiled successfully locally; its two Testcontainers cases were skipped because Docker is unavailable on this workstation, so no local cross-database pass is claimed.
 
 ### CRITICAL
 
@@ -27,7 +29,7 @@ None.
 
 ### WARNING
 
-- Hosted verification is pending the authorized push. A local Windows run of `SpotifyOAuthProviderStrategyTest` cannot initialize the JDK loopback pipe (`Unable to establish loopback connection`); the same backend test stage passed in the latest GitHub-hosted Linux run. Final acceptance requires the newly triggered Linux run to pass.
+- Hosted verification of the follow-up alias fix is pending. A local Windows run of `SpotifyOAuthProviderStrategyTest` cannot initialize the JDK loopback pipe (`Unable to establish loopback connection`), so the GitHub-hosted Linux run remains the authoritative full-backend signal.
 
 ### SUGGESTION
 
