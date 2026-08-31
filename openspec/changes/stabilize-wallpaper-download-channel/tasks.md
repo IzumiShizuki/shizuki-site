@@ -27,6 +27,8 @@
   - Focused wallpaper tests, all frontend unit tests, and both production builds pass. The full media test run reaches 282 tests; six unrelated loopback-server tests error in this Windows Java runtime.
   - Merge verification also covers the repository-wide Spring bean constructor contract; the production wallpaper outbound constructor is explicitly marked for injection.
 - [x] 5.2 Validate the OpenSpec change strictly and inspect the diff for leaked proxy or Steam credentials
-- [ ] 5.3 Deploy the verified build to the personal server and repeat the production detail probe plus an authenticated import job
-  - Pending: this workstation has no `REMOTE_USER` plus private SSH authentication source configured. The production endpoint is still on the old response contract.
+- [x] 5.3 Deploy the verified build to the personal server and repeat the production detail probe plus an authenticated import job
+  - Deployed commit `de8eb0262449f725c7191889828c026b0237da1c` with retained restore point `snapshot-20260831-192736-de8eb0262449`; API and site verification passed.
+  - Production detail probe for Workshop item `2141505896` returned HTTP 200 three times with the stable truthful state `UNAVAILABLE` because SteamCMD is not enabled on the server.
+  - Authenticated import job `9` reached `FALLBACK_REQUIRED` immediately with the matching SteamCMD configuration reason and local-package fallback guidance.
 - [x] 5.4 Commit the completed change locally with the repository author identity
