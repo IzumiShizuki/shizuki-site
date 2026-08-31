@@ -126,10 +126,7 @@ async function mountPage(initialPath, groups = ['USER'], permissions = []) {
       stubs: {
         AdminPage: AdminPageStub,
         SubtleScrollArea: SubtleScrollAreaStub,
-        ImageCropDialog: true,
-        RailScaffold: {
-          template: '<div class="rail-scaffold-stub"><slot name="rail" /><slot /></div>'
-        }
+        ImageCropDialog: true
       },
       components: {
         RouteDotRail
@@ -207,7 +204,7 @@ describe('AuthorPage admin tab handling', () => {
   it('keeps the shared public workspace while rendering real posts in the posts tab', async () => {
     const { wrapper } = await mountPage('/author?tab=posts', ['USER']);
 
-    expect(wrapper.get('[data-author-about-layout="responsive"]').exists()).toBe(true);
+    expect(wrapper.get('[data-author-about-layout="shared-shell"]').exists()).toBe(true);
     expect(wrapper.get('.content-shell__left .author-route-sidebar').exists()).toBe(true);
     expect(wrapper.get('.content-shell__right .author-life-widgets').exists()).toBe(true);
     expect(wrapper.get('.author-public-posts h2').text()).toBe('站点文章');
@@ -215,6 +212,21 @@ describe('AuthorPage admin tab handling', () => {
     expect(mocked.listPosts).toHaveBeenCalledWith({ pageNo: 1, pageSize: 12 });
 
     expect(wrapper.get('.post-entry').attributes('href')).toBe('/blog/101');
+  });
+
+  it.each([
+    ['overview', '.home-portal-grid'],
+    ['journey', '.journey-stage'],
+    ['about', '.about-manifesto-copy'],
+    ['posts', '.author-public-posts']
+  ])('keeps %s inside the same three-column workspace', async (tab, centerSelector) => {
+    const { wrapper } = await mountPage(`/author?tab=${tab}`, ['USER']);
+
+    expect(wrapper.get('[data-content-layout="responsive"]').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__left .author-route-sidebar').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__right .author-life-widgets').exists()).toBe(true);
+    expect(wrapper.get(`.content-shell__main ${centerSelector}`).exists()).toBe(true);
+    expect(wrapper.get('.author-page').attributes('data-scroll-owner')).toBe('center');
   });
 
   it('preserves intentionally repeated custom artwork in the about composition', async () => {
@@ -267,8 +279,8 @@ describe('AuthorPage admin tab handling', () => {
     expect(wrapper.get('.about-manifesto-copy h2').text()).toBe('关于这座小站');
     expect(wrapper.get('[data-testid="albums-rail-error"]').text()).toContain('相册暂时没有读到');
     expect(wrapper.get('[data-testid="moments-rail-error"]').text()).toContain('动态暂时没有读到');
-    expect(wrapper.get('.weather-card').text()).toContain('天气源尚未配置');
-    expect(wrapper.get('.quote-card').text()).toContain('一言来源尚未配置');
+    expect(wrapper.get('.weather-card').text()).toContain('天气读取失败');
+    expect(wrapper.get('.quote-card').text()).toContain('一言读取失败');
     expect(mocked.getNearbyWeather).not.toHaveBeenCalled();
   });
 
@@ -303,6 +315,10 @@ describe('AuthorPage admin tab handling', () => {
     const { wrapper, router } = await mountPage('/author?tab=admin:quota', ['ADMIN']);
 
     expect(router.currentRoute.value.query.tab).toBe('admin:quota');
+    expect(wrapper.get('[data-content-layout="responsive"]').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__left .author-route-sidebar').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__right .author-life-widgets').exists()).toBe(true);
+    expect(wrapper.get('.content-shell__main .admin-page-stub').exists()).toBe(true);
 
     const rail = wrapper.getComponent(RouteDotRail);
     expect(rail.props('activeKey')).toBe('admin:quota');

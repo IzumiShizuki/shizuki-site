@@ -32,6 +32,18 @@ def config() -> deploy.DeployConfig:
 
 
 class ServerDeploySafetyTest(unittest.TestCase):
+    def test_site_widget_providers_are_enabled_by_default_in_server_compose(self) -> None:
+        compose = Path(__file__).resolve().parent / "docker-compose.server.yml"
+        source = compose.read_text(encoding="utf-8")
+
+        for variable in (
+            "SITE_EXTERNAL_WIDGETS_ENABLED",
+            "SITE_WEATHER_ENABLED",
+            "SITE_QUOTE_ENABLED",
+            "SITE_WIDGET_UPSTREAM_REQUESTS_ENABLED",
+        ):
+            self.assertIn(f"{variable}: ${{{variable}:-true}}", source)
+
     def test_git_name_status_parser_handles_file_and_tree_changes(self) -> None:
         raw = (
             b"A\0apps/new.java\0"

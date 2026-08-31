@@ -161,17 +161,6 @@ function adjustActiveItemScroll() {
   const activeItem = railElement.value?.querySelector?.('[aria-current="page"]');
   if (!activeItem) return;
 
-  const groupList = activeItem.closest?.('.route-rail-group-list');
-  if (groupList && groupList.scrollWidth > groupList.clientWidth) {
-    const listRect = groupList.getBoundingClientRect();
-    const itemRect = activeItem.getBoundingClientRect();
-    if (itemRect.left < listRect.left) {
-      groupList.scrollLeft -= listRect.left - itemRect.left;
-    } else if (itemRect.right > listRect.right) {
-      groupList.scrollLeft += itemRect.right - listRect.right;
-    }
-  }
-
   const rail = railElement.value;
   if (rail && rail.scrollHeight > rail.clientHeight) {
     const railRect = rail.getBoundingClientRect();
@@ -380,6 +369,7 @@ const railClassName = computed(() => {
   display: grid;
   gap: 4px;
   min-width: 0;
+  overflow-x: hidden;
 }
 
 .variant-menu .dot-rail-btn {
@@ -511,61 +501,6 @@ const railClassName = computed(() => {
     height: 2px;
     transform: translateY(-50%);
     background: linear-gradient(90deg, rgba(84, 212, 238, 0), rgba(84, 212, 238, 0.62), rgba(84, 212, 238, 0));
-  }
-}
-
-@container route-menu (min-width: 200px) {
-  .variant-menu .route-rail-group {
-    grid-template-columns: 62px minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-  }
-
-  .variant-menu .route-rail-group-label {
-    padding: 0;
-    font-size: 11px;
-    text-align: center;
-  }
-
-  .variant-menu .route-rail-group-list {
-    display: flex;
-    gap: 7px;
-    padding: 2px 2px 6px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-padding-inline: 2px;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(var(--accent-rgb), 0.38) transparent;
-  }
-
-  .variant-menu .route-rail-group-list::-webkit-scrollbar {
-    height: 4px;
-  }
-
-  .variant-menu .route-rail-group-list::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgba(var(--accent-rgb), 0.38);
-  }
-
-  .variant-menu .dot-rail-btn {
-    flex: 0 0 auto;
-    width: auto;
-    min-width: max-content;
-    height: 44px;
-    min-height: 44px;
-    padding: 3px 11px 3px 4px;
-    scroll-snap-align: start;
-  }
-
-  .variant-menu .dot-rail-core {
-    flex-basis: 30px;
-    width: 30px;
-    height: 30px;
-  }
-
-  .variant-menu .dot-rail-btn:hover {
-    transform: translateY(-1px);
   }
 }
 

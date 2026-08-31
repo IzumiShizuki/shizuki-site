@@ -34,9 +34,11 @@ describe('App public scroll root contract', () => {
     expect(blogReaderSource).toContain(":data-scroll-owner=\"viewMode === 'editor' ? 'workspace' : (isMobileLike ? 'app' : 'center')\"");
     expect(blogReaderSource).toContain(':app-scroll-owner="!isMobileLike"');
     expect(blogReaderSource).toContain('appScrollRoot.isActive.value');
-    expect(authorSource).toContain(":data-scroll-owner=\"isAdminConsoleTab ? 'workspace' : (isPublicExperienceTab ? 'center' : 'app')\"");
-    expect(authorSource).toContain(':scrollable="isAdminConsoleTab"');
-    expect(authorExperienceSource).toContain(':app-scroll-owner="!compactLayout"');
+    expect(authorSource).toContain('data-scroll-owner="center"');
+    expect(authorSource).toContain(':scrollable="true"');
+    expect(authorSource).toContain(':app-scroll-owner="true"');
+    expect(authorSource).toContain('app-scroll-owner-media="(min-width: 1200px)"');
+    expect(authorExperienceSource).not.toContain('app-scroll-owner');
     expect(authorSource).toContain('resolveContentScrollRoot()');
   });
 });

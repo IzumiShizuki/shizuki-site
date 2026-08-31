@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { nextTick } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import RouteDotRail from './RouteDotRail.vue';
@@ -100,5 +102,13 @@ describe('RouteDotRail', () => {
     expect(disconnect).toHaveBeenCalledTimes(1);
     expect(requestAnimationFrame).not.toHaveBeenCalled();
     expect(cancelAnimationFrame).not.toHaveBeenCalled();
+  });
+
+  it('keeps grouped menu destinations in one vertical strip without horizontal reveal logic', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/common/RouteDotRail.vue'), 'utf8');
+
+    expect(source).not.toContain('groupList.scrollLeft');
+    expect(source).not.toContain('@container route-menu');
+    expect(source).toContain('overflow-x: hidden');
   });
 });

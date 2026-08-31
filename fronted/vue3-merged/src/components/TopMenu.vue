@@ -231,42 +231,6 @@
     </LiquidSurface>
 
     <LiquidSurface
-      v-else
-      as="div"
-      class="compact-dock"
-      variant="navigation"
-      aria-label="紧凑主导航"
-      data-testid="compact-navigation"
-    >
-      <button
-        v-for="item in mainNavItems"
-        :key="`compact-${item.key}`"
-        type="button"
-        class="compact-nav-item ripple-trigger"
-        :class="{ active: activeMainRoute === item.key }"
-        :aria-current="activeMainRoute === item.key ? 'page' : undefined"
-        @click="selectMainRoute(item.key)"
-      >
-        <i :class="item.icon" aria-hidden="true"></i>
-        <span>{{ item.label }}</span>
-      </button>
-      <span class="compact-nav-divider" aria-hidden="true"></span>
-      <button
-        type="button"
-        class="compact-nav-item compact-site-item ripple-trigger"
-        :class="{ active: isSiteRoute }"
-        :aria-current="isSiteRoute ? 'page' : undefined"
-        :aria-expanded="siteMenuOpen"
-        aria-controls="site-personal-menu"
-        aria-haspopup="dialog"
-        @click.stop="toggleSiteMenu"
-      >
-        <i class="fas fa-compass" aria-hidden="true"></i>
-        <span>Site</span>
-      </button>
-    </LiquidSurface>
-
-    <LiquidSurface
       as="div"
       class="mobile-top-dock"
       variant="navigation"
@@ -326,7 +290,8 @@
     <button
       type="button"
       class="toggle-tab liquid-material ripple-trigger"
-      :aria-label="menuPresentation.compact ? '展开完整导航' : '收拢为紧凑导航'"
+      :aria-label="menuPresentation.compact ? '展开完整导航' : '收起导航，仅保留 Menu 按钮'"
+      :aria-expanded="menuPresentation.full"
       @click="toggleSwitch"
     >
       <div class="switch-content">
@@ -782,60 +747,9 @@ onBeforeUnmount(() => {
   z-index: 2;
 }
 
-.compact-dock {
-  --liquid-fill: color-mix(in srgb, var(--menu-glass-bg) 92%, transparent);
-  --liquid-border: var(--menu-glass-border);
-  --liquid-shadow: 0 18px 42px rgba(8, 10, 20, 0.24);
-  min-height: 54px;
-  max-width: min(calc(100vw - 32px), 760px);
-  padding: 6px 9px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-}
-
-.compact-nav-item {
-  min-height: 42px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.compact-nav-item:hover {
-  color: var(--icon-hover-color);
-  background: var(--menu-hover-bg);
-}
-
-.compact-nav-item.active {
-  color: var(--accent-surface-text, var(--theme-text-primary));
-  background: var(--menu-active-bg);
-  box-shadow: inset 0 0 0 1px var(--menu-active-border);
-}
-
-.compact-nav-item:focus-visible,
 .toggle-tab:focus-visible {
   outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
   outline-offset: 3px;
-}
-
-.compact-nav-divider {
-  width: 1px;
-  height: 26px;
-  margin-inline: 3px;
-  background: var(--theme-border-strong, rgba(255, 255, 255, 0.24));
 }
 
 .mobile-top-dock {
@@ -1311,6 +1225,16 @@ button.author-info-item:focus-visible {
   z-index: 1001;
   border: 0;
   color: inherit;
+}
+
+.fixed-nav-wrapper.compact .toggle-tab {
+  --liquid-shadow: 0 14px 32px rgba(8, 10, 20, 0.24);
+  width: 116px;
+  height: 44px;
+  margin-top: 0;
+  padding-bottom: 0;
+  align-items: center;
+  border-radius: 999px;
 }
 
 .toggle-tab:hover {

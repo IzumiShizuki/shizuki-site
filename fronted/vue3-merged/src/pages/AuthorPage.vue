@@ -6,17 +6,19 @@
       'author-page--workspace': isAdminConsoleTab,
       'author-page--public-workspace': isPublicExperienceTab
     }"
-    :data-scroll-owner="isAdminConsoleTab ? 'workspace' : (isPublicExperienceTab ? 'center' : 'app')"
+    data-scroll-owner="center"
     :data-motion-mode="motionPreference.effectiveMode.value"
   >
-    <RailScaffold class="dashboard-layout" :class="{ 'dashboard-layout--public-experience': isPublicExperienceTab }">
-      <template #rail>
+    <ThreeColumnContentShell class="dashboard-layout author-workspace-shell" main-tag="div">
+      <template #left>
         <AuthorProfileRail
-          v-if="!isPublicExperienceTab"
           :items="tabs"
           :active-key="activeTab"
           :admin-user="isAdminUser"
+          :profile="authorProfile"
           :public-mode="!isAdminConsoleTab"
+          workspace
+          show-profile
           @select="openTab"
         />
       </template>
@@ -25,8 +27,10 @@
         :key="contentPanelRenderKey"
         ref="contentPanelRef"
         tag="section"
-        :contain-overscroll="false"
-        :scrollable="isAdminConsoleTab"
+        :contain-overscroll="true"
+        :scrollable="true"
+        :app-scroll-owner="true"
+        app-scroll-owner-media="(min-width: 1200px)"
         class="content-panel liquid-material"
         :class="{ 'content-panel--public-experience': isPublicExperienceTab }"
         :style="contentPanelStyle"
@@ -434,10 +438,7 @@
 
           <AuthorAboutExperience
             v-else-if="isPublicExperienceTab"
-            :tabs="tabs"
             :active-tab="activeTab"
-            :admin-user="isAdminUser"
-            :profile="authorProfile"
             :about="about"
             :journey="journeyTimelineItems"
             :can-edit="canEditCurrentTab"
@@ -907,7 +908,38 @@
           </div>
         </transition>
       </SubtleScrollArea>
-    </RailScaffold>
+      <template #right>
+        <AuthorLifeWidgetRail sticky-top="0px" />
+      </template>
+
+      <template #auxiliary-trigger>
+        <button
+          type="button"
+          class="author-auxiliary-trigger ripple-trigger"
+          aria-haspopup="dialog"
+          :aria-expanded="authorAuxiliaryDrawerOpen"
+          @click="authorAuxiliaryDrawerOpen = true"
+        >
+          <i class="fas fa-compass" aria-hidden="true"></i>
+          导航、天气与一言
+        </button>
+      </template>
+    </ThreeColumnContentShell>
+
+    <AuxiliaryDrawer v-model="authorAuxiliaryDrawerOpen" title="站点导航与生活信号">
+      <div class="author-auxiliary-content">
+        <AuthorProfileRail
+          :items="tabs"
+          :active-key="activeTab"
+          :admin-user="isAdminUser"
+          :profile="authorProfile"
+          :public-mode="!isAdminConsoleTab"
+          show-profile
+          @select="selectFromAuthorDrawer"
+        />
+        <AuthorLifeWidgetRail sticky-top="0px" />
+      </div>
+    </AuxiliaryDrawer>
   </section>
 </template>
 
@@ -921,9 +953,11 @@ import { useMotionPreference } from '../composables/useMotionPreference';
 import AdminPage from './AdminPage.vue';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import AuthorAboutExperience from '../components/author/AuthorAboutExperience.vue';
+import AuthorLifeWidgetRail from '../components/author/AuthorLifeWidgetRail.vue';
 import AuthorProfileRail from '../components/author/AuthorProfileRail.vue';
+import AuxiliaryDrawer from '../components/content/AuxiliaryDrawer.vue';
+import ThreeColumnContentShell from '../components/content/ThreeColumnContentShell.vue';
 import ImageCropDialog from '../components/common/ImageCropDialog.vue';
-import RailScaffold from '../components/common/RailScaffold.vue';
 import { getAdminAuthorProfile, getAuthorProfile, updateAdminAuthorProfile, uploadAuthorAvatar } from '../services/authorApi';
 import { getFeaturedAlbums, getFeaturedMoments } from '../services/lifeContentApi';
 import {
@@ -1096,6 +1130,7 @@ const quickStatusChoice = ref('');
 const quickStatusCustomInput = ref('');
 const quickStatusSaving = ref(false);
 const quickStatusError = ref('');
+const authorAuxiliaryDrawerOpen = ref(false);
 const motionState = reactive(createAuthorMotionState({
   reducedMotion: motionPreference.effectiveMode.value !== 'immersive'
 }));
@@ -1329,8 +1364,7 @@ const contentPanelStyle = computed(() => {
   return {
     '--parallax-x': `${motionState.pointer.x.toFixed(2)}px`,
     '--parallax-y': `${motionState.pointer.y.toFixed(2)}px`,
-    '--journey-progress': `${Math.round(Math.max(0, Math.min(1, motionState.journeyProgress || 0)) * 100)}%`,
-    ...(isPublicExperienceTab.value ? { overflow: 'hidden' } : {})
+    '--journey-progress': `${Math.round(Math.max(0, Math.min(1, motionState.journeyProgress || 0)) * 100)}%`
   };
 });
 
@@ -1371,6 +1405,11 @@ function openTab(tabKey) {
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
+}
+
+function selectFromAuthorDrawer(tabKey) {
+  authorAuxiliaryDrawerOpen.value = false;
+  openTab(tabKey);
 }
 
 function openHomepagePortal(item) {
@@ -2400,21 +2439,50 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-layout {
+  --content-shell-gap: 14px;
+  --content-shell-left: clamp(220px, 17vw, 250px);
+  --content-shell-right: clamp(280px, 21vw, 320px);
   position: relative;
   min-height: 0;
   height: 100%;
-  display: grid;
-  grid-template-columns: minmax(190px, 210px) minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: var(--content-shell-left) minmax(0, 1fr) var(--content-shell-right);
+  align-items: stretch;
+  width: 100%;
+  max-width: none;
   min-width: 0;
   padding-left: 0;
   overflow: hidden;
 }
 
-.dashboard-layout.dashboard-layout--public-experience {
-  display: block;
+:deep(.dashboard-layout .content-shell__left),
+:deep(.dashboard-layout .content-shell__main),
+:deep(.dashboard-layout .content-shell__right) {
+  min-width: 0;
+  min-height: 0;
   height: 100%;
+}
+
+:deep(.dashboard-layout .content-shell__left),
+:deep(.dashboard-layout .content-shell__main) {
   overflow: hidden;
+}
+
+:deep(.dashboard-layout .content-shell__right) {
+  padding-right: 3px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-rgb), 0.3) transparent;
+}
+
+:deep(.dashboard-layout .content-shell__right::-webkit-scrollbar) {
+  width: 5px;
+}
+
+:deep(.dashboard-layout .content-shell__right::-webkit-scrollbar-thumb) {
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.3);
 }
 
 .author-route-sidebar {
@@ -2526,8 +2594,37 @@ onBeforeUnmount(() => {
   padding: 0;
   border-radius: 0;
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   perspective: none;
+}
+
+.author-auxiliary-trigger {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 18px;
+  border: 1px solid var(--theme-border-strong, rgba(255, 255, 255, 0.25));
+  border-radius: 999px;
+  color: var(--theme-text-primary);
+  background: color-mix(in srgb, var(--theme-panel-surface-elevated) 92%, transparent);
+  box-shadow: 0 14px 30px rgba(8, 10, 20, 0.2);
+  backdrop-filter: blur(18px) saturate(1.18);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.author-auxiliary-trigger:focus-visible {
+  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline-offset: 3px;
+}
+
+.author-auxiliary-content {
+  display: grid;
+  gap: 18px;
 }
 
 .content-block {
@@ -4590,40 +4687,6 @@ onBeforeUnmount(() => {
   background: var(--theme-surface-soft, rgba(255, 255, 255, 0.08));
 }
 
-.author-page.author-page--public:not(.author-page--public-workspace) {
-  height: auto;
-  min-height: 100%;
-  display: block;
-}
-
-.author-page--public:not(.author-page--public-workspace) .dashboard-layout {
-  height: auto;
-  min-height: 100%;
-  overflow: visible;
-  align-items: start;
-}
-
-.author-page--public:not(.author-page--public-workspace) .author-route-sidebar {
-  position: sticky;
-  top: 0;
-  height: auto;
-  align-self: start;
-  overflow: visible;
-}
-
-.author-page--public:not(.author-page--public-workspace) .sidebar-route-menu,
-.author-page--public:not(.author-page--public-workspace) .content-panel {
-  height: auto;
-  overflow: visible;
-}
-
-.author-page.author-page--public-workspace {
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .orb,
   .story-orb,
@@ -4670,59 +4733,43 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1199.98px) {
-  .author-page.author-page--public-workspace,
-  .dashboard-layout.dashboard-layout--public-experience,
+  .author-page,
+  .dashboard-layout,
+  .content-panel,
   .content-panel.content-panel--public-experience {
     height: auto;
     min-height: 100%;
     overflow: visible !important;
   }
 
-  .author-page.author-page--public-workspace {
+  .author-page,
+  .dashboard-layout {
     display: block;
+  }
+
+  :deep(.dashboard-layout .content-shell__left),
+  :deep(.dashboard-layout .content-shell__right) {
+    display: none;
+  }
+
+  :deep(.dashboard-layout .content-shell__main) {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  :deep(.dashboard-layout .content-shell__auxiliary-trigger) {
+    position: sticky;
+    z-index: 20;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    margin: 18px auto 0;
   }
 }
 
 @container author-page (max-width: 1100px) {
-  .dashboard-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 10px;
-    padding-left: 0;
-    min-width: 0;
-    overflow: visible;
-  }
-
-  .author-route-sidebar {
-    position: static;
-    z-index: 1;
-    width: 100%;
-    min-height: auto;
-    height: auto;
-    padding: 10px 12px;
-    overflow: hidden;
-  }
-
-  .author-route-heading {
-    min-height: 40px;
-    padding-bottom: 9px;
-  }
-
-  .sidebar-route-menu {
-    flex: none;
-    width: 100%;
-    min-width: 0;
-    padding-right: 0;
-    overflow: visible;
-  }
-
-  .content-panel {
-    width: 100%;
-    min-width: 0;
-    height: auto;
-    padding-top: 12px;
-  }
-
   .hero-card {
     grid-template-columns: 1fr;
     justify-items: center;

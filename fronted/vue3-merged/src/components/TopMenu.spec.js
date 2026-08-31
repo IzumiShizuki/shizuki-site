@@ -201,14 +201,11 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.get('.top-menu-root').attributes('data-route-scroll-top')).toBe('128');
     expect(wrapper.get('.top-menu-root').classes()).toContain('route-scrolled');
     expect(wrapper.get('.top-menu-root').classes()).toContain('compact');
-    expect(wrapper.findAll('.compact-dock .compact-nav-item')).toHaveLength(6);
-    expect(wrapper.findAll('.compact-dock .compact-nav-item').slice(0, 5).map((item) => item.text())).toEqual([
-      'Home',
-      'Blog',
-      'Music',
-      'Apps',
-      'AI Hub'
-    ]);
+    expect(wrapper.find('.top-bar').exists()).toBe(false);
+    expect(wrapper.find('.compact-dock').exists()).toBe(false);
+    expect(wrapper.findAll('.toggle-tab')).toHaveLength(1);
+    expect(wrapper.get('.toggle-tab').attributes('aria-label')).toBe('展开完整导航');
+    expect(wrapper.get('.toggle-tab').attributes('aria-expanded')).toBe('false');
 
     await wrapper.get('.toggle-tab').trigger('click');
     expect(wrapper.emitted('toggle-menu')).toHaveLength(1);
@@ -225,7 +222,8 @@ describe('TopMenu profile entry', () => {
     }, '/author');
 
     const toggle = wrapper.get('.toggle-tab');
-    expect(toggle.attributes('aria-label')).toBe('收拢为紧凑导航');
+    expect(toggle.attributes('aria-label')).toBe('收起导航，仅保留 Menu 按钮');
+    expect(toggle.attributes('aria-expanded')).toBe('true');
 
     await toggle.trigger('click');
     expect(wrapper.emitted('toggle-menu')).toHaveLength(1);
@@ -233,6 +231,7 @@ describe('TopMenu profile entry', () => {
     await wrapper.setProps({ menuCollapsed: true });
     expect(wrapper.get('.top-menu-root').classes()).toContain('compact');
     expect(wrapper.get('.toggle-tab').attributes('aria-label')).toBe('展开完整导航');
+    expect(wrapper.get('.toggle-tab').attributes('aria-expanded')).toBe('false');
   });
 
   it('closes Site with Escape, returns focus, and also dismisses on outside pointer input', async () => {
