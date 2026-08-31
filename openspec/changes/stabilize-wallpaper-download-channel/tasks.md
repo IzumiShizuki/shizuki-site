@@ -25,6 +25,7 @@
 
 - [x] 5.1 Run focused backend and frontend tests, then the applicable media suite and production builds
   - Focused wallpaper tests, all frontend unit tests, and both production builds pass. The full media test run reaches 282 tests; six unrelated loopback-server tests error in this Windows Java runtime.
+  - Merge verification also covers the repository-wide Spring bean constructor contract; the production wallpaper outbound constructor is explicitly marked for injection.
 - [x] 5.2 Validate the OpenSpec change strictly and inspect the diff for leaked proxy or Steam credentials
 - [ ] 5.3 Deploy the verified build to the personal server and repeat the production detail probe plus an authenticated import job
   - Pending: this workstation has no `REMOTE_USER` plus private SSH authentication source configured. The production endpoint is still on the old response contract.

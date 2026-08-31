@@ -3,6 +3,7 @@ package io.github.shizuki.site.media.service.impl;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.site.media.config.WallpaperDiscoveryProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -30,6 +31,7 @@ public class WallpaperOutboundClient {
     private final HttpClient httpClient;
     private final ProxyEndpoint configuredProxy;
 
+    @Autowired
     public WallpaperOutboundClient(WallpaperDiscoveryProperties properties) {
         this.properties = properties;
         this.configuredProxy = parseProxyEndpoint(properties.getProxyUrl());
