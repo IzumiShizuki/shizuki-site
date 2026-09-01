@@ -1,6 +1,6 @@
 import { httpRequest, normalizeApiData } from './httpClient';
 
-const BACKEND_TIMEOUT_MS = 5000;
+const BACKEND_TIMEOUT_MS = 15_000;
 
 function backendRequest(path, options = {}) {
   return httpRequest(path, {
