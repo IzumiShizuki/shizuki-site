@@ -25,11 +25,117 @@
             :key="item.key"
             class="menu-item-stack left-main-btn ripple-trigger"
             :class="{ active: activeMainRoute === item.key }"
+            :role="item.key === 'home' ? 'button' : undefined"
+            :tabindex="item.key === 'home' ? 0 : undefined"
+            :aria-label="item.key === 'home' && isHomeRoute ? '打开主页外观设置' : undefined"
+            :aria-controls="item.key === 'home' && isHomeRoute ? 'home-appearance-panel' : undefined"
+            :aria-expanded="item.key === 'home' && isHomeRoute ? String(appearancePanelOpen) : undefined"
+            :title="item.key === 'home' && isHomeRoute ? '再次点击 Home 调整主页外观' : undefined"
             @click="selectMainRoute(item.key)"
+            @keydown.enter.prevent="selectMainRoute(item.key)"
+            @keydown.space.prevent="selectMainRoute(item.key)"
           >
             <div class="icon-minimal"><i :class="item.icon"></i></div>
             <span class="item-label">{{ item.label }}</span>
           </div>
+
+          <Transition name="appearance-popover">
+            <section
+              v-if="isHomeRoute && appearancePanelOpen"
+              id="home-appearance-panel"
+              class="appearance-popover home-entry-popover liquid-material"
+              data-testid="appearance-popover"
+              aria-label="主页外观设置"
+              @click.stop
+            >
+              <header class="appearance-popover-head">
+                <span>APPEARANCE</span>
+                <strong>主页外观</strong>
+                <small>只调整首页时钟、壁纸与动效表现。</small>
+              </header>
+
+              <div class="appearance-group">
+                <span class="appearance-label">主页时钟</span>
+                <div class="appearance-segment appearance-segment-three">
+                  <button
+                    v-for="option in clockOptions"
+                    :key="option.value"
+                    type="button"
+                    :class="{ active: homeClockBehavior === option.value }"
+                    :aria-pressed="homeClockBehavior === option.value"
+                    @click="emit('set-home-clock-behavior', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="appearance-group">
+                <span class="appearance-label">当前壁纸覆盖</span>
+                <div class="appearance-segment appearance-segment-three">
+                  <button
+                    v-for="option in wallpaperClockOptions"
+                    :key="option.value"
+                    type="button"
+                    :class="{ active: homeWallpaperClockOverride === option.value }"
+                    :aria-pressed="homeWallpaperClockOverride === option.value"
+                    @click="emit('set-home-wallpaper-clock-override', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+                <small>当前结果：{{ homeClockVisible ? '显示时钟' : '隐藏时钟' }}</small>
+              </div>
+
+              <div class="appearance-group">
+                <span class="appearance-label">壁纸取色</span>
+                <div class="appearance-segment appearance-segment-two">
+                  <button
+                    type="button"
+                    :class="{ active: homeColorMode === 'auto' }"
+                    :aria-pressed="homeColorMode === 'auto'"
+                    @click="emit('set-home-color-mode', 'auto')"
+                  >
+                    自动取色
+                  </button>
+                  <button
+                    type="button"
+                    :class="{ active: homeColorMode === 'manual' }"
+                    :aria-pressed="homeColorMode === 'manual'"
+                    @click="emit('set-home-color-mode', 'manual')"
+                  >
+                    手动覆盖
+                  </button>
+                </div>
+                <label v-if="homeColorMode === 'manual'" class="appearance-color-control">
+                  <input
+                    type="color"
+                    :value="homeAccentHex"
+                    aria-label="主页手动主色"
+                    @input="emit('set-home-manual-accent-hex', $event.target.value)"
+                  />
+                  <span>{{ homeAccentHex }}</span>
+                </label>
+                <small v-else>静态图取壁纸，动态壁纸取预览代表帧</small>
+              </div>
+
+              <div class="appearance-group">
+                <span class="appearance-label">主页动效</span>
+                <div class="appearance-segment appearance-segment-two" data-testid="motion-preference-options">
+                  <button
+                    v-for="option in motionOptions"
+                    :key="option.value"
+                    type="button"
+                    :class="{ active: homeMotionLevel === option.value }"
+                    :aria-pressed="homeMotionLevel === option.value"
+                    @click="emit('set-home-motion-level', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </Transition>
         </div>
       </div>
 
@@ -58,121 +164,6 @@
             </span>
             <span class="item-label">主题</span>
           </button>
-        </div>
-
-        <div v-if="isHomeRoute" class="menu-item-stack appearance-control-cluster">
-          <button
-            class="appearance-settings-trigger ripple-trigger"
-            type="button"
-            aria-label="主页外观设置：时钟、壁纸取色与动效"
-            aria-controls="home-appearance-panel"
-            :aria-expanded="appearancePanelOpen"
-            title="主页外观：调整时钟、壁纸取色与动效"
-            @click.stop="toggleAppearancePanel"
-          >
-            <span class="circle-icon-box liquid-material appearance-settings-box">
-              <i class="fas fa-sliders" aria-hidden="true"></i>
-            </span>
-            <span class="item-label">主页外观</span>
-          </button>
-
-          <Transition name="appearance-popover">
-            <section
-              v-if="isHomeRoute && appearancePanelOpen"
-              id="home-appearance-panel"
-              class="appearance-popover liquid-material"
-              data-testid="appearance-popover"
-              aria-label="主页外观设置"
-              @click.stop
-            >
-              <header class="appearance-popover-head">
-                <span>APPEARANCE</span>
-                <strong>主页外观</strong>
-                <small>只调整首页时钟与壁纸表现；动效偏好全站生效。</small>
-              </header>
-
-              <div class="appearance-group">
-                  <span class="appearance-label">主页时钟</span>
-                  <div class="appearance-segment appearance-segment-three">
-                    <button
-                      v-for="option in clockOptions"
-                      :key="option.value"
-                      type="button"
-                      :class="{ active: homeClockBehavior === option.value }"
-                      :aria-pressed="homeClockBehavior === option.value"
-                      @click="emit('set-home-clock-behavior', option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  </div>
-              </div>
-
-              <div class="appearance-group">
-                  <span class="appearance-label">当前壁纸覆盖</span>
-                  <div class="appearance-segment appearance-segment-three">
-                    <button
-                      v-for="option in wallpaperClockOptions"
-                      :key="option.value"
-                      type="button"
-                      :class="{ active: homeWallpaperClockOverride === option.value }"
-                      :aria-pressed="homeWallpaperClockOverride === option.value"
-                      @click="emit('set-home-wallpaper-clock-override', option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  </div>
-                  <small>当前结果：{{ homeClockVisible ? '显示时钟' : '隐藏时钟' }}</small>
-              </div>
-
-              <div class="appearance-group">
-                  <span class="appearance-label">壁纸取色</span>
-                  <div class="appearance-segment appearance-segment-two">
-                    <button
-                      type="button"
-                      :class="{ active: homeColorMode === 'auto' }"
-                      :aria-pressed="homeColorMode === 'auto'"
-                      @click="emit('set-home-color-mode', 'auto')"
-                    >
-                      自动取色
-                    </button>
-                    <button
-                      type="button"
-                      :class="{ active: homeColorMode === 'manual' }"
-                      :aria-pressed="homeColorMode === 'manual'"
-                      @click="emit('set-home-color-mode', 'manual')"
-                    >
-                      手动覆盖
-                    </button>
-                  </div>
-                  <label v-if="homeColorMode === 'manual'" class="appearance-color-control">
-                    <input
-                      type="color"
-                      :value="homeAccentHex"
-                      aria-label="主页手动主色"
-                      @input="emit('set-home-manual-accent-hex', $event.target.value)"
-                    />
-                    <span>{{ homeAccentHex }}</span>
-                  </label>
-                  <small v-else>静态图取壁纸，动态壁纸取预览代表帧</small>
-              </div>
-
-              <div class="appearance-group">
-                  <span class="appearance-label">全站动效</span>
-                  <div class="appearance-segment appearance-segment-two" data-testid="motion-preference-options">
-                    <button
-                      v-for="option in motionOptions"
-                      :key="option.value"
-                      type="button"
-                      :class="{ active: homeMotionLevel === option.value }"
-                      :aria-pressed="homeMotionLevel === option.value"
-                      @click="emit('set-home-motion-level', option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  </div>
-              </div>
-            </section>
-          </Transition>
         </div>
 
         <div class="menu-item-stack ripple-trigger" @click="openBackgroundPicker">
@@ -564,6 +555,11 @@ function toggleAiChat() {
 }
 
 function selectMainRoute(routeKey) {
+  if (routeKey === 'home' && isHomeRoute.value) {
+    toggleAppearancePanel();
+    return;
+  }
+  appearancePanelOpen.value = false;
   emit('select-main-route', routeKey);
 }
 
@@ -873,6 +869,11 @@ onBeforeUnmount(() => {
   box-shadow:
     0 0 0 1px var(--menu-active-border),
     var(--menu-active-shadow);
+}
+
+.left-main-btn[role='button']:focus-visible {
+  outline: 2px solid rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  outline-offset: 2px;
 }
 
 .icon-minimal {
@@ -1319,11 +1320,6 @@ button.author-info-item:focus-visible {
   cursor: default;
 }
 
-.appearance-control-cluster {
-  min-width: 76px;
-  cursor: default;
-}
-
 .theme-toggle-action {
   margin: 0;
   padding: 0;
@@ -1348,42 +1344,9 @@ button.author-info-item:focus-visible {
   outline: 0;
 }
 
-.theme-toggle-action:focus-visible .theme-toggle-box,
-.appearance-settings-trigger:focus-visible .appearance-settings-box {
+.theme-toggle-action:focus-visible .theme-toggle-box {
   outline: 2px solid rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
   outline-offset: 2px;
-}
-
-.appearance-settings-trigger {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.appearance-settings-box {
-  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.82));
-  transition: transform 180ms ease, color 180ms ease, background 180ms ease, box-shadow 180ms ease;
-}
-
-.appearance-settings-trigger:hover .appearance-settings-box,
-.appearance-settings-trigger[aria-expanded='true'] .appearance-settings-box {
-  --liquid-bg: var(--menu-hover-bg);
-  color: var(--icon-hover-color);
-  transform: translateY(-1px) rotate(8deg);
-  box-shadow: inset 0 0 0 1px var(--menu-active-border), var(--menu-active-shadow);
-}
-
-.appearance-settings-trigger:active .appearance-settings-box {
-  transform: scale(0.92);
 }
 
 .theme-toggle-box::before {
@@ -1437,6 +1400,14 @@ button.author-info-item:focus-visible {
   text-align: left;
   cursor: default;
   z-index: 20;
+}
+
+.appearance-popover.home-entry-popover {
+  left: 143px;
+}
+
+.appearance-popover.home-entry-popover::before {
+  left: 72px;
 }
 
 .appearance-popover::before {
@@ -1643,10 +1614,6 @@ button.author-info-item:focus-visible {
     min-width: 62px;
   }
 
-  .appearance-control-cluster {
-    min-width: 66px;
-  }
-
   .circle-icon-box,
   .pill-btn-box,
   .github-style-box,
@@ -1666,6 +1633,16 @@ button.author-info-item:focus-visible {
     transform: none;
   }
 
+  .appearance-popover.home-entry-popover {
+    right: auto;
+    left: 143px;
+    transform: translateX(-50%);
+  }
+
+  .appearance-popover.home-entry-popover::before {
+    left: 46px;
+  }
+
   .appearance-popover::before {
     left: calc(100% - 111px);
   }
@@ -1674,9 +1651,18 @@ button.author-info-item:focus-visible {
   .appearance-popover-leave-to {
     transform: translateY(-8px) scale(0.96);
   }
+
+  .home-entry-popover.appearance-popover-enter-from,
+  .home-entry-popover.appearance-popover-leave-to {
+    transform: translateX(-50%) translateY(-8px) scale(0.96);
+  }
 }
 
 @media (max-width: 900px) {
+  .appearance-popover.home-entry-popover {
+    display: none;
+  }
+
   .mobile-top-dock {
     --liquid-fill: color-mix(in srgb, var(--menu-glass-bg) 94%, transparent);
     --liquid-border: var(--menu-glass-border);
@@ -1960,11 +1946,6 @@ button.author-info-item:focus-visible {
 
   .theme-toggle-action {
     margin-left: 8px;
-  }
-
-  .appearance-control-cluster {
-    width: 48px;
-    min-width: 48px;
   }
 
   .menu-item-stack.active {

@@ -1,9 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  __resetMotionPreferenceForTests,
-  setMotionMode
+  __resetMotionPreferenceForTests
 } from '../../composables/useMotionPreference';
+import { __resetHomeAppearanceForTests, setHomeMotionLevel } from '../../utils/homeTimeStageState';
 import MediaLightbox from './MediaLightbox.vue';
 
 const items = Object.freeze([
@@ -43,6 +43,7 @@ async function mountLightbox(props = {}) {
 
 beforeEach(() => {
   __resetMotionPreferenceForTests();
+  __resetHomeAppearanceForTests();
   document.body.innerHTML = '';
   document.body.style.overflow = '';
 });
@@ -51,6 +52,7 @@ afterEach(() => {
   document.body.innerHTML = '';
   document.body.style.overflow = '';
   __resetMotionPreferenceForTests();
+  __resetHomeAppearanceForTests();
 });
 
 describe('MediaLightbox', () => {
@@ -108,12 +110,12 @@ describe('MediaLightbox', () => {
     wrapper.unmount();
   });
 
-  it('supports horizontal pointer swipes and soothing motion without spatial scale', async () => {
-    setMotionMode('soothing');
+  it('supports horizontal pointer swipes without inheriting Home soothing motion', async () => {
+    setHomeMotionLevel('soothing');
     const wrapper = await mountLightbox();
     const dialog = document.querySelector('.media-lightbox');
     const stage = dialog.querySelector('.media-lightbox-stage');
-    expect(dialog.classList.contains('motion-soothing')).toBe(true);
+    expect(dialog.classList.contains('motion-immersive')).toBe(true);
 
     stage.dispatchEvent(pointerEvent('pointerdown', {
       isPrimary: true,

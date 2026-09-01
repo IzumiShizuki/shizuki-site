@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { __resetMotionPreferenceForTests, setMotionMode } from './useMotionPreference';
+import { __resetMotionPreferenceForTests } from './useMotionPreference';
+import { __resetHomeAppearanceForTests, setHomeMotionLevel } from '../utils/homeTimeStageState';
 import {
   __resetViewTransitionNavigationForTests,
   activeRouteTransitionName,
@@ -13,6 +14,7 @@ import {
 
 afterEach(() => {
   __resetMotionPreferenceForTests();
+  __resetHomeAppearanceForTests();
   __resetViewTransitionNavigationForTests();
   delete document.startViewTransition;
   delete document.documentElement.dataset.routeTransition;
@@ -31,7 +33,6 @@ describe('useViewTransitionNavigation', () => {
   });
 
   it('uses one selected source as the immersive transition owner', async () => {
-    setMotionMode('immersive');
     const router = { push: vi.fn().mockResolvedValue(undefined), currentRoute: ref({}) };
     const sourceElement = document.createElement('a');
     const finished = Promise.resolve();
@@ -51,20 +52,23 @@ describe('useViewTransitionNavigation', () => {
     expect(sourceElement.style.viewTransitionName).toBe('');
   });
 
-  it('uses ordinary navigation in soothing mode', async () => {
-    setMotionMode('soothing');
+  it('keeps non-Home navigation immersive while Home is soothing', async () => {
+    setHomeMotionLevel('soothing');
     const router = { push: vi.fn().mockResolvedValue(undefined) };
-    document.startViewTransition = vi.fn();
+    const finished = Promise.resolve();
+    document.startViewTransition = vi.fn((update) => {
+      void update();
+      return { finished };
+    });
     const navigation = useViewTransitionNavigation({ router });
 
     await navigation.navigate('/albums/real-b', { sourceElement: document.createElement('a'), sharedName: 'real-b' });
 
-    expect(document.startViewTransition).not.toHaveBeenCalled();
+    expect(document.startViewTransition).toHaveBeenCalledOnce();
     expect(router.push).toHaveBeenCalledWith('/albums/real-b');
   });
 
   it('uses the restrained content-flow identity and hands reader focus over exactly once', async () => {
-    setMotionMode('immersive');
     const router = { push: vi.fn().mockResolvedValue(undefined) };
     let finishTransition;
     const finished = new Promise((resolve) => {
@@ -97,7 +101,6 @@ describe('useViewTransitionNavigation', () => {
   });
 
   it('keeps focus handoff when native transitions are unavailable', async () => {
-    setMotionMode('soothing');
     const router = { push: vi.fn().mockResolvedValue(undefined) };
     const navigation = useViewTransitionNavigation({ router });
 

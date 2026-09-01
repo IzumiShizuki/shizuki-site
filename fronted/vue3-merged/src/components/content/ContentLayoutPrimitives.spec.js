@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  __resetMotionPreferenceForTests,
-  useMotionPreference
+  __resetMotionPreferenceForTests
 } from '../../composables/useMotionPreference';
+import { __resetHomeAppearanceForTests, setHomeMotionLevel } from '../../utils/homeTimeStageState';
 import AuxiliaryDrawer from './AuxiliaryDrawer.vue';
 import HorizontalCardRail from './HorizontalCardRail.vue';
 import StickyCardStack from './StickyCardStack.vue';
@@ -19,6 +19,7 @@ describe('personal content layout primitives', () => {
     vi.unstubAllGlobals();
     window.localStorage.clear();
     __resetMotionPreferenceForTests();
+    __resetHomeAppearanceForTests();
   });
 
   it('keeps the main column dominant and declares exact desktop/tablet/mobile boundaries', () => {
@@ -68,7 +69,7 @@ describe('personal content layout primitives', () => {
   });
 
   it('consumes wheel input only while the horizontal track can continue in that direction', async () => {
-    useMotionPreference().setMode('soothing');
+    setHomeMotionLevel('soothing');
     vi.stubGlobal('ResizeObserver', class {
       observe() {}
       disconnect() {}
@@ -112,7 +113,7 @@ describe('personal content layout primitives', () => {
   });
 
   it('supports visible controls and keyboard navigation without moving the page', async () => {
-    useMotionPreference().setMode('soothing');
+    setHomeMotionLevel('soothing');
     const wrapper = mount(HorizontalCardRail, {
       props: { title: '动态', step: 200 }
     });
@@ -136,7 +137,7 @@ describe('personal content layout primitives', () => {
   });
 
   it('locks the page, closes with Escape, and restores focus for the auxiliary drawer', async () => {
-    useMotionPreference().setMode('soothing');
+    setHomeMotionLevel('soothing');
     const opener = document.createElement('button');
     opener.textContent = '打开生活抽屉';
     document.body.appendChild(opener);
@@ -151,8 +152,8 @@ describe('personal content layout primitives', () => {
     await nextTick();
 
     expect(document.body.style.overflow).toBe('hidden');
-    expect(wrapper.get('.auxiliary-drawer').attributes('data-motion-mode')).toBe('soothing');
-    expect(wrapper.get('.auxiliary-drawer').classes()).toContain('motion-soothing');
+    expect(wrapper.get('.auxiliary-drawer').attributes('data-motion-mode')).toBe('immersive');
+    expect(wrapper.get('.auxiliary-drawer').classes()).toContain('motion-immersive');
     expect(document.activeElement).toBe(wrapper.get('.auxiliary-drawer__close').element);
     await wrapper.get('.auxiliary-drawer__panel').trigger('keydown', { key: 'Escape' });
     expect(wrapper.emitted('update:modelValue')).toEqual([[false]]);

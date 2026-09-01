@@ -1,9 +1,7 @@
 import { computed, reactive, readonly } from 'vue';
 import {
-  __resetMotionPreferenceForTests,
+  MOTION_PREFERENCE_STORAGE_KEY,
   normalizeMotionMode,
-  setMotionMode,
-  useMotionPreference
 } from '../composables/useMotionPreference';
 
 export const HOME_APPEARANCE_STORAGE_KEY = 'shizuki.homeAppearance.v1';
@@ -20,14 +18,10 @@ const DEFAULT_HOME_APPEARANCE = Object.freeze({
   wallpaperClockOverrides: Object.freeze({})
 });
 
-const motionPreference = useMotionPreference();
 const state = reactive({
   ...createDefaultHomeAppearance(),
-  get motionLevel() {
-    return motionPreference.storedMode.value;
-  },
   get effectiveMotionLevel() {
-    return motionPreference.effectiveMode.value;
+    return this.motionLevel;
   }
 });
 const readonlyState = readonly(state);
@@ -37,6 +31,7 @@ function createDefaultHomeAppearance() {
   return {
     version: DEFAULT_HOME_APPEARANCE.version,
     clockBehavior: DEFAULT_HOME_APPEARANCE.clockBehavior,
+    motionLevel: DEFAULT_HOME_APPEARANCE.motionLevel,
     colorMode: DEFAULT_HOME_APPEARANCE.colorMode,
     manualAccentHex: DEFAULT_HOME_APPEARANCE.manualAccentHex,
     wallpaperClockOverrides: {}
@@ -96,6 +91,7 @@ function applySnapshot(input) {
   const snapshot = normalizeHomeAppearance(input);
   state.version = snapshot.version;
   state.clockBehavior = snapshot.clockBehavior;
+  state.motionLevel = snapshot.motionLevel;
   state.colorMode = snapshot.colorMode;
   state.manualAccentHex = snapshot.manualAccentHex;
   state.wallpaperClockOverrides = snapshot.wallpaperClockOverrides;
@@ -105,24 +101,66 @@ function applySnapshot(input) {
 function persist(storage = typeof window !== 'undefined' ? window.localStorage : null) {
   if (!storage?.setItem) return;
   try {
-    const { motionLevel: _globalMotionPreference, ...homeAppearance } = normalizeHomeAppearance(state);
-    storage.setItem(HOME_APPEARANCE_STORAGE_KEY, JSON.stringify(homeAppearance));
+    storage.setItem(HOME_APPEARANCE_STORAGE_KEY, JSON.stringify(normalizeHomeAppearance(state)));
   } catch {
     // Keep the in-memory preference usable when storage is unavailable.
   }
 }
 
+function readLegacyMotionLevel(storage) {
+  if (!storage?.getItem) return '';
+  let raw;
+  try {
+    raw = storage.getItem(MOTION_PREFERENCE_STORAGE_KEY);
+  } catch {
+    return '';
+  }
+  if (!raw) return '';
+  let parsed = raw;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // A plain legacy value is still eligible for normalization.
+  }
+  const candidate = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed.mode ?? parsed.storedMode ?? parsed.motionLevel
+    : parsed;
+  const normalizedCandidate = String(candidate ?? '').trim().toLowerCase();
+  if (!['immersive', 'soothing', 'vivid', 'calm', 'off'].includes(normalizedCandidate)) return '';
+  return normalizeMotionMode(normalizedCandidate);
+}
+
+function removeLegacyMotionPreference(storage) {
+  try {
+    storage?.removeItem?.(MOTION_PREFERENCE_STORAGE_KEY);
+  } catch {
+    // Home already owns the resolved value; stale storage can be ignored safely.
+  }
+}
+
 export function initializeHomeAppearance(storage = typeof window !== 'undefined' ? window.localStorage : null) {
-  motionPreference.initialize({ storage });
   if (initialized) return normalizeHomeAppearance(state);
   initialized = true;
-  if (!storage?.getItem) return normalizeHomeAppearance(state);
+  if (!storage?.getItem) {
+    applySnapshot(DEFAULT_HOME_APPEARANCE);
+    return normalizeHomeAppearance(state);
+  }
+  let source = {};
   try {
     const raw = storage.getItem(HOME_APPEARANCE_STORAGE_KEY);
-    if (raw) applySnapshot(JSON.parse(raw));
+    if (raw) source = JSON.parse(raw);
   } catch {
-    applySnapshot(DEFAULT_HOME_APPEARANCE);
+    source = {};
   }
+  const hasHomeMotion = source && typeof source === 'object' && !Array.isArray(source)
+    && Object.prototype.hasOwnProperty.call(source, 'motionLevel');
+  if (!hasHomeMotion) {
+    const legacyMotionLevel = readLegacyMotionLevel(storage);
+    if (legacyMotionLevel) source = { ...source, motionLevel: legacyMotionLevel };
+  }
+  applySnapshot(source);
+  persist(storage);
+  removeLegacyMotionPreference(storage);
   return normalizeHomeAppearance(state);
 }
 
@@ -133,7 +171,9 @@ export function setHomeClockBehavior(value) {
 }
 
 export function setHomeMotionLevel(value) {
-  return setMotionMode(value);
+  state.motionLevel = normalizeMotionMode(value);
+  persist();
+  return state.motionLevel;
 }
 
 export function setHomeColorMode(value) {
@@ -182,7 +222,6 @@ export function useHomeAppearance() {
 }
 
 export function __resetHomeAppearanceForTests() {
-  __resetMotionPreferenceForTests();
   initialized = false;
   applySnapshot(DEFAULT_HOME_APPEARANCE);
 }

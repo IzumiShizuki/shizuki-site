@@ -54,15 +54,26 @@ describe('home time stage appearance state', () => {
     expect(JSON.parse(window.localStorage.getItem(HOME_APPEARANCE_STORAGE_KEY))).toMatchObject({
       version: 1,
       clockBehavior: 'hide',
+      motionLevel: 'soothing',
       wallpaperClockOverrides: { 'wallpaper-7': 'show' }
     });
-    expect(JSON.parse(window.localStorage.getItem(HOME_APPEARANCE_STORAGE_KEY))).not.toHaveProperty('motionLevel');
-    expect(JSON.parse(window.localStorage.getItem(MOTION_PREFERENCE_STORAGE_KEY))).toMatchObject({
-      mode: 'soothing'
-    });
+    expect(window.localStorage.getItem(MOTION_PREFERENCE_STORAGE_KEY)).toBeNull();
 
     setWallpaperClockOverride('wallpaper-7', 'inherit');
     expect(JSON.parse(window.localStorage.getItem(HOME_APPEARANCE_STORAGE_KEY)).wallpaperClockOverrides).toEqual({});
+  });
+
+  it('migrates the former global motion choice into Home appearance once', () => {
+    window.localStorage.setItem(MOTION_PREFERENCE_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      mode: 'soothing'
+    }));
+
+    expect(initializeHomeAppearance()).toMatchObject({ motionLevel: 'soothing' });
+    expect(JSON.parse(window.localStorage.getItem(HOME_APPEARANCE_STORAGE_KEY))).toMatchObject({
+      motionLevel: 'soothing'
+    });
+    expect(window.localStorage.getItem(MOTION_PREFERENCE_STORAGE_KEY)).toBeNull();
   });
 
   it('normalizes malformed stored values during initialization', () => {

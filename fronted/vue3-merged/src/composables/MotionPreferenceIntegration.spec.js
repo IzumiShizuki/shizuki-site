@@ -6,14 +6,14 @@ function source(path) {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
 }
 
-describe('global effective motion mode integration', () => {
-  it('makes App propagate the effective mode instead of only the operating-system preference', () => {
+describe('Home-scoped motion mode integration', () => {
+  it('keeps the global motion provider deterministic instead of binding the Home choice to the whole app', () => {
     const app = source('src/App.vue');
 
-    expect(app).toContain('<MotionConfig :reduced-motion="motionConfigReducedMotion">');
-    expect(app).toContain("motionPreference.effectiveMode.value === 'soothing'");
-    expect(app).not.toContain('const reducedMotion = motionPreference.systemReducedMotion');
-    expect(app).toContain(':data-motion-mode="motionPreference.effectiveMode.value"');
+    expect(app).toContain('<MotionConfig reduced-motion="never">');
+    expect(app).not.toContain('motionConfigReducedMotion');
+    expect(app).not.toContain(':data-motion-mode="motionPreference.effectiveMode.value"');
+    expect(app).toContain("const reducedMotion = computed(() => isHomeRoute.value && homeAppearance.state.effectiveMotionLevel === 'soothing')");
   });
 
   it.each([

@@ -90,6 +90,16 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.get('.author-info-item').classes()).not.toContain('route-active');
   });
 
+  it('keeps the same visible menu entries and order on Home and content routes', async () => {
+    const { wrapper: homeMenu } = await mountTopMenu({ isHomeRoute: true }, '/');
+    const homeEntries = homeMenu.findAll('.top-bar .menu-item-stack').map((entry) => entry.text().trim());
+
+    const { wrapper: authorMenu } = await mountTopMenu({ isHomeRoute: false }, '/author');
+    const authorEntries = authorMenu.findAll('.top-bar .menu-item-stack').map((entry) => entry.text().trim());
+
+    expect(homeEntries).toEqual(authorEntries);
+  });
+
   it('opens profile directly for authenticated users', async () => {
     const { wrapper } = await mountTopMenu({
       isAuthenticated: true,
@@ -144,7 +154,7 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.find('[data-testid="appearance-popover"]').exists()).toBe(false);
   });
 
-  it('opens Home appearance controls from a separate settings action', async () => {
+  it('opens Home appearance controls from the active Home entry without a separate menu item', async () => {
     const { wrapper } = await mountTopMenu({
       themeMode: 'day',
       isHomeRoute: true,
@@ -155,17 +165,17 @@ describe('TopMenu profile entry', () => {
       homeAccentHex: '#F2B39D'
     });
 
-    const settingsTrigger = wrapper.get('.appearance-settings-trigger');
-    expect(settingsTrigger.attributes('aria-label')).toBe('主页外观设置：时钟、壁纸取色与动效');
-    expect(settingsTrigger.text()).toContain('主页外观');
-    expect(settingsTrigger.find('.appearance-settings-box').exists()).toBe(true);
-    expect(settingsTrigger.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.find('.appearance-settings-trigger').exists()).toBe(false);
+    const homeEntry = wrapper.get('.left-main-btn.active');
+    expect(homeEntry.attributes('aria-label')).toBe('打开主页外观设置');
+    expect(homeEntry.attributes('aria-expanded')).toBe('false');
 
-    await settingsTrigger.trigger('click');
+    await homeEntry.trigger('click');
     const appearancePanel = wrapper.get('[data-testid="appearance-popover"]');
-    expect(settingsTrigger.attributes('aria-expanded')).toBe('true');
+    expect(homeEntry.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.emitted('select-main-route')).toBeUndefined();
     expect(appearancePanel.text()).toContain('主页时钟');
-    expect(appearancePanel.text()).toContain('只调整首页时钟与壁纸表现');
+    expect(appearancePanel.text()).toContain('只调整首页时钟、壁纸与动效表现');
     expect(appearancePanel.text()).not.toContain('昼夜主题');
     expect(appearancePanel.text()).not.toContain('白天');
     expect(appearancePanel.text()).not.toContain('夜间');
@@ -181,6 +191,15 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.emitted('set-home-clock-behavior')?.[0]).toEqual(['hide']);
     expect(wrapper.emitted('set-home-motion-level')?.[0]).toEqual(['soothing']);
     expect(wrapper.emitted('set-home-color-mode')?.[0]).toEqual(['manual']);
+  });
+
+  it('navigates through Home normally before the Home entry becomes an appearance trigger', async () => {
+    const { wrapper } = await mountTopMenu({ isHomeRoute: false }, '/author');
+
+    await wrapper.findAll('.left-main-btn').find((entry) => entry.text().includes('Home')).trigger('click');
+
+    expect(wrapper.emitted('select-main-route')?.[0]).toEqual(['home']);
+    expect(wrapper.find('[data-testid="appearance-popover"]').exists()).toBe(false);
   });
 
   it('keeps the Home appearance popover outside the liquid navigation clip', () => {

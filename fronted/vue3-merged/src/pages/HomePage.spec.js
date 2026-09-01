@@ -230,7 +230,7 @@ describe('HomePage time stage', () => {
     wrapper.unmount();
   });
 
-  it('keeps an immersive choice stored while system reduced motion makes Home effectively soothing', async () => {
+  it('keeps the stored Home choice authoritative regardless of system reduced-motion settings', async () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({
       matches: true,
@@ -242,8 +242,8 @@ describe('HomePage time stage', () => {
     const { wrapper } = await mountPage();
 
     expect(wrapper.attributes('data-stored-motion-level')).toBe('immersive');
-    expect(wrapper.attributes('data-motion-level')).toBe('soothing');
-    expect(wrapper.classes()).toContain('motion-soothing');
+    expect(wrapper.attributes('data-motion-level')).toBe('immersive');
+    expect(wrapper.classes()).toContain('motion-immersive');
 
     wrapper.unmount();
     __resetHomeAppearanceForTests();

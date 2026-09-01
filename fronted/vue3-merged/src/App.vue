@@ -1,5 +1,5 @@
 <template>
-  <MotionConfig :reduced-motion="motionConfigReducedMotion">
+  <MotionConfig reduced-motion="never">
     <div class="app-shell">
       <LiquidFilterDefinitions />
       <AppBackgroundStage
@@ -46,7 +46,7 @@
         :home-clock-behavior="homeAppearance.state.clockBehavior"
         :home-clock-visible="homeClockVisible"
         :home-wallpaper-clock-override="homeWallpaperClockOverride"
-        :home-motion-level="motionPreference.storedMode.value"
+        :home-motion-level="homeAppearance.state.motionLevel"
         :home-color-mode="homeAppearance.state.colorMode"
         :home-accent-hex="homeAccentHex"
         :route-scroll-top="routeScrollTop"
@@ -54,7 +54,7 @@
         @set-theme-mode="ui.setThemeMode($event)"
         @set-home-clock-behavior="homeAppearance.setClockBehavior($event)"
         @set-home-wallpaper-clock-override="setActiveWallpaperClockOverride"
-        @set-home-motion-level="motionPreference.setMode($event)"
+        @set-home-motion-level="homeAppearance.setMotionLevel($event)"
         @set-home-color-mode="homeAppearance.setColorMode($event)"
         @set-home-manual-accent-hex="homeAppearance.setManualAccentHex($event)"
         @toggle-ai-chat="toggleAiChat"
@@ -96,7 +96,7 @@
             'route-content-music-shell': isMusicLibraryRoute && !isMusicPlayerDetailRoute
           }"
           :data-scroll-mode="routeScrollMode"
-          :data-motion-mode="motionPreference.effectiveMode.value"
+          data-motion-mode="immersive"
         >
           <RouterView v-slot="{ Component, route: viewRoute }">
             <component :is="Component" :key="resolveRouteViewKey(viewRoute)" class="route-page-view" />
@@ -349,7 +349,6 @@ import LiquidFilterDefinitions from './components/material/LiquidFilterDefinitio
 import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
 import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
-import { useMotionPreference } from './composables/useMotionPreference';
 import { createAppScrollOwnerController, provideAppScrollRoot, useActiveScrollSource } from './composables/useAppScrollRoot';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { useFocusSession } from './utils/focusSessionState';
@@ -529,10 +528,8 @@ const miniMusicLibrary = useMiniMusicLibrary({
 const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
 const focus = useFocusSession();
-const motionPreference = useMotionPreference();
-const reducedMotion = computed(() => motionPreference.effectiveMode.value === 'soothing');
-const motionConfigReducedMotion = computed(() => (reducedMotion.value ? 'always' : 'never'));
 const homeAppearance = useHomeAppearance();
+const reducedMotion = computed(() => isHomeRoute.value && homeAppearance.state.effectiveMotionLevel === 'soothing');
 const sampledWallpaperAccentHex = ref('');
 const isFocusActive = focus.isActive;
 const focusAppCodes = focus.activePresetAppCodes;
@@ -2914,14 +2911,6 @@ watch(
 );
 watch(
   () => route.fullPath,
-  async () => {
-    await nextTick();
-    refreshAosManager();
-  },
-  { immediate: true }
-);
-watch(
-  motionPreference.effectiveMode,
   async () => {
     await nextTick();
     refreshAosManager();

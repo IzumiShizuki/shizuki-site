@@ -1,7 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __resetMotionPreferenceForTests, setMotionMode } from '../composables/useMotionPreference';
+import { __resetMotionPreferenceForTests } from '../composables/useMotionPreference';
+import { __resetHomeAppearanceForTests, setHomeMotionLevel } from '../utils/homeTimeStageState';
 import AlbumsPage from './AlbumsPage.vue';
 
 const apiMocks = vi.hoisted(() => ({
@@ -46,17 +47,18 @@ async function mountPage() {
 
 beforeEach(() => {
   __resetMotionPreferenceForTests();
+  __resetHomeAppearanceForTests();
   apiMocks.getAlbumsPage.mockReset().mockResolvedValue({ items: [album], hasMore: false, nextCursor: '' });
 });
 
 afterEach(() => {
   delete document.startViewTransition;
   __resetMotionPreferenceForTests();
+  __resetHomeAppearanceForTests();
 });
 
 describe('AlbumsPage Memory Lens', () => {
   it('renders Polaroid material layers only for a real eligible cover and uses immersive transition', async () => {
-    setMotionMode('immersive');
     const finished = Promise.resolve();
     document.startViewTransition = vi.fn((update) => {
       void update();
@@ -75,9 +77,13 @@ describe('AlbumsPage Memory Lens', () => {
     wrapper.unmount();
   });
 
-  it('keeps the same link semantics but skips spatial transition in soothing mode', async () => {
-    setMotionMode('soothing');
-    document.startViewTransition = vi.fn();
+  it('keeps album transition behavior immersive while Home is soothing', async () => {
+    setHomeMotionLevel('soothing');
+    const finished = Promise.resolve();
+    document.startViewTransition = vi.fn((update) => {
+      void update();
+      return { finished };
+    });
     const { wrapper, router } = await mountPage();
     const card = wrapper.get('.album-card');
 
@@ -85,7 +91,7 @@ describe('AlbumsPage Memory Lens', () => {
     await card.trigger('click');
     await flushPromises();
 
-    expect(document.startViewTransition).not.toHaveBeenCalled();
+    expect(document.startViewTransition).toHaveBeenCalledOnce();
     expect(router.currentRoute.value.path).toBe('/albums/real-summer-a1');
     wrapper.unmount();
   });
