@@ -160,6 +160,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.backend
+      args:
+        INSTALL_STEAMCMD: ${INSTALL_STEAMCMD:-true}
+        STEAMCMD_TARBALL_URL: ${STEAMCMD_TARBALL_URL:-https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz}
     image: shizuki-site/backend:latest
     container_name: shizuki-site-backend
     restart: unless-stopped

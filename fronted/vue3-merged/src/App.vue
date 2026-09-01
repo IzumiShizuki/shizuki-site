@@ -74,7 +74,15 @@
         <component :is="Component" />
       </RouterView>
 
-      <section v-else class="workspace-shell" :class="{ expanded: workspaceNavigationSpaceReserved, 'with-ai-panel': sidebarAiColumnMounted }">
+      <section
+        v-else
+        class="workspace-shell"
+        :class="{
+          expanded: workspaceNavigationSpaceReserved,
+          'author-workspace-active': isAuthorWorkspaceRoute,
+          'with-ai-panel': sidebarAiColumnMounted
+        }"
+      >
         <main
           ref="routeContentRef"
           class="route-content"
@@ -574,6 +582,7 @@ const isHomeRoute = computed(() => currentRouteKey.value === 'home');
 const routeScrollMode = computed(() => resolveRouteScrollMode(route));
 const isAppScrollRoute = computed(() => routeScrollMode.value === RouteScrollMode.APP);
 const isBlogWorkspaceRoute = computed(() => route.name === 'blog-editor' || route.name === 'blog-presentation');
+const isAuthorWorkspaceRoute = computed(() => route.path === '/author');
 const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMobileShellRoute = computed(() => route.path === '/m' || route.path.startsWith('/m/'));
@@ -600,9 +609,7 @@ const topMenuPresentation = computed(() => resolveTopMenuPresentation({
   manualCollapsed: menuCollapsed.value
 }));
 const fullNavigationVisible = computed(() => topMenuPresentation.value.full);
-const workspaceNavigationSpaceReserved = computed(() => (
-  fullNavigationVisible.value || Boolean(nestedScrollOwner.element.value)
-));
+const workspaceNavigationSpaceReserved = computed(() => fullNavigationVisible.value);
 provideAppScrollRoot({
   element: activeRouteScrollSource,
   isActive: computed(() => Boolean(activeRouteScrollSource.value)),
@@ -3154,6 +3161,14 @@ onBeforeUnmount(() => {
   padding-top: 134px;
 }
 
+.workspace-shell.author-workspace-active {
+  width: min(1760px, calc(100vw - 24px));
+  max-width: none;
+  padding-right: 12px;
+  padding-bottom: 8px;
+  padding-left: 12px;
+}
+
 .workspace-shell.with-ai-panel {
   grid-template-columns: minmax(0, 3fr) minmax(300px, 1fr);
 }
@@ -3592,6 +3607,13 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
+  .workspace-shell.author-workspace-active {
+    width: 100%;
+    max-width: none;
+    padding-right: 10px;
+    padding-left: 48px;
+  }
+
   .route-content {
     border-radius: 14px;
     padding: 12px;
@@ -3639,6 +3661,11 @@ onBeforeUnmount(() => {
   .workspace-shell.expanded {
     --music-top-offset-current: var(--music-top-offset-expanded);
     padding-top: 16px;
+  }
+
+  .workspace-shell.author-workspace-active {
+    padding-right: 8px;
+    padding-left: 44px;
   }
 
   .route-content {

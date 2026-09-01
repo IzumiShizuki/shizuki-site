@@ -2440,8 +2440,8 @@ onBeforeUnmount(() => {
 
 .dashboard-layout {
   --content-shell-gap: 14px;
-  --content-shell-left: clamp(220px, 17vw, 250px);
-  --content-shell-right: clamp(280px, 21vw, 320px);
+  --content-shell-left: clamp(236px, 15vw, 276px);
+  --content-shell-right: clamp(300px, 18vw, 348px);
   position: relative;
   min-height: 0;
   height: 100%;
@@ -2596,6 +2596,7 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  scroll-padding-bottom: max(96px, env(safe-area-inset-bottom));
   perspective: none;
 }
 

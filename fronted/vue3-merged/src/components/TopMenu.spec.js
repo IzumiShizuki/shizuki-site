@@ -156,18 +156,23 @@ describe('TopMenu profile entry', () => {
     });
 
     const settingsTrigger = wrapper.get('.appearance-settings-trigger');
-    expect(settingsTrigger.attributes('aria-label')).toBe('主页外观设置');
+    expect(settingsTrigger.attributes('aria-label')).toBe('主页外观设置：时钟、壁纸取色与动效');
+    expect(settingsTrigger.text()).toContain('主页外观');
+    expect(settingsTrigger.find('.appearance-settings-box').exists()).toBe(true);
     expect(settingsTrigger.attributes('aria-expanded')).toBe('false');
 
     await settingsTrigger.trigger('click');
     const appearancePanel = wrapper.get('[data-testid="appearance-popover"]');
     expect(settingsTrigger.attributes('aria-expanded')).toBe('true');
     expect(appearancePanel.text()).toContain('主页时钟');
+    expect(appearancePanel.text()).toContain('只调整首页时钟与壁纸表现');
     expect(appearancePanel.text()).not.toContain('昼夜主题');
     expect(appearancePanel.text()).not.toContain('白天');
     expect(appearancePanel.text()).not.toContain('夜间');
 
     const buttons = wrapper.findAll('.appearance-popover button');
+    expect(buttons.find((button) => button.text() === '自动').attributes('aria-pressed')).toBe('true');
+    expect(buttons.find((button) => button.text() === '沉浸').attributes('aria-pressed')).toBe('true');
     await buttons.find((button) => button.text() === '隐藏').trigger('click');
     await buttons.find((button) => button.text() === '舒缓').trigger('click');
     await buttons.find((button) => button.text() === '手动覆盖').trigger('click');
@@ -176,6 +181,12 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.emitted('set-home-clock-behavior')?.[0]).toEqual(['hide']);
     expect(wrapper.emitted('set-home-motion-level')?.[0]).toEqual(['soothing']);
     expect(wrapper.emitted('set-home-color-mode')?.[0]).toEqual(['manual']);
+  });
+
+  it('keeps the Home appearance popover outside the liquid navigation clip', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/TopMenu.vue'), 'utf8');
+
+    expect(source).toMatch(/\.top-bar\s*\{[\s\S]*?overflow:\s*visible;/);
   });
 
   it('keeps the Home appearance trigger out of content routes', async () => {

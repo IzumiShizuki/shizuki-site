@@ -44,6 +44,21 @@ class ServerDeploySafetyTest(unittest.TestCase):
         ):
             self.assertIn(f"{variable}: ${{{variable}:-true}}", source)
 
+    def test_backend_compose_exposes_steamcmd_build_and_runtime_contract(self) -> None:
+        deploy_dir = Path(__file__).resolve().parent
+        compose = (deploy_dir / "docker-compose.server.yml").read_text(encoding="utf-8")
+        example = (deploy_dir / ".env.server.example").read_text(encoding="utf-8")
+
+        self.assertIn("INSTALL_STEAMCMD: ${INSTALL_STEAMCMD:-true}", compose)
+        self.assertIn("STEAMCMD_TARBALL_URL: ${STEAMCMD_TARBALL_URL:-", compose)
+        for variable in (
+            "WALLPAPER_WORKSHOP_APP_ID=431960",
+            "WALLPAPER_STEAM_API_BASE_URL=https://api.steampowered.com",
+            "WALLPAPER_DISCOVERY_TIMEOUT_SECONDS=15",
+            "WALLPAPER_DISCOVERY_PAGE_SIZE=24",
+        ):
+            self.assertIn(variable, example)
+
     def test_git_name_status_parser_handles_file_and_tree_changes(self) -> None:
         raw = (
             b"A\0apps/new.java\0"

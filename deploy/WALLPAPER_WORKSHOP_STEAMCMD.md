@@ -30,6 +30,13 @@
 - 关闭安装：构建时传 `--build-arg INSTALL_STEAMCMD=false`
 - 下载源替换（网络不通时）：`--build-arg STEAMCMD_TARBALL_URL=<镜像地址>`
 
+标准 Compose 部署会从 `deploy/.env.server` 透传这两个构建参数：
+
+```ini
+INSTALL_STEAMCMD=true
+STEAMCMD_TARBALL_URL=https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+```
+
 重新构建部署（本地双击 `build-push-deploy.bat`，或服务器上手动）：
 
 ```bash
@@ -47,12 +54,24 @@ WALLPAPER_WORKSHOP_ENABLED=true
 WALLPAPER_STEAMCMD_PATH=/opt/steamcmd/steamcmd.sh
 WALLPAPER_STEAM_USERNAME=你的Steam账号
 WALLPAPER_STEAM_PASSWORD=你的Steam密码
+WALLPAPER_WORKSHOP_APP_ID=431960
 WALLPAPER_WORKSHOP_DOWNLOAD_ROOT=/data/steam-workshop
 WALLPAPER_WORKSHOP_TIMEOUT_SECONDS=600
+
+# 发现服务（均有可直接使用的默认值）
+WALLPAPER_DISCOVERY_ENABLED=true
+WALLPAPER_WORKSHOP_BROWSE_BASE_URL=https://steamcommunity.com
+WALLPAPER_STEAM_API_BASE_URL=https://api.steampowered.com
+WALLPAPER_WALLHAVEN_BASE_URL=https://wallhaven.cc
+WALLPAPER_DISCOVERY_TIMEOUT_SECONDS=15
+WALLPAPER_DISCOVERY_PAGE_SIZE=24
 
 # 可选：Steam Web API Key（https://steamcommunity.com/dev/apikey 申请）
 # 配置后工坊搜索走官方 QueryFiles 接口，比页面抓取更稳
 WALLPAPER_STEAM_API_KEY=
+
+# 可选：Wallhaven API Key。普通搜索和下载无需 Key；NSFW purity 等能力才需要。
+WALLPAPER_WALLHAVEN_API_KEY=
 ```
 
 说明：
@@ -61,6 +80,10 @@ WALLPAPER_STEAM_API_KEY=
   - `backend-steam-home:/home/app`（SteamCMD 自更新与 **登录凭据缓存**）
   - `steam-workshop-data:/data/steam-workshop`（下载目录）
 - 凭据缓存在卷里，容器重建后 **不需要** 重复过 Steam Guard。
+- Steam Web API Key 只改善搜索稳定性，不能代替 SteamCMD 登录，也不授予下载权限。
+- Wallhaven 普通搜索和下载不强制 Key；不要因为 Key 为空就把整个来源标成未配置。
+- 需要代理时可设置 `WALLPAPER_DISCOVERY_PROXY_URL`；若是 Basic 认证 HTTP 代理访问 HTTPS，保留
+  `WALLPAPER_DISCOVERY_JDK_JAVA_OPTIONS=-Djdk.http.auth.tunneling.disabledSchemes=`。
 
 ## 4. 首次登录：过一次 Steam Guard（关键步骤）
 
@@ -87,6 +110,19 @@ docker exec -u app shizuki-site-backend /opt/steamcmd/steamcmd.sh \
 `+workshop_download_item 431960 <条目ID>` 真实下载。
 
 ## 5. 验证整条链路
+
+先做不会输出秘密值的运行时检查：
+
+```bash
+docker exec -u app shizuki-site-backend sh -lc '
+  test -x /opt/steamcmd/steamcmd.sh && echo steamcmd=ready || echo steamcmd=missing
+  test -w /data/steam-workshop && echo workshop_volume=writable || echo workshop_volume=not_writable
+  for k in WALLPAPER_WORKSHOP_ENABLED WALLPAPER_STEAM_USERNAME WALLPAPER_STEAM_PASSWORD WALLPAPER_STEAM_API_KEY WALLPAPER_WALLHAVEN_API_KEY; do
+    eval "v=\${$k-}"
+    [ -n "$v" ] && echo "$k=set" || echo "$k=unset"
+  done
+'
+```
 
 1. 网页登录后打开「背景设置 → 获取壁纸」。
 2. 在「在线壁纸浏览」里切到 **Wallhaven**，任选一张点「拉取选中壁纸」——

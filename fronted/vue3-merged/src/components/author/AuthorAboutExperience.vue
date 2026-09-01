@@ -90,6 +90,6 @@ defineEmits(['select-tab', 'edit', 'retry-albums', 'retry-moments']);
 .author-about-center {
   display: grid;
   gap: 18px;
-  padding: 2px 4px 8px;
+  padding: 2px 4px max(96px, env(safe-area-inset-bottom));
 }
 </style>

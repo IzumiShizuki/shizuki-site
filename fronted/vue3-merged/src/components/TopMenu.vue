@@ -58,21 +58,28 @@
             </span>
             <span class="item-label">主题</span>
           </button>
+        </div>
 
+        <div v-if="isHomeRoute" class="menu-item-stack appearance-control-cluster">
           <button
-            v-if="isHomeRoute"
-            class="appearance-settings-trigger liquid-material"
+            class="appearance-settings-trigger ripple-trigger"
             type="button"
-            aria-label="主页外观设置"
+            aria-label="主页外观设置：时钟、壁纸取色与动效"
+            aria-controls="home-appearance-panel"
             :aria-expanded="appearancePanelOpen"
+            title="主页外观：调整时钟、壁纸取色与动效"
             @click.stop="toggleAppearancePanel"
           >
-            <i class="fas fa-sliders" aria-hidden="true"></i>
+            <span class="circle-icon-box liquid-material appearance-settings-box">
+              <i class="fas fa-sliders" aria-hidden="true"></i>
+            </span>
+            <span class="item-label">主页外观</span>
           </button>
 
           <Transition name="appearance-popover">
             <section
               v-if="isHomeRoute && appearancePanelOpen"
+              id="home-appearance-panel"
               class="appearance-popover liquid-material"
               data-testid="appearance-popover"
               aria-label="主页外观设置"
@@ -81,16 +88,18 @@
               <header class="appearance-popover-head">
                 <span>APPEARANCE</span>
                 <strong>主页外观</strong>
+                <small>只调整首页时钟与壁纸表现；动效偏好全站生效。</small>
               </header>
 
               <div class="appearance-group">
-                  <span class="appearance-label">主页时钟 · 全局</span>
+                  <span class="appearance-label">主页时钟</span>
                   <div class="appearance-segment appearance-segment-three">
                     <button
                       v-for="option in clockOptions"
                       :key="option.value"
                       type="button"
                       :class="{ active: homeClockBehavior === option.value }"
+                      :aria-pressed="homeClockBehavior === option.value"
                       @click="emit('set-home-clock-behavior', option.value)"
                     >
                       {{ option.label }}
@@ -106,6 +115,7 @@
                       :key="option.value"
                       type="button"
                       :class="{ active: homeWallpaperClockOverride === option.value }"
+                      :aria-pressed="homeWallpaperClockOverride === option.value"
                       @click="emit('set-home-wallpaper-clock-override', option.value)"
                     >
                       {{ option.label }}
@@ -120,6 +130,7 @@
                     <button
                       type="button"
                       :class="{ active: homeColorMode === 'auto' }"
+                      :aria-pressed="homeColorMode === 'auto'"
                       @click="emit('set-home-color-mode', 'auto')"
                     >
                       自动取色
@@ -127,6 +138,7 @@
                     <button
                       type="button"
                       :class="{ active: homeColorMode === 'manual' }"
+                      :aria-pressed="homeColorMode === 'manual'"
                       @click="emit('set-home-color-mode', 'manual')"
                     >
                       手动覆盖
@@ -152,6 +164,7 @@
                       :key="option.value"
                       type="button"
                       :class="{ active: homeMotionLevel === option.value }"
+                      :aria-pressed="homeMotionLevel === option.value"
                       @click="emit('set-home-motion-level', option.value)"
                     >
                       {{ option.label }}
@@ -736,6 +749,7 @@ onBeforeUnmount(() => {
   --liquid-fill: var(--menu-glass-bg);
   --liquid-border: var(--menu-glass-border);
   --liquid-shadow: var(--menu-glass-shadow);
+  overflow: visible;
   width: 98%;
   max-width: 1500px;
   height: 86px;
@@ -1305,6 +1319,11 @@ button.author-info-item:focus-visible {
   cursor: default;
 }
 
+.appearance-control-cluster {
+  min-width: 76px;
+  cursor: default;
+}
+
 .theme-toggle-action {
   margin: 0;
   padding: 0;
@@ -1330,45 +1349,40 @@ button.author-info-item:focus-visible {
 }
 
 .theme-toggle-action:focus-visible .theme-toggle-box,
-.appearance-settings-trigger:focus-visible {
+.appearance-settings-trigger:focus-visible .appearance-settings-box {
   outline: 2px solid rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
   outline-offset: 2px;
 }
 
 .appearance-settings-trigger {
-  --liquid-bg: var(--theme-floating-surface, rgba(28, 21, 29, 0.88));
-  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.26));
-  position: absolute;
-  top: -4px;
-  right: 0;
-  z-index: 2;
-  width: 21px;
-  height: 21px;
+  margin: 0;
   padding: 0;
-  border: 1px solid var(--liquid-border);
-  border-radius: 50%;
-  display: inline-flex;
+  border: 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--liquid-bg);
-  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.82));
-  box-shadow: 0 5px 12px rgba(8, 5, 10, 0.2);
+  gap: 6px;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  font-size: 8px;
   cursor: pointer;
-  opacity: 0.76;
-  transition: transform 180ms ease, opacity 180ms ease, color 180ms ease, background 180ms ease;
 }
 
-.appearance-settings-trigger:hover,
-.appearance-settings-trigger[aria-expanded='true'] {
+.appearance-settings-box {
+  color: var(--theme-menu-text-muted, rgba(235, 241, 255, 0.82));
+  transition: transform 180ms ease, color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.appearance-settings-trigger:hover .appearance-settings-box,
+.appearance-settings-trigger[aria-expanded='true'] .appearance-settings-box {
   --liquid-bg: var(--menu-hover-bg);
   color: var(--icon-hover-color);
-  opacity: 1;
   transform: translateY(-1px) rotate(8deg);
+  box-shadow: inset 0 0 0 1px var(--menu-active-border), var(--menu-active-shadow);
 }
 
-.appearance-settings-trigger:active {
+.appearance-settings-trigger:active .appearance-settings-box {
   transform: scale(0.92);
 }
 
@@ -1445,6 +1459,13 @@ button.author-info-item:focus-visible {
 
 .appearance-popover-head {
   gap: 3px;
+}
+
+.appearance-popover-head small {
+  margin-top: 3px;
+  color: var(--theme-text-tertiary);
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .appearance-popover-head span,
@@ -1622,10 +1643,8 @@ button.author-info-item:focus-visible {
     min-width: 62px;
   }
 
-  .appearance-settings-trigger {
-    width: 18px;
-    height: 18px;
-    font-size: 7px;
+  .appearance-control-cluster {
+    min-width: 66px;
   }
 
   .circle-icon-box,
@@ -1943,12 +1962,9 @@ button.author-info-item:focus-visible {
     margin-left: 8px;
   }
 
-  .appearance-settings-trigger {
-    top: 0;
-    right: 0;
-    width: 18px;
-    height: 18px;
-    font-size: 7px;
+  .appearance-control-cluster {
+    width: 48px;
+    min-width: 48px;
   }
 
   .menu-item-stack.active {

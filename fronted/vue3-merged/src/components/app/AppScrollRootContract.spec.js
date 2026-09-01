@@ -18,7 +18,11 @@ describe('App public scroll root contract', () => {
     expect(appSource).toContain('useActiveScrollSource(activeRouteScrollSource)');
     expect(appSource).toContain('provideAppScrollRoot({');
     expect(appSource).toContain('claimScrollOwner: nestedScrollOwner.claim');
-    expect(appSource).toContain('fullNavigationVisible.value || Boolean(nestedScrollOwner.element.value)');
+    expect(appSource).toContain('const workspaceNavigationSpaceReserved = computed(() => fullNavigationVisible.value)');
+    expect(appSource).not.toContain('fullNavigationVisible.value || Boolean(nestedScrollOwner.element.value)');
+    expect(appSource).toContain("'author-workspace-active': isAuthorWorkspaceRoute");
+    expect(appSource).toContain("const isAuthorWorkspaceRoute = computed(() => route.path === '/author')");
+    expect(appSource).toContain('width: min(1760px, calc(100vw - 24px))');
     expect(appSource).toContain('const routeScrollPositions = new Map()');
     expect(appSource).toContain('routeScrollPositions.get(nextIdentity) || 0');
   });
@@ -39,6 +43,10 @@ describe('App public scroll root contract', () => {
     expect(authorSource).toContain(':app-scroll-owner="true"');
     expect(authorSource).toContain('app-scroll-owner-media="(min-width: 1200px)"');
     expect(authorExperienceSource).not.toContain('app-scroll-owner');
+    expect(authorSource).toContain('--content-shell-left: clamp(236px, 15vw, 276px)');
+    expect(authorSource).toContain('--content-shell-right: clamp(300px, 18vw, 348px)');
+    expect(authorSource).toContain('scroll-padding-bottom: max(96px, env(safe-area-inset-bottom))');
+    expect(authorExperienceSource).toContain('padding: 2px 4px max(96px, env(safe-area-inset-bottom))');
     expect(authorSource).toContain('resolveContentScrollRoot()');
   });
 });
