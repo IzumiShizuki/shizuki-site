@@ -12,4 +12,4 @@
 
 - [x] 3.1 Run the frontend production build and strict OpenSpec validation.
 - [x] 3.2 Commit only the authentication fix, its tests, and this change's OpenSpec artifacts without disturbing unrelated worktree changes.
-- [ ] 3.3 Push and deploy the verified frontend update, then confirm public authentication latency, backend health, and site availability.
+- [x] 3.3 Push and deploy the verified frontend update, then confirm public authentication latency, backend health, and site availability.
