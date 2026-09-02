@@ -32,6 +32,15 @@ def config() -> deploy.DeployConfig:
 
 
 class ServerDeploySafetyTest(unittest.TestCase):
+    def test_frontend_image_copies_pnpm_patches_before_install(self) -> None:
+        dockerfile = Path(__file__).resolve().parents[1] / "docker" / "Dockerfile.frontend"
+        source = dockerfile.read_text(encoding="utf-8")
+
+        patch_copy = "COPY fronted/vue3-merged/patches/ ./patches/"
+        install = "pnpm install --frozen-lockfile"
+        self.assertIn(patch_copy, source)
+        self.assertLess(source.index(patch_copy), source.index(install))
+
     def test_personal_content_surfaces_are_enabled_in_server_env_example(self) -> None:
         example = Path(__file__).resolve().parent / ".env.server.example"
         source = example.read_text(encoding="utf-8")

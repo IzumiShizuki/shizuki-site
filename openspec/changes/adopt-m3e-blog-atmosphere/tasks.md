@@ -24,3 +24,4 @@
 - [x] 4.1 Run focused tests, the full frontend unit suite, and the production build; resolve regressions and record any unrelated pre-existing failures.
 - [x] 4.2 Inspect the local app in a browser at desktop and mobile widths across day/night, multiple palette personalities, the atmosphere color shortcut, keyboard focus, and reduced-motion states; correct visual defects.
 - [x] 4.3 Run strict OpenSpec validation and final Git status review, update task checkboxes, and leave the change ready for archive after local commit.
+- [x] 4.4 Include the pinned pnpm patch directory in the frontend image dependency layer and cover the copy-before-install contract with a deployment regression test.

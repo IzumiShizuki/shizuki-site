@@ -4,6 +4,7 @@ WORKDIR /app/fronted/vue3-merged
 COPY fronted/vue3-merged/package.json \
      fronted/vue3-merged/pnpm-lock.yaml \
      fronted/vue3-merged/pnpm-workspace.yaml ./
+COPY fronted/vue3-merged/patches/ ./patches/
 RUN corepack enable \
     && corepack prepare pnpm@11.8.0 --activate \
     && pnpm config set registry https://registry.npmmirror.com \
