@@ -1,0 +1,92 @@
+body.shizuki-dark-vault {
+  --background-primary: #111318;
+  --background-primary-alt: #151820;
+  --background-secondary: #0d0f14;
+  --background-secondary-alt: #12151c;
+  --background-modifier-border: rgba(186, 181, 214, 0.16);
+  --background-modifier-hover: rgba(139, 124, 246, 0.13);
+  --background-modifier-active-hover: rgba(139, 124, 246, 0.22);
+  --interactive-accent: #8577e8;
+  --interactive-accent-hover: #968af2;
+  --text-accent: #aaa0ff;
+  --text-accent-hover: #c0b8ff;
+  --text-normal: #e8e9ef;
+  --text-muted: #aeb2c0;
+  --text-faint: #747988;
+  --shizuki-background-image: none;
+}
+
+body.shizuki-dark-vault .app-container {
+  background:
+    linear-gradient(145deg, rgba(12, 14, 20, 0.98), rgba(19, 18, 28, 0.98)),
+    radial-gradient(circle at 75% 12%, rgba(106, 90, 205, 0.15), transparent 42%);
+  background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+body.shizuki-dark-vault.shizuki-background-enabled .app-container {
+  background-image:
+    linear-gradient(rgba(7, 9, 14, 0.68), rgba(9, 10, 16, 0.82)),
+    var(--shizuki-background-image),
+    linear-gradient(145deg, #0c0e14, #171522);
+}
+
+body.shizuki-dark-vault .workspace,
+body.shizuki-dark-vault .workspace-split,
+body.shizuki-dark-vault .workspace-tabs,
+body.shizuki-dark-vault .workspace-tab-container,
+body.shizuki-dark-vault .workspace-leaf,
+body.shizuki-dark-vault .view-content {
+  background-color: transparent;
+}
+
+body.shizuki-dark-vault .workspace-ribbon,
+body.shizuki-dark-vault .workspace-sidedock-vault-profile,
+body.shizuki-dark-vault .mod-sidedock .workspace-leaf-content,
+body.shizuki-dark-vault .workspace-tab-header-container {
+  background-color: rgba(11, 13, 18, 0.88);
+  backdrop-filter: blur(14px) saturate(0.78);
+}
+
+body.shizuki-dark-vault .mod-root .workspace-leaf-content,
+body.shizuki-dark-vault .markdown-source-view,
+body.shizuki-dark-vault .markdown-reading-view,
+body.shizuki-dark-vault .canvas-wrapper,
+body.shizuki-dark-vault .hearth-root {
+  background-color: rgba(15, 17, 23, 0.84);
+  backdrop-filter: blur(10px) saturate(0.82);
+}
+
+body.shizuki-dark-vault .modal,
+body.shizuki-dark-vault .popover,
+body.shizuki-dark-vault .menu,
+body.shizuki-dark-vault .prompt {
+  background-color: rgba(18, 20, 27, 0.97);
+  border-color: rgba(174, 166, 229, 0.2);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(16px);
+}
+
+body.shizuki-dark-vault .nav-file-title.is-active,
+body.shizuki-dark-vault .nav-folder-title.is-active,
+body.shizuki-dark-vault .workspace-tab-header.is-active {
+  background-color: rgba(133, 119, 232, 0.16);
+  color: #f2f0ff;
+}
+
+body.shizuki-dark-vault img {
+  --image-muted-filter: saturate(0.92) brightness(0.94);
+}
+
+.shizuki-publisher-preview {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  background: var(--background-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

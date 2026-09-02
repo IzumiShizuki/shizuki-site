@@ -1,0 +1,9 @@
+{
+  "id": "shizuki-site-publisher",
+  "name": "Shizuki Site Publisher",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.0",
+  "description": "Publish Obsidian notes and local visual assets to shizuki.site.",
+  "author": "Izumi",
+  "isDesktopOnly": true
+}
