@@ -9,6 +9,7 @@ import {
 describe('ambient online library shell state', () => {
   it('keeps the online tab and exposes provider availability', () => {
     expect(normalizeAtmospherePanelTab('online')).toBe('online');
+    expect(normalizeAtmospherePanelTab('colors')).toBe('colors');
     expect(normalizeAtmospherePanelTab('unknown')).toBe('music');
     expect(normalizeAmbientLibraryAvailability({ enabled: true, provider: 'freesound' })).toEqual({
       checked: true,

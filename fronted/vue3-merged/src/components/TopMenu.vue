@@ -140,7 +140,16 @@
       </div>
 
       <div class="nav-section center secondary-nav">
-        <div class="menu-item-stack ripple-trigger" :class="{ active: menuHubActive }" @click="openAtmosphere">
+        <div
+          class="menu-item-stack ripple-trigger"
+          :class="{ active: menuHubActive }"
+          role="button"
+          tabindex="0"
+          aria-label="打开氛围面板"
+          @click="openAtmosphere"
+          @keydown.enter="openAtmosphere"
+          @keydown.space.prevent="openAtmosphere"
+        >
           <div class="circle-icon-box liquid-material menu-hub-box">
             <i class="fas fa-compass-drafting"></i>
             <span class="menu-status-stack" aria-hidden="true">

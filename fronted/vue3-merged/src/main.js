@@ -4,6 +4,7 @@ import './styles/global.css';
 import './styles/liquid-material.css';
 import './styles/liquid-surface.css';
 import './styles/theme.css';
+import './styles/blog-m3e.css';
 import App from './App.vue';
 import DesktopControlOrb from './components/desktop/DesktopControlOrb.vue';
 import router from './router';

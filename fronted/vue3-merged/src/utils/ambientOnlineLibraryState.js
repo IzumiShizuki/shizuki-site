@@ -1,4 +1,4 @@
-const ATMOSPHERE_PANEL_TABS = new Set(['scenes', 'music', 'ambient', 'online', 'effects']);
+const ATMOSPHERE_PANEL_TABS = new Set(['scenes', 'colors', 'music', 'ambient', 'online', 'effects']);
 
 /**
  * 应用壳层接受的氛围面板标签。未知值维持历史回退到音乐页。

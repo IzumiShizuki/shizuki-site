@@ -7,7 +7,7 @@
             <span class="atmo-title-glyph"><i class="fas fa-spa" aria-hidden="true"></i></span>
             <div class="atmo-title-copy">
               <h2>氛围面板</h2>
-              <p>场景 · 环境音 · 特效 · 音乐，一处调好整站氛围</p>
+              <p>色彩 · 场景 · 环境音 · 特效 · 音乐，一处调好整站氛围</p>
             </div>
           </div>
           <div class="atmo-header-side">
@@ -91,6 +91,11 @@
               </button>
             </div>
 
+          </section>
+
+          <!-- ======================= 色彩 ======================= -->
+          <section v-else-if="activeTab === 'colors'" class="panel-body colors-body">
+            <ThemeColorStudio mode="compact" />
           </section>
 
           <!-- ======================= 音乐 ======================= -->
@@ -730,6 +735,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import ThemeColorStudio from './theme/ThemeColorStudio.vue';
 import { buildAmbientAttribution, searchAmbientLibrary } from '../services/ambientLibraryApi';
 import {
   ATMOSPHERE_SCENE_DEFINITIONS,
@@ -828,6 +834,7 @@ const scenes = ATMOSPHERE_SCENE_DEFINITIONS;
 const tabs = computed(() => {
   const base = [
     { key: 'scenes', label: '场景', icon: 'fas fa-mountain-sun' },
+    { key: 'colors', label: '色彩', icon: 'fas fa-palette' },
     { key: 'ambient', label: '环境音', icon: 'fas fa-sliders-h' },
     { key: 'effects', label: '特效', icon: 'fas fa-wand-magic-sparkles' },
     { key: 'music', label: '音乐', icon: 'fas fa-music' }

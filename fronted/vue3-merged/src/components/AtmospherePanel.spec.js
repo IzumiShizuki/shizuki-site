@@ -69,6 +69,16 @@ describe('AtmospherePanel online ambient library', () => {
     expect(wrapper.get('input[type="search"]').attributes('disabled')).toBeDefined();
   });
 
+  it('exposes a synchronized color destination in the atmosphere panel', () => {
+    const wrapper = mountPanel({ activeTab: 'colors' });
+
+    expect(wrapper.findAll('.atmo-tab').map((tab) => tab.text())).toContain('色彩');
+    expect(wrapper.find('.colors-body').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Material 3 Expressive');
+    expect(wrapper.text()).toContain('色板性格');
+    expect(wrapper.find('.theme-color-studio.is-compact').exists()).toBe(true);
+  });
+
   it('asks guests to sign in instead of pretending to add a temporary preview', async () => {
     const wrapper = mountPanel({ onlineLibraryEnabled: true, isAuthenticated: false });
     await searchForRain(wrapper);

@@ -16,6 +16,7 @@ function resetDocumentThemeState() {
   const root = document.documentElement;
   root.removeAttribute('data-accent-mode');
   root.removeAttribute('data-theme-mode');
+  root.removeAttribute('data-palette-style');
   root.removeAttribute('style');
 }
 
@@ -42,8 +43,14 @@ describe('useUiPreferences', () => {
     expect(ui.state.accentGradientId).toBe('apricot-blush');
     expect(ui.state.accentGradientStartHex).toBe('#F6C2A1');
     expect(ui.state.accentGradientEndHex).toBe('#EFA0A8');
+    expect(ui.state.paletteStyle).toBe('soft');
     expect(document.documentElement.getAttribute('data-accent-mode')).toBe('solid');
     expect(document.documentElement.getAttribute('data-theme-mode')).toBe('night');
+    expect(document.documentElement.getAttribute('data-palette-style')).toBe('soft');
+    expect(document.documentElement.style.getPropertyValue('--m3-primary')).toMatch(/^#[0-9A-F]{6}$/);
+    expect(document.documentElement.style.getPropertyValue('--m3-on-primary')).toMatch(/^#[0-9A-F]{6}$/);
+    expect(document.documentElement.style.getPropertyValue('--m3-surface-container-low')).not.toBe('');
+    expect(document.documentElement.style.getPropertyValue('--m3e-focus-ring')).not.toBe('');
     expect(document.documentElement.style.getPropertyValue('--theme-surface')).not.toBe('');
     expect(document.documentElement.style.getPropertyValue('--theme-panel-surface')).not.toBe('');
     expect(document.documentElement.style.getPropertyValue('--theme-panel-surface-elevated')).not.toBe('');
@@ -64,6 +71,7 @@ describe('useUiPreferences', () => {
         accentGradientId: 'apricot-blush',
         accentGradientStartHex: '#F6C2A1',
         accentGradientEndHex: '#EFA0A8',
+        paletteStyle: 'soft',
         themeDefaultsVersion: 3
       })
     );
@@ -159,6 +167,7 @@ describe('useUiPreferences', () => {
     expect(ui.state.accentGradientId).toBe('sunset');
     expect(ui.state.accentGradientStartHex).toBe('#FF7A8A');
     expect(ui.state.accentGradientEndHex).toBe('#FFB168');
+    expect(ui.state.paletteStyle).toBe('soft');
     expect(readStoredPreferences()).toEqual(
       expect.objectContaining({
         themeMode: 'night',
@@ -167,6 +176,7 @@ describe('useUiPreferences', () => {
         accentGradientId: 'sunset',
         accentGradientStartHex: '#FF7A8A',
         accentGradientEndHex: '#FFB168',
+        paletteStyle: 'soft',
         themeDefaultsVersion: 3
       })
     );
@@ -208,6 +218,7 @@ describe('useUiPreferences', () => {
     const nightPanelSurface = document.documentElement.style.getPropertyValue('--theme-panel-surface');
     const nightReaderSurface = document.documentElement.style.getPropertyValue('--theme-reader-surface');
     const nightIconPrimary = document.documentElement.style.getPropertyValue('--theme-icon-primary');
+    const nightM3Surface = document.documentElement.style.getPropertyValue('--m3-surface');
 
     ui.toggleThemeMode();
 
@@ -218,6 +229,7 @@ describe('useUiPreferences', () => {
     expect(document.documentElement.style.getPropertyValue('--theme-panel-surface')).not.toBe(nightPanelSurface);
     expect(document.documentElement.style.getPropertyValue('--theme-reader-surface')).not.toBe(nightReaderSurface);
     expect(document.documentElement.style.getPropertyValue('--theme-icon-primary')).not.toBe(nightIconPrimary);
+    expect(document.documentElement.style.getPropertyValue('--m3-surface')).not.toBe(nightM3Surface);
     expect(document.documentElement.style.getPropertyValue('--theme-icon-primary')).not.toBe(
       document.documentElement.style.getPropertyValue('--theme-text-primary')
     );
@@ -227,6 +239,43 @@ describe('useUiPreferences', () => {
         themeMode: 'day'
       })
     );
+  });
+
+  it('applies and persists palette personalities without replacing the seed color', async () => {
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+
+    ui.initializeUiPreferences();
+    const seedBefore = ui.state.accentHex;
+    const softSecondary = document.documentElement.style.getPropertyValue('--m3-secondary');
+
+    expect(ui.setPaletteStyle('expressive')).toBe('expressive');
+
+    expect(ui.state.accentHex).toBe(seedBefore);
+    expect(ui.state.paletteStyle).toBe('expressive');
+    expect(document.documentElement.getAttribute('data-palette-style')).toBe('expressive');
+    expect(document.documentElement.style.getPropertyValue('--m3-secondary')).not.toBe(softSecondary);
+    expect(readStoredPreferences()).toEqual(expect.objectContaining({ paletteStyle: 'expressive' }));
+
+    expect(ui.setPaletteStyle('unsupported')).toBe('soft');
+    expect(document.documentElement.getAttribute('data-palette-style')).toBe('soft');
+  });
+
+  it('uses both gradient endpoints in emitted M3 roles', async () => {
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+
+    ui.initializeUiPreferences();
+    ui.setAccentMode('gradient');
+    ui.setAccentGradientCustom('#F472B6', '#34D399');
+    const firstPrimary = document.documentElement.style.getPropertyValue('--m3-primary');
+    const firstSecondary = document.documentElement.style.getPropertyValue('--m3-secondary');
+
+    ui.setAccentGradientCustom('#F472B6', '#818CF8');
+
+    expect(document.documentElement.style.getPropertyValue('--m3-primary')).toBe(firstPrimary);
+    expect(document.documentElement.style.getPropertyValue('--m3-secondary')).not.toBe(firstSecondary);
+    expect(document.documentElement.style.getPropertyValue('--m3-ambient-companion')).not.toBe('');
   });
 
   it('picks a dark ink on light accents and a light ink on dark accents', async () => {

@@ -289,6 +289,7 @@ describe('BlogListPage category panel', () => {
     mountedWrappers.push(wrapper);
 
     expect(wrapper.get('[data-content-layout="responsive"]').exists()).toBe(true);
+    expect(wrapper.get('[data-m3e-blog-surface="list"]').exists()).toBe(true);
     expect(wrapper.get('.content-shell__left .left-switch').exists()).toBe(true);
     expect(wrapper.get('.content-shell__main .feed-column').exists()).toBe(true);
     expect(wrapper.get('.content-shell__right .sidebar-column').exists()).toBe(true);
@@ -300,6 +301,7 @@ describe('BlogListPage category panel', () => {
     );
     expect(wrapper.findAll('.feed-card')).toHaveLength(0);
     expect(wrapper.get('.feed-hero-title').text()).toBe('Dev Post');
+    expect(wrapper.get('.feed-hero').attributes()).toMatchObject({ role: 'link', tabindex: '0' });
   });
 
   it('uses the restrained content-flow transition when opening an article card', async () => {

@@ -29,6 +29,9 @@ overrides:
   '@tiptap/extension-bubble-menu': 3.12.1
   '@tiptap/extension-floating-menu': 3.12.1
 
+patchedDependencies:
+  '@material/material-color-utilities@0.4.0': c17819fcbc2fbf79bc99adc4c751bf7f8d40a56e5f2c1d2d6622d65f8abfb8d6
+
 importers:
 
   .:
@@ -45,6 +48,9 @@ importers:
       '@fortawesome/fontawesome-free':
         specifier: ^6.6.0
         version: 6.7.2
+      '@material/material-color-utilities':
+        specifier: 0.4.0
+        version: 0.4.0(patch_hash=c17819fcbc2fbf79bc99adc4c751bf7f8d40a56e5f2c1d2d6622d65f8abfb8d6)
       '@tiptap/core':
         specifier: 3.12.1
         version: 3.12.1(@tiptap/pm@3.12.1)
@@ -597,6 +603,9 @@ packages:
   '@malept/flatpak-bundler@0.4.0':
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
+
+  '@material/material-color-utilities@0.4.0':
+    resolution: {integrity: sha512-dlq6VExJReb8dhjj3a/yTigr3ncNwoFmL5Iy2ENtbDX03EmNeOEdZ+vsaGrj7RTuO+mB7L58II4LCsl4NpM8uw==}
 
   '@mermaid-js/parser@1.0.1':
     resolution: {integrity: sha512-opmV19kN1JsK0T6HhhokHpcVkqKpF+x2pPDKKM2ThHtZAB5F4PROopk0amuVYK5qMrIA4erzpNm8gmPNJgMDxQ==}
@@ -4681,6 +4690,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@material/material-color-utilities@0.4.0(patch_hash=c17819fcbc2fbf79bc99adc4c751bf7f8d40a56e5f2c1d2d6622d65f8abfb8d6)': {}
+
   '@mermaid-js/parser@1.0.1':
     dependencies:
       langium: 4.2.1
@@ -5963,7 +5974,7 @@ snapshots:
 
   '@types/minimatch@6.0.0':
     dependencies:
-      minimatch: 9.0.9
+      minimatch: 10.2.6
     optional: true
 
   '@types/ms@2.1.0': {}

@@ -1,7 +1,8 @@
 <template>
   <section
-    class="route-page blog-page motion-managed"
+    class="route-page blog-page m3e-blog-route motion-managed"
     :class="{ 'blog-page--public': viewMode === 'detail', 'blog-page--workspace': viewMode === 'editor' }"
+    :data-m3e-blog-surface="viewMode === 'detail' ? 'reader' : undefined"
     :data-scroll-owner="viewMode === 'editor' ? 'workspace' : (isMobileLike ? 'app' : 'center')"
     :data-motion-mode="motionPreference.effectiveMode.value"
   >
@@ -134,7 +135,16 @@
       </template>
 
       <template #default>
-        <div v-if="viewMode === 'detail'" class="detail-view" :style="readerTransitionStyle">
+        <div
+          v-if="viewMode === 'detail'"
+          class="detail-view"
+          :style="readerTransitionStyle"
+          :aria-busy="detailState.loading ? 'true' : 'false'"
+        >
+          <div v-if="detailState.loading" class="m3e-reader-loading" role="status" aria-live="polite">
+            <span aria-hidden="true"></span>
+            正在展开文章…
+          </div>
           <p v-if="detailState.error" class="error-text">{{ detailState.error }}</p>
           <template v-else-if="detailState.post">
             <SubtleScrollArea

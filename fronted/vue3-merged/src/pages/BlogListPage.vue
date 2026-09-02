@@ -1,6 +1,7 @@
 <template>
   <section
-    class="route-page blog-list-page motion-managed"
+    class="route-page blog-list-page m3e-blog-route motion-managed"
+    data-m3e-blog-surface="list"
     :data-scroll-owner="isMobileLike ? 'app' : 'center'"
     :data-motion-mode="motionPreference.effectiveMode.value"
   >
@@ -122,11 +123,26 @@
           <section class="feed-column">
               <p v-if="listState.error" class="error-text">{{ listState.error }}</p>
 
+              <div
+                v-if="listState.loading"
+                class="blog-feed-loading"
+                role="status"
+                aria-live="polite"
+                aria-label="正在加载博客文章"
+              >
+                <span v-for="index in 3" :key="`feed-loading-${index}`" class="blog-feed-loading-row" aria-hidden="true"></span>
+                <span class="sr-only">正在加载博客文章</span>
+              </div>
+
               <article
                 v-if="featuredPost"
                 class="feed-hero liquid-material ripple-trigger"
                 data-transform-owner="cover"
+                role="link"
+                tabindex="0"
                 @click="openPostDetail(featuredPost.postId, $event)"
+                @keydown.enter="openPostDetail(featuredPost.postId, $event)"
+                @keydown.space.prevent="openPostDetail(featuredPost.postId, $event)"
               >
                 <img
                   class="feed-hero-cover"
@@ -178,7 +194,11 @@
                 :class="{ reverse: index % 2 === 1 }"
                 :style="{ '--stagger': index }"
                 data-transform-owner="cover"
+                role="link"
+                tabindex="0"
                 @click="openPostDetail(post.postId, $event)"
+                @keydown.enter="openPostDetail(post.postId, $event)"
+                @keydown.space.prevent="openPostDetail(post.postId, $event)"
               >
                 <div class="cover-pane">
                   <img :src="resolveCover(post.coverImageUrl)" :alt="post.title" loading="lazy" />

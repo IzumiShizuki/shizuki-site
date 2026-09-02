@@ -57,6 +57,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('TopMenu atmosphere shortcut', () => {
+  it('exposes the atmosphere hub to pointer and keyboard users', async () => {
+    const { wrapper } = await mountTopMenu();
+    const shortcut = wrapper.get('[aria-label="打开氛围面板"]');
+
+    expect(shortcut.attributes()).toMatchObject({ role: 'button', tabindex: '0' });
+
+    await shortcut.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('open-atmosphere-panel')).toHaveLength(1);
+
+    await shortcut.trigger('keydown', { key: ' ' });
+    expect(wrapper.emitted('open-atmosphere-panel')).toHaveLength(2);
+  });
+});
+
 describe('TopMenu profile entry', () => {
   it('keeps Site active on personal routes and opens the three-level hierarchy', async () => {
     const { wrapper } = await mountTopMenu(

@@ -1,4 +1,11 @@
 import { reactive } from 'vue';
+import {
+  DEFAULT_PALETTE_STYLE,
+  PALETTE_STYLES,
+  normalizePaletteStyle,
+  resolveM3DynamicPalette,
+  roleNameToCssVariable
+} from '../utils/m3DynamicPalette';
 
 const STORAGE_KEY = 'shizuki.uiPreferences.v1';
 const LEGACY_PLAYER_STORAGE_KEY = 'shizuki.musicPlayer.v1';
@@ -44,6 +51,7 @@ const state = reactive({
   accentGradientId: DEFAULT_GRADIENT_PRESET_ID,
   accentGradientStartHex: resolveGradientPreset(DEFAULT_GRADIENT_PRESET_ID).startHex,
   accentGradientEndHex: resolveGradientPreset(DEFAULT_GRADIENT_PRESET_ID).endHex,
+  paletteStyle: DEFAULT_PALETTE_STYLE,
   themeDefaultsVersion: THEME_DEFAULTS_VERSION,
   globalBackgroundId: '',
   routeBackgroundByKey: {},
@@ -185,6 +193,7 @@ function applyThemeDefaults(modeInput = state.accentMode) {
   state.accentGradientId = preset.id;
   state.accentGradientStartHex = preset.startHex;
   state.accentGradientEndHex = preset.endHex;
+  state.paletteStyle = DEFAULT_PALETTE_STYLE;
   state.themeDefaultsVersion = THEME_DEFAULTS_VERSION;
 }
 
@@ -201,6 +210,14 @@ function applyAccentVariables() {
   const lifted = [clamp(r + (255 - r) * 0.18), clamp(g + (255 - g) * 0.18), clamp(b + (255 - b) * 0.16)];
   const gradientStart = hexToRgbTuple(state.accentGradientStartHex) || [246, 194, 161];
   const gradientEnd = hexToRgbTuple(state.accentGradientEndHex) || [239, 160, 168];
+  const paletteStyle = normalizePaletteStyle(state.paletteStyle);
+  const m3Palette = resolveM3DynamicPalette({
+    primaryHex: state.accentMode === 'gradient' ? state.accentGradientStartHex : state.accentHex,
+    companionHex: state.accentMode === 'gradient' ? state.accentGradientEndHex : state.accentHex,
+    accentMode: state.accentMode,
+    isDark: !isDayMode,
+    paletteStyle
+  });
   const warmCore = mixTuple([r, g, b], [28, 36, 56], 0.72);
   const warmShade = mixTuple([r, g, b], [14, 18, 32], 0.86);
   const warmLift = mixTuple(soft, [255, 252, 248], 0.34);
@@ -377,6 +394,38 @@ function applyAccentVariables() {
   const textGradientEnd = ensureTextContrastOn(gradientEnd, pageBase, 4.5, readableTowards);
 
   const root = document.documentElement;
+  for (const [roleName, value] of Object.entries(m3Palette.roles)) {
+    root.style.setProperty(roleNameToCssVariable(roleName), value);
+  }
+  root.style.setProperty('--m3-ambient-primary', m3Palette.roles.primaryContainer);
+  root.style.setProperty('--m3-ambient-companion', m3Palette.roles.tertiaryContainer);
+  root.style.setProperty('--m3e-shape-xs', '4px');
+  root.style.setProperty('--m3e-shape-s', '8px');
+  root.style.setProperty('--m3e-shape-m', '12px');
+  root.style.setProperty('--m3e-shape-l', '16px');
+  root.style.setProperty('--m3e-shape-xl', '28px');
+  root.style.setProperty('--m3e-shape-full', '999px');
+  root.style.setProperty('--m3e-duration-short', '150ms');
+  root.style.setProperty('--m3e-duration-medium', '250ms');
+  root.style.setProperty('--m3e-duration-long', '400ms');
+  root.style.setProperty('--m3e-duration-ambient', '13s');
+  root.style.setProperty('--m3e-easing-standard', 'cubic-bezier(0.2, 0, 0, 1)');
+  root.style.setProperty('--m3e-easing-emphasized', 'cubic-bezier(0.05, 0.7, 0.1, 1)');
+  root.style.setProperty('--m3e-state-hover-alpha', '0.08');
+  root.style.setProperty('--m3e-state-focus-alpha', '0.1');
+  root.style.setProperty('--m3e-state-pressed-alpha', '0.12');
+  root.style.setProperty(
+    '--m3e-focus-ring',
+    `0 0 0 3px color-mix(in srgb, ${m3Palette.roles.primary} 28%, transparent)`
+  );
+  root.style.setProperty(
+    '--m3e-elevation-1',
+    `0 2px 6px color-mix(in srgb, ${m3Palette.roles.shadow} 18%, transparent)`
+  );
+  root.style.setProperty(
+    '--m3e-elevation-2',
+    `0 8px 24px color-mix(in srgb, ${m3Palette.roles.shadow} 22%, transparent)`
+  );
   root.style.setProperty('--accent-hex', normalizeHex(state.accentHex) || DEFAULT_ACCENT_HEX);
   root.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
   root.style.setProperty('--accent-strong-rgb', `${strong[0]}, ${strong[1]}, ${strong[2]}`);
@@ -501,6 +550,7 @@ function applyAccentVariables() {
   root.style.setProperty('color-scheme', isDayMode ? 'light' : 'dark');
   root.setAttribute('data-accent-mode', normalizeAccentMode(state.accentMode));
   root.setAttribute('data-theme-mode', themeMode);
+  root.setAttribute('data-palette-style', paletteStyle);
 }
 
 function persist() {
@@ -515,6 +565,7 @@ function persist() {
         accentGradientId: state.accentGradientId,
         accentGradientStartHex: state.accentGradientStartHex,
         accentGradientEndHex: state.accentGradientEndHex,
+        paletteStyle: state.paletteStyle,
         themeDefaultsVersion: state.themeDefaultsVersion,
         globalBackgroundId: state.globalBackgroundId,
         routeBackgroundByKey: state.routeBackgroundByKey,
@@ -543,6 +594,7 @@ function initializeUiPreferences() {
           state.accentGradientId = preset.id;
           state.accentGradientStartHex = normalizeHex(payload.accentGradientStartHex) || preset.startHex;
           state.accentGradientEndHex = normalizeHex(payload.accentGradientEndHex) || preset.endHex;
+          state.paletteStyle = normalizePaletteStyle(payload.paletteStyle);
           state.themeDefaultsVersion = getThemeDefaultsVersion(payload);
           if (typeof payload.globalBackgroundId === 'string') state.globalBackgroundId = payload.globalBackgroundId;
           if (payload.routeBackgroundByKey && typeof payload.routeBackgroundByKey === 'object') {
@@ -656,6 +708,13 @@ function setAccentGradientCustom(startHexInput, endHexInput) {
   };
 }
 
+function setPaletteStyle(styleInput) {
+  state.paletteStyle = normalizePaletteStyle(styleInput);
+  applyAccentVariables();
+  persist();
+  return state.paletteStyle;
+}
+
 function setGlobalBackgroundId(backgroundId) {
   state.globalBackgroundId = typeof backgroundId === 'string' ? backgroundId : '';
   persist();
@@ -693,6 +752,7 @@ export function useUiPreferences() {
     state,
     ACCENT_PRESETS,
     GRADIENT_PRESETS,
+    PALETTE_STYLES,
     initializeUiPreferences,
     setThemeMode,
     toggleThemeMode,
@@ -701,6 +761,7 @@ export function useUiPreferences() {
     setAccentMode,
     setAccentGradientPreset,
     setAccentGradientCustom,
+    setPaletteStyle,
     setGlobalBackgroundId,
     setRouteBackground,
     clearRouteBackground,
