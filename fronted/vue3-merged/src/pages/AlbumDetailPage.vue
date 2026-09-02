@@ -240,7 +240,7 @@ watch(() => route.params.publicSlug, loadAlbum, { immediate: true });
 .album-detail-side,
 .album-detail-state {
   border: 1px solid var(--theme-border-subtle);
-  background: color-mix(in srgb, var(--theme-panel-surface) 90%, transparent);
+  background: var(--theme-panel-surface);
   box-shadow: var(--theme-shadow-soft);
 }
 
@@ -334,7 +334,7 @@ watch(() => route.params.publicSlug, loadAlbum, { immediate: true });
   padding: 9px 9px 16px;
   border: 1px solid var(--theme-border-subtle);
   border-radius: 8px 8px 17px 17px;
-  background: color-mix(in srgb, var(--theme-panel-surface-elevated) 94%, transparent);
+  background: var(--theme-panel-surface-elevated);
   box-shadow: 0 16px 38px rgba(12, 8, 18, 0.18);
   transition: transform 240ms ease, border-color 160ms ease;
 }

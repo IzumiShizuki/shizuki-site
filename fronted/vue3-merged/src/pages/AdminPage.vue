@@ -8,10 +8,12 @@
       :hint="globalHint"
     />
 
-    <div v-if="booting" class="state-tip">正在加载管理数据...</div>
+    <div v-if="!adminAccessReady || (booting && !isActiveStudioTab)" class="state-tip">
+      {{ adminAccessReady ? '正在加载管理数据...' : '正在确认管理权限...' }}
+    </div>
 
     <template v-else>
-      <section class="kpi-grid">
+      <section v-if="!isActiveStudioTab" class="kpi-grid">
         <article class="kpi-card liquid-material">
           <span>用户总量</span>
           <strong>{{ usersPage.total }}</strong>
@@ -45,8 +47,13 @@
 
         <section class="content-panel liquid-material" :class="{ 'content-panel--embedded': embedded }">
           <p v-if="embedded && globalHint" class="state-tip embedded-hint">{{ globalHint }}</p>
+          <AdminStudioPanelHost
+            v-if="isActiveStudioTab"
+            :active-tab="activeTab"
+          />
+
           <AdminUsersPanel
-            v-if="activeTab === AdminTabKey.USERS"
+            v-else-if="activeTab === AdminTabKey.USERS"
             v-model:queryKeyword="usersQuery.keyword"
             :loading="usersLoading"
             :saving="usersSaving"
@@ -213,11 +220,6 @@
             @upload="uploadCategoryMetaCover"
           />
 
-          <AdminStudioPanelHost
-            v-else-if="studioTabKeys.has(activeTab)"
-            :active-tab="activeTab"
-          />
-
           <p v-else class="state-tip">当前管理入口不可用，请从左侧选择有权限的工作区。</p>
         </section>
       </RailScaffold>
@@ -331,6 +333,7 @@ const studioTabKeys = new Set([
 ]);
 
 const booting = ref(true);
+const adminAccessReady = ref(false);
 const globalHint = ref('');
 
 const groupOptions = ref([]);
@@ -465,6 +468,7 @@ const activeTab = computed(() => {
   const raw = props.embedded ? props.forcedTab : (typeof route.query.tab === 'string' ? route.query.tab : '');
   return normalizeTab(raw);
 });
+const isActiveStudioTab = computed(() => studioTabKeys.has(activeTab.value));
 
 const isAdminUser = computed(() => {
   return isAdminPrincipal(auth.user.value);
@@ -1748,6 +1752,8 @@ onMounted(async () => {
     });
     return;
   }
+
+  adminAccessReady.value = true;
 
   try {
     await reloadOptions();

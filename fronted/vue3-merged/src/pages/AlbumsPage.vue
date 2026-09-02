@@ -233,7 +233,7 @@ function loadFirstPage() {
 .life-state {
   border: 1px solid var(--theme-border-subtle);
   color: var(--theme-text-primary);
-  background: color-mix(in srgb, var(--theme-panel-surface) 90%, transparent);
+  background: var(--theme-panel-surface);
   box-shadow: var(--theme-shadow-soft);
 }
 
@@ -288,7 +288,7 @@ function loadFirstPage() {
   border: 1px solid color-mix(in srgb, var(--theme-border-strong) 74%, transparent);
   border-radius: 9px 9px 18px 18px;
   color: inherit;
-  background: color-mix(in srgb, var(--theme-panel-surface-elevated) 94%, transparent);
+  background: var(--theme-panel-surface-elevated);
   box-shadow: 0 16px 36px rgba(12, 8, 18, 0.17);
   text-decoration: none;
   transform: rotate(calc((var(--album-order) - 0.5) * 0.35deg));
@@ -306,7 +306,7 @@ function loadFirstPage() {
   inset: 7px 12px 84px;
   border: 1px solid color-mix(in srgb, var(--theme-border-strong) 76%, transparent);
   border-radius: 7px;
-  background: color-mix(in srgb, var(--theme-panel-surface-elevated) 96%, transparent);
+  background: var(--theme-panel-surface-elevated);
   pointer-events: none;
 }
 
@@ -394,7 +394,7 @@ function loadFirstPage() {
   display: grid;
   place-items: center;
   color: var(--theme-text-tertiary);
-  background: color-mix(in srgb, var(--theme-panel-surface) 86%, transparent);
+  background: var(--theme-panel-surface);
 }
 
 .album-cover img {

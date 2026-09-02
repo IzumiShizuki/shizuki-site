@@ -135,7 +135,7 @@ async function toggleDetails() {
 </script>
 
 <style scoped>
-.site-widget-card { border: 1px solid var(--theme-border-subtle); border-radius: 22px; padding: 20px; color: var(--theme-text-primary); background: color-mix(in srgb, var(--theme-panel-surface) 90%, transparent); box-shadow: var(--theme-shadow-soft); }
+.site-widget-card { border: 1px solid var(--theme-border-subtle); border-radius: 22px; padding: 20px; color: var(--theme-text-primary); background: var(--theme-panel-surface); box-shadow: var(--theme-shadow-soft); }
 .widget-heading, .widget-actions, .widget-provenance { display: flex; align-items: center; }
 .widget-heading { justify-content: space-between; gap: 12px; }
 .eyebrow { color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb))); font-size: 10px; font-weight: 760; letter-spacing: .16em; }

@@ -227,7 +227,7 @@ function retryCurrent() {
   border-radius: 22px;
   padding: 20px;
   color: var(--theme-text-primary);
-  background: color-mix(in srgb, var(--theme-panel-surface) 90%, transparent);
+  background: var(--theme-panel-surface);
   box-shadow: var(--theme-shadow-soft);
 }
 

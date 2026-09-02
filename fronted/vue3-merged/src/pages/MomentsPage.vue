@@ -389,7 +389,7 @@ watch(() => pageItems.value.length, revealTargetMoment);
 .moment-card,
 .moment-state {
   border: 1px solid var(--theme-border-subtle);
-  background: color-mix(in srgb, var(--theme-panel-surface) 90%, transparent);
+  background: var(--theme-panel-surface);
   box-shadow: var(--theme-shadow-soft);
 }
 

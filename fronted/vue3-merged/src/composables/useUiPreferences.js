@@ -80,7 +80,10 @@ function mixTuple(source, target, ratio) {
  */
 const SURFACE_INK_DARK_RGB = [46, 30, 24];
 const SURFACE_INK_LIGHT_RGB = [255, 255, 255];
-const NIGHT_PAGE_RGB = [18, 24, 38];
+const NIGHT_PAGE_RGB = [26, 20, 28];
+const NIGHT_SURFACE_CORE_RGB = [66, 52, 62];
+const NIGHT_SURFACE_SHADE_RGB = [26, 20, 28];
+const NIGHT_SURFACE_ELEVATED_RGB = [86, 66, 76];
 
 function srgbChannelToLinear(channel) {
   const c = channel / 255;
@@ -218,8 +221,8 @@ function applyAccentVariables() {
     isDark: !isDayMode,
     paletteStyle
   });
-  const warmCore = mixTuple([r, g, b], [28, 36, 56], 0.72);
-  const warmShade = mixTuple([r, g, b], [14, 18, 32], 0.86);
+  const warmCore = mixTuple([r, g, b], NIGHT_SURFACE_CORE_RGB, 0.84);
+  const warmShade = mixTuple([r, g, b], NIGHT_SURFACE_SHADE_RGB, 0.88);
   const warmLift = mixTuple(soft, [255, 252, 248], 0.34);
   const warmBorder = mixTuple([r, g, b], [241, 245, 249], 0.18);
   const warmBorderStrong = mixTuple(strong, [226, 232, 240], 0.12);
@@ -238,29 +241,29 @@ function applyAccentVariables() {
   const paperBorder = mixTuple(strong, [148, 163, 184], 0.2);
   const paperBorderStrong = mixTuple(strong, [100, 116, 139], 0.16);
   const themeSurface = isDayMode
-    ? `linear-gradient(155deg, rgba(${paperMist.join(', ')}, 0.68), rgba(${paperGlass.join(', ')}, 0.48))`
+    ? `linear-gradient(155deg, rgba(${paperMist.join(', ')}, 0.9), rgba(${paperGlass.join(', ')}, 0.82))`
     : state.accentMode === 'gradient'
-      ? `linear-gradient(155deg, rgba(${mixTuple(gradientStart, [28, 36, 56], 0.64).join(', ')}, 0.74), rgba(${mixTuple(gradientEnd, [14, 18, 32], 0.88).join(', ')}, 0.82))`
+      ? `linear-gradient(155deg, rgba(${mixTuple(gradientStart, NIGHT_SURFACE_CORE_RGB, 0.72).join(', ')}, 0.7), rgba(${mixTuple(gradientEnd, NIGHT_SURFACE_SHADE_RGB, 0.9).join(', ')}, 0.88))`
       : `linear-gradient(155deg, rgba(${warmCore.join(', ')}, 0.42), rgba(${warmShade.join(', ')}, 0.88))`;
   const themeSurfaceElevated = isDayMode
-    ? `linear-gradient(145deg, rgba(${paperFrost.join(', ')}, 0.82), rgba(${paperMist.join(', ')}, 0.6))`
+    ? `linear-gradient(145deg, rgba(${paperFrost.join(', ')}, 0.96), rgba(${paperMist.join(', ')}, 0.9))`
     : state.accentMode === 'gradient'
-      ? `linear-gradient(145deg, rgba(${mixTuple(gradientStart, [48, 60, 82], 0.52).join(', ')}, 0.4), rgba(${mixTuple(gradientEnd, [14, 18, 32], 0.78).join(', ')}, 0.78))`
-      : `linear-gradient(145deg, rgba(${mixTuple(lifted, [48, 60, 82], 0.48).join(', ')}, 0.36), rgba(${mixTuple([r, g, b], [14, 18, 32], 0.82).join(', ')}, 0.78))`;
+      ? `linear-gradient(145deg, rgba(${mixTuple(gradientStart, NIGHT_SURFACE_ELEVATED_RGB, 0.62).join(', ')}, 0.42), rgba(${mixTuple(gradientEnd, NIGHT_SURFACE_SHADE_RGB, 0.82).join(', ')}, 0.8))`
+      : `linear-gradient(145deg, rgba(${mixTuple(lifted, NIGHT_SURFACE_ELEVATED_RGB, 0.62).join(', ')}, 0.38), rgba(${mixTuple([r, g, b], NIGHT_SURFACE_SHADE_RGB, 0.84).join(', ')}, 0.8))`;
   const themeSurfaceSoft = isDayMode
     ? `rgba(${paperFrost.join(', ')}, 0.54)`
     : state.accentMode === 'gradient'
       ? `rgba(${mixTuple(gradientStart, [226, 232, 240], 0.28).join(', ')}, 0.16)`
       : `rgba(${warmLift.join(', ')}, 0.16)`;
   const themePanelSurface = isDayMode
-    ? `linear-gradient(155deg, rgba(${paperFrost.join(', ')}, 0.76), rgba(${paperGlass.join(', ')}, 0.56))`
+    ? `linear-gradient(155deg, rgba(${paperFrost.join(', ')}, 0.94), rgba(${paperGlass.join(', ')}, 0.88))`
     : themeSurface;
   const themePanelSurfaceElevated = isDayMode
-    ? `linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(${paperMist.join(', ')}, 0.66))`
+    ? `linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(${paperMist.join(', ')}, 0.9))`
     : themeSurfaceElevated;
   const themeReaderSurface = isDayMode
     ? `linear-gradient(180deg, rgba(255, 254, 252, 0.94), rgba(${paperMist.join(', ')}, 0.78))`
-    : 'linear-gradient(180deg, rgba(14, 18, 32, 0.68), rgba(9, 11, 20, 0.48))';
+    : 'linear-gradient(180deg, rgba(42, 32, 42, 0.74), rgba(24, 18, 26, 0.6))';
   const themeCodeSurface = isDayMode
     ? `rgba(${mixTuple(paperGlass, [255, 255, 255], 0.42).join(', ')}, 0.74)`
     : 'rgba(5, 10, 18, 0.62)';
@@ -270,13 +273,13 @@ function applyAccentVariables() {
   const themeTextPrimary = isDayMode ? 'rgba(52, 34, 29, 0.96)' : 'rgba(255, 242, 233, 0.96)';
   const themeTextSecondary = isDayMode ? 'rgba(88, 62, 53, 0.86)' : 'rgba(231, 211, 196, 0.88)';
   const themeTextTertiary = isDayMode ? 'rgba(121, 90, 79, 0.74)' : 'rgba(205, 183, 168, 0.78)';
-  const themeIconPrimary = isDayMode ? 'rgba(94, 72, 63, 0.92)' : 'rgba(236, 242, 255, 0.92)';
-  const themeIconMuted = isDayMode ? 'rgba(125, 99, 88, 0.78)' : 'rgba(210, 220, 238, 0.76)';
-  const themeIconStrong = isDayMode ? 'rgba(72, 52, 46, 0.98)' : 'rgba(248, 250, 255, 0.98)';
-  const themeDividerSoft = isDayMode ? `rgba(${mixTuple(paperBorderStrong, [118, 118, 124], 0.4).join(', ')}, 0.12)` : 'rgba(193, 211, 244, 0.24)';
+  const themeIconPrimary = isDayMode ? 'rgba(94, 72, 63, 0.92)' : 'rgba(255, 244, 238, 0.92)';
+  const themeIconMuted = isDayMode ? 'rgba(125, 99, 88, 0.78)' : 'rgba(232, 214, 208, 0.76)';
+  const themeIconStrong = isDayMode ? 'rgba(72, 52, 46, 0.98)' : 'rgba(255, 250, 246, 0.98)';
+  const themeDividerSoft = isDayMode ? `rgba(${mixTuple(paperBorderStrong, [118, 118, 124], 0.4).join(', ')}, 0.18)` : 'rgba(240, 212, 208, 0.24)';
   const themeFloatingSurface = isDayMode
     ? `linear-gradient(160deg, rgba(${paperFrost.join(', ')}, 0.7), rgba(${paperGlass.join(', ')}, 0.48))`
-    : 'linear-gradient(160deg, rgba(18, 24, 38, 0.78), rgba(12, 18, 30, 0.72))';
+    : 'linear-gradient(160deg, rgba(38, 28, 36, 0.82), rgba(26, 19, 27, 0.76))';
   const themeFloatingSurfaceHover = isDayMode
     ? `linear-gradient(160deg, rgba(${paperFrost.join(', ')}, 0.8), rgba(${mixTuple(paperGlass, [246, 246, 248], 0.46).join(', ')}, 0.58))`
     : state.accentMode === 'gradient'
@@ -347,22 +350,22 @@ function applyAccentVariables() {
     : '0 1px 1px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.2)';
   const contrastOutlineWidth = isDayMode ? '0.14px' : '0.18px';
   const contrastOutlineWidthStrong = isDayMode ? '0.18px' : '0.22px';
-  const menuText = isDayMode ? 'rgba(58, 38, 33, 0.96)' : 'rgba(236, 242, 255, 0.92)';
-  const menuTextMuted = isDayMode ? 'rgba(82, 57, 50, 0.88)' : 'rgba(235, 241, 255, 0.9)';
-  const menuTextDisabled = isDayMode ? 'rgba(103, 80, 73, 0.6)' : 'rgba(210, 220, 238, 0.72)';
+  const menuText = isDayMode ? 'rgba(58, 38, 33, 0.96)' : 'rgba(255, 245, 240, 0.92)';
+  const menuTextMuted = isDayMode ? 'rgba(82, 57, 50, 0.88)' : 'rgba(250, 238, 233, 0.9)';
+  const menuTextDisabled = isDayMode ? 'rgba(103, 80, 73, 0.6)' : 'rgba(226, 208, 204, 0.72)';
   const menuAvatarBorder = isDayMode ? 'rgba(92, 65, 57, 0.28)' : 'rgba(255, 255, 255, 0.86)';
   const appShellBackdrop = isDayMode
     ? 'linear-gradient(120deg, #f7ebe2, #f3e8e5, #ece5e8)'
-    : 'linear-gradient(120deg, #1d2230, #211e34, #1b2538)';
+    : 'linear-gradient(120deg, #161016, #221825, #171018)';
   const wallpaperStageFilter = isDayMode ? 'brightness(0.74) saturate(108%)' : 'brightness(0.64) saturate(118%)';
   const wallpaperHomeFilter = isDayMode ? 'brightness(1.04) saturate(103%)' : 'brightness(0.82) saturate(112%)';
   const wallpaperStageOverlayBackground = isDayMode
     ? 'linear-gradient(180deg, rgba(255, 248, 244, 0.18), rgba(245, 236, 229, 0.34))'
-    : 'linear-gradient(180deg, rgba(8, 11, 18, 0.34), rgba(8, 11, 18, 0.52))';
+    : 'linear-gradient(180deg, rgba(20, 13, 20, 0.42), rgba(18, 12, 18, 0.64))';
   const wallpaperStageOverlayBackdrop = isDayMode ? 'blur(6px) saturate(112%)' : 'blur(7px) saturate(120%)';
   const wallpaperHomeOverlayBackground = isDayMode
     ? 'linear-gradient(180deg, rgba(255, 251, 248, 0.06), rgba(248, 241, 236, 0.18))'
-    : 'linear-gradient(180deg, rgba(8, 11, 18, 0.16), rgba(8, 11, 18, 0.42))';
+    : 'linear-gradient(180deg, rgba(20, 13, 20, 0.2), rgba(18, 12, 18, 0.5))';
   const wallpaperHomeOverlayOpacity = isDayMode ? '0.38' : '0.9';
   const wallpaperHomeOverlayBackdrop = isDayMode ? 'blur(0px) saturate(102%)' : 'blur(1px) saturate(106%)';
 

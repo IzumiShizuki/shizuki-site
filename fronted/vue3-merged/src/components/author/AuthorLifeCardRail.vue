@@ -35,8 +35,12 @@
 
     <article v-else-if="items.length === 0" class="life-preview-state" :data-testid="`${kind}-rail-empty`">
       <i :class="kind === 'albums' ? 'far fa-images' : 'far fa-comment-dots'" aria-hidden="true"></i>
-      <strong>内容正在整理</strong>
+      <strong>{{ contentLabel }}还没有公开内容</strong>
       <span>{{ emptyDescription }}</span>
+      <RouterLink v-if="canManage" class="life-preview-action" :to="studioRoute">
+        前往{{ contentLabel }}工作台
+        <i class="fas fa-arrow-right" aria-hidden="true"></i>
+      </RouterLink>
     </article>
 
     <template v-else>
@@ -92,6 +96,10 @@ const props = defineProps({
   error: {
     type: [Error, Object, Boolean],
     default: null
+  },
+  canManage: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -101,6 +109,10 @@ const failedMediaRefs = reactive(new Set());
 const railLabel = computed(() => props.kind === 'albums' ? '精选相册' : '精选动态');
 const railTitle = computed(() => props.kind === 'albums' ? '记忆相册' : '最近动态');
 const allRoute = computed(() => props.kind === 'albums' ? { name: 'albums' } : { name: 'moments' });
+const studioRoute = computed(() => ({
+  path: '/author',
+  query: { tab: `admin:${props.kind}` }
+}));
 const contentLabel = computed(() => props.kind === 'albums' ? '相册' : '动态');
 const featureDisabled = computed(() => isFeatureDisabledProblem(props.error));
 const emptyDescription = computed(() => props.kind === 'albums'
@@ -155,8 +167,8 @@ function formatPublishedAt(value) {
   padding: 16px;
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
   border-radius: 20px;
-  background: color-mix(in srgb, var(--theme-panel-surface) 88%, transparent);
-  box-shadow: 0 14px 34px rgba(8, 10, 20, 0.12);
+  background: var(--theme-panel-surface, rgba(26, 20, 28, 0.88));
+  box-shadow: var(--theme-shadow-soft, 0 14px 34px rgba(8, 10, 20, 0.18));
 }
 
 .life-rail-heading {
@@ -222,7 +234,8 @@ function formatPublishedAt(value) {
 }
 
 .life-preview-card:focus-visible,
-.life-preview-state button:focus-visible {
+.life-preview-state button:focus-visible,
+.life-preview-action:focus-visible {
   outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
   outline-offset: 3px;
 }
@@ -317,14 +330,26 @@ function formatPublishedAt(value) {
   line-height: 1.5;
 }
 
-.life-preview-state button {
+.life-preview-state button,
+.life-preview-action {
   min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   padding: 0 14px;
   border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
   border-radius: 999px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-soft, rgba(255, 255, 255, 0.1));
   cursor: pointer;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.life-preview-action:hover {
+  border-color: var(--accent-mode-border-strong, rgba(var(--accent-rgb), 0.52));
+  background: var(--theme-floating-surface-hover, var(--theme-panel-surface-elevated));
 }
 
 [data-motion-mode='soothing'] .life-preview-card,

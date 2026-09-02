@@ -241,6 +241,21 @@ describe('useUiPreferences', () => {
     );
   });
 
+  it('keeps the runtime surfaces aligned with the warm charcoal theme in both modes', async () => {
+    const { useUiPreferences } = await loadUiPreferencesModule();
+    const ui = useUiPreferences();
+
+    ui.initializeUiPreferences();
+    const nightSurface = document.documentElement.style.getPropertyValue('--theme-surface');
+    expect(nightSurface).toContain('rgba(94, 72, 77, 0.42)');
+    expect(nightSurface).toContain('rgba(52, 39, 43, 0.88)');
+    expect(nightSurface).not.toContain('28, 36, 56');
+
+    ui.setThemeMode('day');
+    const dayPanel = document.documentElement.style.getPropertyValue('--theme-panel-surface');
+    expect(dayPanel).toMatch(/0\.94\).*0\.88\)/u);
+  });
+
   it('applies and persists palette personalities without replacing the seed color', async () => {
     const { useUiPreferences } = await loadUiPreferencesModule();
     const ui = useUiPreferences();

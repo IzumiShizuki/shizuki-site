@@ -41,4 +41,13 @@ describe('AdminStudioPanelHost', () => {
     expect(source).toContain("defineAsyncComponent(() => import('./AdminSiteWidgetsPanel.vue'))");
     expect(source).not.toMatch(/import Admin(?:AlbumsWorkspace|MomentsWorkspace|DailyQuotesPanel|SiteWidgetsPanel) from/u);
   });
+
+  it('keeps studio workspaces independent from the legacy admin bootstrap gate', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/pages/AdminPage.vue'), 'utf8');
+
+    expect(source).toContain("const isActiveStudioTab = computed(() => studioTabKeys.has(activeTab.value));");
+    expect(source).toContain('v-if="!adminAccessReady || (booting && !isActiveStudioTab)"');
+    expect(source).toContain('<section v-if="!isActiveStudioTab" class="kpi-grid">');
+    expect(source).toMatch(/<AdminStudioPanelHost\s+v-if="isActiveStudioTab"/u);
+  });
 });

@@ -159,3 +159,16 @@ About、Blog、Albums 与 Moments 中的音乐卡片 SHALL 投射同一个全局
 - **WHEN** 管理员发布第一组可见相册或动态并将其设为精选
 - **THEN** 对应精选预览自动出现在允许该模块的页面
 - **AND** 无需使用或保留任何生产演示内容
+
+### Requirement: Personal content remains readable across wallpaper and theme combinations
+About、Albums、Moments 与其生活辅助卡片 SHALL 使用同一组语义表面、边框、文字和状态色；昼夜模式切换 MUST NOT 让旧的冷蓝灰硬编码覆盖暖炭主题，也 MUST NOT 因无效的渐变颜色混合而丢失卡片背景。
+
+#### Scenario: A light wallpaper is visible in night mode
+- **WHEN** 用户以夜间模式在明亮壁纸上打开个人内容页面
+- **THEN** 作者导航、正文卡片、相册/动态预览、天气与今日一言仍具有明确的暖炭表面和可读文字
+- **AND** 状态色与强调色不会退回互相冲突的旧冷蓝灰配色
+
+#### Scenario: User switches to day mode
+- **WHEN** 用户将同一页面切换为日间模式
+- **THEN** 面板使用足够不透明的暖白表面、深色主文字与可见边界
+- **AND** 页面根节点不会继续向子栏目继承夜间浅色文字

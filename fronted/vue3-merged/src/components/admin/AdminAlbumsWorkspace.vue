@@ -60,6 +60,9 @@
           <i class="far fa-images" aria-hidden="true"></i>
           <h3>选择一个相册开始编排</h3>
           <p>上传原图时逐项显示进度；失败项目可以单独重试，成功项目不会回滚。</p>
+          <button v-if="!albums.length" class="studio-button" type="button" @click="creating = true">
+            <i class="fas fa-plus" aria-hidden="true"></i> 新建第一份相册草稿
+          </button>
         </div>
 
         <template v-else>
@@ -469,16 +472,16 @@ onMounted(loadWorkspace);
 .studio-button, .text-button, .file-picker { border: 0; cursor: pointer; font: inherit; }
 .studio-button, .file-picker { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 13px; border: 1px solid rgba(var(--accent-rgb), .32); border-radius: 12px; color: var(--theme-text-primary); background: rgba(var(--accent-rgb), .18); }
 .studio-button--ghost { border-color: var(--theme-border, rgba(255,255,255,.14)); background: var(--theme-panel-surface-elevated, rgba(255,255,255,.055)); }
-.studio-button--warn { border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.12); }
+.studio-button--warn { border-color: color-mix(in srgb, var(--theme-warning) 44%, transparent); background: color-mix(in srgb, var(--theme-warning) 14%, transparent); }
 .studio-button:disabled, .text-button:disabled { cursor: not-allowed; opacity: .45; }
 .text-button { padding: 3px; color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb))); background: transparent; font-size: 12px; }
-.text-button--danger { color: #ef8e95; }
-.studio-alert { margin: 0; padding: 11px 14px; border: 1px solid rgba(52,211,153,.25); border-radius: 12px; color: var(--theme-text-primary); background: rgba(52,211,153,.1); font-size: 12px; }
-.studio-alert--error { border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.1); }
-.conflict-panel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 14px; padding: 16px; border-color: rgba(251,191,36,.34); background: linear-gradient(135deg, rgba(251,191,36,.11), transparent 52%), var(--theme-panel-surface, rgba(12,18,28,.86)); }
-.conflict-panel__icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; color: #fcd34d; background: rgba(251,191,36,.12); }
+.text-button--danger { color: var(--theme-danger); }
+.studio-alert { margin: 0; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--theme-positive) 36%, transparent); border-radius: 12px; color: var(--theme-text-primary); background: color-mix(in srgb, var(--theme-positive) 12%, transparent); font-size: 12px; }
+.studio-alert--error { border-color: color-mix(in srgb, var(--theme-danger) 42%, transparent); background: color-mix(in srgb, var(--theme-danger) 12%, transparent); }
+.conflict-panel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 14px; padding: 16px; border-color: color-mix(in srgb, var(--theme-warning) 42%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--theme-warning) 11%, transparent), transparent 52%), var(--theme-panel-surface, rgba(12,18,28,.86)); }
+.conflict-panel__icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; color: var(--theme-warning); background: color-mix(in srgb, var(--theme-warning) 14%, transparent); }
 .conflict-panel__body { display: grid; gap: 7px; }
-.conflict-panel__body small { color: #fcd34d; font-size: 9px; font-weight: 800; letter-spacing: .13em; }
+.conflict-panel__body small { color: var(--theme-warning); font-size: 9px; font-weight: 800; letter-spacing: .13em; }
 .conflict-panel__body h3, .conflict-panel__body p, .conflict-panel__body dl { margin: 0; }
 .conflict-panel__body p { color: var(--theme-text-secondary); font-size: 12px; line-height: 1.6; }
 .conflict-panel__body dl { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -486,7 +489,7 @@ onMounted(loadWorkspace);
 .conflict-panel__body dt { color: var(--theme-text-tertiary, var(--theme-text-secondary)); font-size: 9px; }
 .conflict-panel__body dd { margin: 2px 0 0; font-size: 11px; }
 .conflict-panel__intent { padding: 8px 10px; border-radius: 10px; background: rgba(var(--accent-rgb), .08); }
-.conflict-panel__warning { color: #fca5a5 !important; }
+.conflict-panel__warning { color: var(--theme-danger) !important; }
 .conflict-panel__actions { display: grid; gap: 8px; min-width: 180px; }
 .new-album { display: grid; grid-template-columns: 1fr 180px; gap: 12px; padding: 16px; }
 .new-album__summary { grid-column: 1 / -1; }
@@ -519,18 +522,18 @@ textarea { resize: vertical; }
 .upload-queue, .photo-library, .album-photo-grid { display: grid; gap: 10px; }
 .upload-item, .library-photo, .album-photo { border: 1px solid var(--theme-border, rgba(255,255,255,.12)); border-radius: 15px; background: var(--theme-panel-surface-elevated, rgba(255,255,255,.04)); }
 .upload-item { display: grid; gap: 10px; padding: 13px; }
-.upload-item--failed { border-color: rgba(248,113,113,.34); }
-.upload-item--attached { border-color: rgba(52,211,153,.3); }
+.upload-item--failed { border-color: color-mix(in srgb, var(--theme-danger) 44%, transparent); }
+.upload-item--attached { border-color: color-mix(in srgb, var(--theme-positive) 40%, transparent); }
 .upload-item__top span { color: var(--theme-text-secondary); font-size: 11px; }
 .upload-item__fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
-.upload-item__error { margin: 0; color: #ef8e95; font-size: 11px; }
+.upload-item__error { margin: 0; color: var(--theme-danger); font-size: 11px; }
 .photo-library { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); max-height: 430px; overflow: auto; }
 .library-photo { display: grid; gap: 8px; padding: 12px; }
 .library-photo--selected { border-color: rgba(var(--accent-rgb), .38); box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), .12); }
 .library-photo__select { display: flex; align-items: center; gap: 7px; color: var(--theme-text-primary); }
 .status-dot { width: fit-content; padding: 3px 6px; border-radius: 999px; color: var(--theme-text-secondary); background: rgba(148,163,184,.13); font-size: 9px; }
-.status-dot--ready { color: #6ee7b7; background: rgba(52,211,153,.12); }
-.status-dot--failed { color: #fca5a5; background: rgba(248,113,113,.12); }
+.status-dot--ready { color: var(--theme-positive); background: color-mix(in srgb, var(--theme-positive) 12%, transparent); }
+.status-dot--failed { color: var(--theme-danger); background: color-mix(in srgb, var(--theme-danger) 12%, transparent); }
 .album-photo { display: grid; grid-template-columns: 170px minmax(0, 1fr); overflow: hidden; transition: border-color .2s ease, transform .2s ease; }
 .album-photo:hover { border-color: rgba(var(--accent-rgb), .32); transform: translateY(-1px); }
 .album-photo--cover { border-color: rgba(var(--accent-rgb), .45); }

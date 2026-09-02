@@ -12,6 +12,7 @@
         <AuthorLifeCardRail
           kind="albums"
           :items="albums"
+          :can-manage="canEdit"
           :loading="albumsLoading"
           :error="albumsError"
           @retry="$emit('retry-albums')"
@@ -19,6 +20,7 @@
         <AuthorLifeCardRail
           kind="moments"
           :items="moments"
+          :can-manage="canEdit"
           :loading="momentsLoading"
           :error="momentsError"
           @retry="$emit('retry-moments')"

@@ -31,7 +31,14 @@
       </aside>
 
       <main class="moment-editor glass-panel">
-        <div v-if="!detail" class="moment-editor__empty"><i class="fas fa-camera-retro"></i><h3>选择一条动态开始编辑</h3><p>动态可以只包含正文，也可以复用受管照片库中的安全派生。</p></div>
+        <div v-if="!detail" class="moment-editor__empty">
+          <i class="fas fa-camera-retro"></i>
+          <h3>选择一条动态开始编辑</h3>
+          <p>动态可以只包含正文，也可以复用受管照片库中的安全派生。</p>
+          <button v-if="!moments.length" class="studio-button" type="button" @click="creating = true">
+            <i class="fas fa-plus" aria-hidden="true"></i> 写下第一条动态草稿
+          </button>
+        </div>
         <template v-else>
           <header class="editor-heading">
             <div><p>{{ lifecycleLabel(detail.lifecycle) }} · {{ detail.etag }}</p><h3>{{ detail.body.slice(0, 42) }}{{ detail.body.length > 42 ? '…' : '' }}</h3></div>
@@ -234,12 +241,12 @@ onMounted(loadWorkspace);
 .studio-button,.text-button { border: 0; cursor: pointer; font: inherit; }
 .studio-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 13px; border: 1px solid rgba(var(--accent-rgb),.32); border-radius: 12px; color: var(--theme-text-primary); background: rgba(var(--accent-rgb),.18); }
 .studio-button--ghost { border-color: var(--theme-border,rgba(255,255,255,.14)); background: var(--theme-panel-surface-elevated,rgba(255,255,255,.05)); }
-.studio-button--warn { border-color: rgba(251,191,36,.34); background: rgba(251,191,36,.11); }
+.studio-button--warn { border-color: color-mix(in srgb, var(--theme-warning) 44%, transparent); background: color-mix(in srgb, var(--theme-warning) 14%, transparent); }
 .studio-button:disabled,.text-button:disabled { cursor: not-allowed; opacity: .45; }
 .text-button { padding: 3px; color: rgb(var(--accent-readable-rgb,var(--accent-strong-rgb))); background: transparent; font-size: 12px; }
-.text-button--danger { color: #ef8e95; }
-.studio-alert { margin: 0; padding: 11px 14px; border: 1px solid rgba(52,211,153,.25); border-radius: 12px; background: rgba(52,211,153,.1); font-size: 12px; }
-.studio-alert--error { border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.1); }
+.text-button--danger { color: var(--theme-danger); }
+.studio-alert { margin: 0; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--theme-positive) 36%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--theme-positive) 12%, transparent); font-size: 12px; }
+.studio-alert--error { border-color: color-mix(in srgb, var(--theme-danger) 42%, transparent); background: color-mix(in srgb, var(--theme-danger) 12%, transparent); }
 .create-moment { display: grid; gap: 12px; padding: 16px; }
 .create-moment__row { display: grid; grid-template-columns: minmax(180px,260px) auto; align-items: end; gap: 10px; }
 .create-moment__row .studio-button { justify-self: start; }
@@ -263,17 +270,17 @@ input,textarea,select { width: 100%; box-sizing: border-box; border: 1px solid v
 textarea { resize: vertical; line-height: 1.65; }
 .field-check { display: flex; align-items: center; gap: 7px; }
 .field-check input,.library-photo input { width: auto; }
-.publish-gate { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px; border: 1px solid rgba(251,191,36,.24); border-radius: 12px; background: rgba(251,191,36,.08); font-size: 11px; }
+.publish-gate { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px; border: 1px solid color-mix(in srgb, var(--theme-warning) 34%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--theme-warning) 10%, transparent); font-size: 11px; }
 .publish-gate strong { width: 100%; }
-.publish-gate span { padding: 4px 7px; border-radius: 999px; background: rgba(251,191,36,.1); }
+.publish-gate span { padding: 4px 7px; border-radius: 999px; background: color-mix(in srgb, var(--theme-warning) 12%, transparent); }
 .photo-library { display: grid; grid-template-columns: repeat(auto-fill,minmax(210px,1fr)); gap: 8px; max-height: 310px; overflow: auto; }
 .library-photo { grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--theme-border,rgba(255,255,255,.12)); border-radius: 12px; background: var(--theme-panel-surface-elevated,rgba(255,255,255,.04)); cursor: pointer; }
 .library-photo--selected { border-color: rgba(var(--accent-rgb),.42); }
 .library-photo span { display: grid; gap: 3px; min-width: 0; }
 .library-photo small { overflow: hidden; color: var(--theme-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
 .library-photo em { padding: 3px 5px; border-radius: 999px; color: var(--theme-text-secondary); background: rgba(148,163,184,.12); font-size: 8px; font-style: normal; }
-.library-photo em[data-tone="ready"] { color: #6ee7b7; background: rgba(52,211,153,.11); }
-.library-photo em[data-tone="failed"] { color: #fca5a5; background: rgba(248,113,113,.11); }
+.library-photo em[data-tone="ready"] { color: var(--theme-positive); background: color-mix(in srgb, var(--theme-positive) 12%, transparent); }
+.library-photo em[data-tone="failed"] { color: var(--theme-danger); background: color-mix(in srgb, var(--theme-danger) 12%, transparent); }
 .moment-photo-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap: 10px; }
 .moment-photo { display: grid; grid-template-rows: 180px auto; overflow: hidden; border: 1px solid var(--theme-border,rgba(255,255,255,.12)); border-radius: 15px; background: var(--theme-panel-surface-elevated,rgba(255,255,255,.04)); transition: transform .2s ease,border-color .2s ease; }
 .moment-photo:hover { border-color: rgba(var(--accent-rgb),.3); transform: translateY(-1px); }

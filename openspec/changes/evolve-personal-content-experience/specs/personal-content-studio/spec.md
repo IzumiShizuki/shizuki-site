@@ -24,6 +24,11 @@ The system SHALL organize the existing administration experience into understand
 - **WHEN** an administrator selects photo albums or life moments
 - **THEN** the console opens a dedicated secondary workspace without flattening its upload, ordering, preview, and publication controls into the top-level navigation
 
+#### Scenario: Unrelated administration data is slow or unavailable
+- **WHEN** an administrator opens Albums, Moments, Recycle Bin, Daily Quotes, or Site Widgets while an unrelated legacy administration request is still pending or failing
+- **THEN** the selected dedicated workspace becomes operable after the shared authorization check without waiting for unrelated administration data
+- **AND** its own loading, error, empty, and retry states remain local to that workspace
+
 ### Requirement: Every studio surface is administrator-only
 The system MUST require an authenticated administrator for every studio page, management read, preview, and mutation, and front-end visibility MUST NOT be treated as an authorization control.
 
@@ -132,4 +137,4 @@ The system MUST migrate existing genuine author material where applicable and MU
 
 #### Scenario: Studio opens before first publication
 - **WHEN** an administrator has not created any album or moment
-- **THEN** the workspaces show intentional onboarding and empty states while visitor surfaces remain free of demo life content
+- **THEN** the workspaces show intentional onboarding, a concrete draft-creation action, and honest empty states while visitor surfaces remain free of demo life content
