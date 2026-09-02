@@ -34,6 +34,11 @@ The system MUST serve the persisted daily snapshot or its fresh cache for visito
 - **WHEN** the canonical snapshot for the current date already exists
 - **THEN** a visitor request returns it without contacting Hitokoto
 
+#### Scenario: Persisted snapshot is reloaded after a cache miss
+- **WHEN** the current canonical snapshot is read from the database after a cache miss or process restart
+- **THEN** the visitor response preserves its text, author, provider, provider identifier, source destination, effective date, and retrieval time
+- **AND** persistence column names do not cause available snapshot fields to be returned as null
+
 #### Scenario: Concurrent refresh is triggered
 - **WHEN** multiple application instances detect the same missing daily snapshot
 - **THEN** at most one canonical result is committed for that date and all successful responses converge on it

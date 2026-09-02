@@ -32,6 +32,17 @@ def config() -> deploy.DeployConfig:
 
 
 class ServerDeploySafetyTest(unittest.TestCase):
+    def test_personal_content_surfaces_are_enabled_in_server_env_example(self) -> None:
+        example = Path(__file__).resolve().parent / ".env.server.example"
+        source = example.read_text(encoding="utf-8")
+
+        for variable in (
+            "SITE_PERSONAL_CONTENT_ENABLED",
+            "SITE_PERSONAL_CONTENT_PUBLIC_API_ENABLED",
+            "SITE_PERSONAL_CONTENT_STUDIO_ENABLED",
+        ):
+            self.assertIn(f"{variable}=true", source)
+
     def test_site_widget_providers_are_enabled_by_default_in_server_compose(self) -> None:
         compose = Path(__file__).resolve().parent / "docker-compose.server.yml"
         source = compose.read_text(encoding="utf-8")

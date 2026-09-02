@@ -11,9 +11,10 @@ import org.apache.ibatis.annotations.Select;
 public interface DailyQuoteSnapshotMapper extends BaseMapper<DailyQuoteSnapshotEntity> {
 
     @Select("""
-        SELECT id, quote_date, quote_id, quote_text, author_text, source_title,
-               category_code, provider_code, provider_uuid, source_url, stale_flag,
-               fetched_at, create_time, update_time, deleted_flag, version_num
+        SELECT id, quote_date, quote_id, quote_text AS text, author_text AS author, source_title,
+               category_code, provider_code, provider_uuid, source_url, stale_flag AS stale,
+               fetched_at, create_time AS created_at, update_time AS updated_at,
+               deleted_flag AS deleted, version_num AS version
         FROM CTN_DAILY_QUOTE_SNAPSHOT
         WHERE quote_date = #{quoteDate}
           AND deleted_flag = 0
@@ -22,9 +23,10 @@ public interface DailyQuoteSnapshotMapper extends BaseMapper<DailyQuoteSnapshotE
     DailyQuoteSnapshotEntity selectByQuoteDate(@Param("quoteDate") LocalDate quoteDate);
 
     @Select("""
-        SELECT id, quote_date, quote_id, quote_text, author_text, source_title,
-               category_code, provider_code, provider_uuid, source_url, stale_flag,
-               fetched_at, create_time, update_time, deleted_flag, version_num
+        SELECT id, quote_date, quote_id, quote_text AS text, author_text AS author, source_title,
+               category_code, provider_code, provider_uuid, source_url, stale_flag AS stale,
+               fetched_at, create_time AS created_at, update_time AS updated_at,
+               deleted_flag AS deleted, version_num AS version
         FROM CTN_DAILY_QUOTE_SNAPSHOT
         WHERE quote_date < #{quoteDate}
           AND deleted_flag = 0
