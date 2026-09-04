@@ -59,7 +59,6 @@
         @set-home-manual-accent-hex="homeAppearance.setManualAccentHex($event)"
         @toggle-ai-chat="toggleAiChat"
         @select-main-route="handleMainRouteSelect"
-        @select-site-route="handleSiteRouteSelect"
         @open-profile="openProfile"
         @open-admin="openAdmin"
         @open-author="openAuthor"
@@ -2609,27 +2608,6 @@ function handleMainRouteSelect(routeKey) {
   router.push(nextPath);
 }
 
-function handleSiteRouteSelect(selection = {}) {
-  if (isFocusActive.value) return;
-  const destination = String(selection?.destination || '').trim();
-  if (destination === 'about') {
-    openAuthor('about');
-    return;
-  }
-  if (destination === 'album-detail' && selection?.publicSlug) {
-    router.push(`/albums/${encodeURIComponent(String(selection.publicSlug))}`);
-    return;
-  }
-  if (destination === 'moments') {
-    const publicId = String(selection?.publicId || '').trim();
-    router.push(publicId ? `/moments/${encodeURIComponent(publicId)}` : '/moments');
-    return;
-  }
-  if (destination === 'albums') {
-    router.push('/albums');
-  }
-}
-
 function resolveRouteViewKey(viewRoute) {
   return resolveAppRouteViewKey(viewRoute);
 }
@@ -2690,9 +2668,9 @@ function openAdmin(tabKey = 'overview') {
   router.push({ path: '/author', query: nextQuery });
 }
 
-function openAuthor(tabKey = 'overview') {
+function openAuthor(tabKey = 'about') {
   if ((tabKey === 'edit' || tabKey === 'site-settings') && !isAdminUser.value) {
-    tabKey = 'overview';
+    tabKey = 'about';
   }
   const nextQuery = tabKey ? { tab: tabKey } : {};
   const currentTab = typeof route.query?.tab === 'string' ? route.query.tab : '';

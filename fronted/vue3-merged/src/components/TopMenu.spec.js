@@ -73,7 +73,7 @@ describe('TopMenu atmosphere shortcut', () => {
 });
 
 describe('TopMenu profile entry', () => {
-  it('keeps Site active on personal routes and opens the three-level hierarchy', async () => {
+  it('keeps Site active on personal routes and navigates directly to About', async () => {
     const { wrapper } = await mountTopMenu(
       {
         isAuthenticated: true,
@@ -88,14 +88,19 @@ describe('TopMenu profile entry', () => {
     await wrapper.get('.author-info-item').trigger('click');
     await flushPromises();
 
-    expect(wrapper.get('.author-info-item').attributes('aria-expanded')).toBe('true');
-    expect(wrapper.findAll('.site-destination').map((item) => item.text())).toEqual([
-      expect.stringContaining('About'),
-      expect.stringContaining('Albums'),
-      expect.stringContaining('Moments')
-    ]);
-    await wrapper.findAll('.site-destination')[0].trigger('click');
-    expect(wrapper.emitted('select-site-route')?.[0]).toEqual([{ destination: 'about' }]);
+    expect(wrapper.emitted('open-author')).toHaveLength(1);
+    expect(wrapper.find('.site-menu-popover').exists()).toBe(false);
+    expect(wrapper.find('.site-destination').exists()).toBe(false);
+  });
+
+  it('navigates the mobile Life entry directly without opening a drawer', async () => {
+    const { wrapper } = await mountTopMenu({}, '/moments');
+
+    await wrapper.get('.mobile-site-item').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.emitted('open-author')).toHaveLength(1);
+    expect(document.body.querySelector('.site-menu-popover')).toBeNull();
   });
 
   it('marks Home active on /', async () => {
@@ -246,7 +251,9 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.get('.top-menu-root').attributes('data-route-scroll-top')).toBe('128');
     expect(wrapper.get('.top-menu-root').classes()).toContain('route-scrolled');
     expect(wrapper.get('.top-menu-root').classes()).toContain('compact');
-    expect(wrapper.find('.top-bar').exists()).toBe(false);
+    expect(wrapper.find('.top-bar').exists()).toBe(true);
+    expect(wrapper.get('.top-bar').attributes('aria-hidden')).toBe('true');
+    expect(wrapper.get('.top-bar').attributes()).toHaveProperty('inert');
     expect(wrapper.find('.compact-dock').exists()).toBe(false);
     expect(wrapper.findAll('.toggle-tab')).toHaveLength(1);
     expect(wrapper.get('.toggle-tab').attributes('aria-label')).toBe('展开完整导航');
@@ -279,121 +286,22 @@ describe('TopMenu profile entry', () => {
     expect(wrapper.get('.toggle-tab').attributes('aria-expanded')).toBe('false');
   });
 
-  it('closes Site with Escape, returns focus, and also dismisses on outside pointer input', async () => {
-    const { wrapper } = await mountTopMenu({}, '/albums');
-    const trigger = wrapper.get('.author-info-item');
-
-    await trigger.trigger('click');
-    await flushPromises();
-    expect(document.activeElement?.textContent).toContain('About');
-
-    await wrapper.get('.top-menu-root').trigger('keydown', { key: 'Escape' });
-    await flushPromises();
-    expect(trigger.attributes('aria-expanded')).toBe('false');
-    expect(document.activeElement).toBe(trigger.element);
-
-    await trigger.trigger('click');
-    await flushPromises();
-    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-    await flushPromises();
-    expect(trigger.attributes('aria-expanded')).toBe('false');
-  });
-
-  it('closes on route change and keeps preview state mounted across ordinary toggles', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SUCCESS', data: [] }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' }
-    }));
-    vi.stubGlobal('fetch', fetchMock);
-    const { wrapper, router } = await mountTopMenu({}, '/moments');
-    const trigger = wrapper.get('.author-info-item');
-
-    await trigger.trigger('click');
-    await flushPromises();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    await trigger.trigger('click');
-    await trigger.trigger('click');
-    await flushPromises();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    await router.push('/albums');
-    await flushPromises();
-    expect(trigger.attributes('aria-expanded')).toBe('false');
-    expect(wrapper.get('.author-info-item').classes()).toContain('route-active');
-  });
-
-  it('keeps Site selected and returns focus to its trigger across Moment detail history', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SUCCESS', data: [] }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' }
-    })));
-    const { wrapper, router } = await mountTopMenu({}, '/moments');
-    const trigger = wrapper.get('.author-info-item');
-    await trigger.trigger('click');
-    await flushPromises();
-    expect(document.activeElement).not.toBe(trigger.element);
-
-    await router.push('/moments/moment_ABCDEFGHIJKLMNOPQRSTUVWXYZ');
-    await flushPromises();
-    expect(wrapper.get('.author-info-item').classes()).toContain('route-active');
-    expect(trigger.attributes('aria-expanded')).toBe('false');
-    expect(document.activeElement).toBe(trigger.element);
-
-    router.back();
-    await flushPromises();
-    expect(router.currentRoute.value.name).toBe('moments');
-    expect(wrapper.get('.author-info-item').classes()).toContain('route-active');
-    expect(document.activeElement).toBe(trigger.element);
-  });
-
-  it('opens the mobile Life entry as a focus-trapped drawer and restores scroll state', async () => {
-    const mediaListeners = new Set();
-    vi.stubGlobal('matchMedia', vi.fn((query) => ({
-      matches: query.includes('max-width: 899.98px'),
-      media: query,
-      addEventListener: (_event, listener) => mediaListeners.add(listener),
-      removeEventListener: (_event, listener) => mediaListeners.delete(listener)
-    })));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SUCCESS', data: [] }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' }
-    })));
-
-    const routeContent = document.createElement('main');
-    routeContent.className = 'route-content route-content-app-scroll';
-    routeContent.dataset.testExternalRoute = 'true';
-    routeContent.style.overflow = 'auto';
-    routeContent.scrollTop = 237;
-    document.body.appendChild(routeContent);
-
-    const { wrapper } = await mountTopMenu({}, '/moments');
-    await flushPromises();
-    const trigger = wrapper.get('.mobile-site-item');
-    await trigger.trigger('click');
-    await flushPromises();
-
-    const drawer = document.body.querySelector('.site-menu-popover.mobile-drawer.open');
-    expect(drawer).not.toBeNull();
-    expect(document.body.style.overflow).toBe('hidden');
-    expect(routeContent.style.overflow).toBe('hidden');
-    expect(document.activeElement?.textContent).toContain('About');
-
-    drawer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await flushPromises();
-    expect(document.body.style.overflow).toBe('');
-    expect(routeContent.style.overflow).toBe('auto');
-    expect(routeContent.scrollTop).toBe(237);
-    expect(document.activeElement).toBe(trigger.element);
-
+  it('uses a persistent, accessible, compositor-friendly disclosure contract', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/TopMenu.vue'), 'utf8');
-    expect(source).toMatch(/\.mobile-top-nav-item\s*\{[\s\S]*?min-height:\s*44px/);
 
-    routeContent.scrollTop = 319;
-    await trigger.trigger('click');
-    await flushPromises();
-    expect(routeContent.style.overflow).toBe('hidden');
-    wrapper.unmount();
-    expect(routeContent.style.overflow).toBe('auto');
-    expect(routeContent.scrollTop).toBe(319);
+    expect(source).not.toMatch(/<LiquidSurface\s+v-if="menuPresentation\.full"/);
+    expect(source).toMatch(/:inert="topBarInactive/);
+    expect(source).toMatch(/:aria-hidden="String\(topBarInactive\)"/);
+    expect(source).not.toMatch(/transition:\s*all\b/);
+    expect(source).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+    expect(source).toMatch(/\.fixed-nav-wrapper\.compact\s+\.top-bar\s*\{[\s\S]*?opacity:\s*0;[\s\S]*?transform:/);
+  });
+
+  it('sources menu neutrals from semantic theme tokens', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/TopMenu.vue'), 'utf8');
+
+    expect(source).toMatch(/--menu-mobile-chip-bg:\s*var\(--theme-surface-soft\)/);
+    expect(source).toMatch(/--menu-mobile-chip-border:\s*var\(--theme-border-strong\)/);
+    expect(source).toMatch(/scrollbar-color:\s*var\(--theme-border-strong\)\s+transparent/);
   });
 });

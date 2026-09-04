@@ -8,7 +8,7 @@ import {
 
 describe('authorUiState', () => {
   it('normalizes unknown tab to overview', () => {
-    expect(normalizeAuthorTabKey('unknown')).toBe(AuthorTabKey.OVERVIEW);
+    expect(normalizeAuthorTabKey('unknown')).toBe(AuthorTabKey.ABOUT);
     expect(normalizeAuthorTabKey(AuthorTabKey.ABOUT)).toBe(AuthorTabKey.ABOUT);
     expect(normalizeAuthorTabKey(AuthorTabKey.SITE_SETTINGS)).toBe(AuthorTabKey.SITE_SETTINGS);
   });

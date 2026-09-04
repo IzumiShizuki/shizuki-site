@@ -136,11 +136,11 @@ onMounted(() => {
 }
 
 .author-posts-surface {
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--theme-border);
   border-radius: 14px;
-  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
-  background: var(--theme-panel-surface, linear-gradient(155deg, rgba(20, 27, 42, 0.48), rgba(11, 17, 29, 0.44)));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 22px rgba(6, 10, 18, 0.14);
+  color: var(--theme-text-primary);
+  background: var(--theme-panel-surface);
+  box-shadow: var(--theme-shadow-soft);
 }
 
 .posts-intro {
@@ -177,7 +177,7 @@ onMounted(() => {
 
 .posts-intro p,
 .post-entry p {
-  color: var(--theme-text-secondary, rgba(218, 229, 247, 0.82));
+  color: var(--theme-text-secondary);
   line-height: 1.62;
 }
 
@@ -189,10 +189,10 @@ onMounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 0 14px;
-  border: 1px solid var(--theme-border-strong, rgba(255, 255, 255, 0.2));
+  border: 1px solid var(--theme-border-strong);
   border-radius: 999px;
   color: var(--theme-text-primary);
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.08));
+  background: var(--theme-panel-surface-elevated);
   font: inherit;
   font-size: 13px;
   text-decoration: none;
@@ -209,7 +209,7 @@ onMounted(() => {
 .posts-all-link:hover,
 .posts-retry:hover {
   transform: translateY(-1px);
-  background: var(--theme-floating-surface-hover, rgba(255, 255, 255, 0.12));
+  background: var(--theme-floating-surface-hover);
 }
 
 .posts-state {
@@ -240,7 +240,7 @@ onMounted(() => {
 
 .posts-state--error > i,
 .posts-state--error strong {
-  color: var(--theme-danger, #ffb8c0);
+  color: var(--theme-danger, rgb(var(--accent-strong-rgb)));
 }
 
 .post-entry {
@@ -255,7 +255,7 @@ onMounted(() => {
 
 .post-entry:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 28px rgba(6, 10, 18, 0.2);
+  box-shadow: var(--shadow-md);
 }
 
 .post-entry-cover {
@@ -322,7 +322,7 @@ onMounted(() => {
 .posts-all-link:focus-visible,
 .posts-retry:focus-visible,
 .post-entry:focus-visible {
-  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline: 3px solid var(--theme-focus-ring);
   outline-offset: 3px;
 }
 

@@ -16,7 +16,7 @@ export function isAuthorTabKey(tabKey) {
 }
 
 export function normalizeAuthorTabKey(tabKey) {
-  return isAuthorTabKey(tabKey) ? tabKey : AuthorTabKey.OVERVIEW;
+  return isAuthorTabKey(tabKey) ? tabKey : AuthorTabKey.ABOUT;
 }
 
 export function createDefaultAuthorProfileJson() {

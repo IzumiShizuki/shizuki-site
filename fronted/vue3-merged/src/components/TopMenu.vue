@@ -1,6 +1,5 @@
 <template>
   <nav
-    ref="menuRootRef"
     class="fixed-nav-wrapper top-menu-root motion-managed"
     :class="{
       expanded: menuPresentation.full,
@@ -11,9 +10,14 @@
     }"
     :data-route-scroll-top="normalizedRouteScrollTop"
     data-transform-owner="menu-shell"
-    @keydown.esc.stop.prevent="closeSiteMenu({ returnFocus: true })"
   >
-    <LiquidSurface v-if="menuPresentation.full" as="div" class="top-bar" variant="navigation">
+    <LiquidSurface
+      as="div"
+      class="top-bar"
+      variant="navigation"
+      :inert="topBarInactive ? '' : undefined"
+      :aria-hidden="String(topBarInactive)"
+    >
       <div class="nav-section left">
         <div
           class="left-pill-group liquid-material"
@@ -206,10 +210,8 @@
           type="button"
           class="menu-item-stack author-info-item ripple-trigger"
           :class="{ 'route-active': isSiteRoute }"
-          :aria-expanded="siteMenuOpen"
-          aria-controls="site-personal-menu"
-          aria-haspopup="dialog"
-          @click.stop="toggleSiteMenu"
+          aria-label="直接打开关于网站"
+          @click.stop="openAuthorAbout"
         >
           <div class="author-avatar-box">
             <img class="author-avatar-image" :src="resolvedAuthorAvatarUrl" alt="author-avatar" @error="onAuthorAvatarError" />
@@ -268,11 +270,8 @@
         class="mobile-top-nav-item mobile-site-item ripple-trigger"
         :class="{ active: isSiteRoute }"
         :aria-current="isSiteRoute ? 'page' : undefined"
-        :aria-expanded="siteMenuOpen"
-        aria-controls="site-personal-menu"
-        aria-haspopup="dialog"
         aria-label="Life"
-        @click.stop="toggleSiteMenu"
+        @click.stop="openAuthorAbout"
       >
         <i class="fas fa-compass" aria-hidden="true"></i>
         <span>Life</span>
@@ -289,16 +288,6 @@
         <span>More</span>
       </button>
     </LiquidSurface>
-
-    <SiteMenuPopover
-      ref="siteMenuComponentRef"
-      :open="siteMenuOpen"
-      :active-destination="activeSiteDestination"
-      :anchor-mode="menuPresentation.full ? 'full' : 'compact'"
-      :mobile="isMobileViewport"
-      @select="handleSiteSelection"
-      @request-close="closeSiteMenu({ returnFocus: true })"
-    />
 
     <button
       type="button"
@@ -317,10 +306,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import LiquidSurface from './material/LiquidSurface.vue';
-import SiteMenuPopover from './navigation/SiteMenuPopover.vue';
 import { resolveTopMenuPresentation } from '../utils/topMenuPresentation';
 
 const props = defineProps({
@@ -416,7 +404,6 @@ const emit = defineEmits([
   'set-home-manual-accent-hex',
   'toggle-ai-chat',
   'select-main-route',
-  'select-site-route',
   'open-atmosphere-panel',
   'open-background-picker',
   'open-profile',
@@ -430,10 +417,6 @@ const { menuExpanded, menuCollapsed, themeMode, aiChatActive, aiChatDisabled, is
 const avatarLoadFailed = ref(false);
 const authorAvatarLoadFailed = ref(false);
 const appearancePanelOpen = ref(false);
-const siteMenuOpen = ref(false);
-const menuRootRef = ref(null);
-const siteTriggerRef = ref(null);
-const siteMenuComponentRef = ref(null);
 const isMobileViewport = ref(false);
 let mobileMediaQuery = null;
 let mobileMediaListener = null;
@@ -450,6 +433,9 @@ const menuPresentation = computed(() => resolveTopMenuPresentation({
   manualExpanded: menuExpanded.value,
   manualCollapsed: menuCollapsed.value
 }));
+const topBarInactive = computed(() => (
+  menuPresentation.value.compact || (isMobileViewport.value && !menuExpanded.value)
+));
 const clockOptions = Object.freeze([
   { value: 'auto', label: '自动' },
   { value: 'show', label: '显示' },
@@ -539,7 +525,6 @@ function toggleSwitch() {
 }
 
 function toggleAppearancePanel() {
-  closeSiteMenu({ returnFocus: false });
   appearancePanelOpen.value = !appearancePanelOpen.value;
 }
 
@@ -585,38 +570,9 @@ function openProjectGithub() {
   window.open(PROJECT_GITHUB_URL, '_blank', 'noopener,noreferrer');
 }
 
-async function toggleSiteMenu(event) {
-  if (siteMenuOpen.value) {
-    closeSiteMenu({ returnFocus: true });
-    return;
-  }
+function openAuthorAbout() {
   appearancePanelOpen.value = false;
-  if (event?.currentTarget instanceof HTMLElement) {
-    siteTriggerRef.value = event.currentTarget;
-  }
-  siteMenuOpen.value = true;
-  await nextTick();
-  await siteMenuComponentRef.value?.focusFirst?.();
-}
-
-function closeSiteMenu({ returnFocus = false } = {}) {
-  if (!siteMenuOpen.value) return;
-  siteMenuOpen.value = false;
-  if (returnFocus) {
-    nextTick(() => siteTriggerRef.value?.focus?.());
-  }
-}
-
-function handleSiteSelection(selection) {
-  closeSiteMenu({ returnFocus: true });
-  emit('select-site-route', selection);
-}
-
-function handleOutsidePointer(event) {
-  if (!siteMenuOpen.value) return;
-  if (menuRootRef.value?.contains?.(event.target)) return;
-  if (siteMenuComponentRef.value?.containsTarget?.(event.target)) return;
-  closeSiteMenu({ returnFocus: true });
+  emit('open-author');
 }
 
 function bindMobileViewport() {
@@ -678,44 +634,30 @@ watch(
   }
 );
 
-watch(
-  () => route.fullPath,
-  () => {
-    appearancePanelOpen.value = false;
-    closeSiteMenu({ returnFocus: true });
-  }
-);
-
-watch(siteMenuOpen, (open) => {
-  if (typeof document === 'undefined') return;
-  if (open) document.addEventListener('pointerdown', handleOutsidePointer);
-  else document.removeEventListener('pointerdown', handleOutsidePointer);
+watch(() => route.fullPath, () => {
+  appearancePanelOpen.value = false;
 });
 
 onMounted(bindMobileViewport);
 
 onBeforeUnmount(() => {
   unbindMobileViewport();
-  if (typeof document !== 'undefined') {
-    document.removeEventListener('pointerdown', handleOutsidePointer);
-  }
 });
 </script>
 
 <style scoped>
 .top-menu-root {
-  --menu-alpha-scale: 0.52;
-  --menu-glass-bg: var(--theme-panel-surface-elevated, rgba(var(--glass-rgb), calc(var(--glass-bg-alpha) * var(--menu-alpha-scale))));
-  --menu-glass-border: var(--theme-border-strong, rgba(255, 255, 255, calc(var(--glass-border-alpha) * var(--menu-alpha-scale))));
-  --menu-glass-shadow: 0 10px 30px rgba(18, 9, 8, 0.18);
-  --menu-hover-bg: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
-  --menu-active-bg: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3));
-  --menu-active-border: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
-  --menu-active-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24));
-  --menu-icon-color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
-  --menu-mobile-chip-bg: rgba(10, 16, 26, 0.42);
-  --menu-mobile-chip-border: rgba(255, 255, 255, 0.22);
-  --icon-hover-color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  --menu-glass-bg: var(--theme-panel-surface-elevated);
+  --menu-glass-border: var(--theme-border-strong);
+  --menu-glass-shadow: var(--theme-shadow-soft);
+  --menu-hover-bg: var(--accent-mode-fill);
+  --menu-active-bg: var(--accent-mode-fill-strong);
+  --menu-active-border: var(--accent-mode-border);
+  --menu-active-shadow: var(--accent-mode-shadow);
+  --menu-icon-color: var(--theme-icon-primary);
+  --menu-mobile-chip-bg: var(--theme-surface-soft);
+  --menu-mobile-chip-border: var(--theme-border-strong);
+  --icon-hover-color: rgb(var(--accent-readable-rgb));
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
@@ -739,7 +681,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   transform: translateY(15px);
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-base) var(--ease-out);
 }
 
 .fixed-nav-wrapper.expanded {
@@ -763,7 +705,25 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  opacity: 1;
+  visibility: visible;
+  transform: translate3d(0, 0, 0) scale(1);
+  transform-origin: 50% 0;
+  transition:
+    opacity var(--dur-fast) ease,
+    transform var(--dur-base) var(--ease-out),
+    visibility 0s linear 0s;
+  scrollbar-color: var(--theme-border-strong) transparent;
+  will-change: transform, opacity;
   z-index: 2;
+}
+
+.fixed-nav-wrapper.compact .top-bar {
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -10px, 0) scale(0.985);
+  transition-delay: 0s, 0s, var(--dur-base);
+  pointer-events: none;
 }
 
 .toggle-tab:focus-visible {
@@ -803,7 +763,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   cursor: pointer;
   opacity: 1;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--dur-fast) ease;
   position: relative;
 }
 
@@ -813,12 +773,12 @@ onBeforeUnmount(() => {
 .menu-item-stack:not(.theme-control-cluster):active .author-avatar-box,
 .menu-item-stack:not(.theme-control-cluster):active .avatar-box,
 .menu-item-stack.ai-chat-item:active .pill-btn-box {
-  animation: press-wobble 280ms ease;
+  transform: scale(0.94);
 }
 
 .left-main-btn.active .icon-minimal {
   /* 背景是强主色填充，图标用亮度计算的墨色（黑/白自动切换）。 */
-  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96)));
+  color: var(--accent-surface-text);
   transform: scale(1.06);
 }
 
@@ -842,7 +802,7 @@ onBeforeUnmount(() => {
   --left-main-gap: 10px;
   --left-main-item-width: 112px;
   --left-main-padding-x: 16px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-border-strong, rgba(255, 255, 255, 0.4)) 92%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-border-strong) 92%, transparent);
   border-radius: 40px;
   min-width: 0;
   padding: 0 var(--left-main-padding-x);
@@ -881,7 +841,7 @@ onBeforeUnmount(() => {
 }
 
 .left-main-btn[role='button']:focus-visible {
-  outline: 2px solid rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  outline: 2px solid rgb(var(--accent-readable-rgb));
   outline-offset: 2px;
 }
 
@@ -913,20 +873,20 @@ onBeforeUnmount(() => {
   justify-content: center;
   font-size: 18px;
   color: var(--menu-icon-color);
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .circle-icon-box:hover {
   --liquid-bg: var(--menu-hover-bg);
   transform: translateY(-3px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
   color: var(--icon-hover-color);
 }
 
 .menu-item-stack.active .circle-icon-box {
   --liquid-bg: var(--menu-active-bg);
   /* 圆形底是强主色填充，图标改用墨色。 */
-  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96)));
+  color: var(--accent-surface-text);
   box-shadow:
     0 0 0 1px var(--menu-active-border),
     var(--menu-active-shadow);
@@ -934,7 +894,7 @@ onBeforeUnmount(() => {
 
 .menu-item-stack.active .item-label {
   /* 标签在玻璃条上（不是主色底），保留主色点缀但做了对比度校正。 */
-  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  color: rgb(var(--accent-readable-rgb));
   font-weight: 600;
 }
 
@@ -956,15 +916,15 @@ onBeforeUnmount(() => {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9)) 46%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.54)) 36%, transparent);
+  background: color-mix(in srgb, var(--theme-menu-text-muted) 46%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-contrast-stroke-soft) 36%, transparent);
   transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .menu-status-dot.active {
   background: rgb(var(--accent-strong-rgb));
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.92),
+    0 0 0 1px var(--theme-menu-avatar-border),
     0 0 10px rgba(var(--accent-rgb), 0.36);
   transform: scale(1.15);
 }
@@ -983,7 +943,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   font-size: 18px;
   color: var(--menu-icon-color);
-  transition: all 0.3s;
+  transition: transform 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .pill-btn-box > span:not(.ai-chat-dot) {
@@ -991,13 +951,13 @@ onBeforeUnmount(() => {
 }
 
 .pill-btn-box i {
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+  color: var(--theme-icon-primary);
 }
 
 .menu-item-stack:hover .pill-btn-box {
   --liquid-bg: var(--menu-hover-bg);
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .pill-btn-box:hover i {
@@ -1010,13 +970,13 @@ onBeforeUnmount(() => {
 }
 
 .ai-chat-item.disabled .pill-btn-box {
-  --liquid-bg: rgba(255, 255, 255, 0.05);
-  color: var(--theme-menu-text-disabled, rgba(210, 220, 238, 0.72));
+  --liquid-bg: var(--theme-surface-soft);
+  color: var(--theme-menu-text-disabled);
 }
 
 .ai-chat-item.disabled:hover .pill-btn-box,
 .ai-chat-item.disabled .pill-btn-box:hover {
-  --liquid-bg: rgba(255, 255, 255, 0.05);
+  --liquid-bg: var(--theme-surface-soft);
   transform: none;
   box-shadow: none;
 }
@@ -1028,7 +988,7 @@ onBeforeUnmount(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1.5px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
+  border: 1.5px solid var(--theme-menu-avatar-border);
   background: transparent;
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1065,7 +1025,7 @@ button.author-info-item {
 }
 
 button.author-info-item:focus-visible {
-  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline: 3px solid var(--theme-focus-ring);
   outline-offset: 3px;
 }
 
@@ -1080,9 +1040,9 @@ button.author-info-item:focus-visible {
   height: 44px;
   border-radius: 50%;
   overflow: hidden;
-  background: var(--theme-panel-surface-elevated, rgba(10, 16, 25, 0.64));
-  border: 2px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  background: var(--theme-panel-surface-elevated);
+  border: 2px solid var(--theme-menu-avatar-border);
+  box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -1111,10 +1071,10 @@ button.author-info-item:focus-visible {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 2px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
+  border: 2px solid var(--theme-menu-avatar-border);
   position: relative;
   overflow: hidden;
-  background: var(--theme-panel-surface-elevated, rgba(10, 16, 25, 0.64));
+  background: var(--theme-panel-surface-elevated);
 }
 
 .avatar-image {
@@ -1129,8 +1089,8 @@ button.author-info-item:focus-visible {
   align-items: center;
   justify-content: center;
   filter: saturate(0.72);
-  border-color: var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
-  color: var(--theme-icon-primary, var(--theme-menu-text-muted, rgba(235, 241, 255, 0.9)));
+  border-color: var(--theme-menu-avatar-border);
+  color: var(--theme-icon-primary);
   font-size: 16px;
 }
 
@@ -1146,7 +1106,7 @@ button.author-info-item:focus-visible {
   width: 10px;
   height: 10px;
   background: rgb(var(--accent-strong-rgb));
-  border: 1px solid var(--theme-menu-avatar-border, rgba(255, 255, 255, 0.86));
+  border: 1px solid var(--theme-menu-avatar-border);
   border-radius: 50%;
 }
 
@@ -1166,9 +1126,9 @@ button.author-info-item:focus-visible {
 .author-info-item.route-active .item-label,
 .user-profile-item.route-active .item-label {
   /* 整块是强主色底（--menu-active-bg），文字用墨色。 */
-  color: var(--accent-surface-text, var(--accent-mode-text, rgba(255, 255, 255, 0.96)));
+  color: var(--accent-surface-text);
   font-weight: 600;
-  text-shadow: var(--accent-surface-text-shadow, 0 1px 1px rgba(0, 0, 0, 0.24));
+  text-shadow: var(--accent-surface-text-shadow);
 }
 
 .fixed-nav-wrapper:not(.expanded) .menu-item-stack {
@@ -1181,78 +1141,26 @@ button.author-info-item:focus-visible {
   pointer-events: auto;
 }
 
-.fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(1) {
-  transition: opacity 0.4s 0.05s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(2) {
-  transition: opacity 0.4s 0.1s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(3) {
-  transition: opacity 0.4s 0.15s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(4) {
-  transition: opacity 0.4s 0.2s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(1) .menu-item-stack:nth-child(5) {
-  transition: opacity 0.4s 0.25s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(1) {
-  transition: opacity 0.4s 0.25s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(2) {
-  transition: opacity 0.4s 0.3s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(3) {
-  transition: opacity 0.4s 0.35s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(2) .menu-item-stack:nth-child(4) {
-  transition: opacity 0.4s 0.4s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(1) {
-  transition: opacity 0.4s 0.45s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(2) {
-  transition: opacity 0.4s 0.5s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(3) {
-  transition: opacity 0.4s 0.55s ease;
-}
-
-.fixed-nav-wrapper.expanded .nav-section:nth-child(3) .menu-item-stack:nth-child(4) {
-  transition: opacity 0.4s 0.6s ease;
-}
-
 .toggle-tab {
   width: 140px;
   height: 32px;
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
   margin-top: -1px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
   display: flex;
   cursor: pointer;
   justify-content: center;
   align-items: flex-end;
   padding-bottom: 8px;
-  transition: all 0.3s;
+  transition: color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, transform var(--dur-fast) ease;
   z-index: 1001;
   border: 0;
   color: inherit;
 }
 
 .fixed-nav-wrapper.compact .toggle-tab {
-  --liquid-shadow: 0 14px 32px rgba(8, 10, 20, 0.24);
+  --liquid-shadow: var(--shadow-md);
   width: 116px;
   height: 44px;
   margin-top: 0;
@@ -1263,12 +1171,12 @@ button.author-info-item:focus-visible {
 
 .toggle-tab:hover {
   --liquid-bg: var(--menu-hover-bg);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .toggle-tab:active {
   --liquid-bg: var(--menu-active-bg);
-  animation: press-wobble 280ms ease;
+  transform: scale(0.97);
 }
 
 .switch-content {
@@ -1282,12 +1190,12 @@ button.author-info-item:focus-visible {
 
 .bar-line {
   position: absolute;
-  background: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  background: var(--theme-menu-text);
   height: 2px;
   width: 24px;
   border-radius: 2px;
-  transition: all 0.5s cubic-bezier(0.68, -0.6, 0.32, 1.6);
-  box-shadow: var(--theme-contrast-icon-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.6));
+  transition: transform var(--dur-base) var(--ease-out), background-color var(--dur-fast) ease;
+  box-shadow: var(--theme-contrast-icon-shadow-strong);
 }
 
 .bar-line.top {
@@ -1301,22 +1209,22 @@ button.author-info-item:focus-visible {
 .menu-label-text {
   font-size: 10px;
   font-weight: 700;
-  color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  color: var(--theme-menu-text);
   letter-spacing: 0.82px;
-  transition: 0.3s;
-  text-shadow: var(--theme-contrast-text-shadow-strong, 0 1px 1px rgba(0, 0, 0, 0.54));
-  -webkit-text-stroke: var(--theme-contrast-outline-width, 0.18px) var(--theme-contrast-stroke-soft, rgba(5, 8, 14, 0.28));
+  transition: transform var(--dur-fast) ease, opacity var(--dur-fast) ease, filter var(--dur-fast) ease;
+  text-shadow: var(--theme-contrast-text-shadow-strong);
+  -webkit-text-stroke: var(--theme-contrast-outline-width) var(--theme-contrast-stroke-soft);
 }
 
 .fixed-nav-wrapper.expanded .bar-line.top {
   transform: translateY(0) rotate(135deg);
-  background-color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  background-color: var(--theme-menu-text);
   width: 20px;
 }
 
 .fixed-nav-wrapper.expanded .bar-line.bottom {
   transform: translateY(0) rotate(-135deg);
-  background-color: var(--theme-menu-text, rgba(236, 242, 255, 0.92));
+  background-color: var(--theme-menu-text);
   width: 20px;
 }
 
@@ -1346,7 +1254,7 @@ button.author-info-item:focus-visible {
 }
 
 .theme-toggle-action:active .theme-toggle-box {
-  animation: press-wobble 280ms ease;
+  transform: scale(0.94);
 }
 
 .theme-toggle-action:focus-visible {
@@ -1354,7 +1262,7 @@ button.author-info-item:focus-visible {
 }
 
 .theme-toggle-action:focus-visible .theme-toggle-box {
-  outline: 2px solid rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  outline: 2px solid rgb(var(--accent-readable-rgb));
   outline-offset: 2px;
 }
 
@@ -1385,17 +1293,17 @@ button.author-info-item:focus-visible {
 }
 
 .theme-toggle-box.day i {
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+  color: var(--theme-icon-primary);
 }
 
 .theme-toggle-box.night i {
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(236, 242, 255, 0.92)));
+  color: var(--theme-icon-primary);
 }
 
 .appearance-popover {
-  --liquid-bg: var(--theme-panel-surface-elevated, rgba(28, 21, 29, 0.94));
-  --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.24));
-  --liquid-shadow: 0 24px 48px rgba(10, 7, 12, 0.32);
+  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-border: var(--theme-border-strong);
+  --liquid-shadow: var(--shadow-lg);
   position: absolute;
   top: calc(100% + 18px);
   left: 50%;
@@ -1548,39 +1456,24 @@ button.author-info-item:focus-visible {
 }
 
 :root[data-theme-mode='day'] .top-menu-root {
-  --menu-glass-bg: linear-gradient(160deg, rgba(255, 252, 248, 0.92), rgba(244, 233, 225, 0.84));
-  --menu-glass-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
-  --menu-glass-shadow: 0 14px 28px rgba(88, 60, 50, 0.12);
-  --menu-active-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(var(--accent-rgb), 0.1));
-  --menu-active-border: rgba(var(--accent-strong-rgb), 0.28);
-  --menu-active-shadow: 0 8px 18px rgba(108, 76, 70, 0.1);
-  --menu-mobile-chip-bg: rgba(255, 246, 240, 0.84);
-  --menu-mobile-chip-border: var(--theme-border-strong, rgba(255, 214, 194, 0.34));
+  --menu-glass-bg: var(--theme-panel-surface-elevated);
+  --menu-glass-border: var(--theme-border-strong);
+  --menu-glass-shadow: var(--theme-shadow-soft);
+  --menu-active-bg: var(--accent-mode-fill-strong);
+  --menu-active-border: var(--accent-mode-border);
+  --menu-active-shadow: var(--accent-mode-shadow);
+  --menu-mobile-chip-bg: var(--theme-surface-soft);
+  --menu-mobile-chip-border: var(--theme-border-strong);
 }
 
 :root[data-theme-mode='day'] .top-menu-root :is(.author-avatar-box, .avatar-box) {
-  background: linear-gradient(160deg, rgba(255, 251, 247, 0.94), rgba(242, 231, 224, 0.84));
+  background: var(--theme-panel-surface-elevated);
 }
 
 .fixed-nav-wrapper.expanded .menu-label-text {
   transform: scale(0.6);
   opacity: 0;
   filter: blur(2px);
-}
-
-@keyframes press-wobble {
-  0% {
-    transform: translateY(0) scale(1);
-  }
-  30% {
-    transform: translateY(1px) scale(0.94, 1.05);
-  }
-  65% {
-    transform: translateY(-1px) scale(1.04, 0.96);
-  }
-  100% {
-    transform: translateY(0) scale(1);
-  }
 }
 
 @media (min-width: 901px) and (max-width: 1180px) {
@@ -1675,7 +1568,7 @@ button.author-info-item:focus-visible {
   .mobile-top-dock {
     --liquid-fill: color-mix(in srgb, var(--menu-glass-bg) 94%, transparent);
     --liquid-border: var(--menu-glass-border);
-    --liquid-shadow: 0 16px 38px rgba(8, 10, 20, 0.24);
+    --liquid-shadow: var(--shadow-md);
     position: absolute;
     z-index: 12;
     top: 0;
@@ -1732,12 +1625,14 @@ button.author-info-item:focus-visible {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+    transform: translate3d(0, -8px, 0) scale(0.985);
   }
 
   .fixed-nav-wrapper.manual-expanded .top-bar {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 
   .toggle-tab {
@@ -2054,6 +1949,25 @@ button.author-info-item:focus-visible {
     transform: translateX(0) rotate(-135deg);
     height: 18px;
     width: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fixed-nav-wrapper,
+  .top-bar,
+  .toggle-tab,
+  .bar-line,
+  .menu-label-text,
+  .menu-item-stack,
+  .icon-minimal,
+  .circle-icon-box,
+  .pill-btn-box,
+  .github-style-box,
+  .author-avatar-box,
+  .avatar-box {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
   }
 }
 </style>

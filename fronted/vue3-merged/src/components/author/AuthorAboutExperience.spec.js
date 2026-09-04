@@ -6,6 +6,15 @@ function mountExperience(activeTab = 'about') {
   return mount(AuthorAboutExperience, {
     props: {
       activeTab,
+      profile: {
+        enabled: true,
+        profileJson: {
+          hero: { name: 'Shizuki' },
+          identity: { activityStatus: '学习中' },
+          skills: ['Vue3']
+        }
+      },
+      portals: [{ key: 'blog', title: 'Blog', target: '/blog' }],
       about: {
         intro: ['一段真实介绍。'],
         introImageUrl: '',
@@ -21,6 +30,10 @@ function mountExperience(activeTab = 'about') {
     },
     global: {
       stubs: {
+        AuthorAboutOverview: {
+          props: ['hero', 'identity', 'skills', 'enabled', 'portals'],
+          template: '<section class="about-overview-stub">{{ hero.name }} · {{ identity.activityStatus }} · {{ skills.join(",") }} · {{ portals.length }}</section>'
+        },
         AuthorAboutStoryColumn: { template: '<main class="story-column-stub">介绍正文</main>' },
         AuthorLifeCardRail: {
           props: ['kind'],
@@ -37,6 +50,7 @@ describe('AuthorAboutExperience shared-shell composition', () => {
     const wrapper = mountExperience();
 
     expect(wrapper.get('[data-author-about-layout="shared-shell"]').exists()).toBe(true);
+    expect(wrapper.get('.about-overview-stub').text()).toContain('Shizuki · 学习中 · Vue3 · 1');
     expect(wrapper.get('.author-about-center .story-column-stub').text()).toBe('介绍正文');
     expect(wrapper.findAll('.life-card-rail-stub').map((rail) => rail.attributes('data-kind'))).toEqual(['albums', 'moments']);
     expect(wrapper.find('.content-shell__left').exists()).toBe(false);

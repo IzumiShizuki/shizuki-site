@@ -49,211 +49,7 @@
         <template v-else>
           <p v-if="cacheNotice" class="state-tip">{{ cacheNotice }}</p>
 
-          <div v-if="activeTab === 'overview'" class="content-block overview-motion-root overview-story-root">
-            <section class="story-hero-stage author-card reveal-node" :style="staggerStyle(0)">
-              <button
-                v-if="canEditCurrentTab"
-                class="inline-edit-fab ripple-trigger"
-                type="button"
-                title="编辑网站主页"
-                @click="openSectionEditor(AuthorTabKey.OVERVIEW)"
-              >
-                <i class="fas fa-pen"></i>
-              </button>
-              <img class="story-hero-cover" :src="hero.coverImageUrl || hero.avatarUrl" :alt="`${hero.name} cover`" />
-              <div class="story-hero-atmosphere" aria-hidden="true">
-                <span class="story-orb story-orb-a"></span>
-                <span class="story-orb story-orb-b"></span>
-                <span class="story-orb story-orb-c"></span>
-              </div>
-
-              <div class="story-hero-main">
-                <div class="story-hero-primary">
-                  <div class="story-hero-intro">
-                    <div class="story-avatar-stack">
-                      <span class="story-avatar-ring" aria-hidden="true"></span>
-                      <img class="story-avatar" :src="hero.avatarUrl" :alt="hero.name" />
-                      <span class="story-status-badge" :class="{ off: !authorProfile.enabled }">
-                        {{ authorProfile.enabled ? '公开展示' : '已关闭' }}
-                      </span>
-                    </div>
-                    <div class="story-hero-copy">
-                      <p class="story-greeting reveal-line" :style="staggerStyle(1)">{{ hero.greeting }}</p>
-                      <h2 class="reveal-line" :style="staggerStyle(2)">{{ hero.name }}</h2>
-                      <p class="story-quote reveal-line" :style="staggerStyle(3)">{{ hero.quote }}</p>
-                      <div class="chip-row reveal-line" :style="staggerStyle(4)">
-                        <span v-for="label in identity.labels" :key="`identity-${label}`" class="chip">{{ label }}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="story-hero-facts reveal-line" :style="staggerStyle(5)">
-                    <article v-for="fact in overviewHeroFacts" :key="`hero-fact-${fact.label}`" class="hero-fact-card">
-                      <span class="hero-fact-label">{{ fact.label }}</span>
-                      <strong class="hero-fact-value">{{ fact.value }}</strong>
-                    </article>
-                  </div>
-
-                  <article class="story-hero-preview reveal-line" :style="staggerStyle(6)">
-                    <span class="story-preview-kicker">首屏摘要</span>
-                    <p class="story-preview-title">{{ overviewHeroJourney.title }}</p>
-                    <p v-for="(line, index) in overviewHeroNarrative" :key="`hero-narrative-${index}`" class="story-preview-text">
-                      {{ line }}
-                    </p>
-                    <div v-if="overviewHeroSignals.length" class="story-signal-row" aria-label="作者动态摘要">
-                      <span v-for="(signal, index) in overviewHeroSignals" :key="`hero-signal-${signal}-${index}`" class="story-signal-pill">
-                        {{ signal }}
-                      </span>
-                    </div>
-                  </article>
-                </div>
-
-                <div class="story-hero-side">
-                  <article class="story-side-panel reveal-line" :style="staggerStyle(7)">
-                    <div class="story-side-head">
-                      <p class="story-side-kicker">状态面板</p>
-                      <span class="story-side-live">
-                        <span class="story-live-dot" aria-hidden="true"></span>
-                        Live
-                      </span>
-                    </div>
-                    <div class="status-panel-block">
-                      <p class="story-mini-kicker">最新时间线</p>
-                      <h3>{{ overviewHeroJourney.title }}</h3>
-                      <p class="story-side-meta-line">
-                        <span>{{ overviewHeroJourney.dateLabel }}</span>
-                        <span>{{ identity.role || '独立开发者' }}</span>
-                      </p>
-                      <div v-if="overviewHeroJourney.stack.length" class="chip-row story-side-chip-row">
-                        <span v-for="stack in overviewHeroJourney.stack" :key="`hero-side-stack-${stack}`" class="chip">
-                          {{ stack }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div class="status-panel-block">
-                      <p class="story-mini-kicker">我的状态</p>
-                      <p class="story-status-text">{{ currentActivityStatus }}</p>
-
-                      <div v-if="isAdminUser" class="quick-status-editor">
-                        <label class="field-inline">
-                          <span>快捷状态</span>
-                          <select v-model="quickStatusChoice" :disabled="quickStatusSaving" class="status-select">
-                            <option v-for="option in QUICK_STATUS_PRESET_OPTIONS" :key="`status-opt-${option}`" :value="option">
-                              {{ option }}
-                            </option>
-                            <option :value="QUICK_STATUS_CUSTOM_VALUE">自定义...</option>
-                          </select>
-                        </label>
-                        <label v-if="quickStatusChoice === QUICK_STATUS_CUSTOM_VALUE" class="field-inline">
-                          <span>自定义状态</span>
-                          <input
-                            v-model.trim="quickStatusCustomInput"
-                            :disabled="quickStatusSaving"
-                            type="text"
-                            maxlength="30"
-                            placeholder="例如：上班ing"
-                            class="status-input"
-                          />
-                        </label>
-                        <button class="mini-btn ripple-trigger" type="button" :disabled="quickStatusSaving" @click="saveQuickActivityStatus">
-                          {{ quickStatusSaving ? '保存中...' : '保存状态' }}
-                        </button>
-                        <p v-if="quickStatusError" class="error-text quick-status-error">{{ quickStatusError }}</p>
-                      </div>
-                    </div>
-
-                    <div v-if="overviewHeroHighlightTags.length" class="chip-row story-side-chip-row subtle">
-                      <span v-for="tag in overviewHeroHighlightTags" :key="`hero-side-tag-${tag}`" class="chip">{{ tag }}</span>
-                    </div>
-                  </article>
-
-                  <div class="story-skill-ribbon reveal-line" :style="staggerStyle(8)">
-                    <div class="skill-focus-frame" aria-label="学习内容展示栏">
-                      <div class="skill-focus-list">
-                        <article
-                          v-for="(item, index) in skillNodes"
-                          :key="`skill-focus-${item.label}-${index}`"
-                          class="skill-focus-item"
-                          :class="item.tone"
-                        >
-                          <span class="skill-node-icon" aria-hidden="true">
-                            <i :class="item.icon"></i>
-                          </span>
-                          <span class="skill-node-label">{{ item.label }}</span>
-                        </article>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section class="home-portal-grid reveal-node" :style="staggerStyle(9)">
-              <button
-                v-for="item in homepagePortalCards"
-                :key="item.key"
-                type="button"
-                class="home-portal-card ripple-trigger"
-                :class="item.tone"
-                @click="openHomepagePortal(item)"
-              >
-                <span class="home-portal-icon" aria-hidden="true">
-                  <i :class="item.icon"></i>
-                </span>
-                <span class="home-portal-copy">
-                  <strong>{{ item.title }}</strong>
-                  <small>{{ item.description }}</small>
-                </span>
-              </button>
-            </section>
-
-            <section class="story-free-layout">
-              <article class="author-card story-identity-ribbon reveal-node" :style="staggerStyle(10)">
-                <h3>身份坐标</h3>
-                <div class="identity-track">
-                  <div class="identity-unit">
-                    <span class="identity-label">出生年份</span>
-                    <strong>{{ identity.birthYear }}</strong>
-                  </div>
-                  <div class="identity-unit">
-                    <span class="identity-label">学校</span>
-                    <strong>{{ identity.school }}</strong>
-                  </div>
-                  <div class="identity-unit">
-                    <span class="identity-label">专业</span>
-                    <strong>{{ identity.major }}</strong>
-                  </div>
-                  <div class="identity-unit">
-                    <span class="identity-label">当前角色</span>
-                    <strong>{{ identity.role }}</strong>
-                  </div>
-                </div>
-              </article>
-
-              <article class="author-card story-notes reveal-node" :style="staggerStyle(11)">
-                <h3>碎碎念频道</h3>
-                <p v-for="(line, index) in about.intro" :key="`intro-${index}`" class="line-text">
-                  {{ line }}
-                </p>
-              </article>
-
-              <article class="author-card story-focus-panel reveal-node" :style="staggerStyle(12)">
-                <h3>当前关注</h3>
-                <p class="line-text"><strong>目标：</strong>{{ about.mission }}</p>
-                <p class="mini-title">关注方向</p>
-                <div class="chip-row focus-cloud">
-                  <span v-for="focus in about.focus" :key="`focus-${focus}`" class="chip">{{ focus }}</span>
-                </div>
-                <p class="mini-title">音乐偏好</p>
-                <div class="chip-row focus-cloud">
-                  <span v-for="music in about.music" :key="`music-${music}`" class="chip">{{ music }}</span>
-                </div>
-              </article>
-            </section>
-          </div>
-
-          <div v-else-if="activeTab === 'journey'" class="content-block journey-motion-root journey-story-root">
+          <div v-if="activeTab === 'journey'" class="content-block journey-motion-root journey-story-root">
             <section class="journey-stage">
               <button
                 v-if="canEditCurrentTab"
@@ -439,6 +235,8 @@
           <AuthorAboutExperience
             v-else-if="isPublicExperienceTab"
             :active-tab="activeTab"
+            :profile="authorProfile"
+            :portals="homepagePortalCards"
             :about="about"
             :journey="journeyTimelineItems"
             :can-edit="canEditCurrentTab"
@@ -449,6 +247,7 @@
             :moments-loading="featuredMoments.loading.value"
             :moments-error="featuredMoments.error.value"
             @select-tab="openTab"
+            @select-portal="openHomepagePortal"
             @edit="openSectionEditor(AuthorTabKey.ABOUT)"
             @retry-albums="featuredAlbums.refresh('about-retry')"
             @retry-moments="featuredMoments.refresh('about-retry')"
@@ -493,7 +292,7 @@
 
               <p class="line-text">这里支持修改文字、标签和图片，保存后即时刷新当前页面。</p>
 
-              <div v-if="sectionEditorSection === AuthorTabKey.OVERVIEW" class="editor-layout">
+              <div v-if="sectionEditorSection === AuthorTabKey.ABOUT" class="editor-layout">
                 <section class="form-section">
                   <h3>基础设置</h3>
                   <label class="editor-switch">
@@ -723,7 +522,7 @@
                 </section>
               </div>
 
-              <div v-else class="editor-layout">
+              <div v-if="sectionEditorSection === AuthorTabKey.ABOUT" class="editor-layout">
                 <section class="form-section">
                   <h3>关于网站内容</h3>
                   <div class="field-grid two-col">
@@ -991,33 +790,10 @@ const motionPreference = useMotionPreference();
 const appScrollRoot = useAppScrollRoot();
 
 const baseTabs = [
-  { key: AuthorTabKey.OVERVIEW, label: '网站主页', icon: 'fas fa-user-astronaut', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
   { key: AuthorTabKey.JOURNEY, label: '建站经历', icon: 'fas fa-route', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
   { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
   { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' }
 ];
-const SKILL_ICON_RULES = [
-  { pattern: /(c\+\+|cpp|c\/c\+\+|clang|gcc)/i, icon: 'fas fa-code', tone: 'tone-cyan' },
-  { pattern: /(unreal|ue5|ue4)/i, icon: 'fas fa-gamepad', tone: 'tone-blue' },
-  { pattern: /(unity|c#)/i, icon: 'fas fa-cubes', tone: 'tone-violet' },
-  { pattern: /(python)/i, icon: 'fab fa-python', tone: 'tone-gold' },
-  { pattern: /(java|spring)/i, icon: 'fab fa-java', tone: 'tone-rose' },
-  { pattern: /(css|scss|sass|tailwind)/i, icon: 'fab fa-css3-alt', tone: 'tone-blue' },
-  { pattern: /(javascript|typescript|js|ts)/i, icon: 'fab fa-js', tone: 'tone-gold' },
-  { pattern: /(html)/i, icon: 'fab fa-html5', tone: 'tone-rose' },
-  { pattern: /(git|github|gitlab)/i, icon: 'fab fa-git-alt', tone: 'tone-cyan' },
-  { pattern: /(vue|react|frontend|web)/i, icon: 'fab fa-vuejs', tone: 'tone-mint' },
-  { pattern: /(mysql|postgres|database|sql)/i, icon: 'fas fa-database', tone: 'tone-blue' },
-  { pattern: /(redis|cache)/i, icon: 'fas fa-memory', tone: 'tone-rose' },
-  { pattern: /(openai|ai|llm|ml|deep)/i, icon: 'fas fa-brain', tone: 'tone-violet' },
-  { pattern: /(open ?gl|vulkan|shader|render)/i, icon: 'fas fa-cube', tone: 'tone-cyan' },
-  { pattern: /(blender|3d|model)/i, icon: 'fas fa-shapes', tone: 'tone-mint' }
-];
-
-const SKILL_FALLBACK_ICONS = ['fas fa-code', 'fas fa-cubes', 'fas fa-bolt', 'fas fa-layer-group', 'fas fa-compass-drafting', 'fas fa-brain'];
-const SKILL_FALLBACK_TONES = ['tone-cyan', 'tone-blue', 'tone-violet', 'tone-gold', 'tone-rose', 'tone-mint'];
-const QUICK_STATUS_CUSTOM_VALUE = '__custom__';
-const QUICK_STATUS_PRESET_OPTIONS = Object.freeze(['睡觉中', '上班中', '学习中', '休息中']);
 const JOURNEY_MONTH_LABELS = Object.freeze(Array.from({ length: 12 }, (_, index) => `${String(index + 1).padStart(2, '0')}月`));
 const AUTHOR_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 const JOURNEY_IMAGE_PATH_PATTERN = /^journey\.\d+\.imageUrl$/u;
@@ -1033,8 +809,7 @@ const HOMEPAGE_PORTAL_CARDS = Object.freeze([
   },
   { key: 'apps', title: 'Apps', description: '轻应用与小工具合集。', icon: 'fas fa-th-large', tone: 'tone-blue', target: '/apps' },
   { key: 'ai-hub', title: 'AI Hub', description: '进入多跳转站内 AI 区域。', icon: 'fas fa-brain', tone: 'tone-violet', target: '/ai-hub' },
-  { key: 'journey', title: 'Journey', description: '查看建站经历和阶段推进。', icon: 'fas fa-route', tone: 'tone-gold', target: AuthorTabKey.JOURNEY, mode: 'tab' },
-  { key: 'about', title: 'About', description: '回到关于页，继续看站点设定。', icon: 'fas fa-compass-drafting', tone: 'tone-mint', target: AuthorTabKey.ABOUT, mode: 'tab' }
+  { key: 'journey', title: 'Journey', description: '查看建站经历和阶段推进。', icon: 'fas fa-route', tone: 'tone-gold', target: AuthorTabKey.JOURNEY, mode: 'tab' }
 ]);
 const DEFAULT_SECTION_IMAGE_RULE = Object.freeze({
   aspectRatio: 16 / 10,
@@ -1120,16 +895,12 @@ const sectionImageUploadInputRef = ref(null);
 const contentPanelRef = ref(null);
 const journeyTimelineRef = ref(null);
 const sectionEditorOpen = ref(false);
-const sectionEditorSection = ref(AuthorTabKey.OVERVIEW);
+const sectionEditorSection = ref(AuthorTabKey.ABOUT);
 const pendingSectionImagePath = ref('');
 const sectionImageCropVisible = ref(false);
 const sectionImageCropSourceUrl = ref('');
 const sectionImageCropSourceName = ref('section-image.png');
 const sectionImageCropTargetPath = ref('');
-const quickStatusChoice = ref('');
-const quickStatusCustomInput = ref('');
-const quickStatusSaving = ref(false);
-const quickStatusError = ref('');
 const authorAuxiliaryDrawerOpen = ref(false);
 const motionState = reactive(createAuthorMotionState({
   reducedMotion: motionPreference.effectiveMode.value !== 'immersive'
@@ -1229,75 +1000,9 @@ watch(
 );
 
 const hero = computed(() => authorProfile.value.profileJson.hero);
-const identity = computed(() => authorProfile.value.profileJson.identity);
-const skills = computed(() => authorProfile.value.profileJson.skills);
 const journey = computed(() => authorProfile.value.profileJson.journey);
 const about = computed(() => authorProfile.value.profileJson.about);
 const siteProfile = computed(() => authorProfile.value.profileJson.site);
-const currentActivityStatus = computed(() => {
-  const status = String(identity.value.activityStatus || '').trim();
-  return status || '学习中';
-});
-const overviewHeroFacts = computed(() => {
-  return [
-    { label: '学校', value: identity.value.school || '持续前进中' },
-    { label: '专业', value: identity.value.major || '持续探索中' },
-    { label: '角色', value: identity.value.role || '独立开发者' },
-    { label: '我的状态', value: currentActivityStatus.value }
-  ];
-});
-const latestJourneyItem = computed(() => journeyTimelineItems.value[0] || null);
-const overviewHeroJourney = computed(() => {
-  const item = latestJourneyItem.value;
-  return {
-    title: String(item?.title || identity.value.role || '正在构建新的内容').trim(),
-    dateLabel: String(item?.dateLabel || item?.monthLabel || '持续更新').trim(),
-    description: String(item?.description || about.value.mission || '').trim(),
-    stack: Array.isArray(item?.stack) ? item.stack.filter(Boolean).slice(0, 4) : []
-  };
-});
-const overviewHeroNarrative = computed(() => {
-  const lines = Array.isArray(about.value.intro) ? about.value.intro.map((item) => String(item || '').trim()).filter(Boolean) : [];
-  if (lines.length) return lines.slice(0, 2);
-  const fallback = String(about.value.mission || '').trim();
-  return fallback ? [fallback] : ['持续记录、持续学习、持续表达。'];
-});
-const overviewHeroHighlightTags = computed(() => {
-  const tags = [
-    ...(Array.isArray(about.value.focus) ? about.value.focus : []),
-    ...(Array.isArray(about.value.music) ? about.value.music : []),
-    ...(Array.isArray(identity.value.labels) ? identity.value.labels : [])
-  ]
-    .map((item) => String(item || '').trim())
-    .filter(Boolean);
-  return [...new Set(tags.map((item) => item))].slice(0, 6);
-});
-const overviewHeroSignals = computed(() => {
-  const signals = [
-    String(overviewHeroJourney.value.dateLabel || '').trim(),
-    String(overviewHeroJourney.value.title || '').trim(),
-    currentActivityStatus.value,
-    ...overviewHeroHighlightTags.value
-  ].filter(Boolean);
-  return [...new Set(signals)].slice(0, 6);
-});
-const skillNodes = computed(() => {
-  const rawList = Array.isArray(skills.value) ? skills.value : [];
-  const deduped = [];
-  const seen = new Set();
-
-  rawList.forEach((item) => {
-    const label = String(item || '').trim();
-    if (!label) return;
-    const key = label.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    deduped.push(label);
-  });
-
-  const source = deduped.length ? deduped : ['Java', 'Vue3', 'Spring Boot', 'MySQL', 'Redis', 'OpenAI'];
-  return source.slice(0, 14).map((label, index) => resolveSkillNode(label, index));
-});
 const journeyTimelineItems = computed(() => {
   const source = Array.isArray(journey.value) ? journey.value : [];
   return source
@@ -1370,20 +1075,19 @@ const contentPanelStyle = computed(() => {
 
 const canEditCurrentTab = computed(() => {
   if (!isAdminUser.value) return false;
-  return activeTab.value === AuthorTabKey.OVERVIEW || activeTab.value === AuthorTabKey.JOURNEY || activeTab.value === AuthorTabKey.ABOUT;
+  return activeTab.value === AuthorTabKey.JOURNEY || activeTab.value === AuthorTabKey.ABOUT;
 });
 
 const sectionEditorTitle = computed(() => {
   if (sectionEditorSection.value === AuthorTabKey.JOURNEY) return '编辑建站经历';
-  if (sectionEditorSection.value === AuthorTabKey.ABOUT) return '编辑关于网站';
-  return '编辑网站主页';
+  return '编辑关于网站';
 });
 
 function normalizeTab(raw) {
   const text = String(raw || '').trim().toLowerCase();
   if (text.startsWith(AUTHOR_ADMIN_ROUTE_PREFIX)) {
     if (!isAdminUser.value) {
-      return AuthorTabKey.OVERVIEW;
+      return AuthorTabKey.ABOUT;
     }
     const adminTab = text.slice(AUTHOR_ADMIN_ROUTE_PREFIX.length);
     const normalizedAdminTab = eligibleAdminTabKeys.value.has(adminTab)
@@ -1392,11 +1096,11 @@ function normalizeTab(raw) {
     return `${AUTHOR_ADMIN_ROUTE_PREFIX}${normalizedAdminTab}`;
   }
   const normalized = normalizeAuthorTabKey(text);
-  if (normalized === AuthorTabKey.EDIT) {
-    return AuthorTabKey.OVERVIEW;
+  if (normalized === AuthorTabKey.OVERVIEW || normalized === AuthorTabKey.EDIT) {
+    return AuthorTabKey.ABOUT;
   }
   if (normalized === AuthorTabKey.SITE_SETTINGS && !isAdminUser.value) {
-    return AuthorTabKey.OVERVIEW;
+    return AuthorTabKey.ABOUT;
   }
   return normalized;
 }
@@ -1419,71 +1123,6 @@ function openHomepagePortal(item) {
     return;
   }
   openLink(item.target);
-}
-
-function normalizeActivityStatus(raw, fallback = '学习中') {
-  const text = String(raw || '').trim();
-  if (!text) return fallback;
-  return text.slice(0, 30);
-}
-
-function resolveQuickStatusChoice(status) {
-  const normalized = normalizeActivityStatus(status, '');
-  return QUICK_STATUS_PRESET_OPTIONS.includes(normalized) ? normalized : QUICK_STATUS_CUSTOM_VALUE;
-}
-
-function resolveQuickStatusValueToSave() {
-  const candidate =
-    quickStatusChoice.value === QUICK_STATUS_CUSTOM_VALUE ? quickStatusCustomInput.value : quickStatusChoice.value;
-  return normalizeActivityStatus(candidate, '');
-}
-
-function syncQuickStatusEditor() {
-  const current = currentActivityStatus.value;
-  const nextChoice = resolveQuickStatusChoice(current);
-  quickStatusChoice.value = nextChoice || QUICK_STATUS_CUSTOM_VALUE;
-  quickStatusCustomInput.value = nextChoice === QUICK_STATUS_CUSTOM_VALUE ? current : '';
-  quickStatusError.value = '';
-}
-
-async function saveQuickActivityStatus() {
-  if (!isAdminUser.value || quickStatusSaving.value) return;
-  const nextStatus = resolveQuickStatusValueToSave();
-  if (!nextStatus) {
-    quickStatusError.value = '请先填写状态内容';
-    return;
-  }
-
-  quickStatusSaving.value = true;
-  quickStatusError.value = '';
-  try {
-    const currentProfileJson = authorProfile.value?.profileJson || {};
-    const nextIdentity = {
-      ...(currentProfileJson.identity || {}),
-      current_status: nextStatus
-    };
-    const payload = await updateAdminAuthorProfile(
-      {
-        enabled: authorProfile.value?.enabled !== false,
-        profileJson: {
-          ...currentProfileJson,
-          identity: nextIdentity
-        }
-      },
-      auth.authorizedFetch
-    );
-
-    authorProfile.value = normalizeAuthorProfilePayload(payload);
-    applyEditFormFromProfile(authorProfile.value);
-    writeAuthorProfileCache(authorProfile.value);
-    editState.success = '状态已更新';
-    cacheNotice.value = '';
-    refreshActiveTabMotion();
-  } catch (error) {
-    quickStatusError.value = readErrorMessage(error, '状态更新失败');
-  } finally {
-    quickStatusSaving.value = false;
-  }
 }
 
 function resolveSectionImageRule(path) {
@@ -1526,8 +1165,7 @@ function resolveSectionImageDisplayStyle(path) {
 
 function createSafeSectionKey(sectionKey) {
   if (sectionKey === AuthorTabKey.JOURNEY) return AuthorTabKey.JOURNEY;
-  if (sectionKey === AuthorTabKey.ABOUT) return AuthorTabKey.ABOUT;
-  return AuthorTabKey.OVERVIEW;
+  return AuthorTabKey.ABOUT;
 }
 
 async function refreshSectionEditor() {
@@ -1718,7 +1356,7 @@ function resolveSectionImageExtension(mimeType, sourceName = '') {
 }
 
 function isDisplayTab(tabKey = activeTab.value) {
-  return tabKey === AuthorTabKey.OVERVIEW || tabKey === AuthorTabKey.JOURNEY || tabKey === AuthorTabKey.ABOUT;
+  return tabKey === AuthorTabKey.JOURNEY || tabKey === AuthorTabKey.ABOUT;
 }
 
 function isDesktopPointerEnabled() {
@@ -1734,23 +1372,6 @@ function clampNumber(value, min, max) {
 function staggerStyle(index) {
   return {
     '--reveal-delay': `${Math.max(0, Number(index) || 0) * 60}ms`
-  };
-}
-
-function resolveSkillNode(label, index) {
-  const normalized = String(label || '').trim();
-  const matched = SKILL_ICON_RULES.find((rule) => rule.pattern.test(normalized));
-  if (matched) {
-    return {
-      label: normalized,
-      icon: matched.icon,
-      tone: matched.tone
-    };
-  }
-  return {
-    label: normalized,
-    icon: SKILL_FALLBACK_ICONS[index % SKILL_FALLBACK_ICONS.length],
-    tone: SKILL_FALLBACK_TONES[index % SKILL_FALLBACK_TONES.length]
   };
 }
 
@@ -1861,7 +1482,6 @@ function disconnectJourneyObserver() {
 }
 
 function getRevealSelectorByTab(tabKey = activeTab.value) {
-  if (tabKey === AuthorTabKey.OVERVIEW) return '.overview-motion-root .reveal-node, .overview-motion-root .reveal-line';
   if (tabKey === AuthorTabKey.JOURNEY) return '.journey-motion-root .reveal-node';
   if (tabKey === AuthorTabKey.ABOUT) return '.about-motion-root .reveal-node, .about-motion-root .reveal-line';
   return '';
@@ -2070,7 +1690,6 @@ function buildEditFormState(profilePayload) {
 function applyEditFormFromProfile(profilePayload) {
   suppressDirtyTracking = true;
   editForm.value = buildEditFormState(profilePayload);
-  syncQuickStatusEditor();
   resetTagInputs();
   editState.error = '';
   editState.success = '';
@@ -2331,21 +1950,6 @@ async function copyErrorText(text) {
     errorCopyFeedbackTimer = null;
   }, 2200);
 }
-
-watch(quickStatusChoice, (nextChoice) => {
-  if (nextChoice !== QUICK_STATUS_CUSTOM_VALUE) {
-    quickStatusCustomInput.value = '';
-  }
-  if (quickStatusError.value) {
-    quickStatusError.value = '';
-  }
-});
-
-watch(quickStatusCustomInput, () => {
-  if (quickStatusError.value) {
-    quickStatusError.value = '';
-  }
-});
 
 watch(
   () => route.query.tab,
@@ -3216,663 +2820,9 @@ onBeforeUnmount(() => {
   background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.06));
 }
 
-.overview-story-root,
 .journey-story-root,
 .about-story-root {
   gap: 14px;
-}
-
-.overview-story-root {
-  position: relative;
-  isolation: isolate;
-}
-
-/* 主视觉舞台：高度由内容撑开（不再强制裁切比例），信息永远完整可见 */
-.story-hero-stage {
-  position: relative;
-  overflow: hidden;
-  min-height: 280px;
-  height: auto;
-  padding: 18px 18px 20px;
-  display: grid;
-  gap: 14px;
-  isolation: isolate;
-  background:
-    linear-gradient(150deg, rgba(var(--accent-rgb), 0.12), transparent 52%, rgba(var(--accent-soft-rgb), 0.08)),
-    var(--theme-panel-surface, rgba(26, 20, 28, 0.88));
-  border-color: var(--theme-border, rgba(255, 224, 208, 0.18));
-  box-shadow: var(--theme-shadow-soft, 0 16px 34px rgba(12, 7, 12, 0.26));
-  transform: translate3d(calc(var(--parallax-x) * 0.24), calc(var(--parallax-y) * 0.18), 0);
-}
-
-/* 压暗遮罩：只为可读性服务，不再做玻璃高光 */
-.story-hero-stage::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(24, 16, 24, 0.28), rgba(24, 16, 24, 0.12) 42%, rgba(18, 12, 18, 0.44));
-  z-index: 0;
-  pointer-events: none;
-}
-
-.story-hero-cover {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.44;
-  filter: brightness(1.02) contrast(1.02) saturate(1.05);
-  z-index: 0;
-}
-
-.story-hero-atmosphere {
-  pointer-events: none;
-  position: absolute;
-  inset: -20% -8%;
-  z-index: 0;
-}
-
-.story-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(6px);
-  opacity: 0.3;
-}
-
-.story-orb-a {
-  width: 220px;
-  height: 220px;
-  left: -30px;
-  top: -34px;
-  background: radial-gradient(circle, rgba(var(--accent-soft-rgb), 0.5), rgba(var(--accent-soft-rgb), 0.06) 72%, transparent);
-  animation: float-orb-1 9.2s ease-in-out infinite;
-}
-
-.story-orb-b {
-  width: 240px;
-  height: 240px;
-  right: -24px;
-  bottom: -80px;
-  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.38), rgba(var(--accent-rgb), 0.07) 74%, transparent);
-  animation: float-orb-2 10.6s ease-in-out infinite;
-}
-
-.story-orb-c {
-  width: 160px;
-  height: 160px;
-  right: 34%;
-  top: -24px;
-  background: radial-gradient(circle, rgba(246, 194, 161, 0.42), rgba(246, 194, 161, 0.06) 70%, rgba(246, 194, 161, 0));
-  animation: float-orb-3 8.2s ease-in-out infinite;
-}
-
-.story-hero-main {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 38%);
-  gap: 16px;
-  align-items: stretch;
-}
-
-.story-hero-primary,
-.story-hero-side {
-  min-width: 0;
-  display: grid;
-  gap: 12px;
-  align-content: start;
-}
-
-.story-hero-intro {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 18px;
-  align-items: center;
-  padding: 8px 4px 0;
-}
-
-.story-avatar-stack {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-}
-
-.story-avatar-ring {
-  position: absolute;
-  inset: -8px;
-  border-radius: 999px;
-  border: 1px solid rgba(246, 194, 161, 0.52);
-  background: conic-gradient(
-    from 0deg,
-    rgba(246, 194, 161, 0.16),
-    rgba(239, 160, 168, 0.26),
-    rgba(246, 194, 161, 0.16)
-  );
-  animation: spin-slow 11s linear infinite;
-}
-
-.story-avatar {
-  width: 124px;
-  height: 124px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 14px 32px rgba(4, 8, 16, 0.42);
-  transition: transform 240ms ease, box-shadow 240ms ease;
-}
-
-.story-status-badge {
-  font-size: 11px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: rgba(138, 236, 179, 0.2);
-  color: rgba(203, 255, 226, 0.95);
-}
-
-.story-status-badge.off {
-  background: rgba(249, 153, 153, 0.2);
-  color: rgba(255, 210, 210, 0.95);
-}
-
-.story-hero-copy {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-}
-
-.story-hero-copy h2 {
-  margin-top: 4px;
-  font-size: clamp(28px, 4vw, 40px);
-}
-
-.story-greeting {
-  margin: 0;
-  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.9));
-}
-
-.story-quote {
-  margin-top: 6px;
-}
-
-.story-hero-facts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-/* 信息卡改为哑光实底：不再用玻璃拟态（高透明 + 模糊 + 反光） */
-.hero-fact-card,
-.story-hero-preview,
-.story-side-panel {
-  border-radius: 16px;
-  border: 1px solid var(--theme-border-subtle, rgba(255, 224, 208, 0.16));
-  background: var(--theme-panel-surface-elevated, rgba(34, 26, 36, 0.82));
-  box-shadow: 0 8px 20px rgba(12, 7, 12, 0.22);
-}
-
-.hero-fact-card {
-  min-height: 78px;
-  padding: 12px;
-  display: grid;
-  gap: 6px;
-  align-content: start;
-}
-
-.hero-fact-label,
-.story-preview-kicker,
-.story-side-kicker {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
-}
-
-.hero-fact-value {
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
-}
-
-.story-hero-preview {
-  position: relative;
-  overflow: hidden;
-  padding: 14px 16px;
-  display: grid;
-  gap: 6px;
-}
-
-.story-preview-title {
-  margin: 0;
-  font-size: 18px;
-  line-height: 1.2;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.97));
-}
-
-.story-preview-text {
-  margin: 0;
-  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.86));
-  line-height: 1.6;
-}
-
-.story-signal-row {
-  margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.story-signal-pill {
-  border-radius: 999px;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.2));
-  background: var(--theme-surface-soft, rgba(255, 240, 235, 0.12));
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.92));
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  padding: 5px 10px;
-  animation: float-pill 7.2s ease-in-out infinite;
-}
-
-.story-signal-pill:nth-child(2n) {
-  animation-delay: -2.1s;
-}
-
-.story-signal-pill:nth-child(3n) {
-  animation-delay: -4.2s;
-}
-
-.story-side-panel {
-  position: relative;
-  overflow: hidden;
-  padding: 14px 16px;
-  display: grid;
-  gap: 8px;
-  background: var(--theme-panel-surface-elevated, rgba(34, 26, 36, 0.84));
-}
-
-.status-panel-block {
-  display: grid;
-  gap: 6px;
-  padding-bottom: 10px;
-  border-bottom: 1px dashed var(--theme-border-subtle, rgba(255, 224, 208, 0.15));
-}
-
-.status-panel-block:last-of-type {
-  padding-bottom: 0;
-  border-bottom: none;
-}
-
-.story-side-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.story-mini-kicker {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
-}
-
-.story-side-panel h3 {
-  margin: 0;
-  font-size: 19px;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.98));
-}
-
-.story-side-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--theme-border-subtle, rgba(255, 224, 208, 0.16));
-  background: var(--theme-surface-soft, rgba(255, 240, 235, 0.1));
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.84));
-}
-
-.story-live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(127, 255, 198, 0.9);
-  box-shadow: 0 0 0 0 rgba(127, 255, 198, 0.44);
-  animation: pulse-live 2s ease-in-out infinite;
-}
-
-.story-side-meta-line {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
-  font-size: 12px;
-  letter-spacing: 0.06em;
-}
-
-.story-side-copy {
-  margin: 0;
-}
-
-.story-status-text {
-  margin: 0;
-  font-size: 18px;
-  line-height: 1.4;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.97));
-}
-
-.quick-status-editor {
-  margin-top: 2px;
-  display: grid;
-  gap: 8px;
-}
-
-.field-inline {
-  display: grid;
-  gap: 6px;
-}
-
-.field-inline > span {
-  font-size: 12px;
-  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.84));
-}
-
-.status-select,
-.status-input {
-  width: 100%;
-  min-height: 34px;
-  border-radius: 10px;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.22));
-  background: var(--theme-code-surface, rgba(16, 10, 16, 0.64));
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
-  padding: 0 10px;
-}
-
-.status-select:focus,
-.status-input:focus {
-  outline: none;
-  border-color: rgba(var(--accent-rgb), 0.6);
-  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.22);
-}
-
-.quick-status-error {
-  margin: 0;
-}
-
-.story-side-chip-row {
-  margin-top: 2px;
-}
-
-.story-side-chip-row.subtle .chip {
-  opacity: 0.9;
-}
-
-.story-hero-stage:hover .story-avatar {
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 18px 36px rgba(72, 149, 255, 0.34);
-}
-
-.story-skill-ribbon {
-  position: relative;
-  z-index: 1;
-  margin-top: 0;
-  min-width: 0;
-  display: flex;
-  align-items: stretch;
-}
-
-.skill-focus-frame {
-  position: relative;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid var(--theme-border-subtle, rgba(255, 224, 208, 0.16));
-  background: var(--theme-panel-surface-elevated, rgba(34, 26, 36, 0.78));
-  width: 100%;
-  min-height: 132px;
-  height: auto;
-  padding: 10px;
-  transition: border-color 220ms ease, box-shadow 220ms ease;
-}
-
-.skill-focus-frame:hover,
-.skill-focus-frame:focus-within,
-.skill-focus-frame:focus-visible {
-  border-color: rgba(var(--accent-rgb), 0.5);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.2);
-  outline: none;
-}
-
-.skill-focus-list {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 10px;
-  align-content: start;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.skill-focus-item {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-  border-bottom: 1px dashed var(--theme-border-subtle, rgba(255, 224, 208, 0.14));
-  background: var(--theme-surface-soft, rgba(255, 240, 235, 0.08));
-  border-radius: 6px;
-}
-
-.skill-node-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  font-size: 14px;
-  color: rgba(238, 245, 255, 0.96);
-  background: linear-gradient(145deg, rgba(115, 167, 255, 0.44), rgba(91, 104, 255, 0.32));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.skill-node-label {
-  font-size: 13px;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.95));
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.skill-slide-pill.tone-cyan .skill-node-icon,
-.skill-focus-item.tone-cyan .skill-node-icon {
-  background: linear-gradient(145deg, rgba(89, 211, 255, 0.5), rgba(84, 151, 255, 0.34));
-}
-
-.skill-slide-pill.tone-blue .skill-node-icon,
-.skill-focus-item.tone-blue .skill-node-icon {
-  background: linear-gradient(145deg, rgba(98, 152, 255, 0.5), rgba(80, 104, 255, 0.36));
-}
-
-.skill-slide-pill.tone-violet .skill-node-icon,
-.skill-focus-item.tone-violet .skill-node-icon {
-  background: linear-gradient(145deg, rgba(152, 129, 255, 0.52), rgba(189, 125, 255, 0.34));
-}
-
-.skill-slide-pill.tone-gold .skill-node-icon,
-.skill-focus-item.tone-gold .skill-node-icon {
-  background: linear-gradient(145deg, rgba(255, 204, 92, 0.56), rgba(241, 158, 70, 0.34));
-}
-
-.skill-slide-pill.tone-rose .skill-node-icon,
-.skill-focus-item.tone-rose .skill-node-icon {
-  background: linear-gradient(145deg, rgba(255, 143, 187, 0.54), rgba(240, 109, 135, 0.34));
-}
-
-.skill-slide-pill.tone-mint .skill-node-icon,
-.skill-focus-item.tone-mint .skill-node-icon {
-  background: linear-gradient(145deg, rgba(103, 243, 214, 0.5), rgba(107, 195, 255, 0.34));
-}
-
-.story-free-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.84fr);
-  gap: 12px;
-}
-
-.home-portal-grid {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.home-portal-card {
-  position: relative;
-  overflow: hidden;
-  min-height: 116px;
-  border-radius: 22px;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.22));
-  background: var(--theme-panel-surface-elevated, rgba(34, 26, 36, 0.82));
-  box-shadow: var(--theme-shadow-soft, 0 16px 34px rgba(12, 7, 12, 0.2));
-  padding: 16px;
-  display: grid;
-  gap: 12px;
-  text-align: left;
-  cursor: pointer;
-  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
-}
-
-.home-portal-card::after {
-  content: '';
-  position: absolute;
-  inset: auto -14% -40% auto;
-  width: 92px;
-  height: 92px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
-  pointer-events: none;
-}
-
-.home-portal-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(var(--accent-rgb), 0.46);
-  box-shadow:
-    0 20px 40px rgba(12, 18, 34, 0.22),
-    0 0 0 1px rgba(var(--accent-rgb), 0.18);
-}
-
-.home-portal-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
-  background: var(--theme-surface-soft, rgba(255, 240, 235, 0.12));
-  font-size: 16px;
-}
-
-.home-portal-copy {
-  display: grid;
-  gap: 6px;
-}
-
-.home-portal-copy strong {
-  font-size: 18px;
-  line-height: 1.1;
-}
-
-.home-portal-copy small {
-  color: var(--theme-text-secondary, rgba(231, 211, 196, 0.84));
-  line-height: 1.6;
-}
-
-.home-portal-card.tone-rose .home-portal-icon {
-  background: linear-gradient(145deg, rgba(255, 165, 201, 0.4), rgba(243, 119, 154, 0.22));
-}
-
-.home-portal-card.tone-cyan .home-portal-icon {
-  background: linear-gradient(145deg, rgba(113, 231, 255, 0.38), rgba(88, 161, 255, 0.24));
-}
-
-.home-portal-card.tone-blue .home-portal-icon {
-  background: linear-gradient(145deg, rgba(126, 164, 255, 0.38), rgba(91, 104, 255, 0.22));
-}
-
-.home-portal-card.tone-violet .home-portal-icon {
-  background: linear-gradient(145deg, rgba(177, 152, 255, 0.38), rgba(207, 122, 255, 0.2));
-}
-
-.home-portal-card.tone-gold .home-portal-icon {
-  background: linear-gradient(145deg, rgba(255, 213, 127, 0.4), rgba(244, 171, 92, 0.2));
-}
-
-.home-portal-card.tone-mint .home-portal-icon {
-  background: linear-gradient(145deg, rgba(129, 245, 212, 0.38), rgba(102, 199, 255, 0.2));
-}
-
-.story-identity-ribbon {
-  grid-column: 1 / -1;
-}
-
-.identity-track {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.identity-unit {
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.1);
-  padding: 10px;
-  display: grid;
-  gap: 6px;
-}
-
-.identity-label {
-  font-size: 12px;
-  color: rgba(185, 201, 226, 0.92);
-}
-
-.story-notes,
-.story-focus-panel {
-  transform: translate3d(calc(var(--parallax-x) * 0.12), calc(var(--parallax-y) * 0.08), 0);
-}
-
-.story-notes:hover,
-.story-focus-panel:hover,
-.story-identity-ribbon:hover {
-  transform: translateY(-4px);
-  border-color: rgba(var(--accent-rgb), 0.46);
-  box-shadow: 0 18px 34px rgba(10, 20, 36, 0.4);
-}
-
-.focus-cloud .chip {
-  animation: cloud-rise 7.4s ease-in-out infinite;
-}
-
-.focus-cloud .chip:nth-child(2n) {
-  animation-delay: -2.2s;
-}
-
-.focus-cloud .chip:nth-child(3n) {
-  animation-delay: -4.1s;
 }
 
 :root[data-theme-mode='day'] .content-panel {
@@ -3887,14 +2837,6 @@ onBeforeUnmount(() => {
 
 :root[data-theme-mode='day'] .site-settings-preview,
 :root[data-theme-mode='day'] .author-card,
-:root[data-theme-mode='day'] .story-hero-preview,
-:root[data-theme-mode='day'] .story-side-panel,
-:root[data-theme-mode='day'] .hero-fact-card,
-:root[data-theme-mode='day'] .skill-focus-frame,
-:root[data-theme-mode='day'] .identity-unit,
-:root[data-theme-mode='day'] .story-signal-pill,
-:root[data-theme-mode='day'] .story-side-live,
-:root[data-theme-mode='day'] .skill-focus-item,
 :root[data-theme-mode='day'] .link-btn {
   border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
   box-shadow: 0 10px 22px rgba(88, 60, 50, 0.08);
@@ -3913,18 +2855,11 @@ onBeforeUnmount(() => {
 :root[data-theme-mode='day'] .kv-row dt,
 :root[data-theme-mode='day'] .line-text,
 :root[data-theme-mode='day'] .mini-title,
-:root[data-theme-mode='day'] .story-greeting,
-:root[data-theme-mode='day'] .story-quote,
-:root[data-theme-mode='day'] .story-preview-text,
-:root[data-theme-mode='day'] .story-mini-kicker,
-:root[data-theme-mode='day'] .story-side-meta-line,
 :root[data-theme-mode='day'] .journey-axis-day,
 :root[data-theme-mode='day'] .journey-axis-month-tick,
 :root[data-theme-mode='day'] .journey-axis-month-tick.is-passed,
 :root[data-theme-mode='day'] .journey-scene-day,
-:root[data-theme-mode='day'] .journey-scene-period,
-:root[data-theme-mode='day'] .field-inline > span,
-:root[data-theme-mode='day'] .identity-label {
+:root[data-theme-mode='day'] .journey-scene-period {
   color: var(--theme-text-secondary, rgba(88, 62, 53, 0.86));
 }
 
@@ -3939,35 +2874,6 @@ onBeforeUnmount(() => {
 
 :root[data-theme-mode='day'] .journey-scene-image {
   border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
-}
-
-:root[data-theme-mode='day'] .status-select,
-:root[data-theme-mode='day'] .status-input {
-  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.16));
-  color: var(--theme-text-primary, rgba(52, 34, 29, 0.96));
-  border-color: var(--theme-border, rgba(255, 224, 208, 0.24));
-}
-
-@keyframes float-pill {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
-@keyframes pulse-live {
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(127, 255, 198, 0.34);
-  }
-  50% {
-    transform: scale(1.08);
-    box-shadow: 0 0 0 6px rgba(127, 255, 198, 0);
-  }
 }
 
 .journey-stage {
@@ -4690,26 +3596,15 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .orb,
-  .story-orb,
   .avatar-aurora-ring,
-  .story-avatar-ring,
-  .story-live-dot,
-  .story-signal-pill,
   .mission-sweep,
-  .skill-slide-track,
-  .focus-cloud .chip,
   .timeline-item.is-active .timeline-node,
   .is-reveal-ready.is-revealed {
     animation: none !important;
   }
 
   .hero-stage,
-  .story-hero-stage,
-  .home-portal-card,
   .overview-card,
-  .story-notes,
-  .story-focus-panel,
-  .story-identity-ribbon,
   .timeline-item,
   .journey-scene,
   .author-card,
@@ -4727,10 +3622,6 @@ onBeforeUnmount(() => {
     transition: none !important;
   }
 
-  .story-skill-ribbon {
-    mask-image: none;
-    -webkit-mask-image: none;
-  }
 }
 
 @media (max-width: 1199.98px) {
@@ -4775,65 +3666,6 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
-  }
-
-  .story-hero-stage {
-    min-height: 0;
-    padding: 14px;
-  }
-
-  .story-hero-main {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    text-align: center;
-  }
-
-  .story-hero-primary,
-  .story-hero-side {
-    width: 100%;
-  }
-
-  .story-hero-intro {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    text-align: center;
-  }
-
-  .story-hero-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .story-side-panel,
-  .story-hero-preview {
-    text-align: left;
-  }
-
-  .story-free-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .home-portal-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .skill-focus-frame {
-    min-height: 124px;
-    height: auto;
-    padding: 8px;
-  }
-
-  .skill-focus-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px 8px;
-    overflow: auto;
-  }
-
-  .skill-node-label {
-    font-size: 12px;
-  }
-
-  .identity-track {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .overview-grid,
@@ -4976,13 +3808,5 @@ onBeforeUnmount(() => {
     height: auto;
   }
 
-  .home-portal-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-portal-card {
-    min-height: 0;
-    padding: 14px;
-  }
 }
 </style>

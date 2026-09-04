@@ -234,16 +234,16 @@ function handleLinkClick(event, url) {
   min-width: 0;
   max-width: 100%;
   padding: 14px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--theme-border);
   border-radius: 14px;
-  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
-  background: var(--theme-panel-surface, linear-gradient(155deg, rgba(20, 27, 42, 0.48), rgba(11, 17, 29, 0.44)));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 22px rgba(6, 10, 18, 0.14);
+  color: var(--theme-text-primary);
+  background: var(--theme-panel-surface);
+  box-shadow: var(--theme-shadow-soft);
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease, border-color 240ms ease;
 }
 
 :global(:root[data-theme-mode='day']) .author-card {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 10px 22px rgba(88, 60, 50, 0.08);
+  box-shadow: var(--theme-shadow-soft);
 }
 
 .inline-edit-fab {
@@ -253,11 +253,11 @@ function handleLinkClick(event, url) {
   right: 10px;
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--theme-border-strong);
   border-radius: 999px;
-  color: rgba(234, 241, 255, 0.98);
-  background: rgba(9, 14, 24, 0.66);
-  box-shadow: 0 10px 20px rgba(6, 10, 18, 0.25);
+  color: var(--theme-icon-primary);
+  background: var(--theme-floating-surface);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
 }
@@ -285,7 +285,7 @@ function handleLinkClick(event, url) {
   max-height: 280px;
   display: block;
   object-fit: cover;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--theme-border);
   border-radius: 14px;
 }
 
@@ -296,7 +296,7 @@ function handleLinkClick(event, url) {
 }
 
 .about-section-code {
-  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
+  color: var(--theme-text-secondary);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -304,14 +304,14 @@ function handleLinkClick(event, url) {
 
 .about-manifesto-copy h2 {
   margin: 0;
-  color: var(--theme-text-primary, rgba(245, 248, 255, 0.98));
+  color: var(--theme-text-primary);
   font-size: clamp(22px, 2.4vw, 32px);
   letter-spacing: -0.02em;
 }
 
 .line-text {
   margin-top: 8px;
-  color: var(--theme-text-secondary, rgba(223, 230, 249, 0.88));
+  color: var(--theme-text-secondary);
   line-height: 1.68;
 }
 
@@ -352,7 +352,7 @@ function handleLinkClick(event, url) {
   width: 100%;
   display: block;
   object-fit: cover;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
 }
 
@@ -377,12 +377,12 @@ function handleLinkClick(event, url) {
 
 .about-card-heading h3 {
   margin: 0;
-  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+  color: var(--theme-text-primary);
   font-size: 16px;
 }
 
 .about-card-heading small {
-  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.68));
+  color: var(--theme-text-secondary);
   font-size: 10px;
   letter-spacing: 0.1em;
 }
@@ -394,10 +394,10 @@ function handleLinkClick(event, url) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--theme-border);
   border-radius: 11px;
-  color: var(--accent-mode-text, rgba(228, 244, 255, 0.94));
-  background: var(--accent-mode-fill-soft, linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.22), rgba(var(--accent-rgb), 0.1)));
+  color: var(--accent-surface-text);
+  background: var(--accent-mode-fill-strong);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -415,12 +415,12 @@ function handleLinkClick(event, url) {
   display: grid;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid var(--theme-border, rgba(255, 255, 255, 0.11));
+  border-top: 1px solid var(--theme-border);
 }
 
 .mini-title {
   margin: 0;
-  color: var(--theme-text-secondary, rgba(184, 201, 230, 0.9));
+  color: var(--theme-text-secondary);
   font-size: 12px;
 }
 
@@ -432,10 +432,10 @@ function handleLinkClick(event, url) {
 
 .chip {
   padding: 4px 10px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.13));
+  border: 1px solid var(--theme-border);
   border-radius: 999px;
-  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.07));
+  color: var(--theme-text-primary);
+  background: var(--theme-panel-surface-elevated);
   font-size: 12px;
 }
 
@@ -464,24 +464,24 @@ function handleLinkClick(event, url) {
   justify-content: space-between;
   gap: 12px;
   padding: 0 13px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.15));
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
-  color: var(--theme-text-primary, rgba(236, 243, 255, 0.95));
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.06));
+  color: var(--theme-text-primary);
+  background: var(--theme-panel-surface-elevated);
   text-align: left;
   text-decoration: none;
   transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
 }
 
 .link-btn i {
-  color: var(--theme-icon-muted, rgba(192, 211, 230, 0.68));
+  color: var(--theme-icon-muted);
   font-size: 11px;
 }
 
 .link-btn:hover {
   transform: translateX(2px);
   border-color: var(--accent-mode-border-strong, rgba(var(--accent-strong-rgb), 0.54));
-  background: var(--theme-floating-surface-hover, rgba(255, 255, 255, 0.1));
+  background: var(--theme-floating-surface-hover);
 }
 
 .link-btn.is-disabled {
@@ -522,15 +522,15 @@ function handleLinkClick(event, url) {
   align-items: center;
   gap: 8px;
   padding: 0 13px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--theme-border);
   border-radius: 999px;
   color: var(--theme-text-primary);
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.07));
+  background: var(--theme-panel-surface-elevated);
   cursor: pointer;
 }
 
 .journey-more:focus-visible {
-  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline: 3px solid var(--theme-focus-ring);
   outline-offset: 3px;
 }
 
@@ -545,9 +545,9 @@ function handleLinkClick(event, url) {
   grid-template-columns: minmax(100px, 0.32fr) minmax(0, 1fr);
   gap: 13px;
   padding: 10px;
-  border: 1px solid var(--theme-border-subtle, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--theme-border-subtle);
   border-radius: 14px;
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.05));
+  background: var(--theme-panel-surface-elevated);
 }
 
 .about-journey-list img {

@@ -88,9 +88,9 @@ const profileStats = computed(() => [
 
 <style scoped>
 .author-route-sidebar {
-  --liquid-bg: var(--theme-panel-surface, rgba(var(--glass-rgb), 0.32));
-  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.16));
-  --liquid-shadow: 0 14px 28px rgba(5, 10, 20, 0.2);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--theme-shadow-soft);
   position: relative;
   z-index: 6;
   width: 100%;
@@ -120,7 +120,7 @@ const profileStats = computed(() => [
   grid-template-columns: 58px minmax(0, 1fr);
   gap: 12px;
   padding: 6px 5px 14px;
-  border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .author-profile-avatar {
@@ -129,10 +129,10 @@ const profileStats = computed(() => [
   grid-row: span 2;
   display: block;
   object-fit: cover;
-  border: 1px solid var(--theme-border-strong, rgba(255, 255, 255, 0.24));
+  border: 1px solid var(--theme-border-strong);
   border-radius: 19px;
-  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.08));
-  box-shadow: 0 10px 22px rgba(8, 10, 20, 0.18);
+  background: var(--theme-surface-soft);
+  box-shadow: var(--shadow-sm);
 }
 
 .author-profile-copy {
@@ -143,7 +143,7 @@ const profileStats = computed(() => [
 }
 
 .author-profile-copy span {
-  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  color: rgb(var(--accent-readable-rgb));
   font-size: 9px;
   font-weight: 760;
   letter-spacing: 0.12em;
@@ -180,9 +180,9 @@ const profileStats = computed(() => [
   display: grid;
   gap: 3px;
   padding: 8px 5px;
-  border: 1px solid var(--theme-border-subtle, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--theme-border-subtle);
   border-radius: 10px;
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.06));
+  background: var(--theme-panel-surface-elevated);
   text-align: center;
 }
 
@@ -223,7 +223,7 @@ const profileStats = computed(() => [
   gap: 9px;
   min-height: 46px;
   padding: 2px 5px 11px;
-  border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .author-route-mark {
@@ -233,8 +233,8 @@ const profileStats = computed(() => [
   align-items: center;
   justify-content: center;
   border-radius: 11px;
-  color: var(--accent-mode-text, rgba(234, 247, 255, 0.96));
-  background: var(--accent-mode-fill, linear-gradient(145deg, rgba(var(--accent-soft-rgb), 0.28), rgba(var(--accent-rgb), 0.14)));
+  color: var(--accent-surface-text);
+  background: var(--accent-mode-fill-strong);
   box-shadow: inset 0 0 0 1px rgba(var(--accent-soft-rgb), 0.34);
 }
 
@@ -246,7 +246,7 @@ const profileStats = computed(() => [
 
 .author-route-heading-copy strong {
   overflow: hidden;
-  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+  color: var(--theme-text-primary);
   font-size: 14px;
   letter-spacing: 0.02em;
   text-overflow: ellipsis;
@@ -254,7 +254,7 @@ const profileStats = computed(() => [
 }
 
 .author-route-heading-copy small {
-  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
+  color: var(--theme-text-secondary);
   font-size: 10px;
   letter-spacing: 0.08em;
 }
@@ -267,7 +267,7 @@ const profileStats = computed(() => [
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(123, 194, 236, 0.48) transparent;
+  scrollbar-color: var(--theme-border-strong) transparent;
 }
 
 .is-public .sidebar-route-menu {

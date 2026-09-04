@@ -2,6 +2,14 @@
   <section class="author-about-experience" data-author-about-layout="shared-shell" aria-label="作者公开内容">
     <div class="author-about-center">
       <template v-if="activeTab === 'about'">
+        <AuthorAboutOverview
+          :hero="profile.profileJson?.hero || {}"
+          :identity="profile.profileJson?.identity || {}"
+          :skills="profile.profileJson?.skills || []"
+          :enabled="profile.enabled !== false"
+          :portals="portals"
+          @select-portal="$emit('select-portal', $event)"
+        />
         <AuthorAboutStoryColumn
           :about="about"
           :journey="journey"
@@ -32,6 +40,7 @@
 </template>
 
 <script setup>
+import AuthorAboutOverview from './AuthorAboutOverview.vue';
 import AuthorAboutStoryColumn from './AuthorAboutStoryColumn.vue';
 import AuthorLifeCardRail from './AuthorLifeCardRail.vue';
 import AuthorPublicPostsColumn from './AuthorPublicPostsColumn.vue';
@@ -40,6 +49,14 @@ defineProps({
   activeTab: {
     type: String,
     default: 'about'
+  },
+  profile: {
+    type: Object,
+    default: () => ({ profileJson: {} })
+  },
+  portals: {
+    type: Array,
+    default: () => []
   },
   about: {
     type: Object,
@@ -79,7 +96,7 @@ defineProps({
   }
 });
 
-defineEmits(['select-tab', 'edit', 'retry-albums', 'retry-moments']);
+defineEmits(['select-tab', 'select-portal', 'edit', 'retry-albums', 'retry-moments']);
 </script>
 
 <style scoped>

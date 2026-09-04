@@ -165,10 +165,10 @@ function formatPublishedAt(value) {
 .author-life-rail {
   min-width: 0;
   padding: 16px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--theme-border);
   border-radius: 20px;
-  background: var(--theme-panel-surface, rgba(26, 20, 28, 0.88));
-  box-shadow: var(--theme-shadow-soft, 0 14px 34px rgba(8, 10, 20, 0.18));
+  background: var(--theme-panel-surface);
+  box-shadow: var(--theme-shadow-soft);
 }
 
 .life-rail-heading {
@@ -212,9 +212,9 @@ function formatPublishedAt(value) {
 .life-preview-card,
 .life-preview-state {
   min-height: 206px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--theme-border);
   border-radius: 18px;
-  background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.08));
+  background: var(--theme-panel-surface-elevated);
 }
 
 .life-preview-card {
@@ -230,13 +230,13 @@ function formatPublishedAt(value) {
 .life-preview-card:hover {
   transform: translateY(-5px) rotate(-0.35deg);
   border-color: rgba(var(--accent-rgb), 0.48);
-  box-shadow: 0 18px 34px rgba(8, 10, 20, 0.2);
+  box-shadow: var(--shadow-md);
 }
 
 .life-preview-card:focus-visible,
 .life-preview-state button:focus-visible,
 .life-preview-action:focus-visible {
-  outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline: 3px solid var(--theme-focus-ring);
   outline-offset: 3px;
 }
 
@@ -338,10 +338,10 @@ function formatPublishedAt(value) {
   justify-content: center;
   gap: 7px;
   padding: 0 14px;
-  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.2));
+  border: 1px solid var(--theme-border);
   border-radius: 999px;
   color: var(--theme-text-primary);
-  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.1));
+  background: var(--theme-surface-soft);
   cursor: pointer;
   font-size: 11px;
   text-decoration: none;

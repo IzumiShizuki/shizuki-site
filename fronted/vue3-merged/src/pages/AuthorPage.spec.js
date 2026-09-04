@@ -168,25 +168,38 @@ describe('AuthorPage admin tab handling', () => {
     mocked.writeAuthorProfileCache.mockReset();
   });
 
-  it('renders homepage portal cards without homepage whispers on overview', async () => {
+  it('canonicalizes the legacy homepage into About and preserves its useful content', async () => {
     const { wrapper, router } = await mountPage('/author?tab=overview', ['USER']);
 
     expect(mocked.getAuthorProfile).toHaveBeenCalledTimes(1);
     expect(mocked.listPublicPostWhispers).not.toHaveBeenCalled();
-    expect(wrapper.findAll('.home-portal-card')).toHaveLength(6);
+    expect(router.currentRoute.value.query.tab).toBe('about');
+    expect(wrapper.get('.about-overview').exists()).toBe(true);
+    expect(wrapper.get('.about-overview-status').text()).toContain('学习中');
+    expect(wrapper.findAll('.about-overview-fact')).toHaveLength(3);
+    expect(wrapper.findAll('.about-skill-chip').map((item) => item.text())).toEqual(expect.arrayContaining(['Java', 'Vue3', 'Spring Boot']));
+    expect(wrapper.findAll('.about-portal-link')).toHaveLength(5);
     expect(wrapper.find('.whisper-float-layer').exists()).toBe(false);
+    expect(wrapper.get('.about-manifesto-copy h2').text()).toBe('关于这座小站');
 
     const rail = wrapper.getComponent(RouteDotRail);
     expect(rail.props('variant')).toBe('menu');
-    expect(rail.props('items').map((item) => item.group)).toEqual(['site', 'site', 'site', 'site']);
-    expect(wrapper.findAll('.route-rail-label')).toHaveLength(4);
+    expect(rail.props('items').map((item) => item.label)).toEqual(['建站经历', '站点文章', '关于网站']);
+    expect(rail.props('items').map((item) => item.group)).toEqual(['site', 'site', 'site']);
+    expect(wrapper.findAll('.route-rail-label')).toHaveLength(3);
     expect(wrapper.findAll('.route-rail-group-label').map((item) => item.text())).toEqual(['公开内容']);
-
-    await wrapper.get('button[aria-label="关于网站"]').trigger('click');
-    await flushPromises();
-    expect(router.currentRoute.value.query.tab).toBe('about');
-    expect(wrapper.get('.about-manifesto-copy h2').text()).toBe('关于这座小站');
   });
+
+  it.each(['/author', '/author?tab=unknown', '/author?tab=edit'])(
+    'uses About as the canonical public landing view for %s',
+    async (initialPath) => {
+      const { wrapper, router } = await mountPage(initialPath, ['USER']);
+
+      expect(router.currentRoute.value.query.tab).toBe('about');
+      expect(wrapper.get('.about-overview').exists()).toBe(true);
+      expect(wrapper.getComponent(RouteDotRail).props('activeKey')).toBe('about');
+    }
+  );
 
   it('omits repeated default placeholder artwork in the about composition', async () => {
     const { wrapper } = await mountPage('/author?tab=about', ['USER']);
@@ -215,7 +228,6 @@ describe('AuthorPage admin tab handling', () => {
   });
 
   it.each([
-    ['overview', '.home-portal-grid'],
     ['journey', '.journey-stage'],
     ['about', '.about-manifesto-copy'],
     ['posts', '.author-public-posts']
@@ -303,10 +315,10 @@ describe('AuthorPage admin tab handling', () => {
     expect(momentLink.attributes('href')).toBe('/moments/mom_public_1');
   });
 
-  it('normalizes admin tabs back to overview for non-admin users', async () => {
+  it('normalizes admin tabs back to About for non-admin users', async () => {
     const { wrapper, router } = await mountPage('/author?tab=admin:quota', ['USER']);
 
-    expect(router.currentRoute.value.query.tab).toBe('overview');
+    expect(router.currentRoute.value.query.tab).toBe('about');
     expect(wrapper.findComponent(AdminPageStub).exists()).toBe(false);
     expect(mocked.getAuthorProfile).toHaveBeenCalledTimes(1);
   });
@@ -325,7 +337,7 @@ describe('AuthorPage admin tab handling', () => {
     expect(rail.props('variant')).toBe('menu');
     expect(rail.props('distribution')).toBe('stack');
     expect(rail.props('items').map((item) => item.key)).toContain('admin:quota');
-    expect(rail.props('items').filter((item) => item.group === 'site')).toHaveLength(4);
+    expect(rail.props('items').filter((item) => item.group === 'site')).toHaveLength(3);
     expect(Array.from(new Set(rail.props('items').filter((item) => item.key.startsWith('admin:')).map((item) => item.groupLabel)))).toEqual([
       'System · 系统',
       'Content · 内容',

@@ -17,6 +17,7 @@ describe('App Focus material contract', () => {
     expect(menuSource).not.toContain('class="compact-dock"');
     expect(menuSource).toContain('class="toggle-tab liquid-material ripple-trigger"');
     expect(menuSource).toContain('class="mobile-top-dock"');
-    expect(menuSource).toContain('<SiteMenuPopover');
+    expect(menuSource).not.toContain('<SiteMenuPopover');
+    expect(menuSource).toContain('@click.stop="openAuthorAbout"');
   });
 });
