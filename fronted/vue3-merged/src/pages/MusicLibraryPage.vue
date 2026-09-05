@@ -2488,17 +2488,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.music-library-page {
-  --theme-text-primary: rgba(255, 247, 241, 0.98);
-  --theme-text-secondary: rgba(241, 226, 215, 0.94);
-  --theme-text-tertiary: rgba(224, 206, 194, 0.9);
-  --theme-icon-primary: rgba(245, 249, 255, 0.95);
-  --theme-panel-surface: linear-gradient(155deg, rgba(34, 46, 68, 0.48), rgba(12, 18, 32, 0.88));
-  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(53, 68, 96, 0.4), rgba(17, 24, 42, 0.84));
-  --theme-surface-soft: rgba(24, 34, 52, 0.56);
-  --theme-border: rgba(255, 226, 210, 0.3);
-}
-
 .music-center-mode-switch {
   position: relative;
   z-index: 12;
@@ -2517,20 +2506,22 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 500;
-  color: var(--theme-text-tertiary, rgba(255, 255, 255, 0.2)) !important;
+  color: var(--theme-text-tertiary) !important;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition:
+    color 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+    transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   outline: none;
 }
 
 .mode-tab:hover {
-  color: var(--theme-text-secondary, rgba(255, 255, 255, 0.5)) !important;
+  color: var(--theme-text-secondary) !important;
 }
 
 .mode-tab.active {
   font-size: 24px;
   font-weight: 700;
-  color: var(--theme-text-primary, rgba(255, 255, 255, 0.95)) !important;
+  color: var(--theme-text-primary) !important;
   cursor: default;
   transform: translateY(1px);
 }
@@ -2569,36 +2560,4 @@ onBeforeUnmount(() => {
   color: rgba(255, 242, 247, 0.96);
 }
 
-:root[data-theme-mode='day'] .music-library-page {
-  --theme-text-primary: rgba(64, 44, 42, 0.95);
-  --theme-text-secondary: rgba(102, 74, 70, 0.88);
-  --theme-text-tertiary: rgba(140, 106, 100, 0.76);
-  --theme-icon-primary: rgba(88, 58, 56, 0.9);
-  --theme-panel-surface: linear-gradient(155deg, rgba(255, 252, 248, 0.97), rgba(250, 242, 240, 0.94));
-  --theme-panel-surface-elevated: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(252, 244, 242, 0.95));
-  --theme-surface-soft: rgba(120, 84, 80, 0.08);
-  --theme-surface-strong: rgba(255, 250, 246, 0.94);
-  --theme-border: rgba(178, 122, 122, 0.28);
-  --theme-border-strong: rgba(168, 108, 108, 0.38);
-  --music-soft-text: rgba(64, 44, 42, 0.95);
-  --music-soft-text-muted: rgba(102, 74, 70, 0.86);
-  --music-soft-text-dim: rgba(140, 106, 100, 0.74);
-  --music-soft-fill: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(252, 242, 240, 0.82));
-  --music-soft-fill-hover: linear-gradient(145deg, rgba(255, 244, 239, 0.98), rgba(250, 234, 232, 0.9));
-  --music-soft-border: rgba(178, 122, 122, 0.24);
-  --music-soft-border-strong: rgba(168, 108, 108, 0.36);
-  --music-soft-shadow: 0 8px 20px rgba(108, 76, 70, 0.1);
-  --music-active-fill: linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(255, 253, 250, 0.92));
-  --music-accent-text: rgba(64, 44, 42, 0.95);
-  --music-accent-text-muted: rgba(102, 74, 70, 0.82);
-}
-
-:root[data-theme-mode='day'] .music-library-page :deep(.music-left-sidebar),
-:root[data-theme-mode='day'] .music-library-page :deep(.music-right-panel),
-:root[data-theme-mode='day'] .music-library-page :deep(.music-library-dock),
-:root[data-theme-mode='day'] .music-library-page :deep(.dock-queue) {
-  --liquid-bg: var(--theme-panel-surface);
-  --liquid-border: var(--theme-border);
-  color: var(--theme-text-primary);
-}
 </style>

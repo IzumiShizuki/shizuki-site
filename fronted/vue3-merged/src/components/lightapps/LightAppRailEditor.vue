@@ -373,8 +373,9 @@ defineExpose({
 
 <style scoped>
 .rail-editor {
-  --liquid-bg: rgba(13, 20, 33, 0.64);
-  --liquid-border: rgba(255, 255, 255, 0.24);
+  --liquid-bg: var(--theme-panel-surface);
+  --liquid-border: var(--theme-border);
+  --liquid-shadow: var(--theme-shadow-soft);
   position: sticky;
   top: 10px;
   align-self: start;
@@ -385,6 +386,8 @@ defineExpose({
   display: grid;
   gap: 10px;
   overflow: auto;
+  color: var(--theme-text-primary);
+  scrollbar-color: var(--theme-border-strong) transparent;
 }
 
 @media (min-width: 981px) {
@@ -406,11 +409,11 @@ defineExpose({
 .rail-head h3 {
   margin: 0;
   font-size: 14px;
-  color: rgba(236, 244, 255, 0.94);
+  color: var(--theme-text-primary);
 }
 
 .rail-head span {
-  color: rgba(214, 228, 252, 0.74);
+  color: var(--theme-text-secondary);
   font-size: 12px;
 }
 
@@ -426,29 +429,30 @@ defineExpose({
   position: relative;
   min-height: 42px;
   border-radius: 12px;
-  border: 1px dashed rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed var(--theme-border-subtle);
+  background: var(--theme-surface-soft);
   display: grid;
   align-items: center;
 }
 
 .rail-slot.enabled {
   border-style: solid;
-  border-color: rgba(var(--accent-rgb), 0.42);
-  background: rgba(255, 255, 255, 0.16);
+  border-color: var(--accent-mode-border);
+  background: var(--accent-mode-fill-soft);
 }
 
 .rail-item {
   width: 100%;
   border: 0;
   background: transparent;
-  color: rgba(244, 248, 255, 0.96);
+  color: var(--theme-text-primary);
   display: inline-grid;
   grid-template-columns: 20px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
   text-align: left;
+  cursor: pointer;
 }
 
 .rail-item span {
@@ -466,20 +470,21 @@ defineExpose({
   height: 20px;
   border-radius: 6px;
   border: 0;
-  background: rgba(0, 0, 0, 0.2);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--theme-floating-close-surface);
+  color: var(--theme-icon-primary);
+  cursor: pointer;
 }
 
 .rail-empty {
-  color: rgba(206, 218, 240, 0.58);
+  color: var(--theme-text-tertiary);
   font-size: 12px;
   padding: 0 10px;
 }
 
 .collection-zone {
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--theme-panel-surface-elevated);
   padding: 8px;
   display: grid;
   gap: 8px;
@@ -495,18 +500,18 @@ defineExpose({
 .collection-zone-head h4 {
   margin: 0;
   font-size: 12px;
-  color: rgba(232, 241, 255, 0.95);
+  color: var(--theme-text-primary);
 }
 
 .collection-zone-head span {
   font-size: 11px;
-  color: rgba(204, 216, 239, 0.76);
+  color: var(--theme-text-secondary);
 }
 
 .collection-folder {
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--theme-border-subtle);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--theme-surface-soft);
   padding: 6px;
   display: grid;
   gap: 6px;
@@ -523,8 +528,8 @@ defineExpose({
   width: 100%;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  color: rgba(239, 245, 255, 0.95);
+  background: var(--theme-panel-surface-elevated);
+  color: var(--theme-text-primary);
   min-height: 30px;
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) auto;
@@ -532,6 +537,7 @@ defineExpose({
   gap: 8px;
   padding: 0 10px;
   text-align: left;
+  cursor: pointer;
 }
 
 .collection-toggle span {
@@ -548,25 +554,26 @@ defineExpose({
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.16);
-  color: rgba(232, 242, 255, 0.9);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-icon-primary);
+  cursor: pointer;
 }
 
 .collection-rename-row input {
   width: 100%;
   min-height: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid var(--theme-border);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(236, 244, 255, 0.94);
+  background: var(--theme-input-surface);
+  color: var(--theme-text-primary);
   padding: 0 8px;
   outline: none;
 }
 
-.collection-rename-row input:focus {
-  border-color: rgba(var(--accent-rgb), 0.58);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2);
+.collection-rename-row input:focus-visible {
+  border-color: var(--accent-mode-border-strong);
+  box-shadow: var(--accent-mode-focus-ring);
 }
 
 .collection-panel {
@@ -577,8 +584,8 @@ defineExpose({
 .collection-item {
   border: 0;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.18);
-  color: rgba(237, 245, 255, 0.95);
+  background: var(--theme-panel-surface-elevated);
+  color: var(--theme-text-primary);
   min-height: 32px;
   padding: 0 10px;
   display: grid;
@@ -586,6 +593,7 @@ defineExpose({
   gap: 8px;
   align-items: center;
   text-align: left;
+  cursor: pointer;
 }
 
 .collection-item span {
@@ -597,48 +605,26 @@ defineExpose({
 
 .collection-empty {
   margin: 0;
-  color: rgba(206, 218, 240, 0.64);
+  color: var(--theme-text-tertiary);
   font-size: 12px;
   text-align: center;
 }
 
-:root[data-theme-mode='day'] .rail-editor {
-  --liquid-bg: var(--theme-panel-surface);
-  --liquid-border: var(--theme-border);
-  color: var(--theme-text-primary);
+.rail-item:hover,
+.collection-toggle:hover,
+.collection-item:hover,
+.collection-rename-btn:hover,
+.slot-remove:hover {
+  background: var(--theme-floating-surface-hover);
 }
 
-:root[data-theme-mode='day'] .rail-head h3,
-:root[data-theme-mode='day'] .rail-item,
-:root[data-theme-mode='day'] .collection-zone-head h4,
-:root[data-theme-mode='day'] .collection-toggle,
-:root[data-theme-mode='day'] .collection-item {
-  color: var(--theme-text-primary);
-}
-
-:root[data-theme-mode='day'] .rail-head span,
-:root[data-theme-mode='day'] .rail-empty,
-:root[data-theme-mode='day'] .collection-zone-head span,
-:root[data-theme-mode='day'] .collection-empty {
-  color: var(--theme-text-secondary);
-}
-
-:root[data-theme-mode='day'] .rail-slot,
-:root[data-theme-mode='day'] .rail-slot.enabled,
-:root[data-theme-mode='day'] .collection-zone,
-:root[data-theme-mode='day'] .collection-folder,
-:root[data-theme-mode='day'] .collection-toggle,
-:root[data-theme-mode='day'] .collection-item,
-:root[data-theme-mode='day'] .collection-rename-row input {
-  background: rgba(255, 253, 250, 0.86);
-  border-color: var(--theme-border);
-  color: var(--theme-text-primary);
-}
-
-:root[data-theme-mode='day'] .slot-remove,
-:root[data-theme-mode='day'] .collection-rename-btn {
-  background: var(--theme-surface-soft);
-  color: var(--theme-icon-primary);
+.rail-item:focus-visible,
+.collection-toggle:focus-visible,
+.collection-item:focus-visible,
+.collection-rename-btn:focus-visible,
+.slot-remove:focus-visible {
+  outline: none;
+  box-shadow: var(--accent-mode-focus-ring);
 }
 
 @media (max-width: 980px) {

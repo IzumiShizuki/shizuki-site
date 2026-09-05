@@ -439,7 +439,7 @@ body {
 ) {
   background: var(--theme-panel-surface, var(--theme-surface, linear-gradient(155deg, rgba(112, 74, 60, 0.32), rgba(21, 13, 11, 0.84)))) !important;
   border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24)) !important;
-  box-shadow: 0 14px 30px rgba(18, 9, 8, 0.18) !important;
+  box-shadow: var(--theme-shadow-soft, 0 14px 30px rgba(18, 9, 8, 0.18)) !important;
 }
 
 :where(.profile-page, .auth-page, .blog-page, .blog-list-page, .apps-route, .music-library-page, .ai-hub-page, .author-page) :is(
@@ -677,22 +677,6 @@ body {
   .dialog-field
 ) {
   color: var(--theme-text-secondary, rgba(231, 211, 196, 0.88)) !important;
-}
-
-:root[data-theme-mode='day'] .music-library-page :is(
-  .music-left-sidebar,
-  .music-right-panel,
-  .music-search-toolbar,
-  .music-library-dock,
-  .dock-queue,
-  .music-fatal-error,
-  .playlist-hero,
-  .playlist-table,
-  .panel,
-  .music-player-detail-view,
-  .playlist-desc-popover
-) {
-  box-shadow: 0 16px 32px rgba(88, 60, 50, 0.12) !important;
 }
 
 :root[data-theme-mode='day'] .music-library-page :is(
