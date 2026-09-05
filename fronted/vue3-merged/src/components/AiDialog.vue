@@ -2186,9 +2186,19 @@ function messageRoleLabel(role) {
 }
 
 .ai-dialog {
-  --liquid-bg: linear-gradient(180deg, rgba(19, 27, 42, 0.86), rgba(11, 17, 28, 0.82));
-  --liquid-border: rgba(255, 255, 255, 0.14);
-  --liquid-shadow: 0 18px 44px rgba(4, 7, 16, 0.34);
+  --ai-chat-surface: var(--ai-hub-surface, var(--theme-panel-surface));
+  --ai-chat-surface-elevated: var(--ai-hub-surface-elevated, var(--theme-panel-surface-elevated));
+  --ai-chat-surface-soft: var(--ai-hub-surface-soft, var(--theme-surface-soft));
+  --ai-chat-surface-hover: var(--ai-hub-surface-hover, var(--theme-floating-surface-hover));
+  --ai-chat-input-surface: var(--ai-hub-input-surface, var(--theme-input-surface));
+  --ai-chat-border: var(--ai-hub-border, var(--theme-border));
+  --ai-chat-border-strong: var(--ai-hub-border-strong, var(--theme-border-strong));
+  --ai-chat-ink: var(--ai-hub-ink, var(--theme-text-primary));
+  --ai-chat-ink-muted: var(--ai-hub-ink-muted, var(--theme-text-secondary));
+  --ai-chat-ink-subtle: var(--ai-hub-ink-subtle, var(--theme-text-tertiary));
+  --liquid-bg: var(--ai-chat-surface);
+  --liquid-border: var(--ai-chat-border);
+  --liquid-shadow: var(--theme-shadow-soft);
   position: relative;
   width: 100%;
   height: 100%;
@@ -2203,6 +2213,9 @@ function messageRoleLabel(role) {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   will-change: transform, opacity;
+  background: var(--ai-chat-surface);
+  border-color: var(--ai-chat-border);
+  color: var(--ai-chat-ink);
   transition: background-color 0.28s ease, border-color 0.28s ease;
 }
 
@@ -2241,14 +2254,14 @@ function messageRoleLabel(role) {
 }
 
 .dialog-title span {
-  color: rgba(244, 248, 255, 0.94);
+  color: var(--ai-chat-ink);
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
 
 .dialog-title small {
-  color: rgba(198, 211, 237, 0.78);
+  color: var(--ai-chat-ink-muted);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2259,15 +2272,15 @@ function messageRoleLabel(role) {
   height: 30px;
   border: 0;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(231, 238, 250, 0.88);
+  background: var(--ai-chat-surface-soft);
+  color: var(--ai-chat-ink-muted);
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .icon-btn:hover {
-  background: rgba(var(--accent-rgb), 0.22);
-  color: rgba(255, 255, 255, 0.98);
+  background: var(--ai-chat-surface-hover);
+  color: var(--ai-chat-ink);
 }
 
 .mode-switcher {
@@ -2277,11 +2290,11 @@ function messageRoleLabel(role) {
 }
 
 .mode-chip {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ai-chat-border);
   border-radius: 14px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(233, 240, 253, 0.9);
+  background: var(--ai-chat-surface-elevated);
+  color: var(--ai-chat-ink);
   display: grid;
   gap: 2px;
   text-align: left;
@@ -2298,7 +2311,7 @@ function messageRoleLabel(role) {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(190, 204, 231, 0.72);
+  color: var(--ai-chat-ink-subtle);
 }
 
 .mode-chip.active {
@@ -2310,8 +2323,8 @@ function messageRoleLabel(role) {
 .session-summary {
   border-radius: 16px;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--ai-chat-surface-elevated);
+  border: 1px solid var(--ai-chat-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2324,13 +2337,13 @@ function messageRoleLabel(role) {
 }
 
 .summary-copy strong {
-  color: rgba(248, 251, 255, 0.95);
+  color: var(--ai-chat-ink);
   font-size: 14px;
 }
 
 .summary-copy p {
   margin: 0;
-  color: rgba(205, 217, 239, 0.82);
+  color: var(--ai-chat-ink-muted);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -2345,8 +2358,8 @@ function messageRoleLabel(role) {
 .summary-pill {
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(233, 241, 255, 0.86);
+  background: var(--ai-chat-surface-soft);
+  color: var(--ai-chat-ink-muted);
   font-size: 11px;
 }
 
@@ -2432,11 +2445,11 @@ function messageRoleLabel(role) {
 .management-card textarea,
 .chat-input {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--ai-chat-border);
   border-radius: 14px;
   padding: 10px 12px;
-  background: rgba(7, 13, 22, 0.34);
-  color: rgba(246, 250, 255, 0.96);
+  background: var(--ai-chat-input-surface);
+  color: var(--ai-chat-ink);
   outline: none;
   resize: none;
 }
@@ -2686,8 +2699,8 @@ function messageRoleLabel(role) {
   align-items: center;
   padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--ai-chat-border);
+  background: var(--ai-chat-surface-elevated);
 }
 
 .worldbook-option.active {
@@ -2697,31 +2710,31 @@ function messageRoleLabel(role) {
 
 .worldbook-option span {
   font-size: 12px;
-  color: rgba(243, 247, 255, 0.95);
+  color: var(--ai-chat-ink);
 }
 
 .worldbook-option small {
   grid-column: 2;
-  color: rgba(184, 198, 228, 0.72);
+  color: var(--ai-chat-ink-muted);
   font-size: 11px;
 }
 
 .picker-empty {
   margin: 0;
-  color: rgba(184, 198, 228, 0.72);
+  color: var(--ai-chat-ink-muted);
   font-size: 11px;
 }
 
 .management-shell {
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--ai-chat-surface-elevated);
+  border: 1px solid var(--ai-chat-border);
   padding: 10px 12px 12px;
 }
 
 .management-shell summary {
   cursor: pointer;
-  color: rgba(244, 248, 255, 0.94);
+  color: var(--ai-chat-ink);
   font-size: 13px;
   font-weight: 700;
   display: flex;
@@ -2732,7 +2745,7 @@ function messageRoleLabel(role) {
 }
 
 .management-shell summary small {
-  color: rgba(187, 201, 230, 0.72);
+  color: var(--ai-chat-ink-muted);
   font-size: 10px;
   font-weight: 500;
 }
@@ -2741,8 +2754,8 @@ function messageRoleLabel(role) {
   margin-top: 12px;
   padding: 4px;
   border-radius: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(7, 13, 24, 0.22);
+  border: 1px solid var(--ai-chat-border);
+  background: var(--ai-chat-input-surface);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
@@ -2754,7 +2767,7 @@ function messageRoleLabel(role) {
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: rgba(198, 211, 237, 0.78);
+  color: var(--ai-chat-ink-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2775,8 +2788,8 @@ function messageRoleLabel(role) {
 }
 
 .management-card {
-  --liquid-bg: rgba(255, 255, 255, 0.04);
-  --liquid-border: rgba(255, 255, 255, 0.08);
+  --liquid-bg: var(--ai-chat-surface-elevated);
+  --liquid-border: var(--ai-chat-border);
   --liquid-shadow: none;
   border-radius: 16px;
   padding: 16px;
@@ -2790,12 +2803,12 @@ function messageRoleLabel(role) {
 }
 
 .management-card strong {
-  color: rgba(247, 250, 255, 0.95);
+  color: var(--ai-chat-ink);
   font-size: 13px;
 }
 
 .management-card span {
-  color: rgba(187, 201, 230, 0.72);
+  color: var(--ai-chat-ink-muted);
   font-size: 11px;
 }
 
@@ -2805,7 +2818,7 @@ function messageRoleLabel(role) {
 
 .mode-note p {
   margin: 0;
-  color: rgba(198, 211, 237, 0.78);
+  color: var(--ai-chat-ink-muted);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -2823,20 +2836,20 @@ function messageRoleLabel(role) {
 .empty-state {
   margin: auto 0;
   padding: 18px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border: 1px dashed var(--ai-chat-border-strong);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--ai-chat-surface-elevated);
   display: grid;
   gap: 8px;
 }
 
 .empty-state strong {
-  color: rgba(247, 251, 255, 0.94);
+  color: var(--ai-chat-ink);
 }
 
 .empty-state p {
   margin: 0;
-  color: rgba(203, 216, 239, 0.78);
+  color: var(--ai-chat-ink-muted);
   line-height: 1.6;
 }
 
@@ -2876,9 +2889,9 @@ function messageRoleLabel(role) {
 }
 
 .chat-avatar.user {
-  color: rgba(244, 240, 244, 0.92);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--ai-chat-ink);
+  background: var(--ai-chat-surface-soft);
+  border-color: var(--ai-chat-border);
 }
 
 .bubble-meta {
@@ -2892,8 +2905,8 @@ function messageRoleLabel(role) {
   max-width: min(100%, 420px);
   border-radius: 18px;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--ai-chat-surface-elevated);
+  border: 1px solid var(--ai-chat-border);
   display: grid;
   gap: 8px;
 }
@@ -2915,7 +2928,7 @@ function messageRoleLabel(role) {
 
 .chat-bubble p {
   margin: 0;
-  color: rgba(243, 247, 255, 0.94);
+  color: var(--ai-chat-ink);
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2923,7 +2936,7 @@ function messageRoleLabel(role) {
 
 .bubble-plain {
   margin: 0;
-  color: rgba(243, 247, 255, 0.94);
+  color: var(--ai-chat-ink);
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2932,11 +2945,11 @@ function messageRoleLabel(role) {
 .bubble-time {
   margin-left: 8px;
   letter-spacing: 0.04em;
-  color: rgba(158, 175, 205, 0.55);
+  color: var(--ai-chat-ink-subtle);
 }
 
 .bubble-markdown {
-  color: rgba(243, 247, 255, 0.94);
+  color: var(--ai-chat-ink);
   line-height: 1.7;
   word-break: break-word;
   display: grid;
@@ -3037,7 +3050,7 @@ function messageRoleLabel(role) {
 .bubble-markdown :deep(blockquote) {
   margin: 0;
   padding: 6px 12px;
-  border-left: 3px solid rgba(var(--accent-rgb), 0.5);
+  border-left: 1px solid rgba(var(--accent-rgb), 0.5);
   background: rgba(255, 255, 255, 0.04);
   border-radius: 0 10px 10px 0;
   color: rgba(214, 226, 246, 0.88);
@@ -3086,18 +3099,18 @@ function messageRoleLabel(role) {
 .bubble-action-btn {
   width: 26px;
   height: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ai-chat-border);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(205, 219, 242, 0.82);
+  background: var(--ai-chat-surface-soft);
+  color: var(--ai-chat-ink-muted);
   font-size: 11px;
   cursor: pointer;
   transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
 .bubble-action-btn:hover {
-  background: rgba(var(--accent-rgb), 0.22);
-  color: rgba(247, 251, 255, 0.98);
+  background: var(--ai-chat-surface-hover);
+  color: var(--ai-chat-ink);
   transform: translateY(-1px);
 }
 
@@ -3110,8 +3123,8 @@ function messageRoleLabel(role) {
   padding: 7px 14px;
   border: 1px solid rgba(var(--accent-rgb), 0.32);
   border-radius: 999px;
-  background: rgba(14, 20, 33, 0.92);
-  color: rgba(233, 241, 255, 0.94);
+  background: var(--ai-chat-surface-elevated);
+  color: var(--ai-chat-ink);
   font-size: 12px;
   cursor: pointer;
   box-shadow: 0 10px 22px rgba(4, 8, 18, 0.4);
@@ -3119,7 +3132,7 @@ function messageRoleLabel(role) {
 }
 
 .jump-latest-btn:hover {
-  background: rgba(var(--accent-rgb), 0.24);
+  background: var(--ai-chat-surface-hover);
   transform: translateY(-1px);
 }
 
@@ -3146,7 +3159,7 @@ function messageRoleLabel(role) {
 
 .bubble-tag {
   font-size: 11px;
-  color: rgba(200, 214, 239, 0.72);
+  color: var(--ai-chat-ink-muted);
 }
 
 .bubble-tag.error {
@@ -3193,8 +3206,8 @@ function messageRoleLabel(role) {
   align-items: end;
   padding: 8px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--ai-chat-border);
+  background: var(--ai-chat-input-surface);
   transition: border-color 0.2s ease;
 }
 
@@ -3230,8 +3243,8 @@ function messageRoleLabel(role) {
 }
 
 :root[data-theme-mode='day'] .ai-dialog {
-  --liquid-bg: var(--theme-panel-surface-elevated);
-  --liquid-border: var(--theme-border);
+  --liquid-bg: var(--ai-chat-surface);
+  --liquid-border: var(--ai-chat-border);
   --liquid-shadow: 0 18px 40px rgba(108, 76, 70, 0.14);
   color: var(--theme-text-primary);
 }
@@ -3245,13 +3258,13 @@ function messageRoleLabel(role) {
 :root[data-theme-mode='day'] .chat-bubble,
 :root[data-theme-mode='day'] .worldbook-option,
 :root[data-theme-mode='day'] .management-shell {
-  background: var(--theme-panel-surface-elevated) !important;
-  border-color: var(--theme-border) !important;
+  background: var(--ai-chat-surface-elevated) !important;
+  border-color: var(--ai-chat-border) !important;
 }
 
 :root[data-theme-mode='day'] .management-tabs {
-  background: rgba(120, 84, 80, 0.045);
-  border-color: var(--theme-border);
+  background: var(--ai-chat-input-surface);
+  border-color: var(--ai-chat-border);
 }
 
 :root[data-theme-mode='day'] .management-tab {
@@ -3266,8 +3279,8 @@ function messageRoleLabel(role) {
 
 :root[data-theme-mode='day'] .snapshot-card,
 :root[data-theme-mode='day'] .management-card {
-  --liquid-bg: var(--theme-panel-surface-elevated);
-  --liquid-border: var(--theme-border);
+  --liquid-bg: var(--ai-chat-surface-elevated);
+  --liquid-border: var(--ai-chat-border);
   --liquid-shadow: none;
 }
 
@@ -3321,10 +3334,10 @@ function messageRoleLabel(role) {
 :root[data-theme-mode='day'] .management-card input,
 :root[data-theme-mode='day'] .management-card textarea,
 :root[data-theme-mode='day'] .chat-input {
-  background: rgba(255, 253, 250, 0.92) !important;
-  border-color: var(--theme-border) !important;
-  color: var(--theme-text-primary) !important;
-  -webkit-text-fill-color: var(--theme-text-primary);
+  background: var(--ai-chat-input-surface) !important;
+  border-color: var(--ai-chat-border) !important;
+  color: var(--ai-chat-ink) !important;
+  -webkit-text-fill-color: var(--ai-chat-ink);
 }
 
 :root[data-theme-mode='day'] .mode-config-trigger,
@@ -3404,8 +3417,8 @@ function messageRoleLabel(role) {
   .mode-embedded .mode-note {
     border-radius: 18px;
     padding: 14px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--ai-chat-surface-elevated);
+    border: 1px solid var(--ai-chat-border);
   }
 
   .mode-embedded .mode-config-drawer-stack {
@@ -3418,9 +3431,9 @@ function messageRoleLabel(role) {
     padding: 12px;
     align-content: start;
     overflow: auto;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--ai-chat-border-strong);
     border-radius: 22px;
-    background: linear-gradient(170deg, rgba(25, 34, 50, 0.97), rgba(13, 20, 32, 0.96));
+    background: var(--ai-chat-surface);
     box-shadow: -18px 20px 44px rgba(4, 7, 16, 0.34);
     backdrop-filter: blur(22px) saturate(126%);
     -webkit-backdrop-filter: blur(22px) saturate(126%);
@@ -3446,8 +3459,8 @@ function messageRoleLabel(role) {
 
   .mode-embedded .chat-row.assistant .chat-bubble,
   .mode-embedded .chat-row.system .chat-bubble {
-    background: rgba(255, 255, 255, 0.035);
-    border-color: rgba(255, 255, 255, 0.05);
+    background: var(--ai-chat-surface-elevated);
+    border-color: var(--ai-chat-border);
   }
 
   .mode-embedded .chat-stream {
@@ -3456,8 +3469,8 @@ function messageRoleLabel(role) {
 }
 
 :root[data-theme-mode='day'] .mode-embedded .mode-config-drawer-stack {
-  background: linear-gradient(165deg, rgba(255, 253, 250, 0.98), rgba(250, 241, 239, 0.97));
-  border-color: var(--theme-border);
+  background: var(--ai-chat-surface);
+  border-color: var(--ai-chat-border);
   box-shadow: -16px 20px 42px rgba(108, 76, 70, 0.16);
 }
 

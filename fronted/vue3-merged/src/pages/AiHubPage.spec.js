@@ -6,6 +6,7 @@ import AiHubPage from './AiHubPage.vue';
 const mocked = vi.hoisted(() => ({
   auth: null,
   createAdminTownNpcSession: vi.fn(),
+  deleteAiSession: vi.fn(),
   getAiTownPublicMap: vi.fn(),
   getAiTownScene: vi.fn(),
   getLightAppBalanceOverview: vi.fn(),
@@ -13,10 +14,13 @@ const mocked = vi.hoisted(() => ({
   listLightAppBalanceAccounts: vi.fn(),
   listLightAppBalanceSourceAccountStatus: vi.fn(),
   listAiTownScenes: vi.fn(),
+  listAiSessions: vi.fn(),
+  listAiSessionSummaries: vi.fn(),
   openLightAppShellWindow: vi.fn(),
   previewAdminAiTownAsset: vi.fn(),
   readGuestLightAppData: vi.fn(),
   readRemoteLightAppCache: vi.fn(),
+  renameAiSession: vi.fn(),
   setBalanceWindowSection: vi.fn()
 }));
 
@@ -56,11 +60,15 @@ vi.mock('vue-router', () => ({
 
 vi.mock('../services/aiApi', () => ({
   createAdminTownNpcSession: (...args) => mocked.createAdminTownNpcSession(...args),
+  deleteAiSession: (...args) => mocked.deleteAiSession(...args),
   getAiTownPublicMap: (...args) => mocked.getAiTownPublicMap(...args),
   getAiTownScene: (...args) => mocked.getAiTownScene(...args),
   importAdminAiTownAsset: (...args) => mocked.importAdminAiTownAsset(...args),
+  listAiSessions: (...args) => mocked.listAiSessions(...args),
+  listAiSessionSummaries: (...args) => mocked.listAiSessionSummaries(...args),
   listAiTownScenes: (...args) => mocked.listAiTownScenes(...args),
-  previewAdminAiTownAsset: (...args) => mocked.previewAdminAiTownAsset(...args)
+  previewAdminAiTownAsset: (...args) => mocked.previewAdminAiTownAsset(...args),
+  renameAiSession: (...args) => mocked.renameAiSession(...args)
 }));
 
 vi.mock('../services/lightAppsApi', () => ({
@@ -174,6 +182,7 @@ describe('AiHubPage', () => {
   beforeEach(() => {
     mocked.auth = createAuth(['USER']);
     mocked.createAdminTownNpcSession.mockReset();
+    mocked.deleteAiSession.mockReset();
     mocked.getAiTownPublicMap.mockReset();
     mocked.getAiTownScene.mockReset();
     mocked.getLightAppBalanceOverview.mockReset();
@@ -181,16 +190,21 @@ describe('AiHubPage', () => {
     mocked.listLightAppBalanceAccounts.mockReset();
     mocked.listLightAppBalanceSourceAccountStatus.mockReset();
     mocked.listAiTownScenes.mockReset();
+    mocked.listAiSessions.mockReset();
+    mocked.listAiSessionSummaries.mockReset();
     mocked.openLightAppShellWindow.mockReset();
     mocked.previewAdminAiTownAsset.mockReset();
     mocked.readGuestLightAppData.mockReset();
     mocked.readRemoteLightAppCache.mockReset();
+    mocked.renameAiSession.mockReset();
     mocked.setBalanceWindowSection.mockReset();
 
     mocked.listAiTownScenes.mockResolvedValue([
       createSceneSummary('library', '图书馆'),
       createSceneSummary('home_gate', '自宅外部')
     ]);
+    mocked.listAiSessions.mockResolvedValue([]);
+    mocked.listAiSessionSummaries.mockResolvedValue([]);
     mocked.getAiTownPublicMap.mockResolvedValue({
       scenes: [
         { sceneCode: 'library', title: '图书馆', coordX: 18, coordY: 26, tone: 'amber' },
@@ -252,9 +266,51 @@ describe('AiHubPage', () => {
 
     const dialog = wrapper.findComponent(AiDialogStub);
     expect(dialog.exists()).toBe(true);
+    expect(dialog.props('chatMode')).toBe('normal');
     expect(dialog.props('allowedModes')).toEqual(['normal', 'tavern']);
+    expect(wrapper.text()).toContain('共享对话工作台');
+    expect(wrapper.text()).not.toContain('AI Chat 在 AI Hub 内已禁用');
     expect(wrapper.text()).not.toContain('编辑地图');
     expect(wrapper.text()).not.toContain('爱莉伴聊');
+  });
+
+  it('keeps the shared conversation workspace visible for guests with a login prompt', async () => {
+    mocked.auth = createAuth(['USER']);
+    mocked.auth.isAuthenticated.value = false;
+    mocked.auth.user.value = null;
+
+    const wrapper = await mountPage();
+    const conversationButton = findButtonByText(wrapper, '普通对话模式');
+
+    await conversationButton.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.ai-session-rail').exists()).toBe(true);
+    expect(wrapper.findComponent(AiDialogStub).exists()).toBe(true);
+    expect(wrapper.text()).toContain('登录后会话会自动保存');
+    expect(wrapper.text()).toContain('前往登录');
+  });
+
+  it('explains a network failure in Chinese and recovers through scene refresh', async () => {
+    mocked.listAiTownScenes.mockRejectedValueOnce(
+      Object.assign(new Error('Network request failed'), {
+        problemCode: 'NETWORK_ERROR',
+        status: 0
+      })
+    );
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.text()).toContain('AI 服务暂时不可达，请稍后重试或确认后端服务已启动。');
+    expect(wrapper.text()).not.toContain('Network request failed');
+
+    const refreshButton = findButtonByText(wrapper, '刷新场景');
+    expect(refreshButton).toBeTruthy();
+    await refreshButton.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('AI 服务暂时不可达');
+    expect(wrapper.text()).toContain('图书馆');
   });
 
   it('exposes and activates the owner-only Meguri companion for admin users', async () => {

@@ -699,6 +699,11 @@ function normalizeTownAssetPreview(raw = {}) {
 }
 
 function resolveTownError(error) {
+  const problemCode = normalizeOptionalText(error?.problemCode || error?.problem_code).toUpperCase();
+  const message = normalizeOptionalText(error?.message);
+  if (problemCode === 'NETWORK_ERROR' || message.toLowerCase() === 'network request failed') {
+    return 'AI 服务暂时不可达，请稍后重试或确认后端服务已启动。';
+  }
   if (error instanceof Error && normalizeOptionalText(error.message)) {
     return error.message;
   }
@@ -959,9 +964,15 @@ const currentConversationLabel = computed(() => {
   }
   return '当前对话 · 普通模式';
 });
-const workspaceBoundaryLabel = computed(() =>
-  activePrimaryMode.value === 'meguri' ? 'Owner-only · Meguri Core' : 'AI Chat 在 AI Hub 内已禁用'
-);
+const workspaceBoundaryLabel = computed(() => {
+  if (activePrimaryMode.value === 'meguri') {
+    return 'Owner-only · Meguri Core';
+  }
+  if (activePrimaryMode.value === 'conversation') {
+    return '共享对话工作台 · AI Chat';
+  }
+  return '公开漫游 · AI Town';
+});
 const currentWorkspaceLabel = computed(() => {
   if (activePrimaryMode.value === 'town') {
     return `当前场景 · ${selectedTownScene.value?.title || '载入中'}`;
@@ -1331,18 +1342,38 @@ watch(
 <style scoped>
 .route-page {
   min-height: 100%;
-  color: rgba(239, 244, 255, 0.96);
+  color: var(--theme-text-primary);
 }
 
 .ai-hub-page {
+  --ai-hub-surface: linear-gradient(
+    155deg,
+    rgba(var(--accent-rgb), 0.34),
+    rgba(var(--accent-strong-rgb), 0.16)
+  );
+  --ai-hub-surface-elevated: linear-gradient(
+    145deg,
+    rgba(var(--accent-rgb), 0.27),
+    rgba(var(--accent-soft-rgb), 0.12)
+  );
+  --ai-hub-surface-soft: rgba(var(--accent-rgb), 0.15);
+  --ai-hub-surface-hover: rgba(var(--accent-rgb), 0.24);
+  --ai-hub-input-surface: rgba(var(--accent-rgb), 0.12);
+  --ai-hub-ink: var(--theme-text-primary);
+  --ai-hub-ink-muted: var(--theme-text-secondary);
+  --ai-hub-ink-subtle: var(--theme-text-tertiary);
+  --ai-hub-border: var(--theme-border);
+  --ai-hub-border-strong: var(--theme-border-strong);
   display: grid;
 }
 
-.workspace-shell {
-  /* 实底工作台：告别大面积毛玻璃，避免叠在壁纸上显得灰脏、文字看不清。 */
-  --liquid-bg: linear-gradient(150deg, rgba(30, 28, 38, 0.97), rgba(22, 20, 30, 0.96));
-  --liquid-border: rgba(255, 214, 229, 0.14);
-  --liquid-shadow: 0 24px 48px rgba(8, 6, 14, 0.4);
+.ai-hub-page .workspace-shell {
+  --liquid-bg: var(--ai-hub-surface);
+  --liquid-border: var(--ai-hub-border);
+  --liquid-shadow: var(--theme-shadow-soft);
+  background: var(--ai-hub-surface) !important;
+  border-color: var(--ai-hub-border) !important;
+  box-shadow: var(--theme-shadow-soft) !important;
   border-radius: 30px;
   padding: 18px;
   display: grid;
@@ -1350,10 +1381,20 @@ watch(
   min-height: calc(100vh - 180px);
 }
 
-:root[data-theme-mode='day'] .workspace-shell {
-  --liquid-bg: linear-gradient(150deg, rgba(255, 250, 247, 0.98), rgba(250, 241, 240, 0.97));
-  --liquid-border: rgba(190, 120, 130, 0.22);
-  --liquid-shadow: 0 22px 46px rgba(168, 120, 120, 0.18);
+:root[data-theme-mode='day'] .ai-hub-page {
+  --ai-hub-surface: linear-gradient(
+    155deg,
+    rgba(var(--accent-rgb), 0.22),
+    rgba(var(--accent-soft-rgb), 0.09)
+  );
+  --ai-hub-surface-elevated: linear-gradient(
+    145deg,
+    rgba(var(--accent-rgb), 0.17),
+    rgba(var(--accent-soft-rgb), 0.07)
+  );
+  --ai-hub-surface-soft: rgba(var(--accent-rgb), 0.11);
+  --ai-hub-surface-hover: rgba(var(--accent-rgb), 0.18);
+  --ai-hub-input-surface: rgba(var(--accent-rgb), 0.08);
 }
 
 .workspace-topbar {
@@ -1372,8 +1413,8 @@ watch(
   gap: 8px;
   padding: 6px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--ai-hub-surface-elevated);
+  border: 1px solid var(--ai-hub-border);
 }
 
 .mode-tab {
@@ -1383,7 +1424,7 @@ watch(
   border-radius: 14px;
   padding: 12px 16px;
   background: transparent;
-  color: rgba(221, 232, 250, 0.84);
+  color: var(--ai-hub-ink-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1394,8 +1435,8 @@ watch(
 }
 
 .mode-tab.active {
-  background: linear-gradient(140deg, rgba(var(--accent-rgb), 0.26), rgba(255, 255, 255, 0.08));
-  color: rgba(247, 250, 255, 0.98);
+  background: var(--accent-mode-fill);
+  color: var(--ai-hub-ink);
   box-shadow:
     0 0 0 1px rgba(var(--accent-rgb), 0.3),
     0 12px 24px rgba(4, 7, 16, 0.16);
@@ -1417,13 +1458,13 @@ watch(
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 12px;
-  color: rgba(237, 244, 255, 0.92);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ai-hub-ink);
+  background: var(--ai-hub-surface-soft);
+  border: 1px solid var(--ai-hub-border);
 }
 
 .status-pill.muted {
-  color: rgba(206, 217, 238, 0.76);
+  color: var(--ai-hub-ink-muted);
 }
 
 .status-pill.accent {
@@ -1442,11 +1483,14 @@ watch(
   grid-template-columns: 1fr;
 }
 
-.workspace-main,
-.workspace-side {
-  --liquid-bg: rgba(255, 255, 255, 0.045);
-  --liquid-border: rgba(255, 255, 255, 0.08);
+.ai-hub-page .workspace-main,
+.ai-hub-page .workspace-side {
+  --liquid-bg: var(--ai-hub-surface-elevated);
+  --liquid-border: var(--ai-hub-border);
   --liquid-shadow: none;
+  background: var(--ai-hub-surface-elevated) !important;
+  border-color: var(--ai-hub-border) !important;
+  box-shadow: none !important;
   border-radius: 26px;
 }
 
@@ -2320,8 +2364,8 @@ watch(
 .conversation-rail {
   padding: 14px 12px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--ai-hub-surface-elevated);
+  border: 1px solid var(--ai-hub-border);
   max-height: calc(100vh - 280px);
 }
 

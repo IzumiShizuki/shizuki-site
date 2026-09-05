@@ -271,11 +271,22 @@ defineExpose({ refresh });
 
 <style scoped>
 .ai-session-rail {
+  --ai-rail-surface: var(--ai-hub-surface-elevated, var(--theme-panel-surface-elevated));
+  --ai-rail-soft: var(--ai-hub-surface-soft, var(--theme-surface-soft));
+  --ai-rail-hover: var(--ai-hub-surface-hover, var(--theme-floating-surface-hover));
+  --ai-rail-input: var(--ai-hub-input-surface, var(--theme-input-surface));
+  --ai-rail-border: var(--ai-hub-border, var(--theme-border));
+  --ai-rail-ink: var(--ai-hub-ink, var(--theme-text-primary));
+  --ai-rail-ink-muted: var(--ai-hub-ink-muted, var(--theme-text-secondary));
+  --ai-rail-ink-subtle: var(--ai-hub-ink-subtle, var(--theme-text-tertiary));
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
   min-width: 0;
+  background: var(--ai-rail-surface);
+  border-color: var(--ai-rail-border);
+  color: var(--ai-rail-ink);
 }
 
 .rail-head {
@@ -293,8 +304,8 @@ defineExpose({ refresh });
   padding: 11px 14px;
   border: 1px solid rgba(var(--accent-rgb), 0.34);
   border-radius: 14px;
-  background: linear-gradient(140deg, rgba(var(--accent-rgb), 0.24), rgba(255, 255, 255, 0.06));
-  color: rgba(247, 251, 255, 0.96);
+  background: var(--accent-mode-fill);
+  color: var(--ai-rail-ink);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
@@ -314,18 +325,18 @@ defineExpose({ refresh });
 .rail-refresh-btn {
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ai-rail-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(206, 220, 243, 0.85);
+  background: var(--ai-rail-soft);
+  color: var(--ai-rail-ink-muted);
   cursor: pointer;
   transition: background-color 0.18s ease, color 0.18s ease;
 }
 
 .rail-collapse-btn:hover,
 .rail-refresh-btn:hover:not(:disabled) {
-  background: rgba(var(--accent-rgb), 0.2);
-  color: rgba(247, 251, 255, 0.96);
+  background: var(--ai-rail-hover);
+  color: var(--ai-rail-ink);
 }
 
 .rail-refresh-btn:disabled {
@@ -356,16 +367,16 @@ defineExpose({ refresh });
 .rail-count {
   font-size: 11px;
   letter-spacing: 0.08em;
-  color: rgba(178, 194, 223, 0.66);
+  color: var(--ai-rail-ink-subtle);
 }
 
 .rail-hint {
   margin: 0;
   padding: 12px;
-  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border: 1px dashed var(--ai-rail-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(203, 216, 239, 0.8);
+  background: var(--ai-rail-soft);
+  color: var(--ai-rail-ink-muted);
   font-size: 12px;
   line-height: 1.7;
 }
@@ -398,7 +409,12 @@ defineExpose({ refresh });
 .skeleton-line {
   height: 40px;
   border-radius: 12px;
-  background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 70%);
+  background: linear-gradient(
+    100deg,
+    var(--ai-rail-soft) 30%,
+    var(--ai-rail-hover) 50%,
+    var(--ai-rail-soft) 70%
+  );
   background-size: 220% 100%;
   animation: rail-shimmer 1.3s ease-in-out infinite;
 }
@@ -418,7 +434,7 @@ defineExpose({ refresh });
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(164, 182, 213, 0.6);
+  color: var(--ai-rail-ink-subtle);
 }
 
 .session-item {
@@ -433,7 +449,7 @@ defineExpose({ refresh });
 }
 
 .session-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ai-rail-hover);
 }
 
 .session-item.active {
@@ -456,7 +472,7 @@ defineExpose({ refresh });
 
 .session-title {
   font-size: 13px;
-  color: rgba(238, 245, 255, 0.94);
+  color: var(--ai-rail-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -471,9 +487,9 @@ defineExpose({ refresh });
   padding: 1px 8px;
   border-radius: 999px;
   font-size: 10px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  color: rgba(198, 213, 238, 0.8);
+  background: var(--ai-rail-soft);
+  border: 1px solid var(--ai-rail-border);
+  color: var(--ai-rail-ink-muted);
 }
 
 .mode-pill.mode-tavern {
@@ -510,18 +526,18 @@ defineExpose({ refresh });
 .item-icon-btn {
   width: 24px;
   height: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ai-rail-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(205, 219, 242, 0.82);
+  background: var(--ai-rail-soft);
+  color: var(--ai-rail-ink-muted);
   font-size: 10px;
   cursor: pointer;
   transition: background-color 0.16s ease, color 0.16s ease;
 }
 
 .item-icon-btn:hover {
-  background: rgba(var(--accent-rgb), 0.22);
-  color: rgba(247, 251, 255, 0.98);
+  background: var(--ai-rail-hover);
+  color: var(--ai-rail-ink);
 }
 
 .item-icon-btn.danger:hover {
@@ -544,8 +560,8 @@ defineExpose({ refresh });
   padding: 6px 9px;
   border-radius: 9px;
   border: 1px solid rgba(var(--accent-rgb), 0.34);
-  background: rgba(8, 12, 22, 0.6);
-  color: rgba(240, 246, 255, 0.95);
+  background: var(--ai-rail-input);
+  color: var(--ai-rail-ink);
   font-size: 12px;
 }
 
@@ -556,18 +572,18 @@ defineExpose({ refresh });
 }
 
 :root[data-theme-mode='day'] .new-chat-btn {
-  background: linear-gradient(140deg, rgba(var(--accent-rgb), 0.16), rgba(255, 253, 250, 0.9));
+  background: var(--accent-mode-fill);
   border-color: rgba(var(--accent-strong-rgb), 0.28);
-  color: var(--theme-text-primary);
+  color: var(--ai-rail-ink);
 }
 
 :root[data-theme-mode='day'] .rail-collapse-btn,
 :root[data-theme-mode='day'] .rail-refresh-btn,
 :root[data-theme-mode='day'] .item-icon-btn,
 :root[data-theme-mode='day'] .mode-pill {
-  background: rgba(255, 253, 250, 0.88);
-  border-color: var(--theme-border);
-  color: var(--theme-text-secondary);
+  background: var(--ai-rail-soft);
+  border-color: var(--ai-rail-border);
+  color: var(--ai-rail-ink-muted);
 }
 
 :root[data-theme-mode='day'] .rail-count,
@@ -577,13 +593,13 @@ defineExpose({ refresh });
 }
 
 :root[data-theme-mode='day'] .rail-hint {
-  background: rgba(255, 253, 250, 0.62);
-  border-color: var(--theme-border);
-  color: var(--theme-text-secondary);
+  background: var(--ai-rail-soft);
+  border-color: var(--ai-rail-border);
+  color: var(--ai-rail-ink-muted);
 }
 
 :root[data-theme-mode='day'] .session-title {
-  color: var(--theme-text-primary);
+  color: var(--ai-rail-ink);
 }
 
 :root[data-theme-mode='day'] .session-item:hover,
