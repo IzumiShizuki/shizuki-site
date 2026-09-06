@@ -1346,19 +1346,12 @@ watch(
 }
 
 .ai-hub-page {
-  --ai-hub-surface: linear-gradient(
-    155deg,
-    rgba(var(--accent-rgb), 0.34),
-    rgba(var(--accent-strong-rgb), 0.16)
-  );
-  --ai-hub-surface-elevated: linear-gradient(
-    145deg,
-    rgba(var(--accent-rgb), 0.27),
-    rgba(var(--accent-soft-rgb), 0.12)
-  );
-  --ai-hub-surface-soft: rgba(var(--accent-rgb), 0.15);
-  --ai-hub-surface-hover: rgba(var(--accent-rgb), 0.24);
-  --ai-hub-input-surface: rgba(var(--accent-rgb), 0.12);
+  --ai-hub-surface: var(--theme-panel-surface);
+  --ai-hub-surface-elevated: var(--theme-panel-surface-elevated);
+  --ai-hub-surface-soft: var(--theme-surface-soft);
+  --ai-hub-surface-hover: var(--theme-floating-surface-hover);
+  --ai-hub-input-surface: var(--theme-surface-soft);
+  --ai-hub-shadow: var(--theme-shadow-soft);
   --ai-hub-ink: var(--theme-text-primary);
   --ai-hub-ink-muted: var(--theme-text-secondary);
   --ai-hub-ink-subtle: var(--theme-text-tertiary);
@@ -1370,31 +1363,15 @@ watch(
 .ai-hub-page .workspace-shell {
   --liquid-bg: var(--ai-hub-surface);
   --liquid-border: var(--ai-hub-border);
-  --liquid-shadow: var(--theme-shadow-soft);
+  --liquid-shadow: var(--ai-hub-shadow);
   background: var(--ai-hub-surface) !important;
   border-color: var(--ai-hub-border) !important;
-  box-shadow: var(--theme-shadow-soft) !important;
+  box-shadow: var(--ai-hub-shadow) !important;
   border-radius: 30px;
   padding: 18px;
   display: grid;
   gap: 16px;
   min-height: calc(100vh - 180px);
-}
-
-:root[data-theme-mode='day'] .ai-hub-page {
-  --ai-hub-surface: linear-gradient(
-    155deg,
-    rgba(var(--accent-rgb), 0.22),
-    rgba(var(--accent-soft-rgb), 0.09)
-  );
-  --ai-hub-surface-elevated: linear-gradient(
-    145deg,
-    rgba(var(--accent-rgb), 0.17),
-    rgba(var(--accent-soft-rgb), 0.07)
-  );
-  --ai-hub-surface-soft: rgba(var(--accent-rgb), 0.11);
-  --ai-hub-surface-hover: rgba(var(--accent-rgb), 0.18);
-  --ai-hub-input-surface: rgba(var(--accent-rgb), 0.08);
 }
 
 .workspace-topbar {
@@ -1487,10 +1464,10 @@ watch(
 .ai-hub-page .workspace-side {
   --liquid-bg: var(--ai-hub-surface-elevated);
   --liquid-border: var(--ai-hub-border);
-  --liquid-shadow: none;
+  --liquid-shadow: var(--ai-hub-shadow);
   background: var(--ai-hub-surface-elevated) !important;
   border-color: var(--ai-hub-border) !important;
-  box-shadow: none !important;
+  box-shadow: var(--ai-hub-shadow) !important;
   border-radius: 26px;
 }
 
@@ -1545,7 +1522,7 @@ watch(
 .npc-card p,
 .side-info-card p {
   margin: 0;
-  color: rgba(214, 225, 245, 0.8);
+  color: var(--ai-hub-ink-muted);
   line-height: 1.7;
 }
 
@@ -1559,11 +1536,11 @@ watch(
 .stage-btn,
 .quick-btn,
 .npc-action {
-  border: 0;
+  border: 1px solid var(--ai-hub-border);
   border-radius: 14px;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(243, 248, 255, 0.95);
+  background: var(--ai-hub-surface-soft);
+  color: var(--ai-hub-ink);
   cursor: pointer;
   transition: transform 0.22s ease, background-color 0.22s ease, opacity 0.22s ease;
 }
@@ -1577,7 +1554,7 @@ watch(
 .quick-btn:hover:not(:disabled),
 .npc-action:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: rgba(var(--accent-rgb), 0.26);
+  background: var(--ai-hub-surface-hover);
 }
 
 .stage-btn:disabled,
@@ -1599,12 +1576,11 @@ watch(
   border-radius: 30px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 20% 18%, rgba(246, 184, 92, 0.22), transparent 24%),
-    radial-gradient(circle at 76% 28%, rgba(107, 181, 255, 0.18), transparent 28%),
-    radial-gradient(circle at 78% 72%, rgba(255, 128, 148, 0.18), transparent 22%),
-    linear-gradient(180deg, rgba(16, 22, 36, 0.98), rgba(8, 12, 22, 0.96));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    radial-gradient(circle at 20% 18%, rgba(var(--accent-rgb), 0.13), transparent 28%),
+    radial-gradient(circle at 78% 72%, rgba(var(--accent-soft-rgb), 0.1), transparent 30%),
+    var(--ai-hub-surface);
+  border: 1px solid var(--ai-hub-border-strong);
+  box-shadow: var(--ai-hub-shadow);
 }
 
 .map-backdrop,
@@ -1616,15 +1592,15 @@ watch(
 
 .map-backdrop {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%) 0 0 / 64px 64px,
-    linear-gradient(225deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%) 0 0 / 64px 64px;
+    linear-gradient(135deg, rgba(var(--accent-rgb), 0.055) 25%, transparent 25%) 0 0 / 64px 64px,
+    linear-gradient(225deg, rgba(var(--accent-soft-rgb), 0.035) 25%, transparent 25%) 0 0 / 64px 64px;
   opacity: 0.55;
 }
 
 .map-gridline {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(var(--accent-rgb), 0.065) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--accent-rgb), 0.065) 1px, transparent 1px);
   background-size: 42px 42px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 100%);
 }
@@ -1632,16 +1608,16 @@ watch(
 .map-node {
   position: absolute;
   min-width: 132px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--ai-hub-border);
   border-radius: 18px;
   padding: 12px 14px;
   transform: translate(-50%, -50%);
-  background: rgba(8, 13, 24, 0.88);
-  color: rgba(247, 250, 255, 0.96);
+  background: var(--ai-hub-surface-elevated);
+  color: var(--ai-hub-ink);
   display: grid;
   gap: 2px;
   text-align: left;
-  box-shadow: 0 14px 30px rgba(4, 7, 16, 0.28);
+  box-shadow: var(--ai-hub-shadow);
   transition: transform 0.22s ease, border-color 0.22s ease, background-color 0.22s ease;
 }
 
@@ -1650,7 +1626,7 @@ watch(
 }
 
 .map-node small {
-  color: rgba(198, 212, 239, 0.72);
+  color: var(--ai-hub-ink-muted);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1659,15 +1635,15 @@ watch(
 .map-node:hover {
   transform: translate(-50%, calc(-50% - 4px)) scale(1.03);
   border-color: rgba(var(--accent-rgb), 0.38);
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.22), rgba(10, 14, 24, 0.94));
+  background: var(--ai-hub-surface-hover);
   z-index: 3;
 }
 
 .map-node.active {
   transform: translate(-50%, calc(-50% - 2px));
   border-color: rgba(var(--accent-rgb), 0.5);
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.28), rgba(10, 14, 24, 0.94));
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.32), 0 18px 34px rgba(4, 7, 16, 0.34);
+  background: var(--accent-mode-fill);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.32), var(--ai-hub-shadow);
   z-index: 4;
 }
 
@@ -1713,11 +1689,11 @@ watch(
 }
 
 .scene-chip {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--ai-hub-border);
   border-radius: 18px;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(233, 240, 253, 0.9);
+  background: var(--ai-hub-surface-elevated);
+  color: var(--ai-hub-ink);
   text-align: left;
   display: grid;
   gap: 4px;
@@ -1730,7 +1706,7 @@ watch(
 }
 
 .scene-chip span {
-  color: rgba(192, 206, 233, 0.72);
+  color: var(--ai-hub-ink-muted);
   font-size: 12px;
 }
 
@@ -1738,7 +1714,7 @@ watch(
 .scene-chip:hover {
   transform: translateY(-1px);
   border-color: rgba(var(--accent-rgb), 0.32);
-  background: rgba(var(--accent-rgb), 0.12);
+  background: var(--ai-hub-surface-hover);
 }
 
 .map-node-mark {

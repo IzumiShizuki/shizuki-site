@@ -713,36 +713,30 @@ body {
 }
 
 :root[data-theme-mode='day'] .ai-hub-page .workspace-shell {
-  background:
-    radial-gradient(circle at 18% 14%, var(--theme-spot-a, rgba(var(--accent-rgb), 0.16)), transparent 34%),
-    radial-gradient(circle at 82% 20%, var(--theme-spot-b, rgba(var(--accent-rgb), 0.12)), transparent 28%),
-    var(--theme-panel-surface, var(--theme-surface)) !important;
-  box-shadow: 0 20px 40px rgba(88, 60, 50, 0.12) !important;
+  background: var(--theme-panel-surface, var(--theme-surface)) !important;
+  box-shadow: var(--theme-shadow-soft, 0 20px 40px rgba(88, 60, 50, 0.12)) !important;
 }
 
 :root[data-theme-mode='day'] .ai-hub-page .town-map-board {
   background:
-    radial-gradient(circle at 20% 18%, rgba(246, 184, 92, 0.16), transparent 24%),
-    radial-gradient(circle at 76% 28%, rgba(107, 181, 255, 0.12), transparent 28%),
-    radial-gradient(circle at 78% 72%, rgba(255, 128, 148, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(255, 251, 247, 0.98), rgba(244, 236, 230, 0.94)) !important;
+    radial-gradient(circle at 20% 18%, rgba(var(--accent-rgb), 0.1), transparent 28%),
+    radial-gradient(circle at 78% 72%, rgba(var(--accent-soft-rgb), 0.08), transparent 30%),
+    var(--theme-panel-surface, var(--theme-surface)) !important;
   border-color: var(--theme-border-strong, rgba(255, 210, 190, 0.34)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 18px 36px rgba(88, 60, 50, 0.1) !important;
+  box-shadow: var(--theme-shadow-soft, 0 18px 36px rgba(88, 60, 50, 0.1)) !important;
 }
 
 :root[data-theme-mode='day'] .ai-hub-page .map-backdrop {
-  opacity: 0.7 !important;
+  opacity: 0.62 !important;
   background:
-    linear-gradient(135deg, rgba(128, 114, 104, 0.06) 25%, transparent 25%) 0 0 / 64px 64px,
-    linear-gradient(225deg, rgba(128, 114, 104, 0.04) 25%, transparent 25%) 0 0 / 64px 64px !important;
+    linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 25%, transparent 25%) 0 0 / 64px 64px,
+    linear-gradient(225deg, rgba(var(--accent-soft-rgb), 0.035) 25%, transparent 25%) 0 0 / 64px 64px !important;
 }
 
 :root[data-theme-mode='day'] .ai-hub-page .map-gridline {
   background-image:
-    linear-gradient(rgba(126, 102, 92, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(126, 102, 92, 0.08) 1px, transparent 1px) !important;
+    linear-gradient(rgba(var(--accent-rgb), 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--accent-rgb), 0.06) 1px, transparent 1px) !important;
 }
 
 :root[data-theme-mode='day'] .ai-hub-page :is(.map-node, .scene-chip) {
