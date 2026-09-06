@@ -37,8 +37,35 @@
         v-for="post in state.items"
         :key="post.postId"
         class="post-entry author-posts-surface ripple-trigger"
+        :class="{ 'post-entry--with-cover': Boolean(post.coverImageUrl) }"
         :to="{ name: 'blog-detail', params: { postId: post.postId } }"
       >
+        <div class="post-entry-copy">
+          <div class="post-entry-context">
+            <span class="post-entry-category">{{ post.categoryCode || '随笔' }}</span>
+          </div>
+          <h3 class="post-entry-title">{{ post.title }}</h3>
+          <div class="post-entry-meta">
+            <time :datetime="post.publishedAt || undefined">
+              <i class="far fa-calendar" aria-hidden="true"></i>
+              {{ formatDate(post.publishedAt) }}
+            </time>
+            <span>
+              <i class="far fa-clock" aria-hidden="true"></i>
+              {{ post.readingMinutes }} 分钟阅读
+            </span>
+          </div>
+          <p class="post-entry-summary">{{ post.summary || '这篇文章暂未填写摘要。' }}</p>
+          <div class="post-entry-foot">
+            <span v-if="post.tags.length" class="post-tags" aria-label="文章标签">
+              <span v-for="tag in post.tags.slice(0, 3)" :key="`${post.postId}-${tag}`" class="post-tag">#{{ tag }}</span>
+            </span>
+            <span class="post-read-more">
+              阅读全文
+              <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            </span>
+          </div>
+        </div>
         <img
           v-if="post.coverImageUrl"
           class="post-entry-cover"
@@ -46,19 +73,6 @@
           :alt="`${post.title} 封面`"
           loading="lazy"
         />
-        <div class="post-entry-copy">
-          <div class="post-entry-meta">
-            <span>{{ post.categoryCode || '随笔' }}</span>
-            <time :datetime="post.publishedAt || undefined">{{ formatDate(post.publishedAt) }}</time>
-          </div>
-          <h3>{{ post.title }}</h3>
-          <p>{{ post.summary || '这篇文章暂未填写摘要。' }}</p>
-          <div class="post-entry-foot">
-            <span>{{ post.readingMinutes }} 分钟阅读</span>
-            <span v-if="post.tags.length" class="post-tags">#{{ post.tags.slice(0, 3).join(' #') }}</span>
-            <i class="fas fa-arrow-right" aria-hidden="true"></i>
-          </div>
-        </div>
       </RouterLink>
     </div>
   </section>
@@ -246,11 +260,18 @@ onMounted(() => {
 .post-entry {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(132px, 0.3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'content';
+  min-height: 176px;
   overflow: hidden;
   color: inherit;
   text-decoration: none;
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms ease, box-shadow 220ms ease;
+}
+
+.post-entry--with-cover {
+  grid-template-columns: minmax(0, 1fr) minmax(164px, 32%);
+  grid-template-areas: 'content cover';
 }
 
 .post-entry:hover {
@@ -259,64 +280,119 @@ onMounted(() => {
 }
 
 .post-entry-cover {
+  grid-area: cover;
   width: 100%;
   height: 100%;
-  min-height: 150px;
+  min-height: 176px;
   display: block;
   object-fit: cover;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.post-entry:hover .post-entry-cover {
+  transform: scale(1.02);
 }
 
 .post-entry-copy {
+  grid-area: content;
   min-width: 0;
   display: grid;
+  align-content: start;
   gap: 8px;
-  padding: 17px 19px;
+  padding: clamp(18px, 2vw, 23px);
 }
 
-.post-entry-meta,
-.post-entry-foot {
+.post-entry-context,
+.post-entry-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 7px 14px;
   color: var(--theme-text-secondary);
-  font-size: 11px;
+  font-size: 11.5px;
 }
 
-.post-entry-meta span {
+.post-entry-category {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 1px solid rgba(var(--accent-rgb), 0.26);
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.1);
   color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
-.post-entry h3 {
-  overflow: hidden;
-  font-size: 18px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.post-entry p {
+.post-entry-title {
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  font-size: clamp(18px, 1.8vw, 22px);
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+
+.post-entry-meta i {
+  margin-right: 4px;
+  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+}
+
+.post-entry-summary {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 72ch;
+  font-size: 13.5px;
 }
 
 .post-entry-foot {
-  margin-top: 3px;
+  min-width: 0;
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
 }
 
 .post-tags {
-  overflow: hidden;
   min-width: 0;
-  text-overflow: ellipsis;
+  display: flex;
+  flex: 1 1 240px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.post-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.post-read-more {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  font-size: 12px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.post-entry-foot > i {
-  margin-left: auto;
-  color: var(--theme-icon-muted, var(--theme-text-secondary));
+.post-read-more i {
+  font-size: 10.5px;
+  transition: transform 180ms ease;
+}
+
+.post-entry:hover .post-read-more i {
+  transform: translateX(2px);
 }
 
 .posts-all-link:focus-visible,
@@ -332,13 +408,17 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .post-entry {
+  .post-entry--with-cover {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      'content'
+      'cover';
   }
 
   .post-entry-cover {
     height: auto;
     aspect-ratio: 16 / 8;
+    min-height: 0;
   }
 }
 
@@ -346,9 +426,13 @@ onMounted(() => {
   .posts-all-link,
   .posts-retry,
   .post-entry,
+  .post-entry-cover,
+  .post-read-more i,
   .posts-all-link:hover,
   .posts-retry:hover,
-  .post-entry:hover {
+  .post-entry:hover,
+  .post-entry:hover .post-entry-cover,
+  .post-entry:hover .post-read-more i {
     transform: none;
     transition: opacity 120ms linear, border-color 120ms linear;
   }

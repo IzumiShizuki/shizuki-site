@@ -60,6 +60,67 @@ describe('AuthorPublicPostsColumn', () => {
     expect(post.attributes('href')).toBe('/blog/14');
   });
 
+  it('reserves the cover layout only for posts with real cover media', async () => {
+    mocked.listPosts.mockResolvedValue({
+      items: [
+        {
+          post_id: 21,
+          title: '没有封面的文章',
+          summary: '应当使用完整内容宽度',
+          category_code: 'dev',
+          reading_minutes: 8,
+          published_at: '2026-08-28T12:00:00Z'
+        },
+        {
+          post_id: 22,
+          title: '带封面的文章',
+          summary: '应当启用图文分栏',
+          cover_image_url: '/covers/post-22.webp',
+          category_code: 'life',
+          reading_minutes: 5,
+          published_at: '2026-08-29T12:00:00Z'
+        }
+      ]
+    });
+    const { wrapper } = await mountColumn();
+    const posts = wrapper.findAll('.post-entry');
+
+    expect(posts).toHaveLength(2);
+    expect(posts[0].classes()).not.toContain('post-entry--with-cover');
+    expect(posts[0].find('.post-entry-cover').exists()).toBe(false);
+    expect(posts[1].classes()).toContain('post-entry--with-cover');
+    expect(posts[1].get('.post-entry-cover').attributes('src')).toBe('/covers/post-22.webp');
+  });
+
+  it('uses the Blog-aligned reading hierarchy and explicit reading action', async () => {
+    mocked.listPosts.mockResolvedValue({
+      items: [{
+        post_id: 23,
+        title: '一篇拥有较长标题并需要保持自然阅读节奏的公开文章',
+        summary: '摘要位于阅读信息之后，并且不会和标签以及阅读入口互相挤压。',
+        category_code: 'dev',
+        reading_minutes: 12,
+        tags: ['agent', 'ai', 'java'],
+        published_at: '2026-08-30T12:00:00Z'
+      }]
+    });
+    const { wrapper } = await mountColumn();
+    const copy = wrapper.get('.post-entry-copy');
+
+    expect(copy.element.children).toHaveLength(5);
+    expect([...copy.element.children].map((element) => element.className)).toEqual([
+      'post-entry-context',
+      'post-entry-title',
+      'post-entry-meta',
+      'post-entry-summary',
+      'post-entry-foot'
+    ]);
+    expect(copy.get('.post-entry-meta').text()).toContain('12 分钟阅读');
+    expect(copy.get('.post-tags').text()).toContain('#agent');
+    expect(copy.get('.post-read-more').text()).toContain('阅读全文');
+    expect(copy.findAll('[aria-hidden="true"]')).toHaveLength(3);
+  });
+
   it('keeps an honest loading state until the public query resolves', async () => {
     const deferred = createDeferred();
     mocked.listPosts.mockReturnValue(deferred.promise);
