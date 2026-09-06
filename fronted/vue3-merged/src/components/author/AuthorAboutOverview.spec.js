@@ -64,4 +64,18 @@ describe('AuthorAboutOverview', () => {
     expect(style).not.toMatch(/color:\s*rgba?\(\s*\d+/);
     expect(style).not.toMatch(/background:\s*rgba?\(\s*\d+/);
   });
+
+  it('renders a clear cover photograph with a wave transition instead of a glass wash', () => {
+    const wrapper = mountOverview();
+    const source = readFileSync(resolve(process.cwd(), 'src/components/author/AuthorAboutOverview.vue'), 'utf8');
+
+    expect(wrapper.get('.about-overview-photo').attributes()).toMatchObject({
+      src: '/images/katanegai.jpg',
+      alt: 'Shizuki 的网站封面'
+    });
+    expect(wrapper.get('.about-overview-wave').attributes('aria-hidden')).toBe('true');
+    expect(wrapper.find('.about-overview-media-wash').exists()).toBe(false);
+    expect(source).toContain('filter: none');
+    expect(source).not.toContain('backdrop-filter');
+  });
 });

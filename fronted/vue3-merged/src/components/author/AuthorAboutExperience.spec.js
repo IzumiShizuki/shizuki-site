@@ -25,6 +25,10 @@ function mountExperience(activeTab = 'about') {
         music: [],
         links: []
       },
+      journey: [
+        { year: '2024', title: '第一次上线', summary: '把小站带到公开网络。' },
+        { year: '2025', title: '重新设计', summary: '开始记录长期变化。' }
+      ],
       albums: [],
       moments: []
     },
@@ -34,7 +38,10 @@ function mountExperience(activeTab = 'about') {
           props: ['hero', 'identity', 'skills', 'enabled', 'portals'],
           template: '<section class="about-overview-stub">{{ hero.name }} · {{ identity.activityStatus }} · {{ skills.join(",") }} · {{ portals.length }}</section>'
         },
-        AuthorAboutStoryColumn: { template: '<main class="story-column-stub">介绍正文</main>' },
+        AuthorAboutStoryColumn: {
+          props: ['showJourney'],
+          template: '<main class="story-column-stub" :data-show-journey="String(showJourney)">介绍正文</main>'
+        },
         AuthorLifeCardRail: {
           props: ['kind'],
           template: '<section class="life-card-rail-stub" :data-kind="kind" />'
@@ -46,23 +53,35 @@ function mountExperience(activeTab = 'about') {
 }
 
 describe('AuthorAboutExperience shared-shell composition', () => {
-  it('renders only center-column content because the page owns the shared rails', () => {
+  it('renders the complete public story in one ordered center column because the page owns the shared rails', () => {
     const wrapper = mountExperience();
 
     expect(wrapper.get('[data-author-about-layout="shared-shell"]').exists()).toBe(true);
     expect(wrapper.get('.about-overview-stub').text()).toContain('Shizuki · 学习中 · Vue3 · 1');
     expect(wrapper.get('.author-about-center .story-column-stub').text()).toBe('介绍正文');
+    expect(wrapper.get('.story-column-stub').attributes('data-show-journey')).toBe('false');
+    expect(wrapper.findAll('[data-author-section]').map((section) => section.attributes('data-author-section'))).toEqual([
+      'about',
+      'journey',
+      'posts'
+    ]);
+    expect(wrapper.findAll('.about-journey-entry').map((item) => item.text())).toEqual([
+      expect.stringContaining('第一次上线'),
+      expect.stringContaining('重新设计')
+    ]);
+    expect(wrapper.get('.public-posts-stub').text()).toBe('站点文章');
     expect(wrapper.findAll('.life-card-rail-stub').map((rail) => rail.attributes('data-kind'))).toEqual(['albums', 'moments']);
     expect(wrapper.find('.content-shell__left').exists()).toBe(false);
     expect(wrapper.find('.content-shell__right').exists()).toBe(false);
     expect(wrapper.find('.auxiliary-drawer').exists()).toBe(false);
   });
 
-  it('keeps the posts view inside the same center-only contract', () => {
+  it('keeps legacy tab props on the same complete page instead of branching the composition', () => {
     const wrapper = mountExperience('posts');
 
     expect(wrapper.get('[data-author-about-layout="shared-shell"]').exists()).toBe(true);
     expect(wrapper.get('.public-posts-stub').text()).toBe('站点文章');
-    expect(wrapper.find('.story-column-stub').exists()).toBe(false);
+    expect(wrapper.get('.story-column-stub').exists()).toBe(true);
+    expect(wrapper.findAll('[data-author-section]')).toHaveLength(3);
   });
 });

@@ -23,8 +23,8 @@
         <i class="fas fa-compass"></i>
       </span>
       <span class="author-route-heading-copy">
-        <strong>站点导航</strong>
-        <small>{{ adminUser ? '浏览与管理' : '浏览站点内容' }}</small>
+        <strong>{{ heading }}</strong>
+        <small>{{ description || (adminUser ? '浏览与管理' : '浏览站点内容') }}</small>
       </span>
     </header>
 
@@ -33,7 +33,7 @@
       :items="items"
       :active-key="activeKey"
       variant="menu"
-      aria-label="关于网站导航"
+      :aria-label="ariaLabel"
       @select="$emit('select', $event)"
     />
   </aside>
@@ -67,6 +67,18 @@ const props = defineProps({
   showProfile: {
     type: Boolean,
     default: false
+  },
+  heading: {
+    type: String,
+    default: '站点导航'
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  ariaLabel: {
+    type: String,
+    default: '关于网站导航'
   },
   profile: {
     type: Object,

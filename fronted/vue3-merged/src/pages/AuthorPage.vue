@@ -12,14 +12,17 @@
     <ThreeColumnContentShell class="dashboard-layout author-workspace-shell" main-tag="div">
       <template #left>
         <AuthorProfileRail
-          :items="tabs"
-          :active-key="activeTab"
+          :items="authorRailItems"
+          :active-key="authorRailActiveKey"
           :admin-user="isAdminUser"
           :profile="authorProfile"
           :public-mode="!isAdminConsoleTab"
+          :show-profile="!isPublicExperienceTab"
+          :heading="isPublicExperienceTab ? '内容导航' : '站点导航'"
+          :description="isPublicExperienceTab ? '同页快速跳转' : ''"
+          :aria-label="isPublicExperienceTab ? '关于网站内容导航' : '关于网站导航'"
           workspace
-          show-profile
-          @select="openTab"
+          @select="handleAuthorRailSelect"
         />
       </template>
 
@@ -249,6 +252,7 @@
             @select-tab="openTab"
             @select-portal="openHomepagePortal"
             @edit="openSectionEditor(AuthorTabKey.ABOUT)"
+            @edit-journey="openSectionEditor(AuthorTabKey.JOURNEY)"
             @retry-albums="featuredAlbums.refresh('about-retry')"
             @retry-moments="featuredMoments.refresh('about-retry')"
           />
@@ -725,15 +729,21 @@
       </template>
     </ThreeColumnContentShell>
 
-    <AuxiliaryDrawer v-model="authorAuxiliaryDrawerOpen" title="站点导航与生活信号">
+    <AuxiliaryDrawer
+      v-model="authorAuxiliaryDrawerOpen"
+      :title="isPublicExperienceTab ? '内容导航与生活信号' : '站点导航与生活信号'"
+    >
       <div class="author-auxiliary-content">
         <AuthorProfileRail
-          :items="tabs"
-          :active-key="activeTab"
+          :items="authorRailItems"
+          :active-key="authorRailActiveKey"
           :admin-user="isAdminUser"
           :profile="authorProfile"
           :public-mode="!isAdminConsoleTab"
-          show-profile
+          :show-profile="!isPublicExperienceTab"
+          :heading="isPublicExperienceTab ? '内容导航' : '站点导航'"
+          :description="isPublicExperienceTab ? '同页快速跳转' : ''"
+          :aria-label="isPublicExperienceTab ? '关于网站内容导航' : '关于网站导航'"
           @select="selectFromAuthorDrawer"
         />
         <AuthorLifeWidgetRail sticky-top="0px" />
@@ -790,10 +800,11 @@ const motionPreference = useMotionPreference();
 const appScrollRoot = useAppScrollRoot();
 
 const baseTabs = [
+  { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
   { key: AuthorTabKey.JOURNEY, label: '建站经历', icon: 'fas fa-route', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
-  { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' },
-  { key: AuthorTabKey.ABOUT, label: '关于网站', icon: 'fas fa-compass-drafting', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' }
+  { key: AuthorTabKey.POSTS, label: '站点文章', icon: 'fas fa-feather-pointed', group: AUTHOR_NAV_GROUP.SITE, groupLabel: '公开内容' }
 ];
+const PUBLIC_SECTION_KEYS = new Set(baseTabs.map((item) => item.key));
 const JOURNEY_MONTH_LABELS = Object.freeze(Array.from({ length: 12 }, (_, index) => `${String(index + 1).padStart(2, '0')}月`));
 const AUTHOR_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 const JOURNEY_IMAGE_PATH_PATTERN = /^journey\.\d+\.imageUrl$/u;
@@ -902,6 +913,7 @@ const sectionImageCropSourceUrl = ref('');
 const sectionImageCropSourceName = ref('section-image.png');
 const sectionImageCropTargetPath = ref('');
 const authorAuxiliaryDrawerOpen = ref(false);
+const activePublicSection = ref(normalizePublicSection(route.query.section, route.query.tab));
 const motionState = reactive(createAuthorMotionState({
   reducedMotion: motionPreference.effectiveMode.value !== 'immersive'
 }));
@@ -969,9 +981,9 @@ const activeAdminTab = computed(() => {
 });
 const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
 const isPublicAboutTab = computed(() => activeTab.value === AuthorTabKey.ABOUT && !isAdminConsoleTab.value);
-const isPublicExperienceTab = computed(() => (
-  !isAdminConsoleTab.value && [AuthorTabKey.ABOUT, AuthorTabKey.POSTS].includes(activeTab.value)
-));
+const isPublicExperienceTab = computed(() => !isAdminConsoleTab.value && activeTab.value === AuthorTabKey.ABOUT);
+const authorRailItems = computed(() => isPublicExperienceTab.value ? baseTabs : tabs.value);
+const authorRailActiveKey = computed(() => isPublicExperienceTab.value ? activePublicSection.value : activeTab.value);
 // 管理台的所有子标签共用同一个 key：在 Users / Groups / Quota 之间切换时
 // 滚动容器与玻璃面板不再销毁重建，避免整块内容闪烁和重复请求。
 const contentPanelRenderKey = computed(() => (activeAdminTab.value ? 'admin-console' : activeTab.value));
@@ -1066,10 +1078,12 @@ const sectionImageCropDescription = computed(() => {
 });
 
 const contentPanelStyle = computed(() => {
+  const journeyProgress = Math.max(0, Math.min(1, motionState.journeyProgress || 0));
   return {
     '--parallax-x': `${motionState.pointer.x.toFixed(2)}px`,
     '--parallax-y': `${motionState.pointer.y.toFixed(2)}px`,
-    '--journey-progress': `${Math.round(Math.max(0, Math.min(1, motionState.journeyProgress || 0)) * 100)}%`
+    '--journey-progress': `${Math.round(journeyProgress * 100)}%`,
+    '--journey-progress-ratio': journeyProgress.toFixed(4)
   };
 });
 
@@ -1096,7 +1110,7 @@ function normalizeTab(raw) {
     return `${AUTHOR_ADMIN_ROUTE_PREFIX}${normalizedAdminTab}`;
   }
   const normalized = normalizeAuthorTabKey(text);
-  if (normalized === AuthorTabKey.OVERVIEW || normalized === AuthorTabKey.EDIT) {
+  if ([AuthorTabKey.OVERVIEW, AuthorTabKey.EDIT, AuthorTabKey.JOURNEY, AuthorTabKey.POSTS].includes(normalized)) {
     return AuthorTabKey.ABOUT;
   }
   if (normalized === AuthorTabKey.SITE_SETTINGS && !isAdminUser.value) {
@@ -1105,15 +1119,44 @@ function normalizeTab(raw) {
   return normalized;
 }
 
+function normalizePublicSection(raw, legacyTab = '') {
+  const candidate = String(raw || '').trim().toLowerCase();
+  if (PUBLIC_SECTION_KEYS.has(candidate)) return candidate;
+  const legacyCandidate = String(legacyTab || '').trim().toLowerCase();
+  if (legacyCandidate === AuthorTabKey.JOURNEY || legacyCandidate === AuthorTabKey.POSTS) {
+    return legacyCandidate;
+  }
+  return AuthorTabKey.ABOUT;
+}
+
+function buildPublicSectionQuery(sectionKey) {
+  const normalized = normalizePublicSection(sectionKey);
+  if (normalized === AuthorTabKey.ABOUT) return { tab: AuthorTabKey.ABOUT };
+  return { tab: AuthorTabKey.ABOUT, section: normalized };
+}
+
 function openTab(tabKey) {
+  const requested = String(tabKey || '').trim().toLowerCase();
+  if (PUBLIC_SECTION_KEYS.has(requested)) {
+    void scrollToPublicSection(requested);
+    return;
+  }
   const normalized = normalizeTab(tabKey);
   if (activeTab.value === normalized) return;
   router.replace({ path: '/author', query: { tab: normalized } });
 }
 
+function handleAuthorRailSelect(tabKey) {
+  if (isPublicExperienceTab.value && PUBLIC_SECTION_KEYS.has(String(tabKey || '').trim().toLowerCase())) {
+    void scrollToPublicSection(tabKey);
+    return;
+  }
+  openTab(tabKey);
+}
+
 function selectFromAuthorDrawer(tabKey) {
   authorAuxiliaryDrawerOpen.value = false;
-  openTab(tabKey);
+  handleAuthorRailSelect(tabKey);
 }
 
 function openHomepagePortal(item) {
@@ -1448,6 +1491,58 @@ function resolveContentScrollRoot() {
   return resolveContentPanelElement();
 }
 
+async function scrollToPublicSection(sectionKey, options = {}) {
+  const normalized = normalizePublicSection(sectionKey);
+  const behavior = options.behavior === 'auto' ? 'auto' : 'smooth';
+  activePublicSection.value = normalized;
+
+  const nextQuery = buildPublicSectionQuery(normalized);
+  const currentTab = typeof route.query.tab === 'string' ? route.query.tab : '';
+  const currentSection = typeof route.query.section === 'string' ? route.query.section : '';
+  const nextSection = typeof nextQuery.section === 'string' ? nextQuery.section : '';
+  if (options.updateRoute !== false && (currentTab !== nextQuery.tab || currentSection !== nextSection)) {
+    await router.replace({ path: '/author', query: nextQuery });
+  }
+
+  await nextTick();
+  const root = resolveContentScrollRoot();
+  const panel = resolveContentPanelElement();
+  const target = panel?.querySelector?.(`[data-author-section="${normalized}"]`);
+  if (!(root instanceof HTMLElement) || !(target instanceof HTMLElement)) return;
+
+  const rootRect = root.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const top = Math.max(0, root.scrollTop + targetRect.top - rootRect.top - 18);
+  if (typeof root.scrollTo === 'function') {
+    root.scrollTo({ top, behavior });
+  } else {
+    root.scrollTop = top;
+  }
+}
+
+function syncPublicSectionByScroll() {
+  if (!isPublicExperienceTab.value) return;
+  const root = resolveContentScrollRoot();
+  const panel = resolveContentPanelElement();
+  if (!(root instanceof HTMLElement) || !(panel instanceof HTMLElement)) return;
+  const sections = Array.from(panel.querySelectorAll('[data-author-section]'))
+    .filter((node) => node instanceof HTMLElement);
+  if (!sections.length) return;
+
+  const rootRect = root.getBoundingClientRect();
+  const activationLine = rootRect.top + Math.min(180, Math.max(72, root.clientHeight * 0.24));
+  let nextSection = normalizePublicSection(sections[0].dataset.authorSection);
+  sections.forEach((section) => {
+    if (section.getBoundingClientRect().top <= activationLine) {
+      nextSection = normalizePublicSection(section.dataset.authorSection);
+    }
+  });
+  if (root.scrollTop + root.clientHeight >= root.scrollHeight - 12) {
+    nextSection = normalizePublicSection(sections.at(-1)?.dataset?.authorSection);
+  }
+  activePublicSection.value = nextSection;
+}
+
 function handleContentPointerMove(event) {
   if (!isDisplayTab() || !isDesktopPointerEnabled()) return;
   const panel = resolveContentPanelElement();
@@ -1589,6 +1684,7 @@ function setupJourneyProgressObserver() {
 }
 
 function handleContentScroll() {
+  syncPublicSectionByScroll();
   if (activeTab.value !== AuthorTabKey.JOURNEY) return;
   if (!journeyObserver) {
     syncJourneyProgressByScroll();
@@ -1952,10 +2048,23 @@ async function copyErrorText(text) {
 }
 
 watch(
-  () => route.query.tab,
-  (nextTab) => {
+  () => [route.query.tab, route.query.section],
+  ([nextTab, nextSection]) => {
     const raw = typeof nextTab === 'string' ? nextTab : '';
     const normalized = normalizeTab(raw);
+    if (normalized === AuthorTabKey.ABOUT) {
+      const publicSection = normalizePublicSection(nextSection, raw);
+      activePublicSection.value = publicSection;
+      const canonicalQuery = buildPublicSectionQuery(publicSection);
+      const rawSection = typeof nextSection === 'string' ? nextSection : '';
+      const canonicalSection = typeof canonicalQuery.section === 'string' ? canonicalQuery.section : '';
+      if (raw !== canonicalQuery.tab || rawSection !== canonicalSection) {
+        router.replace({ path: '/author', query: canonicalQuery });
+        return;
+      }
+      void scrollToPublicSection(publicSection, { behavior: 'auto', updateRoute: false });
+      return;
+    }
     if (raw === normalized) return;
     router.replace({ path: '/author', query: { tab: normalized } });
   },
@@ -2056,6 +2165,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   padding-left: 0;
   overflow: hidden;
+}
+
+.author-page--public-workspace .dashboard-layout {
+  --content-shell-left: clamp(188px, 12vw, 218px);
 }
 
 :deep(.dashboard-layout .content-shell__left),
@@ -2180,6 +2293,7 @@ onBeforeUnmount(() => {
   --parallax-x: 0px;
   --parallax-y: 0px;
   --journey-progress: 0%;
+  --journey-progress-ratio: 0;
   border-radius: 16px;
   min-width: 0;
   min-height: 0;
@@ -2564,10 +2678,12 @@ onBeforeUnmount(() => {
 }
 
 .timeline-rail::after {
-  height: var(--journey-progress);
+  bottom: 4px;
   background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.95), rgba(var(--accent-rgb), 0.62));
   box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.42);
-  transition: height 220ms ease;
+  transform: scaleY(var(--journey-progress-ratio));
+  transform-origin: center top;
+  transition: transform 220ms ease;
 }
 
 .timeline-item {
@@ -2952,11 +3068,12 @@ onBeforeUnmount(() => {
 
 .journey-axis-progress {
   top: 0;
-  bottom: auto;
-  height: var(--journey-progress);
+  bottom: 0;
   background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.95), rgba(var(--accent-rgb), 0.6));
   box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.46);
-  transition: height 220ms ease;
+  transform: translateX(-50%) scaleY(var(--journey-progress-ratio));
+  transform-origin: center top;
+  transition: transform 220ms ease;
 }
 
 .journey-axis-year {
@@ -3618,7 +3735,8 @@ onBeforeUnmount(() => {
     opacity: 1 !important;
   }
 
-  .timeline-rail::after {
+  .timeline-rail::after,
+  .journey-axis-progress {
     transition: none !important;
   }
 
@@ -3724,6 +3842,11 @@ onBeforeUnmount(() => {
     width: 100%;
     height: 3px !important;
     transform: translateY(-50%);
+  }
+
+  .journey-axis-progress {
+    transform: translateY(-50%) scaleX(var(--journey-progress-ratio));
+    transform-origin: left center;
   }
 
   .journey-axis-month-list {

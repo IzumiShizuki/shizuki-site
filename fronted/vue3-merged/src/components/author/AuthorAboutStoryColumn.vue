@@ -118,7 +118,7 @@
       </article>
     </section>
 
-    <section v-if="journey.length" class="author-card about-journey-preview reveal-node" :style="staggerStyle(6)">
+    <section v-if="showJourney && journey.length" class="author-card about-journey-preview reveal-node" :style="staggerStyle(6)">
       <header class="about-journey-heading">
         <div>
           <span class="about-section-code" aria-hidden="true">JOURNEY / NOW</span>
@@ -166,6 +166,10 @@ const props = defineProps({
   journey: {
     type: Array,
     default: () => []
+  },
+  showJourney: {
+    type: Boolean,
+    default: true
   }
 });
 

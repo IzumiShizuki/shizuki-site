@@ -1,8 +1,11 @@
 <template>
-  <section class="about-overview liquid-material" aria-labelledby="about-overview-title">
-    <div class="about-overview-media" aria-hidden="true">
-      <img :src="coverUrl" alt="" />
-      <span class="about-overview-media-wash"></span>
+  <section class="about-overview" aria-labelledby="about-overview-title">
+    <div class="about-overview-media">
+      <img class="about-overview-photo" :src="coverUrl" :alt="`${displayName} 的网站封面`" />
+      <span class="about-overview-photo-fade" aria-hidden="true"></span>
+      <svg class="about-overview-wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 72C190 116 360 30 575 60C800 92 946 132 1160 76C1274 46 1367 45 1440 58V120H0Z" fill="currentColor" />
+      </svg>
     </div>
 
     <div class="about-overview-content">
@@ -105,46 +108,71 @@ const visibleSkills = computed(() => {
 </script>
 
 <style scoped>
+:global(:root) {
+  --author-about-hero-surface: color-mix(in srgb, rgb(var(--accent-rgb)) 16%, rgb(29 21 30));
+}
+
+:global(:root[data-theme-mode='day']) {
+  --author-about-hero-surface: color-mix(in srgb, rgb(var(--accent-rgb)) 12%, rgb(255 251 247));
+}
+
 .about-overview {
-  --liquid-bg: var(--theme-panel-surface);
-  --liquid-border: var(--theme-border);
-  --liquid-shadow: var(--theme-shadow-soft);
+  --about-overview-body: var(--author-about-hero-surface);
   position: relative;
   min-width: 0;
   overflow: hidden;
+  border: 1px solid var(--theme-border);
   border-radius: var(--radius-md);
   color: var(--theme-text-primary);
+  background: var(--about-overview-body, var(--theme-panel-surface));
+  box-shadow: var(--theme-shadow-soft);
 }
 
 .about-overview-media {
   position: relative;
-  min-height: clamp(150px, 24vw, 230px);
+  min-height: clamp(240px, 38vw, 410px);
   overflow: hidden;
-  background: var(--theme-surface-soft);
+  background: var(--about-overview-body, var(--theme-surface-soft));
 }
 
-.about-overview-media img {
+.about-overview-photo {
   width: 100%;
   height: 100%;
   position: absolute;
   inset: 0;
   display: block;
   object-fit: cover;
-  filter: var(--wallpaper-stage-filter);
-  transform: scale(1.02);
+  filter: none;
+  transform: none;
 }
 
-.about-overview-media-wash {
+.about-overview-photo-fade {
   position: absolute;
   inset: 0;
-  background: var(--wallpaper-stage-overlay-background);
-  backdrop-filter: var(--wallpaper-stage-overlay-backdrop);
+  background: linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--about-overview-body) 78%, transparent) 100%);
+  pointer-events: none;
+}
+
+.about-overview-wave {
+  position: absolute;
+  z-index: 1;
+  right: -1px;
+  bottom: -1px;
+  left: -1px;
+  width: calc(100% + 2px);
+  height: clamp(58px, 8vw, 92px);
+  display: block;
+  color: var(--about-overview-body);
+  pointer-events: none;
 }
 
 .about-overview-content {
+  position: relative;
+  z-index: 2;
   display: grid;
   gap: var(--space-5);
-  padding: clamp(18px, 3vw, 30px);
+  padding: clamp(12px, 2.4vw, 26px) clamp(18px, 3vw, 30px) clamp(22px, 3vw, 32px);
+  background: var(--about-overview-body, var(--theme-panel-surface));
 }
 
 .about-overview-heading {

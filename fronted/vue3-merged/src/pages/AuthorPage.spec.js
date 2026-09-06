@@ -184,7 +184,7 @@ describe('AuthorPage admin tab handling', () => {
 
     const rail = wrapper.getComponent(RouteDotRail);
     expect(rail.props('variant')).toBe('menu');
-    expect(rail.props('items').map((item) => item.label)).toEqual(['建站经历', '站点文章', '关于网站']);
+    expect(rail.props('items').map((item) => item.label)).toEqual(['关于网站', '建站经历', '站点文章']);
     expect(rail.props('items').map((item) => item.group)).toEqual(['site', 'site', 'site']);
     expect(wrapper.findAll('.route-rail-label')).toHaveLength(3);
     expect(wrapper.findAll('.route-rail-group-label').map((item) => item.text())).toEqual(['公开内容']);
@@ -205,8 +205,13 @@ describe('AuthorPage admin tab handling', () => {
     const { wrapper } = await mountPage('/author?tab=about', ['USER']);
 
     expect(wrapper.get('.about-manifesto-copy h2').text()).toBe('关于这座小站');
-    expect(wrapper.get('.author-profile-summary').exists()).toBe(true);
-    expect(wrapper.get('.about-journey-preview').exists()).toBe(true);
+    expect(wrapper.find('.author-profile-summary').exists()).toBe(false);
+    expect(wrapper.find('.about-journey-preview').exists()).toBe(false);
+    expect(wrapper.findAll('[data-author-section]').map((section) => section.attributes('data-author-section'))).toEqual([
+      'about',
+      'journey',
+      'posts'
+    ]);
     expect(wrapper.findAll('.about-hero-image')).toHaveLength(1);
     expect(wrapper.findAll('.about-section-image')).toHaveLength(0);
     expect(wrapper.findAll('.about-card-index').map((item) => item.text())).toEqual(['01', '02', '03']);
@@ -214,8 +219,8 @@ describe('AuthorPage admin tab handling', () => {
     expect(wrapper.findAll('.life-rail-heading > a').map((item) => item.attributes('href'))).toEqual(['/albums', '/moments']);
   });
 
-  it('keeps the shared public workspace while rendering real posts in the posts tab', async () => {
-    const { wrapper } = await mountPage('/author?tab=posts', ['USER']);
+  it('keeps the shared public workspace while rendering real posts in the unified About page', async () => {
+    const { wrapper } = await mountPage('/author?tab=about', ['USER']);
 
     expect(wrapper.get('[data-author-about-layout="shared-shell"]').exists()).toBe(true);
     expect(wrapper.get('.content-shell__left .author-route-sidebar').exists()).toBe(true);
@@ -228,17 +233,34 @@ describe('AuthorPage admin tab handling', () => {
   });
 
   it.each([
-    ['journey', '.journey-stage'],
-    ['about', '.about-manifesto-copy'],
-    ['posts', '.author-public-posts']
-  ])('keeps %s inside the same three-column workspace', async (tab, centerSelector) => {
-    const { wrapper } = await mountPage(`/author?tab=${tab}`, ['USER']);
+    ['about', undefined],
+    ['journey', 'journey'],
+    ['posts', 'posts']
+  ])('canonicalizes %s into the same three-section workspace', async (tab, section) => {
+    const { wrapper, router } = await mountPage(`/author?tab=${tab}`, ['USER']);
 
+    expect(router.currentRoute.value.query.tab).toBe('about');
+    expect(router.currentRoute.value.query.section).toBe(section);
     expect(wrapper.get('[data-content-layout="responsive"]').exists()).toBe(true);
     expect(wrapper.get('.content-shell__left .author-route-sidebar').exists()).toBe(true);
     expect(wrapper.get('.content-shell__right .author-life-widgets').exists()).toBe(true);
-    expect(wrapper.get(`.content-shell__main ${centerSelector}`).exists()).toBe(true);
+    expect(wrapper.findAll('.content-shell__main [data-author-section]')).toHaveLength(3);
     expect(wrapper.get('.author-page').attributes('data-scroll-owner')).toBe('center');
+  });
+
+  it('uses the public rail as a same-page table of contents', async () => {
+    const { wrapper, router } = await mountPage('/author?tab=about', ['ADMIN']);
+    const rail = wrapper.getComponent(RouteDotRail);
+
+    expect(wrapper.find('.content-shell__left .author-profile-summary').exists()).toBe(false);
+    expect(wrapper.get('.content-shell__left .author-route-sidebar strong').text()).toBe('内容导航');
+    expect(rail.props('items').map((item) => item.key)).toEqual(['about', 'journey', 'posts']);
+
+    await rail.vm.$emit('select', 'journey');
+    await flushPromises();
+
+    expect(router.currentRoute.value.query).toMatchObject({ tab: 'about', section: 'journey' });
+    expect(rail.props('activeKey')).toBe('journey');
   });
 
   it('preserves intentionally repeated custom artwork in the about composition', async () => {
