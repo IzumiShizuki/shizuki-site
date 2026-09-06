@@ -7,6 +7,7 @@ const {
   Notice,
   PluginSettingTab,
   FuzzySuggestModal,
+  ItemView,
   TFile,
   requestUrl,
   normalizePath
@@ -17,6 +18,7 @@ const PLUGIN_ID = 'shizuki-site-publisher';
 const REFRESH_TOKEN_SECRET_ID = 'shizuki-site-publisher-refresh-token';
 const BACKGROUND_FOLDER = '90-Assets/images/Backgrounds';
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const PUBLISHER_VIEW_TYPE = 'shizuki-publisher-sidebar';
 
 const DEFAULT_SETTINGS = {
   siteUrl: 'https://shizuki.site',
@@ -308,9 +310,13 @@ class SignInModal extends Modal {
         }
         this.close();
         this.plugin.settingTab?.display();
+        this.plugin.lastPublisherError = '';
+        this.plugin.refreshPublisherViews();
       } catch (error) {
         this.password = '';
         new Notice(`登录失败：${error.message}`, 8000);
+        this.plugin.lastPublisherError = error.message;
+        this.plugin.refreshPublisherViews();
       } finally {
         this.busy = false;
         button.setDisabled(false).setButtonText('登录');
@@ -414,6 +420,205 @@ class BackgroundChooserModal extends FuzzySuggestModal {
   }
 }
 
+function sidebarVisibilityLabel(visibility) {
+  return {
+    PUBLIC: '公开',
+    PRIVATE: '私密',
+    UNLISTED: '不列出'
+  }[visibility] || visibility || '—';
+}
+
+function sidebarTimeLabel(value) {
+  if (!value) return '尚未同步';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+class ShizukiPublisherView extends ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.renderVersion = 0;
+    this.localBusy = false;
+    this.localError = '';
+  }
+
+  getViewType() {
+    return PUBLISHER_VIEW_TYPE;
+  }
+
+  getDisplayText() {
+    return 'Shizuki 发布';
+  }
+
+  getIcon() {
+    return 'send';
+  }
+
+  async onOpen() {
+    this.contentEl.addClass('shizuki-publisher-sidebar');
+    await this.refresh();
+  }
+
+  async onClose() {
+    this.renderVersion += 1;
+    this.contentEl.empty();
+  }
+
+  async refresh() {
+    const version = ++this.renderVersion;
+    try {
+      const state = await this.plugin.getPublisherSidebarState({
+        busy: this.localBusy || this.plugin.publisherBusy,
+        error: this.localError || this.plugin.lastPublisherError
+      });
+      if (version === this.renderVersion) this.render(state);
+    } catch (error) {
+      if (version !== this.renderVersion) return;
+      this.render(core.buildPublisherSidebarState({
+        session: this.plugin.getPublisherSessionState(),
+        busy: this.localBusy,
+        error: error.message
+      }));
+    }
+  }
+
+  createAction(container, { text, className = '', disabled = false, title = text, onClick }) {
+    const button = container.createEl('button', {
+      cls: `shizuki-publisher-action ${className}`.trim(),
+      text
+    });
+    button.disabled = Boolean(disabled);
+    button.setAttr('aria-label', title);
+    button.setAttr('title', title);
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  async runAction(action) {
+    if (this.localBusy || this.plugin.publisherBusy) return;
+    this.localBusy = true;
+    this.localError = '';
+    await this.refresh();
+    try {
+      await action();
+    } catch (error) {
+      this.localError = error.message;
+    } finally {
+      this.localBusy = false;
+      await this.refresh();
+    }
+  }
+
+  addMetadataRow(container, label, value, title = value) {
+    const row = container.createDiv({ cls: 'shizuki-publisher-meta-row' });
+    row.createSpan({ cls: 'shizuki-publisher-meta-label', text: label });
+    const valueEl = row.createSpan({ cls: 'shizuki-publisher-meta-value', text: String(value) });
+    valueEl.setAttr('title', String(title));
+  }
+
+  render(state) {
+    const root = this.contentEl;
+    root.empty();
+    root.setAttr('data-stage', state.stage);
+
+    const header = root.createDiv({ cls: 'shizuki-publisher-header' });
+    header.createDiv({ cls: 'shizuki-publisher-eyebrow', text: 'SHIZUKI.SITE' });
+    header.createEl('h2', { text: '发布台' });
+    header.createEl('p', { text: '让笔记从这里抵达你的博客。' });
+
+    const session = root.createDiv({ cls: 'shizuki-publisher-session' });
+    const sessionCopy = session.createDiv({ cls: 'shizuki-publisher-session-copy' });
+    const sessionState = sessionCopy.createDiv({ cls: 'shizuki-publisher-session-state' });
+    sessionState.createSpan({ cls: `shizuki-publisher-session-dot${state.hasSession ? ' is-connected' : ''}` });
+    sessionState.createSpan({ text: state.hasSession ? '网站已连接' : '网站未连接' });
+    sessionCopy.createDiv({ cls: 'shizuki-publisher-session-account', text: state.accountLabel });
+    if (state.hasSession) {
+      this.createAction(session, {
+        text: '退出',
+        className: 'is-quiet',
+        title: '退出 shizuki.site',
+        disabled: state.busy,
+        onClick: () => this.runAction(async () => {
+          await this.plugin.api.signOut();
+          this.plugin.lastPublisherError = '';
+          new Notice('已退出 shizuki.site');
+          this.plugin.settingTab?.display();
+          this.plugin.refreshPublisherViews();
+        })
+      });
+    } else {
+      this.createAction(session, {
+        text: '登录',
+        className: 'is-quiet',
+        title: '登录 shizuki.site',
+        disabled: state.busy,
+        onClick: () => new SignInModal(this.app, this.plugin).open()
+      });
+    }
+
+    if (!state.eligible) {
+      const empty = root.createDiv({ cls: 'shizuki-publisher-empty' });
+      empty.createDiv({ cls: 'shizuki-publisher-empty-mark', text: '＋' });
+      empty.createEl('h3', { text: '等待一篇笔记' });
+      empty.createEl('p', { text: state.unavailableReason });
+    } else {
+      const card = root.createDiv({ cls: `shizuki-publisher-note-card is-${state.stage}` });
+      card.createDiv({ cls: 'shizuki-publisher-sync-rail', attr: { 'aria-hidden': 'true' } });
+      const cardBody = card.createDiv({ cls: 'shizuki-publisher-note-body' });
+      const status = cardBody.createDiv({ cls: 'shizuki-publisher-note-status' });
+      status.setAttr('aria-live', 'polite');
+      status.createSpan({ cls: 'shizuki-publisher-status-dot' });
+      status.createSpan({ text: state.busy ? '正在处理…' : state.statusLabel });
+      cardBody.createEl('h3', { text: state.title, attr: { title: state.title } });
+      cardBody.createDiv({ cls: 'shizuki-publisher-note-path', text: state.path, attr: { title: state.path } });
+
+      const metadata = cardBody.createDiv({ cls: 'shizuki-publisher-metadata' });
+      this.addMetadataRow(metadata, '分类', state.categoryCode);
+      this.addMetadataRow(metadata, '可见性', sidebarVisibilityLabel(state.visibility), state.visibility);
+      this.addMetadataRow(metadata, '本地图片', `${state.visualCount} 个`);
+      this.addMetadataRow(metadata, '远端文章', state.postId ? `#${state.postId}` : '尚未创建');
+      this.addMetadataRow(metadata, '最近同步', sidebarTimeLabel(state.syncedAt), state.syncedAt || '尚未同步');
+    }
+
+    if (state.error) {
+      const error = root.createDiv({ cls: 'shizuki-publisher-error', text: state.error });
+      error.setAttr('role', 'alert');
+    } else if (state.eligible && !state.hasSession) {
+      root.createDiv({ cls: 'shizuki-publisher-hint', text: '先登录网站，即可上传草稿或正式发布。' });
+    }
+
+    const actions = root.createDiv({ cls: 'shizuki-publisher-actions' });
+    this.createAction(actions, {
+      text: '预览发布内容',
+      className: 'is-secondary',
+      disabled: !state.canPreview,
+      title: '预览当前笔记的发布载荷',
+      onClick: () => this.runAction(() => this.plugin.previewActivePayload())
+    });
+    this.createAction(actions, {
+      text: state.busy ? '正在处理…' : '上传为草稿',
+      className: 'is-primary',
+      disabled: !state.canPublish,
+      title: state.hasSession ? '上传当前笔记为网站草稿' : '请先登录网站',
+      onClick: () => this.runAction(() => this.plugin.uploadActiveNote(false))
+    });
+    this.createAction(actions, {
+      text: '确认并正式发布',
+      className: 'is-publish',
+      disabled: !state.canPublish,
+      title: state.hasSession ? '确认后正式发布当前笔记' : '请先登录网站',
+      onClick: () => this.runAction(() => this.plugin.publishActiveNote())
+    });
+  }
+}
+
 class ShizukiPublisherSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -464,7 +669,9 @@ class ShizukiPublisherSettingTab extends PluginSettingTab {
       .addButton((button) => button.setButtonText('登录').onClick(() => new SignInModal(this.app, this.plugin).open()))
       .addButton((button) => button.setButtonText('退出').setWarning().onClick(async () => {
         await this.plugin.api.signOut();
+        this.plugin.lastPublisherError = '';
         new Notice('已退出 shizuki.site');
+        this.plugin.refreshPublisherViews();
         this.display();
       }));
 
@@ -493,18 +700,32 @@ class ShizukiPublisherSettingTab extends PluginSettingTab {
 class ShizukiSitePublisherPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
+    this.publisherBusy = false;
+    this.lastPublisherError = '';
+    this.publisherRefreshTimer = null;
     this.api = new ShizukiApiClient(this);
     this.api.loadStoredRefreshToken();
     this.settingTab = new ShizukiPublisherSettingTab(this.app, this);
     this.addSettingTab(this.settingTab);
+    this.registerView(PUBLISHER_VIEW_TYPE, (leaf) => new ShizukiPublisherView(leaf, this));
     this.registerCommands();
+    this.addRibbonIcon('send', '打开 Shizuki 发布侧栏', () => this.activatePublisherView());
     this.addRibbonIcon('upload', '上传当前笔记到 shizuki.site', () => this.uploadActiveNote(false));
+    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.schedulePublisherRefresh()));
+    this.registerEvent(this.app.workspace.on('layout-change', () => this.schedulePublisherRefresh()));
+    this.registerEvent(this.app.metadataCache.on('changed', (file) => {
+      if (file === this.app.workspace.getActiveFile()) this.schedulePublisherRefresh();
+    }));
+    this.register(() => {
+      if (this.publisherRefreshTimer != null) window.clearTimeout(this.publisherRefreshTimer);
+    });
     this.applyBackground();
   }
 
   onunload() {
     document.body.classList.remove('shizuki-dark-vault', 'shizuki-background-enabled');
     document.body.style.removeProperty('--shizuki-background-image');
+    this.app.workspace.detachLeavesOfType(PUBLISHER_VIEW_TYPE);
     if (this.api) {
       this.api.accessToken = '';
       this.api.refreshToken = '';
@@ -525,9 +746,15 @@ class ShizukiSitePublisherPlugin extends Plugin {
       backgroundPath: this.settings.backgroundPath
     };
     await this.saveData(safeSettings);
+    this.refreshPublisherViews();
   }
 
   registerCommands() {
+    this.addCommand({
+      id: 'open-publisher-sidebar',
+      name: '打开发布侧栏',
+      callback: () => this.activatePublisherView()
+    });
     this.addCommand({
       id: 'sign-in',
       name: '登录网站',
@@ -568,8 +795,75 @@ class ShizukiSitePublisherPlugin extends Plugin {
       name: '退出登录',
       callback: async () => {
         await this.api.signOut();
+        this.lastPublisherError = '';
         new Notice('已退出 shizuki.site');
+        this.settingTab?.display();
+        this.refreshPublisherViews();
       }
+    });
+  }
+
+  async activatePublisherView() {
+    const leaves = this.app.workspace.getLeavesOfType(PUBLISHER_VIEW_TYPE);
+    let leaf = leaves[0] || null;
+    if (core.choosePublisherLeafStrategy(leaves.length) === 'create') {
+      leaf = this.app.workspace.getLeftLeaf(false);
+      if (!leaf) throw new Error('无法创建 Shizuki 发布侧栏');
+      await leaf.setViewState({ type: PUBLISHER_VIEW_TYPE, active: true });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+    leaf.view?.refresh?.();
+  }
+
+  schedulePublisherRefresh() {
+    if (this.publisherRefreshTimer != null) window.clearTimeout(this.publisherRefreshTimer);
+    this.publisherRefreshTimer = window.setTimeout(() => {
+      this.publisherRefreshTimer = null;
+      this.refreshPublisherViews();
+    }, 80);
+  }
+
+  refreshPublisherViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType(PUBLISHER_VIEW_TYPE)) {
+      leaf.view?.refresh?.();
+    }
+  }
+
+  getPublisherSessionState() {
+    return {
+      account: this.api?.account || null,
+      hasAccessToken: Boolean(this.api?.accessToken),
+      hasRefreshToken: Boolean(this.api?.refreshToken)
+    };
+  }
+
+  async getPublisherSidebarState({ busy = false, error = '' } = {}) {
+    const file = this.app.workspace.getActiveFile();
+    let frontmatter = {};
+    let mapped = null;
+    let visualCount = 0;
+    if (file instanceof TFile && file.extension === 'md') {
+      const markdown = await this.app.vault.read(file);
+      frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter || {};
+      mapped = core.buildPostPayload({
+        fileBasename: file.basename,
+        frontmatter,
+        markdown,
+        defaults: {
+          categoryCode: this.settings.defaultCategoryCode,
+          visibility: this.settings.defaultVisibility
+        }
+      });
+      visualCount = core.discoverVisualEmbeds(mapped.payload.markdown).length;
+    }
+    return core.buildPublisherSidebarState({
+      file,
+      frontmatter,
+      mapped,
+      visualCount,
+      session: this.getPublisherSessionState(),
+      busy,
+      error
     });
   }
 
@@ -613,18 +907,29 @@ class ShizukiSitePublisherPlugin extends Plugin {
 
   async previewActivePayload() {
     try {
+      this.lastPublisherError = '';
       const context = await this.buildActiveContext();
       const embeds = core.discoverVisualEmbeds(context.payload.markdown);
       new PayloadPreviewModal(this.app, {
         payload: { postId: context.postId, ...context.payload },
         embedCount: embeds.length
       }).open();
+      this.refreshPublisherViews();
     } catch (error) {
+      this.lastPublisherError = error.message;
+      this.refreshPublisherViews();
       new Notice(error.message, 7000);
     }
   }
 
   async uploadActiveNote(publishAfterUpload) {
+    if (this.publisherBusy) {
+      new Notice('已有 Shizuki 发布任务正在进行中');
+      return null;
+    }
+    this.publisherBusy = true;
+    this.lastPublisherError = '';
+    this.refreshPublisherViews();
     const progress = new Notice('Shizuki：准备发布载荷…', 0);
     try {
       const context = await this.buildActiveContext();
@@ -662,8 +967,12 @@ class ShizukiSitePublisherPlugin extends Plugin {
       return postId;
     } catch (error) {
       progress.hide();
+      this.lastPublisherError = error.message;
       new Notice(`Shizuki 发布失败：${error.message}`, 10000);
       throw error;
+    } finally {
+      this.publisherBusy = false;
+      this.refreshPublisherViews();
     }
   }
 
@@ -674,6 +983,8 @@ class ShizukiSitePublisherPlugin extends Plugin {
       if (!confirmed) return;
       await this.uploadActiveNote(true);
     } catch (error) {
+      this.lastPublisherError = error.message;
+      this.refreshPublisherViews();
       if (!(error instanceof ApiError)) new Notice(error.message, 7000);
     }
   }
@@ -913,6 +1224,8 @@ module.exports = ShizukiSitePublisherPlugin;
 module.exports._test = {
   ApiError,
   ShizukiApiClient,
+  ShizukiPublisherView,
+  PUBLISHER_VIEW_TYPE,
   buildMultipartBody,
   concatBytes,
   safeUploadName

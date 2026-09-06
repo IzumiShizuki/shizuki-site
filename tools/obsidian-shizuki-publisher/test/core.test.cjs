@@ -10,6 +10,8 @@ const {
   rewriteVisualEmbeds,
   normalizeApiData,
   normalizeTokenPayload,
+  choosePublisherLeafStrategy,
+  buildPublisherSidebarState,
   buildDrawioEditorUrl,
   patchDrawioBundle
 } = require('../core');
@@ -105,6 +107,50 @@ test('normalizes API and token response casing', () => {
     userId: 9,
     expiresIn: 0
   });
+});
+
+test('derives publisher sidebar state for local, synced, and protected notes', () => {
+  const local = buildPublisherSidebarState({
+    file: { path: '02-Knowledge/Note.md', basename: 'Note', extension: 'md' },
+    mapped: { postId: null, payload: { title: 'A note', categoryCode: 'life', visibility: 'PUBLIC' } },
+    visualCount: 2,
+    session: { hasRefreshToken: true }
+  });
+  assert.equal(local.eligible, true);
+  assert.equal(local.stage, 'local');
+  assert.equal(local.canPublish, true);
+  assert.equal(local.visualCount, 2);
+
+  const published = buildPublisherSidebarState({
+    file: { path: '03-Projects/Published.md', basename: 'Published', extension: 'md' },
+    frontmatter: {
+      shizuki_post_id: 73,
+      shizuki_sync_status: 'PUBLISHED',
+      shizuki_synced_at: '2026-09-06T08:00:00.000Z'
+    },
+    mapped: { postId: 73, payload: { title: 'Published', categoryCode: 'notes', visibility: 'UNLISTED' } },
+    session: { account: { nickname: 'Izumi' } }
+  });
+  assert.equal(published.stage, 'published');
+  assert.equal(published.statusLabel, '已发布');
+  assert.equal(published.postId, 73);
+  assert.equal(published.accountLabel, 'Izumi');
+
+  const protectedNote = buildPublisherSidebarState({
+    file: { path: '00_Notion_Raw/Source.md', basename: 'Source', extension: 'md' },
+    mapped: { payload: { title: 'Source' } },
+    session: { hasAccessToken: true }
+  });
+  assert.equal(protectedNote.eligible, false);
+  assert.equal(protectedNote.canPreview, false);
+  assert.equal(protectedNote.canPublish, false);
+  assert.match(protectedNote.unavailableReason, /只读迁移源/);
+});
+
+test('chooses one reusable publisher leaf before creating another', () => {
+  assert.equal(choosePublisherLeafStrategy(0), 'create');
+  assert.equal(choosePublisherLeafStrategy(1), 'reuse');
+  assert.equal(choosePublisherLeafStrategy(3), 'reuse');
 });
 
 test('builds the shared draw.io JSON embed URL with dark UI', () => {

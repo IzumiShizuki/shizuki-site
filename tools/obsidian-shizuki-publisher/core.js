@@ -70,6 +70,72 @@ function buildPostPayload({ fileBasename, frontmatter = {}, markdown, defaults =
   };
 }
 
+function choosePublisherLeafStrategy(existingLeafCount) {
+  return Number(existingLeafCount) > 0 ? 'reuse' : 'create';
+}
+
+function buildPublisherSidebarState({
+  file = null,
+  frontmatter = {},
+  mapped = null,
+  visualCount = 0,
+  session = {},
+  busy = false,
+  error = ''
+} = {}) {
+  const path = normalizeString(file?.path);
+  const isMarkdown = Boolean(file) && normalizeString(file?.extension).toLowerCase() === 'md';
+  const isProtected = path.replace(/\\/g, '/').toLowerCase().startsWith('00_notion_raw/');
+  const eligible = isMarkdown && !isProtected;
+  const hasSession = Boolean(session.account || session.hasAccessToken || session.hasRefreshToken);
+  const account = session.account && typeof session.account === 'object' ? session.account : null;
+  const accountLabel = account
+    ? firstNonEmpty(account.nickname, account.email, account.userId, '已连接')
+    : hasSession
+      ? '已有安全会话'
+      : '尚未登录';
+  const syncStatus = firstNonEmpty(frontmatter.shizuki_sync_status).toUpperCase();
+  const postId = Number(mapped?.postId ?? frontmatter.shizuki_post_id);
+  let stage = 'local';
+  let statusLabel = '仅在本地';
+  if (normalizeString(error)) {
+    stage = 'error';
+    statusLabel = '需要处理';
+  } else if (syncStatus === 'PUBLISHED') {
+    stage = 'published';
+    statusLabel = '已发布';
+  } else if (syncStatus || (Number.isInteger(postId) && postId > 0)) {
+    stage = 'draft';
+    statusLabel = syncStatus === 'DRAFT' ? '草稿已同步' : (syncStatus || '已同步');
+  }
+
+  let unavailableReason = '';
+  if (!file) unavailableReason = '打开一篇 Markdown 笔记后即可发布。';
+  else if (!isMarkdown) unavailableReason = '当前文件不是 Markdown 笔记。';
+  else if (isProtected) unavailableReason = '00_Notion_Raw 是只读迁移源，请先把笔记整理到其他目录。';
+
+  return {
+    eligible,
+    unavailableReason,
+    title: firstNonEmpty(mapped?.payload?.title, file?.basename, '未选择笔记'),
+    path,
+    categoryCode: firstNonEmpty(mapped?.payload?.categoryCode, '—'),
+    visibility: firstNonEmpty(mapped?.payload?.visibility, '—').toUpperCase(),
+    visualCount: Math.max(0, Number(visualCount) || 0),
+    postId: Number.isInteger(postId) && postId > 0 ? postId : null,
+    syncStatus,
+    syncedAt: firstNonEmpty(frontmatter.shizuki_synced_at),
+    stage,
+    statusLabel,
+    hasSession,
+    accountLabel,
+    busy: Boolean(busy),
+    error: normalizeString(error),
+    canPreview: eligible && !busy,
+    canPublish: eligible && hasSession && !busy
+  };
+}
+
 function stripTargetDecorations(target) {
   const normalized = normalizeString(target).replace(/^<|>$/g, '');
   return normalized.split('#')[0].split('?')[0];
@@ -248,6 +314,8 @@ module.exports = {
   stripYamlFrontmatter,
   normalizeStringArray,
   buildPostPayload,
+  choosePublisherLeafStrategy,
+  buildPublisherSidebarState,
   extensionForTarget,
   isSupportedVisualTarget,
   discoverVisualEmbeds,

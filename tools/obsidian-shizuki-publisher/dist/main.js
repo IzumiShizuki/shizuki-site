@@ -64,6 +64,64 @@ var require_core = __commonJS({
         }
       };
     }
+    function choosePublisherLeafStrategy(existingLeafCount) {
+      return Number(existingLeafCount) > 0 ? "reuse" : "create";
+    }
+    function buildPublisherSidebarState({
+      file = null,
+      frontmatter = {},
+      mapped = null,
+      visualCount = 0,
+      session = {},
+      busy = false,
+      error = ""
+    } = {}) {
+      const path = normalizeString(file?.path);
+      const isMarkdown = Boolean(file) && normalizeString(file?.extension).toLowerCase() === "md";
+      const isProtected = path.replace(/\\/g, "/").toLowerCase().startsWith("00_notion_raw/");
+      const eligible = isMarkdown && !isProtected;
+      const hasSession = Boolean(session.account || session.hasAccessToken || session.hasRefreshToken);
+      const account = session.account && typeof session.account === "object" ? session.account : null;
+      const accountLabel = account ? firstNonEmpty(account.nickname, account.email, account.userId, "\u5DF2\u8FDE\u63A5") : hasSession ? "\u5DF2\u6709\u5B89\u5168\u4F1A\u8BDD" : "\u5C1A\u672A\u767B\u5F55";
+      const syncStatus = firstNonEmpty(frontmatter.shizuki_sync_status).toUpperCase();
+      const postId = Number(mapped?.postId ?? frontmatter.shizuki_post_id);
+      let stage = "local";
+      let statusLabel = "\u4EC5\u5728\u672C\u5730";
+      if (normalizeString(error)) {
+        stage = "error";
+        statusLabel = "\u9700\u8981\u5904\u7406";
+      } else if (syncStatus === "PUBLISHED") {
+        stage = "published";
+        statusLabel = "\u5DF2\u53D1\u5E03";
+      } else if (syncStatus || Number.isInteger(postId) && postId > 0) {
+        stage = "draft";
+        statusLabel = syncStatus === "DRAFT" ? "\u8349\u7A3F\u5DF2\u540C\u6B65" : syncStatus || "\u5DF2\u540C\u6B65";
+      }
+      let unavailableReason = "";
+      if (!file) unavailableReason = "\u6253\u5F00\u4E00\u7BC7 Markdown \u7B14\u8BB0\u540E\u5373\u53EF\u53D1\u5E03\u3002";
+      else if (!isMarkdown) unavailableReason = "\u5F53\u524D\u6587\u4EF6\u4E0D\u662F Markdown \u7B14\u8BB0\u3002";
+      else if (isProtected) unavailableReason = "00_Notion_Raw \u662F\u53EA\u8BFB\u8FC1\u79FB\u6E90\uFF0C\u8BF7\u5148\u628A\u7B14\u8BB0\u6574\u7406\u5230\u5176\u4ED6\u76EE\u5F55\u3002";
+      return {
+        eligible,
+        unavailableReason,
+        title: firstNonEmpty(mapped?.payload?.title, file?.basename, "\u672A\u9009\u62E9\u7B14\u8BB0"),
+        path,
+        categoryCode: firstNonEmpty(mapped?.payload?.categoryCode, "\u2014"),
+        visibility: firstNonEmpty(mapped?.payload?.visibility, "\u2014").toUpperCase(),
+        visualCount: Math.max(0, Number(visualCount) || 0),
+        postId: Number.isInteger(postId) && postId > 0 ? postId : null,
+        syncStatus,
+        syncedAt: firstNonEmpty(frontmatter.shizuki_synced_at),
+        stage,
+        statusLabel,
+        hasSession,
+        accountLabel,
+        busy: Boolean(busy),
+        error: normalizeString(error),
+        canPreview: eligible && !busy,
+        canPublish: eligible && hasSession && !busy
+      };
+    }
     function stripTargetDecorations(target) {
       const normalized = normalizeString(target).replace(/^<|>$/g, "");
       return normalized.split("#")[0].split("?")[0];
@@ -216,6 +274,8 @@ var require_core = __commonJS({
       stripYamlFrontmatter,
       normalizeStringArray,
       buildPostPayload,
+      choosePublisherLeafStrategy,
+      buildPublisherSidebarState,
       extensionForTarget,
       isSupportedVisualTarget,
       discoverVisualEmbeds,
@@ -238,6 +298,7 @@ var {
   Notice,
   PluginSettingTab,
   FuzzySuggestModal,
+  ItemView,
   TFile,
   requestUrl,
   normalizePath
@@ -246,6 +307,7 @@ var core = require_core();
 var REFRESH_TOKEN_SECRET_ID = "shizuki-site-publisher-refresh-token";
 var BACKGROUND_FOLDER = "90-Assets/images/Backgrounds";
 var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+var PUBLISHER_VIEW_TYPE = "shizuki-publisher-sidebar";
 var DEFAULT_SETTINGS = {
   siteUrl: "https://shizuki.site",
   editorUrl: "https://embed.diagrams.net/",
@@ -518,9 +580,13 @@ var SignInModal = class extends Modal {
         }
         this.close();
         this.plugin.settingTab?.display();
+        this.plugin.lastPublisherError = "";
+        this.plugin.refreshPublisherViews();
       } catch (error) {
         this.password = "";
         new Notice(`\u767B\u5F55\u5931\u8D25\uFF1A${error.message}`, 8e3);
+        this.plugin.lastPublisherError = error.message;
+        this.plugin.refreshPublisherViews();
       } finally {
         this.busy = false;
         button.setDisabled(false).setButtonText("\u767B\u5F55");
@@ -610,6 +676,186 @@ var BackgroundChooserModal = class extends FuzzySuggestModal {
     new Notice(`\u80CC\u666F\u5DF2\u5207\u6362\uFF1A${file.name}`);
   }
 };
+function sidebarVisibilityLabel(visibility) {
+  return {
+    PUBLIC: "\u516C\u5F00",
+    PRIVATE: "\u79C1\u5BC6",
+    UNLISTED: "\u4E0D\u5217\u51FA"
+  }[visibility] || visibility || "\u2014";
+}
+function sidebarTimeLabel(value) {
+  if (!value) return "\u5C1A\u672A\u540C\u6B65";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+var ShizukiPublisherView = class extends ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.renderVersion = 0;
+    this.localBusy = false;
+    this.localError = "";
+  }
+  getViewType() {
+    return PUBLISHER_VIEW_TYPE;
+  }
+  getDisplayText() {
+    return "Shizuki \u53D1\u5E03";
+  }
+  getIcon() {
+    return "send";
+  }
+  async onOpen() {
+    this.contentEl.addClass("shizuki-publisher-sidebar");
+    await this.refresh();
+  }
+  async onClose() {
+    this.renderVersion += 1;
+    this.contentEl.empty();
+  }
+  async refresh() {
+    const version = ++this.renderVersion;
+    try {
+      const state = await this.plugin.getPublisherSidebarState({
+        busy: this.localBusy || this.plugin.publisherBusy,
+        error: this.localError || this.plugin.lastPublisherError
+      });
+      if (version === this.renderVersion) this.render(state);
+    } catch (error) {
+      if (version !== this.renderVersion) return;
+      this.render(core.buildPublisherSidebarState({
+        session: this.plugin.getPublisherSessionState(),
+        busy: this.localBusy,
+        error: error.message
+      }));
+    }
+  }
+  createAction(container, { text, className = "", disabled = false, title = text, onClick }) {
+    const button = container.createEl("button", {
+      cls: `shizuki-publisher-action ${className}`.trim(),
+      text
+    });
+    button.disabled = Boolean(disabled);
+    button.setAttr("aria-label", title);
+    button.setAttr("title", title);
+    button.addEventListener("click", onClick);
+    return button;
+  }
+  async runAction(action) {
+    if (this.localBusy || this.plugin.publisherBusy) return;
+    this.localBusy = true;
+    this.localError = "";
+    await this.refresh();
+    try {
+      await action();
+    } catch (error) {
+      this.localError = error.message;
+    } finally {
+      this.localBusy = false;
+      await this.refresh();
+    }
+  }
+  addMetadataRow(container, label, value, title = value) {
+    const row = container.createDiv({ cls: "shizuki-publisher-meta-row" });
+    row.createSpan({ cls: "shizuki-publisher-meta-label", text: label });
+    const valueEl = row.createSpan({ cls: "shizuki-publisher-meta-value", text: String(value) });
+    valueEl.setAttr("title", String(title));
+  }
+  render(state) {
+    const root = this.contentEl;
+    root.empty();
+    root.setAttr("data-stage", state.stage);
+    const header = root.createDiv({ cls: "shizuki-publisher-header" });
+    header.createDiv({ cls: "shizuki-publisher-eyebrow", text: "SHIZUKI.SITE" });
+    header.createEl("h2", { text: "\u53D1\u5E03\u53F0" });
+    header.createEl("p", { text: "\u8BA9\u7B14\u8BB0\u4ECE\u8FD9\u91CC\u62B5\u8FBE\u4F60\u7684\u535A\u5BA2\u3002" });
+    const session = root.createDiv({ cls: "shizuki-publisher-session" });
+    const sessionCopy = session.createDiv({ cls: "shizuki-publisher-session-copy" });
+    const sessionState = sessionCopy.createDiv({ cls: "shizuki-publisher-session-state" });
+    sessionState.createSpan({ cls: `shizuki-publisher-session-dot${state.hasSession ? " is-connected" : ""}` });
+    sessionState.createSpan({ text: state.hasSession ? "\u7F51\u7AD9\u5DF2\u8FDE\u63A5" : "\u7F51\u7AD9\u672A\u8FDE\u63A5" });
+    sessionCopy.createDiv({ cls: "shizuki-publisher-session-account", text: state.accountLabel });
+    if (state.hasSession) {
+      this.createAction(session, {
+        text: "\u9000\u51FA",
+        className: "is-quiet",
+        title: "\u9000\u51FA shizuki.site",
+        disabled: state.busy,
+        onClick: () => this.runAction(async () => {
+          await this.plugin.api.signOut();
+          this.plugin.lastPublisherError = "";
+          new Notice("\u5DF2\u9000\u51FA shizuki.site");
+          this.plugin.settingTab?.display();
+          this.plugin.refreshPublisherViews();
+        })
+      });
+    } else {
+      this.createAction(session, {
+        text: "\u767B\u5F55",
+        className: "is-quiet",
+        title: "\u767B\u5F55 shizuki.site",
+        disabled: state.busy,
+        onClick: () => new SignInModal(this.app, this.plugin).open()
+      });
+    }
+    if (!state.eligible) {
+      const empty = root.createDiv({ cls: "shizuki-publisher-empty" });
+      empty.createDiv({ cls: "shizuki-publisher-empty-mark", text: "\uFF0B" });
+      empty.createEl("h3", { text: "\u7B49\u5F85\u4E00\u7BC7\u7B14\u8BB0" });
+      empty.createEl("p", { text: state.unavailableReason });
+    } else {
+      const card = root.createDiv({ cls: `shizuki-publisher-note-card is-${state.stage}` });
+      card.createDiv({ cls: "shizuki-publisher-sync-rail", attr: { "aria-hidden": "true" } });
+      const cardBody = card.createDiv({ cls: "shizuki-publisher-note-body" });
+      const status = cardBody.createDiv({ cls: "shizuki-publisher-note-status" });
+      status.setAttr("aria-live", "polite");
+      status.createSpan({ cls: "shizuki-publisher-status-dot" });
+      status.createSpan({ text: state.busy ? "\u6B63\u5728\u5904\u7406\u2026" : state.statusLabel });
+      cardBody.createEl("h3", { text: state.title, attr: { title: state.title } });
+      cardBody.createDiv({ cls: "shizuki-publisher-note-path", text: state.path, attr: { title: state.path } });
+      const metadata = cardBody.createDiv({ cls: "shizuki-publisher-metadata" });
+      this.addMetadataRow(metadata, "\u5206\u7C7B", state.categoryCode);
+      this.addMetadataRow(metadata, "\u53EF\u89C1\u6027", sidebarVisibilityLabel(state.visibility), state.visibility);
+      this.addMetadataRow(metadata, "\u672C\u5730\u56FE\u7247", `${state.visualCount} \u4E2A`);
+      this.addMetadataRow(metadata, "\u8FDC\u7AEF\u6587\u7AE0", state.postId ? `#${state.postId}` : "\u5C1A\u672A\u521B\u5EFA");
+      this.addMetadataRow(metadata, "\u6700\u8FD1\u540C\u6B65", sidebarTimeLabel(state.syncedAt), state.syncedAt || "\u5C1A\u672A\u540C\u6B65");
+    }
+    if (state.error) {
+      const error = root.createDiv({ cls: "shizuki-publisher-error", text: state.error });
+      error.setAttr("role", "alert");
+    } else if (state.eligible && !state.hasSession) {
+      root.createDiv({ cls: "shizuki-publisher-hint", text: "\u5148\u767B\u5F55\u7F51\u7AD9\uFF0C\u5373\u53EF\u4E0A\u4F20\u8349\u7A3F\u6216\u6B63\u5F0F\u53D1\u5E03\u3002" });
+    }
+    const actions = root.createDiv({ cls: "shizuki-publisher-actions" });
+    this.createAction(actions, {
+      text: "\u9884\u89C8\u53D1\u5E03\u5185\u5BB9",
+      className: "is-secondary",
+      disabled: !state.canPreview,
+      title: "\u9884\u89C8\u5F53\u524D\u7B14\u8BB0\u7684\u53D1\u5E03\u8F7D\u8377",
+      onClick: () => this.runAction(() => this.plugin.previewActivePayload())
+    });
+    this.createAction(actions, {
+      text: state.busy ? "\u6B63\u5728\u5904\u7406\u2026" : "\u4E0A\u4F20\u4E3A\u8349\u7A3F",
+      className: "is-primary",
+      disabled: !state.canPublish,
+      title: state.hasSession ? "\u4E0A\u4F20\u5F53\u524D\u7B14\u8BB0\u4E3A\u7F51\u7AD9\u8349\u7A3F" : "\u8BF7\u5148\u767B\u5F55\u7F51\u7AD9",
+      onClick: () => this.runAction(() => this.plugin.uploadActiveNote(false))
+    });
+    this.createAction(actions, {
+      text: "\u786E\u8BA4\u5E76\u6B63\u5F0F\u53D1\u5E03",
+      className: "is-publish",
+      disabled: !state.canPublish,
+      title: state.hasSession ? "\u786E\u8BA4\u540E\u6B63\u5F0F\u53D1\u5E03\u5F53\u524D\u7B14\u8BB0" : "\u8BF7\u5148\u767B\u5F55\u7F51\u7AD9",
+      onClick: () => this.runAction(() => this.plugin.publishActiveNote())
+    });
+  }
+};
 var ShizukiPublisherSettingTab = class extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -634,7 +880,9 @@ var ShizukiPublisherSettingTab = class extends PluginSettingTab {
     const accountLabel = this.plugin.api.account ? String(this.plugin.api.account.nickname || this.plugin.api.account.email || this.plugin.api.account.userId || "\u5DF2\u767B\u5F55") : this.plugin.api.refreshToken ? "\u5DF2\u6709\u5B89\u5168\u4F1A\u8BDD\uFF08\u4E0B\u6B21\u8BF7\u6C42\u81EA\u52A8\u5237\u65B0\uFF09" : "\u672A\u767B\u5F55";
     new Setting(containerEl).setName("\u7F51\u7AD9\u8D26\u6237").setDesc(accountLabel).addButton((button) => button.setButtonText("\u767B\u5F55").onClick(() => new SignInModal(this.app, this.plugin).open())).addButton((button) => button.setButtonText("\u9000\u51FA").setWarning().onClick(async () => {
       await this.plugin.api.signOut();
+      this.plugin.lastPublisherError = "";
       new Notice("\u5DF2\u9000\u51FA shizuki.site");
+      this.plugin.refreshPublisherViews();
       this.display();
     }));
     new Setting(containerEl).setName("Draw.io \u7F16\u8F91\u5668").setDesc("\u4E0E shizuki.site \u767D\u677F\u5171\u7528\u7684 diagrams.net \u5730\u5740").addText((text) => text.setValue(this.plugin.settings.editorUrl).onChange(async (value) => {
@@ -651,17 +899,31 @@ var ShizukiPublisherSettingTab = class extends PluginSettingTab {
 var ShizukiSitePublisherPlugin = class extends Plugin {
   async onload() {
     await this.loadSettings();
+    this.publisherBusy = false;
+    this.lastPublisherError = "";
+    this.publisherRefreshTimer = null;
     this.api = new ShizukiApiClient(this);
     this.api.loadStoredRefreshToken();
     this.settingTab = new ShizukiPublisherSettingTab(this.app, this);
     this.addSettingTab(this.settingTab);
+    this.registerView(PUBLISHER_VIEW_TYPE, (leaf) => new ShizukiPublisherView(leaf, this));
     this.registerCommands();
+    this.addRibbonIcon("send", "\u6253\u5F00 Shizuki \u53D1\u5E03\u4FA7\u680F", () => this.activatePublisherView());
     this.addRibbonIcon("upload", "\u4E0A\u4F20\u5F53\u524D\u7B14\u8BB0\u5230 shizuki.site", () => this.uploadActiveNote(false));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.schedulePublisherRefresh()));
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.schedulePublisherRefresh()));
+    this.registerEvent(this.app.metadataCache.on("changed", (file) => {
+      if (file === this.app.workspace.getActiveFile()) this.schedulePublisherRefresh();
+    }));
+    this.register(() => {
+      if (this.publisherRefreshTimer != null) window.clearTimeout(this.publisherRefreshTimer);
+    });
     this.applyBackground();
   }
   onunload() {
     document.body.classList.remove("shizuki-dark-vault", "shizuki-background-enabled");
     document.body.style.removeProperty("--shizuki-background-image");
+    this.app.workspace.detachLeavesOfType(PUBLISHER_VIEW_TYPE);
     if (this.api) {
       this.api.accessToken = "";
       this.api.refreshToken = "";
@@ -680,8 +942,14 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
       backgroundPath: this.settings.backgroundPath
     };
     await this.saveData(safeSettings);
+    this.refreshPublisherViews();
   }
   registerCommands() {
+    this.addCommand({
+      id: "open-publisher-sidebar",
+      name: "\u6253\u5F00\u53D1\u5E03\u4FA7\u680F",
+      callback: () => this.activatePublisherView()
+    });
     this.addCommand({
       id: "sign-in",
       name: "\u767B\u5F55\u7F51\u7AD9",
@@ -722,8 +990,70 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
       name: "\u9000\u51FA\u767B\u5F55",
       callback: async () => {
         await this.api.signOut();
+        this.lastPublisherError = "";
         new Notice("\u5DF2\u9000\u51FA shizuki.site");
+        this.settingTab?.display();
+        this.refreshPublisherViews();
       }
+    });
+  }
+  async activatePublisherView() {
+    const leaves = this.app.workspace.getLeavesOfType(PUBLISHER_VIEW_TYPE);
+    let leaf = leaves[0] || null;
+    if (core.choosePublisherLeafStrategy(leaves.length) === "create") {
+      leaf = this.app.workspace.getLeftLeaf(false);
+      if (!leaf) throw new Error("\u65E0\u6CD5\u521B\u5EFA Shizuki \u53D1\u5E03\u4FA7\u680F");
+      await leaf.setViewState({ type: PUBLISHER_VIEW_TYPE, active: true });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+    leaf.view?.refresh?.();
+  }
+  schedulePublisherRefresh() {
+    if (this.publisherRefreshTimer != null) window.clearTimeout(this.publisherRefreshTimer);
+    this.publisherRefreshTimer = window.setTimeout(() => {
+      this.publisherRefreshTimer = null;
+      this.refreshPublisherViews();
+    }, 80);
+  }
+  refreshPublisherViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType(PUBLISHER_VIEW_TYPE)) {
+      leaf.view?.refresh?.();
+    }
+  }
+  getPublisherSessionState() {
+    return {
+      account: this.api?.account || null,
+      hasAccessToken: Boolean(this.api?.accessToken),
+      hasRefreshToken: Boolean(this.api?.refreshToken)
+    };
+  }
+  async getPublisherSidebarState({ busy = false, error = "" } = {}) {
+    const file = this.app.workspace.getActiveFile();
+    let frontmatter = {};
+    let mapped = null;
+    let visualCount = 0;
+    if (file instanceof TFile && file.extension === "md") {
+      const markdown = await this.app.vault.read(file);
+      frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter || {};
+      mapped = core.buildPostPayload({
+        fileBasename: file.basename,
+        frontmatter,
+        markdown,
+        defaults: {
+          categoryCode: this.settings.defaultCategoryCode,
+          visibility: this.settings.defaultVisibility
+        }
+      });
+      visualCount = core.discoverVisualEmbeds(mapped.payload.markdown).length;
+    }
+    return core.buildPublisherSidebarState({
+      file,
+      frontmatter,
+      mapped,
+      visualCount,
+      session: this.getPublisherSessionState(),
+      busy,
+      error
     });
   }
   activeNoteCommand(checking, callback) {
@@ -762,17 +1092,28 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
   }
   async previewActivePayload() {
     try {
+      this.lastPublisherError = "";
       const context = await this.buildActiveContext();
       const embeds = core.discoverVisualEmbeds(context.payload.markdown);
       new PayloadPreviewModal(this.app, {
         payload: { postId: context.postId, ...context.payload },
         embedCount: embeds.length
       }).open();
+      this.refreshPublisherViews();
     } catch (error) {
+      this.lastPublisherError = error.message;
+      this.refreshPublisherViews();
       new Notice(error.message, 7e3);
     }
   }
   async uploadActiveNote(publishAfterUpload) {
+    if (this.publisherBusy) {
+      new Notice("\u5DF2\u6709 Shizuki \u53D1\u5E03\u4EFB\u52A1\u6B63\u5728\u8FDB\u884C\u4E2D");
+      return null;
+    }
+    this.publisherBusy = true;
+    this.lastPublisherError = "";
+    this.refreshPublisherViews();
     const progress = new Notice("Shizuki\uFF1A\u51C6\u5907\u53D1\u5E03\u8F7D\u8377\u2026", 0);
     try {
       const context = await this.buildActiveContext();
@@ -808,8 +1149,12 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
       return postId;
     } catch (error) {
       progress.hide();
+      this.lastPublisherError = error.message;
       new Notice(`Shizuki \u53D1\u5E03\u5931\u8D25\uFF1A${error.message}`, 1e4);
       throw error;
+    } finally {
+      this.publisherBusy = false;
+      this.refreshPublisherViews();
     }
   }
   async publishActiveNote() {
@@ -819,6 +1164,8 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
       if (!confirmed) return;
       await this.uploadActiveNote(true);
     } catch (error) {
+      this.lastPublisherError = error.message;
+      this.refreshPublisherViews();
       if (!(error instanceof ApiError)) new Notice(error.message, 7e3);
     }
   }
@@ -1029,6 +1376,8 @@ module.exports = ShizukiSitePublisherPlugin;
 module.exports._test = {
   ApiError,
   ShizukiApiClient,
+  ShizukiPublisherView,
+  PUBLISHER_VIEW_TYPE,
   buildMultipartBody,
   concatBytes,
   safeUploadName

@@ -24,8 +24,13 @@ foreach ($name in @('manifest.json', 'main.js', 'core.js', 'styles.css', 'data.j
 if (-not $failures.Count) {
     $manifest = Get-Content -LiteralPath (Join-Path $pluginDir 'manifest.json') -Raw | ConvertFrom-Json
     Assert-Condition ($manifest.id -eq 'shizuki-site-publisher') 'manifest id is shizuki-site-publisher'
+    Assert-Condition ($manifest.version -eq '0.2.0') 'publisher sidebar release version is installed'
     $pluginDataRaw = Get-Content -LiteralPath (Join-Path $pluginDir 'data.json') -Raw
     Assert-Condition ($pluginDataRaw -notmatch '(?i)accessToken|refreshToken|password') 'plugin data contains no credential fields'
+    $publisherMain = Get-Content -LiteralPath (Join-Path $pluginDir 'main.js') -Raw
+    $publisherStyles = Get-Content -LiteralPath (Join-Path $pluginDir 'styles.css') -Raw
+    Assert-Condition ($publisherMain.Contains('shizuki-publisher-sidebar')) 'publisher runtime contains the sidebar view'
+    Assert-Condition ($publisherStyles.Contains('.shizuki-publisher-sidebar')) 'publisher sidebar styles are installed'
 }
 
 $enabled = @((Get-Content -LiteralPath (Join-Path $obsidianDir 'community-plugins.json') -Raw | ConvertFrom-Json))
@@ -59,10 +64,16 @@ if (-not $SkipRuntime) {
         & $ObsidianCli "vault=$VaultName" plugin:enable id=shizuki-site-publisher | Out-Null
         & $ObsidianCli "vault=$VaultName" plugin:reload id=drawio | Out-Null
         & $ObsidianCli "vault=$VaultName" plugin:reload id=shizuki-site-publisher | Out-Null
-        $runtime = & $ObsidianCli "vault=$VaultName" eval 'code=JSON.stringify((()=>{const p=app.plugins.getPlugin("shizuki-site-publisher"); const d=app.plugins.getPlugin("drawio"); return {publisherLoaded:Boolean(p),backgroundClass:document.body.classList.contains("shizuki-dark-vault"),uploadCommand:Boolean(app.commands.findCommand("shizuki-site-publisher:upload-active-note")),publishCommand:Boolean(app.commands.findCommand("shizuki-site-publisher:publish-active-note")),drawioUrl:d?.settings?.editorUrl,drawioTheme:d?.settings?.EditorTheme};})())'
+        & $ObsidianCli "vault=$VaultName" command id=shizuki-site-publisher:open-publisher-sidebar | Out-Null
+        & $ObsidianCli "vault=$VaultName" command id=shizuki-site-publisher:open-publisher-sidebar | Out-Null
+        Start-Sleep -Milliseconds 300
+        $runtime = & $ObsidianCli "vault=$VaultName" eval 'code=JSON.stringify((()=>{const p=app.plugins.getPlugin("shizuki-site-publisher"); const d=app.plugins.getPlugin("drawio"); const sidebars=app.workspace.getLeavesOfType("shizuki-publisher-sidebar"); return {publisherLoaded:Boolean(p),backgroundClass:document.body.classList.contains("shizuki-dark-vault"),uploadCommand:Boolean(app.commands.findCommand("shizuki-site-publisher:upload-active-note")),publishCommand:Boolean(app.commands.findCommand("shizuki-site-publisher:publish-active-note")),openSidebarCommand:Boolean(app.commands.findCommand("shizuki-site-publisher:open-publisher-sidebar")),sidebarLeaves:sidebars.length,sidebarHasActions:sidebars.some(leaf=>leaf.view?.contentEl?.textContent?.includes("上传为草稿")),drawioUrl:d?.settings?.editorUrl,drawioTheme:d?.settings?.EditorTheme};})())'
         Assert-Condition ($runtime -match '"publisherLoaded":true') 'publisher runtime loads in Obsidian'
         Assert-Condition ($runtime -match '"backgroundClass":true') 'dark background runtime class is active'
         Assert-Condition ($runtime -match '"uploadCommand":true' -and $runtime -match '"publishCommand":true') 'upload and publish commands are registered'
+        Assert-Condition ($runtime -match '"openSidebarCommand":true') 'publisher sidebar command is registered'
+        Assert-Condition ($runtime -match '"sidebarLeaves":1') 'publisher sidebar opens once and reuses its existing leaf'
+        Assert-Condition ($runtime -match '"sidebarHasActions":true') 'publisher sidebar renders quick publishing actions'
         Assert-Condition ($runtime -match '"drawioUrl":"https://embed.diagrams.net/"') 'draw.io runtime resolves the shared editor setting'
 
         try {

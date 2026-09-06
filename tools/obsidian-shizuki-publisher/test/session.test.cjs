@@ -12,6 +12,7 @@ const obsidianMock = {
   Notice: class {},
   PluginSettingTab: class {},
   FuzzySuggestModal: class {},
+  ItemView: class {},
   TFile: class {},
   requestUrl: (options) => requestHandler(options),
   normalizePath: (value) => String(value).replace(/\\/g, '/')
