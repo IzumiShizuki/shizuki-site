@@ -12,6 +12,8 @@ const {
   normalizeTokenPayload,
   choosePublisherLeafStrategy,
   buildPublisherSidebarState,
+  toSnakeCaseDeep,
+  migratePublisherSiteUrl,
   buildDrawioEditorUrl,
   patchDrawioBundle
 } = require('../core');
@@ -151,6 +153,25 @@ test('chooses one reusable publisher leaf before creating another', () => {
   assert.equal(choosePublisherLeafStrategy(0), 'create');
   assert.equal(choosePublisherLeafStrategy(1), 'reuse');
   assert.equal(choosePublisherLeafStrategy(3), 'reuse');
+});
+
+test('uses the production site origin while preserving explicit custom origins', () => {
+  assert.equal(migratePublisherSiteUrl('https://shizuki.site'), 'https://site.shizuki.online');
+  assert.equal(migratePublisherSiteUrl('https://shizuki.site/'), 'https://site.shizuki.online');
+  assert.equal(migratePublisherSiteUrl('https://staging.example.test/'), 'https://staging.example.test/');
+  assert.equal(migratePublisherSiteUrl(''), 'https://site.shizuki.online');
+});
+
+test('converts nested JSON keys to snake case without changing values', () => {
+  assert.deepEqual(toSnakeCaseDeep({
+    grantType: 'EMAIL_PASSWORD',
+    allowedGroupCodes: ['friends'],
+    metadata: { sourcePostId: 7, displayName: 'A-B' }
+  }), {
+    grant_type: 'EMAIL_PASSWORD',
+    allowed_group_codes: ['friends'],
+    metadata: { source_post_id: 7, display_name: 'A-B' }
+  });
 });
 
 test('builds the shared draw.io JSON embed URL with dark UI', () => {

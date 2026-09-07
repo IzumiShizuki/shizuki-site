@@ -9,6 +9,8 @@ var require_core = __commonJS({
   "core.js"(exports2, module2) {
     "use strict";
     var SUPPORTED_IMAGE_EXTENSIONS = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "webp", "gif"]);
+    var PRODUCTION_SITE_URL = "https://site.shizuki.online";
+    var OBSOLETE_SITE_URL = "https://shizuki.site";
     function stripYamlFrontmatter(markdown) {
       const source = String(markdown || "");
       return source.replace(/^\uFEFF?---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/, "");
@@ -19,6 +21,27 @@ var require_core = __commonJS({
     function normalizeStringArray(value) {
       const values = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : value == null ? [] : [value];
       return [...new Set(values.map(normalizeString).filter(Boolean))];
+    }
+    function isPlainObject(value) {
+      return Object.prototype.toString.call(value) === "[object Object]";
+    }
+    function toSnakeKey(key) {
+      return String(key).replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/[\s-]+/g, "_").toLowerCase();
+    }
+    function toSnakeCaseDeep(input) {
+      if (Array.isArray(input)) return input.map((item) => toSnakeCaseDeep(item));
+      if (!isPlainObject(input)) return input;
+      const result = {};
+      for (const [key, value] of Object.entries(input)) {
+        result[toSnakeKey(key)] = toSnakeCaseDeep(value);
+      }
+      return result;
+    }
+    function migratePublisherSiteUrl(value) {
+      const configured = normalizeString(value);
+      if (!configured) return PRODUCTION_SITE_URL;
+      const normalized = configured.replace(/\/+$/, "").toLowerCase();
+      return normalized === OBSOLETE_SITE_URL ? PRODUCTION_SITE_URL : configured;
     }
     function firstNonEmpty(...values) {
       for (const value of values) {
@@ -271,8 +294,11 @@ var require_core = __commonJS({
     }
     module2.exports = {
       SUPPORTED_IMAGE_EXTENSIONS,
+      PRODUCTION_SITE_URL,
       stripYamlFrontmatter,
       normalizeStringArray,
+      toSnakeCaseDeep,
+      migratePublisherSiteUrl,
       buildPostPayload,
       choosePublisherLeafStrategy,
       buildPublisherSidebarState,
@@ -309,7 +335,7 @@ var BACKGROUND_FOLDER = "90-Assets/images/Backgrounds";
 var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 var PUBLISHER_VIEW_TYPE = "shizuki-publisher-sidebar";
 var DEFAULT_SETTINGS = {
-  siteUrl: "https://shizuki.site",
+  siteUrl: core.PRODUCTION_SITE_URL,
   editorUrl: "https://embed.diagrams.net/",
   defaultCategoryCode: "life",
   defaultVisibility: "PUBLIC",
@@ -444,16 +470,26 @@ var ShizukiApiClient = class {
       headers.Authorization = `Bearer ${token}`;
     }
     if (body != null && !(body instanceof ArrayBuffer) && !ArrayBuffer.isView(body) && typeof body !== "string") {
-      body = JSON.stringify(body);
+      body = JSON.stringify(core.toSnakeCaseDeep(body));
       headers["Content-Type"] = headers["Content-Type"] || "application/json";
     }
-    const response = await requestUrl({
-      url,
-      method: options.method || "GET",
-      headers,
-      body: body == null ? void 0 : toArrayBufferIfNeeded(body),
-      throw: false
-    });
+    let response;
+    try {
+      response = await requestUrl({
+        url,
+        method: options.method || "GET",
+        headers,
+        body: body == null ? void 0 : toArrayBufferIfNeeded(body),
+        throw: false
+      });
+    } catch (error) {
+      let origin = normalizeSiteUrl(this.plugin.settings.siteUrl);
+      try {
+        origin = new URL(url).origin;
+      } catch {
+      }
+      throw new Error(`\u65E0\u6CD5\u8FDE\u63A5 ${origin}\uFF1A\u8BF7\u68C0\u67E5\u7F51\u7AD9\u5730\u5740\u6216\u7F51\u7EDC\uFF08${error.message}\uFF09`);
+    }
     const payload = responsePayload(response);
     if (response.status === 401 && options.auth && options.retry !== false && this.refreshToken) {
       await this.refreshAccessToken();
@@ -932,6 +968,11 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const migratedSiteUrl = core.migratePublisherSiteUrl(this.settings.siteUrl);
+    if (migratedSiteUrl !== this.settings.siteUrl) {
+      this.settings.siteUrl = migratedSiteUrl;
+      await this.saveSettings();
+    }
   }
   async saveSettings() {
     const safeSettings = {

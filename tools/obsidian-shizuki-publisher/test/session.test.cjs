@@ -39,7 +39,7 @@ function createPlugin() {
     deleteSecret: (id) => stored.delete(id)
   };
   return {
-    settings: { siteUrl: 'https://shizuki.site' },
+    settings: { siteUrl: 'https://site.shizuki.online' },
     app: { secretStorage },
     stored
   };
@@ -70,7 +70,11 @@ test('sign-in keeps password request-scoped and persists only the refresh token'
   assert.equal(plugin.stored.get('shizuki-site-publisher-refresh-token'), 'refresh-token');
   assert.equal(client.accessToken, 'access-token');
   assert.equal(client.account.nickname, 'Izumi');
-  assert.match(calls[0].body, /request-only-password/);
+  assert.deepEqual(JSON.parse(calls[0].body), {
+    grant_type: 'EMAIL_PASSWORD',
+    email: 'izumi@example.com',
+    password: 'request-only-password'
+  });
   assert.doesNotMatch(JSON.stringify(plugin), /request-only-password|access-token/);
 });
 
@@ -81,9 +85,11 @@ test('an unauthorized request refreshes once and retries once', async () => {
   client.refreshToken = 'refresh-token';
   let protectedCalls = 0;
   let refreshCalls = 0;
+  const refreshBodies = [];
   requestHandler = async (options) => {
     if (options.url.endsWith('/api/v1/auth/tokens')) {
       refreshCalls += 1;
+      refreshBodies.push(options.body);
       return response(200, {
         code: 0,
         data: { resultType: 'TOKEN_ISSUED', accessToken: 'fresh', refreshToken: 'rotated' }
@@ -99,4 +105,49 @@ test('an unauthorized request refreshes once and retries once', async () => {
   assert.deepEqual(payload, { postId: 11 });
   assert.equal(refreshCalls, 1);
   assert.equal(protectedCalls, 2);
+  assert.deepEqual(JSON.parse(refreshBodies.at(-1) || '{}'), {
+    grant_type: 'REFRESH_TOKEN',
+    refresh_token: 'refresh-token'
+  });
+});
+
+test('serializes nested JSON but preserves binary and pre-serialized bodies', async () => {
+  const plugin = createPlugin();
+  const bodies = [];
+  requestHandler = async (options) => {
+    bodies.push(options.body);
+    return response(200, { code: 0, data: { ok: true } });
+  };
+  const client = new MainPlugin._test.ShizukiApiClient(plugin);
+  await client.rawRequest('/api/v1/me/posts', {
+    method: 'POST',
+    body: { categoryCode: 'life', metadata: { sourcePostId: 4 }, tags: ['one'] }
+  });
+  const binary = new Uint8Array([1, 2, 3]).buffer;
+  await client.rawRequest('/upload', { method: 'POST', body: binary });
+  const serialized = '{"already_serialized":true}';
+  await client.rawRequest('/raw', { method: 'POST', body: serialized });
+  assert.deepEqual(JSON.parse(bodies[0]), {
+    category_code: 'life',
+    metadata: { source_post_id: 4 },
+    tags: ['one']
+  });
+  assert.deepEqual([...new Uint8Array(bodies[1])], [1, 2, 3]);
+  assert.equal(bodies[2], serialized);
+});
+
+test('adds the configured origin to transport failures and preserves HTTP problem errors', async () => {
+  const plugin = createPlugin();
+  const client = new MainPlugin._test.ShizukiApiClient(plugin);
+  requestHandler = async () => { throw new Error('net::ERR_NAME_NOT_RESOLVED'); };
+  await assert.rejects(
+    () => client.rawRequest('/api/v1/me'),
+    /无法连接 https:\/\/site\.shizuki\.online/
+  );
+
+  requestHandler = async () => response(401, { detail: 'Invalid email or password' });
+  await assert.rejects(
+    () => client.rawRequest('/api/v1/auth/tokens'),
+    (error) => error.name === 'ApiError' && error.status === 401 && error.message === 'Invalid email or password'
+  );
 });

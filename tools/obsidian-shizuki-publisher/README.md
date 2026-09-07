@@ -9,6 +9,8 @@
 - 与网站共用 `https://embed.diagrams.net/` 编辑器；
 - 中性暗色界面以及本地背景图片选择器。
 
+生产站点与 API 地址为 `https://site.shizuki.online`。插件会自动迁移旧的 `https://shizuki.site` 默认值，并按网站 API 要求将 JSON 字段转换为 snake_case；自行配置的其他 HTTP(S) 地址不会被覆盖。
+
 ## 左侧发布台
 
 点击 Obsidian 左侧功能区的纸飞机图标，或在命令面板执行 `Shizuki: 打开发布侧栏`。发布台会固定在左侧并随当前笔记更新，集中显示：
@@ -50,6 +52,8 @@ tags:
 - `Shizuki: 退出登录`
 
 `00_Notion_Raw` 被视为只读迁移源，插件拒绝从该目录发布。
+
+如果登录提示无法连接，请先在插件设置确认网站地址为 `https://site.shizuki.online`。网络层错误会显示实际请求域名；账号或密码错误则会保留网站返回的明确提示。
 
 ## 背景图片
 

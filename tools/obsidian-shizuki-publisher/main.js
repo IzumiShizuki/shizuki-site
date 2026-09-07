@@ -21,7 +21,7 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const PUBLISHER_VIEW_TYPE = 'shizuki-publisher-sidebar';
 
 const DEFAULT_SETTINGS = {
-  siteUrl: 'https://shizuki.site',
+  siteUrl: core.PRODUCTION_SITE_URL,
   editorUrl: 'https://embed.diagrams.net/',
   defaultCategoryCode: 'life',
   defaultVisibility: 'PUBLIC',
@@ -162,16 +162,27 @@ class ShizukiApiClient {
       headers.Authorization = `Bearer ${token}`;
     }
     if (body != null && !(body instanceof ArrayBuffer) && !ArrayBuffer.isView(body) && typeof body !== 'string') {
-      body = JSON.stringify(body);
+      body = JSON.stringify(core.toSnakeCaseDeep(body));
       headers['Content-Type'] = headers['Content-Type'] || 'application/json';
     }
-    const response = await requestUrl({
-      url,
-      method: options.method || 'GET',
-      headers,
-      body: body == null ? undefined : toArrayBufferIfNeeded(body),
-      throw: false
-    });
+    let response;
+    try {
+      response = await requestUrl({
+        url,
+        method: options.method || 'GET',
+        headers,
+        body: body == null ? undefined : toArrayBufferIfNeeded(body),
+        throw: false
+      });
+    } catch (error) {
+      let origin = normalizeSiteUrl(this.plugin.settings.siteUrl);
+      try {
+        origin = new URL(url).origin;
+      } catch {
+        // The validated configured site origin is sufficient for the message.
+      }
+      throw new Error(`无法连接 ${origin}：请检查网站地址或网络（${error.message}）`);
+    }
     const payload = responsePayload(response);
     if (response.status === 401 && options.auth && options.retry !== false && this.refreshToken) {
       await this.refreshAccessToken();
@@ -735,6 +746,11 @@ class ShizukiSitePublisherPlugin extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const migratedSiteUrl = core.migratePublisherSiteUrl(this.settings.siteUrl);
+    if (migratedSiteUrl !== this.settings.siteUrl) {
+      this.settings.siteUrl = migratedSiteUrl;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {

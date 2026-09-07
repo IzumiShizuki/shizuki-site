@@ -73,8 +73,15 @@ Copy-Item -LiteralPath (Join-Path $pluginRoot 'dist\main.js') -Destination (Join
 
 $pluginDataPath = Join-Path $targetPluginDir 'data.json'
 $pluginData = Read-JsonObject $pluginDataPath
+$configuredSiteUrl = [string]($pluginData.siteUrl ?? '')
+$normalizedSiteUrl = $configuredSiteUrl.Trim().TrimEnd('/').ToLowerInvariant()
+$deployedSiteUrl = if ([string]::IsNullOrWhiteSpace($configuredSiteUrl) -or $normalizedSiteUrl -eq 'https://shizuki.site') {
+    'https://site.shizuki.online'
+} else {
+    $configuredSiteUrl
+}
 foreach ($entry in ([ordered]@{
-    siteUrl = 'https://shizuki.site'
+    siteUrl = $deployedSiteUrl
     editorUrl = 'https://embed.diagrams.net/'
     defaultCategoryCode = 'life'
     defaultVisibility = 'PUBLIC'

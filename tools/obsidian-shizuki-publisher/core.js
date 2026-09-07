@@ -1,6 +1,8 @@
 'use strict';
 
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
+const PRODUCTION_SITE_URL = 'https://site.shizuki.online';
+const OBSOLETE_SITE_URL = 'https://shizuki.site';
 
 function stripYamlFrontmatter(markdown) {
   const source = String(markdown || '');
@@ -20,6 +22,34 @@ function normalizeStringArray(value) {
         ? []
         : [value];
   return [...new Set(values.map(normalizeString).filter(Boolean))];
+}
+
+function isPlainObject(value) {
+  return Object.prototype.toString.call(value) === '[object Object]';
+}
+
+function toSnakeKey(key) {
+  return String(key)
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase();
+}
+
+function toSnakeCaseDeep(input) {
+  if (Array.isArray(input)) return input.map((item) => toSnakeCaseDeep(item));
+  if (!isPlainObject(input)) return input;
+  const result = {};
+  for (const [key, value] of Object.entries(input)) {
+    result[toSnakeKey(key)] = toSnakeCaseDeep(value);
+  }
+  return result;
+}
+
+function migratePublisherSiteUrl(value) {
+  const configured = normalizeString(value);
+  if (!configured) return PRODUCTION_SITE_URL;
+  const normalized = configured.replace(/\/+$/, '').toLowerCase();
+  return normalized === OBSOLETE_SITE_URL ? PRODUCTION_SITE_URL : configured;
 }
 
 function firstNonEmpty(...values) {
@@ -311,8 +341,11 @@ function patchDrawioBundle(source) {
 
 module.exports = {
   SUPPORTED_IMAGE_EXTENSIONS,
+  PRODUCTION_SITE_URL,
   stripYamlFrontmatter,
   normalizeStringArray,
+  toSnakeCaseDeep,
+  migratePublisherSiteUrl,
   buildPostPayload,
   choosePublisherLeafStrategy,
   buildPublisherSidebarState,
