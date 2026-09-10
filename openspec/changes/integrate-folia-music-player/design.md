@@ -4,63 +4,43 @@
 
 | 决策点 | 选择 | 理由 |
 |---|---|---|
-| 部署形态 | 官方 Docker 镜像栈（`papersman/folia-*`） | 无需源码、官方维护、Compose 一键拉起 |
-| 接入方式 | 独立子域名反代（`music.shizuki.online`） | 与主站隔离，AGPL 传染面最小，全屏 UI 完整 |
-| 音源 | 网易云复用现有 `music-ncm-api`；酷狗/QQ 用官方镜像 | 少跑容器、复用已验证的网易云 cookie/登录链 |
-| 主站入口 | 导航外链 | 无需改动组件，避免 iframe 破坏全屏沉浸式布局 |
-| Sync Server | 本期不部署 | 非核心，可后续按官方 guide 补充 |
+| 部署形态 | **本地源码构建镜像**（官方 `papersman/folia-*` 镜像在 Docker Hub 不可达，多加速器均 not found） | 实测可行：gh-proxy 下载源码 + npm ci + vite build 在 node:24-alpine 容器内成功 |
+| 接入方式 | 主域名子路径 `https://shizuki.online/music/`（1Panel openresty 反代） | 用户明确不要新域名/DNS，路由访问即可 |
+| 子路径 | vite 构建注入 `VITE_BASE_PATH=/music`（上游 vite.config.ts 的 `base` 一行改为读环境变量） | 所有资源/API 路径自动带 `/music/` 前缀 |
+| 网关 | 官方 gateway Dockerfile 构建（nginx:1.29-alpine），仅保留根路径 + `/netease/` location | 最小化：酷狗/QQ/backend（AI 主题）未部署，后续需要再加 |
+| 音源 | 网易云**复用现有 `shizuki-site-music-ncm-api` 容器**（gateway 加入 `shizuki-site_default` external 网络） | 少建镜像、复用已验证实例 |
+| 主站入口 | 本次不改 vue3-merged 导航（用户直接用路由访问） | 可后续按需加外链 |
 
 ## 部署拓扑（111.228.35.186）
 
 ```
-Caddy (music.shizuki.online)
-   └── 127.0.0.1:18080 ── folia gateway (nginx:8080)
-                          ├── backend (folia-web-api:3000)
-                          ├── netease-api (:3000)      ← 可选改用现有 music-ncm-api
-                          ├── kugou-api (:3000)
-                          └── qq-api (:3000)           ← 需 QQ_SESSION_SECRET
+浏览器 → https://shizuki.online/music/*
+  → 1Panel openresty: location ^~ /music/ { rewrite ^/music/?(.*)$ /$1 break; proxy_pass 127.0.0.1:18081; }
+  → folia-gateway (nginx:8080, 仅 127.0.0.1:18081 暴露)
+      ├── /netease/ → shizuki-site-music-ncm-api:3000（现有容器，shizuki-site_default 网络）
+      └── / → dist 静态资源（vite base=/music/）
 ```
 
-- 仅 gateway 与 Sync 端口对外；内部服务仅在 Docker 网络内互访（官方 compose 已隔离）。
-- 网易云若复用现有实例，则调整 `VITE_NETEASE_API_BASE` 指向已有容器地址并在其网关放行 Folia 来源 CORS。
+- 端口 `18081`（`18080` 已被 meguri-staging-core-1 占用）。
+- 构建文件：`/opt/folia/deploy/{compose.yaml,gateway.Dockerfile,nginx.conf.template,entrypoint.sh}`；源码 `/opt/folia/folia-major-main`。
+- 镜像：`folia-local/gateway:0.7.7-music`。
 
-## 配置清单（.env）
+## 环境变量（构建期）
 
 ```env
-FOLIA_IMAGE_NAMESPACE=papersman
-FOLIA_STACK_VERSION=latest
-FOLIA_SYNC_VERSION=latest
-SYNC_TOKEN=<openssl rand -hex 32>          # 本期不部署 sync，可留空
-FOLIA_HTTP_BIND=127.0.0.1                   # 只让 Caddy 访问
-FOLIA_HTTP_PORT=18080
-VITE_NETEASE_API_BASE=http://netease-api:3000   # 或复用现有实例地址
-VITE_KUGOU_API_BASE=                        # 空=内置
-VITE_QQ_API_BASE=/api/qq                    # 或留空；填了需 QQ_SESSION_SECRET
-QQ_SESSION_SECRET=<随机长字符串>
-# AI（可选）
-FOLIA_AI_PROVIDER=openai
-OPENAI_API_URL=https://api.deepseek.com
-OPENAI_API_KEY=<deepseek key>
-OPENAI_API_MODEL=deepseek-v4-pro
+VITE_BASE_PATH=/music
+VITE_NETEASE_API_BASE=/netease        # gateway 内 location /netease/ 反代现有 ncm
+FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可用
 ```
-
-## 主站入口（vue3-merged）
-
-在导航配置（首页/顶栏）新增一项：
-
-```js
-{ label: 'Folia 音乐', href: 'https://music.shizuki.online', external: true }
-```
-
-具体挂载位置以实现会话按 `src/` 导航结构确认（推荐放在「音乐」附近或独立入口）。
 
 ## 验证
 
-- `docker compose ps` 全部 healthy；`curl http://127.0.0.1:18080/healthz` 200。
-- 浏览器访问 `https://music.shizuki.online`：搜索/播放/全屏歌词/主题切换正常。
-- 网易云登录（复用现有 cookie 链）；QQ 登录（设备码/扫码）可选。
-- 主站导航入口可达、新标签页打开。
+- `curl https://shizuki.online/music/` → 200，HTML 资源均带 `/music/` 前缀。
+- headless Edge 加载 179 chunks + PWA SW 注册成功（截图 207KB 确认 UI 渲染）。
+- 网易云经 `/music/netease/`：搜索 200（277 结果）、歌词 200、二维码登录 unikey 200。
+- 播放：免费/已登录歌曲可播放；VIP/版权受限歌曲需登录（与官方行为一致）。
 
 ## 回滚
 
-- 删除 `music.shizuki.online` Caddy 规则 + `docker compose down`；主站导航移除入口。不影响现有站点容器。
+- 移除 openresty `location /music/` 块 + reload；`docker compose down`（在 /opt/folia/deploy）。不影响现有站点容器。
+- 服务器配置备份：`/opt/1panel/www/conf.d/10-shizuki-migration.conf.bak-folia-*`。

@@ -2,19 +2,29 @@
 
 ## 待办任务
 
-- [ ] 服务器确认环境：Docker 24+ / Compose v2 可用；Docker Hub 或镜像源可达（拉取 `papersman/folia-*`）；Caddy 可新增 `music.shizuki.online` 域名记录。
-- [ ] 在服务器创建 `folia-docker/` 目录，下载官方 `compose.yaml` 与 `.env.example`，按 design 配置 `.env`（含 `QQ_SESSION_SECRET`、`SYNC_TOKEN`）。
-- [ ] `docker compose config` 校验 → `docker compose pull` → `docker compose up -d --wait` → `docker compose ps` 全部 healthy。
-- [ ] 验证 Web 网关：`curl http://127.0.0.1:18080/healthz` 返回 200；`/api/healthz` 正常。
-- [ ] Caddy 增加 `music.shizuki.online` 反代到 `127.0.0.1:18080`，重载配置。
-- [ ] 域名 `music.shizuki.online` DNS 解析到 `111.228.35.186`（如未解析）。
-- [ ] 主站 `vue3-merged` 导航新增「Folia 音乐」外链入口，本地构建通过。
-- [ ] 浏览器端到端验证：搜索/播放、全屏歌词动画主题、PWA 安装、移动端适配。
-- [ ] 音源验证：网易云登录与播放（复用现有 ncm 实例或内置）；QQ 扫码/设备码登录（可选）；酷狗搜索播放。
-- [ ] `openspec validate integrate-folia-music-player --type change --strict` 通过。
+- [x] 服务器确认环境：Docker 24+ / Compose v2 可用（实测 29.2.1 / v5.0.2）；Docker Hub 直连与 papersman 官方镜像不可达 → 改为本地源码构建。
+- [x] 服务器创建 `folia-docker/`（实际 `/opt/folia/deploy/`），编写自定义 compose 与 .env（实测无需官方镜像）。
+- [x] `docker compose up -d` → gateway 容器 healthy（端口 127.0.0.1:18081）。
+- [x] 验证 Web 网关：`curl http://127.0.0.1:18081/healthz` 200。
+- [x] openresty 配置 `location /music/` 反代（rewrite 去前缀 + proxy_pass 18081），`nginx -t` 通过并 reload。
+- [x] 域名路径 `https://shizuki.online/music/` 本机与服务器均可访问（无需新 DNS）。
+- [x] 主站入口：本次未改 vue3-merged 导航（可后续按需加外链；用户倾向直接用路由访问）。
+- [x] 浏览器端到端验证：headless Edge 加载 179 chunks + PWA SW 注册成功；截图确认 UI 渲染。
+- [x] 音源验证：网易云搜索（277 结果）、歌词（lrc 200）、二维码登录（unikey 正常）通过 gateway /netease/ 反代到现有 music-ncm-api。
+- [x] `openspec validate integrate-folia-music-player --type change --strict` 通过。
 - [ ] 本地 git commit（不 push）。
+
+## 实施要点（供后续维护）
+
+- 镜像：`folia-local/gateway:0.7.7-music`（源码在 `/opt/folia/folia-major-main`，构建文件在 `/opt/folia/deploy/`）。
+- 子路径：vite 构建时 `VITE_BASE_PATH=/music`（改自上游 vite.config.ts 一行），gateway nginx 模板 netease 反代指向 `shizuki-site-music-ncm-api:3000`。
+- 网络：gateway 加入 `shizuki-site_default`（external）以访问现有网易云 API 容器。
+- 酷狗/QQ/AI 主题（backend /api/）：未部署，后续需要时构建对应镜像并恢复 nginx location。
+- 升级：重新下载上游 main 源码 → 重放两处补丁（vite base + nginx 模板）→ `docker compose build`。
 
 ## 已完成任务
 
 - [x] 调研 folia-major：技术栈、Web 版可行性、音源 API 依赖、Docker 部署形态（见 `tmp/folia-integration-plan.md`）。
 - [x] 确定方案 A（独立子路径挂载）并记录 proposal / design / spec。
+- [x] 服务器实测：Docker Hub / papersman 镜像不可达；gh-proxy 可下载源码；npm ci + vite build 在 node:24-alpine 容器内成功。
+- [x] 部署：本地构建 gateway 镜像 → 容器启动 healthy → openresty /music/ 反代 → 端到端验证通过。
