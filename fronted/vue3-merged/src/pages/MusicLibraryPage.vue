@@ -1,12 +1,59 @@
 <template>
-  <section class="route-page music-library-page" :class="{ 'player-detail-route': isPlayerDetailRoute }">
-    <section v-if="fatalErrorText" class="music-fatal-error liquid-material">
+  <section class="route-page music-library-page" :class="{ 'player-detail-route': isPlayerDetailRoute, 'folia-mode-active': foliaMode }">
+    <header class="music-library-mode-switch" role="tablist" aria-label="音乐播放器模式">
+      <div class="mode-switch-inner" role="group">
+        <button
+          class="player-mode-tab ripple-trigger"
+          type="button"
+          role="tab"
+          :aria-selected="!foliaMode"
+          :class="{ active: !foliaMode }"
+          @click="setFoliaMode(false)"
+        >
+          普通模式
+        </button>
+        <button
+          class="player-mode-tab ripple-trigger"
+          type="button"
+          role="tab"
+          :aria-selected="foliaMode"
+          :class="{ active: foliaMode }"
+          @click="setFoliaMode(true)"
+        >
+          Folia 沉浸模式
+        </button>
+        <a
+          v-if="foliaMode"
+          class="folia-open-external ripple-trigger"
+          :href="FOLIA_EMBED_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="在新窗口打开 Folia（全屏沉浸体验）"
+        >
+          <i class="fas fa-external-link-alt"></i>
+          新窗口打开
+        </a>
+      </div>
+    </header>
+
+    <section v-if="foliaMode" class="folia-embed-pane">
+      <iframe
+        class="folia-embed-frame"
+        :src="FOLIA_EMBED_URL"
+        title="Folia 沉浸式音乐播放器"
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        loading="lazy"
+        referrerpolicy="strict-origin-when-cross-origin"
+      ></iframe>
+    </section>
+
+    <section v-if="fatalErrorText && !foliaMode" class="music-fatal-error liquid-material">
       <h3>音乐页面加载失败</h3>
       <p>{{ fatalErrorText }}</p>
       <button class="retry-btn ripple-trigger" type="button" @click="reloadAfterFatalError">重试加载</button>
     </section>
 
-    <div class="music-library-module" :class="{ 'player-detail-only': isPlayerDetailRoute }">
+    <div v-if="!foliaMode" class="music-library-module" :class="{ 'player-detail-only': isPlayerDetailRoute }">
       <template v-if="!isPlayerDetailRoute">
         <button
           v-if="isMobileViewport && (ui.leftDrawerOpen.value || ui.rightDrawerOpen.value)"
@@ -254,6 +301,31 @@ const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
   tracks: 10,
   artists: 10
 });
+
+// Folia 沉浸模式：同源嵌入已部署的 Folia 播放器（site.shizuki.online/music → gateway 18081）
+const FOLIA_EMBED_URL = '/music/';
+const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
+const foliaMode = ref(readFoliaModePreference());
+
+function readFoliaModePreference() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(FOLIA_MODE_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setFoliaMode(enabled) {
+  foliaMode.value = Boolean(enabled);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(FOLIA_MODE_STORAGE_KEY, foliaMode.value ? '1' : '0');
+    } catch {
+      // ignore storage failures
+    }
+  }
+}
 const SEARCH_TYPE_OPTIONS = [
   { value: 'all', label: '全部' },
   { value: 'playlist', label: '歌单' },
@@ -2488,6 +2560,88 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.music-library-page.folia-mode-active {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.music-library-mode-switch {
+  flex: none;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mode-switch-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.player-mode-tab {
+  min-height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.player-mode-tab.active {
+  background: rgba(var(--accent-rgb), 0.9);
+  color: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.35);
+}
+
+.folia-open-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.folia-open-external:hover {
+  background: rgba(var(--accent-rgb), 0.26);
+}
+
+.folia-embed-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  background: #0b0e14;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.folia-embed-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 68vh;
+  border: 0;
+  background: #0b0e14;
+}
+
 .music-center-mode-switch {
   position: relative;
   z-index: 12;
