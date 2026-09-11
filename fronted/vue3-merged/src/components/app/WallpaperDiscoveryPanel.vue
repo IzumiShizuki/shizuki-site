@@ -71,10 +71,27 @@
         <label class="filter-chip"><input v-model="wallhavenGeneral" type="checkbox" @change="runSearch(1)" /> 综合</label>
         <label class="filter-chip"><input v-model="wallhavenAnime" type="checkbox" @change="runSearch(1)" /> 动漫</label>
         <label class="filter-chip"><input v-model="wallhavenPeople" type="checkbox" @change="runSearch(1)" /> 人物</label>
-        <select v-model="wallhavenPurity" class="filter-control compact-filter" aria-label="Wallhaven 纯净度" @change="runSearch(1)">
-          <option value="100">安全</option>
-          <option value="110">含轻微敏感</option>
-        </select>
+        <fieldset class="rating-filter-group">
+          <legend>年龄分级</legend>
+          <label class="filter-chip">
+            <input
+              v-model="wallhavenSafe"
+              type="checkbox"
+              aria-label="安全分级"
+              @change="handleWallhavenRatingChange"
+            />
+            安全
+          </label>
+          <label class="filter-chip">
+            <input
+              v-model="wallhavenSketchy"
+              type="checkbox"
+              aria-label="轻微敏感分级"
+              @change="handleWallhavenRatingChange"
+            />
+            轻微敏感
+          </label>
+        </fieldset>
         <select v-model="wallhavenRatios" class="filter-control compact-filter" aria-label="Wallhaven 比例" @change="runSearch(1)">
           <option value="">全部比例</option>
           <option value="16x9,16x10">横屏</option>
@@ -252,6 +269,36 @@
           <span v-else>下载通道不可用</span>
         </div>
 
+        <div
+          v-if="importProgress.visible"
+          class="import-progress"
+          :class="`state-${importProgress.tone}`"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div class="import-progress-head">
+            <strong>{{ importProgress.label }}</strong>
+            <span v-if="importProgress.jobId">#{{ importProgress.jobId }}</span>
+          </div>
+          <div
+            class="import-progress-track"
+            role="progressbar"
+            aria-label="壁纸导入进度"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="importProgress.determinate ? importProgress.percent : undefined"
+            :aria-valuetext="importProgress.label"
+            :aria-busy="String(importProgress.busy)"
+          >
+            <span
+              class="import-progress-fill"
+              :class="{ indeterminate: !importProgress.determinate }"
+              :style="importProgress.determinate ? { width: `${importProgress.percent}%` } : undefined"
+            ></span>
+          </div>
+        </div>
+
         <div class="import-controls">
           <input v-model.trim="importTitle" class="inspector-control" type="text" placeholder="标题（可选）" />
           <select v-model="importVisibility" class="inspector-control" aria-label="导入壁纸可见性">
@@ -285,7 +332,8 @@ const props = defineProps({
   source: { type: String, default: 'workshop' },
   authorizedFetch: { type: Function, default: null },
   isAuthenticated: { type: Boolean, default: false },
-  busy: { type: Boolean, default: false }
+  busy: { type: Boolean, default: false },
+  importState: { type: Object, default: () => ({}) }
 });
 
 const emit = defineEmits(['import-workshop', 'import-wallhaven', 'select-workshop']);
@@ -298,7 +346,8 @@ const workshopGenre = ref('');
 const workshopResolution = ref('');
 const wallhavenSorting = ref('toplist');
 const wallhavenAtleast = ref('');
-const wallhavenPurity = ref('100');
+const wallhavenSafe = ref(true);
+const wallhavenSketchy = ref(false);
 const wallhavenRatios = ref('');
 const wallhavenOrder = ref('desc');
 const wallhavenGeneral = ref(true);
@@ -338,13 +387,42 @@ const hasCustomWallhavenFilters = computed(() => Boolean(
   query.value
   || wallhavenAtleast.value
   || wallhavenSorting.value !== 'toplist'
-  || wallhavenPurity.value !== '100'
+  || !wallhavenSafe.value
+  || wallhavenSketchy.value
   || wallhavenRatios.value
   || wallhavenOrder.value !== 'desc'
   || !wallhavenGeneral.value
   || !wallhavenAnime.value
   || wallhavenPeople.value
 ));
+
+const importProgress = computed(() => {
+  const jobId = Number(props.importState?.lastImportJobId || 0);
+  if (props.busy) {
+    return {
+      visible: true,
+      jobId: 0,
+      label: '正在创建导入任务',
+      percent: 8,
+      determinate: false,
+      busy: true,
+      tone: 'active'
+    };
+  }
+  if (!Number.isFinite(jobId) || jobId <= 0) {
+    return { visible: false, jobId: 0, label: '', percent: 0, determinate: true, busy: false, tone: 'idle' };
+  }
+
+  const status = String(props.importState?.lastImportJobStatus || 'PENDING').trim().toUpperCase();
+  const states = {
+    PENDING: { label: '等待开始下载', percent: 18, determinate: false, busy: true, tone: 'active' },
+    RUNNING: { label: '正在下载和解析', percent: 58, determinate: false, busy: true, tone: 'active' },
+    SUCCEEDED: { label: '壁纸已添加', percent: 100, determinate: true, busy: false, tone: 'success' },
+    FAILED: { label: '导入失败', percent: 100, determinate: true, busy: false, tone: 'failed' },
+    FALLBACK_REQUIRED: { label: '需要本地包导入', percent: 100, determinate: true, busy: false, tone: 'failed' }
+  };
+  return { visible: true, jobId, ...(states[status] || states.PENDING) };
+});
 
 function normalizeSource(value) {
   return value === 'wallhaven' ? 'wallhaven' : 'workshop';
@@ -378,6 +456,17 @@ function wallhavenCategoryLabel(category) {
 
 function wallhavenPurityLabel(purity) {
   return ({ sfw: '安全', sketchy: '轻微敏感', nsfw: '成人' })[String(purity || '').toLowerCase()] || '';
+}
+
+function wallhavenPurityBits() {
+  return `${wallhavenSafe.value ? '1' : '0'}${wallhavenSketchy.value ? '1' : '0'}0`;
+}
+
+function handleWallhavenRatingChange() {
+  if (!wallhavenSafe.value && !wallhavenSketchy.value) {
+    wallhavenSafe.value = true;
+  }
+  runSearch(1);
 }
 
 function formatCreatedDate(value) {
@@ -550,7 +639,7 @@ async function runSearch(targetPage = 1) {
           query: query.value,
           page: targetPage,
           categories: wallhavenCategories(),
-          purity: wallhavenPurity.value,
+          purity: wallhavenPurityBits(),
           sorting: wallhavenSorting.value,
           order: wallhavenOrder.value,
           atleast: wallhavenAtleast.value,
@@ -609,7 +698,8 @@ function resetFilters() {
   } else {
     wallhavenSorting.value = 'toplist';
     wallhavenAtleast.value = '';
-    wallhavenPurity.value = '100';
+    wallhavenSafe.value = true;
+    wallhavenSketchy.value = false;
     wallhavenRatios.value = '';
     wallhavenOrder.value = 'desc';
     wallhavenGeneral.value = true;
@@ -794,7 +884,19 @@ defineExpose({ runSearch, switchSource });
   background: var(--theme-surface-soft) !important;
   color: var(--theme-text-primary) !important;
   box-shadow: none !important;
+  color-scheme: var(--theme-color-scheme, dark);
   font-size: 11px;
+}
+
+.filter-control option,
+.inspector-control option {
+  background: var(--theme-input-surface);
+  color: var(--theme-text-primary);
+}
+
+:global(:root[data-theme-mode='day']) .filter-control,
+:global(:root[data-theme-mode='day']) .inspector-control {
+  color-scheme: light;
 }
 
 .resolution-control {
@@ -856,6 +958,22 @@ defineExpose({ runSearch, switchSource });
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.rating-filter-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rating-filter-group legend {
+  padding: 0;
+  color: var(--theme-text-tertiary);
+  font-size: 9px;
 }
 
 .filter-chip,
@@ -1273,6 +1391,71 @@ defineExpose({ runSearch, switchSource });
   gap: 8px;
 }
 
+.import-progress {
+  padding: 8px;
+  border: 1px solid var(--accent-mode-border);
+  border-radius: 7px;
+  background: var(--accent-mode-fill-soft);
+  display: grid;
+  gap: 7px;
+}
+
+.import-progress-head {
+  color: var(--theme-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.import-progress-head strong {
+  color: var(--theme-text-primary);
+  font-weight: 650;
+}
+
+.import-progress-head span {
+  color: var(--theme-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.import-progress-track {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--theme-surface-soft);
+}
+
+.import-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--accent-mode-fill-strong);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.import-progress-fill.indeterminate {
+  width: 44%;
+  animation: import-progress-scan 1.2s var(--ease-out) infinite alternate;
+}
+
+.import-progress.state-success {
+  border-color: color-mix(in srgb, var(--theme-positive) 48%, transparent);
+}
+
+.import-progress.state-success .import-progress-fill {
+  background: var(--theme-positive);
+}
+
+.import-progress.state-failed {
+  border-color: color-mix(in srgb, var(--theme-danger) 48%, transparent);
+}
+
+.import-progress.state-failed .import-progress-fill {
+  background: var(--theme-danger);
+}
+
 .inspector-control {
   width: 100%;
 }
@@ -1303,6 +1486,11 @@ defineExpose({ runSearch, switchSource });
 
 @keyframes shimmer {
   to { transform: translateX(100%); }
+}
+
+@keyframes import-progress-scan {
+  from { transform: translateX(-20%); }
+  to { transform: translateX(150%); }
 }
 
 @media (max-width: 980px) {
@@ -1362,9 +1550,15 @@ defineExpose({ runSearch, switchSource });
 
   .thumb-loading,
   .spinning,
+  .import-progress-fill.indeterminate,
   .skeleton-preview::after,
   .skeleton-line::after {
     animation: none;
+  }
+
+  .import-progress-fill.indeterminate {
+    width: 60%;
+    transform: none;
   }
 }
 </style>

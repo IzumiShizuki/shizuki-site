@@ -364,6 +364,7 @@ import { getAuthorProfile } from './services/authorApi';
 import { fetchAmbientLibraryStatus, importAmbientLibraryTrack } from './services/ambientLibraryApi';
 import { resolveAppRouteViewKey } from './utils/routeViewKey';
 import { resolveTopMenuPresentation } from './utils/topMenuPresentation';
+import { createWallpaperImportPoller, isWallpaperImportTerminalStatus } from './utils/wallpaperImportPolling';
 import { applyFocusSessionEntryUiState } from './utils/focusSessionEntry';
 import { AI_CHAT_OPEN_EVENT } from './utils/aiChatBus';
 import * as wallpaperApi from './services/wallpaperApi';
@@ -1822,6 +1823,38 @@ function rememberImportJob(job, prefix) {
   importState.hint = formatImportJobHint(job, prefix);
 }
 
+function importJobPrefix(job) {
+  return job?.sourceType === 'WORKSHOP' ? 'Workshop 导入任务' : '壁纸导入任务';
+}
+
+const wallpaperImportPoller = createWallpaperImportPoller({
+  fetchJob: async (jobId) => {
+    importState.statusBusy = true;
+    try {
+      return normalizeImportJobResponse(await wallpaperApi.getWallpaperImportJob(jobId, auth.authorizedFetch));
+    } finally {
+      importState.statusBusy = false;
+    }
+  },
+  onJob: async (job) => {
+    rememberImportJob(job, importJobPrefix(job));
+    if (job?.status === 'SUCCEEDED') {
+      await loadBackgroundLibrary();
+    }
+  },
+  onError: (error) => {
+    importState.hint = String(error?.detail || error?.message || '任务状态自动刷新失败，稍后将重试');
+  }
+});
+
+function startWallpaperImportPolling(job) {
+  if (!job?.jobId || isWallpaperImportTerminalStatus(job.status)) {
+    wallpaperImportPoller.stop();
+    return;
+  }
+  wallpaperImportPoller.start(job.jobId);
+}
+
 async function submitPackageImport() {
   if (!auth.isAuthenticated.value) {
     importState.hint = '请先登录后再上传导入。';
@@ -1846,6 +1879,7 @@ async function submitPackageImport() {
       throw new Error('导入任务创建失败');
     }
     rememberImportJob(payload, '本地包导入任务');
+    startWallpaperImportPolling(payload);
     if (payload.status === 'SUCCEEDED') {
       await loadBackgroundLibrary();
     }
@@ -1880,6 +1914,7 @@ async function submitWorkshopImport() {
       throw new Error('任务创建失败');
     }
     rememberImportJob(payload, 'Workshop 导入任务');
+    startWallpaperImportPolling(payload);
   } catch (error) {
     importState.hint = String(error?.detail || error?.message || 'Workshop 导入失败');
   } finally {
@@ -1935,6 +1970,7 @@ async function handleDiscoveryImportWallhaven(payload) {
       throw new Error('Wallhaven 拉取任务创建失败');
     }
     rememberImportJob(job, 'Wallhaven 拉取任务');
+    startWallpaperImportPolling(job);
     if (job.status === 'SUCCEEDED') {
       await loadBackgroundLibrary();
     }
@@ -1959,6 +1995,7 @@ async function checkWallpaperImportJob() {
   try {
     const payload = normalizeImportJobResponse(await wallpaperApi.getWallpaperImportJob(jobId, auth.authorizedFetch));
     rememberImportJob(payload, payload?.sourceType === 'WORKSHOP' ? 'Workshop 导入任务' : '本地包导入任务');
+    startWallpaperImportPolling(payload);
     if (payload?.status === 'SUCCEEDED') {
       await loadBackgroundLibrary();
     }
@@ -3005,6 +3042,7 @@ onBeforeUnmount(() => {
   disposeDesktopPointerBridge();
   disposeDesktopPointerBridge = () => {};
   clearWallpaperSignedUrlRefreshTimer();
+  wallpaperImportPoller.stop();
   if (wallpaperPreferenceSaveTimer) {
     window.clearTimeout(wallpaperPreferenceSaveTimer);
     wallpaperPreferenceSaveTimer = 0;

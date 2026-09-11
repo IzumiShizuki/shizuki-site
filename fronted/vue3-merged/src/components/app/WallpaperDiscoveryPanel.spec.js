@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import WallpaperDiscoveryPanel from './WallpaperDiscoveryPanel.vue';
 import {
   getWallpaperDiscoveryPreviewUrl,
@@ -25,6 +27,12 @@ function mountPanel(props = {}) {
       authorizedFetch,
       isAuthenticated: true,
       busy: false,
+      importState: {
+        lastImportJobId: 0,
+        lastImportJobStatus: '',
+        statusBusy: false,
+        hint: ''
+      },
       ...props
     }
   });
@@ -191,7 +199,7 @@ describe('WallpaperDiscoveryPanel', () => {
 
     await wrapper.setProps({ source: 'wallhaven' });
     await flushPromises();
-    await wrapper.find('[aria-label="Wallhaven 纯净度"]').setValue('110');
+    await wrapper.find('[aria-label="轻微敏感分级"]').setValue(true);
     await wrapper.find('[aria-label="Wallhaven 比例"]').setValue('21x9,32x9');
     await wrapper.find('[aria-label="Wallhaven 顺序"]').setValue('asc');
     await flushPromises();
@@ -200,6 +208,63 @@ describe('WallpaperDiscoveryPanel', () => {
       expect.objectContaining({ purity: '110', ratios: '21x9,32x9', order: 'asc' }),
       authorizedFetch
     );
+  });
+
+  it('uses explicit age-rating checkboxes and keeps a safe fallback selected', async () => {
+    const wrapper = mountPanel({ source: 'wallhaven' });
+    await flushPromises();
+
+    const safe = wrapper.get('[aria-label="安全分级"]');
+    const sketchy = wrapper.get('[aria-label="轻微敏感分级"]');
+    expect(safe.element.checked).toBe(true);
+    expect(sketchy.element.checked).toBe(false);
+
+    await sketchy.setValue(true);
+    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ purity: '110' }),
+      authorizedFetch
+    );
+
+    await safe.setValue(false);
+    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ purity: '010' }),
+      authorizedFetch
+    );
+
+    await sketchy.setValue(false);
+    expect(wrapper.get('[aria-label="安全分级"]').element.checked).toBe(true);
+    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ purity: '100' }),
+      authorizedFetch
+    );
+  });
+
+  it('gives expanded native options an explicit readable theme surface', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/app/WallpaperDiscoveryPanel.vue'), 'utf8');
+    const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8');
+
+    expect(source).toMatch(/\.filter-control option,[\s\S]*?\.inspector-control option\s*\{[\s\S]*?background:\s*var\(--theme-input-surface\)[^}]*color:\s*var\(--theme-text-primary\)/);
+    expect(source).toMatch(/\.filter-control,[\s\S]*?\.inspector-control\s*\{[\s\S]*?color-scheme:\s*var\(--theme-color-scheme/);
+    expect(themeSource).toMatch(/:root\s*\{[\s\S]*?--theme-color-scheme:\s*dark/);
+    expect(themeSource).toMatch(/:root\[data-theme-mode='day'\]\s*\{[\s\S]*?--theme-color-scheme:\s*light/);
+  });
+
+  it('shows accessible download and parsing progress for the active import job', async () => {
+    const wrapper = mountPanel({
+      importState: {
+        lastImportJobId: 9002,
+        lastImportJobStatus: 'RUNNING',
+        statusBusy: false,
+        hint: 'Workshop 导入任务 #9002 正在下载和解析。'
+      }
+    });
+    await flushPromises();
+    await wrapper.findAll('.discovery-item')[0].trigger('click');
+
+    const progress = wrapper.get('[role="progressbar"]');
+    expect(progress.attributes('aria-valuetext')).toBe('正在下载和解析');
+    expect(progress.attributes('aria-busy')).toBe('true');
+    expect(wrapper.text()).toContain('正在下载和解析');
   });
 
   it('falls back through preview candidates and can retry the proxy preview', async () => {

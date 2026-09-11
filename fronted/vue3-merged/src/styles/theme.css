@@ -152,6 +152,9 @@
   --bp-sm: 640px;
   --bp-md: 900px;
   --bp-lg: 1200px;
+
+  /* 原生控件配色方案（select 下拉展开面板等）：夜间 dark / 日间 light */
+  --theme-color-scheme: dark;
 }
 
 /* ============================================================
@@ -198,4 +201,7 @@
   --wallpaper-home-filter: brightness(1) saturate(104%);
   --wallpaper-stage-overlay-background: linear-gradient(180deg, rgba(255, 248, 244, 0.2), rgba(255, 244, 240, 0.34));
   --wallpaper-home-overlay-background: linear-gradient(180deg, rgba(255, 250, 246, 0.08), rgba(255, 246, 242, 0.22));
+
+  /* 日间配色方案 */
+  --theme-color-scheme: light;
 }

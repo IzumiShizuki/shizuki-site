@@ -304,4 +304,11 @@ describe('TopMenu profile entry', () => {
     expect(source).toMatch(/--menu-mobile-chip-border:\s*var\(--theme-border-strong\)/);
     expect(source).toMatch(/scrollbar-color:\s*var\(--theme-border-strong\)\s+transparent/);
   });
+
+  it('tints the full menu glass with the active accent token', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/TopMenu.vue'), 'utf8');
+
+    expect(source).toMatch(/--menu-glass-bg:\s*linear-gradient\([\s\S]*?rgba\(var\(--accent-rgb\)/);
+    expect(source).toMatch(/--menu-glass-bg:[\s\S]*?var\(--theme-panel-surface-elevated\)/);
+  });
 });

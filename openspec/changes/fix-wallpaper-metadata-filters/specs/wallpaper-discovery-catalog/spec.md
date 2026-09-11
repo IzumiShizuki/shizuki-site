@@ -42,7 +42,7 @@ The system SHALL allow users to filter Workshop search by wallpaper type, genre,
 - **THEN** the server ignores the unsupported value while preserving valid search inputs and source safety
 
 ### Requirement: Wallhaven discovery exposes its supported filters
-The system SHALL expose category, purity, minimum resolution, aspect ratio, sorting, and ascending or descending order controls for Wallhaven. Without a Wallhaven API key, the system MUST remove only the NSFW purity bit while preserving requested SFW and sketchy filters; if no allowed purity remains, it MUST fall back to SFW.
+The system SHALL expose category, age rating, minimum resolution, aspect ratio, sorting, and ascending or descending order controls for Wallhaven. Safe and sketchy age ratings MUST be individually selectable through labeled checkboxes, and at least one safe rating MUST remain selected. Without a Wallhaven API key, the system MUST remove only the NSFW purity bit while preserving requested SFW and sketchy filters; if no allowed purity remains, it MUST fall back to SFW.
 
 #### Scenario: Search Wallhaven with complete filters
 - **WHEN** the user submits category, purity, minimum resolution, ratio, sorting, and order values
@@ -55,6 +55,18 @@ The system SHALL expose category, purity, minimum resolution, aspect ratio, sort
 #### Scenario: Guest request contains NSFW
 - **WHEN** no Wallhaven API key is configured and the requested purity includes NSFW
 - **THEN** the backend clears the NSFW bit and uses the remaining allowed bits or SFW when none remain
+
+#### Scenario: Visitor changes age ratings
+- **WHEN** the visitor checks or unchecks the safe and sketchy age-rating controls
+- **THEN** the search request sends the matching Wallhaven purity bit string
+- **THEN** the interface prevents an empty age-rating selection by restoring the safe rating
+
+### Requirement: Discovery controls remain readable across themes
+The system SHALL render the collapsed value and expanded options of native discovery controls with an explicit, contrast-safe foreground and themed surface in both day and night modes.
+
+#### Scenario: Visitor expands a discovery select
+- **WHEN** a visitor opens a sorting, ratio, resolution, or visibility select in either theme mode
+- **THEN** every option has readable text against a non-transparent theme-appropriate background
 
 ### Requirement: Existing discovery and import behavior remains compatible
 The system SHALL keep the current public read endpoints, same-origin preview proxy, pagination behavior, source switching, and authenticated import events compatible with existing callers. Added request parameters and response fields MUST be optional and backward compatible.

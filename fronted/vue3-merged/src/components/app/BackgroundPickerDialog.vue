@@ -335,6 +335,7 @@
             :authorized-fetch="authorizedFetch"
             :is-authenticated="isAuthenticated"
             :busy="importState.busy"
+            :import-state="importState"
             @import-workshop="$emit('discovery-import-workshop', $event)"
             @import-wallhaven="$emit('discovery-import-wallhaven', $event)"
             @select-workshop="$emit('discovery-select-workshop', $event)"

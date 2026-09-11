@@ -634,7 +634,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .top-menu-root {
-  --menu-glass-bg: var(--theme-panel-surface-elevated);
+  --menu-glass-bg: linear-gradient(
+    155deg,
+    rgba(var(--accent-rgb), 0.1),
+    var(--theme-panel-surface-elevated) 42%
+  );
   --menu-glass-border: var(--theme-border-strong);
   --menu-glass-shadow: var(--theme-shadow-soft);
   --menu-hover-bg: var(--accent-mode-fill);
@@ -1424,7 +1428,11 @@ button.author-info-item:focus-visible {
 }
 
 :root[data-theme-mode='day'] .top-menu-root {
-  --menu-glass-bg: var(--theme-panel-surface-elevated);
+  --menu-glass-bg: linear-gradient(
+    155deg,
+    rgba(var(--accent-rgb), 0.06),
+    var(--theme-panel-surface-elevated) 46%
+  );
   --menu-glass-border: var(--theme-border-strong);
   --menu-glass-shadow: var(--theme-shadow-soft);
   --menu-active-bg: var(--accent-mode-fill-strong);

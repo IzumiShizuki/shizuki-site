@@ -149,6 +149,7 @@ describe('BackgroundPickerDialog unified wallpaper workspace', () => {
 
     const panel = wrapper.findComponent(WallpaperDiscoveryPanel);
     expect(panel.props('authorizedFetch')).toBe(authorizedFetch);
+    expect(panel.props('importState')).toMatchObject({ lastImportJobId: 9002, lastImportJobStatus: 'RUNNING' });
 
     panel.vm.$emit('import-workshop', { itemId: '2141505896' });
     panel.vm.$emit('import-wallhaven', { wallhavenId: 'x8gxgz' });
