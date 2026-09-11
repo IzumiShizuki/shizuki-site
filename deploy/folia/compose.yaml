@@ -1,0 +1,42 @@
+name: folia
+
+services:
+  gateway:
+    build:
+      context: /opt/folia/folia-major-main
+      dockerfile: /opt/folia/deploy/gateway.Dockerfile
+      args:
+        VCS_REF: local
+        STACK_VERSION: 0.7.7
+    image: folia-local/gateway:0.7.7-music
+    container_name: folia-gateway
+    restart: unless-stopped
+    read_only: true
+    environment:
+      FOLIA_AI_PROVIDER: google
+      VITE_BASE_PATH: /music
+      VITE_NETEASE_API_BASE: /netease
+      VITE_KUGOU_API_BASE: /kugou
+      VITE_QQ_API_BASE: /qq
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx:uid=101,gid=101,mode=0750
+    ports:
+      - "127.0.0.1:18081:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - folia-edge
+      - shizuki-site_default
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  folia-edge:
+    driver: bridge
+  shizuki-site_default:
+    external: true
