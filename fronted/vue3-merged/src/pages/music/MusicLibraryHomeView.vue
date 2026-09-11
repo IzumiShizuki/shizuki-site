@@ -120,6 +120,14 @@
               >
                 <i class="fas fa-forward"></i>
               </button>
+              <button
+                class="track-action-btn folia-play-btn ripple-trigger"
+                type="button"
+                title="用 Folia 沉浸模式播放"
+                @click.stop="requestFoliaPlay(item)"
+              >
+                <i class="fas fa-ghost"></i>
+              </button>
               <TrackCollectButton
                 :track="item"
                 :can-collect="music.authState.value.isAuthenticated"
@@ -372,6 +380,14 @@
               @click.stop="music.enqueueFeaturedTrackNext(item, index)"
             >
               <i class="fas fa-forward"></i>
+            </button>
+            <button
+              class="track-action-btn folia-play-btn ripple-trigger"
+              type="button"
+              title="用 Folia 沉浸模式播放"
+              @click.stop="requestFoliaPlay(item)"
+            >
+              <i class="fas fa-ghost"></i>
             </button>
             <TrackCollectButton
               :track="item"
@@ -925,6 +941,14 @@ function handleOpenCollectDialog(track) {
   if (typeof music.openCollectDialog === 'function') {
     music.openCollectDialog(track || null);
   }
+}
+
+/** 请求父级切换到 Folia 沉浸模式并播放当前歌曲。 */
+function requestFoliaPlay(item) {
+  if (typeof window === 'undefined' || !item) return;
+  window.dispatchEvent(new CustomEvent('shizuki:play-in-folia', {
+    detail: { track: item }
+  }));
 }
 
 function handleRequireCollectLogin() {
@@ -1571,6 +1595,17 @@ onBeforeUnmount(() => {
 
 .track-action-btn .liked {
   color: rgb(var(--accent-strong-rgb));
+}
+
+.folia-play-btn {
+  color: rgba(var(--accent-soft-rgb), 0.9);
+  border-color: rgba(var(--accent-rgb), 0.35);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.folia-play-btn:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+  color: rgba(var(--accent-soft-rgb), 1);
 }
 
 .search-pager {

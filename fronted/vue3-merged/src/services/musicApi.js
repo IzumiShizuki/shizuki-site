@@ -353,6 +353,14 @@ export async function getMusicSourceAccountStatus(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getMySourceAccountCookie(provider, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
+  const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/cookie`, {
+    method: 'GET'
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function upsertMusicSourceAccountCookie(provider, cookie, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
   const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/cookie`, {

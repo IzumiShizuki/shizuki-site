@@ -34,12 +34,25 @@ VITE_NETEASE_API_BASE=/netease        # gateway 内 location /netease/ 反代现
 FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可用
 ```
 
+## 账号与歌曲互通（同源 iframe + postMessage）
+
+**账号互通（网易云）**：
+- 后端新增 `GET /api/v1/me/music/source-accounts/{provider}/cookie`（`MediaService.getMySourceAccountCookie`，复用已有 `getSourceAccountCookiePlaintext`，仅限当前登录用户）。
+- 前端切到 Folia 模式时 `authorizedFetch` 拉取 cookie → 通过 `shizuki:sync-cookie` postMessage 写入 iframe 的 `localStorage.netease_cookie`。
+- Folia 的 `fetchWithCreds` 每次请求实时读 `netease_cookie` 并作为 `?cookie=` 参数 → 两套播放器共享同一网易云登录态。
+
+**歌曲互通（双向）**：
+- Folia 侧新增 `src/shizukiExternalBridge.ts`（AGPL 公开，见 `third_party/folia-major/`）：监听 `shizuki:play-track` → `neteaseApi.getSongDetail` + `getSongUrl` 解析 → `usePlaybackStore` 设置 currentSong/audioSrc 播放；监听 `shizuki:get-status` → 回传 `shizuki:status`（含 `window.__folia_current_time` 进度）。
+- 前端侧：`MusicLibraryPage.vue` 监听 `shizuki:play-in-folia` 事件与 iframe 消息；`MusicLibraryHomeView.vue` 歌曲行新增「用 Folia 沉浸模式播放」按钮（幽灵图标）→ 一键切 Folia 模式并传歌。
+- 当前歌曲切换：`pushCurrentTrackToFolia()` 在切模式/iframe 加载完成时把普通模式当前曲目带给 Folia。
+
 ## 验证
 
 - `curl https://shizuki.online/music/` 与 `https://site.shizuki.online/music/` → 200，HTML 资源均带 `/music/` 前缀。
 - headless Edge 加载 179 chunks + PWA SW 注册成功（截图 207KB 确认 Folia UI 渲染）。
 - 网易云经 `/music/netease/`：搜索 200（277 结果）、歌词 200、二维码登录 unikey 200。
-- 前端集成验证：`MusicLibraryPage` chunk 含「Folia 沉浸模式」「/music/」「shizuki.music.foliaMode」；音乐页截图 948KB 确认页面完整渲染。
+- 前端集成验证：`MusicLibraryPage` chunk 含「Folia 沉浸模式」「shizuki:play-track」「syncCookieToFolia」；`MusicLibraryHomeView` chunk 含「用 Folia 沉浸模式播放」。
+- 后端 cookie 端点：`GET /api/v1/me/music/source-accounts/netease/cookie` 未认证 401（鉴权正确）。
 - 播放：免费/已登录歌曲可播放；VIP/版权受限歌曲需登录（与官方行为一致）。
 
 ## 回滚

@@ -112,4 +112,10 @@ public class MeMusicLibraryController {
     public ApiResponse<MusicSourcePlaylistImportResponse> importPlaylists(@PathVariable("provider") String provider) {
         return ApiResponse.success(mediaService.importSourceAccountPlaylists(provider));
     }
+
+    @GetMapping("/source-accounts/{provider}/cookie")
+    @Operation(summary = "读取我的音乐源账号 cookie", description = "返回当前用户已绑定的音乐源账号明文 cookie，供前端带入 Folia 沉浸模式实现账号互通；未绑定时返回空字符串")
+    public ApiResponse<String> sourceAccountCookie(@PathVariable("provider") String provider) {
+        return ApiResponse.success(mediaService.getMySourceAccountCookie(provider));
+    }
 }

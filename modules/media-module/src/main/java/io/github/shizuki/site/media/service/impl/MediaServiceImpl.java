@@ -3204,6 +3204,29 @@ public class MediaServiceImpl implements MediaService {
         );
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getMySourceAccountCookie(String provider) {
+        Long userId = requireLoginUserId();
+        String normalizedProvider = normalizeSourceAccountProvider(provider);
+        if (!StringUtils.hasText(normalizedProvider)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported source provider");
+        }
+        if (!"netease".equals(normalizedProvider)) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Current provider cookie read is not supported yet",
+                Map.of(
+                    "music_error_code", MUSIC_ERROR_CODE_SOURCE_PROVIDER_UNSUPPORTED,
+                    "provider", normalizedProvider
+                )
+            );
+        }
+        return userMusicClient.getSourceAccountCookiePlaintext(userId, normalizedProvider);
+    }
+
     private MusicPlaylistBundleResponse loadVirtualMusicPlaylistBundle(MusicVirtualPlaylistRef ref) {
         MusicApiContext apiContext = resolveMusicApiContext();
         List<MusicTrackResponse> tracks = metingMusicProvider.loadVirtualPlaylistTracks(

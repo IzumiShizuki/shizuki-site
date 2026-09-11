@@ -381,4 +381,15 @@ public interface MediaService {
      * @return 导入统计
      */
     MusicSourcePlaylistImportResponse importSourceAccountPlaylists(String provider);
+
+    /**
+     * 读取当前用户已绑定的音乐源账号 cookie（明文）。
+     *
+     * <p>供前端在切换到 Folia 沉浸模式时把同一网易云登录态带给 Folia
+     * （同源 iframe 写入 localStorage.netease_cookie），实现两套播放器账号互通。
+     *
+     * @param provider 来源平台（netease）
+     * @return 已绑定账号的明文 cookie；未绑定时返回空字符串
+     */
+    String getMySourceAccountCookie(String provider);
 }

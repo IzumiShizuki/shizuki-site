@@ -8,13 +8,16 @@
 - [x] 验证 Web 网关：`curl http://127.0.0.1:18081/healthz` 200。
 - [x] openresty 配置 `location /music/` 反代（rewrite 去前缀 + proxy_pass 18081），`nginx -t` 通过并 reload。
 - [x] 域名路径 `https://shizuki.online/music/` 本机与服务器均可访问（无需新 DNS）。
-- [x] 主站入口：改为**音乐页内嵌模式切换**——`MusicLibraryPage.vue` 顶部加「普通模式 / Folia 沉浸模式」开关，Folia 模式同源 iframe 嵌入 `site.shizuki.online/music/`（localStorage 持久化）。
+- [x] 主站入口：**音乐页内嵌模式切换**——`MusicLibraryPage.vue` 顶部「普通模式 / Folia 沉浸模式」tab，Folia 模式同源 iframe 嵌入 `site.shizuki.online/music/`（localStorage 持久化）。
 - [x] site.shizuki.online 增加 `/music/` 同源反代（openresty），iframe 与主站同源共享 cookie。
-- [x] 前端 `vue3-merged` 构建通过（本地 vite build 21.7s）；服务器 `Dockerfile.frontend` 重建 `shizuki-site/site:latest` 并重启容器。
-- [x] 线上验证：`MusicLibraryPage` chunk 含「Folia 沉浸模式」「/music/」「shizuki.music.foliaMode」。
-- [x] 浏览器端到端验证：headless Edge 加载 179 chunks + PWA SW 注册成功；音乐页截图 948KB 确认 UI 渲染。
-- [x] 音源验证：网易云搜索（277 结果）、歌词（lrc 200）、二维码登录（unikey 正常）通过 gateway /netease/ 反代到现有 music-ncm-api。
-- [x] `openspec validate integrate-folia-music-player --type change --strict` 通过。
+- [x] **账号互通**：后端新增 `GET /api/v1/me/music/source-accounts/{provider}/cookie`；前端 `syncCookieToFolia` 把网易云 cookie 通过 postMessage 写入 iframe localStorage.netease_cookie。
+- [x] **歌曲互通**：Folia 新增 `shizukiExternalBridge.ts`（postMessage 桥：sync-cookie / play-track / get-status）；前端歌曲行加「用 Folia 沉浸模式播放」按钮 + `shizuki:play-in-folia` 事件 + 切歌推送。
+- [x] openresty 补 `location /netease/` 根路径反代（Folia 前端内部 API 请求为根路径 `/netease/...`）。
+- [x] 前端 `vue3-merged` 构建通过；服务器 `Dockerfile.frontend` 无缓存重建并重启容器。
+- [x] **删除 TopMenu GitHub 图标**：TopMenu.vue + global.css 中 github-style-box 全部清除（fa-github 字体字形保留，属 FontAwesome 库定义）。
+- [x] 后端构建部署：`Dockerfile.backend` 重建 `shizuki-site/backend:latest`，新 cookie 端点 401（鉴权正确）。
+- [x] E2E 验证（Playwright + Edge）：模式切换条 ✓、GitHub 图标移除 ✓、iframe 加载 ✓、sync-cookie 写入 iframe localStorage ✓、get-status 回包 ✓、play-track 免费曲播放成功（`ok:true`，返回真实 MP3 URL）、VIP 曲返回可读错误。
+- [x] 源码公开：桥文件 + 修改说明存 `third_party/folia-major/`（AGPL-3.0 合规分发）。
 - [ ] 本地 git commit（不 push）。
 
 ## 实施要点（供后续维护）

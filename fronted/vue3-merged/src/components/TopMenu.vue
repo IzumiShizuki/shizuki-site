@@ -199,13 +199,6 @@
           <span class="item-label">{{ aiChatDisabled ? 'AI Hub 内已禁用' : '唤起AI对话' }}</span>
         </div>
 
-        <div class="menu-item-stack ripple-trigger" @click="openProjectGithub">
-          <div class="github-style-box liquid-material">
-            <i class="fab fa-github"></i>
-          </div>
-          <span class="item-label">项目github</span>
-        </div>
-
         <button
           type="button"
           class="menu-item-stack author-info-item ripple-trigger"
@@ -411,7 +404,6 @@ const emit = defineEmits([
   'open-author',
   'open-auth'
 ]);
-const PROJECT_GITHUB_URL = 'https://github.com/IzumiShizuki/shizuki-site';
 const route = useRoute();
 const { menuExpanded, menuCollapsed, themeMode, aiChatActive, aiChatDisabled, isAuthenticated, displayName, avatarUrl, authorAvatarUrl, musicActive, ambientActive, effectActive, isHomeRoute, homeClockBehavior, homeClockVisible, homeWallpaperClockOverride, homeMotionLevel, homeColorMode, homeAccentHex, routeScrollTop } = toRefs(props);
 const avatarLoadFailed = ref(false);
@@ -563,11 +555,6 @@ function openBackgroundPicker() {
 
 function openAtmosphere() {
   emit('open-atmosphere-panel');
-}
-
-function openProjectGithub() {
-  if (typeof window === 'undefined') return;
-  window.open(PROJECT_GITHUB_URL, '_blank', 'noopener,noreferrer');
 }
 
 function openAuthorAbout() {
@@ -769,7 +756,6 @@ onBeforeUnmount(() => {
 
 .menu-item-stack:not(.theme-control-cluster):active .icon-minimal,
 .menu-item-stack:not(.theme-control-cluster):active .circle-icon-box,
-.menu-item-stack:not(.theme-control-cluster):active .github-style-box,
 .menu-item-stack:not(.theme-control-cluster):active .author-avatar-box,
 .menu-item-stack:not(.theme-control-cluster):active .avatar-box,
 .menu-item-stack.ai-chat-item:active .pill-btn-box {
@@ -999,18 +985,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.22);
 }
 
-.github-style-box {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  color: var(--menu-icon-color);
-  border-radius: 50%;
-  transition: transform 0.2s, color 0.2s;
-}
-
 .author-info-item,
 .user-profile-item {
   border-radius: 12px;
@@ -1027,12 +1001,6 @@ button.author-info-item {
 button.author-info-item:focus-visible {
   outline: 3px solid var(--theme-focus-ring);
   outline-offset: 3px;
-}
-
-.github-style-box:hover {
-  --liquid-bg: var(--menu-hover-bg);
-  transform: scale(1.1);
-  color: var(--icon-hover-color);
 }
 
 .author-avatar-box {
@@ -1518,15 +1486,10 @@ button.author-info-item:focus-visible {
 
   .circle-icon-box,
   .pill-btn-box,
-  .github-style-box,
   .author-avatar-box,
   .avatar-box {
     width: 40px;
     height: 40px;
-  }
-
-  .github-style-box {
-    font-size: 24px;
   }
 
   .appearance-popover {
@@ -1707,7 +1670,6 @@ button.author-info-item:focus-visible {
 
   .icon-minimal,
   .circle-icon-box,
-  .github-style-box,
   .author-avatar-box,
   .avatar-box {
     width: 36px;
@@ -1868,7 +1830,6 @@ button.author-info-item:focus-visible {
   }
 
   .circle-icon-box,
-  .github-style-box,
   .author-avatar-box,
   .avatar-box {
     width: 24px;
@@ -1962,7 +1923,6 @@ button.author-info-item:focus-visible {
   .icon-minimal,
   .circle-icon-box,
   .pill-btn-box,
-  .github-style-box,
   .author-avatar-box,
   .avatar-box {
     animation: none !important;

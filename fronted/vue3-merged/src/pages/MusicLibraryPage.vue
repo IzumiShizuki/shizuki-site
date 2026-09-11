@@ -37,13 +37,33 @@
     </header>
 
     <section v-if="foliaMode" class="folia-embed-pane">
+      <div class="folia-embed-toolbar">
+        <div class="folia-embed-track" v-if="foliaTrackInfo">
+          <i class="fas fa-music"></i>
+          <span class="folia-track-name">{{ foliaTrackInfo.name }}</span>
+          <span v-if="foliaTrackInfo.artist" class="folia-track-artist">{{ foliaTrackInfo.artist }}</span>
+        </div>
+        <span v-else class="folia-embed-hint">正在加载 Folia 沉浸播放器…</span>
+        <div class="folia-embed-actions">
+          <button class="folia-toolbar-btn ripple-trigger" type="button" @click="syncCookieToFolia">
+            <i class="fas fa-sync-alt"></i>
+            同步账号
+          </button>
+          <button class="folia-toolbar-btn ripple-trigger" type="button" @click="requestFoliaStatus">
+            <i class="fas fa-info-circle"></i>
+            播放状态
+          </button>
+        </div>
+      </div>
       <iframe
+        ref="foliaFrameRef"
         class="folia-embed-frame"
         :src="FOLIA_EMBED_URL"
         title="Folia 沉浸式音乐播放器"
         allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-        loading="lazy"
+        loading="eager"
         referrerpolicy="strict-origin-when-cross-origin"
+        @load="handleFoliaFrameLoad"
       ></iframe>
     </section>
 
@@ -306,6 +326,9 @@ const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
 const FOLIA_EMBED_URL = '/music/';
 const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
 const foliaMode = ref(readFoliaModePreference());
+const foliaFrameRef = ref(null);
+const foliaTrackInfo = ref(null);
+let foliaBridgeReady = false;
 
 function readFoliaModePreference() {
   if (typeof window === 'undefined') return false;
@@ -323,6 +346,99 @@ function setFoliaMode(enabled) {
       window.localStorage.setItem(FOLIA_MODE_STORAGE_KEY, foliaMode.value ? '1' : '0');
     } catch {
       // ignore storage failures
+    }
+  }
+  if (foliaMode.value) {
+    void pushCurrentTrackToFolia();
+  }
+}
+
+/** 向 iframe 内的 Folia 发送一条 postMessage（同源，需等待 iframe 加载完成）。 */
+function postToFolia(payload) {
+  const frame = foliaFrameRef.value;
+  if (!frame || typeof frame.contentWindow?.postMessage !== 'function') return false;
+  frame.contentWindow.postMessage(payload, window.location.origin);
+  return true;
+}
+
+/** 拉取当前用户网易云 cookie 并同步到 Folia（写入 iframe localStorage.netease_cookie）。 */
+async function syncCookieToFolia() {
+  if (!auth.isAuthenticated.value) return false;
+  try {
+    const response = await musicApi.getMySourceAccountCookie(auth.authorizedFetch);
+    const cookie = String(response || '').trim();
+    if (!cookie) return false;
+    if (foliaBridgeReady) {
+      postToFolia({ type: 'shizuki:sync-cookie', cookie });
+    } else {
+      // Bridge 尚未就绪时，把 cookie 暂存到 iframe window（index.tsx 安装桥时读取）。
+      try {
+        const frame = foliaFrameRef.value;
+        if (frame && frame.contentWindow) {
+          frame.contentWindow.__shizukiPendingCookie = cookie;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 把普通模式当前播放的网易云歌曲带给 Folia 播放。 */
+async function pushCurrentTrackToFolia() {
+  const track = player.currentTrack.value;
+  if (!track) return;
+  const trackId = readFoliaTrackId(track);
+  if (!trackId) return;
+  foliaTrackInfo.value = {
+    name: String(track.title || track.name || ''),
+    artist: String(track.artist || '')
+  };
+  if (foliaBridgeReady) {
+    postToFolia({ type: 'shizuki:play-track', trackId });
+  }
+}
+
+/** 从普通模式曲目对象中提取网易云 trackId。 */
+function readFoliaTrackId(track) {
+  if (!track) return 0;
+  const rawId = String(track.trackId || track.id || track.track_id || '');
+  const numeric = Number(rawId);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  return 0;
+}
+
+/** 请求 Folia 回传当前播放状态。 */
+function requestFoliaStatus() {
+  postToFolia({ type: 'shizuki:get-status' });
+}
+
+function handleFoliaFrameLoad() {
+  foliaBridgeReady = true;
+  // 加载完成后：同步账号 + 把当前歌曲带给 Folia
+  void syncCookieToFolia();
+  void pushCurrentTrackToFolia();
+}
+
+function handleFoliaBridgeMessage(event) {
+  if (event.source !== foliaFrameRef.value?.contentWindow) return;
+  const data = event.data;
+  if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
+  if (data.type === 'shizuki:play-result') {
+    if (data.ok && data.trackId) {
+      // 播放成功：更新工具栏显示
+    }
+    return;
+  }
+  if (data.type === 'shizuki:status') {
+    if (data.track) {
+      foliaTrackInfo.value = {
+        name: String(data.track.name || ''),
+        artist: Array.isArray(data.track.artists) ? data.track.artists.join(' / ') : ''
+      };
     }
   }
 }
@@ -2500,6 +2616,23 @@ watch(
   }
 );
 
+function handleFoliaPlayRequest(event) {
+  const track = event?.detail?.track;
+  if (!track) return;
+  const trackId = readFoliaTrackId(track);
+  foliaTrackInfo.value = {
+    name: String(track.title || track.name || ''),
+    artist: String(track.artist || '')
+  };
+  if (!foliaMode.value) {
+    setFoliaMode(true);
+  }
+  // 等 iframe 挂载 + 桥就绪后推送（setFoliaMode 内部已触发 pushCurrentTrackToFolia）
+  if (foliaBridgeReady && trackId) {
+    postToFolia({ type: 'shizuki:play-track', trackId });
+  }
+}
+
 onMounted(async () => {
   try {
     await auth.ensureReady();
@@ -2508,6 +2641,8 @@ onMounted(async () => {
     musicSearchHistory.value = readMusicSearchHistory();
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', updateViewportMode, { passive: true });
+      window.addEventListener('message', handleFoliaBridgeMessage);
+      window.addEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
     }
 
     await Promise.all([
@@ -2555,6 +2690,8 @@ onBeforeUnmount(() => {
   }
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', updateViewportMode);
+    window.removeEventListener('message', handleFoliaBridgeMessage);
+    window.removeEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
   }
 });
 </script>
@@ -2640,6 +2777,75 @@ onBeforeUnmount(() => {
   min-height: 68vh;
   border: 0;
   background: #0b0e14;
+}
+
+.folia-embed-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-panel-surface);
+}
+
+.folia-embed-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--theme-text-primary);
+}
+
+.folia-embed-track i {
+  color: rgba(var(--accent-rgb), 0.9);
+}
+
+.folia-track-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40vw;
+}
+
+.folia-track-artist {
+  color: var(--theme-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 20vw;
+}
+
+.folia-embed-hint {
+  font-size: 12px;
+  color: var(--theme-text-tertiary);
+}
+
+.folia-embed-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.folia-toolbar-btn {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.folia-toolbar-btn:hover {
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--theme-text-primary);
 }
 
 .music-center-mode-switch {

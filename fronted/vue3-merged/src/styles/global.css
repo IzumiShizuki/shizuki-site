@@ -863,7 +863,6 @@ body {
 .top-menu-root :is(
   .icon-minimal,
   .circle-icon-box,
-  .github-style-box,
   .avatar-box.anonymous,
   .pill-btn-box i
 ) {
