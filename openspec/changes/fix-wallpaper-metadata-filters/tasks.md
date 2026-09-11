@@ -26,4 +26,4 @@
 - [x] 4.1 Run focused backend and frontend regression tests
 - [x] 4.2 Run the media-module test suite and production frontend/backend builds
 - [x] 4.3 Start the local application and verify filters, titles, previews, pagination, and import events
-- [ ] 4.4 Validate OpenSpec, review for secrets/unrelated files, deploy, and verify production discovery responses
+- [x] 4.4 Validate OpenSpec, review for secrets/unrelated files, deploy, and verify production discovery responses
