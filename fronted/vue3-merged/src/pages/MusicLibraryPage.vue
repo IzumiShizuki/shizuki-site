@@ -36,7 +36,7 @@
       </div>
     </header>
 
-    <section v-if="foliaMode" class="folia-embed-pane">
+    <section class="folia-embed-pane" :class="{ 'folia-embed-visible': foliaMode, 'folia-embed-hidden': !foliaMode }">
       <div class="folia-embed-toolbar">
         <div class="folia-embed-track" v-if="foliaTrackInfo">
           <i class="fas fa-music"></i>
@@ -347,36 +347,79 @@ let foliaLoaderPromise = null; // 动态加载 Folia 的 Promise（幂等）
  * 2. 注入 runtime-config.js + main chunk（?embed=1）
  * 3. Folia React 树渲染进容器，桥在同一 window 上监听
  */
-async function loadFoliaEmbed() {
+/**
+ * 预加载 Folia 脚本（不创建容器）：进入音乐页时预热，切 Folia 模式时秒挂载。
+ * 脚本已加载后再次调用直接解析主 chunk 并等待就绪。
+ */
+async function preloadFoliaScripts() {
   if (foliaLoaderPromise) return foliaLoaderPromise;
   foliaLoaderPromise = (async () => {
-    const host = foliaEmbedHostRef.value;
-    if (!host) return;
-    // 1. 容器
-    let embedRoot = document.getElementById('folia-embed-root');
-    if (!embedRoot) {
-      embedRoot = document.createElement('div');
-      embedRoot.id = 'folia-embed-root';
-      embedRoot.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;overflow:hidden;';
-      host.appendChild(embedRoot);
-    }
-    // 2. 加载 runtime-config
+    // 1. 加载 runtime-config
     await loadScript('/music/runtime-config.js');
-    // 3. 解析 index.html 拿主 chunk 名（hash 会变）
+    // 2. 解析 index.html 拿主 chunk 名（hash 会变）
     const indexPath = FOLIA_EMBED_URL;
     const html = await fetch(indexPath).then((r) => r.text());
     const mainMatch = html.match(/<script type="module"[^>]*src="([^"]+)"/);
-    const mainSrc = mainMatch ? mainMatch[1] : '/music/assets/main-Cg4csBvv.js';
-    // 4. 加载主 chunk（ES module）；bootstrap 检测 #folia-embed-root 存在即进入 embed 模式
-    await loadScript(mainSrc, { module: true });
-    foliaBridgeReady = true;
-    // 5. 同步账号 + 补发待播歌曲 + 主题跟随
-    void syncCookieToFolia();
-    void syncCookieBackFromFolia();
-    deliverPendingFoliaTrack();
-    syncThemeToFolia();
+    const mainSrc = mainMatch ? mainMatch[1] : '/music/assets/main-C_MalaQ2.js';
+    // 3. modulepreload 预取主 chunk（只缓存字节不执行——执行需等 embed 容器就绪，
+    //    否则 bootstrap 找不到 #root 会初始化失败）
+    const existing = document.querySelector(`link[href="${mainSrc}"]`);
+    if (!existing) {
+      const link = document.createElement('link');
+      link.rel = 'modulepreload';
+      link.href = mainSrc;
+      document.head.appendChild(link);
+    }
   })();
   return foliaLoaderPromise;
+}
+
+/** 进入 Folia 模式：确保脚本已加载 + 创建容器 → Folia 立即挂载（无缝）。 */
+async function loadFoliaEmbed() {
+  const host = foliaEmbedHostRef.value;
+  if (!host) return;
+  await preloadFoliaScripts();
+  // 执行主 chunk（若未执行过；bootstrap 检测 #folia-embed-root 存在即进入 embed 模式）
+  const html = await fetch(FOLIA_EMBED_URL).then((r) => r.text());
+  const mainMatch = html.match(/<script type="module"[^>]*src="([^"]+)"/);
+  const mainSrc = mainMatch ? mainMatch[1] : '/music/assets/main-C_MalaQ2.js';
+  // 容器（若已存在则复用，避免重复创建）
+  let embedRoot = document.getElementById('folia-embed-root');
+  if (!embedRoot) {
+    embedRoot = document.createElement('div');
+    embedRoot.id = 'folia-embed-root';
+    embedRoot.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;overflow:hidden;';
+    host.appendChild(embedRoot);
+  }
+  await loadScript(mainSrc, { module: true });
+  // 等 Folia React 树真正挂载进容器（bootstrap 异步初始化）
+  await waitForFoliaMount();
+  foliaBridgeReady = true;
+  // 同步账号 + 补发待播歌曲 + 主题跟随
+  void syncCookieToFolia();
+  void syncCookieBackFromFolia();
+  deliverPendingFoliaTrack();
+  syncThemeToFolia();
+}
+
+/** 轮询等待 Folia React 树挂载进 #folia-embed-root。 */
+function waitForFoliaMount(timeoutMs = 20000) {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const poll = () => {
+      const root = document.getElementById('folia-embed-root');
+      if (root && root.children.length > 0) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - started > timeoutMs) {
+        resolve(false);
+        return;
+      }
+      window.setTimeout(poll, 200);
+    };
+    poll();
+  });
 }
 
 function loadScript(src, options = {}) {
@@ -2861,6 +2904,8 @@ onMounted(async () => {
       window.addEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
       window.addEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
     }
+    // 无论当前模式，都后台预加载 Folia 脚本（切模式时秒挂载实现无缝）
+    void preloadFoliaScripts();
     // 若持久化状态直接进入 Folia 模式，则等待 DOM 就绪后加载 Folia
     if (foliaMode.value) {
       await nextTick();
@@ -2998,6 +3043,17 @@ onBeforeUnmount(() => {
   border: 1px solid var(--theme-border);
   background: #0b0e14;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  /* 常驻容器：Folia React 树保持挂载，切走时仅隐藏（无缝切回） */
+  display: none;
+}
+
+.folia-embed-pane.folia-embed-visible {
+  display: flex;
+  flex-direction: column;
+}
+
+.folia-embed-pane.folia-embed-hidden {
+  display: none;
 }
 
 .folia-embed-frame {
@@ -3016,6 +3072,12 @@ onBeforeUnmount(() => {
   min-height: 68vh;
   overflow: hidden;
   background: #0b0e14;
+  /* 创建独立层叠上下文：Folia 内部的 fixed 元素（全屏遮罩等）相对本容器定位，
+     不会盖住 Vue 页面的模式切换条 */
+  transform: translateZ(0);
+  contain: layout style;
+  isolation: isolate;
+  z-index: 1;
 }
 
 .folia-embed-toolbar {

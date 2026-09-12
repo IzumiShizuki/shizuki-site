@@ -1925,13 +1925,12 @@ public class MediaServiceImpl implements MediaService {
         boolean hasBoundAccountSource = sourcePolicy.boundProviders().contains(provider);
         boolean accountFirst = SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode());
         boolean accountOnly = SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode());
-        if ((accountFirst || accountOnly) && canUseNeteaseAccount) {
+        // 统一音源：网易云账号绑定后优先用账号 cookie 解析（与 Folia 同款音源，VIP 可听），
+        // 失败再回退 meting。仅 accountOnly 模式在账号失败时直接报错。
+        if (canUseNeteaseAccount && !accountOnly) {
             try {
                 return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, false);
             } catch (Exception ex) {
-                if (accountOnly) {
-                    throw ex;
-                }
                 LOGGER.warn(
                     "MUSIC_RESOLVE_PLAYBACK_ACCOUNT_FAIL provider={} trackId={} mode={} reason={}",
                     provider,
@@ -1939,6 +1938,15 @@ public class MediaServiceImpl implements MediaService {
                     sourcePolicy.mode(),
                     sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
                 );
+            }
+        }
+        if (accountOnly && canUseNeteaseAccount) {
+            try {
+                return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, false);
+            } catch (Exception ex) {
+                if (accountOnly) {
+                    throw ex;
+                }
             }
         }
 
@@ -4134,10 +4142,8 @@ public class MediaServiceImpl implements MediaService {
         if (sourcePolicy == null || sourcePolicy.boundProviders() == null) {
             return false;
         }
-        if (!SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode())
-            && !SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode())) {
-            return false;
-        }
+        // 统一音源：只要用户绑定了网易云账号（最新 cookie），网易云账号通道即可用，
+        // 不再要求 account_first/account_only 模式——meting 在账号失败时兜底。
         return sourcePolicy.boundProviders().contains("netease");
     }
 

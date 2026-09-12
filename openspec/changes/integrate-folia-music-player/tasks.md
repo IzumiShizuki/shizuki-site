@@ -46,6 +46,14 @@
 - [x] **主题桥（基础）**：`shizuki:set-theme` 消息，embed 加载后同步站点昼夜模式到 Folia（`setDaylightPreference`）。
 - [x] **E2E 验证**：iframeCount=0、embedMounted=True、cookieSync=True、play-result ok（带 30s 进度播放成功）。
 
+## 音源统一 + 无缝切换（2026-09-12 第四轮）
+
+- [x] **音源统一（普通模式 = Folia 同款）**：后端 `MediaServiceImpl.canUseNeteaseAccountSource` 放宽（绑定网易云即用账号通道，不再要求 account_first/only）；`resolvePlaybackTrack` 网易云账号优先解析（与 Folia 同款 ncm-api + cookie），meting 兜底。实测 `resolve-playback` 返回完整 audio URL（非 30s 试听）。
+- [x] **Folia 预加载**：`preloadFoliaScripts` 用 `modulepreload` 后台预取 Folia 主 chunk（进入音乐页即预热，切模式时字节已缓存）。
+- [x] **Folia 容器常驻（无缝切换）**：`folia-embed-pane` 由 `v-if` 改为常驻 + `folia-embed-visible/hidden` class 显隐；切走不销毁 React 树。实测：首次 12s（冷启动），**二次切换 0ms（纯 CSS 显隐）**。
+- [x] **embed 布局修复**：`folia-embed-host` 加 `transform/contain/isolation` 创建独立层叠上下文，Folia 内部 fixed 遮罩不再盖住 Vue 模式切换条（实测切回普通模式按钮可点）。
+- [x] **基础设施故障修复**：登录 500 根因是**磁盘 100% 满** → Redis 无法持久化（`No space left on device`）。清理 17 个旧备份快照（7.5G）+ Docker 悬空镜像/缓存 → 磁盘 0→12G；Redis 恢复 healthy；登录恢复（HTTP 400 业务响应而非 500）。
+
 **待办（后续增量）**：
 - [ ] 主题深度桥接（站点 accent/壁纸 → Folia 视觉参数）
 - [ ] 歌单/点赞双向同步在同文档下进一步打通（data 源统一）
