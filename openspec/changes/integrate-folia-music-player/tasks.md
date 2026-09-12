@@ -34,6 +34,22 @@
 - [x] 后端构建部署：`Dockerfile.backend` 重建 `shizuki-site/backend:latest`，新 cookie 端点 401（鉴权正确）。
 - [x] E2E 验证（Playwright + Edge）：模式切换条 ✓、GitHub 图标移除 ✓、iframe 加载 ✓、sync-cookie 写入 iframe localStorage ✓、get-status 回包 ✓、play-track 免费曲播放成功（`ok:true`，返回真实 MP3 URL）、VIP 曲返回可读错误。
 - [x] 源码公开：桥文件 + 修改说明存 `third_party/folia-major/`（AGPL-3.0 合规分发）。
+
+## 方案 A：Fork + 同文档嵌入（2026-09-12 第三轮）
+
+用户明确要求**放弃 iframe 套皮**，改为 fork Folia 并做真正集成。已实现核心骨架：
+
+- [x] **Fork 仓库**：服务器 `/opt/folia/folia-major-main` git 化（`git init` + 基线 commit `0643947`，分支 `folia-embed`）。
+- [x] **Folia embed 模式**：`bootstrap.tsx` 支持检测 `#folia-embed-root` 容器（存在即 embed 模式，挂载到该容器而非 `#root`，并强制 `setView('player')`）；`AppShell.tsx` embed 时根元素 `fixed inset-0` → `absolute inset-0`（容器内自适应）。
+- [x] **Vue 音乐页同文档嵌入**：`MusicLibraryPage.vue` 的 iframe 替换为 `folia-embed-host` 容器 + `loadFoliaEmbed()`（动态加载 runtime-config + main chunk（ES module），创建 `#folia-embed-root`，Folia React 树直接渲染在 Vue 文档内）。消息改走 `window.postMessage`（同文档桥）。
+- [x] **同文档互通（零成本）**：localStorage 天然共享 → 网易云 cookie 互通直接生效（实测 `cookieMatches: True`）；无需 postMessage 传 cookie 即可互通。
+- [x] **主题桥（基础）**：`shizuki:set-theme` 消息，embed 加载后同步站点昼夜模式到 Folia（`setDaylightPreference`）。
+- [x] **E2E 验证**：iframeCount=0、embedMounted=True、cookieSync=True、play-result ok（带 30s 进度播放成功）。
+
+**待办（后续增量）**：
+- [ ] 主题深度桥接（站点 accent/壁纸 → Folia 视觉参数）
+- [ ] 歌单/点赞双向同步在同文档下进一步打通（data 源统一）
+- [ ] Spotify 支持方案（Folia 无 Spotify，需独立设计）
 - [ ] 本地 git commit（不 push）。
 
 ## 实施要点（供后续维护）

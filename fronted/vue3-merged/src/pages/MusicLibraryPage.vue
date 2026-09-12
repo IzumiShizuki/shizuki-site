@@ -68,16 +68,11 @@
           </button>
         </div>
       </div>
-      <iframe
-        ref="foliaFrameRef"
-        class="folia-embed-frame"
-        :src="FOLIA_EMBED_URL"
-        title="Folia 沉浸式音乐播放器"
-        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-        loading="eager"
-        referrerpolicy="strict-origin-when-cross-origin"
-        @load="handleFoliaFrameLoad"
-      ></iframe>
+      <div
+        ref="foliaEmbedHostRef"
+        class="folia-embed-host"
+        data-folia-embed
+      ></div>
     </section>
 
     <section v-if="fatalErrorText && !foliaMode" class="music-fatal-error liquid-material">
@@ -339,11 +334,76 @@ const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
 const FOLIA_EMBED_URL = '/music/';
 const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
 const foliaMode = ref(readFoliaModePreference());
-const foliaFrameRef = ref(null);
+const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
 const foliaSelectedPlaylist = ref('');
 let foliaBridgeReady = false;
 let foliaPendingTrack = null; // { trackId, positionMs }：iframe 就绪前暂存要播放的歌曲
+let foliaLoaderPromise = null; // 动态加载 Folia 的 Promise（幂等）
+
+/**
+ * 动态加载 Folia（同文档 embed，非 iframe）：
+ * 1. 创建 #folia-embed-root 容器
+ * 2. 注入 runtime-config.js + main chunk（?embed=1）
+ * 3. Folia React 树渲染进容器，桥在同一 window 上监听
+ */
+async function loadFoliaEmbed() {
+  if (foliaLoaderPromise) return foliaLoaderPromise;
+  foliaLoaderPromise = (async () => {
+    const host = foliaEmbedHostRef.value;
+    if (!host) return;
+    // 1. 容器
+    let embedRoot = document.getElementById('folia-embed-root');
+    if (!embedRoot) {
+      embedRoot = document.createElement('div');
+      embedRoot.id = 'folia-embed-root';
+      embedRoot.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;overflow:hidden;';
+      host.appendChild(embedRoot);
+    }
+    // 2. 加载 runtime-config
+    await loadScript('/music/runtime-config.js');
+    // 3. 解析 index.html 拿主 chunk 名（hash 会变）
+    const indexPath = FOLIA_EMBED_URL;
+    const html = await fetch(indexPath).then((r) => r.text());
+    const mainMatch = html.match(/<script type="module"[^>]*src="([^"]+)"/);
+    const mainSrc = mainMatch ? mainMatch[1] : '/music/assets/main-Cg4csBvv.js';
+    // 4. 加载主 chunk（ES module）；bootstrap 检测 #folia-embed-root 存在即进入 embed 模式
+    await loadScript(mainSrc, { module: true });
+    foliaBridgeReady = true;
+    // 5. 同步账号 + 补发待播歌曲 + 主题跟随
+    void syncCookieToFolia();
+    void syncCookieBackFromFolia();
+    deliverPendingFoliaTrack();
+    syncThemeToFolia();
+  })();
+  return foliaLoaderPromise;
+}
+
+function loadScript(src, options = {}) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing && existing.dataset.loaded) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = src;
+    if (options.module) script.type = 'module';
+    script.dataset.loaded = '1';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+/** 把站点当前主题模式同步给 Folia（embed 模式下 Folia 跟随站点昼夜）。 */
+function syncThemeToFolia() {
+  try {
+    const root = document.documentElement;
+    const themeMode = String(root.dataset.themeMode || root.getAttribute('data-theme-mode') || 'night');
+    const isDaylight = themeMode === 'day';
+    postToFolia({ type: 'shizuki:set-theme', isDaylight });
+  } catch {
+    // ignore
+  }
+}
 
 /** 普通模式歌单（含默认/创建/收藏）作为 Folia 播放候选。 */
 const foliaPlaylistOptions = computed(() => {
@@ -402,6 +462,7 @@ function setFoliaMode(enabled) {
     }
   }
   if (foliaMode.value) {
+    void nextTick().then(() => loadFoliaEmbed());
     void pushCurrentTrackToFolia();
   } else {
     // 从 Folia 切回普通模式：把 Folia 正在播的歌同步回普通模式
@@ -412,12 +473,9 @@ function setFoliaMode(enabled) {
 /** 请求 Folia 回传当前播放歌曲，并尝试在普通模式继续播放（无缝反向）。 */
 async function pullCurrentTrackFromFolia() {
   if (!foliaBridgeReady) return;
-  const frame = foliaFrameRef.value;
-  if (!frame || !frame.contentWindow) return;
   const status = await new Promise((resolve) => {
     let done = false;
     const listener = (event) => {
-      if (event.source !== frame.contentWindow) return;
       const data = event.data;
       if (data && data.type === 'shizuki:status') {
         window.removeEventListener('message', listener);
@@ -426,7 +484,7 @@ async function pullCurrentTrackFromFolia() {
       }
     };
     window.addEventListener('message', listener);
-    frame.contentWindow.postMessage({ type: 'shizuki:get-status' }, window.location.origin);
+    postToFolia({ type: 'shizuki:get-status' });
     window.setTimeout(() => {
       if (!done) {
         window.removeEventListener('message', listener);
@@ -455,12 +513,14 @@ async function pullCurrentTrackFromFolia() {
   }
 }
 
-/** 向 iframe 内的 Folia 发送一条 postMessage（同源，需等待 iframe 加载完成）。 */
+/** 向 Folia 发送一条 postMessage（同文档 embed：桥在同一 window 上监听）。 */
 function postToFolia(payload) {
-  const frame = foliaFrameRef.value;
-  if (!frame || typeof frame.contentWindow?.postMessage !== 'function') return false;
-  frame.contentWindow.postMessage(payload, window.location.origin);
-  return true;
+  try {
+    window.postMessage(payload, window.location.origin);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** 拉取当前用户网易云 cookie 并同步到 Folia（写入 iframe localStorage.netease_cookie）。 */
@@ -473,12 +533,9 @@ async function syncCookieToFolia() {
     if (foliaBridgeReady) {
       postToFolia({ type: 'shizuki:sync-cookie', cookie });
     } else {
-      // Bridge 尚未就绪时，把 cookie 暂存到 iframe window（index.tsx 安装桥时读取）。
+      // Bridge 尚未就绪时，把 cookie 暂存到 window（index.tsx 安装桥时读取）。
       try {
-        const frame = foliaFrameRef.value;
-        if (frame && frame.contentWindow) {
-          frame.contentWindow.__shizukiPendingCookie = cookie;
-        }
+        window.__shizukiPendingCookie = cookie;
       } catch {
         // ignore
       }
@@ -537,18 +594,13 @@ function requestFoliaStatus() {
   postToFolia({ type: 'shizuki:get-status' });
 }
 
-function handleFoliaFrameLoad() {
-  foliaBridgeReady = true;
-  // 加载完成后：同步账号到 Folia + 从 Folia 回读账号 + 补发待播歌曲
-  void syncCookieToFolia();
-  void syncCookieBackFromFolia();
-  deliverPendingFoliaTrack();
-}
-
 function handleFoliaBridgeMessage(event) {
-  if (event.source !== foliaFrameRef.value?.contentWindow) return;
   const data = event.data;
   if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
+  // 同文档 embed：忽略自己发出的消息（避免回声），只处理桥回包
+  if (event.source === window && ['shizuki:play-track', 'shizuki:play-tracks', 'shizuki:get-cookie', 'shizuki:get-status', 'shizuki:sync-cookie'].includes(data.type)) {
+    return;
+  }
   if (data.type === 'shizuki:play-result') {
     if (data.ok && data.trackId) {
       // 播放成功：更新工具栏显示
@@ -2809,6 +2861,12 @@ onMounted(async () => {
       window.addEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
       window.addEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
     }
+    // 若持久化状态直接进入 Folia 模式，则等待 DOM 就绪后加载 Folia
+    if (foliaMode.value) {
+      await nextTick();
+      void loadFoliaEmbed();
+      void pushCurrentTrackToFolia();
+    }
 
     await Promise.all([
       loadHomeData(),
@@ -2948,6 +3006,15 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 68vh;
   border: 0;
+  background: #0b0e14;
+}
+
+.folia-embed-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 68vh;
+  overflow: hidden;
   background: #0b0e14;
 }
 

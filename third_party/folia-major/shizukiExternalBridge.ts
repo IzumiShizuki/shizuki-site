@@ -182,7 +182,7 @@ function snapshotStatus(): Record<string, unknown> {
     positionMs,
     playing: state.playerState === 'PLAYING',
     src: String(state.audioSrc || ''),
-    liked: Boolean(state.isLiked),
+    liked: Boolean((state as unknown as { isLiked?: boolean }).isLiked),
   };
 }
 
@@ -200,6 +200,20 @@ function handleMessage(event: MessageEvent): void {
   if (type === 'shizuki:get-cookie') {
     // 把 Folia 侧已登录的网易云 cookie 回传父页面（父页面随后保存到站点后端）。
     postToParent({ type: 'shizuki:cookie', cookie: readCookieFromStorage() });
+    return;
+  }
+
+  if (type === 'shizuki:set-theme') {
+    // 站点主题同步到 Folia：昼夜模式跟随站点。
+    try {
+      if (typeof data.isDaylight === 'boolean') {
+        import('./stores/useThemeSettingsStore').then(({ useThemeSettingsStore }) => {
+          useThemeSettingsStore.getState().setDaylightPreference(Boolean(data.isDaylight));
+        }).catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
     return;
   }
 
