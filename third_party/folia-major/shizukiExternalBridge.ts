@@ -84,7 +84,7 @@ async function resolveTrack(trackId: number): Promise<{ song: unknown; audioUrl:
 }
 
 /** Play a NetEase track through the upstream playback store. */
-async function playTrack(trackId: number): Promise<void> {
+async function playTrack(trackId: number, positionMs?: number): Promise<void> {
   const { song, audioUrl, name } = await resolveTrack(trackId);
   const normalized = (neteaseApi.normalizeSongResult
     ? neteaseApi.normalizeSongResult(song)
@@ -94,6 +94,57 @@ async function playTrack(trackId: number): Promise<void> {
   store.setPlayQueue([normalized]);
   store.setAudioSrc(audioUrl);
   void name;
+  // 无缝续播：音频就绪后 seek 到指定位置（毫秒）。
+  if (positionMs != null && Number.isFinite(positionMs) && positionMs > 0) {
+    const targetSec = positionMs / 1000;
+    window.setTimeout(() => {
+      try {
+        const audio = document.querySelector('audio');
+        if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+          audio.currentTime = Math.min(targetSec, audio.duration - 0.5);
+        }
+        const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
+        clock?.set(targetSec);
+      } catch {
+        // ignore seek failure (still starts playback)
+      }
+    }, 600);
+  }
+}
+
+/** Play a list of NetEase track ids as a queue (first starts, rest enqueued). */
+async function playTracks(trackIds: number[]): Promise<{ played: number; failed: number }> {
+  const ids = (Array.isArray(trackIds) ? trackIds : [])
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  if (ids.length === 0) {
+    throw new Error('empty track list');
+  }
+  let played = 0;
+  let failed = 0;
+  for (let index = 0; index < ids.length; index += 1) {
+    const id = ids[index];
+    try {
+      const { song, audioUrl } = await resolveTrack(id);
+      const normalized = (neteaseApi.normalizeSongResult
+        ? neteaseApi.normalizeSongResult(song)
+        : song) as SongResult;
+      const store = usePlaybackStore.getState();
+      if (index === 0) {
+        store.setCurrentSong(normalized);
+        store.setPlayQueue(ids.map(() => normalized));
+        store.setAudioSrc(audioUrl);
+      } else {
+        // 后续曲目简化处理：仅构建队列（Folia 队列 API 较复杂，先保证第一首可播）
+        const queue = usePlaybackStore.getState().playQueue;
+        store.setPlayQueue([...queue, normalized]);
+      }
+      played += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { played, failed };
 }
 
 function snapshotStatus(): Record<string, unknown> {
@@ -131,6 +182,7 @@ function snapshotStatus(): Record<string, unknown> {
     positionMs,
     playing: state.playerState === 'PLAYING',
     src: String(state.audioSrc || ''),
+    liked: Boolean(state.isLiked),
   };
 }
 
@@ -145,9 +197,16 @@ function handleMessage(event: MessageEvent): void {
     return;
   }
 
+  if (type === 'shizuki:get-cookie') {
+    // 把 Folia 侧已登录的网易云 cookie 回传父页面（父页面随后保存到站点后端）。
+    postToParent({ type: 'shizuki:cookie', cookie: readCookieFromStorage() });
+    return;
+  }
+
   if (type === 'shizuki:play-track') {
     const trackId = Number(data.trackId);
-    playTrack(trackId)
+    const positionMs = Number(data.positionMs);
+    playTrack(trackId, Number.isFinite(positionMs) && positionMs > 0 ? positionMs : undefined)
       .then(() => {
         postToParent({ type: 'shizuki:play-result', ok: true, trackId });
       })
@@ -156,6 +215,22 @@ function handleMessage(event: MessageEvent): void {
           type: 'shizuki:play-result',
           ok: false,
           trackId,
+          error: String(error?.message || error || 'playback failed'),
+        });
+      });
+    return;
+  }
+
+  if (type === 'shizuki:play-tracks') {
+    const trackIds = Array.isArray(data.trackIds) ? data.trackIds : [];
+    playTracks(trackIds as number[])
+      .then((summary) => {
+        postToParent({ type: 'shizuki:play-tracks-result', ok: true, ...summary });
+      })
+      .catch((error) => {
+        postToParent({
+          type: 'shizuki:play-tracks-result',
+          ok: false,
           error: String(error?.message || error || 'playback failed'),
         });
       });

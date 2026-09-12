@@ -19,7 +19,16 @@
 - [x] **player 详情页无缝切换**：`MusicPlayerDetailView.vue` 顶部新增「Folia 沉浸模式」按钮 → `shizuki:open-folia-mode` 事件 → 切 Folia 模式并携带当前歌曲（实测点击后 iframe 出现）。
 - [x] **UI 高度适配**：`App.vue` 的 `route-content-music-shell` 加 `height: calc(100dvh - top - bottom)`，使 music 页不再溢出视口（实测 page bottom 896 ≤ 900）。
 - [x] **menu 白色背景框修复**：日间模式 `--menu-glass-bg` 从 `rgba(255,255,255,0.96)` 近纯白改为 `rgba(255,252,248,0.55)` 半透明玻璃（root cause：wallpaper change 的 menu-glass 用 `--theme-panel-surface-elevated`，日间该 token 是白色渐变）。
-- [x] **账号互通排查结论**：cookie 在后端 DB 有效（`music_cookie_netease` 记录，解密后登录态 `IzumiShizuki` / vipType 110 黑胶 VIP）；前端 sync 逻辑已上线；**VIP 歌播放失败是网易云对第三方 API 的风控**（`song/url/v1` 返回 code 404，匿名与带 cookie 均 NULL），普通歌正常——非集成 bug，与 Folia/本站均无关。
+- [x] **账号互通排查结论**：cookie 在后端 DB 有效（`music_cookie_netease` 记录，解密后登录态 `IzumiShizuki` / vipType 110 黑胶 VIP）；前端 sync 逻辑已上线；**VIP 歌在后端旧 cookie 下被网易云风控**（`song/url/v1` 404），但**用户在 Folia 内扫码登录（最新 cookie）可正常听会员歌**——关键是最新 cookie 而非旧 cookie。
+
+## 双向互通增强（2026-09-12 第二轮）
+
+- [x] **Folia → 后端 cookie 回写**：桥新增 `shizuki:get-cookie`（读 iframe 内 Folia 已登录的网易云 cookie 回传父页面）→ 父页面 `handleFoliaBridgeMessage` 调 `upsertMusicSourceAccountCookie` 保存到后端 → 两边账号统一（Folia 最新 cookie 同步给普通模式）。
+- [x] **普通模式歌单 → Folia 播放**：Folia 工具栏新增「歌单」下拉（列出普通模式的默认/创建/收藏歌单）→ 拉取歌单歌曲 trackIds → 桥 `shizuki:play-tracks` 批量播放（实测 `ok:true, played:2, failed:0`）。
+- [x] **普通 → Folia 无缝切换**：传歌时带 `positionMs`（普通模式当前进度）+ 暂停普通模式播放；桥 `play-track` 支持 `positionMs`（音频就绪后 seek，实测 45s 参数被接受）；pending 机制确保 iframe 就绪后补发。
+- [x] **Folia → 普通模式反向同步**：`setFoliaMode(false)` 时 `pullCurrentTrackFromFolia` 请求 Folia 状态 → 用 `playExternalTrack` 在普通模式尝试续播（版权受限时静默保留）。
+- [x] **点赞同步（基础）**：桥 status 快照加 `liked` 字段；前端收到 status 时若 liked 明确且与普通模式红心不同则尽力同步。
+- [x] **Spotify 调研结论**：Folia **不支持 Spotify**（源码无接入）；站点普通模式已有 Spotify 搜索+预览。Folia 面向网易云生态，Spotify 互通需独立方案（待用户确认 Spotify 形态后设计）。
 - [x] 前端 `vue3-merged` 构建通过；服务器 `Dockerfile.frontend` 无缓存重建并重启容器。
 - [x] **删除 TopMenu GitHub 图标**：TopMenu.vue + global.css 中 github-style-box 全部清除（fa-github 字体字形保留，属 FontAwesome 库定义）。
 - [x] 后端构建部署：`Dockerfile.backend` 重建 `shizuki-site/backend:latest`，新 cookie 端点 401（鉴权正确）。
