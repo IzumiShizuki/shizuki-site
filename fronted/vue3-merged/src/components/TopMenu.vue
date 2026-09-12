@@ -637,7 +637,7 @@ onBeforeUnmount(() => {
   --menu-glass-bg: linear-gradient(
     155deg,
     rgba(var(--accent-rgb), 0.1),
-    var(--theme-panel-surface-elevated) 42%
+    rgba(86, 66, 76, 0.26) 42%
   );
   --menu-glass-border: var(--theme-border-strong);
   --menu-glass-shadow: var(--theme-shadow-soft);
@@ -1431,7 +1431,7 @@ button.author-info-item:focus-visible {
   --menu-glass-bg: linear-gradient(
     155deg,
     rgba(var(--accent-rgb), 0.06),
-    var(--theme-panel-surface-elevated) 46%
+    rgba(255, 252, 248, 0.55) 46%
   );
   --menu-glass-border: var(--theme-border-strong);
   --menu-glass-shadow: var(--theme-shadow-soft);

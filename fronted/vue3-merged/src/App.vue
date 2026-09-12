@@ -3286,6 +3286,7 @@ onBeforeUnmount(() => {
 .route-content.route-content-music-shell {
   overflow: hidden;
   padding: 8px;
+  height: calc(100dvh - var(--music-top-offset-current) - var(--music-bottom-offset));
 }
 
 .route-page-view {

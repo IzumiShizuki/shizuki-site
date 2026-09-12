@@ -6,6 +6,10 @@
         返回
       </button>
       <p>播放详情</p>
+      <button class="folia-mode-btn ripple-trigger" type="button" @click="openFoliaMode">
+        <i class="fas fa-ghost"></i>
+        Folia 沉浸模式
+      </button>
     </header>
 
     <div class="detail-layout">
@@ -159,6 +163,14 @@ const music = useMusicLibraryContext();
 const VINYL_AURA_INNER_RATIO = 100 / 136;
 
 const track = computed(() => music.player.currentTrack.value);
+
+/** 切换到 Folia 沉浸模式（通知 MusicLibraryPage 切换并携带当前歌曲）。 */
+function openFoliaMode() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode', {
+    detail: { track: track.value || null }
+  }));
+}
 const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
 const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
 const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
@@ -544,6 +556,28 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.folia-mode-btn {
+  min-height: 34px;
+  margin-left: auto;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  background: rgba(var(--accent-rgb), 0.18);
+  color: rgba(var(--accent-soft-rgb), 1);
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.folia-mode-btn:hover {
+  background: rgba(var(--accent-rgb), 0.3);
+  transform: translateY(-1px);
 }
 
 .detail-layout {

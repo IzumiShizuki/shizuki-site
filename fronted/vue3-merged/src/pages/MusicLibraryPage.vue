@@ -2633,6 +2633,16 @@ function handleFoliaPlayRequest(event) {
   }
 }
 
+function handleOpenFoliaMode(event) {
+  const track = event?.detail?.track || null;
+  if (!foliaMode.value) {
+    setFoliaMode(true);
+  }
+  if (track) {
+    handleFoliaPlayRequest(event);
+  }
+}
+
 onMounted(async () => {
   try {
     await auth.ensureReady();
@@ -2643,6 +2653,7 @@ onMounted(async () => {
       window.addEventListener('resize', updateViewportMode, { passive: true });
       window.addEventListener('message', handleFoliaBridgeMessage);
       window.addEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
+      window.addEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
     }
 
     await Promise.all([
@@ -2692,11 +2703,18 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', updateViewportMode);
     window.removeEventListener('message', handleFoliaBridgeMessage);
     window.removeEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
+    window.removeEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
   }
 });
 </script>
 
 <style scoped>
+.music-library-page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .music-library-page.folia-mode-active {
   min-height: 100%;
   display: flex;
