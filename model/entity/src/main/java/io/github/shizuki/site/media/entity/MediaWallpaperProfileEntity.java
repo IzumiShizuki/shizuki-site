@@ -57,7 +57,7 @@ public class MediaWallpaperProfileEntity extends BaseEntity {
     private String workshopItemId;
 
     @TableField("enabled_flag")
-    private Boolean enabledFlag;
+    private Integer enabledFlag;
 
     public Long getOwnerUserId() {
         return ownerUserId;
@@ -179,11 +179,11 @@ public class MediaWallpaperProfileEntity extends BaseEntity {
         this.workshopItemId = workshopItemId;
     }
 
-    public Boolean getEnabledFlag() {
+    public Integer getEnabledFlag() {
         return enabledFlag;
     }
 
-    public void setEnabledFlag(Boolean enabledFlag) {
+    public void setEnabledFlag(Integer enabledFlag) {
         this.enabledFlag = enabledFlag;
     }
 }

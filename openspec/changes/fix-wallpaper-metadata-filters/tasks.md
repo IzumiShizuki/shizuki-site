@@ -34,3 +34,9 @@
 - [x] 5.2 换新机场 mojie.app 订阅（反爬 JS 解析出直连 IP 订阅源 `https://47.242.128.61:8000/api/v1/client/subscribe?token=...`），合并旧配置的 external-controller/secret/QQ Bot 规则，重启 clash-core
 - [x] 5.3 backend 容器经 `WALLPAPER_DISCOVERY_PROXY_URL=http://cpa:***@host.docker.internal:7890`（`docker compose --env-file deploy/.env.server` 重启）走 clash 代理
 - [x] 5.4 生产验证：wallhaven 搜索 200（返回真实壁纸）、预览图下载 200（image/jpeg）、workshop 搜索 200（返回真实创意工坊壁纸）；导入需登录（401 guest 为预期）
+
+## 6. Import Bug Fix（运维：导入入库修复）
+
+- [x] 6.1 诊断：登录态导入 wallhaven 500 `Package import failed`；加异常日志后定位根因 = `enabled_flag` 列类型 smallint 与实体 Boolean 不匹配（`PSQLException: column "enabled_flag" is of type smallint but expression is of type boolean`）
+- [x] 6.2 修复：`MediaWallpaperProfileEntity.enabledFlag` Boolean → Integer；全部 7 处使用点改为 `setEnabledFlag(1)` / `eq(..., 1)` / `Integer.valueOf(1).equals(...)`（WallpaperServiceImpl ×4、WallpaperBootstrapInitializer ×3）；`importPackage` catch 加 `LOGGER.error` 记录真实异常
+- [x] 6.3 生产验证：登录 `29301481@qq.com` 导入 wallhaven mly2vm 成功（`status: SUCCEEDED`，wallpaper_id=4，OSS `zhuowang-files` 9.5MB PNG 入库，我的壁纸库 API 返回可访问签名 URL）

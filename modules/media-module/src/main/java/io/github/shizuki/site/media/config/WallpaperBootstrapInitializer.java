@@ -94,7 +94,7 @@ public class WallpaperBootstrapInitializer implements ApplicationRunner {
     private boolean hasPublicWallpaper() {
         Long count = wallpaperProfileMapper.selectCount(
             new LambdaQueryWrapper<MediaWallpaperProfileEntity>()
-                .eq(MediaWallpaperProfileEntity::getEnabledFlag, true)
+                .eq(MediaWallpaperProfileEntity::getEnabledFlag, 1)
                 .eq(MediaWallpaperProfileEntity::getVisibilityCode, AssetVisibilityEnum.PUBLIC.getCode())
                 .eq(MediaWallpaperProfileEntity::getAuditStatus, AssetAuditStatusEnum.APPROVED.name())
         );
@@ -183,7 +183,7 @@ public class WallpaperBootstrapInitializer implements ApplicationRunner {
         changed |= ensureEquals(existing.getAuditStatus(), AssetAuditStatusEnum.APPROVED.name(), existing::setAuditStatus);
         changed |= ensureEquals(existing.getImportSource(), DEFAULT_IMPORT_SOURCE, existing::setImportSource);
         changed |= ensureEquals(existing.getWorkshopItemId(), null, existing::setWorkshopItemId);
-        changed |= ensureEquals(existing.getEnabledFlag(), true, existing::setEnabledFlag);
+        changed |= ensureEquals(existing.getEnabledFlag(), 1, existing::setEnabledFlag);
         if (changed) {
             existing.setUpdatedAt(LocalDateTime.now());
             wallpaperProfileMapper.updateById(existing);
@@ -220,7 +220,7 @@ public class WallpaperBootstrapInitializer implements ApplicationRunner {
         profile.setAuditStatus(AssetAuditStatusEnum.APPROVED.name());
         profile.setImportSource(DEFAULT_IMPORT_SOURCE);
         profile.setWorkshopItemId(null);
-        profile.setEnabledFlag(true);
+        profile.setEnabledFlag(1);
     }
 
     private String readRequiredBucket() {

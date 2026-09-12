@@ -68,6 +68,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
@@ -76,6 +78,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class WallpaperServiceImpl implements WallpaperService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(WallpaperServiceImpl.class);
     private static final Pattern WORKSHOP_ID_PATTERN = Pattern.compile("(?:id=|/filedetails/)(\\d+)");
     private static final Set<String> STATIC_EXTENSIONS = Set.of("png", "jpg", "jpeg", "avif");
     private static final Set<String> DYNAMIC_EXTENSIONS = Set.of("gif", "webp", "apng", "mp4", "webm", "mov");
@@ -170,6 +173,7 @@ public class WallpaperServiceImpl implements WallpaperService {
             finishJob(job.getId(), WallpaperImportStatusEnum.FAILED, null, businessException.getMessage(), null);
             throw businessException;
         } catch (Exception exception) {
+            LOGGER.error("Wallpaper package import failed: fileName={}", file.getOriginalFilename(), exception);
             finishJob(job.getId(), WallpaperImportStatusEnum.FAILED, null, "Package import failed", null);
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Package import failed");
         }
@@ -226,7 +230,7 @@ public class WallpaperServiceImpl implements WallpaperService {
         Long userId = loginUser == null ? null : loginUser.getUserId();
 
         LambdaQueryWrapper<MediaWallpaperProfileEntity> wrapper = new LambdaQueryWrapper<MediaWallpaperProfileEntity>()
-            .eq(MediaWallpaperProfileEntity::getEnabledFlag, true)
+            .eq(MediaWallpaperProfileEntity::getEnabledFlag, 1)
             .orderByDesc(MediaWallpaperProfileEntity::getId);
 
         switch (scope) {
@@ -265,7 +269,7 @@ public class WallpaperServiceImpl implements WallpaperService {
     public List<WallpaperProfileResponse> listPublicWallpapers() {
         List<MediaWallpaperProfileEntity> profiles = wallpaperProfileMapper.selectList(
             new LambdaQueryWrapper<MediaWallpaperProfileEntity>()
-                .eq(MediaWallpaperProfileEntity::getEnabledFlag, true)
+                .eq(MediaWallpaperProfileEntity::getEnabledFlag, 1)
                 .eq(MediaWallpaperProfileEntity::getVisibilityCode, AssetVisibilityEnum.PUBLIC.getCode())
                 .eq(MediaWallpaperProfileEntity::getAuditStatus, AssetAuditStatusEnum.APPROVED.name())
                 .orderByDesc(MediaWallpaperProfileEntity::getId)
@@ -388,7 +392,7 @@ public class WallpaperServiceImpl implements WallpaperService {
     public List<WallpaperProfileResponse> listPendingWallpapers() {
         List<MediaWallpaperProfileEntity> profiles = wallpaperProfileMapper.selectList(
             new LambdaQueryWrapper<MediaWallpaperProfileEntity>()
-                .eq(MediaWallpaperProfileEntity::getEnabledFlag, true)
+                .eq(MediaWallpaperProfileEntity::getEnabledFlag, 1)
                 .eq(MediaWallpaperProfileEntity::getAuditStatus, AssetAuditStatusEnum.PENDING_AUDIT.name())
                 .orderByDesc(MediaWallpaperProfileEntity::getId)
         );
@@ -419,7 +423,7 @@ public class WallpaperServiceImpl implements WallpaperService {
             auditStatus,
             visibility.name(),
             readString(profile.getSceneType(), WallpaperSceneTypeEnum.STATIC.name()),
-            Boolean.TRUE.equals(profile.getEnabledFlag())
+            Integer.valueOf(1).equals(profile.getEnabledFlag())
         );
     }
 
@@ -514,7 +518,7 @@ public class WallpaperServiceImpl implements WallpaperService {
             profile.setAuditStatus(auditStatus);
             profile.setImportSource(source.name());
             profile.setWorkshopItemId(readString(workshopItemId, null));
-            profile.setEnabledFlag(true);
+            profile.setEnabledFlag(1);
             profile.setCreatedAt(LocalDateTime.now());
             profile.setUpdatedAt(LocalDateTime.now());
             wallpaperProfileMapper.insert(profile);
