@@ -27,3 +27,10 @@
 - [x] 4.2 Run the media-module test suite and production frontend/backend builds
 - [x] 4.3 Start the local application and verify filters, titles, previews, pagination, and import events
 - [x] 4.4 Validate OpenSpec, review for secrets/unrelated files, deploy, and verify production discovery responses
+
+## 5. Production Connectivity Fix（运维：在线发现恢复）
+
+- [x] 5.1 诊断：wallhaven/steamcommunity 出站被墙 + 旧机场节点服务器 503 → 在线发现/下载不可用
+- [x] 5.2 换新机场 mojie.app 订阅（反爬 JS 解析出直连 IP 订阅源 `https://47.242.128.61:8000/api/v1/client/subscribe?token=...`），合并旧配置的 external-controller/secret/QQ Bot 规则，重启 clash-core
+- [x] 5.3 backend 容器经 `WALLPAPER_DISCOVERY_PROXY_URL=http://cpa:***@host.docker.internal:7890`（`docker compose --env-file deploy/.env.server` 重启）走 clash 代理
+- [x] 5.4 生产验证：wallhaven 搜索 200（返回真实壁纸）、预览图下载 200（image/jpeg）、workshop 搜索 200（返回真实创意工坊壁纸）；导入需登录（401 guest 为预期）
