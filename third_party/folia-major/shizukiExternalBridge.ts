@@ -94,21 +94,58 @@ async function playTrack(trackId: number, positionMs?: number): Promise<void> {
   store.setPlayQueue([normalized]);
   store.setAudioSrc(audioUrl);
   void name;
-  // 无缝续播：音频就绪后 seek 到指定位置（毫秒）。
+  // 加载歌词并写入 store（桥直接播放绕过了 Folia 的歌词加载流程，
+  // 这里主动补齐，保证沉浸歌词有精确时间戳而非 fallback）。
+  void loadLyricsForTrack(normalized);
+  // 无缝续播：音频就绪后 seek 到指定位置（毫秒）。轮询重试直到 duration 就绪
+  // （VIP 歌加载慢，单次定时器会错过）。
   if (positionMs != null && Number.isFinite(positionMs) && positionMs > 0) {
     const targetSec = positionMs / 1000;
-    window.setTimeout(() => {
+    const applySeek = () => {
       try {
         const audio = document.querySelector('audio');
-        if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
-          audio.currentTime = Math.min(targetSec, audio.duration - 0.5);
+        if (audio && Number.isFinite(audio.duration) && audio.duration > 0 && !audio.paused) {
+          audio.currentTime = Math.min(targetSec, Math.max(0, audio.duration - 0.5));
+          const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
+          clock?.set(audio.currentTime);
+          return true;
         }
-        const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
-        clock?.set(targetSec);
+        return false;
       } catch {
-        // ignore seek failure (still starts playback)
+        return true; // 不再重试，避免死循环
       }
-    }, 600);
+    };
+    let attempts = 0;
+    const seekTimer = window.setInterval(() => {
+      attempts += 1;
+      if (applySeek() || attempts > 40) {
+        window.clearInterval(seekTimer);
+      }
+    }, 300);
+    // 首次 800ms 后开始探测（给音频加载时间）
+    window.setTimeout(() => {
+      if (applySeek()) window.clearInterval(seekTimer);
+    }, 800);
+  }
+}
+
+/** 拉取网易云歌词（带时间戳）并写入 playback store，供沉浸歌词精确渲染。 */
+async function loadLyricsForTrack(song: SongResult): Promise<void> {
+  try {
+    const id = Number(song.id);
+    if (!Number.isFinite(id) || id <= 0) return;
+    const response = await neteaseApi.getLyric(id);
+    const payload = typeof neteaseApi.getProcessedLyricPayload === 'function'
+      ? neteaseApi.getProcessedLyricPayload(response)
+      : response;
+    const { processNeteaseLyrics } = await import('./utils/lyrics/neteaseProcessing');
+    const processed = await processNeteaseLyrics(payload);
+    if (processed.lyrics) {
+      const store = usePlaybackStore.getState();
+      store.setLyricsState(processed.lyrics);
+    }
+  } catch {
+    // 歌词加载失败不影响播放
   }
 }
 

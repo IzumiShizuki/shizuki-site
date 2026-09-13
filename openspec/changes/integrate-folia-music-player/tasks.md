@@ -54,9 +54,15 @@
 - [x] **embed 布局修复**：`folia-embed-host` 加 `transform/contain/isolation` 创建独立层叠上下文，Folia 内部 fixed 遮罩不再盖住 Vue 模式切换条（实测切回普通模式按钮可点）。
 - [x] **基础设施故障修复**：登录 500 根因是**磁盘 100% 满** → Redis 无法持久化（`No space left on device`）。清理 17 个旧备份快照（7.5G）+ Docker 悬空镜像/缓存 → 磁盘 0→12G；Redis 恢复 healthy；登录恢复（HTTP 400 业务响应而非 500）。
 
+## 合一方向确认 + 歌词对齐修复（2026-09-12 第五轮）
+
+- [x] **合一架构方向确认**：保留 Vue 壳（歌单管理/搜索/收藏/导航），Folia 四项能力注入各视图（网易云音源统一✓、歌词普通/沉浸切换、歌单列表/大屏切换、播放条桥接），不做整页模式切换。
+- [x] **沉浸歌词对齐修复**：桥 `playTrack` 直接播放绕过了 Folia 歌词加载流程（`omni.getLyrics`）→ 歌词可能未加载或 fallback。修复：桥播放后主动调 `neteaseApi.getLyric` + `processNeteaseLyrics` + `setLyricsState`，确保沉浸歌词用**真实 LRC 时间戳**（非平均分配）。实测播放后 Folia 显示「00:39 播放中 Beyond」。
+- [x] **进度继承双向**：普通→Folia 传 `positionMs`（桥内轮询 seek 至 duration 就绪）；Folia→普通 播放后调 `player.seekToTime` 继承进度。
+
 **待办（后续增量）**：
+- [ ] 合一落地：歌词普通/沉浸切换、歌单列表/大屏切换、播放条桥接（阶段2-4）
 - [ ] 主题深度桥接（站点 accent/壁纸 → Folia 视觉参数）
-- [ ] 歌单/点赞双向同步在同文档下进一步打通（data 源统一）
 - [ ] Spotify 支持方案（Folia 无 Spotify，需独立设计）
 - [ ] 本地 git commit（不 push）。
 
