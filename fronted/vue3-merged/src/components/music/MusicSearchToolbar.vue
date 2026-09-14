@@ -1,5 +1,5 @@
 <template>
-  <section ref="toolbarRoot" class="music-search-toolbar liquid-material">
+  <section ref="toolbarRoot" class="music-search-toolbar liquid-material te-search-toolbar">
     <div class="search-row">
       <label class="search-input-wrap">
         <i class="fas fa-search"></i>

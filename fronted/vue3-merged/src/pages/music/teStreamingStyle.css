@@ -1,0 +1,634 @@
+/*
+ * Copyright 2025 Px-asen (Pxasen.com)
+ *
+ * Ported from Twilight_Echo (Apache-2.0) — streaming-page/StreamingPage.vue /
+ * StreamingHome.vue / StreamingDiscovery.vue / ProviderMusicHome.vue +
+ * ProviderMusicHome.css / AnimatedInput.vue, adapted for the shizuki-site
+ * MusicLibraryHomeView (音乐首页上方区域). The site's theme tokens
+ * (--accent-rgb / --accent-strong-rgb / --accent-soft-rgb / --theme-*) stand
+ * in for Twilight_Echo's --te-* token system; the Electron-only pieces
+ * (LiquidGlassDefs SVG lens, IPC visualizer feed, osu!-style per-character
+ * input spring animation) are intentionally omitted.  This file borrows only
+ * the online-music-page visual language, and only for elements carrying the
+ * `te-*` classes below (plus the shared MusicSearchToolbar):
+ *   - 玻璃精选舞台（hero stage：深色烟底 + 主色氛围光 + 对角高光 + 上唇收光）
+ *   - 标题排版节奏（kicker 序号行 → 大标题 → EN 副行 → 描述 → 动作/脚注）
+ *   - 封面拼贴（双轨道圆环 + 三张错落封面 + PRESS PLAY 说明文字）
+ *   - panel-head / section-head 节奏（标题 + EN 副标 + 数量 + 更多入口）
+ *   - 歌曲行样式（序号 / 封面缩略 + hover 播放遮罩 / 标题+歌手 / 时长，
+ *     行 hover 右移提亮）
+ *   - 胶囊搜索框（圆角玻璃输入 + 图标 + focus 高光环）与胶囊 chips
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* ============================================================
+ * 0. 页面级 token — 与 tePlayingStyle.css / twLightPlayerBar.css 共用
+ *    同一套「烟色玻璃」替身（dark glass 在任何站点主题下都成立）
+ * ============================================================ */
+.music-home-view {
+  --te-glass-base: 15, 13, 19;
+  --te-glass-alpha: 0.86;
+  --te-track-rgb: var(--accent-rgb, 242, 179, 157);
+  --te-ink: rgba(255, 252, 248, 0.97);
+  --te-ink-soft: rgba(238, 226, 234, 0.82);
+  --te-ink-muted: rgba(206, 186, 201, 0.6);
+  --te-line: rgba(255, 255, 255, 0.12);
+  --te-line-strong: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================
+ * 1. 玻璃精选舞台 — Twilight_Echo .music-hero / .disc-masthead
+ *    （暗色烟底 + 主色氛围光 + 对角白高光 + 上唇收光）
+ * ============================================================ */
+.music-home-view .music-cozy-library .music-cozy-hero.te-hero-stage {
+  position: relative;
+  isolation: isolate;
+  min-height: 340px;
+  border-radius: 22px;
+  padding: clamp(20px, 2.6vw, 32px);
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: clamp(16px, 2.4vw, 30px);
+  align-items: stretch;
+  overflow: hidden;
+  /* 玻璃：主色氛围光 + 对角高光渐变 + 深色烟底 */
+  background:
+    radial-gradient(120% 92% at 14% -12%, rgba(var(--te-track-rgb), 0.2), transparent 52%),
+    radial-gradient(90% 84% at 102% 116%, rgba(var(--te-track-rgb), 0.1), transparent 56%),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.09),
+      rgba(255, 255, 255, 0.03) 48%,
+      rgba(255, 255, 255, 0.01)
+    ),
+    rgba(var(--te-glass-base), var(--te-glass-alpha));
+  /* 微边框高光：上唇更亮，模拟玻璃收光 */
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 24px 60px rgba(6, 8, 16, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(26px) saturate(165%);
+  -webkit-backdrop-filter: blur(26px) saturate(165%);
+}
+
+/* 旧 coziy 装饰圆环与舞台背景让位给 TE 舞台 */
+.music-home-view .music-cozy-library .music-cozy-hero.te-hero-stage::after {
+  display: none;
+}
+
+/* ---- 左侧文案 ---- */
+.music-home-view .music-cozy-library .hero-copy.te-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  /* 上唇高光（Twilight_Echo 玻璃语言） */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.music-home-view .music-cozy-library .hero-copy .te-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(var(--accent-soft-rgb), 0.78);
+}
+
+/* kicker 前的渐变圆点（StreamingDiscovery .disc-kicker-dot） */
+.music-home-view .music-cozy-library .hero-copy .te-hero-kicker::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(var(--accent-strong-rgb), 0.95), rgba(var(--accent-rgb), 0.7));
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.55);
+}
+
+.music-home-view .music-cozy-library .hero-copy .te-hero-kicker .te-hero-kicker-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.music-home-view .music-cozy-library .hero-copy .te-hero-title {
+  margin: 24px 0 0;
+  font-family: var(--font-display, var(--font-ui));
+  font-size: clamp(30px, 4.1vw, 52px);
+  line-height: 1.12;
+  letter-spacing: -1.5px;
+  font-weight: 800;
+  /* 深色玻璃舞台上不套渐变文字填充，使用实心白保证对比度 */
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: var(--te-ink) !important;
+  color: var(--te-ink) !important;
+}
+
+.music-home-view .music-cozy-library .hero-copy .te-hero-title-en {
+  margin: 9px 0 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(var(--accent-soft-rgb), 0.66);
+}
+
+.music-home-view .music-cozy-library .hero-copy .te-hero-desc {
+  margin: 16px 0 0;
+  max-width: 440px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--te-ink-soft);
+}
+
+.music-home-view .music-cozy-library .hero-copy .te-hero-chips {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.music-home-view .music-cozy-library .mood-chip.te-chip {
+  min-height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(245, 238, 244, 0.9);
+  font-size: 11.5px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.music-home-view .music-cozy-library .mood-chip.te-chip:hover {
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: rgba(var(--accent-rgb), 0.42);
+  transform: translateY(-1px);
+}
+
+.music-home-view .music-cozy-library .hero-copy .te-hero-foot {
+  margin: auto 0 0;
+  padding-top: 24px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--te-ink-muted);
+}
+
+/* ---- 右侧封面拼贴 + 正在推荐玻璃卡 ---- */
+.music-home-view .music-cozy-library .te-hero-visual {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.music-home-view .music-cozy-library .te-hero-artwork {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.music-home-view .music-cozy-library .te-hero-orbit {
+  position: absolute;
+  top: 40%;
+  right: -8%;
+  width: min(88%, 430px);
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+}
+
+.music-home-view .music-cozy-library .te-hero-orbit-inner {
+  width: 72%;
+  right: 2%;
+}
+
+.music-home-view .music-cozy-library .te-hero-art-cover {
+  position: absolute;
+  aspect-ratio: 1;
+  width: clamp(118px, 15vw, 188px);
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 18px 38px rgba(6, 8, 16, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.music-home-view .music-cozy-library .te-hero-art-0 {
+  top: 6%;
+  right: 34%;
+  z-index: 3;
+  transform: rotate(-8deg);
+}
+
+.music-home-view .music-cozy-library .te-hero-art-1 {
+  top: 16%;
+  right: 12%;
+  z-index: 2;
+  transform: rotate(12deg) scale(0.9);
+}
+
+.music-home-view .music-cozy-library .te-hero-art-2 {
+  top: 26%;
+  right: 50%;
+  z-index: 1;
+  transform: rotate(-20deg) scale(0.8);
+}
+
+.music-home-view .music-cozy-library .te-hero-caption {
+  position: absolute;
+  right: 4%;
+  bottom: 10px;
+  font-size: 8px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 正在推荐玻璃卡：落在拼贴下缘的 frosted panel（Twilight_Echo hero 动作区） */
+.music-home-view .music-cozy-library .hero-now-card.te-hero-now-card {
+  --liquid-shadow: none;
+  position: relative;
+  z-index: 1;
+  margin: auto 0 16px auto;
+  width: min(100%, 348px);
+  border-radius: 18px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(var(--te-track-rgb), 0.14), transparent 55%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+    rgba(18, 15, 23, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-top-color: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 18px 44px rgba(6, 8, 16, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+.music-home-view .music-cozy-library .te-hero-now-card .now-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(var(--accent-soft-rgb), 0.72);
+}
+
+.music-home-view .music-cozy-library .te-hero-now-card .now-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+  /* scoped 块对 now-title 有 !important 墨色强制，需同级覆盖 */
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: var(--te-ink) !important;
+  color: var(--te-ink) !important;
+}
+
+.music-home-view .music-cozy-library .te-hero-now-card .now-meta {
+  font-size: 12px;
+  color: var(--te-ink-soft);
+}
+
+.music-home-view .music-cozy-library .te-hero-now-card .now-note {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--te-ink-muted);
+}
+
+.music-home-view .music-cozy-library .te-hero-now-card .now-play-btn {
+  min-height: 36px;
+  margin-top: 4px;
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(145deg, rgba(var(--accent-strong-rgb), 0.96), rgba(var(--accent-rgb), 0.86));
+  color: var(--accent-surface-text, rgba(46, 30, 24, 0.95));
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow:
+    0 10px 24px rgba(var(--accent-rgb), 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.music-home-view .music-cozy-library .te-hero-now-card .now-play-btn:hover {
+  transform: translateY(-1px);
+  filter: saturate(1.1);
+  box-shadow:
+    0 14px 30px rgba(var(--accent-rgb), 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+/* ============================================================
+ * 2. panel-head / section-head — Twilight_Echo .music-section-head
+ *    （标题 + EN 副标 + 数量 + 更多入口）
+ * ============================================================ */
+.music-home-view .panel .te-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.music-home-view .panel .te-section-head h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 750;
+  letter-spacing: -0.4px;
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+}
+
+.music-home-view .panel .te-section-head h2 .te-section-sub {
+  margin-left: 7px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: rgba(var(--accent-strong-rgb), 0.78);
+}
+
+.music-home-view .panel .te-section-head .te-section-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
+}
+
+/* provider-head：数量升级为 accent 胶囊（Twilight_Echo count pill） */
+.music-home-view .panel .te-provider-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.music-home-view .panel .te-provider-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+}
+
+.music-home-view .panel .te-provider-head span {
+  margin-left: auto;
+  min-height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: rgb(var(--accent-soft-rgb));
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+ * 3. 歌曲行 — Twilight_Echo .track-table / .music-track
+ *    （序号 / 封面缩略 + hover 播放遮罩 / 标题+歌手 / 时长）
+ * ============================================================ */
+.music-home-view .te-track-head,
+.music-home-view .te-track-row {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+}
+
+.music-home-view .te-track-head {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.music-home-view .te-track-row {
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+}
+
+.music-home-view .te-track-row + .te-track-row {
+  margin-top: 6px;
+}
+
+.music-home-view .te-track-row:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+  transform: translateX(4px);
+  box-shadow: 0 10px 26px rgba(6, 8, 16, 0.2);
+}
+
+/* 封面缩略 + hover 播放遮罩 */
+.music-home-view .te-cover-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.music-home-view .te-cover-wrap .track-cover {
+  width: 100%;
+  height: 100%;
+}
+
+.music-home-view .te-cover-wrap .te-cover-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: rgba(10, 8, 16, 0.46);
+  color: #fff;
+  font-size: 11px;
+  opacity: 0;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  transition: opacity 160ms ease;
+}
+
+.music-home-view .te-track-row:hover .te-cover-play,
+.music-home-view .te-track-row:focus-visible .te-cover-play {
+  opacity: 1;
+}
+
+/* ============================================================
+ * 4. 歌单卡片 — Twilight_Echo .music-playlist / .disc-card
+ *    （封面右下 hover 播放圆钮 + 数量胶囊；卡片本体已玻璃化，仅叠加）
+ * ============================================================ */
+.music-home-view .playlist-card .cover .te-play-badge {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(12, 10, 18, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 10.5px;
+  opacity: 0;
+  transform: translateY(5px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.music-home-view .playlist-card:hover .cover .te-play-badge {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.music-home-view .playlist-card .cover .te-cover-count {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(12, 10, 18, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ============================================================
+ * 5. 搜索框 — Twilight_Echo .streaming-search-box
+ *    （胶囊玻璃输入 + 图标 + focus 高光环；作用于 MusicSearchToolbar）
+ * ============================================================ */
+.music-search-toolbar.te-search-toolbar {
+  border-radius: 16px;
+  padding: 10px;
+}
+
+.music-search-toolbar.te-search-toolbar .search-input-wrap {
+  min-height: 38px;
+  height: 38px;
+  margin: 0;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border-strong, rgba(255, 210, 190, 0.34));
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.music-search-toolbar.te-search-toolbar .search-input-wrap:focus-within {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.08);
+  box-shadow:
+    0 0 0 4px rgba(var(--accent-rgb), 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.music-search-toolbar.te-search-toolbar .search-input-wrap i {
+  color: var(--theme-text-tertiary, rgba(205, 183, 168, 0.78));
+  transition: color 180ms ease;
+}
+
+.music-search-toolbar.te-search-toolbar .search-input-wrap:focus-within i {
+  color: rgb(var(--accent-strong-rgb));
+}
+
+.music-search-toolbar.te-search-toolbar .search-btn,
+.music-search-toolbar.te-search-toolbar .refresh-btn {
+  min-height: 38px;
+  height: 38px;
+  border-radius: 999px;
+}
+
+.music-search-toolbar.te-search-toolbar .chip-btn {
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-home-view .te-hero-stage,
+  .music-home-view .te-track-row,
+  .music-home-view .playlist-card .cover .te-play-badge {
+    transition: none;
+  }
+}
+
+/* ============================================================
+ * 6. 响应式 — 舞台收窄为单列，拼贴退到卡片背后
+ * ============================================================ */
+@media (max-width: 900px) {
+  .music-home-view .music-cozy-library .music-cozy-hero.te-hero-stage {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .music-home-view .music-cozy-library .te-hero-visual {
+    min-height: 230px;
+  }
+
+  .music-home-view .music-cozy-library .te-hero-title-en {
+    display: none;
+  }
+
+  .music-home-view .panel .te-section-head h2 .te-section-sub {
+    display: none;
+  }
+}

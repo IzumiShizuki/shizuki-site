@@ -4,9 +4,9 @@
 
     <template v-if="music.hasActiveSearch.value">
       <section class="panel liquid-material">
-        <header class="panel-head">
-          <h2>搜索结果</h2>
-          <span>{{ searchSummaryText }}</span>
+        <header class="panel-head te-section-head">
+          <h2>搜索结果<span class="te-section-sub" aria-hidden="true">/ SEARCH RESULTS</span></h2>
+          <span class="te-section-count">{{ searchSummaryText }}</span>
         </header>
 
         <p v-if="music.searchResult.value?.partial" class="state-text">
@@ -14,7 +14,7 @@
         </p>
 
         <section v-if="showPlaylistResults" class="provider-block">
-          <div class="provider-head">
+          <div class="provider-head te-provider-head">
             <h3>歌单</h3>
             <span>{{ visibleSearchPlaylists.length }}</span>
           </div>
@@ -33,7 +33,10 @@
               type="button"
               @click="handleOpenPlaylist(item.playlistCode)"
             >
-              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)">
+                <span class="te-play-badge" aria-hidden="true"><i class="fas fa-play"></i></span>
+                <span v-if="item.trackCount" class="te-cover-count">{{ item.trackCount }} 首</span>
+              </div>
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -73,11 +76,11 @@
         </section>
 
         <section v-if="showTrackResults" class="provider-block">
-          <div class="provider-head">
+          <div class="provider-head te-provider-head">
             <h3>歌曲</h3>
             <span>{{ visibleSearchTracks.length }}</span>
           </div>
-          <div class="table-head search-track-head">
+          <div class="table-head search-track-head te-track-head">
             <span>#</span>
             <span>歌曲</span>
             <span>歌手</span>
@@ -89,12 +92,15 @@
           <article
             v-for="(item, index) in visibleSearchTracks"
             :key="`search-track-${item.trackId || item.id || index}`"
-            class="table-row search-track-row ripple-trigger"
+            class="search-track-row te-track-row ripple-trigger"
             @click="music.playSearchTrack(item, index)"
           >
             <span>{{ String(index + 1).padStart(2, '0') }}</span>
             <span class="title-col track-title-col">
-              <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
+              <span class="te-cover-wrap">
+                <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
+                <i class="fas fa-play te-cover-play" aria-hidden="true"></i>
+              </span>
               <span class="track-title-copy">
                 <span class="track-title-text">{{ item.title || '未知标题' }}</span>
                 <span class="provider-badge">{{ providerLabel(item.provider) }}</span>
@@ -161,7 +167,7 @@
         </section>
 
         <section v-if="showArtistResults" class="provider-block">
-          <div class="provider-head">
+          <div class="provider-head te-provider-head">
             <h3>歌手</h3>
             <span>{{ visibleSearchArtists.length }}</span>
           </div>
@@ -240,33 +246,52 @@
 
     <template v-else-if="navKey === 'recommend'">
       <section class="music-cozy-library cozy-home-block">
-        <header class="music-cozy-hero liquid-material">
-          <div class="hero-copy">
-            <p class="eyebrow">SHIZUKI CLOUD MUSIC</p>
-            <h1>{{ cozyHeroTitle }}</h1>
-            <p>{{ cozyHeroDescription }}</p>
-            <div class="mood-chip-row">
+        <header class="music-cozy-hero liquid-material te-hero-stage">
+          <div class="hero-copy te-hero-copy">
+            <p class="eyebrow te-hero-kicker">
+              SHIZUKI CLOUD MUSIC
+              <span class="te-hero-kicker-count" aria-hidden="true">01 / 02</span>
+            </p>
+            <h1 class="te-hero-title">{{ cozyHeroTitle }}</h1>
+            <p class="te-hero-title-en" aria-hidden="true">MADE FOR YOU · TODAY</p>
+            <p class="te-hero-desc">{{ cozyHeroDescription }}</p>
+            <div class="mood-chip-row te-hero-chips">
               <button
                 v-for="item in cozyMoodChips"
                 :key="item.key"
-                class="mood-chip ripple-trigger"
+                class="mood-chip te-chip ripple-trigger"
                 type="button"
                 @click="handleMoodChip(item)"
               >
                 {{ item.label }}
               </button>
             </div>
+            <p class="te-hero-foot">今天也为你挑选好了 · 从这一首开始</p>
           </div>
-          <article class="hero-now-card liquid-material">
-            <p class="now-label">正在推荐</p>
-            <h2 class="now-title">{{ cozyNowPlaying.title }}</h2>
-            <p class="now-meta">{{ cozyNowPlaying.artist }} · {{ cozyNowPlaying.duration }}</p>
-            <p class="now-note">{{ cozyNowPlaying.note }}</p>
-            <button class="now-play-btn ripple-trigger" type="button" @click="playPrimaryRecommendation">
-              <i class="fas" :class="music.player.currentTrack.value ? 'fa-expand' : 'fa-play'"></i>
-              {{ music.player.currentTrack.value ? '打开正在播放' : '播放今日推荐' }}
-            </button>
-          </article>
+          <div class="te-hero-visual">
+            <div class="te-hero-artwork" aria-hidden="true">
+              <span class="te-hero-orbit"></span>
+              <span class="te-hero-orbit te-hero-orbit-inner"></span>
+              <span
+                v-for="(card, index) in cozyFeaturedCards.slice(0, 3)"
+                :key="card.id"
+                class="te-hero-art-cover"
+                :class="`te-hero-art-${index}`"
+                :style="cozyCardCoverStyle(card)"
+              ></span>
+              <span class="te-hero-caption">PRESS PLAY · FEEL MORE</span>
+            </div>
+            <article class="hero-now-card liquid-material te-hero-now-card">
+              <p class="now-label">正在推荐</p>
+              <h2 class="now-title">{{ cozyNowPlaying.title }}</h2>
+              <p class="now-meta">{{ cozyNowPlaying.artist }} · {{ cozyNowPlaying.duration }}</p>
+              <p class="now-note">{{ cozyNowPlaying.note }}</p>
+              <button class="now-play-btn ripple-trigger" type="button" @click="playPrimaryRecommendation">
+                <i class="fas" :class="music.player.currentTrack.value ? 'fa-expand' : 'fa-play'"></i>
+                {{ music.player.currentTrack.value ? '打开正在播放' : '播放今日推荐' }}
+              </button>
+            </article>
+          </div>
         </header>
 
         <div class="music-cozy-grid">
@@ -304,9 +329,9 @@
       />
 
       <section class="panel liquid-material">
-        <header class="panel-head">
-          <h2>推荐歌单</h2>
-          <span>{{ filteredMetingPlaylists.length }} 个</span>
+        <header class="panel-head te-section-head">
+          <h2>推荐歌单<span class="te-section-sub" aria-hidden="true">/ CURATED PLAYLISTS</span></h2>
+          <span class="te-section-count">{{ filteredMetingPlaylists.length }} 个</span>
           <button
             class="playlist-large-btn ripple-trigger"
             type="button"
@@ -331,7 +356,10 @@
             type="button"
             @click="handleOpenPlaylist(item.playlistCode)"
           >
-            <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
+            <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)">
+              <span class="te-play-badge" aria-hidden="true"><i class="fas fa-play"></i></span>
+              <span v-if="item.trackCount" class="te-cover-count">{{ item.trackCount }} 首</span>
+            </div>
             <div class="meta">
               <p class="name">{{ item.name || '未命名歌单' }}</p>
               <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -341,12 +369,12 @@
       </section>
 
       <section class="panel liquid-material">
-        <header class="panel-head">
-          <h2>为你推荐</h2>
-          <span>{{ filteredTracks.length }} 首</span>
+        <header class="panel-head te-section-head">
+          <h2>为你推荐<span class="te-section-sub" aria-hidden="true">/ MADE FOR YOU</span></h2>
+          <span class="te-section-count">{{ filteredTracks.length }} 首</span>
         </header>
 
-        <div class="table-head recommend-track-head">
+        <div class="table-head recommend-track-head te-track-head">
           <span>#</span>
           <span>标题</span>
           <span>歌手</span>
@@ -362,12 +390,15 @@
         <article
           v-for="(item, index) in filteredTracks"
           :key="`home-track-${item.trackId || item.id || index}`"
-          class="table-row recommend-track-row ripple-trigger"
+          class="recommend-track-row te-track-row ripple-trigger"
           @click="music.playFeaturedTrack(item, index)"
         >
           <span>{{ String(index + 1).padStart(2, '0') }}</span>
           <span class="title-col track-title-col">
-            <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
+            <span class="te-cover-wrap">
+              <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
+              <i class="fas fa-play te-cover-play" aria-hidden="true"></i>
+            </span>
             <span class="track-title-text">{{ item.title || '未知标题' }}</span>
           </span>
           <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
@@ -411,13 +442,13 @@
 
     <template v-else-if="navKey === 'playlist'">
       <section class="panel liquid-material">
-        <header class="panel-head">
-          <h2>歌单总览</h2>
-          <span>我的收藏与云端推荐</span>
+        <header class="panel-head te-section-head">
+          <h2>歌单总览<span class="te-section-sub" aria-hidden="true">/ YOUR LIBRARY</span></h2>
+          <span class="te-section-count">我的收藏与云端推荐</span>
         </header>
 
         <section class="provider-block">
-          <div class="provider-head">
+          <div class="provider-head te-provider-head">
             <h3>我创建的歌单</h3>
             <span>{{ userCreatedPlaylists.length }}</span>
           </div>
@@ -433,7 +464,10 @@
               type="button"
               @click="handleOpenPlaylist(item.playlistCode)"
             >
-              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)">
+                <span class="te-play-badge" aria-hidden="true"><i class="fas fa-play"></i></span>
+                <span v-if="item.trackCount" class="te-cover-count">{{ item.trackCount }} 首</span>
+              </div>
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || `${item.trackCount || 0} 首歌曲` }}</p>
@@ -443,7 +477,7 @@
         </section>
 
         <section class="provider-block">
-          <div class="provider-head">
+          <div class="provider-head te-provider-head">
             <h3>我收藏的歌单</h3>
             <span>{{ userCollectedPlaylists.length }}</span>
           </div>
@@ -459,7 +493,10 @@
               type="button"
               @click="handleOpenPlaylist(item.playlistCode)"
             >
-              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)">
+                <span class="te-play-badge" aria-hidden="true"><i class="fas fa-play"></i></span>
+                <span v-if="item.trackCount" class="te-cover-count">{{ item.trackCount }} 首</span>
+              </div>
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -469,7 +506,7 @@
         </section>
 
         <section class="provider-block">
-          <div class="provider-head">
+          <div class="provider-head te-provider-head">
             <h3>为你推荐</h3>
             <span>{{ filteredMetingPlaylists.length }}</span>
           </div>
@@ -485,7 +522,10 @@
               type="button"
               @click="handleOpenPlaylist(item.playlistCode)"
             >
-              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)"></div>
+              <div class="cover" :class="{ empty: !item.cover }" :style="coverStyle(item)">
+                <span class="te-play-badge" aria-hidden="true"><i class="fas fa-play"></i></span>
+                <span v-if="item.trackCount" class="te-cover-count">{{ item.trackCount }} 首</span>
+              </div>
               <div class="meta">
                 <p class="name">{{ item.name || '未命名歌单' }}</p>
                 <p class="desc">{{ item.description || '点击进入歌单详情' }}</p>
@@ -499,10 +539,10 @@
 
     <template v-else>
       <section class="panel liquid-material listening-extension-panel">
-        <header class="panel-head">
+        <header class="panel-head te-section-head">
           <div>
             <p class="section-kicker">Radio / Voice</p>
-            <h2>播客与音声延伸</h2>
+            <h2>播客与音声延伸<span class="te-section-sub" aria-hidden="true">/ RADIO &amp; VOICE</span></h2>
           </div>
           <button
             class="inline-panel-action ripple-trigger"
@@ -545,9 +585,9 @@
       </section>
 
       <section class="panel liquid-material">
-        <header class="panel-head">
-          <h2>外部播客源</h2>
-          <span>预留</span>
+        <header class="panel-head te-section-head">
+          <h2>外部播客源<span class="te-section-sub" aria-hidden="true">/ PODCAST SOURCES</span></h2>
+          <span class="te-section-count">预留</span>
         </header>
 
         <div class="podcast-grid">
@@ -1848,3 +1888,5 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+
+<style src="./teStreamingStyle.css"></style>
