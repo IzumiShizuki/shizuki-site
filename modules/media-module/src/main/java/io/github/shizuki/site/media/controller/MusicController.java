@@ -133,6 +133,14 @@ public class MusicController {
         return ApiResponse.success(mediaService.resolvePlaybackTrack(request == null ? new MusicResolvePlaybackRequest() : request));
     }
 
+    @GetMapping("/tracks/{trackId}/amll-lyric")
+    @RateLimit(key = "music.track.amll-lyric", limit = 60, windowSeconds = 60)
+    @Operation(summary = "拉取 AMLL 逐字歌词", description = "从 AMLL TTML 逐字歌词库拉取 TTML 原文（网易云 yrc 逐字歌词已被平台风控，此为替代数据源）")
+    public ApiResponse<String> amllLyric(@PathVariable("trackId") String trackId,
+                                         @RequestParam(value = "platform", required = false, defaultValue = "ncm") String platform) {
+        return ApiResponse.success(mediaService.fetchAmllLyric(trackId, platform));
+    }
+
     @GetMapping("/quota/me")
     @Operation(summary = "查询我的音乐配额", description = "返回选歌次数与上传容量剩余")
     @ApiResponses({

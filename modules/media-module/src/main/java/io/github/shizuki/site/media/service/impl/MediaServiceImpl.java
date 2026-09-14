@@ -17,6 +17,7 @@ import io.github.shizuki.site.media.cache.MusicLibraryHomeCacheStore;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.MetingMusicProperties;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
+import io.github.shizuki.site.media.integration.AmllLyricClient;
 import io.github.shizuki.site.media.integration.AsmrMusicProvider;
 import io.github.shizuki.site.media.integration.MetingMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
@@ -246,6 +247,7 @@ public class MediaServiceImpl implements MediaService {
     private final UserMusicGateway userMusicClient;
     private final SpotifyMusicProvider spotifyMusicClient;
     private final NeteaseCookieProvider neteaseCookieProvider;
+    private final AmllLyricClient amllLyricClient;
     private final AsmrMusicProvider asmrMusicProvider;
     private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private final MetingMusicProvider metingMusicProvider;
@@ -292,6 +294,7 @@ public class MediaServiceImpl implements MediaService {
                             UserMusicGateway userMusicClient,
                             SpotifyMusicProvider spotifyMusicClient,
                             NeteaseCookieProvider neteaseCookieProvider,
+                            AmllLyricClient amllLyricClient,
                             AsmrMusicProvider asmrMusicProvider,
                             MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher,
                             MetingMusicProvider metingMusicProvider,
@@ -321,6 +324,7 @@ public class MediaServiceImpl implements MediaService {
         this.userMusicClient = userMusicClient;
         this.spotifyMusicClient = spotifyMusicClient;
         this.neteaseCookieProvider = neteaseCookieProvider;
+        this.amllLyricClient = amllLyricClient;
         this.asmrMusicProvider = asmrMusicProvider;
         this.musicTrackCacheUploadPublisher = musicTrackCacheUploadPublisher;
         this.metingMusicProvider = metingMusicProvider;
@@ -3233,6 +3237,18 @@ public class MediaServiceImpl implements MediaService {
             );
         }
         return userMusicClient.getSourceAccountCookiePlaintext(userId, normalizedProvider);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String fetchAmllLyric(String trackId, String platform) {
+        String normalizedTrackId = readString(trackId, "");
+        if (!StringUtils.hasText(normalizedTrackId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
+        }
+        return amllLyricClient.fetchAmllLyric(normalizedTrackId, platform);
     }
 
     private MusicPlaylistBundleResponse loadVirtualMusicPlaylistBundle(MusicVirtualPlaylistRef ref) {

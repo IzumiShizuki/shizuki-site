@@ -8,20 +8,22 @@
 
 ## 阶段 1：歌词系统移植（依赖 A 清单）
 
-- [ ] 实施子 agent `becdd763`：歌词 utils 纯逻辑层移植（lyricEngine/ 目录）——运行中
+- [x] 实施子 agent `becdd763`：歌词 utils 纯逻辑层移植完成——`src/utils/lyricEngine/` 32 文件（14 个 A 级直拷 + 类型/桥接），14 套件 203 用例全绿，全量回归 1216 用例全绿，构建通过。依赖 `@xmldom/xmldom@^0.9.12`
+- [ ] 数据管道对接（musicApi 歌词 → lyricEngine 解析 → 渲染升级）
 
 ## 阶段 2-3：可视化 + 均衡器移植（依赖 B 清单）
 
-- [ ] 实施子 agent `58de383f`：EQ/可视化纯逻辑层移植（audioEngine/ + components/music/equalizer/）——运行中
+- [ ] 实施子 agent `58de383f`：EQ/可视化纯逻辑层移植——进行中（audioEngine/）
 
 ## 阶段 4：播放栏增强（依赖 C 清单）
 
-- [ ] 实施子 agent（新）：播放栏纯逻辑层移植（composables/playerBar/）——已分发
+- [x] 实施子 agent `a2bfd623`：播放栏纯逻辑层移植完成——`src/composables/playerBar/` 14 文件（TS→JSDoc），5 spec 36 用例全绿。TODO 对接清单已写入 types.js/README（queueEntryId 扩展、removeQueueItem/clearQueue 引擎出口等）
+- [ ] 引擎出口扩展 + 队列抽屉 UI（W3/W4）
 
 ## 后端前置依赖（调研发现）
 
 - [x] 网易云逐字歌词 yrc 获取实测：`/api/song/lyric` + lv=1、`/api/song/lyric/v1` + yv=1、ncm-api `/lyric/new` 均不返回 yrc（**网易云对第三方 API 逐字歌词风控**）
-- [ ] 替代方案：AMLL TTML 逐字歌词库代理（`amll-ttml-db.stevexmh.net`，Folia 已在用）→ 后端加代理接口（阶段 5 前完成）
+- [x] 替代方案落地：AMLL TTML 逐字歌词库代理——后端 `AmllLyricClient` + `MediaService.fetchAmllLyric` + `GET /api/v1/music/tracks/{trackId}/amll-lyric?platform=ncm`（实测 AMLL 库 ncm/186016 返回逐字 TTML，编译通过）
 
 ## 阶段 5：Folia 沉浸视图整合
 

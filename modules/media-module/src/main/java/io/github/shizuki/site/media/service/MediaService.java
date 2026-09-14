@@ -392,4 +392,16 @@ public interface MediaService {
      * @return 已绑定账号的明文 cookie；未绑定时返回空字符串
      */
     String getMySourceAccountCookie(String provider);
+
+    /**
+     * 拉取 AMLL 逐字歌词（TTML 原文）。
+     *
+     * <p>网易云对第三方 API 的 yrc 逐字歌词已风控，AMLL TTML 库
+     * （amll-ttml-db.stevexmh.net）是逐字歌词的替代数据源。
+     *
+     * @param trackId  曲目 ID
+     * @param platform 平台（ncm / qq）
+     * @return TTML 原文；未命中返回空字符串
+     */
+    String fetchAmllLyric(String trackId, String platform);
 }
