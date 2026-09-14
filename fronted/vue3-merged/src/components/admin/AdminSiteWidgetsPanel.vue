@@ -101,6 +101,42 @@
 
         <button class="studio-button save-button" type="submit" :disabled="busy || !musicProfileValid"><i class="fas fa-compact-disc"></i> 保存推荐歌单资料</button>
       </form>
+
+      <form class="login-panel glass-panel" @submit.prevent="saveLoginAppearance">
+        <div class="panel-heading"><div><small>04 · LOGIN PAGE</small><h3>登录页外观</h3></div><span>v{{ loginForm.version }}</span></div>
+        <p class="panel-copy">全站登录页的主题与二次元图片，保存后对所有访客生效；图片使用 HTTPS 链接或站点内部路径。</p>
+
+        <section class="login-presets" aria-label="主题预设">
+          <button
+            v-for="preset in loginPresets"
+            :key="preset.id"
+            class="login-preset"
+            :class="{ active: loginForm.themePreset === preset.id }"
+            type="button"
+            :style="{ background: preset.gradient }"
+            :title="preset.name"
+            @click="loginForm.themePreset = preset.id"
+          >
+            <span class="login-preset__emoji">{{ preset.emoji }}</span>
+            <span class="login-preset__name">{{ preset.name }}</span>
+          </button>
+        </section>
+
+        <label class="field">背景图片 URL（可选）
+          <input v-model.trim="loginForm.bgImageUrl" type="text" maxlength="4096" placeholder="https://… 或 /images/…" />
+        </label>
+        <label class="field">看板娘 / 吉祥物图片 URL（可选）
+          <input v-model.trim="loginForm.mascotImageUrl" type="text" maxlength="4096" placeholder="https://… 或 /images/…" />
+        </label>
+        <div class="login-preview" aria-label="看板娘预览">
+          <span class="login-preview__label">看板娘预览</span>
+          <img v-if="loginForm.mascotImageUrl" :src="loginForm.mascotImageUrl" alt="看板娘图片预览" @error="loginPreviewFailed = true" />
+          <span v-else class="login-preview__empty">未设置，登录页将显示默认小猫咪</span>
+        </div>
+        <p v-if="!loginAppearanceValid" class="inline-error">图片地址必须为空、HTTPS 链接或站点内部 / 路径；背景地址也支持 data:image。</p>
+
+        <button class="studio-button save-button" type="submit" :disabled="busy || !loginAppearanceValid"><i class="fas fa-floppy-disk"></i> 保存登录页外观</button>
+      </form>
     </div>
   </section>
 </template>
@@ -110,11 +146,14 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../composables/useAuthSession';
 import { getAdminDefaultPlaylistBundle, updateAdminDefaultPlaylistProfile } from '../../services/musicApi';
 import { getAdminSiteWeather, getAdminWidgetConfiguration, saveAdminWidgetConfiguration } from '../../services/adminSiteWidgetsApi';
+import { fetchAdminLoginAppearance, saveAdminLoginAppearance } from '../../services/siteLoginAppearanceApi';
 import { createSiteWidgetForm, normalizeMusicBundle, validateSiteWidgetForm } from './adminSiteWidgetState';
 
 const auth = useAuthSession();
 const siteForm = reactive(createSiteWidgetForm());
 const musicForm = reactive({ playlistCode: 'default_public', name: '', description: '', cover: '' });
+const loginForm = reactive({ version: 0, themePreset: 'milkshake', bgImageUrl: '', mascotImageUrl: '' });
+const loginPreviewFailed = ref(false);
 const weather = ref(null);
 const musicTracks = ref([]);
 const busy = ref(false);
@@ -126,6 +165,23 @@ const timezoneOptions = Object.freeze(['Asia/Shanghai', 'Asia/Tokyo', 'Asia/Hong
 const configValidation = computed(() => validateSiteWidgetForm(siteForm));
 const musicProfileValid = computed(() => Boolean(musicForm.name.trim()) && (!musicForm.cover.trim() || /^https:\/\//iu.test(musicForm.cover.trim())));
 const musicCoverPreview = computed(() => musicProfileValid.value && musicForm.cover.trim() && !coverFailed.value ? musicForm.cover.trim() : '');
+const loginPresets = Object.freeze([
+  { id: 'milkshake', name: '草莓奶昔', emoji: '🍓', gradient: 'linear-gradient(135deg,#ffe0ec,#fdf3ff,#e0f4ff)' },
+  { id: 'blueberry', name: '蓝莓奶盖', emoji: '🫐', gradient: 'linear-gradient(135deg,#e6e9ff,#f2ecff,#fdeaff)' },
+  { id: 'peach', name: '蜜桃乌龙', emoji: '🍑', gradient: 'linear-gradient(135deg,#ffe3d3,#fff8e8,#fff3e3)' },
+  { id: 'matcha', name: '抹茶奶盖', emoji: '🍵', gradient: 'linear-gradient(135deg,#e8f5e4,#f2faee,#e4f6ea)' },
+  { id: 'mint', name: '薄荷苏打', emoji: '🍃', gradient: 'linear-gradient(135deg,#d9f7ef,#e6fbf5,#e3f4ff)' },
+  { id: 'galaxy', name: '星空糖', emoji: '🌌', gradient: 'linear-gradient(135deg,#2a2348,#3d3566,#5c4a8a)' }
+]);
+const loginAppearanceValid = computed(() => {
+  const validUrl = (value) => !value.trim()
+    || /^https:\/\/.+/iu.test(value.trim())
+    || /^\/[^/\s].*/u.test(value.trim())
+    || (value.trim().startsWith('data:image/') && /^data:image\/[\w.+-]+;base64,/iu.test(value.trim()));
+  return loginPresets.some((preset) => preset.id === loginForm.themePreset)
+    && validUrl(loginForm.bgImageUrl)
+    && validUrl(loginForm.mascotImageUrl);
+});
 const weatherFreshnessLabel = computed(() => ({ fresh: '新鲜', stale: 'last-good', unavailable: '不可用' })[weather.value?.freshness] || '不可用');
 const staleAgeLabel = computed(() => {
   const minutes = Number(siteForm.weatherMaxStaleMinutes) || 0;
@@ -147,6 +203,14 @@ function applyMusic(value) {
   musicTracks.value = bundle.tracks;
   coverFailed.value = false;
 }
+function applyLoginAppearance(value) {
+  if (!value || typeof value !== 'object') return;
+  loginForm.version = Number(value.version) || 0;
+  if (value.themePreset) loginForm.themePreset = value.themePreset;
+  loginForm.bgImageUrl = value.bgImageUrl || '';
+  loginForm.mascotImageUrl = value.mascotImageUrl || '';
+  loginPreviewFailed.value = false;
+}
 function syncQuoteProvider() { if (siteForm.quoteSourceMode === 'HITOKOTO') siteForm.hitokotoEnabled = true; }
 
 async function loadWorkspace() {
@@ -156,15 +220,18 @@ async function loadWorkspace() {
   const results = await Promise.allSettled([
     getAdminWidgetConfiguration(auth.authorizedFetch),
     getAdminSiteWeather(auth.authorizedFetch),
-    getAdminDefaultPlaylistBundle(auth.authorizedFetch)
+    getAdminDefaultPlaylistBundle(auth.authorizedFetch),
+    fetchAdminLoginAppearance(auth.authorizedFetch)
   ]);
   if (results[0].status === 'fulfilled') applyConfiguration(results[0].value);
   if (results[1].status === 'fulfilled') weather.value = results[1].value;
   if (results[2].status === 'fulfilled') applyMusic(results[2].value);
+  if (results[3].status === 'fulfilled') applyLoginAppearance(results[3].value);
   const failures = [];
   if (results[0].status === 'rejected') failures.push(messageOf(results[0].reason));
   if (results[1].status === 'rejected') failures.push('天气状态读取失败，请稍后重试。');
   if (results[2].status === 'rejected') failures.push('推荐音乐资料读取失败，请稍后重试。');
+  if (results[3].status === 'rejected') failures.push('登录页外观读取失败，请稍后重试。');
   if (failures.length) errorMessage.value = failures.join('；');
   busy.value = false;
 }
@@ -210,6 +277,27 @@ async function saveMusicProfile() {
   finally { busy.value = false; }
 }
 
+async function saveLoginAppearance() {
+  if (!loginAppearanceValid.value) return;
+  busy.value = true; feedback();
+  try {
+    const saved = await saveAdminLoginAppearance(auth.authorizedFetch, {
+      expectedVersion: loginForm.version,
+      themePreset: loginForm.themePreset,
+      bgImageUrl: loginForm.bgImageUrl,
+      mascotImageUrl: loginForm.mascotImageUrl
+    });
+    applyLoginAppearance(saved);
+    notice.value = '登录页外观已保存，全站访客登录页将使用这份主题与图片配置。';
+  } catch (error) {
+    errorMessage.value = Number(error?.status) === 409 ? '配置已被另一会话修改，请重新读取后保存。' : messageOf(error);
+    if (Number(error?.status) === 409) {
+      const latest = await fetchAdminLoginAppearance(auth.authorizedFetch).catch(() => null);
+      if (latest) applyLoginAppearance(latest);
+    }
+  } finally { busy.value = false; }
+}
+
 onMounted(loadWorkspace);
 </script>
 
@@ -226,7 +314,7 @@ onMounted(loadWorkspace);
 .studio-alert { margin:0; padding:11px 14px; border:1px solid rgba(52,211,153,.25); border-radius:12px; background:rgba(52,211,153,.1); font-size:12px; }
 .studio-alert--error { border-color:rgba(248,113,113,.3); background:rgba(248,113,113,.1); }
 .widget-studio__grid { display:grid; grid-template-columns:minmax(270px,1fr) minmax(260px,.9fr) minmax(280px,1fr); gap:15px; align-items:start; }
-.config-panel,.weather-panel,.music-panel { display:grid; gap:13px; min-width:0; padding:17px; }
+.config-panel,.weather-panel,.music-panel,.login-panel { display:grid; gap:13px; min-width:0; padding:17px; }
 .panel-heading > span,.freshness-pill { padding:4px 8px; border-radius:999px; color:var(--theme-text-secondary); background:rgba(var(--accent-rgb),.1); font-size:10px; }
 .panel-copy { margin:0; line-height:1.55; }
 .field-row { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
@@ -271,7 +359,18 @@ onMounted(loadWorkspace);
 .track-peek article span { display:grid; min-width:0; }
 .track-peek article strong,.track-peek article small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .track-peek article strong { font-size:11px; }.track-peek article small,.track-peek em,.track-peek > p { color:var(--theme-text-secondary); font-size:9px; font-style:normal; }
-@media (max-width:1180px) { .widget-studio__grid { grid-template-columns:1fr 1fr; }.music-panel { grid-column:1/-1; } }
+.login-presets { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+.login-preset { position:relative; display:grid; place-items:center; gap:2px; min-height:52px; border:2px solid transparent; border-radius:14px; cursor:pointer; font:inherit; transition:transform .18s ease,border-color .18s ease; }
+.login-preset:hover { transform:translateY(-1px); }
+.login-preset.active { border-color:rgb(var(--accent-rgb)); box-shadow:0 0 0 3px rgba(var(--accent-rgb),.22); }
+.login-preset__emoji { font-size:17px; line-height:1; }
+.login-preset__name { padding:2px 7px; border-radius:999px; background:rgba(255,255,255,.72); color:#5b4a56; font-size:9px; font-weight:700; }
+.login-preset[title="星空糖"] .login-preset__name { background:rgba(30,20,60,.55); color:#efe7ff; }
+.login-preview { display:grid; grid-template-columns:56px 1fr; align-items:center; gap:10px; min-height:58px; padding:9px 11px; border:1px solid rgba(var(--accent-rgb),.16); border-radius:14px; background:rgba(255,255,255,.03); }
+.login-preview img { width:56px; height:56px; border-radius:16px; object-fit:cover; border:1px solid rgba(var(--accent-rgb),.25); }
+.login-preview__label { color:var(--theme-text-secondary); font-size:9px; letter-spacing:.08em; }
+.login-preview__empty { color:var(--theme-text-tertiary,var(--theme-text-secondary)); font-size:10px; line-height:1.5; }
+@media (max-width:1180px) { .widget-studio__grid { grid-template-columns:1fr 1fr; }.music-panel { grid-column:1/-1; }.login-panel { grid-column:1/-1; } }
 @media (max-width:760px) { .widget-studio__hero { align-items:flex-start; flex-direction:column; }.widget-studio__grid { grid-template-columns:1fr; }.music-panel { grid-column:auto; } }
 @media (max-width:500px) { .field-row { grid-template-columns:1fr; }.widget-studio__hero .studio-button { width:100%; } }
 @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; transition:none!important; } }

@@ -10,6 +10,7 @@ Two production issues affect the account entry point:
 - Register a PostgreSQL-safe JSON type handler on the account entity so inserts and updates of `groups_json` / `permissions_json` bind with `Types.OTHER` and succeed on `jsonb` columns while remaining plain strings on other databases.
 - Redesign the desktop and mobile account entry pages in a cute, kawaii personal-site style: pastel gradients, floating heart/star/cloud decorations, a rounded mascot card with a CSS-drawn default mascot, pill tabs and buttons, and rounded inputs.
 - Add a self-service customization panel on the login page where the owner can switch between cute pastel theme presets and set their own anime background image and mascot image (by URL or local upload), persisted in the current browser via `localStorage` and honored by both desktop and mobile entry pages.
+- Add a site-wide login appearance configuration (theme preset + background/mascot image URLs) that an ADMIN can manage from the admin site-widgets console; the public auth page reads it so all visitors share the configured images, while per-browser local customization still overrides for the owner's own browser.
 - Keep the existing login / register / forgot-password / OAuth / captcha flows and their API contract unchanged.
 
 ## Capabilities
@@ -18,6 +19,7 @@ Two production issues affect the account entry point:
 
 - `cute-auth-entry`: Presents the account entry flows in a cute personal-site style and lets the site owner customize the page background image, mascot image, and theme preset per browser.
 - `postgres-register-persistence`: Persists new account rows and account JSON columns on PostgreSQL by binding `jsonb` parameters with the database-correct JDBC type.
+- `site-login-appearance-config`: Stores a singleton site-wide login appearance configuration (theme preset, background image URL, mascot image URL) with optimistic versioning; exposes an ADMIN write API and a public read API.
 
 ### Modified Capabilities
 
@@ -25,6 +27,6 @@ None.
 
 ## Impact
 
-- Frontend: `fronted/vue3-merged/src/pages/AuthPage.vue`, `fronted/vue3-merged/src/mobile/pages/MobileAuthPage.vue`.
-- Backend: `model/entity/src/main/java/io/github/shizuki/site/user/entity/UserAccountEntity.java` (imports the existing `JsonStringTypeHandler` already used by `USR_PREFERENCE` and weather snapshots).
-- No API contract changes; no new database migrations; no credential or security changes.
+- Frontend: `fronted/vue3-merged/src/pages/AuthPage.vue`, `fronted/vue3-merged/src/mobile/pages/MobileAuthPage.vue`, `fronted/vue3-merged/src/services/siteLoginAppearanceApi.js`, `fronted/vue3-merged/src/components/admin/AdminSiteWidgetsPanel.vue`.
+- Backend: `model/entity/.../user/entity/UserAccountEntity.java` (jsonb type handler), `modules/content-module` (new login appearance service/controllers/mapper/entity), new Flyway migration `V1013__login_appearance_config.sql`, and a new guest path in `application.yml`.
+- No API contract changes to existing endpoints; one additive database migration; no credential or security changes.

@@ -159,6 +159,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMobileShell } from '../mobileShellContext';
+import { fetchSiteLoginAppearance } from '../../services/siteLoginAppearanceApi';
 
 const route = useRoute();
 const router = useRouter();
@@ -196,11 +197,18 @@ onMounted(() => {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed.mascotImage === 'string' && parsed.mascotImage) {
         mascotImage.value = parsed.mascotImage;
+        return;
       }
     }
   } catch {
     // ignore corrupted local theme
   }
+  // 本地未设置看板娘时回退到全站配置
+  fetchSiteLoginAppearance()
+    .then((appearance) => {
+      if (appearance?.mascotImageUrl) mascotImage.value = appearance.mascotImageUrl;
+    })
+    .catch(() => {});
 });
 
 const modeTabs = [

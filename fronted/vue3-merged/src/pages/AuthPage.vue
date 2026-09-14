@@ -225,6 +225,10 @@
           <button class="theme-close" type="button" aria-label="关闭" @click="themePanelOpen = false">×</button>
         </header>
         <p class="theme-tip">选择喜欢的风格，或上传属于你的二次元图片，设置会保存在当前浏览器。</p>
+        <p v-if="siteThemeActive" class="theme-site-note">✦ 当前显示的是全站配置（管理员已设置），在这里修改只会影响你当前浏览器。</p>
+        <p v-else-if="siteAppearance && hasLocalTheme" class="theme-site-note">
+          ✦ 你正在使用浏览器本地自定义，覆盖了全站配置；点「恢复默认风格」可回到全站配置。
+        </p>
 
         <section class="theme-section">
           <h3>可爱主题色</h3>
@@ -288,6 +292,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../composables/useAuthSession';
+import { fetchSiteLoginAppearance } from '../services/siteLoginAppearanceApi';
 
 const route = useRoute();
 const router = useRouter();
@@ -410,8 +415,13 @@ const themePanelOpen = ref(false);
 const bgImageUrlDraft = ref('');
 const mascotUrlDraft = ref('');
 
+// 站点级登录页外观（管理员配置，对所有访客生效）
+const siteAppearance = ref(null);
+const hasLocalTheme = ref(false);
+
 const activePreset = computed(() => THEME_PRESETS.find((preset) => preset.id === theme.preset) || THEME_PRESETS[0]);
 const pageThemeClass = computed(() => (activePreset.value.dark ? 'theme-dark' : 'theme-light'));
+const siteThemeActive = computed(() => !hasLocalTheme.value && Boolean(siteAppearance.value?.configured));
 const pageStyle = computed(() => {
   const style = {
     '--auth-accent': activePreset.value.accent,
@@ -429,6 +439,7 @@ function readStoredTheme() {
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
+    hasLocalTheme.value = true;
     if (THEME_PRESETS.some((preset) => preset.id === parsed.preset)) {
       theme.preset = parsed.preset;
     }
@@ -445,8 +456,25 @@ function persistTheme() {
       THEME_STORAGE_KEY,
       JSON.stringify({ preset: theme.preset, bgImage: theme.bgImage, mascotImage: theme.mascotImage })
     );
+    hasLocalTheme.value = true;
   } catch {
     // localStorage quota exceeded: keep in-memory theme but notify softly
+  }
+}
+
+async function loadSiteAppearance() {
+  try {
+    const appearance = await fetchSiteLoginAppearance();
+    if (!appearance) return;
+    siteAppearance.value = appearance;
+    if (!hasLocalTheme.value) {
+      // 未做浏览器本地自定义时，全站配置作为默认呈现
+      theme.preset = appearance.themePreset || 'milkshake';
+      theme.bgImage = appearance.bgImageUrl || '';
+      theme.mascotImage = appearance.mascotImageUrl || '';
+    }
+  } catch {
+    // 站点配置接口不可用时保持本地/默认主题
   }
 }
 
@@ -485,7 +513,17 @@ function resetTheme() {
   Object.assign(theme, createDefaultTheme());
   bgImageUrlDraft.value = '';
   mascotUrlDraft.value = '';
-  persistTheme();
+  try {
+    window.localStorage.removeItem(THEME_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+  hasLocalTheme.value = false;
+  if (siteAppearance.value?.configured) {
+    theme.preset = siteAppearance.value.themePreset || 'milkshake';
+    theme.bgImage = siteAppearance.value.bgImageUrl || '';
+    theme.mascotImage = siteAppearance.value.mascotImageUrl || '';
+  }
 }
 
 function readImageFile(file, maxSize, callback) {
@@ -791,7 +829,7 @@ watch(
 
 onMounted(async () => {
   readStoredTheme();
-  await auth.ensureReady();
+  await Promise.allSettled([loadSiteAppearance(), auth.ensureReady()]);
   if (auth.isAuthenticated.value) {
     await redirectAfterLogin();
     return;
@@ -1436,6 +1474,17 @@ onBeforeUnmount(() => {
   font-size: 12.5px;
   color: rgba(111, 74, 90, 0.75);
   line-height: 1.6;
+}
+
+.theme-site-note {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 126, 170, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 126, 170, 0.35);
+  color: #c2577f;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .theme-section {

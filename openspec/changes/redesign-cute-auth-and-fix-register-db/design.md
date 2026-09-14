@@ -35,12 +35,17 @@ Without a configured mascot image the hero shows a small CSS-drawn cat blob (rou
 
 Theme state is a small JSON object under `shizuki.authTheme.v1` in `localStorage`: `{ preset, bgImage, mascotImage }`. Six pastel presets (strawberry, blueberry, peach, matcha, mint, galaxy) set the page gradient and accent color via CSS custom properties; a `theme-dark` variant switches text colors for the dark galaxy preset. Background and mascot accept a pasted URL or a local file; uploads are downscaled on a canvas (background ≤1600px, mascot ≤640px, JPEG) so they stay inside `localStorage` size limits. Both desktop and mobile entry pages read the same key, so the mascot carries across shells.
 
+### 5. Site-wide appearance config with browser-local override
+
+A singleton `CTN_LOGIN_APPEARANCE` row (migration `V1013`) holds the owner's site-wide theme preset, background image URL, and mascot image URL. An ADMIN endpoint (`/api/v1/admin/login-appearance`, guarded by `@RequireGroup("ADMIN")` plus a seeded `site.login_appearance.manage` permission) reads/writes it with optimistic versioning; a public endpoint (`/api/v1/site/login-appearance`, added to the gateway guest paths) serves it to the entry page. The public read returns "absent" when only the default preset is stored, so an unconfigured site still falls back cleanly. The frontend precedence is: browser-local `localStorage` customization (explicit owner action) wins, otherwise the site config applies. The owner manages the site config from the admin site-widgets console ("04 · LOGIN PAGE" panel) with preset swatches, URL inputs, and a live mascot preview. Images are validated server-side to `http(s)` URLs, site-relative `/` paths, or `data:image/*`, and sanitized client-side before rendering.
+
 ## Risks / Trade-offs
 
 - [Uploaded images can exceed localStorage quota] → Downscale on canvas and cap dimensions; on quota failure keep the in-memory theme and skip persistence rather than crashing the page.
 - [A busy background image harms contrast] → The image layer sits under a light overlay and the card keeps `backdrop-filter`, preserving text readability in both light and dark presets.
 - [Type handler changes generated SQL binding only] → Existing stored rows and the `jsonb` column type are untouched; raw-SQL updates that already use `::jsonb` casts (e.g., group removal) keep working.
-- [Customization is per-browser, not site-wide] → Accepted deliberately: no new backend surface; noted in the panel copy and in this change's non-goals.
+- [Customization is per-browser, not site-wide] → Resolved with the site-wide `CTN_LOGIN_APPEARANCE` config managed from the admin console; per-browser local overrides remain supported for the owner's own browser.
+- [External image URLs may be slow or removed later] → Images render lazily with a graceful fallback to the CSS mascot / preset gradient; URLs are validated to safe schemes only.
 
 ## Migration Plan
 
