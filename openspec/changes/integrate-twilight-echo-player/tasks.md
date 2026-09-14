@@ -41,10 +41,14 @@
 ## 阶段 7：UI 视觉层融合（Twilight_Echo 外观）
 
 - [x] 播放栏视觉（子 agent `e35b3b45`）：MusicLibraryDock 重组为 TE 三区玻璃布局 + twLightBar/ 频谱条（96 频带）+ 三形态响应式，237 文件/1384 tests 全绿，已部署（blur 28px 实测）
-- [x] 顶部模式切换去文字改图标（🎵/✨ + tooltip）
+- [x] 顶部模式切换去文字改图标（🎵/✨ + tooltip）→ 进一步改为右上角浮动玻璃胶囊（不单独占行）
 - [x] 无缝切换优化：Folia bootstrap embed 跳过 service worker 慢初始化（fork commit）+ host 兜底重试 + 后台预热 + 280ms 淡入过渡；预热完成后切换 0ms
-- [ ] 播放详情页视觉（子 agent `0458a45f`：PlayingMusic 大封面玻璃布局 → MusicPlayerDetailView）——运行中
-- [ ] 首页/歌单卡片 liquid-material 玻璃风格（可选第三步）
+- [x] 播放详情页视觉（子 agent `0458a45f`）：PlayingMusic 大封面玻璃布局 + 舞台氛围层 + 真实频谱条（tePlayingStyle.css 1060 行）
+- [x] 首页面板/hero 卡玻璃语言 + 歌单卡片玻璃化
+- [x] 音乐首页上方 UI TE 化（子 agent `d8468604`）：teStreamingStyle.css + hero 玻璃舞台/搜索胶囊/歌曲行 hover 播放，1384 tests 全绿
+- [x] 菜单收起改为窄 toggle-tab 贴顶吸附（非全宽 bar）
+- [x] 统一音频输出（跟随模式）：站点 audio 唯一内核，Folia 降为渲染层（follow-playback/sync-clock 桥 + Vue 不暂停 + 切回跳过重播），gateway + 前端部署
+- [x] 真实频谱可视化：播放页 te-spectrum-strip（bars-crystal AnalyserNode）+ 播放栏 TwLightSpectrum
 
 ## 已完成
 
