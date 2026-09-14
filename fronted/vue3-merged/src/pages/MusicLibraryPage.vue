@@ -2903,6 +2903,33 @@ function handleOpenFoliaMode(event) {
   }
 }
 
+/** 视图级沉浸切换：歌词沉浸 / 歌单大屏 → Folia lattice 视图。 */
+function handleOpenFoliaLattice(event) {
+  const view = String(event?.detail?.view || 'lattice').trim();
+  const track = event?.detail?.track || null;
+  const trackIds = Array.isArray(event?.detail?.trackIds) ? event.detail.trackIds : [];
+  if (!foliaMode.value) {
+    setFoliaMode(true);
+  }
+  // 等桥就绪后切 Folia 视图（重试至多 5s）
+  const applyView = (attempts = 0) => {
+    if (foliaBridgeReady) {
+      postToFolia({ type: 'shizuki:set-view', view: view === 'player' ? 'player' : 'lattice' });
+      if (trackIds.length) {
+        postToFolia({ type: 'shizuki:play-tracks', trackIds });
+      }
+      return;
+    }
+    if (attempts < 16) {
+      window.setTimeout(() => applyView(attempts + 1), 300);
+    }
+  };
+  applyView();
+  if (track) {
+    handleFoliaPlayRequest(event);
+  }
+}
+
 onMounted(async () => {
   try {
     await auth.ensureReady();
@@ -2914,6 +2941,7 @@ onMounted(async () => {
       window.addEventListener('message', handleFoliaBridgeMessage);
       window.addEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
       window.addEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
+      window.addEventListener('shizuki:open-folia-lattice', handleOpenFoliaLattice);
     }
     // 无论当前模式，都后台预加载 Folia 脚本（切模式时秒挂载实现无缝）
     void preloadFoliaScripts();
@@ -2972,6 +3000,7 @@ onBeforeUnmount(() => {
     window.removeEventListener('message', handleFoliaBridgeMessage);
     window.removeEventListener('shizuki:play-in-folia', handleFoliaPlayRequest);
     window.removeEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
+    window.removeEventListener('shizuki:open-folia-lattice', handleOpenFoliaLattice);
   }
 });
 </script>

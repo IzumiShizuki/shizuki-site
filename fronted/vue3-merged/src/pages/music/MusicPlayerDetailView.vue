@@ -46,6 +46,19 @@
           </div>
         </header>
 
+        <div class="lyric-mode-bar">
+          <span class="lyric-mode-label">歌词</span>
+          <button
+            class="lyric-immersive-btn ripple-trigger"
+            type="button"
+            title="切换沉浸歌词动画（Folia）"
+            @click="openImmersiveLyric"
+          >
+            <i class="fas fa-wand-magic-sparkles"></i>
+            沉浸歌词
+          </button>
+        </div>
+
         <section class="lyric-scroll-shell">
           <div v-show="centerTimeVisible" class="lyric-center-guide" aria-hidden="true"></div>
 
@@ -180,6 +193,14 @@ function openFoliaMode() {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode', {
     detail: { track: track.value || null }
+  }));
+}
+
+/** 切换沉浸歌词（Folia lattice 视图，同曲续播）。 */
+function openImmersiveLyric() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('shizuki:open-folia-lattice', {
+    detail: { view: 'lattice', track: track.value || null }
   }));
 }
 const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
@@ -748,6 +769,40 @@ onBeforeUnmount(() => {
 .meta-collect-btn:hover {
   border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42));
   background: var(--accent-mode-fill, rgba(var(--accent-rgb), 0.24));
+}
+
+.lyric-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 4px 8px;
+}
+
+.lyric-mode-label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--theme-text-tertiary);
+  text-transform: uppercase;
+}
+
+.lyric-immersive-btn {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: rgba(var(--accent-soft-rgb), 1);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.lyric-immersive-btn:hover {
+  background: rgba(var(--accent-rgb), 0.26);
 }
 
 .lyric-scroll-shell {

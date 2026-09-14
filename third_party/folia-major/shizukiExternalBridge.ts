@@ -254,6 +254,21 @@ function handleMessage(event: MessageEvent): void {
     return;
   }
 
+  if (type === 'shizuki:set-view') {
+    // 视图级切换：站点把 Folia 切到指定视图（player 播放器 / lattice 沉浸歌词与歌单大屏）。
+    try {
+      const view = String(data.view || '').trim();
+      if (view === 'player' || view === 'lattice') {
+        import('./stores/useAppViewStore').then(({ useAppViewStore }) => {
+          useAppViewStore.getState().setView(view as 'player' | 'lattice');
+        }).catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
   if (type === 'shizuki:play-track') {
     const trackId = Number(data.trackId);
     const positionMs = Number(data.positionMs);

@@ -307,6 +307,15 @@
         <header class="panel-head">
           <h2>推荐歌单</h2>
           <span>{{ filteredMetingPlaylists.length }} 个</span>
+          <button
+            class="playlist-large-btn ripple-trigger"
+            type="button"
+            title="用 Folia 大屏网格浏览歌单"
+            @click="openPlaylistLargeView"
+          >
+            <i class="fas fa-table-cells-large"></i>
+            大屏
+          </button>
         </header>
 
         <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state">
@@ -951,6 +960,14 @@ function requestFoliaPlay(item) {
   }));
 }
 
+/** 切 Folia 大屏网格视图浏览歌单。 */
+function openPlaylistLargeView() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('shizuki:open-folia-lattice', {
+    detail: { view: 'lattice' }
+  }));
+}
+
 function handleRequireCollectLogin() {
   if (typeof music.requestMusicLogin === 'function') {
     music.requestMusicLogin();
@@ -1289,6 +1306,25 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.playlist-large-btn {
+  min-height: 26px;
+  margin-left: auto;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: rgba(var(--accent-soft-rgb), 1);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.playlist-large-btn:hover {
+  background: rgba(var(--accent-rgb), 0.24);
 }
 
 .panel-head h2 {
