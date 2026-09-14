@@ -32,6 +32,7 @@
 
 import { neteaseApi } from './services/netease';
 import { usePlaybackStore } from './stores/usePlaybackStore';
+import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
 import type { SongResult } from './types';
 
 const COOKIE_STORAGE_KEY = 'netease_cookie';
@@ -305,6 +306,53 @@ function handleMessage(event: MessageEvent): void {
 
   if (type === 'shizuki:get-status') {
     postToParent({ type: 'shizuki:status', ...snapshotStatus() });
+  }
+
+  if (type === 'shizuki:follow-playback') {
+    // 跟随模式：站点是唯一音频输出，Folia 只渲染当前曲目与进度（不初始化音频）。
+    // 切换普通↔Folia 时站点 audio 不中断，音乐天然继承。
+    try {
+      const store = usePlaybackStore.getState();
+      const rawTrack = data.track as (Record<string, unknown> & { id?: unknown }) | null;
+      if (rawTrack && rawTrack.id != null) {
+        const normalized = (neteaseApi.normalizeSongResult
+          ? neteaseApi.normalizeSongResult(rawTrack as never)
+          : rawTrack) as SongResult;
+        store.setCurrentSong(normalized);
+        store.setPlayQueue([normalized]);
+      }
+      store.setPlayerState(Boolean(data.playing) ? 'PLAYING' : 'PAUSED');
+      const positionMs = Number(data.positionMs || 0);
+      if (positionMs > 0) {
+        const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
+        clock?.set(positionMs / 1000);
+      }
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
+  if (type === 'shizuki:sync-clock') {
+    // 站点音频进度 → Folia clock + 歌词行（驱动歌词动画/视觉器跟随，无本地 audio）。
+    const positionMs = Number(data.positionMs || 0);
+    if (positionMs <= 0) return;
+    const sec = positionMs / 1000;
+    try {
+      const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
+      clock?.set(sec);
+      const store = usePlaybackStore.getState();
+      const lines = store.lyrics?.lines || [];
+      if (lines.length) {
+        const idx = findLatestActiveLineIndex(lines, sec);
+        if (idx !== store.currentLineIndex) {
+          store.setCurrentLineIndex(idx);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return;
   }
 }
 

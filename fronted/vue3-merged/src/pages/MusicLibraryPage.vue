@@ -515,7 +515,9 @@ function setFoliaMode(enabled) {
     void nextTick().then(() => loadFoliaEmbed());
     void pushCurrentTrackToFolia();
   } else {
-    // 从 Folia 切回普通模式：把 Folia 正在播的歌同步回普通模式
+    // 从 Folia 切回普通模式：停止时钟同步；站点 audio 一直在播（跟随模式），
+    // 无需重新拉取/seek——音乐天然继承，直接同步普通模式的播放状态展示。
+    stopFoliaClockSync();
     void pullCurrentTrackFromFolia();
   }
 }
@@ -523,6 +525,8 @@ function setFoliaMode(enabled) {
 /** 请求 Folia 回传当前播放歌曲，并尝试在普通模式继续播放（无缝反向）。 */
 async function pullCurrentTrackFromFolia() {
   if (!foliaBridgeReady) return;
+  // 跟随模式：站点 audio 从未暂停（唯一音频输出），切回普通无需重播，音乐已天然继承。
+  if (player.isPlaying?.value) return;
   const status = await new Promise((resolve) => {
     let done = false;
     const listener = (event) => {
@@ -607,7 +611,7 @@ async function syncCookieToFolia() {
   }
 }
 
-/** 把普通模式当前播放的网易云歌曲带给 Folia 播放（无缝续播，传进度）。 */
+/** 切到 Folia：站点 audio 是唯一输出，Folia 进入跟随模式（只渲染曲目/进度，不播放）。 */
 async function pushCurrentTrackToFolia() {
   const track = player.currentTrack.value;
   if (!track) return;
@@ -617,19 +621,45 @@ async function pushCurrentTrackToFolia() {
     name: String(track.title || track.name || ''),
     artist: String(track.artist || '')
   };
-  // 记录普通模式当前进度（毫秒）
   const positionSec = Number(player.currentTime?.value || 0);
   const positionMs = Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0;
-  // 暂停普通模式播放，避免两边同时出声
-  try {
-    if (typeof player.pause === 'function') player.pause();
-    else if (typeof player.togglePlay === 'function' && player.isPlaying?.value) player.togglePlay();
-  } catch {
-    // ignore
-  }
-  foliaPendingTrack = { trackId, positionMs };
+  // 跟随模式：不暂停站点音频，Folia 显示同曲 + 从当前进度跟随（音乐不中断、天然继承）
+  const playing = Boolean(player.isPlaying?.value);
   if (foliaBridgeReady) {
-    deliverPendingFoliaTrack();
+    postToFolia({
+      type: 'shizuki:follow-playback',
+      track: track,
+      trackId,
+      positionMs,
+      playing
+    });
+    startFoliaClockSync();
+  } else {
+    foliaPendingTrack = { trackId, positionMs };
+  }
+}
+
+/** 站点音频进度 → Folia clock 同步（跟随模式驱动 Folia 歌词/视觉）。 */
+let foliaClockSyncTimer = null;
+function startFoliaClockSync() {
+  stopFoliaClockSync();
+  foliaClockSyncTimer = window.setInterval(() => {
+    if (!foliaMode.value || !foliaBridgeReady) {
+      stopFoliaClockSync();
+      return;
+    }
+    const positionSec = Number(player.currentTime?.value || 0);
+    const positionMs = Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0;
+    if (positionMs > 0) {
+      postToFolia({ type: 'shizuki:sync-clock', positionMs });
+    }
+  }, 200);
+}
+
+function stopFoliaClockSync() {
+  if (foliaClockSyncTimer) {
+    window.clearInterval(foliaClockSyncTimer);
+    foliaClockSyncTimer = null;
   }
 }
 
