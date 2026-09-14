@@ -289,6 +289,29 @@
   animation: te-playing-meta-arrive 480ms cubic-bezier(0.22, 1, 0.36, 1) 36ms both;
 }
 
+/* 真实频谱条：AnalyserNode 驱动（MusicVisualizerLayer bars-crystal），玻璃容器 */
+.te-spectrum-wrap {
+  position: relative;
+  z-index: 1;
+  margin-top: 14px;
+  width: min(86%, 420px);
+  height: 74px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.te-spectrum-strip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .te-track-title {
   margin: 0;
   font-size: clamp(22px, 2.3vw, 30px);

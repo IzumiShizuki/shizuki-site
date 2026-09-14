@@ -45,6 +45,13 @@
             <p class="te-track-artist">{{ track?.artist || '未知歌手' }}</p>
             <p v-if="albumText" class="te-track-album">{{ albumText }}</p>
           </div>
+          <div class="te-spectrum-wrap" aria-hidden="true">
+            <MusicVisualizerLayer
+              class="te-spectrum-strip"
+              variant="bars-crystal"
+              :active="music.player.isPlaying.value"
+            />
+          </div>
         </div>
       </aside>
 

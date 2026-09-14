@@ -1131,35 +1131,35 @@ button.author-info-item:focus-visible {
   color: inherit;
 }
 
-/* 手动收起：吸附顶部的玻璃窄条（对齐最上方 + 贴顶质感） */
+/* 手动收起：隐藏 top-bar，只留窄 toggle-tab 吸附顶部（贴顶质感，不占宽度） */
 .fixed-nav-wrapper.manual-collapsed {
   transform: translateY(0);
 }
 
 .fixed-nav-wrapper.manual-collapsed .top-bar {
-  width: 100%;
-  max-width: 100%;
-  height: 54px;
-  border-radius: 0 0 16px 16px;
-  padding: 0 20px;
-  --liquid-bg: linear-gradient(155deg, rgba(var(--accent-rgb), 0.08), rgba(15, 14, 22, 0.82) 45%);
-  --liquid-border: rgba(255, 255, 255, 0.14);
-  --liquid-shadow: 0 10px 28px rgba(6, 8, 14, 0.32);
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  box-shadow: 0 10px 28px rgba(6, 8, 14, 0.32), inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -10px, 0) scale(0.985);
+  transition-delay: 0s, 0s, var(--dur-base);
+  pointer-events: none;
 }
 
-/* 手动收起时覆盖 compact 自动隐藏（收起态也要显示吸附条） */
-.fixed-nav-wrapper.manual-collapsed.compact .top-bar {
-  opacity: 1;
-  visibility: visible;
-  transform: translate3d(0, 0, 0) scale(1);
-  pointer-events: auto;
-}
-
-.fixed-nav-wrapper.manual-collapsed.compact .toggle-tab {
-  display: none;
+.fixed-nav-wrapper.manual-collapsed .toggle-tab {
+  --liquid-bg: linear-gradient(155deg, rgba(var(--accent-rgb), 0.12), rgba(15, 14, 22, 0.85) 45%);
+  --liquid-border: rgba(255, 255, 255, 0.16);
+  --liquid-shadow: 0 10px 24px rgba(6, 8, 14, 0.35);
+  width: 116px;
+  height: 40px;
+  margin-top: 0;
+  padding-bottom: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 0 14px 14px;
+  border-top: 0;
+  background: rgba(15, 14, 22, 0.72);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.12), 0 10px 24px rgba(6, 8, 14, 0.35);
 }
 
 .fixed-nav-wrapper.compact .toggle-tab {
