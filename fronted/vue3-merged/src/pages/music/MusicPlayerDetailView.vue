@@ -74,7 +74,17 @@
               type="button"
               @click="seekToLyricRow(row.time)"
             >
-              <p class="line-main">{{ row.main || '...' }}</p>
+              <p class="line-main">
+                <template v-if="row.words && row.words.length">
+                  <span
+                    v-for="(word, wordIndex) in row.words"
+                    :key="`lyric-word-${index}-${wordIndex}`"
+                    class="lyric-word"
+                    :class="lyricWordClass(index, wordIndex)"
+                  >{{ word.text }}</span>
+                </template>
+                <template v-else>{{ row.main || '...' }}</template>
+              </p>
               <p v-if="row.sub" class="line-sub">{{ row.sub }}</p>
             </button>
           </SubtleScrollArea>
@@ -154,6 +164,7 @@ import {
   resolveLyricEdgePadding,
   resolveLyricScrollTop
 } from '../../utils/lyricAlignment';
+import { findActiveWordIndex } from '../../utils/lyricEngine/lyrics';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 
@@ -265,10 +276,30 @@ const renderedRows = computed(() => {
     return {
       time: Number(item?.time || 0),
       main,
-      sub
+      sub,
+      words: Array.isArray(item?.words) && item.words.length > 0 ? item.words : null
     };
   });
 });
+
+/** Active (currently sung) word index per row, -1 when the row has no word data. */
+const activeWordIndexByRow = computed(() => {
+  const now = currentTimeSec.value;
+  return renderedRows.value.map((row) => {
+    if (!Array.isArray(row.words) || row.words.length === 0) return -1;
+    return findActiveWordIndex(row.words, now);
+  });
+});
+
+function lyricWordClass(rowIndex, wordIndex) {
+  const activeWordIndex = activeWordIndexByRow.value[rowIndex] ?? -1;
+  return {
+    // Highlight the current word only on the active line so past lines don't
+    // keep a lingering accent on their last word.
+    active: activeWordIndex === wordIndex && rowIndex === activeScrollIndex.value,
+    past: activeWordIndex >= 0 && wordIndex < activeWordIndex
+  };
+}
 
 const activeScrollIndex = computed(() => {
   const list = renderedRows.value;
@@ -836,6 +867,19 @@ onBeforeUnmount(() => {
   color: rgba(225, 233, 248, 0.92);
 }
 
+.lyric-row .line-main .lyric-word {
+  transition: color 220ms ease, text-shadow 220ms ease;
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row .lyric-word.past {
+  color: rgba(146, 158, 184, 0.55);
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row .lyric-word.active {
+  color: rgb(var(--accent-strong-rgb, var(--accent-rgb)));
+  text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.48);
+}
+
 .center-time-pill {
   position: absolute;
   right: 14px;
@@ -1248,6 +1292,7 @@ onBeforeUnmount(() => {
   }
 
   .lyric-row,
+  .lyric-word,
   .side-pop-enter-active,
   .side-pop-leave-active,
   .lyric-time-fade-enter-active,

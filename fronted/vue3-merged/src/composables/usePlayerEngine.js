@@ -1,8 +1,9 @@
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { absolutizeApiUrl } from '../services/apiBase';
-import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
+import { getPlaylistBundleByCode, resolvePlaybackTrack, fetchAmllLyric } from '../services/musicApi';
 import { buildAlignedLyricTimeline } from '../utils/lyricAlignment';
 import { buildSiteLyricTimeline } from '../utils/lyricEngine/siteProjection';
+import { enhanceTimelineWithWords } from '../utils/lyricEngine/siteWordEnhancer';
 import { parseLrc } from '../utils/lrc';
 import { formatMediaTime } from '../utils/mediaTime';
 
@@ -71,6 +72,22 @@ function pickFirstNonBlankString(...candidates) {
         : '';
     if (!value.trim()) continue;
     return value;
+  }
+  return '';
+}
+
+/**
+ * Session-level memory cache of raw AMLL TTML text per track id (design:
+ * optional word-level lyric enhancement; only successful payloads are cached).
+ */
+const amllLyricTextCache = new Map();
+
+/** Defensive unwrap of the AMLL lyric payload into raw TTML text. */
+function coerceAmllLyricText(payload) {
+  if (typeof payload === 'string') return payload.trim() ? payload : '';
+  if (payload && typeof payload === 'object') {
+    const candidate = payload.ttml ?? payload.lyricText ?? payload.lyric_text ?? payload.content ?? payload.data;
+    return typeof candidate === 'string' && candidate.trim() ? candidate : '';
   }
   return '';
 }
@@ -510,7 +527,56 @@ export function usePlayerEngine(options = {}) {
     updateLyricState(currentTime.value);
   }
 
+  // Bumped by every loadTrackLyric call so a late AMLL response can never
+  // overwrite a timeline applied by a newer lyric load.
+  let lyricLoadGeneration = 0;
+
+  async function loadAmllLyricText(trackId) {
+    const key = String(trackId || '').trim();
+    if (!key) return '';
+    const cached = amllLyricTextCache.get(key);
+    if (cached) return cached;
+    try {
+      const payload = await fetchAmllLyric(key, 'ncm');
+      const text = coerceAmllLyricText(payload);
+      if (text) amllLyricTextCache.set(key, text);
+      return text;
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Optional word-level lyric enhancement: fetch the AMLL TTML for the
+   * current track and attach per-word timestamps to the applied timeline.
+   * Fails silently (keeps line-level rendering) and only applies when the
+   * lyric load generation and the current track are still the ones this
+   * enhancement was started for, so it can never clobber a seek or a newer
+   * lyric timeline.
+   */
+  async function enhanceLyricTimelineWithAmllWords(track, generation) {
+    try {
+      const trackId = String(track?.trackId || track?.id || '').trim();
+      if (!trackId) return;
+      const ttmlText = await loadAmllLyricText(trackId);
+      if (!ttmlText) return;
+      if (generation !== lyricLoadGeneration) return;
+      if (currentTrackId.value !== track?.id) return;
+      const current = lyricTimeline.value;
+      if (!Array.isArray(current) || current.length === 0) return;
+      const enhanced = enhanceTimelineWithWords(current, ttmlText);
+      if (enhanced === current) return;
+      logLyricDebug('amll_word_enhance_applied', { trackId, rowCount: enhanced.length });
+      applyLyricTimeline(enhanced);
+    } catch {
+      logLyricDebug('amll_word_enhance_failed', {
+        trackId: String(track?.trackId || track?.id || '')
+      });
+    }
+  }
+
   async function loadTrackLyric(track) {
+    const generation = ++lyricLoadGeneration;
     lyricEntries.value = [];
     lyricTimeline.value = [];
     currentLyricIndex.value = -1;
@@ -563,6 +629,10 @@ export function usePlayerEngine(options = {}) {
           entryCount: projectedTimeline.length
         });
         applyLyricTimeline(projectedTimeline);
+        // Optional AMLL word-level enhancement, fire-and-forget: it re-applies
+        // the timeline with `words` attached only when the track is still
+        // current; failures keep the line-level timeline untouched.
+        void enhanceLyricTimelineWithAmllWords(track, generation);
         return;
       }
       logLyricDebug('parse_lyric_engine_fallback_to_legacy', {
