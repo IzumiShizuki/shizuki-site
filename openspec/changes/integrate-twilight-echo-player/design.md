@@ -27,6 +27,34 @@
 3. 移植组件接入站点现有 stores/API 约定（musicApi.js、useMusicLibraryContext）
 4. 不引入新构建依赖（不装 Electron 相关包）
 
+## 渲染升级设计（普通模式逐字高亮 / 焦点窗口）
+
+### 数据流（新增逐字层）
+```
+播放歌 → 后端 resolve-playback（现有 lrc/tlyric/romalrc）
+        → 前端额外调 musicApi.fetchAmllLyric(trackId, 'ncm') 获取逐字 TTML
+        → lyricEngine parseAmlTtml → 行内 words[]（逐字时间戳）
+        → 挂到 lyricTimeline 行的 words 字段（timed 行）
+```
+- AMLL 逐字歌词为**可选增强**：获取失败静默回退行级渲染（不影响现有行为）
+- 缓存：AMLL TTML 结果按 trackId 内存缓存（会话级）
+
+### 渲染改造点（调研确认的现状 → 目标）
+| 文件 | 现状 | 目标 |
+|---|---|---|
+| MusicPlayerDetailView.vue lyric-scroll | 行级高亮（`.lyric-row.active` + `.line-main` 整行） | 行内 words 逐字高亮：`.line-main` 内按 words 拆 `<span>`，当前词用 `findActiveWordIndex(words, currentTime)` 定位 + lyricEmphasis 的 WAAPI keyframes 或 CSS transition 渐变 |
+| MusicPlayer.vue 三联窗 | 行级显示 | 保持行级（三联窗窄，逐字不适用）；但可加焦点窗口模式入口 |
+| App.vue 全局歌词条 | 行级 | 保持行级 |
+
+### 焦点窗口（可选，阶段 B）
+- 移植 lyricViewportController（每行独立弹簧）+ PlayingLyricLine/Words 组件到新组件 `LyricFocusWindow.vue`
+- 与现有 `.lyric-scroll` CSS 冲突（viewportController 用绝对定位 + CSS 变量）→ 独立组件，不混用
+
+### 验收
+- 有 words 数据的歌：逐字高亮随播放推进（词级时间戳）
+- 无 words 数据的歌：行级高亮（现有行为）
+- 构建 + 全量测试通过；浏览器实测逐字同步
+
 ## 验证
 
 - 每阶段：组件级单测（vitest）+ 站点构建通过 + 浏览器实测
