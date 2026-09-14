@@ -3,35 +3,38 @@
     <header class="music-library-mode-switch" role="tablist" aria-label="音乐播放器模式">
       <div class="mode-switch-inner" role="group">
         <button
-          class="player-mode-tab ripple-trigger"
+          class="player-mode-tab player-mode-icon-tab ripple-trigger"
           type="button"
           role="tab"
           :aria-selected="!foliaMode"
           :class="{ active: !foliaMode }"
+          title="普通模式"
+          aria-label="普通模式"
           @click="setFoliaMode(false)"
         >
-          普通模式
+          <i class="fas fa-music"></i>
         </button>
         <button
-          class="player-mode-tab ripple-trigger"
+          class="player-mode-tab player-mode-icon-tab ripple-trigger"
           type="button"
           role="tab"
           :aria-selected="foliaMode"
           :class="{ active: foliaMode }"
+          title="Folia 沉浸模式"
+          aria-label="Folia 沉浸模式"
           @click="setFoliaMode(true)"
         >
-          Folia 沉浸模式
+          <i class="fas fa-wand-magic-sparkles"></i>
         </button>
         <a
           v-if="foliaMode"
-          class="folia-open-external ripple-trigger"
+          class="folia-open-external folia-open-external-icon ripple-trigger"
           :href="FOLIA_EMBED_URL"
           target="_blank"
           rel="noopener noreferrer"
           title="在新窗口打开 Folia（全屏沉浸体验）"
         >
           <i class="fas fa-external-link-alt"></i>
-          新窗口打开
         </a>
       </div>
     </header>
@@ -376,8 +379,12 @@ async function preloadFoliaScripts() {
 
 /** 进入 Folia 模式：确保脚本已加载 + 创建容器 → Folia 立即挂载（无缝）。 */
 async function loadFoliaEmbed() {
-  const host = foliaEmbedHostRef.value;
-  if (!host) return;
+  // 兜底：ref 未就绪时用 data-folia-embed 选择器；仍无则延迟重试（模板渲染完成前）
+  const host = foliaEmbedHostRef.value || document.querySelector('[data-folia-embed]');
+  if (!host) {
+    window.setTimeout(() => void loadFoliaEmbed(), 400);
+    return;
+  }
   await preloadFoliaScripts();
   // 执行主 chunk（若未执行过；bootstrap 检测 #folia-embed-root 存在即进入 embed 模式）
   const html = await fetch(FOLIA_EMBED_URL).then((r) => r.text());
@@ -392,8 +399,8 @@ async function loadFoliaEmbed() {
     host.appendChild(embedRoot);
   }
   await loadScript(mainSrc, { module: true });
-  // 等 Folia React 树真正挂载进容器（bootstrap 异步初始化）
-  await waitForFoliaMount();
+  // 等 Folia React 树真正挂载进容器（bootstrap 异步初始化；后台预热期约 15-30s）
+  await waitForFoliaMount(40000);
   foliaBridgeReady = true;
   // 同步账号 + 补发待播歌曲 + 主题跟随
   void syncCookieToFolia();
@@ -2943,12 +2950,13 @@ onMounted(async () => {
       window.addEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
       window.addEventListener('shizuki:open-folia-lattice', handleOpenFoliaLattice);
     }
-    // 无论当前模式，都后台预加载 Folia 脚本（切模式时秒挂载实现无缝）
-    void preloadFoliaScripts();
-    // 若持久化状态直接进入 Folia 模式，则等待 DOM 就绪后加载 Folia
+    // 无缝切换：无论当前模式都完整初始化 Folia（脚本+隐藏容器挂载+React 树就绪），
+    // 切 Folia 时只做 class 显隐（0ms 切换）。延迟到数据加载后进行，避免抢占首屏。
+    window.setTimeout(() => {
+      void loadFoliaEmbed();
+    }, 800);
     if (foliaMode.value) {
       await nextTick();
-      void loadFoliaEmbed();
       void pushCurrentTrackToFolia();
     }
 
@@ -3039,7 +3047,7 @@ onBeforeUnmount(() => {
 }
 
 .player-mode-tab {
-  min-height: 28px;
+  min-height: 30px;
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
@@ -3051,10 +3059,27 @@ onBeforeUnmount(() => {
   transition: background-color 160ms ease, color 160ms ease;
 }
 
+.player-mode-icon-tab {
+  width: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
 .player-mode-tab.active {
   background: rgba(var(--accent-rgb), 0.9);
   color: rgba(255, 255, 255, 0.98);
   box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.35);
+}
+
+.folia-open-external-icon {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
 }
 
 .folia-open-external {
@@ -3090,6 +3115,18 @@ onBeforeUnmount(() => {
 .folia-embed-pane.folia-embed-visible {
   display: flex;
   flex-direction: column;
+  animation: folia-fade-in 280ms ease;
+}
+
+@keyframes folia-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .folia-embed-pane.folia-embed-hidden {
