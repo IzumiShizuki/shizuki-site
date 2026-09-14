@@ -1,5 +1,31 @@
 # Design: Twilight_Echo 普通模式能力融合
 
+## Folia 沉浸视图整合设计（视图级切换）
+
+### 目标
+把现有「普通/Folia 整页切换」演进为**视图级切换**：歌词、歌单各自有普通/沉浸形态，单一播放内核（进度/歌词/点赞天然统一）。
+
+### 现有基础（已就绪）
+- MusicLibraryPage 已有 Folia embed 常驻容器 + 整页模式切换
+- 桥消息：play-track（含 positionMs）、play-tracks、get-status（回传 track/positionMs/playing）
+- Folia 的视图由 useAppViewStore 控制（'home' | 'player' | 'lattice'）
+
+### 改造方案
+1. **桥扩展**：Folia 侧 `shizuki-external-bridge.ts` 加 `shizuki:set-view` 消息处理（'player' 或 'lattice' → useAppViewStore.setView）
+2. **歌词普通/沉浸切换**：
+   - MusicPlayerDetailView 的 lyric-scroll 区加「沉浸」按钮（图标）
+   - 点击 → 当前歌曲不变，切 Folia 容器可见 + `shizuki:set-view`('lattice') + play-track（带当前 positionMs）
+   - Folia 的 lattice 视图渲染沉浸歌词动画；返回按钮切回 lyric-scroll
+3. **歌单列表/大屏切换**：
+   - MusicLibraryHomeView 歌单区加「大屏」按钮
+   - 点击 → 切 Folia 容器 + `shizuki:set-view`('lattice') + play-tracks（歌单歌曲批量）
+4. **状态回传**：Folia get-status 已有；Vue 侧用 status.track 更新播放条（进行中歌曲/进度一致）
+
+### 验收
+- 歌词区沉浸按钮：同曲无重播切换进 Folia 动画歌词，返回恢复滚动歌词（进度一致）
+- 歌单大屏按钮：歌单歌曲批量进 Folia 队列
+- 整页模式切换保留（兼容旧入口），视图级切换为新增增强
+
 ## 决策
 
 | 决策点 | 选择 | 理由 |
