@@ -1146,6 +1146,8 @@ onBeforeUnmount(() => {
 .music-cozy-library .hero-now-card {
   position: relative;
   z-index: 1;
+  /* Twilight_Echo 玻璃语言：上唇高光（叠加暖桃 hero 卡） */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 -18px 62px rgba(96, 30, 18, 0.28);
 }
 
 .music-cozy-library .hero-copy .eyebrow,
@@ -1294,11 +1296,28 @@ onBeforeUnmount(() => {
 .panel {
   --liquid-bg: var(--theme-panel-surface);
   --liquid-border: rgba(255, 255, 255, 0.16);
-  --liquid-shadow: 0 12px 24px rgba(6, 8, 14, 0.3);
+  --liquid-shadow: 0 -18px 62px rgba(6, 8, 14, 0.42), 0 12px 24px rgba(6, 8, 14, 0.3);
   border-radius: 14px;
   padding: 12px;
   display: grid;
   gap: 10px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  /* Twilight_Echo 玻璃语言：上唇高光 + 对角白渐变氛围（叠加站点液体玻璃基座） */
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), var(--liquid-shadow);
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 16% -10%, rgba(var(--accent-rgb), 0.12), transparent 55%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 42%);
 }
 
 .panel-head {
