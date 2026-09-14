@@ -1131,6 +1131,37 @@ button.author-info-item:focus-visible {
   color: inherit;
 }
 
+/* 手动收起：吸附顶部的玻璃窄条（对齐最上方 + 贴顶质感） */
+.fixed-nav-wrapper.manual-collapsed {
+  transform: translateY(0);
+}
+
+.fixed-nav-wrapper.manual-collapsed .top-bar {
+  width: 100%;
+  max-width: 100%;
+  height: 54px;
+  border-radius: 0 0 16px 16px;
+  padding: 0 20px;
+  --liquid-bg: linear-gradient(155deg, rgba(var(--accent-rgb), 0.08), rgba(15, 14, 22, 0.82) 45%);
+  --liquid-border: rgba(255, 255, 255, 0.14);
+  --liquid-shadow: 0 10px 28px rgba(6, 8, 14, 0.32);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  box-shadow: 0 10px 28px rgba(6, 8, 14, 0.32), inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* 手动收起时覆盖 compact 自动隐藏（收起态也要显示吸附条） */
+.fixed-nav-wrapper.manual-collapsed.compact .top-bar {
+  opacity: 1;
+  visibility: visible;
+  transform: translate3d(0, 0, 0) scale(1);
+  pointer-events: auto;
+}
+
+.fixed-nav-wrapper.manual-collapsed.compact .toggle-tab {
+  display: none;
+}
+
 .fixed-nav-wrapper.compact .toggle-tab {
   --liquid-shadow: var(--shadow-md);
   width: 116px;

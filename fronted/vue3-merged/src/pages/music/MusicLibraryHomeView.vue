@@ -1394,15 +1394,27 @@ onBeforeUnmount(() => {
 
 .playlist-card {
   position: relative;
-  border-radius: 12px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(14, 14, 20, 0.78));
   color: var(--theme-text-primary);
   overflow: hidden;
   text-align: left;
   min-height: 278px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 12px 28px rgba(6, 8, 14, 0.28);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease;
+}
+
+.playlist-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 0 1px rgba(var(--accent-rgb), 0.28),
+    0 18px 40px rgba(6, 8, 14, 0.4);
 }
 
 .playlist-card.opening {
@@ -1423,6 +1435,8 @@ onBeforeUnmount(() => {
   aspect-ratio: 1 / 1;
   background-size: cover;
   background-position: center;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .cover.empty {

@@ -3015,6 +3015,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .music-library-page {
+  position: relative;
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -3027,23 +3028,27 @@ onBeforeUnmount(() => {
 }
 
 .music-library-mode-switch {
-  flex: none;
-  z-index: 20;
+  /* 浮动右上角玻璃胶囊：不占据文档流（不单独一行），悬浮于内容之上 */
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(16, 14, 20, 0.62);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 24px rgba(6, 8, 14, 0.35);
 }
 
 .mode-switch-inner {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 999px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  gap: 4px;
 }
 
 .player-mode-tab {
