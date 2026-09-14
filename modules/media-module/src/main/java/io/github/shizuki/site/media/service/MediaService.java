@@ -40,6 +40,7 @@ import io.github.shizuki.site.media.request.UploadPolicyRequest;
 import io.github.shizuki.site.media.response.UploadPolicyResponse;
 import io.github.shizuki.site.media.response.UploadRelayResponse;
 import java.util.List;
+import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface MediaService {
@@ -404,4 +405,18 @@ public interface MediaService {
      * @return TTML 原文；未命中返回空字符串
      */
     String fetchAmllLyric(String trackId, String platform);
+
+    /**
+     * 网易云每日推荐歌曲（需绑定网易云账号）。
+     *
+     * @return 歌曲列表（网易云原始形状：id/name/ar/al/dt 等）
+     */
+    List<Map<String, Object>> dailyRecommendSongs();
+
+    /**
+     * 网易云推荐歌单（需绑定网易云账号）。
+     *
+     * @return 歌单列表（网易云原始形状：id/name/picUrl/playCount/trackCount 等）
+     */
+    List<Map<String, Object>> recommendPlaylists();
 }

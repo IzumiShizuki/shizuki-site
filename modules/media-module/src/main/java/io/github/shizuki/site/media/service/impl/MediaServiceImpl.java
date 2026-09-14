@@ -19,6 +19,7 @@ import io.github.shizuki.site.media.config.MetingMusicProperties;
 import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.integration.AmllLyricClient;
 import io.github.shizuki.site.media.integration.AsmrMusicProvider;
+import io.github.shizuki.site.media.integration.NeteaseDiscoveryClient;
 import io.github.shizuki.site.media.integration.MetingMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
@@ -248,6 +249,7 @@ public class MediaServiceImpl implements MediaService {
     private final SpotifyMusicProvider spotifyMusicClient;
     private final NeteaseCookieProvider neteaseCookieProvider;
     private final AmllLyricClient amllLyricClient;
+    private final NeteaseDiscoveryClient neteaseDiscoveryClient;
     private final AsmrMusicProvider asmrMusicProvider;
     private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private final MetingMusicProvider metingMusicProvider;
@@ -295,6 +297,7 @@ public class MediaServiceImpl implements MediaService {
                             SpotifyMusicProvider spotifyMusicClient,
                             NeteaseCookieProvider neteaseCookieProvider,
                             AmllLyricClient amllLyricClient,
+                            NeteaseDiscoveryClient neteaseDiscoveryClient,
                             AsmrMusicProvider asmrMusicProvider,
                             MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher,
                             MetingMusicProvider metingMusicProvider,
@@ -325,6 +328,7 @@ public class MediaServiceImpl implements MediaService {
         this.spotifyMusicClient = spotifyMusicClient;
         this.neteaseCookieProvider = neteaseCookieProvider;
         this.amllLyricClient = amllLyricClient;
+        this.neteaseDiscoveryClient = neteaseDiscoveryClient;
         this.asmrMusicProvider = asmrMusicProvider;
         this.musicTrackCacheUploadPublisher = musicTrackCacheUploadPublisher;
         this.metingMusicProvider = metingMusicProvider;
@@ -3249,6 +3253,38 @@ public class MediaServiceImpl implements MediaService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "track_id is required");
         }
         return amllLyricClient.fetchAmllLyric(normalizedTrackId, platform);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<Map<String, Object>> dailyRecommendSongs() {
+        String cookie = resolveBoundNeteaseCookie();
+        if (!StringUtils.hasText(cookie)) {
+            return List.of();
+        }
+        return neteaseDiscoveryClient.dailyRecommendSongs(cookie);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<Map<String, Object>> recommendPlaylists() {
+        String cookie = resolveBoundNeteaseCookie();
+        if (!StringUtils.hasText(cookie)) {
+            return List.of();
+        }
+        return neteaseDiscoveryClient.recommendPlaylists(cookie);
+    }
+
+    private String resolveBoundNeteaseCookie() {
+        Long userId = requireLoginUserId();
+        if (userId == null || userId <= 0) {
+            return "";
+        }
+        return userMusicClient.getSourceAccountCookiePlaintext(userId, "netease");
     }
 
     private MusicPlaylistBundleResponse loadVirtualMusicPlaylistBundle(MusicVirtualPlaylistRef ref) {

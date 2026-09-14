@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -139,6 +140,18 @@ public class MusicController {
     public ApiResponse<String> amllLyric(@PathVariable("trackId") String trackId,
                                          @RequestParam(value = "platform", required = false, defaultValue = "ncm") String platform) {
         return ApiResponse.success(mediaService.fetchAmllLyric(trackId, platform));
+    }
+
+    @GetMapping("/discovery/daily-songs")
+    @Operation(summary = "网易云每日推荐歌曲", description = "需绑定网易云账号；未绑定时返回空列表")
+    public ApiResponse<List<Map<String, Object>>> dailySongs() {
+        return ApiResponse.success(mediaService.dailyRecommendSongs());
+    }
+
+    @GetMapping("/discovery/recommend-playlists")
+    @Operation(summary = "网易云推荐歌单", description = "需绑定网易云账号；未绑定时返回空列表")
+    public ApiResponse<List<Map<String, Object>>> recommendPlaylists() {
+        return ApiResponse.success(mediaService.recommendPlaylists());
     }
 
     @GetMapping("/quota/me")
