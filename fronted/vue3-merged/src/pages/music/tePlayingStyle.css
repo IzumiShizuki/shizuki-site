@@ -1,0 +1,1060 @@
+/*
+ * Copyright 2025 Px-asen (Pxasen.com)
+ *
+ * Ported from Twilight_Echo (Apache-2.0) — PlayingMusic.vue /
+ * PlayingMusicTimeChip.vue / PlayingLyricLine.vue, adapted for the
+ * shizuki-site MusicPlayerDetailView (播放详情页). The site's theme tokens
+ * (--accent-rgb / --accent-strong-rgb / --accent-soft-rgb / --theme-*) stand in
+ * for Twilight_Echo's --te-* token system; the Electron-only pieces (liquid
+ * glass SVG lens from LiquidGlassDefs, per-row spring lyric choreography and
+ * the WASM visualizer feed) are intentionally omitted — this page keeps the
+ * site's scroll-based lyric engine (lyric-scroll / lyric-word active|past /
+ * center-time-pill) and only borrows the visual language:
+ *   - 深色舞台 + 封面模糊氛围光（backdrop-cover / scrim / accent 三层）
+ *   - 大封面玻璃框架（26px 圆角、深影 + 内圈描边 + 对角玻璃反射）
+ *   - 封面下元信息（track-title / artist / album 排版节奏）
+ *   - 歌词行字号节奏（18px 基准、1.85 行高、当前行纯白发光、逐字色）
+ *   - 玻璃控件面（time-chip / 圆钮 / pill 的统一玻璃变量，与
+ *     twLightBar/twLightPlayerBar.css 的烟色玻璃手法一致）
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* ============================================================
+ * 1. 舞台玻璃壳 — Twilight_Echo playing-page 的暗色玻璃语言
+ *    （任何站点主题下都读作一块悬浮的烟色玻璃；global.css 对该面板
+ *    有 !important 面板色强制，故这里同样以 !important 覆盖，
+ *    与 twLightPlayerBar.css 手法一致）
+ * ============================================================ */
+.music-player-detail-view {
+  --te-glass-base: 15, 13, 19;
+  --te-glass-alpha: 0.86;
+  --te-track-rgb: var(--accent-rgb, 242, 179, 157);
+  --te-cover-size: clamp(180px, min(24vw, 40vh), 330px);
+  position: relative;
+  isolation: isolate;
+  height: 100%;
+  border-radius: 22px;
+  padding: clamp(12px, 1.4vw, 18px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  overflow: hidden;
+  /* 玻璃：主色氛围光 + 对角高光渐变 + 深色烟底 */
+  background:
+    radial-gradient(120% 90% at 16% -10%, rgba(var(--te-track-rgb), 0.13), transparent 48%),
+    radial-gradient(100% 90% at 100% 110%, rgba(var(--te-track-rgb), 0.07), transparent 55%),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.025) 48%,
+      rgba(255, 255, 255, 0.01)
+    ),
+    rgba(var(--te-glass-base), var(--te-glass-alpha)) !important;
+  /* 微边框高光：上唇更亮，模拟玻璃收光 */
+  border: 1px solid rgba(255, 255, 255, 0.13) !important;
+  border-top-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow:
+    0 24px 52px rgba(5, 8, 16, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(30px) saturate(170%);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+}
+
+/* ============================================================
+ * 2. 氛围层（Twilight_Echo .backdrop：封面模糊 + 深色纱幕 + 主色光斑）
+ *    面板内部版 —— 全屏舞台的三层氛围收进详情面板
+ * ============================================================ */
+.te-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.te-backdrop-cover {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.12);
+  filter: blur(46px) saturate(1.3) brightness(0.42);
+  will-change: opacity, transform;
+}
+
+.te-backdrop-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(6, 8, 13, 0.66) 0%,
+      rgba(6, 8, 13, 0.7) 52%,
+      rgba(6, 8, 13, 0.74) 100%
+    ),
+    rgba(var(--te-track-rgb), 0.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.te-backdrop-accent {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 26%, rgba(var(--te-track-rgb), 0.2), transparent 42%),
+    radial-gradient(circle at 88% 20%, rgba(255, 255, 255, 0.12), transparent 26%);
+  opacity: 0.8;
+}
+
+/* 内容抬到氛围层之上 */
+.detail-head,
+.detail-layout {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+ * 3. 顶部信息区（Twilight_Echo 玻璃控件面：frosted chip 语言）
+ * ============================================================ */
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-head p {
+  margin: 0;
+  color: rgba(190, 202, 227, 0.86);
+  letter-spacing: 0.06em;
+}
+
+.back-btn {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(238, 244, 255, 0.94) !important;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  transform: translateY(-1px);
+}
+
+.folia-mode-btn {
+  min-height: 34px;
+  margin-left: auto;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: rgb(var(--accent-soft-rgb));
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.16);
+  transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.folia-mode-btn:hover {
+  background: rgba(var(--accent-rgb), 0.28);
+  transform: translateY(-1px);
+  box-shadow: 0 0 26px rgba(var(--accent-rgb), 0.26);
+}
+
+/* ============================================================
+ * 4. 主布局（Twilight_Echo .layout split 语义：大封面列 + 歌词列 + 工具列）
+ * ============================================================ */
+.detail-layout {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(250px, 0.8fr) minmax(380px, 1.4fr) minmax(64px, 86px);
+  gap: clamp(14px, 2vw, 28px);
+  overflow: hidden;
+}
+
+.cover-column {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ============================================================
+ * 5. 大封面（Twilight_Echo .cover-frame：26px 圆角 + 深影 + 内圈描边
+ *    + 对角玻璃反射；光环视觉器收在封面后方）
+ * ============================================================ */
+.te-cover-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 16px;
+  padding: 4px 0 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+.te-cover-frame-wrap {
+  position: relative;
+  width: var(--te-cover-size);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+/* 唱片光环画布为封面尺寸的 136%(CSS 中 inset: -18%)，
+   内圈比例与封面短边严格对应。 */
+.te-cover-aura {
+  position: absolute;
+  inset: -18%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.te-cover-frame {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 26px;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.06);
+  background-size: cover;
+  background-position: center;
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* 切歌 / 进出场：Twilight_Echo te-playing-artwork-arrive（fade + scale） */
+  animation: te-playing-artwork-arrive 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 玻璃反射（LiquidGlassDefs 的 SVG 透镜省略，用 CSS 对角高光带替代） */
+.te-cover-glint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(118deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 26%, transparent 46%),
+    linear-gradient(300deg, transparent 55%, rgba(255, 255, 255, 0.07) 78%, rgba(255, 255, 255, 0.12) 100%);
+  mix-blend-mode: screen;
+}
+
+.te-cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 64px;
+  color: rgba(255, 255, 255, 0.32);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(var(--te-glass-base), 0.6);
+}
+
+/* 封面下元信息（Twilight_Echo .cover-meta：title 32→收进面板的 30px 节奏） */
+.te-cover-meta {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  text-align: center;
+  animation: te-playing-meta-arrive 480ms cubic-bezier(0.22, 1, 0.36, 1) 36ms both;
+}
+
+.te-track-title {
+  margin: 0;
+  font-size: clamp(22px, 2.3vw, 30px);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.98) !important;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.te-track-artist {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.76) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.te-track-album {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.46) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================
+ * 6. 歌词列头部（曲目信息已移至封面下，此处保留试听徽章与收藏，
+ *    并承接 Twilight_Echo lyrics-head 的时间胶囊）
+ * ============================================================ */
+.content-column {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  padding-left: clamp(0px, 1.8vw, 28px);
+}
+
+.track-meta {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.preview-summary {
+  margin: 0;
+  color: rgba(225, 233, 246, 0.9) !important;
+  font-size: 12px;
+}
+
+.preview-summary span {
+  min-height: 20px;
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(215, 50, 72, 0.2);
+  color: #ff8fa0;
+  font-weight: 700;
+}
+
+.meta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.meta-collect-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(236, 244, 255, 0.96) !important;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.meta-collect-btn:hover {
+  border-color: rgba(var(--te-track-rgb), 0.42) !important;
+  background: rgba(var(--te-track-rgb), 0.16) !important;
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+ * 7. 歌词工具栏 + 时间胶囊（Twilight_Echo .lyrics-head / .time-chip）
+ * ============================================================ */
+.lyric-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 8px;
+}
+
+.lyric-mode-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lyric-mode-label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: rgba(205, 214, 232, 0.62);
+  text-transform: uppercase;
+}
+
+/* Twilight_Echo PlayingMusicTimeChip：磨砂胶囊时间读数 */
+.te-time-chip {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.te-time-sep {
+  margin: 0 4px;
+  opacity: 0.5;
+}
+
+.lyric-immersive-btn {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: rgb(var(--accent-soft-rgb));
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.14);
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.lyric-immersive-btn:hover {
+  background: rgba(var(--accent-rgb), 0.26);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.22);
+}
+
+/* ============================================================
+ * 8. 歌词滚动区（Twilight_Echo .lyrics-scroll：渐变纱幕收边 + 行级
+ *    字号节奏 + 当前行纯白发光 + 逐字色；滚动/点击 seek/逐字高亮
+ *    等站点逻辑原样保留）
+ * ============================================================ */
+.lyric-scroll-shell {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.lyric-center-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--accent-rgb), 0.24) 22%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(var(--accent-rgb), 0.24) 78%,
+    transparent
+  );
+  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.16);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.lyric-scroll {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: var(--lyric-padding-top, 120px) clamp(18px, 3vw, 42px) var(--lyric-padding-bottom, 120px);
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 6px;
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.26) 6%,
+    rgba(0, 0, 0, 1) 18%,
+    rgba(0, 0, 0, 1) 82%,
+    rgba(0, 0, 0, 0.26) 94%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.26) 6%,
+    rgba(0, 0, 0, 1) 18%,
+    rgba(0, 0, 0, 1) 82%,
+    rgba(0, 0, 0, 0.26) 94%,
+    transparent 100%
+  );
+  outline: none;
+}
+
+/* 歌词行：Twilight_Echo 字号节奏（18px 基准、1.85 行高、居中、
+ * 未激活 0.46 白 → hover 0.78 → 当前行纯白 + 主色发光） */
+.music-player-detail-view .lyric-scroll .lyric-row {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0 !important;
+  border-radius: 16px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(229, 238, 252, 0.46) !important;
+  text-align: center;
+  padding: clamp(6px, 0.9vh, 10px) 18px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  opacity: 1;
+  cursor: pointer;
+  transition:
+    color 240ms ease,
+    background-color 240ms ease,
+    text-shadow 240ms ease;
+}
+
+.lyric-row .line-main,
+.lyric-row .line-sub {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lyric-row .line-main {
+  font-size: clamp(17px, 1.8vw, 26px);
+  font-weight: 600;
+  line-height: 1.85;
+  letter-spacing: 0.006em;
+}
+
+.lyric-row .line-sub {
+  font-size: clamp(12px, 1.15vw, 15px);
+  font-weight: 500;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row:hover {
+  border-color: transparent !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  box-shadow: none !important;
+  color: rgba(244, 249, 255, 0.78) !important;
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row.unavailable,
+.music-player-detail-view .lyric-scroll .lyric-row.unavailable:hover {
+  color: rgba(226, 234, 248, 0.24) !important;
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-shadow: none;
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row.active {
+  border-color: transparent !important;
+  color: rgba(255, 255, 255, 1) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-shadow: 0 0 22px rgba(var(--te-track-rgb), 0.3);
+}
+
+.lyric-row.active .line-main {
+  font-weight: 700;
+  letter-spacing: 0.012em;
+}
+
+.lyric-row.active .line-sub {
+  color: rgba(255, 255, 255, 0.84) !important;
+}
+
+/* 逐字：给发光留出溢位空间（Twilight_Echo .lyric-word 的 padding/margin 手法） */
+.lyric-row .line-main .lyric-word {
+  display: inline-block;
+  padding: 0.3em;
+  margin: -0.3em;
+  transition: color 220ms ease, text-shadow 220ms ease;
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row .lyric-word.past {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.music-player-detail-view .lyric-scroll .lyric-row .lyric-word.active {
+  color: rgb(var(--accent-soft-rgb, var(--accent-rgb)));
+  text-shadow: 0 0 16px rgba(var(--te-track-rgb), 0.55);
+}
+
+/* 中央时间胶囊（点击 seek，样式跟随 TE control-surface 磨砂语言） */
+.center-time-pill {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(31, 37, 54, 0.9) !important;
+  color: rgba(236, 243, 255, 0.94) !important;
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 4;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.center-time-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ============================================================
+ * 9. 侧栏工具列（Twilight_Echo icon-btn / pill 玻璃语言）
+ * ============================================================ */
+.side-column {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 12px;
+  padding-top: 10px;
+}
+
+.mode-icon-btn,
+.mode-pill {
+  min-height: 34px;
+  min-width: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(236, 243, 255, 0.94) !important;
+  padding: 0 10px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.mode-icon-btn:hover,
+.mode-pill:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  transform: translateY(-1px);
+}
+
+.mode-icon-btn {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 14px;
+}
+
+.play-mode-icon {
+  position: relative;
+  width: 1.3em;
+  height: 1.3em;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.play-mode-icon > i {
+  line-height: 1;
+}
+
+.single-repeat-badge {
+  position: absolute;
+  top: -7px;
+  right: -8px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #d73248;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(45, 8, 16, 0.35);
+  font-family: var(--font-ui, sans-serif);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+.mode-pill {
+  min-width: 76px;
+  background: rgba(var(--te-track-rgb), 0.18) !important;
+  border-color: rgba(var(--te-track-rgb), 0.42) !important;
+}
+
+.side-caption {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(226, 235, 250, 0.7) !important;
+  text-align: center;
+}
+
+.lyric-mode-stack {
+  border-radius: 999px;
+  padding: 10px 8px;
+  display: grid;
+  gap: 8px;
+  background: rgba(17, 20, 30, 0.72) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+.mode-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(230, 238, 255, 0.92) !important;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+}
+
+.mode-btn.active {
+  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.3)) !important;
+  border-color: var(--accent-mode-border, rgba(var(--accent-rgb), 0.42)) !important;
+  box-shadow: var(--accent-mode-shadow, 0 10px 22px rgba(var(--accent-rgb), 0.24)) !important;
+}
+
+/* ============================================================
+ * 10. 过渡动画（切歌进出场 + 面板进出）
+ * ============================================================ */
+@keyframes te-playing-artwork-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes te-playing-meta-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.side-pop-enter-active,
+.side-pop-leave-active,
+.lyric-time-fade-enter-active,
+.lyric-time-fade-leave-active {
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+.side-pop-enter-from,
+.side-pop-leave-to,
+.lyric-time-fade-enter-from,
+.lyric-time-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ============================================================
+ * 11. 响应式（沿用站点断点，几何随宽度收放）
+ * ============================================================ */
+@media (max-width: 1220px) {
+  .detail-layout {
+    grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr) 70px;
+    gap: 14px;
+  }
+
+  .content-column {
+    padding-left: 0;
+  }
+
+  .music-player-detail-view {
+    --te-cover-size: clamp(170px, min(22vw, 38vh), 260px);
+  }
+
+  .te-track-title {
+    font-size: clamp(20px, 2.4vw, 26px);
+  }
+
+  .lyric-row .line-main {
+    font-size: clamp(16px, 2.1vw, 24px);
+  }
+}
+
+@media (max-width: 980px) {
+  .detail-layout {
+    grid-template-columns: minmax(170px, 0.62fr) minmax(0, 1.38fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .cover-column {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .content-column {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .te-cover-stage {
+    padding: 0;
+    align-content: start;
+  }
+
+  .music-player-detail-view {
+    --te-cover-size: clamp(150px, min(26vw, 34vh), 220px);
+  }
+
+  .side-column {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding-top: 0;
+  }
+
+  .lyric-mode-stack {
+    padding: 6px 8px;
+    grid-auto-flow: column;
+  }
+
+  .lyric-scroll {
+    min-height: 0;
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .music-player-detail-view {
+    gap: 10px;
+  }
+
+  .detail-head p {
+    font-size: 13px;
+  }
+
+  .detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .cover-column {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /* Twilight_Echo ≤1120px 的紧凑形态：小封面 + 元信息横排 */
+  .te-cover-stage {
+    display: grid;
+    grid-template-columns: var(--te-cover-size) minmax(0, 1fr);
+    gap: 18px;
+    align-items: center;
+    justify-items: start;
+    padding: 0;
+  }
+
+  .music-player-detail-view {
+    --te-cover-size: clamp(96px, 26vw, 132px);
+  }
+
+  .te-cover-frame {
+    border-radius: 18px;
+  }
+
+  .te-cover-meta {
+    text-align: left;
+  }
+
+  .te-track-title {
+    font-size: clamp(18px, 5.4vw, 24px);
+    -webkit-line-clamp: 1;
+  }
+
+  .te-track-artist {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  .te-track-album {
+    font-size: 12px;
+  }
+
+  .content-column {
+    grid-column: 1;
+    grid-row: 2;
+    gap: 8px;
+  }
+
+  .track-meta {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .meta-actions {
+    justify-content: center;
+  }
+
+  .meta-collect-btn {
+    padding: 6px 11px;
+  }
+
+  .lyric-row {
+    min-height: 0;
+    padding: 6px 12px;
+  }
+
+  .lyric-row .line-main {
+    font-size: clamp(16px, 4.8vw, 22px);
+  }
+
+  .lyric-row .line-sub {
+    font-size: clamp(12px, 3.4vw, 15px);
+  }
+
+  .center-time-pill {
+    right: 8px;
+  }
+
+  .side-column {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .music-player-detail-view {
+    --te-cover-size: 64px;
+  }
+
+  .te-cover-frame {
+    border-radius: 14px;
+  }
+
+  .te-cover-stage {
+    gap: 12px;
+  }
+
+  .te-track-title {
+    font-size: 16px;
+  }
+
+  .te-track-artist {
+    font-size: 12px;
+  }
+
+  .te-track-album {
+    display: none;
+  }
+
+  .cover-column {
+    grid-row: 1;
+  }
+
+  .content-column {
+    grid-row: 2;
+  }
+
+  .side-column {
+    grid-row: 3;
+  }
+
+  .detail-head p {
+    display: none;
+  }
+}
+
+@media (max-height: 680px) and (min-width: 721px) {
+  .music-player-detail-view {
+    --te-cover-size: clamp(150px, min(20vw, 30vh), 210px);
+  }
+
+  .te-cover-stage {
+    gap: 12px;
+  }
+
+  .te-track-title {
+    font-size: clamp(20px, 2.4vw, 26px);
+  }
+
+  .te-track-artist {
+    margin-top: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .te-cover-frame,
+  .te-cover-meta {
+    animation: none;
+  }
+
+  .lyric-row,
+  .lyric-word,
+  .back-btn,
+  .folia-mode-btn,
+  .meta-collect-btn,
+  .lyric-immersive-btn,
+  .mode-icon-btn,
+  .mode-pill,
+  .mode-btn,
+  .side-pop-enter-active,
+  .side-pop-leave-active,
+  .lyric-time-fade-enter-active,
+  .lyric-time-fade-leave-active {
+    transition: none !important;
+  }
+}
