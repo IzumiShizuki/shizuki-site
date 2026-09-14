@@ -112,9 +112,23 @@ function readPositiveTrackDurationSec(track, metadata = {}) {
   return 0;
 }
 
+let queueEntrySequence = 0;
+
+/**
+ * 站点原生队列条目身份生成：`<provider>:<trackId>:<自增序号>`。
+ * 每次 normalizeTrack 调用只要输入不带 queueEntryId 就生成新身份，
+ * 因此同一曲目可重复入队（playerBar/types.js 对接点 1 的 queueEntryId 模型）。
+ */
+function mintQueueEntryId(provider, trackId) {
+  queueEntrySequence += 1;
+  return `${provider}:${trackId}:${queueEntrySequence}`;
+}
+
 function normalizeTrack(track, index) {
   const idRaw = track?.id ?? track?.trackId ?? track?.track_id;
   const id = idRaw != null ? String(idRaw) : `track-${index}`;
+  const provider = track?.provider || track?.providerCode || track?.provider_code || 'local';
+  const queueEntryId = String(track?.queueEntryId || '').trim() || mintQueueEntryId(provider, id);
   const cover = track?.cover
     ? track.cover.startsWith('http') || track.cover.startsWith('/')
       ? absolutizeApiUrl(track.cover)
@@ -190,10 +204,11 @@ function normalizeTrack(track, index) {
 
   return {
     id,
+    queueEntryId,
     trackId: String(track?.trackId || track?.track_id || id),
     title: track?.title || id,
     artist: track?.artist || '未知歌手',
-    provider: track?.provider || track?.providerCode || track?.provider_code || 'local',
+    provider,
     sort: Number.isFinite(track?.sort) ? Number(track.sort) : index + 1,
     audio,
     lyric,
@@ -1225,6 +1240,130 @@ export function usePlayerEngine(options = {}) {
     return true;
   }
 
+  /**
+   * 队尾追加（区别于 enqueueNextTrack 的「插入到当前曲目之后」插队语义）。
+   * 不按 id 去重合并——同曲目重复入队由 queueEntryId 区分。
+   * @param {Object} rawTrack 与 enqueueNextTrack 相同的原始曲目形状；也可传已
+   *   normalize 的队列条目快照（自带 queueEntryId 时保留，仅在与队列既有身份
+   *   冲突时重新生成）。
+   * @returns {boolean} 入队成功返回 true；无可播放地址且不可懒解析时返回 false。
+   */
+  function appendToQueueEnd(rawTrack) {
+    const normalized = normalizeTrack(
+      {
+        id: rawTrack?.trackId || rawTrack?.track_id || rawTrack?.id || `append-${Date.now()}`,
+        provider: rawTrack?.provider || rawTrack?.providerCode || rawTrack?.provider_code,
+        title: rawTrack?.title,
+        artist: rawTrack?.artist,
+        cover: rawTrack?.cover || rawTrack?.coverUrl || rawTrack?.cover_url,
+        audio: rawTrack?.audio || rawTrack?.audioUrl || rawTrack?.audio_url,
+        lyric: rawTrack?.lyric || rawTrack?.lyricUrl || rawTrack?.lyric_url,
+        lyricText: rawTrack?.lyricText || rawTrack?.lyric_text,
+        translationLyricText: rawTrack?.translationLyricText || rawTrack?.translation_lyric_text,
+        furiganaLyricText: rawTrack?.furiganaLyricText || rawTrack?.furigana_lyric_text,
+        translatedLyricText: rawTrack?.translatedLyricText || rawTrack?.translated_lyric_text,
+        pronunciationLyricText: rawTrack?.pronunciationLyricText || rawTrack?.pronunciation_lyric_text,
+        lrc: rawTrack?.lrc,
+        tlyric: rawTrack?.tlyric,
+        romalrc: rawTrack?.romalrc,
+        durationSec: rawTrack?.durationSec ?? rawTrack?.duration_sec,
+        durationMs: rawTrack?.durationMs ?? rawTrack?.duration_ms,
+        durationLabel: rawTrack?.durationLabel ?? rawTrack?.duration_label,
+        duration: rawTrack?.duration,
+        playbackKind: rawTrack?.playbackKind ?? rawTrack?.playback_kind,
+        isPreview: rawTrack?.isPreview === true || rawTrack?.is_preview === true,
+        metadata: rawTrack?.metadata,
+        queueEntryId: rawTrack?.queueEntryId,
+        sort: rawTrack?.sort || 0
+      },
+      tracks.value.length
+    );
+
+    const canLazyResolve = supportsPlaybackResolve(normalized.provider)
+      && String(normalized.trackId || normalized.id || '').trim() !== '';
+    if (!normalized.audio && !canLazyResolve) return false;
+
+    let entry = normalized;
+    const occupiedEntryIds = new Set(
+      tracks.value.map((item) => item?.queueEntryId).filter(Boolean)
+    );
+    if (occupiedEntryIds.has(entry.queueEntryId)) {
+      entry = { ...entry, queueEntryId: mintQueueEntryId(entry.provider, entry.id) };
+    }
+
+    tracks.value = [...tracks.value, entry].map((item, idx) => ({
+      ...item,
+      sort: idx + 1
+    }));
+
+    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    return true;
+  }
+
+  // 抽屉动作层 commands.enqueueTrack 的队尾语义别名（playerBar/types.js 对接点 4）。
+  const enqueueTrack = appendToQueueEnd;
+
+  /**
+   * 按 queueEntryId 移除队列项；为兼容播放栏抽屉动作层（其按索引下命令），
+   * 也接受有效整数索引。移除正在播放的条目时停止播放并复位播放状态。
+   * @param {string|number} entryIdOrIndex queueEntryId 或队列索引。
+   * @returns {boolean} 是否实际移除了条目。
+   */
+  function removeQueueItem(entryIdOrIndex) {
+    const list = tracks.value;
+    let targetIndex = -1;
+    if (Number.isInteger(entryIdOrIndex) && entryIdOrIndex >= 0 && entryIdOrIndex < list.length) {
+      targetIndex = entryIdOrIndex;
+    } else if (entryIdOrIndex != null) {
+      targetIndex = list.findIndex(
+        (item) => String(item?.queueEntryId || '') === String(entryIdOrIndex)
+      );
+    }
+    if (targetIndex < 0) return false;
+
+    const removed = list[targetIndex];
+    const next = list.slice();
+    next.splice(targetIndex, 1);
+    next.forEach((item, idx) => {
+      item.sort = idx + 1;
+    });
+    tracks.value = next;
+
+    if (removed && removed.id === currentTrackId.value) {
+      audioElement.pause();
+      audioElement.src = '';
+      currentTrackId.value = '';
+      currentTime.value = 0;
+      duration.value = 0;
+      isPlaying.value = false;
+      lyricEntries.value = [];
+      lyricTimeline.value = [];
+      currentLyricIndex.value = -1;
+      currentLyricEntryIndex.value = -1;
+      currentLyricLine.value = '';
+    }
+    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    return true;
+  }
+
+  function clearQueue() {
+    tracks.value = [];
+    randomQueue.value = [];
+    lyricResolveAttempted.value = new Set();
+    playbackResolveAttempted.value = new Set();
+    audioElement.pause();
+    audioElement.src = '';
+    currentTrackId.value = '';
+    currentTime.value = 0;
+    duration.value = 0;
+    isPlaying.value = false;
+    lyricEntries.value = [];
+    lyricTimeline.value = [];
+    currentLyricIndex.value = -1;
+    currentLyricEntryIndex.value = -1;
+    currentLyricLine.value = '';
+  }
+
   async function playExternalTrack(rawTrack, options = {}) {
     return enqueueExternalTrack(rawTrack, true, options);
   }
@@ -1352,6 +1491,10 @@ export function usePlayerEngine(options = {}) {
     replaceQueueWithTracks,
     enqueueExternalTrack,
     enqueueNextTrack,
+    appendToQueueEnd,
+    enqueueTrack,
+    removeQueueItem,
+    clearQueue,
     playExternalTrack
   };
 }

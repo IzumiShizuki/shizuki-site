@@ -7,13 +7,14 @@
  * Modified: TypeScript → JavaScript（JSDoc 类型）。
  *
  * TODO(对接点 4)：commands 由站点引擎适配器实现，映射到 usePlayerEngine：
- *   enqueueTrack      → enqueueNextTrack（队尾语义另需 append 出口）
+ *   enqueueTrack      → appendToQueueEnd / enqueueTrack（队尾语义，已新增）
  *   playNextTrack     → enqueueNextTrack
- *   removeQueueItem   → 引擎新增 removeQueueItem(index)（当前缺失）
- *   clearQueue        → 引擎新增 clearQueue()（当前缺失）
+ *   removeQueueItem   → removeQueueItem(entryIdOrIndex)（已新增，兼容整数索引）
+ *   clearQueue        → clearQueue()（已新增）
  *   reorderQueue      → reorderTracks（已存在，注意 sort 字段维护）
  *   saveQueueAsPlaylist → 站点收藏/歌单对话框链路（MusicCollectTrackDialog）
- * 前置条件：站点曲目对象带 queueEntryId（见 types.js 对接点 1）。
+ * 前置条件：站点曲目对象带 queueEntryId（见 types.js 对接点 1）——已由
+ *   usePlayerEngine.normalizeTrack 落地。
  */
 
 import { ref } from 'vue'

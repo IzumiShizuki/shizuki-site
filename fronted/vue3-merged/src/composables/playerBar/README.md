@@ -34,15 +34,17 @@
 
 ## TODO 对接清单（后续 W3/W4/W5 工作包）
 
-1. **queueEntryId 队列身份**：`types.js` 对接点 1 —— 站点 usePlayerEngine 曲目
-   对象需补 `queueEntryId`；`toPlaybackQueueSnapshot` 需保留站点播放必需字段
-   （audio / lyricText / translationLyricText / durationLabel / sort / provider），
-   否则快照化会丢字段。
-2. **usePlayerEngine 新出口**（types.js 对接点 4）：
-   - `removeQueueItem(index)`（缺失）
-   - `clearQueue()`（缺失）
-   - `enqueueTrack` 队尾语义（现 `enqueueNextTrack` 是插队语义，需区分）
-   - `reorderTracks` 已存在（注意 sort 字段维护）
+1. **queueEntryId 队列身份**：✅ 已对接 —— `usePlayerEngine.normalizeTrack` 已为每条
+   曲目补 `queueEntryId`（格式 `<provider>:<trackId>:<自增序号>`，输入自带
+   queueEntryId 时保留，懒解析/时长同步等重归一化不换身份）。剩余事项：
+   `toPlaybackQueueSnapshot` 需保留站点播放必需字段（audio / lyricText /
+   translationLyricText / durationLabel / sort / provider），否则快照化会丢字段。
+2. **usePlayerEngine 新出口**（types.js 对接点 4）：✅ 已新增
+   - `removeQueueItem(entryIdOrIndex)`：按 queueEntryId 移除（兼容抽屉层按整数索引下命令）
+   - `clearQueue()`：清空队列并复位播放状态
+   - `appendToQueueEnd(rawTrack)`：队尾追加（`enqueueTrack` 为同引用别名），
+     区别于 `enqueueNextTrack` 的「插入当前曲目之后」插队语义
+   - `reorderTracks` 已存在（维护 sort 字段）
 3. **saveQueueAsPlaylist** 接站点收藏/歌单链路（MusicCollectTrackDialog）。
 4. **playMode 映射**（types.js 对接点 2）：`sequential/random/single` ↔
    `sequential/shuffle/repeat`；`applyPendingRendererPlayModeAtBoundary` 需站点
