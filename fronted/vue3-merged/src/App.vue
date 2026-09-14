@@ -382,6 +382,11 @@ import {
   canAttachMediaElementAudioGraph,
   shouldPrepareVisualizerAudioGraph
 } from './utils/mediaElementAudioGraph';
+import { createEqualizerChain } from './utils/audioEngine/equalizerWebAudio';
+import {
+  bands10LevelsToEqualizerBands,
+  mapLegacyLevelsToBands10
+} from './utils/audioEngine/eqBands10Mapping';
 import { runtimeGuards } from './utils/runtimeGuards';
 import {
   applyAmbientPreset,
@@ -491,9 +496,7 @@ const dragState = {
 let rippleSeq = 0;
 let audioCtx = null;
 let sourceNode = null;
-let eqLowNode = null;
-let eqMidNode = null;
-let eqHighNode = null;
+let eqChain = null;
 let analyser = null;
 let freqData = null;
 let rafId = 0;
@@ -2255,26 +2258,28 @@ function clearCurrentRouteBackground() {
   queueWallpaperPreferenceSync();
 }
 
-function normalizeEqLevel(raw, fallback = 0.5) {
-  const value = Number(raw);
-  if (!Number.isFinite(value)) return fallback;
-  return Math.max(0, Math.min(1, value));
+/**
+ * 10 段电平（0..1）→ 图形 EQ 链状态（与 equalizerWebAudio 执行端契约一致）。
+ * 站点旧 3 段均衡没有 preamp 与旁路开关：preamp 恒 0 dB、链恒启用。
+ */
+function eqChainStateFromBands10(levels) {
+  return {
+    enabled: true,
+    mode: 'graphic',
+    preampDb: 0,
+    bands: bands10LevelsToEqualizerBands(Array.isArray(levels) ? levels : [])
+  };
 }
 
-function eqLevelToDb(level) {
-  const centered = normalizeEqLevel(level, 0.5) - 0.5;
-  return Math.max(-12, Math.min(12, centered * 24));
+function applyEqBands10(levels) {
+  if (!eqChain) return;
+  eqChain.apply(eqChainStateFromBands10(levels));
 }
 
+/** 旧 3 段电平入口：迁移映射为 10 段后写入链（旧 UI 行为兼容）。 */
 function applyEqLevels(levels) {
-  if (!eqLowNode || !eqMidNode || !eqHighNode) return;
-  const sourceLevels = Array.isArray(levels) ? levels : [];
-  const low = normalizeEqLevel(sourceLevels[0], 0.66);
-  const mid = normalizeEqLevel(sourceLevels[1], 0.52);
-  const high = normalizeEqLevel(sourceLevels[2], 0.74);
-  eqLowNode.gain.value = eqLevelToDb(low);
-  eqMidNode.gain.value = eqLevelToDb(mid);
-  eqHighNode.gain.value = eqLevelToDb(high);
+  if (!eqChain) return;
+  applyEqBands10(mapLegacyLevelsToBands10(levels));
 }
 
 function ensureAudioAnalyser() {
@@ -2289,28 +2294,16 @@ function ensureAudioAnalyser() {
   }
   audioCtx = new window.AudioContext();
   sourceNode = audioCtx.createMediaElementSource(player.audioElement);
-  eqLowNode = audioCtx.createBiquadFilter();
-  eqLowNode.type = 'lowshelf';
-  eqLowNode.frequency.value = 180;
-  eqLowNode.Q.value = 0.8;
-
-  eqMidNode = audioCtx.createBiquadFilter();
-  eqMidNode.type = 'peaking';
-  eqMidNode.frequency.value = 1200;
-  eqMidNode.Q.value = 0.95;
-
-  eqHighNode = audioCtx.createBiquadFilter();
-  eqHighNode.type = 'highshelf';
-  eqHighNode.frequency.value = 5200;
-  eqHighNode.Q.value = 0.72;
-
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
   analyser.smoothingTimeConstant = 0.88;
-  sourceNode.connect(eqLowNode);
-  eqLowNode.connect(eqMidNode);
-  eqMidNode.connect(eqHighNode);
-  eqHighNode.connect(analyser);
+  // 接入点：sourceNode → 10 段图形 EQ 链（preamp + 10×BiquadFilter + 旁路交叉淡化）
+  eqChain = createEqualizerChain(
+    audioCtx,
+    sourceNode,
+    eqChainStateFromBands10(musicUi.eqBands10.value)
+  );
+  eqChain.output.connect(analyser);
   analyser.connect(audioCtx.destination);
   freqData = new Uint8Array(analyser.frequencyBinCount);
   applyEqLevels(musicUi.eqLevels.value);
@@ -2970,8 +2963,16 @@ watch(
 watch(
   () => (Array.isArray(musicUi.eqLevels.value) ? musicUi.eqLevels.value.slice() : []),
   (levels) => {
-    if (!eqLowNode || !eqMidNode || !eqHighNode) return;
+    if (!eqChain) return;
     applyEqLevels(levels);
+  }
+);
+
+watch(
+  () => (Array.isArray(musicUi.eqBands10.value) ? musicUi.eqBands10.value.slice() : []),
+  (levels) => {
+    if (!eqChain) return;
+    applyEqBands10(levels);
   }
 );
 
@@ -3068,12 +3069,13 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointercancel', onGlobalPointerUp, true);
   stopVisualizerLoop();
   if (audioCtx) {
+    if (eqChain) {
+      eqChain.dispose();
+      eqChain = null;
+    }
     audioCtx.close().catch(() => {});
     audioCtx = null;
     sourceNode = null;
-    eqLowNode = null;
-    eqMidNode = null;
-    eqHighNode = null;
     analyser = null;
     freqData = null;
   }

@@ -1,4 +1,5 @@
 import { reactive, ref } from 'vue';
+import { mapLegacyLevelsToBands10 } from '../utils/audioEngine/eqBands10Mapping';
 
 const DEFAULT_PLAYLIST_CODE = 'default_public';
 const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
@@ -31,6 +32,9 @@ function createMusicLibraryUiState() {
   const rightDrawerOpen = ref(false);
   const expandedProvider = ref('');
   const eqLevels = ref([0.66, 0.52, 0.74]);
+  // 10 段图形 EQ 电平（0..1，0.5 平坦），初始值由旧 3 段设置迁移而来；
+  // 旧 eqLevels 保留，3 段 UI 与 shizuki:music:eq-change 事件仍向后兼容。
+  const eqBands10 = ref(mapLegacyLevelsToBands10(eqLevels.value));
   const scrollTopByPath = reactive({});
   const lastContentPath = ref('/music-library/music');
 
@@ -132,6 +136,18 @@ function createMusicLibraryUiState() {
     eqLevels.value = next;
   }
 
+  function setEqBand10(index, value) {
+    if (!Number.isInteger(index) || index < 0 || index >= eqBands10.value.length) return;
+    const next = eqBands10.value.slice();
+    next[index] = clamp01(Number(value));
+    eqBands10.value = next;
+  }
+
+  function setEqBands10(bands) {
+    if (!Array.isArray(bands) || bands.length !== eqBands10.value.length) return;
+    eqBands10.value = bands.map((item) => clamp01(Number(item)));
+  }
+
   function rememberScroll(path, top) {
     const normalizedPath = normalizePath(path);
     const safeTop = Number.isFinite(Number(top)) ? Math.max(0, Number(top)) : 0;
@@ -158,6 +174,7 @@ function createMusicLibraryUiState() {
     rightDrawerOpen,
     expandedProvider,
     eqLevels,
+    eqBands10,
     lastContentPath,
     setActiveNav,
     setSelectedPlaylistCode,
@@ -174,6 +191,8 @@ function createMusicLibraryUiState() {
     closeDrawers,
     setExpandedProvider,
     setEqLevel,
+    setEqBand10,
+    setEqBands10,
     rememberScroll,
     readScroll,
     setLastContentPath
