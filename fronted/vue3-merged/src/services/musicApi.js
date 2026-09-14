@@ -26,6 +26,20 @@ export async function fetchAmllLyric(trackId, platform = 'ncm') {
   return unwrapApiResponse(response);
 }
 
+export async function getDailyRecommendSongs(authorizedFetch) {
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/discovery/daily-songs', { method: 'GET' })
+    : await httpRequest('/api/v1/music/discovery/daily-songs', { method: 'GET' });
+  return unwrapApiResponse(response);
+}
+
+export async function getRecommendPlaylists(authorizedFetch) {
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/music/discovery/recommend-playlists', { method: 'GET' })
+    : await httpRequest('/api/v1/music/discovery/recommend-playlists', { method: 'GET' });
+  return unwrapApiResponse(response);
+}
+
 export async function getMusicLibraryHome(authorizedFetch) {
   const response = typeof authorizedFetch === 'function'
     ? await authorizedFetch('/api/v1/music/library/home', { method: 'GET' })
