@@ -8,22 +8,21 @@
 
 ## 阶段 1：歌词系统移植（依赖 A 清单）
 
-- [x] 实施子 agent `becdd763`：歌词 utils 纯逻辑层移植完成——`src/utils/lyricEngine/` 32 文件（14 个 A 级直拷 + 类型/桥接），14 套件 203 用例全绿，全量回归 1216 用例全绿，构建通过。依赖 `@xmldom/xmldom@^0.9.12`
-- [ ] 数据管道对接（musicApi 歌词 → lyricEngine 解析 → 渲染升级）
+- [x] 实施子 agent `becdd763`：歌词 utils 纯逻辑层移植完成——`src/utils/lyricEngine/` 32 文件，203 用例全绿
+- [x] 数据管道对接（子 agent `6c4f4c0b`）：siteProjection.js 投影 + usePlayerEngine 解析切换（旧路径保留 fallback），232 文件/1341 tests 全绿
+- [x] 后端 AMLL 逐字歌词代理上线：`GET /api/v1/music/tracks/{trackId}/amll-lyric`（游客可访问），实测 200 返回 TTML
+- [ ] 渲染升级（逐字高亮/焦点窗口 UI，lyricEmphasis + PlayingLyricLine 移植）
 
 ## 阶段 2-3：可视化 + 均衡器移植（依赖 B 清单）
 
-- [ ] 实施子 agent `58de383f`：EQ/可视化纯逻辑层移植——进行中（audioEngine/）
+- [x] 实施子 agent `58de383f`：EQ/可视化纯逻辑层移植完成——audioEngine/ 16 文件 + equalizer/ 5 组件，79 用例全绿
+- [ ] EQ 音频链接入（子 agent `05b9a866`：createEqualizerChain 替换 3×BiquadFilter + 3→10 段迁移 + EqualizerPanelHost 骨架）——运行中
 
 ## 阶段 4：播放栏增强（依赖 C 清单）
 
-- [x] 实施子 agent `a2bfd623`：播放栏纯逻辑层移植完成——`src/composables/playerBar/` 14 文件（TS→JSDoc），5 spec 36 用例全绿。TODO 对接清单已写入 types.js/README（queueEntryId 扩展、removeQueueItem/clearQueue 引擎出口等）
-- [ ] 引擎出口扩展 + 队列抽屉 UI（W3/W4）
-
-## 后端前置依赖（调研发现）
-
-- [x] 网易云逐字歌词 yrc 获取实测：`/api/song/lyric` + lv=1、`/api/song/lyric/v1` + yv=1、ncm-api `/lyric/new` 均不返回 yrc（**网易云对第三方 API 逐字歌词风控**）
-- [x] 替代方案落地：AMLL TTML 逐字歌词库代理——后端 `AmllLyricClient` + `MediaService.fetchAmllLyric` + `GET /api/v1/music/tracks/{trackId}/amll-lyric?platform=ncm`（实测 AMLL 库 ncm/186016 返回逐字 TTML，编译通过）
+- [x] 实施子 agent `a2bfd623`：播放栏纯逻辑层移植完成——playerBar/ 14 文件，36 用例全绿
+- [ ] 队列引擎扩展（子 agent `38e6ad1f`：queueEntryId + removeQueueItem/clearQueue/appendToQueueEnd）——运行中
+- [ ] 队列抽屉 UI（W4）
 
 ## 阶段 5：Folia 沉浸视图整合
 
