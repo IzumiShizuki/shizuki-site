@@ -2,6 +2,7 @@ import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { absolutizeApiUrl } from '../services/apiBase';
 import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 import { buildAlignedLyricTimeline } from '../utils/lyricAlignment';
+import { buildSiteLyricTimeline } from '../utils/lyricEngine/siteProjection';
 import { parseLrc } from '../utils/lrc';
 import { formatMediaTime } from '../utils/mediaTime';
 
@@ -536,6 +537,22 @@ export function usePlayerEngine(options = {}) {
         });
       }
 
+      const projectedTimeline = buildSiteLyricTimeline({
+        lyricText: originalText,
+        tlyricText: lyricTracks.translation,
+        romalrcText: lyricTracks.furigana
+      });
+      if (projectedTimeline && projectedTimeline.length) {
+        logLyricDebug('parse_lyric_engine_ok', {
+          textLength: String(originalText || '').length,
+          entryCount: projectedTimeline.length
+        });
+        applyLyricTimeline(projectedTimeline);
+        return;
+      }
+      logLyricDebug('parse_lyric_engine_fallback_to_legacy', {
+        textLength: String(originalText || '').length
+      });
       const originalEntries = buildLyricEntriesFromText(originalText);
       const translationEntries = buildLyricEntriesFromText(lyricTracks.translation);
       const furiganaEntries = buildLyricEntriesFromText(lyricTracks.furigana);

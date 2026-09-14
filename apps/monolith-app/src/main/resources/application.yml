@@ -459,6 +459,7 @@ shizuki:
       - /api/v1/music/library/home
       - /api/v1/music/search
       - /api/v1/music/tracks/resolve-playback
+      - /api/v1/music/tracks/*/amll-lyric
       - /api/v1/music/providers
       - /api/v1/music/key-guide
       - /api/v1/music/meting/status
