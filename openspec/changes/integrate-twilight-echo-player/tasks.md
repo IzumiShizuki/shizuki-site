@@ -17,13 +17,13 @@
 ## 阶段 2-3：可视化 + 均衡器移植（依赖 B 清单）
 
 - [x] 实施子 agent `58de383f`：EQ/可视化纯逻辑层移植完成——audioEngine/ 16 文件 + equalizer/ 5 组件，79 用例全绿
-- [ ] EQ 音频链接入（子 agent `05b9a866`：createEqualizerChain 替换 3×BiquadFilter + 3→10 段迁移 + EqualizerPanelHost 骨架）——运行中
+- [x] EQ 音频链接入（子 agent `05b9a866`）：createEqualizerChain 替换 3×BiquadFilter + 3→10 段迁移 + EqualizerPanelHost 骨架，235 文件/1370 tests 全绿
 
 ## 阶段 4：播放栏增强（依赖 C 清单）
 
 - [x] 实施子 agent `a2bfd623`：播放栏纯逻辑层移植完成——playerBar/ 14 文件，36 用例全绿
-- [ ] 队列引擎扩展（子 agent `38e6ad1f`：queueEntryId + removeQueueItem/clearQueue/appendToQueueEnd）——运行中
-- [ ] 队列抽屉 UI（W4）
+- [x] 队列引擎扩展（子 agent `38e6ad1f`）：queueEntryId + removeQueueItem/clearQueue/appendToQueueEnd，31 tests 全绿
+- [ ] 队列抽屉 UI（W4，可选）
 
 ## 阶段 5：Folia 沉浸视图整合
 
@@ -37,6 +37,14 @@
 - [x] 后端：NeteaseDiscoveryClient + daily-songs/recommend-playlists 端点（已部署，需登录 cookie）
 - [x] 前端：musicApi.getDailyRecommendSongs/getRecommendPlaylists
 - [ ] 发现页 UI（每日推荐/推荐歌单展示——可选增量）
+
+## 阶段 7：UI 视觉层融合（Twilight_Echo 外观）
+
+- [x] 播放栏视觉（子 agent `e35b3b45`）：MusicLibraryDock 重组为 TE 三区玻璃布局 + twLightBar/ 频谱条（96 频带）+ 三形态响应式，237 文件/1384 tests 全绿，已部署（blur 28px 实测）
+- [x] 顶部模式切换去文字改图标（🎵/✨ + tooltip）
+- [x] 无缝切换优化：Folia bootstrap embed 跳过 service worker 慢初始化（fork commit）+ host 兜底重试 + 后台预热 + 280ms 淡入过渡；预热完成后切换 0ms
+- [ ] 播放详情页视觉（子 agent `0458a45f`：PlayingMusic 大封面玻璃布局 → MusicPlayerDetailView）——运行中
+- [ ] 首页/歌单卡片 liquid-material 玻璃风格（可选第三步）
 
 ## 已完成
 
