@@ -11,7 +11,8 @@
 - [x] 实施子 agent `becdd763`：歌词 utils 纯逻辑层移植完成——`src/utils/lyricEngine/` 32 文件，203 用例全绿
 - [x] 数据管道对接（子 agent `6c4f4c0b`）：siteProjection.js 投影 + usePlayerEngine 解析切换（旧路径保留 fallback），232 文件/1341 tests 全绿
 - [x] 后端 AMLL 逐字歌词代理上线：`GET /api/v1/music/tracks/{trackId}/amll-lyric`（游客可访问），实测 200 返回 TTML
-- [ ] 渲染升级（逐字高亮/焦点窗口 UI，lyricEmphasis + PlayingLyricLine 移植）
+- [x] 渲染升级（子 agent `a2998bc9`）：siteWordEnhancer AMLL 逐字挂接 + 逐字高亮渲染（lyric-word active/past），236 文件/1379 tests 全绿
+- [x] 前端全量部署：歌词引擎/EQ/队列/逐字高亮/发现接口全部上线（chunk 实测）+ E2E smoke test 通过
 
 ## 阶段 2-3：可视化 + 均衡器移植（依赖 B 清单）
 
@@ -26,12 +27,16 @@
 
 ## 阶段 5：Folia 沉浸视图整合
 
-- [ ] 歌词区普通（移植版）/ 沉浸（Folia Lattice）切换
-- [ ] 歌单列表 / 大屏切换
+- [x] Folia 桥 `shizuki:set-view` 扩展（folia-embed 分支 commit `4cb026c`）+ gateway 重建部署
+- [x] 歌词区「沉浸歌词」按钮（MusicPlayerDetailView → open-folia-lattice 事件，同曲续播）
+- [x] 歌单「大屏」按钮（MusicLibraryHomeView → open-folia-lattice 事件）
+- [x] MusicLibraryPage 视图级切换处理（set-view + play-tracks 桥接）+ 前端部署验证（沉浸歌词/大屏/set-view 串均在 chunk）
 
-## 阶段 6（可选）：在线发现后端适配
+## 阶段 6（可选）：在线发现
 
-- [ ] 网易云每日推荐 / 私人 FM / 云盘 → 站点后端 API
+- [x] 后端：NeteaseDiscoveryClient + daily-songs/recommend-playlists 端点（已部署，需登录 cookie）
+- [x] 前端：musicApi.getDailyRecommendSongs/getRecommendPlaylists
+- [ ] 发现页 UI（每日推荐/推荐歌单展示——可选增量）
 
 ## 已完成
 
