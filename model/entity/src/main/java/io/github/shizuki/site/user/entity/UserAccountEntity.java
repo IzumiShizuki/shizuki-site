@@ -3,6 +3,8 @@ package io.github.shizuki.site.user.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
+import io.github.shizuki.site.common.mybatis.JsonStringTypeHandler;
+import org.apache.ibatis.type.JdbcType;
 
 @TableName("USR_ACCOUNT")
 public class UserAccountEntity extends BaseEntity {
@@ -25,10 +27,15 @@ public class UserAccountEntity extends BaseEntity {
     @TableField("avatar_url_text")
     private String avatarUrl;
 
-    @TableField("groups_json")
+    /**
+     * PostgreSQL 的 jsonb 列必须使用 {@link JsonStringTypeHandler} 以 {@code Types.OTHER}
+     * 写入参数，否则 MyBatis 会按 varchar 绑定导致 "column ... is of type jsonb but
+     * expression is of type character varying"。
+     */
+    @TableField(value = "groups_json", typeHandler = JsonStringTypeHandler.class, jdbcType = JdbcType.OTHER)
     private String groupsJson;
 
-    @TableField("permissions_json")
+    @TableField(value = "permissions_json", typeHandler = JsonStringTypeHandler.class, jdbcType = JdbcType.OTHER)
     private String permissionsJson;
 
     public String getUsername() {
