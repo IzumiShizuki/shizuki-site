@@ -2,7 +2,16 @@
   <div class="m-auth-page">
     <header class="auth-head">
       <div class="auth-logo">
-        <img src="/images/katanegai.jpg" alt="Shizuki" />
+        <img v-if="mascotImage" :src="mascotImage" alt="看板娘" />
+        <div v-else class="mini-blob" aria-hidden="true">
+          <span class="mini-ear left"></span>
+          <span class="mini-ear right"></span>
+          <span class="mini-eye left"></span>
+          <span class="mini-eye right"></span>
+          <span class="mini-blush left"></span>
+          <span class="mini-blush right"></span>
+          <span class="mini-mouth"></span>
+        </div>
       </div>
       <h1 class="auth-title">{{ modeTitle }}</h1>
       <p class="auth-sub">Shizuki Site · 与网页端同一账号</p>
@@ -147,7 +156,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMobileShell } from '../mobileShellContext';
 
@@ -174,7 +183,25 @@ const form = reactive({
   confirmPassword: ''
 });
 
+const mascotImage = ref('');
+
 let cooldownTimer = null;
+
+const THEME_STORAGE_KEY = 'shizuki.authTheme.v1';
+
+onMounted(() => {
+  try {
+    const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.mascotImage === 'string' && parsed.mascotImage) {
+        mascotImage.value = parsed.mascotImage;
+      }
+    }
+  } catch {
+    // ignore corrupted local theme
+  }
+});
 
 const modeTabs = [
   { value: 'login', label: '登录' },
@@ -328,12 +355,14 @@ onBeforeUnmount(() => {
 }
 
 .auth-logo {
+  position: relative;
   width: 74px;
   height: 74px;
-  border-radius: 24px;
+  border-radius: 26px;
   overflow: hidden;
-  border: 1.5px solid var(--m-border-strong);
-  box-shadow: var(--m-shadow-soft), 0 0 30px rgba(var(--m-accent-rgb), 0.2);
+  border: 1.5px solid rgba(255, 158, 194, 0.6);
+  box-shadow: 0 10px 24px rgba(255, 126, 170, 0.32);
+  background: linear-gradient(150deg, #fff1f6, #ffd9e8);
 }
 
 .auth-logo img {
@@ -342,16 +371,70 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 
+.mini-blob {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.mini-blob .mini-ear {
+  position: absolute;
+  top: 6px;
+  width: 18px;
+  height: 18px;
+  background: #ffb7d1;
+  border-radius: 50% 50% 55% 45%;
+}
+
+.mini-blob .mini-ear.left { left: 10px; transform: rotate(-24deg); }
+.mini-blob .mini-ear.right { right: 10px; transform: rotate(24deg); }
+
+.mini-blob .mini-eye {
+  position: absolute;
+  top: 34px;
+  width: 9px;
+  height: 5px;
+  border-bottom: 2.5px solid #6f4a5a;
+  border-radius: 50%;
+}
+
+.mini-blob .mini-eye.left { left: 20px; }
+.mini-blob .mini-eye.right { right: 20px; }
+
+.mini-blob .mini-blush {
+  position: absolute;
+  top: 42px;
+  width: 11px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 138, 180, 0.5);
+}
+
+.mini-blob .mini-blush.left { left: 10px; }
+.mini-blob .mini-blush.right { right: 10px; }
+
+.mini-blob .mini-mouth {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 4px;
+  border-bottom: 2px solid #6f4a5a;
+  border-radius: 0 0 12px 12px;
+}
+
 .auth-title {
   margin: 4px 0 0;
   font-size: 24px;
   font-weight: 800;
+  color: #7c5468;
 }
 
 .auth-sub {
   margin: 0;
   font-size: 12px;
-  color: var(--m-text-faint);
+  color: rgba(124, 84, 104, 0.7);
   letter-spacing: 0.06em;
 }
 
@@ -360,8 +443,8 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 5px;
   border-radius: 999px;
-  background: var(--m-surface-soft);
-  border: 1px solid var(--m-border);
+  background: rgba(255, 214, 230, 0.55);
+  border: 1px solid rgba(255, 158, 194, 0.5);
 }
 
 .auth-tab {
@@ -370,31 +453,66 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: var(--m-text-sub);
+  color: #9a6a7e;
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 200ms ease, color 200ms ease;
+  transition: background 200ms ease, color 200ms ease, box-shadow 200ms ease;
 }
 
 .auth-tab.active {
-  background: var(--m-accent-gradient);
-  color: #3c2320;
-  box-shadow: 0 6px 16px rgba(var(--m-accent-rgb), 0.3);
+  background: linear-gradient(120deg, #ff7eaa, #ffb199);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(255, 126, 170, 0.4);
 }
 
 .auth-form {
   display: grid;
   gap: 16px;
   padding: 22px 20px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 158, 194, 0.4);
+  box-shadow: 0 16px 40px rgba(214, 148, 178, 0.28);
+}
+
+.m-input-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #8f5c75;
+}
+
+.m-input {
+  border: 1.5px solid rgba(255, 158, 194, 0.5);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6f4a5a;
+  min-height: 44px;
+  padding: 0 14px;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.m-input::placeholder {
+  color: rgba(111, 74, 90, 0.4);
+}
+
+.m-input:focus {
+  border-color: #ff7eaa;
+  box-shadow: 0 0 0 4px rgba(255, 126, 170, 0.18);
+}
+
+.m-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .captcha-box {
   flex-shrink: 0;
   width: 108px;
   border-radius: 15px;
-  border: 1px solid var(--m-border);
-  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 158, 194, 0.5);
+  background: rgba(255, 255, 255, 0.92);
   overflow: hidden;
   cursor: pointer;
   display: grid;
@@ -414,15 +532,64 @@ onBeforeUnmount(() => {
 
 .captcha-loading {
   font-size: 12px;
-  color: #6b5a52;
+  color: #8f5c75;
   padding: 14px 0;
+}
+
+.m-input-side {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: linear-gradient(120deg, #ff7eaa, #ffb199);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(255, 126, 170, 0.3);
+}
+
+.m-input-side:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.m-btn-primary {
+  border: none;
+  border-radius: 999px;
+  padding: 14px 0;
+  background: linear-gradient(120deg, #ff7eaa, #ffb199);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(255, 126, 170, 0.4);
+}
+
+.m-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.m-hint-error {
+  color: #e2587f;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.m-hint-ok {
+  color: #4fa07d;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .auth-link {
   justify-self: center;
   border: none;
   background: transparent;
-  color: var(--m-text-sub);
+  color: #9a6a7e;
   font-size: 13px;
   cursor: pointer;
   text-decoration: underline;
