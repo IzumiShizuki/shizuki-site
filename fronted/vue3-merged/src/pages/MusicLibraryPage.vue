@@ -543,14 +543,25 @@ async function pullCurrentTrackFromFolia() {
     artist: Array.isArray(status.track.artists) ? status.track.artists.join(' / ') : ''
   };
   // 用普通模式播放同一首（可能受版权限制；失败静默保留当前状态）
+  const positionMs = Number(status.positionMs || 0);
   try {
-    await player.playExternalTrack?.({
+    const played = await player.playExternalTrack?.({
       trackId: String(trackId),
       id: String(trackId),
       title: String(status.track.name || ''),
       artist: Array.isArray(status.track.artists) ? status.track.artists.join(' / ') : '',
       provider: 'netease'
     }, { replaceQueue: false });
+    // 播放成功后继承 Folia 的进度（无缝续播）
+    if (played && positionMs > 0 && typeof player.seekToTime === 'function') {
+      window.setTimeout(() => {
+        try {
+          player.seekToTime(positionMs / 1000);
+        } catch {
+          // ignore
+        }
+      }, 400);
+    }
   } catch {
     // ignore: 普通模式可能无法播放 VIP/版权受限歌曲
   }
