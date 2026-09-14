@@ -18,6 +18,14 @@ export async function getDefaultPlaylistBundle() {
   return unwrapApiResponse(response);
 }
 
+export async function fetchAmllLyric(trackId, platform = 'ncm') {
+  const response = await httpRequest(
+    `/api/v1/music/tracks/${encodeURIComponent(String(trackId || '').trim())}/amll-lyric?platform=${encodeURIComponent(platform)}`,
+    { method: 'GET' }
+  );
+  return unwrapApiResponse(response);
+}
+
 export async function getMusicLibraryHome(authorizedFetch) {
   const response = typeof authorizedFetch === 'function'
     ? await authorizedFetch('/api/v1/music/library/home', { method: 'GET' })
