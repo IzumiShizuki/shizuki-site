@@ -39,7 +39,12 @@
       </div>
     </header>
 
-    <section class="folia-embed-pane" :class="{ 'folia-embed-visible': foliaMode, 'folia-embed-hidden': !foliaMode }">
+    <section
+      class="folia-embed-pane music-mode-pane"
+      :class="{ 'folia-embed-visible': foliaMode, 'folia-embed-hidden': !foliaMode }"
+      :aria-hidden="!foliaMode"
+      :inert="!foliaMode"
+    >
       <div class="folia-embed-toolbar">
         <div class="folia-embed-track" v-if="foliaTrackInfo">
           <i class="fas fa-music"></i>
@@ -84,7 +89,16 @@
       <button class="retry-btn ripple-trigger" type="button" @click="reloadAfterFatalError">重试加载</button>
     </section>
 
-    <div v-if="!foliaMode" class="music-library-module" :class="{ 'player-detail-only': isPlayerDetailRoute }">
+    <div
+      class="music-library-module music-mode-pane"
+      :class="{
+        'player-detail-only': isPlayerDetailRoute,
+        'music-mode-pane-visible': !foliaMode,
+        'music-mode-pane-hidden': foliaMode
+      }"
+      :aria-hidden="foliaMode"
+      :inert="foliaMode"
+    >
       <template v-if="!isPlayerDetailRoute">
         <button
           v-if="isMobileViewport && (ui.leftDrawerOpen.value || ui.rightDrawerOpen.value)"
@@ -230,7 +244,7 @@
         :track="player.currentTrack.value"
         :tracks="player.tracks.value"
         :current-track-id="player.currentTrack.value?.id || ''"
-        :is-playing="player.isPlaying.value"
+        :is-playing="player.isPlaying.value && !foliaMode"
         :current-time="player.currentTime.value"
         :duration="player.duration.value"
         :expected-duration="player.expectedDuration.value"
@@ -336,13 +350,27 @@ const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
 // Folia 沉浸模式：同源嵌入已部署的 Folia 播放器（site.shizuki.online/music → gateway 18081）
 const FOLIA_EMBED_URL = '/music/';
 const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
+const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
+  'shizuki:follow-playback',
+  'shizuki:stop-follow-playback',
+  'shizuki:sync-clock',
+  'shizuki:sync-cookie',
+  'shizuki:get-cookie',
+  'shizuki:get-status',
+  'shizuki:set-theme',
+  'shizuki:set-view'
+]);
 const foliaMode = ref(readFoliaModePreference());
 const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
 const foliaSelectedPlaylist = ref('');
 let foliaBridgeReady = false;
-let foliaPendingTrack = null; // { trackId, positionMs }：iframe 就绪前暂存要播放的歌曲
-let foliaLoaderPromise = null; // 动态加载 Folia 的 Promise（幂等）
+let foliaPendingTrack = null; // Folia bridge 就绪前暂存唯一音频源的播放快照
+let foliaPreloadPromise = null;
+let foliaMountPromise = null;
+let foliaWarmupHandle = 0;
+let foliaWarmupUsesIdleCallback = false;
+const foliaScriptLoads = new Map();
 
 /**
  * 动态加载 Folia（同文档 embed，非 iframe）：
@@ -355,17 +383,14 @@ let foliaLoaderPromise = null; // 动态加载 Folia 的 Promise（幂等）
  * 脚本已加载后再次调用直接解析主 chunk 并等待就绪。
  */
 async function preloadFoliaScripts() {
-  if (foliaLoaderPromise) return foliaLoaderPromise;
-  foliaLoaderPromise = (async () => {
-    // 1. 加载 runtime-config
+  if (foliaPreloadPromise) return foliaPreloadPromise;
+  foliaPreloadPromise = (async () => {
     await loadScript('/music/runtime-config.js');
-    // 2. 解析 index.html 拿主 chunk 名（hash 会变）
-    const indexPath = FOLIA_EMBED_URL;
-    const html = await fetch(indexPath).then((r) => r.text());
+    const response = await fetch(FOLIA_EMBED_URL);
+    if (!response.ok) throw new Error(`failed to load Folia index (${response.status})`);
+    const html = await response.text();
     const mainMatch = html.match(/<script type="module"[^>]*src="([^"]+)"/);
     const mainSrc = mainMatch ? mainMatch[1] : '/music/assets/main-C_MalaQ2.js';
-    // 3. modulepreload 预取主 chunk（只缓存字节不执行——执行需等 embed 容器就绪，
-    //    否则 bootstrap 找不到 #root 会初始化失败）
     const existing = document.querySelector(`link[href="${mainSrc}"]`);
     if (!existing) {
       const link = document.createElement('link');
@@ -373,40 +398,47 @@ async function preloadFoliaScripts() {
       link.href = mainSrc;
       document.head.appendChild(link);
     }
-  })();
-  return foliaLoaderPromise;
+    return mainSrc;
+  })().catch((error) => {
+    foliaPreloadPromise = null;
+    throw error;
+  });
+  return foliaPreloadPromise;
 }
 
 /** 进入 Folia 模式：确保脚本已加载 + 创建容器 → Folia 立即挂载（无缝）。 */
 async function loadFoliaEmbed() {
-  // 兜底：ref 未就绪时用 data-folia-embed 选择器；仍无则延迟重试（模板渲染完成前）
+  if (foliaBridgeReady) return true;
+  if (foliaMountPromise) return foliaMountPromise;
   const host = foliaEmbedHostRef.value || document.querySelector('[data-folia-embed]');
-  if (!host) {
-    window.setTimeout(() => void loadFoliaEmbed(), 400);
-    return;
-  }
-  await preloadFoliaScripts();
-  // 执行主 chunk（若未执行过；bootstrap 检测 #folia-embed-root 存在即进入 embed 模式）
-  const html = await fetch(FOLIA_EMBED_URL).then((r) => r.text());
-  const mainMatch = html.match(/<script type="module"[^>]*src="([^"]+)"/);
-  const mainSrc = mainMatch ? mainMatch[1] : '/music/assets/main-C_MalaQ2.js';
-  // 容器（若已存在则复用，避免重复创建）
-  let embedRoot = document.getElementById('folia-embed-root');
-  if (!embedRoot) {
-    embedRoot = document.createElement('div');
-    embedRoot.id = 'folia-embed-root';
-    embedRoot.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;overflow:hidden;';
-    host.appendChild(embedRoot);
-  }
-  await loadScript(mainSrc, { module: true });
-  // 等 Folia React 树真正挂载进容器（bootstrap 异步初始化；后台预热期约 15-30s）
-  await waitForFoliaMount(40000);
-  foliaBridgeReady = true;
-  // 同步账号 + 补发待播歌曲 + 主题跟随
-  void syncCookieToFolia();
-  void syncCookieBackFromFolia();
-  deliverPendingFoliaTrack();
-  syncThemeToFolia();
+  if (!host) return false;
+  foliaMountPromise = (async () => {
+    let embedRoot = document.getElementById('folia-embed-root');
+    if (!embedRoot) {
+      embedRoot = document.createElement('div');
+      embedRoot.id = 'folia-embed-root';
+      embedRoot.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;overflow:hidden;';
+    }
+    if (embedRoot.parentElement !== host) host.appendChild(embedRoot);
+
+    if (embedRoot.children.length === 0) {
+      const mainSrc = await preloadFoliaScripts();
+      await loadScript(mainSrc, { module: true });
+      await waitForFoliaMount(40000);
+    }
+
+    foliaBridgeReady = embedRoot.children.length > 0;
+    if (!foliaBridgeReady) throw new Error('Folia embed mount timed out');
+    void syncCookieToFolia();
+    void syncCookieBackFromFolia();
+    deliverPendingFoliaTrack();
+    syncThemeToFolia();
+    return true;
+  })().catch((error) => {
+    foliaMountPromise = null;
+    throw error;
+  });
+  return foliaMountPromise;
 }
 
 /** 轮询等待 Folia React 树挂载进 #folia-embed-root。 */
@@ -430,17 +462,73 @@ function waitForFoliaMount(timeoutMs = 20000) {
 }
 
 function loadScript(src, options = {}) {
-  return new Promise((resolve, reject) => {
+  if (foliaScriptLoads.has(src)) return foliaScriptLoads.get(src);
+  const promise = new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing && existing.dataset.loaded) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = src;
-    if (options.module) script.type = 'module';
-    script.dataset.loaded = '1';
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`failed to load ${src}`));
-    document.head.appendChild(script);
+    if (existing?.dataset.loaded === '1') {
+      resolve();
+      return;
+    }
+    const script = existing || document.createElement('script');
+    const handleLoad = () => {
+      script.dataset.loaded = '1';
+      resolve();
+    };
+    const handleError = () => {
+      foliaScriptLoads.delete(src);
+      if (!existing) script.remove();
+      reject(new Error(`failed to load ${src}`));
+    };
+    script.addEventListener('load', handleLoad, { once: true });
+    script.addEventListener('error', handleError, { once: true });
+    if (!existing) {
+      script.src = src;
+      if (options.module) script.type = 'module';
+      document.head.appendChild(script);
+    }
   });
+  foliaScriptLoads.set(src, promise);
+  return promise;
+}
+
+function scheduleFoliaWarmup() {
+  if (foliaBridgeReady || foliaMountPromise || foliaWarmupHandle) return;
+  const warmup = () => {
+    foliaWarmupHandle = 0;
+    void loadFoliaEmbed().catch(() => {});
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    foliaWarmupUsesIdleCallback = true;
+    foliaWarmupHandle = window.requestIdleCallback(warmup, { timeout: 2500 });
+  } else {
+    foliaWarmupUsesIdleCallback = false;
+    foliaWarmupHandle = window.setTimeout(warmup, 1200);
+  }
+}
+
+function cancelFoliaWarmup() {
+  if (!foliaWarmupHandle) return;
+  if (foliaWarmupUsesIdleCallback && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(foliaWarmupHandle);
+  } else {
+    window.clearTimeout(foliaWarmupHandle);
+  }
+  foliaWarmupHandle = 0;
+}
+
+function parkFoliaEmbed() {
+  const embedRoot = document.getElementById('folia-embed-root');
+  if (!embedRoot) return;
+  let parking = document.getElementById('folia-embed-parking');
+  if (!parking) {
+    parking = document.createElement('div');
+    parking.id = 'folia-embed-parking';
+    parking.setAttribute('aria-hidden', 'true');
+    parking.inert = true;
+    parking.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none;overflow:hidden;z-index:-1;';
+    document.body.appendChild(parking);
+  }
+  parking.appendChild(embedRoot);
 }
 
 /** 把站点当前主题模式同步给 Folia（embed 模式下 Folia 跟随站点昼夜）。 */
@@ -470,7 +558,7 @@ const foliaPlaylistOptions = computed(() => {
   return options.filter((item) => (seen.has(item.playlistCode) ? false : (seen.add(item.playlistCode), true)));
 });
 
-/** 选择歌单后：拉取歌曲列表并交给 Folia 播放队列。 */
+/** 选择歌单后：由站点播放器接管队列，Folia 只跟随当前播放快照。 */
 async function handleFoliaPlaylistSelect(event) {
   const code = String(event?.target?.value || '').trim();
   foliaSelectedPlaylist.value = code;
@@ -478,16 +566,15 @@ async function handleFoliaPlaylistSelect(event) {
   try {
     const payload = await musicApi.getPlaylistBundleByCode(code, auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
-    const trackIds = tracks
-      .map((track) => Number(track?.trackId || track?.track_id || track?.id || 0))
-      .filter((id) => Number.isFinite(id) && id > 0);
-    if (trackIds.length && foliaBridgeReady) {
-      postToFolia({ type: 'shizuki:play-tracks', trackIds });
-      foliaTrackInfo.value = {
-        name: String(tracks[0]?.title || tracks[0]?.name || ''),
-        artist: String(tracks[0]?.artist || '')
-      };
-    }
+    if (!tracks.length) return;
+    const selectedPlaylistName = foliaPlaylistOptions.value.find((item) => item.playlistCode === code)?.name || '';
+    const replaced = await player.replaceQueueWithTracks?.(tracks, 0, true, {
+      sourceCode: code,
+      sourceName: selectedPlaylistName,
+      sourceType: 'folia-toolbar'
+    });
+    if (!replaced) return;
+    await pushCurrentTrackToFolia();
   } catch {
     foliaSelectedPlaylist.value = '';
   }
@@ -502,8 +589,10 @@ function readFoliaModePreference() {
   }
 }
 
-function setFoliaMode(enabled) {
-  foliaMode.value = Boolean(enabled);
+function setFoliaMode(enabled, options = {}) {
+  const nextEnabled = Boolean(enabled);
+  const syncPlayback = options.syncPlayback !== false;
+  foliaMode.value = nextEnabled;
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(FOLIA_MODE_STORAGE_KEY, foliaMode.value ? '1' : '0');
@@ -512,69 +601,12 @@ function setFoliaMode(enabled) {
     }
   }
   if (foliaMode.value) {
-    void nextTick().then(() => loadFoliaEmbed());
-    void pushCurrentTrackToFolia();
+    cancelFoliaWarmup();
+    void nextTick().then(() => loadFoliaEmbed()).catch(() => {});
+    if (syncPlayback) void pushCurrentTrackToFolia();
   } else {
-    // 从 Folia 切回普通模式：停止时钟同步；站点 audio 一直在播（跟随模式），
-    // 无需重新拉取/seek——音乐天然继承，直接同步普通模式的播放状态展示。
     stopFoliaClockSync();
-    void pullCurrentTrackFromFolia();
-  }
-}
-
-/** 请求 Folia 回传当前播放歌曲，并尝试在普通模式继续播放（无缝反向）。 */
-async function pullCurrentTrackFromFolia() {
-  if (!foliaBridgeReady) return;
-  // 跟随模式：站点 audio 从未暂停（唯一音频输出），切回普通无需重播，音乐已天然继承。
-  if (player.isPlaying?.value) return;
-  const status = await new Promise((resolve) => {
-    let done = false;
-    const listener = (event) => {
-      const data = event.data;
-      if (data && data.type === 'shizuki:status') {
-        window.removeEventListener('message', listener);
-        done = true;
-        resolve(data);
-      }
-    };
-    window.addEventListener('message', listener);
-    postToFolia({ type: 'shizuki:get-status' });
-    window.setTimeout(() => {
-      if (!done) {
-        window.removeEventListener('message', listener);
-        resolve(null);
-      }
-    }, 2500);
-  });
-  if (!status?.track?.id) return;
-  const trackId = Number(status.track.id);
-  if (!Number.isFinite(trackId) || trackId <= 0) return;
-  foliaTrackInfo.value = {
-    name: String(status.track.name || ''),
-    artist: Array.isArray(status.track.artists) ? status.track.artists.join(' / ') : ''
-  };
-  // 用普通模式播放同一首（可能受版权限制；失败静默保留当前状态）
-  const positionMs = Number(status.positionMs || 0);
-  try {
-    const played = await player.playExternalTrack?.({
-      trackId: String(trackId),
-      id: String(trackId),
-      title: String(status.track.name || ''),
-      artist: Array.isArray(status.track.artists) ? status.track.artists.join(' / ') : '',
-      provider: 'netease'
-    }, { replaceQueue: false });
-    // 播放成功后继承 Folia 的进度（无缝续播）
-    if (played && positionMs > 0 && typeof player.seekToTime === 'function') {
-      window.setTimeout(() => {
-        try {
-          player.seekToTime(positionMs / 1000);
-        } catch {
-          // ignore
-        }
-      }, 400);
-    }
-  } catch {
-    // ignore: 普通模式可能无法播放 VIP/版权受限歌曲
+    postToFolia({ type: 'shizuki:stop-follow-playback' });
   }
 }
 
@@ -623,19 +655,10 @@ async function pushCurrentTrackToFolia() {
   };
   const positionSec = Number(player.currentTime?.value || 0);
   const positionMs = Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0;
-  // 跟随模式：不暂停站点音频，Folia 显示同曲 + 从当前进度跟随（音乐不中断、天然继承）
   const playing = Boolean(player.isPlaying?.value);
+  foliaPendingTrack = { track, trackId, positionMs, playing };
   if (foliaBridgeReady) {
-    postToFolia({
-      type: 'shizuki:follow-playback',
-      track: track,
-      trackId,
-      positionMs,
-      playing
-    });
-    startFoliaClockSync();
-  } else {
-    foliaPendingTrack = { trackId, positionMs };
+    deliverPendingFoliaTrack();
   }
 }
 
@@ -643,6 +666,8 @@ async function pushCurrentTrackToFolia() {
 let foliaClockSyncTimer = null;
 function startFoliaClockSync() {
   stopFoliaClockSync();
+  let lastPositionMs = -1;
+  let lastPlaying = null;
   foliaClockSyncTimer = window.setInterval(() => {
     if (!foliaMode.value || !foliaBridgeReady) {
       stopFoliaClockSync();
@@ -650,10 +675,13 @@ function startFoliaClockSync() {
     }
     const positionSec = Number(player.currentTime?.value || 0);
     const positionMs = Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0;
-    if (positionMs > 0) {
-      postToFolia({ type: 'shizuki:sync-clock', positionMs });
+    const playing = Boolean(player.isPlaying?.value);
+    if (positionMs > 0 && (Math.abs(positionMs - lastPositionMs) >= 120 || playing !== lastPlaying)) {
+      postToFolia({ type: 'shizuki:sync-clock', positionMs, playing });
+      lastPositionMs = positionMs;
+      lastPlaying = playing;
     }
-  }, 200);
+  }, 250);
 }
 
 function stopFoliaClockSync() {
@@ -668,7 +696,14 @@ function deliverPendingFoliaTrack() {
   if (!foliaPendingTrack) return;
   const pending = foliaPendingTrack;
   foliaPendingTrack = null;
-  postToFolia({ type: 'shizuki:play-track', trackId: pending.trackId, positionMs: pending.positionMs });
+  postToFolia({
+    type: 'shizuki:follow-playback',
+    track: pending.track,
+    trackId: pending.trackId,
+    positionMs: pending.positionMs,
+    playing: pending.playing
+  });
+  startFoliaClockSync();
 }
 
 /** 从普通模式曲目对象中提取网易云 trackId。 */
@@ -689,12 +724,30 @@ function handleFoliaBridgeMessage(event) {
   const data = event.data;
   if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
   // 同文档 embed：忽略自己发出的消息（避免回声），只处理桥回包
-  if (event.source === window && ['shizuki:play-track', 'shizuki:play-tracks', 'shizuki:get-cookie', 'shizuki:get-status', 'shizuki:sync-cookie'].includes(data.type)) {
+  if (event.source === window && FOLIA_OUTBOUND_MESSAGE_TYPES.has(data.type)) {
     return;
   }
   if (data.type === 'shizuki:play-result') {
     if (data.ok && data.trackId) {
       // 播放成功：更新工具栏显示
+    }
+    return;
+  }
+  if (data.type === 'shizuki:playback-command') {
+    if (!foliaMode.value) return;
+    const action = String(data.action || '').trim();
+    const playing = Boolean(player.isPlaying?.value);
+    if ((action === 'play' && !playing) || (action === 'pause' && playing)) {
+      void player.togglePlay?.();
+    } else if (action === 'seek') {
+      const positionMs = Number(data.positionMs || 0);
+      if (Number.isFinite(positionMs) && positionMs >= 0) {
+        player.seekToTime?.(positionMs / 1000);
+      }
+    } else if (action === 'next') {
+      void player.playNext?.();
+    } else if (action === 'previous') {
+      void player.playPrev?.();
     }
     return;
   }
@@ -2896,6 +2949,16 @@ watch(
 );
 
 watch(
+  [
+    () => readFoliaTrackId(player.currentTrack.value),
+    () => Boolean(player.isPlaying?.value)
+  ],
+  () => {
+    if (foliaMode.value) void pushCurrentTrackToFolia();
+  }
+);
+
+watch(
   () => auth.isAuthenticated.value,
   async () => {
     await Promise.all([
@@ -2911,7 +2974,7 @@ watch(
   }
 );
 
-function handleFoliaPlayRequest(event) {
+async function handleFoliaPlayRequest(event) {
   const track = event?.detail?.track;
   if (!track) return;
   const trackId = readFoliaTrackId(track);
@@ -2919,42 +2982,43 @@ function handleFoliaPlayRequest(event) {
     name: String(track.title || track.name || ''),
     artist: String(track.artist || '')
   };
-  const positionSec = Number(player.currentTime?.value || 0);
-  const positionMs = Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0;
-  foliaPendingTrack = { trackId, positionMs };
   if (!foliaMode.value) {
-    setFoliaMode(true);
+    setFoliaMode(true, { syncPlayback: false });
   }
-  if (foliaBridgeReady) {
-    deliverPendingFoliaTrack();
+  const currentTrackId = readFoliaTrackId(player.currentTrack.value);
+  if (trackId && trackId !== currentTrackId) {
+    const played = await player.playExternalTrack?.(track, { replaceQueue: false });
+    if (!played) return;
   }
+  await nextTick();
+  await pushCurrentTrackToFolia();
 }
 
 function handleOpenFoliaMode(event) {
   const track = event?.detail?.track || null;
+  if (track) {
+    void handleFoliaPlayRequest(event);
+    return;
+  }
   if (!foliaMode.value) {
     setFoliaMode(true);
-  }
-  if (track) {
-    handleFoliaPlayRequest(event);
   }
 }
 
 /** 视图级沉浸切换：歌词沉浸 / 歌单大屏 → Folia lattice 视图。 */
-function handleOpenFoliaLattice(event) {
+async function handleOpenFoliaLattice(event) {
   const view = String(event?.detail?.view || 'lattice').trim();
   const track = event?.detail?.track || null;
-  const trackIds = Array.isArray(event?.detail?.trackIds) ? event.detail.trackIds : [];
+  const trackIds = (Array.isArray(event?.detail?.trackIds) ? event.detail.trackIds : [])
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id) && id > 0);
   if (!foliaMode.value) {
-    setFoliaMode(true);
+    setFoliaMode(true, { syncPlayback: !track && !trackIds.length });
   }
   // 等桥就绪后切 Folia 视图（重试至多 5s）
   const applyView = (attempts = 0) => {
     if (foliaBridgeReady) {
       postToFolia({ type: 'shizuki:set-view', view: view === 'player' ? 'player' : 'lattice' });
-      if (trackIds.length) {
-        postToFolia({ type: 'shizuki:play-tracks', trackIds });
-      }
       return;
     }
     if (attempts < 16) {
@@ -2963,8 +3027,27 @@ function handleOpenFoliaLattice(event) {
   };
   applyView();
   if (track) {
-    handleFoliaPlayRequest(event);
+    await handleFoliaPlayRequest(event);
+    return;
   }
+  if (trackIds.length) {
+    const queueByTrackId = new Map(
+      playerQueueTracks.value
+        .map((item) => [readFoliaTrackId(item), item])
+        .filter(([id]) => id > 0)
+    );
+    const requestedTracks = trackIds.map((id) => queueByTrackId.get(id)).filter(Boolean);
+    if (requestedTracks.length) {
+      const replaced = await player.replaceQueueWithTracks?.(requestedTracks, 0, true, {
+        sourceCode: player.playlistProfile?.value?.playlistCode || '',
+        sourceName: player.playlistProfile?.value?.name || '',
+        sourceType: 'folia-lattice'
+      });
+      if (!replaced) return;
+    }
+  }
+  await nextTick();
+  await pushCurrentTrackToFolia();
 }
 
 onMounted(async () => {
@@ -2980,14 +3063,9 @@ onMounted(async () => {
       window.addEventListener('shizuki:open-folia-mode', handleOpenFoliaMode);
       window.addEventListener('shizuki:open-folia-lattice', handleOpenFoliaLattice);
     }
-    // 无缝切换：无论当前模式都完整初始化 Folia（脚本+隐藏容器挂载+React 树就绪），
-    // 切 Folia 时只做 class 显隐（0ms 切换）。延迟到数据加载后进行，避免抢占首屏。
-    window.setTimeout(() => {
-      void loadFoliaEmbed();
-    }, 800);
     if (foliaMode.value) {
       await nextTick();
-      void pushCurrentTrackToFolia();
+      void loadFoliaEmbed().then(() => pushCurrentTrackToFolia()).catch(() => {});
     }
 
     await Promise.all([
@@ -3003,6 +3081,7 @@ onMounted(async () => {
 
     await nextTick();
     restoreCenterScroll(route.fullPath);
+    if (!foliaMode.value) scheduleFoliaWarmup();
   } catch (error) {
     setFatalError(error, '初始化失败，请稍后重试');
   }
@@ -3029,6 +3108,10 @@ async function reloadAfterFatalError() {
 }
 
 onBeforeUnmount(() => {
+  cancelFoliaWarmup();
+  stopFoliaClockSync();
+  postToFolia({ type: 'shizuki:stop-follow-playback' });
+  parkFoliaEmbed();
   if (allSearchCapacityRefreshTimer) {
     window.clearTimeout(allSearchCapacityRefreshTimer);
     allSearchCapacityRefreshTimer = 0;
@@ -3047,8 +3130,10 @@ onBeforeUnmount(() => {
 .music-library-page {
   position: relative;
   min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .music-library-page.folia-mode-active {
@@ -3136,36 +3221,59 @@ onBeforeUnmount(() => {
 }
 
 .folia-embed-pane {
+  position: relative;
   flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid var(--theme-border);
   background: #0b0e14;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
-  /* 常驻容器：Folia React 树保持挂载，切走时仅隐藏（无缝切回） */
-  display: none;
+  display: flex;
+  flex-direction: column;
 }
 
 .folia-embed-pane.folia-embed-visible {
-  display: flex;
-  flex-direction: column;
-  animation: folia-fade-in 280ms ease;
-}
-
-@keyframes folia-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  position: relative;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 2;
 }
 
 .folia-embed-pane.folia-embed-hidden {
-  display: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.music-mode-pane {
+  transition: opacity 90ms linear;
+  will-change: opacity;
+}
+
+.music-mode-pane-visible {
+  position: relative;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.music-mode-pane-hidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .folia-embed-frame {
@@ -3197,7 +3305,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
+  padding: 8px 140px 8px 12px;
   border-bottom: 1px solid var(--theme-border);
   background: var(--theme-panel-surface);
 }
@@ -3294,6 +3402,84 @@ onBeforeUnmount(() => {
 .folia-playlist-select option {
   background: var(--theme-panel-surface);
   color: var(--theme-text-primary);
+}
+
+@media (max-width: 700px) {
+  .music-library-page {
+    box-sizing: border-box;
+    padding-top: 52px;
+  }
+
+  .music-library-mode-switch {
+    top: 60px;
+    right: 8px;
+    padding: 3px;
+  }
+
+  .mode-switch-inner {
+    gap: 2px;
+  }
+
+  .player-mode-icon-tab {
+    width: 30px;
+    min-height: 28px;
+  }
+
+  .folia-open-external-icon {
+    width: 28px;
+    min-height: 28px;
+  }
+
+  .folia-embed-toolbar {
+    min-height: 44px;
+    gap: 4px;
+    padding: 6px 106px 6px 8px;
+  }
+
+  .folia-embed-track,
+  .folia-embed-hint {
+    display: none;
+  }
+
+  .folia-embed-actions {
+    width: 100%;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .folia-playlist-picker {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0 6px;
+  }
+
+  .folia-playlist-label {
+    font-size: 0;
+  }
+
+  .folia-playlist-label i {
+    font-size: 11px;
+  }
+
+  .folia-playlist-select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .folia-toolbar-btn {
+    flex: 0 0 28px;
+    width: 28px;
+    min-height: 26px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
+  }
+
+  .folia-toolbar-btn i {
+    font-size: 11px;
+  }
 }
 
 .music-center-mode-switch {

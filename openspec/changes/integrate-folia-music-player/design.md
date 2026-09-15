@@ -60,3 +60,14 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - 前端：移除 `MusicLibraryPage.vue` 的 Folia 模式代码，重建 `shizuki-site/site:latest` 重启容器。
 - 反代：移除 openresty `location /music/` 块 + reload；`docker compose down`（在 /opt/folia/deploy）。不影响现有站点容器。
 - 服务器配置备份：`/opt/1panel/www/conf.d/10-shizuki-migration.conf.bak-folia-*`。
+
+## 无缝切换稳定化
+
+- **唯一音频所有者**：普通模式的 `usePlayerEngine.audioElement` 始终负责真实声音输出。切入 Folia 时不暂停、不重建、不重新解析同一首歌；Folia 仅接收 `shizuki:follow-playback` 曲目快照与时钟锚点。
+- **播放入口收敛**：Folia 工具栏歌单与 lattice 批量入口先更新站点播放队列，再发送 `follow-playback`；切回普通模式只停止 Folia 跟随，不向 Folia 拉取状态或重新播放。
+- **双树常驻**：普通 Vue 音乐工作区和 Folia React 工作区都保持挂载，通过 `visibility`、`opacity`、`pointer-events` 与 `inert` 切换可见性。隐藏普通模式时暂停播放条频谱循环，隐藏 Folia 时停止跟随时钟与播放态动画。
+- **首次交接一致性**：桥尚未就绪时保存完整 `{ track, trackId, positionMs, playing }` 快照；桥就绪后仍发送 `follow-playback`，禁止退回会创建第二音频源的 `play-track`。
+- **平滑视觉时钟**：站点每 250ms 发送校准锚点，Folia 在两次校准之间使用 `requestAnimationFrame` 连续投影进度与歌词行，避免 200ms 跳帧感。Folia 播放/暂停按钮通过 `shizuki:playback-command` 反向控制站点播放器。
+- **跨路由保温**：离开音乐页前把 `#folia-embed-root` 移入全局隐藏 parking 容器，返回时直接搬回当前 host，保持 React 树、资源缓存和音频元素身份，不重新执行主 bundle。
+- **加载去重**：runtime config、入口 HTML、module preload、主脚本执行和 React mount 各自由单例 Promise 管理；普通模式首屏完成后才在浏览器 idle 时后台预热，避免与首屏数据加载争抢主线程。
+- **移动端布局**：窄屏为全局顶部导航和模式开关预留固定空间，Folia 同步/状态命令收为图标按钮，工具栏不横向溢出。

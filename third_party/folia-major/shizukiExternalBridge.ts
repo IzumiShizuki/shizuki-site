@@ -36,6 +36,98 @@ import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
 import type { SongResult } from './types';
 
 const COOKIE_STORAGE_KEY = 'netease_cookie';
+let followPlaybackActive = false;
+let followClockFrame = 0;
+let followClockPositionSec = 0;
+let followClockStartedAt = 0;
+let followClockPlaying = false;
+let suppressPlaybackCommandsUntil = 0;
+
+function readFollowSong(rawTrack: Record<string, unknown>): SongResult | null {
+  const id = Number(rawTrack.id ?? rawTrack.trackId ?? rawTrack.track_id);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const rawArtists = Array.isArray(rawTrack.artists) ? rawTrack.artists : [];
+  const artistText = String(rawTrack.artist || '').trim();
+  const artists = rawArtists.length
+    ? rawArtists
+    : artistText.split(/\s*[/,&]\s*/).filter(Boolean).map((name) => ({ name }));
+  const rawAlbum = rawTrack.album && typeof rawTrack.album === 'object'
+    ? rawTrack.album as Record<string, unknown>
+    : {};
+  const durationMs = Number(
+    rawTrack.durationMs
+      ?? rawTrack.duration_ms
+      ?? (Number(rawTrack.durationSec ?? rawTrack.duration_sec ?? rawTrack.duration) || 0) * 1000,
+  );
+  return {
+    ...rawTrack,
+    id,
+    name: String(rawTrack.name || rawTrack.title || ''),
+    artists,
+    album: {
+      ...rawAlbum,
+      picUrl: String(
+        rawAlbum.picUrl
+          || rawTrack.cover
+          || rawTrack.coverUrl
+          || rawTrack.cover_url
+          || '',
+      ),
+    },
+    durationMs: Number.isFinite(durationMs) ? durationMs : 0,
+  } as unknown as SongResult;
+}
+
+function writeFollowClock(positionSec: number): void {
+  const safePosition = Math.max(0, Number(positionSec) || 0);
+  try {
+    const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
+    clock?.set(safePosition);
+    const store = usePlaybackStore.getState();
+    const lines = store.lyrics?.lines || [];
+    if (lines.length) {
+      const index = findLatestActiveLineIndex(lines, safePosition);
+      if (index !== store.currentLineIndex) store.setCurrentLineIndex(index);
+    }
+  } catch {
+    // ignore clock projection failures
+  }
+}
+
+function runFollowClockFrame(now: number): void {
+  followClockFrame = 0;
+  if (!followPlaybackActive) return;
+  const elapsedSec = followClockPlaying ? Math.max(0, now - followClockStartedAt) / 1000 : 0;
+  writeFollowClock(followClockPositionSec + elapsedSec);
+  if (followClockPlaying) {
+    followClockFrame = window.requestAnimationFrame(runFollowClockFrame);
+  }
+}
+
+function syncFollowClock(positionMs: number, playing: boolean): void {
+  followClockPositionSec = Math.max(0, Number(positionMs) || 0) / 1000;
+  followClockStartedAt = performance.now();
+  followClockPlaying = playing;
+  if (followClockFrame) window.cancelAnimationFrame(followClockFrame);
+  followClockFrame = 0;
+  writeFollowClock(followClockPositionSec);
+  if (followPlaybackActive && followClockPlaying) {
+    followClockFrame = window.requestAnimationFrame(runFollowClockFrame);
+  }
+}
+
+function stopFollowPlayback(): void {
+  followPlaybackActive = false;
+  followClockPlaying = false;
+  if (followClockFrame) window.cancelAnimationFrame(followClockFrame);
+  followClockFrame = 0;
+  suppressPlaybackCommandsUntil = performance.now() + 300;
+  try {
+    usePlaybackStore.getState().setPlayerState('PAUSED');
+  } catch {
+    // ignore
+  }
+}
 
 function readCookieFromStorage(): string {
   try {
@@ -86,6 +178,7 @@ async function resolveTrack(trackId: number): Promise<{ song: unknown; audioUrl:
 
 /** Play a NetEase track through the upstream playback store. */
 async function playTrack(trackId: number, positionMs?: number): Promise<void> {
+  stopFollowPlayback();
   const { song, audioUrl, name } = await resolveTrack(trackId);
   const normalized = (neteaseApi.normalizeSongResult
     ? neteaseApi.normalizeSongResult(song)
@@ -152,6 +245,7 @@ async function loadLyricsForTrack(song: SongResult): Promise<void> {
 
 /** Play a list of NetEase track ids as a queue (first starts, rest enqueued). */
 async function playTracks(trackIds: number[]): Promise<{ played: number; failed: number }> {
+  stopFollowPlayback();
   const ids = (Array.isArray(trackIds) ? trackIds : [])
     .map((id) => Number(id))
     .filter((id) => Number.isFinite(id) && id > 0);
@@ -309,49 +403,40 @@ function handleMessage(event: MessageEvent): void {
   }
 
   if (type === 'shizuki:follow-playback') {
-    // 跟随模式：站点是唯一音频输出，Folia 只渲染当前曲目与进度（不初始化音频）。
-    // 切换普通↔Folia 时站点 audio 不中断，音乐天然继承。
     try {
       const store = usePlaybackStore.getState();
       const rawTrack = data.track as (Record<string, unknown> & { id?: unknown }) | null;
-      if (rawTrack && rawTrack.id != null) {
-        const normalized = (neteaseApi.normalizeSongResult
-          ? neteaseApi.normalizeSongResult(rawTrack as never)
-          : rawTrack) as SongResult;
+      const normalized = rawTrack ? readFollowSong(rawTrack) : null;
+      const previousTrackId = Number((store.currentSong as { id?: unknown } | null)?.id || 0);
+      followPlaybackActive = true;
+      suppressPlaybackCommandsUntil = performance.now() + 400;
+      const internalAudio = document.querySelector('#folia-embed-root audio') as HTMLAudioElement | null;
+      internalAudio?.pause();
+      if (normalized) {
         store.setCurrentSong(normalized);
         store.setPlayQueue([normalized]);
+        if (Number(normalized.id) !== previousTrackId) void loadLyricsForTrack(normalized);
       }
-      store.setPlayerState(Boolean(data.playing) ? 'PLAYING' : 'PAUSED');
-      const positionMs = Number(data.positionMs || 0);
-      if (positionMs > 0) {
-        const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
-        clock?.set(positionMs / 1000);
-      }
+      const playing = Boolean(data.playing);
+      store.setPlayerState(playing ? 'PLAYING' : 'PAUSED');
+      syncFollowClock(Number(data.positionMs || 0), playing);
     } catch {
       // ignore
     }
     return;
   }
 
+  if (type === 'shizuki:stop-follow-playback') {
+    stopFollowPlayback();
+    return;
+  }
+
   if (type === 'shizuki:sync-clock') {
-    // 站点音频进度 → Folia clock + 歌词行（驱动歌词动画/视觉器跟随，无本地 audio）。
-    const positionMs = Number(data.positionMs || 0);
-    if (positionMs <= 0) return;
-    const sec = positionMs / 1000;
-    try {
-      const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
-      clock?.set(sec);
-      const store = usePlaybackStore.getState();
-      const lines = store.lyrics?.lines || [];
-      if (lines.length) {
-        const idx = findLatestActiveLineIndex(lines, sec);
-        if (idx !== store.currentLineIndex) {
-          store.setCurrentLineIndex(idx);
-        }
-      }
-    } catch {
-      // ignore
-    }
+    if (!followPlaybackActive) return;
+    const playing = Boolean(data.playing);
+    suppressPlaybackCommandsUntil = performance.now() + 120;
+    usePlaybackStore.getState().setPlayerState(playing ? 'PLAYING' : 'PAUSED');
+    syncFollowClock(Number(data.positionMs || 0), playing);
     return;
   }
 }
@@ -362,6 +447,15 @@ export function installShizukiExternalBridge(): void {
   if ((window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled) return;
   (window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled = true;
   window.addEventListener('message', handleMessage);
+  usePlaybackStore.subscribe((state, previousState) => {
+    if (!followPlaybackActive || performance.now() < suppressPlaybackCommandsUntil) return;
+    if (state.playerState === previousState.playerState) return;
+    if (state.playerState === 'PLAYING') {
+      postToParent({ type: 'shizuki:playback-command', action: 'play' });
+    } else if (state.playerState === 'PAUSED') {
+      postToParent({ type: 'shizuki:playback-command', action: 'pause' });
+    }
+  });
   // If the parent already pushed a cookie before this bundle ran, apply it now.
   const pending = (window as unknown as { __shizukiPendingCookie?: string }).__shizukiPendingCookie;
   if (pending) {

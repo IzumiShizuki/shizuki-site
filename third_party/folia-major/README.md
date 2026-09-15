@@ -11,6 +11,11 @@
    （默认 `/`，不破坏上游行为），使构建产物可挂载到子路径 `/music/`。
 2. **`src/index.tsx`**：挂载本目录的 `shizukiExternalBridge.ts`（外部控制桥）。
 
+桥接协议以站点播放器为唯一音频输出：`shizuki:follow-playback` 同步曲目与播放态，
+`shizuki:sync-clock` 提供定期校准，Folia 在两次校准之间以 rAF 连续投影歌词时钟；
+Folia 的播放/暂停操作通过 `shizuki:playback-command` 回传站点。主站歌单与 lattice
+批量入口也必须先更新主站队列，不能调用 Folia 自有的 `play-track` / `play-tracks`。
+
 ## AGPL-3.0 合规
 
 - Folia 上游为 AGPL-3.0，本部署**未并入** `fronted/vue3-merged` 私有仓库，

@@ -50,3 +50,26 @@ The deployment SHALL be reproducible from checked-in compose and environment tem
 #### Scenario: Roll back
 - **WHEN** an operator removes the Caddy rule and runs `docker compose down` in the Folia directory
 - **THEN** the existing main-site containers keep running and the Folia origin stops serving
+
+### Requirement: Seamless main-site mode transition
+The embedded music experience SHALL keep the main-site player as the single audio owner while allowing visitors to switch between the normal Vue workspace and the Folia React workspace without restarting the current track or rebuilding either workspace tree.
+
+#### Scenario: Switch modes during playback
+- **WHEN** a visitor switches from normal mode to Folia mode or back while a track is playing
+- **THEN** the same main-site audio element continues at the current position, both workspace roots retain their DOM identity, and no additional audio element is created by the transition
+
+#### Scenario: Folia bridge is still warming up
+- **WHEN** the visitor enters Folia mode before the remote React bundle and bridge are ready
+- **THEN** the site retains the complete current playback snapshot and delivers it through the follow-playback protocol after mount without invoking Folia-owned track playback
+
+#### Scenario: Folia visuals follow the main-site clock
+- **WHEN** the main-site audio is playing in Folia mode
+- **THEN** Folia continuously projects progress and lyric focus between periodic clock corrections, and Folia play or pause commands are relayed back to the main-site player
+
+#### Scenario: Return after navigating away
+- **WHEN** a visitor leaves the music route and later returns during the same document session
+- **THEN** the previously mounted Folia root is reattached instead of cold-started again
+
+#### Scenario: Switch modes on a narrow viewport
+- **WHEN** the viewport is 390 CSS pixels wide
+- **THEN** the Folia toolbar and mode controls remain visible without horizontal overflow or overlapping command labels

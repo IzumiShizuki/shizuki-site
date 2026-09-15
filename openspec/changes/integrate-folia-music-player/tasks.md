@@ -64,7 +64,14 @@
 - [ ] 合一落地：歌词普通/沉浸切换、歌单列表/大屏切换、播放条桥接（阶段2-4）
 - [ ] 主题深度桥接（站点 accent/壁纸 → Folia 视觉参数）
 - [ ] Spotify 支持方案（Folia 无 Spotify，需独立设计）
-- [ ] 本地 git commit（不 push）。
+- [x] 本地 git commit（不 push）。
+
+## 无缝切换稳定化（2026-09-14）
+
+- [x] **模式树常驻**：普通 Vue 工作区移除 `v-if` 卸载，普通/Folia 两侧改为同尺寸常驻层，以 `visibility`、`opacity`、`pointer-events` 和 `inert` 切换；隐藏普通模式时停止播放条频谱循环。
+- [x] **唯一音频源交接**：首次与后续切换统一发送完整 `shizuki:follow-playback` 快照，歌单/lattice 入口先更新站点队列，切回时不再拉取 Folia 重播；Folia 播放/暂停命令反向控制站点播放器。
+- [x] **平滑时钟与跨路由保温**：Folia 用 rAF 投影站点时钟，离开音乐页时停泊 React 根节点、返回时直接搬回；脚本与 mount 过程改为单例 Promise 并在首屏完成后 idle 预热。
+- [x] **回归验证**：新增 Folia 切换契约测试；全量 Vitest `238 files / 1389 tests` 通过，Vite 生产构建通过；真实 Folia 资源代理下 12 次往返切换处理耗时 `0.1-1.8ms`，DOM 与音频元素身份稳定，390px 窄屏无横向溢出。
 
 ## 实施要点（供后续维护）
 
