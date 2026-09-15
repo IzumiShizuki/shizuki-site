@@ -861,6 +861,11 @@ export function usePlayerEngine(options = {}) {
         isPlaying.value = true;
       } catch {
         isPlaying.value = false;
+        const idx = currentIndex.value;
+        if (idx >= 0) {
+          return recoverPlaybackWithFreshSource(idx, currentTrack.value?.audio);
+        }
+        return false;
       }
     } else {
       audioElement.pause();

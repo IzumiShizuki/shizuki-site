@@ -204,6 +204,46 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.audioElement.play).toHaveBeenCalledTimes(2);
   });
 
+  it('refreshes the current provider audio URL when togglePlay rejects', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: 'https://audio.example.com/fresh-after-toggle.mp3'
+    });
+
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks(
+      [
+        {
+          provider: 'netease',
+          trackId: 'stale-current-track',
+          title: 'Stale current track',
+          artist: 'Singer',
+          audio: 'https://music.163.com/song/media/outer/url?id=123.mp3',
+          lyricText: '[00:01.00]line'
+        }
+      ],
+      0,
+      false
+    );
+    engine.audioElement.play = vi.fn()
+      .mockRejectedValueOnce(new Error('The element has no supported sources'))
+      .mockResolvedValueOnce(undefined);
+
+    await engine.togglePlay();
+
+    expect(resolvePlaybackTrack).toHaveBeenCalledTimes(1);
+    expect(resolvePlaybackTrack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'netease',
+        trackId: 'stale-current-track',
+        forceRefresh: true
+      }),
+      undefined
+    );
+    expect(engine.audioElement.src).toBe('https://audio.example.com/fresh-after-toggle.mp3');
+    expect(engine.audioElement.play).toHaveBeenCalledTimes(2);
+    expect(engine.isPlaying.value).toBe(true);
+  });
+
   it('synchronizes playback position and active lyrics immediately after seeking', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/seek.mp3',
