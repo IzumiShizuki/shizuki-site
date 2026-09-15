@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthEntryFilterTest {
 
     private static final String RESOLVE_PLAYBACK_PATH = "/api/v1/music/tracks/resolve-playback";
+    private static final String STREAM_PLAYBACK_PATH = "/api/v1/music/tracks/stream/capability";
     private static final String TOWN_SCENES_PATH = "/api/v1/ai-town/scenes";
     private static final String TOWN_SCENE_DETAIL_PATH = "/api/v1/ai-town/scenes/library";
     private static final String TOWN_PUBLIC_MAP_PATH = "/api/v1/ai-town/public-map";
@@ -44,6 +45,21 @@ class AuthEntryFilterTest {
         AuthService authService = Mockito.mock(AuthService.class);
         AuthEntryFilter filter = newFilter(authService, List.of(RESOLVE_PLAYBACK_PATH));
         MockHttpServletRequest request = new MockHttpServletRequest("POST", RESOLVE_PLAYBACK_PATH);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(request, response, captureGuestChain(invoked));
+
+        assertThat(invoked).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
+        Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
+    void shouldAllowConfiguredMusicStreamWithoutToken() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths());
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", STREAM_PLAYBACK_PATH);
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean invoked = new AtomicBoolean(false);
 

@@ -20,21 +20,31 @@ import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.response.SpotifyPreviewResponse;
 import io.github.shizuki.site.media.response.SpotifyTrackResponse;
 import io.github.shizuki.site.media.service.MediaService;
+import io.github.shizuki.site.media.service.playback.MusicPlaybackGatewayService;
+import io.github.shizuki.site.media.service.playback.MusicPlaybackStream;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.util.StringUtils;
 
 /**
  * 音乐播放器前台接口。
@@ -45,9 +55,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class MusicController {
 
     private final MediaService mediaService;
+    private final MusicPlaybackGatewayService playbackGatewayService;
 
-    public MusicController(MediaService mediaService) {
+    public MusicController(MediaService mediaService,
+                           MusicPlaybackGatewayService playbackGatewayService) {
         this.mediaService = mediaService;
+        this.playbackGatewayService = playbackGatewayService;
     }
 
     @GetMapping("/playlist/default")
@@ -131,7 +144,44 @@ public class MusicController {
     @RateLimit(key = "music.track.resolve", limit = 120, windowSeconds = 60)
     @Operation(summary = "按需解析播放曲目", description = "仅在真实播放时触发解析，返回可播放链接与歌词信息")
     public ApiResponse<MusicTrackResponse> resolvePlayback(@RequestBody(required = false) MusicResolvePlaybackRequest request) {
-        return ApiResponse.success(mediaService.resolvePlaybackTrack(request == null ? new MusicResolvePlaybackRequest() : request));
+        MusicTrackResponse track = mediaService.resolvePlaybackTrack(
+            request == null ? new MusicResolvePlaybackRequest() : request
+        );
+        return ApiResponse.success(playbackGatewayService.rewriteDeliveryUrl(track));
+    }
+
+    @GetMapping("/tracks/stream/{capability}")
+    @RateLimit(key = "music.track.stream", limit = 600, windowSeconds = 60)
+    @Operation(summary = "流式读取已解析音乐", description = "校验短时 capability，并以站内同源地址代理第三方音频")
+    public ResponseEntity<StreamingResponseBody> streamPlayback(
+        @PathVariable("capability") String capability,
+        @RequestHeader(value = HttpHeaders.RANGE, required = false) String range
+    ) {
+        MusicPlaybackStream stream = playbackGatewayService.open(capability, range);
+        StreamingResponseBody body = output -> {
+            try (InputStream input = stream.inputStream()) {
+                input.transferTo(output);
+            } catch (IOException | RuntimeException exception) {
+                throw new IOException("music playback stream interrupted", exception);
+            }
+        };
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(stream.statusCode())
+            .contentType(MediaType.parseMediaType(stream.contentType()))
+            .header(HttpHeaders.CACHE_CONTROL, "private, no-store, max-age=0")
+            .header(HttpHeaders.PRAGMA, "no-cache")
+            .header(HttpHeaders.ACCEPT_RANGES, stream.acceptRanges())
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+            .header(HttpHeaders.VARY, HttpHeaders.RANGE)
+            .header("X-Content-Type-Options", "nosniff")
+            .header("X-Accel-Buffering", "no")
+            .header("Cross-Origin-Resource-Policy", "same-site");
+        if (stream.contentLength() >= 0L) {
+            response.contentLength(stream.contentLength());
+        }
+        if (StringUtils.hasText(stream.contentRange())) {
+            response.header(HttpHeaders.CONTENT_RANGE, stream.contentRange());
+        }
+        return response.body(body);
     }
 
     @GetMapping("/tracks/{trackId}/amll-lyric")

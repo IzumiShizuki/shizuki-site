@@ -14,6 +14,10 @@ import io.github.shizuki.site.media.response.MusicVoiceWorkDetailResponse;
 import io.github.shizuki.site.media.response.MusicVoiceWorkItemResponse;
 import io.github.shizuki.site.media.response.MusicVoiceWorksResponse;
 import io.github.shizuki.site.media.service.MediaService;
+import io.github.shizuki.site.media.service.playback.MusicPlaybackGatewayService;
+import io.github.shizuki.site.media.service.playback.MusicPlaybackStream;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -22,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
@@ -33,6 +38,58 @@ class MusicControllerIntegrationTest {
 
     @MockBean
     private MediaService mediaService;
+
+    @MockBean
+    private MusicPlaybackGatewayService playbackGatewayService;
+
+    @Test
+    void shouldRewriteResolvedPlaybackToSameOriginStream() throws Exception {
+        MusicTrackResponse resolved = new MusicTrackResponse(
+            "track-1", "netease", "Song", "Artist", "", "https://audio.example.com/song.mp3", "", 0, true
+        );
+        MusicTrackResponse delivered = new MusicTrackResponse(
+            "track-1", "netease", "Song", "Artist", "", "/api/v1/music/tracks/stream/capability", "", 0, true
+        );
+        Mockito.when(mediaService.resolvePlaybackTrack(Mockito.any())).thenReturn(resolved);
+        Mockito.when(playbackGatewayService.rewriteDeliveryUrl(resolved)).thenReturn(delivered);
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/music/tracks/resolve-playback")
+                .contentType("application/json")
+                .content("{\"provider\":\"netease\",\"track_id\":\"track-1\"}"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.audio")
+                .value("/api/v1/music/tracks/stream/capability"));
+    }
+
+    @Test
+    void shouldStreamPartialAudioWithRangeMetadata() throws Exception {
+        byte[] audio = "test-audio".getBytes(StandardCharsets.UTF_8);
+        Mockito.when(playbackGatewayService.open("capability", "bytes=0-9")).thenReturn(
+            new MusicPlaybackStream(
+                new ByteArrayInputStream(audio),
+                206,
+                "audio/mpeg",
+                audio.length,
+                "bytes 0-9/100",
+                "bytes"
+            )
+        );
+
+        MvcResult async = mockMvc.perform(MockMvcRequestBuilders.get(
+                "/api/v1/music/tracks/stream/capability")
+                .header("Range", "bytes=0-9"))
+            .andExpect(MockMvcResultMatchers.request().asyncStarted())
+            .andReturn();
+
+        mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(async))
+            .andExpect(MockMvcResultMatchers.status().isPartialContent())
+            .andExpect(MockMvcResultMatchers.header().string("Content-Type", "audio/mpeg"))
+            .andExpect(MockMvcResultMatchers.header().string("Content-Length", String.valueOf(audio.length)))
+            .andExpect(MockMvcResultMatchers.header().string("Content-Range", "bytes 0-9/100"))
+            .andExpect(MockMvcResultMatchers.header().string("Accept-Ranges", "bytes"))
+            .andExpect(MockMvcResultMatchers.header().string("X-Accel-Buffering", "no"))
+            .andExpect(MockMvcResultMatchers.content().bytes(audio));
+    }
 
     @Test
     void shouldListDefaultPlaylistBundleSuccessfully() throws Exception {

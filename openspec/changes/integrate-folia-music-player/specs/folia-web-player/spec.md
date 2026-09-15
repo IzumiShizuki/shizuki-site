@@ -66,6 +66,10 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **WHEN** the main-site audio is playing in Folia mode
 - **THEN** Folia continuously projects progress and lyric focus between periodic clock corrections, and Folia play or pause commands are relayed back to the main-site player
 
+#### Scenario: Upstream CDN is unreachable from the browser
+- **WHEN** a resolved third-party audio URL cannot be read reliably from the visitor's browser network
+- **THEN** the player receives a short-lived same-origin stream URL, the backend relays the audio with byte-range support, and the browser never needs to connect to the third-party CDN directly
+
 #### Scenario: Return after navigating away
 - **WHEN** a visitor leaves the music route and later returns during the same document session
 - **THEN** the previously mounted Folia root is reattached instead of cold-started again

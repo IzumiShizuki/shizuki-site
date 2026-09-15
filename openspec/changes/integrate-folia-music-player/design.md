@@ -71,3 +71,11 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - **跨路由保温**：离开音乐页前把 `#folia-embed-root` 移入全局隐藏 parking 容器，返回时直接搬回当前 host，保持 React 树、资源缓存和音频元素身份，不重新执行主 bundle。
 - **加载去重**：runtime config、入口 HTML、module preload、主脚本执行和 React mount 各自由单例 Promise 管理；普通模式首屏完成后才在浏览器 idle 时后台预热，避免与首屏数据加载争抢主线程。
 - **移动端布局**：窄屏为全局顶部导航和模式开关预留固定空间，Folia 同步/状态命令收为图标按钮，工具栏不横向溢出。
+
+## 普通模式音频交付稳定化
+
+- **站内交付 URL**：`resolve-playback` 保留现有上游解析与缓存逻辑，但在控制器返回前把第三方 `audio` 地址换成 `/api/v1/music/tracks/stream/{capability}`。前端播放器与 Folia 跟随协议无需感知上游 CDN。
+- **短时加密 capability**：令牌使用现有媒体网关密钥派生独立 AES-GCM key，密文仅包含上游 URL、版本和过期时间；篡改、过期、非规范编码均拒绝，避免形成任意 URL 开放代理。
+- **Range 透传**：流式交付转发单段 `Range` 请求，并把 `200/206`、`Content-Range`、`Content-Length`、`Content-Type` 和 `Accept-Ranges` 返回给浏览器，支持首播、续播和拖动进度。
+- **出站边界**：仅允许 `http/https`，拒绝凭据、片段、非标准端口、localhost、私网/链路本地 IP 和内部域名；重定向逐跳重新校验。
+- **失败自愈协作**：若上游流仍失效，现有播放器恢复逻辑会强制刷新 `resolve-playback`，从而获得新的 capability 与上游地址后重试。
