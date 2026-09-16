@@ -78,4 +78,11 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(source).toContain('window.requestIdleCallback(warmup, { timeout: 2500 })');
     expect(source).toContain('if (foliaMountPromise) return foliaMountPromise');
   });
+
+  it('loads a fresh Folia index after a gateway deployment', () => {
+    const preload = readFunction('preloadFoliaScripts');
+
+    expect(preload).toContain('const indexUrl = `${FOLIA_EMBED_URL}?__shizuki_embed=${Date.now()}`');
+    expect(preload).toContain("fetch(indexUrl, { cache: 'no-store' })");
+  });
 });

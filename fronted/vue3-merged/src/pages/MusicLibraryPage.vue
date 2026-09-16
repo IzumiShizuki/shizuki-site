@@ -387,7 +387,11 @@ async function preloadFoliaScripts() {
   if (foliaPreloadPromise) return foliaPreloadPromise;
   foliaPreloadPromise = (async () => {
     await loadScript('/music/runtime-config.js');
-    const response = await fetch(FOLIA_EMBED_URL);
+    // Folia has its own PWA service worker. Give each document session a fresh
+    // index request so a previously precached HTML shell cannot point us at an
+    // outdated hashed entry chunk after a Folia gateway deployment.
+    const indexUrl = `${FOLIA_EMBED_URL}?__shizuki_embed=${Date.now()}`;
+    const response = await fetch(indexUrl, { cache: 'no-store' });
     if (!response.ok) throw new Error(`failed to load Folia index (${response.status})`);
     const html = await response.text();
     const mainMatch = html.match(/<script type="module"[^>]*src="([^"]+)"/);

@@ -61,7 +61,7 @@
 - [x] **进度继承双向**：普通→Folia 传 `positionMs`（桥内轮询 seek 至 duration 就绪）；Folia→普通 播放后调 `player.seekToTime` 继承进度。
 
 **待办（后续增量）**：
-- [ ] 合一落地：歌词普通/沉浸切换、歌单列表/大屏切换、播放条桥接（阶段2-4）
+- [x] 合一落地：歌词普通/沉浸切换、歌单列表/大屏切换、播放条桥接（阶段2-4）；补充 Folia embed 路由隔离与 PWA 入口缓存绕过，确保同文档模式切换持续保留主站音频路由。
 - [ ] 主题深度桥接（站点 accent/壁纸 → Folia 视觉参数）
 - [ ] Spotify 支持方案（Folia 无 Spotify，需独立设计）
 - [x] 本地 git commit（不 push）。

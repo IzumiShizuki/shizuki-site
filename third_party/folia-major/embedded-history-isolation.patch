@@ -1,0 +1,42 @@
+--- a/src/hooks/useAppNavigation.ts
++++ b/src/hooks/useAppNavigation.ts
+@@ -45,0 +46,2 @@
++const isFoliaEmbedMode = () => typeof document !== 'undefined'
++    && Boolean(document.getElementById('folia-embed-root'));
+@@ -94 +96,3 @@
+-    localStorage.getItem(OPEN_PLAYER_ON_LAUNCH_KEY) === 'true' ? 'player' : 'home'
++    isFoliaEmbedMode() || localStorage.getItem(OPEN_PLAYER_ON_LAUNCH_KEY) === 'true'
++        ? 'player'
++        : 'home'
+@@ -182,2 +186,4 @@
+-        const method = replace ? window.history.replaceState.bind(window.history) : window.history.pushState.bind(window.history);
+-        method(nextState, '', hash ?? window.location.hash);
++        if (!isFoliaEmbedMode()) {
++            const method = replace ? window.history.replaceState.bind(window.history) : window.history.pushState.bind(window.history);
++            method(nextState, '', hash ?? window.location.hash);
++        }
+@@ -201,5 +207,8 @@
+-        window.history.replaceState(
+-            initialState,
+-            '',
+-            initialView === 'player' ? '#player' : (window.location.pathname + window.location.search),
+-        );
++        const embedded = isFoliaEmbedMode();
++        if (!embedded) {
++            window.history.replaceState(
++                initialState,
++                '',
++                initialView === 'player' ? '#player' : (window.location.pathname + window.location.search),
++            );
++        }
+@@ -207,0 +217 @@
++        if (embedded) return;
+@@ -309 +319 @@
+-        if (state?.view === 'lattice' && getAppHistoryIndex(state) > 0) {
++        if (!isFoliaEmbedMode() && state?.view === 'lattice' && getAppHistoryIndex(state) > 0) {
+@@ -332 +342 @@
+-        if (shouldNavigatePlayerBackThroughHistory(historyState)) {
++        if (!isFoliaEmbedMode() && shouldNavigatePlayerBackThroughHistory(historyState)) {
+@@ -404 +414 @@
+-        if (window.history.state?.collection) {
++        if (!isFoliaEmbedMode() && window.history.state?.collection) {
