@@ -61,6 +61,16 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(source).toContain("data.type === 'shizuki:playback-command'");
   });
 
+  it('mirrors Folia-selected tracks back to the site-owned player', () => {
+    expect(source).toContain("type: 'shizuki:activate-playback-bridge'");
+    expect(bridgeSource).toContain("type === 'shizuki:activate-playback-bridge'");
+    expect(bridgeSource).toContain("type: 'shizuki:playback-intent'");
+    expect(bridgeSource).toContain('track: snapshot.track');
+    expect(source).toContain("data.type === 'shizuki:playback-intent'");
+    expect(source).toContain('mirrorFoliaPlaybackIntent');
+    expect(source).toContain('player.playExternalTrack');
+  });
+
   it('reuses the mounted Folia tree across route changes and warms it during idle time', () => {
     expect(source).toContain("parking.id = 'folia-embed-parking'");
     expect(source).toContain('parking.appendChild(embedRoot)');

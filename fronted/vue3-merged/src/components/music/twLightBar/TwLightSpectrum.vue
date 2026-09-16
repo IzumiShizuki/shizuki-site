@@ -3,9 +3,9 @@
 
   Ported from Twilight_Echo (Apache-2.0) — player-bar/CompactPlayerBarVisualizer.vue
   and player-bar/compactPlayerBarVisualizer.ts, adapted for the shizuki-site
-  web player bar. Web data source: the site AnalyserNode bus (audioAnalyserBus),
-  replacing Twilight_Echo's Electron IPC visualization feed. When no analyser
-  chain is available, bands fall back to a CSS idle shimmer.
+   web player bar. Web data source: the site AnalyserNode bus (audioAnalyserBus),
+   replacing Twilight_Echo's Electron IPC visualization feed. Until the audio
+   graph is ready, bands remain still at their silent floor level.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ const FLOOR_LEVEL = 0.07;
 
 const analyserBus = useAudioAnalyserBus();
 const hostRef = ref(null);
-/** 是否已经拿到站点 AnalyserNode；false 时走 CSS 待机动画。 */
+/** 是否已经拿到站点 AnalyserNode。 */
 const hasLiveSource = ref(false);
 
 const bandIndexes = computed(() => {
@@ -90,13 +90,11 @@ function compactVisualizerBands(spectrum, bandCount) {
   });
 }
 
-/** 每根条带的初始行内变量（待机动画的相位/延迟在挂载时一次写入）。 */
+/** 每根条带的初始行内变量。 */
 function bandStyle(index) {
-  const phase = Math.sin(index * 0.62) * 0.5 + 0.5;
+  void index;
   return {
-    '--tw-band-level': String(FLOOR_LEVEL),
-    '--tw-band-delay': `${(index % 14) * -0.11}s`,
-    '--tw-band-phase': phase.toFixed(3)
+    '--tw-band-level': String(FLOOR_LEVEL)
   };
 }
 
@@ -121,6 +119,7 @@ function writeLevels(source) {
 
 function acquireAnalyser() {
   if (analyser) return analyser;
+  analyserBus?.ensure?.();
   const next = analyserBus?.getAnalyser?.() || null;
   if (next) {
     analyser = next;
@@ -206,7 +205,7 @@ onBeforeUnmount(() => {
   <div
     ref="hostRef"
     class="tw-spectrum"
-    :class="{ 'is-active': active && hasLiveSource, 'is-idle-fallback': active && !hasLiveSource }"
+    :class="{ 'is-active': active && hasLiveSource }"
     :style="{ '--tw-band-count': bandIndexes.length }"
     aria-hidden="true"
   >
@@ -252,22 +251,6 @@ onBeforeUnmount(() => {
 
 .tw-spectrum:not(.is-active) .tw-spectrum__band {
   opacity: 0.26;
-}
-
-/* 播放中但没有 AnalyserNode（如音频链尚未建立）：CSS 待机呼吸。 */
-.tw-spectrum.is-idle-fallback .tw-spectrum__band {
-  animation: tw-spectrum-idle 1.7s ease-in-out infinite;
-  animation-delay: var(--tw-band-delay, 0s);
-}
-
-@keyframes tw-spectrum-idle {
-  0%,
-  100% {
-    transform: scaleY(0.1);
-  }
-  50% {
-    transform: scaleY(calc(0.26 + var(--tw-band-phase, 0.5) * 0.62));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

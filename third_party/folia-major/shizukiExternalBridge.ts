@@ -28,6 +28,11 @@
  *     Replies with the current playback snapshot:
  *     { type: 'shizuki:status', track?: { id, name, artists, coverUrl, durationMs },
  *       positionMs: number, playing: boolean, src?: string }
+ *
+ *   { type: 'shizuki:playback-intent', track, positionMs, playing }
+ *     Sent when a user chooses another track inside Folia while it is following
+ *     the Shizuki player. The parent resolves and plays that track with its
+ *     single audio element, then pushes the resulting snapshot back here.
  */
 
 import { neteaseApi } from './services/netease';
@@ -318,6 +323,20 @@ function snapshotStatus(): Record<string, unknown> {
   };
 }
 
+function readSongId(song: unknown): number {
+  const id = Number((song as { id?: unknown } | null)?.id || 0);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+}
+
+function pauseEmbeddedAudio(): void {
+  try {
+    const audio = document.querySelector('#folia-embed-root audio') as HTMLAudioElement | null;
+    audio?.pause();
+  } catch {
+    // The parent audio element remains the authoritative playback output.
+  }
+}
+
 function handleMessage(event: MessageEvent): void {
   const data = event.data as Record<string, unknown> | null;
   if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
@@ -426,6 +445,16 @@ function handleMessage(event: MessageEvent): void {
     return;
   }
 
+  if (type === 'shizuki:activate-playback-bridge') {
+    // Folia may be opened before the site has a current track. Keep selection
+    // forwarding armed so the first Folia-picked song still reaches the shared
+    // site audio element.
+    followPlaybackActive = true;
+    suppressPlaybackCommandsUntil = performance.now() + 300;
+    pauseEmbeddedAudio();
+    return;
+  }
+
   if (type === 'shizuki:stop-follow-playback') {
     stopFollowPlayback();
     return;
@@ -448,7 +477,27 @@ export function installShizukiExternalBridge(): void {
   (window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled = true;
   window.addEventListener('message', handleMessage);
   usePlaybackStore.subscribe((state, previousState) => {
-    if (!followPlaybackActive || performance.now() < suppressPlaybackCommandsUntil) return;
+    const now = performance.now();
+    const switchedTrack = readSongId(state.currentSong) !== readSongId(previousState.currentSong);
+    if (followPlaybackActive && switchedTrack && now >= suppressPlaybackCommandsUntil) {
+      const snapshot = snapshotStatus();
+      if (snapshot.track) {
+        // A Folia selection is an input event, not a second audio owner. Stop its
+        // local media element immediately and let the parent replay the selected
+        // track through the shared site-owned element.
+        suppressPlaybackCommandsUntil = now + 500;
+        pauseEmbeddedAudio();
+        usePlaybackStore.getState().setPlayerState('PAUSED');
+        postToParent({
+          type: 'shizuki:playback-intent',
+          track: snapshot.track,
+          positionMs: 0,
+          playing: true
+        });
+      }
+      return;
+    }
+    if (!followPlaybackActive || now < suppressPlaybackCommandsUntil) return;
     if (state.playerState === previousState.playerState) return;
     if (state.playerState === 'PLAYING') {
       postToParent({ type: 'shizuki:playback-command', action: 'play' });

@@ -352,6 +352,7 @@ const FOLIA_EMBED_URL = '/music/';
 const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
 const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
   'shizuki:follow-playback',
+  'shizuki:activate-playback-bridge',
   'shizuki:stop-follow-playback',
   'shizuki:sync-clock',
   'shizuki:sync-cookie',
@@ -429,6 +430,7 @@ async function loadFoliaEmbed() {
 
     foliaBridgeReady = embedRoot.children.length > 0;
     if (!foliaBridgeReady) throw new Error('Folia embed mount timed out');
+    postToFolia({ type: 'shizuki:activate-playback-bridge' });
     void syncCookieToFolia();
     void syncCookieBackFromFolia();
     deliverPendingFoliaTrack();
@@ -602,7 +604,10 @@ function setFoliaMode(enabled, options = {}) {
   }
   if (foliaMode.value) {
     cancelFoliaWarmup();
-    void nextTick().then(() => loadFoliaEmbed()).catch(() => {});
+    void nextTick().then(async () => {
+      await loadFoliaEmbed();
+      postToFolia({ type: 'shizuki:activate-playback-bridge' });
+    }).catch(() => {});
     if (syncPlayback) void pushCurrentTrackToFolia();
   } else {
     stopFoliaClockSync();
@@ -715,6 +720,69 @@ function readFoliaTrackId(track) {
   return 0;
 }
 
+/** 把 Folia 的轻量播放快照转换为站点播放器可解析的网易云曲目。 */
+function normalizeFoliaPlaybackIntentTrack(rawTrack) {
+  const trackId = String(rawTrack?.id || rawTrack?.trackId || rawTrack?.track_id || '').trim();
+  if (!trackId) return null;
+  const artists = Array.isArray(rawTrack?.artists)
+    ? rawTrack.artists
+      .map((artist) => (typeof artist === 'object' ? artist?.name : artist))
+      .map((artist) => String(artist || '').trim())
+      .filter(Boolean)
+    : [];
+  const durationMs = Number(rawTrack?.durationMs || rawTrack?.duration_ms || 0);
+  const durationSec = Number.isFinite(durationMs) && durationMs > 0 ? durationMs / 1000 : null;
+  const durationLabel = durationSec != null
+    ? formatMediaTime(durationSec, { fallback: '--:--' })
+    : '--:--';
+  return {
+    id: trackId,
+    trackId,
+    provider: 'netease',
+    title: String(rawTrack?.name || rawTrack?.title || '').trim() || '未知标题',
+    artist: artists.join(' / ') || String(rawTrack?.artist || '').trim() || '未知歌手',
+    cover: String(rawTrack?.coverUrl || rawTrack?.cover || rawTrack?.cover_url || '').trim(),
+    durationSec,
+    duration: durationLabel,
+    durationLabel,
+    metadata: { folia: true, durationMs: Number.isFinite(durationMs) ? durationMs : 0 }
+  };
+}
+
+let foliaPlaybackIntentVersion = 0;
+
+/**
+ * Folia 的选歌仅作为输入意图：站点播放器解析、播放并重新把快照推回 Folia。
+ * 这样任一时刻都只有 usePlayerEngine.audioElement 产生声音。
+ */
+async function mirrorFoliaPlaybackIntent(data) {
+  const track = normalizeFoliaPlaybackIntentTrack(data?.track);
+  if (!track) return false;
+  const intentVersion = ++foliaPlaybackIntentVersion;
+  const requestedPositionMs = Math.max(0, Number(data?.positionMs || 0));
+  const shouldPlay = data?.playing !== false;
+  const currentTrackId = readFoliaTrackId(player.currentTrack.value);
+  let played = true;
+
+  if (currentTrackId !== readFoliaTrackId(track)) {
+    played = await player.playExternalTrack?.(track, { replaceQueue: true });
+  } else if (shouldPlay !== Boolean(player.isPlaying?.value)) {
+    await player.togglePlay?.();
+  }
+  if (!played || intentVersion !== foliaPlaybackIntentVersion) return false;
+
+  if (requestedPositionMs > 0) {
+    player.seekToTime?.(requestedPositionMs / 1000);
+  }
+  if (!shouldPlay && player.isPlaying?.value) {
+    await player.togglePlay?.();
+  }
+  await nextTick();
+  if (intentVersion !== foliaPlaybackIntentVersion) return false;
+  await pushCurrentTrackToFolia();
+  return true;
+}
+
 /** 请求 Folia 回传当前播放状态。 */
 function requestFoliaStatus() {
   postToFolia({ type: 'shizuki:get-status' });
@@ -748,6 +816,12 @@ function handleFoliaBridgeMessage(event) {
       void player.playNext?.();
     } else if (action === 'previous') {
       void player.playPrev?.();
+    }
+    return;
+  }
+  if (data.type === 'shizuki:playback-intent') {
+    if (foliaMode.value) {
+      void mirrorFoliaPlaybackIntent(data);
     }
     return;
   }

@@ -349,6 +349,7 @@ import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
 import { useMiniMusicLibrary } from './composables/useMiniMusicLibrary';
 import { createAppScrollOwnerController, provideAppScrollRoot, useActiveScrollSource } from './composables/useAppScrollRoot';
+import { AUDIO_ANALYSER_BUS_KEY } from './composables/audioAnalyserBus';
 import { PLAYER_BRIDGE_KEY } from './composables/playerBridge';
 import { useFocusSession } from './utils/focusSessionState';
 import { HOME_STAGE_CONTEXT_KEY, resolveHomeClockVisibility, useHomeAppearance } from './utils/homeTimeStageState';
@@ -917,6 +918,10 @@ const playerBridge = Object.freeze({
 });
 
 provide(PLAYER_BRIDGE_KEY, playerBridge);
+provide(AUDIO_ANALYSER_BUS_KEY, Object.freeze({
+  ensure: ensureAudioAnalyser,
+  getAnalyser: () => analyser
+}));
 
 function setWallpaperBgmRef(el) {
   wallpaperBgmRef.value = el;
@@ -2283,7 +2288,12 @@ function applyEqLevels(levels) {
 }
 
 function ensureAudioAnalyser() {
-  if (analyser) return true;
+  if (analyser) {
+    if (audioCtx?.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+    return true;
+  }
   if (
     !player.audioElement ||
     typeof window === 'undefined' ||
@@ -2307,6 +2317,9 @@ function ensureAudioAnalyser() {
   analyser.connect(audioCtx.destination);
   freqData = new Uint8Array(analyser.frequencyBinCount);
   applyEqLevels(musicUi.eqLevels.value);
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
   return true;
 }
 
