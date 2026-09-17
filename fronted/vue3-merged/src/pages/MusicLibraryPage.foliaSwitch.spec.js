@@ -62,10 +62,17 @@ describe('MusicLibraryPage Folia mode handoff', () => {
 
   it('projects a smooth Folia clock and relays Folia playback controls', () => {
     expect(bridgeSource).toContain('window.requestAnimationFrame(runFollowClockFrame)');
+    expect(bridgeSource).toContain('lyricCurrentTime.set(safePosition)');
     expect(bridgeSource).toContain("type: 'shizuki:playback-command'");
+    expect(bridgeSource).toContain("action: 'seek'");
+    expect(bridgeSource).toContain("document.addEventListener('input', handleEmbeddedProgressSeek, true)");
+    expect(bridgeSource).toContain("document.addEventListener('change', handleEmbeddedProgressSeek, true)");
+    expect(bridgeSource).toContain("document.addEventListener('pointerup', handleEmbeddedProgressSeek, true)");
+    expect(bridgeSource).toContain("target.step !== '0.1'");
     expect(bridgeSource).toContain("type === 'shizuki:stop-follow-playback'");
     expect(source).toContain("data.type === 'shizuki:playback-command'");
     expect(source).toContain('applyFoliaPlaybackCommand');
+    expect(source).toContain('player.seekToTime?.(positionMs / 1000)');
   });
 
   it('mirrors Folia-selected tracks back to the site-owned player', () => {

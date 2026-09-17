@@ -9,6 +9,7 @@
 
 import { PlayerState, type LyricData, type SongResult } from './types';
 import { usePlaybackStore } from './stores/usePlaybackStore';
+import { lyricCurrentTime } from './stores/motionSignals';
 import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
 
 const COOKIE_STORAGE_KEY = 'netease_cookie';
@@ -37,6 +38,9 @@ let followClockPlaying = false;
 let suppressPlaybackCommandsUntil = 0;
 let latestFollowSessionVersion = -1;
 let audioLockInstalled = false;
+let progressSeekBridgeInstalled = false;
+let lastFollowSeekPositionSec = -1;
+let lastFollowSeekAt = 0;
 
 function readFollowSong(rawTrack: UnknownRecord | null | undefined): SongResult | null {
   if (!rawTrack) return null;
@@ -168,6 +172,7 @@ function writeFollowClock(positionSec: number): void {
   try {
     const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
     clock?.set(safePosition);
+    lyricCurrentTime.set(safePosition);
     const store = usePlaybackStore.getState();
     const lines = store.lyrics?.lines || [];
     if (lines.length) {
@@ -241,6 +246,56 @@ function installEmbeddedAudioLock(): void {
       usePlaybackStore.getState().setPlayerState(followClockPlaying ? PlayerState.PLAYING : PlayerState.PAUSED);
     }, 0);
   }, true);
+}
+
+function readEmbeddedProgressPosition(event: Event): number | null {
+  if (!followPlaybackActive) return null;
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.type !== 'range') return null;
+  const root = document.getElementById('folia-embed-root');
+  if (!root?.contains(target)) return null;
+
+  const progressContainer = target.parentElement;
+  const hasProgressLayout = progressContainer?.previousElementSibling instanceof HTMLSpanElement
+    && progressContainer.nextElementSibling instanceof HTMLSpanElement;
+  if (target.min !== '0' || target.step !== '0.1' || !hasProgressLayout) return null;
+
+  const duration = Math.max(0, Number(usePlaybackStore.getState().duration) || 0);
+  const maximum = Number(target.max);
+  const value = Number(target.value);
+  const tolerance = Math.max(1, duration * 0.015);
+  if (!duration || !Number.isFinite(maximum) || !Number.isFinite(value)) return null;
+  if (Math.abs(maximum - duration) > tolerance || value < 0 || value > maximum) return null;
+  return Math.min(duration, Math.max(0, value));
+}
+
+/** Route Folia's progress control to the site-owned audio element. */
+function handleEmbeddedProgressSeek(event: Event): void {
+  const positionSec = readEmbeddedProgressPosition(event);
+  if (positionSec === null) return;
+
+  // Prevent Folia's own range handler from waking a second playback path.
+  event.stopPropagation();
+  const now = performance.now();
+  const unchanged = Math.abs(positionSec - lastFollowSeekPositionSec) < 0.05;
+  if (unchanged && now - lastFollowSeekAt < 80) return;
+
+  lastFollowSeekPositionSec = positionSec;
+  lastFollowSeekAt = now;
+  syncFollowClock(Math.round(positionSec * 1000), followClockPlaying);
+  postToParent({
+    type: 'shizuki:playback-command',
+    action: 'seek',
+    positionMs: Math.round(positionSec * 1000),
+  });
+}
+
+function installEmbeddedProgressSeekBridge(): void {
+  if (progressSeekBridgeInstalled || typeof document === 'undefined') return;
+  progressSeekBridgeInstalled = true;
+  document.addEventListener('input', handleEmbeddedProgressSeek, true);
+  document.addEventListener('change', handleEmbeddedProgressSeek, true);
+  document.addEventListener('pointerup', handleEmbeddedProgressSeek, true);
 }
 
 function applyFollowSession(session: FollowSession): void {
@@ -428,6 +483,7 @@ export function installShizukiExternalBridge(): void {
   if ((window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled) return;
   (window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled = true;
   installEmbeddedAudioLock();
+  installEmbeddedProgressSeekBridge();
   window.addEventListener('message', handleMessage);
   usePlaybackStore.subscribe((state, previousState) => {
     const now = performance.now();
