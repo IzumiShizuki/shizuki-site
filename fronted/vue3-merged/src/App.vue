@@ -828,6 +828,18 @@ const homeStageWallpaper = computed(() => ({
   src: String(activeBackground.value?.src || activeImageBackground.value || ''),
   preview: String(activeBackground.value?.preview || activeImageBackground.value || '')
 }));
+const homeWallpaper = computed(() => {
+  const homeBackgroundId = ui.getEffectiveBackgroundId('home') || defaultBackgroundId.value;
+  const background = backgroundItems.value.find((item) => item.id === homeBackgroundId) || null;
+  const source = String(background?.src || background?.preview || activeImageBackground.value || '');
+  return {
+    id: String(homeBackgroundId || ''),
+    isDynamic: Boolean(background?.type === 'l2d' || source === activeVideoBackground.value),
+    type: background?.type || 'static',
+    src: source,
+    preview: String(background?.preview || source)
+  };
+});
 const homeClockVisible = computed(() => resolveHomeClockVisibility({
   clockBehavior: homeAppearance.state.clockBehavior,
   wallpaperClockOverrides: homeAppearance.state.wallpaperClockOverrides,
@@ -843,7 +855,11 @@ const homeAccentHex = computed(() => (
     : sampledWallpaperAccentHex.value || ui.state.accentHex
 ));
 
-provide(HOME_STAGE_CONTEXT_KEY, Object.freeze({ wallpaper: homeStageWallpaper, accentHex: homeAccentHex }));
+provide(HOME_STAGE_CONTEXT_KEY, Object.freeze({
+  wallpaper: homeStageWallpaper,
+  homeWallpaper,
+  accentHex: homeAccentHex
+}));
 
 function setActiveWallpaperClockOverride(value) {
   homeAppearance.setWallpaperClockOverride(homeStageWallpaper.value.id, value);

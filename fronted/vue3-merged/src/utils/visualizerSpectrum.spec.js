@@ -59,13 +59,43 @@ describe('createSpectrumProcessor', () => {
     expect(frame.levels[28]).toBeGreaterThan(0.1);
   });
 
+  it('收束低频并为高声压保留余量，不会把频谱整体顶满', () => {
+    const processor = createSpectrumProcessor({ bandCount: 32, fftSize: 2048, sampleRate: 48000 });
+    const bassHeavy = makeFreqBytes(1024, (index) => (index < 18 ? 245 : 112));
+    let frame = null;
+    for (let step = 0; step < 60; step += 1) frame = processor.update(bassHeavy, 16.7);
+
+    expect(frame.energy.treble).toBeGreaterThan(0.35);
+    expect(frame.energy.bass).toBeLessThan(frame.energy.treble);
+    expect(Math.max(...frame.levels)).toBeLessThanOrEqual(0.841);
+  });
+
+  it('软膝压缩让音量增加时保持可见动态而非直接满幅', () => {
+    const quieter = makeFreqBytes(1024, 128);
+    const louder = makeFreqBytes(1024, 220);
+    const quietProcessor = createSpectrumProcessor({ bandCount: 32, fftSize: 2048, sampleRate: 48000 });
+    const loudProcessor = createSpectrumProcessor({ bandCount: 32, fftSize: 2048, sampleRate: 48000 });
+
+    let quietFrame = null;
+    let loudFrame = null;
+    for (let step = 0; step < 60; step += 1) {
+      quietFrame = quietProcessor.update(quieter, 16.7);
+      loudFrame = loudProcessor.update(louder, 16.7);
+    }
+
+    const quietPeak = Math.max(...quietFrame.levels);
+    const loudPeak = Math.max(...loudFrame.levels);
+    expect(loudPeak).toBeLessThanOrEqual(0.841);
+    expect(loudPeak).toBeLessThan(quietPeak * 1.2);
+  });
+
   it('起音快于释放:上冲一帧即显著,回落需要更久', () => {
     const processor = createSpectrumProcessor({ bandCount: 16, fftSize: 2048, attackMs: 50, releaseMs: 300 });
     const loud = makeFreqBytes(1024, 220);
     const quietBytes = makeFreqBytes(1024, 0);
 
     const afterAttack = processor.update(loud, 50).levels[0];
-    expect(afterAttack).toBeGreaterThan(0.3);
+    expect(afterAttack).toBeGreaterThan(0.25);
 
     const settled = (() => {
       let frame = null;

@@ -7,6 +7,7 @@ const bridgeSource = readFileSync(
   resolve(process.cwd(), '../../third_party/folia-major/shizukiExternalBridge.ts'),
   'utf8'
 );
+const appSource = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8');
 
 function readFunction(name) {
   const start = source.indexOf(`function ${name}`);
@@ -83,6 +84,9 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(source).toContain("data.type === 'shizuki:playback-intent'");
     expect(source).toContain('mirrorFoliaPlaybackIntent');
     expect(source).toContain('player.playExternalTrack');
+    const playbackIntentMirror = readFunction('mirrorFoliaPlaybackIntent');
+    expect(playbackIntentMirror).toContain('replaceQueue: false');
+    expect(playbackIntentMirror).not.toContain('replaceQueue: true');
   });
 
   it('uses parent lyrics and metadata while preventing any Folia-owned audio output', () => {
@@ -93,6 +97,14 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(bridgeSource).toContain("document.addEventListener('play'");
     expect(bridgeSource).not.toContain('neteaseApi.getSongUrl');
     expect(bridgeSource).not.toContain('loadLyricsForTrack');
+  });
+
+  it('preserves untimed lyric end boundaries so Folia can derive a stable active line', () => {
+    const timelineBuilder = readFunction('buildFoliaLyricTimeline');
+
+    expect(timelineBuilder).toContain('declaredEndTime > startTime');
+    expect(bridgeSource).toContain('declaredEndTime > time');
+    expect(bridgeSource).toContain('const fallbackEnd = Number.isFinite(nextStart)');
   });
 
   it('refreshes Folia when any rendered part of the site-owned session changes', () => {
@@ -118,5 +130,20 @@ describe('MusicLibraryPage Folia mode handoff', () => {
 
     expect(preload).toContain('const indexUrl = `${FOLIA_EMBED_URL}?__shizuki_embed=${Date.now()}`');
     expect(preload).toContain("fetch(indexUrl, { cache: 'no-store' })");
+  });
+
+  it('uses Folia as an inline music action without a separate mode switch', () => {
+    expect(source).not.toContain('music-library-mode-switch');
+    expect(source).not.toContain('folia-open-external');
+    expect(source).toContain('toggleFoliaFullscreen');
+    expect(source).toContain("type: 'shizuki:set-wallpaper'");
+    expect(appSource).toContain('homeWallpaper,');
+  });
+
+  it('keeps the Home wallpaper sharp within the Folia surface and in fullscreen', () => {
+    expect(bridgeSource).toContain('function applyEmbedWallpaper');
+    expect(bridgeSource).toContain("root.dataset.shizukiWallpaper = source ? 'active' : ''");
+    expect(bridgeSource).toContain('background-image: var(--shizuki-folia-wallpaper-image)');
+    expect(bridgeSource).toContain('.folia-embed-pane:fullscreen #folia-embed-root');
   });
 });

@@ -87,3 +87,19 @@ The embedded music experience SHALL keep the main-site player as the single audi
 #### Scenario: Switch modes on a narrow viewport
 - **WHEN** the viewport is 390 CSS pixels wide
 - **THEN** the Folia toolbar and mode controls remain visible without horizontal overflow or overlapping command labels
+
+#### Scenario: Embedded lyrics retain the primary line
+- **WHEN** the main-site session contains a timestamped primary lyric and an optional translation
+- **THEN** Folia renders the primary line in the immersive lyric area and the translation as secondary text
+- **AND THEN** an active-line transition does not leave the immersive lyric area empty
+
+#### Scenario: Folia is integrated with the current music workspace
+- **WHEN** a visitor opens immersive lyrics from a normal playlist or track
+- **THEN** the playlist, queue, and next/previous behavior remain backed by the full main-site queue
+- **AND THEN** the visitor does not need a separate mode-switch control to return to music browsing
+
+#### Scenario: Wallpaper is shared with the Home surface
+- **WHEN** the main site has an active Home wallpaper and Folia is rendered in the music workspace
+- **THEN** Folia uses that wallpaper as a softened background and a sharp image within its music content region
+- **AND WHEN** the visitor enters full-screen immersive playback
+- **THEN** the wallpaper is sharp across the entire viewport

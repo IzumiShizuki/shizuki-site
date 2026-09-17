@@ -75,6 +75,7 @@ export function buildLogBandMap(options = {}) {
 /**
  * 频谱处理器:字节频谱 -> 可直接驱动动画的频带电平。
  * - 对数分频 + 高频倾斜补偿(音乐能量随频率衰减,不补偿则高频永远趴着)
+ * - 低频收束 + 高频倾斜补偿 + 软膝压缩，避免加一点音量就满幅
  * - 噪声门 + gamma 曲线
  * - 帧率无关的快攻慢放平滑
  * - 峰值帽(保持后加速下落)
@@ -85,7 +86,14 @@ export function createSpectrumProcessor(options = {}) {
   const bandCount = toPositiveInt(options.bandCount, 56);
   const fftSize = toPositiveInt(options.fftSize, 2048);
   const sampleRate = Number(options.sampleRate) > 0 ? Number(options.sampleRate) : 48000;
-  const tiltStrength = Number.isFinite(Number(options.tiltStrength)) ? Number(options.tiltStrength) : 0.85;
+  const tiltStrength = Number.isFinite(Number(options.tiltStrength)) ? Number(options.tiltStrength) : 0.88;
+  const bassAttenuation = Number.isFinite(Number(options.bassAttenuation))
+    ? clamp01(Number(options.bassAttenuation))
+    : 0.42;
+  const compression = Number(options.compression) > 0 ? Number(options.compression) : 1.6;
+  const maxLevel = Number.isFinite(Number(options.maxLevel))
+    ? clamp01(Number(options.maxLevel))
+    : 0.84;
   const noiseGate = Number.isFinite(Number(options.noiseGate)) ? clamp01(Number(options.noiseGate)) : 0.05;
   const gamma = Number(options.gamma) > 0 ? Number(options.gamma) : 1.18;
   const attackMs = Number(options.attackMs) > 0 ? Number(options.attackMs) : 50;
@@ -148,11 +156,15 @@ export function createSpectrumProcessor(options = {}) {
       }
       let value = count > 0 ? sum / (count * 255) : 0;
 
-      // 倾斜补偿:随频带位置抬升响应,让中高频获得可见的动态。
-      value *= 1 + tiltStrength * Math.pow(band.position, 0.75);
-      // 噪声门 + gamma。
+      // 低频略收束，配合中高频倾斜补偿，避免低音主导整条频谱。
+      const bassWeight = 1 - bassAttenuation * Math.pow(1 - band.position, 1.35);
+      const trebleWeight = 1 + tiltStrength * Math.pow(band.position, 0.75);
+      value *= bassWeight * trebleWeight;
+      // 噪声门后使用软膝压缩保留动态余量；高声压不会把所有频带顶满。
       value = value <= noiseGate ? 0 : (value - noiseGate) / (1 - noiseGate);
-      value = Math.pow(clamp01(value), gamma);
+      value = clamp01(value);
+      const compressed = Math.log1p(compression * value) / Math.log1p(compression);
+      value = maxLevel * Math.pow(compressed, gamma);
       raw[index] = value;
 
       const previous = levels[index];

@@ -41,6 +41,56 @@ let audioLockInstalled = false;
 let progressSeekBridgeInstalled = false;
 let lastFollowSeekPositionSec = -1;
 let lastFollowSeekAt = 0;
+let embedWallpaperStyleInstalled = false;
+
+function cssBackgroundImage(url: string): string {
+  const normalized = String(url || '').trim();
+  return normalized ? `url(${JSON.stringify(normalized)})` : 'none';
+}
+
+/**
+ * The site owns the ambient blur outside Folia. This layer keeps the actual
+ * player surface on the unfiltered Home wallpaper, including when its host
+ * enters native fullscreen.
+ */
+function installEmbedWallpaperStyle(): void {
+  if (embedWallpaperStyleInstalled || typeof document === 'undefined') return;
+  embedWallpaperStyleInstalled = true;
+  const style = document.createElement('style');
+  style.id = 'shizuki-folia-wallpaper-style';
+  style.textContent = `
+#folia-embed-root[data-shizuki-wallpaper='active'] { isolation: isolate; background: #0b0e14; }
+#folia-embed-root[data-shizuki-wallpaper='active']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--shizuki-folia-wallpaper-image);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+#folia-embed-root[data-shizuki-wallpaper='active'] > * {
+  position: relative;
+  z-index: 1;
+  background-color: transparent !important;
+}
+#folia-embed-root[data-shizuki-wallpaper='active']:fullscreen::before,
+.folia-embed-pane:fullscreen #folia-embed-root[data-shizuki-wallpaper='active']::before {
+  background-size: cover;
+}
+`;
+  document.head.appendChild(style);
+}
+
+function applyEmbedWallpaper(rawSource: unknown, rawPreview: unknown): void {
+  const root = document.getElementById('folia-embed-root');
+  if (!root) return;
+  const source = String(rawSource || rawPreview || '').trim();
+  root.dataset.shizukiWallpaper = source ? 'active' : '';
+  root.style.setProperty('--shizuki-folia-wallpaper-image', cssBackgroundImage(source));
+}
 
 function readFollowSong(rawTrack: UnknownRecord | null | undefined): SongResult | null {
   if (!rawTrack) return null;
@@ -92,14 +142,20 @@ function buildFollowLyrics(rawLyrics: unknown, song: SongResult | null, duration
   if (!Array.isArray(rawLyrics)) return null;
   const rows = rawLyrics
     .filter((entry): entry is UnknownRecord => Boolean(entry) && typeof entry === 'object')
-    .map((entry) => ({
-      time: readSeconds(entry.time),
-      endTime: Number.isFinite(Number(entry.endTime)) ? readSeconds(entry.endTime) : null,
-      original: String(entry.original || entry.text || '').trim(),
-      translation: String(entry.translation || '').trim(),
-      furigana: String(entry.furigana || entry.romanization || '').trim(),
-      words: Array.isArray(entry.words) ? entry.words : [],
-    }))
+    .map((entry) => {
+      const time = readSeconds(entry.time);
+      const declaredEndTime = Number(entry.endTime);
+      return {
+        time,
+        // Plain LRC has no declared line end. A null end must remain absent so
+        // the next line's start defines the visible interval, rather than 0.01s.
+        endTime: Number.isFinite(declaredEndTime) && declaredEndTime > time ? declaredEndTime : null,
+        original: String(entry.original || entry.text || '').trim(),
+        translation: String(entry.translation || '').trim(),
+        furigana: String(entry.furigana || entry.romanization || '').trim(),
+        words: Array.isArray(entry.words) ? entry.words : [],
+      };
+    })
     .filter((entry) => entry.original)
     .sort((left, right) => left.time - right.time);
   if (!rows.length) return null;
@@ -115,7 +171,10 @@ function buildFollowLyrics(rawLyrics: unknown, song: SongResult | null, duration
       .filter((word): word is UnknownRecord => Boolean(word) && typeof word === 'object')
       .map((word) => {
         const startTime = readSeconds(word.time ?? word.startTime, entry.time);
-        const wordEnd = readSeconds(word.endTime ?? word.end, Math.min(endTime, startTime + 0.25));
+        const declaredWordEnd = Number(word.endTime ?? word.end);
+        const wordEnd = Number.isFinite(declaredWordEnd) && declaredWordEnd > startTime
+          ? declaredWordEnd
+          : Math.min(endTime, startTime + 0.25);
         return {
           text: String(word.text || '').trim(),
           startTime,
@@ -427,6 +486,11 @@ function handleMessage(event: MessageEvent): void {
     }
     return;
   }
+  if (type === 'shizuki:set-wallpaper') {
+    installEmbedWallpaperStyle();
+    applyEmbedWallpaper(data.source, data.preview);
+    return;
+  }
   if (type === 'shizuki:set-view') {
     const view = String(data.view || '').trim();
     if (view === 'player' || view === 'lattice') {
@@ -484,6 +548,7 @@ export function installShizukiExternalBridge(): void {
   (window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled = true;
   installEmbeddedAudioLock();
   installEmbeddedProgressSeekBridge();
+  installEmbedWallpaperStyle();
   window.addEventListener('message', handleMessage);
   usePlaybackStore.subscribe((state, previousState) => {
     const now = performance.now();

@@ -1,44 +1,5 @@
 <template>
   <section class="route-page music-library-page" :class="{ 'player-detail-route': isPlayerDetailRoute, 'folia-mode-active': foliaMode }">
-    <header class="music-library-mode-switch" role="tablist" aria-label="音乐播放器模式">
-      <div class="mode-switch-inner" role="group">
-        <button
-          class="player-mode-tab player-mode-icon-tab ripple-trigger"
-          type="button"
-          role="tab"
-          :aria-selected="!foliaMode"
-          :class="{ active: !foliaMode }"
-          title="普通模式"
-          aria-label="普通模式"
-          @click="setFoliaMode(false)"
-        >
-          <i class="fas fa-music"></i>
-        </button>
-        <button
-          class="player-mode-tab player-mode-icon-tab ripple-trigger"
-          type="button"
-          role="tab"
-          :aria-selected="foliaMode"
-          :class="{ active: foliaMode }"
-          title="Folia 沉浸模式"
-          aria-label="Folia 沉浸模式"
-          @click="setFoliaMode(true)"
-        >
-          <i class="fas fa-wand-magic-sparkles"></i>
-        </button>
-        <a
-          v-if="foliaMode"
-          class="folia-open-external folia-open-external-icon ripple-trigger"
-          :href="FOLIA_EMBED_URL"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="在新窗口打开 Folia（全屏沉浸体验）"
-        >
-          <i class="fas fa-external-link-alt"></i>
-        </a>
-      </div>
-    </header>
-
     <section
       class="folia-embed-pane music-mode-pane"
       :class="{ 'folia-embed-visible': foliaMode, 'folia-embed-hidden': !foliaMode }"
@@ -73,6 +34,12 @@
           <button class="folia-toolbar-btn ripple-trigger" type="button" @click="requestFoliaStatus">
             <i class="fas fa-info-circle"></i>
             播放状态
+          </button>
+          <button class="folia-toolbar-btn folia-fullscreen-btn ripple-trigger" type="button" title="全屏 Folia" aria-label="全屏 Folia" @click="toggleFoliaFullscreen">
+            <i class="fas fa-expand"></i>
+          </button>
+          <button class="folia-toolbar-btn folia-library-btn ripple-trigger" type="button" title="返回音乐库" aria-label="返回音乐库" @click="setFoliaMode(false)">
+            <i class="fas fa-arrow-left"></i>
           </button>
         </div>
       </div>
@@ -290,7 +257,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, provide, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, provide, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import MusicLibraryDock from '../components/music/MusicLibraryDock.vue';
 import MusicCreatePlaylistDialog from '../components/music/MusicCreatePlaylistDialog.vue';
@@ -302,6 +269,7 @@ import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { MUSIC_LIBRARY_CONTEXT_KEY } from '../composables/musicLibraryContext';
 import { useAuthSession } from '../composables/useAuthSession';
 import { usePlayerBridge } from '../composables/playerBridge';
+import { HOME_STAGE_CONTEXT_KEY } from '../utils/homeTimeStageState';
 import { MUSIC_PRIMARY_NAV, useMusicLibraryUiState } from './musicLibraryUiState';
 import * as musicApi from '../services/musicApi';
 import { buildPlaylistTrackUpsertPayload } from '../utils/musicTrackPayload';
@@ -359,8 +327,10 @@ const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
   'shizuki:get-cookie',
   'shizuki:get-status',
   'shizuki:set-theme',
+  'shizuki:set-wallpaper',
   'shizuki:set-view'
 ]);
+const homeStageContext = inject(HOME_STAGE_CONTEXT_KEY, null);
 const foliaMode = ref(readFoliaModePreference());
 const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
@@ -440,6 +410,7 @@ async function loadFoliaEmbed() {
     void syncCookieBackFromFolia();
     deliverPendingFoliaSession();
     syncThemeToFolia();
+    syncHomeWallpaperToFolia();
     return true;
   })().catch((error) => {
     foliaMountPromise = null;
@@ -548,6 +519,56 @@ function syncThemeToFolia() {
   } catch {
     // ignore
   }
+}
+
+function resolveFoliaWallpaper() {
+  const wallpaper = homeStageContext?.homeWallpaper?.value || homeStageContext?.wallpaper?.value || null;
+  // CSS background images cannot render a video or Live2D source. In those
+  // cases Folia deliberately uses Home's preview still instead.
+  const source = String(
+    wallpaper?.isDynamic
+      ? (wallpaper?.preview || '')
+      : (wallpaper?.src || wallpaper?.preview || '')
+  ).trim();
+  return {
+    source,
+    preview: String(wallpaper?.preview || source).trim(),
+    isDynamic: Boolean(wallpaper?.isDynamic)
+  };
+}
+
+function applyFoliaAmbientWallpaper(source) {
+  const host = foliaEmbedHostRef.value;
+  const pane = host?.closest?.('.folia-embed-pane');
+  if (!pane) return;
+  pane.dataset.foliaWallpaper = source ? 'active' : '';
+  pane.style.setProperty(
+    '--folia-ambient-wallpaper-image',
+    source ? `url(${JSON.stringify(source)})` : 'none'
+  );
+}
+
+/** Folia 内容区显示 Home 原图，外围保持柔化背景。 */
+function syncHomeWallpaperToFolia() {
+  const wallpaper = resolveFoliaWallpaper();
+  applyFoliaAmbientWallpaper(wallpaper.source);
+  postToFolia({
+    type: 'shizuki:set-wallpaper',
+    source: wallpaper.source,
+    preview: wallpaper.preview,
+    isDynamic: wallpaper.isDynamic
+  });
+}
+
+function toggleFoliaFullscreen() {
+  const pane = document.querySelector('.folia-embed-pane');
+  if (!pane) return;
+  if (document.fullscreenElement) {
+    void document.exitFullscreen?.();
+    return;
+  }
+  syncHomeWallpaperToFolia();
+  void pane.requestFullscreen?.().catch(() => {});
 }
 
 /** 普通模式歌单（含默认/创建/收藏）作为 Folia 播放候选。 */
@@ -701,20 +722,32 @@ function readFoliaVisualId(trackId) {
 
 function buildFoliaLyricTimeline() {
   const timeline = Array.isArray(player.lyricTimeline?.value) ? player.lyricTimeline.value : [];
-  return timeline.map((entry) => ({
-    time: Math.max(0, Number(entry?.time || 0)),
-    endTime: Number.isFinite(Number(entry?.endTime)) ? Math.max(0, Number(entry.endTime)) : null,
-    original: String(entry?.original || entry?.text || '').trim(),
-    translation: String(entry?.translation || '').trim(),
-    furigana: String(entry?.furigana || entry?.romanization || '').trim(),
-    words: Array.isArray(entry?.words)
-      ? entry.words.map((word) => ({
-        text: String(word?.text || '').trim(),
-        time: Math.max(0, Number(word?.time ?? word?.startTime ?? 0)),
-        endTime: Math.max(0, Number(word?.endTime ?? word?.end ?? word?.time ?? word?.startTime ?? 0))
-      })).filter((word) => word.text)
-      : []
-  })).filter((entry) => entry.original);
+  return timeline.map((entry) => {
+    const startTime = Math.max(0, Number(entry?.time || 0));
+    const declaredEndTime = Number(entry?.endTime);
+    return {
+      time: startTime,
+      // Plain LRC commonly represents the end as null. Sending it as 0 makes
+      // Folia expire the line immediately instead of deriving the next boundary.
+      endTime: Number.isFinite(declaredEndTime) && declaredEndTime > startTime ? declaredEndTime : null,
+      original: String(entry?.original || entry?.text || '').trim(),
+      translation: String(entry?.translation || '').trim(),
+      furigana: String(entry?.furigana || entry?.romanization || '').trim(),
+      words: Array.isArray(entry?.words)
+        ? entry.words.map((word) => {
+          const wordStartTime = Math.max(0, Number(word?.time ?? word?.startTime ?? 0));
+          const declaredWordEndTime = Number(word?.endTime ?? word?.end);
+          return {
+            text: String(word?.text || '').trim(),
+            time: wordStartTime,
+            endTime: Number.isFinite(declaredWordEndTime) && declaredWordEndTime > wordStartTime
+              ? declaredWordEndTime
+              : null
+          };
+        }).filter((word) => word.text)
+        : []
+    };
+  }).filter((entry) => entry.original);
 }
 
 /** 构造唯一的主站播放会话；Folia 只消费它，不能再自行补齐歌曲或歌词。 */
@@ -855,7 +888,10 @@ async function mirrorFoliaPlaybackIntent(data) {
   let played = true;
 
   if (currentTrackId !== readFoliaTrackId(track)) {
-    played = await player.playExternalTrack?.(track, { replaceQueue: true });
+    // Folia is only a controller/view of the site-owned session. Replacing here
+    // would collapse the current playlist to its selected track, so preserve the
+    // existing queue just like a selection made from the normal music UI.
+    played = await player.playExternalTrack?.(track, { replaceQueue: false });
   } else if (shouldPlay !== Boolean(player.isPlaying?.value)) {
     await player.togglePlay?.();
   }
@@ -3155,6 +3191,17 @@ watch(
 );
 
 watch(
+  () => {
+    const wallpaper = resolveFoliaWallpaper();
+    return [wallpaper.source, wallpaper.preview, wallpaper.isDynamic];
+  },
+  () => {
+    if (foliaMode.value && foliaBridgeReady) syncHomeWallpaperToFolia();
+  },
+  { immediate: true }
+);
+
+watch(
   () => auth.isAuthenticated.value,
   async () => {
     await Promise.all([
@@ -3338,84 +3385,6 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
-.music-library-mode-switch {
-  /* 浮动右上角玻璃胶囊：不占据文档流（不单独一行），悬浮于内容之上 */
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 5px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(16, 14, 20, 0.62);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 24px rgba(6, 8, 14, 0.35);
-}
-
-.mode-switch-inner {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.player-mode-tab {
-  min-height: 30px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--theme-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease;
-}
-
-.player-mode-icon-tab {
-  width: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  border-radius: 10px;
-}
-
-.player-mode-tab.active {
-  background: rgba(var(--accent-rgb), 0.9);
-  color: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.35);
-}
-
-.folia-open-external-icon {
-  width: 30px;
-  padding: 0;
-  justify-content: center;
-  gap: 0;
-}
-
-.folia-open-external {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(var(--accent-rgb), 0.5);
-  background: rgba(var(--accent-rgb), 0.16);
-  color: var(--theme-text-secondary);
-  font-size: 12px;
-  text-decoration: none;
-}
-
-.folia-open-external:hover {
-  background: rgba(var(--accent-rgb), 0.26);
-}
-
 .folia-embed-pane {
   position: relative;
   flex: 1 1 auto;
@@ -3429,6 +3398,37 @@ onBeforeUnmount(() => {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
+  isolation: isolate;
+}
+
+.folia-embed-pane[data-folia-wallpaper='active']::before {
+  content: '';
+  position: absolute;
+  inset: -24px;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--folia-ambient-wallpaper-image);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: blur(22px) saturate(0.82) brightness(0.72);
+  transform: scale(1.08);
+  opacity: 0.92;
+}
+
+.folia-embed-pane:fullscreen {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #0b0e14;
+}
+
+.folia-embed-pane[data-folia-wallpaper='active']:fullscreen::before {
+  inset: 0;
+  filter: none;
+  transform: none;
+  opacity: 1;
 }
 
 .folia-embed-pane.folia-embed-visible {
@@ -3483,11 +3483,17 @@ onBeforeUnmount(() => {
 
 .folia-embed-host {
   position: relative;
-  width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  width: auto;
+  height: auto;
   min-height: 68vh;
+  min-width: 0;
+  margin: 10px;
   overflow: hidden;
   background: #0b0e14;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
   /* 创建独立层叠上下文：Folia 内部的 fixed 元素（全屏遮罩等）相对本容器定位，
      不会盖住 Vue 页面的模式切换条 */
   transform: translateZ(0);
@@ -3497,13 +3503,24 @@ onBeforeUnmount(() => {
 }
 
 .folia-embed-toolbar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 8px 140px 8px 12px;
   border-bottom: 1px solid var(--theme-border);
-  background: var(--theme-panel-surface);
+  background: color-mix(in srgb, var(--theme-panel-surface) 84%, transparent);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+
+.folia-embed-pane:fullscreen .folia-embed-host {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .folia-embed-track {
@@ -3606,30 +3623,10 @@ onBeforeUnmount(() => {
     padding-top: 52px;
   }
 
-  .music-library-mode-switch {
-    top: 60px;
-    right: 8px;
-    padding: 3px;
-  }
-
-  .mode-switch-inner {
-    gap: 2px;
-  }
-
-  .player-mode-icon-tab {
-    width: 30px;
-    min-height: 28px;
-  }
-
-  .folia-open-external-icon {
-    width: 28px;
-    min-height: 28px;
-  }
-
   .folia-embed-toolbar {
     min-height: 44px;
     gap: 4px;
-    padding: 6px 106px 6px 8px;
+    padding: 6px 8px;
   }
 
   .folia-embed-track,
@@ -3675,6 +3672,11 @@ onBeforeUnmount(() => {
 
   .folia-toolbar-btn i {
     font-size: 11px;
+  }
+
+  .folia-fullscreen-btn,
+  .folia-library-btn {
+    flex-basis: 28px;
   }
 }
 
