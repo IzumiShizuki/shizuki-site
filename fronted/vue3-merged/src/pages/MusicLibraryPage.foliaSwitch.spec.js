@@ -68,8 +68,10 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(bridgeSource).toContain("action: 'seek'");
     expect(bridgeSource).toContain("document.addEventListener('input', handleEmbeddedProgressSeek, true)");
     expect(bridgeSource).toContain("document.addEventListener('change', handleEmbeddedProgressSeek, true)");
-    expect(bridgeSource).toContain("document.addEventListener('pointerup', handleEmbeddedProgressSeek, true)");
-    expect(bridgeSource).toContain("target.step !== '0.1'");
+    expect(bridgeSource).toContain("document.addEventListener('pointerdown', handleEmbeddedProgressPointer, true)");
+    expect(bridgeSource).toContain("document.addEventListener('pointermove', handleEmbeddedProgressPointer, true)");
+    expect(bridgeSource).toContain('readProgressPositionFromPointer');
+    expect(bridgeSource).not.toContain("target.step !== '0.1'");
     expect(bridgeSource).toContain("type === 'shizuki:stop-follow-playback'");
     expect(source).toContain("data.type === 'shizuki:playback-command'");
     expect(source).toContain('applyFoliaPlaybackCommand');
@@ -87,6 +89,16 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     const playbackIntentMirror = readFunction('mirrorFoliaPlaybackIntent');
     expect(playbackIntentMirror).toContain('replaceQueue: false');
     expect(playbackIntentMirror).not.toContain('replaceQueue: true');
+  });
+
+  it('routes Folia skip controls through the main player so shuffle remains authoritative', () => {
+    expect(bridgeSource).toContain('function installEmbeddedNavigationBridge');
+    expect(bridgeSource).toContain('function relayEmbeddedNavigation');
+    expect(bridgeSource).toContain("type: 'shizuki:playback-command', action");
+    expect(bridgeSource).toContain('const navigationAction = now - pendingNavigationActionAt < 1200');
+    const commandHandler = readFunction('applyFoliaPlaybackCommand');
+    expect(commandHandler).toContain('player.playNext?.()');
+    expect(commandHandler).toContain('player.playPrev?.()');
   });
 
   it('uses parent lyrics and metadata while preventing any Folia-owned audio output', () => {

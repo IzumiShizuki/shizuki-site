@@ -335,6 +335,7 @@ const foliaMode = ref(readFoliaModePreference());
 const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
 const foliaSelectedPlaylist = ref('');
+let foliaLastKnownNeteaseCookie = '';
 let foliaBridgeReady = false;
 let foliaPendingSession = null; // Folia bridge 就绪前暂存完整权威播放会话
 let foliaPlaybackSessionVersion = 0;
@@ -406,8 +407,10 @@ async function loadFoliaEmbed() {
     foliaBridgeReady = embedRoot.children.length > 0;
     if (!foliaBridgeReady) throw new Error('Folia embed mount timed out');
     postToFolia({ type: 'shizuki:activate-playback-bridge' });
-    void syncCookieToFolia();
-    void syncCookieBackFromFolia();
+    void (async () => {
+      await syncCookieToFolia();
+      syncCookieBackFromFolia();
+    })();
     deliverPendingFoliaSession();
     syncThemeToFolia();
     syncHomeWallpaperToFolia();
@@ -658,6 +661,7 @@ async function syncCookieToFolia() {
     const response = await musicApi.getMySourceAccountCookie(auth.authorizedFetch);
     const cookie = String(response || '').trim();
     if (!cookie) return false;
+    foliaLastKnownNeteaseCookie = cookie;
     if (foliaBridgeReady) {
       postToFolia({ type: 'shizuki:sync-cookie', cookie });
     } else {
@@ -981,14 +985,28 @@ function handleFoliaBridgeMessage(event) {
   if (data.type === 'shizuki:cookie') {
     // Folia 侧登录的网易云 cookie 回传 → 保存到站点后端，两边账号统一
     const cookie = typeof data.cookie === 'string' ? data.cookie : '';
-    if (cookie && auth.isAuthenticated.value) {
-      musicApi.upsertMusicSourceAccountCookie('netease', cookie, auth.authorizedFetch)
-        .then(() => {
+    if (cookie && cookie !== foliaLastKnownNeteaseCookie && auth.isAuthenticated.value) {
+      foliaLastKnownNeteaseCookie = cookie;
+      void (async () => {
+        await musicApi.upsertMusicSourceAccountCookie('netease', cookie, auth.authorizedFetch);
+        await loadMusicSourceAccountsStatus();
+        // If Folia just refreshed the account while a 30-second trial is
+        // audible in the normal player, immediately resolve this same queue
+        // item again through the account-authorized source and keep its time.
+        const currentTrack = player.currentTrack?.value;
+        const provider = String(currentTrack?.provider || '').trim().toLowerCase();
+        const wasPlaying = Boolean(player.isPlaying?.value);
+        const positionSec = Math.max(0, Number(player.currentTime?.value || 0));
+        if (wasPlaying && provider === 'netease' && currentTrack) {
+          const refreshed = await player.playExternalTrack?.(currentTrack, { replaceQueue: false });
+          if (refreshed && positionSec > 0) player.seekToTime?.(positionSec);
+        }
+        if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider: 'netease' } }));
-        })
-        .catch(() => {
-          // 保存失败静默（用户仍可在普通模式重新绑定）
-        });
+        }
+      })().catch(() => {
+        // Keep the Folia session available even if the account write is delayed.
+      });
     }
   }
 }
@@ -3252,11 +3270,15 @@ function handleOpenFoliaMode(event) {
 async function handleOpenFoliaLattice(event) {
   const view = String(event?.detail?.view || 'lattice').trim();
   const track = event?.detail?.track || null;
+  const requestedTracks = Array.isArray(event?.detail?.tracks) ? event.detail.tracks.filter(Boolean) : [];
+  const requestedPlaylist = event?.detail?.playlist && typeof event.detail.playlist === 'object'
+    ? event.detail.playlist
+    : null;
   const trackIds = (Array.isArray(event?.detail?.trackIds) ? event.detail.trackIds : [])
     .map((id) => Number(id))
     .filter((id) => Number.isFinite(id) && id > 0);
   if (!foliaMode.value) {
-    setFoliaMode(true, { syncPlayback: !track && !trackIds.length });
+    setFoliaMode(true, { syncPlayback: !track && !trackIds.length && !requestedTracks.length });
   }
   // 等桥就绪后切 Folia 视图（重试至多 5s）
   const applyView = (attempts = 0) => {
@@ -3272,6 +3294,14 @@ async function handleOpenFoliaLattice(event) {
   if (track) {
     await handleFoliaPlayRequest(event);
     return;
+  }
+  if (requestedTracks.length) {
+    const replaced = await player.replaceQueueWithTracks?.(requestedTracks, 0, true, {
+      sourceCode: String(requestedPlaylist?.playlistCode || requestedPlaylist?.playlist_code || ''),
+      sourceName: String(requestedPlaylist?.name || ''),
+      sourceType: 'folia-playlist-view'
+    });
+    if (!replaced) return;
   }
   if (trackIds.length) {
     const queueByTrackId = new Map(

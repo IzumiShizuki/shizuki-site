@@ -1463,6 +1463,42 @@ class MediaServiceImplTest {
         Mockito.verifyNoInteractions(metingMusicProvider);
     }
 
+    @Test
+    void shouldUseLatestNeteaseCookieBeforeAccountStatusRefreshes() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        Mockito.when(userMusicClient.getPreference(9L)).thenReturn(Map.of());
+        Mockito.when(userMusicClient.listSourceAccountStatus(9L)).thenReturn(List.of());
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=fresh-member-secret");
+        Mockito.when(neteaseCookieProvider.resolveTrack("fresh-member-track", "MUSIC_U=fresh-member-secret", true))
+            .thenReturn(new NeteaseCookieProvider.ResolvedTrack(
+                "fresh-member-track",
+                "Fresh member track",
+                "Singer",
+                "https://cover.example.com/fresh-member.jpg",
+                "https://audio.example.com/fresh-member.mp3",
+                "[00:01.00]original",
+                "",
+                ""
+            ));
+
+        MusicResolvePlaybackRequest request = new MusicResolvePlaybackRequest();
+        request.setProvider("netease");
+        request.setTrackId("fresh-member-track");
+        request.setResolveLyric(true);
+
+        MusicTrackResponse response = mediaService.resolvePlaybackTrack(request);
+
+        Assertions.assertEquals("https://audio.example.com/fresh-member.mp3", response.audio());
+        Assertions.assertEquals("netease_account", response.metadata().get("resolved_source"));
+        Mockito.verify(neteaseCookieProvider).resolveTrack(
+            "fresh-member-track",
+            "MUSIC_U=fresh-member-secret",
+            true
+        );
+        Mockito.verifyNoInteractions(metingMusicProvider);
+    }
+
     private AsmrMusicProvider.WorkSummary buildAsmrWorkSummary(long workId,
                                                                String title,
                                                                List<AsmrMusicProvider.TagSummary> tags,

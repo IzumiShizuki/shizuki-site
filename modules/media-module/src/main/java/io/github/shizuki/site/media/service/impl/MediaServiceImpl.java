@@ -4191,12 +4191,25 @@ public class MediaServiceImpl implements MediaService {
         if (!"netease".equals(provider)) {
             return false;
         }
-        if (sourcePolicy == null || sourcePolicy.boundProviders() == null) {
-            return false;
-        }
         // 统一音源：只要用户绑定了网易云账号（最新 cookie），网易云账号通道即可用，
         // 不再要求 account_first/account_only 模式——meting 在账号失败时兜底。
-        return sourcePolicy.boundProviders().contains("netease");
+        // Folia 登录回写后，账号状态异步刷新前也必须立即使用这份最新 Cookie，
+        // 否则普通模式会错误回退到 30 秒试听源。
+        if (sourcePolicy != null
+            && sourcePolicy.boundProviders() != null
+            && sourcePolicy.boundProviders().contains("netease")) {
+            return true;
+        }
+        try {
+            return StringUtils.hasText(userMusicClient.getSourceAccountCookiePlaintext(userId, "netease"));
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_RESOLVE_PLAYBACK_ACCOUNT_COOKIE_CHECK_FAIL provider=netease userId={} reason={}",
+                userId,
+                sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
+            );
+            return false;
+        }
     }
 
     private MusicTrackResponse resolvePlaybackViaNeteaseAccount(MusicResolvePlaybackRequest request,

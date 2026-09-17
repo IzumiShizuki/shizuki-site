@@ -86,10 +86,13 @@ export function createSpectrumProcessor(options = {}) {
   const bandCount = toPositiveInt(options.bandCount, 56);
   const fftSize = toPositiveInt(options.fftSize, 2048);
   const sampleRate = Number(options.sampleRate) > 0 ? Number(options.sampleRate) : 48000;
-  const tiltStrength = Number.isFinite(Number(options.tiltStrength)) ? Number(options.tiltStrength) : 0.88;
+  const tiltStrength = Number.isFinite(Number(options.tiltStrength)) ? Number(options.tiltStrength) : 0.92;
   const bassAttenuation = Number.isFinite(Number(options.bassAttenuation))
     ? clamp01(Number(options.bassAttenuation))
-    : 0.42;
+    : 0.82;
+  const midPresence = Number.isFinite(Number(options.midPresence))
+    ? Math.max(0, Number(options.midPresence))
+    : 0.86;
   const compression = Number(options.compression) > 0 ? Number(options.compression) : 1.6;
   const maxLevel = Number.isFinite(Number(options.maxLevel))
     ? clamp01(Number(options.maxLevel))
@@ -156,10 +159,11 @@ export function createSpectrumProcessor(options = {}) {
       }
       let value = count > 0 ? sum / (count * 255) : 0;
 
-      // 低频略收束，配合中高频倾斜补偿，避免低音主导整条频谱。
-      const bassWeight = 1 - bassAttenuation * Math.pow(1 - band.position, 1.35);
+      // 让次低频退到背景，把视觉重心推向中频，避免整条频谱只挤在左侧。
+      const bassWeight = 1 - bassAttenuation * Math.pow(1 - band.position, 1.05);
+      const midWeight = 1 + midPresence * Math.exp(-Math.pow((band.position - 0.52) / 0.22, 2));
       const trebleWeight = 1 + tiltStrength * Math.pow(band.position, 0.75);
-      value *= bassWeight * trebleWeight;
+      value *= bassWeight * midWeight * trebleWeight;
       // 噪声门后使用软膝压缩保留动态余量；高声压不会把所有频带顶满。
       value = value <= noiseGate ? 0 : (value - noiseGate) / (1 - noiseGate);
       value = clamp01(value);

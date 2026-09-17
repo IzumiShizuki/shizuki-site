@@ -70,6 +70,18 @@ describe('createSpectrumProcessor', () => {
     expect(Math.max(...frame.levels)).toBeLessThanOrEqual(0.841);
   });
 
+  it('把低频主导的视觉重心推向中频区，而不是堆在左侧', () => {
+    const processor = createSpectrumProcessor({ bandCount: 32, fftSize: 2048, sampleRate: 48000 });
+    const bassHeavy = makeFreqBytes(1024, (index) => (index < 18 ? 245 : 78));
+    let frame = null;
+    for (let step = 0; step < 60; step += 1) frame = processor.update(bassHeavy, 16.7);
+
+    const leftPeak = Math.max(...frame.levels.slice(0, 8));
+    const middlePeak = Math.max(...frame.levels.slice(12, 23));
+    expect(middlePeak).toBeGreaterThan(leftPeak);
+    expect(frame.energy.mid).toBeGreaterThan(frame.energy.bass);
+  });
+
   it('软膝压缩让音量增加时保持可见动态而非直接满幅', () => {
     const quieter = makeFreqBytes(1024, 128);
     const louder = makeFreqBytes(1024, 220);
@@ -94,16 +106,17 @@ describe('createSpectrumProcessor', () => {
     const loud = makeFreqBytes(1024, 220);
     const quietBytes = makeFreqBytes(1024, 0);
 
-    const afterAttack = processor.update(loud, 50).levels[0];
+    // 左侧次低频被有意收束；用中频带验证快攻慢放本身。
+    const afterAttack = processor.update(loud, 50).levels[8];
     expect(afterAttack).toBeGreaterThan(0.25);
 
     const settled = (() => {
       let frame = null;
       for (let step = 0; step < 40; step += 1) frame = processor.update(loud, 16.7);
-      return frame.levels[0];
+      return frame.levels[8];
     })();
 
-    const afterRelease = processor.update(quietBytes, 50).levels[0];
+    const afterRelease = processor.update(quietBytes, 50).levels[8];
     // 同样 50ms,释放只应下降一小部分。
     expect(afterRelease).toBeGreaterThan(settled * 0.6);
   });

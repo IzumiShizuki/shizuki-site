@@ -103,3 +103,20 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **THEN** Folia uses that wallpaper as a softened background and a sharp image within its music content region
 - **AND WHEN** the visitor enters full-screen immersive playback
 - **THEN** the wallpaper is sharp across the entire viewport
+
+#### Scenario: Folia controls preserve main-player ordering and seek immediately
+- **WHEN** a visitor uses Folia previous/next while the main player is in random mode
+- **THEN** Folia sends an intent to the main player instead of choosing from its own visual queue
+- **AND THEN** the main player's randomized ordering decides the resulting track
+- **WHEN** a visitor clicks or drags Folia's playback range
+- **THEN** the site-owned audio and Folia lyric clock update during the gesture, without waiting for pointer exit
+
+#### Scenario: Latest Folia account authorization is used in normal playback
+- **WHEN** a visitor completes or refreshes a NetEase login in Folia
+- **THEN** the resulting authorized Cookie is persisted for the visitor and becomes eligible for normal-mode resolution immediately
+- **AND THEN** normal-mode NetEase playback prefers the account-authorized source even if the account-status projection has not refreshed yet
+
+#### Scenario: Playlist can open as a Folia browsing surface
+- **WHEN** a visitor opens a music playlist and chooses its Folia browsing action
+- **THEN** the full playlist is installed as the site-owned queue and displayed in Folia's lattice view
+- **AND THEN** later next/previous controls continue to use that complete queue

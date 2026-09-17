@@ -20,6 +20,10 @@
             <i class="fas fa-play"></i>
             播放全部
           </button>
+          <button class="hero-btn ripple-trigger" type="button" @click="openFoliaPlaylist" :disabled="!allTracks.length">
+            <i class="fas fa-table-cells-large"></i>
+            Folia 浏览
+          </button>
           <button class="hero-btn ripple-trigger" type="button" @click="music.reloadCurrentPlaylist" :disabled="music.currentPlaylistLoading.value">
             <i class="fas fa-rotate-right"></i>
             刷新
@@ -183,6 +187,17 @@ function playTrack(filteredIndex) {
 function playAll() {
   if (!renderTracks.value.length) return;
   playTrack(0);
+}
+
+function openFoliaPlaylist() {
+  if (typeof window === 'undefined' || !allTracks.value.length) return;
+  window.dispatchEvent(new CustomEvent('shizuki:open-folia-lattice', {
+    detail: {
+      view: 'lattice',
+      tracks: allTracks.value,
+      playlist: profile.value
+    }
+  }));
 }
 
 async function enqueueTrackNext(trackItem) {

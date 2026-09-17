@@ -39,8 +39,15 @@ let suppressPlaybackCommandsUntil = 0;
 let latestFollowSessionVersion = -1;
 let audioLockInstalled = false;
 let progressSeekBridgeInstalled = false;
+let navigationBridgeInstalled = false;
 let lastFollowSeekPositionSec = -1;
 let lastFollowSeekAt = 0;
+let activeProgressInput: HTMLInputElement | null = null;
+let activeProgressPointerId: number | null = null;
+let pendingNavigationAction: 'next' | 'previous' | null = null;
+let pendingNavigationActionAt = 0;
+let cookieBridgeInstalled = false;
+let lastReportedCookie = '';
 let embedWallpaperStyleInstalled = false;
 
 function cssBackgroundImage(url: string): string {
@@ -307,37 +314,42 @@ function installEmbeddedAudioLock(): void {
   }, true);
 }
 
-function readEmbeddedProgressPosition(event: Event): number | null {
-  if (!followPlaybackActive) return null;
-  const target = event.target;
+function readEmbeddedProgressInput(target: EventTarget | null): HTMLInputElement | null {
   if (!(target instanceof HTMLInputElement) || target.type !== 'range') return null;
   const root = document.getElementById('folia-embed-root');
-  if (!root?.contains(target)) return null;
+  return root?.contains(target) ? target : null;
+}
 
-  const progressContainer = target.parentElement;
-  const hasProgressLayout = progressContainer?.previousElementSibling instanceof HTMLSpanElement
-    && progressContainer.nextElementSibling instanceof HTMLSpanElement;
-  if (target.min !== '0' || target.step !== '0.1' || !hasProgressLayout) return null;
-
+function readEmbeddedProgressPosition(target: HTMLInputElement): number | null {
+  if (!followPlaybackActive) return null;
   const duration = Math.max(0, Number(usePlaybackStore.getState().duration) || 0);
+  const minimum = Number(target.min || 0);
   const maximum = Number(target.max);
   const value = Number(target.value);
-  const tolerance = Math.max(1, duration * 0.015);
-  if (!duration || !Number.isFinite(maximum) || !Number.isFinite(value)) return null;
-  if (Math.abs(maximum - duration) > tolerance || value < 0 || value > maximum) return null;
+  const tolerance = Math.max(1, duration * 0.04);
+  if (!duration || !Number.isFinite(minimum) || !Number.isFinite(maximum) || !Number.isFinite(value)) return null;
+  // Duration matching excludes volume/preferences without hard-coding Folia's markup.
+  if (maximum <= minimum || Math.abs(maximum - duration) > tolerance || value < minimum || value > maximum) return null;
   return Math.min(duration, Math.max(0, value));
 }
 
-/** Route Folia's progress control to the site-owned audio element. */
-function handleEmbeddedProgressSeek(event: Event): void {
-  const positionSec = readEmbeddedProgressPosition(event);
-  if (positionSec === null) return;
+function readProgressPositionFromPointer(target: HTMLInputElement, clientX: number): number | null {
+  const current = readEmbeddedProgressPosition(target);
+  if (current === null) return null;
+  const rect = target.getBoundingClientRect();
+  if (!Number.isFinite(clientX) || rect.width <= 0) return current;
+  const minimum = Number(target.min || 0);
+  const maximum = Number(target.max);
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  const value = minimum + (maximum - minimum) * ratio;
+  target.value = String(value);
+  return Math.min(maximum, Math.max(minimum, value));
+}
 
-  // Prevent Folia's own range handler from waking a second playback path.
-  event.stopPropagation();
+function relayEmbeddedProgressSeek(positionSec: number): void {
   const now = performance.now();
   const unchanged = Math.abs(positionSec - lastFollowSeekPositionSec) < 0.05;
-  if (unchanged && now - lastFollowSeekAt < 80) return;
+  if (unchanged && now - lastFollowSeekAt < 45) return;
 
   lastFollowSeekPositionSec = positionSec;
   lastFollowSeekAt = now;
@@ -349,12 +361,87 @@ function handleEmbeddedProgressSeek(event: Event): void {
   });
 }
 
+/** Route keyboard and native range input changes to the site-owned audio element. */
+function handleEmbeddedProgressSeek(event: Event): void {
+  const input = readEmbeddedProgressInput(event.target);
+  const positionSec = input ? readEmbeddedProgressPosition(input) : null;
+  if (positionSec === null) return;
+  event.stopPropagation();
+  relayEmbeddedProgressSeek(positionSec);
+}
+
+/** Give the Folia scrubber immediate visual and audio feedback while dragging. */
+function handleEmbeddedProgressPointer(event: PointerEvent): void {
+  if (event.type === 'pointerdown') {
+    const input = readEmbeddedProgressInput(event.target);
+    if (!input) return;
+    activeProgressInput = input;
+    activeProgressPointerId = event.pointerId;
+  }
+  if (!activeProgressInput || activeProgressPointerId !== event.pointerId) return;
+
+  const positionSec = readProgressPositionFromPointer(activeProgressInput, event.clientX);
+  if (positionSec !== null) {
+    event.stopPropagation();
+    relayEmbeddedProgressSeek(positionSec);
+  }
+  if (event.type === 'pointerup' || event.type === 'pointercancel') {
+    activeProgressInput = null;
+    activeProgressPointerId = null;
+  }
+}
+
 function installEmbeddedProgressSeekBridge(): void {
   if (progressSeekBridgeInstalled || typeof document === 'undefined') return;
   progressSeekBridgeInstalled = true;
   document.addEventListener('input', handleEmbeddedProgressSeek, true);
   document.addEventListener('change', handleEmbeddedProgressSeek, true);
-  document.addEventListener('pointerup', handleEmbeddedProgressSeek, true);
+  document.addEventListener('pointerdown', handleEmbeddedProgressPointer, true);
+  document.addEventListener('pointermove', handleEmbeddedProgressPointer, true);
+  document.addEventListener('pointerup', handleEmbeddedProgressPointer, true);
+  document.addEventListener('pointercancel', handleEmbeddedProgressPointer, true);
+}
+
+function readNavigationAction(target: EventTarget | null): 'next' | 'previous' | null {
+  if (!(target instanceof Element)) return null;
+  const button = target.closest('button');
+  const root = document.getElementById('folia-embed-root');
+  if (!button || !root?.contains(button)) return null;
+  const hint = [
+    button.getAttribute('aria-label'),
+    button.getAttribute('title'),
+    button.getAttribute('data-tooltip-content'),
+    button.getAttribute('data-action'),
+    button.className,
+    button.textContent,
+    ...Array.from(button.querySelectorAll('[data-lucide], svg, i')).map((node) => (
+      `${node.getAttribute('data-lucide') || ''} ${node.getAttribute('class') || ''}`
+    ))
+  ].join(' ').toLowerCase();
+  if (/(next|skip[-_ ]?forward|forward|下一首|下一个)/.test(hint)) return 'next';
+  if (/(previous|prev|skip[-_ ]?back|backward|上一首|上一个)/.test(hint)) return 'previous';
+  return null;
+}
+
+function installEmbeddedNavigationBridge(): void {
+  if (navigationBridgeInstalled || typeof document === 'undefined') return;
+  navigationBridgeInstalled = true;
+  document.addEventListener('click', (event) => {
+    if (!followPlaybackActive) return;
+    const action = readNavigationAction(event.target);
+    if (!action) return;
+    pendingNavigationAction = action;
+    pendingNavigationActionAt = performance.now();
+  }, true);
+}
+
+function relayEmbeddedNavigation(action: 'next' | 'previous'): void {
+  suppressPlaybackCommandsUntil = performance.now() + 750;
+  lockEmbeddedAudio();
+  const store = usePlaybackStore.getState();
+  store.setAudioSrc(null);
+  store.setPlayerState(PlayerState.PAUSED);
+  postToParent({ type: 'shizuki:playback-command', action });
 }
 
 function applyFollowSession(session: FollowSession): void {
@@ -413,6 +500,9 @@ function writeCookieToStorage(cookie: string): void {
   if (!cookie) return;
   try {
     window.localStorage.setItem(COOKIE_STORAGE_KEY, cookie);
+    // The parent already owns this value when it sends a sync request. Record
+    // it so the change watcher does not echo the same credential back.
+    lastReportedCookie = cookie;
   } catch {
     // no-op
   }
@@ -424,6 +514,29 @@ function postToParent(payload: UnknownRecord): void {
   } catch {
     // no-op
   }
+}
+
+/** Return a newly completed Folia login to the site without repeatedly exposing it. */
+function reportCookieIfChanged(): void {
+  const cookie = readCookieFromStorage();
+  if (!cookie || cookie === lastReportedCookie) return;
+  lastReportedCookie = cookie;
+  postToParent({ type: 'shizuki:cookie', cookie });
+}
+
+/**
+ * Folia's login writes localStorage in this same document, so the browser's
+ * storage event alone is insufficient. A low-frequency check covers that
+ * case while only emitting when the credential value actually changes.
+ */
+function installCookieBridge(): void {
+  if (cookieBridgeInstalled || typeof window === 'undefined') return;
+  cookieBridgeInstalled = true;
+  lastReportedCookie = readCookieFromStorage();
+  window.addEventListener('storage', (event) => {
+    if (event.key === COOKIE_STORAGE_KEY) reportCookieIfChanged();
+  });
+  window.setInterval(reportCookieIfChanged, 1500);
 }
 
 function readSongId(song: unknown): number {
@@ -548,6 +661,8 @@ export function installShizukiExternalBridge(): void {
   (window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled = true;
   installEmbeddedAudioLock();
   installEmbeddedProgressSeekBridge();
+  installEmbeddedNavigationBridge();
+  installCookieBridge();
   installEmbedWallpaperStyle();
   window.addEventListener('message', handleMessage);
   usePlaybackStore.subscribe((state, previousState) => {
@@ -562,6 +677,15 @@ export function installShizukiExternalBridge(): void {
       return;
     }
     if (followPlaybackActive && switchedTrack && now >= suppressPlaybackCommandsUntil) {
+      const navigationAction = now - pendingNavigationActionAt < 1200 ? pendingNavigationAction : null;
+      pendingNavigationAction = null;
+      pendingNavigationActionAt = 0;
+      if (navigationAction) {
+        // The main player owns shuffle order. Do not fall back to Folia's
+        // display queue when a visitor uses previous/next controls.
+        relayEmbeddedNavigation(navigationAction);
+        return;
+      }
       const snapshot = snapshotStatus();
       const track = snapshot.track as UnknownRecord | null;
       if (track) forwardTrackIntent(track, 0, true);

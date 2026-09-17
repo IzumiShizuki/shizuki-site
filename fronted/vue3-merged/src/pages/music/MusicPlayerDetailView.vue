@@ -76,15 +76,6 @@
               {{ formatMediaTime(currentTimeSec) }}<span class="te-time-sep">/</span>{{ formatMediaTime(playableDurationSec || expectedDurationSec) }}
             </span>
           </div>
-          <button
-            class="lyric-immersive-btn ripple-trigger"
-            type="button"
-            title="切换沉浸歌词动画（Folia）"
-            @click="openImmersiveLyric"
-          >
-            <i class="fas fa-wand-magic-sparkles"></i>
-            沉浸歌词
-          </button>
         </div>
 
         <section class="lyric-scroll-shell">
@@ -224,13 +215,6 @@ function openFoliaMode() {
   }));
 }
 
-/** 切换沉浸歌词（Folia lattice 视图，同曲续播）。 */
-function openImmersiveLyric() {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('shizuki:open-folia-lattice', {
-    detail: { view: 'lattice', track: track.value || null }
-  }));
-}
 const lyricMode = computed(() => String(music.player.lyricRenderMode?.value || 'original_translation'));
 const lyricTimeline = computed(() => (Array.isArray(music.player.lyricTimeline?.value) ? music.player.lyricTimeline.value : []));
 const activeLyricIndex = computed(() => Number(music.player.currentLyricEntryIndex?.value ?? -1));
