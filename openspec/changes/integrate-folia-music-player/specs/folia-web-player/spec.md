@@ -66,6 +66,16 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **WHEN** the main-site audio is playing in Folia mode
 - **THEN** Folia continuously projects progress and lyric focus between periodic clock corrections, and Folia play or pause commands are relayed back to the main-site player
 
+#### Scenario: Both modes render one authoritative playback session
+- **WHEN** a visitor switches modes or changes a track from either mode
+- **THEN** Folia receives one versioned snapshot containing the main-site track metadata, cover, complete queue, playlist metadata, parsed lyric timeline, lyric focus, duration, position, and playback state
+- **AND THEN** both modes render the same title, artist, cover, queue contents, lyric text, and active lyric line without Folia resolving replacement metadata or lyrics
+
+#### Scenario: Embedded Folia cannot produce a second audio stream
+- **WHEN** Folia follows the main-site playback session, including after a local Folia state restoration or an internal control action
+- **THEN** every Folia-owned audio element is paused and has no playable source
+- **AND THEN** only the main-site `usePlayerEngine.audioElement` can produce audible output
+
 #### Scenario: Upstream CDN is unreachable from the browser
 - **WHEN** a resolved third-party audio URL cannot be read reliably from the visitor's browser network
 - **THEN** the player receives a short-lived same-origin stream URL, the backend relays the audio with byte-range support, and the browser never needs to connect to the third-party CDN directly

@@ -93,3 +93,4 @@
 - [x] 服务器实测：Docker Hub / papersman 镜像不可达；gh-proxy 可下载源码；npm ci + vite build 在 node:24-alpine 容器内成功。
 - [x] 部署：本地构建 gateway 镜像 → 容器启动 healthy → openresty /music/ 反代 → 端到端验证通过。
 - [x] 前端集成：music 页面 Folia 模式开关 + 同源 iframe 嵌入 → 线上发布。
+- [x] **完整权威播放会话修复（2026-09-17）**：主站向 Folia 发送带版本的曲目/队列/歌单/歌词/焦点/时钟完整快照；Folia 嵌入态不得自行解析歌曲、歌词或输出音频；补充回归测试、构建验证并部署。

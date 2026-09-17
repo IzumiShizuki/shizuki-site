@@ -366,7 +366,8 @@ const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
 const foliaSelectedPlaylist = ref('');
 let foliaBridgeReady = false;
-let foliaPendingTrack = null; // Folia bridge 就绪前暂存唯一音频源的播放快照
+let foliaPendingSession = null; // Folia bridge 就绪前暂存完整权威播放会话
+let foliaPlaybackSessionVersion = 0;
 let foliaPreloadPromise = null;
 let foliaMountPromise = null;
 let foliaWarmupHandle = 0;
@@ -437,7 +438,7 @@ async function loadFoliaEmbed() {
     postToFolia({ type: 'shizuki:activate-playback-bridge' });
     void syncCookieToFolia();
     void syncCookieBackFromFolia();
-    deliverPendingFoliaTrack();
+    deliverPendingFoliaSession();
     syncThemeToFolia();
     return true;
   })().catch((error) => {
@@ -652,22 +653,110 @@ async function syncCookieToFolia() {
   }
 }
 
-/** 切到 Folia：站点 audio 是唯一输出，Folia 进入跟随模式（只渲染曲目/进度，不播放）。 */
-async function pushCurrentTrackToFolia() {
-  const track = player.currentTrack.value;
-  if (!track) return;
-  const trackId = readFoliaTrackId(track);
-  if (!trackId) return;
-  foliaTrackInfo.value = {
-    name: String(track.title || track.name || ''),
-    artist: String(track.artist || '')
+function buildFoliaDisplayTrack(track) {
+  if (!track || typeof track !== 'object') return null;
+  const id = String(track.trackId || track.id || track.track_id || '').trim();
+  if (!id) return null;
+  const durationSec = Number(track.playableDurationSec ?? track.durationSec ?? track.duration_sec ?? 0);
+  const durationMs = Number.isFinite(durationSec) && durationSec > 0 ? Math.round(durationSec * 1000) : 0;
+  const artist = String(track.artist || '').trim();
+  const artists = Array.isArray(track.artists)
+    ? track.artists
+      .map((item) => (typeof item === 'object' ? item?.name : item))
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+    : artist.split(/\s*[/,&]\s*/).filter(Boolean);
+  const cover = String(track.cover || track.coverUrl || track.cover_url || '').trim();
+  return {
+    id,
+    foliaId: readFoliaVisualId(id),
+    trackId: id,
+    provider: String(track.provider || '').trim(),
+    name: String(track.title || track.name || '').trim(),
+    title: String(track.title || track.name || '').trim(),
+    artist,
+    artists: artists.map((name) => ({ name })),
+    cover,
+    coverUrl: cover,
+    album: { picUrl: cover },
+    durationMs,
+    durationSec: Number.isFinite(durationSec) && durationSec > 0 ? durationSec : 0,
+    durationLabel: String(track.durationLabel || track.duration || '').trim(),
+    queueEntryId: String(track.queueEntryId || '').trim(),
+    sort: Number(track.sort || 0)
   };
+}
+
+function readFoliaVisualId(trackId) {
+  const raw = String(trackId || '').trim();
+  const numeric = Number(raw);
+  if (Number.isSafeInteger(numeric) && numeric > 0) return numeric;
+  let hash = 2166136261;
+  for (let index = 0; index < raw.length; index += 1) {
+    hash ^= raw.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) || 1;
+}
+
+function buildFoliaLyricTimeline() {
+  const timeline = Array.isArray(player.lyricTimeline?.value) ? player.lyricTimeline.value : [];
+  return timeline.map((entry) => ({
+    time: Math.max(0, Number(entry?.time || 0)),
+    endTime: Number.isFinite(Number(entry?.endTime)) ? Math.max(0, Number(entry.endTime)) : null,
+    original: String(entry?.original || entry?.text || '').trim(),
+    translation: String(entry?.translation || '').trim(),
+    furigana: String(entry?.furigana || entry?.romanization || '').trim(),
+    words: Array.isArray(entry?.words)
+      ? entry.words.map((word) => ({
+        text: String(word?.text || '').trim(),
+        time: Math.max(0, Number(word?.time ?? word?.startTime ?? 0)),
+        endTime: Math.max(0, Number(word?.endTime ?? word?.end ?? word?.time ?? word?.startTime ?? 0))
+      })).filter((word) => word.text)
+      : []
+  })).filter((entry) => entry.original);
+}
+
+/** 构造唯一的主站播放会话；Folia 只消费它，不能再自行补齐歌曲或歌词。 */
+function buildFoliaPlaybackSession() {
+  const track = buildFoliaDisplayTrack(player.currentTrack?.value);
+  const queue = (Array.isArray(player.tracks?.value) ? player.tracks.value : [])
+    .map(buildFoliaDisplayTrack)
+    .filter(Boolean);
+  const profile = player.playlistProfile?.value || null;
   const positionSec = Number(player.currentTime?.value || 0);
-  const positionMs = Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0;
-  const playing = Boolean(player.isPlaying?.value);
-  foliaPendingTrack = { track, trackId, positionMs, playing };
+  const durationSec = Number(player.duration?.value || 0);
+  const lyricIndex = Number(player.currentLyricEntryIndex?.value);
+  return {
+    version: ++foliaPlaybackSessionVersion,
+    track,
+    queue,
+    playlist: profile
+      ? {
+        code: String(profile.playlistCode || profile.playlist_code || ''),
+        name: String(profile.name || ''),
+        cover: String(profile.cover || ''),
+        description: String(profile.description || '')
+      }
+      : null,
+    lyrics: buildFoliaLyricTimeline(),
+    lyricRenderMode: String(player.lyricRenderMode?.value || 'original'),
+    lyricIndex: Number.isInteger(lyricIndex) ? lyricIndex : -1,
+    positionMs: Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0,
+    durationMs: Number.isFinite(durationSec) && durationSec > 0 ? Math.round(durationSec * 1000) : 0,
+    playing: Boolean(player.isPlaying?.value)
+  };
+}
+
+/** 切到 Folia：站点 audio 是唯一输出，Folia 接收完整播放会话用于渲染。 */
+async function pushCurrentTrackToFolia() {
+  const session = buildFoliaPlaybackSession();
+  foliaTrackInfo.value = session.track
+    ? { name: session.track.name, artist: session.track.artist }
+    : null;
+  foliaPendingSession = session;
   if (foliaBridgeReady) {
-    deliverPendingFoliaTrack();
+    deliverPendingFoliaSession();
   }
 }
 
@@ -700,17 +789,14 @@ function stopFoliaClockSync() {
   }
 }
 
-/** 把暂存的待播歌曲真正发给 Folia（iframe 桥就绪后调用）。 */
-function deliverPendingFoliaTrack() {
-  if (!foliaPendingTrack) return;
-  const pending = foliaPendingTrack;
-  foliaPendingTrack = null;
+/** 把暂存的完整权威会话真正发给 Folia（桥就绪后调用）。 */
+function deliverPendingFoliaSession() {
+  if (!foliaPendingSession) return;
+  const session = foliaPendingSession;
+  foliaPendingSession = null;
   postToFolia({
     type: 'shizuki:follow-playback',
-    track: pending.track,
-    trackId: pending.trackId,
-    positionMs: pending.positionMs,
-    playing: pending.playing
+    session
   });
   startFoliaClockSync();
 }
@@ -726,7 +812,7 @@ function readFoliaTrackId(track) {
 
 /** 把 Folia 的轻量播放快照转换为站点播放器可解析的网易云曲目。 */
 function normalizeFoliaPlaybackIntentTrack(rawTrack) {
-  const trackId = String(rawTrack?.id || rawTrack?.trackId || rawTrack?.track_id || '').trim();
+  const trackId = String(rawTrack?.trackId || rawTrack?.track_id || rawTrack?.id || '').trim();
   if (!trackId) return null;
   const artists = Array.isArray(rawTrack?.artists)
     ? rawTrack.artists
@@ -742,7 +828,7 @@ function normalizeFoliaPlaybackIntentTrack(rawTrack) {
   return {
     id: trackId,
     trackId,
-    provider: 'netease',
+    provider: String(rawTrack?.provider || 'netease').trim().toLowerCase() || 'netease',
     title: String(rawTrack?.name || rawTrack?.title || '').trim() || '未知标题',
     artist: artists.join(' / ') || String(rawTrack?.artist || '').trim() || '未知歌手',
     cover: String(rawTrack?.coverUrl || rawTrack?.cover || rawTrack?.cover_url || '').trim(),
@@ -787,6 +873,28 @@ async function mirrorFoliaPlaybackIntent(data) {
   return true;
 }
 
+async function applyFoliaPlaybackCommand(data) {
+  if (!foliaMode.value) return;
+  const action = String(data?.action || '').trim();
+  const playing = Boolean(player.isPlaying?.value);
+  if ((action === 'play' && !playing) || (action === 'pause' && playing)) {
+    await player.togglePlay?.();
+  } else if (action === 'seek') {
+    const positionMs = Number(data?.positionMs || 0);
+    if (Number.isFinite(positionMs) && positionMs >= 0) {
+      player.seekToTime?.(positionMs / 1000);
+    }
+  } else if (action === 'next') {
+    await player.playNext?.();
+  } else if (action === 'previous') {
+    await player.playPrev?.();
+  } else {
+    return;
+  }
+  await nextTick();
+  await pushCurrentTrackToFolia();
+}
+
 /** 请求 Folia 回传当前播放状态。 */
 function requestFoliaStatus() {
   postToFolia({ type: 'shizuki:get-status' });
@@ -806,21 +914,7 @@ function handleFoliaBridgeMessage(event) {
     return;
   }
   if (data.type === 'shizuki:playback-command') {
-    if (!foliaMode.value) return;
-    const action = String(data.action || '').trim();
-    const playing = Boolean(player.isPlaying?.value);
-    if ((action === 'play' && !playing) || (action === 'pause' && playing)) {
-      void player.togglePlay?.();
-    } else if (action === 'seek') {
-      const positionMs = Number(data.positionMs || 0);
-      if (Number.isFinite(positionMs) && positionMs >= 0) {
-        player.seekToTime?.(positionMs / 1000);
-      }
-    } else if (action === 'next') {
-      void player.playNext?.();
-    } else if (action === 'previous') {
-      void player.playPrev?.();
-    }
+    void applyFoliaPlaybackCommand(data);
     return;
   }
   if (data.type === 'shizuki:playback-intent') {
@@ -3029,11 +3123,35 @@ watch(
 watch(
   [
     () => readFoliaTrackId(player.currentTrack.value),
+    () => (Array.isArray(player.tracks?.value) ? player.tracks.value.map((track) => [
+      track?.queueEntryId,
+      track?.trackId || track?.id,
+      track?.title,
+      track?.artist,
+      track?.cover,
+      track?.playableDurationSec || track?.durationSec
+    ]).join('|') : ''),
+    () => {
+      const profile = player.playlistProfile?.value || {};
+      return [profile.playlistCode || profile.playlist_code, profile.name, profile.cover, profile.description].join('|');
+    },
+    () => (Array.isArray(player.lyricTimeline?.value) ? player.lyricTimeline.value.map((entry) => [
+      entry?.time,
+      entry?.endTime,
+      entry?.original,
+      entry?.translation,
+      entry?.furigana,
+      Array.isArray(entry?.words) ? entry.words.map((word) => [word?.time, word?.endTime, word?.text].join(',')).join(';') : ''
+    ].join('|')).join('||') : ''),
+    () => Number(player.currentLyricEntryIndex?.value ?? -1),
+    () => String(player.lyricRenderMode?.value || 'original'),
+    () => Number(player.duration?.value || 0),
     () => Boolean(player.isPlaying?.value)
   ],
   () => {
     if (foliaMode.value) void pushCurrentTrackToFolia();
-  }
+  },
+  { flush: 'post' }
 );
 
 watch(

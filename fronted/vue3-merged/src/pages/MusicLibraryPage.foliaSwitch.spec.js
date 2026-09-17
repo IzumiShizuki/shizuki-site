@@ -28,13 +28,19 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(hiddenFoliaRule).not.toContain('display: none');
   });
 
-  it('uses the single audio owner for the first pending Folia handoff', () => {
-    const pendingDelivery = readFunction('deliverPendingFoliaTrack');
+  it('delivers one complete, versioned playback session to Folia', () => {
+    const sessionBuilder = readFunction('buildFoliaPlaybackSession');
+    const pendingDelivery = readFunction('deliverPendingFoliaSession');
 
+    expect(sessionBuilder).toContain('version: ++foliaPlaybackSessionVersion');
+    expect(sessionBuilder).toContain('queue');
+    expect(sessionBuilder).toContain('playlist');
+    expect(sessionBuilder).toContain('lyrics: buildFoliaLyricTimeline()');
+    expect(sessionBuilder).toContain('lyricIndex');
+    expect(sessionBuilder).toContain('durationMs');
     expect(pendingDelivery).toContain("type: 'shizuki:follow-playback'");
     expect(pendingDelivery).not.toContain("type: 'shizuki:play-track'");
-    expect(pendingDelivery).toContain('track: pending.track');
-    expect(pendingDelivery).toContain('playing: pending.playing');
+    expect(pendingDelivery).toContain('session');
   });
 
   it('keeps playlist, lattice, and mode-exit paths on the site audio owner', () => {
@@ -59,16 +65,37 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(bridgeSource).toContain("type: 'shizuki:playback-command'");
     expect(bridgeSource).toContain("type === 'shizuki:stop-follow-playback'");
     expect(source).toContain("data.type === 'shizuki:playback-command'");
+    expect(source).toContain('applyFoliaPlaybackCommand');
   });
 
   it('mirrors Folia-selected tracks back to the site-owned player', () => {
     expect(source).toContain("type: 'shizuki:activate-playback-bridge'");
     expect(bridgeSource).toContain("type === 'shizuki:activate-playback-bridge'");
     expect(bridgeSource).toContain("type: 'shizuki:playback-intent'");
-    expect(bridgeSource).toContain('track: snapshot.track');
+    expect(bridgeSource).toContain('forwardTrackIntent(track, 0, true)');
     expect(source).toContain("data.type === 'shizuki:playback-intent'");
     expect(source).toContain('mirrorFoliaPlaybackIntent');
     expect(source).toContain('player.playExternalTrack');
+  });
+
+  it('uses parent lyrics and metadata while preventing any Folia-owned audio output', () => {
+    expect(bridgeSource).toContain('buildFollowLyrics(session.lyrics, song, session.durationMs)');
+    expect(bridgeSource).toContain('store.setPlayQueue(queue.length ? queue : (song ? [song] : []))');
+    expect(bridgeSource).toContain('store.setAudioSrc(null)');
+    expect(bridgeSource).toContain('lockEmbeddedAudio()');
+    expect(bridgeSource).toContain("document.addEventListener('play'");
+    expect(bridgeSource).not.toContain('neteaseApi.getSongUrl');
+    expect(bridgeSource).not.toContain('loadLyricsForTrack');
+  });
+
+  it('refreshes Folia when any rendered part of the site-owned session changes', () => {
+    const foliaWatch = source.slice(source.indexOf('watch(\n  [\n    () => readFoliaTrackId'), source.indexOf('\nwatch(\n  () => auth.isAuthenticated.value'));
+
+    expect(foliaWatch).toContain('player.tracks?.value');
+    expect(foliaWatch).toContain('player.playlistProfile?.value');
+    expect(foliaWatch).toContain('player.lyricTimeline?.value');
+    expect(foliaWatch).toContain('player.currentLyricEntryIndex?.value');
+    expect(foliaWatch).toContain('player.lyricRenderMode?.value');
   });
 
   it('reuses the mounted Folia tree across route changes and warms it during idle time', () => {

@@ -8,6 +8,8 @@ Folia 官方支持 Web 部署（React 18 + Vite + howler.js + PWA），Electron 
 
 ## What Changes
 
+- Folia 嵌入态改为消费主站播放器的**完整权威播放会话**：曲目、队列、歌单资料、已解析歌词、当前歌词行、时长、进度与播放态作为一个带版本号的快照同步；Folia 不再独立补全歌曲、歌词或音源。
+- 嵌入态彻底禁止 Folia 自有 `<audio>` 输出：所有内部音频元素均会暂停并清空音源，任何意外 `play` 事件立即被拦截；Folia 的选歌和播放控制仅作为意图回传主站。
 - 在服务器部署 Folia 官方 Docker 栈（gateway / backend / netease-api / kugou-api / qq-api），对外仅暴露 Web 网关端口。
 - Caddy 增加 `music.shizuki.online` 反代到 Folia Web 网关（127.0.0.1:18080）。
 - 音源配置：网易云复用站点现有 `music-ncm-api`（或 Folia 内置 netease-api），酷狗/QQ 使用官方镜像，QQ 需 `QQ_SESSION_SECRET`。

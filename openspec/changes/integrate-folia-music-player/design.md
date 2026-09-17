@@ -72,6 +72,16 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - **加载去重**：runtime config、入口 HTML、module preload、主脚本执行和 React mount 各自由单例 Promise 管理；普通模式首屏完成后才在浏览器 idle 时后台预热，避免与首屏数据加载争抢主线程。
 - **移动端布局**：窄屏为全局顶部导航和模式开关预留固定空间，Folia 同步/状态命令收为图标按钮，工具栏不横向溢出。
 
+## 权威播放会话（2026-09-17）
+
+此前 `follow-playback` 只交付了曲目与时钟；Folia 因而会自行通过网易云补全曲目、歌词及队列，并保留自身媒体元素。这会造成封面、文本、歌词焦点和队列漂移，也可能产生第二路声音。
+
+- **唯一真源**：`usePlayerEngine` 的状态和 `audioElement` 是唯一权威。Folia 在 embed/follow 模式不调用音源解析、歌词加载或 Folia 自有播放入口。
+- **原子快照**：主站以单个带单调递增 `version` 的 `session` 发送 `track`、`queue`、`playlist`、`lyrics`、`lyricRenderMode`、`lyricIndex`、`positionMs`、`durationMs` 和 `playing`。Folia 忽略版本较旧的快照，避免异步结果回写旧曲目。
+- **渲染映射**：Folia 将主站曲目、队列和歌词时间线映射为自己的展示 store；歌词行使用主站的已解析时间线，逐词时间存在时一并保留，绝不再为跟随会话请求 provider 歌词。
+- **音频锁**：进入跟随会话或收到快照时，遍历 embed 根节点内的全部 `<audio>`，暂停、移除 `src` 并 `load()`；同时注册捕获阶段 `play` 监听，阻止 Folia 内部媒体恢复输出。
+- **控制方向**：Folia 的选歌仅发送播放意图；播放、暂停、拖动、上一首、下一首仅发送命令。主站执行后立即推送新完整快照，Folia 不以本地状态作为回传真源。
+
 ## 普通模式音频交付稳定化
 
 - **站内交付 URL**：`resolve-playback` 保留现有上游解析与缓存逻辑，但在控制器返回前把第三方 `audio` 地址换成 `/api/v1/music/tracks/stream/{capability}`。前端播放器与 Folia 跟随协议无需感知上游 CDN。
