@@ -31,14 +31,21 @@ public class NeteaseCookieProvider {
     private static final long SONG_DETAIL_RETRY_DELAY_MILLIS = 350L;
 
     private final RestClient restClient;
+    private final String ncmBaseUrl;
 
     @Autowired
-    public NeteaseCookieProvider(RestClient.Builder restClientBuilder) {
-        this(buildRestClient(restClientBuilder));
+    public NeteaseCookieProvider(RestClient.Builder restClientBuilder,
+                                 @org.springframework.beans.factory.annotation.Value("${music.ncm.base-url:http://music-ncm-api:3000}") String ncmBaseUrl) {
+        this(buildRestClient(restClientBuilder), ncmBaseUrl);
     }
 
     NeteaseCookieProvider(RestClient restClient) {
+        this(restClient, "");
+    }
+
+    NeteaseCookieProvider(RestClient restClient, String ncmBaseUrl) {
         this.restClient = restClient;
+        this.ncmBaseUrl = normalizeNcmBaseUrl(ncmBaseUrl);
     }
 
     private static RestClient buildRestClient(RestClient.Builder restClientBuilder) {
@@ -221,6 +228,10 @@ public class NeteaseCookieProvider {
     }
 
     private String resolveAuthorizedAudioUrl(String trackId, String cookie) {
+        String ncmAudioUrl = resolveAuthorizedAudioUrlViaNcm(trackId, cookie);
+        if (StringUtils.hasText(ncmAudioUrl)) {
+            return ncmAudioUrl;
+        }
         try {
             Map<String, Object> payload = requestJson(
                 "https://music.163.com/api/song/url/v1",
@@ -241,6 +252,41 @@ public class NeteaseCookieProvider {
         } catch (Exception ex) {
             LOGGER.warn(
                 "MUSIC_NETEASE_AUTH_AUDIO_RESOLVE_FAIL trackId={} reason_type={}",
+                trackId,
+                ex.getClass().getSimpleName()
+            );
+            return "";
+        }
+    }
+
+    /**
+     * Folia resolves member streams through the site's NCM sidecar. Reuse that
+     * path here so the normal player sees the same Cookie-aware result instead
+     * of depending on a browser-unfriendly direct request to music.163.com.
+     */
+    private String resolveAuthorizedAudioUrlViaNcm(String trackId, String cookie) {
+        if (!StringUtils.hasText(ncmBaseUrl)) {
+            return "";
+        }
+        try {
+            Map<String, Object> payload = requestNcmJson(
+                "/song/url/v1",
+                Map.of("id", trackId, "level", "exhigh"),
+                cookie
+            );
+            String url = readAudioUrl(payload);
+            if (StringUtils.hasText(url)) {
+                return url;
+            }
+            payload = requestNcmJson(
+                "/song/url",
+                Map.of("id", trackId, "br", 320000),
+                cookie
+            );
+            return readAudioUrl(payload);
+        } catch (Exception ex) {
+            LOGGER.warn(
+                "MUSIC_NETEASE_NCM_AUTH_AUDIO_RESOLVE_FAIL trackId={} reason_type={}",
                 trackId,
                 ex.getClass().getSimpleName()
             );
@@ -439,6 +485,29 @@ public class NeteaseCookieProvider {
         return json;
     }
 
+    private Map<String, Object> requestNcmJson(String path, Map<String, Object> query, String cookie) {
+        Map<String, Object> ncmQuery = new LinkedHashMap<>();
+        if (query != null) {
+            ncmQuery.putAll(query);
+        }
+        ncmQuery.put("cookie", cookie);
+        String body = restClient.get()
+            .uri(appendQuery(ncmBaseUrl + path, ncmQuery))
+            .headers(headers -> headers.set("User-Agent", "ShizukiMusicNcmClient/1.0"))
+            .retrieve()
+            .body(String.class);
+        Map<String, Object> json = tryParseJson(body);
+        int code = readInt(json.get("code"), 200);
+        if (code != 200 && code != 0) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Netease NCM request failed",
+                Map.of("code", code)
+            );
+        }
+        return json;
+    }
+
     private Map<String, Object> tryParseJson(String body) {
         if (!StringUtils.hasText(body)) {
             return Map.of();
@@ -473,6 +542,17 @@ public class NeteaseCookieProvider {
             builder.append(URLEncoder.encode(String.valueOf(entry.getValue()), StandardCharsets.UTF_8));
         }
         return builder.toString();
+    }
+
+    private static String normalizeNcmBaseUrl(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "";
+        }
+        String normalized = raw.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private String normalizeCookie(String cookie) {

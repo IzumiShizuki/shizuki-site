@@ -194,6 +194,39 @@ class NeteaseCookieProviderTest {
     }
 
     @Test
+    void shouldPreferTheSameNcmMemberStreamUsedByFolia() {
+        RestClient.Builder builder = RestClient.builder();
+        server = MockRestServiceServer.bindTo(builder).build();
+        provider = new NeteaseCookieProvider(builder.build(), "https://ncm.test");
+
+        server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "songs": [{"id": 101, "name": "Member track"}]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andExpect(request -> {
+                Assertions.assertTrue(request.getURI().getQuery().contains("id=101"));
+                Assertions.assertTrue(request.getURI().getQuery().contains("level=exhigh"));
+                Assertions.assertTrue(request.getURI().getQuery().contains("cookie="));
+                Assertions.assertFalse(request.getHeaders().containsKey("Cookie"));
+            })
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "data": [{"id": 101, "url": "https://stream.test/folia-member.mp3"}]
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        NeteaseCookieProvider.ResolvedTrack resolved = provider.resolveTrack("101", ACCOUNT_COOKIE, false);
+
+        Assertions.assertEquals("https://stream.test/folia-member.mp3", resolved.audioUrl());
+        server.verify();
+    }
+
+    @Test
     void shouldRetainAnonymousDetailsWhenAccountFallbackFails() {
         expectPlaylistDetail("""
             {

@@ -9,6 +9,7 @@
 
 import { PlayerState, type LyricData, type SongResult } from './types';
 import { usePlaybackStore } from './stores/usePlaybackStore';
+import { useTypographySettingsStore } from './stores/useTypographySettingsStore';
 import { lyricCurrentTime } from './stores/motionSignals';
 import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
 
@@ -49,6 +50,11 @@ let pendingNavigationActionAt = 0;
 let cookieBridgeInstalled = false;
 let lastReportedCookie = '';
 let embedWallpaperStyleInstalled = false;
+let embedLyricSizingInstalled = false;
+let embedLyricBaseScale: number | null = null;
+let embedLyricAppliedScale: number | null = null;
+
+const MIN_EMBED_LYRIC_SCALE = 0.68;
 
 function cssBackgroundImage(url: string): string {
   const normalized = String(url || '').trim();
@@ -97,6 +103,47 @@ function applyEmbedWallpaper(rawSource: unknown, rawPreview: unknown): void {
   const source = String(rawSource || rawPreview || '').trim();
   root.dataset.shizukiWallpaper = source ? 'active' : '';
   root.style.setProperty('--shizuki-folia-wallpaper-image', cssBackgroundImage(source));
+}
+
+/**
+ * Folia visualizers size their primary line in viewport units. The embedded
+ * music surface is narrower than the browser viewport, so retain the visitor's
+ * font preference while scaling it to the actual Folia content width.
+ */
+function syncEmbedLyricSizing(): void {
+  const root = document.getElementById('folia-embed-root');
+  if (!root || root.clientWidth < 240 || typeof window === 'undefined') return;
+  const settings = useTypographySettingsStore.getState();
+  const currentScale = Number(settings.lyricsFontScale) || 1;
+  if (embedLyricBaseScale === null || (
+    embedLyricAppliedScale !== null
+    && Math.abs(currentScale - embedLyricAppliedScale) > 0.005
+  )) {
+    embedLyricBaseScale = currentScale;
+  }
+  const viewportWidth = Math.max(1, window.innerWidth || root.clientWidth);
+  const widthRatio = Math.min(1, Math.max(0, (root.clientWidth / viewportWidth) * 1.15));
+  const preferredScale = Math.max(MIN_EMBED_LYRIC_SCALE, embedLyricBaseScale ?? 1);
+  const nextScale = Math.max(
+    MIN_EMBED_LYRIC_SCALE,
+    Math.min(preferredScale, preferredScale * widthRatio),
+  );
+  if (Math.abs(currentScale - nextScale) < 0.005) return;
+  embedLyricAppliedScale = nextScale;
+  // setState deliberately avoids persisting an embed-only presentation value.
+  useTypographySettingsStore.setState({ lyricsFontScale: nextScale });
+}
+
+function installEmbedLyricSizing(): void {
+  if (embedLyricSizingInstalled || typeof document === 'undefined') return;
+  embedLyricSizingInstalled = true;
+  const root = document.getElementById('folia-embed-root');
+  if (root && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncEmbedLyricSizing).observe(root);
+  }
+  window.addEventListener('resize', syncEmbedLyricSizing);
+  document.addEventListener('fullscreenchange', syncEmbedLyricSizing);
+  window.requestAnimationFrame(syncEmbedLyricSizing);
 }
 
 function readFollowSong(rawTrack: UnknownRecord | null | undefined): SongResult | null {
@@ -469,6 +516,7 @@ function applyFollowSession(session: FollowSession): void {
     // The store remains sufficient if diagnostics cannot be attached to window.
   }
   syncFollowClock(session.positionMs, session.playing);
+  syncEmbedLyricSizing();
 }
 
 function stopFollowPlayback(): void {
@@ -664,6 +712,7 @@ export function installShizukiExternalBridge(): void {
   installEmbeddedNavigationBridge();
   installCookieBridge();
   installEmbedWallpaperStyle();
+  installEmbedLyricSizing();
   window.addEventListener('message', handleMessage);
   usePlaybackStore.subscribe((state, previousState) => {
     const now = performance.now();
