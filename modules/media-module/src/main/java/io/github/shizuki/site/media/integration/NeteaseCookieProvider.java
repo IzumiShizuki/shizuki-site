@@ -191,9 +191,13 @@ public class NeteaseCookieProvider {
         String cover = readCover(song);
         String audioUrl = resolveAuthorizedAudioUrl(normalizedTrackId, normalizedCookie);
         if (!StringUtils.hasText(audioUrl)) {
-            audioUrl = "https://music.163.com/song/media/outer/url?id="
-                + URLEncoder.encode(normalizedTrackId, StandardCharsets.UTF_8)
-                + ".mp3";
+            // The public outer URL silently downgrades member tracks to a
+            // preview. Let the caller use its explicit fallback instead of
+            // returning that trial stream as an account-authorized result.
+            throw new BusinessException(
+                ErrorCode.NOT_FOUND,
+                "Netease account did not return an authorized audio URL"
+            );
         }
 
         String lyricText = "";
@@ -271,7 +275,14 @@ public class NeteaseCookieProvider {
         try {
             Map<String, Object> payload = requestNcmJson(
                 "/song/url/v1",
-                Map.of("id", trackId, "level", "exhigh"),
+                Map.of(
+                    "id", trackId,
+                    "level", "exhigh",
+                    // Match Folia's resolver exactly. These flags avoid the
+                    // NCM sidecar selecting a trial or browser-incompatible URL.
+                    "randomCNIP", true,
+                    "https", true
+                ),
                 cookie
             );
             String url = readAudioUrl(payload);

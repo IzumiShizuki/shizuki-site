@@ -119,11 +119,11 @@ The embedded music experience SHALL keep the main-site player as the single audi
 #### Scenario: Normal playback reuses Folia's NCM member source
 - **WHEN** a visitor with a valid NetEase Cookie resolves a member-only track from the normal music workspace
 - **THEN** the site requests the stream through the same internal NCM source used by Folia, with the Cookie applied to that request
-- **AND THEN** it only falls back to the direct public NetEase endpoint when the NCM source cannot return a playable address
+- **AND THEN** it uses Folia's signed-URL options and never reports the public `outer/url` trial as an authorized member stream
 
 #### Scenario: Embedded lyric text fits the music workspace
 - **WHEN** Folia is rendered inside a music workspace narrower than the browser viewport
-- **THEN** the primary lyric is scaled to the actual embed width and remains fully readable instead of clipping at either edge
+- **THEN** the primary lyric is scaled to the actual embed width and its longest unbreakable text span remains fully readable instead of clipping at either edge
 - **AND WHEN** the visitor enters fullscreen
 - **THEN** the primary lyric returns to the visitor's preferred scale for the full viewport
 

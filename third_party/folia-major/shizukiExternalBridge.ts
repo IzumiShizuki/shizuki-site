@@ -54,7 +54,8 @@ let embedLyricSizingInstalled = false;
 let embedLyricBaseScale: number | null = null;
 let embedLyricAppliedScale: number | null = null;
 
-const MIN_EMBED_LYRIC_SCALE = 0.68;
+const MIN_EMBED_LYRIC_SCALE = 0.34;
+const EMBED_LYRIC_CONTENT_WIDTH_RATIO = 0.72;
 
 function cssBackgroundImage(url: string): string {
   const normalized = String(url || '').trim();
@@ -107,9 +108,32 @@ function applyEmbedWallpaper(rawSource: unknown, rawPreview: unknown): void {
 
 /**
  * Folia visualizers size their primary line in viewport units. The embedded
- * music surface is narrower than the browser viewport, so retain the visitor's
- * font preference while scaling it to the actual Folia content width.
+ * music surface is narrower than the browser viewport. Long CJK lines are
+ * often one unbreakable text segment, so fit that content as well as the
+ * workspace itself instead of relying on viewport width alone.
  */
+function resolveEmbedLyricContentScale(root: HTMLElement): number {
+  if (document.fullscreenElement) return 1;
+  const state = usePlaybackStore.getState();
+  const lines = state.lyrics?.lines ?? [];
+  const activeLine = lines[state.currentLineIndex] ?? null;
+  const text = String(activeLine?.fullText || '').trim();
+  if (!text) return 1;
+
+  const longestUnbrokenSpan = text
+    .split(/\s+/)
+    .reduce((longest, segment) => Math.max(longest, Array.from(segment).length), 0);
+  if (longestUnbrokenSpan < 2) return 1;
+
+  // Cadenza uses a 0.086 x viewport font baseline and centers a lyric region
+  // around 72% of its available width. Keeping the estimate here makes the
+  // bridge work for its canvas text as well as DOM-based visualizers.
+  const baseFontPx = Math.min(94, Math.max(34, root.clientWidth * 0.086));
+  const availableTextWidth = Math.min(root.clientWidth * EMBED_LYRIC_CONTENT_WIDTH_RATIO, 820);
+  const estimatedLineWidth = longestUnbrokenSpan * baseFontPx * 1.05;
+  return Math.min(1, availableTextWidth / Math.max(estimatedLineWidth, 1));
+}
+
 function syncEmbedLyricSizing(): void {
   const root = document.getElementById('folia-embed-root');
   if (!root || root.clientWidth < 240 || typeof window === 'undefined') return;
@@ -123,10 +147,11 @@ function syncEmbedLyricSizing(): void {
   }
   const viewportWidth = Math.max(1, window.innerWidth || root.clientWidth);
   const widthRatio = Math.min(1, Math.max(0, (root.clientWidth / viewportWidth) * 1.15));
-  const preferredScale = Math.max(MIN_EMBED_LYRIC_SCALE, embedLyricBaseScale ?? 1);
+  const preferredScale = embedLyricBaseScale ?? 1;
+  const contentScale = resolveEmbedLyricContentScale(root);
   const nextScale = Math.max(
     MIN_EMBED_LYRIC_SCALE,
-    Math.min(preferredScale, preferredScale * widthRatio),
+    Math.min(preferredScale, preferredScale * widthRatio, preferredScale * contentScale),
   );
   if (Math.abs(currentScale - nextScale) < 0.005) return;
   embedLyricAppliedScale = nextScale;

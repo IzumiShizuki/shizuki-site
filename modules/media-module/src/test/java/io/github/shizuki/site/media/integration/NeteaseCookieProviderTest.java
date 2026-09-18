@@ -5,6 +5,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import io.github.shizuki.common.core.error.BusinessException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -104,7 +105,7 @@ class NeteaseCookieProviderTest {
     }
 
     @Test
-    void shouldContinueResolveWhenAnonymousAndAccountDetailRequestsFail() {
+    void shouldRejectTrialFallbackWhenAccountStreamCannotBeResolved() {
         server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
             .andExpect(request -> Assertions.assertFalse(request.getHeaders().containsKey("Cookie")))
             .andRespond(withServerError());
@@ -120,28 +121,12 @@ class NeteaseCookieProviderTest {
                 request.getHeaders().getFirst("Cookie")
             ))
             .andRespond(withServerError());
-        server.expect(requestTo(containsString("https://music.163.com/api/song/lyric")))
-            .andExpect(request -> Assertions.assertEquals(
-                ACCOUNT_COOKIE,
-                request.getHeaders().getFirst("Cookie")
-            ))
-            .andRespond(withSuccess("""
-                {
-                  "code": 200,
-                  "lrc": {"lyric": "[00:00.00]fallback lyric"}
-                }
-                """, MediaType.APPLICATION_JSON));
-
-        NeteaseCookieProvider.ResolvedTrack resolved =
-            provider.resolveTrack("private-404", ACCOUNT_COOKIE, true);
-
-        Assertions.assertEquals("private-404", resolved.trackId());
-        Assertions.assertEquals("", resolved.title());
-        Assertions.assertEquals(
-            "https://music.163.com/song/media/outer/url?id=private-404.mp3",
-            resolved.audioUrl()
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> provider.resolveTrack("private-404", ACCOUNT_COOKIE, true)
         );
-        Assertions.assertEquals("[00:00.00]fallback lyric", resolved.lyricText());
+
+        Assertions.assertEquals("Netease account did not return an authorized audio URL", exception.getMessage());
         server.verify();
     }
 
@@ -210,6 +195,8 @@ class NeteaseCookieProviderTest {
             .andExpect(request -> {
                 Assertions.assertTrue(request.getURI().getQuery().contains("id=101"));
                 Assertions.assertTrue(request.getURI().getQuery().contains("level=exhigh"));
+                Assertions.assertTrue(request.getURI().getQuery().contains("randomCNIP=true"));
+                Assertions.assertTrue(request.getURI().getQuery().contains("https=true"));
                 Assertions.assertTrue(request.getURI().getQuery().contains("cookie="));
                 Assertions.assertFalse(request.getHeaders().containsKey("Cookie"));
             })
