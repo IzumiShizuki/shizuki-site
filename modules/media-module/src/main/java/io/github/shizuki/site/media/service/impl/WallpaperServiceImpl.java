@@ -689,7 +689,7 @@ public class WallpaperServiceImpl implements WallpaperService {
         return new DetectedPackage(sceneType, visual, bgm, bgv, null);
     }
 
-    private DetectedPackage detectFromDirectory(Path dir) {
+    DetectedPackage detectFromDirectory(Path dir) {
         if (dir == null || !Files.exists(dir) || !Files.isDirectory(dir)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop download directory is missing");
         }
@@ -724,18 +724,23 @@ public class WallpaperServiceImpl implements WallpaperService {
             DetectedAsset visual = null;
             DetectedAsset bgm = null;
             DetectedAsset bgv = null;
+            boolean containsNativeWallpaperEngineResource = false;
 
             for (Path path : files) {
                 String extension = extensionByFileName(path.getFileName().toString());
                 if (!StringUtils.hasText(extension)) {
                     continue;
                 }
+                containsNativeWallpaperEngineResource |= isNativeWallpaperEngineResource(path, extension);
                 byte[] bytes = Files.readAllBytes(path);
                 if (bytes.length <= 0 || bytes.length > mediaStorageProperties.getMaxUploadSize()) {
                     continue;
                 }
                 AssetKindEnum visualKind = classifyVisualKindByExtension(extension);
                 if (visualKind != null) {
+                    if (isWorkshopPresentationAsset(path)) {
+                        continue;
+                    }
                     DetectedAsset candidate = new DetectedAsset(
                         path.getFileName().toString(),
                         contentTypeByExtension(extension, visualKind),
@@ -757,6 +762,12 @@ public class WallpaperServiceImpl implements WallpaperService {
             }
 
             if (visual == null) {
+                if (containsNativeWallpaperEngineResource) {
+                    throw new BusinessException(
+                        ErrorCode.BAD_REQUEST,
+                        "Wallpaper Engine native scene requires conversion before it can be used on this site"
+                    );
+                }
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop package has no usable visual resource");
             }
             WallpaperSceneTypeEnum sceneType = visual.assetKind() == AssetKindEnum.ANIMATED_IMAGE
@@ -766,6 +777,20 @@ public class WallpaperServiceImpl implements WallpaperService {
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Read workshop package failed");
         }
+    }
+
+    private boolean isWorkshopPresentationAsset(Path path) {
+        String fileName = readString(path == null || path.getFileName() == null ? null : path.getFileName().toString(), "")
+            .toLowerCase(Locale.ROOT);
+        int extensionIndex = fileName.lastIndexOf('.');
+        String baseName = extensionIndex > 0 ? fileName.substring(0, extensionIndex) : fileName;
+        return Set.of("preview", "thumbnail", "thumb", "cover").contains(baseName);
+    }
+
+    private boolean isNativeWallpaperEngineResource(Path path, String extension) {
+        String fileName = readString(path == null || path.getFileName() == null ? null : path.getFileName().toString(), "")
+            .toLowerCase(Locale.ROOT);
+        return "project.json".equals(fileName) || "pkg".equals(readString(extension, "").toLowerCase(Locale.ROOT));
     }
 
     private L2dValidationResult tryValidateL2d(byte[] zipBytes) {
@@ -1491,17 +1516,17 @@ public class WallpaperServiceImpl implements WallpaperService {
         );
     }
 
-    private record DetectedAsset(String fileName,
-                                 String contentType,
-                                 AssetKindEnum assetKind,
-                                 byte[] bytes) {
+    record DetectedAsset(String fileName,
+                         String contentType,
+                         AssetKindEnum assetKind,
+                         byte[] bytes) {
     }
 
-    private record DetectedPackage(WallpaperSceneTypeEnum sceneType,
-                                   DetectedAsset visual,
-                                   DetectedAsset bgm,
-                                   DetectedAsset bgv,
-                                   L2dValidationResult l2dValidation) {
+    record DetectedPackage(WallpaperSceneTypeEnum sceneType,
+                           DetectedAsset visual,
+                           DetectedAsset bgm,
+                           DetectedAsset bgv,
+                           L2dValidationResult l2dValidation) {
     }
 
     private record ImportedWallpaper(Long wallpaperId) {

@@ -34,6 +34,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -306,6 +308,44 @@ class WallpaperServiceImplTest {
     }
 
     @Test
+    void shouldRejectPreviewOnlyNativeWorkshopProject() throws IOException {
+        Path directory = Files.createTempDirectory("wallpaper-workshop-native-");
+        try {
+            Files.writeString(directory.resolve("project.json"), "{}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("scene.pkg"), new byte[] {1, 2, 3});
+            Files.write(directory.resolve("preview.gif"), new byte[] {4, 5, 6});
+
+            BusinessException exception = Assertions.assertThrows(
+                BusinessException.class,
+                () -> wallpaperService.detectFromDirectory(directory)
+            );
+
+            Assertions.assertTrue(exception.getMessage().contains("requires conversion"));
+        } finally {
+            deleteDirectory(directory);
+        }
+    }
+
+    @Test
+    void shouldSelectRuntimeMediaInsteadOfWorkshopPreview() throws IOException {
+        Path directory = Files.createTempDirectory("wallpaper-workshop-runtime-");
+        try {
+            Files.writeString(directory.resolve("project.json"), "{}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("preview.gif"), new byte[] {1, 2, 3});
+            Path runtimeDirectory = Files.createDirectories(directory.resolve("runtime"));
+            Files.write(runtimeDirectory.resolve("life.webm"), new byte[] {4, 5, 6});
+
+            WallpaperServiceImpl.DetectedPackage detected = wallpaperService.detectFromDirectory(directory);
+
+            Assertions.assertEquals(WallpaperSceneTypeEnum.DYNAMIC, detected.sceneType());
+            Assertions.assertEquals("life.webm", detected.visual().fileName());
+            Assertions.assertEquals(AssetKindEnum.ANIMATED_IMAGE, detected.visual().assetKind());
+        } finally {
+            deleteDirectory(directory);
+        }
+    }
+
+    @Test
     void shouldClassifyAsL2dWhenZipValidatorPasses() {
         LoginUserContext.set(new LoginUser(12L, Set.of("USER"), Set.of()));
         L2dValidationResult result = new L2dValidationResult();
@@ -469,6 +509,17 @@ class WallpaperServiceImplTest {
             return outputStream.toByteArray();
         } catch (IOException exception) {
             throw new IllegalStateException("build zip bytes failed", exception);
+        }
+    }
+
+    private void deleteDirectory(Path directory) throws IOException {
+        if (directory == null || !Files.exists(directory)) {
+            return;
+        }
+        try (var paths = Files.walk(directory)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
         }
     }
 
