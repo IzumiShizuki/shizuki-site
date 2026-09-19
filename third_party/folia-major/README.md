@@ -5,11 +5,14 @@
 
 ## 修改内容
 
-对上游仓库的修改共两处（均为最小化、非业务逻辑改动）：
+对上游仓库的修改共三处（均为最小化、非业务逻辑改动）：
 
 1. **`src/vite.config.ts`**：`base` 一行改为读 `VITE_BASE_PATH` 环境变量
    （默认 `/`，不破坏上游行为），使构建产物可挂载到子路径 `/music/`。
 2. **`src/index.tsx`**：挂载本目录的 `shizukiExternalBridge.ts`（外部控制桥）。
+3. **`src/components/visualizer/cadenza/VisualizerCadenza.tsx`**：长歌词换行时保留
+   `pretext` 已计算的逐行居中布局，不再把单个汉字提为焦点后将其余文字碰撞散开。
+   对应回归测试为 `test/unit/cadenzaWrappedLyrics.test.ts`。
 
 桥接协议以站点播放器为唯一音频输出：`shizuki:follow-playback` 发送带版本号的完整会话
 （曲目、队列、歌单资料、解析歌词、歌词焦点、时长、进度、播放态），`shizuki:sync-clock`

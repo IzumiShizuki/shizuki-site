@@ -188,7 +188,7 @@ class NeteaseCookieProviderTest {
             .andRespond(withSuccess("""
                 {
                   "code": 200,
-                  "songs": [{"id": 101, "name": "Member track"}]
+                  "songs": [{"id": 101, "name": "Member track", "dt": 245000}]
                 }
                 """, MediaType.APPLICATION_JSON));
         server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
@@ -203,13 +203,83 @@ class NeteaseCookieProviderTest {
             .andRespond(withSuccess("""
                 {
                   "code": 200,
-                  "data": [{"id": 101, "url": "https://stream.test/folia-member.mp3"}]
+                  "data": [{
+                    "id": 101,
+                    "url": "https://stream.test/folia-member.mp3",
+                    "freeTrialInfo": null,
+                    "freeTimeTrialPrivilege": {
+                      "remainTime": 0,
+                      "resConsumable": false,
+                      "type": 0,
+                      "userConsumable": false
+                    },
+                    "time": 245000,
+                    "size": 3920000
+                  }]
                 }
                 """, MediaType.APPLICATION_JSON));
 
         NeteaseCookieProvider.ResolvedTrack resolved = provider.resolveTrack("101", ACCOUNT_COOKIE, false);
 
         Assertions.assertEquals("https://stream.test/folia-member.mp3", resolved.audioUrl());
+        Assertions.assertEquals(245000L, resolved.durationMs());
+        server.verify();
+    }
+
+    @Test
+    void shouldRejectNcmTrialStreamAndUseTheFullCookieAuthorizedFallback() {
+        RestClient.Builder builder = RestClient.builder();
+        server = MockRestServiceServer.bindTo(builder).build();
+        provider = new NeteaseCookieProvider(builder.build(), "https://ncm.test");
+
+        server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "songs": [{"id": 1880877106, "name": "Full member track", "dt": 245000}]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andExpect(request -> {
+                Assertions.assertTrue(request.getURI().getQuery().contains("cookie="));
+                Assertions.assertFalse(request.getHeaders().containsKey("Cookie"));
+            })
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "data": [{
+                    "id": 1880877106,
+                    "url": "https://stream.test/trial.mp3",
+                    "freeTrialInfo": {"start": 0},
+                    "freeTimeTrialPrivilege": {"resConsumable": true},
+                    "time": 30040,
+                    "size": 481115
+                  }]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://ncm.test/song/url")))
+            .andRespond(withSuccess("""
+                {"code": 200, "data": [{"id": 1880877106, "url": null}]}
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://music.163.com/api/song/url/v1")))
+            .andExpect(request -> Assertions.assertEquals(ACCOUNT_COOKIE, request.getHeaders().getFirst("Cookie")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "data": [{
+                    "id": 1880877106,
+                    "url": "https://stream.test/full-member.mp3",
+                    "freeTrialInfo": null,
+                    "freeTimeTrialPrivilege": null,
+                    "time": 245000,
+                    "size": 3920000
+                  }]
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        NeteaseCookieProvider.ResolvedTrack resolved = provider.resolveTrack("1880877106", ACCOUNT_COOKIE, false);
+
+        Assertions.assertEquals("https://stream.test/full-member.mp3", resolved.audioUrl());
         server.verify();
     }
 

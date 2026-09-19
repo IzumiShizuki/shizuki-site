@@ -50,6 +50,7 @@ let pendingNavigationActionAt = 0;
 let cookieBridgeInstalled = false;
 let lastReportedCookie = '';
 let embedWallpaperStyleInstalled = false;
+let embedWallpaperObserver: MutationObserver | null = null;
 let embedLyricSizingInstalled = false;
 let embedLyricBaseScale: number | null = null;
 let embedLyricAppliedScale: number | null = null;
@@ -90,6 +91,10 @@ function installEmbedWallpaperStyle(): void {
   z-index: 1;
   background-color: transparent !important;
 }
+#folia-embed-root[data-shizuki-wallpaper='active'] [data-shizuki-folia-default-background='hidden'] {
+  opacity: 0 !important;
+  background-color: transparent !important;
+}
 #folia-embed-root[data-shizuki-wallpaper='active']:fullscreen::before,
 .folia-embed-pane:fullscreen #folia-embed-root[data-shizuki-wallpaper='active']::before {
   background-size: cover;
@@ -102,8 +107,43 @@ function applyEmbedWallpaper(rawSource: unknown, rawPreview: unknown): void {
   const root = document.getElementById('folia-embed-root');
   if (!root) return;
   const source = String(rawSource || rawPreview || '').trim();
-  root.dataset.shizukiWallpaper = source ? 'active' : '';
+  if (!source) {
+    delete root.dataset.shizukiWallpaper;
+    delete root.dataset.shizukiWallpaperUrl;
+    root.dataset.shizukiWallpaperState = 'empty';
+    root.querySelectorAll('[data-shizuki-folia-default-background]').forEach((element) => {
+      element.removeAttribute('data-shizuki-folia-default-background');
+    });
+    root.style.setProperty('--shizuki-folia-wallpaper-image', 'none');
+    return;
+  }
+  root.dataset.shizukiWallpaper = 'active';
+  root.dataset.shizukiWallpaperUrl = source;
+  root.dataset.shizukiWallpaperState = 'waiting-for-default-layer';
   root.style.setProperty('--shizuki-folia-wallpaper-image', cssBackgroundImage(source));
+  markEmbeddedDefaultBackground(root);
+  observeEmbeddedDefaultBackground(root);
+}
+
+/**
+ * Folia's default latent canvas paints an opaque theme-color rectangle behind
+ * the player. It is useful standalone, but in an embedded Home-wallpaper view
+ * it would hide the supplied image completely. Mark exactly that canvas host;
+ * visualizer foregrounds and every normal UI layer stay untouched.
+ */
+function markEmbeddedDefaultBackground(root: HTMLElement): void {
+  if (root.dataset.shizukiWallpaper !== 'active') return;
+  const shader = root.querySelector<HTMLElement>('[data-paper-shader]');
+  const host = shader?.closest<HTMLElement>('.absolute.inset-0.z-0.overflow-hidden');
+  if (!host) return;
+  host.setAttribute('data-shizuki-folia-default-background', 'hidden');
+  root.dataset.shizukiWallpaperState = 'ready';
+}
+
+function observeEmbeddedDefaultBackground(root: HTMLElement): void {
+  if (embedWallpaperObserver) return;
+  embedWallpaperObserver = new MutationObserver(() => markEmbeddedDefaultBackground(root));
+  embedWallpaperObserver.observe(root, { childList: true, subtree: true });
 }
 
 /**

@@ -1931,30 +1931,21 @@ public class MediaServiceImpl implements MediaService {
 
         MusicApiContext apiContext = resolveMusicApiContext();
         boolean hasBoundAccountSource = sourcePolicy.boundProviders().contains(provider);
-        boolean accountFirst = SOURCE_MODE_ACCOUNT_FIRST.equals(sourcePolicy.mode());
         boolean accountOnly = SOURCE_MODE_ACCOUNT_ONLY.equals(sourcePolicy.mode());
-        // 统一音源：网易云账号绑定后优先用账号 cookie 解析（与 Folia 同款音源，VIP 可听），
-        // 失败再回退 meting。仅 accountOnly 模式在账号失败时直接报错。
-        if (canUseNeteaseAccount && !accountOnly) {
+        // 网易云账号解析是普通模式与 Folia 的共同授权源。账号源若只返回试听，
+        // 必须直接报错让用户重新绑定，不能静默退回 Meting 的试听 URL。
+        if (canUseNeteaseAccount) {
             try {
                 return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, false);
             } catch (Exception ex) {
                 LOGGER.warn(
-                    "MUSIC_RESOLVE_PLAYBACK_ACCOUNT_FAIL provider={} trackId={} mode={} reason={}",
+                    "MUSIC_RESOLVE_PLAYBACK_ACCOUNT_REQUIRED_FAIL provider={} trackId={} mode={} reason={}",
                     provider,
                     trackId,
                     sourcePolicy.mode(),
                     sanitizeLogMessage(readString(ex.getMessage(), "unknown_error"))
                 );
-            }
-        }
-        if (accountOnly && canUseNeteaseAccount) {
-            try {
-                return resolvePlaybackViaNeteaseAccount(request, trackId, storageMode, resolveLyric, userId, startMs, false);
-            } catch (Exception ex) {
-                if (accountOnly) {
-                    throw ex;
-                }
+                throw ex;
             }
         }
 
@@ -4267,7 +4258,10 @@ public class MediaServiceImpl implements MediaService {
                     "cacheMode", storageMode.code(),
                     "resolved_source", "netease_account",
                     "fallback_applied", fallbackApplied,
-                    "retry_count", 0
+                    "retry_count", 0,
+                    "durationMs", Math.max(0L, resolved.durationMs()),
+                    "playbackKind", "full",
+                    "isPreview", false
                 ),
                 lyricText,
                 translationLyricText,

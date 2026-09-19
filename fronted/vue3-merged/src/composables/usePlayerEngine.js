@@ -129,6 +129,43 @@ function readPositiveTrackDurationSec(track, metadata = {}) {
   return 0;
 }
 
+function mergeResolvedPlaybackTrack(track, payload) {
+  const resolvedPayload = payload && typeof payload === 'object' ? payload : {};
+  const resolvedMetadata = resolvedPayload?.metadata && typeof resolvedPayload.metadata === 'object'
+    ? resolvedPayload.metadata
+    : {};
+  const metadata = {
+    ...(track?.metadata && typeof track.metadata === 'object' ? track.metadata : {}),
+    ...resolvedMetadata
+  };
+  const resolvedSource = String(metadata.resolved_source || metadata.resolvedSource || '').trim().toLowerCase();
+  const resolvedPlaybackKind = String(metadata.playbackKind || metadata.playback_kind || '').trim().toLowerCase();
+  const isConfirmedFullPlayback = resolvedSource === 'netease_account'
+    || resolvedPlaybackKind === 'full'
+    || metadata.isPreview === false
+    || metadata.is_preview === false;
+  const resolvedDurationSec = readPositiveTrackDurationSec(resolvedPayload, resolvedMetadata);
+
+  return {
+    ...track,
+    ...resolvedPayload,
+    metadata,
+    ...(isConfirmedFullPlayback
+      ? {
+          playbackKind: 'full',
+          isPreview: false,
+          ...(resolvedDurationSec > 0
+            ? {
+                durationSec: resolvedDurationSec,
+                durationMs: resolvedDurationSec * 1000,
+                durationLabel: formatMediaTime(resolvedDurationSec, { fallback: '--:--' })
+              }
+            : {})
+        }
+      : {})
+  };
+}
+
 let queueEntrySequence = 0;
 
 /**
@@ -682,8 +719,7 @@ export function usePlayerEngine(options = {}) {
       );
       const merged = normalizeTrack(
         {
-          ...track,
-          ...payload,
+          ...mergeResolvedPlaybackTrack(track, payload),
           id: track.id,
           trackId
         },
@@ -742,8 +778,7 @@ export function usePlayerEngine(options = {}) {
       );
       const resolved = normalizeTrack(
         {
-          ...track,
-          ...payload,
+          ...mergeResolvedPlaybackTrack(track, payload),
           id: track.id,
           trackId
         },

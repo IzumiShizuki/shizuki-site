@@ -321,6 +321,42 @@ describe('usePlayerEngine lyric chain', () => {
     expect(engine.currentTrack.value?.durationLabel).toBe('04:00');
   });
 
+  it('clears stale preview metadata when the account resolver returns a full NetEase stream', async () => {
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({
+      audio: '/api/v1/music/tracks/stream/full-member-capability',
+      metadata: {
+        resolved_source: 'netease_account',
+        playbackKind: 'full',
+        isPreview: false,
+        durationMs: 247766
+      }
+    });
+
+    const engine = usePlayerEngine();
+    await engine.enqueueExternalTrack(
+      {
+        provider: 'netease',
+        trackId: '1880877106',
+        title: 'Member track',
+        artist: 'Singer',
+        durationSec: 30,
+        playbackKind: 'preview',
+        isPreview: true
+      },
+      true,
+      { replaceQueue: true }
+    );
+
+    expect(engine.currentTrack.value).toMatchObject({
+      audio: '/api/v1/music/tracks/stream/full-member-capability',
+      durationSec: 247.766,
+      playbackKind: 'full',
+      isPreview: false
+    });
+    expect(engine.expectedDuration.value).toBe(247.766);
+    expect(engine.isPreviewPlayback.value).toBe(false);
+  });
+
   it('preserves duration and preview metadata when enqueuing the next track', async () => {
     const engine = usePlayerEngine();
 

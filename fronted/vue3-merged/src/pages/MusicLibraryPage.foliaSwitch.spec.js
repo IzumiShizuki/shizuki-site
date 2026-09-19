@@ -154,8 +154,13 @@ describe('MusicLibraryPage Folia mode handoff', () => {
 
   it('keeps the Home wallpaper sharp within the Folia surface and in fullscreen', () => {
     expect(bridgeSource).toContain('function applyEmbedWallpaper');
-    expect(bridgeSource).toContain("root.dataset.shizukiWallpaper = source ? 'active' : ''");
+    expect(bridgeSource).toContain("root.dataset.shizukiWallpaper = 'active'");
     expect(bridgeSource).toContain('background-image: var(--shizuki-folia-wallpaper-image)');
     expect(bridgeSource).toContain('.folia-embed-pane:fullscreen #folia-embed-root');
+    expect(bridgeSource).toContain('function markEmbeddedDefaultBackground');
+    expect(bridgeSource).toContain("[data-paper-shader]");
+    expect(bridgeSource).toContain("data-shizuki-folia-default-background', 'hidden'");
+    expect(bridgeSource).toContain('root.dataset.shizukiWallpaperUrl = source');
+    expect(bridgeSource).toContain("root.dataset.shizukiWallpaperState = 'ready'");
   });
 });

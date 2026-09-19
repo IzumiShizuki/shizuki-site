@@ -29,6 +29,7 @@ public class NeteaseCookieProvider {
     private static final int SONG_DETAIL_BATCH_SIZE = 100;
     private static final int SONG_DETAIL_RETRY_ATTEMPTS = 3;
     private static final long SONG_DETAIL_RETRY_DELAY_MILLIS = 350L;
+    private static final long TRIAL_DURATION_TOLERANCE_MILLIS = 3_000L;
 
     private final RestClient restClient;
     private final String ncmBaseUrl;
@@ -189,7 +190,8 @@ public class NeteaseCookieProvider {
         String title = readString(song == null ? null : song.get("name"), "");
         String artist = readArtist(song);
         String cover = readCover(song);
-        String audioUrl = resolveAuthorizedAudioUrl(normalizedTrackId, normalizedCookie);
+        long expectedDurationMillis = readLong(song == null ? null : song.get("dt"), 0L);
+        String audioUrl = resolveAuthorizedAudioUrl(normalizedTrackId, normalizedCookie, expectedDurationMillis);
         if (!StringUtils.hasText(audioUrl)) {
             // The public outer URL silently downgrades member tracks to a
             // preview. Let the caller use its explicit fallback instead of
@@ -225,14 +227,15 @@ public class NeteaseCookieProvider {
             artist,
             cover,
             audioUrl,
+            expectedDurationMillis,
             lyricText,
             translationLyricText,
             furiganaLyricText
         );
     }
 
-    private String resolveAuthorizedAudioUrl(String trackId, String cookie) {
-        String ncmAudioUrl = resolveAuthorizedAudioUrlViaNcm(trackId, cookie);
+    private String resolveAuthorizedAudioUrl(String trackId, String cookie, long expectedDurationMillis) {
+        String ncmAudioUrl = resolveAuthorizedAudioUrlViaNcm(trackId, cookie, expectedDurationMillis);
         if (StringUtils.hasText(ncmAudioUrl)) {
             return ncmAudioUrl;
         }
@@ -242,7 +245,7 @@ public class NeteaseCookieProvider {
                 Map.of("id", trackId, "level", "exhigh"),
                 cookie
             );
-            String url = readAudioUrl(payload);
+            String url = readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "music_163_v1");
             if (StringUtils.hasText(url)) {
                 return url;
             }
@@ -252,7 +255,7 @@ public class NeteaseCookieProvider {
                 Map.of("id", trackId, "br", 320000),
                 cookie
             );
-            return readAudioUrl(payload);
+            return readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "music_163_legacy");
         } catch (Exception ex) {
             LOGGER.warn(
                 "MUSIC_NETEASE_AUTH_AUDIO_RESOLVE_FAIL trackId={} reason_type={}",
@@ -268,7 +271,7 @@ public class NeteaseCookieProvider {
      * path here so the normal player sees the same Cookie-aware result instead
      * of depending on a browser-unfriendly direct request to music.163.com.
      */
-    private String resolveAuthorizedAudioUrlViaNcm(String trackId, String cookie) {
+    private String resolveAuthorizedAudioUrlViaNcm(String trackId, String cookie, long expectedDurationMillis) {
         if (!StringUtils.hasText(ncmBaseUrl)) {
             return "";
         }
@@ -285,7 +288,7 @@ public class NeteaseCookieProvider {
                 ),
                 cookie
             );
-            String url = readAudioUrl(payload);
+            String url = readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "ncm_v1");
             if (StringUtils.hasText(url)) {
                 return url;
             }
@@ -294,7 +297,7 @@ public class NeteaseCookieProvider {
                 Map.of("id", trackId, "br", 320000),
                 cookie
             );
-            return readAudioUrl(payload);
+            return readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "ncm_legacy");
         } catch (Exception ex) {
             LOGGER.warn(
                 "MUSIC_NETEASE_NCM_AUTH_AUDIO_RESOLVE_FAIL trackId={} reason_type={}",
@@ -305,14 +308,79 @@ public class NeteaseCookieProvider {
         }
     }
 
-    private String readAudioUrl(Map<String, Object> payload) {
+    /**
+     * A valid account cookie can still receive the provider's 30-second trial
+     * response when it expires or lacks the required entitlement. Never pass
+     * that URL to the normal player as an account-authorized stream.
+     */
+    private String readAuthorizedAudioUrl(Map<String, Object> payload,
+                                          String trackId,
+                                          long expectedDurationMillis,
+                                          String source) {
         for (Map<String, Object> item : toObjectMapList(payload.get("data"))) {
             String url = readString(item.get("url"), "");
-            if (StringUtils.hasText(url)) {
+            if (StringUtils.hasText(url) && !isTrialAudioResponse(item, expectedDurationMillis)) {
                 return url;
+            }
+            if (StringUtils.hasText(url)) {
+                long responseDurationMillis = readLong(item.get("time"), 0L);
+                long sizeBytes = readLong(item.get("size"), 0L);
+                LOGGER.warn(
+                    "MUSIC_NETEASE_ACCOUNT_TRIAL_AUDIO_REJECTED trackId={} source={} hasFreeTrialInfo={} hasFreeTimeTrialPrivilege={} responseDurationMs={} expectedDurationMs={} hasSize={}",
+                    trackId,
+                    source,
+                    hasValue(item.get("freeTrialInfo")),
+                    hasValue(item.get("freeTimeTrialPrivilege")),
+                    responseDurationMillis,
+                    expectedDurationMillis,
+                    sizeBytes > 0L
+                );
             }
         }
         return "";
+    }
+
+    private boolean isTrialAudioResponse(Map<String, Object> item, long expectedDurationMillis) {
+        if (hasValue(item.get("freeTrialInfo")) || hasActiveTrialPrivilege(item.get("freeTimeTrialPrivilege"))) {
+            return true;
+        }
+        long responseDurationMillis = readLong(item.get("time"), 0L);
+        return expectedDurationMillis > 0L
+            && responseDurationMillis > 0L
+            && responseDurationMillis + TRIAL_DURATION_TOLERANCE_MILLIS < expectedDurationMillis;
+    }
+
+    private boolean hasValue(Object raw) {
+        if (raw == null) {
+            return false;
+        }
+        if (raw instanceof Map<?, ?> map) {
+            return !map.isEmpty();
+        }
+        if (raw instanceof List<?> list) {
+            return !list.isEmpty();
+        }
+        return StringUtils.hasText(String.valueOf(raw));
+    }
+
+    private boolean hasActiveTrialPrivilege(Object raw) {
+        Map<String, Object> privilege = toStringObjectMap(raw);
+        if (privilege.isEmpty()) {
+            return false;
+        }
+        return readBoolean(privilege.get("userConsumable"))
+            || readBoolean(privilege.get("resConsumable"));
+    }
+
+    private boolean readBoolean(Object raw) {
+        if (raw instanceof Boolean value) {
+            return value;
+        }
+        if (raw instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        String value = readString(raw, "").toLowerCase(Locale.ROOT);
+        return "true".equals(value) || "1".equals(value);
     }
 
     private Long resolveUserId(String cookie) {
@@ -670,6 +738,7 @@ public class NeteaseCookieProvider {
                                 String artist,
                                 String cover,
                                 String audioUrl,
+                                long durationMs,
                                 String lyricText,
                                 String translationLyricText,
                                 String furiganaLyricText) {

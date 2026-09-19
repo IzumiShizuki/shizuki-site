@@ -1442,6 +1442,7 @@ class MediaServiceImplTest {
                 "Singer",
                 "https://cover.example.com/member.jpg",
                 "https://audio.example.com/member.mp3",
+                247_766L,
                 "[00:01.00]original",
                 "[00:01.00]translation",
                 "[00:01.00]pronunciation"
@@ -1455,6 +1456,9 @@ class MediaServiceImplTest {
         MusicTrackResponse response = mediaService.resolvePlaybackTrack(request);
 
         Assertions.assertEquals("https://audio.example.com/member.mp3", response.audio());
+        Assertions.assertEquals(247_766L, response.metadata().get("durationMs"));
+        Assertions.assertEquals("full", response.metadata().get("playbackKind"));
+        Assertions.assertEquals(false, response.metadata().get("isPreview"));
         Assertions.assertEquals(
             "[00:01.00]translation",
             ((Map<?, ?>) response.metadata().get("lyricTracks")).get("translation")
@@ -1477,6 +1481,7 @@ class MediaServiceImplTest {
                 "Singer",
                 "https://cover.example.com/fresh-member.jpg",
                 "https://audio.example.com/fresh-member.mp3",
+                217_000L,
                 "[00:01.00]original",
                 "",
                 ""
@@ -1496,6 +1501,35 @@ class MediaServiceImplTest {
             "MUSIC_U=fresh-member-secret",
             true
         );
+        Mockito.verifyNoInteractions(metingMusicProvider);
+    }
+
+    @Test
+    void shouldNotFallbackToMetingTrialWhenBoundNeteaseAccountRejectsItsStream() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        Mockito.when(userMusicClient.getPreference(9L)).thenReturn(Map.of("music.source_mode", "meting_first"));
+        Mockito.when(userMusicClient.listSourceAccountStatus(9L)).thenReturn(List.of(
+            new UserMusicGateway.SourceAccountStatus("netease", "cookie", true, "", "BOUND")
+        ));
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease"))
+            .thenReturn("MUSIC_U=member-secret");
+        Mockito.when(neteaseCookieProvider.resolveTrack("1880877106", "MUSIC_U=member-secret", false))
+            .thenThrow(new BusinessException(
+                ErrorCode.NOT_FOUND,
+                "Netease account did not return an authorized audio URL"
+            ));
+
+        MusicResolvePlaybackRequest request = new MusicResolvePlaybackRequest();
+        request.setProvider("netease");
+        request.setTrackId("1880877106");
+
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> mediaService.resolvePlaybackTrack(request)
+        );
+
+        Assertions.assertEquals(ErrorCode.NOT_FOUND, exception.getErrorCode());
+        Mockito.verify(neteaseCookieProvider).resolveTrack("1880877106", "MUSIC_U=member-secret", false);
         Mockito.verifyNoInteractions(metingMusicProvider);
     }
 
