@@ -20,6 +20,9 @@
 网易云音源或歌词；它的选歌/播放控制只会回传主站。嵌入根下每个 Folia `<audio>` 都会
 暂停、清空 `src`，并由捕获阶段 `play` 锁拦截，确保不会生成第二路声音。
 
+网易云登录态以 Folia 当前的 `online_provider:netease:cookie` 为主键，桥仍双写并监听
+旧版 `netease_cookie`，以便历史站点部署平滑迁移且不会用旧数据库凭据覆盖新登录态。
+
 ## AGPL-3.0 合规
 
 - Folia 上游为 AGPL-3.0，本部署**未并入** `fronted/vue3-merged` 私有仓库，

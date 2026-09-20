@@ -116,6 +116,11 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **THEN** the resulting authorized Cookie is persisted for the visitor and becomes eligible for normal-mode resolution immediately
 - **AND THEN** normal-mode NetEase playback prefers the account-authorized source even if the account-status projection has not refreshed yet
 
+#### Scenario: Folia changes its provider Cookie storage key
+- **WHEN** Folia stores the NetEase session under its current `online_provider:netease:cookie` key
+- **THEN** the site reads that key before the legacy `netease_cookie` alias and persists the same authorized session
+- **AND THEN** site-to-Folia synchronization writes both keys so an upgrade cannot silently disconnect normal playback from Folia login
+
 #### Scenario: Normal playback reuses Folia's NCM member source
 - **WHEN** a visitor with a valid NetEase Cookie resolves a member-only track from the normal music workspace
 - **THEN** the site requests the stream through the same internal NCM source used by Folia, with the Cookie applied to that request

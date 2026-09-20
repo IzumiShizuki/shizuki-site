@@ -157,6 +157,19 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(syncBack).toContain("postToFolia({ type: 'shizuki:get-cookie' })");
   });
 
+  it('reads Folia current Netease cookie storage before the legacy alias', () => {
+    const cookieReader = readFunction('readFoliaNeteaseCookie');
+
+    expect(source).toContain(
+      "const FOLIA_NETEASE_COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie']"
+    );
+    expect(cookieReader).toContain('for (const key of FOLIA_NETEASE_COOKIE_STORAGE_KEYS)');
+    expect(bridgeSource).toContain(
+      "const COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie']"
+    );
+    expect(bridgeSource).toContain('for (const key of COOKIE_STORAGE_KEYS)');
+  });
+
   it('uses Folia as an inline music action without a separate mode switch', () => {
     expect(source).not.toContain('music-library-mode-switch');
     expect(source).not.toContain('folia-open-external');

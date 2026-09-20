@@ -10,7 +10,7 @@
 - [x] 域名路径 `https://shizuki.online/music/` 本机与服务器均可访问（无需新 DNS）。
 - [x] 主站入口：**音乐页内嵌模式切换**——`MusicLibraryPage.vue` 顶部「普通模式 / Folia 沉浸模式」tab，Folia 模式同源 iframe 嵌入 `site.shizuki.online/music/`（localStorage 持久化）。
 - [x] site.shizuki.online 增加 `/music/` 同源反代（openresty），iframe 与主站同源共享 cookie。
-- [x] **账号互通**：后端新增 `GET /api/v1/me/music/source-accounts/{provider}/cookie`；前端 `syncCookieToFolia` 把网易云 cookie 通过 postMessage 写入 iframe localStorage.netease_cookie。
+- [x] **账号互通**：后端新增 `GET /api/v1/me/music/source-accounts/{provider}/cookie`；前端与 Folia 通过同源存储及 postMessage 同步网易云 Cookie（现行键 `online_provider:netease:cookie`，兼容旧键 `netease_cookie`）。
 - [x] **歌曲互通**：Folia 新增 `shizukiExternalBridge.ts`（postMessage 桥：sync-cookie / play-track / get-status）；前端歌曲行加「用 Folia 沉浸模式播放」按钮 + `shizuki:play-in-folia` 事件 + 切歌推送。
 - [x] openresty 补 `location /netease/` 根路径反代（Folia 前端内部 API 请求为根路径 `/netease/...`）。
 
@@ -114,3 +114,9 @@
 - [x] **会员音源与嵌入歌词回归**：普通模式网易云会员曲优先复用 Folia 的 NCM 授权源；Folia 嵌入歌词按内容区宽度缩放并在全屏恢复用户字号。
 - [x] **会员直链与长句歌词回归**：会员解析复用 Folia 的完整 NCM 请求参数，禁止以试听外链冒充授权音源；嵌入歌词按当前不可断开文本长度与内容区宽度自适应。
 - [x] **会员音源瞬时试听自愈**：Folia 本地 Cookie 优先回写，防止数据库旧授权覆盖；NCM 对明确 30 秒试听响应使用变化时间戳重试，并以 `ALMIGHTY～仮面の約束`（`1880877106`，`247766 ms`）覆盖完整播放回归。
+
+## Folia 凭据键兼容（2026-09-21）
+
+- [x] **现行键回写**：主站优先读取 Folia 的 `online_provider:netease:cookie`，旧 `netease_cookie` 仅作兼容回退。
+- [x] **桥接双写**：Folia 外部桥对两个键统一读写和监听，后续扫码刷新可以立即回写普通模式。
+- [ ] **生产验收**：目标曲 `1880877106` 在普通模式解析为 `247766 ms` 完整流，Range 请求成功且播放越过 30 秒。

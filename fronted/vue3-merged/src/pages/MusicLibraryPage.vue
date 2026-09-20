@@ -318,6 +318,7 @@ const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
 // Folia 沉浸模式：同源嵌入已部署的 Folia 播放器（site.shizuki.online/music → gateway 18081）
 const FOLIA_EMBED_URL = '/music/';
 const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
+const FOLIA_NETEASE_COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie'];
 const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
   'shizuki:follow-playback',
   'shizuki:activate-playback-bridge',
@@ -657,7 +658,7 @@ function postToFolia(payload) {
   }
 }
 
-/** 拉取当前用户网易云 cookie 并同步到 Folia（写入 iframe localStorage.netease_cookie）。 */
+/** 拉取当前用户网易云 cookie 并同步到 Folia 的当前存储键与旧版兼容键。 */
 async function syncCookieToFolia() {
   if (!auth.isAuthenticated.value) return false;
   try {
@@ -683,7 +684,11 @@ async function syncCookieToFolia() {
 
 function readFoliaNeteaseCookie() {
   try {
-    return String(window.localStorage.getItem('netease_cookie') || '').trim();
+    for (const key of FOLIA_NETEASE_COOKIE_STORAGE_KEYS) {
+      const cookie = String(window.localStorage.getItem(key) || '').trim();
+      if (cookie) return cookie;
+    }
+    return '';
   } catch {
     return '';
   }

@@ -13,7 +13,7 @@ import { useTypographySettingsStore } from './stores/useTypographySettingsStore'
 import { lyricCurrentTime } from './stores/motionSignals';
 import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
 
-const COOKIE_STORAGE_KEY = 'netease_cookie';
+const COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie'];
 const EMBED_AUDIO_SELECTOR = '#folia-embed-root audio';
 
 type UnknownRecord = Record<string, unknown>;
@@ -603,7 +603,11 @@ function stopFollowPlayback(): void {
 
 function readCookieFromStorage(): string {
   try {
-    return window.localStorage.getItem(COOKIE_STORAGE_KEY) || '';
+    for (const key of COOKIE_STORAGE_KEYS) {
+      const cookie = window.localStorage.getItem(key) || '';
+      if (cookie) return cookie;
+    }
+    return '';
   } catch {
     return '';
   }
@@ -612,7 +616,9 @@ function readCookieFromStorage(): string {
 function writeCookieToStorage(cookie: string): void {
   if (!cookie) return;
   try {
-    window.localStorage.setItem(COOKIE_STORAGE_KEY, cookie);
+    for (const key of COOKIE_STORAGE_KEYS) {
+      window.localStorage.setItem(key, cookie);
+    }
     // The parent already owns this value when it sends a sync request. Record
     // it so the change watcher does not echo the same credential back.
     lastReportedCookie = cookie;
@@ -647,7 +653,7 @@ function installCookieBridge(): void {
   cookieBridgeInstalled = true;
   lastReportedCookie = readCookieFromStorage();
   window.addEventListener('storage', (event) => {
-    if (event.key === COOKIE_STORAGE_KEY) reportCookieIfChanged();
+    if (event.key && COOKIE_STORAGE_KEYS.includes(event.key)) reportCookieIfChanged();
   });
   window.setInterval(reportCookieIfChanged, 1500);
 }

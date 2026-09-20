@@ -34,12 +34,12 @@ VITE_NETEASE_API_BASE=/netease        # gateway 内 location /netease/ 反代现
 FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可用
 ```
 
-## 账号与歌曲互通（同源 iframe + postMessage）
+## 账号与歌曲互通（同源嵌入 + postMessage）
 
 **账号互通（网易云）**：
 - 后端新增 `GET /api/v1/me/music/source-accounts/{provider}/cookie`（`MediaService.getMySourceAccountCookie`，复用已有 `getSourceAccountCookiePlaintext`，仅限当前登录用户）。
-- 前端切到 Folia 模式时 `authorizedFetch` 拉取 cookie → 通过 `shizuki:sync-cookie` postMessage 写入 iframe 的 `localStorage.netease_cookie`。
-- Folia 的 `fetchWithCreds` 每次请求实时读 `netease_cookie` 并作为 `?cookie=` 参数 → 两套播放器共享同一网易云登录态。
+- 前端进入 Folia 功能时优先读取 Folia 当前使用的 `localStorage['online_provider:netease:cookie']` 并回写站点；旧版 `netease_cookie` 仅作为兼容别名。
+- 站点向 Folia 下发 Cookie 时同时写入现行键与旧版别名，保证 Folia 的 provider 请求和历史部署都读取到同一网易云登录态。
 
 **歌曲互通（双向）**：
 - Folia 侧新增 `src/shizukiExternalBridge.ts`（AGPL 公开，见 `third_party/folia-major/`）：监听 `shizuki:play-track` → `neteaseApi.getSongDetail` + `getSongUrl` 解析 → `usePlaybackStore` 设置 currentSong/audioSrc 播放；监听 `shizuki:get-status` → 回传 `shizuki:status`（含 `window.__folia_current_time` 进度）。
@@ -105,6 +105,6 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - **同源 NCM 会员解析**：普通模式带 Cookie 的网易云解析先调用站内 `music-ncm-api`，与 Folia 使用同一 API 和授权形态；只有 NCM 未返回可播放地址时才尝试网易云官网接口，避免两套解析行为漂移导致会员曲在普通模式失效。
 - **会员授权不可降级**：NCM 解析使用与 Folia 相同的 `randomCNIP=true`、`https=true` 参数。账号通道没有返回授权直链时不得返回网易云 `outer/url` 试听地址，而是明确失败并交由既有解析回退策略处理。
 - **瞬时试听响应自愈**：NCM 偶发会在有效黑胶会员 Cookie 下返回带 `freeTrialInfo` 的 30 秒地址。账号解析在明确识别出试听或空地址时，以变化的 `timestamp` 最多重试三次 Folia 同款 `/song/url/v1` 请求；首个完整时长结果立即结束重试，持续试听仍按失败处理。
-- **Folia 授权写回优先**：同源嵌入加载时先读取 `localStorage.netease_cookie` 并回写站点账户；只有本地没有授权或写回失败时才从后端下发 Cookie，避免旧数据库值覆盖 Folia 刚刷新的登录态。
+- **Folia 授权写回优先**：同源嵌入加载时先读取 Folia 现行键 `localStorage['online_provider:netease:cookie']`，再回退旧键 `netease_cookie`，并回写站点账户；只有本地没有授权或回写失败时才从后端下发 Cookie，避免旧数据库值覆盖 Folia 刚刷新的登录态。
 - **嵌入歌词尺寸**：Folia 的部分可视化器使用视口单位计算主歌词字号。桥在嵌入态按 `#folia-embed-root` 的实际宽度以及当前行最长不可断开文本的长度临时压缩字号，且不写入用户偏好；进入全屏或返回宽容器时自动恢复原偏好字号。
 - **歌单浏览入口**：歌单详情提供 Folia 浏览操作，将已加载的完整曲目列表置入主站队列并打开 lattice 展示；队列所有权与音频所有权依旧留在 Vue 播放器。
