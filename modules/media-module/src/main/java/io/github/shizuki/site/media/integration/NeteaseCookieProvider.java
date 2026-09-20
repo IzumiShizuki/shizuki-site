@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -29,6 +28,7 @@ public class NeteaseCookieProvider {
     private static final int SONG_DETAIL_BATCH_SIZE = 100;
     private static final int SONG_DETAIL_RETRY_ATTEMPTS = 3;
     private static final long SONG_DETAIL_RETRY_DELAY_MILLIS = 350L;
+    private static final int AUTHORIZED_AUDIO_RETRY_ATTEMPTS = 3;
     private static final long TRIAL_DURATION_TOLERANCE_MILLIS = 3_000L;
 
     private final RestClient restClient;
@@ -275,37 +275,51 @@ public class NeteaseCookieProvider {
         if (!StringUtils.hasText(ncmBaseUrl)) {
             return "";
         }
+        Exception lastFailure = null;
+        for (int attempt = 1; attempt <= AUTHORIZED_AUDIO_RETRY_ATTEMPTS; attempt++) {
+            try {
+                Map<String, Object> payload = requestNcmJson(
+                    "/song/url/v1",
+                    Map.of(
+                        "id", trackId,
+                        "level", "exhigh",
+                        // Match Folia's resolver exactly. The changing timestamp
+                        // prevents a transient trial response from being reused.
+                        "randomCNIP", true,
+                        "https", true,
+                        "timestamp", System.currentTimeMillis() + attempt
+                    ),
+                    cookie
+                );
+                String url = readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "ncm_v1");
+                if (StringUtils.hasText(url)) {
+                    return url;
+                }
+            } catch (Exception ex) {
+                lastFailure = ex;
+            }
+        }
         try {
             Map<String, Object> payload = requestNcmJson(
-                "/song/url/v1",
-                Map.of(
-                    "id", trackId,
-                    "level", "exhigh",
-                    // Match Folia's resolver exactly. These flags avoid the
-                    // NCM sidecar selecting a trial or browser-incompatible URL.
-                    "randomCNIP", true,
-                    "https", true
-                ),
+                "/song/url",
+                Map.of("id", trackId, "br", 320000, "timestamp", System.currentTimeMillis()),
                 cookie
             );
-            String url = readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "ncm_v1");
+            String url = readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "ncm_legacy");
             if (StringUtils.hasText(url)) {
                 return url;
             }
-            payload = requestNcmJson(
-                "/song/url",
-                Map.of("id", trackId, "br", 320000),
-                cookie
-            );
-            return readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "ncm_legacy");
         } catch (Exception ex) {
+            lastFailure = ex;
+        }
+        if (lastFailure != null) {
             LOGGER.warn(
                 "MUSIC_NETEASE_NCM_AUTH_AUDIO_RESOLVE_FAIL trackId={} reason_type={}",
                 trackId,
-                ex.getClass().getSimpleName()
+                lastFailure.getClass().getSimpleName()
             );
-            return "";
         }
+        return "";
     }
 
     /**
@@ -341,7 +355,11 @@ public class NeteaseCookieProvider {
     }
 
     private boolean isTrialAudioResponse(Map<String, Object> item, long expectedDurationMillis) {
-        if (hasValue(item.get("freeTrialInfo")) || hasActiveTrialPrivilege(item.get("freeTimeTrialPrivilege"))) {
+        // NCM returns freeTimeTrialPrivilege for some fully authorized member
+        // streams as well. Its consumable flags describe account capability,
+        // not the duration of this response, so treating them as a standalone
+        // trial marker rejects valid full-length playback.
+        if (hasValue(item.get("freeTrialInfo"))) {
             return true;
         }
         long responseDurationMillis = readLong(item.get("time"), 0L);
@@ -361,26 +379,6 @@ public class NeteaseCookieProvider {
             return !list.isEmpty();
         }
         return StringUtils.hasText(String.valueOf(raw));
-    }
-
-    private boolean hasActiveTrialPrivilege(Object raw) {
-        Map<String, Object> privilege = toStringObjectMap(raw);
-        if (privilege.isEmpty()) {
-            return false;
-        }
-        return readBoolean(privilege.get("userConsumable"))
-            || readBoolean(privilege.get("resConsumable"));
-    }
-
-    private boolean readBoolean(Object raw) {
-        if (raw instanceof Boolean value) {
-            return value;
-        }
-        if (raw instanceof Number number) {
-            return number.intValue() != 0;
-        }
-        String value = readString(raw, "").toLowerCase(Locale.ROOT);
-        return "true".equals(value) || "1".equals(value);
     }
 
     private Long resolveUserId(String cookie) {

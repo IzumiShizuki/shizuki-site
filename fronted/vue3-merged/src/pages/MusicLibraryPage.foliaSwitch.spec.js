@@ -144,6 +144,19 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(preload).toContain("fetch(indexUrl, { cache: 'no-store' })");
   });
 
+  it('preserves an existing Folia login before syncing a site-side cookie', () => {
+    const loadEmbed = readFunction('loadFoliaEmbed');
+    const syncBack = readFunction('syncCookieBackFromFolia');
+
+    expect(loadEmbed).toContain('const foliaCookieSynced = await syncCookieBackFromFolia()');
+    expect(loadEmbed).toContain('if (!foliaCookieSynced) await syncCookieToFolia()');
+    expect(loadEmbed.indexOf('syncCookieBackFromFolia')).toBeLessThan(loadEmbed.indexOf('syncCookieToFolia'));
+    expect(syncBack).toContain("readFoliaNeteaseCookie()");
+    expect(syncBack).toContain('await persistFoliaNeteaseCookie(localCookie)');
+    expect(syncBack).toContain('return true');
+    expect(syncBack).toContain("postToFolia({ type: 'shizuki:get-cookie' })");
+  });
+
   it('uses Folia as an inline music action without a separate mode switch', () => {
     expect(source).not.toContain('music-library-mode-switch');
     expect(source).not.toContain('folia-open-external');

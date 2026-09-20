@@ -408,8 +408,11 @@ async function loadFoliaEmbed() {
     if (!foliaBridgeReady) throw new Error('Folia embed mount timed out');
     postToFolia({ type: 'shizuki:activate-playback-bridge' });
     void (async () => {
-      await syncCookieToFolia();
-      syncCookieBackFromFolia();
+      // Folia may have refreshed its login after the last site-side write.
+      // Prefer that same-origin local value before asking the backend for an
+      // older copy, otherwise startup can overwrite the newer credential.
+      const foliaCookieSynced = await syncCookieBackFromFolia();
+      if (!foliaCookieSynced) await syncCookieToFolia();
     })();
     deliverPendingFoliaSession();
     syncThemeToFolia();
@@ -674,6 +677,45 @@ async function syncCookieToFolia() {
     }
     return true;
   } catch {
+    return false;
+  }
+}
+
+function readFoliaNeteaseCookie() {
+  try {
+    return String(window.localStorage.getItem('netease_cookie') || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+async function persistFoliaNeteaseCookie(rawCookie) {
+  const cookie = String(rawCookie || '').trim();
+  if (!cookie || !auth.isAuthenticated.value) return false;
+  if (cookie === foliaLastKnownNeteaseCookie) return true;
+
+  const previousCookie = foliaLastKnownNeteaseCookie;
+  foliaLastKnownNeteaseCookie = cookie;
+  try {
+    await musicApi.upsertMusicSourceAccountCookie('netease', cookie, auth.authorizedFetch);
+    await loadMusicSourceAccountsStatus();
+    // If Folia just refreshed the account while a 30-second trial is
+    // audible in the normal player, immediately resolve this same queue
+    // item again through the account-authorized source and keep its time.
+    const currentTrack = player.currentTrack?.value;
+    const provider = String(currentTrack?.provider || '').trim().toLowerCase();
+    const wasPlaying = Boolean(player.isPlaying?.value);
+    const positionSec = Math.max(0, Number(player.currentTime?.value || 0));
+    if (wasPlaying && provider === 'netease' && currentTrack) {
+      const refreshed = await player.playExternalTrack?.(currentTrack, { replaceQueue: false });
+      if (refreshed && positionSec > 0) player.seekToTime?.(positionSec);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider: 'netease' } }));
+    }
+    return true;
+  } catch {
+    foliaLastKnownNeteaseCookie = previousCookie;
     return false;
   }
 }
@@ -985,36 +1027,22 @@ function handleFoliaBridgeMessage(event) {
   if (data.type === 'shizuki:cookie') {
     // Folia 侧登录的网易云 cookie 回传 → 保存到站点后端，两边账号统一
     const cookie = typeof data.cookie === 'string' ? data.cookie : '';
-    if (cookie && cookie !== foliaLastKnownNeteaseCookie && auth.isAuthenticated.value) {
-      foliaLastKnownNeteaseCookie = cookie;
-      void (async () => {
-        await musicApi.upsertMusicSourceAccountCookie('netease', cookie, auth.authorizedFetch);
-        await loadMusicSourceAccountsStatus();
-        // If Folia just refreshed the account while a 30-second trial is
-        // audible in the normal player, immediately resolve this same queue
-        // item again through the account-authorized source and keep its time.
-        const currentTrack = player.currentTrack?.value;
-        const provider = String(currentTrack?.provider || '').trim().toLowerCase();
-        const wasPlaying = Boolean(player.isPlaying?.value);
-        const positionSec = Math.max(0, Number(player.currentTime?.value || 0));
-        if (wasPlaying && provider === 'netease' && currentTrack) {
-          const refreshed = await player.playExternalTrack?.(currentTrack, { replaceQueue: false });
-          if (refreshed && positionSec > 0) player.seekToTime?.(positionSec);
-        }
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider: 'netease' } }));
-        }
-      })().catch(() => {
-        // Keep the Folia session available even if the account write is delayed.
-      });
-    }
+    void persistFoliaNeteaseCookie(cookie);
   }
 }
 
 /** 请求 Folia 把当前登录的网易云 cookie 回传（随后保存到后端）。 */
-function syncCookieBackFromFolia() {
-  if (!auth.isAuthenticated.value) return;
+async function syncCookieBackFromFolia() {
+  if (!auth.isAuthenticated.value) return false;
+  const localCookie = readFoliaNeteaseCookie();
+  if (localCookie) {
+    // A transient backend write failure must not let an older server-side
+    // credential overwrite the newer Folia login on this browser.
+    await persistFoliaNeteaseCookie(localCookie);
+    return true;
+  }
   postToFolia({ type: 'shizuki:get-cookie' });
+  return false;
 }
 const SEARCH_TYPE_OPTIONS = [
   { value: 'all', label: '全部' },

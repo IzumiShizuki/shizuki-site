@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -227,6 +228,94 @@ class NeteaseCookieProviderTest {
     }
 
     @Test
+    void shouldAcceptFullLengthMemberStreamWhenTrialPrivilegeIsAlsoPresent() {
+        RestClient.Builder builder = RestClient.builder();
+        server = MockRestServiceServer.bindTo(builder).build();
+        provider = new NeteaseCookieProvider(builder.build(), "https://ncm.test");
+
+        server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "songs": [{"id": 101, "name": "Member track", "dt": 245000}]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "data": [{
+                    "id": 101,
+                    "url": "https://stream.test/full-member.mp3",
+                    "freeTrialInfo": null,
+                    "freeTimeTrialPrivilege": {
+                      "remainTime": 0,
+                      "resConsumable": true,
+                      "type": 1,
+                      "userConsumable": false
+                    },
+                    "time": 245000,
+                    "size": 3920000
+                  }]
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        NeteaseCookieProvider.ResolvedTrack resolved = provider.resolveTrack("101", ACCOUNT_COOKIE, false);
+
+        Assertions.assertEquals("https://stream.test/full-member.mp3", resolved.audioUrl());
+        Assertions.assertEquals(245000L, resolved.durationMs());
+        server.verify();
+    }
+
+    @Test
+    void shouldRetryTransientTrialResponseAndReturnTheFullTargetTrack() {
+        RestClient.Builder builder = RestClient.builder();
+        server = MockRestServiceServer.bindTo(builder).build();
+        provider = new NeteaseCookieProvider(builder.build(), "https://ncm.test");
+
+        server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "songs": [{"id": 1880877106, "name": "ALMIGHTY～仮面の約束", "dt": 247766}]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "data": [{
+                    "id": 1880877106,
+                    "url": "https://stream.test/transient-trial.mp3",
+                    "freeTrialInfo": {"start": 0},
+                    "time": 30040,
+                    "size": 481115
+                  }]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andRespond(withSuccess("""
+                {
+                  "code": 200,
+                  "data": [{
+                    "id": 1880877106,
+                    "url": "https://stream.test/almighty-full.mp3",
+                    "freeTrialInfo": null,
+                    "freeTimeTrialPrivilege": {"resConsumable": false, "userConsumable": false},
+                    "time": 247766,
+                    "size": 9912991
+                  }]
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        NeteaseCookieProvider.ResolvedTrack resolved = provider.resolveTrack("1880877106", ACCOUNT_COOKIE, false);
+
+        Assertions.assertEquals("https://stream.test/almighty-full.mp3", resolved.audioUrl());
+        Assertions.assertEquals(247766L, resolved.durationMs());
+        server.verify();
+    }
+
+    @Test
     void shouldRejectNcmTrialStreamAndUseTheFullCookieAuthorizedFallback() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
@@ -239,7 +328,7 @@ class NeteaseCookieProviderTest {
                   "songs": [{"id": 1880877106, "name": "Full member track", "dt": 245000}]
                 }
                 """, MediaType.APPLICATION_JSON));
-        server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+        server.expect(ExpectedCount.times(3), requestTo(containsString("https://ncm.test/song/url/v1")))
             .andExpect(request -> {
                 Assertions.assertTrue(request.getURI().getQuery().contains("cookie="));
                 Assertions.assertFalse(request.getHeaders().containsKey("Cookie"));

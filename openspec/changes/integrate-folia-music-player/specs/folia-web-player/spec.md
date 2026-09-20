@@ -121,6 +121,11 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **THEN** the site requests the stream through the same internal NCM source used by Folia, with the Cookie applied to that request
 - **AND THEN** it uses Folia's signed-URL options and never reports the public `outer/url` trial as an authorized member stream
 
+#### Scenario: NCM transiently returns a trial for a valid member session
+- **WHEN** the first authorized NCM response is explicitly marked as a trial or is much shorter than the track duration
+- **THEN** the normal player retries the Folia-compatible member request with a fresh cache key before falling back
+- **AND THEN** it accepts only a full-duration authorized response and never exposes the rejected trial URL
+
 #### Scenario: Embedded lyric text fits the music workspace
 - **WHEN** Folia is rendered inside a music workspace narrower than the browser viewport
 - **THEN** the primary lyric is scaled to the actual embed width and its longest unbreakable text span remains fully readable instead of clipping at either edge
