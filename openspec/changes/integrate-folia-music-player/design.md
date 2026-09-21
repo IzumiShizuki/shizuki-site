@@ -103,6 +103,7 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - **即时拖动**：进度条按时长匹配，而非固定 DOM 邻居或 `step` 属性。指针按下和拖动阶段直接计算目标秒数、更新 Folia 视觉时钟并发送 seek；键盘和原生 input/change 仍走同一个命令通道。
 - **最新 Cookie 优先**：普通模式网易云解析先检查用户拥有的最新 Cookie；账号状态投影只作为快速路径，不能阻止刚从 Folia 回写的授权会话。账号解析失败时仍回退到原有公开源，不绕过提供方权限。
 - **同源 NCM 会员解析**：普通模式带 Cookie 的网易云解析先调用站内 `music-ncm-api`，与 Folia 使用同一 API 和授权形态；只有 NCM 未返回可播放地址时才尝试网易云官网接口，避免两套解析行为漂移导致会员曲在普通模式失效。
+- **查询参数只编码一次**：Java 客户端先用 `URLEncoder` 构造完整查询串，再以 `URI` 交给 `RestClient`，防止 String URI 模板再次转义 `%`。歌曲详情 `ids` 与 NCM `cookie` 都必须一次解码即可还原；NCM 首次请求严格使用 Folia 的 `id`、`level`、`randomCNIP`、`https`、`cookie` 顺序，只有第二、三次试听自愈重试才在 `cookie` 前追加变化的 `timestamp`。
 - **会员授权不可降级**：NCM 解析使用与 Folia 相同的 `randomCNIP=true`、`https=true` 参数。账号通道没有返回授权直链时不得返回网易云 `outer/url` 试听地址，而是明确失败并交由既有解析回退策略处理。
 - **瞬时试听响应自愈**：NCM 偶发会在有效黑胶会员 Cookie 下返回带 `freeTrialInfo` 的 30 秒地址。账号解析在明确识别出试听或空地址时，以变化的 `timestamp` 最多重试三次 Folia 同款 `/song/url/v1` 请求；首个完整时长结果立即结束重试，持续试听仍按失败处理。
 - **Folia 授权写回优先**：同源嵌入加载时先读取 Folia 现行键 `localStorage['online_provider:netease:cookie']`，再回退旧键 `netease_cookie`，并回写站点账户；只有本地没有授权或回写失败时才从后端下发 Cookie，避免旧数据库值覆盖 Folia 刚刷新的登录态。

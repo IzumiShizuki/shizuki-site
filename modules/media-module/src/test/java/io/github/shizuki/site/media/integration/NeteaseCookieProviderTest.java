@@ -56,7 +56,7 @@ class NeteaseCookieProviderTest {
         server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
             .andExpect(request -> {
                 Assertions.assertFalse(request.getHeaders().containsKey("Cookie"));
-                Assertions.assertEquals("ids=[\"202\",\"101\"]", decodedQuery(request.getURI().getRawQuery()));
+                assertEncodedOnce(request.getURI().getRawQuery(), "ids=[\"202\",\"101\"]");
             })
             .andRespond(withSuccess("""
                 {
@@ -76,7 +76,7 @@ class NeteaseCookieProviderTest {
         server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
             .andExpect(request -> {
                 Assertions.assertEquals(ACCOUNT_COOKIE, request.getHeaders().getFirst("Cookie"));
-                Assertions.assertEquals("ids=[\"101\"]", decodedQuery(request.getURI().getRawQuery()));
+                assertEncodedOnce(request.getURI().getRawQuery(), "ids=[\"101\"]");
             })
             .andRespond(withSuccess("""
                 {
@@ -194,11 +194,10 @@ class NeteaseCookieProviderTest {
                 """, MediaType.APPLICATION_JSON));
         server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
             .andExpect(request -> {
-                Assertions.assertTrue(request.getURI().getQuery().contains("id=101"));
-                Assertions.assertTrue(request.getURI().getQuery().contains("level=exhigh"));
-                Assertions.assertTrue(request.getURI().getQuery().contains("randomCNIP=true"));
-                Assertions.assertTrue(request.getURI().getQuery().contains("https=true"));
-                Assertions.assertTrue(request.getURI().getQuery().contains("cookie="));
+                assertEncodedOnce(
+                    request.getURI().getRawQuery(),
+                    "id=101&level=exhigh&randomCNIP=true&https=true&cookie=" + ACCOUNT_COOKIE
+                );
                 Assertions.assertFalse(request.getHeaders().containsKey("Cookie"));
             })
             .andRespond(withSuccess("""
@@ -241,6 +240,10 @@ class NeteaseCookieProviderTest {
                 }
                 """, MediaType.APPLICATION_JSON));
         server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andExpect(request -> assertEncodedOnce(
+                request.getURI().getRawQuery(),
+                "id=101&level=exhigh&randomCNIP=true&https=true&cookie=" + ACCOUNT_COOKIE
+            ))
             .andRespond(withSuccess("""
                 {
                   "code": 200,
@@ -281,6 +284,10 @@ class NeteaseCookieProviderTest {
                 }
                 """, MediaType.APPLICATION_JSON));
         server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andExpect(request -> assertEncodedOnce(
+                request.getURI().getRawQuery(),
+                "id=1880877106&level=exhigh&randomCNIP=true&https=true&cookie=" + ACCOUNT_COOKIE
+            ))
             .andRespond(withSuccess("""
                 {
                   "code": 200,
@@ -294,6 +301,19 @@ class NeteaseCookieProviderTest {
                 }
                 """, MediaType.APPLICATION_JSON));
         server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
+            .andExpect(request -> {
+                String rawQuery = request.getURI().getRawQuery();
+                Assertions.assertFalse(rawQuery.contains("%25"), "query parameters must not be encoded twice");
+                String decodedQuery = URLDecoder.decode(rawQuery, StandardCharsets.UTF_8);
+                String prefix = "id=1880877106&level=exhigh&randomCNIP=true&https=true&timestamp=";
+                Assertions.assertTrue(decodedQuery.startsWith(prefix));
+                Assertions.assertTrue(decodedQuery.endsWith("&cookie=" + ACCOUNT_COOKIE));
+                String timestamp = decodedQuery.substring(
+                    prefix.length(),
+                    decodedQuery.length() - ("&cookie=" + ACCOUNT_COOKIE).length()
+                );
+                Assertions.assertDoesNotThrow(() -> Long.parseLong(timestamp));
+            })
             .andRespond(withSuccess("""
                 {
                   "code": 200,
@@ -471,7 +491,7 @@ class NeteaseCookieProviderTest {
         server.expect(requestTo(containsString("https://music.163.com/api/song/detail")))
             .andExpect(request -> {
                 Assertions.assertFalse(request.getHeaders().containsKey("Cookie"));
-                Assertions.assertEquals("ids=[\"202\",\"101\"]", decodedQuery(request.getURI().getRawQuery()));
+                assertEncodedOnce(request.getURI().getRawQuery(), "ids=[\"202\",\"101\"]");
             })
             .andRespond(withSuccess("""
                 {
@@ -501,10 +521,11 @@ class NeteaseCookieProviderTest {
             .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
     }
 
-    private String decodedQuery(String rawQuery) {
-        return URLDecoder.decode(
-            URLDecoder.decode(rawQuery, StandardCharsets.UTF_8),
-            StandardCharsets.UTF_8
+    private void assertEncodedOnce(String rawQuery, String expectedDecodedQuery) {
+        Assertions.assertFalse(rawQuery.contains("%25"), "query parameters must not be encoded twice");
+        Assertions.assertEquals(
+            expectedDecodedQuery,
+            URLDecoder.decode(rawQuery, StandardCharsets.UTF_8)
         );
     }
 }

@@ -2,6 +2,7 @@ package io.github.shizuki.site.media.integration;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -278,17 +279,17 @@ public class NeteaseCookieProvider {
         Exception lastFailure = null;
         for (int attempt = 1; attempt <= AUTHORIZED_AUDIO_RETRY_ATTEMPTS; attempt++) {
             try {
+                Map<String, Object> query = new LinkedHashMap<>();
+                query.put("id", trackId);
+                query.put("level", "exhigh");
+                query.put("randomCNIP", true);
+                query.put("https", true);
+                if (attempt > 1) {
+                    query.put("timestamp", System.currentTimeMillis() + attempt);
+                }
                 Map<String, Object> payload = requestNcmJson(
                     "/song/url/v1",
-                    Map.of(
-                        "id", trackId,
-                        "level", "exhigh",
-                        // Match Folia's resolver exactly. The changing timestamp
-                        // prevents a transient trial response from being reused.
-                        "randomCNIP", true,
-                        "https", true,
-                        "timestamp", System.currentTimeMillis() + attempt
-                    ),
+                    query,
                     cookie
                 );
                 String url = readAuthorizedAudioUrl(payload, trackId, expectedDurationMillis, "ncm_v1");
@@ -537,7 +538,7 @@ public class NeteaseCookieProvider {
     private Map<String, Object> requestJson(String url, Map<String, Object> query, String cookie) {
         String finalUrl = appendQuery(url, query);
         String body = restClient.get()
-            .uri(finalUrl)
+            .uri(URI.create(finalUrl))
             .headers(headers -> {
                 headers.set("Referer", "https://music.163.com/");
                 headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
@@ -568,8 +569,9 @@ public class NeteaseCookieProvider {
             ncmQuery.putAll(query);
         }
         ncmQuery.put("cookie", cookie);
+        String finalUrl = appendQuery(ncmBaseUrl + path, ncmQuery);
         String body = restClient.get()
-            .uri(appendQuery(ncmBaseUrl + path, ncmQuery))
+            .uri(URI.create(finalUrl))
             .headers(headers -> headers.set("User-Agent", "ShizukiMusicNcmClient/1.0"))
             .retrieve()
             .body(String.class);
