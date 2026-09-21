@@ -191,7 +191,7 @@ public class NeteaseCookieProvider {
         String title = readString(song == null ? null : song.get("name"), "");
         String artist = readArtist(song);
         String cover = readCover(song);
-        long expectedDurationMillis = readLong(song == null ? null : song.get("dt"), 0L);
+        long expectedDurationMillis = readDurationMillis(song);
         String audioUrl = resolveAuthorizedAudioUrl(normalizedTrackId, normalizedCookie, expectedDurationMillis);
         if (!StringUtils.hasText(audioUrl)) {
             // The public outer URL silently downgrades member tracks to a
@@ -505,13 +505,15 @@ public class NeteaseCookieProvider {
         if (!StringUtils.hasText(trackId)) {
             return null;
         }
+        long durationMillis = readDurationMillis(raw);
+        Map<String, Object> album = readAlbum(raw);
         return new TrackSummary(
             trackId,
             readString(raw.get("name"), trackId),
             readArtist(raw),
             readCover(raw),
-            readInt(raw.get("dt"), 0) <= 0 ? null : Math.max(1, readInt(raw.get("dt"), 0) / 1000),
-            readString(toStringObjectMap(raw.get("al")).get("name"), "")
+            durationMillis <= 0L ? null : Math.max(1, (int) (durationMillis / 1000L)),
+            readString(album.get("name"), "")
         );
     }
 
@@ -531,8 +533,23 @@ public class NeteaseCookieProvider {
     }
 
     private String readCover(Map<String, Object> raw) {
-        Map<String, Object> al = toStringObjectMap(raw == null ? null : raw.get("al"));
-        return readString(al.get("picUrl"), "");
+        return readString(readAlbum(raw).get("picUrl"), "");
+    }
+
+    private Map<String, Object> readAlbum(Map<String, Object> raw) {
+        Map<String, Object> album = toStringObjectMap(raw == null ? null : raw.get("al"));
+        if (album.isEmpty()) {
+            album = toStringObjectMap(raw == null ? null : raw.get("album"));
+        }
+        return album;
+    }
+
+    private long readDurationMillis(Map<String, Object> raw) {
+        long durationMillis = readLong(raw == null ? null : raw.get("dt"), 0L);
+        if (durationMillis <= 0L) {
+            durationMillis = readLong(raw == null ? null : raw.get("duration"), 0L);
+        }
+        return Math.max(0L, durationMillis);
     }
 
     private Map<String, Object> requestJson(String url, Map<String, Object> query, String cookie) {

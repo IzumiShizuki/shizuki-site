@@ -280,7 +280,13 @@ class NeteaseCookieProviderTest {
             .andRespond(withSuccess("""
                 {
                   "code": 200,
-                  "songs": [{"id": 1880877106, "name": "ALMIGHTY～仮面の約束", "dt": 247766}]
+                  "songs": [{
+                    "id": 1880877106,
+                    "name": "ALMIGHTY～仮面の約束",
+                    "duration": 247766,
+                    "artists": [{"name": "KAMEN RIDER GIRLS"}],
+                    "album": {"name": "仮面ライダーリバイス", "picUrl": "https://cover.test/almighty.jpg"}
+                  }]
                 }
                 """, MediaType.APPLICATION_JSON));
         server.expect(requestTo(containsString("https://ncm.test/song/url/v1")))
@@ -332,6 +338,8 @@ class NeteaseCookieProviderTest {
 
         Assertions.assertEquals("https://stream.test/almighty-full.mp3", resolved.audioUrl());
         Assertions.assertEquals(247766L, resolved.durationMs());
+        Assertions.assertEquals("KAMEN RIDER GIRLS", resolved.artist());
+        Assertions.assertEquals("https://cover.test/almighty.jpg", resolved.cover());
         server.verify();
     }
 
