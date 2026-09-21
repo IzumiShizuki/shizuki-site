@@ -109,3 +109,10 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - **Folia 授权写回优先**：同源嵌入加载时先读取 Folia 现行键 `localStorage['online_provider:netease:cookie']`，再回退旧键 `netease_cookie`，并回写站点账户；只有本地没有授权或回写失败时才从后端下发 Cookie，避免旧数据库值覆盖 Folia 刚刷新的登录态。
 - **嵌入歌词尺寸**：Folia 的部分可视化器使用视口单位计算主歌词字号。桥在嵌入态按 `#folia-embed-root` 的实际宽度以及当前行最长不可断开文本的长度临时压缩字号，且不写入用户偏好；进入全屏或返回宽容器时自动恢复原偏好字号。
 - **歌单浏览入口**：歌单详情提供 Folia 浏览操作，将已加载的完整曲目列表置入主站队列并打开 lattice 展示；队列所有权与音频所有权依旧留在 Vue 播放器。
+
+## 生产验收（2026-09-21）
+
+- **目标与版本**：线上后端部署提交 `8385dfdc161d1925eb2eddc2d09c31dcdde1c4a9`；验收歌单 `src_netease_4883188894_u_1` 的第 12 首 `ALMIGHTY～仮面の約束`（网易云曲目 `1880877106`）。
+- **普通模式解析**：`POST /api/v1/music/tracks/resolve-playback` 返回 HTTP `200`，曲目时长 `247766 ms`，`resolved_source=netease_account`、`playbackKind=full`、`isPreview=false`，并交付站内同源流地址。
+- **完整流与越过试听段**：首段请求返回 HTTP `206` 和 `Content-Range: bytes 0-65535/9912991`；按总字节数和时长换算 35 秒位置为字节 `1400332`，该段请求返回 HTTP `206` 和 `Content-Range: bytes 1400332-1465867/9912991`，证明真实媒体流可读取 30 秒之后的内容。
+- **服务状态与清理**：后端日志记录目标曲通过 `account_netease` 完成解析，部署后 `/actuator/health` 为 `UP`；验收使用的隔离 refresh token 已注销并从 Redis 清理。
