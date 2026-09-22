@@ -144,8 +144,8 @@ The embedded music experience SHALL keep the main-site player as the single audi
 #### Scenario: Embedded lyric text fits the music workspace
 - **WHEN** Folia is rendered inside a music workspace narrower than the browser viewport
 - **THEN** the primary lyric is scaled to the actual embed width and its longest unbreakable text span remains fully readable instead of clipping at either edge
-- **AND WHEN** the visitor enters fullscreen
-- **THEN** the primary lyric returns to the visitor's preferred scale for the full viewport
+- **AND WHEN** the visitor expands Folia across the website viewport
+- **THEN** the same fit guard remains active, considering the complete active lyric, the visitor's preferred scale, and active-word emphasis so the line remains fully readable instead of clipping at either edge
 
 #### Scenario: Playlist can open as a Folia browsing surface
 - **WHEN** a visitor opens a music playlist and chooses its Folia browsing action

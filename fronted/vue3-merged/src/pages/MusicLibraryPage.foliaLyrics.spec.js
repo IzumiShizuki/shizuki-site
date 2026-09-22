@@ -34,4 +34,16 @@ describe('Folia followed lyric projection', () => {
     expect(writeFollowClock).toContain('findLatestActiveLineIndex(lines, safePosition)');
     expect(writeFollowClock.match(/setCurrentLineIndex\(/g)).toHaveLength(1);
   });
+
+  it('keeps expanded-workspace long lyrics inside the embed width', () => {
+    const contentScale = readFunction('resolveEmbedLyricContentScale');
+    const syncSizing = readFunction('syncEmbedLyricSizing');
+
+    expect(contentScale).toContain('preferredScale: number');
+    expect(contentScale).toContain('getEmbedLyricWeightedGraphemeWidth(text)');
+    expect(contentScale).toContain('EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY');
+    expect(contentScale).toContain('safePreferredScale');
+    expect(contentScale).not.toContain('foliaExpanded');
+    expect(syncSizing).toContain('resolveEmbedLyricContentScale(root, preferredScale)');
+  });
 });

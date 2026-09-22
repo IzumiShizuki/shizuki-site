@@ -122,3 +122,4 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - **当前歌曲先交接再显现**：歌曲行或播放详情打开 Folia 时，先用 `provider + 原始 trackId` 确认并切换主播放器曲目，成功后再显示 Folia；视图请求以 pending 状态保存，冷启动完成后必定交付最后一次 `player`/`lattice` 选择。
 - **单一歌词焦点时钟**：主站不再因 `currentLyricEntryIndex` 变化重发整份会话；Folia 对歌词内容生成指纹，时间线未变化时不重装歌词，活动行只由平滑播放时钟更新一次。
 - **站内铺满而非浏览器全屏**：展开操作通过 Vue Teleport 保留同一 Folia DOM/React 树，并以 `position: fixed; inset: 0; height: 100dvh` 覆盖网站视口；不调用 `requestFullscreen()`，浏览器标签栏、地址栏和窗口边界保持可见。
+- **展开态长歌词适配**：展开只增加可用工作区，不能关闭嵌入歌词的宽度保护。桥以完整活动行的加权 grapheme 宽度估算内容宽度，并同时计入用户字号偏好与活动词强调变换的安全倍率；临时字号缩放不持久化，确保中英文、日文混排行在网站视口内不会从两侧裁切。

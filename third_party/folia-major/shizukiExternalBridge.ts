@@ -58,6 +58,9 @@ let embedLyricAppliedScale: number | null = null;
 
 const MIN_EMBED_LYRIC_SCALE = 0.34;
 const EMBED_LYRIC_CONTENT_WIDTH_RATIO = 0.72;
+// Active lyric words can receive an extra emphasis transform after typography
+// sizing. Reserve that headroom before the line reaches the embed edge.
+const EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY = 1.6;
 
 function cssBackgroundImage(url: string): string {
   const normalized = String(url || '').trim();
@@ -148,29 +151,41 @@ function observeEmbeddedDefaultBackground(root: HTMLElement): void {
 
 /**
  * Folia visualizers size their primary line in viewport units. The embedded
- * music surface is narrower than the browser viewport. Long CJK lines are
- * often one unbreakable text segment, so fit that content as well as the
- * workspace itself instead of relying on viewport width alone.
+ * music surface is narrower than the browser viewport. Fit the complete
+ * active line, including its preferred typography scale and word emphasis,
+ * instead of relying on viewport width alone.
  */
-function resolveEmbedLyricContentScale(root: HTMLElement): number {
-  if (root.closest<HTMLElement>('.folia-embed-pane')?.dataset.foliaExpanded === 'true') return 1;
+function getEmbedLyricWeightedGraphemeWidth(text: string): number {
+  return Array.from(text).reduce((width, grapheme) => {
+    if (/\s/u.test(grapheme)) return width + 0.34;
+    if (/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\uff00-\uffef]/u.test(grapheme)) return width + 1;
+    if (/[A-Z0-9]/u.test(grapheme)) return width + 0.7;
+    if (/[a-z]/u.test(grapheme)) return width + 0.58;
+    return width + 0.48;
+  }, 0);
+}
+
+function resolveEmbedLyricContentScale(root: HTMLElement, preferredScale: number): number {
   const state = usePlaybackStore.getState();
   const lines = state.lyrics?.lines ?? [];
   const activeLine = lines[state.currentLineIndex] ?? null;
   const text = String(activeLine?.fullText || '').trim();
   if (!text) return 1;
 
-  const longestUnbrokenSpan = text
-    .split(/\s+/)
-    .reduce((longest, segment) => Math.max(longest, Array.from(segment).length), 0);
-  if (longestUnbrokenSpan < 2) return 1;
+  const weightedGraphemeWidth = getEmbedLyricWeightedGraphemeWidth(text);
+  if (weightedGraphemeWidth < 2) return 1;
 
   // Cadenza uses a 0.086 x viewport font baseline and centers a lyric region
-  // around 72% of its available width. Keeping the estimate here makes the
-  // bridge work for its canvas text as well as DOM-based visualizers.
+  // around 72% of its available width. The active DOM word layer can be
+  // enlarged independently, so include both user preference and a measured
+  // safety allowance before applying the temporary embed-only scale.
   const baseFontPx = Math.min(94, Math.max(34, root.clientWidth * 0.086));
   const availableTextWidth = Math.min(root.clientWidth * EMBED_LYRIC_CONTENT_WIDTH_RATIO, 820);
-  const estimatedLineWidth = longestUnbrokenSpan * baseFontPx * 1.05;
+  const safePreferredScale = Math.max(Number(preferredScale) || 1, 0.01);
+  const estimatedLineWidth = weightedGraphemeWidth
+    * baseFontPx
+    * safePreferredScale
+    * EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY;
   return Math.min(1, availableTextWidth / Math.max(estimatedLineWidth, 1));
 }
 
@@ -188,7 +203,7 @@ function syncEmbedLyricSizing(): void {
   const viewportWidth = Math.max(1, window.innerWidth || root.clientWidth);
   const widthRatio = Math.min(1, Math.max(0, (root.clientWidth / viewportWidth) * 1.15));
   const preferredScale = embedLyricBaseScale ?? 1;
-  const contentScale = resolveEmbedLyricContentScale(root);
+  const contentScale = resolveEmbedLyricContentScale(root, preferredScale);
   const nextScale = Math.max(
     MIN_EMBED_LYRIC_SCALE,
     Math.min(preferredScale, preferredScale * widthRatio, preferredScale * contentScale),
