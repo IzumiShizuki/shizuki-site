@@ -6,6 +6,10 @@ const bridgeSource = readFileSync(
   resolve(process.cwd(), '../../third_party/folia-major/shizukiExternalBridge.ts'),
   'utf8'
 );
+const cadenzaSource = readFileSync(
+  resolve(process.cwd(), '../../third_party/folia-major/src/components/visualizer/cadenza/VisualizerCadenza.tsx'),
+  'utf8'
+);
 
 function readFunction(name) {
   const start = bridgeSource.indexOf(`function ${name}`);
@@ -33,6 +37,9 @@ describe('Folia followed lyric projection', () => {
     expect(applyFollowSession).toContain('syncFollowClock(session.positionMs, session.playing)');
     expect(writeFollowClock).toContain('findLatestActiveLineIndex(lines, safePosition)');
     expect(writeFollowClock.match(/setCurrentLineIndex\(/g)).toHaveLength(1);
+    expect(writeFollowClock).toContain('window.requestAnimationFrame(syncEmbedLyricSizing)');
+    expect(writeFollowClock.indexOf('window.requestAnimationFrame(syncEmbedLyricSizing)'))
+      .toBeGreaterThan(writeFollowClock.indexOf('store.setCurrentLineIndex(index)'));
   });
 
   it('keeps expanded-workspace long lyrics inside the embed width', () => {
@@ -40,10 +47,16 @@ describe('Folia followed lyric projection', () => {
     const syncSizing = readFunction('syncEmbedLyricSizing');
 
     expect(contentScale).toContain('preferredScale: number');
+    expect(contentScale).toContain('currentScale: number');
     expect(contentScale).toContain('getEmbedLyricWeightedGraphemeWidth(text)');
     expect(contentScale).toContain('EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY');
     expect(contentScale).toContain('safePreferredScale');
+    expect(contentScale).toContain('measureEmbedActiveLyricWidth(root)');
+    expect(contentScale).toContain('EMBED_LYRIC_PRIMARY_FONT_SCALE');
     expect(contentScale).not.toContain('foliaExpanded');
-    expect(syncSizing).toContain('resolveEmbedLyricContentScale(root, preferredScale)');
+    expect(bridgeSource).not.toContain('MIN_EMBED_LYRIC_SCALE');
+    expect(syncSizing).toContain('resolveEmbedLyricContentScale(root, preferredScale, currentScale)');
+    expect(syncSizing).toContain('window.requestAnimationFrame(syncEmbedLyricSizing)');
+    expect(cadenzaSource).toContain("outer.dataset.shizukiFoliaActiveLyricWord = 'true'");
   });
 });

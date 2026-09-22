@@ -137,6 +137,7 @@ const createOverlayWordNodes = (): OverlayWordNodes => {
     const outer = document.createElement('div');
     outer.className = 'absolute left-0 top-0';
     outer.setAttribute('aria-hidden', 'true');
+    outer.dataset.shizukiFoliaActiveLyricWord = 'true';
 
     const inner = document.createElement('div');
     inner.className = 'whitespace-nowrap';

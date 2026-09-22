@@ -56,8 +56,9 @@ let embedLyricSizingInstalled = false;
 let embedLyricBaseScale: number | null = null;
 let embedLyricAppliedScale: number | null = null;
 
-const MIN_EMBED_LYRIC_SCALE = 0.34;
-const EMBED_LYRIC_CONTENT_WIDTH_RATIO = 0.72;
+const EMBED_LYRIC_HORIZONTAL_GUTTER = 32;
+const EMBED_LYRIC_PRIMARY_FONT_SCALE = 2;
+const EMBED_LYRIC_ACTIVE_WORD_SELECTOR = '[data-shizuki-folia-active-lyric-word]';
 // Active lyric words can receive an extra emphasis transform after typography
 // sizing. Reserve that headroom before the line reaches the embed edge.
 const EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY = 1.6;
@@ -165,7 +166,29 @@ function getEmbedLyricWeightedGraphemeWidth(text: string): number {
   }, 0);
 }
 
-function resolveEmbedLyricContentScale(root: HTMLElement, preferredScale: number): number {
+function getEmbedLyricAvailableWidth(root: HTMLElement): number {
+  return Math.max(1, root.clientWidth - EMBED_LYRIC_HORIZONTAL_GUTTER * 2);
+}
+
+function measureEmbedActiveLyricWidth(root: HTMLElement): number {
+  let left = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+
+  root.querySelectorAll<HTMLElement>(EMBED_LYRIC_ACTIVE_WORD_SELECTOR).forEach((element) => {
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    left = Math.min(left, rect.left);
+    right = Math.max(right, rect.right);
+  });
+
+  return Number.isFinite(left) && Number.isFinite(right) ? Math.max(0, right - left) : 0;
+}
+
+function resolveEmbedLyricContentScale(
+  root: HTMLElement,
+  preferredScale: number,
+  currentScale: number,
+): number {
   const state = usePlaybackStore.getState();
   const lines = state.lyrics?.lines ?? [];
   const activeLine = lines[state.currentLineIndex] ?? null;
@@ -175,13 +198,25 @@ function resolveEmbedLyricContentScale(root: HTMLElement, preferredScale: number
   const weightedGraphemeWidth = getEmbedLyricWeightedGraphemeWidth(text);
   if (weightedGraphemeWidth < 2) return 1;
 
-  // Cadenza uses a 0.086 x viewport font baseline and centers a lyric region
-  // around 72% of its available width. The active DOM word layer can be
-  // enlarged independently, so include both user preference and a measured
-  // safety allowance before applying the temporary embed-only scale.
-  const baseFontPx = Math.min(94, Math.max(34, root.clientWidth * 0.086));
-  const availableTextWidth = Math.min(root.clientWidth * EMBED_LYRIC_CONTENT_WIDTH_RATIO, 820);
+  const availableTextWidth = getEmbedLyricAvailableWidth(root);
   const safePreferredScale = Math.max(Number(preferredScale) || 1, 0.01);
+  const safeCurrentScale = Math.max(Number(currentScale) || safePreferredScale, 0.01);
+  const renderedLineWidth = measureEmbedActiveLyricWidth(root);
+  if (renderedLineWidth > 0) {
+    // DOMRects include Cadenza's active-word transforms. Convert that measured
+    // width back to the preferred-scale basis expected by the caller.
+    return Math.min(
+      1,
+      (safeCurrentScale * availableTextWidth) / (renderedLineWidth * safePreferredScale),
+    );
+  }
+
+  // Before Cadenza has mounted its word nodes, match its two-times font tuning
+  // instead of the unscaled 94px viewport baseline used by the old estimate.
+  const baseFontPx = Math.min(
+    94 * EMBED_LYRIC_PRIMARY_FONT_SCALE,
+    Math.max(34 * EMBED_LYRIC_PRIMARY_FONT_SCALE, root.clientWidth * 0.086 * EMBED_LYRIC_PRIMARY_FONT_SCALE),
+  );
   const estimatedLineWidth = weightedGraphemeWidth
     * baseFontPx
     * safePreferredScale
@@ -203,15 +238,16 @@ function syncEmbedLyricSizing(): void {
   const viewportWidth = Math.max(1, window.innerWidth || root.clientWidth);
   const widthRatio = Math.min(1, Math.max(0, (root.clientWidth / viewportWidth) * 1.15));
   const preferredScale = embedLyricBaseScale ?? 1;
-  const contentScale = resolveEmbedLyricContentScale(root, preferredScale);
+  const contentScale = resolveEmbedLyricContentScale(root, preferredScale, currentScale);
   const nextScale = Math.max(
-    MIN_EMBED_LYRIC_SCALE,
+    0.01,
     Math.min(preferredScale, preferredScale * widthRatio, preferredScale * contentScale),
   );
   if (Math.abs(currentScale - nextScale) < 0.005) return;
   embedLyricAppliedScale = nextScale;
   // setState deliberately avoids persisting an embed-only presentation value.
   useTypographySettingsStore.setState({ lyricsFontScale: nextScale });
+  window.requestAnimationFrame(syncEmbedLyricSizing);
 }
 
 function installEmbedLyricSizing(): void {
@@ -386,7 +422,12 @@ function writeFollowClock(positionSec: number): void {
     const lines = store.lyrics?.lines || [];
     if (lines.length) {
       const index = findLatestActiveLineIndex(lines, safePosition);
-      if (index !== store.currentLineIndex) store.setCurrentLineIndex(index);
+      if (index !== store.currentLineIndex) {
+        store.setCurrentLineIndex(index);
+        // Wait for Cadenza to replace its active-word nodes, then measure the
+        // new line instead of carrying the previous line's temporary scale.
+        window.requestAnimationFrame(syncEmbedLyricSizing);
+      }
     }
   } catch {
     // A failed visual projection must never affect the owner audio element.
