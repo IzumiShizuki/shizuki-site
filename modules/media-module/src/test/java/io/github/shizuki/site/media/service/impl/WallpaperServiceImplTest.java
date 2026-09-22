@@ -265,6 +265,8 @@ class WallpaperServiceImplTest {
         );
 
         Assertions.assertEquals(WallpaperImportStatusEnum.SUCCEEDED.name(), job.getStatusText());
+        Assertions.assertEquals("COMPLETED", job.getProgressStage());
+        Assertions.assertEquals(100, job.getProgressPercent());
         Assertions.assertNotNull(job.getWallpaperId());
         Mockito.verify(workshopHttpClient).send(ArgumentMatchers.any(), ArgumentMatchers.any());
     }
@@ -303,8 +305,132 @@ class WallpaperServiceImplTest {
         );
 
         Assertions.assertEquals(WallpaperImportStatusEnum.FALLBACK_REQUIRED.name(), job.getStatusText());
+        Assertions.assertEquals("FALLBACK_REQUIRED", job.getProgressStage());
+        Assertions.assertEquals(100, job.getProgressPercent());
         Assertions.assertEquals("服务器未启用 SteamCMD", job.getErrorMessage());
         Assertions.assertTrue(job.getFallbackHint().contains("本地包上传"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectDirectWorkshopPreviewAndRequireFallback() throws Exception {
+        long jobId = 6003L;
+        MediaWallpaperImportJobEntity job = new MediaWallpaperImportJobEntity();
+        job.setId(jobId);
+        job.setOwnerUserId(41L);
+        job.setSourceType(WallpaperImportSourceEnum.WORKSHOP.name());
+        job.setWorkshopItemId("3789790717");
+        job.setStatusText(WallpaperImportStatusEnum.PENDING.name());
+        job.setVisibilityCode(AssetVisibilityEnum.PRIVATE.getCode());
+        jobStore.put(jobId, job);
+        Mockito.when(workshopMetadataProvider.resolve("3789790717")).thenReturn(
+            new WorkshopMetadataProvider.WorkshopMetadata(
+                "3789790717",
+                "Preview Only",
+                "https://cdn.example.test/preview.gif",
+                "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+                "https://cdn.example.test/preview.gif",
+                3L,
+                0L,
+                "api"
+            )
+        );
+        HttpResponse<java.io.InputStream> response = Mockito.mock(HttpResponse.class);
+        Mockito.when(response.statusCode()).thenReturn(200);
+        Mockito.when(response.headers()).thenReturn(HttpHeaders.of(Map.of(
+            "Content-Length", java.util.List.of("3"),
+            "Content-Type", java.util.List.of("image/gif")
+        ), (name, value) -> true));
+        Mockito.when(response.body()).thenReturn(new ByteArrayInputStream(new byte[] {1, 2, 3}));
+        Mockito.doReturn(response).when(workshopHttpClient).send(
+            ArgumentMatchers.any(), ArgumentMatchers.any());
+
+        wallpaperService.handleWorkshopImport(
+            jobId,
+            41L,
+            "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+            "3789790717",
+            AssetVisibilityEnum.PRIVATE,
+            new WorkshopImportCreateRequest()
+        );
+
+        Assertions.assertEquals(WallpaperImportStatusEnum.FALLBACK_REQUIRED.name(), job.getStatusText());
+        Assertions.assertEquals("FALLBACK_REQUIRED", job.getProgressStage());
+        Assertions.assertEquals(100, job.getProgressPercent());
+        Assertions.assertTrue(job.getErrorMessage().contains("presentation preview"));
+        Assertions.assertNull(job.getWallpaperId());
+        Assertions.assertTrue(profileStore.isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectNativeWorkshopPreviewArchiveAndRequireFallback() throws Exception {
+        long jobId = 6004L;
+        MediaWallpaperImportJobEntity job = new MediaWallpaperImportJobEntity();
+        job.setId(jobId);
+        job.setOwnerUserId(41L);
+        job.setSourceType(WallpaperImportSourceEnum.WORKSHOP.name());
+        job.setWorkshopItemId("3789790717");
+        job.setStatusText(WallpaperImportStatusEnum.PENDING.name());
+        job.setVisibilityCode(AssetVisibilityEnum.PRIVATE.getCode());
+        jobStore.put(jobId, job);
+        Mockito.when(workshopMetadataProvider.resolve("3789790717")).thenReturn(
+            new WorkshopMetadataProvider.WorkshopMetadata(
+                "3789790717",
+                "Native Preview Archive",
+                "https://cdn.example.test/preview.gif",
+                "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+                "https://cdn.example.test/wallpaper.zip",
+                3L,
+                0L,
+                "api"
+            )
+        );
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("project/project.json", "{}".getBytes(StandardCharsets.UTF_8));
+        entries.put("project/scene.pkg", new byte[] {1, 2, 3});
+        entries.put("assets/preview.gif", new byte[] {4, 5, 6});
+        byte[] archive = zipOf(entries);
+        HttpResponse<java.io.InputStream> response = Mockito.mock(HttpResponse.class);
+        Mockito.when(response.statusCode()).thenReturn(200);
+        Mockito.when(response.headers()).thenReturn(HttpHeaders.of(Map.of(
+            "Content-Length", java.util.List.of(String.valueOf(archive.length)),
+            "Content-Type", java.util.List.of("application/zip")
+        ), (name, value) -> true));
+        Mockito.when(response.body()).thenReturn(new ByteArrayInputStream(archive));
+        Mockito.doReturn(response).when(workshopHttpClient).send(
+            ArgumentMatchers.any(), ArgumentMatchers.any());
+
+        wallpaperService.handleWorkshopImport(
+            jobId,
+            41L,
+            "https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717",
+            "3789790717",
+            AssetVisibilityEnum.PRIVATE,
+            new WorkshopImportCreateRequest()
+        );
+
+        Assertions.assertEquals(WallpaperImportStatusEnum.FALLBACK_REQUIRED.name(), job.getStatusText());
+        Assertions.assertTrue(job.getErrorMessage().contains("requires conversion"));
+        Assertions.assertNull(job.getWallpaperId());
+        Assertions.assertTrue(profileStore.isEmpty());
+    }
+
+    @Test
+    void shouldExposeQueuedProgressForNewWorkshopImport() {
+        LoginUserContext.set(new LoginUser(42L, Set.of("USER"), Set.of()));
+        WorkshopImportCreateRequest request = new WorkshopImportCreateRequest();
+        request.setWorkshopUrl("https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717");
+        request.setVisibility("PRIVATE");
+
+        WallpaperImportJobResponse created = wallpaperService.importWorkshop(request);
+        WallpaperImportJobResponse fetched = wallpaperService.getImportJob(created.jobId());
+
+        Assertions.assertEquals(WallpaperImportStatusEnum.PENDING.name(), created.status());
+        Assertions.assertEquals("QUEUED", created.progressStage());
+        Assertions.assertEquals(5, created.progressPercent());
+        Assertions.assertEquals(created.progressStage(), fetched.progressStage());
+        Assertions.assertEquals(created.progressPercent(), fetched.progressPercent());
     }
 
     @Test

@@ -10,6 +10,8 @@ package io.github.shizuki.site.media.response;
  * @param wallpaperId 成功后壁纸ID
  * @param errorMessage 错误信息
  * @param fallbackHint 降级提示
+ * @param progressStage 当前导入阶段
+ * @param progressPercent 当前导入进度，范围为0-100
  */
 public record WallpaperImportJobResponse(Long jobId,
                                          String sourceType,
@@ -17,5 +19,7 @@ public record WallpaperImportJobResponse(Long jobId,
                                          String visibility,
                                          Long wallpaperId,
                                          String errorMessage,
-                                         String fallbackHint) {
+                                         String fallbackHint,
+                                         String progressStage,
+                                         Integer progressPercent) {
 }

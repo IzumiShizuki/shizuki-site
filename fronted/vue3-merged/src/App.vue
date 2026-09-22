@@ -465,6 +465,8 @@ const importState = reactive({
   workshopTitle: '',
   lastImportJobId: 0,
   lastImportJobStatus: '',
+  lastImportJobProgressStage: '',
+  lastImportJobProgressPercent: null,
   statusBusy: false,
   hint: '',
   busy: false
@@ -1817,8 +1819,30 @@ function normalizeImportJobResponse(raw) {
     visibility: String(readRecordField(raw, 'visibility', 'visibility', 'PRIVATE')).toUpperCase(),
     wallpaperId: parsePositiveId(readRecordField(raw, 'wallpaperId', 'wallpaper_id', 0)),
     errorMessage: String(readRecordField(raw, 'errorMessage', 'error_message', '')),
-    fallbackHint: String(readRecordField(raw, 'fallbackHint', 'fallback_hint', ''))
+    fallbackHint: String(readRecordField(raw, 'fallbackHint', 'fallback_hint', '')),
+    progressStage: String(readRecordField(raw, 'progressStage', 'progress_stage', '')).toUpperCase(),
+    progressPercent: normalizeImportProgressPercent(readRecordField(raw, 'progressPercent', 'progress_percent', null))
   };
+}
+
+function normalizeImportProgressPercent(value) {
+  const percent = Number(value);
+  if (!Number.isFinite(percent)) return null;
+  return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+function formatImportJobProgress(job) {
+  const stageLabels = {
+    QUEUED: '正在排队准备下载',
+    RESOLVING: '正在读取创意工坊信息',
+    DOWNLOADING: '正在下载资源',
+    INSPECTING: '正在检查资源',
+    PERSISTING: '正在保存壁纸'
+  };
+  const label = stageLabels[String(job?.progressStage || '').toUpperCase()];
+  const percent = normalizeImportProgressPercent(job?.progressPercent);
+  if (!label) return '';
+  return `${label}${percent === null ? '' : `（${percent}%）`}`;
 }
 
 function formatImportJobHint(job, fallbackPrefix = '导入任务') {
@@ -1835,7 +1859,7 @@ function formatImportJobHint(job, fallbackPrefix = '导入任务') {
     return `${fallbackPrefix} #${job.jobId} 失败${job.errorMessage ? `：${job.errorMessage}` : '。'}`;
   }
   if (status === 'RUNNING') {
-    return `${fallbackPrefix} #${job.jobId} 正在下载和解析，请稍后查询状态。`;
+    return `${fallbackPrefix} #${job.jobId} ${formatImportJobProgress(job) || '正在下载和解析'}，请稍后查询状态。`;
   }
   return `${fallbackPrefix} #${job.jobId} 已创建，等待服务器处理。`;
 }
@@ -1844,6 +1868,8 @@ function rememberImportJob(job, prefix) {
   if (!job || !job.jobId) return;
   importState.lastImportJobId = job.jobId;
   importState.lastImportJobStatus = job.status || '';
+  importState.lastImportJobProgressStage = job.progressStage || '';
+  importState.lastImportJobProgressPercent = normalizeImportProgressPercent(job.progressPercent);
   importState.hint = formatImportJobHint(job, prefix);
 }
 

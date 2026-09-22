@@ -38,7 +38,9 @@ class HomeWallpaperControllerIntegrationTest {
                 "PRIVATE",
                 3001L,
                 "",
-                ""
+                "",
+                "COMPLETED",
+                100
             ));
 
         MockMultipartFile file = new MockMultipartFile("file", "sky.png", "image/png", new byte[] {1, 2, 3});
@@ -51,7 +53,9 @@ class HomeWallpaperControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.job_id").value(9001))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("SUCCEEDED"));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("SUCCEEDED"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.progress_stage").value("COMPLETED"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.progress_percent").value(100));
     }
 
     @Test
@@ -64,7 +68,9 @@ class HomeWallpaperControllerIntegrationTest {
                 "PRIVATE",
                 null,
                 "",
-                ""
+                "",
+                "QUEUED",
+                5
             ));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/home-wallpapers/imports/workshop")
@@ -79,7 +85,9 @@ class HomeWallpaperControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.status().isOk())
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.source_type").value("WORKSHOP"))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("PENDING"));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("PENDING"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.progress_stage").value("QUEUED"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.progress_percent").value(5));
     }
 
     @Test

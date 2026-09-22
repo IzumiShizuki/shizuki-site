@@ -30,6 +30,8 @@ function mountPanel(props = {}) {
       importState: {
         lastImportJobId: 0,
         lastImportJobStatus: '',
+        lastImportJobProgressStage: '',
+        lastImportJobProgressPercent: null,
         statusBusy: false,
         hint: ''
       },
@@ -254,17 +256,21 @@ describe('WallpaperDiscoveryPanel', () => {
       importState: {
         lastImportJobId: 9002,
         lastImportJobStatus: 'RUNNING',
+        lastImportJobProgressStage: 'DOWNLOADING',
+        lastImportJobProgressPercent: 55,
         statusBusy: false,
-        hint: 'Workshop 导入任务 #9002 正在下载和解析。'
+        hint: 'Workshop 导入任务 #9002 正在下载资源（55%）。'
       }
     });
     await flushPromises();
     await wrapper.findAll('.discovery-item')[0].trigger('click');
 
     const progress = wrapper.get('[role="progressbar"]');
-    expect(progress.attributes('aria-valuetext')).toBe('正在下载和解析');
+    expect(progress.attributes('aria-valuenow')).toBe('55');
+    expect(progress.attributes('aria-valuetext')).toBe('正在下载资源');
     expect(progress.attributes('aria-busy')).toBe('true');
-    expect(wrapper.text()).toContain('正在下载和解析');
+    expect(wrapper.text()).toContain('正在下载资源');
+    expect(wrapper.text()).toContain('55%');
   });
 
   it('falls back through preview candidates and can retry the proxy preview', async () => {

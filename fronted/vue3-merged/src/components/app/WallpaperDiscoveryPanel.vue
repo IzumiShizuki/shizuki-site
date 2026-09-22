@@ -279,7 +279,9 @@
         >
           <div class="import-progress-head">
             <strong>{{ importProgress.label }}</strong>
-            <span v-if="importProgress.jobId">#{{ importProgress.jobId }}</span>
+            <span v-if="importProgress.jobId">
+              #{{ importProgress.jobId }} · {{ importProgress.determinate ? `${importProgress.percent}%` : '处理中' }}
+            </span>
           </div>
           <div
             class="import-progress-track"
@@ -414,6 +416,28 @@ const importProgress = computed(() => {
   }
 
   const status = String(props.importState?.lastImportJobStatus || 'PENDING').trim().toUpperCase();
+  const stage = String(props.importState?.lastImportJobProgressStage || '').trim().toUpperCase();
+  const rawPercent = Number(props.importState?.lastImportJobProgressPercent);
+  const stageStates = {
+    QUEUED: { label: '正在排队准备下载', busy: true, tone: 'active' },
+    RESOLVING: { label: '正在读取创意工坊信息', busy: true, tone: 'active' },
+    DOWNLOADING: { label: '正在下载资源', busy: true, tone: 'active' },
+    INSPECTING: { label: '正在检查资源', busy: true, tone: 'active' },
+    PERSISTING: { label: '正在保存壁纸', busy: true, tone: 'active' },
+    COMPLETED: { label: '壁纸已添加', busy: false, tone: 'success' },
+    FAILED: { label: '导入失败', busy: false, tone: 'failed' },
+    FALLBACK_REQUIRED: { label: '需要本地包导入', busy: false, tone: 'failed' }
+  };
+  const serverStage = stageStates[stage];
+  if (serverStage && Number.isFinite(rawPercent)) {
+    return {
+      visible: true,
+      jobId,
+      ...serverStage,
+      percent: Math.max(0, Math.min(100, Math.round(rawPercent))),
+      determinate: true
+    };
+  }
   const states = {
     PENDING: { label: '等待开始下载', percent: 18, determinate: false, busy: true, tone: 'active' },
     RUNNING: { label: '正在下载和解析', percent: 58, determinate: false, busy: true, tone: 'active' },
