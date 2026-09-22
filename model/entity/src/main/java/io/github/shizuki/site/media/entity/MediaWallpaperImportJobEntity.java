@@ -25,6 +25,12 @@ public class MediaWallpaperImportJobEntity extends BaseEntity {
     @TableField("status_text")
     private String statusText;
 
+    @TableField("progress_stage")
+    private String progressStage;
+
+    @TableField("progress_percent")
+    private Integer progressPercent;
+
     @TableField("visibility_code")
     private Integer visibilityCode;
 
@@ -78,6 +84,22 @@ public class MediaWallpaperImportJobEntity extends BaseEntity {
 
     public void setStatusText(String statusText) {
         this.statusText = statusText;
+    }
+
+    public String getProgressStage() {
+        return progressStage;
+    }
+
+    public void setProgressStage(String progressStage) {
+        this.progressStage = progressStage;
+    }
+
+    public Integer getProgressPercent() {
+        return progressPercent;
+    }
+
+    public void setProgressPercent(Integer progressPercent) {
+        this.progressPercent = progressPercent;
     }
 
     public Integer getVisibilityCode() {

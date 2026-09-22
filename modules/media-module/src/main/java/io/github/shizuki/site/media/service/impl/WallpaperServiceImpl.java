@@ -34,6 +34,7 @@ import io.github.shizuki.site.media.model.AssetAuditStatusEnum;
 import io.github.shizuki.site.media.model.AssetKindEnum;
 import io.github.shizuki.site.media.model.AssetVisibilityEnum;
 import io.github.shizuki.site.media.model.L2dValidationEnum;
+import io.github.shizuki.site.media.model.WallpaperImportProgressStageEnum;
 import io.github.shizuki.site.media.model.WallpaperImportSourceEnum;
 import io.github.shizuki.site.media.model.WallpaperImportStatusEnum;
 import io.github.shizuki.site.media.model.WallpaperSceneTypeEnum;
@@ -444,8 +445,10 @@ public class WallpaperServiceImpl implements WallpaperService {
                 : readString(workshopMeta.title(), "Workshop-" + workshopItemId);
             BusinessException directDownloadFailure = null;
             if (StringUtils.hasText(workshopMeta.fileUrl())) {
+                markJobProgress(jobId, WallpaperImportProgressStageEnum.DOWNLOADING);
                 try {
                     detected = downloadWorkshopByFileUrl(workshopMeta, workshopItemId);
+                    markJobProgress(jobId, WallpaperImportProgressStageEnum.INSPECTING);
                 } catch (BusinessException exception) {
                     directDownloadFailure = exception;
                 }
@@ -453,7 +456,9 @@ public class WallpaperServiceImpl implements WallpaperService {
             WorkshopDownloadChannelResolver.ChannelState steamCmdChannel =
                 downloadChannelResolver.resolve(false);
             if (detected == null && steamCmdChannel.available()) {
+                markJobProgress(jobId, WallpaperImportProgressStageEnum.DOWNLOADING);
                 Path downloadedDir = downloadWorkshopBySteamCmd(workshopItemId);
+                markJobProgress(jobId, WallpaperImportProgressStageEnum.INSPECTING);
                 detected = detectFromDirectory(downloadedDir);
             }
             if (detected == null) {
@@ -469,6 +474,7 @@ public class WallpaperServiceImpl implements WallpaperService {
                 return;
             }
 
+            markJobProgress(jobId, WallpaperImportProgressStageEnum.PERSISTING);
             ImportedWallpaper imported = persistDetectedWallpaper(
                 userId,
                 visibility,
@@ -623,9 +629,16 @@ public class WallpaperServiceImpl implements WallpaperService {
     }
 
     private DetectedPackage detectFromZipEntries(String fileName, byte[] zipBytes) {
+        return detectFromZipEntries(fileName, zipBytes, false);
+    }
+
+    private DetectedPackage detectFromZipEntries(String fileName,
+                                                 byte[] zipBytes,
+                                                 boolean excludeWorkshopPresentationAssets) {
         DetectedAsset visual = null;
         DetectedAsset bgm = null;
         DetectedAsset bgv = null;
+        boolean containsNativeWallpaperEngineResource = false;
 
         try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(zipBytes), StandardCharsets.UTF_8)) {
             ZipEntry entry;
@@ -638,6 +651,7 @@ public class WallpaperServiceImpl implements WallpaperService {
                 if (!StringUtils.hasText(ext)) {
                     continue;
                 }
+                containsNativeWallpaperEngineResource |= isNativeWallpaperEngineResource(entryName, ext);
                 byte[] bytes = readZipEntryBytes(zipInputStream, mediaStorageProperties.getMaxUploadSize());
                 if (bytes.length <= 0) {
                     continue;
@@ -645,6 +659,9 @@ public class WallpaperServiceImpl implements WallpaperService {
 
                 AssetKindEnum visualKind = classifyVisualKindByExtension(ext);
                 if (visualKind != null) {
+                    if (excludeWorkshopPresentationAssets && isWorkshopPresentationFileName(entryName)) {
+                        continue;
+                    }
                     DetectedAsset candidate = new DetectedAsset(
                         sanitizeZipFileName(entryName),
                         contentTypeByExtension(ext, visualKind),
@@ -679,6 +696,12 @@ public class WallpaperServiceImpl implements WallpaperService {
         }
 
         if (visual == null) {
+            if (excludeWorkshopPresentationAssets && containsNativeWallpaperEngineResource) {
+                throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Wallpaper Engine native scene requires conversion before it can be used on this site"
+                );
+            }
             throw new BusinessException(ErrorCode.BAD_REQUEST, "No usable visual resource found in package");
         }
 
@@ -780,16 +803,37 @@ public class WallpaperServiceImpl implements WallpaperService {
     }
 
     private boolean isWorkshopPresentationAsset(Path path) {
-        String fileName = readString(path == null || path.getFileName() == null ? null : path.getFileName().toString(), "")
-            .toLowerCase(Locale.ROOT);
+        return isWorkshopPresentationFileName(
+            path == null || path.getFileName() == null ? null : path.getFileName().toString()
+        );
+    }
+
+    private boolean isWorkshopPresentationFileName(String rawFileName) {
+        String fileName = readString(rawFileName, "").replace('\\', '/');
+        int separatorIndex = fileName.lastIndexOf('/');
+        if (separatorIndex >= 0) {
+            fileName = fileName.substring(separatorIndex + 1);
+        }
+        fileName = fileName.toLowerCase(Locale.ROOT);
         int extensionIndex = fileName.lastIndexOf('.');
         String baseName = extensionIndex > 0 ? fileName.substring(0, extensionIndex) : fileName;
         return Set.of("preview", "thumbnail", "thumb", "cover").contains(baseName);
     }
 
     private boolean isNativeWallpaperEngineResource(Path path, String extension) {
-        String fileName = readString(path == null || path.getFileName() == null ? null : path.getFileName().toString(), "")
-            .toLowerCase(Locale.ROOT);
+        return isNativeWallpaperEngineResource(
+            path == null || path.getFileName() == null ? null : path.getFileName().toString(),
+            extension
+        );
+    }
+
+    private boolean isNativeWallpaperEngineResource(String rawFileName, String extension) {
+        String fileName = readString(rawFileName, "").replace('\\', '/');
+        int separatorIndex = fileName.lastIndexOf('/');
+        if (separatorIndex >= 0) {
+            fileName = fileName.substring(separatorIndex + 1);
+        }
+        fileName = fileName.toLowerCase(Locale.ROOT);
         return "project.json".equals(fileName) || "pkg".equals(readString(extension, "").toLowerCase(Locale.ROOT));
     }
 
@@ -802,13 +846,28 @@ public class WallpaperServiceImpl implements WallpaperService {
     }
 
     private void markJobRunning(Long jobId) {
+        updateJobProgress(jobId, WallpaperImportStatusEnum.RUNNING, WallpaperImportProgressStageEnum.RESOLVING, true);
+    }
+
+    private void markJobProgress(Long jobId, WallpaperImportProgressStageEnum progressStage) {
+        updateJobProgress(jobId, WallpaperImportStatusEnum.RUNNING, progressStage, false);
+    }
+
+    private void updateJobProgress(Long jobId,
+                                   WallpaperImportStatusEnum status,
+                                   WallpaperImportProgressStageEnum progressStage,
+                                   boolean clearDiagnostics) {
         MediaWallpaperImportJobEntity job = wallpaperImportJobMapper.selectById(jobId);
         if (job == null) {
             return;
         }
-        job.setStatusText(WallpaperImportStatusEnum.RUNNING.name());
-        job.setErrorMessage(null);
-        job.setFallbackHint(null);
+        job.setStatusText(status.name());
+        job.setProgressStage(progressStage.name());
+        job.setProgressPercent(progressStage.getPercent());
+        if (clearDiagnostics) {
+            job.setErrorMessage(null);
+            job.setFallbackHint(null);
+        }
         job.setUpdatedAt(LocalDateTime.now());
         wallpaperImportJobMapper.updateById(job);
     }
@@ -823,6 +882,9 @@ public class WallpaperServiceImpl implements WallpaperService {
             return;
         }
         job.setStatusText(status.name());
+        WallpaperImportProgressStageEnum progressStage = terminalProgressStage(status);
+        job.setProgressStage(progressStage.name());
+        job.setProgressPercent(progressStage.getPercent());
         job.setWallpaperId(wallpaperId);
         job.setErrorMessage(readString(errorMessage, null));
         job.setFallbackHint(readString(fallbackHint, null));
@@ -843,6 +905,8 @@ public class WallpaperServiceImpl implements WallpaperService {
         job.setWorkshopUrl(workshopUrl);
         job.setWorkshopItemId(workshopItemId);
         job.setStatusText(status.name());
+        job.setProgressStage(WallpaperImportProgressStageEnum.QUEUED.name());
+        job.setProgressPercent(WallpaperImportProgressStageEnum.QUEUED.getPercent());
         job.setVisibilityCode(visibility.getCode());
         job.setPayloadJson(payloadJson);
         job.setCreatedAt(LocalDateTime.now());
@@ -980,7 +1044,14 @@ public class WallpaperServiceImpl implements WallpaperService {
                     l2dValidation
                 );
             }
-            return detectFromZipEntries(safeName, bytes);
+            return detectFromZipEntries(safeName, bytes, true);
+        }
+
+        if (isWorkshopPresentationFileName(safeName)) {
+            throw new BusinessException(
+                ErrorCode.BAD_REQUEST,
+                "Workshop file_url resolved to a presentation preview instead of a wallpaper resource"
+            );
         }
 
         AssetKindEnum visualKind = classifyVisualKindByExtension(extension);
@@ -1505,15 +1576,65 @@ public class WallpaperServiceImpl implements WallpaperService {
     }
 
     private WallpaperImportJobResponse toJobResponse(MediaWallpaperImportJobEntity job) {
+        WallpaperImportStatusEnum status = parseImportStatus(job.getStatusText());
+        WallpaperImportProgressStageEnum progressStage = resolveProgressStage(job, status);
         return new WallpaperImportJobResponse(
             job.getId(),
             readString(job.getSourceType(), WallpaperImportSourceEnum.PACKAGE.name()),
-            readString(job.getStatusText(), WallpaperImportStatusEnum.PENDING.name()),
+            status.name(),
             AssetVisibilityEnum.fromCode(job.getVisibilityCode()).name(),
             job.getWallpaperId(),
             readString(job.getErrorMessage(), ""),
-            readString(job.getFallbackHint(), "")
+            readString(job.getFallbackHint(), ""),
+            progressStage.name(),
+            resolveProgressPercent(job.getProgressPercent(), progressStage)
         );
+    }
+
+    private WallpaperImportStatusEnum parseImportStatus(String rawStatus) {
+        try {
+            return WallpaperImportStatusEnum.valueOf(
+                readString(rawStatus, WallpaperImportStatusEnum.PENDING.name()).toUpperCase(Locale.ROOT)
+            );
+        } catch (IllegalArgumentException exception) {
+            return WallpaperImportStatusEnum.PENDING;
+        }
+    }
+
+    private WallpaperImportProgressStageEnum resolveProgressStage(MediaWallpaperImportJobEntity job,
+                                                                    WallpaperImportStatusEnum status) {
+        if (status == WallpaperImportStatusEnum.SUCCEEDED
+            || status == WallpaperImportStatusEnum.FALLBACK_REQUIRED
+            || status == WallpaperImportStatusEnum.FAILED) {
+            return terminalProgressStage(status);
+        }
+        try {
+            return WallpaperImportProgressStageEnum.valueOf(readString(
+                job.getProgressStage(),
+                WallpaperImportProgressStageEnum.QUEUED.name()
+            ));
+        } catch (IllegalArgumentException exception) {
+            return status == WallpaperImportStatusEnum.RUNNING
+                ? WallpaperImportProgressStageEnum.RESOLVING
+                : WallpaperImportProgressStageEnum.QUEUED;
+        }
+    }
+
+    private int resolveProgressPercent(Integer rawPercent, WallpaperImportProgressStageEnum progressStage) {
+        if (progressStage.getPercent() == 100) {
+            return 100;
+        }
+        int percent = rawPercent == null ? progressStage.getPercent() : rawPercent;
+        return Math.max(0, Math.min(99, percent));
+    }
+
+    private WallpaperImportProgressStageEnum terminalProgressStage(WallpaperImportStatusEnum status) {
+        return switch (status) {
+            case SUCCEEDED -> WallpaperImportProgressStageEnum.COMPLETED;
+            case FALLBACK_REQUIRED -> WallpaperImportProgressStageEnum.FALLBACK_REQUIRED;
+            case FAILED -> WallpaperImportProgressStageEnum.FAILED;
+            case PENDING, RUNNING -> WallpaperImportProgressStageEnum.QUEUED;
+        };
     }
 
     record DetectedAsset(String fileName,

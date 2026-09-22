@@ -1,0 +1,4 @@
+-- Dormant media-module baseline copy. Keep aligned with the monolith migration.
+ALTER TABLE MDA_WALLPAPER_IMPORT_JOB
+    ADD COLUMN progress_stage VARCHAR(32) NOT NULL DEFAULT 'QUEUED' AFTER status_text,
+    ADD COLUMN progress_percent TINYINT UNSIGNED NOT NULL DEFAULT 5 AFTER progress_stage;
