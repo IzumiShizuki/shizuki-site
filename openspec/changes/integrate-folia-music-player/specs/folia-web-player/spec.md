@@ -71,6 +71,11 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **THEN** Folia receives one versioned snapshot containing the main-site track metadata, cover, complete queue, playlist metadata, parsed lyric timeline, lyric focus, duration, position, and playback state
 - **AND THEN** both modes render the same title, artist, cover, queue contents, lyric text, and active lyric line without Folia resolving replacement metadata or lyrics
 
+#### Scenario: Track-specific entry reveals the requested song
+- **WHEN** a visitor opens Folia from a normal-mode song row or the current playback detail
+- **THEN** the main-site player resolves and selects that exact provider-and-track identifier before Folia becomes visible
+- **AND THEN** Folia opens its player view with the resulting authoritative session instead of exposing a previously viewed song or lattice surface
+
 #### Scenario: Embedded Folia cannot produce a second audio stream
 - **WHEN** Folia follows the main-site playback session, including after a local Folia state restoration or an internal control action
 - **THEN** every Folia-owned audio element is paused and has no playable source
@@ -93,6 +98,11 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **THEN** Folia renders the primary line in the immersive lyric area and the translation as secondary text
 - **AND THEN** an active-line transition does not leave the immersive lyric area empty
 
+#### Scenario: Embedded lyric focus advances once
+- **WHEN** playback crosses from one timestamped lyric line to the next
+- **THEN** the continuous site-owned playback clock is the only writer that advances Folia's active line
+- **AND THEN** an unchanged lyric timeline is not remounted or retransmitted solely because its active index changed
+
 #### Scenario: Folia is integrated with the current music workspace
 - **WHEN** a visitor opens immersive lyrics from a normal playlist or track
 - **THEN** the playlist, queue, and next/previous behavior remain backed by the full main-site queue
@@ -101,8 +111,8 @@ The embedded music experience SHALL keep the main-site player as the single audi
 #### Scenario: Wallpaper is shared with the Home surface
 - **WHEN** the main site has an active Home wallpaper and Folia is rendered in the music workspace
 - **THEN** Folia uses that wallpaper as a softened background and a sharp image within its music content region
-- **AND WHEN** the visitor enters full-screen immersive playback
-- **THEN** the wallpaper is sharp across the entire viewport
+- **AND WHEN** the visitor expands Folia across the website viewport
+- **THEN** the wallpaper is sharp across the website display area without invoking the browser Fullscreen API or hiding browser chrome
 
 #### Scenario: Folia controls preserve main-player ordering and seek immediately
 - **WHEN** a visitor uses Folia previous/next while the main player is in random mode

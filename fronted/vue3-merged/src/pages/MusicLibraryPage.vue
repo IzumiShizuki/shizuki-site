@@ -1,54 +1,70 @@
 <template>
   <section class="route-page music-library-page" :class="{ 'player-detail-route': isPlayerDetailRoute, 'folia-mode-active': foliaMode }">
-    <section
-      class="folia-embed-pane music-mode-pane"
-      :class="{ 'folia-embed-visible': foliaMode, 'folia-embed-hidden': !foliaMode }"
-      :aria-hidden="!foliaMode"
-      :inert="!foliaMode"
-    >
-      <div class="folia-embed-toolbar">
-        <div class="folia-embed-track" v-if="foliaTrackInfo">
-          <i class="fas fa-music"></i>
-          <span class="folia-track-name">{{ foliaTrackInfo.name }}</span>
-          <span v-if="foliaTrackInfo.artist" class="folia-track-artist">{{ foliaTrackInfo.artist }}</span>
-        </div>
-        <span v-else class="folia-embed-hint">正在加载 Folia 沉浸播放器…</span>
-        <div class="folia-embed-actions">
-          <label class="folia-playlist-picker" title="用音乐界面的歌单在 Folia 播放">
-            <span class="folia-playlist-label"><i class="fas fa-list-ul"></i> 歌单</span>
-            <select
-              class="folia-playlist-select"
-              :value="foliaSelectedPlaylist"
-              @change="handleFoliaPlaylistSelect"
+    <Teleport to="body" :disabled="!foliaViewportExpanded">
+      <section
+        ref="foliaEmbedPaneRef"
+        class="folia-embed-pane music-mode-pane"
+        :class="{
+          'folia-embed-visible': foliaMode,
+          'folia-embed-hidden': !foliaMode,
+          'folia-viewport-expanded': foliaViewportExpanded
+        }"
+        :data-folia-expanded="foliaViewportExpanded ? 'true' : 'false'"
+        :aria-hidden="!foliaMode"
+        :inert="!foliaMode"
+        @keydown.esc.stop="setFoliaViewportExpanded(false)"
+      >
+        <div class="folia-embed-toolbar">
+          <div class="folia-embed-track" v-if="foliaTrackInfo">
+            <i class="fas fa-music"></i>
+            <span class="folia-track-name">{{ foliaTrackInfo.name }}</span>
+            <span v-if="foliaTrackInfo.artist" class="folia-track-artist">{{ foliaTrackInfo.artist }}</span>
+          </div>
+          <span v-else class="folia-embed-hint">正在加载 Folia 沉浸播放器…</span>
+          <div class="folia-embed-actions">
+            <label class="folia-playlist-picker" title="用音乐界面的歌单在 Folia 播放">
+              <span class="folia-playlist-label"><i class="fas fa-list-ul"></i> 歌单</span>
+              <select
+                class="folia-playlist-select"
+                :value="foliaSelectedPlaylist"
+                @change="handleFoliaPlaylistSelect"
+              >
+                <option value="">选择歌单播放…</option>
+                <option v-for="item in foliaPlaylistOptions" :key="item.playlistCode" :value="item.playlistCode">
+                  {{ item.name }}
+                </option>
+              </select>
+            </label>
+            <button class="folia-toolbar-btn ripple-trigger" type="button" @click="syncCookieToFolia">
+              <i class="fas fa-sync-alt"></i>
+              同步账号
+            </button>
+            <button class="folia-toolbar-btn ripple-trigger" type="button" @click="requestFoliaStatus">
+              <i class="fas fa-info-circle"></i>
+              播放状态
+            </button>
+            <button
+              class="folia-toolbar-btn folia-fullscreen-btn ripple-trigger"
+              type="button"
+              :title="foliaViewportExpanded ? '还原 Folia' : '铺满网站'"
+              :aria-label="foliaViewportExpanded ? '还原 Folia' : '铺满网站'"
+              :aria-pressed="foliaViewportExpanded"
+              @click="toggleFoliaFullscreen"
             >
-              <option value="">选择歌单播放…</option>
-              <option v-for="item in foliaPlaylistOptions" :key="item.playlistCode" :value="item.playlistCode">
-                {{ item.name }}
-              </option>
-            </select>
-          </label>
-          <button class="folia-toolbar-btn ripple-trigger" type="button" @click="syncCookieToFolia">
-            <i class="fas fa-sync-alt"></i>
-            同步账号
-          </button>
-          <button class="folia-toolbar-btn ripple-trigger" type="button" @click="requestFoliaStatus">
-            <i class="fas fa-info-circle"></i>
-            播放状态
-          </button>
-          <button class="folia-toolbar-btn folia-fullscreen-btn ripple-trigger" type="button" title="全屏 Folia" aria-label="全屏 Folia" @click="toggleFoliaFullscreen">
-            <i class="fas fa-expand"></i>
-          </button>
-          <button class="folia-toolbar-btn folia-library-btn ripple-trigger" type="button" title="返回音乐库" aria-label="返回音乐库" @click="setFoliaMode(false)">
-            <i class="fas fa-arrow-left"></i>
-          </button>
+              <i :class="foliaViewportExpanded ? 'fas fa-compress' : 'fas fa-expand'"></i>
+            </button>
+            <button class="folia-toolbar-btn folia-library-btn ripple-trigger" type="button" title="返回音乐库" aria-label="返回音乐库" @click="setFoliaMode(false)">
+              <i class="fas fa-arrow-left"></i>
+            </button>
+          </div>
         </div>
-      </div>
-      <div
-        ref="foliaEmbedHostRef"
-        class="folia-embed-host"
-        data-folia-embed
-      ></div>
-    </section>
+        <div
+          ref="foliaEmbedHostRef"
+          class="folia-embed-host"
+          data-folia-embed
+        ></div>
+      </section>
+    </Teleport>
 
     <section v-if="fatalErrorText && !foliaMode" class="music-fatal-error liquid-material">
       <h3>音乐页面加载失败</h3>
@@ -333,6 +349,8 @@ const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
 ]);
 const homeStageContext = inject(HOME_STAGE_CONTEXT_KEY, null);
 const foliaMode = ref(readFoliaModePreference());
+const foliaViewportExpanded = ref(false);
+const foliaEmbedPaneRef = ref(null);
 const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
 const foliaSelectedPlaylist = ref('');
@@ -408,6 +426,7 @@ async function loadFoliaEmbed() {
     foliaBridgeReady = embedRoot.children.length > 0;
     if (!foliaBridgeReady) throw new Error('Folia embed mount timed out');
     postToFolia({ type: 'shizuki:activate-playback-bridge' });
+    deliverPendingFoliaView();
     void (async () => {
       // Folia may have refreshed its login after the last site-side write.
       // Prefer that same-origin local value before asking the backend for an
@@ -546,7 +565,7 @@ function resolveFoliaWallpaper() {
 
 function applyFoliaAmbientWallpaper(source) {
   const host = foliaEmbedHostRef.value;
-  const pane = host?.closest?.('.folia-embed-pane');
+  const pane = foliaEmbedPaneRef.value || host?.closest?.('.folia-embed-pane');
   if (!pane) return;
   pane.dataset.foliaWallpaper = source ? 'active' : '';
   pane.style.setProperty(
@@ -568,14 +587,18 @@ function syncHomeWallpaperToFolia() {
 }
 
 function toggleFoliaFullscreen() {
-  const pane = document.querySelector('.folia-embed-pane');
-  if (!pane) return;
-  if (document.fullscreenElement) {
-    void document.exitFullscreen?.();
-    return;
-  }
   syncHomeWallpaperToFolia();
-  void pane.requestFullscreen?.().catch(() => {});
+  setFoliaViewportExpanded(!foliaViewportExpanded.value);
+}
+
+function setFoliaViewportExpanded(expanded) {
+  const nextExpanded = Boolean(expanded);
+  if (foliaViewportExpanded.value === nextExpanded) return;
+  foliaViewportExpanded.value = nextExpanded;
+  void nextTick().then(() => {
+    syncHomeWallpaperToFolia();
+    window.dispatchEvent(new Event('resize'));
+  });
 }
 
 /** 普通模式歌单（含默认/创建/收藏）作为 Folia 播放候选。 */
@@ -627,6 +650,7 @@ function readFoliaModePreference() {
 function setFoliaMode(enabled, options = {}) {
   const nextEnabled = Boolean(enabled);
   const syncPlayback = options.syncPlayback !== false;
+  if (!nextEnabled) setFoliaViewportExpanded(false);
   foliaMode.value = nextEnabled;
   if (typeof window !== 'undefined') {
     try {
@@ -892,6 +916,14 @@ function readFoliaTrackId(track) {
   const numeric = Number(rawId);
   if (Number.isFinite(numeric) && numeric > 0) return numeric;
   return 0;
+}
+
+function readFoliaTrackKey(track) {
+  if (!track) return '';
+  const trackId = String(track.trackId || track.id || track.track_id || '').trim();
+  if (!trackId) return '';
+  const provider = String(track.provider || track.providerCode || track.provider_code || '').trim().toLowerCase();
+  return provider ? `${provider}:${trackId}` : trackId;
 }
 
 /** 把 Folia 的轻量播放快照转换为站点播放器可解析的网易云曲目。 */
@@ -3230,7 +3262,6 @@ watch(
       entry?.furigana,
       Array.isArray(entry?.words) ? entry.words.map((word) => [word?.time, word?.endTime, word?.text].join(',')).join(';') : ''
     ].join('|')).join('||') : ''),
-    () => Number(player.currentLyricEntryIndex?.value ?? -1),
     () => String(player.lyricRenderMode?.value || 'original'),
     () => Number(player.duration?.value || 0),
     () => Boolean(player.isPlaying?.value)
@@ -3268,24 +3299,39 @@ watch(
   }
 );
 
+let foliaPendingView = null;
+
+function requestFoliaEmbeddedView(rawView = 'player') {
+  foliaPendingView = rawView === 'lattice' ? 'lattice' : 'player';
+  deliverPendingFoliaView();
+}
+
+function deliverPendingFoliaView() {
+  if (!foliaBridgeReady || !foliaPendingView) return;
+  const view = foliaPendingView;
+  foliaPendingView = null;
+  postToFolia({ type: 'shizuki:set-view', view });
+}
+
 async function handleFoliaPlayRequest(event) {
   const track = event?.detail?.track;
   if (!track) return;
-  const trackId = readFoliaTrackId(track);
   foliaTrackInfo.value = {
     name: String(track.title || track.name || ''),
     artist: String(track.artist || '')
   };
-  if (!foliaMode.value) {
-    setFoliaMode(true, { syncPlayback: false });
-  }
-  const currentTrackId = readFoliaTrackId(player.currentTrack.value);
-  if (trackId && trackId !== currentTrackId) {
+  const trackKey = readFoliaTrackKey(track);
+  const currentTrackKey = readFoliaTrackKey(player.currentTrack.value);
+  if (trackKey && trackKey !== currentTrackKey) {
     const played = await player.playExternalTrack?.(track, { replaceQueue: false });
     if (!played) return;
   }
   await nextTick();
   await pushCurrentTrackToFolia();
+  if (!foliaMode.value) {
+    setFoliaMode(true, { syncPlayback: false });
+  }
+  requestFoliaEmbeddedView('player');
 }
 
 function handleOpenFoliaMode(event) {
@@ -3297,6 +3343,7 @@ function handleOpenFoliaMode(event) {
   if (!foliaMode.value) {
     setFoliaMode(true);
   }
+  requestFoliaEmbeddedView('player');
 }
 
 /** 视图级沉浸切换：歌词沉浸 / 歌单大屏 → Folia lattice 视图。 */
@@ -3313,17 +3360,7 @@ async function handleOpenFoliaLattice(event) {
   if (!foliaMode.value) {
     setFoliaMode(true, { syncPlayback: !track && !trackIds.length && !requestedTracks.length });
   }
-  // 等桥就绪后切 Folia 视图（重试至多 5s）
-  const applyView = (attempts = 0) => {
-    if (foliaBridgeReady) {
-      postToFolia({ type: 'shizuki:set-view', view: view === 'player' ? 'player' : 'lattice' });
-      return;
-    }
-    if (attempts < 16) {
-      window.setTimeout(() => applyView(attempts + 1), 300);
-    }
-  };
-  applyView();
+  requestFoliaEmbeddedView(view);
   if (track) {
     await handleFoliaPlayRequest(event);
     return;
@@ -3479,15 +3516,7 @@ onBeforeUnmount(() => {
   opacity: 0.92;
 }
 
-.folia-embed-pane:fullscreen {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  border-radius: 0;
-  background: #0b0e14;
-}
-
-.folia-embed-pane[data-folia-wallpaper='active']:fullscreen::before {
+.folia-embed-pane[data-folia-wallpaper='active'][data-folia-expanded='true']::before {
   inset: 0;
   filter: none;
   transform: none;
@@ -3509,6 +3538,19 @@ onBeforeUnmount(() => {
   visibility: hidden;
   pointer-events: none;
   z-index: 0;
+}
+
+.folia-embed-pane.folia-viewport-expanded {
+  position: fixed;
+  inset: 0;
+  width: 100dvw;
+  height: 100dvh;
+  max-width: none;
+  z-index: 2400;
+  border: 0;
+  border-radius: 0;
+  background: #0b0e14;
+  box-shadow: none;
 }
 
 .music-mode-pane {
@@ -3579,7 +3621,7 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: blur(16px) saturate(130%);
 }
 
-.folia-embed-pane:fullscreen .folia-embed-host {
+.folia-embed-pane[data-folia-expanded='true'] .folia-embed-host {
   margin: 0;
   border: 0;
   border-radius: 0;

@@ -38,6 +38,7 @@ let followClockStartedAt = 0;
 let followClockPlaying = false;
 let suppressPlaybackCommandsUntil = 0;
 let latestFollowSessionVersion = -1;
+let latestFollowLyricsFingerprint = '';
 let audioLockInstalled = false;
 let progressSeekBridgeInstalled = false;
 let navigationBridgeInstalled = false;
@@ -66,7 +67,7 @@ function cssBackgroundImage(url: string): string {
 /**
  * The site owns the ambient blur outside Folia. This layer keeps the actual
  * player surface on the unfiltered Home wallpaper, including when its host
- * enters native fullscreen.
+ * expands across the website viewport.
  */
 function installEmbedWallpaperStyle(): void {
   if (embedWallpaperStyleInstalled || typeof document === 'undefined') return;
@@ -95,8 +96,7 @@ function installEmbedWallpaperStyle(): void {
   opacity: 0 !important;
   background-color: transparent !important;
 }
-#folia-embed-root[data-shizuki-wallpaper='active']:fullscreen::before,
-.folia-embed-pane:fullscreen #folia-embed-root[data-shizuki-wallpaper='active']::before {
+.folia-embed-pane[data-folia-expanded='true'] #folia-embed-root[data-shizuki-wallpaper='active']::before {
   background-size: cover;
 }
 `;
@@ -153,7 +153,7 @@ function observeEmbeddedDefaultBackground(root: HTMLElement): void {
  * workspace itself instead of relying on viewport width alone.
  */
 function resolveEmbedLyricContentScale(root: HTMLElement): number {
-  if (document.fullscreenElement) return 1;
+  if (root.closest<HTMLElement>('.folia-embed-pane')?.dataset.foliaExpanded === 'true') return 1;
   const state = usePlaybackStore.getState();
   const lines = state.lyrics?.lines ?? [];
   const activeLine = lines[state.currentLineIndex] ?? null;
@@ -207,7 +207,6 @@ function installEmbedLyricSizing(): void {
     new ResizeObserver(syncEmbedLyricSizing).observe(root);
   }
   window.addEventListener('resize', syncEmbedLyricSizing);
-  document.addEventListener('fullscreenchange', syncEmbedLyricSizing);
   window.requestAnimationFrame(syncEmbedLyricSizing);
 }
 
@@ -320,6 +319,23 @@ function buildFollowLyrics(rawLyrics: unknown, song: SongResult | null, duration
     artist,
     isWordByWord: rows.some((entry) => entry.words.length > 0),
   };
+}
+
+function buildFollowLyricsFingerprint(
+  rawLyrics: unknown,
+  song: SongResult | null,
+  durationMs: number,
+): string {
+  const artists = Array.isArray(song?.artists)
+    ? song.artists.map((artist) => String(artist?.name || ''))
+    : [];
+  return JSON.stringify([
+    Number(song?.id || 0),
+    String(song?.name || ''),
+    artists,
+    Math.max(0, Number(durationMs) || 0),
+    Array.isArray(rawLyrics) ? rawLyrics : [],
+  ]);
 }
 
 function readFollowSession(raw: unknown): FollowSession | null {
@@ -565,22 +581,27 @@ function applyFollowSession(session: FollowSession): void {
   const store = usePlaybackStore.getState();
   const song = readFollowSong(session.track);
   const queue = readFollowQueue(session.queue);
-  const lyrics = buildFollowLyrics(session.lyrics, song, session.durationMs);
+  const lyricsFingerprint = buildFollowLyricsFingerprint(session.lyrics, song, session.durationMs);
   lockEmbeddedAudio();
   store.setAudioSrc(null);
   store.setCurrentSong(song);
   store.setPlayQueue(queue.length ? queue : (song ? [song] : []));
   store.setCachedCoverUrl(String(song?.album?.picUrl || ''));
   store.setDuration(Math.max(0, Number(session.durationMs || 0) / 1000));
-  store.setLyricsState(lyrics);
-  store.setCurrentLineIndex(session.lyricIndex);
+  if (lyricsFingerprint !== latestFollowLyricsFingerprint) {
+    const lyrics = buildFollowLyrics(session.lyrics, song, session.durationMs);
+    latestFollowLyricsFingerprint = lyricsFingerprint;
+    store.setLyricsState(lyrics);
+  }
+  // The projected clock is the only active-line writer. Applying the parent
+  // index here as well briefly replays the boundary transition on each sync.
+  syncFollowClock(session.positionMs, session.playing);
   store.setPlayerState(session.playing ? PlayerState.PLAYING : PlayerState.PAUSED);
   try {
     (window as unknown as { __shizukiPlaybackSession?: FollowSession }).__shizukiPlaybackSession = session;
   } catch {
     // The store remains sufficient if diagnostics cannot be attached to window.
   }
-  syncFollowClock(session.positionMs, session.playing);
   syncEmbedLyricSizing();
 }
 
@@ -588,6 +609,7 @@ function stopFollowPlayback(): void {
   followPlaybackActive = false;
   followClockPlaying = false;
   latestFollowSessionVersion = -1;
+  latestFollowLyricsFingerprint = '';
   if (followClockFrame) window.cancelAnimationFrame(followClockFrame);
   followClockFrame = 0;
   suppressPlaybackCommandsUntil = performance.now() + 300;

@@ -116,3 +116,9 @@ FOLIA_AI_PROVIDER=google               # 未部署 backend，AI 主题暂不可�
 - **普通模式解析**：`POST /api/v1/music/tracks/resolve-playback` 返回 HTTP `200`，曲目时长 `247766 ms`，`resolved_source=netease_account`、`playbackKind=full`、`isPreview=false`，并交付站内同源流地址。
 - **完整流与越过试听段**：首段请求返回 HTTP `206` 和 `Content-Range: bytes 0-65535/9912991`；按总字节数和时长换算 35 秒位置为字节 `1400332`，该段请求返回 HTTP `206` 和 `Content-Range: bytes 1400332-1465867/9912991`，证明真实媒体流可读取 30 秒之后的内容。
 - **服务状态与清理**：后端日志记录目标曲通过 `account_netease` 完成解析，部署后 `/actuator/health` 为 `UP`；验收使用的隔离 refresh token 已注销并从 Redis 清理。
+
+## Folia 站内体验收尾（2026-09-22）
+
+- **当前歌曲先交接再显现**：歌曲行或播放详情打开 Folia 时，先用 `provider + 原始 trackId` 确认并切换主播放器曲目，成功后再显示 Folia；视图请求以 pending 状态保存，冷启动完成后必定交付最后一次 `player`/`lattice` 选择。
+- **单一歌词焦点时钟**：主站不再因 `currentLyricEntryIndex` 变化重发整份会话；Folia 对歌词内容生成指纹，时间线未变化时不重装歌词，活动行只由平滑播放时钟更新一次。
+- **站内铺满而非浏览器全屏**：展开操作通过 Vue Teleport 保留同一 Folia DOM/React 树，并以 `position: fixed; inset: 0; height: 100dvh` 覆盖网站视口；不调用 `requestFullscreen()`，浏览器标签栏、地址栏和窗口边界保持可见。
