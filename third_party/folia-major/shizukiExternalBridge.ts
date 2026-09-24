@@ -55,10 +55,26 @@ let embedWallpaperObserver: MutationObserver | null = null;
 let embedLyricSizingInstalled = false;
 let embedLyricBaseScale: number | null = null;
 let embedLyricAppliedScale: number | null = null;
+let embedLyricSizingAuditFrame = 0;
+let embedLyricSizingAuditFrames = 0;
+let embedLyricGeometryLineKey = '';
+let embedLyricGeometrySnapshot: { center: number; width: number } | null = null;
+let embedLyricGeometryStableFrames = 0;
+let embedLyricGeometryCommittedLineKey = '';
+let embedLyricMeasuredRootWidth = 0;
+let embedLyricHorizontalCorrection: {
+  element: HTMLElement;
+  lineKey: string;
+  originalInlineTranslate: string;
+  appliedOffset: number;
+} | null = null;
 
 const EMBED_LYRIC_HORIZONTAL_GUTTER = 32;
 const EMBED_LYRIC_PRIMARY_FONT_SCALE = 2;
 const EMBED_LYRIC_ACTIVE_WORD_SELECTOR = '[data-shizuki-folia-active-lyric-word]';
+const EMBED_LYRIC_LINE_SELECTOR = '[data-shizuki-folia-lyric-line]';
+const EMBED_LYRIC_STABLE_GEOMETRY_FRAMES = 4;
+const EMBED_LYRIC_STABILITY_RATIO = 0.015;
 // Active lyric words can receive an extra emphasis transform after typography
 // sizing. Reserve that headroom before the line reaches the embed edge.
 const EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY = 1.6;
@@ -170,18 +186,185 @@ function getEmbedLyricAvailableWidth(root: HTMLElement): number {
   return Math.max(1, root.clientWidth - EMBED_LYRIC_HORIZONTAL_GUTTER * 2);
 }
 
-function measureEmbedActiveLyricWidth(root: HTMLElement): number {
+function isEmbedLyricElementVisible(element: HTMLElement, root: HTMLElement): boolean {
+  let current: HTMLElement | null = element;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    if (
+      style.display === 'none'
+      || style.visibility === 'hidden'
+      || Number.parseFloat(style.opacity || '1') <= 0.01
+    ) {
+      return false;
+    }
+    if (current === root) return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function getEmbedActiveLyricScope(root: HTMLElement, activeLine: { startTime: number }): HTMLElement | null {
+  const lineKey = String(activeLine.startTime);
+  return Array.from(root.querySelectorAll<HTMLElement>(EMBED_LYRIC_LINE_SELECTOR))
+    .find((element) => element.dataset.shizukiFoliaLyricLine === lineKey) ?? null;
+}
+
+function measureEmbedActiveLyricBounds(root: HTMLElement, activeLine: { startTime: number }): {
+  left: number;
+  right: number;
+  width: number;
+  layoutWidth: number;
+} | null {
+  const scope = getEmbedActiveLyricScope(root, activeLine);
+  if (!scope) return null;
   let left = Number.POSITIVE_INFINITY;
   let right = Number.NEGATIVE_INFINITY;
+  let layoutWidth = 0;
 
-  root.querySelectorAll<HTMLElement>(EMBED_LYRIC_ACTIVE_WORD_SELECTOR).forEach((element) => {
+  scope.querySelectorAll<HTMLElement>(EMBED_LYRIC_ACTIVE_WORD_SELECTOR).forEach((element) => {
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') return;
+    const marginLeft = Number.parseFloat(style.marginLeft || '0') || 0;
+    const marginRight = Number.parseFloat(style.marginRight || '0') || 0;
+    layoutWidth += Math.max(0, element.offsetWidth) + marginLeft + marginRight;
+    if (!isEmbedLyricElementVisible(element, root)) return;
     const rect = element.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
     left = Math.min(left, rect.left);
     right = Math.max(right, rect.right);
   });
 
-  return Number.isFinite(left) && Number.isFinite(right) ? Math.max(0, right - left) : 0;
+  if (!Number.isFinite(left) || !Number.isFinite(right)) {
+    return layoutWidth > 0 ? { left: 0, right: 0, width: 0, layoutWidth } : null;
+  }
+  return { left, right, width: Math.max(0, right - left), layoutWidth };
+}
+
+function isEmbedLyricGeometryStable(
+  activeLine: { startTime: number },
+  bounds: { left: number; right: number; width: number },
+): boolean {
+  const lineKey = String(activeLine.startTime);
+  const center = (bounds.left + bounds.right) / 2;
+  if (embedLyricGeometryLineKey !== lineKey) {
+    embedLyricGeometryLineKey = lineKey;
+    embedLyricGeometrySnapshot = { center, width: bounds.width };
+    embedLyricGeometryStableFrames = 0;
+    embedLyricGeometryCommittedLineKey = '';
+    return false;
+  }
+  if (embedLyricGeometryCommittedLineKey === lineKey) return true;
+
+  const previous = embedLyricGeometrySnapshot;
+  embedLyricGeometrySnapshot = { center, width: bounds.width };
+  if (!previous) return false;
+  const tolerance = Math.max(
+    1.5,
+    Math.max(previous.width, bounds.width) * EMBED_LYRIC_STABILITY_RATIO,
+  );
+  const stable = Math.abs(previous.center - center) <= tolerance
+    && Math.abs(previous.width - bounds.width) <= tolerance;
+  embedLyricGeometryStableFrames = stable ? embedLyricGeometryStableFrames + 1 : 0;
+  if (embedLyricGeometryStableFrames < EMBED_LYRIC_STABLE_GEOMETRY_FRAMES) return false;
+  embedLyricGeometryCommittedLineKey = lineKey;
+  return true;
+}
+
+function resetEmbedLyricGeometry(): void {
+  embedLyricGeometryLineKey = '';
+  embedLyricGeometrySnapshot = null;
+  embedLyricGeometryStableFrames = 0;
+  embedLyricGeometryCommittedLineKey = '';
+}
+
+function restoreEmbedLyricHorizontalCorrection(): void {
+  const correction = embedLyricHorizontalCorrection;
+  if (!correction) return;
+  if (correction.originalInlineTranslate) {
+    correction.element.style.setProperty('translate', correction.originalInlineTranslate);
+  } else {
+    correction.element.style.removeProperty('translate');
+  }
+  delete correction.element.dataset.shizukiFoliaLyricOffset;
+  embedLyricHorizontalCorrection = null;
+}
+
+function resolveEmbedLyricHorizontalOffset(
+  bounds: { left: number; right: number },
+  safeLeft: number,
+  safeRight: number,
+): number {
+  const minimumOffset = safeLeft - bounds.left;
+  const maximumOffset = safeRight - bounds.right;
+  if (minimumOffset <= maximumOffset) {
+    return Math.min(maximumOffset, Math.max(minimumOffset, 0));
+  }
+  return ((safeLeft + safeRight) - (bounds.left + bounds.right)) / 2;
+}
+
+function syncEmbedLyricHorizontalCorrection(
+  root: HTMLElement,
+  activeLine: { startTime: number },
+): void {
+  const lineKey = String(activeLine.startTime);
+  if (embedLyricGeometryCommittedLineKey !== lineKey) return;
+
+  const scope = getEmbedActiveLyricScope(root, activeLine);
+  if (!scope) {
+    restoreEmbedLyricHorizontalCorrection();
+    resetEmbedLyricGeometry();
+    return;
+  }
+  if (
+    embedLyricHorizontalCorrection
+    && (
+      embedLyricHorizontalCorrection.lineKey !== lineKey
+      || embedLyricHorizontalCorrection.element !== scope
+      || !embedLyricHorizontalCorrection.element.isConnected
+    )
+  ) {
+    restoreEmbedLyricHorizontalCorrection();
+    resetEmbedLyricGeometry();
+    return;
+  }
+
+  const renderedBounds = measureEmbedActiveLyricBounds(root, activeLine);
+  if (!renderedBounds || renderedBounds.width <= 0) return;
+  const appliedOffset = embedLyricHorizontalCorrection?.appliedOffset ?? 0;
+  const uncorrectedBounds = {
+    left: renderedBounds.left - appliedOffset,
+    right: renderedBounds.right - appliedOffset,
+  };
+  const rootRect = root.getBoundingClientRect();
+  const safeLeft = rootRect.left + EMBED_LYRIC_HORIZONTAL_GUTTER;
+  const safeRight = rootRect.right - EMBED_LYRIC_HORIZONTAL_GUTTER;
+  const maximumCorrection = Math.max(root.clientWidth, EMBED_LYRIC_HORIZONTAL_GUTTER * 2);
+  const resolvedOffset = resolveEmbedLyricHorizontalOffset(uncorrectedBounds, safeLeft, safeRight);
+  const nextOffset = Math.max(-maximumCorrection, Math.min(maximumCorrection, resolvedOffset));
+  const normalizedOffset = Math.abs(nextOffset) < 0.5 ? 0 : nextOffset;
+
+  if (normalizedOffset === 0) {
+    restoreEmbedLyricHorizontalCorrection();
+    return;
+  }
+  if (
+    embedLyricHorizontalCorrection
+    && Math.abs(embedLyricHorizontalCorrection.appliedOffset - normalizedOffset) < 0.5
+  ) {
+    return;
+  }
+  if (!embedLyricHorizontalCorrection) {
+    embedLyricHorizontalCorrection = {
+      element: scope,
+      lineKey,
+      originalInlineTranslate: scope.style.getPropertyValue('translate'),
+      appliedOffset: 0,
+    };
+  }
+  embedLyricHorizontalCorrection.appliedOffset = normalizedOffset;
+  scope.dataset.shizukiFoliaLyricOffset = normalizedOffset.toFixed(3);
+  // CSS translate is independent from Framer Motion's transform property.
+  scope.style.setProperty('translate', `${normalizedOffset.toFixed(3)}px 0`);
 }
 
 function resolveEmbedLyricContentScale(
@@ -201,14 +384,41 @@ function resolveEmbedLyricContentScale(
   const availableTextWidth = getEmbedLyricAvailableWidth(root);
   const safePreferredScale = Math.max(Number(preferredScale) || 1, 0.01);
   const safeCurrentScale = Math.max(Number(currentScale) || safePreferredScale, 0.01);
-  const renderedLineWidth = measureEmbedActiveLyricWidth(root);
-  if (renderedLineWidth > 0) {
-    // DOMRects include Cadenza's active-word transforms. Convert that measured
-    // width back to the preferred-scale basis expected by the caller.
-    return Math.min(
-      1,
-      (safeCurrentScale * availableTextWidth) / (renderedLineWidth * safePreferredScale),
+  const renderedBounds = measureEmbedActiveLyricBounds(root, activeLine);
+  if (renderedBounds) {
+    const layoutScale = renderedBounds.layoutWidth > 0
+      ? Math.min(
+        1,
+        (safeCurrentScale * availableTextWidth)
+          / (renderedBounds.layoutWidth * EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY * safePreferredScale),
+      )
+      : 1;
+    if (
+      renderedBounds.width <= 0
+      || !isEmbedLyricGeometryStable(activeLine, renderedBounds)
+    ) {
+      // Framer Motion first exposes the new line at its waiting pose, then
+      // springs every word into place. offsetWidth is transform-independent,
+      // so use it until several consecutive frames agree on the final bounds.
+      return Math.max(0.01, layoutScale);
+    }
+    const maximumGrowth = safePreferredScale / safeCurrentScale;
+    const widthScale = availableTextWidth / renderedBounds.width;
+    const measuredScale = Math.max(
+      0.01,
+      Math.min(widthScale, maximumGrowth),
     );
+    // DOMRects include the active-word transforms and random line placement.
+    // Convert that measured contraction back to the preferred-scale basis.
+    const visualScale = Math.min(
+      1,
+      (safeCurrentScale * measuredScale) / safePreferredScale,
+    );
+    // Word-level highlight transforms keep moving after the line container has
+    // settled. They may briefly squeeze the measured half-width near one edge;
+    // never let that animated pose undercut the transform-independent layout
+    // width that already reserves emphasis headroom for the complete line.
+    return Math.max(layoutScale, visualScale);
   }
 
   // Before Cadenza has mounted its word nodes, match its two-times font tuning
@@ -226,7 +436,36 @@ function resolveEmbedLyricContentScale(
 
 function syncEmbedLyricSizing(): void {
   const root = document.getElementById('folia-embed-root');
-  if (!root || root.clientWidth < 240 || typeof window === 'undefined') return;
+  if (!root || root.clientWidth < 240 || typeof window === 'undefined') {
+    restoreEmbedLyricHorizontalCorrection();
+    resetEmbedLyricGeometry();
+    return;
+  }
+  if (Math.abs(embedLyricMeasuredRootWidth - root.clientWidth) > 1) {
+    embedLyricMeasuredRootWidth = root.clientWidth;
+    restoreEmbedLyricHorizontalCorrection();
+    resetEmbedLyricGeometry();
+  }
+  const playback = usePlaybackStore.getState();
+  const activeLine = playback.lyrics?.lines?.[playback.currentLineIndex] ?? null;
+  if (!activeLine) {
+    restoreEmbedLyricHorizontalCorrection();
+    resetEmbedLyricGeometry();
+    return;
+  }
+  const activeLineKey = String(activeLine.startTime);
+  const activeScope = getEmbedActiveLyricScope(root, activeLine);
+  if (
+    embedLyricHorizontalCorrection
+    && (
+      embedLyricHorizontalCorrection.lineKey !== activeLineKey
+      || embedLyricHorizontalCorrection.element !== activeScope
+      || !embedLyricHorizontalCorrection.element.isConnected
+    )
+  ) {
+    restoreEmbedLyricHorizontalCorrection();
+    resetEmbedLyricGeometry();
+  }
   const settings = useTypographySettingsStore.getState();
   const currentScale = Number(settings.lyricsFontScale) || 1;
   if (embedLyricBaseScale === null || (
@@ -243,11 +482,32 @@ function syncEmbedLyricSizing(): void {
     0.01,
     Math.min(preferredScale, preferredScale * widthRatio, preferredScale * contentScale),
   );
-  if (Math.abs(currentScale - nextScale) < 0.005) return;
+  if (Math.abs(currentScale - nextScale) < 0.005) {
+    syncEmbedLyricHorizontalCorrection(root, activeLine);
+    return;
+  }
+  restoreEmbedLyricHorizontalCorrection();
+  resetEmbedLyricGeometry();
   embedLyricAppliedScale = nextScale;
   // setState deliberately avoids persisting an embed-only presentation value.
   useTypographySettingsStore.setState({ lyricsFontScale: nextScale });
-  window.requestAnimationFrame(syncEmbedLyricSizing);
+}
+
+function scheduleEmbedLyricSizingAudit(frameCount = 90): void {
+  embedLyricSizingAuditFrames = Math.max(
+    embedLyricSizingAuditFrames,
+    Math.max(1, Math.floor(frameCount)),
+  );
+  if (embedLyricSizingAuditFrame) return;
+  const run = () => {
+    embedLyricSizingAuditFrame = 0;
+    syncEmbedLyricSizing();
+    embedLyricSizingAuditFrames -= 1;
+    if (embedLyricSizingAuditFrames > 0) {
+      embedLyricSizingAuditFrame = window.requestAnimationFrame(run);
+    }
+  };
+  embedLyricSizingAuditFrame = window.requestAnimationFrame(run);
 }
 
 function installEmbedLyricSizing(): void {
@@ -255,10 +515,10 @@ function installEmbedLyricSizing(): void {
   embedLyricSizingInstalled = true;
   const root = document.getElementById('folia-embed-root');
   if (root && typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(syncEmbedLyricSizing).observe(root);
+    new ResizeObserver(() => scheduleEmbedLyricSizingAudit()).observe(root);
   }
-  window.addEventListener('resize', syncEmbedLyricSizing);
-  window.requestAnimationFrame(syncEmbedLyricSizing);
+  window.addEventListener('resize', () => scheduleEmbedLyricSizingAudit());
+  scheduleEmbedLyricSizingAudit();
 }
 
 function readFollowSong(rawTrack: UnknownRecord | null | undefined): SongResult | null {
@@ -424,9 +684,10 @@ function writeFollowClock(positionSec: number): void {
       const index = findLatestActiveLineIndex(lines, safePosition);
       if (index !== store.currentLineIndex) {
         store.setCurrentLineIndex(index);
-        // Wait for Cadenza to replace its active-word nodes, then measure the
-        // new line instead of carrying the previous line's temporary scale.
-        window.requestAnimationFrame(syncEmbedLyricSizing);
+        // React and Framer Motion commit the new line and its emphasis
+        // transform over several frames. Audit that short transition so the
+        // final visual bounds, not the outgoing line, determine the scale.
+        scheduleEmbedLyricSizingAudit();
       }
     }
   } catch {
