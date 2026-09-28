@@ -47,4 +47,21 @@ describe('motion transform ownership', () => {
     expect(routeBlock).not.toContain('<Transition');
     expect(routeBlock).not.toContain('<transition');
   });
+
+  it('adds a fade-and-rise route entrance without taking ownership of page transforms', () => {
+    const app = source('src/App.vue');
+
+    expect(app).toMatch(/\.route-page-view \{[\s\S]*?animation: route-view-enter 360ms/);
+    expect(app).toMatch(/@keyframes route-view-enter \{[\s\S]*?opacity: 0;[\s\S]*?translate: 0 12px;/);
+    expect(app).not.toMatch(/@keyframes route-view-enter \{[^}]*transform:/);
+    expect(app).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.route-page-view \{\s*animation: none !important;/);
+  });
+
+  it('uses immediate section scrolling when reduced motion is requested', () => {
+    const author = source('src/pages/AuthorPage.vue');
+
+    expect(author).toContain("window.matchMedia('(prefers-reduced-motion: reduce)').matches");
+    expect(author).toContain("options.behavior === 'auto' || reducedMotionRequested ? 'auto' : 'smooth'");
+    expect(author).toContain("scrollToPublicSection(publicSection, { behavior: 'auto', updateRoute: false })");
+  });
 });

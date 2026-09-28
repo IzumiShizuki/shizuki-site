@@ -3348,6 +3348,34 @@ onBeforeUnmount(() => {
 
 .route-page-view {
   min-height: 100%;
+  animation: route-view-enter 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.route-page-view[data-motion-level='soothing'],
+.route-page-view[data-motion-mode='soothing'] {
+  animation: none;
+}
+
+:root[data-route-transition] .route-page-view {
+  animation: none;
+}
+
+@keyframes route-view-enter {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-page-view {
+    animation: none !important;
+  }
 }
 
 .ai-side-column {

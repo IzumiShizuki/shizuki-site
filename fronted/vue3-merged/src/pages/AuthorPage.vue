@@ -1493,7 +1493,10 @@ function resolveContentScrollRoot() {
 
 async function scrollToPublicSection(sectionKey, options = {}) {
   const normalized = normalizePublicSection(sectionKey);
-  const behavior = options.behavior === 'auto' ? 'auto' : 'smooth';
+  const reducedMotionRequested = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const behavior = options.behavior === 'auto' || reducedMotionRequested ? 'auto' : 'smooth';
   activePublicSection.value = normalized;
 
   const nextQuery = buildPublicSectionQuery(normalized);
