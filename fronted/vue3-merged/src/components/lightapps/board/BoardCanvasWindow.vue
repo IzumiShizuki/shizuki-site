@@ -877,7 +877,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .canvas-toolbar {
@@ -1008,8 +1009,9 @@ onBeforeUnmount(() => {
 
 .canvas-shell {
   position: relative;
+  flex: 1 1 0;
   min-height: 420px;
-  height: clamp(460px, 66vh, 820px);
+  height: auto;
   border-radius: 16px;
   border: 1px solid rgba(31, 35, 41, 0.1);
   overflow: hidden;
@@ -1142,7 +1144,7 @@ onBeforeUnmount(() => {
 
   .canvas-shell {
     min-height: 340px;
-    height: clamp(340px, 58vh, 640px);
+    height: auto;
   }
 
 }
