@@ -442,20 +442,13 @@
             </section>
           </section>
 
-          <section v-else-if="activeTool === 'qr-tools'" class="tool-panel qr-launcher">
-            <div class="qr-visual" aria-hidden="true">
-              <i class="fas fa-qrcode"></i>
-              <span></span><span></span><span></span>
-            </div>
-            <div>
-              <p class="eyebrow">QR TOOL SUITE</p>
-              <h3>二维码生成、识别与 WiFi 卡片</h3>
-              <p>二维码功能保留为独立窗口，便于同时打开工具箱和二维码预览。</p>
-              <button class="primary-btn ripple-trigger" type="button" @click="openQrTools">
-                <i class="fas fa-up-right-from-square" aria-hidden="true"></i> 打开二维码工具
-              </button>
-            </div>
-          </section>
+          <QrPanel
+            v-else-if="qrToolMode"
+            ref="qrPanelRef"
+            :mode="qrToolMode"
+            @feedback="onQrFeedback"
+            @payload="onQrPayload"
+          />
         </template>
       </main>
     </div>
@@ -464,8 +457,8 @@
 
 <script setup>
 import { computed, defineComponent, h, onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { openLightAppWindow } from '../../../utils/lightAppWindowBus';
 import LightAppTopToolbar from '../LightAppTopToolbar.vue';
+import QrPanel from './qr/QrPanel.vue';
 import {
   ADDRESS_COUNTRIES,
   ADDRESS_GENDERS,
@@ -489,6 +482,8 @@ import {
   formatJsonLike,
   generatePassword,
   parseUrlDetails,
+  resolveQrToolMode,
+  resolveStoredWebToolCode,
   resolveTimestamp,
   transformUrlText,
   WEB_TOOLBOX_GROUPS,
@@ -561,6 +556,8 @@ const changeState = reactive({ start: '100', end: '125' });
 const addressState = reactive({ country: 'DE', region: 'random', gender: 'random', count: 1 });
 const addressResults = ref([]);
 const addressHistory = ref(readAddressHistory());
+const qrPanelRef = ref(null);
+const qrResultText = ref('');
 
 const TOOLBOX_TRANSLATE_STORAGE_KEY = 'shizuki.web-toolbox.translate.v1';
 const translateState = reactive(readTranslatePreferences());
@@ -607,7 +604,7 @@ function persistTranslatePreferences() {
 function readInitialTool() {
   if (typeof window === 'undefined') return 'url-codec';
   const saved = String(window.localStorage.getItem(TOOLBOX_ACTIVE_STORAGE_KEY) || '').trim();
-  return findWebTool(saved) ? saved : 'url-codec';
+  return resolveStoredWebToolCode(saved) || 'url-codec';
 }
 
 function readAddressHistory() {
@@ -638,6 +635,7 @@ function resultOf(callback) {
 }
 
 const currentTool = computed(() => findWebTool(activeTool.value));
+const qrToolMode = computed(() => resolveQrToolMode(activeTool.value));
 const currentGroupLabel = computed(() => WEB_TOOLBOX_GROUPS.find((group) => group.tools.some((tool) => tool.code === activeTool.value))?.label || '工具箱');
 const filteredGroups = computed(() => {
   const query = searchQuery.value.toLowerCase();
@@ -717,6 +715,7 @@ const activeResultText = computed(() => {
   };
   if (activeTool.value === 'password') return passwordValue.value;
   if (activeTool.value === 'address-gen') return addressResults.value.map(formatAddressProfileText).join('\n\n');
+  if (qrToolMode.value) return qrResultText.value;
   if (activeTool.value === 'url-params' && !urlParamsResult.value.error) return JSON.stringify(urlParamsResult.value.value, null, 2);
   if (activeTool.value === 'timestamp' && !timestampResult.value.error) return JSON.stringify(timestampResult.value.value, null, 2);
   if (activeTool.value === 'change-rate' && !changeResult.value.error) return JSON.stringify(changeResult.value.value, null, 2);
@@ -730,6 +729,7 @@ function selectTool(code) {
   if (code === 'password' && !passwordValue.value) refreshPassword();
   if (code === 'translate') ensureTranslateProviders();
   if (code === 'address-gen' && !addressResults.value.length) generateAddresses(false);
+  qrResultText.value = '';
 }
 
 function ensureTranslateProviders() {
@@ -854,8 +854,12 @@ function useCurrentTimestamp() {
   timestampState.unit = 'milliseconds';
 }
 
-function openQrTools() {
-  openLightAppWindow('qr-tools', { source: 'web_toolbox' });
+function onQrFeedback({ message, type }) {
+  showFeedback(message, type === 'error' ? 'error' : 'info');
+}
+
+function onQrPayload({ value }) {
+  qrResultText.value = String(value || '');
 }
 
 function generateAddresses(saveHistory = true) {
@@ -938,6 +942,10 @@ function clearActiveTool() {
   }
   if (activeTool.value === 'password') passwordValue.value = '';
   if (activeTool.value === 'address-gen') addressResults.value = [];
+  if (qrToolMode.value) {
+    qrResultText.value = '';
+    qrPanelRef.value?.resetPanel?.();
+  }
   if (activeTool.value === 'translate') {
     if (translateAbortController) {
       translateAbortController.abort();
@@ -1161,17 +1169,6 @@ onBeforeUnmount(() => {
 .history-main strong { font-size: 12.5px; }
 .history-main span { color: var(--tool-muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.qr-launcher { min-height: 360px; display: grid; grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr); gap: 26px; align-items: center; border-radius: 20px; padding: clamp(22px, 5vw, 48px); background: radial-gradient(circle at 20% 20%, rgba(var(--accent-rgb), 0.24), transparent 38%), var(--tool-panel); border: 1px solid var(--tool-border); }
-.qr-launcher h3 { margin: 6px 0 8px; font-size: clamp(24px, 4vw, 38px); }
-.qr-launcher p:not(.eyebrow) { color: var(--tool-muted); line-height: 1.7; }
-.qr-visual { width: min(250px, 100%); aspect-ratio: 1; justify-self: center; border-radius: 28px; display: grid; place-items: center; position: relative; color: rgba(249, 252, 255, 0.96); background: linear-gradient(145deg, rgba(18, 31, 48, 0.98), rgba(49, 89, 115, 0.88)); box-shadow: 0 24px 60px rgba(12, 23, 38, 0.22); }
-.qr-visual > i { font-size: clamp(90px, 16vw, 160px); }
-.qr-visual span { position: absolute; width: 12px; height: 12px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.9); animation: qr-pulse 1.8s ease-in-out infinite; }
-.qr-visual span:nth-child(2) { left: 18%; top: 16%; }
-.qr-visual span:nth-child(3) { right: 14%; top: 28%; animation-delay: 0.3s; }
-.qr-visual span:nth-child(4) { left: 32%; bottom: 12%; animation-delay: 0.6s; }
-@keyframes qr-pulse { 50% { opacity: 0.36; transform: scale(0.72); } }
-
 @container lightapp-window-body (max-width: 1050px) {
   .toolbox-shell { grid-template-columns: 210px minmax(0, 1fr); }
   .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1192,14 +1189,12 @@ onBeforeUnmount(() => {
   .timestamp-input-row, .change-inputs { grid-template-columns: 1fr; }
   .change-inputs > i { transform: rotate(90deg); justify-self: center; margin: 0; }
   .change-primary { grid-row: auto; }
-  .qr-launcher { grid-template-columns: 1fr; }
-  .qr-visual { max-width: 180px; }
   .address-grid, .address-blocks { grid-template-columns: 1fr; }
   .address-controls select { flex: 1 1 130px; }
   .toolbar-search-wrap { min-width: 180px; flex: 1 1 220px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-orbit, .qr-visual span { animation: none; }
+  .hero-orbit { animation: none; }
 }
 </style>

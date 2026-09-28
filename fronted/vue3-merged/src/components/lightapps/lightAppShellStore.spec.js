@@ -145,7 +145,7 @@ describe('lightAppShellStore', () => {
   it('dispatches resize after entering and leaving fullscreen', () => {
     const resizeListener = vi.fn();
     window.addEventListener('resize', resizeListener);
-    const windowId = openLightAppShellWindow('qr-tools');
+    const windowId = openLightAppShellWindow('web-toolbox');
 
     enterLightAppWindowFullscreen(windowId);
     exitLightAppWindowFullscreen(windowId);

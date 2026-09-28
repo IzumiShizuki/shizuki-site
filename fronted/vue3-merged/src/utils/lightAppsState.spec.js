@@ -228,4 +228,48 @@ describe('lightAppsState', () => {
       app_code: ''
     });
   });
+
+  it('migrates the removed QR light app into the Web Toolbox', () => {
+    const normalized = normalizeLightAppsState({
+      enabled_codes: ['timeprism-todo', 'qr-tools'],
+      rail_slots: [
+        { enabled: true, item_kind: 'app', item_ref: 'qr-tools' },
+        { enabled: false, item_kind: 'app', item_ref: '' }
+      ],
+      collections: [
+        {
+          collection_id: 'folder_apps',
+          title: 'Apps',
+          items: [{ item_kind: 'app', item_ref: 'qr-tools' }]
+        }
+      ]
+    });
+
+    expect(normalized.enabled_codes).toEqual(['timeprism-todo', 'web-toolbox']);
+    expect(normalized.enabled_codes).not.toContain('qr-tools');
+    expect(normalized.rail_slots[0]).toEqual({
+      enabled: true,
+      item_kind: 'app',
+      item_ref: 'web-toolbox'
+    });
+    expect(normalized.collections[0].items).toEqual([{ item_kind: 'app', item_ref: 'web-toolbox' }]);
+  });
+
+  it('collapses a duplicate QR migration target instead of leaving an empty slot', () => {
+    const normalized = normalizeLightAppsState({
+      enabled_codes: ['web-toolbox', 'qr-tools'],
+      rail_slots: [
+        { enabled: true, item_kind: 'app', item_ref: 'web-toolbox' },
+        { enabled: true, item_kind: 'app', item_ref: 'qr-tools' }
+      ]
+    });
+
+    expect(normalized.enabled_codes).toEqual(['web-toolbox']);
+    expect(normalized.rail_slots[0].item_ref).toBe('web-toolbox');
+    expect(normalized.rail_slots[1]).toEqual({
+      enabled: false,
+      item_kind: 'app',
+      item_ref: ''
+    });
+  });
 });

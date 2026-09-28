@@ -23,9 +23,6 @@ vi.mock('./board/BoardCanvasWindow.vue', () => ({
 vi.mock('./blog/BlogSlidevWindow.vue', () => ({
   default: { template: '<section />' }
 }));
-vi.mock('./qr/QrToolsWindow.vue', () => ({
-  default: { template: '<section />' }
-}));
 vi.mock('./toolbox/WebToolboxWindow.vue', () => ({
   default: { template: '<section />' }
 }));

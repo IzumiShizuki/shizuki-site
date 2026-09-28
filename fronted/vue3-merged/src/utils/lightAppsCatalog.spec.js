@@ -19,3 +19,21 @@ describe('KJ tool source light-app registration', () => {
     expect(state.windows[0].width).toBeGreaterThanOrEqual(900);
   });
 });
+
+describe('standalone QR light-app removal', () => {
+  it('no longer catalogues QR Tools', () => {
+    expect(getLightAppByCode('qr-tools')).toBeNull();
+    expect(LIGHT_APP_CODES).not.toContain('qr-tools');
+    expect(isKnownLightAppCode('qr-tools')).toBe(false);
+  });
+
+  it('leaves no shared window id for the removed app', () => {
+    expect(LIGHT_APP_SHARED_WINDOW_IDS['qr-tools']).toBeUndefined();
+  });
+
+  it('keeps the Web Toolbox as the QR surface', () => {
+    const app = getLightAppByCode('web-toolbox');
+    expect(app).toMatchObject({ code: 'web-toolbox', floatingAble: true });
+    expect(LIGHT_APP_SHARED_WINDOW_IDS['web-toolbox']).toBe(910008);
+  });
+});

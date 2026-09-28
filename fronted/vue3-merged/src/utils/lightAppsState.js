@@ -15,6 +15,15 @@ const LEGACY_TIMEPRISM_CODE_MAP = Object.freeze({
   'timeprism-projects': TIMEPRISM_TODO_CODE
 });
 
+/**
+ * The standalone QR light app was folded into the Web Toolbox. Stored state
+ * that still references it must resolve to the surviving app instead of being
+ * dropped as an unknown code.
+ */
+const LEGACY_LIGHT_APP_CODE_MAP = Object.freeze({
+  'qr-tools': 'web-toolbox'
+});
+
 const DEFAULT_ENABLED_CODES = Object.freeze([TIMEPRISM_TODO_CODE]);
 const DEFAULT_RAIL_SLOT_BLUEPRINT = Object.freeze([
   { enabled: true, item_kind: 'app', item_ref: TIMEPRISM_TODO_CODE },
@@ -39,7 +48,8 @@ function toObject(value) {
 function normalizeCodeAlias(rawCode) {
   const code = String(rawCode || '').trim();
   if (!code) return '';
-  return LEGACY_TIMEPRISM_CODE_MAP[code] || code;
+  if (LEGACY_TIMEPRISM_CODE_MAP[code]) return LEGACY_TIMEPRISM_CODE_MAP[code];
+  return LEGACY_LIGHT_APP_CODE_MAP[code] || code;
 }
 
 function uniqueKnownCodes(codes) {

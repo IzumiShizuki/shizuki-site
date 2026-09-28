@@ -35,10 +35,32 @@ export const WEB_TOOLBOX_GROUPS = Object.freeze([
       { code: 'timestamp', title: 'Unix 时间戳', summary: '秒、毫秒与日期时间互转', iconClass: 'fas fa-clock' },
       { code: 'change-rate', title: '涨跌幅计算', summary: '计算差额、涨跌幅和倍数', iconClass: 'fas fa-chart-line' },
       { code: 'address-gen', title: '地址生成器', summary: '德/美/英/日/法真实格式身份与地址', iconClass: 'fas fa-map-location-dot' },
-      { code: 'qr-tools', title: '二维码工具', summary: '打开生成、识别和 WiFi 卡片', iconClass: 'fas fa-qrcode' }
+      { code: 'qr-generate', title: '二维码生成', summary: '把文本、链接或口令编码为二维码', iconClass: 'fas fa-qrcode' },
+      { code: 'qr-scan', title: '二维码识别', summary: '识别图片、剪贴板与摄像头中的二维码', iconClass: 'fas fa-camera' },
+      { code: 'qr-wifi', title: 'WiFi 二维码', summary: '把 WiFi 配置做成可扫码卡片', iconClass: 'fas fa-wifi' }
     ]
   }
 ]);
+
+/** Tool codes that render the shared QR panel, mapped to their panel mode. */
+export const WEB_TOOLBOX_QR_TOOL_MODES = Object.freeze({
+  'qr-generate': 'generate',
+  'qr-scan': 'scan',
+  'qr-wifi': 'wifi'
+});
+
+/** Removed launcher tool code, migrated to the QR generation tool. */
+export const LEGACY_QR_TOOL_CODE = 'qr-tools';
+export const DEFAULT_QR_TOOL_CODE = 'qr-generate';
+
+export function resolveWebToolCode(code) {
+  const normalized = String(code || '').trim();
+  return normalized === LEGACY_QR_TOOL_CODE ? DEFAULT_QR_TOOL_CODE : normalized;
+}
+
+export function resolveQrToolMode(code, modes = WEB_TOOLBOX_QR_TOOL_MODES) {
+  return modes[resolveWebToolCode(code)] || '';
+}
 
 export const WEB_TOOLBOX_TOOLS = Object.freeze(WEB_TOOLBOX_GROUPS.flatMap((group) => group.tools));
 
@@ -299,4 +321,10 @@ export function calculateChange(startValue, endValue) {
 
 export function findWebTool(code) {
   return WEB_TOOLBOX_TOOLS.find((item) => item.code === String(code || '').trim()) || null;
+}
+
+/** Resolve a stored tool code, migrating the removed QR launcher code. */
+export function resolveStoredWebToolCode(code) {
+  const resolved = resolveWebToolCode(code);
+  return findWebTool(resolved) ? resolved : '';
 }

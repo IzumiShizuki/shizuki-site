@@ -193,7 +193,6 @@ const BalanceLedgerWindow = createAsyncWindowComponent(() => import('./balance/B
 const UrlLinksWindow = createAsyncWindowComponent(() => import('./url/UrlLinksWindow.vue'));
 const BoardCanvasWindow = createAsyncWindowComponent(() => import('./board/BoardCanvasWindow.vue'));
 const BlogSlidevWindow = createAsyncWindowComponent(() => import('./blog/BlogSlidevWindow.vue'));
-const QrToolsWindow = createAsyncWindowComponent(() => import('./qr/QrToolsWindow.vue'));
 const WebToolboxWindow = createAsyncWindowComponent(() => import('./toolbox/WebToolboxWindow.vue'));
 const KjToolSourceWindow = createAsyncWindowComponent(() => import('./kj/KjToolSourceWindow.vue'));
 
@@ -204,7 +203,6 @@ const componentMap = Object.freeze({
   'url-links': UrlLinksWindow,
   'board-canvas': BoardCanvasWindow,
   'blog-slidev': BlogSlidevWindow,
-  'qr-tools': QrToolsWindow,
   'web-toolbox': WebToolboxWindow,
   'kj-tool-source': KjToolSourceWindow
 });
@@ -779,7 +777,6 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 6px;
   padding: 8px 10px 6px;
-  padding-right: 154px;
   border-bottom: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.26));
   user-select: none;
   transition: background-color 180ms ease;
@@ -788,7 +785,7 @@ onBeforeUnmount(() => {
 .light-window.is-fullscreen .window-header {
   min-height: 52px;
   padding-top: max(10px, env(safe-area-inset-top));
-  padding-right: max(158px, calc(148px + env(safe-area-inset-right)));
+  padding-right: max(12px, env(safe-area-inset-right));
   padding-left: max(12px, env(safe-area-inset-left));
   background: color-mix(in srgb, var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.12)) 86%, transparent);
   backdrop-filter: blur(24px) saturate(132%);
@@ -798,9 +795,20 @@ onBeforeUnmount(() => {
   background: var(--theme-panel-surface-elevated, rgba(255, 255, 255, 0.08));
 }
 
+/*
+ * Only the title row must clear the absolutely positioned window buttons.
+ * The toolbar row sits below them, so reserving the same space there would
+ * leave a dead zone in front of the first control. This matters most when a
+ * window is narrow, where that lost width wraps the toolbar onto extra rows.
+ */
 .window-head-row {
   display: block;
   min-height: 32px;
+  padding-right: 144px;
+}
+
+.light-window.is-fullscreen .window-head-row {
+  padding-right: max(146px, calc(136px + env(safe-area-inset-right)));
 }
 
 .window-drag-zone {
@@ -905,8 +913,7 @@ onBeforeUnmount(() => {
   color: rgb(var(--accent-strong-rgb));
 }
 
-.light-window.is-minimized .window-header {
-  padding-right: 154px;
+.light-window.is-minimized .window-head-row {
   padding-bottom: 8px;
 }
 

@@ -12,7 +12,6 @@ export const LIGHT_APP_SHARED_WINDOW_IDS = Object.freeze({
   'url-links': 910004,
   'board-canvas': 910005,
   'blog-slidev': 910006,
-  'qr-tools': 910007,
   'web-toolbox': 910008,
   'kj-tool-source': 910009
 });
@@ -40,14 +39,6 @@ const WINDOW_PRESETS = Object.freeze({
     minHeight: 620,
     maxWidthRatio: 0.94,
     maxHeightRatio: 0.94
-  },
-  'qr-tools': {
-    widthRatio: 0.74,
-    heightRatio: 0.82,
-    minWidth: 880,
-    minHeight: 620,
-    maxWidthRatio: 0.9,
-    maxHeightRatio: 0.92
   },
   'web-toolbox': {
     widthRatio: 0.82,
