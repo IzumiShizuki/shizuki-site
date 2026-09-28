@@ -467,4 +467,47 @@ class LightAppServiceImplTest {
         Assertions.assertEquals(ErrorCode.CONFLICT, exception.getErrorCode());
         Mockito.verify(taskNotionSyncService).ensureColumnMirrorInitialized();
     }
+
+    @Test
+    void shouldPreserveZeroMinuteDeadlineReminder() {
+        Object reminder = ReflectionTestUtils.invokeMethod(
+            lightAppService,
+            "normalizeReminderConfig",
+            true,
+            "MINUTE",
+            "DEADLINE",
+            false,
+            true,
+            null,
+            null,
+            0,
+            "MINUTE"
+        );
+
+        Assertions.assertEquals(Boolean.TRUE, ReflectionTestUtils.invokeMethod(reminder, "enabled"));
+        Assertions.assertEquals(Integer.valueOf(0), ReflectionTestUtils.invokeMethod(reminder, "deadlineRemindValue"));
+        Assertions.assertEquals("MINUTE", ReflectionTestUtils.invokeMethod(reminder, "deadlineRemindUnit"));
+    }
+
+    @Test
+    void shouldRejectZeroReminderWithDayUnit() {
+        BusinessException exception = Assertions.assertThrows(
+            BusinessException.class,
+            () -> ReflectionTestUtils.invokeMethod(
+                lightAppService,
+                "normalizeReminderConfig",
+                true,
+                "DAY",
+                "DEADLINE",
+                false,
+                true,
+                null,
+                null,
+                0,
+                "DAY"
+            )
+        );
+
+        Assertions.assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+    }
 }

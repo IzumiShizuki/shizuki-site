@@ -62,14 +62,16 @@
           v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'"
           v-model.number="draft.startRemindValue"
           type="number"
-          min="1"
+          min="0"
           placeholder="起始提前"
         />
+        <button v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'" type="button" :aria-pressed="draft.startRemindValue === 0 && draft.startRemindUnit === 'MINUTE'" @click="setExactReminder('start')">{{ draft.startRemindValue === 0 && draft.startRemindUnit === 'MINUTE' ? '✓ 准时' : '准时' }}</button>
         <select v-if="draft.reminderEnabled && draft.timingMode === 'RANGE'" v-model="draft.startRemindUnit">
           <option value="MINUTE">分钟</option>
           <option value="DAY">天</option>
         </select>
-        <input v-if="draft.reminderEnabled" v-model.number="draft.deadlineRemindValue" type="number" min="1" placeholder="截止提前" />
+        <input v-if="draft.reminderEnabled" v-model.number="draft.deadlineRemindValue" type="number" min="0" placeholder="截止提前" />
+        <button v-if="draft.reminderEnabled" type="button" :aria-pressed="draft.deadlineRemindValue === 0 && draft.deadlineRemindUnit === 'MINUTE'" @click="setExactReminder('deadline')">{{ draft.deadlineRemindValue === 0 && draft.deadlineRemindUnit === 'MINUTE' ? '✓ 准时' : '准时' }}</button>
         <select v-if="draft.reminderEnabled" v-model="draft.deadlineRemindUnit">
           <option value="MINUTE">分钟</option>
           <option value="DAY">天</option>
@@ -333,10 +335,21 @@ function sortTodos(items) {
     .sort((left, right) => left.sortNum - right.sortNum || left.todoId - right.todoId);
 }
 
-function normalizePositiveInteger(value) {
+function normalizeNonNegativeInteger(value) {
+  if (value === null || value === undefined || value === '') return null;
   const num = Number(value);
-  if (!Number.isFinite(num) || num <= 0) return null;
+  if (!Number.isFinite(num) || num < 0) return null;
   return Math.round(num);
+}
+
+function setExactReminder(kind) {
+  if (kind === 'start') {
+    draft.startRemindValue = 0;
+    draft.startRemindUnit = 'MINUTE';
+    return;
+  }
+  draft.deadlineRemindValue = 0;
+  draft.deadlineRemindUnit = 'MINUTE';
 }
 
 function addHexAlpha(color, alpha) {
@@ -461,9 +474,9 @@ function startTodoEdit(item) {
   draft.dueAt = toTaskInputValue(item.dueAt, draft.timePrecision);
   draft.rangeStartAt = toTaskInputValue(item.rangeStartAt, draft.timePrecision);
   draft.reminderEnabled = Boolean(item.reminderEnabled);
-  draft.startRemindValue = normalizePositiveInteger(item.startRemindValue);
+  draft.startRemindValue = normalizeNonNegativeInteger(item.startRemindValue);
   draft.startRemindUnit = item.startRemindUnit || 'MINUTE';
-  draft.deadlineRemindValue = normalizePositiveInteger(item.deadlineRemindValue);
+  draft.deadlineRemindValue = normalizeNonNegativeInteger(item.deadlineRemindValue);
   draft.deadlineRemindUnit = item.deadlineRemindUnit || 'MINUTE';
   showCreateForm.value = true;
 }
@@ -601,8 +614,8 @@ function priorityLabel(priority) {
 function buildTodoPayload(item, overrides = {}) {
   const timingMode = (overrides.timingMode ?? item.timingMode ?? 'DEADLINE').toUpperCase();
   const reminderEnabled = Boolean(overrides.reminderEnabled ?? item.reminderEnabled);
-  const startRemindValue = normalizePositiveInteger(overrides.startRemindValue ?? item.startRemindValue);
-  const deadlineRemindValue = normalizePositiveInteger(overrides.deadlineRemindValue ?? item.deadlineRemindValue);
+  const startRemindValue = normalizeNonNegativeInteger(overrides.startRemindValue ?? item.startRemindValue);
+  const deadlineRemindValue = normalizeNonNegativeInteger(overrides.deadlineRemindValue ?? item.deadlineRemindValue);
   return {
     projectId: overrides.projectId ?? item.projectId ?? null,
     title: overrides.title ?? item.title,
@@ -750,9 +763,9 @@ async function createTodoItem() {
       timingMode,
       rangeStartAt: timingMode === 'RANGE' ? parsedRangeStartAt || null : null,
       reminderEnabled: Boolean(draft.reminderEnabled),
-      startRemindValue: draft.reminderEnabled && timingMode === 'RANGE' ? normalizePositiveInteger(draft.startRemindValue) : null,
+      startRemindValue: draft.reminderEnabled && timingMode === 'RANGE' ? normalizeNonNegativeInteger(draft.startRemindValue) : null,
       startRemindUnit: draft.reminderEnabled && timingMode === 'RANGE' ? draft.startRemindUnit : null,
-      deadlineRemindValue: draft.reminderEnabled ? normalizePositiveInteger(draft.deadlineRemindValue) : null,
+      deadlineRemindValue: draft.reminderEnabled ? normalizeNonNegativeInteger(draft.deadlineRemindValue) : null,
       deadlineRemindUnit: draft.reminderEnabled ? draft.deadlineRemindUnit : null
     };
 

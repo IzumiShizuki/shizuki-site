@@ -1945,11 +1945,13 @@ public class LightAppServiceImpl implements LightAppService {
         if (rawValue == null || !StringUtils.hasText(normalizedUnit)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, fieldPrefix + "_value and " + fieldPrefix + "_unit must be provided together");
         }
-        if (rawValue <= 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldPrefix + "_value must be > 0");
-        }
-
         String unit = normalizeReminderUnit(normalizedUnit);
+        if (rawValue < 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldPrefix + "_value must be >= 0");
+        }
+        if (rawValue == 0 && !REMIND_UNIT_MINUTE.equals(unit)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldPrefix + "_value=0 requires MINUTE unit");
+        }
         if (REMIND_UNIT_DAY.equals(unit) && !TIME_PRECISION_DAY.equals(timePrecision)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "DAY remind unit requires time_precision=DAY");
         }
