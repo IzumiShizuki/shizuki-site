@@ -436,7 +436,7 @@ async function loadFoliaEmbed() {
     })();
     deliverPendingFoliaSession();
     syncThemeToFolia();
-    syncHomeWallpaperToFolia();
+    syncFoliaWallpaper();
     return true;
   })().catch((error) => {
     foliaMountPromise = null;
@@ -548,9 +548,9 @@ function syncThemeToFolia() {
 }
 
 function resolveFoliaWallpaper() {
-  const wallpaper = homeStageContext?.homeWallpaper?.value || homeStageContext?.wallpaper?.value || null;
-  // CSS background images cannot render a video or Live2D source. In those
-  // cases Folia deliberately uses Home's preview still instead.
+  const wallpaper = homeStageContext?.wallpaper?.value || homeStageContext?.homeWallpaper?.value || null;
+  // CSS background images cannot render a video or Live2D source, so image
+  // layers use the active wallpaper's preview while the bridge keeps its type.
   const source = String(
     wallpaper?.isDynamic
       ? (wallpaper?.preview || '')
@@ -574,8 +574,8 @@ function applyFoliaAmbientWallpaper(source) {
   );
 }
 
-/** Folia 内容区显示 Home 原图，外围保持柔化背景。 */
-function syncHomeWallpaperToFolia() {
+/** Folia follows the active music-route wallpaper, with Home as a fallback. */
+function syncFoliaWallpaper() {
   const wallpaper = resolveFoliaWallpaper();
   applyFoliaAmbientWallpaper(wallpaper.source);
   postToFolia({
@@ -587,7 +587,7 @@ function syncHomeWallpaperToFolia() {
 }
 
 function toggleFoliaFullscreen() {
-  syncHomeWallpaperToFolia();
+  syncFoliaWallpaper();
   setFoliaViewportExpanded(!foliaViewportExpanded.value);
 }
 
@@ -596,7 +596,7 @@ function setFoliaViewportExpanded(expanded) {
   if (foliaViewportExpanded.value === nextExpanded) return;
   foliaViewportExpanded.value = nextExpanded;
   void nextTick().then(() => {
-    syncHomeWallpaperToFolia();
+    syncFoliaWallpaper();
     window.dispatchEvent(new Event('resize'));
   });
 }
@@ -3278,7 +3278,7 @@ watch(
     return [wallpaper.source, wallpaper.preview, wallpaper.isDynamic];
   },
   () => {
-    if (foliaMode.value && foliaBridgeReady) syncHomeWallpaperToFolia();
+    if (foliaMode.value && foliaBridgeReady) syncFoliaWallpaper();
   },
   { immediate: true }
 );
@@ -3613,8 +3613,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 140px 8px 12px;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--theme-border);
   background: color-mix(in srgb, var(--theme-panel-surface) 84%, transparent);
   backdrop-filter: blur(16px) saturate(130%);
@@ -3631,9 +3632,11 @@ onBeforeUnmount(() => {
 .folia-embed-track {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  font-size: 12px;
+  flex: 1 1 280px;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--theme-text-primary);
 }
 
@@ -3646,7 +3649,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 40vw;
+  max-width: min(36vw, 440px);
 }
 
 .folia-track-artist {
@@ -3654,31 +3657,35 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 20vw;
+  max-width: min(18vw, 240px);
 }
 
 .folia-embed-hint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--theme-text-tertiary);
 }
 
 .folia-embed-actions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .folia-toolbar-btn {
-  min-height: 26px;
-  padding: 0 10px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--theme-border-strong);
   background: var(--theme-surface-soft);
   color: var(--theme-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   cursor: pointer;
 }
 
@@ -3690,20 +3697,21 @@ onBeforeUnmount(() => {
 .folia-playlist-picker {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 0 10px;
+  gap: 8px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 13px;
   border-radius: 999px;
   border: 1px solid var(--theme-border-strong);
   background: var(--theme-surface-soft);
   color: var(--theme-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .folia-playlist-label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   white-space: nowrap;
 }
 
@@ -3711,8 +3719,8 @@ onBeforeUnmount(() => {
   border: 0;
   background: transparent;
   color: var(--theme-text-primary);
-  font-size: 11px;
-  max-width: 180px;
+  font-size: 12px;
+  max-width: clamp(180px, 24vw, 300px);
   cursor: pointer;
   outline: none;
 }
@@ -3729,9 +3737,9 @@ onBeforeUnmount(() => {
   }
 
   .folia-embed-toolbar {
-    min-height: 44px;
-    gap: 4px;
-    padding: 6px 8px;
+    min-height: 56px;
+    gap: 6px;
+    padding: 8px 12px;
   }
 
   .folia-embed-track,
@@ -3742,13 +3750,15 @@ onBeforeUnmount(() => {
   .folia-embed-actions {
     width: 100%;
     min-width: 0;
-    gap: 4px;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .folia-playlist-picker {
     flex: 1 1 auto;
     min-width: 0;
-    padding: 0 6px;
+    min-height: 40px;
+    padding: 0 10px;
   }
 
   .folia-playlist-label {
@@ -3756,7 +3766,7 @@ onBeforeUnmount(() => {
   }
 
   .folia-playlist-label i {
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .folia-playlist-select {
@@ -3766,9 +3776,9 @@ onBeforeUnmount(() => {
   }
 
   .folia-toolbar-btn {
-    flex: 0 0 28px;
-    width: 28px;
-    min-height: 26px;
+    flex: 0 0 40px;
+    width: 40px;
+    min-height: 40px;
     padding: 0;
     justify-content: center;
     gap: 0;
@@ -3776,12 +3786,36 @@ onBeforeUnmount(() => {
   }
 
   .folia-toolbar-btn i {
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .folia-fullscreen-btn,
   .folia-library-btn {
-    flex-basis: 28px;
+    flex-basis: 40px;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 960px) {
+  .folia-embed-toolbar {
+    align-items: flex-start;
+    padding: 10px 16px;
+  }
+
+  .folia-embed-track,
+  .folia-embed-actions {
+    flex: 1 1 100%;
+  }
+
+  .folia-embed-actions {
+    justify-content: flex-start;
+  }
+
+  .folia-track-name {
+    max-width: 58vw;
+  }
+
+  .folia-track-artist {
+    max-width: 26vw;
   }
 }
 
