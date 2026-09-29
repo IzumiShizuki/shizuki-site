@@ -91,6 +91,23 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(playbackIntentMirror).not.toContain('replaceQueue: true');
   });
 
+  it('opens track-specific Folia actions on the resolved current song and player view', () => {
+    const trackRequest = readFunction('handleFoliaPlayRequest');
+    const modeRequest = readFunction('handleOpenFoliaMode');
+    const viewRequest = readFunction('requestFoliaEmbeddedView');
+    const pendingViewDelivery = readFunction('deliverPendingFoliaView');
+    const loadEmbed = readFunction('loadFoliaEmbed');
+
+    expect(trackRequest).toContain('readFoliaTrackKey(track)');
+    expect(trackRequest).toContain('player.playExternalTrack?.(track, { replaceQueue: false })');
+    expect(trackRequest.indexOf('player.playExternalTrack')).toBeLessThan(trackRequest.indexOf('setFoliaMode(true'));
+    expect(trackRequest).toContain("requestFoliaEmbeddedView('player')");
+    expect(modeRequest).toContain("requestFoliaEmbeddedView('player')");
+    expect(viewRequest).toContain("foliaPendingView = rawView === 'lattice' ? 'lattice' : 'player'");
+    expect(pendingViewDelivery).toContain("postToFolia({ type: 'shizuki:set-view', view })");
+    expect(loadEmbed).toContain('deliverPendingFoliaView()');
+  });
+
   it('routes Folia skip controls through the main player so shuffle remains authoritative', () => {
     expect(bridgeSource).toContain('function installEmbeddedNavigationBridge');
     expect(bridgeSource).toContain('function relayEmbeddedNavigation');
@@ -119,13 +136,13 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(bridgeSource).toContain('const fallbackEnd = Number.isFinite(nextStart)');
   });
 
-  it('refreshes Folia when any rendered part of the site-owned session changes', () => {
+  it('refreshes stable Folia session data without retransmitting every lyric focus tick', () => {
     const foliaWatch = source.slice(source.indexOf('watch(\n  [\n    () => readFoliaTrackId'), source.indexOf('\nwatch(\n  () => auth.isAuthenticated.value'));
 
     expect(foliaWatch).toContain('player.tracks?.value');
     expect(foliaWatch).toContain('player.playlistProfile?.value');
     expect(foliaWatch).toContain('player.lyricTimeline?.value');
-    expect(foliaWatch).toContain('player.currentLyricEntryIndex?.value');
+    expect(foliaWatch).not.toContain('player.currentLyricEntryIndex?.value');
     expect(foliaWatch).toContain('player.lyricRenderMode?.value');
   });
 
@@ -178,11 +195,30 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(appSource).toContain('homeWallpaper,');
   });
 
-  it('keeps the Home wallpaper sharp within the Folia surface and in fullscreen', () => {
+  it('fills the website viewport without invoking the browser Fullscreen API', () => {
+    const viewportToggle = readFunction('toggleFoliaFullscreen');
+    const viewportSetter = readFunction('setFoliaViewportExpanded');
+    const expandedRule = source.match(/\.folia-embed-pane\.folia-viewport-expanded\s*\{([^}]*)\}/)?.[1] || '';
+
+    expect(source).toContain('<Teleport to="body" :disabled="!foliaViewportExpanded">');
+    expect(source).toContain(":data-folia-expanded=\"foliaViewportExpanded ? 'true' : 'false'\"");
+    expect(viewportToggle).toContain('setFoliaViewportExpanded(!foliaViewportExpanded.value)');
+    expect(viewportSetter).toContain("window.dispatchEvent(new Event('resize'))");
+    expect(expandedRule).toContain('position: fixed');
+    expect(expandedRule).toContain('inset: 0');
+    expect(expandedRule).toContain('height: 100dvh');
+    expect(source).not.toContain('requestFullscreen');
+    expect(source).not.toContain('exitFullscreen');
+    expect(bridgeSource).not.toContain('document.fullscreenElement');
+    expect(bridgeSource).not.toContain("fullscreenchange");
+  });
+
+  it('keeps the Home wallpaper sharp within the Folia surface and website viewport', () => {
     expect(bridgeSource).toContain('function applyEmbedWallpaper');
     expect(bridgeSource).toContain("root.dataset.shizukiWallpaper = 'active'");
     expect(bridgeSource).toContain('background-image: var(--shizuki-folia-wallpaper-image)');
-    expect(bridgeSource).toContain('.folia-embed-pane:fullscreen #folia-embed-root');
+    expect(bridgeSource).toContain(".folia-embed-pane[data-folia-expanded='true'] #folia-embed-root");
+    expect(source).toContain(".folia-embed-pane[data-folia-wallpaper='active'][data-folia-expanded='true']::before");
     expect(bridgeSource).toContain('function markEmbeddedDefaultBackground');
     expect(bridgeSource).toContain("[data-paper-shader]");
     expect(bridgeSource).toContain("data-shizuki-folia-default-background', 'hidden'");
