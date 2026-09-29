@@ -54,9 +54,12 @@ function normalizeUnit(unit) {
 }
 
 function offsetMs(value, unit) {
+  if (value === null || value === undefined || value === '') return null;
   const num = Number(value);
-  if (!Number.isFinite(num) || num <= 0) return 0;
-  return normalizeUnit(unit) === 'DAY' ? num * 24 * 60 * 60 * 1000 : num * 60 * 1000;
+  const normalizedUnit = normalizeUnit(unit);
+  if (!Number.isFinite(num) || num < 0 || !normalizedUnit) return null;
+  if (num === 0 && normalizedUnit !== 'MINUTE') return null;
+  return normalizedUnit === 'DAY' ? num * 24 * 60 * 60 * 1000 : num * 60 * 1000;
 }
 
 function loadCardsSnapshot() {
@@ -150,14 +153,14 @@ function buildReminderEvents() {
     const deadlineOffset = offsetMs(rawItem.deadlineRemindValue, rawItem.deadlineRemindUnit);
     const startOffset = offsetMs(rawItem.startRemindValue, rawItem.startRemindUnit);
 
-    if (deadlineOffset > 0 && deadlineAt) {
+    if (deadlineOffset !== null && deadlineAt) {
       reminders.push({
         kind: 'deadline',
         triggerAt: deadlineAt.getTime() - deadlineOffset,
         message: '截止提醒'
       });
     }
-    if (timingMode === 'RANGE' && startOffset > 0 && startAt) {
+    if (timingMode === 'RANGE' && startOffset !== null && startAt) {
       reminders.push({
         kind: 'start',
         triggerAt: startAt.getTime() - startOffset,
