@@ -27,6 +27,24 @@ describe('lightAppWindowRuntime', () => {
     expect(state.windows[0].y).toBeGreaterThanOrEqual(100);
   });
 
+  it('opens Board Canvas close to the viewport bottom on a tall screen', () => {
+    let state = createWindowRuntimeState();
+    state = openOrFocusWindow(state, { code: 'board-canvas', title: 'Board Canvas' }, { width: 1920, height: 1080 });
+    const board = state.windows[0];
+
+    expect(board.height).toBeGreaterThanOrEqual(1026);
+    expect(1080 - (board.y + board.height)).toBeLessThanOrEqual(16);
+  });
+
+  it('keeps the initial Board Canvas window within a compact viewport', () => {
+    let state = createWindowRuntimeState();
+    state = openOrFocusWindow(state, { code: 'board-canvas', title: 'Board Canvas' }, { width: 1280, height: 600 });
+    const board = state.windows[0];
+
+    expect(board.y).toBeGreaterThanOrEqual(12);
+    expect(board.y + board.height).toBeLessThanOrEqual(588);
+  });
+
   it('reuses existed app window instead of duplicating same code', () => {
     let state = createWindowRuntimeState();
     state = openOrFocusWindow(state, { code: 'timeprism-todo', title: 'Todo' }, { width: 1280, height: 720 });

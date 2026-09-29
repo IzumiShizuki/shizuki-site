@@ -26,11 +26,11 @@ const WINDOW_PRESETS = Object.freeze({
   },
   'board-canvas': {
     widthRatio: 0.78,
-    heightRatio: 0.82,
+    heightRatio: 0.98,
     minWidth: 920,
-    minHeight: 620,
+    minHeight: 220,
     maxWidthRatio: 0.94,
-    maxHeightRatio: 0.92
+    maxHeightRatio: 0.98
   },
   'blog-slidev': {
     widthRatio: 0.76,
