@@ -19,6 +19,7 @@
 
 - [x] 4.1 Run focused frontend unit tests, the full frontend suite, the frontend production build, and OpenSpec strict validation; fix regressions.
 - [x] 4.2 Verify in a real browser that the three QR tools run inside the toolbox, that a generated QR image decodes back to its payload, and that the catalog no longer lists a separate QR app.
+- [x] 4.3 Release scan-preview object URLs immediately when leaving recognition mode, invalidate pending camera requests, and cover both cleanup paths with component regression tests.
 
 ## Verification Notes
 

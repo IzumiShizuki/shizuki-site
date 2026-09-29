@@ -241,8 +241,10 @@ const renderOptions = reactive({ ...QR_RENDER_DEFAULTS });
 let previewTaskId = 0;
 let cameraStream = null;
 let cameraRafId = 0;
+let cameraRequestId = 0;
 let lastCameraScanAt = 0;
 let scanPreviewObjectUrl = '';
+let scanDecodeTaskId = 0;
 
 const wifiPayload = computed(() => (wifiState.ssid ? buildWifiQrPayload(wifiState) : ''));
 
@@ -349,6 +351,7 @@ function loadImageElement(url) {
 
 async function decodeImageBlob(blob, sourceLabel) {
   stopCameraScan(false);
+  const taskId = ++scanDecodeTaskId;
 
   const objectUrl = URL.createObjectURL(blob);
   revokeScanPreviewUrl();
@@ -357,6 +360,7 @@ async function decodeImageBlob(blob, sourceLabel) {
 
   try {
     const image = await loadImageElement(objectUrl);
+    if (taskId !== scanDecodeTaskId || props.mode !== 'scan') return;
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) throw new Error('浏览器当前不支持二维码解码所需的 Canvas 能力');
@@ -368,6 +372,7 @@ async function decodeImageBlob(blob, sourceLabel) {
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
     applyScanResult(decodeQrImageData(imageData), sourceLabel);
   } catch (error) {
+    if (taskId !== scanDecodeTaskId || props.mode !== 'scan') return;
     scanStatus.value = `${sourceLabel}识别失败`;
     setError(error?.message || '二维码识别失败');
   }
@@ -446,38 +451,62 @@ async function startCameraScan() {
     return;
   }
 
+  const requestId = ++cameraRequestId;
+  let requestedStream = null;
   scanStatus.value = '正在请求摄像头权限…';
 
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
+    requestedStream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: { facingMode: { ideal: 'environment' } }
     });
+    if (requestId !== cameraRequestId || props.mode !== 'scan') {
+      stopCameraStream(requestedStream);
+      return;
+    }
+
+    cameraStream = requestedStream;
     const video = cameraVideoRef.value;
     if (!video) throw new Error('摄像头预览初始化失败');
-    video.srcObject = cameraStream;
+    video.srcObject = requestedStream;
     await video.play();
+    if (requestId !== cameraRequestId || props.mode !== 'scan') {
+      stopCameraStream(requestedStream);
+      return;
+    }
+
     cameraActive.value = true;
     scanStatus.value = '摄像头已启动，请将二维码放入画面中央';
     lastCameraScanAt = 0;
     cameraRafId = window.requestAnimationFrame(runCameraLoop);
   } catch (error) {
+    stopCameraStream(requestedStream);
+    if (requestId !== cameraRequestId || props.mode !== 'scan') return;
     stopCameraScan(false);
     scanStatus.value = '摄像头未启动';
     setError(error?.message || '摄像头启动失败');
   }
 }
 
+function stopCameraStream(stream) {
+  if (!stream) return;
+
+  stream.getTracks().forEach((track) => track.stop());
+  if (cameraStream === stream) {
+    cameraStream = null;
+    cameraActive.value = false;
+  }
+  if (cameraVideoRef.value?.srcObject === stream) cameraVideoRef.value.srcObject = null;
+}
+
 function stopCameraScan(resetStatus = true) {
+  // Invalidate a pending getUserMedia() request as well as an active stream.
+  cameraRequestId += 1;
   if (cameraRafId) {
     window.cancelAnimationFrame(cameraRafId);
     cameraRafId = 0;
   }
-  if (cameraStream) {
-    cameraStream.getTracks().forEach((track) => track.stop());
-    cameraStream = null;
-  }
-  if (cameraVideoRef.value) cameraVideoRef.value.srcObject = null;
+  stopCameraStream(cameraStream);
   cameraActive.value = false;
   if (resetStatus) scanStatus.value = '摄像头扫码已停止';
 }
@@ -566,6 +595,7 @@ function resetPanel() {
     resetPreviewAssets();
     return;
   }
+  scanDecodeTaskId += 1;
   stopCameraScan(false);
   revokeScanPreviewUrl();
   scanPreviewUrl.value = '';
@@ -598,7 +628,13 @@ watch(
 watch(
   () => props.mode,
   (value, previous) => {
-    if (previous === 'scan' && value !== 'scan') stopCameraScan(false);
+    if (previous === 'scan' && value !== 'scan') {
+      scanDecodeTaskId += 1;
+      stopCameraScan(false);
+      revokeScanPreviewUrl();
+      scanPreviewUrl.value = '';
+      if (!scanResult.value) scanStatus.value = '等待导入二维码图片';
+    }
   }
 );
 
@@ -612,6 +648,7 @@ watch(
 
 onBeforeUnmount(() => {
   previewTaskId += 1;
+  scanDecodeTaskId += 1;
   stopCameraScan(false);
   revokeScanPreviewUrl();
 });
