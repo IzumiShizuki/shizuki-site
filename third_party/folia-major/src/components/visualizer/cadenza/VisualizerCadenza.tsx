@@ -398,19 +398,17 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
         const exitDuration = lineTiming.transitionTiming.exitDuration;
         const exitStart = Math.max(line.startTime + enterDuration + 0.01, linePassStart, lineEndTime - exitDuration);
         const enterProgress = easeOutCubic(clamp((time - line.startTime) / enterDuration, 0, 1));
-        let opacity = mix(0.65, 1, enterProgress);
         let scale = mix(0.97, 1, enterProgress);
         let blur = mix(4, 0, enterProgress);
 
         const exitProgress = easeOutCubic(clamp((time - exitStart) / exitDuration, 0, 1));
         if (exitProgress > 0) {
-            opacity = mix(opacity, 0, exitProgress);
             scale = mix(scale, 1.03, exitProgress);
             blur = Math.max(blur, mix(0, 6, exitProgress));
         }
 
         return {
-            opacity: clamp(opacity, 0, 1),
+            opacity: 1,
             scale,
             blur,
         };
@@ -421,20 +419,18 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
     const preEnter = Math.min(0.1, enterDuration * 0.35);
 
     const enterProgress = easeOutCubic(clamp((time - (line.startTime - preEnter)) / (enterDuration + preEnter), 0, 1));
-    let opacity = mix(0, 1, enterProgress);
     let scale = mix(0.9, 1, enterProgress);
     let blur = mix(10, 0, enterProgress);
 
     const exitStart = Math.max(linePassStart, lineEndTime - exitDuration);
     const exitProgress = easeOutCubic(clamp((time - exitStart) / exitDuration, 0, 1));
     if (exitProgress > 0) {
-        opacity *= 1 - exitProgress;
         scale = mix(scale, 1.1, exitProgress);
         blur = Math.max(blur, mix(0, 20, exitProgress));
     }
 
     return {
-        opacity: clamp(opacity, 0, 1),
+        opacity: 1,
         scale,
         blur,
     };

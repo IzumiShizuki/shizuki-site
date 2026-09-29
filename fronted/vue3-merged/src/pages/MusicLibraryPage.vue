@@ -35,6 +35,25 @@
                 </option>
               </select>
             </label>
+            <label class="folia-track-picker" title="从当前播放队列选择歌曲">
+              <span class="folia-playlist-label"><i class="fas fa-music"></i> 歌曲</span>
+              <select
+                class="folia-track-select"
+                :value="foliaCurrentQueueEntryId"
+                :disabled="!foliaQueueOptions.length"
+                aria-label="从当前队列选择歌曲"
+                @change="handleFoliaTrackSelect"
+              >
+                <option value="" disabled>选择歌曲…</option>
+                <option
+                  v-for="(item, index) in foliaQueueOptions"
+                  :key="item.queueEntryId || `${item.id}:${index}`"
+                  :value="item.queueEntryId"
+                >
+                  {{ String(index + 1).padStart(2, '0') }}. {{ item.title }} · {{ item.artist }}
+                </option>
+              </select>
+            </label>
             <button class="folia-toolbar-btn ripple-trigger" type="button" @click="syncCookieToFolia">
               <i class="fas fa-sync-alt"></i>
               同步账号
@@ -226,8 +245,9 @@
       <MusicLibraryDock
         :track="player.currentTrack.value"
         :tracks="player.tracks.value"
+        :queue-tracks="player.queueDisplayTracks.value"
         :current-track-id="player.currentTrack.value?.id || ''"
-        :is-playing="player.isPlaying.value && !foliaMode"
+        :is-playing="player.isPlaying.value"
         :current-time="player.currentTime.value"
         :duration="player.duration.value"
         :expected-duration="player.expectedDuration.value"
@@ -354,6 +374,8 @@ const foliaEmbedPaneRef = ref(null);
 const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
 const foliaSelectedPlaylist = ref('');
+const foliaQueueOptions = computed(() => (Array.isArray(player.tracks?.value) ? player.tracks.value : []));
+const foliaCurrentQueueEntryId = computed(() => String(player.currentTrack?.value?.queueEntryId || ''));
 let foliaLastKnownNeteaseCookie = '';
 let foliaBridgeReady = false;
 let foliaPendingSession = null; // Folia bridge 就绪前暂存完整权威播放会话
@@ -636,6 +658,14 @@ async function handleFoliaPlaylistSelect(event) {
   } catch {
     foliaSelectedPlaylist.value = '';
   }
+}
+
+async function handleFoliaTrackSelect(event) {
+  const queueEntryId = String(event?.target?.value || '').trim();
+  if (!queueEntryId) return;
+  const index = foliaQueueOptions.value.findIndex((track) => String(track?.queueEntryId || '') === queueEntryId);
+  if (index < 0) return;
+  await player.selectTrackByIndex?.(index, true);
 }
 
 function readFoliaModePreference() {
@@ -2841,8 +2871,10 @@ async function playTrackInCurrentPlaylist(index) {
   growPlaylistBrowseVisibleCount();
 }
 
-async function handleSelectTrackFromDock(index) {
-  const safeIndex = Number(index);
+async function handleSelectTrackFromDock(entryIdOrIndex) {
+  const safeIndex = typeof entryIdOrIndex === 'number'
+    ? entryIdOrIndex
+    : playerQueueTracks.value.findIndex((track) => String(track?.queueEntryId || '') === String(entryIdOrIndex || '').trim());
   if (!Number.isInteger(safeIndex) || safeIndex < 0) return;
   await player.selectTrackByIndex(safeIndex, true);
 }
@@ -3708,6 +3740,20 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.folia-track-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+}
+
 .folia-playlist-label {
   display: inline-flex;
   align-items: center;
@@ -3725,7 +3771,18 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
-.folia-playlist-select option {
+.folia-track-select {
+  border: 0;
+  background: transparent;
+  color: var(--theme-text-primary);
+  font-size: 12px;
+  max-width: clamp(200px, 26vw, 340px);
+  cursor: pointer;
+  outline: none;
+}
+
+.folia-playlist-select option,
+.folia-track-select option {
   background: var(--theme-panel-surface);
   color: var(--theme-text-primary);
 }
@@ -3751,11 +3808,12 @@ onBeforeUnmount(() => {
     width: 100%;
     min-width: 0;
     gap: 8px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 
-  .folia-playlist-picker {
-    flex: 1 1 auto;
+  .folia-playlist-picker,
+  .folia-track-picker {
+    flex: 1 1 calc(50% - 4px);
     min-width: 0;
     min-height: 40px;
     padding: 0 10px;
@@ -3770,6 +3828,12 @@ onBeforeUnmount(() => {
   }
 
   .folia-playlist-select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .folia-track-select {
     width: 100%;
     min-width: 0;
     max-width: none;

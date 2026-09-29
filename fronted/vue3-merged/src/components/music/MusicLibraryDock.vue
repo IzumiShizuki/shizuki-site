@@ -1,7 +1,7 @@
 <template>
   <footer ref="rootRef" class="music-library-dock liquid-material" :class="{ 'detail-layout': detailLayout }" @click="handleRootClick">
-    <!-- Twilight_Echo 播放栏内嵌频谱条（Web 端数据源：站点 AnalyserNode，见 twLightBar/） -->
-    <TwLightSpectrum class="tw-spectrum" :active="isPlaying" />
+    <!-- 与详情页共用对数频带处理和晶体频谱绘制，避免低频挤在左侧。 -->
+    <MusicVisualizerLayer class="tw-spectrum" variant="bars-crystal" :active="isPlaying" />
 
     <!-- 左侧：封面 + 曲目信息 -->
     <div class="track-block">
@@ -93,7 +93,7 @@
 
     <section v-if="queueOpen" class="dock-queue liquid-material" @click.stop>
       <header class="queue-head">
-        <p>播放列表<span v-if="tracks.length" class="twl-queue-count">{{ tracks.length }} 首</span></p>
+        <p>播放列表<span v-if="displayQueueTracks.length" class="twl-queue-count">{{ displayQueueTracks.length }} 首</span></p>
         <button class="queue-close ripple-trigger" type="button" @click="queueOpen = false">
           <i class="fas fa-xmark"></i>
         </button>
@@ -101,12 +101,12 @@
 
       <div class="queue-body">
         <button
-          v-for="(item, index) in tracks"
-          :key="`dock-track-${item.id || index}`"
+          v-for="(item, index) in displayQueueTracks"
+          :key="`dock-track-${item.queueEntryId || item.id || index}`"
           class="queue-item ripple-trigger"
           :class="{ active: (item.id || '') === currentTrackId }"
           type="button"
-          @click="handleSelectTrack(index)"
+          @click="handleSelectTrack(item, index)"
         >
           <span class="twl-queue-line">
             <span class="queue-name">{{ item.title || '未知标题' }}</span>
@@ -121,7 +121,7 @@
           </span>
           <span class="queue-meta">{{ item.artist || '未知歌手' }} · {{ item.durationLabel || '--:--' }}</span>
         </button>
-        <p v-if="!tracks.length" class="queue-empty">当前没有可播放歌曲</p>
+        <p v-if="!displayQueueTracks.length" class="queue-empty">当前没有可播放歌曲</p>
       </div>
     </section>
 
@@ -130,14 +130,15 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import MusicVisualizerLayer from '../MusicVisualizerLayer.vue';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 import { useDismissiblePopover } from '../../composables/useDismissiblePopover';
-import TwLightSpectrum from './twLightBar/TwLightSpectrum.vue';
 
 const props = defineProps({
   track: { type: Object, default: null },
   tracks: { type: Array, default: () => [] },
+  queueTracks: { type: Array, default: null },
   currentTrackId: { type: String, default: '' },
   currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 },
@@ -162,6 +163,7 @@ const emit = defineEmits([
 ]);
 const rootRef = ref(null);
 const queueOpen = ref(false);
+const displayQueueTracks = computed(() => Array.isArray(props.queueTracks) ? props.queueTracks : props.tracks);
 
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
@@ -214,8 +216,8 @@ function toggleQueue() {
   queueOpen.value = !queueOpen.value;
 }
 
-function handleSelectTrack(index) {
-  emit('select-track', index);
+function handleSelectTrack(track, index) {
+  emit('select-track', track?.queueEntryId || index);
   queueOpen.value = false;
 }
 

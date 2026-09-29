@@ -165,7 +165,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
 
     if (renderProfile?.lineTransitionMode === 'fast') {
         return {
-            initial: { opacity: 0.35, scale: 0.96, filter: 'blur(4px)' },
+            initial: { opacity: 1, scale: 0.96, filter: 'blur(4px)' },
             animate: {
                 opacity: 1,
                 scale: 1,
@@ -183,7 +183,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
     }
 
     return {
-        initial: { opacity: 0, scale: 0.9, filter: 'blur(10px)' },
+        initial: { opacity: 1, scale: 0.9, filter: 'blur(10px)' },
         animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } },
         exit: { opacity: 0, scale: 1.1, filter: 'blur(20px)', transition: { duration: 0.3 } },
     };

@@ -37,29 +37,27 @@
       <div class="artist-line">{{ track?.artist || '未知歌手' }}</div>
 
       <div class="lyrics-window">
-        <transition name="lyric-switch" mode="out-in">
-          <div class="lyrics-triplet" :key="lyricContext?.key || 'empty'">
-            <div class="lyric prev">{{ lyricContext?.prev || '' }}</div>
-            <div class="lyric current">
-              <span>{{ lyricContext?.current || (lyricLine || '纯音乐，无歌词') }}</span>
-              <span
-                v-if="lyricRenderMode === 'original_translation' && lyricContext?.currentTranslation"
-                class="lyric-translation"
-              >
-                {{ lyricContext.currentTranslation }}
-              </span>
-            </div>
-            <div class="lyric next">
-              <span>{{ lyricContext?.next || '' }}</span>
-              <span
-                v-if="lyricRenderMode === 'original_translation' && lyricContext?.nextTranslation"
-                class="lyric-translation"
-              >
-                {{ lyricContext.nextTranslation }}
-              </span>
-            </div>
+        <div class="lyrics-triplet">
+          <div class="lyric prev">{{ lyricContext?.prev || '' }}</div>
+          <div class="lyric current">
+            <span>{{ lyricContext?.current || (lyricLine || '纯音乐，无歌词') }}</span>
+            <span
+              v-if="lyricRenderMode === 'original_translation' && lyricContext?.currentTranslation"
+              class="lyric-translation"
+            >
+              {{ lyricContext.currentTranslation }}
+            </span>
           </div>
-        </transition>
+          <div class="lyric next">
+            <span>{{ lyricContext?.next || '' }}</span>
+            <span
+              v-if="lyricRenderMode === 'original_translation' && lyricContext?.nextTranslation"
+              class="lyric-translation"
+            >
+              {{ lyricContext.nextTranslation }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div class="progress-row">
@@ -1332,21 +1330,6 @@ onBeforeUnmount(() => {
 .item-time {
   font-size: 12px;
   opacity: 0.78;
-}
-
-.lyric-switch-enter-active,
-.lyric-switch-leave-active {
-  transition: all 220ms ease;
-}
-
-.lyric-switch-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.lyric-switch-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
 }
 
 @keyframes disc-spin {
