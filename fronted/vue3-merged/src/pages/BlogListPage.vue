@@ -69,6 +69,20 @@
           <i class="fas fa-user-secret"></i>
           <span>悄悄话</span>
         </button>
+        <RouterLink class="blog-author-link ripple-trigger" :to="{ name: 'author' }">
+          <img v-if="publicAuthor.avatarUrl" :src="publicAuthor.avatarUrl" :alt="publicAuthor.name || '作者头像'" />
+          <span class="blog-author-copy">
+            <strong>{{ publicAuthor.name || '关于网站' }}</strong>
+            <small v-if="publicAuthor.role">{{ publicAuthor.role }}</small>
+            <small>了解这座小站 <i class="fas fa-arrow-right" aria-hidden="true"></i></small>
+          </span>
+        </RouterLink>
+        <PublicPostCalendar
+          v-if="!contentMobileLayout"
+          :selected-date="selectedCalendarDate"
+          @select="applyCalendarDateFilter"
+          @clear="clearArchiveFilter"
+        />
           <p v-if="uiState.actionHint" class="action-hint">{{ uiState.actionHint }}</p>
         </SubtleScrollArea>
       </template>
@@ -92,6 +106,10 @@
         </transition>
 
         <template v-if="uiState.panel === 'read'">
+          <div v-if="selectedCalendarDate" class="calendar-active-filter" role="status">
+            正在查看 {{ selectedCalendarDate }} 发布的文章
+            <button type="button" @click="clearArchiveFilter">清除日期</button>
+          </div>
           <section
             ref="categoryStripRef"
             class="category-strip liquid-material"
@@ -498,6 +516,19 @@
         <button type="button" @click="selectAuxiliaryPanel('whisper')">悄悄话</button>
         <button v-if="canWrite" type="button" @click="openEditor">写文</button>
       </nav>
+      <RouterLink class="blog-author-link blog-drawer-author-link" :to="{ name: 'author' }" @click="blogAuxiliaryOpen = false">
+        <img v-if="publicAuthor.avatarUrl" :src="publicAuthor.avatarUrl" :alt="publicAuthor.name || '作者头像'" />
+        <span class="blog-author-copy">
+          <strong>{{ publicAuthor.name || '关于网站' }}</strong>
+          <small v-if="publicAuthor.role">{{ publicAuthor.role }}</small>
+          <small>了解这座小站 <i class="fas fa-arrow-right" aria-hidden="true"></i></small>
+        </span>
+      </RouterLink>
+      <PublicPostCalendar
+        :selected-date="selectedCalendarDate"
+        @select="applyAuxiliaryCalendarDate"
+        @clear="clearArchiveFilter"
+      />
       <section class="blog-drawer-filter">
         <header class="side-head"><h3>分类筛选</h3></header>
         <button
@@ -547,6 +578,8 @@ import { useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import AuthorLifeCardRail from '../components/author/AuthorLifeCardRail.vue';
+import PublicPostCalendar from '../components/blog/PublicPostCalendar.vue';
+import { getAuthorProfile } from '../services/authorApi';
 import AuxiliaryDrawer from '../components/content/AuxiliaryDrawer.vue';
 import DailyQuoteCard from '../components/content/DailyQuoteCard.vue';
 import RecommendedMusicCard from '../components/content/RecommendedMusicCard.vue';
@@ -562,6 +595,7 @@ import { getPostSidebar, listPosts, submitPostWhisper } from '../services/blogAp
 import { deleteBlogCategoryMeta, listBlogCategoryMetas, updateBlogCategoryMeta, uploadBlogCategoryCover } from '../services/adminApi';
 import { getFeaturedAlbums, getFeaturedMoments } from '../services/lifeContentApi';
 import { filterEnabledBlogCategories, mergeBlogCategoryCatalog } from '../utils/blogCategoryCatalog';
+import { readAuthorProfileCache } from './authorProfileCache';
 
 const motionPreference = useMotionPreference();
 
@@ -579,6 +613,7 @@ const leftPanelCollapsed = ref(readPersistedLeftPanelCollapsed());
 const rightPanelCollapsed = ref(false);
 const rightPanelTouchedByUser = ref(false);
 const blogAuxiliaryOpen = ref(false);
+const publicAuthor = ref(readPublicAuthor(readAuthorProfileCache()));
 
 function createContentMobileQuery() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
@@ -596,7 +631,7 @@ function syncContentMobileLayout(event) {
 if (contentMobileQuery?.addEventListener) contentMobileQuery.addEventListener('change', syncContentMobileLayout);
 else contentMobileQuery?.addListener?.(syncContentMobileLayout);
 
-const { isNarrowDesktop, isMobileLike } = useBlogResponsiveLayout({
+const { viewportWidth, isNarrowDesktop, isMobileLike } = useBlogResponsiveLayout({
   desktopBreakpoint: 1366,
   mobileBreakpoint: 980
 });
@@ -633,6 +668,7 @@ const filters = reactive({
   publishedTo: '',
   archiveMonth: ''
 });
+const selectedCalendarDate = computed(() => /^\d{4}-\d{2}-\d{2}$/.test(filters.archiveMonth) ? filters.archiveMonth : '');
 
 const searchState = reactive({
   open: false
@@ -706,6 +742,7 @@ const viewportZone = computed(() => {
   if (isNarrowDesktop.value) return 'narrow';
   return 'wide';
 });
+const compactDiscoveryLayout = computed(() => viewportWidth.value >= 980 && viewportWidth.value < 1200);
 
 const visiblePages = computed(() => {
   const total = pageCount.value;
@@ -755,6 +792,25 @@ let categoryMetaLoadPromise = null;
 
 function resolveAuthorizedFetch() {
   return auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
+}
+
+function readPublicAuthor(payload) {
+  const profile = payload?.profileJson || payload?.profile_json || {};
+  const hero = profile.hero || {};
+  const identity = profile.identity || {};
+  return {
+    name: String(hero.name || '').trim(),
+    avatarUrl: String(hero.avatarUrl || hero.avatar_url || '').trim(),
+    role: String(identity.role || identity.major || '').trim()
+  };
+}
+
+async function loadPublicAuthor() {
+  try {
+    publicAuthor.value = readPublicAuthor(await getAuthorProfile());
+  } catch {
+    // The public link remains useful when the optional author card cannot load.
+  }
 }
 
 function readPersistedLeftPanelCollapsed() {
@@ -1259,6 +1315,11 @@ function applyAuxiliaryCategory(categoryCode) {
   applyCategoryFilter(categoryCode);
 }
 
+function applyAuxiliaryCalendarDate(dateText) {
+  blogAuxiliaryOpen.value = false;
+  applyCalendarDateFilter(dateText);
+}
+
 function goToPage(pageNo) {
   const target = Math.max(1, Math.min(pageCount.value, Number(pageNo) || 1));
   if (target === listState.pageNo) return;
@@ -1302,6 +1363,18 @@ function applyArchiveFilter(monthText) {
   const from = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
   const to = new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0));
   filters.archiveMonth = normalized;
+  filters.publishedFrom = from.toISOString();
+  filters.publishedTo = to.toISOString();
+  listState.pageNo = 1;
+  loadPostList();
+}
+
+function applyCalendarDateFilter(dateText) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return;
+  const [year, month, day] = dateText.split('-').map(Number);
+  const from = new Date(Date.UTC(year, month - 1, day));
+  const to = new Date(Date.UTC(year, month - 1, day + 1));
+  filters.archiveMonth = dateText;
   filters.publishedFrom = from.toISOString();
   filters.publishedTo = to.toISOString();
   listState.pageNo = 1;
@@ -1355,6 +1428,7 @@ function handleCategoryStripWheel(event) {
 
 onMounted(async () => {
   leftPanelCollapsed.value = readPersistedLeftPanelCollapsed();
+  void loadPublicAuthor();
   await auth.ensureReady();
   authReady.value = true;
   await Promise.all([
@@ -1392,15 +1466,16 @@ watch(
 );
 
 watch(
-  () => viewportZone.value,
-  (zone, previousZone) => {
+  [viewportZone, compactDiscoveryLayout],
+  ([zone, compact], previous = []) => {
+    const [previousZone, previousCompact] = previous;
     if (zone === 'mobile') {
       rightPanelCollapsed.value = false;
       rightPanelTouchedByUser.value = false;
       return;
     }
-    if (!previousZone || previousZone === 'mobile') {
-      rightPanelCollapsed.value = false;
+    if (!rightPanelTouchedByUser.value || previousZone === 'mobile' || compact !== previousCompact) {
+      rightPanelCollapsed.value = compact;
       rightPanelTouchedByUser.value = false;
     }
   },
@@ -1434,6 +1509,7 @@ onBeforeUnmount(() => {
 }
 
 .blog-shell {
+  position: relative;
   flex: 1 1 0;
   height: 100%;
   min-height: 0;
@@ -1592,6 +1668,60 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.blog-author-link {
+  min-width: 0;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  color: var(--theme-text-primary);
+  background: rgba(var(--accent-rgb), 0.08);
+  text-decoration: none;
+}
+.blog-author-link img {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.blog-author-copy { min-width: 0; display: grid; gap: 2px; }
+.blog-author-copy strong,
+.blog-author-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.blog-author-copy strong { font-size: 11px; }
+.blog-author-copy small { color: var(--theme-text-secondary); font-size: 9px; }
+.blog-author-link:focus-visible {
+  outline: 2px solid var(--theme-focus-ring, rgb(var(--accent-readable-rgb)));
+  outline-offset: 2px;
+}
+.blog-drawer-author-link { margin-bottom: 12px; }
+.calendar-active-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  color: var(--theme-text-secondary);
+  background: var(--theme-surface-soft);
+  font-size: 11px;
+}
+.calendar-active-filter button {
+  border: 0;
+  color: rgb(var(--accent-readable-rgb));
+  background: transparent;
+  cursor: pointer;
 }
 
 .switch-btn.active {
@@ -2447,6 +2577,20 @@ onBeforeUnmount(() => {
   }
 }
 
+@media (min-width: 980px) and (max-width: 1199.98px) {
+  :deep(.blog-shell > .content-shell__right) {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    right: 0;
+    width: var(--blog-right-width);
+    height: 100%;
+    border-radius: 14px;
+    background: var(--theme-panel-surface);
+    box-shadow: var(--theme-shadow-soft);
+  }
+}
+
 @media (max-width: 1080px) {
   .blog-shell {
     --blog-left-width: clamp(148px, 16vw, 176px);
@@ -2505,6 +2649,11 @@ onBeforeUnmount(() => {
   }
 
   .left-switch-head {
+    grid-column: 1 / -1;
+  }
+
+  .left-switch .blog-author-link,
+  .left-switch .post-calendar {
     grid-column: 1 / -1;
   }
 

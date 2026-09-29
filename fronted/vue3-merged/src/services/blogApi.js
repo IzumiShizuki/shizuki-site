@@ -140,6 +140,14 @@ export async function getPostSidebar(authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getPostPublicationCalendar(month, authorizedFetch) {
+  const requestPayload = { method: 'GET', query: { month: String(month || '').trim() } };
+  const response = typeof authorizedFetch === 'function'
+    ? await authorizedFetch('/api/v1/posts/calendar', requestPayload)
+    : await httpRequest('/api/v1/posts/calendar', requestPayload);
+  return unwrapApiResponse(response);
+}
+
 function normalizeWhisperPayload(payload = {}) {
   return {
     content: String(payload.content || '').trim(),

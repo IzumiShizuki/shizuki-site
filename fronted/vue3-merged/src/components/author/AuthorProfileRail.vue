@@ -1,19 +1,19 @@
 <template>
   <aside class="author-route-sidebar liquid-material" :class="{ 'is-public': publicMode, 'is-workspace': workspace }">
-    <section v-if="showProfile" class="author-profile-summary" aria-label="作者资料与统计">
-      <img class="author-profile-avatar" :src="hero.avatarUrl" :alt="hero.name" />
+    <section v-if="showProfile || (compactProfile && hasCompactIdentity)" class="author-profile-summary" :class="{ 'is-compact': compactProfile, 'without-avatar': !hero.avatarUrl }" aria-label="作者资料与统计">
+      <img v-if="hero.avatarUrl" class="author-profile-avatar" :src="hero.avatarUrl" :alt="hero.name || '作者头像'" />
       <div class="author-profile-copy">
         <span>ABOUT THE AUTHOR</span>
-        <h2>{{ hero.name }}</h2>
-        <p>{{ identity.role || identity.major || '独立创作者' }}</p>
+        <h2 v-if="hero.name">{{ hero.name }}</h2>
+        <p v-if="identity.role || identity.major">{{ identity.role || identity.major }}</p>
       </div>
-      <dl class="author-profile-stats">
+      <dl v-if="!compactProfile" class="author-profile-stats">
         <div v-for="stat in profileStats" :key="stat.label">
           <dt>{{ stat.label }}</dt>
           <dd>{{ stat.value }}</dd>
         </div>
       </dl>
-      <div v-if="identity.labels?.length" class="author-profile-labels" aria-label="作者标签">
+      <div v-if="!compactProfile && identity.labels?.length" class="author-profile-labels" aria-label="作者标签">
         <span v-for="label in identity.labels.slice(0, 4)" :key="label">{{ label }}</span>
       </div>
     </section>
@@ -36,6 +36,11 @@
       :aria-label="ariaLabel"
       @select="$emit('select', $event)"
     />
+    <nav v-if="compactProfile" class="author-public-paths" aria-label="公开路径">
+      <RouterLink :to="{ name: 'blog' }"><i class="fas fa-feather-pointed" aria-hidden="true"></i> 博客</RouterLink>
+      <RouterLink to="/music-library/music"><i class="fas fa-music" aria-hidden="true"></i> 音乐</RouterLink>
+      <RouterLink to="/apps"><i class="fas fa-grip" aria-hidden="true"></i> 轻应用</RouterLink>
+    </nav>
   </aside>
 </template>
 
@@ -68,6 +73,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  compactProfile: {
+    type: Boolean,
+    default: false
+  },
   heading: {
     type: String,
     default: '站点导航'
@@ -91,6 +100,7 @@ defineEmits(['select']);
 const profileJson = computed(() => props.profile?.profileJson || {});
 const hero = computed(() => profileJson.value.hero || {});
 const identity = computed(() => profileJson.value.identity || {});
+const hasCompactIdentity = computed(() => Boolean(hero.value.name || hero.value.avatarUrl || identity.value.role || identity.value.major));
 const profileStats = computed(() => [
   { label: '建站节点', value: Array.isArray(profileJson.value.journey) ? profileJson.value.journey.length : 0 },
   { label: '技能方向', value: Array.isArray(profileJson.value.skills) ? profileJson.value.skills.length : 0 },
@@ -134,6 +144,12 @@ const profileStats = computed(() => [
   padding: 6px 5px 14px;
   border-bottom: 1px solid var(--theme-border);
 }
+
+.author-profile-summary.is-compact { grid-template-columns: 46px minmax(0, 1fr); padding-bottom: 9px; }
+.author-profile-summary.without-avatar { grid-template-columns: minmax(0, 1fr); }
+.author-profile-summary.is-compact .author-profile-avatar { width: 46px; height: 46px; border-radius: 15px; }
+.author-profile-summary.is-compact .author-profile-copy h2 { font-size: 15px; }
+.author-profile-summary.is-compact .author-profile-copy p { font-size: 10px; }
 
 .author-profile-avatar {
   width: 58px;
@@ -293,6 +309,25 @@ const profileStats = computed(() => [
   overflow-x: hidden;
   overflow-y: auto;
 }
+
+.author-public-paths {
+  display: grid;
+  gap: 5px;
+  padding-top: 9px;
+  border-top: 1px solid var(--theme-border);
+}
+.author-public-paths a {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+  text-decoration: none;
+}
+.author-public-paths a:focus-visible { outline: 2px solid rgb(var(--accent-readable-rgb)); outline-offset: 2px; }
 
 .sidebar-route-menu::-webkit-scrollbar {
   width: 5px;

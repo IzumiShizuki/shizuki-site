@@ -26,6 +26,7 @@ import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.response.PostSidebarResponse;
+import io.github.shizuki.site.content.response.PostPublicationCalendarResponse;
 import io.github.shizuki.site.content.response.PostSummary;
 import io.github.shizuki.site.content.request.ReportRequest;
 import java.util.List;
@@ -69,6 +70,9 @@ public interface ContentService {
      * 查询博客列表页右侧聚合信息。
      */
     PostSidebarResponse getPostSidebar();
+
+    /** 查询一个自然月内公开文章的按日发布数量。 */
+    PostPublicationCalendarResponse getPublishedPostCalendar(String month);
 
     /**
      * 查询作者主页公开资料。

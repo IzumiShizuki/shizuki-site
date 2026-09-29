@@ -9,6 +9,8 @@ const mocked = vi.hoisted(() => ({
   auth: null,
   listPosts: vi.fn(),
   getPostSidebar: vi.fn(),
+  getPostPublicationCalendar: vi.fn(),
+  getAuthorProfile: vi.fn(),
   submitPostWhisper: vi.fn(),
   getFeaturedAlbums: vi.fn(),
   getFeaturedMoments: vi.fn(),
@@ -29,7 +31,12 @@ vi.mock('../composables/useAuthSession', () => ({
 vi.mock('../services/blogApi', () => ({
   listPosts: (...args) => mocked.listPosts(...args),
   getPostSidebar: (...args) => mocked.getPostSidebar(...args),
+  getPostPublicationCalendar: (...args) => mocked.getPostPublicationCalendar(...args),
   submitPostWhisper: (...args) => mocked.submitPostWhisper(...args)
+}));
+
+vi.mock('../services/authorApi', () => ({
+  getAuthorProfile: (...args) => mocked.getAuthorProfile(...args)
 }));
 
 vi.mock('../services/lifeContentApi', () => ({
@@ -53,6 +60,7 @@ vi.mock('../services/adminApi', () => ({
 
 vi.mock('../composables/useBlogResponsiveLayout', () => ({
   useBlogResponsiveLayout: () => ({
+    viewportWidth: ref(1440),
     isNarrowDesktop: ref(false),
     isMobileLike: ref(false),
     recommendedRightCollapsed: ref(false)
@@ -94,6 +102,7 @@ async function mountPage(initialPath = '/blog', { playerBridge = null } = {}) {
     history: createMemoryHistory(),
     routes: [
       { path: '/blog', name: 'blog', component: BlogListPage },
+      { path: '/author', name: 'author', component: { template: '<div />' } },
       { path: '/blog/editor/:postId?', name: 'blog-editor', component: { template: '<div />' } },
       { path: '/blog/:postId', name: 'blog-detail', component: { template: '<div />' } },
       { path: '/albums', name: 'albums', component: { template: '<div />' } },
@@ -214,6 +223,16 @@ describe('BlogListPage category panel', () => {
     mocked.auth = createAuthMock();
     mocked.listPosts.mockReset().mockResolvedValue(createListPayload());
     mocked.getPostSidebar.mockReset().mockResolvedValue(createSidebarPayload());
+    mocked.getPostPublicationCalendar.mockReset().mockImplementation(async (month) => ({
+      month,
+      days: [{ date: month + '-20', count: 2 }]
+    }));
+    mocked.getAuthorProfile.mockReset().mockResolvedValue({
+      profileJson: {
+        hero: { name: 'Shizuki', avatarUrl: '/images/katanegai.jpg' },
+        identity: { role: '独立开发者' }
+      }
+    });
     mocked.submitPostWhisper.mockReset().mockResolvedValue({});
     mocked.getFeaturedAlbums.mockReset().mockResolvedValue([]);
     mocked.getFeaturedMoments.mockReset().mockResolvedValue([]);
@@ -302,6 +321,34 @@ describe('BlogListPage category panel', () => {
     expect(wrapper.findAll('.feed-card')).toHaveLength(0);
     expect(wrapper.get('.feed-hero-title').text()).toBe('Dev Post');
     expect(wrapper.get('.feed-hero').attributes()).toMatchObject({ role: 'link', tabindex: '0' });
+  });
+
+  it('shows public author context and filters all posts on a selected publication day', async () => {
+    const { wrapper, router } = await mountPage('/blog');
+    mountedWrappers.push(wrapper);
+
+    expect(wrapper.get('.blog-author-link').text()).toContain('Shizuki');
+    expect(wrapper.get('.blog-author-link').text()).toContain('独立开发者');
+    expect(wrapper.get('.blog-author-link').attributes('href')).toContain('/author');
+    const publishedDay = wrapper.get('.post-calendar .calendar-day.has-posts');
+    expect(publishedDay.attributes('aria-label')).toContain('2 篇公开文章');
+    await publishedDay.trigger('click');
+    await settle();
+
+    const selectedDate = publishedDay.attributes('aria-label').match(/\d{4}-\d{2}-\d{2}/)[0];
+    expect(wrapper.get('.calendar-active-filter').text()).toContain(selectedDate);
+    expect(mocked.listPosts.mock.calls.at(-1)[0]).toMatchObject({
+      pageNo: 1,
+      publishedFrom: selectedDate + 'T00:00:00.000Z'
+    });
+
+    await wrapper.get('.calendar-active-filter button').trigger('click');
+    await settle();
+    expect(mocked.listPosts.mock.calls.at(-1)[0]).toMatchObject({
+      publishedFrom: '',
+      publishedTo: ''
+    });
+    expect(router.currentRoute.value.name).toBe('blog');
   });
 
   it('uses the restrained content-flow transition when opening an article card', async () => {
@@ -408,8 +455,15 @@ describe('BlogListPage category panel', () => {
     const drawer = document.body.querySelector('[data-auxiliary-drawer]');
     expect(drawer).not.toBeNull();
     expect(drawer.textContent).toContain('分类筛选');
+    expect(drawer.textContent).toContain('文章日历');
+    expect(drawer.textContent).toContain('Shizuki');
     expect(drawer.textContent).toContain('站点天气');
     expect(drawer.textContent).toContain('今日一言');
+
+    drawer.querySelector('.calendar-day.has-posts').click();
+    await settle();
+    expect(wrapper.get('.blog-auxiliary-trigger').attributes('aria-expanded')).toBe('false');
+    expect(mocked.listPosts.mock.calls.at(-1)[0].publishedFrom).toMatch(/T00:00:00\.000Z$/);
   });
 
   it('shows a loading state until admin auth is ready on direct categories entry', async () => {

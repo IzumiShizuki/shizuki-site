@@ -205,7 +205,7 @@ describe('AuthorPage admin tab handling', () => {
     const { wrapper } = await mountPage('/author?tab=about', ['USER']);
 
     expect(wrapper.get('.about-manifesto-copy h2').text()).toBe('关于这座小站');
-    expect(wrapper.find('.author-profile-summary').exists()).toBe(false);
+    expect(wrapper.find('.author-profile-summary').exists()).toBe(true);
     expect(wrapper.find('.about-journey-preview').exists()).toBe(false);
     expect(wrapper.findAll('[data-author-section]').map((section) => section.attributes('data-author-section'))).toEqual([
       'about',
@@ -252,7 +252,7 @@ describe('AuthorPage admin tab handling', () => {
     const { wrapper, router } = await mountPage('/author?tab=about', ['ADMIN']);
     const rail = wrapper.getComponent(RouteDotRail);
 
-    expect(wrapper.find('.content-shell__left .author-profile-summary').exists()).toBe(false);
+    expect(wrapper.find('.content-shell__left .author-profile-summary').exists()).toBe(true);
     expect(wrapper.get('.content-shell__left .author-route-sidebar strong').text()).toBe('内容导航');
     expect(rail.props('items').map((item) => item.key)).toEqual(['about', 'journey', 'posts']);
 

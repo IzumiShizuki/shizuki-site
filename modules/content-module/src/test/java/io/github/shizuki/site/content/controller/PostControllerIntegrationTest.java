@@ -9,6 +9,7 @@ import io.github.shizuki.site.content.response.AuthorWhisperSubmitResponse;
 import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.response.PostSidebarResponse;
+import io.github.shizuki.site.content.response.PostPublicationCalendarResponse;
 import io.github.shizuki.site.content.response.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.support.ApiErrorAssertions;
@@ -158,6 +159,20 @@ class PostControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.categories[0].cover_image_url").value("https://example.com/game.png"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.tags[0].tag_code").value("ai"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.archives[0].month").value("2026-03"));
+    }
+
+    @Test
+    void shouldReturnPublicPublicationCalendarSuccessfully() throws Exception {
+        Mockito.when(contentService.getPublishedPostCalendar("2026-03"))
+            .thenReturn(new PostPublicationCalendarResponse("2026-03", List.of(
+                new PostPublicationCalendarResponse.DayCount("2026-03-20", 2L)
+            )));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/posts/calendar").param("month", "2026-03"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.month").value("2026-03"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.days[0].date").value("2026-03-20"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.days[0].count").value(2));
     }
 
     @Test

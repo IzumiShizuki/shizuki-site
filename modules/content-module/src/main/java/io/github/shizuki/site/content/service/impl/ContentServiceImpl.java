@@ -37,6 +37,7 @@ import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.response.PostLikeResponse;
 import io.github.shizuki.site.content.response.PostSidebarResponse;
+import io.github.shizuki.site.content.response.PostPublicationCalendarResponse;
 import io.github.shizuki.site.content.response.PostSummary;
 import io.github.shizuki.site.content.request.ReportRequest;
 import io.github.shizuki.site.content.entity.AppEntity;
@@ -80,6 +81,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -380,6 +384,29 @@ public class ContentServiceImpl implements ContentService {
             .toList();
 
         return new PostSidebarResponse(latestPosts, categories, tags, archives);
+    }
+
+    @Override
+    public PostPublicationCalendarResponse getPublishedPostCalendar(String month) {
+        YearMonth requestedMonth;
+        try {
+            requestedMonth = YearMonth.parse(readString(month, "").trim(), DateTimeFormatter.ofPattern("uuuu-MM"));
+        } catch (DateTimeParseException exception) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "month must use yyyy-MM");
+        }
+        Map<String, Long> counts = new HashMap<>();
+        ViewerContext publicViewer = new ViewerContext(null, Set.of("GUEST"), false, false, Set.of());
+        for (PostEntity post : loadPublishedPostCandidates(publicViewer)) {
+            LocalDateTime publishedAt = resolvePostPublishTimeForFilter(post);
+            if (YearMonth.from(publishedAt).equals(requestedMonth)) {
+                counts.merge(publishedAt.toLocalDate().toString(), 1L, Long::sum);
+            }
+        }
+        List<PostPublicationCalendarResponse.DayCount> days = counts.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(entry -> new PostPublicationCalendarResponse.DayCount(entry.getKey(), entry.getValue()))
+            .toList();
+        return new PostPublicationCalendarResponse(requestedMonth.toString(), days);
     }
 
     private MarkdownMetrics resolveSummaryMetrics(PostEntity post) {
@@ -842,7 +869,10 @@ public class ContentServiceImpl implements ContentService {
     }
 
     private List<PostEntity> loadPublishedPostCandidates() {
-        ViewerContext viewer = currentViewer();
+        return loadPublishedPostCandidates(currentViewer());
+    }
+
+    private List<PostEntity> loadPublishedPostCandidates(ViewerContext viewer) {
         return postMapper.selectList(
             new LambdaQueryWrapper<PostEntity>()
                 .eq(PostEntity::getDeleted, 0)

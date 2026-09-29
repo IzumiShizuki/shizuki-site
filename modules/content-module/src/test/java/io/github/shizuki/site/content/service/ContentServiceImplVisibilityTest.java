@@ -6,6 +6,7 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.site.content.response.PostSidebarResponse;
+import io.github.shizuki.site.content.response.PostPublicationCalendarResponse;
 import io.github.shizuki.site.content.response.PostSummary;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyGroupEntity;
@@ -175,6 +176,24 @@ class ContentServiceImplVisibilityTest {
         Assertions.assertEquals(1L, response.latestPosts().get(0).postId());
         long visibleCategoryTotal = response.categories().stream().mapToLong(PostSidebarResponse.CategoryStatItem::count).sum();
         Assertions.assertEquals(1L, visibleCategoryTotal);
+    }
+
+    @Test
+    void shouldCountEveryPublicPostButHidePrivatePostsFromCalendarForAdmin() {
+        LoginUserContext.set(new LoginUser(12L, Set.of("ADMIN"), Set.of()));
+        PostEntity first = publishedPost(1L, 11L, "First", "life", "PUBLIC", LocalDateTime.of(2026, 3, 28, 8, 0));
+        PostEntity second = publishedPost(2L, 11L, "Second", "life", "PUBLIC", LocalDateTime.of(2026, 3, 28, 10, 0));
+        PostEntity privatePost = publishedPost(3L, 12L, "Private", "life", "PRIVATE", LocalDateTime.of(2026, 3, 28, 12, 0));
+        PostEntity outsideMonth = publishedPost(4L, 11L, "Older", "life", "PUBLIC", LocalDateTime.of(2026, 2, 28, 8, 0));
+        PostEntity restrictedPost = publishedPost(5L, 11L, "Restricted", "secret", "PUBLIC", LocalDateTime.of(2026, 3, 28, 14, 0));
+        Mockito.when(postMapper.selectList(Mockito.any())).thenReturn(List.of(restrictedPost, first, second, privatePost, outsideMonth));
+        Mockito.when(postCategoryPolicyMapper.selectOne(Mockito.any())).thenReturn(enabledPolicy("secret"), null, null, null);
+        Mockito.when(postCategoryPolicyGroupMapper.selectList(Mockito.any())).thenReturn(List.of(group("secret", "ADMIN")));
+
+        PostPublicationCalendarResponse response = contentService.getPublishedPostCalendar("2026-03");
+
+        Assertions.assertEquals("2026-03", response.month());
+        Assertions.assertEquals(List.of(new PostPublicationCalendarResponse.DayCount("2026-03-28", 2L)), response.days());
     }
 
     @Test

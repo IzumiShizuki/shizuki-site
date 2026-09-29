@@ -11,6 +11,7 @@ import io.github.shizuki.site.content.response.PostDetailResponse;
 import io.github.shizuki.site.content.response.PostPresentationDownloadResponse;
 import io.github.shizuki.site.content.response.PostPresentationResponse;
 import io.github.shizuki.site.content.response.PostSidebarResponse;
+import io.github.shizuki.site.content.response.PostPublicationCalendarResponse;
 import io.github.shizuki.site.content.response.PostSummary;
 import io.github.shizuki.site.content.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -78,6 +79,13 @@ public class PostController {
     @Operation(summary = "查询博客侧栏聚合信息", description = "返回最新文章、分类统计、标签统计和归档统计")
     public ApiResponse<PostSidebarResponse> sidebar() {
         return ApiResponse.success(contentService.getPostSidebar());
+    }
+
+    @GetMapping("/calendar")
+    @RateLimit(key = "posts.calendar", limit = 60, windowSeconds = 60)
+    @Operation(summary = "查询公开文章日历", description = "按月返回公开文章的发布日期和每日数量")
+    public ApiResponse<PostPublicationCalendarResponse> calendar(@RequestParam(name = "month") String month) {
+        return ApiResponse.success(contentService.getPublishedPostCalendar(month));
     }
 
     @PostMapping("/whispers")
