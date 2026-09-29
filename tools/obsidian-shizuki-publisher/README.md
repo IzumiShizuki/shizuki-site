@@ -7,6 +7,7 @@
 - 再次上传时根据 `shizuki_post_id` 更新同一文章；
 - 上传本地 PNG/JPEG/WebP/GIF，发布 `.drawio.svg` 时自动转为 PNG；
 - 与网站共用 `https://embed.diagrams.net/` 编辑器；
+- 在独立侧栏管理 shizuki.site 轻应用 Todo，与网站和 Meguri-Pet 共用同一份任务；
 - 中性暗色界面以及本地背景图片选择器。
 
 生产站点与 API 地址为 `https://site.shizuki.online`。插件会自动迁移旧的 `https://shizuki.site` 默认值，并按网站 API 要求将 JSON 字段转换为 snake_case；自行配置的其他 HTTP(S) 地址不会被覆盖。
@@ -21,6 +22,10 @@
 - 预览、上传为草稿、确认并正式发布三个操作。
 
 发布台已经打开时再次点击只会聚焦原面板，不会重复创建。没有打开 Markdown、位于 `00_Notion_Raw`、未登录或正在上传时，相应按钮会停用并给出原因。正式发布仍会显示确认窗口。
+
+## 共享 Todo
+
+点击左侧功能区的勾选图标，或在命令面板执行 `Shizuki: 打开共享 Todo 侧栏`。侧栏直接读取 shizuki.site 的轻应用 Todo API，支持刷新、新建标题、完成和重新打开任务。其他客户端创建或更新的内容会在刷新后显示；任务不会复制到 Markdown 复选框或保存在本地副本中。更新完成状态前会重新读取最新 Todo，并完整保留项目、优先级、截止时间、日历显示、区间和提醒字段。
 
 ## 推荐 Frontmatter
 
@@ -42,6 +47,7 @@ tags:
 ## 命令
 
 - `Shizuki: 打开发布侧栏`
+- `Shizuki: 打开共享 Todo 侧栏`
 - `Shizuki: 登录网站`
 - `Shizuki: 上传当前笔记为草稿`
 - `Shizuki: 发布当前笔记`
@@ -66,4 +72,4 @@ node build.cjs
 node --test test/*.test.cjs
 ```
 
-在插件目录运行 `scripts/deploy.ps1`，再运行 `scripts/verify.ps1`；部署脚本只复制插件拥有的文件，并验证 `00_Notion_Raw` 未发生变化。
+在插件目录运行 `scripts/deploy.ps1 -PluginOnly`，可只更新 Publisher 插件文件并确保插件处于启用状态，不会修改其他插件、外观、Draw.io、Hearth 或 Vault 内容。完整的 `scripts/deploy.ps1` 模式还会配置外观和 Draw.io。日常更新 Todo 面板请使用 `-PluginOnly`。

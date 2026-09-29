@@ -4,9 +4,9 @@ var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 
-// core.js
+// tools/obsidian-shizuki-publisher/core.js
 var require_core = __commonJS({
-  "core.js"(exports2, module2) {
+  "tools/obsidian-shizuki-publisher/core.js"(exports2, module2) {
     "use strict";
     var SUPPORTED_IMAGE_EXTENSIONS = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "webp", "gif"]);
     var PRODUCTION_SITE_URL = "https://site.shizuki.online";
@@ -242,6 +242,72 @@ var require_core = __commonJS({
         expiresIn: Number(value.expiresIn ?? value.expires_in) || 0
       };
     }
+    function todoValue(source, camelKey, snakeKey) {
+      return source?.[camelKey] ?? source?.[snakeKey];
+    }
+    function normalizeTodoRecord(raw) {
+      const source = raw && typeof raw === "object" ? raw : {};
+      const todoId = Number(todoValue(source, "todoId", "todo_id"));
+      return {
+        todoId: Number.isSafeInteger(todoId) && todoId > 0 ? todoId : 0,
+        projectId: Number(todoValue(source, "projectId", "project_id")) || null,
+        title: String(source.title || ""),
+        detail: String(source.detail || ""),
+        priority: String(source.priority || "MEDIUM").toUpperCase(),
+        done: source.done === true,
+        dueAt: String(todoValue(source, "dueAt", "due_at") || ""),
+        showOnCalendar: todoValue(source, "showOnCalendar", "show_on_calendar") !== false,
+        timePrecision: String(todoValue(source, "timePrecision", "time_precision") || "MINUTE").toUpperCase(),
+        timingMode: String(todoValue(source, "timingMode", "timing_mode") || "DEADLINE").toUpperCase(),
+        rangeStartAt: String(todoValue(source, "rangeStartAt", "range_start_at") || ""),
+        reminderEnabled: todoValue(source, "reminderEnabled", "reminder_enabled") === true,
+        startRemindValue: todoValue(source, "startRemindValue", "start_remind_value") ?? null,
+        startRemindUnit: String(todoValue(source, "startRemindUnit", "start_remind_unit") || ""),
+        deadlineRemindValue: todoValue(source, "deadlineRemindValue", "deadline_remind_value") ?? null,
+        deadlineRemindUnit: String(todoValue(source, "deadlineRemindUnit", "deadline_remind_unit") || ""),
+        sortNum: Number(todoValue(source, "sortNum", "sort_num")) || 0,
+        updatedAt: String(todoValue(source, "updatedAt", "updated_at") || "")
+      };
+    }
+    function normalizeTodoList(payload) {
+      const value = normalizeApiData(payload);
+      if (!Array.isArray(value)) throw new Error("shizuki.site \u8FD4\u56DE\u7684 Todo \u5217\u8868\u683C\u5F0F\u65E0\u6548");
+      return value.map(normalizeTodoRecord).filter((todo) => todo.todoId > 0);
+    }
+    function buildTodoCreatePayload(title) {
+      const normalizedTitle = String(title || "").trim();
+      if (!normalizedTitle || normalizedTitle.length > 200) {
+        throw new Error("\u5F85\u529E\u6807\u9898\u9700\u8981 1 \u5230 200 \u4E2A\u5B57\u7B26");
+      }
+      return {
+        title: normalizedTitle,
+        detail: "",
+        priority: "MEDIUM",
+        done: false
+      };
+    }
+    function buildTodoUpdatePayload(rawTodo, done) {
+      const todo = normalizeTodoRecord(rawTodo);
+      if (!todo.todoId) throw new Error("\u5F85\u529E\u7F16\u53F7\u65E0\u6548\uFF0C\u8BF7\u5237\u65B0\u5217\u8868\u540E\u91CD\u8BD5");
+      return {
+        projectId: todo.projectId,
+        title: todo.title,
+        detail: todo.detail,
+        priority: todo.priority,
+        done: Boolean(done),
+        dueAt: todo.dueAt || null,
+        showOnCalendar: todo.showOnCalendar,
+        timePrecision: todo.timePrecision,
+        timingMode: todo.timingMode,
+        rangeStartAt: todo.rangeStartAt || null,
+        reminderEnabled: todo.reminderEnabled,
+        startRemindValue: todo.startRemindValue,
+        startRemindUnit: todo.startRemindUnit || null,
+        deadlineRemindValue: todo.deadlineRemindValue,
+        deadlineRemindUnit: todo.deadlineRemindUnit || null,
+        sortNum: todo.sortNum
+      };
+    }
     function normalizeEditorOrigin(editorUrl) {
       const raw = firstNonEmpty(editorUrl, "https://embed.diagrams.net/");
       return raw.replace(/\/+$/, "");
@@ -309,6 +375,10 @@ var require_core = __commonJS({
       rewriteVisualEmbeds,
       normalizeApiData,
       normalizeTokenPayload,
+      normalizeTodoRecord,
+      normalizeTodoList,
+      buildTodoCreatePayload,
+      buildTodoUpdatePayload,
       normalizeEditorOrigin,
       buildDrawioEditorUrl,
       patchDrawioBundle
@@ -316,7 +386,7 @@ var require_core = __commonJS({
   }
 });
 
-// main.js
+// tools/obsidian-shizuki-publisher/main.js
 var {
   Plugin,
   Modal,
@@ -334,6 +404,8 @@ var REFRESH_TOKEN_SECRET_ID = "shizuki-site-publisher-refresh-token";
 var BACKGROUND_FOLDER = "90-Assets/images/Backgrounds";
 var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 var PUBLISHER_VIEW_TYPE = "shizuki-publisher-sidebar";
+var TODO_VIEW_TYPE = "shizuki-lightapp-todo-sidebar";
+var TODO_API_PATH = "/api/v1/light-apps/todos";
 var DEFAULT_SETTINGS = {
   siteUrl: core.PRODUCTION_SITE_URL,
   editorUrl: "https://embed.diagrams.net/",
@@ -518,6 +590,37 @@ var ShizukiApiClient = class {
     }
     return token;
   }
+  async listTodos() {
+    return core.normalizeTodoList(await this.rawRequest(TODO_API_PATH, { auth: true }));
+  }
+  async createTodo(title) {
+    const payload = core.buildTodoCreatePayload(title);
+    const created = core.normalizeTodoRecord(await this.rawRequest(TODO_API_PATH, {
+      method: "POST",
+      auth: true,
+      body: payload
+    }));
+    if (!created.todoId) throw new Error("shizuki.site \u672A\u8FD4\u56DE\u5DF2\u521B\u5EFA\u7684\u5F85\u529E");
+    return created;
+  }
+  async setTodoDone(todoId, done) {
+    const id = Number(todoId);
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error("\u5F85\u529E\u7F16\u53F7\u65E0\u6548");
+    const currentTodos = await this.listTodos();
+    const current = currentTodos.find((todo) => todo.todoId === id);
+    if (!current) throw new Error("shizuki.site \u4E2D\u627E\u4E0D\u5230\u8BE5\u5F85\u529E\uFF0C\u8BF7\u5237\u65B0\u5217\u8868\u540E\u91CD\u8BD5");
+    if (current.done === Boolean(done)) return current;
+    const payload = core.buildTodoUpdatePayload(current, done);
+    const saved = core.normalizeTodoRecord(await this.rawRequest(`${TODO_API_PATH}/${id}`, {
+      method: "PUT",
+      auth: true,
+      body: payload
+    }));
+    if (saved.todoId !== id || saved.done !== Boolean(done)) {
+      throw new Error("shizuki.site \u672A\u786E\u8BA4\u5F85\u529E\u72B6\u6001\u66F4\u65B0");
+    }
+    return saved;
+  }
   async signIn(email, password) {
     const payload = await this.rawRequest("/api/v1/auth/tokens", {
       method: "POST",
@@ -617,12 +720,12 @@ var SignInModal = class extends Modal {
         this.close();
         this.plugin.settingTab?.display();
         this.plugin.lastPublisherError = "";
-        this.plugin.refreshPublisherViews();
+        this.plugin.refreshAllViews();
       } catch (error) {
         this.password = "";
         new Notice(`\u767B\u5F55\u5931\u8D25\uFF1A${error.message}`, 8e3);
         this.plugin.lastPublisherError = error.message;
-        this.plugin.refreshPublisherViews();
+        this.plugin.refreshAllViews();
       } finally {
         this.busy = false;
         button.setDisabled(false).setButtonText("\u767B\u5F55");
@@ -828,7 +931,7 @@ var ShizukiPublisherView = class extends ItemView {
           this.plugin.lastPublisherError = "";
           new Notice("\u5DF2\u9000\u51FA shizuki.site");
           this.plugin.settingTab?.display();
-          this.plugin.refreshPublisherViews();
+          this.plugin.refreshAllViews();
         })
       });
     } else {
@@ -892,6 +995,228 @@ var ShizukiPublisherView = class extends ItemView {
     });
   }
 };
+function todoPriorityLabel(priority) {
+  return { HIGH: "\u9AD8\u4F18\u5148\u7EA7", MEDIUM: "\u4E2D\u4F18\u5148\u7EA7", LOW: "\u4F4E\u4F18\u5148\u7EA7" }[priority] || priority || "\u4E2D\u4F18\u5148\u7EA7";
+}
+function todoDueLabel(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat(void 0, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+var ShizukiTodoView = class extends ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.todos = [];
+    this.loading = false;
+    this.busy = false;
+    this.error = "";
+    this.newTodoTitle = "";
+    this.renderVersion = 0;
+  }
+  getViewType() {
+    return TODO_VIEW_TYPE;
+  }
+  getDisplayText() {
+    return "Shizuki Todo";
+  }
+  getIcon() {
+    return "check-square";
+  }
+  async onOpen() {
+    this.contentEl.addClass("shizuki-todo-sidebar");
+    await this.refresh();
+  }
+  async onClose() {
+    this.renderVersion += 1;
+    this.contentEl.empty();
+  }
+  hasSession() {
+    return Boolean(this.plugin.api?.accessToken || this.plugin.api?.refreshToken);
+  }
+  async refresh() {
+    const version = ++this.renderVersion;
+    if (!this.hasSession()) {
+      this.todos = [];
+      this.loading = false;
+      this.error = "";
+      this.render();
+      return;
+    }
+    this.loading = true;
+    this.error = "";
+    this.render();
+    try {
+      const todos = await this.plugin.api.listTodos();
+      if (version === this.renderVersion) this.todos = todos;
+    } catch (error) {
+      if (version === this.renderVersion) this.error = error.message;
+    } finally {
+      if (version === this.renderVersion) {
+        this.loading = false;
+        this.render();
+      }
+    }
+  }
+  async runMutation(action, { clearTitle = false } = {}) {
+    if (this.busy || !this.hasSession()) return;
+    this.busy = true;
+    this.error = "";
+    this.render();
+    try {
+      await action();
+      if (clearTitle) this.newTodoTitle = "";
+      await this.refresh();
+    } catch (error) {
+      this.error = error.message;
+    } finally {
+      this.busy = false;
+      this.render();
+    }
+  }
+  createAction(container, { text, className = "", disabled = false, title = text, onClick }) {
+    const button = container.createEl("button", {
+      cls: `shizuki-publisher-action ${className}`.trim(),
+      text
+    });
+    button.disabled = Boolean(disabled);
+    button.setAttr("aria-label", title);
+    button.setAttr("title", title);
+    button.addEventListener("click", onClick);
+    return button;
+  }
+  renderTodoSection(root, title, todos) {
+    const section = root.createDiv({ cls: "shizuki-todo-section" });
+    const heading = section.createDiv({ cls: "shizuki-todo-section-heading" });
+    heading.createEl("h3", { text: title });
+    heading.createSpan({ text: String(todos.length) });
+    if (!todos.length) return;
+    const list = section.createDiv({ cls: "shizuki-todo-list" });
+    for (const todo of todos) {
+      const item = list.createDiv({ cls: `shizuki-todo-item${todo.done ? " is-done" : ""}` });
+      const checkbox = item.createEl("input", { attr: { type: "checkbox" } });
+      checkbox.checked = todo.done;
+      checkbox.disabled = this.busy || this.loading;
+      checkbox.setAttr("aria-label", `${todo.done ? "\u91CD\u65B0\u6253\u5F00" : "\u5B8C\u6210"}\uFF1A${todo.title}`);
+      checkbox.addEventListener("change", () => this.runMutation(
+        () => this.plugin.api.setTodoDone(todo.todoId, checkbox.checked)
+      ));
+      const body = item.createDiv({ cls: "shizuki-todo-item-body" });
+      body.createDiv({ cls: "shizuki-todo-title", text: todo.title || "\uFF08\u65E0\u6807\u9898\uFF09" });
+      if (todo.detail) body.createDiv({ cls: "shizuki-todo-detail", text: todo.detail });
+      const metadata = body.createDiv({ cls: "shizuki-todo-meta" });
+      metadata.createSpan({ cls: `shizuki-todo-priority is-${String(todo.priority).toLowerCase()}`, text: todoPriorityLabel(todo.priority) });
+      const due = todoDueLabel(todo.dueAt);
+      if (due) metadata.createSpan({ cls: "shizuki-todo-due", text: `\u622A\u6B62 ${due}` });
+    }
+  }
+  render() {
+    const root = this.contentEl;
+    root.empty();
+    const header = root.createDiv({ cls: "shizuki-todo-header" });
+    header.createDiv({ cls: "shizuki-publisher-eyebrow", text: "SHARED TASKS \xB7 SHIZUKI.SITE" });
+    header.createEl("h2", { text: "Todo" });
+    header.createEl("p", { text: "\u5728 Obsidian\u3001\u7F51\u7AD9\u4E0E Meguri-Pet \u4E4B\u95F4\u5171\u7528\u540C\u4E00\u4EFD\u5F85\u529E\u3002" });
+    const connected = this.hasSession();
+    const account = this.plugin.api.account;
+    const session = root.createDiv({ cls: "shizuki-publisher-session shizuki-todo-session" });
+    const copy = session.createDiv({ cls: "shizuki-publisher-session-copy" });
+    const state = copy.createDiv({ cls: "shizuki-publisher-session-state" });
+    state.createSpan({ cls: `shizuki-publisher-session-dot${connected ? " is-connected" : ""}` });
+    state.createSpan({ text: connected ? "\u7F51\u7AD9\u5DF2\u8FDE\u63A5" : "\u7F51\u7AD9\u672A\u8FDE\u63A5" });
+    copy.createDiv({
+      cls: "shizuki-publisher-session-account",
+      text: account ? String(account.nickname || account.email || "\u5171\u4EAB Todo \u8D26\u6237") : connected ? "\u5B89\u5168\u4F1A\u8BDD\u5DF2\u5C31\u7EEA" : "\u767B\u5F55\u540E\u8BFB\u53D6\u5171\u4EAB\u5F85\u529E"
+    });
+    const sessionActions = session.createDiv({ cls: "shizuki-todo-session-actions" });
+    if (connected) {
+      this.createAction(sessionActions, {
+        text: "\u9000\u51FA",
+        className: "is-quiet",
+        title: "\u9000\u51FA shizuki.site",
+        disabled: this.busy,
+        onClick: () => this.runMutation(async () => {
+          await this.plugin.api.signOut();
+          this.plugin.refreshAllViews();
+        })
+      });
+    } else {
+      this.createAction(sessionActions, {
+        text: "\u767B\u5F55",
+        className: "is-quiet",
+        title: "\u767B\u5F55 shizuki.site",
+        disabled: this.busy,
+        onClick: () => new SignInModal(this.app, this.plugin).open()
+      });
+    }
+    this.createAction(sessionActions, {
+      text: this.loading ? "\u540C\u6B65\u4E2D\u2026" : "\u5237\u65B0",
+      className: "is-quiet",
+      title: "\u4ECE shizuki.site \u91CD\u65B0\u8F7D\u5165\u5F85\u529E",
+      disabled: !connected || this.loading || this.busy,
+      onClick: () => this.refresh()
+    });
+    if (!connected) {
+      const empty = root.createDiv({ cls: "shizuki-publisher-empty" });
+      empty.createDiv({ cls: "shizuki-publisher-empty-mark", text: "\u2713" });
+      empty.createEl("h3", { text: "\u8FDE\u63A5\u5171\u4EAB Todo" });
+      empty.createEl("p", { text: "\u8BF7\u767B\u5F55 shizuki.site\u3002\u767B\u5F55\u540E\uFF0C\u8FD9\u91CC\u4F1A\u663E\u793A\u7F51\u7AD9\u548C Meguri-Pet \u5171\u7528\u7684\u5F85\u529E\u5217\u8868\u3002" });
+      return;
+    }
+    if (this.error) {
+      const error = root.createDiv({ cls: "shizuki-publisher-error", text: this.error });
+      error.setAttr("role", "alert");
+      this.createAction(root, {
+        text: "\u91CD\u8BD5",
+        className: "is-secondary",
+        disabled: this.loading || this.busy,
+        onClick: () => this.refresh()
+      });
+    }
+    const form = root.createEl("form", { cls: "shizuki-todo-form" });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const title = this.newTodoTitle.trim();
+      if (!title || title.length > 200) {
+        this.error = "\u5F85\u529E\u6807\u9898\u9700\u8981 1 \u5230 200 \u4E2A\u5B57\u7B26";
+        this.render();
+        return;
+      }
+      void this.runMutation(() => this.plugin.api.createTodo(title), { clearTitle: true });
+    });
+    const input = form.createEl("input", {
+      attr: { type: "text", maxlength: "200", placeholder: "\u6DFB\u52A0\u4E00\u4E2A\u5171\u4EAB\u5F85\u529E\u2026", "aria-label": "\u65B0 Todo \u6807\u9898" }
+    });
+    input.value = this.newTodoTitle;
+    input.disabled = this.busy;
+    input.addEventListener("input", () => {
+      this.newTodoTitle = input.value;
+    });
+    const add = form.createEl("button", {
+      cls: "shizuki-publisher-action is-primary",
+      text: this.busy ? "\u5904\u7406\u4E2D\u2026" : "\u6DFB\u52A0",
+      attr: { type: "submit" }
+    });
+    add.disabled = this.busy || this.loading;
+    if (this.loading && !this.todos.length) {
+      root.createDiv({ cls: "shizuki-todo-loading", text: "\u6B63\u5728\u4ECE shizuki.site \u8BFB\u53D6\u5F85\u529E\u2026" });
+      return;
+    }
+    const openTodos = this.todos.filter((todo) => !todo.done);
+    const completedTodos = this.todos.filter((todo) => todo.done);
+    this.renderTodoSection(root, "\u5F85\u5B8C\u6210", openTodos);
+    this.renderTodoSection(root, "\u5DF2\u5B8C\u6210", completedTodos);
+    if (!this.todos.length && !this.loading) {
+      root.createDiv({ cls: "shizuki-todo-empty", text: "\u8FD8\u6CA1\u6709\u5F85\u529E\u3002\u5728\u4E0A\u65B9\u6DFB\u52A0\u540E\uFF0C\u4F1A\u540C\u6B65\u5230\u6240\u6709\u8FDE\u63A5 shizuki.site \u7684\u5BA2\u6237\u7AEF\u3002" });
+    }
+  }
+};
 var ShizukiPublisherSettingTab = class extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -918,7 +1243,7 @@ var ShizukiPublisherSettingTab = class extends PluginSettingTab {
       await this.plugin.api.signOut();
       this.plugin.lastPublisherError = "";
       new Notice("\u5DF2\u9000\u51FA shizuki.site");
-      this.plugin.refreshPublisherViews();
+      this.plugin.refreshAllViews();
       this.display();
     }));
     new Setting(containerEl).setName("Draw.io \u7F16\u8F91\u5668").setDesc("\u4E0E shizuki.site \u767D\u677F\u5171\u7528\u7684 diagrams.net \u5730\u5740").addText((text) => text.setValue(this.plugin.settings.editorUrl).onChange(async (value) => {
@@ -943,8 +1268,10 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
     this.settingTab = new ShizukiPublisherSettingTab(this.app, this);
     this.addSettingTab(this.settingTab);
     this.registerView(PUBLISHER_VIEW_TYPE, (leaf) => new ShizukiPublisherView(leaf, this));
+    this.registerView(TODO_VIEW_TYPE, (leaf) => new ShizukiTodoView(leaf, this));
     this.registerCommands();
     this.addRibbonIcon("send", "\u6253\u5F00 Shizuki \u53D1\u5E03\u4FA7\u680F", () => this.activatePublisherView());
+    this.addRibbonIcon("check-square", "\u6253\u5F00 shizuki.site Todo", () => this.activateTodoView());
     this.addRibbonIcon("upload", "\u4E0A\u4F20\u5F53\u524D\u7B14\u8BB0\u5230 shizuki.site", () => this.uploadActiveNote(false));
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.schedulePublisherRefresh()));
     this.registerEvent(this.app.workspace.on("layout-change", () => this.schedulePublisherRefresh()));
@@ -960,6 +1287,7 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
     document.body.classList.remove("shizuki-dark-vault", "shizuki-background-enabled");
     document.body.style.removeProperty("--shizuki-background-image");
     this.app.workspace.detachLeavesOfType(PUBLISHER_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(TODO_VIEW_TYPE);
     if (this.api) {
       this.api.accessToken = "";
       this.api.refreshToken = "";
@@ -984,8 +1312,14 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
     };
     await this.saveData(safeSettings);
     this.refreshPublisherViews();
+    this.refreshTodoViews();
   }
   registerCommands() {
+    this.addCommand({
+      id: "open-todo-sidebar",
+      name: "\u6253\u5F00\u5171\u4EAB Todo \u4FA7\u680F",
+      callback: () => this.activateTodoView()
+    });
     this.addCommand({
       id: "open-publisher-sidebar",
       name: "\u6253\u5F00\u53D1\u5E03\u4FA7\u680F",
@@ -1034,9 +1368,20 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
         this.lastPublisherError = "";
         new Notice("\u5DF2\u9000\u51FA shizuki.site");
         this.settingTab?.display();
-        this.refreshPublisherViews();
+        this.refreshAllViews();
       }
     });
+  }
+  async activateTodoView() {
+    const leaves = this.app.workspace.getLeavesOfType(TODO_VIEW_TYPE);
+    let leaf = leaves[0] || null;
+    if (!leaf) {
+      leaf = this.app.workspace.getRightLeaf?.(false) || this.app.workspace.getLeftLeaf(false);
+      if (!leaf) throw new Error("\u65E0\u6CD5\u521B\u5EFA shizuki.site Todo \u4FA7\u680F");
+      await leaf.setViewState({ type: TODO_VIEW_TYPE, active: true });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+    leaf.view?.refresh?.();
   }
   async activatePublisherView() {
     const leaves = this.app.workspace.getLeavesOfType(PUBLISHER_VIEW_TYPE);
@@ -1060,6 +1405,15 @@ var ShizukiSitePublisherPlugin = class extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType(PUBLISHER_VIEW_TYPE)) {
       leaf.view?.refresh?.();
     }
+  }
+  refreshTodoViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType(TODO_VIEW_TYPE)) {
+      leaf.view?.refresh?.();
+    }
+  }
+  refreshAllViews() {
+    this.refreshPublisherViews();
+    this.refreshTodoViews();
   }
   getPublisherSessionState() {
     return {

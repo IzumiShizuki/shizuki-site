@@ -280,6 +280,77 @@ function normalizeTokenPayload(payload) {
   };
 }
 
+function todoValue(source, camelKey, snakeKey) {
+  return source?.[camelKey] ?? source?.[snakeKey];
+}
+
+function normalizeTodoRecord(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const todoId = Number(todoValue(source, 'todoId', 'todo_id'));
+  return {
+    todoId: Number.isSafeInteger(todoId) && todoId > 0 ? todoId : 0,
+    projectId: Number(todoValue(source, 'projectId', 'project_id')) || null,
+    title: String(source.title || ''),
+    detail: String(source.detail || ''),
+    priority: String(source.priority || 'MEDIUM').toUpperCase(),
+    done: source.done === true,
+    dueAt: String(todoValue(source, 'dueAt', 'due_at') || ''),
+    showOnCalendar: todoValue(source, 'showOnCalendar', 'show_on_calendar') !== false,
+    timePrecision: String(todoValue(source, 'timePrecision', 'time_precision') || 'MINUTE').toUpperCase(),
+    timingMode: String(todoValue(source, 'timingMode', 'timing_mode') || 'DEADLINE').toUpperCase(),
+    rangeStartAt: String(todoValue(source, 'rangeStartAt', 'range_start_at') || ''),
+    reminderEnabled: todoValue(source, 'reminderEnabled', 'reminder_enabled') === true,
+    startRemindValue: todoValue(source, 'startRemindValue', 'start_remind_value') ?? null,
+    startRemindUnit: String(todoValue(source, 'startRemindUnit', 'start_remind_unit') || ''),
+    deadlineRemindValue: todoValue(source, 'deadlineRemindValue', 'deadline_remind_value') ?? null,
+    deadlineRemindUnit: String(todoValue(source, 'deadlineRemindUnit', 'deadline_remind_unit') || ''),
+    sortNum: Number(todoValue(source, 'sortNum', 'sort_num')) || 0,
+    updatedAt: String(todoValue(source, 'updatedAt', 'updated_at') || '')
+  };
+}
+
+function normalizeTodoList(payload) {
+  const value = normalizeApiData(payload);
+  if (!Array.isArray(value)) throw new Error('shizuki.site 返回的 Todo 列表格式无效');
+  return value.map(normalizeTodoRecord).filter((todo) => todo.todoId > 0);
+}
+
+function buildTodoCreatePayload(title) {
+  const normalizedTitle = String(title || '').trim();
+  if (!normalizedTitle || normalizedTitle.length > 200) {
+    throw new Error('待办标题需要 1 到 200 个字符');
+  }
+  return {
+    title: normalizedTitle,
+    detail: '',
+    priority: 'MEDIUM',
+    done: false
+  };
+}
+
+function buildTodoUpdatePayload(rawTodo, done) {
+  const todo = normalizeTodoRecord(rawTodo);
+  if (!todo.todoId) throw new Error('待办编号无效，请刷新列表后重试');
+  return {
+    projectId: todo.projectId,
+    title: todo.title,
+    detail: todo.detail,
+    priority: todo.priority,
+    done: Boolean(done),
+    dueAt: todo.dueAt || null,
+    showOnCalendar: todo.showOnCalendar,
+    timePrecision: todo.timePrecision,
+    timingMode: todo.timingMode,
+    rangeStartAt: todo.rangeStartAt || null,
+    reminderEnabled: todo.reminderEnabled,
+    startRemindValue: todo.startRemindValue,
+    startRemindUnit: todo.startRemindUnit || null,
+    deadlineRemindValue: todo.deadlineRemindValue,
+    deadlineRemindUnit: todo.deadlineRemindUnit || null,
+    sortNum: todo.sortNum
+  };
+}
+
 function normalizeEditorOrigin(editorUrl) {
   const raw = firstNonEmpty(editorUrl, 'https://embed.diagrams.net/');
   return raw.replace(/\/+$/, '');
@@ -356,6 +427,10 @@ module.exports = {
   rewriteVisualEmbeds,
   normalizeApiData,
   normalizeTokenPayload,
+  normalizeTodoRecord,
+  normalizeTodoList,
+  buildTodoCreatePayload,
+  buildTodoUpdatePayload,
   normalizeEditorOrigin,
   buildDrawioEditorUrl,
   patchDrawioBundle

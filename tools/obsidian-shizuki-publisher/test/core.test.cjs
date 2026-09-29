@@ -10,6 +10,10 @@ const {
   rewriteVisualEmbeds,
   normalizeApiData,
   normalizeTokenPayload,
+  normalizeTodoRecord,
+  normalizeTodoList,
+  buildTodoCreatePayload,
+  buildTodoUpdatePayload,
   choosePublisherLeafStrategy,
   buildPublisherSidebarState,
   toSnakeCaseDeep,
@@ -109,6 +113,98 @@ test('normalizes API and token response casing', () => {
     userId: 9,
     expiresIn: 0
   });
+});
+
+test('normalizes shared Todo records from snake_case and camelCase API responses', () => {
+  const snake = normalizeTodoRecord({
+    todo_id: 41,
+    project_id: 6,
+    title: 'Prepare release',
+    priority: 'high',
+    done: false,
+    due_at: '2026-10-02T10:30:00',
+    show_on_calendar: true,
+    time_precision: 'MINUTE',
+    timing_mode: 'RANGE',
+    range_start_at: '2026-10-02T09:30:00',
+    reminder_enabled: true,
+    start_remind_value: 15,
+    start_remind_unit: 'MINUTE',
+    deadline_remind_value: 5,
+    deadline_remind_unit: 'MINUTE',
+    sort_num: 8
+  });
+  const camel = normalizeTodoRecord({
+    todoId: 41,
+    projectId: 6,
+    title: 'Prepare release',
+    priority: 'HIGH',
+    done: false,
+    dueAt: '2026-10-02T10:30:00',
+    showOnCalendar: true,
+    timePrecision: 'MINUTE',
+    timingMode: 'RANGE',
+    rangeStartAt: '2026-10-02T09:30:00',
+    reminderEnabled: true,
+    startRemindValue: 15,
+    startRemindUnit: 'MINUTE',
+    deadlineRemindValue: 5,
+    deadlineRemindUnit: 'MINUTE',
+    sortNum: 8
+  });
+  assert.deepEqual(snake, camel);
+  assert.equal(normalizeTodoList({ code: 0, data: [{ todo_id: 41, title: 'Prepare release' }] })[0].todoId, 41);
+});
+
+test('builds Todo create and completion payloads without losing scheduling fields', () => {
+  assert.deepEqual(buildTodoCreatePayload('  Write docs  '), {
+    title: 'Write docs',
+    detail: '',
+    priority: 'MEDIUM',
+    done: false
+  });
+  assert.throws(() => buildTodoCreatePayload(' '), /1 到 200/);
+  assert.throws(() => buildTodoCreatePayload('x'.repeat(201)), /1 到 200/);
+
+  const currentTodo = {
+    todo_id: 9,
+    project_id: 3,
+    title: 'Review plan',
+    detail: 'Keep reminders intact',
+    priority: 'HIGH',
+    done: false,
+    due_at: '2026-10-01T18:00:00',
+    show_on_calendar: true,
+    time_precision: 'MINUTE',
+    timing_mode: 'RANGE',
+    range_start_at: '2026-10-01T17:00:00',
+    reminder_enabled: true,
+    start_remind_value: 10,
+    start_remind_unit: 'MINUTE',
+    deadline_remind_value: 30,
+    deadline_remind_unit: 'MINUTE',
+    sort_num: 17
+  };
+  const payload = buildTodoUpdatePayload(currentTodo, true);
+  assert.deepEqual(payload, {
+    projectId: 3,
+    title: 'Review plan',
+    detail: 'Keep reminders intact',
+    priority: 'HIGH',
+    done: true,
+    dueAt: '2026-10-01T18:00:00',
+    showOnCalendar: true,
+    timePrecision: 'MINUTE',
+    timingMode: 'RANGE',
+    rangeStartAt: '2026-10-01T17:00:00',
+    reminderEnabled: true,
+    startRemindValue: 10,
+    startRemindUnit: 'MINUTE',
+    deadlineRemindValue: 30,
+    deadlineRemindUnit: 'MINUTE',
+    sortNum: 17
+  });
+  assert.equal(buildTodoUpdatePayload({ ...currentTodo, done: true }, false).done, false);
 });
 
 test('derives publisher sidebar state for local, synced, and protected notes', () => {

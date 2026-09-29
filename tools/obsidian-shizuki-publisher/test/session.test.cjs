@@ -111,6 +111,91 @@ test('an unauthorized request refreshes once and retries once', async () => {
   });
 });
 
+test('Todo client uses the shared API and preserves the latest record on completion updates', async () => {
+  const plugin = createPlugin();
+  const client = new MainPlugin._test.ShizukiApiClient(plugin);
+  client.accessToken = 'access-token';
+  const current = {
+    todo_id: 41,
+    project_id: 6,
+    title: 'Prepare release',
+    detail: 'Keep the reminder',
+    priority: 'HIGH',
+    done: false,
+    due_at: '2026-10-02T10:30:00',
+    show_on_calendar: true,
+    time_precision: 'MINUTE',
+    timing_mode: 'RANGE',
+    range_start_at: '2026-10-02T09:30:00',
+    reminder_enabled: true,
+    start_remind_value: 15,
+    start_remind_unit: 'MINUTE',
+    deadline_remind_value: 5,
+    deadline_remind_unit: 'MINUTE',
+    sort_num: 8
+  };
+  const calls = [];
+  requestHandler = async (options) => {
+    calls.push(options);
+    assert.equal(options.headers.Authorization, 'Bearer access-token');
+    if (options.method === 'PUT') {
+      return response(200, { code: 0, data: { ...current, ...JSON.parse(options.body), todo_id: 41 } });
+    }
+    return response(200, { code: 0, data: [current] });
+  };
+
+  const todos = await client.listTodos();
+  assert.equal(todos[0].todoId, 41);
+  const saved = await client.setTodoDone(41, true);
+  assert.equal(saved.done, true);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].url, 'https://site.shizuki.online/api/v1/light-apps/todos');
+  assert.equal(calls[1].method, 'GET');
+  assert.equal(calls[2].url, 'https://site.shizuki.online/api/v1/light-apps/todos/41');
+  assert.equal(calls[2].method, 'PUT');
+  assert.deepEqual(JSON.parse(calls[2].body), {
+    project_id: 6,
+    title: 'Prepare release',
+    detail: 'Keep the reminder',
+    priority: 'HIGH',
+    done: true,
+    due_at: '2026-10-02T10:30:00',
+    show_on_calendar: true,
+    time_precision: 'MINUTE',
+    timing_mode: 'RANGE',
+    range_start_at: '2026-10-02T09:30:00',
+    reminder_enabled: true,
+    start_remind_value: 15,
+    start_remind_unit: 'MINUTE',
+    deadline_remind_value: 5,
+    deadline_remind_unit: 'MINUTE',
+    sort_num: 8
+  });
+});
+
+test('Todo creation validates the title and posts to the shared light-app API', async () => {
+  const plugin = createPlugin();
+  const client = new MainPlugin._test.ShizukiApiClient(plugin);
+  client.accessToken = 'access-token';
+  let call;
+  requestHandler = async (options) => {
+    call = options;
+    return response(200, { code: 0, data: { todo_id: 52, title: 'Draft a note', detail: '', priority: 'MEDIUM', done: false } });
+  };
+
+  const created = await client.createTodo('  Draft a note  ');
+  assert.equal(created.todoId, 52);
+  assert.equal(call.url, 'https://site.shizuki.online/api/v1/light-apps/todos');
+  assert.equal(call.method, 'POST');
+  assert.deepEqual(JSON.parse(call.body), {
+    title: 'Draft a note',
+    detail: '',
+    priority: 'MEDIUM',
+    done: false
+  });
+  await assert.rejects(() => client.createTodo('  '), /1 到 200/);
+});
+
 test('serializes nested JSON but preserves binary and pre-serialized bodies', async () => {
   const plugin = createPlugin();
   const bodies = [];
