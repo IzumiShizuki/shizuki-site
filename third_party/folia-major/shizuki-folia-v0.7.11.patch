@@ -1,17 +1,28 @@
 diff --git a/deploy/docker/gateway/nginx.conf.template b/deploy/docker/gateway/nginx.conf.template
-index c49eb39c..664b8f88 100644
+index c49eb39c..25ae3954 100644
 --- a/deploy/docker/gateway/nginx.conf.template
 +++ b/deploy/docker/gateway/nginx.conf.template
-@@ -40,7 +40,7 @@ http {
+@@ -7,6 +7,8 @@ events {
+ http {
+     include /etc/nginx/mime.types;
+     default_type application/octet-stream;
++    resolver 127.0.0.11 valid=10s ipv6=off;
++    resolver_timeout 3s;
+     log_format combined_no_query '$remote_addr - $remote_user [$time_local] "$request_method $uri $server_protocol" '
+                                  '$status $body_bytes_sent "$http_referer" "$http_user_agent"';
+     access_log /dev/stdout combined_no_query;
+@@ -40,7 +42,9 @@ http {
          }
  
          location /netease/ {
 -            proxy_pass http://netease-api:3000/;
-+            proxy_pass http://shizuki-site-music-ncm-api:3000/;
++            set $netease_api shizuki-site-music-ncm-api:3000;
++            rewrite ^/netease/(.*)$ /$1 break;
++            proxy_pass http://$netease_api;
              # Netease QR login returns several large Set-Cookie headers before they are hidden.
              proxy_buffer_size 32k;
              proxy_buffers 8 32k;
-@@ -52,31 +52,8 @@ http {
+@@ -52,31 +56,8 @@ http {
              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
          }
  
@@ -236,7 +247,7 @@ index 3ff95ec6..f50e44af 100644
      };
  };
 diff --git a/src/components/visualizer/cadenza/VisualizerCadenza.tsx b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
-index beb77c63..b2871fb4 100644
+index beb77c63..28ac4406 100644
 --- a/src/components/visualizer/cadenza/VisualizerCadenza.tsx
 +++ b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
 @@ -82,6 +82,8 @@ interface WordPlacement {
@@ -256,7 +267,15 @@ index beb77c63..b2871fb4 100644
  
      const inner = document.createElement('div');
      inner.className = 'whitespace-nowrap';
-@@ -433,7 +436,7 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
+@@ -150,6 +153,7 @@ const createOverlayWordNodes = (): OverlayWordNodes => {
+     body.style.position = 'relative';
+     body.style.zIndex = '1';
+     body.style.whiteSpace = 'pre';
++    body.dataset.shizukiFoliaLyricWordBody = 'true';
+ 
+     const glow = document.createElement('span');
+     glow.style.color = 'transparent';
+@@ -433,7 +437,7 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
      }
  
      return {
@@ -265,7 +284,7 @@ index beb77c63..b2871fb4 100644
          scale,
          blur,
      };
-@@ -797,7 +800,7 @@ const buildEmphasisMap = (
+@@ -797,7 +801,7 @@ const buildEmphasisMap = (
      return emphasisMap;
  };
  
@@ -274,7 +293,7 @@ index beb77c63..b2871fb4 100644
      lineData: Array<{
          line: LayoutLine;
          lineStart: number;
-@@ -820,7 +823,19 @@ const buildWordPlacements = (
+@@ -820,7 +824,19 @@ const buildWordPlacements = (
          : animationIntensity === 'calm'
              ? 1
              : 1.01;
@@ -295,7 +314,7 @@ index beb77c63..b2871fb4 100644
      const heroWordIndex = [...emphasisMap.entries()]
          .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
  
-@@ -1006,6 +1021,11 @@ const buildWordPlacements = (
+@@ -1006,6 +1022,11 @@ const buildWordPlacements = (
              ? Math.atan2(preferredY, preferredX + width / 2)
              : 0;
  
@@ -307,7 +326,7 @@ index beb77c63..b2871fb4 100644
          for (let radius = 0; radius <= maxRadius && !found; radius += step) {
              const sampleCount = radius === 0
                  ? 1
-@@ -1068,7 +1088,9 @@ const buildWordPlacements = (
+@@ -1068,7 +1089,9 @@ const buildWordPlacements = (
          const outwardLength = Math.max(Math.hypot(outwardX, outwardY), 1);
          const outwardUnitX = outwardX / outwardLength;
          const outwardUnitY = outwardY / outwardLength;
@@ -318,7 +337,7 @@ index beb77c63..b2871fb4 100644
              ? 3 + random(6) * 3
              : emphasis > 1
                  ? 4 + random(6) * 4
-@@ -1101,6 +1123,7 @@ const buildWordPlacements = (
+@@ -1101,6 +1124,7 @@ const buildWordPlacements = (
              wordGraphemeTimings: fragment.wordGraphemeTimings,
              emphasis,
              isInterlude,
@@ -326,7 +345,7 @@ index beb77c63..b2871fb4 100644
          });
      });
  
-@@ -1492,6 +1515,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+@@ -1492,6 +1516,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
              placements.forEach((placement, placementIndex) => {
                  const status = getWordStatus(time, lineTiming, placement.word);
                  const progress = getWordProgress(time, wordRevealMode, placement.word);
@@ -334,7 +353,7 @@ index beb77c63..b2871fb4 100644
                  const passedAlpha = isInstantWordReveal
                      ? 0
                      : theme.animationIntensity === 'chaotic'
-@@ -1499,9 +1523,12 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+@@ -1499,9 +1524,12 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                          : 0.82;
                  const pulse = status === 'active'
                      && !isInstantWordReveal
@@ -348,7 +367,7 @@ index beb77c63..b2871fb4 100644
                  const targetScale = status === 'waiting'
                      ? isInstantWordReveal
                          ? placement.scale
-@@ -1509,7 +1536,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+@@ -1509,7 +1537,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                      : status === 'active'
                          ? isInstantWordReveal
                              ? placement.scale
@@ -357,7 +376,7 @@ index beb77c63..b2871fb4 100644
                          : placement.scale;
                  const targetRotation = status === 'waiting'
                      ? isInstantWordReveal
-@@ -1520,8 +1547,8 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+@@ -1520,8 +1548,8 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                              ? placement.rotate
                              : placement.rotate + placement.passedRotate * passedDriftProgress
                          : placement.rotate;
@@ -603,10 +622,10 @@ index 00000000..d35717af
 +});
 diff --git a/src/shizukiExternalBridge.ts b/src/shizukiExternalBridge.ts
 new file mode 100644
-index 00000000..9cf60c91
+index 00000000..51b21044
 --- /dev/null
 +++ b/src/shizukiExternalBridge.ts
-@@ -0,0 +1,1129 @@
+@@ -0,0 +1,1159 @@
 +/**
 + * Shizuki-site external bridge for the Folia (AGPL-3.0) web player.
 + *
@@ -752,6 +771,32 @@ index 00000000..9cf60c91
 +  root.style.setProperty('--shizuki-folia-wallpaper-image', cssBackgroundImage(source));
 +  markEmbeddedDefaultBackground(root);
 +  observeEmbeddedDefaultBackground(root);
++}
++
++function applyEmbedLyricColor(rawColor: unknown): void {
++  const root = document.getElementById('folia-embed-root');
++  if (!root) return;
++  const color = String(rawColor || '').trim();
++  if (!/^#[\da-f]{6}$/i.test(color)) {
++    delete root.dataset.shizukiLyricColor;
++    root.style.removeProperty('--shizuki-folia-lyric-color');
++    return;
++  }
++
++  if (!embedLyricColorStyleInstalled) {
++    const style = document.createElement('style');
++    style.id = 'shizuki-folia-lyric-color-style';
++    style.textContent = `
++#folia-embed-root[data-shizuki-lyric-color='custom'] [data-shizuki-folia-lyric-word-body] {
++  color: var(--shizuki-folia-lyric-color) !important;
++}
++`;
++    document.head.appendChild(style);
++    embedLyricColorStyleInstalled = true;
++  }
++
++  root.dataset.shizukiLyricColor = 'custom';
++  root.style.setProperty('--shizuki-folia-lyric-color', color);
 +}
 +
 +/**
@@ -1644,6 +1689,10 @@ index 00000000..9cf60c91
 +    }
 +    return;
 +  }
++  if (type === 'shizuki:set-lyric-color') {
++    applyEmbedLyricColor(data.color);
++    return;
++  }
 +  if (type === 'shizuki:set-wallpaper') {
 +    installEmbedWallpaperStyle();
 +    applyEmbedWallpaper(data.source, data.preview);
@@ -1926,10 +1975,10 @@ index 00000000..6bed28bd
 +});
 diff --git a/test/unit/shizukiExternalBridge.integration.test.ts b/test/unit/shizukiExternalBridge.integration.test.ts
 new file mode 100644
-index 00000000..9c1570d6
+index 00000000..33f6fcc5
 --- /dev/null
 +++ b/test/unit/shizukiExternalBridge.integration.test.ts
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,109 @@
 +// @vitest-environment jsdom
 +import { afterEach, describe, expect, it, vi } from 'vitest';
 +import { installShizukiExternalBridge } from '../../src/shizukiExternalBridge';
@@ -1970,6 +2019,20 @@ index 00000000..9c1570d6
 +    vi.stubGlobal('cancelAnimationFrame', vi.fn());
 +    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
 +    installShizukiExternalBridge();
++
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:set-lyric-color', color: '#abcdef' },
++    }));
++    expect(root.dataset.shizukiLyricColor).toBe('custom');
++    expect(root.style.getPropertyValue('--shizuki-folia-lyric-color')).toBe('#abcdef');
++    expect(document.getElementById('shizuki-folia-lyric-color-style')?.textContent)
++      .toContain('[data-shizuki-folia-lyric-word-body]');
++
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:set-lyric-color', color: '' },
++    }));
++    expect(root.dataset.shizukiLyricColor).toBeUndefined();
++    expect(root.style.getPropertyValue('--shizuki-folia-lyric-color')).toBe('');
 +
 +    const session = {
 +      version: 1,

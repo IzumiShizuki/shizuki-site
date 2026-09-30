@@ -26,7 +26,7 @@
 
 ## 2026-09-30 本地联动修复
 
-完整本地 fork：`D:\program\_codex_deploy\folia-major-v0.7.8-upstream`（目录名保留历史版本，实际基线为 v0.7.11），修复分支 `codex/fix-folia-normal-linkage`，提交 `34a51405`。本目录 patch 与该提交相对 `6fe68d89` 的完整差异一致；8 个修改源码/新增测试快照的 SHA-256 与完整 fork 一致。
+完整本地 fork：`D:\program\_codex_deploy\folia-major-v0.7.8-upstream`（目录名保留历史版本，实际基线为 v0.7.11），修复分支 `codex/fix-folia-normal-linkage`，最终提交 `388f3e72`（联动首次修复为 `34a51405`）。本目录 patch 与最终提交相对 `6fe68d89` 的完整差异一致；8 个源码/测试快照及 gateway 配置的 SHA-256 与完整 fork 一致。末次同步保留了并行main的字幕颜色与网易云代理动态DNS修复。
 
 嵌入定向测试16/16、TypeScript检查及 `/music/` 正式构建通过。完整 Folia 单测4385通过、2跳过，唯一失败是上游 modSignature 测试在 Windows 创建符号链接时的 EPERM；干净 v0.7.11 基线同样失败，未修改或跳过该测试。patch 已在干净基线通过 `git apply --check` 并实际应用。
 

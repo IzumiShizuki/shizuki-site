@@ -16,6 +16,7 @@
 - [x] 3.1 Re-run original behavioral repros, affected tests, and frontend build; fix regressions introduced by this change.
 - [x] 3.2 Verify requirements/design against implementation, run strict OpenSpec validation, and document limitations and any pending production acceptance.
 - [x] 3.3 Remove temporary diagnostics, update tasks, and commit the verified local changes without pushing or deploying.
+- [x] 3.4 Preserve concurrent main updates, align the complete Folia fork/public patch, and repeat affected verification after integration.
 
 ## Release follow-up (outside this local change)
 

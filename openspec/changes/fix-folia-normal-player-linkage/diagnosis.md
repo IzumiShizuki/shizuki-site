@@ -8,6 +8,7 @@
 - 仓库原主分支名为 `master`，没有 `main`。从本地 `master` 创建 `main` 后，以 merge commit `c7bae206` 合并原分支，双方提交均保留。
 - 当前排查/修复分支：`codex/diagnose-folia-normal-linkage`。
 - 没有执行 Git push 或生产部署。
+- 收尾时其他工作区将 `main` 推进到 `554bd949`，包含壁纸下载字节进度及既有Folia代理DNS/字幕颜色修复。本排查分支以 `f79391e9` 无冲突合入这些提交，保留双方意图；本地修复首次提交为 `ca168f2c`。
 
 ## 证据与反馈循环
 
@@ -43,7 +44,8 @@
 ## 验证结果与边界
 
 - 同文档真实 bridge 测试验证两个时钟、同步无回声、即时 pause/seek、空音频与歌词对象 identity 保持。真实页面生命周期测试验证普通入口 persist → import → sidebar，以及失败后通过页面同步操作重试。
-- 主站最终全量单测：246 files、1472 tests 全部通过；生产构建通过。完整 Folia 的定向测试、类型检查与 `/music/` 构建通过，公开 patch 与完整 fork diff 字节一致，并已在干净 v0.7.11 实际应用。
+- 主站合并最新main后的全量单测：246 files、1474 tests 全部通过；生产构建通过。首次修复检查为1472 tests，随后完整重跑覆盖并行合入的改动。完整 Folia 的定向测试、类型检查与 `/music/` 构建通过，公开 patch 与完整 fork diff 字节一致，并已在干净 v0.7.11 实际应用。
 - Folia 全量套件：4385 passed、2 skipped、1 failed。唯一失败为 modSignature 测试创建符号链接的 Windows EPERM，在未修改的 v0.7.11 基线也复现（该文件7/8通过）；相关源码与测试没有修改。
-- 最终源码映射、检查命令及发布验收见 [verification-report.md](verification-report.md)。本地完整 fork 已提交为 `34a51405`；网站及公开 patch 将提交在当前排查分支。
+- 最终源码映射、检查命令及发布验收见 [verification-report.md](verification-report.md)。本地完整 fork 的联动修复为 `34a51405`，保留并行main更新后的最终提交为 `388f3e72`；网站与公开 patch 已提交在当前排查分支。
 - 发布后仍需在实际账号/歌曲/CDN环境验证权限受限歌曲、音频Range拖动、持续播放和模式切换；本地 mock 测试不能替代该验收。
+- 最后只读复查：网易云 `/netease/song/detail?ids=28684001` 返回200；根 `/api/lyric-proxy` 同样返回401。合入的动态DNS修复针对网易云代理容器IP变化，并没有补上独立歌词代理路由；两种代理问题不能混为一谈。
