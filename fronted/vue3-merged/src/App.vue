@@ -464,9 +464,12 @@ const importState = reactive({
   workshopVisibility: 'PRIVATE',
   workshopTitle: '',
   lastImportJobId: 0,
+  lastImportJobSourceType: '',
   lastImportJobStatus: '',
   lastImportJobProgressStage: '',
   lastImportJobProgressPercent: null,
+  lastImportJobDownloadedBytes: null,
+  lastImportJobTotalBytes: null,
   statusBusy: false,
   hint: '',
   busy: false
@@ -1822,7 +1825,9 @@ function normalizeImportJobResponse(raw) {
     errorMessage: String(readRecordField(raw, 'errorMessage', 'error_message', '')),
     fallbackHint: String(readRecordField(raw, 'fallbackHint', 'fallback_hint', '')),
     progressStage: String(readRecordField(raw, 'progressStage', 'progress_stage', '')).toUpperCase(),
-    progressPercent: normalizeImportProgressPercent(readRecordField(raw, 'progressPercent', 'progress_percent', null))
+    progressPercent: normalizeImportProgressPercent(readRecordField(raw, 'progressPercent', 'progress_percent', null)),
+    downloadedBytes: normalizeImportByteCount(readRecordField(raw, 'downloadedBytes', 'downloaded_bytes', null)),
+    totalBytes: normalizeImportByteCount(readRecordField(raw, 'totalBytes', 'total_bytes', null), true)
   };
 }
 
@@ -1830,6 +1835,17 @@ function normalizeImportProgressPercent(value) {
   const percent = Number(value);
   if (!Number.isFinite(percent)) return null;
   return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+function normalizeImportByteCount(value, requirePositive = false) {
+  if (value === null || value === undefined || value === '') return null;
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0 || (requirePositive && bytes <= 0)) return null;
+  return Math.floor(bytes);
+}
+
+function formatImportMegabytes(bytes) {
+  return `${(Number(bytes) / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatImportJobProgress(job) {
@@ -1843,6 +1859,17 @@ function formatImportJobProgress(job) {
   const label = stageLabels[String(job?.progressStage || '').toUpperCase()];
   const percent = normalizeImportProgressPercent(job?.progressPercent);
   if (!label) return '';
+  if (String(job?.sourceType || '').toUpperCase() === 'WORKSHOP'
+    && String(job?.progressStage || '').toUpperCase() === 'DOWNLOADING') {
+    if (job?.downloadedBytes === null || job?.downloadedBytes === undefined) {
+      return `${label}（等待字节数据）`;
+    }
+    const downloaded = formatImportMegabytes(job.downloadedBytes);
+    const detail = job.totalBytes > 0
+      ? `${downloaded} / ${formatImportMegabytes(job.totalBytes)}`
+      : `已获取 ${downloaded}`;
+    return `${label}（${detail}）`;
+  }
   return `${label}${percent === null ? '' : `（${percent}%）`}`;
 }
 
@@ -1868,9 +1895,12 @@ function formatImportJobHint(job, fallbackPrefix = '导入任务') {
 function rememberImportJob(job, prefix) {
   if (!job || !job.jobId) return;
   importState.lastImportJobId = job.jobId;
+  importState.lastImportJobSourceType = job.sourceType || '';
   importState.lastImportJobStatus = job.status || '';
   importState.lastImportJobProgressStage = job.progressStage || '';
   importState.lastImportJobProgressPercent = normalizeImportProgressPercent(job.progressPercent);
+  importState.lastImportJobDownloadedBytes = job.downloadedBytes;
+  importState.lastImportJobTotalBytes = job.totalBytes;
   importState.hint = formatImportJobHint(job, prefix);
 }
 

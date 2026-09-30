@@ -280,7 +280,7 @@
           <div class="import-progress-head">
             <strong>{{ importProgress.label }}</strong>
             <span v-if="importProgress.jobId">
-              #{{ importProgress.jobId }} · {{ importProgress.determinate ? `${importProgress.percent}%` : '处理中' }}
+              #{{ importProgress.jobId }} · {{ importProgress.detail || (importProgress.determinate ? `${importProgress.percent}%` : '处理中') }}
             </span>
           </div>
           <div
@@ -290,7 +290,7 @@
             aria-valuemin="0"
             aria-valuemax="100"
             :aria-valuenow="importProgress.determinate ? importProgress.percent : undefined"
-            :aria-valuetext="importProgress.label"
+            :aria-valuetext="`${importProgress.label}${importProgress.detail ? `，${importProgress.detail}` : ''}`"
             :aria-busy="String(importProgress.busy)"
           >
             <span
@@ -417,7 +417,34 @@ const importProgress = computed(() => {
 
   const status = String(props.importState?.lastImportJobStatus || 'PENDING').trim().toUpperCase();
   const stage = String(props.importState?.lastImportJobProgressStage || '').trim().toUpperCase();
-  const rawPercent = Number(props.importState?.lastImportJobProgressPercent);
+  const rawProgressPercent = props.importState?.lastImportJobProgressPercent;
+  const rawPercent = rawProgressPercent == null ? Number.NaN : Number(rawProgressPercent);
+  const sourceType = String(props.importState?.lastImportJobSourceType || '').trim().toUpperCase();
+  const rawDownloadedBytes = props.importState?.lastImportJobDownloadedBytes;
+  const downloadedBytes = rawDownloadedBytes == null || rawDownloadedBytes === '' ? Number.NaN : Number(rawDownloadedBytes);
+  const totalBytes = Number(props.importState?.lastImportJobTotalBytes);
+  if (stage === 'DOWNLOADING' && sourceType === 'WORKSHOP') {
+    const hasDownloadedBytes = Number.isFinite(downloadedBytes) && downloadedBytes >= 0;
+    const hasTotal = Number.isFinite(totalBytes) && totalBytes > 0;
+    const percent = hasDownloadedBytes && hasTotal
+      ? Math.max(0, Math.min(100, (downloadedBytes / totalBytes) * 100))
+      : 0;
+    const formatMb = (bytes) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return {
+      visible: true,
+      jobId,
+      label: '正在下载资源',
+      detail: hasDownloadedBytes
+        ? hasTotal
+          ? `${formatMb(downloadedBytes)} / ${formatMb(totalBytes)}`
+          : `已获取 ${formatMb(downloadedBytes)}`
+        : '等待字节数据',
+      percent,
+      determinate: hasDownloadedBytes && hasTotal,
+      busy: true,
+      tone: 'active'
+    };
+  }
   const stageStates = {
     QUEUED: { label: '正在排队准备下载', busy: true, tone: 'active' },
     RESOLVING: { label: '正在读取创意工坊信息', busy: true, tone: 'active' },

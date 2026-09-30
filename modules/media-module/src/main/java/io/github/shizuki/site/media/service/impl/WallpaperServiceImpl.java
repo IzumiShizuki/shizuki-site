@@ -86,6 +86,8 @@ public class WallpaperServiceImpl implements WallpaperService {
     private static final Set<String> AUDIO_EXTENSIONS = Set.of("mp3", "wav", "ogg", "flac", "aac", "m4a");
     private static final Set<String> VIDEO_EXTENSIONS = Set.of("mp4", "webm", "mov");
     private static final Duration WORKSHOP_DIRECT_DOWNLOAD_TIMEOUT = Duration.ofSeconds(90);
+    private static final long DOWNLOAD_PROGRESS_PERSIST_BYTES = 256L * 1024L;
+    private static final long DOWNLOAD_PROGRESS_PERSIST_NANOS = TimeUnit.MILLISECONDS.toNanos(500L);
 
     private final ObjectStorageClient objectStorageClient;
     private final MediaStorageProperties mediaStorageProperties;
@@ -447,7 +449,7 @@ public class WallpaperServiceImpl implements WallpaperService {
             if (StringUtils.hasText(workshopMeta.fileUrl())) {
                 markJobProgress(jobId, WallpaperImportProgressStageEnum.DOWNLOADING);
                 try {
-                    detected = downloadWorkshopByFileUrl(workshopMeta, workshopItemId);
+                    detected = downloadWorkshopByFileUrl(jobId, workshopMeta, workshopItemId);
                     markJobProgress(jobId, WallpaperImportProgressStageEnum.INSPECTING);
                 } catch (BusinessException exception) {
                     directDownloadFailure = exception;
@@ -457,7 +459,7 @@ public class WallpaperServiceImpl implements WallpaperService {
                 downloadChannelResolver.resolve(false);
             if (detected == null && steamCmdChannel.available()) {
                 markJobProgress(jobId, WallpaperImportProgressStageEnum.DOWNLOADING);
-                Path downloadedDir = downloadWorkshopBySteamCmd(workshopItemId);
+                Path downloadedDir = downloadWorkshopBySteamCmd(jobId, workshopItemId);
                 markJobProgress(jobId, WallpaperImportProgressStageEnum.INSPECTING);
                 detected = detectFromDirectory(downloadedDir);
             }
@@ -872,6 +874,17 @@ public class WallpaperServiceImpl implements WallpaperService {
         wallpaperImportJobMapper.updateById(job);
     }
 
+    private void updateDownloadBytes(Long jobId, long downloadedBytes, Long totalBytes) {
+        MediaWallpaperImportJobEntity job = wallpaperImportJobMapper.selectById(jobId);
+        if (job == null) {
+            return;
+        }
+        job.setDownloadedBytes(Math.max(0L, downloadedBytes));
+        job.setTotalBytes(totalBytes != null && totalBytes > 0L ? totalBytes : null);
+        job.setUpdatedAt(LocalDateTime.now());
+        wallpaperImportJobMapper.updateById(job);
+    }
+
     private void finishJob(Long jobId,
                            WallpaperImportStatusEnum status,
                            Long wallpaperId,
@@ -923,10 +936,19 @@ public class WallpaperServiceImpl implements WallpaperService {
         return matcher.group(1);
     }
 
-    private Path downloadWorkshopBySteamCmd(String workshopItemId) {
+    private Path downloadWorkshopBySteamCmd(Long jobId, String workshopItemId) {
+        Process process = null;
+        Path downloaded = null;
+        long lastObservedBytes = 0L;
         try {
             Path root = Paths.get(readString(workshopProperties.getDownloadRoot(), "/tmp/steam-workshop"));
             Files.createDirectories(root);
+            downloaded = workshopItemDirectory(root, workshopItemId);
+            lastObservedBytes = directoryByteSize(downloaded);
+            if (lastObservedBytes < 0L) {
+                lastObservedBytes = 0L;
+            }
+            updateDownloadBytes(jobId, lastObservedBytes, null);
             List<String> command = new ArrayList<>();
             command.add(readString(workshopProperties.getSteamcmdPath(), "steamcmd"));
             command.add("+force_install_dir");
@@ -944,33 +966,96 @@ public class WallpaperServiceImpl implements WallpaperService {
             command.add(workshopItemId);
             command.add("validate");
             command.add("+quit");
-            Process process = new ProcessBuilder(command)
+            process = new ProcessBuilder(command)
                 .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                 .start();
-            boolean completed = process.waitFor(Math.max(30L, workshopProperties.getCommandTimeoutSeconds()), TimeUnit.SECONDS);
-            if (!completed || process.exitValue() != 0) {
+            long timeoutSeconds = Math.max(30L, workshopProperties.getCommandTimeoutSeconds());
+            long startNanos = System.nanoTime();
+            boolean completed = false;
+            while (!completed) {
+                completed = process.waitFor(1L, TimeUnit.SECONDS);
+                long sampledBytes = directoryByteSize(downloaded);
+                if (sampledBytes >= 0L && sampledBytes != lastObservedBytes) {
+                    lastObservedBytes = sampledBytes;
+                    updateDownloadBytes(jobId, lastObservedBytes, null);
+                }
+                if (!completed && TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startNanos) >= timeoutSeconds) {
+                    process.destroyForcibly();
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "SteamCMD download failed");
+                }
+            }
+            long finalBytes = directoryByteSize(downloaded);
+            if (finalBytes >= 0L) {
+                lastObservedBytes = finalBytes;
+            }
+            updateDownloadBytes(jobId, lastObservedBytes, null);
+            if (process.exitValue() != 0) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "SteamCMD download failed");
             }
-            Path downloaded = root
-                .resolve("steamapps")
-                .resolve("workshop")
-                .resolve("content")
-                .resolve(readString(workshopProperties.getWorkshopAppId(), "431960"))
-                .resolve(workshopItemId);
             if (!Files.exists(downloaded) || !Files.isDirectory(downloaded)) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "SteamCMD downloaded files are missing");
             }
             return downloaded;
         } catch (IOException exception) {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Run SteamCMD failed");
         } catch (InterruptedException exception) {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+            if (downloaded != null) {
+                long finalBytes = directoryByteSize(downloaded);
+                if (finalBytes >= 0L) {
+                    updateDownloadBytes(jobId, finalBytes, null);
+                }
+            }
             Thread.currentThread().interrupt();
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Run SteamCMD interrupted");
         }
     }
 
+    private Path workshopItemDirectory(Path root, String workshopItemId) {
+        return root
+            .resolve("steamapps")
+            .resolve("workshop")
+            .resolve("content")
+            .resolve(readString(workshopProperties.getWorkshopAppId(), "431960"))
+            .resolve(workshopItemId);
+    }
+
+    private long directoryByteSize(Path directory) {
+        if (!Files.isDirectory(directory)) {
+            return 0L;
+        }
+        try (java.util.stream.Stream<Path> paths = Files.walk(directory)) {
+            return paths
+                .filter(Files::isRegularFile)
+                .mapToLong(path -> {
+                    try {
+                        return Math.max(0L, Files.size(path));
+                    } catch (IOException ignored) {
+                        return 0L;
+                    }
+                })
+                .reduce(0L, this::saturatedAdd);
+        } catch (IOException exception) {
+            LOGGER.debug("Could not sample Workshop download directory", exception);
+            return -1L;
+        }
+    }
+
+    private long saturatedAdd(long left, long right) {
+        if (right > Long.MAX_VALUE - left) {
+            return Long.MAX_VALUE;
+        }
+        return left + right;
+    }
+
     private DetectedPackage downloadWorkshopByFileUrl(
-            WorkshopMetadataProvider.WorkshopMetadata workshopMeta, String workshopItemId) {
+            Long jobId, WorkshopMetadataProvider.WorkshopMetadata workshopMeta, String workshopItemId) {
         String fileUrl = readString(workshopMeta.fileUrl(), "");
         if (!StringUtils.hasText(fileUrl)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop file_url is unavailable");
@@ -1003,9 +1088,12 @@ public class WallpaperServiceImpl implements WallpaperService {
                 closeQuietly(response.body());
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop file is too large");
             }
+            Long totalBytes = contentLength > 0L ? contentLength : null;
+            updateDownloadBytes(jobId, 0L, totalBytes);
             String contentType = response.headers().firstValue("Content-Type").orElse("");
             try (InputStream inputStream = response.body()) {
-                byte[] bytes = readInputBytes(inputStream, maxBytes, "Workshop file is too large");
+                byte[] bytes = readWorkshopDownloadBytes(
+                    jobId, inputStream, maxBytes, "Workshop file is too large", totalBytes);
                 return detectFromFileBytes(resolveWorkshopDownloadFileName(workshopItemId, uri, contentType), bytes);
             }
         } catch (BusinessException exception) {
@@ -1540,6 +1628,38 @@ public class WallpaperServiceImpl implements WallpaperService {
         return out.toByteArray();
     }
 
+    private byte[] readWorkshopDownloadBytes(Long jobId,
+                                             InputStream inputStream,
+                                             long maxBytes,
+                                             String tooLargeMessage,
+                                             Long totalBytes) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        long readTotal = 0L;
+        long lastPersistedBytes = 0L;
+        long lastPersistNanos = System.nanoTime();
+        try {
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                readTotal = saturatedAdd(readTotal, read);
+                if (readTotal > maxBytes) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, tooLargeMessage);
+                }
+                out.write(buffer, 0, read);
+                long now = System.nanoTime();
+                if (readTotal - lastPersistedBytes >= DOWNLOAD_PROGRESS_PERSIST_BYTES
+                    || now - lastPersistNanos >= DOWNLOAD_PROGRESS_PERSIST_NANOS) {
+                    updateDownloadBytes(jobId, readTotal, totalBytes);
+                    lastPersistedBytes = readTotal;
+                    lastPersistNanos = now;
+                }
+            }
+            return out.toByteArray();
+        } finally {
+            updateDownloadBytes(jobId, readTotal, totalBytes);
+        }
+    }
+
     private String sanitizeZipFileName(String entryName) {
         String normalized = readString(entryName, "resource.bin").replace('\\', '/');
         int slash = normalized.lastIndexOf('/');
@@ -1587,7 +1707,9 @@ public class WallpaperServiceImpl implements WallpaperService {
             readString(job.getErrorMessage(), ""),
             readString(job.getFallbackHint(), ""),
             progressStage.name(),
-            resolveProgressPercent(job.getProgressPercent(), progressStage)
+            resolveProgressPercent(job.getProgressPercent(), progressStage),
+            Math.max(0L, job.getDownloadedBytes() == null ? 0L : job.getDownloadedBytes()),
+            job.getTotalBytes() != null && job.getTotalBytes() > 0L ? job.getTotalBytes() : null
         );
     }
 
