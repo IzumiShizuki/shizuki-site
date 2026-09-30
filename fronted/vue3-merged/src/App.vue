@@ -898,6 +898,7 @@ const activeCustomSchemaItems = computed(() => activeWallpaperCustomSchema.value
 
 const playerBridge = Object.freeze({
   tracks: player.tracks,
+  queueDisplayTracks: player.queueDisplayTracks,
   playlistProfile: player.playlistProfile,
   playlistLoading: player.playlistLoading,
   playlistError: player.playlistError,

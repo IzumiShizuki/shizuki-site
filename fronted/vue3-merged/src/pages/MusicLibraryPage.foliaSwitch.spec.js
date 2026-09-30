@@ -17,6 +17,21 @@ function readFunction(name) {
 }
 
 describe('MusicLibraryPage Folia mode handoff', () => {
+  it('provides every player binding read by the music page template', () => {
+    const template = source.slice(0, source.indexOf('<script setup'));
+    const bridgeDefinition = appSource.match(/const playerBridge = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
+    const bridgeProperties = new Set(
+      [...(bridgeDefinition?.[1] || '').matchAll(/^\s*([A-Za-z_$][\w$]*)\s*:/gm)].map((match) => match[1])
+    );
+    const templateProperties = new Set(
+      [...template.matchAll(/\bplayer\.([A-Za-z_$][\w$]*)/g)].map((match) => match[1])
+    );
+    const missingProperties = [...templateProperties].filter((property) => !bridgeProperties.has(property));
+
+    expect(bridgeDefinition).not.toBeNull();
+    expect(missingProperties).toEqual([]);
+  });
+
   it('keeps both mode trees mounted and hides them without display:none', () => {
     expect(source).not.toContain('<div v-if="!foliaMode" class="music-library-module"');
     expect(source).toContain("'music-mode-pane-hidden': foliaMode");
