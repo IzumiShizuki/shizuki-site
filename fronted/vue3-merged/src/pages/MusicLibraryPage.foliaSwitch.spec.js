@@ -9,6 +9,19 @@ const bridgeSource = readFileSync(
 );
 const appSource = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8');
 const dockSource = readFileSync(resolve(process.cwd(), 'src/components/music/MusicLibraryDock.vue'), 'utf8');
+const gatewayConfig = readFileSync(resolve(process.cwd(), '../../deploy/folia/nginx.conf.template'), 'utf8');
+const classicVisualizer = readFileSync(
+  resolve(process.cwd(), '../../third_party/folia-major/src/components/visualizer/classic/Visualizer.tsx'),
+  'utf8'
+);
+const partitaVisualizer = readFileSync(
+  resolve(process.cwd(), '../../third_party/folia-major/src/components/visualizer/partita/VisualizerPartita.tsx'),
+  'utf8'
+);
+const cadenzaVisualizer = readFileSync(
+  resolve(process.cwd(), '../../third_party/folia-major/src/components/visualizer/cadenza/VisualizerCadenza.tsx'),
+  'utf8'
+);
 
 function readFunction(name) {
   const start = source.indexOf(`function ${name}`);
@@ -87,6 +100,30 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(source).toContain(':queue-tracks="player.queueDisplayTracks.value"');
     expect(dockSource).toContain('displayQueueTracks');
     expect(dockSource).toContain('emit(\'select-track\', track?.queueEntryId || index)');
+  });
+
+  it('lets the user persist a custom Folia lyric color and reset it to theme color', () => {
+    expect(source).toContain('class="folia-lyric-color-picker"');
+    expect(source).toContain('type="color"');
+    expect(source).toContain('FOLIA_LYRIC_COLOR_STORAGE_KEY');
+    expect(source).toContain('function handleFoliaLyricColorChange');
+    expect(source).toContain('function resetFoliaLyricColor');
+    expect(source).toContain("type: 'shizuki:set-lyric-color'");
+    expect(bridgeSource).toContain("type === 'shizuki:set-lyric-color'");
+    expect(bridgeSource).toContain('--shizuki-folia-lyric-color');
+    expect(bridgeSource).toContain('delete root.dataset.shizukiLyricColor');
+    expect(bridgeSource).toContain("root.style.removeProperty('--shizuki-folia-lyric-color')");
+    expect(classicVisualizer).toContain('data-shizuki-folia-lyric-word-body="true"');
+    expect(partitaVisualizer).toContain('data-shizuki-folia-lyric-word-body="true"');
+    expect(cadenzaVisualizer).toContain('body.dataset.shizukiFoliaLyricWordBody = \'true\'');
+  });
+
+  it('re-resolves the NetEase container after Docker replaces its IP', () => {
+    expect(gatewayConfig).toContain('resolver 127.0.0.11 valid=10s ipv6=off');
+    expect(gatewayConfig).toContain('set $netease_api shizuki-site-music-ncm-api:3000');
+    expect(gatewayConfig).toContain('rewrite ^/netease/(.*)$ /$1 break');
+    expect(gatewayConfig).toContain('proxy_pass http://$netease_api');
+    expect(gatewayConfig).not.toContain('proxy_pass http://shizuki-site-music-ncm-api:3000/');
   });
 
   it('uses the shared spectrum renderer for the dock visualization', () => {
