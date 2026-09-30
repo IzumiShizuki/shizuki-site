@@ -262,6 +262,7 @@ const Word: React.FC<{
                 variants={bodyVariants}
                 custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
                 className="relative z-10 block"
+                data-shizuki-folia-lyric-word-body="true"
             >
                 {word.text}
             </motion.span>

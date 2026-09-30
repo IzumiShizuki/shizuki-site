@@ -13,7 +13,7 @@
       location ^~ /music/     → rewrite 去前缀 → 127.0.0.1:18081
       location ^~ /netease/   → 根路径（Folia 前端内部 API 调用）→ 127.0.0.1:18081
   → folia-gateway (nginx:8080, 仅 127.0.0.1:18081 暴露)
-      ├── /netease/ → shizuki-site-music-ncm-api:3000（现有容器，shizuki-site_default 网络）
+      ├── /netease/ → shizuki-site-music-ncm-api:3000（Docker DNS 每 10 秒刷新，shizuki-site_default 网络）
       ├── / → dist 静态资源（vite base=/music/）
 ```
 
@@ -37,9 +37,9 @@
    base: process.env.ELECTRON === 'true' ? './'
      : (process.env.VITE_BASE_PATH ? process.env.VITE_BASE_PATH.replace(/\/+$/, '') + '/' : '/'),
    ```
-2. **`src/shizukiExternalBridge.ts`**（新增）：外部控制桥（cookie 同步 / 完整主站播放会话 / 控制意图回传），源码见 `third_party/folia-major/`；网易云 Cookie 优先使用 `online_provider:netease:cookie` 并双写旧键 `netease_cookie`；嵌入态不得自行解析音源、歌词或输出音频。
+2. **`src/shizukiExternalBridge.ts`**（新增）：外部控制桥（cookie 同步 / 完整主站播放会话 / 控制意图回传），源码见 `third_party/folia-major/`；网易云 Cookie 优先使用 `online_provider:netease:cookie` 并双写旧键 `netease_cookie`；嵌入态不得自行解析音源、歌词或输出音频；主歌词颜色由音乐工具栏覆盖并可恢复主题默认色。
 3. **`src/index.tsx`**：挂载桥
-4. **`deploy/docker/gateway/nginx.conf.template`**：netease 反代指向 `shizuki-site-music-ncm-api:3000`（而非官方 netease-api 容器）；移除 kugou/qq/backend（未部署）
+4. **`deploy/docker/gateway/nginx.conf.template`**：netease 反代指向 `shizuki-site-music-ncm-api:3000`（而非官方 netease-api 容器），通过 Docker DNS 10 秒刷新动态解析，避免上游容器换 IP 后持续 502；移除 kugou/qq/backend（未部署）
 5. **`deploy/docker/images/gateway.Dockerfile`**：新增 `ARG VITE_BASE_PATH=/music` + `ENV VITE_BASE_PATH=${VITE_BASE_PATH}`
 
 ## 部署步骤（新环境）
