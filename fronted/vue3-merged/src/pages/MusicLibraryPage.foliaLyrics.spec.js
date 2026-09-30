@@ -32,7 +32,7 @@ describe('Folia followed lyric projection', () => {
     expect(musicPlayerSource).not.toContain(':key="lyricContext?.key');
     expect(classicSource).toContain('initial: { opacity: 1, scale: 0.9');
     expect(partitaSource).toContain('initial: { opacity: 1, scale: 0.9');
-    expect(cadenzaSource).toContain('opacity: 1,\n            scale,');
+    expect(cadenzaSource).toContain('opacity: 1,\n        scale,');
   });
 
   it('keeps an unchanged lyric timeline mounted across clock snapshots', () => {

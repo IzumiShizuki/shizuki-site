@@ -381,6 +381,15 @@ export function usePlayerEngine(options = {}) {
   const currentLyricEntryIndex = ref(-1);
   const lyricResolveAttempted = ref(new Set());
   const playbackResolveAttempted = ref(new Set());
+  const preparedPlayback = new Map();
+  const PREPARED_PLAYBACK_TTL_MS = 30_000;
+  let selectionGeneration = 0;
+  let preparationGeneration = 0;
+  let preparationInFlight = null;
+  let activePreparationKey = '';
+  let activePreparationAttempts = 0;
+  const authorizationFetchIds = new WeakMap();
+  let authorizationFetchSequence = 0;
 
   const audioElement = new Audio();
   audioElement.preload = 'metadata';
@@ -639,8 +648,10 @@ export function usePlayerEngine(options = {}) {
       if (track?.lyric) {
         try {
           const resp = await fetch(track.lyric);
+          if (generation !== lyricLoadGeneration) return;
           if (resp.ok) {
             const text = await resp.text();
+            if (generation !== lyricLoadGeneration) return;
             const normalized = String(text || '').trim();
             if (normalized) {
               originalText = normalized;
@@ -655,6 +666,7 @@ export function usePlayerEngine(options = {}) {
             });
           }
         } catch {
+          if (generation !== lyricLoadGeneration) return;
           loadedByUrl = false;
           logLyricDebug('load_by_lyric_url', { ok: false, lyricUrl: track.lyric });
         }
@@ -671,6 +683,7 @@ export function usePlayerEngine(options = {}) {
         tlyricText: lyricTracks.translation,
         romalrcText: lyricTracks.furigana
       });
+      if (generation !== lyricLoadGeneration) return;
       if (projectedTimeline && projectedTimeline.length) {
         logLyricDebug('parse_lyric_engine_ok', {
           textLength: String(originalText || '').length,
@@ -691,6 +704,7 @@ export function usePlayerEngine(options = {}) {
       const furiganaEntries = buildLyricEntriesFromText(lyricTracks.furigana);
       applyLyricTimeline(buildLyricTimelineFromTracks(originalEntries, translationEntries, furiganaEntries));
     } catch {
+      if (generation !== lyricLoadGeneration) return;
       lyricEntries.value = [];
       lyricTimeline.value = [];
       currentLyricIndex.value = -1;
@@ -703,7 +717,8 @@ export function usePlayerEngine(options = {}) {
     }
   }
 
-  async function resolveTrackLyricFallback(index) {
+  async function resolveTrackLyricFallback(queueEntryId, isCurrent = () => true) {
+    const index = tracks.value.findIndex((item) => item.queueEntryId === queueEntryId);
     if (index < 0 || index >= tracks.value.length) return;
     const track = tracks.value[index];
     if (!track) return;
@@ -728,6 +743,7 @@ export function usePlayerEngine(options = {}) {
         },
         getAuthorizedFetch()
       );
+      if (!isCurrent()) return;
       const merged = normalizeTrack(
         {
           ...mergeResolvedPlaybackTrack(track, payload),
@@ -741,10 +757,13 @@ export function usePlayerEngine(options = {}) {
       } else {
         merged.audio = track.audio;
       }
+      const currentIndex = tracks.value.findIndex((item) => item.queueEntryId === track.queueEntryId);
+      if (currentIndex < 0) return;
       const next = tracks.value.slice();
-      next[index] = merged;
+      next[currentIndex] = merged;
       tracks.value = next;
       await loadTrackLyric(merged);
+      if (!isCurrent()) return;
       if (!lyricEntries.value.length) {
         lyricResolveAttempted.value.delete(resolveKey);
       }
@@ -760,6 +779,136 @@ export function usePlayerEngine(options = {}) {
     return `${provider}:${trackId}`;
   }
 
+  function getNextPreparationTrack() {
+    if (!currentTrack.value || tracks.value.length < 2 || playMode.value === 'single') return null;
+    if (playMode.value === 'random') {
+      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
+        resetRandomQueue(currentTrackId.value);
+      }
+      const currentOrderIndex = randomQueue.value.indexOf(currentTrackId.value);
+      const nextId = randomQueue.value[(currentOrderIndex + 1) % randomQueue.value.length];
+      return tracks.value.find((track) => track.id === nextId) || null;
+    }
+    const current = tracks.value.findIndex((track) => track.queueEntryId === currentTrack.value?.queueEntryId);
+    if (current < 0) return null;
+    return tracks.value[(current + 1) % tracks.value.length] || null;
+  }
+
+  function getPreparationContext(track) {
+    const authorizedFetch = getAuthorizedFetch();
+    let authorizationKey = typeof options?.getPlaybackAuthorizationKey === 'function'
+      ? options.getPlaybackAuthorizationKey()
+      : '';
+    if (!authorizationKey && typeof authorizedFetch === 'function') {
+      if (!authorizationFetchIds.has(authorizedFetch)) {
+        authorizationFetchIds.set(authorizedFetch, ++authorizationFetchSequence);
+      }
+      authorizationKey = `fetch-${authorizationFetchIds.get(authorizedFetch)}`;
+    }
+    return {
+      track,
+      authorizedFetch,
+      authorizationKey: String(authorizationKey || 'anonymous'),
+      playlistCode: String(playlistProfile.value?.playlistCode || ''),
+      quality: String(options?.playbackQuality || 'default')
+    };
+  }
+
+  function getPreparationKey(track, context = getPreparationContext(track)) {
+    if (!track?.queueEntryId) return '';
+    return JSON.stringify([
+      track.queueEntryId,
+      track.provider,
+      track.trackId || track.id,
+      context.playlistCode,
+      context.quality,
+      context.authorizationKey
+    ].map((part) => String(part ?? '')));
+  }
+
+  function isNearTrackEnd() {
+    const playableDuration = Number(duration.value) > 0
+      ? Number(duration.value)
+      : Number(expectedDuration.value);
+    if (!Number.isFinite(playableDuration) || playableDuration <= 0) return false;
+    return playableDuration - Number(currentTime.value || 0) <= 20;
+  }
+
+  function findPreparedPlayback(track, context = getPreparationContext(track)) {
+    const key = getPreparationKey(track, context);
+    const prepared = preparedPlayback.get(key);
+    if (!prepared) return null;
+    if (prepared.expiresAt <= Date.now()) {
+      preparedPlayback.delete(key);
+      return null;
+    }
+    return prepared.payload;
+  }
+
+  function scheduleNextTrackPreparation() {
+    const nextTrack = getNextPreparationTrack();
+    const canPrepare = nextTrack && supportsPlaybackResolve(nextTrack.provider);
+    const context = canPrepare ? getPreparationContext(nextTrack) : null;
+    const key = context ? getPreparationKey(nextTrack, context) : '';
+    if (key !== activePreparationKey) {
+      preparedPlayback.clear();
+      activePreparationKey = key;
+      activePreparationAttempts = 0;
+      preparationGeneration += 1;
+    }
+    if (!isPlaying.value) return;
+    if (!key || findPreparedPlayback(nextTrack, context)) return;
+    if (activePreparationAttempts >= 2) return;
+    if (activePreparationAttempts === 1 && !isNearTrackEnd()) return;
+    if (preparationInFlight?.key === key) return;
+    const generation = preparationGeneration;
+    if (preparationInFlight) return;
+
+    activePreparationAttempts += 1;
+    preparationInFlight = { key, generation };
+    void (async () => {
+      try {
+        const provider = String(nextTrack.provider || '').trim().toLowerCase();
+        const trackId = String(nextTrack.trackId || nextTrack.id || '').trim();
+        if (!trackId) return;
+        const payload = await resolvePlaybackTrack({
+          provider,
+          trackId,
+          title: String(nextTrack.title || '').trim(),
+          artist: String(nextTrack.artist || '').trim(),
+          cover: String(nextTrack.cover || '').trim(),
+          playlistCode: context.playlistCode,
+          resolveLyric: false,
+          forceRefresh: Boolean(nextTrack.audio)
+        }, context.authorizedFetch);
+        const stillCurrent = generation === preparationGeneration
+          && getPreparationKey(getNextPreparationTrack()) === key
+          && getAuthorizedFetch() === context.authorizedFetch
+          && getPreparationContext(nextTrack).authorizationKey === context.authorizationKey;
+        if (stillCurrent && payload && typeof payload === 'object' && String(payload.audio || '').trim()) {
+          preparedPlayback.set(key, { payload, expiresAt: Date.now() + PREPARED_PLAYBACK_TTL_MS });
+        }
+      } catch {
+        // Preparation is optional; foreground playback remains responsible for retrying.
+      } finally {
+        preparationInFlight = null;
+        if (generation !== preparationGeneration) scheduleNextTrackPreparation();
+      }
+    })();
+  }
+
+  function invalidatePlaybackPreparation() {
+    preparedPlayback.clear();
+    activePreparationKey = '';
+    scheduleNextTrackPreparation();
+  }
+
+  watch(
+    [tracks, currentTrackId, playMode, randomQueue, isPlaying, currentTime, duration, expectedDuration, () => playlistProfile.value?.playlistCode, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
+    scheduleNextTrackPreparation,
+    { flush: 'post' }
+  );
+
   async function resolveTrackPlayback(index, options = {}) {
     if (index < 0 || index >= tracks.value.length) return null;
     const track = tracks.value[index];
@@ -774,7 +923,7 @@ export function usePlayerEngine(options = {}) {
     const shouldResolveLyric = true;
 
     try {
-      const payload = await resolvePlaybackTrack(
+      const payload = options?.preparedPayload || await resolvePlaybackTrack(
         {
           provider,
           trackId,
@@ -795,9 +944,13 @@ export function usePlayerEngine(options = {}) {
         },
         index
       );
-      const next = tracks.value.slice();
-      next[index] = resolved;
-      tracks.value = next;
+      if (typeof options?.isCurrent === 'function' && !options.isCurrent()) return resolved;
+      const currentIndex = tracks.value.findIndex((item) => item.queueEntryId === track.queueEntryId);
+      if (currentIndex >= 0) {
+        const next = tracks.value.slice();
+        next[currentIndex] = resolved;
+        tracks.value = next;
+      }
       logLyricDebug('resolve_playback_response', {
         provider,
         trackId,
@@ -810,15 +963,27 @@ export function usePlayerEngine(options = {}) {
     }
   }
 
-  async function recoverPlaybackWithFreshSource(index, failedAudio) {
+  async function recoverPlaybackWithFreshSource(queueEntryId, failedAudio, selectionGuard = () => true) {
+    const index = tracks.value.findIndex((item) => item.queueEntryId === queueEntryId);
     if (index < 0 || index >= tracks.value.length) return false;
     const current = tracks.value[index];
+    const authContext = getPreparationContext(current);
+    const recoveryGeneration = selectionGeneration;
+    const isCurrent = () => selectionGuard()
+      && recoveryGeneration === selectionGeneration
+      && currentTrackId.value === current.id
+      && tracks.value.some((item) => item.queueEntryId === current.queueEntryId)
+      && getAuthorizedFetch() === authContext.authorizedFetch
+      && getPreparationContext(current).authorizationKey === authContext.authorizationKey;
     const resolveKey = buildResolveKey(current);
     if (!resolveKey || playbackResolveAttempted.value.has(resolveKey)) return false;
 
     playbackResolveAttempted.value.add(resolveKey);
     const previousAudio = String(failedAudio || current?.audio || '').trim();
-    const resolved = await resolveTrackPlayback(index, { force: true, bypassCache: true });
+    const currentIndex = tracks.value.findIndex((item) => item.queueEntryId === queueEntryId);
+    if (currentIndex < 0 || !isCurrent()) return false;
+    const resolved = await resolveTrackPlayback(currentIndex, { force: true, bypassCache: true, isCurrent });
+    if (!isCurrent()) return false;
     const nextAudio = String(resolved?.audio || '').trim();
     if (!nextAudio || nextAudio === previousAudio) return false;
 
@@ -826,17 +991,27 @@ export function usePlayerEngine(options = {}) {
       audioElement.src = nextAudio;
       audioElement.load();
       await loadTrackLyric(resolved);
+      if (!isCurrent()) return false;
       await audioElement.play();
+      if (!isCurrent()) return false;
       isPlaying.value = true;
       return true;
     } catch {
-      isPlaying.value = false;
+      if (isCurrent()) isPlaying.value = false;
       return false;
     }
   }
 
   async function selectTrackByIndex(index, autoPlay = false, options = {}) {
     if (index < 0 || index >= tracks.value.length) return false;
+    const generation = ++selectionGeneration;
+    const queueEntryId = tracks.value[index]?.queueEntryId;
+    const initialTrack = tracks.value[index];
+    const authContext = getPreparationContext(initialTrack);
+    const isCurrentSelection = () => generation === selectionGeneration
+      && tracks.value.some((item) => item.queueEntryId === queueEntryId)
+      && getAuthorizedFetch() === authContext.authorizedFetch
+      && getPreparationContext(initialTrack).authorizationKey === authContext.authorizationKey;
     const shouldResolve = options?.resolveIfMissing === true || (options?.resolveIfMissing !== false && autoPlay);
     let track = tracks.value[index];
     const shouldRefreshPlayback = Boolean(
@@ -850,11 +1025,22 @@ export function usePlayerEngine(options = {}) {
       playbackResolveAttempted.value.delete(resolveKey);
     }
     if (shouldResolve && (!track?.audio || shouldRefreshPlayback)) {
+      const context = getPreparationContext(track);
+      const bypassPreparedCache = options?.force === true
+        || options?.bypassCache === true
+        || options?.forceRefresh === true;
+      const preparedPayload = bypassPreparedCache ? null : findPreparedPlayback(track, context);
+      const preparedKey = preparedPayload ? getPreparationKey(track, context) : '';
       track = await resolveTrackPlayback(index, {
-        force: shouldRefreshPlayback,
-        bypassCache: shouldRefreshPlayback
+        force: shouldRefreshPlayback || Boolean(preparedPayload),
+        bypassCache: shouldRefreshPlayback && !preparedPayload,
+        preparedPayload,
+        isCurrent: isCurrentSelection
       });
+      if (!isCurrentSelection()) return false;
+      if (preparedKey) preparedPlayback.delete(preparedKey);
     }
+    if (!isCurrentSelection()) return false;
     if (!track) return false;
     if (!track.audio) {
       currentTrackId.value = track.id;
@@ -873,19 +1059,25 @@ export function usePlayerEngine(options = {}) {
     audioElement.src = track.audio;
     audioElement.load();
     await loadTrackLyric(track);
+    if (!isCurrentSelection()) return false;
     if (!lyricEntries.value.length) {
-      await resolveTrackLyricFallback(index);
+      await resolveTrackLyricFallback(queueEntryId, isCurrentSelection);
+      if (!isCurrentSelection()) return false;
     }
 
     if (autoPlay) {
       try {
         await audioElement.play();
+        if (!isCurrentSelection()) return false;
         isPlaying.value = true;
+        scheduleNextTrackPreparation();
         return true;
       } catch {
-        return recoverPlaybackWithFreshSource(index, track.audio);
+        if (!isCurrentSelection()) return false;
+        return recoverPlaybackWithFreshSource(queueEntryId, track.audio, isCurrentSelection);
       }
     }
+    scheduleNextTrackPreparation();
     return true;
   }
 
@@ -901,15 +1093,27 @@ export function usePlayerEngine(options = {}) {
       return;
     }
 
+    const queueEntryId = currentTrack.value.queueEntryId;
+    const trackId = currentTrack.value.id;
+    const toggleGeneration = selectionGeneration;
+    const authContext = getPreparationContext(currentTrack.value);
+    const isCurrentToggle = () => selectionGeneration === toggleGeneration
+      && currentTrackId.value === trackId
+      && tracks.value.some((item) => item.queueEntryId === queueEntryId)
+      && getAuthorizedFetch() === authContext.authorizedFetch
+      && getPreparationContext(currentTrack.value).authorizationKey === authContext.authorizationKey;
+
     if (audioElement.paused) {
       try {
         await audioElement.play();
+        if (!isCurrentToggle()) return false;
         isPlaying.value = true;
+        scheduleNextTrackPreparation();
       } catch {
+        if (!isCurrentToggle()) return false;
         isPlaying.value = false;
-        const idx = currentIndex.value;
-        if (idx >= 0) {
-          return recoverPlaybackWithFreshSource(idx, currentTrack.value?.audio);
+        if (tracks.value.some((item) => item.queueEntryId === queueEntryId)) {
+          return recoverPlaybackWithFreshSource(queueEntryId, currentTrack.value?.audio, isCurrentToggle);
         }
         return false;
       }
@@ -1511,8 +1715,14 @@ export function usePlayerEngine(options = {}) {
       isPlaying.value = false;
       return;
     }
-    const recovered = await recoverPlaybackWithFreshSource(idx, tracks.value[idx]?.audio);
-    if (!recovered) {
+    const failedTrack = tracks.value[idx];
+    const failedQueueEntryId = failedTrack?.queueEntryId;
+    const failedSelectionGeneration = selectionGeneration;
+    const stillFailedTrackIsCurrent = () => selectionGeneration === failedSelectionGeneration
+      && currentTrackId.value === failedTrack?.id
+      && tracks.value.some((item) => item.queueEntryId === failedQueueEntryId);
+    const recovered = await recoverPlaybackWithFreshSource(failedQueueEntryId, failedTrack?.audio, stillFailedTrackIsCurrent);
+    if (!recovered && stillFailedTrackIsCurrent()) {
       isPlaying.value = false;
     }
   });
@@ -1617,6 +1827,7 @@ export function usePlayerEngine(options = {}) {
     enqueueTrack,
     removeQueueItem,
     clearQueue,
-    playExternalTrack
+    playExternalTrack,
+    invalidatePlaybackPreparation
   };
 }

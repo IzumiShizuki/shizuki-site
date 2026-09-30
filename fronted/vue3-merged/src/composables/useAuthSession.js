@@ -395,25 +395,41 @@ function createAuthSession() {
     return accessToken.value;
   }
 
-  async function performAuthorizedRequest(request, redirectPath = currentRouteFromHash()) {
+  function assertExpectedUser(expectedUserId) {
+    if (expectedUserId === undefined || expectedUserId === null || expectedUserId === '') return;
+    if (String(user.value?.userId || '') !== String(expectedUserId)) {
+      throw new Error('Signed-in account changed before the request completed');
+    }
+  }
+
+  async function performAuthorizedRequest(request, redirectPath = currentRouteFromHash(), expectedUserId) {
+    assertExpectedUser(expectedUserId);
     const initialToken = await requireAccessTokenForCall(redirectPath);
+    assertExpectedUser(expectedUserId);
     try {
+      assertExpectedUser(expectedUserId);
       return await request(initialToken);
     } catch (error) {
+      assertExpectedUser(expectedUserId);
       if (!isUnauthorizedProblem(error)) {
         throw error;
       }
 
       try {
+        assertExpectedUser(expectedUserId);
         await refreshAccessToken();
+        assertExpectedUser(expectedUserId);
       } catch {
+        assertExpectedUser(expectedUserId);
         await handleSessionExpired(redirectPath);
         throw error;
       }
 
       try {
+        assertExpectedUser(expectedUserId);
         return await request(accessToken.value);
       } catch (retryError) {
+        assertExpectedUser(expectedUserId);
         if (isUnauthorizedProblem(retryError)) {
           await handleSessionExpired(redirectPath);
         }
@@ -820,8 +836,10 @@ function createAuthSession() {
     };
   }
 
-  async function authorizedFetch(path, options = {}) {
+  async function authorizedFetch(path, options = {}, requestContext = {}) {
+    const expectedUserId = requestContext?.expectedUserId;
     await ensureReady();
+    assertExpectedUser(expectedUserId);
     return performAuthorizedRequest(
       (token) =>
         httpRequest(path, {
@@ -829,13 +847,17 @@ function createAuthSession() {
           auth: true,
           accessToken: token
         }),
-      currentRouteFromHash()
+      currentRouteFromHash(),
+      expectedUserId
     );
   }
 
-  async function authorizedRawFetch(path, options = {}) {
+  async function authorizedRawFetch(path, options = {}, requestContext = {}) {
+    const expectedUserId = requestContext?.expectedUserId;
     await ensureReady();
+    assertExpectedUser(expectedUserId);
     return performAuthorizedRequest(async (token) => {
+      assertExpectedUser(expectedUserId);
       const { headers, ...rest } = options || {};
       const response = await fetch(buildApiUrl(path), {
         ...rest,
@@ -853,7 +875,7 @@ function createAuthSession() {
         });
       }
       return response;
-    }, currentRouteFromHash());
+    }, currentRouteFromHash(), expectedUserId);
   }
 
   return {
