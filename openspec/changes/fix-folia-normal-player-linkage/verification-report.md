@@ -1,0 +1,51 @@
+# Verification: fix-folia-normal-player-linkage
+
+日期：2026-09-30。根代理负责诊断、复核与交付；Luna 负责所有实现代码。
+
+## 完整性、正确性与一致性
+
+| 维度 | 结论 |
+| --- | --- |
+| 完整性 | 10/10本地任务、4/4需求均有实现与证据；不包含部署。 |
+| 正确性 | 8个规范场景均有代码/测试或只读生产诊断证据；实际账号/CDN仍需发布验收。 |
+| 一致性 | 仍以Vue播放器为唯一音频所有者；Folia保持独立源码与原生独立运行路径；共用现有API，没有新增后台协议。 |
+
+## 需求与场景映射
+
+| 需求/场景 | 实现与证据 | 验证 |
+| --- | --- | --- |
+| Audible song has advancing progress | Folia `src/shizukiExternalBridge.ts:675` 同时投射 `currentTime` 与歌词时钟；`buildPlayerViewFlags.ts:38` 接受嵌入当前曲目；App memo包含currentSong。 | flags真实函数先复现false；同文档bridge运行测试验证12.5→18→20.5秒，Folia自有音频被暂停/清空。 |
+| Pause and seek are intentional controls | `usePlaybackInteractionBridge.ts:141`、`App.tsx:2041` 直接relay；同步回声只在 `applyingFollowSession` 调用栈内抑制。 | 真实bridge+store验证同步零回声，立即pause/seek各一条，range input即刻回传；不依赖120–900ms时间窗。 |
+| Rapidly choose two songs | Folia `usePlaybackQueueController.ts:448` 在解析前转交选曲；主站 `usePlayerEngine.js:1005` selectionGeneration、queueEntryId、授权上下文保护。 | 延迟A→B解析、旧歌词请求、旧toggle/recovery拒绝、队列重排fallback测试；旧结果不能覆盖新状态。 |
+| Normal playback prepares the next track | `usePlayerEngine.js:848` 下一首准备；顺序/随机/单曲按主队列；Folia恢复会话、playSong、shuffle三处原生预取入口均在嵌入模式隔离。 | 正常下一首、已存在audio的刷新/复用、尾部环回、随机顺序、暂停/单曲、30秒过期且剩20秒内刷新测试。 |
+| Queue changes during preparation | 准备key含队列身份、provider、track、playlist、quality、用户；队列/授权切换失效。`App.vue:527` 返回稳定的按用户授权闭包；Auth支持expectedUserId。 | 移除队列项、改变授权丢弃旧准备；延迟ensureReady从用户7变8时不发送旧cookie写入请求。 |
+| Open normal mode after Folia login | `MusicLibraryPage.vue:3656` 普通入口读当前cookie并调用 `musicSourceAccountSync.js`，使用已有upsert/import/sidebar API。 | 真实SFC生命周期测试验证persist→import→sidebar；后端已绑定且无local cookie也导入；guest不调用；原页面基线upsert调用为0。 |
+| Login changes or expires | cookie/account去重与owner marker；响应投射再次核对用户；`MusicLibraryPage.vue:2814` 页面同步按钮可重试完整链路。 | helper重叠/账户变化/失败重试；SFC不同owner阻止写入、等待中换账号阻止导入、首次写入失败后页面事件成功重试。测试和报告未输出真实凭据。 |
+| Optional lyric provider returns unauthorized | `diagnosis.md` 保存生产入口资源标识、只读DOM、日志来源、401 problem响应及本地无proxy route证据。 | 401被归类为主站路由/授权边界，未当作无歌词；源码修复与线上接受分开说明。 |
+
+Folia文件路径在完整fork中相对`src/`；本仓库公开主要快照，App/flags/hooks等完整改动在`third_party/folia-major/shizuki-folia-v0.7.11.patch`中。
+
+## 最终质量检查
+
+- 主站：`pnpm test:unit --reporter=dot`，**246 files / 1472 tests passed**；`pnpm build` 通过。
+- 主站受影响子集：播放器50/50、Folia页面24/24、Auth/账号同步26/26，均包含在最终全量结果中。
+- 完整Folia：嵌入flags、relay、真实bridge及wordGlow定向套件**16/16通过**；TypeScript `tsc --noEmit` 通过。
+- 完整Folia全量：**4385 passed、2 skipped、1 failed**。失败测试为 `test/unit/mod-system/modSignature.test.ts:137` 的 `signed digest and message (shared vector) > refuses trees that cannot hash the same on every machine`，`fs.symlinkSync` 返回Windows EPERM。
+- 上述环境失败在**干净上游v0.7.11 / 6fe68d89**同样复现：该文件7/8通过；`electron/modSystem/modSignature.cjs` 与测试均未修改。没有跳过或弱化该用例；应在支持创建符号链接的环境复跑它。
+- Folia默认生产构建及设置 `VITE_BASE_PATH=/music/` 后的正式构建都通过。主站/上游构建仍有大chunk等警告，未作为本次播放故障归因。
+- 公开patch **95982 bytes** 与完整fork相对6fe68d89的`git diff`逐字节一致；8个桥/服务/可视化器/测试快照SHA-256一致；在干净tag worktree中`git apply --check`及实际应用通过。
+- 源码`git diff --check`通过。仓库级检查排除作为文本保存的patch本身：patch中的空白context行必须包含一个前导空格，普通diff会将新增这些context行误报为尾随空白；实际patch应用没有whitespace warning。
+- 临时基线SFC与patch检验worktree均已移除；保留用户已有worktree。本地完整fork修复提交：`34a51405`，分支`codex/fix-folia-normal-linkage`。
+- `openspec validate fix-folia-normal-player-linkage --type change --strict --no-interactive` 严格校验通过；网站变更、公开fork补丁与本报告一并提交到`codex/diagnose-folia-normal-linkage`。
+
+## 审查结论与遗留验收
+
+没有发现未实现的本地需求或新增回归。唯一未通过单测为已证明存在于上游基线的Windows符号链接权限限制；本次变更保持该测试。OpenSpec严格校验通过，本地交付可接受；本change保持未归档状态。
+
+本次不包含push或部署。当前生产公共入口仍是用户日志中的`main-DvNzgpb0.js`；runbook记载的0.7.7镜像与0.7.11源码同步不能当作本次已上线。后续明确授权发布应：
+
+1. 从匹配的完整fork构建Folia `/music/`资源，将主站前端与Folia一同发布，检查资源版本及浏览器service worker缓存，保留上一镜像以便回滚。
+2. 使用实际网易云账号验证普通入口同步、失败重试和账号切换；顺序/随机队列中连续播放，并频繁A→B选择及正常模式/Folia往返。
+3. 在截图的Lattice界面验证时间持续增长、控件可用、立即暂停/恢复及向前/向后拖动；确认只有主站音频输出、没有Folia独立prefetch日志。
+4. 验证实际权限受限歌曲、试播链接和CDN Range seek；模拟源过期后恢复。本地mock只能证明时序/状态，不证明每首歌曲的远端播放权限。
+5. 若还要使用独立Folia歌词搜索，另行处理个人服务器111.228.35.186上的`/api/lyric-proxy`路由及授权部署；不得通过放宽主站登录校验解决。嵌入模式使用主站已解析的歌词，避免启动该独立流水线。

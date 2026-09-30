@@ -10,8 +10,9 @@
 import { PlayerState, type LyricData, type SongResult } from './types';
 import { usePlaybackStore } from './stores/usePlaybackStore';
 import { useTypographySettingsStore } from './stores/useTypographySettingsStore';
-import { lyricCurrentTime } from './stores/motionSignals';
+import { currentTime, lyricCurrentTime } from './stores/motionSignals';
 import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
+import { projectEmbeddedPlaybackClock } from './services/shizukiEmbeddedPlayback';
 
 const COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie'];
 const EMBED_AUDIO_SELECTOR = '#folia-embed-root audio';
@@ -36,7 +37,7 @@ let followClockFrame = 0;
 let followClockPositionSec = 0;
 let followClockStartedAt = 0;
 let followClockPlaying = false;
-let suppressPlaybackCommandsUntil = 0;
+let applyingFollowSession = false;
 let latestFollowSessionVersion = -1;
 let latestFollowLyricsFingerprint = '';
 let audioLockInstalled = false;
@@ -46,8 +47,6 @@ let lastFollowSeekPositionSec = -1;
 let lastFollowSeekAt = 0;
 let activeProgressInput: HTMLInputElement | null = null;
 let activeProgressPointerId: number | null = null;
-let pendingNavigationAction: 'next' | 'previous' | null = null;
-let pendingNavigationActionAt = 0;
 let cookieBridgeInstalled = false;
 let lastReportedCookie = '';
 let embedWallpaperStyleInstalled = false;
@@ -76,8 +75,6 @@ const EMBED_LYRIC_ACTIVE_WORD_SELECTOR = '[data-shizuki-folia-active-lyric-word]
 const EMBED_LYRIC_LINE_SELECTOR = '[data-shizuki-folia-lyric-line]';
 const EMBED_LYRIC_STABLE_GEOMETRY_FRAMES = 4;
 const EMBED_LYRIC_STABILITY_RATIO = 0.015;
-// Active lyric words can receive an extra emphasis transform after typography
-// sizing. Reserve that headroom before the line reaches the embed edge.
 const EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY = 1.6;
 
 function cssBackgroundImage(url: string): string {
@@ -88,7 +85,7 @@ function cssBackgroundImage(url: string): string {
 /**
  * The site owns the ambient blur outside Folia. This layer keeps the actual
  * player surface on the unfiltered Home wallpaper, including when its host
- * expands across the website viewport.
+ * enters native fullscreen.
  */
 function installEmbedWallpaperStyle(): void {
   if (embedWallpaperStyleInstalled || typeof document === 'undefined') return;
@@ -117,6 +114,8 @@ function installEmbedWallpaperStyle(): void {
   opacity: 0 !important;
   background-color: transparent !important;
 }
+#folia-embed-root[data-shizuki-wallpaper='active']:fullscreen::before,
+.folia-embed-pane:fullscreen #folia-embed-root[data-shizuki-wallpaper='active']::before,
 .folia-embed-pane[data-folia-expanded='true'] #folia-embed-root[data-shizuki-wallpaper='active']::before {
   background-size: cover;
 }
@@ -195,9 +194,9 @@ function observeEmbeddedDefaultBackground(root: HTMLElement): void {
 
 /**
  * Folia visualizers size their primary line in viewport units. The embedded
- * music surface is narrower than the browser viewport. Fit the complete
- * active line, including its preferred typography scale and word emphasis,
- * instead of relying on viewport width alone.
+ * music surface is narrower than the browser viewport. Long CJK lines are
+ * often one unbreakable text segment, so fit that content as well as the
+ * workspace itself instead of relying on viewport width alone.
  */
 function getEmbedLyricWeightedGraphemeWidth(text: string): number {
   return Array.from(text).reduce((width, grapheme) => {
@@ -576,7 +575,7 @@ function readFollowSong(rawTrack: UnknownRecord | null | undefined): SongResult 
     artists,
     album: {
       ...rawAlbum,
-      picUrl: String(rawAlbum.picUrl || rawTrack.cover || rawTrack.coverUrl || rawTrack.cover_url || ''),
+      coverUrl: String(rawAlbum.coverUrl || rawAlbum.picUrl || rawTrack.cover || rawTrack.coverUrl || rawTrack.cover_url || ''),
     },
     durationMs: Number.isFinite(durationMs) ? durationMs : 0,
   } as unknown as SongResult;
@@ -702,18 +701,13 @@ function readFollowSession(raw: unknown): FollowSession | null {
 function writeFollowClock(positionSec: number): void {
   const safePosition = Math.max(0, Number(positionSec) || 0);
   try {
-    const clock = (window as unknown as { __folia_current_time?: { set(v: number): void } }).__folia_current_time;
-    clock?.set(safePosition);
-    lyricCurrentTime.set(safePosition);
+    projectEmbeddedPlaybackClock(safePosition, currentTime, lyricCurrentTime);
     const store = usePlaybackStore.getState();
     const lines = store.lyrics?.lines || [];
     if (lines.length) {
       const index = findLatestActiveLineIndex(lines, safePosition);
       if (index !== store.currentLineIndex) {
         store.setCurrentLineIndex(index);
-        // React and Framer Motion commit the new line and its emphasis
-        // transform over several frames. Audit that short transition so the
-        // final visual bounds, not the outgoing line, determine the scale.
         scheduleEmbedLyricSizingAudit();
       }
     }
@@ -769,7 +763,6 @@ function installEmbeddedAudioLock(): void {
     if (!(audio instanceof HTMLAudioElement)) return;
     const root = document.getElementById('folia-embed-root');
     if (!root?.contains(audio)) return;
-    suppressPlaybackCommandsUntil = performance.now() + 500;
     try {
       audio.pause();
       audio.removeAttribute('src');
@@ -778,11 +771,6 @@ function installEmbeddedAudioLock(): void {
     } catch {
       // The main site remains audible even when an upstream media call fails.
     }
-    window.setTimeout(() => {
-      if (!followPlaybackActive) return;
-      suppressPlaybackCommandsUntil = performance.now() + 150;
-      usePlaybackStore.getState().setPlayerState(followClockPlaying ? PlayerState.PLAYING : PlayerState.PAUSED);
-    }, 0);
   }, true);
 }
 
@@ -902,17 +890,13 @@ function installEmbeddedNavigationBridge(): void {
     if (!followPlaybackActive) return;
     const action = readNavigationAction(event.target);
     if (!action) return;
-    pendingNavigationAction = action;
-    pendingNavigationActionAt = performance.now();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    relayEmbeddedNavigation(action);
   }, true);
 }
 
 function relayEmbeddedNavigation(action: 'next' | 'previous'): void {
-  suppressPlaybackCommandsUntil = performance.now() + 750;
-  lockEmbeddedAudio();
-  const store = usePlaybackStore.getState();
-  store.setAudioSrc(null);
-  store.setPlayerState(PlayerState.PAUSED);
   postToParent({ type: 'shizuki:playback-command', action });
 }
 
@@ -920,32 +904,33 @@ function applyFollowSession(session: FollowSession): void {
   if (session.version < latestFollowSessionVersion) return;
   latestFollowSessionVersion = session.version;
   followPlaybackActive = true;
-  suppressPlaybackCommandsUntil = performance.now() + 900;
+  applyingFollowSession = true;
 
   const store = usePlaybackStore.getState();
   const song = readFollowSong(session.track);
   const queue = readFollowQueue(session.queue);
   const lyricsFingerprint = buildFollowLyricsFingerprint(session.lyrics, song, session.durationMs);
-  lockEmbeddedAudio();
-  store.setAudioSrc(null);
-  store.setCurrentSong(song);
-  store.setPlayQueue(queue.length ? queue : (song ? [song] : []));
-  store.setCachedCoverUrl(String(song?.album?.picUrl || ''));
-  store.setDuration(Math.max(0, Number(session.durationMs || 0) / 1000));
-  if (lyricsFingerprint !== latestFollowLyricsFingerprint) {
-    const lyrics = buildFollowLyrics(session.lyrics, song, session.durationMs);
-    latestFollowLyricsFingerprint = lyricsFingerprint;
-    store.setLyricsState(lyrics);
-  }
-  // The projected clock is the only active-line writer. Applying the parent
-  // index here as well briefly replays the boundary transition on each sync.
-  syncFollowClock(session.positionMs, session.playing);
-  store.setPlayerState(session.playing ? PlayerState.PLAYING : PlayerState.PAUSED);
+  const lyricsChanged = lyricsFingerprint !== latestFollowLyricsFingerprint;
   try {
+    lockEmbeddedAudio();
+    store.setAudioSrc(null);
+    store.setCurrentSong(song);
+    store.setPlayQueue(queue.length ? queue : (song ? [song] : []));
+    store.setCachedCoverUrl(String(song?.album?.coverUrl || ''));
+    store.setDuration(Math.max(0, Number(session.durationMs || 0) / 1000));
+    if (lyricsChanged) {
+      const lyrics = buildFollowLyrics(session.lyrics, song, session.durationMs);
+      latestFollowLyricsFingerprint = lyricsFingerprint;
+      store.setLyricsState(lyrics);
+    }
+    store.setPlayerState(session.playing ? PlayerState.PLAYING : PlayerState.PAUSED);
     (window as unknown as { __shizukiPlaybackSession?: FollowSession }).__shizukiPlaybackSession = session;
   } catch {
     // The store remains sufficient if diagnostics cannot be attached to window.
+  } finally {
+    applyingFollowSession = false;
   }
+  syncFollowClock(session.positionMs, session.playing);
   syncEmbedLyricSizing();
 }
 
@@ -956,7 +941,6 @@ function stopFollowPlayback(): void {
   latestFollowLyricsFingerprint = '';
   if (followClockFrame) window.cancelAnimationFrame(followClockFrame);
   followClockFrame = 0;
-  suppressPlaybackCommandsUntil = performance.now() + 300;
   lockEmbeddedAudio();
   try {
     const store = usePlaybackStore.getState();
@@ -970,7 +954,7 @@ function stopFollowPlayback(): void {
 function readCookieFromStorage(): string {
   try {
     for (const key of COOKIE_STORAGE_KEYS) {
-      const cookie = window.localStorage.getItem(key) || '';
+      const cookie = window.localStorage.getItem(key);
       if (cookie) return cookie;
     }
     return '';
@@ -982,9 +966,7 @@ function readCookieFromStorage(): string {
 function writeCookieToStorage(cookie: string): void {
   if (!cookie) return;
   try {
-    for (const key of COOKIE_STORAGE_KEYS) {
-      window.localStorage.setItem(key, cookie);
-    }
+    for (const key of COOKIE_STORAGE_KEYS) window.localStorage.setItem(key, cookie);
     // The parent already owns this value when it sends a sync request. Record
     // it so the change watcher does not echo the same credential back.
     lastReportedCookie = cookie;
@@ -1024,14 +1006,9 @@ function installCookieBridge(): void {
   window.setInterval(reportCookieIfChanged, 1500);
 }
 
-function readSongId(song: unknown): number {
-  const id = Number((song as { id?: unknown } | null)?.id || 0);
-  return Number.isFinite(id) && id > 0 ? id : 0;
-}
-
 function snapshotStatus(): UnknownRecord {
   const state = usePlaybackStore.getState();
-  const song = state.currentSong as (SongResult & { album?: { picUrl?: string } }) | null;
+  const song = state.currentSong as SongResult | null;
   const artists = Array.isArray(song?.artists)
     ? song.artists.map((artist) => String(artist?.name || '')).filter(Boolean)
     : [];
@@ -1043,7 +1020,7 @@ function snapshotStatus(): UnknownRecord {
         provider: String((song as unknown as { provider?: unknown }).provider || 'netease'),
         name: String(song.name || ''),
         artists,
-        coverUrl: String(song.album?.picUrl || ''),
+        coverUrl: String(song.album?.coverUrl || ''),
         durationMs: Number(song.durationMs || 0),
       }
       : null,
@@ -1054,12 +1031,12 @@ function snapshotStatus(): UnknownRecord {
   };
 }
 
+function readSongId(song: unknown): number {
+  const id = Number((song as { id?: unknown } | null)?.id || 0);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+}
+
 function forwardTrackIntent(rawTrack: UnknownRecord, positionMs = 0, playing = true): void {
-  suppressPlaybackCommandsUntil = performance.now() + 600;
-  lockEmbeddedAudio();
-  const store = usePlaybackStore.getState();
-  store.setAudioSrc(null);
-  store.setPlayerState(PlayerState.PAUSED);
   postToParent({ type: 'shizuki:playback-intent', track: rawTrack, positionMs, playing });
 }
 
@@ -1109,7 +1086,6 @@ function handleMessage(event: MessageEvent): void {
   }
   if (type === 'shizuki:activate-playback-bridge') {
     followPlaybackActive = true;
-    suppressPlaybackCommandsUntil = performance.now() + 300;
     lockEmbeddedAudio();
     usePlaybackStore.getState().setAudioSrc(null);
     return;
@@ -1121,9 +1097,13 @@ function handleMessage(event: MessageEvent): void {
   if (type === 'shizuki:sync-clock') {
     if (!followPlaybackActive) return;
     const playing = Boolean(data.playing);
-    suppressPlaybackCommandsUntil = performance.now() + 120;
-    usePlaybackStore.getState().setPlayerState(playing ? PlayerState.PLAYING : PlayerState.PAUSED);
-    syncFollowClock(Number(data.positionMs || 0), playing);
+    applyingFollowSession = true;
+    try {
+      usePlaybackStore.getState().setPlayerState(playing ? PlayerState.PLAYING : PlayerState.PAUSED);
+      syncFollowClock(Number(data.positionMs || 0), playing);
+    } finally {
+      applyingFollowSession = false;
+    }
     return;
   }
   if (type === 'shizuki:play-track') {
@@ -1156,37 +1136,19 @@ export function installShizukiExternalBridge(): void {
   installEmbedLyricSizing();
   window.addEventListener('message', handleMessage);
   usePlaybackStore.subscribe((state, previousState) => {
-    const now = performance.now();
+    if (applyingFollowSession) return;
     const switchedTrack = readSongId(state.currentSong) !== readSongId(previousState.currentSong);
     const startedLocalAudio = Boolean(state.audioSrc) && state.audioSrc !== previousState.audioSrc;
 
-    if (followPlaybackActive && now >= suppressPlaybackCommandsUntil && startedLocalAudio) {
-      suppressPlaybackCommandsUntil = now + 500;
-      lockEmbeddedAudio();
-      usePlaybackStore.getState().setAudioSrc(null);
-      return;
-    }
-    if (followPlaybackActive && switchedTrack && now >= suppressPlaybackCommandsUntil) {
-      const navigationAction = now - pendingNavigationActionAt < 1200 ? pendingNavigationAction : null;
-      pendingNavigationAction = null;
-      pendingNavigationActionAt = 0;
-      if (navigationAction) {
-        // The main player owns shuffle order. Do not fall back to Folia's
-        // display queue when a visitor uses previous/next controls.
-        relayEmbeddedNavigation(navigationAction);
-        return;
-      }
-      const snapshot = snapshotStatus();
-      const track = snapshot.track as UnknownRecord | null;
+    if (followPlaybackActive && switchedTrack) {
+      const track = snapshotStatus().track as UnknownRecord | null;
       if (track) forwardTrackIntent(track, 0, true);
       return;
     }
-    if (!followPlaybackActive || now < suppressPlaybackCommandsUntil) return;
-    if (state.playerState === previousState.playerState) return;
-    if (state.playerState === PlayerState.PLAYING) {
-      postToParent({ type: 'shizuki:playback-command', action: 'play' });
-    } else if (state.playerState === PlayerState.PAUSED) {
-      postToParent({ type: 'shizuki:playback-command', action: 'pause' });
+
+    if (followPlaybackActive && startedLocalAudio) {
+      lockEmbeddedAudio();
+      usePlaybackStore.getState().setAudioSrc(null);
     }
   });
   const pending = (window as unknown as { __shizukiPendingCookie?: string }).__shizukiPendingCookie;

@@ -785,6 +785,48 @@ describe('useAuthSession', () => {
     expect(refreshBody.refresh_token).toBe('refresh-token-1');
   });
 
+  it('does not send an account-scoped request when deferred session readiness changes the user', async () => {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ refreshToken: 'refresh-token-old' }));
+    window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify({
+      userId: 7,
+      nickname: 'Original User',
+      groups: ['USER'],
+      permissions: []
+    }));
+    let finishProfile;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(200, {
+        data: {
+          result_type: 'TOKEN_ISSUED',
+          access_token: 'new-account-token',
+          token_type: 'Bearer',
+          expires_in_sec: 900,
+          refresh_token: 'refresh-token-new',
+          refresh_expires_in_sec: 2592000,
+          user_id: 8,
+          groups: ['USER']
+        }
+      }))
+      .mockImplementationOnce(() => new Promise((resolve) => { finishProfile = resolve; }));
+    globalThis.fetch = fetchMock;
+
+    const auth = useAuthSession();
+    const request = auth.authorizedFetch(
+      '/api/v1/me/music/source-accounts/netease/cookie',
+      { method: 'PUT', body: { cookie: 'must-not-be-sent' } },
+      { expectedUserId: 7 }
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    finishProfile(jsonResponse(200, {
+      data: { user_id: 8, nickname: 'Switched User', groups: ['USER'], permissions: [] }
+    }));
+    await expect(request).rejects.toThrow('Signed-in account changed');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(auth.user.value?.userId).toBe(8);
+  });
+
   it('prompts for re-login and clears session when account request hits 401 and refresh also fails', async () => {
     window.location.hash = '#/profile?tab=account';
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);

@@ -522,8 +522,30 @@ const ambientAssetDownloadCache = new Map();
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthSession();
+let playerFetchAccountId = '';
+let playerFetchForAccount = null;
+function getPlayerAuthorizedFetch() {
+  const accountId = auth.isAuthenticated.value ? String(auth.user.value?.userId || '') : '';
+  if (!accountId) {
+    playerFetchAccountId = '';
+    playerFetchForAccount = null;
+    return undefined;
+  }
+  if (accountId !== playerFetchAccountId || !playerFetchForAccount) {
+    playerFetchAccountId = accountId;
+    playerFetchForAccount = (path, requestOptions = {}) => auth.authorizedFetch(
+      path,
+      requestOptions,
+      { expectedUserId: accountId }
+    );
+  }
+  return playerFetchForAccount;
+}
 const player = usePlayerEngine({
-  getAuthorizedFetch: () => (auth.isAuthenticated.value ? auth.authorizedFetch : undefined)
+  getAuthorizedFetch: getPlayerAuthorizedFetch,
+  getPlaybackAuthorizationKey: () => auth.isAuthenticated.value
+    ? `user:${String(auth.user.value?.userId || '')}`
+    : 'anonymous'
 });
 const ambientMixer = useAmbientMixer();
 const miniMusicLibrary = useMiniMusicLibrary({
@@ -933,7 +955,8 @@ const playerBridge = Object.freeze({
   cyclePlayMode: player.cyclePlayMode,
   loadPlaylistByCode: player.loadPlaylistByCode,
   reloadPlaylist: player.reloadPlaylist,
-  replaceQueueWithTracks: player.replaceQueueWithTracks
+  replaceQueueWithTracks: player.replaceQueueWithTracks,
+  invalidatePlaybackPreparation: player.invalidatePlaybackPreparation
 });
 
 provide(PLAYER_BRIDGE_KEY, playerBridge);

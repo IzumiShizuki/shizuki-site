@@ -251,7 +251,7 @@
           @update:source-cookie="handleUpdateMusicSourceCookieInput"
           @save-source-cookie="handleSaveMusicSourceCookie"
           @delete-source-cookie="handleDeleteMusicSourceCookie"
-          @import-source-playlists="handleImportMusicSourcePlaylists"
+          @import-source-playlists="handleMusicSourceSyncRequest"
           @bind-source-account="handleBindMusicSourceAccount"
         />
 
@@ -337,6 +337,7 @@ import { formatMediaTime } from '../utils/mediaTime';
 import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
 import { resolveMusicCenterViewKey } from '../utils/musicRouteViewKey';
+import { createMusicSourceAccountSync } from '../utils/musicSourceAccountSync';
 import {
   enrichSearchPlaylists,
   readDurationLabel,
@@ -375,6 +376,7 @@ const FOLIA_EMBED_URL = '/music/';
 const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
 const FOLIA_LYRIC_COLOR_STORAGE_KEY = 'shizuki.music.foliaLyricColor';
 const FOLIA_NETEASE_COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie'];
+const FOLIA_NETEASE_COOKIE_OWNER_KEY = 'shizuki.music.foliaNeteaseCookieOwner';
 const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
   'shizuki:follow-playback',
   'shizuki:activate-playback-bridge',
@@ -401,6 +403,9 @@ const foliaSelectedPlaylist = ref('');
 const foliaQueueOptions = computed(() => (Array.isArray(player.tracks?.value) ? player.tracks.value : []));
 const foliaCurrentQueueEntryId = computed(() => String(player.currentTrack?.value?.queueEntryId || ''));
 let foliaLastKnownNeteaseCookie = '';
+let foliaLastKnownNeteaseCookieAccountId = '';
+let foliaNeteasePersistenceKey = '';
+let foliaNeteasePersistencePromise = null;
 let foliaBridgeReady = false;
 let foliaPendingSession = null; // Folia bridge 就绪前暂存完整权威播放会话
 let foliaPlaybackSessionVersion = 0;
@@ -786,11 +791,15 @@ function postToFolia(payload) {
 /** 拉取当前用户网易云 cookie 并同步到 Folia 的当前存储键与旧版兼容键。 */
 async function syncCookieToFolia() {
   if (!auth.isAuthenticated.value) return false;
+  const accountId = String(auth.user.value?.userId || '');
   try {
-    const response = await musicApi.getMySourceAccountCookie(auth.authorizedFetch);
+    const response = await musicApi.getMySourceAccountCookie(createAccountScopedMusicFetch(accountId));
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
     const cookie = String(response || '').trim();
     if (!cookie) return false;
     foliaLastKnownNeteaseCookie = cookie;
+    foliaLastKnownNeteaseCookieAccountId = accountId;
+    writeFoliaCookieOwner(foliaLastKnownNeteaseCookieAccountId, cookie);
     if (foliaBridgeReady) {
       postToFolia({ type: 'shizuki:sync-cookie', cookie });
     } else {
@@ -819,35 +828,153 @@ function readFoliaNeteaseCookie() {
   }
 }
 
+function createAccountScopedMusicFetch(accountId) {
+  const expectedUserId = String(accountId || '');
+  return (path, options = {}) => auth.authorizedFetch(path, options, { expectedUserId });
+}
+
+function fingerprintFoliaCookie(cookie) {
+  let hash = 2166136261;
+  for (let index = 0; index < cookie.length; index += 1) {
+    hash ^= cookie.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function readFoliaCookieOwner() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(FOLIA_NETEASE_COOKIE_OWNER_KEY) || 'null');
+    return value && typeof value === 'object' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeFoliaCookieOwner(accountId, cookie) {
+  try {
+    window.localStorage.setItem(FOLIA_NETEASE_COOKIE_OWNER_KEY, JSON.stringify({
+      accountId: String(accountId || ''),
+      cookieFingerprint: fingerprintFoliaCookie(String(cookie || '').trim())
+    }));
+  } catch {
+    // The in-memory account guard still applies for this page session.
+  }
+}
+
 async function persistFoliaNeteaseCookie(rawCookie) {
   const cookie = String(rawCookie || '').trim();
   if (!cookie || !auth.isAuthenticated.value) return false;
-  if (cookie === foliaLastKnownNeteaseCookie) return true;
-
-  const previousCookie = foliaLastKnownNeteaseCookie;
-  foliaLastKnownNeteaseCookie = cookie;
-  try {
-    await musicApi.upsertMusicSourceAccountCookie('netease', cookie, auth.authorizedFetch);
-    await loadMusicSourceAccountsStatus();
-    // If Folia just refreshed the account while a 30-second trial is
-    // audible in the normal player, immediately resolve this same queue
-    // item again through the account-authorized source and keep its time.
-    const currentTrack = player.currentTrack?.value;
-    const provider = String(currentTrack?.provider || '').trim().toLowerCase();
-    const wasPlaying = Boolean(player.isPlaying?.value);
-    const positionSec = Math.max(0, Number(player.currentTime?.value || 0));
-    if (wasPlaying && provider === 'netease' && currentTrack) {
-      const refreshed = await player.playExternalTrack?.(currentTrack, { replaceQueue: false });
-      if (refreshed && positionSec > 0) player.seekToTime?.(positionSec);
-    }
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider: 'netease' } }));
-    }
-    return true;
-  } catch {
-    foliaLastKnownNeteaseCookie = previousCookie;
+  const accountId = String(auth.user.value?.userId || '');
+  const owner = readFoliaCookieOwner();
+  if (
+    owner?.accountId
+    && owner.accountId !== accountId
+    && owner.cookieFingerprint === fingerprintFoliaCookie(cookie)
+  ) {
+    musicSourceSyncError.value = '检测到此网易云登录已关联其他网站账号，请在当前 Folia 账号重新登录后再同步';
     return false;
   }
+  const persistenceKey = JSON.stringify([accountId, cookie]);
+  // Claim the browser Folia session before the request yields, so a site-account
+  // switch during the write cannot cause the same cookie to be replayed under
+  // the next user's authorization.
+  writeFoliaCookieOwner(accountId, cookie);
+  if (cookie === foliaLastKnownNeteaseCookie && accountId === foliaLastKnownNeteaseCookieAccountId) {
+    if (foliaNeteasePersistenceKey === persistenceKey && foliaNeteasePersistencePromise) {
+      return foliaNeteasePersistencePromise;
+    }
+    return true;
+  }
+
+  const previousCookie = foliaLastKnownNeteaseCookie;
+  const previousAccountId = foliaLastKnownNeteaseCookieAccountId;
+  foliaLastKnownNeteaseCookie = cookie;
+  foliaLastKnownNeteaseCookieAccountId = accountId;
+  const pending = (async () => {
+    try {
+      await musicApi.upsertMusicSourceAccountCookie('netease', cookie, createAccountScopedMusicFetch(accountId));
+      if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
+      writeFoliaCookieOwner(accountId, cookie);
+      await loadMusicSourceAccountsStatus();
+      if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
+      // If Folia just refreshed the account while a 30-second trial is
+      // audible in the normal player, immediately resolve this same queue
+      // item again through the account-authorized source and keep its time.
+      const currentTrack = player.currentTrack?.value;
+      const provider = String(currentTrack?.provider || '').trim().toLowerCase();
+      const wasPlaying = Boolean(player.isPlaying?.value);
+      const positionSec = Math.max(0, Number(player.currentTime?.value || 0));
+      if (wasPlaying && provider === 'netease' && currentTrack) {
+        const refreshed = await player.playExternalTrack?.(currentTrack, { replaceQueue: false });
+        if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
+        if (refreshed && positionSec > 0) player.seekToTime?.(positionSec);
+      }
+      player.invalidatePlaybackPreparation?.();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider: 'netease' } }));
+      }
+      return true;
+    } catch {
+      foliaLastKnownNeteaseCookie = previousCookie;
+      foliaLastKnownNeteaseCookieAccountId = previousAccountId;
+      return false;
+    }
+  })();
+  foliaNeteasePersistenceKey = persistenceKey;
+  foliaNeteasePersistencePromise = pending;
+  try {
+    return await pending;
+  } finally {
+    if (foliaNeteasePersistencePromise === pending) {
+      foliaNeteasePersistenceKey = '';
+      foliaNeteasePersistencePromise = null;
+    }
+  }
+}
+
+const syncStoredFoliaNeteaseAccount = createMusicSourceAccountSync({
+  readContext: () => {
+    const cookie = readFoliaNeteaseCookie();
+    const owner = readFoliaCookieOwner();
+    const accountId = String(auth.user.value?.userId || '');
+    const cookieOwnerMismatch = Boolean(
+      owner?.accountId
+      && owner.accountId !== accountId
+      && owner.cookieFingerprint === fingerprintFoliaCookie(cookie)
+    );
+    const account = musicSourceAccounts.value?.netease;
+    return {
+      accountId,
+      cookie: cookieOwnerMismatch ? '' : cookie,
+      bound: Boolean(account?.bound),
+      bindingVersion: account?.updatedAt || account?.status || '',
+      cookieOwnerMismatch
+    };
+  },
+  persistCookie: async (cookie, accountId) => {
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
+    return persistFoliaNeteaseCookie(cookie);
+  },
+  importPlaylists: async (accountId) => {
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) {
+      throw new Error('登录状态已变化，请重试同步');
+    }
+    const result = await handleImportMusicSourcePlaylists('netease', { propagateError: true });
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) {
+      return { stale: true };
+    }
+    if (!result) throw new Error('同步网易云歌单失败，请重试');
+    return result;
+  }
+});
+
+function synchronizePersistedFoliaSession(rawCookie) {
+  void persistFoliaNeteaseCookie(rawCookie)
+    .then((persisted) => persisted ? syncStoredFoliaNeteaseAccount() : null)
+    .catch((error) => {
+      musicSourceSyncError.value = parseErrorMessage(error, '网易云歌单同步失败，请重试');
+    });
 }
 
 function buildFoliaDisplayTrack(track) {
@@ -1165,7 +1292,7 @@ function handleFoliaBridgeMessage(event) {
   if (data.type === 'shizuki:cookie') {
     // Folia 侧登录的网易云 cookie 回传 → 保存到站点后端，两边账号统一
     const cookie = typeof data.cookie === 'string' ? data.cookie : '';
-    void persistFoliaNeteaseCookie(cookie);
+    synchronizePersistedFoliaSession(cookie);
   }
 }
 
@@ -1176,7 +1303,19 @@ async function syncCookieBackFromFolia() {
   if (localCookie) {
     // A transient backend write failure must not let an older server-side
     // credential overwrite the newer Folia login on this browser.
-    await persistFoliaNeteaseCookie(localCookie);
+    const owner = readFoliaCookieOwner();
+    const accountId = String(auth.user.value?.userId || '');
+    if (
+      owner?.accountId
+      && owner.accountId !== accountId
+      && owner.cookieFingerprint === fingerprintFoliaCookie(localCookie)
+    ) {
+      return true;
+    }
+    const persisted = await persistFoliaNeteaseCookie(localCookie);
+    if (persisted) void syncStoredFoliaNeteaseAccount().catch((error) => {
+      musicSourceSyncError.value = parseErrorMessage(error, '网易云歌单同步失败，请重试');
+    });
     return true;
   }
   postToFolia({ type: 'shizuki:get-cookie' });
@@ -2344,9 +2483,11 @@ async function loadSidebarData() {
     return true;
   }
 
+  const accountId = String(auth.user.value?.userId || '');
   try {
     sidebarError.value = '';
-    const payload = await musicApi.getMyMusicLibrarySidebar(auth.authorizedFetch);
+    const payload = await musicApi.getMyMusicLibrarySidebar(createAccountScopedMusicFetch(accountId));
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
     sidebarData.value = {
       defaultPlaylist: normalizePlaylistSummary(payload?.defaultPlaylist || payload?.default_playlist, DEFAULT_PLAYLIST_CODE),
       likedPlaylist: payload?.likedPlaylist || payload?.liked_playlist ? normalizePlaylistSummary(payload?.likedPlaylist || payload?.liked_playlist) : null,
@@ -2358,14 +2499,17 @@ async function loadSidebarData() {
         : []
     };
     await loadLikedTrackIds();
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
     return true;
   } catch (error) {
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
     sidebarError.value = parseErrorMessage(error, '歌单加载失败，请重试');
     return false;
   }
 }
 
 async function loadLikedTrackIds() {
+  const accountId = String(auth.user.value?.userId || '');
   const likedCode = likedPlaylistCode.value;
   if (!auth.isAuthenticated.value || !likedCode) {
     likedTrackIds.value = new Set();
@@ -2373,7 +2517,8 @@ async function loadLikedTrackIds() {
   }
 
   try {
-    const payload = await musicApi.getPlaylistBundleByCode(likedCode, auth.authorizedFetch);
+    const payload = await musicApi.getPlaylistBundleByCode(likedCode, createAccountScopedMusicFetch(accountId));
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return;
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
     const next = new Set();
     tracks.forEach((item) => {
@@ -2382,6 +2527,7 @@ async function loadLikedTrackIds() {
     });
     likedTrackIds.value = next;
   } catch {
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return;
     likedTrackIds.value = new Set();
   }
 }
@@ -2469,8 +2615,10 @@ async function loadMusicSourceAccountsStatus() {
     musicSourceSyncError.value = '';
     return;
   }
+  const accountId = String(auth.user.value?.userId || '');
   try {
-    const payload = await musicApi.getMusicSourceAccountStatus(auth.authorizedFetch);
+    const payload = await musicApi.getMusicSourceAccountStatus(createAccountScopedMusicFetch(accountId));
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return;
     const rows = Array.isArray(payload) ? payload : [];
     const statusMap = {};
     const inputMap = {};
@@ -2491,6 +2639,7 @@ async function loadMusicSourceAccountsStatus() {
     musicSourceAccounts.value = statusMap;
     musicSourceCookieInputs.value = inputMap;
   } catch {
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return;
     musicSourceAccounts.value = {};
   }
 }
@@ -2678,18 +2827,23 @@ async function handleDeleteMusicSourceCookie(provider) {
   }
 }
 
-async function handleImportMusicSourcePlaylists(provider) {
+async function handleImportMusicSourcePlaylists(provider, options = {}) {
   if (!auth.isAuthenticated.value) {
     goLogin();
     return;
   }
   const normalizedProvider = String(provider || '').trim().toLowerCase();
   if (!SOURCE_ACCOUNT_PROVIDERS.includes(normalizedProvider)) return;
+  const accountId = String(auth.user.value?.userId || '');
   musicSourceSyncError.value = '';
   musicSourceSyncResult.value = null;
   musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: true };
   try {
-    const payload = await musicApi.importMusicSourcePlaylists(normalizedProvider, auth.authorizedFetch);
+    const payload = await musicApi.importMusicSourcePlaylists(
+      normalizedProvider,
+      createAccountScopedMusicFetch(accountId)
+    );
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return null;
     const result = {
       provider: normalizedProvider,
       importedPlaylists: Math.max(0, Number(payload?.importedPlaylists ?? payload?.imported_playlists ?? 0) || 0),
@@ -2710,15 +2864,37 @@ async function handleImportMusicSourcePlaylists(provider) {
       musicSourceSyncError.value = '网易云没有返回可同步歌单，请重新绑定账号后重试';
     }
     const sidebarLoaded = await loadSidebarData();
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return null;
     if (!sidebarLoaded) {
       musicSourceSyncError.value = sidebarError.value || '歌单已同步，但列表刷新失败，请重试';
     }
+    if (options.propagateError && musicSourceSyncError.value) {
+      throw new Error(musicSourceSyncError.value);
+    }
     return result;
   } catch (error) {
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return null;
     musicSourceSyncError.value = parseErrorMessage(error, '同步歌单失败，请稍后重试');
+    if (options.propagateError) throw error;
+    return null;
   } finally {
     musicSourceImportBusyMap.value = { ...musicSourceImportBusyMap.value, [normalizedProvider]: false };
   }
+}
+
+async function handleMusicSourceSyncRequest(provider) {
+  const normalizedProvider = String(provider || '').trim().toLowerCase();
+  if (normalizedProvider === 'netease' && musicSourceSyncError.value) {
+    try {
+      const sync = await syncStoredFoliaNeteaseAccount();
+      if (sync?.stale) return null;
+      if (sync && !sync.skipped) return sync.result;
+    } catch (error) {
+      musicSourceSyncError.value = parseErrorMessage(error, '网易云歌单同步失败，请重试');
+      return null;
+    }
+  }
+  return handleImportMusicSourcePlaylists(normalizedProvider);
 }
 
 async function handleBindSpotify() {
@@ -3270,7 +3446,7 @@ const musicContext = Object.freeze({
   isCurrentPlaylistCollected,
   requestMusicLogin,
   bindMusicSourceAccount: handleBindMusicSourceAccount,
-  importMusicSourcePlaylists: handleImportMusicSourcePlaylists,
+  importMusicSourcePlaylists: handleMusicSourceSyncRequest,
   refreshMusicSourceAccounts: loadMusicSourceAccountsStatus,
   openMusicAuthorization,
   reloadHomeData: loadHomeData,
@@ -3387,8 +3563,11 @@ watch(
 );
 
 watch(
-  () => auth.isAuthenticated.value,
-  async () => {
+  [
+    () => auth.isAuthenticated.value,
+    () => String(auth.user.value?.userId || '')
+  ],
+  async ([isAuthenticated]) => {
     await Promise.all([
       loadHomeData(),
       loadMusicProviderVisibility(),
@@ -3399,6 +3578,11 @@ watch(
       loadMusicSourceAccountsStatus()
     ]);
     await ensureCurrentRoutePlaylistLoaded();
+    if (isAuthenticated) {
+      void syncStoredFoliaNeteaseAccount().catch((error) => {
+        musicSourceSyncError.value = parseErrorMessage(error, '网易云歌单同步失败，请重试');
+      });
+    }
   }
 );
 
@@ -3524,6 +3708,25 @@ onMounted(async () => {
       loadMusicSourceAccountsStatus(),
       ensureCurrentRoutePlaylistLoaded()
     ]);
+
+    const accountContext = {
+      accountId: String(auth.user.value?.userId || ''),
+      cookie: readFoliaNeteaseCookie()
+    };
+    const cookieOwner = readFoliaCookieOwner();
+    if (
+      accountContext.cookie
+      && cookieOwner?.accountId
+      && cookieOwner.accountId !== accountContext.accountId
+      && cookieOwner.cookieFingerprint === fingerprintFoliaCookie(accountContext.cookie)
+      && !musicSourceAccounts.value?.netease?.bound
+    ) {
+      musicSourceSyncError.value = '检测到此网易云登录已关联其他网站账号，请在当前 Folia 账号重新登录后再同步';
+    }
+
+    void syncStoredFoliaNeteaseAccount().catch((error) => {
+      musicSourceSyncError.value = parseErrorMessage(error, '网易云歌单同步失败，请重试');
+    });
 
     await nextTick();
     restoreCenterScroll(route.fullPath);

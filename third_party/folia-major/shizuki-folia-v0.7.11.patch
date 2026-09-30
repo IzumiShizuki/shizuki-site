@@ -1,0 +1,2386 @@
+diff --git a/deploy/docker/gateway/nginx.conf.template b/deploy/docker/gateway/nginx.conf.template
+index c49eb39c..25ae3954 100644
+--- a/deploy/docker/gateway/nginx.conf.template
++++ b/deploy/docker/gateway/nginx.conf.template
+@@ -7,6 +7,8 @@ events {
+ http {
+     include /etc/nginx/mime.types;
+     default_type application/octet-stream;
++    resolver 127.0.0.11 valid=10s ipv6=off;
++    resolver_timeout 3s;
+     log_format combined_no_query '$remote_addr - $remote_user [$time_local] "$request_method $uri $server_protocol" '
+                                  '$status $body_bytes_sent "$http_referer" "$http_user_agent"';
+     access_log /dev/stdout combined_no_query;
+@@ -40,7 +42,9 @@ http {
+         }
+ 
+         location /netease/ {
+-            proxy_pass http://netease-api:3000/;
++            set $netease_api shizuki-site-music-ncm-api:3000;
++            rewrite ^/netease/(.*)$ /$1 break;
++            proxy_pass http://$netease_api;
+             # Netease QR login returns several large Set-Cookie headers before they are hidden.
+             proxy_buffer_size 32k;
+             proxy_buffers 8 32k;
+@@ -52,31 +56,8 @@ http {
+             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+         }
+ 
+-        location /kugou/ {
+-            proxy_pass http://kugou-api:3000/;
+-            proxy_hide_header Set-Cookie;
+-            proxy_set_header Host $host;
+-            proxy_set_header X-Forwarded-Host $host;
+-            proxy_set_header X-Forwarded-Proto $folia_forwarded_proto;
+-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+-        }
+-
+-        location /qq/ {
+-            proxy_pass http://qq-api:3000/;
+-            proxy_hide_header Set-Cookie;
+-            proxy_set_header Host $host;
+-            proxy_set_header X-Forwarded-Host $host;
+-            proxy_set_header X-Forwarded-Proto $folia_forwarded_proto;
+-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+-        }
++        # /api/ backend not deployed yet (AI themes); enable when folia-web-api image is built
+ 
+-        location /api/ {
+-            proxy_pass http://backend:3000;
+-            proxy_set_header Host $host;
+-            proxy_set_header X-Forwarded-Host $host;
+-            proxy_set_header X-Forwarded-Proto $folia_forwarded_proto;
+-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+-        }
+ 
+         location / {
+             try_files $uri $uri/ /index.html;
+diff --git a/package-lock.json b/package-lock.json
+index d79d30d5..83130a16 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -19,7 +19,7 @@
+         "electron-updater": "^6.8.9",
+         "fflate": "^0.8.3",
+         "koffi": "^3.3.1",
+-        "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
++        "kugoumusicapi": "https://gh-proxy.com/https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
+         "music-metadata": "^11.16.1",
+         "onnxruntime-node": "^1.30.0",
+         "ws": "^8.21.3"
+@@ -10960,7 +10960,7 @@
+     },
+     "node_modules/kugoumusicapi": {
+       "version": "1.6.0",
+-      "resolved": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
++      "resolved": "https://gh-proxy.com/https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
+       "integrity": "sha512-dmKVFq9IlrhWgfDPBCOGeBfLjTpT9xSTiaQ/PRjbNVrhIFk0D3b0K4oALDgf7nsUF7IQiv6s2rWXEwrsIn3Txw==",
+       "license": "MIT",
+       "dependencies": {
+diff --git a/package.json b/package.json
+index c9b5d4eb..fd2dded8 100644
+--- a/package.json
++++ b/package.json
+@@ -208,7 +208,7 @@
+     "electron-updater": "^6.8.9",
+     "fflate": "^0.8.3",
+     "koffi": "^3.3.1",
+-    "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
++    "kugoumusicapi": "https://gh-proxy.com/https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
+     "music-metadata": "^11.16.1",
+     "onnxruntime-node": "^1.30.0",
+     "ws": "^8.21.3"
+diff --git a/src/App.tsx b/src/App.tsx
+index b7bc5696..fb735607 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -80,6 +80,7 @@ import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
+ import { useTranscodeFallback } from './hooks/useTranscodeFallback';
+ import { useAutomixDecks, type AutomixDeckId } from './services/automix/useAutomixDecks';
+ import { usePlaybackInteractionBridge } from './hooks/usePlaybackInteractionBridge';
++import { isShizukiEmbedSurface, sendEmbeddedPlaybackCommand } from './services/shizukiEmbeddedPlayback';
+ import { usePersonalFmModeController } from './hooks/usePersonalFmModeController';
+ import { PERSONAL_FM_MODE_COMMAND_ID } from './components/command-palette/commands/fmModeCommand';
+ import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
+@@ -981,7 +982,7 @@ export default function App() {
+         clearPersistedStagePlaybackCache,
+         loadLocalSongs,
+         loadLocalPlaylists,
+-        canRestoreSession: windowPlaybackHandoffRestoreStatus === 'none',
++        canRestoreSession: !isShizukiEmbedSurface() && windowPlaybackHandoffRestoreStatus === 'none',
+         shouldAutoPlayRef: shouldAutoPlay,
+     });
+ 
+@@ -1637,9 +1638,12 @@ export default function App() {
+         stageActiveEntryKind,
+         audioSrc,
+         duration,
++        isEmbedMode: isShizukiEmbedSurface(),
++        hasCurrentSong: Boolean(currentSong),
+     }), [
+         activePlaybackContext,
+         audioSrc,
++        currentSong,
+         currentView,
+         disableHomeDynamicBackground,
+         duration,
+@@ -2034,6 +2038,7 @@ export default function App() {
+         return true;
+     };
+     const seekMainAudio = useCallback((time: number) => {
++        if (sendEmbeddedPlaybackCommand('seek', time)) return;
+         if (seekDuringTransitionRef.current(time)) {
+             return;
+         }
+diff --git a/src/bootstrap.tsx b/src/bootstrap.tsx
+index c54cbcc5..319cc33d 100644
+--- a/src/bootstrap.tsx
++++ b/src/bootstrap.tsx
+@@ -28,7 +28,12 @@ import './stores/useMotionSettingsStore';
+ // clients register their entries we restore the saved selections
+ // (src/mods/folium/missingEntries.ts, which also re-runs on every mod reload).
+ 
+-const rootElement = document.getElementById('root');
++// Shizuki embed mode mounts Folia into the parent's player container and skips
++// standalone-only startup work so the player surface can switch in immediately.
++const searchParams = new URLSearchParams(window.location.search);
++const embedRoot = document.getElementById('folia-embed-root');
++const isEmbedMode = searchParams.get('embed') === '1' || embedRoot !== null;
++const rootElement = embedRoot || document.getElementById('root');
+ if (!rootElement) {
+   throw new Error("Could not find root element to mount to");
+ }
+@@ -43,7 +48,15 @@ const isRemoteControl = isRemoteControlSurface;
+ // also has the Electron bridge, but mod state pushes only reach the main
+ // window, so a client activated there would never be torn down.
+ const isMainApp = isMainAppSurface;
+-const renderApp = () => root.render(
++const renderApp = () => {
++  if (isEmbedMode) {
++    // Force the player-only surface for the embedded parent player.
++    void import('./stores/useAppViewStore')
++      .then(({ useAppViewStore }) => useAppViewStore.getState().setView('player'))
++      .catch(() => {});
++  }
++
++  root.render(
+     <React.StrictMode>
+       <AppSplashGate>
+         {isNowPlayingObsSource
+@@ -58,16 +71,23 @@ const renderApp = () => root.render(
+       </AppSplashGate>
+     </React.StrictMode>
+   );
++};
+ 
+ const bootFolium = async () => {
+-    if (!isMainApp) return;
+-    installFoliumCommandPaletteSync();
+-    installFoliumHostEvents();
+-    await initFoliumClients();
+-    restoreSavedFoliumSelections();
++  if (!isMainApp || isEmbedMode) return;
++  installFoliumCommandPaletteSync();
++  installFoliumHostEvents();
++  await initFoliumClients();
++  restoreSavedFoliumSelections();
+ };
+ 
+-void bootFolium()
++if (isEmbedMode) {
++  // Avoid loading standalone Folium clients and local-cover workers before the
++  // parent can switch the embedded player into view.
++  void renderApp();
++} else {
++  void bootFolium()
+     .finally(() => {
+-        void initializeLocalCoverRuntime().finally(renderApp);
++      void initializeLocalCoverRuntime().finally(renderApp);
+     });
++}
+diff --git a/src/components/app/AppShell.tsx b/src/components/app/AppShell.tsx
+index 70e393eb..4b15e0f3 100644
+--- a/src/components/app/AppShell.tsx
++++ b/src/components/app/AppShell.tsx
+@@ -90,7 +90,9 @@ const AppShell: React.FC<AppShellProps> = ({
+ 
+     return (
+         <div
+-            className="fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500"
++            className={(typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('embed') === '1' || document.getElementById('folia-embed-root') !== null))
++              ? 'absolute inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500'
++              : 'fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500'}
+             style={{
+                 ...appStyle,
+                 borderRadius: shouldApplyWindowRadius ? '18px' : undefined,
+diff --git a/src/components/app/presentation/buildPlayerViewFlags.ts b/src/components/app/presentation/buildPlayerViewFlags.ts
+index 3ff95ec6..f50e44af 100644
+--- a/src/components/app/presentation/buildPlayerViewFlags.ts
++++ b/src/components/app/presentation/buildPlayerViewFlags.ts
+@@ -12,6 +12,8 @@ export const buildPlayerViewFlags = ({
+     stageActiveEntryKind,
+     audioSrc,
+     duration,
++    isEmbedMode = false,
++    hasCurrentSong = false,
+ }: {
+     currentView: string;
+     disableHomeDynamicBackground: boolean;
+@@ -23,6 +25,8 @@ export const buildPlayerViewFlags = ({
+     stageActiveEntryKind: string | null;
+     audioSrc: string | null;
+     duration: number;
++    isEmbedMode?: boolean;
++    hasCurrentSong?: boolean;
+ }) => {
+     const isPlayerView = currentView === 'player';
+     return {
+@@ -32,7 +36,9 @@ export const buildPlayerViewFlags = ({
+         shouldHidePlayerTranslationSubtitle: isPlayerView && hidePlayerTranslationSubtitle,
+         shouldHidePlayerRightPanelButton: isPlayerView && hidePlayerRightPanelButton,
+         canToggleCurrentPlayback: !isNowPlayingControlDisabled && Boolean(
+-            audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0),
++            (isEmbedMode && hasCurrentSong)
++            || audioSrc
++            || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0),
+         ),
+     };
+ };
+diff --git a/src/components/visualizer/cadenza/VisualizerCadenza.tsx b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
+index beb77c63..28ac4406 100644
+--- a/src/components/visualizer/cadenza/VisualizerCadenza.tsx
++++ b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
+@@ -82,6 +82,8 @@ interface WordPlacement {
+     wordGraphemeTimings: GraphemeTiming[];
+     emphasis: number;
+     isInterlude: boolean;
++    /** Wrapped lyrics retain pretext's centered line geometry instead of scattering words. */
++    preserveLineLayout: boolean;
+ }
+ 
+ interface AnimatedPlacementState {
+@@ -137,6 +139,7 @@ const createOverlayWordNodes = (): OverlayWordNodes => {
+     const outer = document.createElement('div');
+     outer.className = 'absolute left-0 top-0';
+     outer.setAttribute('aria-hidden', 'true');
++    outer.dataset.shizukiFoliaActiveLyricWord = 'true';
+ 
+     const inner = document.createElement('div');
+     inner.className = 'whitespace-nowrap';
+@@ -150,6 +153,7 @@ const createOverlayWordNodes = (): OverlayWordNodes => {
+     body.style.position = 'relative';
+     body.style.zIndex = '1';
+     body.style.whiteSpace = 'pre';
++    body.dataset.shizukiFoliaLyricWordBody = 'true';
+ 
+     const glow = document.createElement('span');
+     glow.style.color = 'transparent';
+@@ -433,7 +437,7 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
+     }
+ 
+     return {
+-        opacity: clamp(opacity, 0, 1),
++        opacity: 1,
+         scale,
+         blur,
+     };
+@@ -797,7 +801,7 @@ const buildEmphasisMap = (
+     return emphasisMap;
+ };
+ 
+-const buildWordPlacements = (
++export const buildWordPlacements = (
+     lineData: Array<{
+         line: LayoutLine;
+         lineStart: number;
+@@ -820,7 +824,19 @@ const buildWordPlacements = (
+         : animationIntensity === 'calm'
+             ? 1
+             : 1.01;
+-    const emphasisMap = buildEmphasisMap(lineData, isInterlude);
++    // Pretext has already produced centered line geometry. Promoting a single
++    // glyph to the hero position makes longer CJK text scatter beyond the
++    // embedded viewport even when it still fits on one line, so preserve both
++    // wrapped lyrics and substantial CJK lines as one centered composition.
++    const primaryText = lineData
++        .flatMap(lineView => lineView.fragments)
++        .filter(fragment => fragment.isPrimaryFragment)
++        .map(fragment => fragment.text)
++        .join('')
++        .replace(/\s+/g, '');
++    const preserveWrappedLineLayout = lineData.length > 1
++        || (isCJK(primaryText) && splitGraphemes(primaryText).length >= 6);
++    const emphasisMap = preserveWrappedLineLayout ? new Map<number, number>() : buildEmphasisMap(lineData, isInterlude);
+     const heroWordIndex = [...emphasisMap.entries()]
+         .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+ 
+@@ -1006,6 +1022,11 @@ const buildWordPlacements = (
+             ? Math.atan2(preferredY, preferredX + width / 2)
+             : 0;
+ 
++        if (preserveWrappedLineLayout) {
++            pushPlacementRect(chosenX, chosenY, collisionWidth, collisionHeight, padding);
++            found = true;
++        }
++
+         for (let radius = 0; radius <= maxRadius && !found; radius += step) {
+             const sampleCount = radius === 0
+                 ? 1
+@@ -1068,7 +1089,9 @@ const buildWordPlacements = (
+         const outwardLength = Math.max(Math.hypot(outwardX, outwardY), 1);
+         const outwardUnitX = outwardX / outwardLength;
+         const outwardUnitY = outwardY / outwardLength;
+-        const driftAmount = isInterlude
++        const driftAmount = preserveWrappedLineLayout
++            ? 0
++            : isInterlude
+             ? 3 + random(6) * 3
+             : emphasis > 1
+                 ? 4 + random(6) * 4
+@@ -1101,6 +1124,7 @@ const buildWordPlacements = (
+             wordGraphemeTimings: fragment.wordGraphemeTimings,
+             emphasis,
+             isInterlude,
++            preserveLineLayout: preserveWrappedLineLayout,
+         });
+     });
+ 
+@@ -1492,6 +1516,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+             placements.forEach((placement, placementIndex) => {
+                 const status = getWordStatus(time, lineTiming, placement.word);
+                 const progress = getWordProgress(time, wordRevealMode, placement.word);
++                const preserveLineLayout = placement.preserveLineLayout;
+                 const passedAlpha = isInstantWordReveal
+                     ? 0
+                     : theme.animationIntensity === 'chaotic'
+@@ -1499,9 +1524,12 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+                         : 0.82;
+                 const pulse = status === 'active'
+                     && !isInstantWordReveal
++                    && !preserveLineLayout
+                     ? 1 + Math.sin(time * ACTIVE_PULSE_FREQUENCY + placement.word.startTime * 5) * 0.04 * tuning.motionAmount
+                     : 1;
+-                const passedDriftProgress = isInstantWordReveal ? 0 : getClassicPassedDrift(time, placement.word);
++                const passedDriftProgress = isInstantWordReveal || preserveLineLayout
++                    ? 0
++                    : getClassicPassedDrift(time, placement.word);
+                 const targetScale = status === 'waiting'
+                     ? isInstantWordReveal
+                         ? placement.scale
+@@ -1509,7 +1537,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+                     : status === 'active'
+                         ? isInstantWordReveal
+                             ? placement.scale
+-                            : placement.scale * 1.3 * pulse
++                            : placement.scale * (preserveLineLayout ? 1 : 1.3 * pulse)
+                         : placement.scale;
+                 const targetRotation = status === 'waiting'
+                     ? isInstantWordReveal
+@@ -1520,8 +1548,8 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+                             ? placement.rotate
+                             : placement.rotate + placement.passedRotate * passedDriftProgress
+                         : placement.rotate;
+-                const localFloatX = Math.sin(time * 1.2 + placementIndex * 0.6) * motionEnergy * 4;
+-                const localFloatY = Math.cos(time * 1.5 + placementIndex * 0.4) * motionEnergy * 2.5;
++                const localFloatX = preserveLineLayout ? 0 : Math.sin(time * 1.2 + placementIndex * 0.6) * motionEnergy * 4;
++                const localFloatY = preserveLineLayout ? 0 : Math.cos(time * 1.5 + placementIndex * 0.4) * motionEnergy * 2.5;
+                 const passedDriftX = status === 'passed' ? placement.passedDriftX * passedDriftProgress : 0;
+                 const passedDriftY = status === 'passed' ? placement.passedDriftY * passedDriftProgress : 0;
+                 const targetX = width / 2 + placement.x + localFloatX + passedDriftX + (status === 'waiting' ? placement.entryOffsetX : 0);
+diff --git a/src/components/visualizer/classic/Visualizer.tsx b/src/components/visualizer/classic/Visualizer.tsx
+index d1ae93b6..a59f39d2 100644
+--- a/src/components/visualizer/classic/Visualizer.tsx
++++ b/src/components/visualizer/classic/Visualizer.tsx
+@@ -136,7 +136,7 @@ const getClassicLineContainerMotion = (renderProfile: ClassicLineRenderProfile |
+     }
+ 
+     return {
+-        initial: { opacity: 0, scale: 0.9, filter: 'blur(10px)' },
++        initial: { opacity: 1, scale: 0.9, filter: 'blur(10px)' },
+         animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } },
+         exit: { opacity: 0, scale: 1.1, filter: 'blur(20px)', transition: { duration: 0.3 } },
+     };
+@@ -211,6 +211,7 @@ const Word: React.FC<{
+             variants={layoutVariants}
+             initial="waiting"
+             animate={status}
++            data-shizuki-folia-active-lyric-word="true"
+             // Add `whitespace-nowrap` to prevent unexpected line breaks
+             className="inline-block origin-center relative will-change-transform whitespace-nowrap"
+             style={{
+@@ -262,6 +263,7 @@ const Word: React.FC<{
+                 variants={bodyVariants}
+                 custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
+                 className="relative z-10 block"
++                data-shizuki-folia-lyric-word-body="true"
+             >
+                 {word.text}
+             </motion.span>
+@@ -588,6 +590,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
+                     {showText && activeLine && (
+                         <motion.div
+                             key={activeLine.startTime}
++                            data-shizuki-folia-lyric-line={String(activeLine.startTime)}
+                             initial={activeLineContainerMotion.initial}
+                             animate={activeLineContainerMotion.animate}
+                             exit={activeLineContainerMotion.exit}
+diff --git a/src/components/visualizer/partita/VisualizerPartita.tsx b/src/components/visualizer/partita/VisualizerPartita.tsx
+index f3aa9a7e..b9f24f6a 100644
+--- a/src/components/visualizer/partita/VisualizerPartita.tsx
++++ b/src/components/visualizer/partita/VisualizerPartita.tsx
+@@ -184,7 +184,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
+     }
+ 
+     return {
+-        initial: { opacity: 0, scale: 0.9, filter: 'blur(10px)' },
++        initial: { opacity: 1, scale: 0.9, filter: 'blur(10px)' },
+         animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } },
+         exit: { opacity: 0, scale: 1.1, filter: 'blur(20px)', transition: { duration: 0.3 } },
+     };
+@@ -414,6 +414,7 @@ const PartitaWord: React.FC<{
+             variants={layoutVariants}
+             initial="waiting"
+             animate={status}
++            data-shizuki-folia-active-lyric-word="true"
+             className="inline-block origin-center relative will-change-transform whitespace-nowrap"
+             style={{
+                 fontSize,
+@@ -463,6 +464,7 @@ const PartitaWord: React.FC<{
+                 variants={bodyVariants}
+                 custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
+                 className="relative z-10 block"
++                data-shizuki-folia-lyric-word-body="true"
+             >
+                 {word.text}
+             </motion.span>
+@@ -870,6 +872,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
+                     {showText && activeLine && activeLineRenderProfile && (
+                         <motion.div
+                             key={activeLine.startTime}
++                            data-shizuki-folia-lyric-line={String(activeLine.startTime)}
+                             initial={activeLineContainerMotion.initial}
+                             animate={activeLineContainerMotion.animate}
+                             exit={activeLineContainerMotion.exit}
+diff --git a/src/hooks/usePlaybackInteractionBridge.ts b/src/hooks/usePlaybackInteractionBridge.ts
+index 78cca104..babe3d50 100644
+--- a/src/hooks/usePlaybackInteractionBridge.ts
++++ b/src/hooks/usePlaybackInteractionBridge.ts
+@@ -15,6 +15,7 @@ import { setIsPanelOpen, useAppViewStore } from '../stores/useAppViewStore';
+ import { setIsDevDebugOverlayVisible, setIsMemoryMonitorVisible } from '../stores/useAppChromeStore';
+ import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
+ import { currentTime } from '../stores/motionSignals';
++import { sendEmbeddedPlaybackCommand } from '../services/shizukiEmbeddedPlayback';
+ 
+ // src/hooks/usePlaybackInteractionBridge.ts
+ 
+@@ -137,6 +138,9 @@ export function usePlaybackInteractionBridge({
+             return;
+         }
+ 
++        const embeddedPlayerState = usePlaybackStore.getState().playerState;
++        if (sendEmbeddedPlaybackCommand(embeddedPlayerState === PlayerState.PLAYING ? 'pause' : 'play')) return;
++
+         if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+             if (playerState === PlayerState.PLAYING) {
+                 pausePlayback();
+diff --git a/src/hooks/usePlaybackQueueController.ts b/src/hooks/usePlaybackQueueController.ts
+index 5a5f273c..162823d6 100644
+--- a/src/hooks/usePlaybackQueueController.ts
++++ b/src/hooks/usePlaybackQueueController.ts
+@@ -39,6 +39,7 @@ import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
+ import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
+ import { useStableActionSurface } from './useStableCallbacks';
+ import { hasBeforePlayHook, runBeforePlayHook } from '../services/hostExtensionHooks';
++import { isShizukiEmbedSurface, sendEmbeddedTrackIntent } from '../services/shizukiEmbeddedPlayback';
+ 
+ // src/hooks/usePlaybackQueueController.ts
+ 
+@@ -444,6 +445,9 @@ export function usePlaybackQueueController({
+         isFmCall: boolean = false,
+         options: PlaybackNavigationOptions = {}
+     ) => {
++        // In the site embed the parent owns resolution, lyrics, and the audio element.
++        // Forward the user's selection before any Folia-side lookup can race it.
++        if (sendEmbeddedTrackIntent(requestedSong)) return;
+         // Extension layers (Folium `playback.beforePlay`) may cancel or redirect this play.
+         // Without an installed hook this is skipped entirely, so the common path stays synchronous.
+         // The hook is async, so a later playSong may finish its hook first; this call then drops
+@@ -1283,7 +1287,7 @@ export function usePlaybackQueueController({
+         setPlayQueue(nextQueue);
+         setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' });
+ 
+-        if (currentSong && nextQueue.length > 1) {
++        if (!isShizukiEmbedSurface() && currentSong && nextQueue.length > 1) {
+             invalidateAndRefetch(currentSong, nextQueue, audioQuality, userId);
+         }
+     }, [audioQuality, currentSong, isNowPlayingStageActive, playQueue, setPlayQueue, setStatusMsg, t, userId]);
+diff --git a/src/index.tsx b/src/index.tsx
+index 1913f8d9..a5501f6f 100644
+--- a/src/index.tsx
++++ b/src/index.tsx
+@@ -22,4 +22,9 @@ installMemorySampleFeed();
+ // if (import.meta.env.DEV) installCoverSizeAudit();
+ installGlobalVisualizerFrameRateLimiter();
+ 
++// Shizuki-site external control bridge (cookie sync + play-track + status).
++// Installed before the app bundle so the iframe can be driven by the parent page.
++import { installShizukiExternalBridge } from './shizukiExternalBridge';
++installShizukiExternalBridge();
++
+ void import('./bootstrap');
+diff --git a/src/index.tsx.bak b/src/index.tsx.bak
+new file mode 100644
+index 00000000..1913f8d9
+--- /dev/null
++++ b/src/index.tsx.bak
+@@ -0,0 +1,25 @@
++import { Buffer } from 'buffer';
++import { installGlobalVisualizerFrameRateLimiter } from './utils/frameRateLimiter';
++import { installConsoleLogCapture } from './utils/consoleLogBuffer';
++import { installDebugModule } from './services/debug/debugModule';
++import { installMemorySampleFeed } from './services/debug/memorySamples';
++// import { installCoverSizeAudit } from './services/debug/coverSizeSamples';
++// @ts-ignore
++globalThis.Buffer = Buffer;
++// First, so the debug overlay's console tab has the startup lines too - they are where a failure
++// to reach a library or restore a session shows up.
++installConsoleLogCapture();
++// Right after it, so the startup lines reach the runtime log file too and not only the in-memory
++// buffer. Both no-op off Electron. See services/debug/debugModule.ts.
++installDebugModule();
++installMemorySampleFeed();
++// Cover size audit, left wired but switched off: it answered whether the provider CDNs honour the
++// size in a cover URL - they do - and that is not a question worth re-asking every session. The
++// collector and its panel are still in the tree, and `?probe=coverSizeAudit` still reaches them.
++// To bring the tab back, uncomment this line and the four sites in DevDebugOverlay.tsx. It was dev
++// only even then: a packaged build has nothing to do with the answer, so it should not pay the
++// observer or the rows it retains.
++// if (import.meta.env.DEV) installCoverSizeAudit();
++installGlobalVisualizerFrameRateLimiter();
++
++void import('./bootstrap');
+diff --git a/src/services/shizukiEmbeddedPlayback.ts b/src/services/shizukiEmbeddedPlayback.ts
+new file mode 100644
+index 00000000..d35717af
+--- /dev/null
++++ b/src/services/shizukiEmbeddedPlayback.ts
+@@ -0,0 +1,55 @@
++type PlaybackCommand = {
++  type: 'shizuki:playback-command';
++  action: 'play' | 'pause' | 'seek' | 'next' | 'previous';
++  positionMs?: number;
++};
++
++type PlaybackIntent = {
++  type: 'shizuki:playback-intent';
++  track: unknown;
++  positionMs: number;
++  playing: true;
++};
++
++type PlaybackClock = { set: (seconds: number) => void };
++
++export const projectEmbeddedPlaybackClock = (
++  positionSec: number,
++  playbackClock: PlaybackClock,
++  lyricClock: PlaybackClock,
++): number => {
++  const safePosition = Number.isFinite(positionSec) ? Math.max(0, positionSec) : 0;
++  playbackClock.set(safePosition);
++  lyricClock.set(safePosition);
++  return safePosition;
++};
++
++export const isShizukiEmbedSurface = (): boolean => (
++  typeof document !== 'undefined' && document.getElementById('folia-embed-root') !== null
++);
++
++const postToSite = (message: PlaybackCommand | PlaybackIntent): boolean => {
++  if (!isShizukiEmbedSurface() || typeof window === 'undefined') return false;
++  try {
++    window.parent.postMessage(message, '*');
++    return true;
++  } catch {
++    return false;
++  }
++};
++
++export const sendEmbeddedPlaybackCommand = (
++  action: PlaybackCommand['action'],
++  positionSec?: number,
++): boolean => postToSite({
++  type: 'shizuki:playback-command',
++  action,
++  ...(action === 'seek' ? { positionMs: Math.max(0, Math.round(Number(positionSec || 0) * 1000)) } : {}),
++});
++
++export const sendEmbeddedTrackIntent = (track: unknown): boolean => postToSite({
++  type: 'shizuki:playback-intent',
++  track,
++  positionMs: 0,
++  playing: true,
++});
+diff --git a/src/shizukiExternalBridge.ts b/src/shizukiExternalBridge.ts
+new file mode 100644
+index 00000000..51b21044
+--- /dev/null
++++ b/src/shizukiExternalBridge.ts
+@@ -0,0 +1,1159 @@
++/**
++ * Shizuki-site external bridge for the Folia (AGPL-3.0) web player.
++ *
++ * In embedded mode the surrounding site owns the real playback session and
++ * the only audible HTMLAudioElement. Folia receives a versioned, complete
++ * session snapshot solely to render its immersive UI, then relays user
++ * actions back to the site as commands or track-selection intents.
++ */
++
++import { PlayerState, type LyricData, type SongResult } from './types';
++import { usePlaybackStore } from './stores/usePlaybackStore';
++import { useTypographySettingsStore } from './stores/useTypographySettingsStore';
++import { currentTime, lyricCurrentTime } from './stores/motionSignals';
++import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
++import { projectEmbeddedPlaybackClock } from './services/shizukiEmbeddedPlayback';
++
++const COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie'];
++const EMBED_AUDIO_SELECTOR = '#folia-embed-root audio';
++
++type UnknownRecord = Record<string, unknown>;
++
++type FollowSession = {
++  version: number;
++  track: UnknownRecord | null;
++  queue: UnknownRecord[];
++  playlist: UnknownRecord | null;
++  lyrics: UnknownRecord[];
++  lyricRenderMode: string;
++  lyricIndex: number;
++  positionMs: number;
++  durationMs: number;
++  playing: boolean;
++};
++
++let followPlaybackActive = false;
++let followClockFrame = 0;
++let followClockPositionSec = 0;
++let followClockStartedAt = 0;
++let followClockPlaying = false;
++let applyingFollowSession = false;
++let latestFollowSessionVersion = -1;
++let latestFollowLyricsFingerprint = '';
++let audioLockInstalled = false;
++let progressSeekBridgeInstalled = false;
++let navigationBridgeInstalled = false;
++let lastFollowSeekPositionSec = -1;
++let lastFollowSeekAt = 0;
++let activeProgressInput: HTMLInputElement | null = null;
++let activeProgressPointerId: number | null = null;
++let cookieBridgeInstalled = false;
++let lastReportedCookie = '';
++let embedWallpaperStyleInstalled = false;
++let embedWallpaperObserver: MutationObserver | null = null;
++let embedLyricColorStyleInstalled = false;
++let embedLyricSizingInstalled = false;
++let embedLyricBaseScale: number | null = null;
++let embedLyricAppliedScale: number | null = null;
++let embedLyricSizingAuditFrame = 0;
++let embedLyricSizingAuditFrames = 0;
++let embedLyricGeometryLineKey = '';
++let embedLyricGeometrySnapshot: { center: number; width: number } | null = null;
++let embedLyricGeometryStableFrames = 0;
++let embedLyricGeometryCommittedLineKey = '';
++let embedLyricMeasuredRootWidth = 0;
++let embedLyricHorizontalCorrection: {
++  element: HTMLElement;
++  lineKey: string;
++  originalInlineTranslate: string;
++  appliedOffset: number;
++} | null = null;
++
++const EMBED_LYRIC_HORIZONTAL_GUTTER = 32;
++const EMBED_LYRIC_PRIMARY_FONT_SCALE = 2;
++const EMBED_LYRIC_ACTIVE_WORD_SELECTOR = '[data-shizuki-folia-active-lyric-word]';
++const EMBED_LYRIC_LINE_SELECTOR = '[data-shizuki-folia-lyric-line]';
++const EMBED_LYRIC_STABLE_GEOMETRY_FRAMES = 4;
++const EMBED_LYRIC_STABILITY_RATIO = 0.015;
++const EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY = 1.6;
++
++function cssBackgroundImage(url: string): string {
++  const normalized = String(url || '').trim();
++  return normalized ? `url(${JSON.stringify(normalized)})` : 'none';
++}
++
++/**
++ * The site owns the ambient blur outside Folia. This layer keeps the actual
++ * player surface on the unfiltered Home wallpaper, including when its host
++ * enters native fullscreen.
++ */
++function installEmbedWallpaperStyle(): void {
++  if (embedWallpaperStyleInstalled || typeof document === 'undefined') return;
++  embedWallpaperStyleInstalled = true;
++  const style = document.createElement('style');
++  style.id = 'shizuki-folia-wallpaper-style';
++  style.textContent = `
++#folia-embed-root[data-shizuki-wallpaper='active'] { isolation: isolate; background: #0b0e14; }
++#folia-embed-root[data-shizuki-wallpaper='active']::before {
++  content: '';
++  position: absolute;
++  inset: 0;
++  z-index: 0;
++  pointer-events: none;
++  background-image: var(--shizuki-folia-wallpaper-image);
++  background-position: center;
++  background-size: cover;
++  background-repeat: no-repeat;
++}
++#folia-embed-root[data-shizuki-wallpaper='active'] > * {
++  position: relative;
++  z-index: 1;
++  background-color: transparent !important;
++}
++#folia-embed-root[data-shizuki-wallpaper='active'] [data-shizuki-folia-default-background='hidden'] {
++  opacity: 0 !important;
++  background-color: transparent !important;
++}
++#folia-embed-root[data-shizuki-wallpaper='active']:fullscreen::before,
++.folia-embed-pane:fullscreen #folia-embed-root[data-shizuki-wallpaper='active']::before,
++.folia-embed-pane[data-folia-expanded='true'] #folia-embed-root[data-shizuki-wallpaper='active']::before {
++  background-size: cover;
++}
++`;
++  document.head.appendChild(style);
++}
++
++function applyEmbedWallpaper(rawSource: unknown, rawPreview: unknown): void {
++  const root = document.getElementById('folia-embed-root');
++  if (!root) return;
++  const source = String(rawSource || rawPreview || '').trim();
++  if (!source) {
++    delete root.dataset.shizukiWallpaper;
++    delete root.dataset.shizukiWallpaperUrl;
++    root.dataset.shizukiWallpaperState = 'empty';
++    root.querySelectorAll('[data-shizuki-folia-default-background]').forEach((element) => {
++      element.removeAttribute('data-shizuki-folia-default-background');
++    });
++    root.style.setProperty('--shizuki-folia-wallpaper-image', 'none');
++    return;
++  }
++  root.dataset.shizukiWallpaper = 'active';
++  root.dataset.shizukiWallpaperUrl = source;
++  root.dataset.shizukiWallpaperState = 'waiting-for-default-layer';
++  root.style.setProperty('--shizuki-folia-wallpaper-image', cssBackgroundImage(source));
++  markEmbeddedDefaultBackground(root);
++  observeEmbeddedDefaultBackground(root);
++}
++
++function applyEmbedLyricColor(rawColor: unknown): void {
++  const root = document.getElementById('folia-embed-root');
++  if (!root) return;
++  const color = String(rawColor || '').trim();
++  if (!/^#[\da-f]{6}$/i.test(color)) {
++    delete root.dataset.shizukiLyricColor;
++    root.style.removeProperty('--shizuki-folia-lyric-color');
++    return;
++  }
++
++  if (!embedLyricColorStyleInstalled) {
++    const style = document.createElement('style');
++    style.id = 'shizuki-folia-lyric-color-style';
++    style.textContent = `
++#folia-embed-root[data-shizuki-lyric-color='custom'] [data-shizuki-folia-lyric-word-body] {
++  color: var(--shizuki-folia-lyric-color) !important;
++}
++`;
++    document.head.appendChild(style);
++    embedLyricColorStyleInstalled = true;
++  }
++
++  root.dataset.shizukiLyricColor = 'custom';
++  root.style.setProperty('--shizuki-folia-lyric-color', color);
++}
++
++/**
++ * Folia's default latent canvas paints an opaque theme-color rectangle behind
++ * the player. It is useful standalone, but in an embedded Home-wallpaper view
++ * it would hide the supplied image completely. Mark exactly that canvas host;
++ * visualizer foregrounds and every normal UI layer stay untouched.
++ */
++function markEmbeddedDefaultBackground(root: HTMLElement): void {
++  if (root.dataset.shizukiWallpaper !== 'active') return;
++  const shader = root.querySelector<HTMLElement>('[data-paper-shader]');
++  const host = shader?.closest<HTMLElement>('.absolute.inset-0.z-0.overflow-hidden');
++  if (!host) return;
++  host.setAttribute('data-shizuki-folia-default-background', 'hidden');
++  root.dataset.shizukiWallpaperState = 'ready';
++}
++
++function observeEmbeddedDefaultBackground(root: HTMLElement): void {
++  if (embedWallpaperObserver) return;
++  embedWallpaperObserver = new MutationObserver(() => markEmbeddedDefaultBackground(root));
++  embedWallpaperObserver.observe(root, { childList: true, subtree: true });
++}
++
++/**
++ * Folia visualizers size their primary line in viewport units. The embedded
++ * music surface is narrower than the browser viewport. Long CJK lines are
++ * often one unbreakable text segment, so fit that content as well as the
++ * workspace itself instead of relying on viewport width alone.
++ */
++function getEmbedLyricWeightedGraphemeWidth(text: string): number {
++  return Array.from(text).reduce((width, grapheme) => {
++    if (/\s/u.test(grapheme)) return width + 0.34;
++    if (/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\uff00-\uffef]/u.test(grapheme)) return width + 1;
++    if (/[A-Z0-9]/u.test(grapheme)) return width + 0.7;
++    if (/[a-z]/u.test(grapheme)) return width + 0.58;
++    return width + 0.48;
++  }, 0);
++}
++
++function getEmbedLyricAvailableWidth(root: HTMLElement): number {
++  return Math.max(1, root.clientWidth - EMBED_LYRIC_HORIZONTAL_GUTTER * 2);
++}
++
++function isEmbedLyricElementVisible(element: HTMLElement, root: HTMLElement): boolean {
++  let current: HTMLElement | null = element;
++  while (current) {
++    const style = window.getComputedStyle(current);
++    if (
++      style.display === 'none'
++      || style.visibility === 'hidden'
++      || Number.parseFloat(style.opacity || '1') <= 0.01
++    ) {
++      return false;
++    }
++    if (current === root) return true;
++    current = current.parentElement;
++  }
++  return false;
++}
++
++function getEmbedActiveLyricScope(root: HTMLElement, activeLine: { startTime: number }): HTMLElement | null {
++  const lineKey = String(activeLine.startTime);
++  return Array.from(root.querySelectorAll<HTMLElement>(EMBED_LYRIC_LINE_SELECTOR))
++    .find((element) => element.dataset.shizukiFoliaLyricLine === lineKey) ?? null;
++}
++
++function measureEmbedActiveLyricBounds(root: HTMLElement, activeLine: { startTime: number }): {
++  left: number;
++  right: number;
++  width: number;
++  layoutWidth: number;
++} | null {
++  const scope = getEmbedActiveLyricScope(root, activeLine);
++  if (!scope) return null;
++  let left = Number.POSITIVE_INFINITY;
++  let right = Number.NEGATIVE_INFINITY;
++  let layoutWidth = 0;
++
++  scope.querySelectorAll<HTMLElement>(EMBED_LYRIC_ACTIVE_WORD_SELECTOR).forEach((element) => {
++    const style = window.getComputedStyle(element);
++    if (style.display === 'none' || style.visibility === 'hidden') return;
++    const marginLeft = Number.parseFloat(style.marginLeft || '0') || 0;
++    const marginRight = Number.parseFloat(style.marginRight || '0') || 0;
++    layoutWidth += Math.max(0, element.offsetWidth) + marginLeft + marginRight;
++    if (!isEmbedLyricElementVisible(element, root)) return;
++    const rect = element.getBoundingClientRect();
++    if (rect.width <= 0 || rect.height <= 0) return;
++    left = Math.min(left, rect.left);
++    right = Math.max(right, rect.right);
++  });
++
++  if (!Number.isFinite(left) || !Number.isFinite(right)) {
++    return layoutWidth > 0 ? { left: 0, right: 0, width: 0, layoutWidth } : null;
++  }
++  return { left, right, width: Math.max(0, right - left), layoutWidth };
++}
++
++function isEmbedLyricGeometryStable(
++  activeLine: { startTime: number },
++  bounds: { left: number; right: number; width: number },
++): boolean {
++  const lineKey = String(activeLine.startTime);
++  const center = (bounds.left + bounds.right) / 2;
++  if (embedLyricGeometryLineKey !== lineKey) {
++    embedLyricGeometryLineKey = lineKey;
++    embedLyricGeometrySnapshot = { center, width: bounds.width };
++    embedLyricGeometryStableFrames = 0;
++    embedLyricGeometryCommittedLineKey = '';
++    return false;
++  }
++  if (embedLyricGeometryCommittedLineKey === lineKey) return true;
++
++  const previous = embedLyricGeometrySnapshot;
++  embedLyricGeometrySnapshot = { center, width: bounds.width };
++  if (!previous) return false;
++  const tolerance = Math.max(
++    1.5,
++    Math.max(previous.width, bounds.width) * EMBED_LYRIC_STABILITY_RATIO,
++  );
++  const stable = Math.abs(previous.center - center) <= tolerance
++    && Math.abs(previous.width - bounds.width) <= tolerance;
++  embedLyricGeometryStableFrames = stable ? embedLyricGeometryStableFrames + 1 : 0;
++  if (embedLyricGeometryStableFrames < EMBED_LYRIC_STABLE_GEOMETRY_FRAMES) return false;
++  embedLyricGeometryCommittedLineKey = lineKey;
++  return true;
++}
++
++function resetEmbedLyricGeometry(): void {
++  embedLyricGeometryLineKey = '';
++  embedLyricGeometrySnapshot = null;
++  embedLyricGeometryStableFrames = 0;
++  embedLyricGeometryCommittedLineKey = '';
++}
++
++function restoreEmbedLyricHorizontalCorrection(): void {
++  const correction = embedLyricHorizontalCorrection;
++  if (!correction) return;
++  if (correction.originalInlineTranslate) {
++    correction.element.style.setProperty('translate', correction.originalInlineTranslate);
++  } else {
++    correction.element.style.removeProperty('translate');
++  }
++  delete correction.element.dataset.shizukiFoliaLyricOffset;
++  embedLyricHorizontalCorrection = null;
++}
++
++function resolveEmbedLyricHorizontalOffset(
++  bounds: { left: number; right: number },
++  safeLeft: number,
++  safeRight: number,
++): number {
++  const minimumOffset = safeLeft - bounds.left;
++  const maximumOffset = safeRight - bounds.right;
++  if (minimumOffset <= maximumOffset) {
++    return Math.min(maximumOffset, Math.max(minimumOffset, 0));
++  }
++  return ((safeLeft + safeRight) - (bounds.left + bounds.right)) / 2;
++}
++
++function syncEmbedLyricHorizontalCorrection(
++  root: HTMLElement,
++  activeLine: { startTime: number },
++): void {
++  const lineKey = String(activeLine.startTime);
++  if (embedLyricGeometryCommittedLineKey !== lineKey) return;
++
++  const scope = getEmbedActiveLyricScope(root, activeLine);
++  if (!scope) {
++    restoreEmbedLyricHorizontalCorrection();
++    resetEmbedLyricGeometry();
++    return;
++  }
++  if (
++    embedLyricHorizontalCorrection
++    && (
++      embedLyricHorizontalCorrection.lineKey !== lineKey
++      || embedLyricHorizontalCorrection.element !== scope
++      || !embedLyricHorizontalCorrection.element.isConnected
++    )
++  ) {
++    restoreEmbedLyricHorizontalCorrection();
++    resetEmbedLyricGeometry();
++    return;
++  }
++
++  const renderedBounds = measureEmbedActiveLyricBounds(root, activeLine);
++  if (!renderedBounds || renderedBounds.width <= 0) return;
++  const appliedOffset = embedLyricHorizontalCorrection?.appliedOffset ?? 0;
++  const uncorrectedBounds = {
++    left: renderedBounds.left - appliedOffset,
++    right: renderedBounds.right - appliedOffset,
++  };
++  const rootRect = root.getBoundingClientRect();
++  const safeLeft = rootRect.left + EMBED_LYRIC_HORIZONTAL_GUTTER;
++  const safeRight = rootRect.right - EMBED_LYRIC_HORIZONTAL_GUTTER;
++  const maximumCorrection = Math.max(root.clientWidth, EMBED_LYRIC_HORIZONTAL_GUTTER * 2);
++  const resolvedOffset = resolveEmbedLyricHorizontalOffset(uncorrectedBounds, safeLeft, safeRight);
++  const nextOffset = Math.max(-maximumCorrection, Math.min(maximumCorrection, resolvedOffset));
++  const normalizedOffset = Math.abs(nextOffset) < 0.5 ? 0 : nextOffset;
++
++  if (normalizedOffset === 0) {
++    restoreEmbedLyricHorizontalCorrection();
++    return;
++  }
++  if (
++    embedLyricHorizontalCorrection
++    && Math.abs(embedLyricHorizontalCorrection.appliedOffset - normalizedOffset) < 0.5
++  ) {
++    return;
++  }
++  if (!embedLyricHorizontalCorrection) {
++    embedLyricHorizontalCorrection = {
++      element: scope,
++      lineKey,
++      originalInlineTranslate: scope.style.getPropertyValue('translate'),
++      appliedOffset: 0,
++    };
++  }
++  embedLyricHorizontalCorrection.appliedOffset = normalizedOffset;
++  scope.dataset.shizukiFoliaLyricOffset = normalizedOffset.toFixed(3);
++  // CSS translate is independent from Framer Motion's transform property.
++  scope.style.setProperty('translate', `${normalizedOffset.toFixed(3)}px 0`);
++}
++
++function resolveEmbedLyricContentScale(
++  root: HTMLElement,
++  preferredScale: number,
++  currentScale: number,
++): number {
++  const state = usePlaybackStore.getState();
++  const lines = state.lyrics?.lines ?? [];
++  const activeLine = lines[state.currentLineIndex] ?? null;
++  const text = String(activeLine?.fullText || '').trim();
++  if (!text) return 1;
++
++  const weightedGraphemeWidth = getEmbedLyricWeightedGraphemeWidth(text);
++  if (weightedGraphemeWidth < 2) return 1;
++
++  const availableTextWidth = getEmbedLyricAvailableWidth(root);
++  const safePreferredScale = Math.max(Number(preferredScale) || 1, 0.01);
++  const safeCurrentScale = Math.max(Number(currentScale) || safePreferredScale, 0.01);
++  const renderedBounds = measureEmbedActiveLyricBounds(root, activeLine);
++  if (renderedBounds) {
++    const layoutScale = renderedBounds.layoutWidth > 0
++      ? Math.min(
++        1,
++        (safeCurrentScale * availableTextWidth)
++          / (renderedBounds.layoutWidth * EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY * safePreferredScale),
++      )
++      : 1;
++    if (
++      renderedBounds.width <= 0
++      || !isEmbedLyricGeometryStable(activeLine, renderedBounds)
++    ) {
++      // Framer Motion first exposes the new line at its waiting pose, then
++      // springs every word into place. offsetWidth is transform-independent,
++      // so use it until several consecutive frames agree on the final bounds.
++      return Math.max(0.01, layoutScale);
++    }
++    const maximumGrowth = safePreferredScale / safeCurrentScale;
++    const widthScale = availableTextWidth / renderedBounds.width;
++    const measuredScale = Math.max(
++      0.01,
++      Math.min(widthScale, maximumGrowth),
++    );
++    // DOMRects include the active-word transforms and random line placement.
++    // Convert that measured contraction back to the preferred-scale basis.
++    const visualScale = Math.min(
++      1,
++      (safeCurrentScale * measuredScale) / safePreferredScale,
++    );
++    // Word-level highlight transforms keep moving after the line container has
++    // settled. They may briefly squeeze the measured half-width near one edge;
++    // never let that animated pose undercut the transform-independent layout
++    // width that already reserves emphasis headroom for the complete line.
++    return Math.max(layoutScale, visualScale);
++  }
++
++  // Before Cadenza has mounted its word nodes, match its two-times font tuning
++  // instead of the unscaled 94px viewport baseline used by the old estimate.
++  const baseFontPx = Math.min(
++    94 * EMBED_LYRIC_PRIMARY_FONT_SCALE,
++    Math.max(34 * EMBED_LYRIC_PRIMARY_FONT_SCALE, root.clientWidth * 0.086 * EMBED_LYRIC_PRIMARY_FONT_SCALE),
++  );
++  const estimatedLineWidth = weightedGraphemeWidth
++    * baseFontPx
++    * safePreferredScale
++    * EMBED_LYRIC_ACTIVE_WORD_TRANSFORM_SAFETY;
++  return Math.min(1, availableTextWidth / Math.max(estimatedLineWidth, 1));
++}
++
++function syncEmbedLyricSizing(): void {
++  const root = document.getElementById('folia-embed-root');
++  if (!root || root.clientWidth < 240 || typeof window === 'undefined') {
++    restoreEmbedLyricHorizontalCorrection();
++    resetEmbedLyricGeometry();
++    return;
++  }
++  if (Math.abs(embedLyricMeasuredRootWidth - root.clientWidth) > 1) {
++    embedLyricMeasuredRootWidth = root.clientWidth;
++    restoreEmbedLyricHorizontalCorrection();
++    resetEmbedLyricGeometry();
++  }
++  const playback = usePlaybackStore.getState();
++  const activeLine = playback.lyrics?.lines?.[playback.currentLineIndex] ?? null;
++  if (!activeLine) {
++    restoreEmbedLyricHorizontalCorrection();
++    resetEmbedLyricGeometry();
++    return;
++  }
++  const activeLineKey = String(activeLine.startTime);
++  const activeScope = getEmbedActiveLyricScope(root, activeLine);
++  if (
++    embedLyricHorizontalCorrection
++    && (
++      embedLyricHorizontalCorrection.lineKey !== activeLineKey
++      || embedLyricHorizontalCorrection.element !== activeScope
++      || !embedLyricHorizontalCorrection.element.isConnected
++    )
++  ) {
++    restoreEmbedLyricHorizontalCorrection();
++    resetEmbedLyricGeometry();
++  }
++  const settings = useTypographySettingsStore.getState();
++  const currentScale = Number(settings.lyricsFontScale) || 1;
++  if (embedLyricBaseScale === null || (
++    embedLyricAppliedScale !== null
++    && Math.abs(currentScale - embedLyricAppliedScale) > 0.005
++  )) {
++    embedLyricBaseScale = currentScale;
++  }
++  const viewportWidth = Math.max(1, window.innerWidth || root.clientWidth);
++  const widthRatio = Math.min(1, Math.max(0, (root.clientWidth / viewportWidth) * 1.15));
++  const preferredScale = embedLyricBaseScale ?? 1;
++  const contentScale = resolveEmbedLyricContentScale(root, preferredScale, currentScale);
++  const nextScale = Math.max(
++    0.01,
++    Math.min(preferredScale, preferredScale * widthRatio, preferredScale * contentScale),
++  );
++  if (Math.abs(currentScale - nextScale) < 0.005) {
++    syncEmbedLyricHorizontalCorrection(root, activeLine);
++    return;
++  }
++  restoreEmbedLyricHorizontalCorrection();
++  resetEmbedLyricGeometry();
++  embedLyricAppliedScale = nextScale;
++  // setState deliberately avoids persisting an embed-only presentation value.
++  useTypographySettingsStore.setState({ lyricsFontScale: nextScale });
++}
++
++function scheduleEmbedLyricSizingAudit(frameCount = 90): void {
++  embedLyricSizingAuditFrames = Math.max(
++    embedLyricSizingAuditFrames,
++    Math.max(1, Math.floor(frameCount)),
++  );
++  if (embedLyricSizingAuditFrame) return;
++  const run = () => {
++    embedLyricSizingAuditFrame = 0;
++    syncEmbedLyricSizing();
++    embedLyricSizingAuditFrames -= 1;
++    if (embedLyricSizingAuditFrames > 0) {
++      embedLyricSizingAuditFrame = window.requestAnimationFrame(run);
++    }
++  };
++  embedLyricSizingAuditFrame = window.requestAnimationFrame(run);
++}
++
++function installEmbedLyricSizing(): void {
++  if (embedLyricSizingInstalled || typeof document === 'undefined') return;
++  embedLyricSizingInstalled = true;
++  const root = document.getElementById('folia-embed-root');
++  if (root && typeof ResizeObserver !== 'undefined') {
++    new ResizeObserver(() => scheduleEmbedLyricSizingAudit()).observe(root);
++  }
++  window.addEventListener('resize', () => scheduleEmbedLyricSizingAudit());
++  scheduleEmbedLyricSizingAudit();
++}
++
++function readFollowSong(rawTrack: UnknownRecord | null | undefined): SongResult | null {
++  if (!rawTrack) return null;
++  const id = Number(rawTrack.foliaId ?? rawTrack.id ?? rawTrack.trackId ?? rawTrack.track_id);
++  if (!Number.isFinite(id) || id <= 0) return null;
++  const rawArtists = Array.isArray(rawTrack.artists) ? rawTrack.artists : [];
++  const artistText = String(rawTrack.artist || '').trim();
++  const artists = rawArtists.length
++    ? rawArtists
++    : artistText.split(/\s*[/,&]\s*/).filter(Boolean).map((name) => ({ name }));
++  const rawAlbum = rawTrack.album && typeof rawTrack.album === 'object'
++    ? rawTrack.album as UnknownRecord
++    : {};
++  const durationMs = Number(
++    rawTrack.durationMs
++      ?? rawTrack.duration_ms
++      ?? (Number(rawTrack.durationSec ?? rawTrack.duration_sec ?? rawTrack.duration) || 0) * 1000,
++  );
++  return {
++    ...rawTrack,
++    // Never retain a main-site media address in Folia's display store.
++    audio: undefined,
++    url: undefined,
++    src: undefined,
++    id,
++    name: String(rawTrack.name || rawTrack.title || ''),
++    artists,
++    album: {
++      ...rawAlbum,
++      coverUrl: String(rawAlbum.coverUrl || rawAlbum.picUrl || rawTrack.cover || rawTrack.coverUrl || rawTrack.cover_url || ''),
++    },
++    durationMs: Number.isFinite(durationMs) ? durationMs : 0,
++  } as unknown as SongResult;
++}
++
++function readFollowQueue(rawQueue: unknown): SongResult[] {
++  if (!Array.isArray(rawQueue)) return [];
++  return rawQueue
++    .map((item) => (item && typeof item === 'object' ? readFollowSong(item as UnknownRecord) : null))
++    .filter((item): item is SongResult => item !== null);
++}
++
++function readSeconds(value: unknown, fallback = 0): number {
++  const parsed = Number(value);
++  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
++}
++
++function buildFollowLyrics(rawLyrics: unknown, song: SongResult | null, durationMs: number): LyricData | null {
++  if (!Array.isArray(rawLyrics)) return null;
++  const rows = rawLyrics
++    .filter((entry): entry is UnknownRecord => Boolean(entry) && typeof entry === 'object')
++    .map((entry) => {
++      const time = readSeconds(entry.time);
++      const declaredEndTime = Number(entry.endTime);
++      return {
++        time,
++        // Plain LRC has no declared line end. A null end must remain absent so
++        // the next line's start defines the visible interval, rather than 0.01s.
++        endTime: Number.isFinite(declaredEndTime) && declaredEndTime > time ? declaredEndTime : null,
++        original: String(entry.original || entry.text || '').trim(),
++        translation: String(entry.translation || '').trim(),
++        furigana: String(entry.furigana || entry.romanization || '').trim(),
++        words: Array.isArray(entry.words) ? entry.words : [],
++      };
++    })
++    .filter((entry) => entry.original)
++    .sort((left, right) => left.time - right.time);
++  if (!rows.length) return null;
++
++  const durationSec = Math.max(0, Number(durationMs || 0) / 1000);
++  const lines: LyricData['lines'] = rows.map((entry, index) => {
++    const nextStart = rows[index + 1]?.time;
++    const fallbackEnd = Number.isFinite(nextStart)
++      ? Number(nextStart)
++      : (durationSec > entry.time ? durationSec : entry.time + 5);
++    const endTime = Math.max(entry.time + 0.01, entry.endTime ?? fallbackEnd);
++    const words = entry.words
++      .filter((word): word is UnknownRecord => Boolean(word) && typeof word === 'object')
++      .map((word) => {
++        const startTime = readSeconds(word.time ?? word.startTime, entry.time);
++        const declaredWordEnd = Number(word.endTime ?? word.end);
++        const wordEnd = Number.isFinite(declaredWordEnd) && declaredWordEnd > startTime
++          ? declaredWordEnd
++          : Math.min(endTime, startTime + 0.25);
++        return {
++          text: String(word.text || '').trim(),
++          startTime,
++          endTime: Math.max(startTime + 0.01, wordEnd),
++        };
++      })
++      .filter((word) => word.text);
++    return {
++      startTime: entry.time,
++      endTime,
++      fullText: entry.original,
++      words: words.length ? words : [{ text: entry.original, startTime: entry.time, endTime }],
++      ...(entry.translation ? { translation: entry.translation } : {}),
++      ...(entry.furigana ? { romanization: entry.furigana } : {}),
++    };
++  });
++
++  const artist = Array.isArray(song?.artists)
++    ? song.artists.map((item) => String(item?.name || '')).filter(Boolean).join(' / ')
++    : '';
++  return {
++    lines,
++    title: String(song?.name || ''),
++    artist,
++    isWordByWord: rows.some((entry) => entry.words.length > 0),
++  };
++}
++
++function buildFollowLyricsFingerprint(
++  rawLyrics: unknown,
++  song: SongResult | null,
++  durationMs: number,
++): string {
++  const artists = Array.isArray(song?.artists)
++    ? song.artists.map((artist) => String(artist?.name || ''))
++    : [];
++  return JSON.stringify([
++    Number(song?.id || 0),
++    String(song?.name || ''),
++    artists,
++    Math.max(0, Number(durationMs) || 0),
++    Array.isArray(rawLyrics) ? rawLyrics : [],
++  ]);
++}
++
++function readFollowSession(raw: unknown): FollowSession | null {
++  if (!raw || typeof raw !== 'object') return null;
++  const data = raw as UnknownRecord;
++  const version = Number(data.version);
++  if (!Number.isInteger(version) || version < 0) return null;
++  const track = data.track && typeof data.track === 'object' ? data.track as UnknownRecord : null;
++  const queue = Array.isArray(data.queue) ? data.queue.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object') : [];
++  const playlist = data.playlist && typeof data.playlist === 'object' ? data.playlist as UnknownRecord : null;
++  const lyrics = Array.isArray(data.lyrics) ? data.lyrics.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object') : [];
++  return {
++    version,
++    track,
++    queue,
++    playlist,
++    lyrics,
++    lyricRenderMode: String(data.lyricRenderMode || 'original'),
++    lyricIndex: Number.isInteger(Number(data.lyricIndex)) ? Number(data.lyricIndex) : -1,
++    positionMs: Math.max(0, Number(data.positionMs || 0)),
++    durationMs: Math.max(0, Number(data.durationMs || 0)),
++    playing: Boolean(data.playing),
++  };
++}
++
++function writeFollowClock(positionSec: number): void {
++  const safePosition = Math.max(0, Number(positionSec) || 0);
++  try {
++    projectEmbeddedPlaybackClock(safePosition, currentTime, lyricCurrentTime);
++    const store = usePlaybackStore.getState();
++    const lines = store.lyrics?.lines || [];
++    if (lines.length) {
++      const index = findLatestActiveLineIndex(lines, safePosition);
++      if (index !== store.currentLineIndex) {
++        store.setCurrentLineIndex(index);
++        scheduleEmbedLyricSizingAudit();
++      }
++    }
++  } catch {
++    // A failed visual projection must never affect the owner audio element.
++  }
++}
++
++function runFollowClockFrame(now: number): void {
++  followClockFrame = 0;
++  if (!followPlaybackActive) return;
++  const elapsedSec = followClockPlaying ? Math.max(0, now - followClockStartedAt) / 1000 : 0;
++  writeFollowClock(followClockPositionSec + elapsedSec);
++  if (followClockPlaying) followClockFrame = window.requestAnimationFrame(runFollowClockFrame);
++}
++
++function syncFollowClock(positionMs: number, playing: boolean): void {
++  followClockPositionSec = Math.max(0, Number(positionMs) || 0) / 1000;
++  followClockStartedAt = performance.now();
++  followClockPlaying = playing;
++  if (followClockFrame) window.cancelAnimationFrame(followClockFrame);
++  followClockFrame = 0;
++  writeFollowClock(followClockPositionSec);
++  if (followPlaybackActive && followClockPlaying) {
++    followClockFrame = window.requestAnimationFrame(runFollowClockFrame);
++  }
++}
++
++function embeddedAudioElements(): HTMLAudioElement[] {
++  return Array.from(document.querySelectorAll<HTMLAudioElement>(EMBED_AUDIO_SELECTOR));
++}
++
++/** Clear every Folia media element so it cannot become a second sound source. */
++function lockEmbeddedAudio(): void {
++  for (const audio of embeddedAudioElements()) {
++    try {
++      audio.pause();
++      audio.removeAttribute('src');
++      audio.src = '';
++      audio.load();
++    } catch {
++      // Keep checking the remaining elements if one browser media call fails.
++    }
++  }
++}
++
++function installEmbeddedAudioLock(): void {
++  if (audioLockInstalled || typeof document === 'undefined') return;
++  audioLockInstalled = true;
++  document.addEventListener('play', (event) => {
++    if (!followPlaybackActive) return;
++    const audio = event.target;
++    if (!(audio instanceof HTMLAudioElement)) return;
++    const root = document.getElementById('folia-embed-root');
++    if (!root?.contains(audio)) return;
++    try {
++      audio.pause();
++      audio.removeAttribute('src');
++      audio.src = '';
++      audio.load();
++    } catch {
++      // The main site remains audible even when an upstream media call fails.
++    }
++  }, true);
++}
++
++function readEmbeddedProgressInput(target: EventTarget | null): HTMLInputElement | null {
++  if (!(target instanceof HTMLInputElement) || target.type !== 'range') return null;
++  const root = document.getElementById('folia-embed-root');
++  return root?.contains(target) ? target : null;
++}
++
++function readEmbeddedProgressPosition(target: HTMLInputElement): number | null {
++  if (!followPlaybackActive) return null;
++  const duration = Math.max(0, Number(usePlaybackStore.getState().duration) || 0);
++  const minimum = Number(target.min || 0);
++  const maximum = Number(target.max);
++  const value = Number(target.value);
++  const tolerance = Math.max(1, duration * 0.04);
++  if (!duration || !Number.isFinite(minimum) || !Number.isFinite(maximum) || !Number.isFinite(value)) return null;
++  // Duration matching excludes volume/preferences without hard-coding Folia's markup.
++  if (maximum <= minimum || Math.abs(maximum - duration) > tolerance || value < minimum || value > maximum) return null;
++  return Math.min(duration, Math.max(0, value));
++}
++
++function readProgressPositionFromPointer(target: HTMLInputElement, clientX: number): number | null {
++  const current = readEmbeddedProgressPosition(target);
++  if (current === null) return null;
++  const rect = target.getBoundingClientRect();
++  if (!Number.isFinite(clientX) || rect.width <= 0) return current;
++  const minimum = Number(target.min || 0);
++  const maximum = Number(target.max);
++  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
++  const value = minimum + (maximum - minimum) * ratio;
++  target.value = String(value);
++  return Math.min(maximum, Math.max(minimum, value));
++}
++
++function relayEmbeddedProgressSeek(positionSec: number): void {
++  const now = performance.now();
++  const unchanged = Math.abs(positionSec - lastFollowSeekPositionSec) < 0.05;
++  if (unchanged && now - lastFollowSeekAt < 45) return;
++
++  lastFollowSeekPositionSec = positionSec;
++  lastFollowSeekAt = now;
++  syncFollowClock(Math.round(positionSec * 1000), followClockPlaying);
++  postToParent({
++    type: 'shizuki:playback-command',
++    action: 'seek',
++    positionMs: Math.round(positionSec * 1000),
++  });
++}
++
++/** Route keyboard and native range input changes to the site-owned audio element. */
++function handleEmbeddedProgressSeek(event: Event): void {
++  const input = readEmbeddedProgressInput(event.target);
++  const positionSec = input ? readEmbeddedProgressPosition(input) : null;
++  if (positionSec === null) return;
++  event.stopPropagation();
++  relayEmbeddedProgressSeek(positionSec);
++}
++
++/** Give the Folia scrubber immediate visual and audio feedback while dragging. */
++function handleEmbeddedProgressPointer(event: PointerEvent): void {
++  if (event.type === 'pointerdown') {
++    const input = readEmbeddedProgressInput(event.target);
++    if (!input) return;
++    activeProgressInput = input;
++    activeProgressPointerId = event.pointerId;
++  }
++  if (!activeProgressInput || activeProgressPointerId !== event.pointerId) return;
++
++  const positionSec = readProgressPositionFromPointer(activeProgressInput, event.clientX);
++  if (positionSec !== null) {
++    event.stopPropagation();
++    relayEmbeddedProgressSeek(positionSec);
++  }
++  if (event.type === 'pointerup' || event.type === 'pointercancel') {
++    activeProgressInput = null;
++    activeProgressPointerId = null;
++  }
++}
++
++function installEmbeddedProgressSeekBridge(): void {
++  if (progressSeekBridgeInstalled || typeof document === 'undefined') return;
++  progressSeekBridgeInstalled = true;
++  document.addEventListener('input', handleEmbeddedProgressSeek, true);
++  document.addEventListener('change', handleEmbeddedProgressSeek, true);
++  document.addEventListener('pointerdown', handleEmbeddedProgressPointer, true);
++  document.addEventListener('pointermove', handleEmbeddedProgressPointer, true);
++  document.addEventListener('pointerup', handleEmbeddedProgressPointer, true);
++  document.addEventListener('pointercancel', handleEmbeddedProgressPointer, true);
++}
++
++function readNavigationAction(target: EventTarget | null): 'next' | 'previous' | null {
++  if (!(target instanceof Element)) return null;
++  const button = target.closest('button');
++  const root = document.getElementById('folia-embed-root');
++  if (!button || !root?.contains(button)) return null;
++  const hint = [
++    button.getAttribute('aria-label'),
++    button.getAttribute('title'),
++    button.getAttribute('data-tooltip-content'),
++    button.getAttribute('data-action'),
++    button.className,
++    button.textContent,
++    ...Array.from(button.querySelectorAll('[data-lucide], svg, i')).map((node) => (
++      `${node.getAttribute('data-lucide') || ''} ${node.getAttribute('class') || ''}`
++    ))
++  ].join(' ').toLowerCase();
++  if (/(next|skip[-_ ]?forward|forward|下一首|下一个)/.test(hint)) return 'next';
++  if (/(previous|prev|skip[-_ ]?back|backward|上一首|上一个)/.test(hint)) return 'previous';
++  return null;
++}
++
++function installEmbeddedNavigationBridge(): void {
++  if (navigationBridgeInstalled || typeof document === 'undefined') return;
++  navigationBridgeInstalled = true;
++  document.addEventListener('click', (event) => {
++    if (!followPlaybackActive) return;
++    const action = readNavigationAction(event.target);
++    if (!action) return;
++    event.preventDefault();
++    event.stopImmediatePropagation();
++    relayEmbeddedNavigation(action);
++  }, true);
++}
++
++function relayEmbeddedNavigation(action: 'next' | 'previous'): void {
++  postToParent({ type: 'shizuki:playback-command', action });
++}
++
++function applyFollowSession(session: FollowSession): void {
++  if (session.version < latestFollowSessionVersion) return;
++  latestFollowSessionVersion = session.version;
++  followPlaybackActive = true;
++  applyingFollowSession = true;
++
++  const store = usePlaybackStore.getState();
++  const song = readFollowSong(session.track);
++  const queue = readFollowQueue(session.queue);
++  const lyricsFingerprint = buildFollowLyricsFingerprint(session.lyrics, song, session.durationMs);
++  const lyricsChanged = lyricsFingerprint !== latestFollowLyricsFingerprint;
++  try {
++    lockEmbeddedAudio();
++    store.setAudioSrc(null);
++    store.setCurrentSong(song);
++    store.setPlayQueue(queue.length ? queue : (song ? [song] : []));
++    store.setCachedCoverUrl(String(song?.album?.coverUrl || ''));
++    store.setDuration(Math.max(0, Number(session.durationMs || 0) / 1000));
++    if (lyricsChanged) {
++      const lyrics = buildFollowLyrics(session.lyrics, song, session.durationMs);
++      latestFollowLyricsFingerprint = lyricsFingerprint;
++      store.setLyricsState(lyrics);
++    }
++    store.setPlayerState(session.playing ? PlayerState.PLAYING : PlayerState.PAUSED);
++    (window as unknown as { __shizukiPlaybackSession?: FollowSession }).__shizukiPlaybackSession = session;
++  } catch {
++    // The store remains sufficient if diagnostics cannot be attached to window.
++  } finally {
++    applyingFollowSession = false;
++  }
++  syncFollowClock(session.positionMs, session.playing);
++  syncEmbedLyricSizing();
++}
++
++function stopFollowPlayback(): void {
++  followPlaybackActive = false;
++  followClockPlaying = false;
++  latestFollowSessionVersion = -1;
++  latestFollowLyricsFingerprint = '';
++  if (followClockFrame) window.cancelAnimationFrame(followClockFrame);
++  followClockFrame = 0;
++  lockEmbeddedAudio();
++  try {
++    const store = usePlaybackStore.getState();
++    store.setAudioSrc(null);
++    store.setPlayerState(PlayerState.PAUSED);
++  } catch {
++    // no-op
++  }
++}
++
++function readCookieFromStorage(): string {
++  try {
++    for (const key of COOKIE_STORAGE_KEYS) {
++      const cookie = window.localStorage.getItem(key);
++      if (cookie) return cookie;
++    }
++    return '';
++  } catch {
++    return '';
++  }
++}
++
++function writeCookieToStorage(cookie: string): void {
++  if (!cookie) return;
++  try {
++    for (const key of COOKIE_STORAGE_KEYS) window.localStorage.setItem(key, cookie);
++    // The parent already owns this value when it sends a sync request. Record
++    // it so the change watcher does not echo the same credential back.
++    lastReportedCookie = cookie;
++  } catch {
++    // no-op
++  }
++}
++
++function postToParent(payload: UnknownRecord): void {
++  try {
++    window.parent.postMessage(payload, '*');
++  } catch {
++    // no-op
++  }
++}
++
++/** Return a newly completed Folia login to the site without repeatedly exposing it. */
++function reportCookieIfChanged(): void {
++  const cookie = readCookieFromStorage();
++  if (!cookie || cookie === lastReportedCookie) return;
++  lastReportedCookie = cookie;
++  postToParent({ type: 'shizuki:cookie', cookie });
++}
++
++/**
++ * Folia's login writes localStorage in this same document, so the browser's
++ * storage event alone is insufficient. A low-frequency check covers that
++ * case while only emitting when the credential value actually changes.
++ */
++function installCookieBridge(): void {
++  if (cookieBridgeInstalled || typeof window === 'undefined') return;
++  cookieBridgeInstalled = true;
++  lastReportedCookie = readCookieFromStorage();
++  window.addEventListener('storage', (event) => {
++    if (event.key && COOKIE_STORAGE_KEYS.includes(event.key)) reportCookieIfChanged();
++  });
++  window.setInterval(reportCookieIfChanged, 1500);
++}
++
++function snapshotStatus(): UnknownRecord {
++  const state = usePlaybackStore.getState();
++  const song = state.currentSong as SongResult | null;
++  const artists = Array.isArray(song?.artists)
++    ? song.artists.map((artist) => String(artist?.name || '')).filter(Boolean)
++    : [];
++  return {
++    track: song
++      ? {
++        id: song.id,
++        trackId: String((song as unknown as { trackId?: unknown }).trackId || song.id),
++        provider: String((song as unknown as { provider?: unknown }).provider || 'netease'),
++        name: String(song.name || ''),
++        artists,
++        coverUrl: String(song.album?.coverUrl || ''),
++        durationMs: Number(song.durationMs || 0),
++      }
++      : null,
++    positionMs: Math.round(followClockPositionSec * 1000),
++    playing: followClockPlaying,
++    liked: Boolean((state as unknown as { isLiked?: boolean }).isLiked),
++    sessionVersion: latestFollowSessionVersion,
++  };
++}
++
++function readSongId(song: unknown): number {
++  const id = Number((song as { id?: unknown } | null)?.id || 0);
++  return Number.isFinite(id) && id > 0 ? id : 0;
++}
++
++function forwardTrackIntent(rawTrack: UnknownRecord, positionMs = 0, playing = true): void {
++  postToParent({ type: 'shizuki:playback-intent', track: rawTrack, positionMs, playing });
++}
++
++function handleMessage(event: MessageEvent): void {
++  const data = event.data as UnknownRecord | null;
++  if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
++  const type = data.type;
++
++  if (type === 'shizuki:sync-cookie') {
++    writeCookieToStorage(typeof data.cookie === 'string' ? data.cookie : '');
++    return;
++  }
++  if (type === 'shizuki:get-cookie') {
++    postToParent({ type: 'shizuki:cookie', cookie: readCookieFromStorage() });
++    return;
++  }
++  if (type === 'shizuki:set-theme') {
++    if (typeof data.isDaylight === 'boolean') {
++      import('./stores/useThemeSettingsStore')
++        .then(({ useThemeSettingsStore }) => useThemeSettingsStore.getState().setDaylightPreference(Boolean(data.isDaylight)))
++        .catch(() => {});
++    }
++    return;
++  }
++  if (type === 'shizuki:set-lyric-color') {
++    applyEmbedLyricColor(data.color);
++    return;
++  }
++  if (type === 'shizuki:set-wallpaper') {
++    installEmbedWallpaperStyle();
++    applyEmbedWallpaper(data.source, data.preview);
++    return;
++  }
++  if (type === 'shizuki:set-view') {
++    const view = String(data.view || '').trim();
++    if (view === 'player' || view === 'lattice') {
++      import('./stores/useAppViewStore')
++        .then(({ useAppViewStore }) => useAppViewStore.getState().setView(view as 'player' | 'lattice'))
++        .catch(() => {});
++    }
++    return;
++  }
++  if (type === 'shizuki:follow-playback') {
++    const session = readFollowSession(data.session);
++    if (session) applyFollowSession(session);
++    return;
++  }
++  if (type === 'shizuki:activate-playback-bridge') {
++    followPlaybackActive = true;
++    lockEmbeddedAudio();
++    usePlaybackStore.getState().setAudioSrc(null);
++    return;
++  }
++  if (type === 'shizuki:stop-follow-playback') {
++    stopFollowPlayback();
++    return;
++  }
++  if (type === 'shizuki:sync-clock') {
++    if (!followPlaybackActive) return;
++    const playing = Boolean(data.playing);
++    applyingFollowSession = true;
++    try {
++      usePlaybackStore.getState().setPlayerState(playing ? PlayerState.PLAYING : PlayerState.PAUSED);
++      syncFollowClock(Number(data.positionMs || 0), playing);
++    } finally {
++      applyingFollowSession = false;
++    }
++    return;
++  }
++  if (type === 'shizuki:play-track') {
++    const trackId = Number(data.trackId);
++    if (Number.isFinite(trackId) && trackId > 0) {
++      forwardTrackIntent({ id: trackId, trackId, provider: 'netease' }, Number(data.positionMs || 0), true);
++    }
++    return;
++  }
++  if (type === 'shizuki:play-tracks') {
++    // The site owns queues in embedded mode. Do not re-enable Folia audio.
++    postToParent({ type: 'shizuki:play-tracks-result', ok: false, error: 'embedded playback is site-owned' });
++    return;
++  }
++  if (type === 'shizuki:get-status') {
++    postToParent({ type: 'shizuki:status', ...snapshotStatus() });
++  }
++}
++
++/** Install the bridge listener once. Safe to call multiple times. */
++export function installShizukiExternalBridge(): void {
++  if (typeof window === 'undefined') return;
++  if ((window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled) return;
++  (window as unknown as { __shizukiBridgeInstalled?: boolean }).__shizukiBridgeInstalled = true;
++  installEmbeddedAudioLock();
++  installEmbeddedProgressSeekBridge();
++  installEmbeddedNavigationBridge();
++  installCookieBridge();
++  installEmbedWallpaperStyle();
++  installEmbedLyricSizing();
++  window.addEventListener('message', handleMessage);
++  usePlaybackStore.subscribe((state, previousState) => {
++    if (applyingFollowSession) return;
++    const switchedTrack = readSongId(state.currentSong) !== readSongId(previousState.currentSong);
++    const startedLocalAudio = Boolean(state.audioSrc) && state.audioSrc !== previousState.audioSrc;
++
++    if (followPlaybackActive && switchedTrack) {
++      const track = snapshotStatus().track as UnknownRecord | null;
++      if (track) forwardTrackIntent(track, 0, true);
++      return;
++    }
++
++    if (followPlaybackActive && startedLocalAudio) {
++      lockEmbeddedAudio();
++      usePlaybackStore.getState().setAudioSrc(null);
++    }
++  });
++  const pending = (window as unknown as { __shizukiPendingCookie?: string }).__shizukiPendingCookie;
++  if (pending) {
++    writeCookieToStorage(pending);
++    delete (window as unknown as { __shizukiPendingCookie?: string }).__shizukiPendingCookie;
++  }
++}
+diff --git a/test/unit/buildPlayerViewFlags.embedded.test.ts b/test/unit/buildPlayerViewFlags.embedded.test.ts
+new file mode 100644
+index 00000000..37b611f0
+--- /dev/null
++++ b/test/unit/buildPlayerViewFlags.embedded.test.ts
+@@ -0,0 +1,30 @@
++import { describe, expect, it } from 'vitest';
++import { buildPlayerViewFlags } from '../../src/components/app/presentation/buildPlayerViewFlags';
++
++const base = {
++  currentView: 'player',
++  disableHomeDynamicBackground: false,
++  hidePlayerProgressBar: false,
++  hidePlayerTranslationSubtitle: false,
++  hidePlayerRightPanelButton: false,
++  isNowPlayingControlDisabled: false,
++  activePlaybackContext: 'main' as const,
++  stageActiveEntryKind: null,
++  audioSrc: null,
++  duration: 180,
++};
++
++describe('embedded player control availability', () => {
++  it('keeps controls available for the authoritative site session without a Folia audio source', () => {
++    expect(buildPlayerViewFlags({ ...base, isEmbedMode: true, hasCurrentSong: true }).canToggleCurrentPlayback).toBe(true);
++  });
++
++  it('does not make an empty embedded player controllable', () => {
++    expect(buildPlayerViewFlags({ ...base, isEmbedMode: true, hasCurrentSong: false }).canToggleCurrentPlayback).toBe(false);
++  });
++
++  it('keeps standalone source readiness behavior', () => {
++    expect(buildPlayerViewFlags({ ...base, audioSrc: 'https://media.test/song.mp3' }).canToggleCurrentPlayback).toBe(true);
++    expect(buildPlayerViewFlags({ ...base, audioSrc: null }).canToggleCurrentPlayback).toBe(false);
++  });
++});
+diff --git a/test/unit/cadenzaWrappedLyrics.test.ts b/test/unit/cadenzaWrappedLyrics.test.ts
+new file mode 100644
+index 00000000..4a4892d9
+--- /dev/null
++++ b/test/unit/cadenzaWrappedLyrics.test.ts
+@@ -0,0 +1,80 @@
++import { describe, expect, it } from 'vitest';
++import { buildWordPlacements } from '../../src/components/visualizer/cadenza/VisualizerCadenza';
++
++const word = (text: string, index: number) => ({
++    text,
++    startTime: index,
++    endTime: index + 1,
++});
++
++const fragment = (text: string, index: number, startX: number, endX: number, lineIndex: number) => ({
++    wordIndex: index,
++    lineIndex,
++    word: word(text, index),
++    text,
++    color: '#ffffff',
++    startX,
++    endX,
++    fragmentStartInWord: 0,
++    fragmentEndInWord: 1,
++    wordGraphemeCount: 1,
++    wordGraphemeTimings: [],
++    fragmentIndexInWord: 0,
++    fragmentCountInWord: 1,
++    isPrimaryFragment: true,
++    isSplitAcrossLines: false,
++});
++
++describe('Cadenza wrapped lyric layout', () => {
++    it('keeps a substantial single-line Chinese lyric centered as one composition', () => {
++        const text = Array.from('此歌曲为纯音乐请欣赏');
++        const width = 48;
++        const placements = buildWordPlacements([
++            {
++                line: { width: text.length * width },
++                lineStart: 0,
++                lineEnd: text.length,
++                fragments: text.map((character, index) => fragment(
++                    character,
++                    index,
++                    index * width,
++                    (index + 1) * width,
++                    0,
++                )),
++            },
++        ] as never, 56, 68, 520, 'normal', 1, false);
++
++        expect(placements).toHaveLength(text.length);
++        expect(placements.every(placement => placement.preserveLineLayout)).toBe(true);
++        const left = Math.min(...placements.map(placement => placement.x));
++        const right = Math.max(...placements.map(placement => placement.x + placement.width));
++        expect((left + right) / 2).toBeCloseTo(0, 6);
++    });
++
++    it('keeps a long Chinese lyric complete and centered on every wrapped line', () => {
++        const placements = buildWordPlacements([
++            {
++                line: { width: 240 },
++                lineStart: 0,
++                lineEnd: 2,
++                fragments: [fragment('我', 0, 0, 120, 0), fragment('们', 1, 120, 240, 0)],
++            },
++            {
++                line: { width: 240 },
++                lineStart: 2,
++                lineEnd: 4,
++                fragments: [fragment('都', 2, 0, 120, 1), fragment('在', 3, 120, 240, 1)],
++            },
++        ] as never, 56, 68, 520, 'normal', 1, false);
++
++        expect(placements).toHaveLength(4);
++        expect(placements.every(placement => placement.preserveLineLayout)).toBe(true);
++
++        for (const lineIndex of [0, 1]) {
++            const row = placements.filter(placement => placement.id.includes(`-${lineIndex}-`));
++            const left = Math.min(...row.map(placement => placement.x));
++            const right = Math.max(...row.map(placement => placement.x + placement.width));
++            expect((left + right) / 2).toBeCloseTo(0, 6);
++        }
++    });
++});
+diff --git a/test/unit/shizukiEmbeddedPlayback.test.ts b/test/unit/shizukiEmbeddedPlayback.test.ts
+new file mode 100644
+index 00000000..6bed28bd
+--- /dev/null
++++ b/test/unit/shizukiEmbeddedPlayback.test.ts
+@@ -0,0 +1,60 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { isShizukiEmbedSurface, projectEmbeddedPlaybackClock, sendEmbeddedPlaybackCommand, sendEmbeddedTrackIntent } from '../../src/services/shizukiEmbeddedPlayback';
++
++describe('Shizuki embedded playback relay', () => {
++  afterEach(() => {
++    vi.unstubAllGlobals();
++    vi.restoreAllMocks();
++  });
++
++  it('projects the site clock into both Folia playback and lyric motion values', () => {
++    const playbackSet = vi.fn();
++    const lyricSet = vi.fn();
++    expect(projectEmbeddedPlaybackClock(28.5, { set: playbackSet }, { set: lyricSet })).toBe(28.5);
++    expect(playbackSet).toHaveBeenCalledWith(28.5);
++    expect(lyricSet).toHaveBeenCalledWith(28.5);
++    expect(projectEmbeddedPlaybackClock(Number.NaN, { set: playbackSet }, { set: lyricSet })).toBe(0);
++  });
++
++  it('relays pause and seek immediately without depending on a Folia audio source', () => {
++    const postMessage = vi.fn();
++    vi.stubGlobal('document', { getElementById: () => ({}) });
++    vi.stubGlobal('window', { parent: { postMessage } });
++
++    expect(sendEmbeddedPlaybackCommand('pause')).toBe(true);
++    expect(sendEmbeddedPlaybackCommand('seek', 42.25)).toBe(true);
++    expect(postMessage.mock.calls.map(([message]) => message)).toEqual([
++      { type: 'shizuki:playback-command', action: 'pause' },
++      { type: 'shizuki:playback-command', action: 'seek', positionMs: 42250 },
++    ]);
++  });
++
++  it('sends a selected track intent without resolving it locally', () => {
++    const postMessage = vi.fn();
++    vi.stubGlobal('document', { getElementById: () => ({}) });
++    vi.stubGlobal('window', { parent: { postMessage } });
++    const track = { id: 17, name: 'Selected' };
++
++    expect(sendEmbeddedTrackIntent(track)).toBe(true);
++    expect(postMessage).toHaveBeenCalledWith({
++      type: 'shizuki:playback-intent', track, positionMs: 0, playing: true,
++    }, '*');
++  });
++
++  it('keeps embedded mode active whenever the host root is mounted, independent of visibility', () => {
++    vi.stubGlobal('document', { getElementById: () => ({ hidden: true }) });
++    expect(isShizukiEmbedSurface()).toBe(true);
++    vi.stubGlobal('document', { getElementById: () => null });
++    expect(isShizukiEmbedSurface()).toBe(false);
++  });
++
++  it('leaves standalone Folia playback on its existing path', () => {
++    const postMessage = vi.fn();
++    vi.stubGlobal('document', { getElementById: () => null });
++    vi.stubGlobal('window', { parent: { postMessage } });
++
++    expect(sendEmbeddedPlaybackCommand('play')).toBe(false);
++    expect(sendEmbeddedTrackIntent({ id: 18 })).toBe(false);
++    expect(postMessage).not.toHaveBeenCalled();
++  });
++});
+diff --git a/test/unit/shizukiExternalBridge.integration.test.ts b/test/unit/shizukiExternalBridge.integration.test.ts
+new file mode 100644
+index 00000000..33f6fcc5
+--- /dev/null
++++ b/test/unit/shizukiExternalBridge.integration.test.ts
+@@ -0,0 +1,109 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { installShizukiExternalBridge } from '../../src/shizukiExternalBridge';
++import { sendEmbeddedPlaybackCommand } from '../../src/services/shizukiEmbeddedPlayback';
++import { currentTime, lyricCurrentTime } from '../../src/stores/motionSignals';
++import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
++import { PlayerState } from '../../src/types';
++
++describe('same-document Folia playback bridge', () => {
++  afterEach(() => {
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++    usePlaybackStore.setState({
++      currentSong: null,
++      audioSrc: null,
++      lyrics: null,
++      duration: 0,
++      playerState: PlayerState.IDLE,
++      currentLineIndex: -1,
++      playQueue: [],
++    });
++    currentTime.set(0);
++    lyricCurrentTime.set(0);
++  });
++
++  it('projects parent sessions into the Folia clock and accepts immediate controls without echo or local audio', () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const audio = document.createElement('audio');
++    audio.src = 'https://media.test/should-not-play.mp3';
++    audio.pause = vi.fn();
++    audio.load = vi.fn();
++    root.append(audio);
++
++    const postMessage = vi.spyOn(window, 'postMessage');
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    installShizukiExternalBridge();
++
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:set-lyric-color', color: '#abcdef' },
++    }));
++    expect(root.dataset.shizukiLyricColor).toBe('custom');
++    expect(root.style.getPropertyValue('--shizuki-folia-lyric-color')).toBe('#abcdef');
++    expect(document.getElementById('shizuki-folia-lyric-color-style')?.textContent)
++      .toContain('[data-shizuki-folia-lyric-word-body]');
++
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:set-lyric-color', color: '' },
++    }));
++    expect(root.dataset.shizukiLyricColor).toBeUndefined();
++    expect(root.style.getPropertyValue('--shizuki-folia-lyric-color')).toBe('');
++
++    const session = {
++      version: 1,
++      track: { id: 7, name: 'Parent song', artists: [{ name: 'Artist' }] },
++      queue: [],
++      playlist: null,
++      lyrics: [{ time: 0, endTime: 30, original: 'first line' }],
++      lyricRenderMode: 'original',
++      lyricIndex: 0,
++      positionMs: 12500,
++      durationMs: 60000,
++      playing: true,
++    };
++    window.dispatchEvent(new MessageEvent('message', { data: { type: 'shizuki:follow-playback', session } }));
++
++    expect(currentTime.get()).toBe(12.5);
++    expect(lyricCurrentTime.get()).toBe(12.5);
++    expect(usePlaybackStore.getState().currentSong?.id).toBe(7);
++    expect(audio.pause).toHaveBeenCalledOnce();
++    expect(audio.getAttribute('src') ?? '').toBe('');
++    expect(postMessage).not.toHaveBeenCalled();
++
++    const projectedLyrics = usePlaybackStore.getState().lyrics;
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:follow-playback', session: { ...session, version: 2, positionMs: 18000 } },
++    }));
++    expect(currentTime.get()).toBe(18);
++    expect(lyricCurrentTime.get()).toBe(18);
++    expect(usePlaybackStore.getState().lyrics).toBe(projectedLyrics);
++    expect(audio.pause).toHaveBeenCalledTimes(2);
++    expect(postMessage).not.toHaveBeenCalled();
++
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:sync-clock', positionMs: 20500, playing: false },
++    }));
++    expect(currentTime.get()).toBe(20.5);
++    expect(lyricCurrentTime.get()).toBe(20.5);
++    expect(postMessage).not.toHaveBeenCalled();
++
++    expect(sendEmbeddedPlaybackCommand('pause')).toBe(true);
++    expect(sendEmbeddedPlaybackCommand('seek', 22.25)).toBe(true);
++    expect(postMessage).toHaveBeenNthCalledWith(1, { type: 'shizuki:playback-command', action: 'pause' }, '*');
++    expect(postMessage).toHaveBeenNthCalledWith(2, { type: 'shizuki:playback-command', action: 'seek', positionMs: 22250 }, '*');
++
++    const progress = document.createElement('input');
++    progress.type = 'range';
++    progress.min = '0';
++    progress.max = '60';
++    progress.value = '24';
++    root.append(progress);
++    progress.dispatchEvent(new Event('input', { bubbles: true }));
++    expect(postMessage).toHaveBeenNthCalledWith(3, { type: 'shizuki:playback-command', action: 'seek', positionMs: 24000 }, '*');
++    expect(audio.pause).toHaveBeenCalledTimes(2);
++  });
++});
+diff --git a/vite.config.ts b/vite.config.ts
+index 6e7d1760..31647832 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -192,7 +192,7 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
+   const dockerStackVersion = process.env.DOCKER_STACK_VERSION?.trim() || '';
+ 
+   return {
+-    base: process.env.ELECTRON === 'true' ? './' : '/',
++    base: process.env.ELECTRON === 'true' ? './' : (process.env.VITE_BASE_PATH && process.env.VITE_BASE_PATH !== '' ? process.env.VITE_BASE_PATH.replace(/\/+$/, '') + '/' : '/'),
+     worker: {
+       format: 'es'
+     },
+diff --git a/vite.config.ts.bak b/vite.config.ts.bak
+new file mode 100644
+index 00000000..2a8bd316
+--- /dev/null
++++ b/vite.config.ts.bak
+@@ -0,0 +1,277 @@
++import path from 'path';
++import { fileURLToPath } from 'url';
++import { type ConfigEnv, type UserConfig, type ViteDevServer } from 'vite';
++import react from '@vitejs/plugin-react';
++import { commandPinyinPlugin } from './dev/pinyin/commandPinyinPlugin.mjs';
++import { VitePWA } from 'vite-plugin-pwa';
++import { execSync } from 'child_process';
++import fs from 'fs';
++
++const __dirname = path.dirname(fileURLToPath(import.meta.url));
++
++const LYRIC_PROXY_CORS_HEADERS: Record<string, string> = {
++  'Access-Control-Allow-Origin': '*',
++  'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
++  'Access-Control-Allow-Headers': [
++    'X-CSRF-Token',
++    'X-Requested-With',
++    'Accept',
++    'Accept-Version',
++    'Content-Length',
++    'Content-MD5',
++    'Content-Type',
++    'Date',
++    'X-Api-Version',
++    'KG-Rec',
++    'KG-RC',
++    'KG-CLIENTTIMEMS',
++    'mid',
++    'x-router',
++  ].join(', '),
++};
++
++const LYRIC_PROXY_IGNORED_FORWARD_HEADERS = ['host', 'connection', 'content-length', 'origin', 'referer'];
++
++function isAllowedLyricProxyHost(hostname: string): boolean {
++  return hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
++    hostname === 'y.gtimg.cn' ||
++    hostname === 'kugou.com' || hostname.endsWith('.kugou.com') ||
++    hostname === 'kgimg.com' || hostname.endsWith('.kgimg.com') ||
++    hostname === 'amll-ttml-db.stevexmh.net';
++}
++
++function isAmllDbHost(hostname: string): boolean {
++  return hostname === 'amll-ttml-db.stevexmh.net';
++}
++
++function setLyricProxyCorsHeaders(res: import('http').ServerResponse): void {
++  Object.entries(LYRIC_PROXY_CORS_HEADERS).forEach(([key, value]) => {
++    res.setHeader(key, value);
++  });
++}
++
++function sendLyricProxyJson(res: import('http').ServerResponse, statusCode: number, body: unknown): void {
++  setLyricProxyCorsHeaders(res);
++  res.statusCode = statusCode;
++  res.setHeader('Content-Type', 'application/json');
++  res.end(JSON.stringify(body));
++}
++
++function readDevRequestBody(req: import('http').IncomingMessage): Promise<Uint8Array<ArrayBuffer>> {
++  return new Promise((resolve, reject) => {
++    const chunks: Buffer[] = [];
++    req.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
++    req.on('end', () => resolve(new Uint8Array(Buffer.concat(chunks))));
++    req.on('error', reject);
++  });
++}
++
++function devLyricProxyPlugin() {
++  return {
++    name: 'folia-dev-lyric-proxy',
++    apply: 'serve' as const,
++    configureServer(server: ViteDevServer) {
++      server.middlewares.use(async (req, res, next) => {
++        const requestUrl = new URL(req.url ?? '/', 'http://localhost');
++        if (requestUrl.pathname !== '/api/lyric-proxy') {
++          next();
++          return;
++        }
++
++        if (req.method === 'OPTIONS') {
++          setLyricProxyCorsHeaders(res);
++          res.statusCode = 200;
++          res.end();
++          return;
++        }
++
++        const targetUrlStr = requestUrl.searchParams.get('url');
++        if (!targetUrlStr) {
++          sendLyricProxyJson(res, 400, { error: 'Missing url parameter' });
++          return;
++        }
++
++        try {
++          const targetUrl = new URL(targetUrlStr);
++          if (!isAllowedLyricProxyHost(targetUrl.hostname)) {
++            sendLyricProxyJson(res, 403, { error: 'Forbidden: Domain not allowed' });
++            return;
++          }
++
++          const headers = new Headers();
++          for (const [key, value] of Object.entries(req.headers)) {
++            if (!LYRIC_PROXY_IGNORED_FORWARD_HEADERS.includes(key.toLowerCase()) && value) {
++              headers.set(key, Array.isArray(value) ? value.join(', ') : value);
++            }
++          }
++
++          const hasBody = ['POST', 'PUT', 'PATCH'].includes(req.method ?? '');
++          const response = await fetch(targetUrl.toString(), {
++            method: req.method,
++            headers,
++            body: hasBody ? await readDevRequestBody(req) : undefined,
++          });
++
++          setLyricProxyCorsHeaders(res);
++          if (isAmllDbHost(targetUrl.hostname) && response.status === 404) {
++            res.statusCode = 204;
++            res.end();
++            return;
++          }
++
++          res.statusCode = response.status;
++          res.statusMessage = response.statusText;
++          const contentType = response.headers.get('content-type');
++          if (contentType) {
++            res.setHeader('Content-Type', contentType);
++          }
++
++          const buffer = Buffer.from(await response.arrayBuffer());
++          res.end(buffer);
++        } catch (error) {
++          console.error('Vite lyric proxy request failed:', error);
++          sendLyricProxyJson(res, 500, { error: 'Proxy request failed', details: String(error) });
++        }
++      });
++    },
++  };
++}
++
++export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig> {
++  let commitHash = '';
++  if (process.env.VERCEL_GIT_COMMIT_SHA) {
++    commitHash = process.env.VERCEL_GIT_COMMIT_SHA.substring(0, 7);
++  } else {
++    try {
++      commitHash = execSync('git rev-parse --short HEAD').toString().trim();
++    } catch (e) {
++      console.warn('Could not get commit hash:', e);
++      commitHash = 'unknown, probably dev version';
++    }
++  }
++
++  let gitBranch = '';
++  if (process.env.VERCEL_GIT_COMMIT_REF) {
++    gitBranch = process.env.VERCEL_GIT_COMMIT_REF;
++  } else {
++    try {
++      gitBranch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
++    } catch (e) {
++      console.warn('Could not get git branch:', e);
++      gitBranch = 'unknown';
++    }
++  }
++
++  let commitSuffix = '';
++  const canResolveCommitName = /^[0-9a-f]{7,40}$/i.test(commitHash) && !/^0+$/.test(commitHash);
++  if (canResolveCommitName) {
++    try {
++      const controller = new AbortController();
++      const timeout = setTimeout(() => controller.abort(), 2000);
++      const res = await fetch(`https://namoe.izuna.top/api/namoe?hash=${commitHash}`, {
++        signal: controller.signal
++      });
++      clearTimeout(timeout);
++
++      if (res.ok) {
++        const data = await res.json() as { name?: string };
++        if (data?.name) {
++          commitSuffix = `/${data.name}`;
++        }
++      }
++    } catch (e) {
++      // Ignore errors during fetch to prevent build failure
++    }
++  }
++  if (process.env.REQUIRE_COMMIT_NAME === 'true' && canResolveCommitName && !commitSuffix) {
++    throw new Error(`Could not resolve the commit name for ${commitHash}`);
++  }
++
++  const appVersionLabel = process.env.APP_VERSION_LABEL?.trim() || 'Realeco';
++  const appReleaseChannel = process.env.APP_RELEASE_CHANNEL?.trim().toLowerCase() || 'realeco';
++  const dockerStackVersion = process.env.DOCKER_STACK_VERSION?.trim() || '';
++
++  return {
++    base: process.env.ELECTRON === 'true' ? './' : '/',
++    worker: {
++      format: 'es'
++    },
++    build: {
++      rollupOptions: {
++        input: {
++          main: 'index.html',
++          stageClient: 'stage-client.html',
++          modExport: 'mod-export.html',
++        },
++        output: {
++          // three.js is a large dependency used only by the diorama 3D visualizer. Split it into its
++          // own chunk so it doesn't bloat the main bundle past the PWA precache size limit (each file
++          // must stay under workbox.maximumFileSizeToCacheInBytes to be cached for offline use).
++          manualChunks(id) {
++            return id.includes('/node_modules/three/') ? 'three' : undefined;
++          },
++        },
++      },
++    },
++    server: {
++      port: 3000,
++      host: '0.0.0.0',
++      watch: {
++        // Build output and model weights are not sources, and watching them breaks packaging: the
++        // watcher opens a handle on every directory it finds, and electron-builder packages by
++        // extracting Electron into release/win-unpacked.tmp and renaming it to release/win-unpacked.
++        // On Windows that rename fails with EPERM while anything holds the directory - so a dev
++        // server left running in another terminal kills every `npm run build:electron`.
++        ignored: ['**/release/**', '**/models/**'],
++      },
++    },
++    plugins: [
++      devLyricProxyPlugin(),
++      commandPinyinPlugin(),
++      react(),
++      VitePWA({
++        registerType: 'autoUpdate',
++        includeAssets: ['icon.svg'],
++        devOptions: {
++          enabled: true
++        },
++        workbox: {
++          maximumFileSizeToCacheInBytes: 5000000,
++          // Docker serves this file dynamically; it must never be pinned in the PWA precache.
++          globIgnores: ['**/runtime-config.js'],
++          // API navigations must reach the deployment platform instead of the SPA shell.
++          navigateFallbackDenylist: [/^\/api(?:\/|$)/]
++        },
++        manifest: {
++          name: 'Folia Music',
++          short_name: 'Folia',
++          description: 'A beautiful AI-themed music player',
++          theme_color: '#09090b',
++          background_color: '#09090b',
++          display: 'standalone',
++          icons: [
++            {
++              src: 'icon.svg',
++              sizes: '512x512',
++              type: 'image/svg+xml',
++              purpose: 'any maskable'
++            }
++          ]
++        }
++      })
++    ],
++    define: {
++      '__COMMIT_HASH__': JSON.stringify(commitHash + commitSuffix),
++      '__GIT_BRANCH__': JSON.stringify(gitBranch),
++      '__APP_VERSION__': JSON.stringify(JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')).version),
++      '__APP_VERSION_LABEL__': JSON.stringify(appVersionLabel),
++      '__APP_RELEASE_CHANNEL__': JSON.stringify(appReleaseChannel),
++      '__DOCKER_STACK_VERSION__': JSON.stringify(dockerStackVersion)
++    },
++    resolve: {
++      alias: {
++        '@': path.resolve(__dirname, './src'),
++      }
++    }
++  };
++}

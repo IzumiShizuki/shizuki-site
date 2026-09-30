@@ -133,7 +133,7 @@ describe('MusicLibraryPage Folia mode handoff', () => {
 
   it('projects a smooth Folia clock and relays Folia playback controls', () => {
     expect(bridgeSource).toContain('window.requestAnimationFrame(runFollowClockFrame)');
-    expect(bridgeSource).toContain('lyricCurrentTime.set(safePosition)');
+    expect(bridgeSource).toContain('projectEmbeddedPlaybackClock(safePosition, currentTime, lyricCurrentTime)');
     expect(bridgeSource).toContain("type: 'shizuki:playback-command'");
     expect(bridgeSource).toContain("action: 'seek'");
     expect(bridgeSource).toContain("document.addEventListener('input', handleEmbeddedProgressSeek, true)");
@@ -182,7 +182,9 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(bridgeSource).toContain('function installEmbeddedNavigationBridge');
     expect(bridgeSource).toContain('function relayEmbeddedNavigation');
     expect(bridgeSource).toContain("type: 'shizuki:playback-command', action");
-    expect(bridgeSource).toContain('const navigationAction = now - pendingNavigationActionAt < 1200');
+    expect(bridgeSource).toContain('event.stopImmediatePropagation()');
+    expect(bridgeSource).toContain('relayEmbeddedNavigation(action)');
+    expect(bridgeSource).not.toContain('suppressPlaybackCommandsUntil');
     const commandHandler = readFunction('applyFoliaPlaybackCommand');
     expect(commandHandler).toContain('player.playNext?.()');
     expect(commandHandler).toContain('player.playPrev?.()');
