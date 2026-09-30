@@ -11,6 +11,7 @@ import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { resolveWordColor } from '../wordColoring';
+import { wordGlowVariants } from '../wordGlow';
 import { resolveThemeFontWeight } from '../../../utils/fontStacks';
 
 // This one is still word-driven, but unlike Classic it needs to pre-build a column/chunk structure first.
@@ -165,7 +166,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
 
     if (renderProfile?.lineTransitionMode === 'fast') {
         return {
-            initial: { opacity: 1, scale: 0.96, filter: 'blur(4px)' },
+            initial: { opacity: 0.35, scale: 0.96, filter: 'blur(4px)' },
             animate: {
                 opacity: 1,
                 scale: 1,
@@ -183,7 +184,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
     }
 
     return {
-        initial: { opacity: 1, scale: 0.9, filter: 'blur(10px)' },
+        initial: { opacity: 0, scale: 0.9, filter: 'blur(10px)' },
         animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } },
         exit: { opacity: 0, scale: 1.1, filter: 'blur(20px)', transition: { duration: 0.3 } },
     };
@@ -375,13 +376,12 @@ const PartitaWord: React.FC<{
     theme: Theme;
     layoutVariants: Variants;
     bodyVariants: Variants;
-    glowVariants: Variants;
     baseColor: string;
     activeColor: string;
     renderProfile: PartitaLineRenderProfile;
     isChorus?: boolean;
     fontSize: string;
-}> = ({ word, config, currentTime, theme, layoutVariants, bodyVariants, glowVariants, baseColor, activeColor, renderProfile, isChorus, fontSize }) => {
+}> = ({ word, config, currentTime, theme, layoutVariants, bodyVariants, baseColor, activeColor, renderProfile, isChorus, fontSize }) => {
     const [status, setStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
     const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
     const duration = getPartitaWordDisplayDuration(word, renderProfile);
@@ -414,7 +414,6 @@ const PartitaWord: React.FC<{
             variants={layoutVariants}
             initial="waiting"
             animate={status}
-            data-shizuki-folia-active-lyric-word="true"
             className="inline-block origin-center relative will-change-transform whitespace-nowrap"
             style={{
                 fontSize,
@@ -432,7 +431,7 @@ const PartitaWord: React.FC<{
                     graphemeTimings.map((timing, index) => (
                         <motion.span
                             key={index}
-                            variants={glowVariants}
+                            variants={wordGlowVariants}
                             custom={{
                                 config,
                                 activeColor,
@@ -451,7 +450,7 @@ const PartitaWord: React.FC<{
                     ))
                 ) : (
                     <motion.span
-                        variants={glowVariants}
+                        variants={wordGlowVariants}
                         custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
                     >
                         {word.text}
@@ -497,13 +496,12 @@ const PartitaChunk: React.FC<{
     theme: Theme;
     layoutVariants: Variants;
     bodyVariants: Variants;
-    glowVariants: Variants;
     baseColor: string;
     renderProfile: PartitaLineRenderProfile;
     isChorus?: boolean;
     showGuideLines: boolean;
     fontSize: string;
-}> = ({ chunkWords, displayWords, config, guideIndex, currentTime, theme, layoutVariants, bodyVariants, glowVariants, baseColor, renderProfile, isChorus, showGuideLines, fontSize }) => {
+}> = ({ chunkWords, displayWords, config, guideIndex, currentTime, theme, layoutVariants, bodyVariants, baseColor, renderProfile, isChorus, showGuideLines, fontSize }) => {
     const [chunkStatus, setChunkStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
 
     const chunkStartTime = chunkWords[0].startTime;
@@ -675,7 +673,6 @@ const PartitaChunk: React.FC<{
                         theme={theme}
                         layoutVariants={layoutVariants}
                         bodyVariants={bodyVariants}
-                        glowVariants={glowVariants}
                         baseColor={baseColor}
                         activeColor={getActiveColor(w.text, theme)}
                         renderProfile={renderProfile}
@@ -835,95 +832,6 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
         }),
     };
 
-    const glowVariants: Variants = {
-        waiting: {
-            color: 'transparent',
-            textShadow: 'none',
-        },
-        active: ({ activeColor, duration, index, total, charStartTime, charEndTime, wordStartTime, wordRevealMode }: any) => {
-            if (wordRevealMode === 'instant') {
-                return {
-                    color: 'transparent',
-                    textShadow: [
-                        'none',
-                        `0 0 14px ${activeColor}, 0 0 24px ${activeColor}`,
-                        'none',
-                    ],
-                    transition: {
-                        duration: Math.min(duration || 0.08, 0.12),
-                        times: [0, 0.35, 1],
-                        ease: 'easeOut',
-                    },
-                };
-            }
-
-            if (wordRevealMode === 'fast') {
-                return {
-                    color: 'transparent',
-                    textShadow: [
-                        'none',
-                        `0 0 18px ${activeColor}, 0 0 32px ${activeColor}`,
-                        'none',
-                    ],
-                    transition: {
-                        duration: Math.min(Math.max(duration || 0.12, 0.12), 0.2),
-                        times: [0, 0.4, 1],
-                        ease: 'easeInOut',
-                    },
-                };
-            }
-
-            // Letter-level sweep glow (Classic style)
-            if (total !== undefined && total > 1) {
-                const singleDuration = duration / total;
-                const hasCharTiming = typeof charStartTime === 'number'
-                    && typeof charEndTime === 'number'
-                    && typeof wordStartTime === 'number';
-                const resolvedCharDuration = hasCharTiming ? charEndTime - charStartTime : 0;
-                const charDuration = hasCharTiming
-                    ? Math.max(resolvedCharDuration, 0.001)
-                    : singleDuration;
-                const charDelay = hasCharTiming
-                    ? Math.max(0, charStartTime - wordStartTime)
-                    : singleDuration * index;
-                return {
-                    color: 'transparent',
-                    textShadow: [
-                        'none',
-                        `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
-                        'none',
-                    ],
-                    transition: {
-                        duration: charDuration * 6,
-                        times: [0, 0.3, 1],
-                        delay: charDelay,
-                        ease: 'easeInOut',
-                    },
-                };
-            }
-
-            // Single char / CJK: sustained glow (Classic style)
-            return {
-                color: 'transparent',
-                textShadow: [
-                    'none',
-                    `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
-                    `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
-                ],
-                transition: {
-                    duration: (duration || 0.1),
-                    times: [0, 0.9, 1],
-                    ease: 'easeInOut',
-                },
-            };
-        },
-        passed: ({ wordRevealMode }: any) => ({
-            color: 'transparent',
-            textShadow: 'none',
-            transition: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.22 : 0.9, ease: 'easeOut' },
-        }),
-    };
-
     const lyricContainerFloat = useMemo(() => {
         const configByIntensity = {
             calm: { distance: 10, duration: 8.5 },
@@ -962,7 +870,6 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
                     {showText && activeLine && activeLineRenderProfile && (
                         <motion.div
                             key={activeLine.startTime}
-                            data-shizuki-folia-lyric-line={String(activeLine.startTime)}
                             initial={activeLineContainerMotion.initial}
                             animate={activeLineContainerMotion.animate}
                             exit={activeLineContainerMotion.exit}
@@ -991,7 +898,6 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
                                                     theme={theme}
                                                     layoutVariants={layoutVariants}
                                                     bodyVariants={bodyVariants}
-                                                    glowVariants={glowVariants}
                                                     baseColor={theme.primaryColor}
                                                     renderProfile={activeLineRenderProfile}
                                                     isChorus={activeLine.isChorus}

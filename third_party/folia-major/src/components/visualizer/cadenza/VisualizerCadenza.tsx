@@ -7,10 +7,12 @@ import { buildWordGraphemeTimings, type GraphemeTiming } from '../../../utils/ly
 import { getLineRenderEndTime, getLineTransitionTiming, type LineTransitionTiming } from '../../../utils/lyrics/renderHints';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
 import { colorWithAlpha, mixColors } from '../colorMix';
+import { isGlowBlurQuantized, quantizeShadowBlur } from '../../../utils/glowBlurQuantize';
 import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { resolveSubtitleFontSizes } from '../subtitleFontSizes';
 import { resolveWordColor } from '../wordColoring';
 
 // This is the heavy layout mode.
@@ -137,7 +139,6 @@ const createOverlayWordNodes = (): OverlayWordNodes => {
     const outer = document.createElement('div');
     outer.className = 'absolute left-0 top-0';
     outer.setAttribute('aria-hidden', 'true');
-    outer.dataset.shizukiFoliaActiveLyricWord = 'true';
 
     const inner = document.createElement('div');
     inner.className = 'whitespace-nowrap';
@@ -398,17 +399,19 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
         const exitDuration = lineTiming.transitionTiming.exitDuration;
         const exitStart = Math.max(line.startTime + enterDuration + 0.01, linePassStart, lineEndTime - exitDuration);
         const enterProgress = easeOutCubic(clamp((time - line.startTime) / enterDuration, 0, 1));
+        let opacity = mix(0.65, 1, enterProgress);
         let scale = mix(0.97, 1, enterProgress);
         let blur = mix(4, 0, enterProgress);
 
         const exitProgress = easeOutCubic(clamp((time - exitStart) / exitDuration, 0, 1));
         if (exitProgress > 0) {
+            opacity = mix(opacity, 0, exitProgress);
             scale = mix(scale, 1.03, exitProgress);
             blur = Math.max(blur, mix(0, 6, exitProgress));
         }
 
         return {
-            opacity: 1,
+            opacity: clamp(opacity, 0, 1),
             scale,
             blur,
         };
@@ -419,18 +422,20 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
     const preEnter = Math.min(0.1, enterDuration * 0.35);
 
     const enterProgress = easeOutCubic(clamp((time - (line.startTime - preEnter)) / (enterDuration + preEnter), 0, 1));
+    let opacity = mix(0, 1, enterProgress);
     let scale = mix(0.9, 1, enterProgress);
     let blur = mix(10, 0, enterProgress);
 
     const exitStart = Math.max(linePassStart, lineEndTime - exitDuration);
     const exitProgress = easeOutCubic(clamp((time - exitStart) / exitDuration, 0, 1));
     if (exitProgress > 0) {
+        opacity *= 1 - exitProgress;
         scale = mix(scale, 1.1, exitProgress);
         blur = Math.max(blur, mix(0, 20, exitProgress));
     }
 
     return {
-        opacity: 1,
+        opacity: clamp(opacity, 0, 1),
         scale,
         blur,
     };
@@ -1192,8 +1197,11 @@ const drawShadowGlowText = (
 
     const glowStrength = clamp(intensity, 0, 2.6);
     const blurScale = Math.max(blur / 20, 0.85);
-    const innerBlur = 20 * blurScale;
-    const outerBlur = 40 * blurScale;
+    // Whole pixels while Lab > Fix lyric animation freeze on Linux is on: `blur` follows audio
+    // energy, and a radius that changes every frame leaks shared memory in Chromium's glyph cache.
+    // See utils/glowBlurQuantize.ts.
+    const innerBlur = quantizeShadowBlur(20 * blurScale);
+    const outerBlur = quantizeShadowBlur(40 * blurScale);
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -1211,7 +1219,7 @@ const drawShadowGlowText = (
 
     // A faint outer air layer so the 40px glow does not end abruptly.
     ctx.shadowColor = colorWithAlpha(color, Math.min(0.42, 0.18 + glowStrength * 0.06));
-    ctx.shadowBlur = outerBlur * 1.45;
+    ctx.shadowBlur = quantizeShadowBlur(outerBlur * 1.45);
     ctx.fillStyle = colorWithAlpha(color, 0.018 * glowStrength);
     ctx.fillText(text, x, y);
     ctx.restore();
@@ -1325,8 +1333,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
     });
     const tuning = cadenzaTuning;
     const emptyFontSize = `clamp(${(1.5 * lyricsFontScale).toFixed(3)}rem, ${(3.5 * lyricsFontScale).toFixed(3)}vw, ${(2.25 * lyricsFontScale).toFixed(3)}rem)`;
-    const translationFontSize = `clamp(${(1.125 * lyricsFontScale).toFixed(3)}rem, ${(2.6 * lyricsFontScale).toFixed(3)}vw, ${(1.25 * lyricsFontScale).toFixed(3)}rem)`;
-    const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(2 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
+    const { translationFontSize, upcomingFontSize } = resolveSubtitleFontSizes(lyricsFontScale);
 
     const preparedStateContext = useMemo<PreparedStateCacheContext>(() => ({
         showText,
@@ -1624,6 +1631,11 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                 }
 
                 overlayWord.outer.style.transform = `translate3d(${overlayAnchorX}px, ${overlayAnchorY}px, 0) rotate(${animatedState.rotation}deg) scale(${animatedState.scale})`;
+                // Own compositing layer while Lab > Fix lyric animation freeze on Linux is on: otherwise every
+                // new scale re-rasterizes the word and its 40px text-shadow at a new device size, and Chromium's
+                // glyph cache leaks shared memory for each one. See utils/glowBlurQuantize.ts.
+                const willChange = isGlowBlurQuantized() ? 'transform' : '';
+                if (overlayWord.outer.style.willChange !== willChange) overlayWord.outer.style.willChange = willChange;
                 overlayWord.outer.style.transformOrigin = '0 0';
                 overlayWord.inner.style.font = preparedState.font;
                 overlayWord.inner.style.transform = `translate3d(${overlayOffsetX}px, ${overlayOffsetY}px, 0)`;
