@@ -54,6 +54,25 @@
                 </option>
               </select>
             </label>
+            <label class="folia-lyric-color-picker" title="设置 Folia 主歌词颜色">
+              <span>字幕色</span>
+              <input
+                type="color"
+                :value="foliaLyricColor"
+                aria-label="Folia 主歌词颜色"
+                @change="handleFoliaLyricColorChange"
+              >
+            </label>
+            <button
+              v-if="foliaLyricColorCustom"
+              class="folia-toolbar-btn folia-lyric-color-reset ripple-trigger"
+              type="button"
+              title="恢复 Folia 主题字幕颜色"
+              aria-label="恢复 Folia 主题字幕颜色"
+              @click="resetFoliaLyricColor"
+            >
+              <i class="fas fa-rotate-left"></i>
+            </button>
             <button class="folia-toolbar-btn ripple-trigger" type="button" @click="syncCookieToFolia">
               <i class="fas fa-sync-alt"></i>
               同步账号
@@ -355,6 +374,7 @@ const SEARCH_ALL_INITIAL_VISIBLE = Object.freeze({
 // Folia 沉浸模式：同源嵌入已部署的 Folia 播放器（site.shizuki.online/music → gateway 18081）
 const FOLIA_EMBED_URL = '/music/';
 const FOLIA_MODE_STORAGE_KEY = 'shizuki.music.foliaMode';
+const FOLIA_LYRIC_COLOR_STORAGE_KEY = 'shizuki.music.foliaLyricColor';
 const FOLIA_NETEASE_COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie'];
 const FOLIA_NETEASE_COOKIE_OWNER_KEY = 'shizuki.music.foliaNeteaseCookieOwner';
 const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
@@ -366,11 +386,15 @@ const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
   'shizuki:get-cookie',
   'shizuki:get-status',
   'shizuki:set-theme',
+  'shizuki:set-lyric-color',
   'shizuki:set-wallpaper',
   'shizuki:set-view'
 ]);
 const homeStageContext = inject(HOME_STAGE_CONTEXT_KEY, null);
 const foliaMode = ref(readFoliaModePreference());
+const savedFoliaLyricColor = readFoliaLyricColorPreference();
+const foliaLyricColor = ref(savedFoliaLyricColor || getDefaultFoliaLyricColor());
+const foliaLyricColorCustom = ref(Boolean(savedFoliaLyricColor));
 const foliaViewportExpanded = ref(false);
 const foliaEmbedPaneRef = ref(null);
 const foliaEmbedHostRef = ref(null);
@@ -569,9 +593,56 @@ function syncThemeToFolia() {
     const themeMode = String(root.dataset.themeMode || root.getAttribute('data-theme-mode') || 'night');
     const isDaylight = themeMode === 'day';
     postToFolia({ type: 'shizuki:set-theme', isDaylight });
+    syncFoliaLyricColor();
   } catch {
     // ignore
   }
+}
+
+function getDefaultFoliaLyricColor() {
+  if (typeof document === 'undefined') return '#f4f4f5';
+  const themeMode = String(document.documentElement.dataset.themeMode || 'night');
+  return themeMode === 'day' ? '#1c1917' : '#f4f4f5';
+}
+
+function readFoliaLyricColorPreference() {
+  try {
+    const color = String(window.localStorage.getItem(FOLIA_LYRIC_COLOR_STORAGE_KEY) || '').trim();
+    return /^#[\da-f]{6}$/i.test(color) ? color : '';
+  } catch {
+    return '';
+  }
+}
+
+function syncFoliaLyricColor() {
+  const savedColor = readFoliaLyricColorPreference();
+  foliaLyricColorCustom.value = Boolean(savedColor);
+  foliaLyricColor.value = savedColor || getDefaultFoliaLyricColor();
+  postToFolia({ type: 'shizuki:set-lyric-color', color: savedColor });
+}
+
+function handleFoliaLyricColorChange(event) {
+  const color = String(event?.target?.value || '').trim();
+  if (!/^#[\da-f]{6}$/i.test(color)) return;
+  foliaLyricColor.value = color;
+  foliaLyricColorCustom.value = true;
+  try {
+    window.localStorage.setItem(FOLIA_LYRIC_COLOR_STORAGE_KEY, color);
+  } catch {
+    // Keep the current page usable when browser storage is disabled.
+  }
+  postToFolia({ type: 'shizuki:set-lyric-color', color });
+}
+
+function resetFoliaLyricColor() {
+  try {
+    window.localStorage.removeItem(FOLIA_LYRIC_COLOR_STORAGE_KEY);
+  } catch {
+    // Continue restoring the default even when browser storage is disabled.
+  }
+  foliaLyricColorCustom.value = false;
+  foliaLyricColor.value = getDefaultFoliaLyricColor();
+  postToFolia({ type: 'shizuki:set-lyric-color', color: '' });
 }
 
 function resolveFoliaWallpaper() {
@@ -3955,6 +4026,45 @@ onBeforeUnmount(() => {
   background: var(--theme-surface-soft);
   color: var(--theme-text-secondary);
   font-size: 12px;
+}
+
+.folia-lyric-color-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 999px;
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+}
+
+.folia-lyric-color-picker input {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.folia-lyric-color-picker input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.folia-lyric-color-picker input::-webkit-color-swatch {
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 50%;
+}
+
+.folia-lyric-color-reset {
+  width: 40px;
+  justify-content: center;
+  padding: 0;
 }
 
 .folia-playlist-label {

@@ -169,3 +169,23 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **WHEN** the dock and player detail view are shown for the same playing track
 - **THEN** both visualizers use the site's log-band spectrum processor and crystal-bars renderer
 - **AND THEN** the compact visualizer distributes movement across the full width instead of concentrating it on the low-frequency left edge
+
+### Requirement: Embedded NetEase proxy survives API container replacement
+The Folia gateway SHALL re-resolve the NetEase API service name through Docker DNS so replacing the API container cannot leave the gateway connected to a stale container IP.
+
+#### Scenario: NetEase API container receives a new IP
+- **WHEN** Docker replaces the NetEase API container and assigns it a new address on the shared network
+- **THEN** the Folia gateway refreshes the service address within its configured DNS validity interval
+- **AND THEN** NetEase playback and login API requests continue reaching the replacement container instead of returning a stale-upstream 502
+
+### Requirement: Embedded primary lyric color is configurable
+The embedded Folia toolbar SHALL allow visitors to choose and persist a primary lyric color, and SHALL allow restoring Folia's theme color.
+
+#### Scenario: Lyrics appear over a light wallpaper
+- **WHEN** a visitor chooses a primary lyric color in the Folia toolbar
+- **THEN** the selected color is applied to the primary animated lyrics across the supported visualizers and retained on reload
+- **AND THEN** translations and other Folia interface text remain controlled by their existing theme
+
+#### Scenario: Restore the Folia theme lyric color
+- **WHEN** a visitor resets the lyric color override
+- **THEN** the custom color is removed and Folia's current theme color controls the primary lyrics again
