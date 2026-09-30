@@ -6,7 +6,7 @@ See proposal.md for user symptoms. The Vue player owns audio; Folia React is loa
 
 **Goals:** Reproduce the exact symptoms with behavioral tests; preserve one audio owner; make entry, authorization, and bounded preparation independent of visible mode. Root performs diagnosis/review while Luna writes implementation.
 
-**Non-Goals:** Replacing Folia, enabling additional providers, exposing account secrets, changing remote branch naming, deploying, or pushing Git changes.
+**Non-Goals:** Replacing Folia, enabling additional providers, exposing account secrets, changing remote branch naming, or deploying.
 
 ## Decisions
 

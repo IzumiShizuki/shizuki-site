@@ -15,9 +15,10 @@
 
 - [x] 3.1 Re-run original behavioral repros, affected tests, and frontend build; fix regressions introduced by this change.
 - [x] 3.2 Verify requirements/design against implementation, run strict OpenSpec validation, and document limitations and any pending production acceptance.
-- [x] 3.3 Remove temporary diagnostics, update tasks, and commit the verified local changes without pushing or deploying.
+- [x] 3.3 Remove temporary diagnostics, update tasks, and commit the verified local changes without deploying.
 - [x] 3.4 Preserve concurrent main updates, align the complete Folia fork/public patch, and repeat affected verification after integration.
+- [x] 3.5 Push the user-authorized diagnosis branch to the owner-controlled site origin and verify it is synchronized.
 
 ## Release follow-up (outside this local change)
 
-Production acceptance and the upstream Windows symlink test limitation are recorded in verification-report.md. No push, deployment, or OpenSpec archive was performed.
+Production acceptance and the upstream Windows symlink test limitation are recorded in verification-report.md. The diagnosis branch is pushed and synchronized. No deployment or OpenSpec archive was performed. The separate Folia source branch remains local because its only configured remote is the upstream project; the correct user-owned fork URL is unavailable.

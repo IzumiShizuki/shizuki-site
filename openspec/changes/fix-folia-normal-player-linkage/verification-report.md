@@ -6,7 +6,7 @@
 
 | 维度 | 结论 |
 | --- | --- |
-| 完整性 | 11/11本地任务、4/4需求均有实现与证据；已保留并行main更新，不包含部署。 |
+| 完整性 | 12/12任务、4/4需求均有实现与证据；已保留并行main更新并推送网站分支，不包含部署。 |
 | 正确性 | 8个规范场景均有代码/测试或只读生产诊断证据；实际账号/CDN仍需发布验收。 |
 | 一致性 | 仍以Vue播放器为唯一音频所有者；Folia保持独立源码与原生独立运行路径；共用现有API，没有新增后台协议。 |
 
@@ -37,13 +37,14 @@ Folia文件路径在完整fork中相对`src/`；本仓库公开主要快照，Ap
 - 源码`git diff --check`通过。仓库级检查排除作为文本保存的patch本身：patch中的空白context行必须包含一个前导空格，普通diff会将新增这些context行误报为尾随空白；实际patch应用没有whitespace warning。
 - 临时基线SFC与patch检验worktree均已移除；保留用户已有worktree。本地完整fork首次修复：`34a51405`；末次同步提交：`388f3e72`，分支`codex/fix-folia-normal-linkage`。
 - 收尾时并行工作区将main推进到`554bd949`，本排查分支以`f79391e9`无冲突合入，保留壁纸字节进度、Folia字幕颜色及网易云代理动态DNS修复；完整fork和公开patch同步保留相应Folia改动。最后只读NetEase song/detail probe返回200，独立lyric-proxy仍返回401；没有执行服务器操作。
-- `openspec validate fix-folia-normal-player-linkage --type change --strict --no-interactive` 严格校验通过；网站变更、公开fork补丁与本报告一并提交到`codex/diagnose-folia-normal-linkage`。
+- `openspec validate fix-folia-normal-player-linkage --type change --strict --no-interactive` 严格校验通过；网站变更与公开fork补丁提交到`codex/diagnose-folia-normal-linkage`并推送至`origin`，推送后远端与本地SHA相同（`e70219a9`，后续报告修订会更新远端tip）。
+- 独立完整fork提交`388f3e72`仍在`D:\program\_codex_deploy\folia-major-v0.7.8-upstream`。唯一配置的`origin`是上游`chthollyphile/folia-major`，而检查没有找到用户拥有的Folía远端；未推送该分支到上游。排查分支包含可在完整v0.7.11基线上应用且已验证的完整patch。
 
 ## 审查结论与遗留验收
 
 没有发现未实现的本地需求或新增回归。唯一未通过单测为已证明存在于上游基线的Windows符号链接权限限制；本次变更保持该测试。OpenSpec严格校验通过，本地交付可接受；本change保持未归档状态。
 
-本次不包含push或部署。当前生产公共入口仍是用户日志中的`main-DvNzgpb0.js`；runbook记载的0.7.7镜像与0.7.11源码同步不能当作本次已上线。后续明确授权发布应：
+本次已推送网站排查分支，不包含生产部署。当前生产公共入口仍是用户日志中的`main-DvNzgpb0.js`；runbook记载的0.7.7镜像与0.7.11源码同步不能当作本次已上线。后续明确授权发布应：
 
 1. 从匹配的完整fork构建Folia `/music/`资源，将主站前端与Folia一同发布，检查资源版本及浏览器service worker缓存，保留上一镜像以便回滚。
 2. 使用实际网易云账号验证普通入口同步、失败重试和账号切换；顺序/随机队列中连续播放，并频繁A→B选择及正常模式/Folia往返。

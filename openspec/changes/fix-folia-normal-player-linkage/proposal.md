@@ -22,5 +22,5 @@ None. The existing Folia integration contract lives in an unarchived change; thi
 
 - Main site: `MusicLibraryPage.vue`, `usePlayerEngine.js`, shared music library/account composables, and regression tests.
 - Folia fork: external bridge snapshots and public patch artifacts; preserve its independent source boundary.
-- Diagnostics: production public HTTP endpoints and deployed bundle inspection are read-only. This change does not authorize deployment or Git push.
+- Diagnostics: production public HTTP endpoints and deployed bundle inspection are read-only; production deployment stays outside this change. The user later explicitly authorized pushing the diagnosis branch, and the result is recorded in the verification report.
 - Root agent owns diagnosis and verification; implementation is delegated to Luna.

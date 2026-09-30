@@ -7,7 +7,8 @@
 - 原分支：`codex/upgrade-folia-v0711`，工作区干净。
 - 仓库原主分支名为 `master`，没有 `main`。从本地 `master` 创建 `main` 后，以 merge commit `c7bae206` 合并原分支，双方提交均保留。
 - 当前排查/修复分支：`codex/diagnose-folia-normal-linkage`。
-- 没有执行 Git push 或生产部署。
+- 首次本地提交时未推送、未部署。用户随后明确授权推送排查分支：网站分支已推到 `origin/codex/diagnose-folia-normal-linkage` 并核验同步；没有执行生产部署。
+- 完整 Folia checkout 的 `origin` 指向上游 `chthollyphile/folia-major`。检查未找到可用的 Shizuki Folia fork，因此未将该完整源码分支推到上游；与其内容一致的公开 patch 已包含在并已推送的网站分支中。
 - 收尾时其他工作区将 `main` 推进到 `554bd949`，包含壁纸下载字节进度及既有Folia代理DNS/字幕颜色修复。本排查分支以 `f79391e9` 无冲突合入这些提交，保留双方意图；本地修复首次提交为 `ca168f2c`。
 
 ## 证据与反馈循环
