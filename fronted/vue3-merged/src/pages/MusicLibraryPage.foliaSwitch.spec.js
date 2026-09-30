@@ -8,6 +8,7 @@ const bridgeSource = readFileSync(
   'utf8'
 );
 const appSource = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8');
+const dockSource = readFileSync(resolve(process.cwd(), 'src/components/music/MusicLibraryDock.vue'), 'utf8');
 
 function readFunction(name) {
   const start = source.indexOf(`function ${name}`);
@@ -16,6 +17,21 @@ function readFunction(name) {
 }
 
 describe('MusicLibraryPage Folia mode handoff', () => {
+  it('provides every player binding read by the music page template', () => {
+    const template = source.slice(0, source.indexOf('<script setup'));
+    const bridgeDefinition = appSource.match(/const playerBridge = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
+    const bridgeProperties = new Set(
+      [...(bridgeDefinition?.[1] || '').matchAll(/^\s*([A-Za-z_$][\w$]*)\s*:/gm)].map((match) => match[1])
+    );
+    const templateProperties = new Set(
+      [...template.matchAll(/\bplayer\.([A-Za-z_$][\w$]*)/g)].map((match) => match[1])
+    );
+    const missingProperties = [...templateProperties].filter((property) => !bridgeProperties.has(property));
+
+    expect(bridgeDefinition).not.toBeNull();
+    expect(missingProperties).toEqual([]);
+  });
+
   it('keeps both mode trees mounted and hides them without display:none', () => {
     expect(source).not.toContain('<div v-if="!foliaMode" class="music-library-module"');
     expect(source).toContain("'music-mode-pane-hidden': foliaMode");
@@ -59,6 +75,23 @@ describe('MusicLibraryPage Folia mode handoff', () => {
 
     expect(modeSwitch).toContain("type: 'shizuki:stop-follow-playback'");
     expect(modeSwitch).not.toContain('pullCurrentTrackFromFolia');
+  });
+
+  it('keeps song selection available inside Folia and exposes randomized queue order', () => {
+    const trackSelect = readFunction('handleFoliaTrackSelect');
+
+    expect(source).toContain('class="folia-track-picker"');
+    expect(source).toContain(':value="foliaCurrentQueueEntryId"');
+    expect(trackSelect).toContain('queueEntryId');
+    expect(trackSelect).toContain('player.selectTrackByIndex');
+    expect(source).toContain(':queue-tracks="player.queueDisplayTracks.value"');
+    expect(dockSource).toContain('displayQueueTracks');
+    expect(dockSource).toContain('emit(\'select-track\', track?.queueEntryId || index)');
+  });
+
+  it('uses the shared spectrum renderer for the dock visualization', () => {
+    expect(dockSource).toContain('MusicVisualizerLayer class="tw-spectrum" variant="bars-crystal"');
+    expect(dockSource).not.toContain('TwLightSpectrum');
   });
 
   it('projects a smooth Folia clock and relays Folia playback controls', () => {

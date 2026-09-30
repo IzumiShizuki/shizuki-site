@@ -18,6 +18,7 @@ const partitaSource = readFileSync(
   resolve(process.cwd(), '../../third_party/folia-major/src/components/visualizer/partita/VisualizerPartita.tsx'),
   'utf8'
 );
+const musicPlayerSource = readFileSync(resolve(process.cwd(), 'src/components/MusicPlayer.vue'), 'utf8');
 
 function readFunction(name) {
   const start = bridgeSource.indexOf(`function ${name}`);
@@ -26,6 +27,14 @@ function readFunction(name) {
 }
 
 describe('Folia followed lyric projection', () => {
+  it('keeps lyric lines visible while replacing their text', () => {
+    expect(musicPlayerSource).not.toContain('lyric-switch');
+    expect(musicPlayerSource).not.toContain(':key="lyricContext?.key');
+    expect(classicSource).toContain('initial: { opacity: 1, scale: 0.9');
+    expect(partitaSource).toContain('initial: { opacity: 1, scale: 0.9');
+    expect(cadenzaSource).toContain('opacity: 1,\n            scale,');
+  });
+
   it('keeps an unchanged lyric timeline mounted across clock snapshots', () => {
     const applyFollowSession = readFunction('applyFollowSession');
 

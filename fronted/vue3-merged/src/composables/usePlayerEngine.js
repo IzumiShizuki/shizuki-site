@@ -400,6 +400,17 @@ export function usePlayerEngine(options = {}) {
     return tracks.value[currentIndex.value] || null;
   });
 
+  const queueDisplayTracks = computed(() => {
+    if (playMode.value !== 'random' || !randomQueue.value.length) return tracks.value;
+    const remaining = tracks.value.slice();
+    const ordered = [];
+    randomQueue.value.forEach((id) => {
+      const index = remaining.findIndex((track) => track.id === id);
+      if (index >= 0) ordered.push(remaining.splice(index, 1)[0]);
+    });
+    return [...ordered, ...remaining];
+  });
+
   const expectedDuration = computed(() => {
     const value = Number(currentTrack.value?.durationSec);
     return Number.isFinite(value) && value > 0 ? value : 0;
@@ -1557,6 +1568,7 @@ export function usePlayerEngine(options = {}) {
     loading,
     audioElement,
     currentTrack,
+    queueDisplayTracks,
     currentTrackId,
     currentIndex,
     currentTime,

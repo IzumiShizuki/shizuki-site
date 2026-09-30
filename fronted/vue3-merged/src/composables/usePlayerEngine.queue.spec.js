@@ -67,6 +67,7 @@ describe('usePlayerEngine queue identity', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     globalThis.Audio = originalAudio;
   });
 
@@ -86,6 +87,29 @@ describe('usePlayerEngine queue identity', () => {
     expect(ids.every((id) => typeof id === 'string' && id.trim().length > 0)).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids[0]).toMatch(/^netease:t-1:\d+$/);
+  });
+
+  it('exposes the randomized playback sequence in the queue display order', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks(
+      ['a', 'b', 'c', 'd'].map((id) => ({
+        provider: 'local',
+        trackId: id,
+        title: id.toUpperCase(),
+        artist: 'Singer',
+        audio: `https://audio.example.com/${id}.mp3`
+      })),
+      0,
+      false
+    );
+
+    engine.playMode.value = 'random';
+
+    expect(engine.queueDisplayTracks.value.map((track) => track.id)).toEqual(['a', 'c', 'd', 'b']);
+    const displayedEntryIds = engine.queueDisplayTracks.value.map((track) => track.queueEntryId);
+    expect(new Set(displayedEntryIds).size).toBe(4);
+    expect([...displayedEntryIds].sort()).toEqual(engine.tracks.value.map((track) => track.queueEntryId).sort());
   });
 
   it('keeps the queueEntryId stable when a track is lazily resolved for playback', async () => {

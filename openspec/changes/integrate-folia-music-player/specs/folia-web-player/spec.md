@@ -97,6 +97,7 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **WHEN** the main-site session contains a timestamped primary lyric and an optional translation
 - **THEN** Folia renders the primary line in the immersive lyric area and the translation as secondary text
 - **AND THEN** an active-line transition does not leave the immersive lyric area empty
+- **AND THEN** replacing the active line does not fade the entire lyric layer to transparent
 
 #### Scenario: Embedded lyric focus advances once
 - **WHEN** playback crosses from one timestamped lyric line to the next
@@ -153,3 +154,18 @@ The embedded music experience SHALL keep the main-site player as the single audi
 - **WHEN** a visitor opens a music playlist and chooses its Folia browsing action
 - **THEN** the full playlist is installed as the site-owned queue and displayed in Folia's lattice view
 - **AND THEN** later next/previous controls continue to use that complete queue
+
+#### Scenario: Select a queued song without leaving Folia
+- **WHEN** Folia is visible and the site-owned queue contains songs
+- **THEN** the Folia toolbar lets the visitor select a song from that queue
+- **AND THEN** selection changes the site-owned audio and updates Folia's lyrics and track details without leaving Folia
+
+#### Scenario: Random queue drawer follows playback order
+- **WHEN** random playback is enabled and the visitor opens the dock queue
+- **THEN** the queue is displayed in the same shuffled sequence used by next/previous playback
+- **AND THEN** each row retains its queue-entry identity so selecting an earlier song returns to that song
+
+#### Scenario: Compact and detail visualizers share the same spectrum
+- **WHEN** the dock and player detail view are shown for the same playing track
+- **THEN** both visualizers use the site's log-band spectrum processor and crystal-bars renderer
+- **AND THEN** the compact visualizer distributes movement across the full width instead of concentrating it on the low-frequency left edge
