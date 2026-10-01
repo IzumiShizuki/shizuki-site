@@ -5,8 +5,8 @@
 ## 当前对应源码
 
 - 用户 fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，分支 `codex/unify-folia-workspace`。
-- 本次字幕色实现及源码 tip：`c755facfe0d2fb53303aefc977d41f72375e2e07`；当前线上基线为 `7069103b4ce862f0e1f8befde5c48dbe778777f4`，部署验收进度见本次报告。
-- 完整差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，**305,683 bytes; SHA-256 `880e88ade4d0173d88d6978210541e5dd192fbed3ef8bed786fe428fd571bed0`; `76` changed files**。可应用到干净 `6fe68d89`，已实际应用并逐项核对全部目标 Git blob。
+- 本次字幕色实现：`c755facfe0d2fb53303aefc977d41f72375e2e07`；源码 tip（含空白清理）：`1fca2ef15922c55b8655873bbd4d6a4415db828b`。当前线上基线为 `7069103b4ce862f0e1f8befde5c48dbe778777f4`，部署验收进度见本次报告。
+- 完整差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，**307,630 bytes; SHA-256 `203475f6fc2bc43c8781a08c659da3d6d2afbb0c5b4f997bde0e5eae768eb57f`; `76` changed files**。可应用到干净 `6fe68d89`，已实际应用并逐项核对全部目标 Git blob。
 - 本目录 **57 个 TS/TSX 源码及测试快照**与完整 fork 逐字节一致；桥快照 `shizukiExternalBridge.ts` 对应 fork 的 `src/shizukiExternalBridge.ts`。
 - 完整 fork 的本地目录 `D:\program\_codex_deploy\folia-major-v0.7.8-upstream` 保留旧目录名，实际基线为 v0.7.11。旧 `embedded-history-isolation.patch` 仅作历史参考。
 
