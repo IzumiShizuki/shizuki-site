@@ -21,6 +21,19 @@ Both music modes SHALL display the position, duration, and play/pause state of t
 - **WHEN** the visitor chooses a second track before the first selection has resolved
 - **THEN** only the latest selection can become the audible track and displayed session
 
+#### Scenario: Choose a different Folia track after ordinary playback
+- **WHEN** the visitor plays track A in normal mode, enters Folia, and selects track B using Folia's native song controls
+- **THEN** the site-owned audio switches to track B and both modes display track B
+- **AND THEN** a following session projection for track A does not replace the visitor's newer selection
+
+### Requirement: Custom Folia lyric color reaches the rendered lyrics
+The embedded Folia lyric color control SHALL apply the selected color to the visible primary lyrics, including visualizers that render glyphs outside ordinary DOM text. Resetting the control SHALL restore the visualizer's theme color.
+
+#### Scenario: Apply and reset a visible lyric color
+- **WHEN** the visitor chooses a non-white custom lyric color while the embedded visualizer displays lyrics
+- **THEN** the primary lyric glyphs use that color, and it remains selected across track or mode changes
+- **AND THEN** resetting the control removes the custom override and restores the visualizer theme
+
 ### Requirement: Preparation is independent of visible mode
 The shared music player SHALL perform bounded next-track preparation for the active playback ordering in either mode. Preparation failures SHALL NOT interrupt current playback, replace current lyrics, consume foreground playback quota, or automatically skip the next track.
 

@@ -1195,10 +1195,10 @@ async function mirrorFoliaPlaybackIntent(data) {
   const intentVersion = ++foliaPlaybackIntentVersion;
   const requestedPositionMs = Math.max(0, Number(data?.positionMs || 0));
   const shouldPlay = data?.playing !== false;
-  const currentTrackId = readFoliaTrackId(player.currentTrack.value);
+  const currentTrackKey = readFoliaTrackKey(player.currentTrack.value);
   let played = true;
 
-  if (currentTrackId !== readFoliaTrackId(track)) {
+  if (currentTrackKey !== readFoliaTrackKey(track)) {
     // Folia is only a controller/view of the site-owned session. Replacing here
     // would collapse the current playlist to its selected track, so preserve the
     // existing queue just like a selection made from the normal music UI.

@@ -27,3 +27,7 @@ See proposal.md for user symptoms. The Vue player owns audio; Folia React is loa
 ## Migration Plan
 
 No runtime deployment is performed. Commit verified local changes on the new branch after strict OpenSpec validation and applicable tests/build. A later explicitly authorized release must build Folia from the matching complete fork and deploy Folia and the main frontend together, verify pause/seek/rapid selection/account import, and retain previous images for rollback.
+
+## Production regression follow-up (2026-10-01)
+
+The user authorized the prior fork push and production deployment and reports two remaining symptoms: a normal-mode track remains audible after selecting a different track inside Folia, and the toolbar lyric color stays white. Reopen behavioral verification at the actual selection and visualizer seams. Test the normal-to-Folia sequence rather than only isolated relay calls, and assert the rendered primary lyric color rather than only an injected CSS variable. Preserve standalone mode and the single audio owner. Record stale browser bundles separately from fresh deployment behavior; keep public snapshots/patch consistent with the complete user-owned fork. The prior deployment is recorded in verification-report.md; verified follow-up fixes may be pushed and deployed under the existing session authorization with rollback protection.

@@ -19,7 +19,14 @@
 - [x] 3.4 Preserve concurrent main updates, align the complete Folia fork/public patch, and repeat affected verification after integration.
 - [x] 3.5 Push the user-authorized diagnosis branch to the owner-controlled site origin and verify it is synchronized.
 
-## Release follow-up
+## 4. Production regression follow-up (2026-10-01)
+
+- [x] 4.1 Reproduce normal-mode track A followed by an embedded Folia selection of track B, and a non-white lyric color in the actual visualizer rendering path; record old-tab versus fresh-bundle evidence.
+- [x] 4.2 Have Luna repair confirmed selection/color consumer defects with red-to-green behavioral regressions, preserving the single site audio owner and standalone Folia behavior.
+- [x] 4.3 Synchronize the complete user-owned fork, site snapshots and public patch; verify affected tests, type checks, builds, and strict OpenSpec validation.
+- [ ] 4.4 Push the verified follow-up under the existing authorization, deploy affected services with rollback protection, and verify the original browser workflow and live resources.
+
+## Previous release status
 
 - The full Folia fix was pushed to the user-owned fork at `https://github.com/IzumiShizuki/folia-major.git`, branch `codex/fix-folia-normal-linkage`, commit `388f3e727e5ea523c3be16313f5a60034b70965b`.
 - Site release commit `612250bc1098c9317d5ef358a18cc60d54ffb0de` was pushed to `origin/master` and deployed to the personal production site. The Folia gateway was built from the fork commit and deployed; site and gateway health checks passed.
