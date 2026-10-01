@@ -6,7 +6,7 @@
 ## 同步基线
 
 - 上游稳定版本：`v0.7.11`，commit `6fe68d89`。
-- Shizuki fork：`folia-embed` 分支，合并 commit `fa4b6714`，后续兼容修复 commit `69a97532`。
+- Shizuki fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，`codex/fix-folia-normal-linkage` 分支，当前本地验证提交 `822bcc5c`。历史 `folia-embed` 合并 commit 为 `fa4b6714`，类型兼容修复为 `69a97532`。
 - 完整 fork 差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，包含后续修复，已验证可应用到干净的上游 v0.7.11 checkout。
 - 本目录的桥接、bootstrap、可视化器与回归测试快照来自已合并源码。旧的 `embedded-history-isolation.patch` 保留作早期嵌入历史补丁参考；当前 fork 差异以完整 v0.7.11 patch 为准。
 
@@ -30,7 +30,13 @@
 
 嵌入定向测试16/16、TypeScript检查及 `/music/` 正式构建通过。完整 Folia 单测4385通过、2跳过，唯一失败是上游 modSignature 测试在 Windows 创建符号链接时的 EPERM；干净 v0.7.11 基线同样失败，未修改或跳过该测试。patch 已在干净基线通过 `git apply --check` 并实际应用。
 
-本次没有更新服务器源码或镜像。发布时应将匹配的主站前端与 Folia 构建一起部署，验证零进度、暂停/拖动、快速切歌、切回普通模式及网易云歌单同步，并保留原镜像以便回滚。详情见项目 [排查报告](../../openspec/changes/fix-folia-normal-player-linkage/diagnosis.md) 和 [验证报告](../../openspec/changes/fix-folia-normal-player-linkage/verification-report.md)。
+首次排查阶段没有部署；用户随后授权推送与部署，`388f3e72` 已于 2026-10-01 发布。后续浏览器反馈与验收见项目 [排查报告](../../openspec/changes/fix-folia-normal-player-linkage/diagnosis.md) 和 [验证报告](../../openspec/changes/fix-folia-normal-player-linkage/verification-report.md)。
+
+## 2026-10-01 字幕色反馈修复
+
+`822bcc5c` 修复 Lattice 画布歌词没有消费工具栏自定义颜色的问题。外部桥通知 React provider，运行时更新已缓存的主歌词 shader；恢复默认色会恢复主题及副歌颜色，翻译字幕继续使用字幕主题。独立 Folia 保留原主题行为。对应测试 `test/unit/shizukiLatticeLyricColor.integration.test.ts` 驱动真实 bridge、provider 与 glyph scene；受影响 Folia 套件 12 files / 80 tests、TypeScript 检查及 `/music/` 构建通过。
+
+公开完整 patch 为 116469 bytes，与 fork 相对 `6fe68d89` 的差异一致；15 个源码/测试快照与完整 fork 逐字节一致。主站另外修复了 Folia 选曲时忽略 provider、把非数字 ID 当作 0 的身份比较。
 
 ## AGPL-3.0 合规
 
@@ -40,8 +46,7 @@
 
 ## 部署状态（服务器 111.228.35.186）
 
-- 源码：`/opt/folia/folia-major-main`，`folia-embed` 分支已合并到 v0.7.11。
-- 合并提交：`fa4b6714`。
-- 桥接类型兼容修复：`69a97532`（`Album.coverUrl`）。
-- 当前生产镜像仍为 `folia-local/gateway:0.7.7-music`；本次源代码同步未构建、未部署，也未重启服务。
+- 源码：`/opt/folia/folia-major-main`，`codex/deploy-shizuki-folia-20261001` 分支，基于 v0.7.11；首次联动发布提交 `388f3e72`。
+- 镜像标签 `folia-local/gateway:0.7.7-music` 保留历史名称；部署版本以 Git commit 与镜像 digest 为准。首次联动发布镜像 ID 为 `sha256:b4c4b14cbb73f3a5b632dc92b2241d8e74367c4299ea1a2eb6586b493ff059e6`。
+- 字幕色后续发布结果、回滚镜像及实际浏览器验收记录在验证报告中。
 - 反向代理：1Panel openresty `location /music/` → `127.0.0.1:18081`。

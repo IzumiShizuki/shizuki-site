@@ -1,13 +1,22 @@
 # Verification: fix-folia-normal-player-linkage
 
-日期：2026-09-30。根代理负责诊断、复核与交付；Luna 负责所有实现代码。
+日期：2026-09-30；生产反馈修复复核：2026-10-01。根代理负责诊断、复核与交付；Luna 负责所有实现代码。
+
+## 2026-10-01 生产反馈修复
+
+- 已确认画布歌词缺少颜色 consumer：真实 `shizuki:set-lyric-color` → provider → glyph scene 回归先失败，再由 Luna 接入主歌词 shader 色值及活动场景更新；重置恢复主题/副歌颜色，翻译字幕保留独立颜色。Pixi primitives 在测试中被替代，实际画布仍需发布后浏览器验收。
+- 已确认选曲身份比较丢失 provider 与非数字 ID：真实 Vue SFC message handler 的红测中 `playExternalTrack` 调用为零。最小修复使用已有 `readFoliaTrackKey`，4 种 identity 场景通过，保留主站播放队列与单音频 owner。
+- 已检查实际登录页：两个旧 tab 仍加载旧站点/Folia bundle；刷新后的版本可通过 Lattice Play 与原生 Folia 歌单 Play 切换不同 NetEase 歌曲，进度增长。只聚焦卡片不会播放；不能把初次聚焦操作误判成切歌失败，也不能据此把所有用户反馈归因为缓存。
+- 最终主站 **246 files / 1478 tests passed**；正式构建通过，生成 `MusicLibraryPage-CJ0iajjs.js`。Folia 受影响 **12 files / 80 tests passed**；`tsc --noEmit` 和 `/music/` 正式构建通过。既有大 chunk / Vue 生命周期警告仍存在；没有新增测试失败。
+- 完整 Folia 本地提交 `822bcc5caf4103e232994247ec4f128bdcf30868`；公开 patch **116469 bytes**，与相对上游 `6fe68d89` 的完整差异一致，**15 个源码/测试快照逐字节一致**。补丁在干净上游 checkout 通过 `git apply --check`、实际应用及 `git diff --check`。
+- OpenSpec 严格校验通过。主站及 Folia 的本轮推送、部署和真实渲染验收尚在进行，任务 4.4 保持未完成；下方首次发布记录保留作历史与回滚依据。
 
 ## 完整性、正确性与一致性
 
 | 维度 | 结论 |
 | --- | --- |
-| 完整性 | 12/12任务、4/4需求均有实现与证据；网站修复和完整Folía fork均已推送，主站与Folía网关已部署。 |
-| 正确性 | 8个规范场景均有代码/测试或生产检查证据；真实登录账号的播放、拖动及歌单同步仍需用户验收。 |
+| 完整性 | 首次发布已完成；本轮反馈修复代码、回归与本地构建完成，生产部署/浏览器验收见任务 4.4。 |
+| 正确性 | 原场景及新增颜色/选曲身份场景有代码、测试或浏览器证据；真实画布颜色验收待本轮发布完成。 |
 | 一致性 | 仍以Vue播放器为唯一音频所有者；Folia保持独立源码与原生独立运行路径；共用现有API，没有新增后台协议。 |
 
 ## 需求与场景映射

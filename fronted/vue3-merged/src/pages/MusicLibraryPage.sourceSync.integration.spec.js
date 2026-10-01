@@ -35,6 +35,7 @@ import MusicLibraryPage from './MusicLibraryPage.vue';
 
 function makePlayer() {
   const refs = new Map();
+  const actions = new Map();
   const functions = new Set([
     'replaceQueueWithTracks', 'selectTrackByIndex', 'playExternalTrack', 'seekToTime',
     'enqueueExternalTrack', 'togglePlay', 'playNext', 'playPrev', 'seekToPercent',
@@ -42,7 +43,10 @@ function makePlayer() {
   ]);
   return new Proxy({}, {
     get: (_target, key) => {
-      if (functions.has(key)) return vi.fn().mockResolvedValue(true);
+      if (functions.has(key)) {
+        if (!actions.has(key)) actions.set(key, vi.fn().mockResolvedValue(true));
+        return actions.get(key);
+      }
       if (!refs.has(key)) refs.set(key, ref(key === 'tracks' || key === 'queueDisplayTracks' ? [] : null));
       return refs.get(key);
     }
@@ -170,6 +174,66 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
 
     expect(mocked.api.importMusicSourcePlaylists).not.toHaveBeenCalled();
     wrapper.unmount();
+  });
+
+  it.each([
+    {
+      name: 'same provider with a different nonnumeric id',
+      siteTrackA: { id: 'queue:A', trackId: 'legacy-A', provider: 'netease', title: 'A' },
+      foliaTrackB: { id: 'legacy-B', trackId: 'legacy-B', provider: 'netease', name: 'B' },
+      shouldSwitch: true
+    },
+    {
+      name: 'different providers with the same numeric id',
+      siteTrackA: { id: 'spotify:42', trackId: 42, provider: 'spotify', title: 'A' },
+      foliaTrackB: { id: '42', trackId: 42, provider: 'netease', name: 'B' },
+      shouldSwitch: true
+    },
+    {
+      name: 'ordinary NetEase A to B selection',
+      siteTrackA: { id: '101', trackId: '101', provider: 'netease', title: 'A' },
+      foliaTrackB: { id: '202', trackId: '202', provider: 'netease', name: 'B' },
+      shouldSwitch: true
+    },
+    {
+      name: 'the same provider and track identity',
+      siteTrackA: { id: 'netease:42', trackId: '42', provider: 'netease', title: 'A' },
+      foliaTrackB: { id: '42', trackId: 42, provider: 'netease', name: 'A again' },
+      shouldSwitch: false
+    }
+  ])('routes Folia selection by provider and track identity: $name', async ({ siteTrackA, foliaTrackB, shouldSwitch }) => {
+    const wrapper = await mountPage();
+    try {
+      mocked.player.currentTrack.value = siteTrackA;
+      mocked.player.isPlaying.value = true;
+      mocked.player.playExternalTrack.mockImplementation(async (track) => {
+        mocked.player.currentTrack.value = track;
+        return true;
+      });
+
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      expect(window.localStorage.getItem('shizuki.music.foliaMode')).toBe('1');
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'shizuki:playback-intent', track: foliaTrackB, positionMs: 0, playing: true }
+      }));
+      await flushPromises();
+      await flushPromises();
+
+      if (shouldSwitch) {
+        expect(mocked.player.playExternalTrack).toHaveBeenCalledWith(
+          expect.objectContaining({ provider: foliaTrackB.provider, title: foliaTrackB.name }),
+          { replaceQueue: false }
+        );
+        expect(mocked.player.currentTrack.value).toMatchObject({
+          id: String(foliaTrackB.id), trackId: String(foliaTrackB.trackId), provider: foliaTrackB.provider,
+        });
+      } else {
+        expect(mocked.player.playExternalTrack).not.toHaveBeenCalled();
+        expect(mocked.player.currentTrack.value).toMatchObject(siteTrackA);
+      }
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it('does not begin an import for a guest', async () => {

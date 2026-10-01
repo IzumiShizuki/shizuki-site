@@ -1,8 +1,24 @@
 # Folia / 普通模式联动排查
 
+## 2026-10-01 production feedback follow-up
+
+The user reports an ordinary-mode track remaining audible after selecting another Folia track, plus a lyric color picker that leaves lyrics white. Browser inspection distinguished two stale user tabs from the fresh deployment: the latest tab initially held site `index-hh_Iw5I0.js` and Folia `main-DvNzgpb0.js`; after reload it held `index-BXPorIWF.js` and `main-DtKcOlQb.js`. Another pre-existing tab still held `index-CDjbjNra.js` and `main-dRxIvTiL.js`.
+
+In the fresh bundle, a native Lattice card selection followed by its Play button changed the host from `こころに響く恋ほたる` to `Like a cloud`; the toolbar and dock both changed, position advanced, and Folia-owned audio sources remained empty. This numeric NetEase scenario does not reproduce the reported selection failure after reload. Other identity and projection-order cases remain under behavioral investigation; stale tabs alone do not prove every reported selection is fixed.
+
+The native Folia Home → `purple` collection → focused track Play path also changed `アオイトリ` to `Like a cloud`, with the host reaching 00:04 / 02:32. An initial click on a non-focused card's hidden Play button merely centered that card; its `--play-pe` disables pointer interaction until focus. This observation was corrected before any selection code was changed. A card focus alone is not a playback intent. Native navigation also writes `#home` / `#collection/...` into the host URL; that is a separate navigation concern, not a demonstrated cause of this audio regression.
+
+A narrower **selection defect is confirmed by the real Vue SFC message handler**: `readFoliaTrackId()` maps all nonnumeric IDs to 0 and discards provider identity. With normal-mode A `{trackId: 'shared-track-17', provider: 'spotify'}` and Folia B `{trackId: 'shared-track-17', provider: 'netease'}`, the handler never calls `playExternalTrack`. The new integration case failed (six existing cases passed). Using the existing provider-and-track key will distinguish new selections while retaining the host queue and sole audio owner. This edge case does not prove that the user's numeric NetEase selection was caused by it; old loaded bundles remain relevant to that report.
+
+The color symptom **does reproduce in the fresh deployment**: the picker and embed CSS variable both hold `#e43b57`, but the Lattice primary lyric glyphs stay white. There is one Lattice canvas and no `[data-shizuki-folia-lyric-word-body]` element. Ranked predictions were: (1) canvas/Pixi does not consume the CSS override, (2) the selected color fails to reach the reactive visualizer input, (3) cached scenes keep their previous glyph color, and (4) a stale bundle hides the update. The fresh-bundle observation excludes (4) for the color defect.
+
+The tight regression command is `node node_modules/vitest/vitest.mjs run -c vitest.config.ts test/unit/shizukiLatticeLyricColor.integration.test.ts` in the complete Folia checkout. Before implementation it reports one failure from the real `createLatticeLineView`/glyph-shader path: expected RGB `[228/255, 59/255, 87/255]`, received white `[1, 1, 1]` with the existing 0.98 accent alpha. The bridge setter only injected a DOM style; the Lattice renderer consumed `input.theme.primaryColor` directly. Repair must connect the custom color to rendered glyphs and update/reset an already active scene, while preserving theme opacity and standalone behavior.
+
+Luna connected bridge color changes to the reactive Lattice provider and GPU scene, including updates to cached primary glyph shaders. Reset restores original theme/chorus colors; translation colors remain governed by the subtitle theme. The provider re-reads after subscribing to avoid losing an update during mount. The regression drives the real bridge, provider and scene with mocked Pixi primitives; runtime wiring also requires browser acceptance. The affected Folia subset currently passes 80 tests across 12 files.
+
 日期：2026-09-30（Asia/Shanghai）。根代理负责排查、审查与验证；Luna 子代理负责实现。
 
-## Git 基线
+## 首次排查 Git 基线（后续发布状态见文末与验证报告）
 
 - 原分支：`codex/upgrade-folia-v0711`，工作区干净。
 - 仓库原主分支名为 `master`，没有 `main`。从本地 `master` 创建 `main` 后，以 merge commit `c7bae206` 合并原分支，双方提交均保留。
