@@ -19,6 +19,9 @@
 - [x] 3.4 Preserve concurrent main updates, align the complete Folia fork/public patch, and repeat affected verification after integration.
 - [x] 3.5 Push the user-authorized diagnosis branch to the owner-controlled site origin and verify it is synchronized.
 
-## Release follow-up (outside this local change)
+## Release follow-up
 
-Production acceptance and the upstream Windows symlink test limitation are recorded in verification-report.md. The diagnosis branch is pushed and synchronized. No deployment or OpenSpec archive was performed. The separate Folia source branch remains local because its only configured remote is the upstream project; the correct user-owned fork URL is unavailable.
+- The full Folia fix was pushed to the user-owned fork at `https://github.com/IzumiShizuki/folia-major.git`, branch `codex/fix-folia-normal-linkage`, commit `388f3e727e5ea523c3be16313f5a60034b70965b`.
+- Site release commit `612250bc1098c9317d5ef358a18cc60d54ffb0de` was pushed to `origin/master` and deployed to the personal production site. The Folia gateway was built from the fork commit and deployed; site and gateway health checks passed.
+- Production smoke checks for the site, Folia player entry/assets, and NetEase login-key route passed. A live site bundle contains the playlist-sync UI and failure-retry changes.
+- Real signed-in playback, seek/pause, and account playlist import still need acceptance with the user's account and songs. The OpenSpec change remains unarchived until that acceptance is complete. The Windows symlink test limitation and the separate lyric-proxy 401 are documented in `verification-report.md`.
