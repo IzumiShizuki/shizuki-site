@@ -4,19 +4,32 @@
 
 ## 2026-10-01 生产反馈修复
 
-- 已确认画布歌词缺少颜色 consumer：真实 `shizuki:set-lyric-color` → provider → glyph scene 回归先失败，再由 Luna 接入主歌词 shader 色值及活动场景更新；重置恢复主题/副歌颜色，翻译字幕保留独立颜色。Pixi primitives 在测试中被替代，实际画布仍需发布后浏览器验收。
+- 已确认画布歌词缺少颜色 consumer：真实 `shizuki:set-lyric-color` → provider → glyph scene 回归先失败，再由 Luna 接入主歌词 shader 色值及活动场景更新；重置恢复主题/副歌颜色，翻译字幕保留独立颜色。Pixi primitives 在测试中被替代，发布后已另行通过真实画布浏览器验收。
 - 已确认选曲身份比较丢失 provider 与非数字 ID：真实 Vue SFC message handler 的红测中 `playExternalTrack` 调用为零。最小修复使用已有 `readFoliaTrackKey`，4 种 identity 场景通过，保留主站播放队列与单音频 owner。
 - 已检查实际登录页：两个旧 tab 仍加载旧站点/Folia bundle；刷新后的版本可通过 Lattice Play 与原生 Folia 歌单 Play 切换不同 NetEase 歌曲，进度增长。只聚焦卡片不会播放；不能把初次聚焦操作误判成切歌失败，也不能据此把所有用户反馈归因为缓存。
 - 最终主站 **246 files / 1478 tests passed**；正式构建通过，生成 `MusicLibraryPage-CJ0iajjs.js`。Folia 受影响 **12 files / 80 tests passed**；`tsc --noEmit` 和 `/music/` 正式构建通过。既有大 chunk / Vue 生命周期警告仍存在；没有新增测试失败。
 - 完整 Folia 本地提交 `822bcc5caf4103e232994247ec4f128bdcf30868`；公开 patch **116469 bytes**，与相对上游 `6fe68d89` 的完整差异一致，**15 个源码/测试快照逐字节一致**。补丁在干净上游 checkout 通过 `git apply --check`、实际应用及 `git diff --check`。
-- OpenSpec 严格校验通过。主站及 Folia 的本轮推送、部署和真实渲染验收尚在进行，任务 4.4 保持未完成；下方首次发布记录保留作历史与回滚依据。
+- 主站发布 worktree 合入修复后独立通过 **246 files / 1478 tests** 与构建；保留该发布分支已有壁纸界面，没有把排查分支上的无关壁纸改动带入本轮发行。OpenSpec 严格校验通过；本轮推送、部署和真实渲染验收完成，任务 4.4 已勾选。下方首次发布记录保留作历史与回滚依据。
+
+## 本轮生产交付及真实浏览器验收
+
+- 用户此前已明确授权推送与部署。Folia fork 分支 `codex/fix-folia-normal-linkage` 已推送并与远端同步于 `822bcc5caf4103e232994247ec4f128bdcf30868`；主站排查分支实现提交为 `a9ace9c7eb611131b6efa972732b9afe81597a6e`，正式 `origin/master` 实现提交为 `8c31033c15b8eb7dbafd1b9cccc491d4ce7b1bc3`。
+- 仅部署到个人服务器 `111.228.35.186`。主站通过既有部署工具更新，15 个文件上传并逐一核验、0 删除；快照 `snapshot-20261001-144905-8c31033c15b8` 保留。API health 为 UP，站点入口返回 200。实际公共主入口为 `/assets/index-Du78sF3P.js`，音乐页为 `MusicLibraryPage-CA0QKYCW.js`；二者返回 200。
+- 服务器 Folia 源码分支 `codex/deploy-shizuki-folia-20261001` 干净并精确位于 `822bcc5c`。最终构建使用 `/opt/folia/deploy/color-source-822bcc5c-20261001` 中的该提交 Git archive，确认不含宿主机 `node_modules`、`dist` 或 `.git` 且 lockfile 一致。镜像 `sha256:1fd5aad4a99c51cc8cc3e26f18cc8b1a1448ae3587b28891c8b0e0c228889890` 的 revision label 为 `822bcc5c`、版本为 0.7.11；gateway healthy，`/music/` 返回 200，实际入口为 `/music/assets/main-B74nnEfk.js`。历史镜像标签 `0.7.7-music` 不表示实际源码版本。
+- 原镜像保留在 `folia-local/gateway:backup-pre-color-20261001-1445`；中间构建保留在 `backup-color-before-clean-build-20261001`。既有首次发布回滚镜像和旧服务器改动 stash 也保留，未删除用户数据或旧 checkout。
+- 在用户已有 Edge 登录态中完整加载新文档，确认 scripts 为 `index-Du78sF3P.js` / `main-B74nnEfk.js`。普通入口自动同步完成 **15 歌单 / 1925 曲目**；只记录数量，不输出账号凭据。
+- 普通模式单击播放 A `Like a cloud`，主站达到 00:04 / 02:32；从歌单进入 Folia 浏览时按该入口原有行为播放队列首曲，再在 Lattice 卡片选择 B `繋がるココロ` 并点击 Play。Folia 标题、主站 dock、歌词均切至 B，时钟从 00:00 增长至 00:09、00:22，随后持续到 03:41 / 05:27，未被旧 A 覆盖。
+- 原生暂停后，Folia 与主站时间均保持 **03:41 / 05:27**。实际向后拖动 Lattice 进度条，两边稳定为 **01:28 / 05:27**；PageUp 向前 seek 后均为 **02:00 / 05:27**。恢复播放后时钟增长至 02:39，验收结束再次暂停于 02:40。拖动过程中的连续 seek 会短暂异步投影，以操作结束后的稳定状态为准。
+- 工具栏选择 `#3b82f6` 后，真实 Lattice 画布主歌词呈蓝色；译文保留字幕主题色。暂停后点击恢复主题字幕颜色，root 自定义色被清除，实际主歌词恢复主题灰白色，无须换曲或重挂。颜色重绘按 React/渲染帧异步完成，即刻截图可能仍捕获前一帧；后续帧已视觉核验。
+- Folia DOM 中两个 audio 均保持 `src=''`、paused=true、time=0；可见 dock 为主站权威播放会话。验收结束已恢复默认字幕色并暂停，保留用户原有标签页。
+- 单纯修改 URL hash 不会重新加载已打开 tab 中的 JS；其他旧 tab 仍可保留旧 bundle。需完整刷新这些旧页面。真实新 bundle 的数值 NetEase 切歌已通过；本轮 provider/非数字 ID 比较缺陷有单测红绿证据，但不将所有原始数值切歌反馈都归因于该缺陷或缓存。
 
 ## 完整性、正确性与一致性
 
 | 维度 | 结论 |
 | --- | --- |
-| 完整性 | 首次发布已完成；本轮反馈修复代码、回归与本地构建完成，生产部署/浏览器验收见任务 4.4。 |
-| 正确性 | 原场景及新增颜色/选曲身份场景有代码、测试或浏览器证据；真实画布颜色验收待本轮发布完成。 |
+| 完整性 | 本轮修复、推送、生产部署和普通登录态浏览器验收完成；异常权限/过期源及独立代理问题仍列出。 |
+| 正确性 | 原场景及新增颜色/选曲身份场景有红绿回归；真实切歌、时钟、暂停/恢复、双向 seek 和画布颜色/重置通过。 |
 | 一致性 | 仍以Vue播放器为唯一音频所有者；Folia保持独立源码与原生独立运行路径；共用现有API，没有新增后台协议。 |
 
 ## 需求与场景映射
@@ -34,7 +47,7 @@
 
 Folia文件路径在完整fork中相对`src/`；本仓库公开主要快照，App/flags/hooks等完整改动在`third_party/folia-major/shizuki-folia-v0.7.11.patch`中。
 
-## 最终质量检查
+## 首次发布质量检查（历史记录）
 
 - 主站：合入最新main后重新运行 `pnpm test:unit --reporter=dot`，**246 files / 1474 tests passed**；`pnpm build` 通过。
 - 主站受影响子集：播放器50/50、Folia页面26/26、Auth/账号同步26/26，均包含在最终全量结果中。
@@ -49,19 +62,19 @@ Folia文件路径在完整fork中相对`src/`；本仓库公开主要快照，Ap
 - `openspec validate fix-folia-normal-player-linkage --type change --strict --no-interactive` 严格校验通过；网站诊断分支`codex/diagnose-folia-normal-linkage`已推送至`origin`。本次发行提交`612250bc1098c9317d5ef358a18cc60d54ffb0de`已推至`origin/master`并部署。
 - 完整Folía fork的`codex/fix-folia-normal-linkage`分支已推送至用户仓库`https://github.com/IzumiShizuki/folia-major.git`，远端tip为`388f3e727e5ea523c3be16313f5a60034b70965b`；服务器gateway镜像由此提交构建，镜像ID为`sha256:b4c4b14cbb73f3a5b632dc92b2241d8e74367c4299ea1a2eb6586b493ff059e6`。部署时保存了旧镜像回滚标签，并将服务器原有脏改动保存至Git stash。
 
-## 审查结论与遗留验收
+## 首次发布审查结论（历史记录）
 
 没有发现未实现的本地需求或新增回归。唯一未通过单测为已证明存在于上游基线的Windows符号链接权限限制；本次变更保持该测试。生产部署和公开入口烟测通过，但真实账号播放链路尚未在浏览器登录态中验收，因此OpenSpec change保持未归档状态。
 
-## 生产部署与烟测
+## 首次生产部署与烟测（历史记录）
 
 - 主站：`origin/master`提交`612250bc1098c9317d5ef358a18cc60d54ffb0de`已部署。远端快照为`snapshot-20261001-132119-612250bc1098`；部署脚本报告30个文件上传并逐一校验、健康检查通过。主站和候选前端文件哈希一致。
 - Folia：Fork分支`codex/fix-folia-normal-linkage`提交`388f3e727e5ea523c3be16313f5a60034b70965b`已部署至gateway。新镜像`sha256:b4c4b14cbb73f3a5b632dc92b2241d8e74367c4299ea1a2eb6586b493ff059e6`健康；旧镜像保留为`folia-local/gateway:backup-pre-linkage-20261001`，旧站端工作区改动保留在stash`bd706be40eaed87fe5e1ce95858c89ada426c29a`。
 - 线上`/music/`、Folia入口bundle、`/netease/login/qr/key`均返回HTTP 200。线上站点JS入口引用的`MusicLibraryPage-CBinEqdK.js`返回200，且包含本次歌单同步及失败重试文案。浏览器service worker/真实账号播放行为尚未通过用户会话手动确认。
 
-## 待实际账号验收
+## 后续范围与限制
 
-1. 使用实际网易云账号验证普通入口同步、失败重试和账号切换；顺序/随机队列中连续播放，并频繁A→B选择及正常模式/Folia往返。
-2. 在截图的Lattice界面验证时间持续增长、控件可用、立即暂停/恢复及向前/向后拖动；确认只有主站音频输出、没有Folia独立prefetch日志。
+1. 常规实际账号的普通入口同步、A→Folia B、时钟、暂停/恢复、向后拖动与向前 seek 已在本轮生产浏览器验收。换账号、登录过期/失败重试、长时间随机与频繁选曲的边界行为由本地回归覆盖，尚未全部在真实多账号环境执行。
+2. Lattice 真实蓝色及重置已通过，单一音频 owner 已核验。其他可视化器遵循其现有 DOM/主题接线，未宣称本轮逐一视觉验收。原生 Folia 导航会写入主站 hash，属另一个已记录的导航问题，未证明导致本轮切歌故障，未在此扩大修改范围。
 3. 验证实际权限受限歌曲、试播链接和CDN Range seek；模拟源过期后恢复。本地mock只能证明时序/状态，不证明每首歌曲的远端播放权限。
 4. 独立歌词搜索中的`/api/lyric-proxy`仍有401，属于单独的路由/授权问题；本次未修改它，也不应通过放宽主站登录校验解决。嵌入模式使用主站已解析的歌词，避免启动该独立流水线。
