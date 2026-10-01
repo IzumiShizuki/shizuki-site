@@ -1,4 +1,4 @@
-import { shallowMount } from '@vue/test-utils';
+import { mount, shallowMount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 
@@ -19,6 +19,7 @@ describe('MusicPlaylistDetailView current queue route', () => {
     mocks.context = {
       player: {
         currentTrack: ref(tracks[0]),
+        currentTime: ref(0),
         queueSourceContext: ref({
           kind: 'collection',
           collection: { source: 'navidrome', type: 'playlist', id: 'opaque:P2', name: 'Native P2' }
@@ -27,6 +28,7 @@ describe('MusicPlaylistDetailView current queue route', () => {
       currentPlaylistProfile: ref({ playlistCode: '', name: 'Native P2', description: '当前共享播放队列', trackCount: 2 }),
       currentPlaylistAllTracks: ref(tracks),
       currentPlaylistTracks: ref(tracks),
+      currentTrackRevealVersion: ref(0),
       currentPlaylistLoading: ref(false),
       currentPlaylistError: ref(''),
       currentPlaylistHasMore: ref(false),
@@ -79,5 +81,50 @@ describe('MusicPlaylistDetailView current queue route', () => {
       })
     }));
     dispatch.mockRestore();
+  });
+
+  it('mounts and reveals the exact current duplicate playlist entry beyond the initial 300 rows', async () => {
+    mocks.route = { name: 'music-library-playlist' };
+    const allTracks = Array.from({ length: 1000 }, (_, index) => ({
+      id: index === 869 ? 'duplicate-42' : index === 12 ? 'duplicate-42' : `track-${index}`,
+      trackId: index === 869 || index === 12 ? '42' : `track-${index}`,
+      provider: 'navidrome',
+      queueEntryId: `queue-entry-${index}`,
+      title: index === 869 ? 'Current late duplicate' : index === 12 ? 'Earlier duplicate' : `Track ${index}`
+    }));
+    const currentTrack = allTracks[869];
+    mocks.context.player.currentTrack.value = currentTrack;
+    mocks.context.currentPlaylistAllTracks.value = allTracks;
+    mocks.context.currentPlaylistTracks.value = allTracks.slice(0, 300);
+    mocks.context.currentPlaylistProfile.value = {
+      playlistCode: 'default_public', name: 'P1', description: '', trackCount: allTracks.length
+    };
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    const wrapper = mount(MusicPlaylistDetailView, {
+      attachTo: document.body,
+      global: { stubs: { TrackCollectButton: true } }
+    });
+    try {
+      await wrapper.vm.$nextTick();
+      const currentRow = wrapper.findAll('.table-row').find((row) => row.text().includes('Current late duplicate'));
+      expect(currentRow).toBeTruthy();
+      expect(currentRow.classes()).toContain('active');
+      expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest' }));
+
+      await currentRow.trigger('click');
+      expect(mocks.context.playTrackInCurrentPlaylist).toHaveBeenCalledWith(869);
+      mocks.context.player.currentTime.value = 147;
+      await wrapper.vm.$nextTick();
+      expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+      mocks.context.currentTrackRevealVersion.value += 1;
+      await wrapper.vm.$nextTick();
+      await wrapper.vm.$nextTick();
+      expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledTimes(2);
+    } finally {
+      wrapper.unmount();
+      if (originalScrollIntoView) HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      else delete HTMLElement.prototype.scrollIntoView;
+    }
   });
 });

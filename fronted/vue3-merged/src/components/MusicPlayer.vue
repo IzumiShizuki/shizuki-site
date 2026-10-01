@@ -167,7 +167,7 @@
       </div>
     </article>
 
-    <aside class="side-list liquid-material" :class="{ visible: isExpanded && listOpen }">
+    <aside v-if="!suppressedByRoute" class="side-list liquid-material" :class="{ visible: isExpanded && listOpen }">
       <header class="list-head">
         <div class="list-title">播放列表</div>
         <div class="head-actions">
@@ -183,9 +183,10 @@
       <div class="list-body">
         <button
           v-for="(item, idx) in tracks"
-          :key="item.id"
+          :key="item.queueEntryId || `${item.provider || 'local'}:${item.trackId || item.id || idx}`"
           class="track-item ripple-trigger"
-          :class="{ active: item.id === track?.id }"
+          :class="{ active: isCurrentQueueItem(item) }"
+          :ref="isCurrentQueueItem(item) ? setCurrentQueueRow : undefined"
           draggable="true"
           @click="emit('select-track', idx)"
           @dragstart="onDragStart(idx)"
@@ -204,7 +205,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useDismissiblePopover } from '../composables/useDismissiblePopover';
 import { formatMediaTime } from '../utils/mediaTime';
 import { safeCssUrl } from '../utils/url';
@@ -261,6 +262,7 @@ const emit = defineEmits([
 ]);
 
 const rootRef = ref(null);
+const currentQueueRowRef = shallowRef(null);
 const dragIndex = ref(-1);
 const progressRef = ref(null);
 const previewVisible = ref(false);
@@ -359,6 +361,38 @@ const previewTimeText = computed(() => {
   const total = Number.isFinite(props.duration) ? props.duration : 0;
   return formatMediaTime(total * previewPercent.value);
 });
+
+const currentQueueIdentity = computed(() => {
+  const entryId = String(props.track?.queueEntryId || '').trim();
+  const baseIdentity = entryId
+    ? `entry:${entryId}`
+    : `track:${String(props.track?.provider || '').trim().toLowerCase()}:${String(props.track?.trackId || props.track?.id || '').trim()}`;
+  return `${baseIdentity}:${props.tracks.findIndex(isCurrentQueueItem)}`;
+});
+
+function isCurrentQueueItem(item) {
+  if (!item || !props.track) return false;
+  const itemEntryId = String(item.queueEntryId || '').trim();
+  const currentEntryId = String(props.track.queueEntryId || '').trim();
+  if (itemEntryId && currentEntryId) return itemEntryId === currentEntryId;
+  const itemProvider = String(item.provider || '').trim().toLowerCase();
+  const currentProvider = String(props.track.provider || '').trim().toLowerCase();
+  const itemId = String(item.trackId || item.id || '').trim();
+  const currentId = String(props.track.trackId || props.track.id || '').trim();
+  return itemId === currentId && (!itemProvider || !currentProvider || itemProvider === currentProvider);
+}
+
+function setCurrentQueueRow(element) {
+  if (element) currentQueueRowRef.value = element;
+}
+
+watch(
+  [() => props.listOpen && props.isExpanded && !props.suppressedByRoute, () => currentQueueIdentity.value],
+  ([isOpen], previous) => {
+    if (!isOpen || (previous && previous[0] && previous[1] === currentQueueIdentity.value)) return;
+    nextTick(() => currentQueueRowRef.value?.scrollIntoView?.({ block: 'nearest' }));
+  }
+);
 
 function stopPeekRevealAnimation() {
   if (peekRevealTimer) {

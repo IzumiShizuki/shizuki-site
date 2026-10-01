@@ -59,6 +59,7 @@
                 type="color"
                 :value="foliaLyricColor"
                 aria-label="Folia 主歌词颜色"
+                @input="handleFoliaLyricColorChange"
                 @change="handleFoliaLyricColorChange"
               >
             </label>
@@ -105,31 +106,6 @@
           class="folia-embed-host"
           data-folia-embed
         ></div>
-        <MusicLibraryDock
-          v-if="foliaMode"
-          :track="player.currentTrack.value"
-          :tracks="player.tracks.value"
-          :queue-tracks="player.queueDisplayTracks.value"
-          :current-track-id="player.currentTrack.value?.id || ''"
-          :is-playing="player.isPlaying.value"
-          :current-time="player.currentTime.value"
-          :duration="player.duration.value"
-          :expected-duration="player.expectedDuration.value"
-          :is-preview-playback="player.isPreviewPlayback.value"
-          :play-mode="player.playMode.value"
-          :volume="player.volume.value"
-          compact
-          detail-layout
-          @toggle-play="player.togglePlay"
-          @prev="player.playPrev"
-          @next="player.playNext"
-          @seek="player.seekToPercent"
-          @cycle-mode="player.cyclePlayMode"
-          @set-volume="player.setVolume"
-          @select-track="handleSelectTrackFromDock"
-          @open-collect-dialog="openCollectDialog()"
-          @open-player-detail="enterPlayerDetail"
-        />
       </section>
     </Teleport>
 
@@ -295,6 +271,7 @@
         :tracks="player.tracks.value"
         :queue-tracks="player.queueDisplayTracks.value"
         :current-track-id="player.currentTrack.value?.id || ''"
+        :current-queue-entry-id="player.currentTrack.value?.queueEntryId || ''"
         :is-playing="player.isPlaying.value"
         :current-time="player.currentTime.value"
         :duration="player.duration.value"
@@ -653,6 +630,8 @@ function syncFoliaLyricColor() {
 function handleFoliaLyricColorChange(event) {
   const color = String(event?.target?.value || '').trim();
   if (!/^#[\da-f]{6}$/i.test(color)) return;
+  const persistedColor = readFoliaLyricColorPreference();
+  if (foliaLyricColorCustom.value && foliaLyricColor.value.toLowerCase() === color.toLowerCase() && persistedColor.toLowerCase() === color.toLowerCase()) return;
   foliaLyricColor.value = color;
   foliaLyricColorCustom.value = true;
   try {
@@ -1578,6 +1557,7 @@ const collectDialogTrack = ref(null);
 const collectDialogError = ref('');
 const collectDialogBusy = ref(false);
 const playlistBrowseVisibleCount = ref(PLAYLIST_BROWSE_INITIAL_VISIBLE);
+const currentTrackRevealVersion = ref(0);
 const playlistBrowseAutoLoadLocked = ref(false);
 const playlistBrowseLoading = ref(false);
 const playlistBrowseError = ref('');
@@ -1652,6 +1632,13 @@ const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length
 const currentPlaylistLoading = computed(() => !isQueueRoute.value && Boolean(playlistBrowseLoading.value));
 const currentPlaylistError = computed(() => isQueueRoute.value ? '' : String(playlistBrowseError.value || ''));
 const playerQueueTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
+const currentPlaylistTrackIdentity = computed(() => {
+  const track = player.currentTrack?.value;
+  const entryId = String(track?.queueEntryId || '').trim();
+  if (entryId) return `entry:${entryId}`;
+  return `track:${String(track?.provider || '').trim().toLowerCase()}:${String(track?.trackId || track?.track_id || track?.id || '').trim()}`;
+});
+const currentPlaylistTrackIndex = computed(() => resolveCurrentPlaylistTrackIndex());
 let allSearchCapacityRefreshTimer = 0;
 const fatalErrorText = ref('');
 
@@ -1970,6 +1957,34 @@ function resetPlaylistBrowseVisibleCount(totalCount = 0) {
   playlistBrowseVisibleCount.value = safeTotal > 0
     ? Math.max(1, Math.min(safeTotal, PLAYLIST_BROWSE_INITIAL_VISIBLE))
     : PLAYLIST_BROWSE_INITIAL_VISIBLE;
+}
+
+function resolveCurrentPlaylistTrackIndex() {
+  const current = player.currentTrack?.value;
+  if (!current) return -1;
+  const tracks = currentPlaylistAllTracks.value;
+  const entryId = String(current.queueEntryId || '').trim();
+  let index = entryId
+    ? tracks.findIndex((item) => String(item?.queueEntryId || '').trim() === entryId)
+    : -1;
+  if (index < 0) {
+    const id = String(current.trackId || current.track_id || current.id || '').trim();
+    const provider = String(current.provider || '').trim().toLowerCase();
+    if (!id) return -1;
+    index = tracks.findIndex((item) =>
+      String(item?.trackId || item?.track_id || item?.id || '').trim() === id
+      && (!provider || !String(item?.provider || '').trim() || String(item?.provider || '').trim().toLowerCase() === provider)
+    );
+  }
+  return index;
+}
+
+function revealCurrentPlaylistTrack() {
+  if (!isPlaylistRoute.value && !isQueueRoute.value) return;
+  const index = currentPlaylistTrackIndex.value;
+  if (index >= 0 && index + 1 > playlistBrowseVisibleCount.value) {
+    playlistBrowseVisibleCount.value = index + 1;
+  }
 }
 
 function growPlaylistBrowseVisibleCount() {
@@ -3605,6 +3620,7 @@ const musicContext = Object.freeze({
   currentPlaylistProfile,
   currentPlaylistAllTracks,
   currentPlaylistTracks,
+  currentTrackRevealVersion,
   currentPlaylistHasMore,
   currentPlaylistLoading,
   currentPlaylistError,
@@ -3643,6 +3659,12 @@ const musicContext = Object.freeze({
 });
 
 provide(MUSIC_LIBRARY_CONTEXT_KEY, musicContext);
+
+watch(
+  [isPlaylistRoute, isQueueRoute, () => currentPlaylistAllTracks.value.length, currentPlaylistTrackIdentity, currentPlaylistTrackIndex],
+  revealCurrentPlaylistTrack,
+  { immediate: true }
+);
 
 watch(
   () => route.fullPath,
@@ -3859,6 +3881,7 @@ async function handleOpenFoliaLattice(event) {
 async function returnToMusicLibrary() {
   const source = normalizeFoliaSourceContext(player.queueSourceContext?.value || foliaSourceContext.value || createFoliaSourceContext());
   await setFoliaMode(false);
+  currentTrackRevealVersion.value += 1;
   const code = source.sitePlaylistCode;
   if (code && foliaPlaylistOptions.value.some((item) => item.playlistCode === code)) {
     router.push({ name: 'music-library-playlist', params: { playlistCode: code } });
