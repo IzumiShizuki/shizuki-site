@@ -21,7 +21,7 @@
 - [x] 4.1 Run behavioral host SFC/coordinator and actual fork navigation/bridge regressions, including standalone history and existing clock/color/controls.
 - [x] 4.2 Run applicable type checks, builds and full site tests; document any established environment-only test limitation.
 - [x] 4.3 Synchronize public fork source snapshots and AGPL patch; verify byte identity and clean patch application.
-- [ ] 4.4 Perform strict OpenSpec validation in both repositories and independently validate the clean site release checkout.
+- [x] 4.4 Perform strict OpenSpec validation in both repositories and independently validate the clean site release checkout.
 
 ## 5. Authorized delivery and acceptance
 

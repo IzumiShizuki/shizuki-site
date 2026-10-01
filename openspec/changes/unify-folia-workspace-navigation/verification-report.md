@@ -24,6 +24,8 @@ Folia root affected verification after the final collection-origin refinement: *
 
 Public source check for fork implementation `9b2346e2779f51805ed754b6b151d944dfec846f`: 32 snapshots match byte for byte. The complete upstream diff is 215,292 bytes, SHA-256 `a38e8aeef743c1769aa01cf51454aa23ffab86580314d3e7ff501eeed70cb151`. It passed `git apply --check`, was actually applied to a temporary clean upstream `6fe68d89` worktree, and all 49 resulting changed-file Git blobs match the target fork commit. That temporary worktree was removed after verification.
 
+Clean release checkout independently passed **249 files / 1,505 tests** and production build. Its first full run after snapshot synchronization found one obsolete source-string assertion demanding unconditional queue replacement; the separate test followup now requires fingerprint-gated replacement, and the full rerun passed. Application code and assets did not change for that assertion update. Strict OpenSpec validation passed in both repositories. Release diff in `App.vue` adds only the shared queue-source binding; the working branch's unrelated wallpaper changes are excluded.
+
 At this record's initial creation, public snapshot/full-patch identity, clean release-checkout validation, push, deployment and fresh real-browser acceptance are pending. Preserve the scope isolation: the main working branch's unrelated wallpaper history is not part of the site release. [delivery-preparation.md](delivery-preparation.md) records rollback assets and server capacity.
 
 Use OpenSpec verification for `unify-folia-workspace-navigation` and fork `embedded-workspace-navigation`. Final completeness/correctness/coherence conclusions require the production acceptance below, beyond mounted local tests.
