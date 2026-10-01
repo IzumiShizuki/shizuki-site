@@ -15,7 +15,7 @@ Non-goals: replace the audio engine, change provider APIs, recolor translations/
 - Remove the active Folia compact host dock and suppress host queue presentation while Folia is active. Keep Folia native controls and the host audio engine mounted. Removing native controls would contradict the user's requested interface.
 - Cancel a pending root-mount wait when the Folia entry is cancelled or the page unmounts. Clear its timer, invalidate the request generation and keep an older rejected request from clearing a newer shared mount promise. The clean release suite exposed this existing lifecycle leak; leaving it running is not a valid passing gate.
 - On returning to ordinary mode, use engine queue/source context. A known site playlist routes to that playlist; opaque native identifiers route to the current-queue view. Preserve song-only queue order and reveal its new current entry.
-- Reveal exact queue-entry identity when a list opens or a discrete current entry changes. Extend the rendered window far enough to mount late entries, then scroll the row into view. Apply equivalent activation behavior to the ordinary queue overlay. Do not scroll on the playback clock or continually override manual browsing; clear a filter only on explicit return when it hides the current song.
+- Reveal exact queue-entry identity when a list opens or a discrete current entry changes. Extend the rendered window far enough to mount late entries, then center the ordinary playlist row so the fixed dock cannot obscure it. Apply equivalent activation behavior to the ordinary queue overlay. Do not scroll on the playback clock or continually override manual browsing; clear a filter only on explicit return when it hides the current song.
 
 ## Risks / Trade-offs
 
@@ -29,6 +29,8 @@ Non-goals: replace the audio engine, change provider APIs, recolor translations/
 Capture failing mounted tests before implementation. Validate host/fork affected tests, builds and OpenSpec. Refresh public fork snapshots and canonical patch; verify clean upstream application. Push the authorized owner repositories and deploy only this change through the clean site release checkout to personal server 111.228.35.186. Preserve rollback images and snapshot; verify actual signed-in large-list return and real lyric color before recording completion.
 
 The server has limited free disk space. Build from clean committed local checkouts with the exact production Vite arguments (read existing site arguments without printing credentials), package file hashes and commit identity, and verify every served file against the manifest. Build only the equivalent Nginx runtime image on the server, label it with the verified commit, advance the clean Folia source via a verified incremental bundle, and reuse the site's existing private backup/sync/health gates. Preserve previous images, source stash and restore points. Dispose of only this change's verified temporary artifact contexts after deployment; avoid broad image/volume pruning.
+
+The final row-centering refinement changes only frontend behavior and this change's documentation. Reuse the verified READY full restore point captured immediately before this delivery, after checking that deployed revision/image match the delivery record and that the incremental diff excludes backend/config/deployment files. Retain the intermediate site image as an additional rollback. Restart only the frontend service; another full private-volume backup would unnecessarily exhaust the remaining disk space.
 
 ## Open Questions
 
