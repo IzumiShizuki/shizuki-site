@@ -244,7 +244,7 @@ function setCurrentTrackRow(element) {
 }
 
 function revealCurrentTrack() {
-  nextTick(() => currentTrackRowRef.value?.scrollIntoView?.({ block: 'nearest' }));
+  nextTick(() => currentTrackRowRef.value?.scrollIntoView?.({ block: 'center' }));
 }
 
 watch(

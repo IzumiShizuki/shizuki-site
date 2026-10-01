@@ -110,7 +110,7 @@ describe('MusicPlaylistDetailView current queue route', () => {
       const currentRow = wrapper.findAll('.table-row').find((row) => row.text().includes('Current late duplicate'));
       expect(currentRow).toBeTruthy();
       expect(currentRow.classes()).toContain('active');
-      expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest' }));
+      expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: 'center' }));
 
       await currentRow.trigger('click');
       expect(mocks.context.playTrackInCurrentPlaylist).toHaveBeenCalledWith(869);
