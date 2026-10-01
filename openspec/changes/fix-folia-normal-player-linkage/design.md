@@ -6,7 +6,7 @@ See proposal.md for user symptoms. The Vue player owns audio; Folia React is loa
 
 **Goals:** Reproduce the exact symptoms with behavioral tests; preserve one audio owner; make entry, authorization, and bounded preparation independent of visible mode. Root performs diagnosis/review while Luna writes implementation.
 
-**Non-Goals:** Replacing Folia, enabling additional providers, exposing account secrets, changing remote branch naming, deploying, or pushing Git changes.
+**Initial diagnosis Non-Goals:** Replacing Folia, enabling additional providers, exposing account secrets, changing remote branch naming, deploying, or pushing Git changes. The later explicit push/deployment authorization and delivery are recorded in the production follow-up below.
 
 ## Decisions
 
@@ -26,8 +26,10 @@ See proposal.md for user symptoms. The Vue player owns audio; Folia React is loa
 
 ## Migration Plan
 
-No runtime deployment is performed. Commit verified local changes on the new branch after strict OpenSpec validation and applicable tests/build. A later explicitly authorized release must build Folia from the matching complete fork and deploy Folia and the main frontend together, verify pause/seek/rapid selection/account import, and retain previous images for rollback.
+The initial diagnosis phase performs no runtime deployment. Commit verified local changes on the new branch after strict OpenSpec validation and applicable tests/build. A later explicitly authorized release must build Folia from the matching complete fork and deploy Folia and the main frontend together, verify pause/seek/rapid selection/account import, and retain previous images for rollback. That release was subsequently authorized and completed; see verification-report.md for actual source/image revisions and browser acceptance.
 
 ## Production regression follow-up (2026-10-01)
 
 The user authorized the prior fork push and production deployment and reports two remaining symptoms: a normal-mode track remains audible after selecting a different track inside Folia, and the toolbar lyric color stays white. Reopen behavioral verification at the actual selection and visualizer seams. Test the normal-to-Folia sequence rather than only isolated relay calls, and assert the rendered primary lyric color rather than only an injected CSS variable. Preserve standalone mode and the single audio owner. Record stale browser bundles separately from fresh deployment behavior; keep public snapshots/patch consistent with the complete user-owned fork. The prior deployment is recorded in verification-report.md; verified follow-up fixes may be pushed and deployed under the existing session authorization with rollback protection.
+
+Build the final Folia image from a clean `git archive` of the verified fork commit. The existing server checkout contains ignored `node_modules` and `dist`, and its external Dockerfile uses `COPY . .`; using that dirty build context can overwrite dependencies installed by `npm ci`. Archive-only context excludes those files and `.git` while preserving tracked source and the lockfile. Retain the previous image and site restore point until health checks and actual browser rendering pass.

@@ -6,7 +6,7 @@
 ## 同步基线
 
 - 上游稳定版本：`v0.7.11`，commit `6fe68d89`。
-- Shizuki fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，`codex/fix-folia-normal-linkage` 分支，当前本地验证提交 `822bcc5c`。历史 `folia-embed` 合并 commit 为 `fa4b6714`，类型兼容修复为 `69a97532`。
+- Shizuki fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，`codex/fix-folia-normal-linkage` 分支，当前已推送并部署提交 `822bcc5c`。历史 `folia-embed` 合并 commit 为 `fa4b6714`，类型兼容修复为 `69a97532`。
 - 完整 fork 差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，包含后续修复，已验证可应用到干净的上游 v0.7.11 checkout。
 - 本目录的桥接、bootstrap、可视化器与回归测试快照来自已合并源码。旧的 `embedded-history-isolation.patch` 保留作早期嵌入历史补丁参考；当前 fork 差异以完整 v0.7.11 patch 为准。
 
@@ -46,7 +46,7 @@
 
 ## 部署状态（服务器 111.228.35.186）
 
-- 源码：`/opt/folia/folia-major-main`，`codex/deploy-shizuki-folia-20261001` 分支，基于 v0.7.11；首次联动发布提交 `388f3e72`。
-- 镜像标签 `folia-local/gateway:0.7.7-music` 保留历史名称；部署版本以 Git commit 与镜像 digest 为准。首次联动发布镜像 ID 为 `sha256:b4c4b14cbb73f3a5b632dc92b2241d8e74367c4299ea1a2eb6586b493ff059e6`。
-- 字幕色后续发布结果、回滚镜像及实际浏览器验收记录在验证报告中。
+- 源码：`/opt/folia/folia-major-main`，`codex/deploy-shizuki-folia-20261001` 分支，基于 v0.7.11，当前部署提交 `822bcc5c`；首次联动发布提交 `388f3e72` 保留作历史。
+- 镜像标签 `folia-local/gateway:0.7.7-music` 保留历史名称；部署版本以 Git commit 与镜像 digest 为准。当前镜像 ID 为 `sha256:1fd5aad4a99c51cc8cc3e26f18cc8b1a1448ae3587b28891c8b0e0c228889890`，从精确 Git archive 构建，避免宿主机未跟踪依赖覆盖 lockfile 安装结果。
+- 真实浏览器已确认普通模式 A → Lattice B、暂停/恢复、双向 seek、蓝色主歌词及恢复主题色；Folia 自有音频为空并暂停。主站部署实现提交 `8c31033c`。回滚镜像、站点快照及完整验收证据见 [验证报告](../../openspec/changes/fix-folia-normal-player-linkage/verification-report.md)。
 - 反向代理：1Panel openresty `location /music/` → `127.0.0.1:18081`。
