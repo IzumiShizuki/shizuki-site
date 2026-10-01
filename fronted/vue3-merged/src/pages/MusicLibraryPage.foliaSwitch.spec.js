@@ -194,7 +194,14 @@ describe('MusicLibraryPage Folia mode handoff', () => {
 
   it('uses parent lyrics and metadata while preventing any Folia-owned audio output', () => {
     expect(bridgeSource).toContain('buildFollowLyrics(session.lyrics, song, session.durationMs)');
-    expect(bridgeSource).toContain('store.setPlayQueue(queue.length ? queue : (song ? [song] : []))');
+    const followSessionStart = bridgeSource.indexOf('function applyFollowSession(');
+    const followSessionEnd = bridgeSource.indexOf('\nfunction stopFollowPlayback()', followSessionStart);
+    const applyFollowSession = bridgeSource.slice(followSessionStart, followSessionEnd);
+    expect(applyFollowSession).toContain('const queueChanged = queueFingerprint !== latestFollowQueueFingerprint');
+    expect(applyFollowSession).toContain('const projectedQueue = queue.length ? queue : (projectedSong ? [projectedSong] : [])');
+    expect(applyFollowSession).toContain('if (queueChanged) {');
+    expect(applyFollowSession).toContain('store.setPlayQueue(projectedQueue)');
+    expect(applyFollowSession.indexOf('if (queueChanged)')).toBeLessThan(applyFollowSession.indexOf('store.setPlayQueue(projectedQueue)'));
     expect(bridgeSource).toContain('store.setAudioSrc(null)');
     expect(bridgeSource).toContain('lockEmbeddedAudio()');
     expect(bridgeSource).toContain("document.addEventListener('play'");
