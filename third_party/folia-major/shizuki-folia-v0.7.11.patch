@@ -1,5 +1,5 @@
 diff --git a/deploy/docker/gateway/nginx.conf.template b/deploy/docker/gateway/nginx.conf.template
-index c49eb39c..25ae3954 100644
+index c49eb39cdabc0c566b02f03253c06a619192912d..25ae3954ef21f032901ef5e107f26ef068214aa5 100644
 --- a/deploy/docker/gateway/nginx.conf.template
 +++ b/deploy/docker/gateway/nginx.conf.template
 @@ -7,6 +7,8 @@ events {
@@ -57,7 +57,7 @@ index c49eb39c..25ae3954 100644
              try_files $uri $uri/ /index.html;
 diff --git a/openspec/changes/embedded-workspace-navigation/.openspec.yaml b/openspec/changes/embedded-workspace-navigation/.openspec.yaml
 new file mode 100644
-index 00000000..480ad4de
+index 0000000000000000000000000000000000000000..480ad4dedbdd9ef3e1dc40d344a41c0cc32b85bc
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/.openspec.yaml
 @@ -0,0 +1,2 @@
@@ -65,10 +65,10 @@ index 00000000..480ad4de
 +created: 2026-10-01
 diff --git a/openspec/changes/embedded-workspace-navigation/design.md b/openspec/changes/embedded-workspace-navigation/design.md
 new file mode 100644
-index 00000000..e3d14c91
+index 0000000000000000000000000000000000000000..b41b965cba8f786c911596c5d48892695ca08775
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/design.md
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,33 @@
 +## Context
 +
 +See proposal.md and the host change `unify-folia-workspace-navigation`. The external bridge directly writes `useAppViewStore` for set-view, while `useAppNavigation` writes the same window history used by the host hash router. FollowSession already parses playlist metadata but does not consume it for navigation. Existing embedded early handoff avoids independent playback but only forwards a selected track.
@@ -89,6 +89,9 @@ index 00000000..e3d14c91
 +- Host playlist codes describe the authoritative queue, not a native online collection. Retain a real native snapshot only if its source/provider/type/opaque ID matches; repeated player/song changes replace one return layer, and a missing native snapshot returns to the queue wall. Wall selection preserves exact current queue entry/index even when the source is a native collection.
 +- Host protocol IDs remain monotonic across host page remount while the embedded root is parked. Inactive handlers and command relays must return before consuming keys or opening hidden modal surfaces.
 +- Reproduce red at real bridge/navigation/queue-controller seams before implementation. Use mounted component/browser interaction for the full input symptom; mocked Pixi or message spies alone cannot prove it.
++- The actual Lattice presence boundary must restore opacity/interaction when an exit is interrupted and make its outgoing layer inert immediately. Share App's exit gate with a real Framer Motion lifecycle test so subsequent complete exits cannot strand the player behind a transparent layer.
++- Current Lattice entry identity uses a valid queueEntryId, with the original playback-song key as the standalone fallback. Lyrics, automatic focus, active poster geometry and transport controls must consume that same identity; duplicate-song slots must not both become current or share a lyric input merely because their song keys match.
++- The poster list has a separate non-propagating AnimatePresence. App's whole-wall exit must complete independently of virtualized poster removal; new auto-focus transforms and a large poster wave must not hold the player behind an exited wall. The regression mounts real Lattice and Framer Motion through three cycles without a timer fallback.
 +
 +## Risks / Trade-offs
 +
@@ -101,7 +104,7 @@ index 00000000..e3d14c91
 +Root coordinates public snapshots/patch and a joint host/fork release. Build from a clean Git archive, retain previous image and verify actual asset versions and signed-in playback/return workflows. Repository-local tests/types/build and strict OpenSpec validation precede any push or deployment.
 diff --git a/openspec/changes/embedded-workspace-navigation/diagnosis.md b/openspec/changes/embedded-workspace-navigation/diagnosis.md
 new file mode 100644
-index 00000000..bad46b76
+index 0000000000000000000000000000000000000000..bad46b764eb85f811220145cb7ec67ca22d72309
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/diagnosis.md
 @@ -0,0 +1,15 @@
@@ -122,7 +125,7 @@ index 00000000..bad46b76
 +The host change `unify-folia-workspace-navigation/diagnosis.md` records the full accepted contract, live reproduction and ranked explanations. Preserve native IDs, stable queue entries and existing clock/color/prefetch/audio-owner regressions; standalone history must keep its native behavior.
 diff --git a/openspec/changes/embedded-workspace-navigation/proposal.md b/openspec/changes/embedded-workspace-navigation/proposal.md
 new file mode 100644
-index 00000000..41f3e747
+index 0000000000000000000000000000000000000000..41f3e7475dcd866bad1736c6e4e02d148bc01040
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/proposal.md
 @@ -0,0 +1,23 @@
@@ -151,7 +154,7 @@ index 00000000..41f3e747
 +External bridge and focused navigation/selection modules, app assembly and real hook/bridge tests. The host contract and full accepted scenario matrix are recorded in `shizuki-site/openspec/changes/unify-folia-workspace-navigation`; this repository records its local responsibility and validation. No provider adapter or backend protocol changes are planned.
 diff --git a/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md b/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md
 new file mode 100644
-index 00000000..6db550ae
+index 0000000000000000000000000000000000000000..6db550ae6c9b288ad25a552ffaf72583b3c42df3
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md
 @@ -0,0 +1,57 @@
@@ -214,10 +217,10 @@ index 00000000..6db550ae
 +- **THEN** the correct song, position, lyrics and paused controls appear without independent audio or stale navigation
 diff --git a/openspec/changes/embedded-workspace-navigation/tasks.md b/openspec/changes/embedded-workspace-navigation/tasks.md
 new file mode 100644
-index 00000000..7c8949ea
+index 0000000000000000000000000000000000000000..769e776a892e25c784609d0acd545fcd62ee6744
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/tasks.md
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,29 @@
 +## 1. Behavioral diagnosis
 +
 +- [x] 1.1 Add failing real navigation/bridge regressions for host history isolation, playlist return, continued interaction and complete collection handoff.
@@ -229,56 +232,86 @@ index 00000000..7c8949ea
 +- [x] 2.2 Retain collection/queue return context so Escape/back returns to the current Folia playlist and dismisses only the top layer.
 +- [x] 2.3 Forward complete ordered native collection tracks, source identity and selected index to the host-owned playback session.
 +- [x] 2.4 Preserve responsive pointer/keyboard behavior through selection, clock updates and reentry while retaining stable queue/context identity.
++- [x] 2.5 Repair the rendered Lattice exit/reentry lifecycle exposed by production acceptance; outgoing transparent layers must stop receiving pointer input and the player must become visible.
++- [x] 2.6 Align current-entry identity consumers in Lattice lyrics, focus and controls with queueEntryId; preserve independent-mode fallback and distinguish duplicate-song queue slots.
++- [x] 2.7 Isolate virtualized poster removal from the whole-wall exit, repairing the third-cycle completion failure exposed on production 9ed6ab22.
 +
 +## 3. Validation
 +
 +- [x] 3.1 Run affected behavioral tests, standalone history regressions and existing controls/clock/lyric-color regressions.
 +- [x] 3.2 Run type checking and production build; document established environment-only test limitations honestly.
-+- [ ] 3.3 Strictly validate OpenSpec and verify the host's synchronized source snapshots/public patch.
++- [x] 3.4 Reproduce interrupted exit/reentry with real Framer Motion and verify complete repeated surface transitions.
++- [x] 3.5 Add and pass mounted queue-entry/duplicate-slot regressions for lyric input and focus/controls, then repeat visual color and ordinary-return acceptance.
++- [x] 3.3 Strictly validate OpenSpec and verify the host's synchronized source snapshots/public patch.
++- [x] 3.6 Reproduce the real multi-cycle poster-wave exit failure, pass the mounted regression and repeat continuous production B reentry, toolbar C/D and Escape.
 +
 +## 4. Authorized delivery
 +
-+- [ ] 4.1 Commit and push the verified fork change to the user-controlled remote.
-+- [ ] 4.2 Coordinate joint clean-context deployment with the host and preserve rollback image/source identity.
-+- [ ] 4.3 Verify continuing real input and current-playlist return on fresh production assets and commit the acceptance record.
++- [x] 4.1 Commit and push the verified fork change to the user-controlled remote.
++- [x] 4.2 Coordinate joint clean-context deployment with the host and preserve rollback image/source identity.
++- [x] 4.3 Verify continuing real input and current-playlist return on fresh production assets and commit the acceptance record.
 diff --git a/openspec/changes/embedded-workspace-navigation/verification-report.md b/openspec/changes/embedded-workspace-navigation/verification-report.md
 new file mode 100644
-index 00000000..72e923da
+index 0000000000000000000000000000000000000000..63b1383235beafcd46630387e3a447c1de15e127
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/verification-report.md
-@@ -0,0 +1,29 @@
-+# Verification record
+@@ -0,0 +1,53 @@
++# Embedded workspace verification, 2026-10-02
 +
-+## Local implementation review
++Verified implementation: `7069103b4ce862f0e1f8befde5c48dbe778777f4` on the user's `codex/unify-folia-workspace` branch. Root diagnosed, reviewed and independently validated Luna's implementation. This report completes acceptance and leaves the change unarchived.
 +
-+The host/fork contract and the accepted playback-only playlist rule are implemented. Root independently reviewed the boundary and ran the affected tests, type check and production build after Luna's handoff on 2026-10-01.
++## OpenSpec assessment
 +
-+| Requirement | Implementation and behavioral evidence |
++| Dimension | Result |
 +| --- | --- |
-+| Embedded history isolation | `embeddedWorkspaceNavigation.ts` and `useAppNavigation.ts`; mounted bridge/navigation integration covers host route preservation, real back actions, parked-root stale requests/reentry and standalone history. |
-+| Current playlist return | One bounded playback return; matching native source/provider/type/ID uses its actual collection snapshot, otherwise the current queue wall. Repeated B/C/D navigation does not stack prior song pages. |
-+| Complete selection handoff | Actual mounted queue controller relays native collection tracks/index and exact wall queue entries. Shortcuts remain queue-preserving and reveal the player. Folia never falls through into standalone audio resolution when parked. |
-+| Continuing input | Mounted Lattice click/keyboard and mounted playback shortcut tests. Inactive playback, Lattice and command-palette global key handlers return before consuming input. |
-+| Stable playback projection | Bridge integration preserves equivalent queue/current-song references over pause/clock snapshots and does not overwrite newer native navigation with unchanged host context. Existing clock/seek/audio/color regressions remain included. |
++| Completeness | 18/18 tasks; all 5 requirements mapped below. |
++| Correctness | Mounted behavioral tests, type check, build and the reproduced continuous production failure chain pass. |
++| Coherence | Bounded embedded navigation, sole host audio ownership, stable projection and native component boundaries follow design.md. |
 +
-+Root command:
++| Requirement | Implementation and scenario evidence |
++| --- | --- |
++| Embedded navigation is isolated | `src/services/embeddedWorkspaceNavigation.ts`, `src/hooks/useAppNavigation.ts`, `src/shizukiExternalBridge.ts`; mounted navigation/bridge tests preserve host routing, reject inactive/stale work and retain standalone history. |
++| Return preserves current playlist | One bounded player layer returns to a matching real native collection snapshot or the authoritative queue wall. Mounted tests cover B/C/D, missing collection and top-layer dismissal; live Escape restores both the P2 wall and actual native purple collection. |
++| Complete native selection is handed to host | `src/services/shizukiEmbeddedPlayback.ts` and mounted playback-controller tests relay complete ordered tracks, opaque source and exact index. Explicit collection selection replaces even an equal-song queue; unmarked shortcuts preserve/insert. Live native purple B installs all 83 tracks at its actual slot. |
++| Selection leaves interface interactive | Active input guards, stable identity, `LatticePresenceLayer`, `useLatticeExitGate` and separate poster presence. Real mounted keyboard/pointer, interrupted exit, duplicate-slot and repeated poster-wave tests pass; live pause, held-pointer seek, repeated entry and Escape pass. |
++| Existing playback and visuals remain compatible | Shared continuous clock and host intents, empty/paused Folia audio, consistent entry identity in lyrics/focus/controls, primary shader color/reset and standalone fallback. Existing tests and actual blue lyric canvas/reset acceptance pass. |
 +
-+```powershell
-+node node_modules/vitest/vitest.mjs run -c vitest.config.ts test/unit/shizukiEmbeddedPlayback.test.ts test/unit/shizukiExternalBridge.integration.test.ts test/unit/shizukiLatticeLyricColor.integration.test.ts test/unit/buildPlayerViewFlags.embedded.test.ts test/unit/cadenzaWrappedLyrics.test.ts test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts test/unit/shizukiEmbeddedPlaybackController.integration.test.ts test/unit/shizukiEmbeddedKeyboard.integration.test.ts test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts test/unit/navigation test/unit/lattice test/unit/search/searchNavigationStore.test.ts test/unit/gridView
-+node node_modules/typescript/bin/tsc --noEmit
-+$env:VITE_BASE_PATH='/music'; node node_modules/vite/bin/vite.js build
-+```
++No unresolved critical implementation issue or known spec/design divergence was found. No verification dimension was skipped. Coverage limits are explicit below.
 +
-+Outcome after final source-origin review: **36 files / 244 tests passed**, TypeScript passed, production build passed, `git diff --check` passed. Explicit native collection selection carries a detail-row origin marker and always replaces source/queue, including P2 with identical tracks to P1. Unmarked command-palette selections of that same queue preserve its ordering. Builds retain existing chunk-size and ineffective dynamic-import warnings.
++## Rendered-boundary diagnosis and repair
 +
-+The previous complete suite recorded 4,385 passing and 2 skipped tests with one Windows `EPERM` symbolic-link failure in upstream `modSignature`; the same failure was reproduced on clean upstream v0.7.11. This delivery reruns affected suites rather than claiming a new complete-suite pass or weakening that upstream test.
++- `9b2346e2` could leave an outgoing wall at opacity 0 with pointer-events auto. `311b98d5` restores active opacity/interaction and makes exit inert; tests share App's exit gate with real Framer Motion.
++- `311b98d5` selected the exact entry but lyrics/focus/transport still compared song keys. `9ed6ab22` consistently uses `getLatticeTileId` (queueEntryId, otherwise standalone song key). Mounted real Lattice/provider tests distinguish duplicate slots and verify lyric consumer input and focus/controls.
++- `9ed6ab22` could strand the third exit after B reentry and C auto-focus. `latticeRepeatedExit.integration.test.ts` mounts real Lattice/presence/gate with 84 slots and a 5000x5000 measured viewport, producing 400 virtualized posters. Original code fails with `completed=2/3; opacity=0; pointerEvents=none; posters=400`. `7069103b` isolates poster removal with non-propagating inner AnimatePresence. The same regression passes without a fixed-duration fallback. An earlier act-scheduling false positive was discarded.
 +
-+## Delivery status
++## Local quality and public source
 +
-+Public patch/source identity verification, owner-controlled push, joint deployment and fresh real-browser acceptance are still pending. Local mounted tests do not by themselves establish that the full production region remains usable. Record the exact released commit/image/assets and continuing pointer/keyboard plus Escape acceptance here after those gates pass.
++Root's final affected run: **39 files / 247 tests passed**, covering embedded playback/bridge/navigation/controller/keyboard, real Lattice input/presence/identity/repeated exit and standalone navigation/search/grid. TypeScript `--noEmit`, Vite `/music/` build, strict OpenSpec validation and source whitespace checks pass. Existing chunk-size/dynamic-import build warnings remain.
++
++The site's **40 TS/TSX snapshots** match this implementation byte for byte. The complete binary-capable upstream `6fe68d89` patch is checked by actual application to a clean worktree and comparison of every changed Git blob during final host publication. The host verification record contains final patch bytes/hash and the documentation tip separately from the deployed implementation revision.
++
++The previously run full suite had **4,385 passed, 2 skipped and one upstream Windows symbolic-link EPERM** in modSignature; clean v0.7.11 reproduces it. This change reruns affected suites, without claiming a new complete-suite pass or weakening that test.
++
++## Exact-source deployment and live acceptance
++
++Personal server `111.228.35.186`: host release `5f08281c28c6742f69d60c1c1ea9d1070e29c513` and Folia `7069103b4ce862f0e1f8befde5c48dbe778777f4` are deployed. Clean source `/opt/folia/folia-major-main` used verified bundles and exact Git archives. The final build exited 0; npm ci ran, without a cache-hit claim. Running image `sha256:1d74dd2d4bee41abd9832a6698f7a4144efc814ca46057740e792b71b1c2b529` has the matching OCI revision. Gateway, external `/music/`, site entry and API health pass. Previous images/source stash/site snapshots remain retained; completed archive contexts were safely removed. Final free space was 731 MiB; future builds need a capacity check.
++
++Fresh signed-in Edge loaded **`index-Bvvt1XEq.js`** and **`main-rROf5Ust.js`**:
++
++1. Ordinary P1 A played; immersive entry preserved its position. Toolbar P2 purple replaced the full queue with 83 songs and started its first song.
++2. Wall B selection showed real lyrics. Play advanced and Pause held **00:46**. Custom `#3366ff` produced blue primary glyphs with separately colored translation.
++3. Actual held-pointer drag moved paused B **00:46 -> 03:09**, preserving pause. B player/Escape/wall, a second B player/Escape, then toolbar C displayed the real full player. Continuing keyboard pause worked. C Escape/toolbar D also showed the player and blue rendered glyphs; D Escape restored P2.
++4. Default-color reset removed the custom variable. Ordinary return displayed **purple, 83 songs, D and paused 01:34**. Current-song immersive reentry retained position and theme color.
++5. Native playlist navigation opened actual purple. Centering B's card and clicking Play handed off all 83 tracks at its selected slot. Pause/player entry worked; **Escape restored the actual native purple collection**. Ordinary return used `/music-library/queue`, showing purple/83/B paused. Internal Folia navigation did not mutate the host hash.
++
++Root kept local before/after screenshots and left the acceptance tab available with playback paused and default color restored. Signed-in screenshots are not published in Git.
++
++## Coverage limits
++
++This verifies the reproduced signed-in Edge/provider/desktop chain, not every device or arbitrary stream. Duplicate slots, stale async completion, empty/failing playlists, hidden input and standalone history are tested at mounted boundaries rather than forced against the live account. The original total freeze was not reproduced in every baseline run; route/return and the three observed rendered defects are separately evidenced. Host render acknowledgement remains optional as specified; message dispatch alone is never visual acceptance evidence.
 diff --git a/openspec/config.yaml b/openspec/config.yaml
 new file mode 100644
-index 00000000..c4d34ace
+index 0000000000000000000000000000000000000000..c4d34acea98d96d1c53eb71c7544336092d92f80
 --- /dev/null
 +++ b/openspec/config.yaml
 @@ -0,0 +1,32 @@
@@ -315,7 +348,7 @@ index 00000000..c4d34ace
 +#       guidance:
 +#         - Summarize the archive outcome before finishing
 diff --git a/package-lock.json b/package-lock.json
-index d79d30d5..83130a16 100644
+index d79d30d5e4620351730ec370efbf714121cf73ba..83130a16f8939bcbde82d934748aa0ee1c468ccb 100644
 --- a/package-lock.json
 +++ b/package-lock.json
 @@ -19,7 +19,7 @@
@@ -337,7 +370,7 @@ index d79d30d5..83130a16 100644
        "license": "MIT",
        "dependencies": {
 diff --git a/package.json b/package.json
-index c9b5d4eb..fd2dded8 100644
+index c9b5d4eb0bb74dbb2804487ff6a6ad919753f987..fd2dded8a305e28d112d47acd83bb2dedb2e0b80 100644
 --- a/package.json
 +++ b/package.json
 @@ -208,7 +208,7 @@
@@ -350,10 +383,33 @@ index c9b5d4eb..fd2dded8 100644
      "onnxruntime-node": "^1.30.0",
      "ws": "^8.21.3"
 diff --git a/src/App.tsx b/src/App.tsx
-index b7bc5696..18fdcc13 100644
+index b7bc56962acea077139ea3c1818b4494c5f962b4..8d3ede2c22e30e0c98f04dbd76350370a676fd33 100644
 --- a/src/App.tsx
 +++ b/src/App.tsx
-@@ -80,6 +80,7 @@ import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
+@@ -1,5 +1,5 @@
+ import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+-import { AnimatePresence, motion, useMotionValueEvent } from 'framer-motion';
++import { motion, useMotionValueEvent } from 'framer-motion';
+ import { useTranslation } from 'react-i18next';
+ import { ChevronLeft } from 'lucide-react';
+ import { loadCachedOrFetchCover } from './services/coverCache';
+@@ -18,6 +18,7 @@ import { useSettingsDialogModel } from './components/app/dialogs/useSettingsDial
+ import AppOverlays from './components/app/overlays/AppOverlays';
+ import AutomixModelReminder from './components/modal/AutomixModelReminder';
+ import PonderHost from './components/ponder/PonderHost';
++import LatticePresenceLayer from './components/app/lattice/LatticePresenceLayer';
+ // Lazy so animejs (~38KB gz) stays out of the bootstrap chunk: this overlay only ever draws when the
+ // animation switch is on AND the mode is automix, both off by default, so it is mounted only then.
+ const AutomixTransitionAnimation = lazy(() => import('./components/app/overlays/AutomixTransitionAnimation'));
+@@ -62,6 +63,7 @@ import { omni } from './services/onlineMusic/omni';
+ import { getSongArtistLabel, getSongCoverUrl } from './services/onlineMusic/songMetadata';
+ import { isNavidromeEnabled } from './services/navidromeService';
+ import { useAppNavigation } from './hooks/useAppNavigation';
++import { useLatticeExitGate } from './hooks/useLatticeExitGate';
+ import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
+ import { useKugouLibrary } from './hooks/useKugouLibrary';
+ import { useQqLibrary } from './hooks/useQqLibrary';
+@@ -80,6 +82,7 @@ import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
  import { useTranscodeFallback } from './hooks/useTranscodeFallback';
  import { useAutomixDecks, type AutomixDeckId } from './services/automix/useAutomixDecks';
  import { usePlaybackInteractionBridge } from './hooks/usePlaybackInteractionBridge';
@@ -361,7 +417,20 @@ index b7bc5696..18fdcc13 100644
  import { usePersonalFmModeController } from './hooks/usePersonalFmModeController';
  import { PERSONAL_FM_MODE_COMMAND_ID } from './components/command-palette/commands/fmModeCommand';
  import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
-@@ -981,7 +982,7 @@ export default function App() {
+@@ -667,11 +670,7 @@ export default function App() {
+         backCollection,
+     } = useAppNavigation();
+     const reduceLatticeMotion = useReducedMotionFor('lattice');
+-    const [hasLatticeExited, setHasLatticeExited] = useState(currentView !== 'lattice');
+-
+-    useEffect(() => {
+-        if (currentView === 'lattice') setHasLatticeExited(false);
+-    }, [currentView]);
++    const { hasLatticeExited, onLatticeExitComplete } = useLatticeExitGate(currentView);
+ 
+     usePlayerBottomBarOffset(playerBottomBarOffset);
+     usePlayerBottomBarPositioningEntry(navigateToPlayer);
+@@ -981,7 +980,7 @@ export default function App() {
          clearPersistedStagePlaybackCache,
          loadLocalSongs,
          loadLocalPlaylists,
@@ -370,7 +439,7 @@ index b7bc5696..18fdcc13 100644
          shouldAutoPlayRef: shouldAutoPlay,
      });
  
-@@ -1637,9 +1638,12 @@ export default function App() {
+@@ -1637,9 +1636,12 @@ export default function App() {
          stageActiveEntryKind,
          audioSrc,
          duration,
@@ -383,7 +452,7 @@ index b7bc5696..18fdcc13 100644
          currentView,
          disableHomeDynamicBackground,
          duration,
-@@ -2034,6 +2038,7 @@ export default function App() {
+@@ -2034,6 +2036,7 @@ export default function App() {
          return true;
      };
      const seekMainAudio = useCallback((time: number) => {
@@ -391,23 +460,87 @@ index b7bc5696..18fdcc13 100644
          if (seekDuringTransitionRef.current(time)) {
              return;
          }
-@@ -2702,8 +2707,12 @@ export default function App() {
-                                 isDaylight={isDaylight}
-                                 onBack={navigateBackFromLattice}
-                                 onOpenPlayer={navigateToPlayer}
+@@ -2673,45 +2676,40 @@ export default function App() {
+                 </motion.div>
+             </div>
+ 
+-            <AnimatePresence
+-                initial={false}
+-                onExitComplete={() => setHasLatticeExited(useAppViewStore.getState().view !== 'lattice')}
++            <LatticePresenceLayer
++                active={currentView === 'lattice'}
++                duration={reduceLatticeMotion ? 0 : 0.62}
++                onExitComplete={onLatticeExitComplete}
+             >
+-                {currentView === 'lattice' && (
+-                    <motion.div
+-                        key="lattice"
+-                        className="absolute inset-0 z-10 pointer-events-auto"
+-                        initial={false}
+-                        exit={{ opacity: 0 }}
+-                        transition={{ duration: reduceLatticeMotion ? 0 : 0.62, ease: 'easeIn' }}
+-                    >
+-                        <Suspense fallback={<div className="absolute inset-0 bg-[#070707]" />}>
+-                            <Lattice
+-                                controls={{ playback: commandPaletteContext.playback, loopMode: effectiveLoopMode,
+-                                    invokeCommandById: commandPalette.invokeCommandById, canInvokeCommandById: commandPalette.canInvokeCommandById,
+-                                    isStageActive: isNowPlayingStageActive, disabled: isNowPlayingControlDisabled }}
+-                                lyrics={commandPaletteContext.shared.lyrics}
+-                                lyricSource={visualizerRendererModel}
+-                                lyricKeywordColoringEnabled={visualizerRendererModel.visualizerTunings.monet.keywordColoringEnabled}
+-                                currentSong={displaySong}
+-                                playerState={displayPlayerState}
+-                                currentTime={currentTime}
+-                                playbackDuration={displayDuration}
+-                                canTogglePlayback={canToggleCurrentPlayback}
+-                                queue={playQueue}
+-                                isDaylight={isDaylight}
+-                                onBack={navigateBackFromLattice}
+-                                onOpenPlayer={navigateToPlayer}
 -                                onPlaySong={(song, queue) => {
 -                                    void playSong(song, queue, false, { shouldNavigateToPlayer: false });
-+                                onPlaySong={(song, queue, queueIndex) => {
-+                                    void playSong(song, queue, false, {
-+                                        shouldNavigateToPlayer: false,
-+                                        embeddedSelectionIndex: queueIndex,
-+                                        embeddedSelectionView: 'lattice',
-+                                    });
-                                 }}
-                                 onTogglePlayback={togglePlay}
-                                 onSeek={seekMainAudio}
+-                                }}
+-                                onTogglePlayback={togglePlay}
+-                                onSeek={seekMainAudio}
+-                            />
+-                        </Suspense>
+-                    </motion.div>
+-                )}
+-            </AnimatePresence>
++                <Suspense fallback={<div className="absolute inset-0 bg-[#070707]" />}>
++                    <Lattice
++                        controls={{ playback: commandPaletteContext.playback, loopMode: effectiveLoopMode,
++                            invokeCommandById: commandPalette.invokeCommandById, canInvokeCommandById: commandPalette.canInvokeCommandById,
++                            isStageActive: isNowPlayingStageActive, disabled: isNowPlayingControlDisabled }}
++                        lyrics={commandPaletteContext.shared.lyrics}
++                        lyricSource={visualizerRendererModel}
++                        lyricKeywordColoringEnabled={visualizerRendererModel.visualizerTunings.monet.keywordColoringEnabled}
++                        currentSong={displaySong}
++                        playerState={displayPlayerState}
++                        currentTime={currentTime}
++                        playbackDuration={displayDuration}
++                        canTogglePlayback={canToggleCurrentPlayback}
++                        queue={playQueue}
++                        isDaylight={isDaylight}
++                        onBack={navigateBackFromLattice}
++                        onOpenPlayer={navigateToPlayer}
++                        onPlaySong={(song, queue, queueIndex) => {
++                            void playSong(song, queue, false, {
++                                shouldNavigateToPlayer: false,
++                                embeddedSelectionIndex: queueIndex,
++                                embeddedSelectionView: 'lattice',
++                            });
++                        }}
++                        onTogglePlayback={togglePlay}
++                        onSeek={seekMainAudio}
++                    />
++                </Suspense>
++            </LatticePresenceLayer>
+ 
+             {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
+             {/* 指针隐藏跟着控制栏的空闲时钟走，不另起一套计时：控件收起时页面上已经没有可点的东西，
 diff --git a/src/bootstrap.tsx b/src/bootstrap.tsx
-index c54cbcc5..319cc33d 100644
+index c54cbcc553e41ea4543e726018ae03b826bae370..319cc33dd1674290c3112c6877a622d4cb51d940 100644
 --- a/src/bootstrap.tsx
 +++ b/src/bootstrap.tsx
 @@ -28,7 +28,12 @@ import './stores/useMotionSettingsStore';
@@ -473,7 +606,7 @@ index c54cbcc5..319cc33d 100644
      });
 +}
 diff --git a/src/components/app/AppShell.tsx b/src/components/app/AppShell.tsx
-index 70e393eb..4b15e0f3 100644
+index 70e393ebae13f90798b0addf8876dc0cc723294d..4b15e0f308fd9ec83b784d2f79bd17813a989d4e 100644
 --- a/src/components/app/AppShell.tsx
 +++ b/src/components/app/AppShell.tsx
 @@ -90,7 +90,9 @@ const AppShell: React.FC<AppShellProps> = ({
@@ -488,7 +621,7 @@ index 70e393eb..4b15e0f3 100644
                  ...appStyle,
                  borderRadius: shouldApplyWindowRadius ? '18px' : undefined,
 diff --git a/src/components/app/home/GridViewOverlayHost.tsx b/src/components/app/home/GridViewOverlayHost.tsx
-index 3cf8ed64..0ce71fee 100644
+index 3cf8ed645b99d42da13242f01e3d1870a90e7893..0ce71feeafcb3538ef340dfd46ad1db8b2f4c9c6 100644
 --- a/src/components/app/home/GridViewOverlayHost.tsx
 +++ b/src/components/app/home/GridViewOverlayHost.tsx
 @@ -5,7 +5,7 @@ import GridView, { GridViewSourceActions } from '../../GridView';
@@ -525,7 +658,7 @@ index 3cf8ed64..0ce71fee 100644
      const handleAddTrackToQueue = useCallback((track: SongResult) => {
          const unifiedTrack = track as UnifiedSong;
 diff --git a/src/components/app/home/homeSurfaceTypes.ts b/src/components/app/home/homeSurfaceTypes.ts
-index 2b411021..a0c0c41d 100644
+index 2b411021dbd76b5ce2158a20fd356cd49a0c73c9..a0c0c41d8010a7e4c6f0ae91e1437a824ed057e7 100644
 --- a/src/components/app/home/homeSurfaceTypes.ts
 +++ b/src/components/app/home/homeSurfaceTypes.ts
 @@ -13,6 +13,7 @@ import type {
@@ -546,18 +679,28 @@ index 2b411021..a0c0c41d 100644
      onRefreshUser: () => void;
      user: ProviderUser | null;
 diff --git a/src/components/app/lattice/Lattice.tsx b/src/components/app/lattice/Lattice.tsx
-index 994ebbde..b4f5445c 100644
+index 994ebbdec0042e30c7d73243a5abff94c41334e5..ca70c5eeb568349eb7d826f1261094c1c6568644 100644
 --- a/src/components/app/lattice/Lattice.tsx
 +++ b/src/components/app/lattice/Lattice.tsx
-@@ -16,6 +16,7 @@ import LatticeLyricsProvider from './lyrics/LatticeLyricsProvider';
+@@ -7,15 +7,15 @@ import LatticePlaybackProvider, { type LatticePlaybackActions } from './LatticeP
+ import { LatticeTransportContext, type LatticeTransport } from './LatticeTransportContext';
+ import PosterWall from './PosterWall';
+ import LatticeFocusButton from './LatticeFocusButton';
+-import { buildLatticeTiles, type LatticeTile } from './latticeModel';
++import { buildLatticeTiles, getLatticeTileId, type LatticeTile } from './latticeModel';
+ import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
+ import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
+ import { countRender } from '../../../dev/renderCount';
+ import './Lattice.css';
+ import LatticeLyricsProvider from './lyrics/LatticeLyricsProvider';
  import type { LatticeLyricSource } from './lyrics/types';
- import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+-import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
  import { isPrimaryModifierPressed, isSecondaryModifierPressed } from '../../../utils/platform';
 +import { isEmbeddedWorkspaceActive, isEmbeddedWorkspaceSurface } from '../../../services/embeddedWorkspaceNavigation';
  
  // Queue display layer; it renders the play queue and never mutates it.
  
-@@ -33,7 +34,7 @@ type LatticeProps = {
+@@ -33,7 +33,7 @@ type LatticeProps = {
      isDaylight: boolean;
      onBack: () => void;
      onOpenPlayer: () => void;
@@ -566,7 +709,7 @@ index 994ebbde..b4f5445c 100644
      onTogglePlayback: () => void;
      onSeek: (time: number) => void;
  };
-@@ -68,6 +69,7 @@ export default function Lattice({
+@@ -68,6 +68,7 @@ export default function Lattice({
  
      useEffect(() => {
          const handleKeyDown = (event: KeyboardEvent) => {
@@ -574,7 +717,7 @@ index 994ebbde..b4f5445c 100644
              if (event.repeat
                  || event.key.toLowerCase() !== 'b'
                  || !isPrimaryModifierPressed(event)
-@@ -87,7 +89,7 @@ export default function Lattice({
+@@ -87,7 +88,7 @@ export default function Lattice({
      // App rebuilds these on every render of its own, and the wall hands them to every poster on
      // screen. Given a permanent identity here they stop being a reason for those posters to render.
      const wall = useStableCallbacks({
@@ -583,38 +726,216 @@ index 994ebbde..b4f5445c 100644
          onTogglePlayback,
          onSeek,
          onOpenPlayer,
+@@ -104,7 +105,7 @@ export default function Lattice({
+         <LatticeTransportContext.Provider value={transport}>
+         <LatticePlaybackProvider actions={controls} currentSong={currentSong} queue={queue} lyrics={lyrics}
+             currentTime={currentTime} duration={playbackDuration} onSeek={onSeek} isDaylight={isDaylight}>
+-        <LatticeLyricsProvider source={lyricSource} songKey={currentSong ? getPlaybackSongKey(currentSong) : ''}
++        <LatticeLyricsProvider source={lyricSource} songKey={currentSong ? getLatticeTileId(currentSong) : ''}
+             keywordColoringEnabled={lyricKeywordColoringEnabled}>
+         <section
+             className={`lattice-root ${isDaylight ? 'is-daylight' : ''} ${vignette ? 'has-vignette' : ''} ${lightsOn ? '' : 'is-lights-out'} ${posterTintEnabled ? 'has-poster-tint' : ''} ${posterTintUseCustomColor ? 'uses-custom-poster-tint' : ''}`}
+diff --git a/src/components/app/lattice/LatticePlaybackControls.tsx b/src/components/app/lattice/LatticePlaybackControls.tsx
+index a9a55bdfbbbd827546244c7240ce58b273b49c7a..9628f273b5a0ba2f74a1162dd0a8693838790155 100644
+--- a/src/components/app/lattice/LatticePlaybackControls.tsx
++++ b/src/components/app/lattice/LatticePlaybackControls.tsx
+@@ -3,7 +3,7 @@ import { ArrowUpRight, Pause, Play } from 'lucide-react';
+ import { useTranslation } from 'react-i18next';
+ import ProgressBar from '../../ProgressBar';
+ import { PlayerState } from '../../../types';
+-import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
++import { getLatticeTileId } from './latticeModel';
+ import { useLatticeTransport } from './LatticeTransportContext';
+ import type { LatticeTile } from './latticeModel';
+ import LatticeChromeTime from './LatticeChromeTime';
+@@ -36,7 +36,7 @@ export default function LatticePlaybackControls({
+     // Subscribed here rather than threaded through every poster: only this card reads transport state.
+     const { currentSong, playerState, currentTime, playbackDuration, canTogglePlayback } = useLatticeTransport();
+     const isCurrentSong = Boolean(
+-        currentSong && getPlaybackSongKey(currentSong) === getPlaybackSongKey(tile.song),
++        currentSong && getLatticeTileId(currentSong) === tile.id,
+     );
+     const canControlCurrent = isCurrentSong && canTogglePlayback;
+     const isPlaying = canControlCurrent && playerState === PlayerState.PLAYING;
+diff --git a/src/components/app/lattice/LatticePresenceLayer.tsx b/src/components/app/lattice/LatticePresenceLayer.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..66fa45a7b9543cd5d258af26e63e0d61bc67bb34
+--- /dev/null
++++ b/src/components/app/lattice/LatticePresenceLayer.tsx
+@@ -0,0 +1,28 @@
++import { AnimatePresence, motion } from 'framer-motion';
++import type { ReactNode } from 'react';
++
++type LatticePresenceLayerProps = {
++    active: boolean;
++    duration: number;
++    onExitComplete: () => void;
++    children: ReactNode;
++};
++
++export default function LatticePresenceLayer({ active, duration, onExitComplete, children }: LatticePresenceLayerProps) {
++    return (
++        <AnimatePresence initial={false} onExitComplete={onExitComplete}>
++            {active && (
++                <motion.div
++                    key="lattice"
++                    className="absolute inset-0 z-10 pointer-events-auto"
++                    initial={false}
++                    animate={{ opacity: 1, pointerEvents: 'auto' }}
++                    exit={{ opacity: 0, pointerEvents: 'none' }}
++                    transition={{ duration, ease: 'easeIn' }}
++                >
++                    {children}
++                </motion.div>
++            )}
++        </AnimatePresence>
++    );
++}
+diff --git a/src/components/app/lattice/PosterWall.tsx b/src/components/app/lattice/PosterWall.tsx
+index 6b73247a96c5bfd22c07b0ccc4b2eafcefbd4c62..4677b337b0cb0825bd88e82bab9699bee20f816b 100644
+--- a/src/components/app/lattice/PosterWall.tsx
++++ b/src/components/app/lattice/PosterWall.tsx
+@@ -1,4 +1,5 @@
+ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import { AnimatePresence } from 'framer-motion';
+ import type { SongResult } from '../../../types';
+ import {
+     getLatticeGeometry,
+@@ -14,14 +15,13 @@ import { useWallCameraPan, type LatticeCamera } from './useWallCameraPan';
+ import { useLatticePosterSelection } from './useLatticePosterSelection';
+ import { useWallKeyboardFocus } from './useWallKeyboardFocus';
+ import { useWallPointerPan } from './useWallPointerPan';
+-import type { LatticeTile } from './latticeModel';
++import { getLatticeTileId, type LatticeTile } from './latticeModel';
+ import LatticePoster from './LatticePoster';
+ import { countRender } from '../../../dev/renderCount';
+ import {
+     useLatticePlaybackFocus,
+ } from './useLatticePlaybackFocus';
+ import { setLatticeCurrentSongPosterVisible } from '../../../stores/useLatticeControlsStore';
+-import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+ import { useDevicePixelRatio } from '../../../hooks/useMediaQuery';
+ import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
+ import { EXPANSION_SPAN } from './blockTemplates';
+@@ -241,7 +241,7 @@ export default function PosterWall({
+     ), [activePoster, geometry, tiles.length]);
+ 
+     useEffect(() => {
+-        const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
++        const currentSongKey = currentSong ? getLatticeTileId(currentSong) : null;
+         const isTracking = measured && Boolean(currentSongKey);
+         const rect = activePoster && activePoster.tile.id === currentSongKey
+             ? layout.get(activePoster.instance.instanceId) ?? activePoster.instance
+@@ -318,34 +318,37 @@ export default function PosterWall({
+             onClickCapture={onClickCapture}
+         >
+             <div ref={worldRef} className="lattice-world">
+-                {instances.map(instance => {
+-                    const tile = tiles[instance.queueIndex];
+-                    if (!tile) return null;
+-                    const expanded = activePoster?.instance.instanceId === instance.instanceId;
+-                    const rect = layout.get(instance.instanceId) ?? instance;
+-                    return (
+-                        <LatticePoster
+-                            key={instance.instanceId}
+-                            instanceId={instance.instanceId}
+-                            isFocused={focused?.instanceId === instance.instanceId}
+-                            tile={tile}
+-                            rect={rect}
+-                            gap={METRICS.gap}
+-                            pixelScale={pixelScale}
+-                            expandedSize={EXPANDED_SIZE}
+-                            entranceDelay={getEntranceDelay(rect)}
+-                            getExitDelay={getExitDelay}
+-                            expanded={expanded}
+-                            reducedMotion={reducedMotion}
+-                            didDragRef={didDragRef}
+-                            onExpand={expandPoster}
+-                            onPlay={onPlay}
+-                            onTogglePlayback={onTogglePlayback}
+-                            onSeek={onSeek}
+-                            onOpenPlayer={onOpenPlayer}
+-                        />
+-                    );
+-                })}
++                {/* The wall exits as one unit; its staggered poster wave must not hold App's outer completion gate. */}
++                <AnimatePresence initial={false} propagate={false}>
++                    {instances.map(instance => {
++                        const tile = tiles[instance.queueIndex];
++                        if (!tile) return null;
++                        const expanded = activePoster?.instance.instanceId === instance.instanceId;
++                        const rect = layout.get(instance.instanceId) ?? instance;
++                        return (
++                            <LatticePoster
++                                key={instance.instanceId}
++                                instanceId={instance.instanceId}
++                                isFocused={focused?.instanceId === instance.instanceId}
++                                tile={tile}
++                                rect={rect}
++                                gap={METRICS.gap}
++                                pixelScale={pixelScale}
++                                expandedSize={EXPANDED_SIZE}
++                                entranceDelay={getEntranceDelay(rect)}
++                                getExitDelay={getExitDelay}
++                                expanded={expanded}
++                                reducedMotion={reducedMotion}
++                                didDragRef={didDragRef}
++                                onExpand={expandPoster}
++                                onPlay={onPlay}
++                                onTogglePlayback={onTogglePlayback}
++                                onSeek={onSeek}
++                                onOpenPlayer={onOpenPlayer}
++                            />
++                        );
++                    })}
++                </AnimatePresence>
+             </div>
+ 
+         </div>
 diff --git a/src/components/app/lattice/latticeModel.ts b/src/components/app/lattice/latticeModel.ts
-index 9aab7787..38be4e8d 100644
+index 9aab7787da6ed6b65950efc1b79e580600b51c5e..55a5b11a83f2ca899b670797387cc1820acdbdff 100644
 --- a/src/components/app/lattice/latticeModel.ts
 +++ b/src/components/app/lattice/latticeModel.ts
-@@ -25,8 +25,15 @@ export const buildLatticeTiles = ({
+@@ -17,6 +17,14 @@ export type LatticeTile = {
+     section: LatticeSection;
+ };
+ 
++/** Uses queue-slot identity when available, with playback identity for standalone/legacy queues. */
++export const getLatticeTileId = (song: SongResult): string => {
++    const entryId = (song as SongResult & { queueEntryId?: unknown }).queueEntryId;
++    return typeof entryId === 'string' && entryId.trim()
++        ? entryId.trim()
++        : getPlaybackSongKey(song);
++};
++
+ // Marks each entry relative to the playhead; the queue is already de-duplicated by the queue controller.
+ export const buildLatticeTiles = ({
+     queue,
+@@ -25,10 +33,10 @@ export const buildLatticeTiles = ({
      queue: SongResult[];
      currentSong: SongResult | null;
  }): LatticeTile[] => {
-+    const getEntryId = (song: SongResult): string | null => {
-+        const entryId = (song as SongResult & { queueEntryId?: unknown }).queueEntryId;
-+        return typeof entryId === 'string' && entryId.trim() ? entryId.trim() : null;
-+    };
-+    const currentEntryId = currentSong ? getEntryId(currentSong) : null;
-     const currentKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+-    const currentKey = currentSong ? getPlaybackSongKey(currentSong) : null;
 -    const currentIndex = currentKey === null
-+    const currentIndex = currentEntryId !== null
-+        ? queue.findIndex(song => getEntryId(song) === currentEntryId)
-+        : currentKey === null
++    const currentTileId = currentSong ? getLatticeTileId(currentSong) : null;
++    const currentIndex = currentTileId === null
          ? -1
-         : queue.findIndex(song => getPlaybackSongKey(song) === currentKey);
+-        : queue.findIndex(song => getPlaybackSongKey(song) === currentKey);
++        : queue.findIndex(song => getLatticeTileId(song) === currentTileId);
  
-@@ -36,7 +43,7 @@ export const buildLatticeTiles = ({
+     return queue.map((song, index) => {
+         let section: LatticeSection = 'upcoming';
+@@ -36,7 +44,7 @@ export const buildLatticeTiles = ({
          else if (currentIndex >= 0 && index < currentIndex) section = 'played';
  
          return {
 -            id: getPlaybackSongKey(song),
-+            id: getEntryId(song) ?? getPlaybackSongKey(song),
++            id: getLatticeTileId(song),
              queueIndex: index,
              song,
              title: song.name,
 diff --git a/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx b/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
-index d2fbc093..026d3427 100644
+index d2fbc0937d7d67b020c7f9b309ecdd43df267e42..026d3427a329c4e797ab46d0a0c8bc8e6a9dc7a5 100644
 --- a/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
 +++ b/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
 @@ -1,20 +1,40 @@
@@ -663,7 +984,7 @@ index d2fbc093..026d3427 100644
      return <Context.Provider value={value}>{children}</Context.Provider>;
  }
 diff --git a/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts b/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts
-index 5cac4774..f6a3129c 100644
+index 5cac47745f4d0c61864a4acd286d900db636ba19..f6a3129cd955bfa6a99d82388974adbea23d97d2 100644
 --- a/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts
 +++ b/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts
 @@ -147,6 +147,7 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
@@ -688,7 +1009,7 @@ index 5cac4774..f6a3129c 100644
          },
          resize(w, h, devicePixelRatio) {
 diff --git a/src/components/app/lattice/lyrics/latticeLyricScene.ts b/src/components/app/lattice/lyrics/latticeLyricScene.ts
-index 1b3d8eb7..97285f8d 100644
+index 1b3d8eb7e21236cd6e50c315de3fc3cbb5993255..97285f8d5fd4cbe259c6450723de93e23db0deb3 100644
 --- a/src/components/app/lattice/lyrics/latticeLyricScene.ts
 +++ b/src/components/app/lattice/lyrics/latticeLyricScene.ts
 @@ -31,14 +31,20 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
@@ -743,7 +1064,7 @@ index 1b3d8eb7..97285f8d 100644
          destroy() { pieces.forEach(destroyPiece); pieces.clear(); blur.destroy(); glowFilters.forEach(f => f.destroy()); container.destroy({ children: true }); quad.destroy(true); },
      };
 diff --git a/src/components/app/lattice/lyrics/types.ts b/src/components/app/lattice/lyrics/types.ts
-index 02be8582..caaa9f85 100644
+index 02be8582136933edb88afdbd0cde249ddd65938f..caaa9f85c0a0762e31af1803d161200d4c01589e 100644
 --- a/src/components/app/lattice/lyrics/types.ts
 +++ b/src/components/app/lattice/lyrics/types.ts
 @@ -11,6 +11,8 @@ export type LatticeLyricInput = LatticeLyricSource & {
@@ -755,8 +1076,32 @@ index 02be8582..caaa9f85 100644
  };
  
  export interface LatticeLyricRuntime {
+diff --git a/src/components/app/lattice/useLatticePlaybackFocus.ts b/src/components/app/lattice/useLatticePlaybackFocus.ts
+index c22dab1a20d7f184985c7a0b6c863ea76ce4b5df..d6b18ec72a2fffb6709ba8cd55d0e8d4f1a4f328 100644
+--- a/src/components/app/lattice/useLatticePlaybackFocus.ts
++++ b/src/components/app/lattice/useLatticePlaybackFocus.ts
+@@ -3,9 +3,8 @@ import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
+ import { useLatticeControlsStore } from '../../../stores/useLatticeControlsStore';
+ import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
+ import type { SongResult } from '../../../types';
+-import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+ import { layoutExpandedBlock, locateNearestInstance, type LatticeGeometry, type QueueInstance, type WallMetrics } from './layout';
+-import type { LatticeTile } from './latticeModel';
++import { getLatticeTileId, type LatticeTile } from './latticeModel';
+ 
+ // Follows discrete song changes; per-frame camera movement stays inside useWallCameraPan.
+ 
+@@ -38,7 +37,7 @@ export const useLatticePlaybackFocus = ({
+     const lastFocusedSongKeyRef = useRef<string | null>(null);
+     const autoFocusOnSongChange = useLatticeSettingsStore(state => state.autoFocusOnSongChange);
+ 
+-    const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
++    const currentSongKey = currentSong ? getLatticeTileId(currentSong) : null;
+     // Permanent identity, dispatching to this render's closure. The wall publishes this action to
+     // a store the palette subscribes to, so re-creating it on every queue or camera change would
+     // write to that store — and re-render App, and with it the whole wall — for nothing.
 diff --git a/src/components/app/presentation/buildPlayerViewFlags.ts b/src/components/app/presentation/buildPlayerViewFlags.ts
-index 3ff95ec6..f50e44af 100644
+index 3ff95ec66a50370a5ea9b2c4f9e1d34c1e27d52b..f50e44af5626f68d7aab2f8ffee6a96e6613f0d7 100644
 --- a/src/components/app/presentation/buildPlayerViewFlags.ts
 +++ b/src/components/app/presentation/buildPlayerViewFlags.ts
 @@ -12,6 +12,8 @@ export const buildPlayerViewFlags = ({
@@ -789,7 +1134,7 @@ index 3ff95ec6..f50e44af 100644
      };
  };
 diff --git a/src/components/command-palette/commands/searchCommands.ts b/src/components/command-palette/commands/searchCommands.ts
-index 87bb3901..a57ebd8b 100644
+index 87bb3901bec3289a90d33754a200d3478368fdde..a57ebd8b6c57fb3fddec0e3c2cb229afb4de2591 100644
 --- a/src/components/command-palette/commands/searchCommands.ts
 +++ b/src/components/command-palette/commands/searchCommands.ts
 @@ -1,6 +1,7 @@
@@ -810,7 +1155,7 @@ index 87bb3901..a57ebd8b 100644
          });
      }
 diff --git a/src/components/command-palette/useCommandPalette.ts b/src/components/command-palette/useCommandPalette.ts
-index 2ebbf236..2ae35b3a 100644
+index 2ebbf236ddbabcc80a0ceb40e52d06a52bf8402d..2ae35b3ae22b095f5c59d439e277f5818b6f1fac 100644
 --- a/src/components/command-palette/useCommandPalette.ts
 +++ b/src/components/command-palette/useCommandPalette.ts
 @@ -16,6 +16,7 @@ import { resolveCustomShortcutCommand } from './customShortcut';
@@ -830,7 +1175,7 @@ index 2ebbf236..2ae35b3a 100644
              // built. A modifier shortcut can never be mistaken for input, so it goes first; a
              // surface that reads bare characters outranks every modifier-free palette key, or the
 diff --git a/src/components/visualizer/cadenza/VisualizerCadenza.tsx b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
-index beb77c63..28ac4406 100644
+index beb77c6373b2b4a8d50e586d0f8ffa153f899214..28ac44069065091b92a0c4849b6eedb7653036aa 100644
 --- a/src/components/visualizer/cadenza/VisualizerCadenza.tsx
 +++ b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
 @@ -82,6 +82,8 @@ interface WordPlacement {
@@ -971,7 +1316,7 @@ index beb77c63..28ac4406 100644
                  const passedDriftY = status === 'passed' ? placement.passedDriftY * passedDriftProgress : 0;
                  const targetX = width / 2 + placement.x + localFloatX + passedDriftX + (status === 'waiting' ? placement.entryOffsetX : 0);
 diff --git a/src/components/visualizer/classic/Visualizer.tsx b/src/components/visualizer/classic/Visualizer.tsx
-index d1ae93b6..a59f39d2 100644
+index d1ae93b6948fb17e34c8ee35a4676f4aaa777a14..a59f39d253c491ea1298a45d65207fcd3512b02c 100644
 --- a/src/components/visualizer/classic/Visualizer.tsx
 +++ b/src/components/visualizer/classic/Visualizer.tsx
 @@ -136,7 +136,7 @@ const getClassicLineContainerMotion = (renderProfile: ClassicLineRenderProfile |
@@ -1008,7 +1353,7 @@ index d1ae93b6..a59f39d2 100644
                              animate={activeLineContainerMotion.animate}
                              exit={activeLineContainerMotion.exit}
 diff --git a/src/components/visualizer/partita/VisualizerPartita.tsx b/src/components/visualizer/partita/VisualizerPartita.tsx
-index f3aa9a7e..b9f24f6a 100644
+index f3aa9a7ebc4e419ca407fb1ddf3ae865061544cf..b9f24f6af23fd2c6a7fc3dbc924b114bef027717 100644
 --- a/src/components/visualizer/partita/VisualizerPartita.tsx
 +++ b/src/components/visualizer/partita/VisualizerPartita.tsx
 @@ -184,7 +184,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
@@ -1045,7 +1390,7 @@ index f3aa9a7e..b9f24f6a 100644
                              animate={activeLineContainerMotion.animate}
                              exit={activeLineContainerMotion.exit}
 diff --git a/src/hooks/useAppNavigation.ts b/src/hooks/useAppNavigation.ts
-index eb800200..8ffeb0a6 100644
+index eb800200ade03cfd8a1bbb08764158d8127dd90f..8ffeb0a6c5d70bd608b9f720e78086c5b21e598c 100644
 --- a/src/hooks/useAppNavigation.ts
 +++ b/src/hooks/useAppNavigation.ts
 @@ -18,6 +18,13 @@ import { usePlaybackStore } from '../stores/usePlaybackStore';
@@ -1263,8 +1608,31 @@ index eb800200..8ffeb0a6 100644
              return;
          }
          useCollectionNavigationStore.getState().clear();
+diff --git a/src/hooks/useLatticeExitGate.ts b/src/hooks/useLatticeExitGate.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..11d3653e3acb6fd0ee59aa536938af28c48b4f63
+--- /dev/null
++++ b/src/hooks/useLatticeExitGate.ts
+@@ -0,0 +1,17 @@
++import { useCallback, useEffect, useState } from 'react';
++import { useAppViewStore } from '../stores/useAppViewStore';
++import type { AppView } from '../stores/useAppViewStore';
++
++export const useLatticeExitGate = (currentView: AppView) => {
++    const [hasLatticeExited, setHasLatticeExited] = useState(currentView !== 'lattice');
++
++    useEffect(() => {
++        if (currentView === 'lattice') setHasLatticeExited(false);
++    }, [currentView]);
++
++    const onLatticeExitComplete = useCallback(() => {
++        setHasLatticeExited(useAppViewStore.getState().view !== 'lattice');
++    }, []);
++
++    return { hasLatticeExited, onLatticeExitComplete };
++};
 diff --git a/src/hooks/usePlaybackInteractionBridge.ts b/src/hooks/usePlaybackInteractionBridge.ts
-index 78cca104..f07cd709 100644
+index 78cca1045de7e249e32f1f3554ad07c15a203aa2..f07cd70954013e59dcff4d2301a6d020616cdbc6 100644
 --- a/src/hooks/usePlaybackInteractionBridge.ts
 +++ b/src/hooks/usePlaybackInteractionBridge.ts
 @@ -15,6 +15,8 @@ import { setIsPanelOpen, useAppViewStore } from '../stores/useAppViewStore';
@@ -1320,7 +1688,7 @@ index 78cca104..f07cd709 100644
                              audioRef.current.currentTime = nextTime;
                          }
 diff --git a/src/hooks/usePlaybackQueueController.ts b/src/hooks/usePlaybackQueueController.ts
-index 5a5f273c..39d41792 100644
+index 5a5f273ce923435722668932f7276009cb4028eb..39d417922f05ece8bc190212a1829c9ea7586285 100644
 --- a/src/hooks/usePlaybackQueueController.ts
 +++ b/src/hooks/usePlaybackQueueController.ts
 @@ -16,6 +16,7 @@ import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
@@ -1431,7 +1799,7 @@ index 5a5f273c..39d41792 100644
          }
      }, [audioQuality, currentSong, isNowPlayingStageActive, playQueue, setPlayQueue, setStatusMsg, t, userId]);
 diff --git a/src/index.tsx b/src/index.tsx
-index 1913f8d9..a5501f6f 100644
+index 1913f8d981287006f2c914e4a5c3eae7b7477db7..a5501f6fa75a56f810058ab64f387010d52be644 100644
 --- a/src/index.tsx
 +++ b/src/index.tsx
 @@ -22,4 +22,9 @@ installMemorySampleFeed();
@@ -1446,7 +1814,7 @@ index 1913f8d9..a5501f6f 100644
  void import('./bootstrap');
 diff --git a/src/index.tsx.bak b/src/index.tsx.bak
 new file mode 100644
-index 00000000..1913f8d9
+index 0000000000000000000000000000000000000000..1913f8d981287006f2c914e4a5c3eae7b7477db7
 --- /dev/null
 +++ b/src/index.tsx.bak
 @@ -0,0 +1,25 @@
@@ -1477,7 +1845,7 @@ index 00000000..1913f8d9
 +void import('./bootstrap');
 diff --git a/src/services/embeddedWorkspaceNavigation.ts b/src/services/embeddedWorkspaceNavigation.ts
 new file mode 100644
-index 00000000..df7d5afa
+index 0000000000000000000000000000000000000000..df7d5afa445a9bf3a1d220644378ffb94fa05b9f
 --- /dev/null
 +++ b/src/services/embeddedWorkspaceNavigation.ts
 @@ -0,0 +1,205 @@
@@ -1688,7 +2056,7 @@ index 00000000..df7d5afa
 +};
 diff --git a/src/services/embeddedWorkspaceRuntime.ts b/src/services/embeddedWorkspaceRuntime.ts
 new file mode 100644
-index 00000000..323ea49a
+index 0000000000000000000000000000000000000000..323ea49a0cea9e550b6ff0e21571dcc5ffe12b94
 --- /dev/null
 +++ b/src/services/embeddedWorkspaceRuntime.ts
 @@ -0,0 +1,7 @@
@@ -1701,7 +2069,7 @@ index 00000000..323ea49a
 +};
 diff --git a/src/services/shizukiEmbeddedPlayback.ts b/src/services/shizukiEmbeddedPlayback.ts
 new file mode 100644
-index 00000000..3ff2f050
+index 0000000000000000000000000000000000000000..3ff2f05051350afd4c516fa9ce67f9aa5f9880bc
 --- /dev/null
 +++ b/src/services/shizukiEmbeddedPlayback.ts
 @@ -0,0 +1,117 @@
@@ -1824,7 +2192,7 @@ index 00000000..3ff2f050
 +});
 diff --git a/src/shizukiExternalBridge.ts b/src/shizukiExternalBridge.ts
 new file mode 100644
-index 00000000..48654ae0
+index 0000000000000000000000000000000000000000..48654ae0203fc2faede72a4e4adcd99a68d3d102
 --- /dev/null
 +++ b/src/shizukiExternalBridge.ts
 @@ -0,0 +1,1240 @@
@@ -3069,7 +3437,7 @@ index 00000000..48654ae0
 +  }
 +}
 diff --git a/src/types/appPlayback.ts b/src/types/appPlayback.ts
-index 592018a7..f28a3841 100644
+index 592018a7c71d3e6f024e61b2191cc9c8ce84e07b..f28a3841ea675502a13866a486b87b377af1ceab 100644
 --- a/src/types/appPlayback.ts
 +++ b/src/types/appPlayback.ts
 @@ -15,6 +15,12 @@ import type { MediaId } from './onlineMusic';
@@ -3087,7 +3455,7 @@ index 592018a7..f28a3841 100644
      /**
 diff --git a/test/unit/buildPlayerViewFlags.embedded.test.ts b/test/unit/buildPlayerViewFlags.embedded.test.ts
 new file mode 100644
-index 00000000..37b611f0
+index 0000000000000000000000000000000000000000..37b611f0091541c029ce350d768695f6e59f95f0
 --- /dev/null
 +++ b/test/unit/buildPlayerViewFlags.embedded.test.ts
 @@ -0,0 +1,30 @@
@@ -3123,7 +3491,7 @@ index 00000000..37b611f0
 +});
 diff --git a/test/unit/cadenzaWrappedLyrics.test.ts b/test/unit/cadenzaWrappedLyrics.test.ts
 new file mode 100644
-index 00000000..4a4892d9
+index 0000000000000000000000000000000000000000..4a4892d93da36c544ccd496d4f268e704b50e053
 --- /dev/null
 +++ b/test/unit/cadenzaWrappedLyrics.test.ts
 @@ -0,0 +1,80 @@
@@ -3209,7 +3577,7 @@ index 00000000..4a4892d9
 +});
 diff --git a/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts b/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts
 new file mode 100644
-index 00000000..ee2cbfda
+index 0000000000000000000000000000000000000000..ee2cbfdacb0f6ce38563a1a10bcefaf82563a379
 --- /dev/null
 +++ b/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts
 @@ -0,0 +1,98 @@
@@ -3311,9 +3679,459 @@ index 00000000..ee2cbfda
 +    expect(onBack).toHaveBeenCalledTimes(2);
 +  });
 +});
+diff --git a/test/unit/latticePresenceLayer.integration.test.ts b/test/unit/latticePresenceLayer.integration.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..3f8dffbdc638d3251e1081b0ccaec569a9597039
+--- /dev/null
++++ b/test/unit/latticePresenceLayer.integration.test.ts
+@@ -0,0 +1,80 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it } from 'vitest';
++import { act, createElement, useState } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import LatticePresenceLayer from '../../src/components/app/lattice/LatticePresenceLayer';
++import { useLatticeExitGate } from '../../src/hooks/useLatticeExitGate';
++import { useAppViewStore } from '../../src/stores/useAppViewStore';
++
++let root: Root | null = null;
++let setCurrentView: ((view: 'lattice' | 'player') => void) | null = null;
++
++const Probe = () => {
++  const [view, setView] = useState<'lattice' | 'player'>('lattice');
++  setCurrentView = nextView => {
++    useAppViewStore.setState({ view: nextView });
++    setView(nextView);
++  };
++  const { hasLatticeExited, onLatticeExitComplete } = useLatticeExitGate(view);
++  return createElement('div', null,
++    createElement(LatticePresenceLayer, {
++      active: view === 'lattice',
++      duration: 0.2,
++      onExitComplete: onLatticeExitComplete,
++      children: createElement('button', { 'data-testid': 'lattice-control' }, 'Lattice control'),
++    }),
++    view === 'player' && hasLatticeExited
++      ? createElement('button', { 'data-testid': 'player-panel' }, 'Player controls')
++      : null,
++  );
++};
++
++const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
++
++describe('Lattice presence layer transitions', () => {
++  afterEach(async () => {
++    if (root) await act(async () => { root?.unmount(); });
++    root = null;
++    setCurrentView = null;
++    useAppViewStore.setState({ view: 'home' });
++    document.body.replaceChildren();
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++  });
++
++  it('restores an interrupted exit and keeps the active Lattice layer interactive', async () => {
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++    const host = document.createElement('div');
++    document.body.append(host);
++    root = createRoot(host);
++    await act(async () => { root?.render(createElement(Probe)); });
++
++    await act(async () => { setCurrentView?.('player'); });
++    await wait(50);
++    const exitingLayer = document.querySelector<HTMLElement>('.absolute.inset-0.z-10');
++    expect(exitingLayer?.style.pointerEvents).toBe('none');
++    await act(async () => { setCurrentView?.('lattice'); });
++    await act(async () => { await wait(300); });
++
++    const layer = document.querySelector<HTMLElement>('.absolute.inset-0.z-10');
++    expect(layer).not.toBeNull();
++    expect(Number(layer?.style.opacity ?? '1')).toBeGreaterThan(0.95);
++    expect(layer?.style.pointerEvents).toBe('auto');
++    expect(document.querySelector('[data-testid="lattice-control"]')).not.toBeNull();
++    expect(document.querySelector('[data-testid="player-panel"]')).toBeNull();
++
++    // Complete a real Lattice-to-player exit after the interrupted transition, then repeat the
++    // cycle to ensure neither the visibility gate nor the mounted player gets stranded.
++    await act(async () => { setCurrentView?.('player'); });
++    await act(async () => { await wait(300); });
++    expect(document.querySelector('[data-testid="player-panel"]')).not.toBeNull();
++    expect(document.querySelector('.absolute.inset-0.z-10')).toBeNull();
++
++    await act(async () => { setCurrentView?.('lattice'); });
++    await act(async () => { await wait(300); });
++    expect(document.querySelector('[data-testid="lattice-control"]')).not.toBeNull();
++    expect(document.querySelector('[data-testid="player-panel"]')).toBeNull();
++    await act(async () => { setCurrentView?.('player'); });
++    await act(async () => { await wait(300); });
++    expect(document.querySelector('[data-testid="player-panel"]')).not.toBeNull();
++  });
++});
+diff --git a/test/unit/latticeQueueEntryIdentity.integration.test.ts b/test/unit/latticeQueueEntryIdentity.integration.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..fca27229b42b657dfb176f91633e80411e146302
+--- /dev/null
++++ b/test/unit/latticeQueueEntryIdentity.integration.test.ts
+@@ -0,0 +1,185 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { act, createElement } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import { motionValue } from 'framer-motion';
++import Lattice from '../../src/components/app/lattice/Lattice';
++import { PlayerState, type SongResult } from '../../src/types';
++import { useLatticeControlsStore } from '../../src/stores/useLatticeControlsStore';
++import { useMotionSettingsStore } from '../../src/stores/useMotionSettingsStore';
++
++const lyricRuntime = vi.hoisted(() => ({ createdKeys: [] as string[], updatedKeys: [] as string[] }));
++
++vi.mock('../../src/components/app/lattice/lyrics/createLatticeLyricRuntime', () => ({
++  createLatticeLyricRuntime: async (_host: HTMLElement, initial: { songKey: string }) => {
++    lyricRuntime.createdKeys.push(initial.songKey);
++    let attachedHost: HTMLElement | null = null;
++    return {
++      attach(host: HTMLElement) {
++        attachedHost = host;
++        host.dataset.renderedSongKey = initial.songKey;
++      },
++      setErrorHandler: () => undefined,
++      update(input: { songKey: string }) {
++        lyricRuntime.updatedKeys.push(input.songKey);
++        if (attachedHost) attachedHost.dataset.renderedSongKey = input.songKey;
++      },
++      resize: () => undefined,
++      setVisible: () => undefined,
++      destroy: () => undefined,
++    };
++  },
++}));
++
++let reactRoot: Root | null = null;
++
++const song = (queueEntryId: string): SongResult => ({
++  id: 'same-track', name: 'Repeated song', artists: [{ id: 1, name: 'Artist' }],
++  album: { id: 1, name: 'Album' }, durationMs: 180_000,
++  sourceRef: { kind: 'online', providerId: 'netease', mediaId: 'same-track' },
++  queueEntryId,
++} as SongResult);
++
++class TestResizeObserver {
++  constructor(private callback: ResizeObserverCallback) {}
++  observe(target: Element) {
++    this.callback([{ target, contentRect: { width: 1280, height: 720 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
++  }
++  disconnect() {}
++  unobserve() {}
++}
++
++describe('mounted Lattice queue-entry identity', () => {
++  afterEach(async () => {
++    if (reactRoot) await act(async () => { reactRoot?.unmount(); });
++    reactRoot = null;
++    document.body.replaceChildren();
++    lyricRuntime.createdKeys.length = 0;
++    lyricRuntime.updatedKeys.length = 0;
++    useLatticeControlsStore.setState({ focusCurrentSong: null, isCurrentSongPosterVisible: true });
++    useMotionSettingsStore.setState(state => ({ reducedMotionSurfaces: { ...state.reducedMotionSurfaces, lattice: false } }));
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++    delete (globalThis as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
++    delete (globalThis as unknown as { IntersectionObserver?: typeof IntersectionObserver }).IntersectionObserver;
++    delete (window as unknown as { matchMedia?: typeof window.matchMedia }).matchMedia;
++  });
++
++  it('focuses the current queue slot when duplicate songs have distinct entry identities', async () => {
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = TestResizeObserver as never;
++    (globalThis as unknown as { IntersectionObserver: typeof IntersectionObserver }).IntersectionObserver = class {
++      observe() {}
++      disconnect() {}
++      unobserve() {}
++    } as never;
++    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = () => ({
++      matches: false,
++      media: '',
++      onchange: null,
++      addEventListener: () => undefined,
++      removeEventListener: () => undefined,
++      addListener: () => undefined,
++      removeListener: () => undefined,
++      dispatchEvent: () => false,
++    });
++    const host = document.createElement('div');
++    document.body.append(host);
++    reactRoot = createRoot(host);
++    useMotionSettingsStore.setState(state => ({ reducedMotionSurfaces: { ...state.reducedMotionSurfaces, lattice: true } }));
++    const first = song('queue-slot-a');
++    const current = song('queue-slot-b');
++    const playbackClock = motionValue(0);
++    const lyricClock = motionValue(0);
++    const togglePlayback = vi.fn();
++    const playSong = vi.fn();
++    const lyrics = [{ fullText: 'Lyric for the current queue entry', isChorus: false, words: [] }] as never;
++    const renderLattice = (currentSong: SongResult, queue: SongResult[] = [first, current]) => createElement(Lattice, {
++      controls: {
++        playback: {
++          prev: () => undefined, next: () => undefined, toggleLoop: () => undefined,
++          shuffleQueue: () => undefined, toggleSongLike: () => undefined, isSongLiked: false,
++          isFmMode: false,
++        },
++        loopMode: 'off', invokeCommandById: () => false, canInvokeCommandById: () => false,
++      } as never,
++      lyrics: null,
++      lyricSource: {
++        currentTime: lyricClock, currentLineIndex: 0, lines: lyrics, theme: {},
++        showSubtitleTranslation: false, hideTranslationSubtitle: false, paused: true, staticMode: true,
++      } as never,
++      lyricKeywordColoringEnabled: false,
++      currentSong,
++      playerState: PlayerState.PAUSED,
++      currentTime: playbackClock,
++      playbackDuration: 180,
++      canTogglePlayback: true,
++      queue,
++      isDaylight: false,
++      onBack: () => undefined,
++      onOpenPlayer: () => undefined,
++      onPlaySong: playSong,
++      onTogglePlayback: togglePlayback,
++      onSeek: () => undefined,
++    });
++
++    await act(async () => {
++      reactRoot?.render(renderLattice(current));
++    });
++
++    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
++
++    expect(useLatticeControlsStore.getState().focusCurrentSong).toBeTypeOf('function');
++    await act(async () => { useLatticeControlsStore.getState().focusCurrentSong?.(); });
++    const expandedCurrent = host.querySelectorAll('.lattice-poster.is-current.is-expanded');
++    expect(expandedCurrent.length).toBe(1);
++    expect(expandedCurrent[0]?.querySelector('.lattice-poster-badge')?.textContent).toContain('02');
++
++    // The mounted Lattice provider must send the current queue-entry key through the real
++    // LatticeLyrics consumer, so the renderer attaches to exactly the current duplicate slot.
++    await act(async () => { await new Promise(resolve => setTimeout(resolve, 1100)); });
++    const currentLyrics = host.querySelector<HTMLElement>(
++      '.lattice-poster.is-current.is-expanded .lattice-lyrics-canvas',
++    );
++    expect(currentLyrics?.dataset.renderedSongKey).toBe('queue-slot-b');
++    expect(lyricRuntime.createdKeys).toContain('queue-slot-b');
++    expect(host.querySelector('.lattice-poster.is-current.is-expanded .sr-only')?.textContent)
++      .toBe('Lyric for the current queue entry');
++
++    await act(async () => { reactRoot?.render(renderLattice(first)); });
++    await act(async () => { await new Promise(resolve => setTimeout(resolve, 1100)); });
++    const switchedLyrics = host.querySelector<HTMLElement>(
++      '.lattice-poster.is-current.is-expanded .lattice-lyrics-canvas',
++    );
++    expect(switchedLyrics?.dataset.renderedSongKey).toBe('queue-slot-a');
++    expect(host.querySelector('.lattice-poster.is-current.is-expanded .sr-only')?.textContent)
++      .toBe('Lyric for the current queue entry');
++    expect(lyricRuntime.updatedKeys).toContain('queue-slot-a');
++
++    await act(async () => {
++      host.querySelector<HTMLButtonElement>(
++        '.lattice-poster.is-current.is-expanded .lattice-transport-button',
++      )?.click();
++    });
++    expect(togglePlayback).toHaveBeenCalledTimes(1);
++    expect(playSong).not.toHaveBeenCalled();
++
++    await act(async () => { host.querySelector<HTMLElement>('.lattice-poster:not(.is-current)')?.click(); });
++    await act(async () => {
++      host.querySelector<HTMLButtonElement>(
++        '.lattice-poster.is-expanded:not(.is-current) .lattice-transport-button',
++      )?.click();
++    });
++    expect(playSong).toHaveBeenCalledTimes(1);
++    expect(playSong).toHaveBeenCalledWith(current, [first, current], 1);
++    expect(togglePlayback).toHaveBeenCalledTimes(1);
++
++    // Standalone/legacy queues have no queue-slot metadata and continue to use playback identity.
++    const standaloneSong = song('temporary-entry');
++    delete (standaloneSong as SongResult & { queueEntryId?: string }).queueEntryId;
++    await act(async () => { reactRoot?.render(renderLattice(standaloneSong, [standaloneSong])); });
++    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
++    expect(useLatticeControlsStore.getState().focusCurrentSong).toBeTypeOf('function');
++    const standaloneCurrent = host.querySelector('.lattice-poster.is-current.is-expanded');
++    expect(standaloneCurrent?.querySelector('.lattice-poster-badge')?.textContent).toContain('01');
++  });
++});
+diff --git a/test/unit/latticeRepeatedExit.integration.test.ts b/test/unit/latticeRepeatedExit.integration.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..7127d15cea7e1496e52a1c288aa5da6bf4ce26d7
+--- /dev/null
++++ b/test/unit/latticeRepeatedExit.integration.test.ts
+@@ -0,0 +1,167 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { act, createElement, useState } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import { motionValue } from 'framer-motion';
++import Lattice from '../../src/components/app/lattice/Lattice';
++import LatticePresenceLayer from '../../src/components/app/lattice/LatticePresenceLayer';
++import { useLatticeExitGate } from '../../src/hooks/useLatticeExitGate';
++import { useAppViewStore } from '../../src/stores/useAppViewStore';
++import { useLatticeControlsStore } from '../../src/stores/useLatticeControlsStore';
++import { useLatticeSettingsStore } from '../../src/stores/useLatticeSettingsStore';
++import { useMotionSettingsStore } from '../../src/stores/useMotionSettingsStore';
++import { PlayerState, type SongResult } from '../../src/types';
++
++let root: Root | null = null;
++let changeView: ((view: 'lattice' | 'player') => void) | null = null;
++let changeSong: ((song: SongResult) => void) | null = null;
++let exitCompletions = 0;
++let exitViews: string[] = [];
++
++const queue: SongResult[] = Array.from({ length: 84 }, (_, index) => {
++  const id = ['A', 'B', 'C'][index] ?? `track-${index}`;
++  return { id, name: id, artists: [], album: { id: `album-${id}`, name: 'Album' }, durationMs: 180_000,
++    sourceRef: { kind: 'online', providerId: 'netease', mediaId: id }, queueEntryId: `entry-${id}` } as SongResult;
++});
++
++class TestResizeObserver {
++  constructor(private callback: ResizeObserverCallback) {}
++  observe(target: Element) {
++    this.callback([{ target, contentRect: { width: 5000, height: 5000 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
++  }
++  disconnect() {}
++  unobserve() {}
++}
++
++const LifecycleProbe = () => {
++  const [view, setView] = useState<'lattice' | 'player'>('lattice');
++  const [currentSong, setCurrentSong] = useState(queue[1]!);
++  changeView = next => {
++    useAppViewStore.setState({ view: next });
++    setView(next);
++  };
++  changeSong = setCurrentSong;
++  const { hasLatticeExited, onLatticeExitComplete } = useLatticeExitGate(view);
++  return createElement('main', { 'data-view': view, 'data-exited': String(hasLatticeExited) },
++    createElement(LatticePresenceLayer, {
++      active: view === 'lattice',
++      duration: 0.62,
++      onExitComplete: () => { exitCompletions += 1; exitViews.push(useAppViewStore.getState().view); onLatticeExitComplete(); },
++      children: view === 'lattice' ? createElement(Lattice, {
++        controls: {
++          playback: { prev: () => undefined, next: () => undefined, toggleLoop: () => undefined,
++            shuffleQueue: () => undefined, toggleSongLike: () => undefined, isSongLiked: false, isFmMode: false },
++          loopMode: 'off', invokeCommandById: () => false, canInvokeCommandById: () => false,
++        } as never,
++        lyrics: null,
++        lyricSource: { currentTime: motionValue(0), currentLineIndex: -1, lines: [], theme: {},
++          showSubtitleTranslation: false, hideTranslationSubtitle: false, paused: true, staticMode: true } as never,
++        lyricKeywordColoringEnabled: false,
++        currentSong,
++        playerState: PlayerState.PAUSED,
++        currentTime: motionValue(0),
++        playbackDuration: 180,
++        canTogglePlayback: true,
++        queue,
++        isDaylight: false,
++        onBack: () => undefined,
++        onOpenPlayer: () => undefined,
++        onPlaySong: () => undefined,
++        onTogglePlayback: () => undefined,
++        onSeek: () => undefined,
++      }) : null,
++    }),
++    view === 'player' && hasLatticeExited
++      ? createElement('button', { 'data-testid': 'player-controls' }, 'Player controls')
++      : null,
++  );
++};
++
++const waitForPlayer = async (completionCount: number) => {
++  await vi.waitFor(() => {
++    const layer = document.querySelector<HTMLElement>('.absolute.inset-0.z-10');
++    expect(exitCompletions,
++      `completed=${exitCompletions}/${completionCount}; opacity=${layer?.style.opacity}; pointerEvents=${layer?.style.pointerEvents}; posters=${document.querySelectorAll('.lattice-poster').length}`,
++    ).toBe(completionCount);
++    expect(document.querySelector('[data-testid="player-controls"]'),
++      `view=${document.querySelector('main')?.getAttribute('data-view')} exited=${document.querySelector('main')?.getAttribute('data-exited')} completions=${exitCompletions} exitViews=${exitViews.join(',')}`,
++    ).not.toBeNull();
++  }, { timeout: 1500 });
++};
++
++const waitForLattice = async () => {
++  await act(async () => {
++    await vi.waitFor(() => {
++      const layer = document.querySelector<HTMLElement>('.absolute.inset-0.z-10');
++      expect(layer).not.toBeNull();
++      expect(Number(layer?.style.opacity ?? '1')).toBeGreaterThan(0.95);
++      expect(layer?.style.pointerEvents).toBe('auto');
++    }, { timeout: 1500 });
++  });
++};
++
++describe('repeated Lattice exits after queue focus changes', () => {
++  afterEach(async () => {
++    if (root) await act(async () => { root?.unmount(); });
++    root = null;
++    changeView = null;
++    changeSong = null;
++    exitCompletions = 0;
++    exitViews = [];
++    document.body.replaceChildren();
++    useAppViewStore.setState({ view: 'home' });
++    useLatticeControlsStore.setState({ focusCurrentSong: null, isCurrentSongPosterVisible: true });
++    useLatticeSettingsStore.setState({ autoFocusOnSongChange: true });
++    useMotionSettingsStore.setState(state => ({ reducedMotionSurfaces: { ...state.reducedMotionSurfaces, lattice: false } }));
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++    delete (globalThis as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
++    delete (globalThis as unknown as { IntersectionObserver?: typeof IntersectionObserver }).IntersectionObserver;
++    delete (window as unknown as { matchMedia?: typeof window.matchMedia }).matchMedia;
++  });
++
++  it('finishes two B exits and a C exit after queue-slot auto-focus reflows the wall', async () => {
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = TestResizeObserver as never;
++    (globalThis as unknown as { IntersectionObserver: typeof IntersectionObserver }).IntersectionObserver = class {
++      observe() {}
++      disconnect() {}
++      unobserve() {}
++    } as never;
++    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = () => ({
++      matches: false, media: '', onchange: null,
++      addEventListener: () => undefined, removeEventListener: () => undefined,
++      addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
++    });
++    useMotionSettingsStore.setState(state => ({ reducedMotionSurfaces: { ...state.reducedMotionSurfaces, lattice: false } }));
++
++    const host = document.createElement('div');
++    document.body.append(host);
++    root = createRoot(host);
++    await act(async () => { root?.render(createElement(LifecycleProbe)); });
++    await act(async () => {
++      await vi.waitFor(() => expect(useLatticeControlsStore.getState().focusCurrentSong).toBeTypeOf('function'));
++    });
++    expect(host.querySelectorAll('.lattice-poster').length).toBeGreaterThanOrEqual(queue.length);
++
++    // B enters the player and returns to the same P2 wall for a second full cycle.
++    await act(async () => { changeView?.('player'); });
++    await waitForPlayer(1);
++    await act(async () => { changeView?.('lattice'); });
++    await waitForLattice();
++    await act(async () => { changeView?.('player'); });
++    await waitForPlayer(2);
++
++    // Returning to the wall, then switching its current slot to C, starts the real auto-focus
++    // camera reflow. The final player transition begins while that queue-driven motion is live.
++    await act(async () => { changeView?.('lattice'); });
++    await waitForLattice();
++    const world = host.querySelector<HTMLElement>('.lattice-world');
++    const previousTransform = world?.style.transform;
++    await act(async () => { changeSong?.(queue[2]!); });
++    await vi.waitFor(() => expect(host.querySelector('.lattice-poster.is-current.is-focused')).not.toBeNull());
++    await vi.waitFor(() => expect(world?.style.transform).not.toBe(previousTransform));
++    await act(async () => { changeView?.('player'); });
++    await waitForPlayer(3);
++    expect(host.querySelector('.absolute.inset-0.z-10')).toBeNull();
++  }, 15_000);
++});
 diff --git a/test/unit/shizukiEmbeddedKeyboard.integration.test.ts b/test/unit/shizukiEmbeddedKeyboard.integration.test.ts
 new file mode 100644
-index 00000000..b681a9ab
+index 0000000000000000000000000000000000000000..b681a9ab089c673031f7781926d8af738e68664b
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedKeyboard.integration.test.ts
 @@ -0,0 +1,77 @@
@@ -3396,7 +4214,7 @@ index 00000000..b681a9ab
 +});
 diff --git a/test/unit/shizukiEmbeddedPlayback.test.ts b/test/unit/shizukiEmbeddedPlayback.test.ts
 new file mode 100644
-index 00000000..d8980074
+index 0000000000000000000000000000000000000000..d8980074a8ae6bb2d416c0605ab50d1b6645d4e1
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedPlayback.test.ts
 @@ -0,0 +1,134 @@
@@ -3536,7 +4354,7 @@ index 00000000..d8980074
 +});
 diff --git a/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts b/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts
 new file mode 100644
-index 00000000..8ca75dd5
+index 0000000000000000000000000000000000000000..8ca75dd57704379bc543ebce81b37a081484c4c5
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts
 @@ -0,0 +1,246 @@
@@ -3788,7 +4606,7 @@ index 00000000..8ca75dd5
 +});
 diff --git a/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts b/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts
 new file mode 100644
-index 00000000..e7af3dea
+index 0000000000000000000000000000000000000000..e7af3dea516a0893a6a6a04941b4937cb89ed61a
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts
 @@ -0,0 +1,214 @@
@@ -4008,7 +4826,7 @@ index 00000000..e7af3dea
 +});
 diff --git a/test/unit/shizukiExternalBridge.integration.test.ts b/test/unit/shizukiExternalBridge.integration.test.ts
 new file mode 100644
-index 00000000..877b4958
+index 0000000000000000000000000000000000000000..877b49584a17694125c26c958c86adeec5439c89
 --- /dev/null
 +++ b/test/unit/shizukiExternalBridge.integration.test.ts
 @@ -0,0 +1,170 @@
@@ -4184,7 +5002,7 @@ index 00000000..877b4958
 +});
 diff --git a/test/unit/shizukiLatticeLyricColor.integration.test.ts b/test/unit/shizukiLatticeLyricColor.integration.test.ts
 new file mode 100644
-index 00000000..ec33beb9
+index 0000000000000000000000000000000000000000..ec33beb9d2790c3295b9355cefb7cd00f7b3bfd7
 --- /dev/null
 +++ b/test/unit/shizukiLatticeLyricColor.integration.test.ts
 @@ -0,0 +1,190 @@
@@ -4379,7 +5197,7 @@ index 00000000..ec33beb9
 +  });
 +});
 diff --git a/vite.config.ts b/vite.config.ts
-index 6e7d1760..31647832 100644
+index 6e7d176029519b9bcc2f170e35db2cd0c81441a7..31647832cbf09fbc46d0840d27a087c159f352a3 100644
 --- a/vite.config.ts
 +++ b/vite.config.ts
 @@ -192,7 +192,7 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
@@ -4393,7 +5211,7 @@ index 6e7d1760..31647832 100644
      },
 diff --git a/vite.config.ts.bak b/vite.config.ts.bak
 new file mode 100644
-index 00000000..2a8bd316
+index 0000000000000000000000000000000000000000..2a8bd3167670ebea2102bec6f01e08255dacb50e
 --- /dev/null
 +++ b/vite.config.ts.bak
 @@ -0,0 +1,277 @@

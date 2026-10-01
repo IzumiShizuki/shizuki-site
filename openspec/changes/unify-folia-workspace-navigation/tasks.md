@@ -22,10 +22,13 @@
 - [x] 4.2 Run applicable type checks, builds and full site tests; document any established environment-only test limitation.
 - [x] 4.3 Synchronize public fork source snapshots and AGPL patch; verify byte identity and clean patch application.
 - [x] 4.4 Perform strict OpenSpec validation in both repositories and independently validate the clean site release checkout.
+- [x] 4.5 Cover and repair the actual rendered Lattice exit/reentry lifecycle exposed by production acceptance, including transparent outgoing-layer hit testing.
+- [x] 4.6 Repair current-entry identity consumers in Lattice lyrics/focus/controls after exact queue-slot support; exercise a current entry and duplicate-song slots at mounted boundaries.
+- [x] 4.7 Repair the repeated rendered exit completion still exposed on 9ed6ab22 after B player reentry and toolbar C selection; verify the real multi-cycle App/Framer Motion boundary and repeat production acceptance.
 
 ## 5. Authorized delivery and acceptance
 
-- [ ] 5.1 Commit and push relevant verified changes to the user's fork and site branches, integrating only this change into the site release branch.
-- [ ] 5.2 Deploy both consumers to personal server 111.228.35.186 with clean Folia build context and preserved rollback artifacts.
-- [ ] 5.3 Verify fresh production assets and P1→P2→song selection→continued input→Escape→ordinary return, plus pause/seek/color regressions.
-- [ ] 5.4 Record evidence and remaining coverage limits, update tasks and commit delivery documentation with clean repository status.
+- [x] 5.1 Commit and push relevant verified changes to the user's fork and site branches, integrating only this change into the site release branch.
+- [x] 5.2 Deploy both consumers to personal server 111.228.35.186 with clean Folia build context and preserved rollback artifacts, including the rendered-transition and queue-entry consumer followups.
+- [x] 5.3 Verify fresh production assets and P1→P2→song selection→continued input→Escape→ordinary return, plus pause/seek/color regressions.
+- [x] 5.4 Record evidence and remaining coverage limits, update tasks and commit delivery documentation with clean repository status.
