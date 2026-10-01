@@ -61,6 +61,7 @@
         :key="`playlist-track-${item.queueEntryId || `${item.provider || 'local'}:${resolveTrackId(item)}:${index}`}`"
         class="table-row search-track-row ripple-trigger"
         :class="{ active: isCurrentTrack(item) }"
+        :ref="isCurrentTrack(item) ? setCurrentTrackRow : undefined"
         @click="playTrack(index)"
       >
         <span>{{ String(index + 1).padStart(2, '0') }}</span>
@@ -116,7 +117,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
@@ -131,11 +132,22 @@ const profile = computed(() => music.currentPlaylistProfile.value || { name: '',
 const allTracks = computed(() => (Array.isArray(music.currentPlaylistAllTracks?.value) ? music.currentPlaylistAllTracks.value : []));
 const visibleTracks = computed(() => (Array.isArray(music.currentPlaylistTracks.value) ? music.currentPlaylistTracks.value : []));
 const renderTracks = computed(() => {
-  if (visibleTracks.value.length > 0) return visibleTracks.value;
-  if (!allTracks.value.length) return [];
-  return allTracks.value.slice(0, Math.min(allTracks.value.length, 100));
+  if (!allTracks.value.length) return visibleTracks.value;
+  const currentIndex = resolveCurrentTrackIndex();
+  const visibleCount = visibleTracks.value.length || Math.min(allTracks.value.length, 100);
+  if (currentIndex >= visibleCount) return allTracks.value.slice(0, currentIndex + 1);
+  return visibleTracks.value.length > 0 ? visibleTracks.value : allTracks.value.slice(0, visibleCount);
 });
 const currentPlayingTrack = computed(() => music.player.currentTrack.value);
+const currentTrackIdentity = computed(() => {
+  const current = currentPlayingTrack.value;
+  const entryId = String(current?.queueEntryId || '').trim();
+  const baseIdentity = entryId
+    ? `entry:${entryId}`
+    : `track:${String(current?.provider || '').trim().toLowerCase()}:${resolveTrackId(current)}`;
+  return `${baseIdentity}:${resolveCurrentTrackIndex()}`;
+});
+const currentTrackRowRef = ref(null);
 const totalTrackCount = computed(() => {
   const profileCount = Number(profile.value?.trackCount || 0);
   if (Number.isFinite(profileCount) && profileCount > 0) {
@@ -183,6 +195,17 @@ function sameProviderTrack(left, right) {
   return leftProvider === rightProvider && leftId === rightId;
 }
 
+function resolveCurrentTrackIndex() {
+  const current = currentPlayingTrack.value;
+  if (!current) return -1;
+  const entryId = String(current.queueEntryId || '').trim();
+  if (entryId) {
+    const exactIndex = allTracks.value.findIndex((candidate) => String(candidate?.queueEntryId || '').trim() === entryId);
+    if (exactIndex >= 0) return exactIndex;
+  }
+  return allTracks.value.findIndex((candidate) => sameProviderTrack(candidate, current));
+}
+
 function isCurrentTrack(item) {
   const current = currentPlayingTrack.value;
   if (!item || !current) return false;
@@ -215,6 +238,20 @@ function playAll() {
   if (!renderTracks.value.length) return;
   playTrack(0);
 }
+
+function setCurrentTrackRow(element) {
+  if (element) currentTrackRowRef.value = element;
+}
+
+function revealCurrentTrack() {
+  nextTick(() => currentTrackRowRef.value?.scrollIntoView?.({ block: 'nearest' }));
+}
+
+watch(
+  [() => currentTrackIdentity.value, () => renderTracks.value.length, () => music.currentTrackRevealVersion?.value || 0],
+  revealCurrentTrack,
+  { immediate: true }
+);
 
 function openFoliaPlaylist() {
   if (typeof window === 'undefined' || !allTracks.value.length) return;

@@ -102,16 +102,17 @@
       <div class="queue-body">
         <button
           v-for="(item, index) in displayQueueTracks"
-          :key="`dock-track-${item.queueEntryId || item.id || index}`"
+          :key="`dock-track-${item.queueEntryId || `${item.provider || 'local'}:${item.id || index}`}`"
           class="queue-item ripple-trigger"
-          :class="{ active: (item.id || '') === currentTrackId }"
+          :class="{ active: isCurrentQueueItem(item) }"
+          :ref="isCurrentQueueItem(item) ? setCurrentQueueRow : undefined"
           type="button"
           @click="handleSelectTrack(item, index)"
         >
           <span class="twl-queue-line">
             <span class="queue-name">{{ item.title || '未知标题' }}</span>
             <span
-              v-if="(item.id || '') === currentTrackId"
+              v-if="isCurrentQueueItem(item)"
               class="playing-bars"
               :class="{ paused: !isPlaying }"
               aria-hidden="true"
@@ -129,7 +130,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, shallowRef, watch } from 'vue';
 import MusicVisualizerLayer from '../MusicVisualizerLayer.vue';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
@@ -140,6 +141,7 @@ const props = defineProps({
   tracks: { type: Array, default: () => [] },
   queueTracks: { type: Array, default: null },
   currentTrackId: { type: String, default: '' },
+  currentQueueEntryId: { type: String, default: '' },
   currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 },
   expectedDuration: { type: Number, default: 0 },
@@ -164,7 +166,16 @@ const emit = defineEmits([
 ]);
 const rootRef = ref(null);
 const queueOpen = ref(false);
+const currentQueueRowRef = shallowRef(null);
 const displayQueueTracks = computed(() => Array.isArray(props.queueTracks) ? props.queueTracks : props.tracks);
+const currentQueueEntryId = computed(() => String(props.track?.queueEntryId || props.currentQueueEntryId || '').trim());
+const currentQueueIdentity = computed(() => {
+  const entryId = currentQueueEntryId.value;
+  const baseIdentity = entryId
+    ? `entry:${entryId}`
+    : `track:${String(props.track?.provider || '').trim().toLowerCase()}:${String(props.track?.trackId || props.track?.id || props.currentTrackId || '').trim()}`;
+  return `${baseIdentity}:${displayQueueTracks.value.findIndex(isCurrentQueueItem)}`;
+});
 
 const coverStyle = computed(() => {
   const fallback = `${import.meta.env.BASE_URL}images/katanegai.jpg`;
@@ -221,6 +232,29 @@ function handleSelectTrack(track, index) {
   emit('select-track', track?.queueEntryId || index);
   queueOpen.value = false;
 }
+
+function isCurrentQueueItem(item) {
+  if (!item) return false;
+  const itemEntryId = String(item.queueEntryId || '').trim();
+  if (itemEntryId && currentQueueEntryId.value) return itemEntryId === currentQueueEntryId.value;
+  const itemProvider = String(item.provider || '').trim().toLowerCase();
+  const trackProvider = String(props.track?.provider || '').trim().toLowerCase();
+  const itemId = String(item.trackId || item.id || '').trim();
+  const trackId = String(props.track?.trackId || props.track?.id || props.currentTrackId || '').trim();
+  return itemId === trackId && (!itemProvider || !trackProvider || itemProvider === trackProvider);
+}
+
+function setCurrentQueueRow(element) {
+  if (element) currentQueueRowRef.value = element;
+}
+
+watch(
+  [() => queueOpen.value, () => currentQueueIdentity.value],
+  ([isOpen], previous) => {
+    if (!isOpen || (previous && previous[0] && previous[1] === currentQueueIdentity.value)) return;
+    nextTick(() => currentQueueRowRef.value?.scrollIntoView?.({ block: 'nearest' }));
+  }
+);
 
 function handleRootClick() {
   if (props.detailLayout) return;

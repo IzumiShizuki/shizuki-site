@@ -1,5 +1,5 @@
 diff --git a/deploy/docker/gateway/nginx.conf.template b/deploy/docker/gateway/nginx.conf.template
-index c49eb39cdabc0c566b02f03253c06a619192912d..25ae3954ef21f032901ef5e107f26ef068214aa5 100644
+index c49eb39c..25ae3954 100644
 --- a/deploy/docker/gateway/nginx.conf.template
 +++ b/deploy/docker/gateway/nginx.conf.template
 @@ -7,6 +7,8 @@ events {
@@ -57,7 +57,7 @@ index c49eb39cdabc0c566b02f03253c06a619192912d..25ae3954ef21f032901ef5e107f26ef0
              try_files $uri $uri/ /index.html;
 diff --git a/openspec/changes/embedded-workspace-navigation/.openspec.yaml b/openspec/changes/embedded-workspace-navigation/.openspec.yaml
 new file mode 100644
-index 0000000000000000000000000000000000000000..480ad4dedbdd9ef3e1dc40d344a41c0cc32b85bc
+index 00000000..480ad4de
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/.openspec.yaml
 @@ -0,0 +1,2 @@
@@ -65,7 +65,7 @@ index 0000000000000000000000000000000000000000..480ad4dedbdd9ef3e1dc40d344a41c0c
 +created: 2026-10-01
 diff --git a/openspec/changes/embedded-workspace-navigation/design.md b/openspec/changes/embedded-workspace-navigation/design.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..b41b965cba8f786c911596c5d48892695ca08775
+index 00000000..b41b965c
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/design.md
 @@ -0,0 +1,33 @@
@@ -104,7 +104,7 @@ index 0000000000000000000000000000000000000000..b41b965cba8f786c911596c5d4889269
 +Root coordinates public snapshots/patch and a joint host/fork release. Build from a clean Git archive, retain previous image and verify actual asset versions and signed-in playback/return workflows. Repository-local tests/types/build and strict OpenSpec validation precede any push or deployment.
 diff --git a/openspec/changes/embedded-workspace-navigation/diagnosis.md b/openspec/changes/embedded-workspace-navigation/diagnosis.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..bad46b764eb85f811220145cb7ec67ca22d72309
+index 00000000..bad46b76
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/diagnosis.md
 @@ -0,0 +1,15 @@
@@ -125,7 +125,7 @@ index 0000000000000000000000000000000000000000..bad46b764eb85f811220145cb7ec67ca
 +The host change `unify-folia-workspace-navigation/diagnosis.md` records the full accepted contract, live reproduction and ranked explanations. Preserve native IDs, stable queue entries and existing clock/color/prefetch/audio-owner regressions; standalone history must keep its native behavior.
 diff --git a/openspec/changes/embedded-workspace-navigation/proposal.md b/openspec/changes/embedded-workspace-navigation/proposal.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..41f3e7475dcd866bad1736c6e4e02d148bc01040
+index 00000000..41f3e747
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/proposal.md
 @@ -0,0 +1,23 @@
@@ -154,7 +154,7 @@ index 0000000000000000000000000000000000000000..41f3e7475dcd866bad1736c6e4e02d14
 +External bridge and focused navigation/selection modules, app assembly and real hook/bridge tests. The host contract and full accepted scenario matrix are recorded in `shizuki-site/openspec/changes/unify-folia-workspace-navigation`; this repository records its local responsibility and validation. No provider adapter or backend protocol changes are planned.
 diff --git a/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md b/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..6db550ae6c9b288ad25a552ffaf72583b3c42df3
+index 00000000..6db550ae
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md
 @@ -0,0 +1,57 @@
@@ -217,7 +217,7 @@ index 0000000000000000000000000000000000000000..6db550ae6c9b288ad25a552ffaf72583
 +- **THEN** the correct song, position, lyrics and paused controls appear without independent audio or stale navigation
 diff --git a/openspec/changes/embedded-workspace-navigation/tasks.md b/openspec/changes/embedded-workspace-navigation/tasks.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..769e776a892e25c784609d0acd545fcd62ee6744
+index 00000000..769e776a
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/tasks.md
 @@ -0,0 +1,29 @@
@@ -252,7 +252,7 @@ index 0000000000000000000000000000000000000000..769e776a892e25c784609d0acd545fcd
 +- [x] 4.3 Verify continuing real input and current-playlist return on fresh production assets and commit the acceptance record.
 diff --git a/openspec/changes/embedded-workspace-navigation/verification-report.md b/openspec/changes/embedded-workspace-navigation/verification-report.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..63b1383235beafcd46630387e3a447c1de15e127
+index 00000000..63b13832
 --- /dev/null
 +++ b/openspec/changes/embedded-workspace-navigation/verification-report.md
 @@ -0,0 +1,53 @@
@@ -309,9 +309,157 @@ index 0000000000000000000000000000000000000000..63b1383235beafcd46630387e3a447c1
 +## Coverage limits
 +
 +This verifies the reproduced signed-in Edge/provider/desktop chain, not every device or arbitrary stream. Duplicate slots, stale async completion, empty/failing playlists, hidden input and standalone history are tested at mounted boundaries rather than forced against the live account. The original total freeze was not reproduced in every baseline run; route/return and the three observed rendered defects are separately evidenced. Host render acknowledgement remains optional as specified; message dispatch alone is never visual acceptance evidence.
+diff --git a/openspec/changes/fix-embedded-player-lyric-color/.openspec.yaml b/openspec/changes/fix-embedded-player-lyric-color/.openspec.yaml
+new file mode 100644
+index 00000000..ad94bada
+--- /dev/null
++++ b/openspec/changes/fix-embedded-player-lyric-color/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-10-02
+diff --git a/openspec/changes/fix-embedded-player-lyric-color/design.md b/openspec/changes/fix-embedded-player-lyric-color/design.md
+new file mode 100644
+index 00000000..755bacfa
+--- /dev/null
++++ b/openspec/changes/fix-embedded-player-lyric-color/design.md
+@@ -0,0 +1,28 @@
++## Context
++
++See proposal.md for motivation. The bridge exposes a validated color on the embed root and emits a discrete event. Selected DOM word bodies and Lattice consume it. The shared renderer model otherwise forwards the unmodified theme; Canvas/Pixi/Three modes cannot consume root text CSS.
++
++## Goals / Non-Goals
++
++Goals: live primary color for mounted full renderers and theme reset without remounting, stable mode/reentry behavior, standalone isolation and subscription cleanup.
++
++Non-goals: audio/queue ownership changes, recoloring subtitles or backgrounds, new per-frame React state, or broad App refactoring.
++
++## Decisions
++
++- Use a focused embedded preference hook plus pure theme overlay at the shared renderer model boundary. Read the embed-root initial value and subscribe once to the discrete bridge event with cleanup. Keeping this only in CSS misses non-DOM modes; adding another controller to App grows an already large module.
++- Preserve non-primary theme fields and subtitleTheme identity. Make primary palette fields consistently reflect a selected color where modes derive primary text from them; resetting returns the current original theme, including later theme changes. Do not mutate caller-owned objects.
++- Keep the existing wall/Lattice consumer and verify its reset alongside full-player consumption. Do not put playback clock or animation frames in React state.
++- Tests shall install the real bridge, send the actual protocol event and inspect a mounted renderer boundary/representative consumer. A bridge-root style assertion alone is insufficient.
++
++## Risks / Trade-offs
++
++- Mode-specific primary palettes → cover primary palette fields, rendered DOM text and a representative non-DOM theme consumer; preserve translations/backgrounds.
++- Parked embedding and standalone rendering share modules → root-gate the override, verify absence outside embedding and reset/unmount cleanup.
++- Theme updates while custom color is active → derive the overlay from the latest theme rather than caching a stale reset target.
++
++## Migration Plan
++
++Capture red tests first; pass affected visualizer/bridge tests, TypeScript and the /music/ build. Commit/push only the owner's fork remote. Refresh the host's public snapshot/patch, deploy exact source with OCI revision, keep the prior gateway image, then verify actual lyric glyph color and reset on the signed-in site.
++
++For the server's limited disk capacity, build /music locally from a clean committed checkout using the existing production provider/base/version arguments. Package a SHA-256 manifest and verify it before and after the equivalent Nginx runtime image is deployed. Transfer the precise source commit through a verified incremental Git bundle, retain rollback images and compare the running image label and served files with the local artifact. No private environment values enter public source or logs.
+diff --git a/openspec/changes/fix-embedded-player-lyric-color/proposal.md b/openspec/changes/fix-embedded-player-lyric-color/proposal.md
+new file mode 100644
+index 00000000..fc42195d
+--- /dev/null
++++ b/openspec/changes/fix-embedded-player-lyric-color/proposal.md
+@@ -0,0 +1,23 @@
++## Why
++
++The user reports that the host's lyric color picker remains ineffective in Folia. The existing embedded bridge reaches selected DOM bodies and the Lattice shader, but the shared full-player renderer model does not consume the preference. Existing tests cover the bridge CSS and Lattice rather than all full renderer themes.
++
++## What Changes
++
++- Consume embedded primary lyric color at the shared renderer model/theme boundary so mounted full-player modes update immediately and reset to their current theme.
++- Preserve subtitle/background colors, mode-specific primary palette semantics, standalone behavior and runtime subscription cleanup.
++- Add behavioral regressions through the real bridge and renderer consumer before changing implementation; validate representative DOM and non-DOM consumers.
++
++## Capabilities
++
++### New Capabilities
++
++- `embedded-lyric-preferences`: Embedded primary lyric color consumption, live updates, reset and standalone isolation.
++
++### Modified Capabilities
++
++None.
++
++## Impact
++
++The shared visualizer renderer model and a focused embedded preference hook/helper, bridge tests and mounted renderer tests. No audio ownership, transport, queue or provider API change. The host follow-up is tracked in shizuki-site change fix-folia-color-controls-and-queue-return. Push the authorized IzumiShizuki/folia-major fork and deploy its verified runtime to the personal website server, preserving the existing rollback image.
+diff --git a/openspec/changes/fix-embedded-player-lyric-color/specs/embedded-lyric-preferences/spec.md b/openspec/changes/fix-embedded-player-lyric-color/specs/embedded-lyric-preferences/spec.md
+new file mode 100644
+index 00000000..f775e312
+--- /dev/null
++++ b/openspec/changes/fix-embedded-player-lyric-color/specs/embedded-lyric-preferences/spec.md
+@@ -0,0 +1,31 @@
++## Purpose
++
++Let embedded playback honor a shared primary lyric color immediately across its renderer surfaces while keeping subtitle, background and standalone theme preferences intact.
++
++## ADDED Requirements
++
++### Requirement: Mounted renderer primary color
++Embedded Folia SHALL apply a valid host primary lyric color to the active full-player and wall primary text, including renderers whose lyrics are not DOM text.
++
++#### Scenario: Color event while full player is mounted
++- **WHEN** the host sets a valid color during playback
++- **THEN** the mounted full-player primary text updates without restarting playback or remounting the player
++
++#### Scenario: Switch modes with custom color
++- **WHEN** embedded playback changes lyric mode with a selected custom color
++- **THEN** the new mode uses the same primary lyric color
++
++### Requirement: Preference isolation and reset
++The system SHALL preserve subtitle/background theme preferences and standalone rendering, and restore the current original primary theme on reset.
++
++#### Scenario: Reset after theme changes
++- **WHEN** a custom primary color is reset after the underlying theme changes
++- **THEN** the current original primary theme is restored without changing subtitle/background colors
++
++#### Scenario: Standalone renderer
++- **WHEN** a renderer runs without the embedded host preference
++- **THEN** its original theme remains effective
++
++#### Scenario: Renderer unmount
++- **WHEN** the embedded renderer unmounts and later mounts again
++- **THEN** the current preference is applied once without stale event subscriptions
+diff --git a/openspec/changes/fix-embedded-player-lyric-color/tasks.md b/openspec/changes/fix-embedded-player-lyric-color/tasks.md
+new file mode 100644
+index 00000000..1eeba945
+--- /dev/null
++++ b/openspec/changes/fix-embedded-player-lyric-color/tasks.md
+@@ -0,0 +1,15 @@
++## 1. Reproduce renderer preference gaps
++
++- [x] 1.1 Add and run a failing mounted real-bridge/full-renderer color regression, distinguishing DOM CSS coverage from the unconsumed renderer theme.
++- [x] 1.2 Cover reset with changed underlying theme, subtitle/background isolation, non-DOM primary palettes, mode changes and subscription cleanup.
++
++## 2. Implement focused shared consumption
++
++- [x] 2.1 Add a focused discrete embedded preference consumer and apply a non-mutating primary theme overlay at the shared renderer model boundary.
++- [x] 2.2 Preserve existing wall/Lattice preference behavior and standalone themes without continuous React state updates.
++
++## 3. Verify and deliver
++
++- [ ] 3.1 Pass affected bridge/visualizer regressions, TypeScript and the deployment build; strictly validate this change and review runtime guards.
++- [ ] 3.2 Commit/push only the owner's fork, refresh host public patch/snapshots and deploy the exact verified runtime with rollback retained.
++- [ ] 3.3 Verify actual mounted glyph color/reset and mode/reentry behavior on the signed-in site; record deployment identity and bounded acceptance results.
+diff --git a/openspec/changes/fix-embedded-player-lyric-color/verification-report.md b/openspec/changes/fix-embedded-player-lyric-color/verification-report.md
+new file mode 100644
+index 00000000..bab535a7
+--- /dev/null
++++ b/openspec/changes/fix-embedded-player-lyric-color/verification-report.md
+@@ -0,0 +1,13 @@
++# Verification: embedded lyric preference, 2026-10-02
++
++## Implementation verification
++
++| Dimension | Evidence |
++| --- | --- |
++| Completeness | 4/7 tasks complete; all two requirements implemented. Exact committed build, deployment and signed-in acceptance are still pending. |
++| Correctness | Real bridge → mounted shared model regression was RED (#ffffff instead of #e43b57), now GREEN; reset/current theme, subtitle/background isolation, standalone, mode changes and subscription cleanup covered. Existing Lattice preference tests remain GREEN. |
++| Coherence | Focused discrete hook + pure non-mutating palette overlay; no clock/frame React state. Original backgroundTheme reaches shell/stage, Monet, Harmony and Diorama particles; Fume skeleton retains its original palette. |
++
++Root independently ran 100 affected visualizer/embedded/Lattice suites: **1056 passed / 1 skipped**. After the background follow-up, **9 affected suites / 130 tests** and `tsc --noEmit` passed. Strict OpenSpec and source whitespace checks passed. Luna also passed the initial Vite build; the deliverable will be rebuilt from the precise clean commit with production arguments.
++
++Representative non-DOM coverage uses Cadenza's real word/sweep color derivation and the separate Diorama background palette. It does not claim pixel acceptance for every renderer. The mounted shell test checks real GeometricBackground accent isolation. Actual signed-in glyph color/reset and wall/reentry acceptance remain delivery tasks; no archive readiness is claimed yet.
 diff --git a/openspec/config.yaml b/openspec/config.yaml
 new file mode 100644
-index 0000000000000000000000000000000000000000..c4d34acea98d96d1c53eb71c7544336092d92f80
+index 00000000..c4d34ace
 --- /dev/null
 +++ b/openspec/config.yaml
 @@ -0,0 +1,32 @@
@@ -348,7 +496,7 @@ index 0000000000000000000000000000000000000000..c4d34acea98d96d1c53eb71c75443360
 +#       guidance:
 +#         - Summarize the archive outcome before finishing
 diff --git a/package-lock.json b/package-lock.json
-index d79d30d5e4620351730ec370efbf714121cf73ba..83130a16f8939bcbde82d934748aa0ee1c468ccb 100644
+index d79d30d5..83130a16 100644
 --- a/package-lock.json
 +++ b/package-lock.json
 @@ -19,7 +19,7 @@
@@ -370,7 +518,7 @@ index d79d30d5e4620351730ec370efbf714121cf73ba..83130a16f8939bcbde82d934748aa0ee
        "license": "MIT",
        "dependencies": {
 diff --git a/package.json b/package.json
-index c9b5d4eb0bb74dbb2804487ff6a6ad919753f987..fd2dded8a305e28d112d47acd83bb2dedb2e0b80 100644
+index c9b5d4eb..fd2dded8 100644
 --- a/package.json
 +++ b/package.json
 @@ -208,7 +208,7 @@
@@ -383,7 +531,7 @@ index c9b5d4eb0bb74dbb2804487ff6a6ad919753f987..fd2dded8a305e28d112d47acd83bb2de
      "onnxruntime-node": "^1.30.0",
      "ws": "^8.21.3"
 diff --git a/src/App.tsx b/src/App.tsx
-index b7bc56962acea077139ea3c1818b4494c5f962b4..8d3ede2c22e30e0c98f04dbd76350370a676fd33 100644
+index b7bc5696..8d3ede2c 100644
 --- a/src/App.tsx
 +++ b/src/App.tsx
 @@ -1,5 +1,5 @@
@@ -540,7 +688,7 @@ index b7bc56962acea077139ea3c1818b4494c5f962b4..8d3ede2c22e30e0c98f04dbd76350370
              {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
              {/* 指针隐藏跟着控制栏的空闲时钟走，不另起一套计时：控件收起时页面上已经没有可点的东西，
 diff --git a/src/bootstrap.tsx b/src/bootstrap.tsx
-index c54cbcc553e41ea4543e726018ae03b826bae370..319cc33dd1674290c3112c6877a622d4cb51d940 100644
+index c54cbcc5..319cc33d 100644
 --- a/src/bootstrap.tsx
 +++ b/src/bootstrap.tsx
 @@ -28,7 +28,12 @@ import './stores/useMotionSettingsStore';
@@ -606,7 +754,7 @@ index c54cbcc553e41ea4543e726018ae03b826bae370..319cc33dd1674290c3112c6877a622d4
      });
 +}
 diff --git a/src/components/app/AppShell.tsx b/src/components/app/AppShell.tsx
-index 70e393ebae13f90798b0addf8876dc0cc723294d..4b15e0f308fd9ec83b784d2f79bd17813a989d4e 100644
+index 70e393eb..4b15e0f3 100644
 --- a/src/components/app/AppShell.tsx
 +++ b/src/components/app/AppShell.tsx
 @@ -90,7 +90,9 @@ const AppShell: React.FC<AppShellProps> = ({
@@ -621,7 +769,7 @@ index 70e393ebae13f90798b0addf8876dc0cc723294d..4b15e0f308fd9ec83b784d2f79bd1781
                  ...appStyle,
                  borderRadius: shouldApplyWindowRadius ? '18px' : undefined,
 diff --git a/src/components/app/home/GridViewOverlayHost.tsx b/src/components/app/home/GridViewOverlayHost.tsx
-index 3cf8ed645b99d42da13242f01e3d1870a90e7893..0ce71feeafcb3538ef340dfd46ad1db8b2f4c9c6 100644
+index 3cf8ed64..0ce71fee 100644
 --- a/src/components/app/home/GridViewOverlayHost.tsx
 +++ b/src/components/app/home/GridViewOverlayHost.tsx
 @@ -5,7 +5,7 @@ import GridView, { GridViewSourceActions } from '../../GridView';
@@ -658,7 +806,7 @@ index 3cf8ed645b99d42da13242f01e3d1870a90e7893..0ce71feeafcb3538ef340dfd46ad1db8
      const handleAddTrackToQueue = useCallback((track: SongResult) => {
          const unifiedTrack = track as UnifiedSong;
 diff --git a/src/components/app/home/homeSurfaceTypes.ts b/src/components/app/home/homeSurfaceTypes.ts
-index 2b411021dbd76b5ce2158a20fd356cd49a0c73c9..a0c0c41d8010a7e4c6f0ae91e1437a824ed057e7 100644
+index 2b411021..a0c0c41d 100644
 --- a/src/components/app/home/homeSurfaceTypes.ts
 +++ b/src/components/app/home/homeSurfaceTypes.ts
 @@ -13,6 +13,7 @@ import type {
@@ -679,7 +827,7 @@ index 2b411021dbd76b5ce2158a20fd356cd49a0c73c9..a0c0c41d8010a7e4c6f0ae91e1437a82
      onRefreshUser: () => void;
      user: ProviderUser | null;
 diff --git a/src/components/app/lattice/Lattice.tsx b/src/components/app/lattice/Lattice.tsx
-index 994ebbdec0042e30c7d73243a5abff94c41334e5..ca70c5eeb568349eb7d826f1261094c1c6568644 100644
+index 994ebbde..ca70c5ee 100644
 --- a/src/components/app/lattice/Lattice.tsx
 +++ b/src/components/app/lattice/Lattice.tsx
 @@ -7,15 +7,15 @@ import LatticePlaybackProvider, { type LatticePlaybackActions } from './LatticeP
@@ -736,7 +884,7 @@ index 994ebbdec0042e30c7d73243a5abff94c41334e5..ca70c5eeb568349eb7d826f1261094c1
          <section
              className={`lattice-root ${isDaylight ? 'is-daylight' : ''} ${vignette ? 'has-vignette' : ''} ${lightsOn ? '' : 'is-lights-out'} ${posterTintEnabled ? 'has-poster-tint' : ''} ${posterTintUseCustomColor ? 'uses-custom-poster-tint' : ''}`}
 diff --git a/src/components/app/lattice/LatticePlaybackControls.tsx b/src/components/app/lattice/LatticePlaybackControls.tsx
-index a9a55bdfbbbd827546244c7240ce58b273b49c7a..9628f273b5a0ba2f74a1162dd0a8693838790155 100644
+index a9a55bdf..9628f273 100644
 --- a/src/components/app/lattice/LatticePlaybackControls.tsx
 +++ b/src/components/app/lattice/LatticePlaybackControls.tsx
 @@ -3,7 +3,7 @@ import { ArrowUpRight, Pause, Play } from 'lucide-react';
@@ -759,7 +907,7 @@ index a9a55bdfbbbd827546244c7240ce58b273b49c7a..9628f273b5a0ba2f74a1162dd0a86938
      const isPlaying = canControlCurrent && playerState === PlayerState.PLAYING;
 diff --git a/src/components/app/lattice/LatticePresenceLayer.tsx b/src/components/app/lattice/LatticePresenceLayer.tsx
 new file mode 100644
-index 0000000000000000000000000000000000000000..66fa45a7b9543cd5d258af26e63e0d61bc67bb34
+index 00000000..66fa45a7
 --- /dev/null
 +++ b/src/components/app/lattice/LatticePresenceLayer.tsx
 @@ -0,0 +1,28 @@
@@ -792,7 +940,7 @@ index 0000000000000000000000000000000000000000..66fa45a7b9543cd5d258af26e63e0d61
 +    );
 +}
 diff --git a/src/components/app/lattice/PosterWall.tsx b/src/components/app/lattice/PosterWall.tsx
-index 6b73247a96c5bfd22c07b0ccc4b2eafcefbd4c62..4677b337b0cb0825bd88e82bab9699bee20f816b 100644
+index 6b73247a..4677b337 100644
 --- a/src/components/app/lattice/PosterWall.tsx
 +++ b/src/components/app/lattice/PosterWall.tsx
 @@ -1,4 +1,5 @@
@@ -893,7 +1041,7 @@ index 6b73247a96c5bfd22c07b0ccc4b2eafcefbd4c62..4677b337b0cb0825bd88e82bab9699be
  
          </div>
 diff --git a/src/components/app/lattice/latticeModel.ts b/src/components/app/lattice/latticeModel.ts
-index 9aab7787da6ed6b65950efc1b79e580600b51c5e..55a5b11a83f2ca899b670797387cc1820acdbdff 100644
+index 9aab7787..55a5b11a 100644
 --- a/src/components/app/lattice/latticeModel.ts
 +++ b/src/components/app/lattice/latticeModel.ts
 @@ -17,6 +17,14 @@ export type LatticeTile = {
@@ -935,7 +1083,7 @@ index 9aab7787da6ed6b65950efc1b79e580600b51c5e..55a5b11a83f2ca899b670797387cc182
              song,
              title: song.name,
 diff --git a/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx b/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
-index d2fbc0937d7d67b020c7f9b309ecdd43df267e42..026d3427a329c4e797ab46d0a0c8bc8e6a9dc7a5 100644
+index d2fbc093..026d3427 100644
 --- a/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
 +++ b/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
 @@ -1,20 +1,40 @@
@@ -984,7 +1132,7 @@ index d2fbc0937d7d67b020c7f9b309ecdd43df267e42..026d3427a329c4e797ab46d0a0c8bc8e
      return <Context.Provider value={value}>{children}</Context.Provider>;
  }
 diff --git a/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts b/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts
-index 5cac47745f4d0c61864a4acd286d900db636ba19..f6a3129cd955bfa6a99d82388974adbea23d97d2 100644
+index 5cac4774..f6a3129c 100644
 --- a/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts
 +++ b/src/components/app/lattice/lyrics/createLatticeLyricRuntime.ts
 @@ -147,6 +147,7 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
@@ -1009,7 +1157,7 @@ index 5cac47745f4d0c61864a4acd286d900db636ba19..f6a3129cd955bfa6a99d82388974adbe
          },
          resize(w, h, devicePixelRatio) {
 diff --git a/src/components/app/lattice/lyrics/latticeLyricScene.ts b/src/components/app/lattice/lyrics/latticeLyricScene.ts
-index 1b3d8eb7e21236cd6e50c315de3fc3cbb5993255..97285f8d5fd4cbe259c6450723de93e23db0deb3 100644
+index 1b3d8eb7..97285f8d 100644
 --- a/src/components/app/lattice/lyrics/latticeLyricScene.ts
 +++ b/src/components/app/lattice/lyrics/latticeLyricScene.ts
 @@ -31,14 +31,20 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
@@ -1064,7 +1212,7 @@ index 1b3d8eb7e21236cd6e50c315de3fc3cbb5993255..97285f8d5fd4cbe259c6450723de93e2
          destroy() { pieces.forEach(destroyPiece); pieces.clear(); blur.destroy(); glowFilters.forEach(f => f.destroy()); container.destroy({ children: true }); quad.destroy(true); },
      };
 diff --git a/src/components/app/lattice/lyrics/types.ts b/src/components/app/lattice/lyrics/types.ts
-index 02be8582136933edb88afdbd0cde249ddd65938f..caaa9f85c0a0762e31af1803d161200d4c01589e 100644
+index 02be8582..caaa9f85 100644
 --- a/src/components/app/lattice/lyrics/types.ts
 +++ b/src/components/app/lattice/lyrics/types.ts
 @@ -11,6 +11,8 @@ export type LatticeLyricInput = LatticeLyricSource & {
@@ -1077,7 +1225,7 @@ index 02be8582136933edb88afdbd0cde249ddd65938f..caaa9f85c0a0762e31af1803d161200d
  
  export interface LatticeLyricRuntime {
 diff --git a/src/components/app/lattice/useLatticePlaybackFocus.ts b/src/components/app/lattice/useLatticePlaybackFocus.ts
-index c22dab1a20d7f184985c7a0b6c863ea76ce4b5df..d6b18ec72a2fffb6709ba8cd55d0e8d4f1a4f328 100644
+index c22dab1a..d6b18ec7 100644
 --- a/src/components/app/lattice/useLatticePlaybackFocus.ts
 +++ b/src/components/app/lattice/useLatticePlaybackFocus.ts
 @@ -3,9 +3,8 @@ import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
@@ -1101,7 +1249,7 @@ index c22dab1a20d7f184985c7a0b6c863ea76ce4b5df..d6b18ec72a2fffb6709ba8cd55d0e8d4
      // a store the palette subscribes to, so re-creating it on every queue or camera change would
      // write to that store — and re-render App, and with it the whole wall — for nothing.
 diff --git a/src/components/app/presentation/buildPlayerViewFlags.ts b/src/components/app/presentation/buildPlayerViewFlags.ts
-index 3ff95ec66a50370a5ea9b2c4f9e1d34c1e27d52b..f50e44af5626f68d7aab2f8ffee6a96e6613f0d7 100644
+index 3ff95ec6..f50e44af 100644
 --- a/src/components/app/presentation/buildPlayerViewFlags.ts
 +++ b/src/components/app/presentation/buildPlayerViewFlags.ts
 @@ -12,6 +12,8 @@ export const buildPlayerViewFlags = ({
@@ -1134,7 +1282,7 @@ index 3ff95ec66a50370a5ea9b2c4f9e1d34c1e27d52b..f50e44af5626f68d7aab2f8ffee6a96e
      };
  };
 diff --git a/src/components/command-palette/commands/searchCommands.ts b/src/components/command-palette/commands/searchCommands.ts
-index 87bb3901bec3289a90d33754a200d3478368fdde..a57ebd8b6c57fb3fddec0e3c2cb229afb4de2591 100644
+index 87bb3901..a57ebd8b 100644
 --- a/src/components/command-palette/commands/searchCommands.ts
 +++ b/src/components/command-palette/commands/searchCommands.ts
 @@ -1,6 +1,7 @@
@@ -1155,7 +1303,7 @@ index 87bb3901bec3289a90d33754a200d3478368fdde..a57ebd8b6c57fb3fddec0e3c2cb229af
          });
      }
 diff --git a/src/components/command-palette/useCommandPalette.ts b/src/components/command-palette/useCommandPalette.ts
-index 2ebbf236ddbabcc80a0ceb40e52d06a52bf8402d..2ae35b3ae22b095f5c59d439e277f5818b6f1fac 100644
+index 2ebbf236..2ae35b3a 100644
 --- a/src/components/command-palette/useCommandPalette.ts
 +++ b/src/components/command-palette/useCommandPalette.ts
 @@ -16,6 +16,7 @@ import { resolveCustomShortcutCommand } from './customShortcut';
@@ -1174,8 +1322,68 @@ index 2ebbf236ddbabcc80a0ceb40e52d06a52bf8402d..2ae35b3ae22b095f5c59d439e277f581
              // Ordered by who has the stronger claim on the keystroke, not by how the palette is
              // built. A modifier shortcut can never be mistaken for input, so it goes first; a
              // surface that reads bare characters outranks every modifier-free palette key, or the
+diff --git a/src/components/visualizer/VisualizerRenderer.tsx b/src/components/visualizer/VisualizerRenderer.tsx
+index e3578070..927029ff 100644
+--- a/src/components/visualizer/VisualizerRenderer.tsx
++++ b/src/components/visualizer/VisualizerRenderer.tsx
+@@ -35,7 +35,7 @@ const VisualizerRenderer: React.FC<VisualizerRendererProps> = ({ mode, ...props
+                 currentTime={resolvedProps.currentTime}
+                 lines={resolvedProps.lines}
+                 showText={resolvedProps.showText ?? true}
+-                theme={resolvedProps.theme}
++                theme={resolvedProps.backgroundTheme ?? resolvedProps.theme}
+                 subtitleTheme={resolvedProps.subtitleTheme}
+                 isPlayerChromeHidden={resolvedProps.isPlayerChromeHidden}
+                 hideTranslationSubtitle={resolvedProps.hideTranslationSubtitle}
+diff --git a/src/components/visualizer/VisualizerShell.tsx b/src/components/visualizer/VisualizerShell.tsx
+index 1efc35bf..11a6da2f 100644
+--- a/src/components/visualizer/VisualizerShell.tsx
++++ b/src/components/visualizer/VisualizerShell.tsx
+@@ -29,6 +29,7 @@ type VisualizerShellSharedProps = Pick<
+     | 'alwaysShowBackButton'
+     | 'onPlayerPanelGuideHotspotChange'
+     | 'isPreviewMode'
++    | 'backgroundTheme'
+ >;
+ 
+ interface VisualizerShellProps {
+@@ -76,6 +77,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
+     const onPlayerPanelGuideHotspotChange = sharedProps?.onPlayerPanelGuideHotspotChange;
+     const isBackButtonVisible = sharedProps?.alwaysShowBackButton || showBackButton;
+     const showStageLayers = !sharedProps?.isPreviewMode && !resolvedStaticMode;
++    const backgroundTheme = sharedProps?.backgroundTheme ?? theme;
+ 
+     const updatePlayerPanelGuideHotspot = (isActive: boolean) => {
+         if (playerPanelGuideHotspotRef.current === isActive) {
+@@ -185,7 +187,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
+             {renderBackground && (
+                 <VisualizerBackgroundRenderer
+                     config={sharedProps?.background}
+-                    theme={theme}
++                    theme={backgroundTheme}
+                     isDaylight={resolvedIsDaylight}
+                     coverUrl={resolvedCoverUrl}
+                     audioPower={audioPower}
+@@ -204,7 +206,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
+             {showStageLayers && (
+                 <FoliumStageLayerSlot
+                     slot="player.stage.back"
+-                    theme={theme}
++                    theme={backgroundTheme}
+                     isDaylight={resolvedIsDaylight}
+                     paused={resolvedPaused}
+                 />
+@@ -215,7 +217,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
+             {showStageLayers && (
+                 <FoliumStageLayerSlot
+                     slot="player.stage.front"
+-                    theme={theme}
++                    theme={backgroundTheme}
+                     isDaylight={resolvedIsDaylight}
+                     paused={resolvedPaused}
+                     className="absolute inset-0 pointer-events-none z-20"
 diff --git a/src/components/visualizer/cadenza/VisualizerCadenza.tsx b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
-index beb77c6373b2b4a8d50e586d0f8ffa153f899214..28ac44069065091b92a0c4849b6eedb7653036aa 100644
+index beb77c63..28ac4406 100644
 --- a/src/components/visualizer/cadenza/VisualizerCadenza.tsx
 +++ b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
 @@ -82,6 +82,8 @@ interface WordPlacement {
@@ -1316,7 +1524,7 @@ index beb77c6373b2b4a8d50e586d0f8ffa153f899214..28ac44069065091b92a0c4849b6eedb7
                  const passedDriftY = status === 'passed' ? placement.passedDriftY * passedDriftProgress : 0;
                  const targetX = width / 2 + placement.x + localFloatX + passedDriftX + (status === 'waiting' ? placement.entryOffsetX : 0);
 diff --git a/src/components/visualizer/classic/Visualizer.tsx b/src/components/visualizer/classic/Visualizer.tsx
-index d1ae93b6948fb17e34c8ee35a4676f4aaa777a14..a59f39d253c491ea1298a45d65207fcd3512b02c 100644
+index d1ae93b6..a59f39d2 100644
 --- a/src/components/visualizer/classic/Visualizer.tsx
 +++ b/src/components/visualizer/classic/Visualizer.tsx
 @@ -136,7 +136,7 @@ const getClassicLineContainerMotion = (renderProfile: ClassicLineRenderProfile |
@@ -1352,8 +1560,269 @@ index d1ae93b6948fb17e34c8ee35a4676f4aaa777a14..a59f39d253c491ea1298a45d65207fcd
                              initial={activeLineContainerMotion.initial}
                              animate={activeLineContainerMotion.animate}
                              exit={activeLineContainerMotion.exit}
+diff --git a/src/components/visualizer/definition.ts b/src/components/visualizer/definition.ts
+index f3c60ad2..bd4707fa 100644
+--- a/src/components/visualizer/definition.ts
++++ b/src/components/visualizer/definition.ts
+@@ -35,6 +35,8 @@ export interface VisualizerSharedProps {
+     currentLineIndex: number;
+     lines: Line[];
+     theme: Theme;
++    /** Original theme reserved for background/stage consumers when the lyric palette is overridden. */
++    backgroundTheme?: Theme;
+     subtitleTheme?: Theme;
+     isDaylight?: boolean;
+     audioPower: MotionValue<number>;
+diff --git a/src/components/visualizer/diorama/DioramaScene.tsx b/src/components/visualizer/diorama/DioramaScene.tsx
+index 836d1707..c7a369ee 100644
+--- a/src/components/visualizer/diorama/DioramaScene.tsx
++++ b/src/components/visualizer/diorama/DioramaScene.tsx
+@@ -33,6 +33,7 @@ import {
+ } from './dioramaTextRaster';
+ import { DioramaParticleField } from './DioramaParticleField';
+ import { buildDioramaParticleCorridorWindow } from './dioramaParticleCorridor';
++import { resolveDioramaBackgroundPalette } from './dioramaBackgroundPalette';
+ import {
+     DIORAMA_MOTE_LINES_AHEAD,
+     DIORAMA_MOTE_LINES_BEHIND,
+@@ -68,6 +69,7 @@ import {
+ // instead of snapping. All per-frame values are refs inside useFrame - never React state.
+ interface DioramaSceneProps {
+     theme: Theme;
++    backgroundTheme?: Theme;
+     // The continuous-tunnel sequencer + the sticky GLOBAL line index. The scene resolves each global
+     // index in the mounted window to its segment/local line/world frame, so the window can straddle a
+     // graft joint: the outgoing song's tail lines recede/dissolve behind while the incoming song's head
+@@ -374,6 +376,8 @@ interface DampedThemeColors {
+     accent: THREE.Color;
+     secondary: THREE.Color;
+     bg: THREE.Color;
++    particleAccent: THREE.Color;
++    particleSecondary: THREE.Color;
+ }
+ 
+ // One "unit" of the active line, rendered as its OWN plane: a single grapheme for CJK (每个字单独),
+@@ -402,6 +406,7 @@ interface PlacedUnitRaster {
+ 
+ const DioramaScene: React.FC<DioramaSceneProps> = ({
+     theme,
++    backgroundTheme = theme,
+     sequencer,
+     globalIndex,
+     transitionOutgoingIndex,
+@@ -462,6 +467,10 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
+         accent: theme.accentColor || theme.primaryColor,
+         secondary: theme.secondaryColor,
+     }), [theme.primaryColor, theme.accentColor, theme.secondaryColor]);
++    const backgroundPalette = useMemo(
++        () => resolveDioramaBackgroundPalette(backgroundTheme),
++        [backgroundTheme],
++    );
+ 
+     // Target theme colours as THREE colours; the damped copies chase these per-frame so theme / AI
+     // theme / song switches glide the whole scene's colour instead of snapping it.
+@@ -470,7 +479,9 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
+         accent: new THREE.Color(colors.accent),
+         secondary: new THREE.Color(colors.secondary),
+         bg: new THREE.Color(theme.backgroundColor),
+-    }), [colors, theme.backgroundColor]);
++        particleAccent: new THREE.Color(backgroundPalette.accent),
++        particleSecondary: new THREE.Color(backgroundPalette.secondary),
++    }), [backgroundPalette, colors, theme.backgroundColor]);
+     const dampedColorsRef = useRef<DampedThemeColors | null>(null);
+ 
+     // Rasters must rebuild once the app's web fonts (bundled + uploaded custom font) finish loading -
+@@ -860,6 +871,8 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
+                 accent: colorTargets.accent.clone(),
+                 secondary: colorTargets.secondary.clone(),
+                 bg: colorTargets.bg.clone(),
++                particleAccent: colorTargets.particleAccent.clone(),
++                particleSecondary: colorTargets.particleSecondary.clone(),
+             };
+         }
+         const damped = dampedColorsRef.current;
+@@ -868,6 +881,8 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
+         damped.accent.lerp(colorTargets.accent, colorK);
+         damped.secondary.lerp(colorTargets.secondary, colorK);
+         damped.bg.lerp(colorTargets.bg, colorK);
++        damped.particleAccent.lerp(colorTargets.particleAccent, colorK);
++        damped.particleSecondary.lerp(colorTargets.particleSecondary, colorK);
+         const sceneFog = frameState.scene.fog;
+         if (sceneFog) sceneFog.color.copy(damped.bg);
+ 
+@@ -920,7 +935,7 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
+         if (pointsMatRef.current) {
+             pointsMatRef.current.size = 0.03 * (1 + 0.42 * trebleEnv);
+             pointsMatRef.current.opacity = 0.16 + 0.18 * powerEnv;
+-            pointsMatRef.current.color.copy(damped.secondary).lerp(damped.accent, 0.3);
++            pointsMatRef.current.color.copy(damped.particleSecondary).lerp(damped.particleAccent, 0.3);
+         }
+ 
+         // Fit each lyric line to read well at the HERO distance (times its per-line staging scale and
+@@ -1131,7 +1146,7 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
+                         transparent
+                         opacity={0.2}
+                         depthWrite={false}
+-                        color={colors.secondary}
++                        color={backgroundPalette.secondary}
+                         blending={THREE.NormalBlending}
+                     />
+                 </points>
+@@ -1149,10 +1164,10 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
+                     audioPower={audioPower}
+                     audioBands={audioBands}
+                     audioLevel={motion.audioLevel}
+-                    primaryColor={colors.primary}
+-                    accentColor={colors.accent}
+-                    secondaryColor={colors.secondary}
+-                    backgroundColor={theme.backgroundColor}
++                    primaryColor={backgroundPalette.primary}
++                    accentColor={backgroundPalette.accent}
++                    secondaryColor={backgroundPalette.secondary}
++                    backgroundColor={backgroundPalette.background}
+                     transitionActive={transitionOutgoingIndex != null}
+                     readHeadLine={globalIndex}
+                     resetKey={activeSegKey}
+diff --git a/src/components/visualizer/diorama/VisualizerDiorama.tsx b/src/components/visualizer/diorama/VisualizerDiorama.tsx
+index 83b5e5d3..0a6cfb3f 100644
+--- a/src/components/visualizer/diorama/VisualizerDiorama.tsx
++++ b/src/components/visualizer/diorama/VisualizerDiorama.tsx
+@@ -418,6 +418,7 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
+                     />
+                     <DioramaScene
+                         theme={theme}
++                        backgroundTheme={props.backgroundTheme ?? theme}
+                         sequencer={seq}
+                         globalIndex={globalIndex}
+                         transitionOutgoingIndex={transition?.outgoingIndex ?? null}
+diff --git a/src/components/visualizer/diorama/dioramaBackgroundPalette.ts b/src/components/visualizer/diorama/dioramaBackgroundPalette.ts
+new file mode 100644
+index 00000000..f3c711f4
+--- /dev/null
++++ b/src/components/visualizer/diorama/dioramaBackgroundPalette.ts
+@@ -0,0 +1,11 @@
++import type { Theme } from '../../../types';
++
++// src/components/visualizer/diorama/dioramaBackgroundPalette.ts
++// Resolves the original theme colors used by Diorama's non-lyric particle field.
++
++export const resolveDioramaBackgroundPalette = (theme: Theme) => ({
++    primary: theme.primaryColor,
++    accent: theme.accentColor || theme.primaryColor,
++    secondary: theme.secondaryColor,
++    background: theme.backgroundColor,
++});
+diff --git a/src/components/visualizer/embeddedLyricTheme.ts b/src/components/visualizer/embeddedLyricTheme.ts
+new file mode 100644
+index 00000000..1f667ecf
+--- /dev/null
++++ b/src/components/visualizer/embeddedLyricTheme.ts
+@@ -0,0 +1,20 @@
++import type { Theme } from '../../types';
++
++// src/components/visualizer/embeddedLyricTheme.ts
++// Builds the lyric-facing palette overlay while leaving the caller's theme untouched.
++
++const HEX_COLOR_PATTERN = /^#[\da-f]{6}$/i;
++
++/** Adds the embedded preference to derived lyric colors without mutating the active theme. */
++export const applyEmbeddedLyricColor = (theme: Theme, color: string): Theme => {
++    if (!HEX_COLOR_PATTERN.test(color)) {
++        return theme;
++    }
++
++    return {
++        ...theme,
++        primaryColor: color,
++        accentColor: color,
++        wordColors: theme.wordColors?.map(wordColor => ({ ...wordColor, color })),
++    };
++};
+diff --git a/src/components/visualizer/fume/VisualizerFume.tsx b/src/components/visualizer/fume/VisualizerFume.tsx
+index 7aa87e94..349e1afb 100644
+--- a/src/components/visualizer/fume/VisualizerFume.tsx
++++ b/src/components/visualizer/fume/VisualizerFume.tsx
+@@ -64,6 +64,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
+         subtitleContentMode,
+         paused = false,
+     } = props;
++    const backgroundTheme = props.backgroundTheme ?? theme;
+     const viewportRef = useRef<HTMLDivElement | null>(null);
+     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+     const currentLineIndexRef = useRef(currentLineIndex);
+@@ -340,33 +341,33 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
+                         <div
+                             className="flex min-w-40 flex-col items-center gap-4 rounded-3xl border px-6 py-5"
+                             style={{
+-                                backgroundColor: theme.backgroundColor,
+-                                borderColor: colorWithAlpha(theme.secondaryColor, 0.24),
+-                                boxShadow: `0 18px 60px ${colorWithAlpha(theme.backgroundColor, 0.52)}`,
++                                backgroundColor: backgroundTheme.backgroundColor,
++                                borderColor: colorWithAlpha(backgroundTheme.secondaryColor, 0.24),
++                                boxShadow: `0 18px 60px ${colorWithAlpha(backgroundTheme.backgroundColor, 0.52)}`,
+                             }}
+                         >
+                             <Hourglass
+                                 size={24}
+                                 className="animate-pulse"
+-                                style={{ color: colorWithAlpha(theme.primaryColor, 0.78) }}
++                                style={{ color: colorWithAlpha(backgroundTheme.primaryColor, 0.78) }}
+                             />
+                             <div className="flex w-28 flex-col gap-2.5">
+                                 <div
+                                     className="h-2 rounded-full animate-pulse"
+-                                    style={{ backgroundColor: colorWithAlpha(theme.primaryColor, 0.32) }}
++                                    style={{ backgroundColor: colorWithAlpha(backgroundTheme.primaryColor, 0.32) }}
+                                 />
+                                 <div
+                                     className="h-2 rounded-full animate-pulse"
+                                     style={{
+                                         width: '78%',
+-                                        backgroundColor: colorWithAlpha(theme.primaryColor, 0.22),
++                                        backgroundColor: colorWithAlpha(backgroundTheme.primaryColor, 0.22),
+                                     }}
+                                 />
+                                 <div
+                                     className="h-2 rounded-full animate-pulse"
+                                     style={{
+                                         width: '56%',
+-                                        backgroundColor: colorWithAlpha(theme.secondaryColor, 0.2),
++                                        backgroundColor: colorWithAlpha(backgroundTheme.secondaryColor, 0.2),
+                                     }}
+                                 />
+                             </div>
+diff --git a/src/components/visualizer/monet/VisualizerMonet.tsx b/src/components/visualizer/monet/VisualizerMonet.tsx
+index dffa7ec8..acabc728 100644
+--- a/src/components/visualizer/monet/VisualizerMonet.tsx
++++ b/src/components/visualizer/monet/VisualizerMonet.tsx
+@@ -36,7 +36,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
+         currentTime,
+         currentLineIndex,
+         lines,
+-        theme,
++        theme: lyricTheme,
+         subtitleTheme,
+         subtitleFontScale = 1,
+         audioPower,
+@@ -56,6 +56,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
+         onLyricLineSeek,
+         seed,
+     } = props;
++    const theme = props.backgroundTheme ?? lyricTheme;
+     const { t } = useTranslation();
+     const resolvedSubtitleContentMode = resolveSubtitleContentMode(subtitleContentMode, showSubtitleTranslation);
+     const displayLines = useMemo(() => {
+@@ -281,7 +282,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
+                                     lines={displayLines}
+                                     currentLineIndex={currentLineIndex}
+                                     currentTime={currentTime}
+-                                    theme={theme}
++                                    theme={lyricTheme}
+                                     lyricFontPx={lyricFontPx}
+                                     inactiveFontPx={inactiveFontPx}
+                                     translationFontPx={translationFontPx}
 diff --git a/src/components/visualizer/partita/VisualizerPartita.tsx b/src/components/visualizer/partita/VisualizerPartita.tsx
-index f3aa9a7ebc4e419ca407fb1ddf3ae865061544cf..b9f24f6af23fd2c6a7fc3dbc924b114bef027717 100644
+index f3aa9a7e..b9f24f6a 100644
 --- a/src/components/visualizer/partita/VisualizerPartita.tsx
 +++ b/src/components/visualizer/partita/VisualizerPartita.tsx
 @@ -184,7 +184,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
@@ -1389,8 +1858,43 @@ index f3aa9a7ebc4e419ca407fb1ddf3ae865061544cf..b9f24f6af23fd2c6a7fc3dbc924b114b
                              initial={activeLineContainerMotion.initial}
                              animate={activeLineContainerMotion.animate}
                              exit={activeLineContainerMotion.exit}
+diff --git a/src/components/visualizer/useVisualizerRendererModel.ts b/src/components/visualizer/useVisualizerRendererModel.ts
+index 6ca27b9d..06bf8409 100644
+--- a/src/components/visualizer/useVisualizerRendererModel.ts
++++ b/src/components/visualizer/useVisualizerRendererModel.ts
+@@ -22,6 +22,8 @@ import { getSongAlbumLabel, getSongArtistLabel } from '../../services/onlineMusi
+ import { useVisualizerBackgroundConfig } from './useVisualizerBackgroundConfig';
+ import { useVisualizerTunings } from './useVisualizerTunings';
+ import { NO_LYRIC_LINES } from '../../utils/lyrics/noLyricLines';
++import { useEmbeddedLyricColor } from '../../hooks/useEmbeddedLyricColor';
++import { applyEmbeddedLyricColor } from './embeddedLyricTheme';
+ 
+ // src/components/visualizer/useVisualizerRendererModel.ts
+ //
+@@ -97,6 +99,11 @@ export const useVisualizerRendererModel = ({
+     const displayPlayerState = usePlaybackStore(selectDisplayPlayerState);
+     const backgroundConfig = useVisualizerBackgroundConfig();
+     const visualizerTunings = useVisualizerTunings();
++    const embeddedLyricColor = useEmbeddedLyricColor();
++    const lyricTheme = useMemo(
++        () => applyEmbeddedLyricColor(theme, embeddedLyricColor),
++        [embeddedLyricColor, theme],
++    );
+ 
+     const songArtist = useMemo(
+         () => (displaySong ? getSongArtistLabel(displaySong) || null : null),
+@@ -125,7 +132,8 @@ export const useVisualizerRendererModel = ({
+         currentTime: lyricCurrentTime,
+         currentLineIndex,
+         lines: displayLyrics?.lines || NO_LYRIC_LINES,
+-        theme,
++        theme: lyricTheme,
++        backgroundTheme: theme,
+         subtitleTheme,
+         isDaylight,
+         audioPower,
 diff --git a/src/hooks/useAppNavigation.ts b/src/hooks/useAppNavigation.ts
-index eb800200ade03cfd8a1bbb08764158d8127dd90f..8ffeb0a6c5d70bd608b9f720e78086c5b21e598c 100644
+index eb800200..8ffeb0a6 100644
 --- a/src/hooks/useAppNavigation.ts
 +++ b/src/hooks/useAppNavigation.ts
 @@ -18,6 +18,13 @@ import { usePlaybackStore } from '../stores/usePlaybackStore';
@@ -1608,9 +2112,53 @@ index eb800200ade03cfd8a1bbb08764158d8127dd90f..8ffeb0a6c5d70bd608b9f720e78086c5
              return;
          }
          useCollectionNavigationStore.getState().clear();
+diff --git a/src/hooks/useEmbeddedLyricColor.ts b/src/hooks/useEmbeddedLyricColor.ts
+new file mode 100644
+index 00000000..3e9844b6
+--- /dev/null
++++ b/src/hooks/useEmbeddedLyricColor.ts
+@@ -0,0 +1,38 @@
++import { useEffect, useState } from 'react';
++
++// src/hooks/useEmbeddedLyricColor.ts
++// Subscribes the shared visualizer model to the bridge's discrete embedded lyric-color preference.
++
++const LYRIC_COLOR_EVENT = 'shizuki:lyric-color-change';
++const HEX_COLOR_PATTERN = /^#[\da-f]{6}$/i;
++
++const readEmbeddedLyricColor = (): string => {
++    if (typeof document === 'undefined') {
++        return '';
++    }
++
++    const root = document.getElementById('folia-embed-root');
++    if (!root || root.dataset.shizukiLyricColor !== 'custom') {
++        return '';
++    }
++
++    const color = root.style.getPropertyValue('--shizuki-folia-lyric-color').trim();
++    return HEX_COLOR_PATTERN.test(color) ? color : '';
++};
++
++/** Reads the bridge's discrete embedded preference without subscribing to playback or animation state. */
++export const useEmbeddedLyricColor = (): string => {
++    const [color, setColor] = useState(readEmbeddedLyricColor);
++
++    useEffect(() => {
++        const syncColorFromEmbedRoot = () => setColor(readEmbeddedLyricColor());
++        window.addEventListener(LYRIC_COLOR_EVENT, syncColorFromEmbedRoot);
++        // Close the render/effect gap: a bridge update between the initial read and subscription
++        // is recovered from the root's validated state after the listener is installed.
++        syncColorFromEmbedRoot();
++
++        return () => window.removeEventListener(LYRIC_COLOR_EVENT, syncColorFromEmbedRoot);
++    }, []);
++
++    return color;
++};
 diff --git a/src/hooks/useLatticeExitGate.ts b/src/hooks/useLatticeExitGate.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..11d3653e3acb6fd0ee59aa536938af28c48b4f63
+index 00000000..11d3653e
 --- /dev/null
 +++ b/src/hooks/useLatticeExitGate.ts
 @@ -0,0 +1,17 @@
@@ -1632,7 +2180,7 @@ index 0000000000000000000000000000000000000000..11d3653e3acb6fd0ee59aa536938af28
 +    return { hasLatticeExited, onLatticeExitComplete };
 +};
 diff --git a/src/hooks/usePlaybackInteractionBridge.ts b/src/hooks/usePlaybackInteractionBridge.ts
-index 78cca1045de7e249e32f1f3554ad07c15a203aa2..f07cd70954013e59dcff4d2301a6d020616cdbc6 100644
+index 78cca104..f07cd709 100644
 --- a/src/hooks/usePlaybackInteractionBridge.ts
 +++ b/src/hooks/usePlaybackInteractionBridge.ts
 @@ -15,6 +15,8 @@ import { setIsPanelOpen, useAppViewStore } from '../stores/useAppViewStore';
@@ -1688,7 +2236,7 @@ index 78cca1045de7e249e32f1f3554ad07c15a203aa2..f07cd70954013e59dcff4d2301a6d020
                              audioRef.current.currentTime = nextTime;
                          }
 diff --git a/src/hooks/usePlaybackQueueController.ts b/src/hooks/usePlaybackQueueController.ts
-index 5a5f273ce923435722668932f7276009cb4028eb..39d417922f05ece8bc190212a1829c9ea7586285 100644
+index 5a5f273c..39d41792 100644
 --- a/src/hooks/usePlaybackQueueController.ts
 +++ b/src/hooks/usePlaybackQueueController.ts
 @@ -16,6 +16,7 @@ import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
@@ -1799,7 +2347,7 @@ index 5a5f273ce923435722668932f7276009cb4028eb..39d417922f05ece8bc190212a1829c9e
          }
      }, [audioQuality, currentSong, isNowPlayingStageActive, playQueue, setPlayQueue, setStatusMsg, t, userId]);
 diff --git a/src/index.tsx b/src/index.tsx
-index 1913f8d981287006f2c914e4a5c3eae7b7477db7..a5501f6fa75a56f810058ab64f387010d52be644 100644
+index 1913f8d9..a5501f6f 100644
 --- a/src/index.tsx
 +++ b/src/index.tsx
 @@ -22,4 +22,9 @@ installMemorySampleFeed();
@@ -1814,7 +2362,7 @@ index 1913f8d981287006f2c914e4a5c3eae7b7477db7..a5501f6fa75a56f810058ab64f387010
  void import('./bootstrap');
 diff --git a/src/index.tsx.bak b/src/index.tsx.bak
 new file mode 100644
-index 0000000000000000000000000000000000000000..1913f8d981287006f2c914e4a5c3eae7b7477db7
+index 00000000..1913f8d9
 --- /dev/null
 +++ b/src/index.tsx.bak
 @@ -0,0 +1,25 @@
@@ -1845,7 +2393,7 @@ index 0000000000000000000000000000000000000000..1913f8d981287006f2c914e4a5c3eae7
 +void import('./bootstrap');
 diff --git a/src/services/embeddedWorkspaceNavigation.ts b/src/services/embeddedWorkspaceNavigation.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..df7d5afa445a9bf3a1d220644378ffb94fa05b9f
+index 00000000..df7d5afa
 --- /dev/null
 +++ b/src/services/embeddedWorkspaceNavigation.ts
 @@ -0,0 +1,205 @@
@@ -2056,7 +2604,7 @@ index 0000000000000000000000000000000000000000..df7d5afa445a9bf3a1d220644378ffb9
 +};
 diff --git a/src/services/embeddedWorkspaceRuntime.ts b/src/services/embeddedWorkspaceRuntime.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..323ea49a0cea9e550b6ff0e21571dcc5ffe12b94
+index 00000000..323ea49a
 --- /dev/null
 +++ b/src/services/embeddedWorkspaceRuntime.ts
 @@ -0,0 +1,7 @@
@@ -2069,7 +2617,7 @@ index 0000000000000000000000000000000000000000..323ea49a0cea9e550b6ff0e21571dcc5
 +};
 diff --git a/src/services/shizukiEmbeddedPlayback.ts b/src/services/shizukiEmbeddedPlayback.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..3ff2f05051350afd4c516fa9ce67f9aa5f9880bc
+index 00000000..3ff2f050
 --- /dev/null
 +++ b/src/services/shizukiEmbeddedPlayback.ts
 @@ -0,0 +1,117 @@
@@ -2192,7 +2740,7 @@ index 0000000000000000000000000000000000000000..3ff2f05051350afd4c516fa9ce67f9aa
 +});
 diff --git a/src/shizukiExternalBridge.ts b/src/shizukiExternalBridge.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..48654ae0203fc2faede72a4e4adcd99a68d3d102
+index 00000000..48654ae0
 --- /dev/null
 +++ b/src/shizukiExternalBridge.ts
 @@ -0,0 +1,1240 @@
@@ -3437,7 +3985,7 @@ index 0000000000000000000000000000000000000000..48654ae0203fc2faede72a4e4adcd99a
 +  }
 +}
 diff --git a/src/types/appPlayback.ts b/src/types/appPlayback.ts
-index 592018a7c71d3e6f024e61b2191cc9c8ce84e07b..f28a3841ea675502a13866a486b87b377af1ceab 100644
+index 592018a7..f28a3841 100644
 --- a/src/types/appPlayback.ts
 +++ b/src/types/appPlayback.ts
 @@ -15,6 +15,12 @@ import type { MediaId } from './onlineMusic';
@@ -3455,7 +4003,7 @@ index 592018a7c71d3e6f024e61b2191cc9c8ce84e07b..f28a3841ea675502a13866a486b87b37
      /**
 diff --git a/test/unit/buildPlayerViewFlags.embedded.test.ts b/test/unit/buildPlayerViewFlags.embedded.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..37b611f0091541c029ce350d768695f6e59f95f0
+index 00000000..37b611f0
 --- /dev/null
 +++ b/test/unit/buildPlayerViewFlags.embedded.test.ts
 @@ -0,0 +1,30 @@
@@ -3491,7 +4039,7 @@ index 0000000000000000000000000000000000000000..37b611f0091541c029ce350d768695f6
 +});
 diff --git a/test/unit/cadenzaWrappedLyrics.test.ts b/test/unit/cadenzaWrappedLyrics.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..4a4892d93da36c544ccd496d4f268e704b50e053
+index 00000000..4a4892d9
 --- /dev/null
 +++ b/test/unit/cadenzaWrappedLyrics.test.ts
 @@ -0,0 +1,80 @@
@@ -3575,9 +4123,215 @@ index 0000000000000000000000000000000000000000..4a4892d93da36c544ccd496d4f268e70
 +        }
 +    });
 +});
+diff --git a/test/unit/embeddedPlayerLyricColor.integration.test.ts b/test/unit/embeddedPlayerLyricColor.integration.test.ts
+new file mode 100644
+index 00000000..8405d54b
+--- /dev/null
++++ b/test/unit/embeddedPlayerLyricColor.integration.test.ts
+@@ -0,0 +1,200 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { act, createElement } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import { installShizukiExternalBridge } from '../../src/shizukiExternalBridge';
++import { useVisualizerRendererModel } from '../../src/components/visualizer/useVisualizerRendererModel';
++import VisualizerShell from '../../src/components/visualizer/VisualizerShell';
++import { useVisualizerSettingsStore } from '../../src/stores/useVisualizerSettingsStore';
++import { resolveWordColor } from '../../src/components/visualizer/wordColoring';
++import { mixColors } from '../../src/components/visualizer/colorMix';
++import { setEmbeddedWorkspaceRuntimeActive } from '../../src/services/embeddedWorkspaceRuntime';
++import { resolveDioramaBackgroundPalette } from '../../src/components/visualizer/diorama/dioramaBackgroundPalette';
++import type { Theme } from '../../src/types';
++
++// test/unit/embeddedPlayerLyricColor.integration.test.ts
++// Mounts the real bridge and shared renderer boundary to verify live lyric colors and isolated background consumers.
++
++let reactRoot: Root | null = null;
++let originalVisualizerMode: ReturnType<typeof useVisualizerSettingsStore.getState>['visualizerMode'] | null = null;
++
++const baseTheme = {
++  primaryColor: '#ffffff', accentColor: '#3366ff', secondaryColor: '#99aaff', backgroundColor: '#101010',
++  wordColors: [{ word: 'gift', color: '#ffcc00' }],
++} as Theme;
++
++const subtitleTheme = {
++  ...baseTheme, primaryColor: '#22aaff', accentColor: '#4488cc', secondaryColor: '#77bbdd',
++} as Theme;
++
++function SharedRendererThemeProbe({ theme = baseTheme }: { theme?: Theme }) {
++  const model = useVisualizerRendererModel({
++    theme,
++    subtitleTheme,
++    seed: 'song-450',
++    isObsBrowserSourceRendering: false,
++    shouldPauseVisualizerBackground: false,
++    hideTranslationSubtitle: false,
++    isPlayerPageTransparent: false,
++    onLyricLineSeek: vi.fn(),
++    onBack: vi.fn(),
++  });
++  const canvasWordColor = resolveWordColor('gift', model.theme.wordColors, model.theme.accentColor);
++  const canvasSweepColor = mixColors(model.theme.primaryColor, canvasWordColor, 0.68);
++  const dioramaBackgroundPalette = resolveDioramaBackgroundPalette(model.backgroundTheme ?? theme);
++
++  const themeProbe = createElement('output', {
++    'data-testid': 'shared-renderer-theme',
++    'data-mode': model.mode,
++    'data-primary-color': model.theme.primaryColor,
++    'data-accent-color': model.theme.accentColor,
++    'data-word-color': model.theme.wordColors?.[0]?.color,
++    'data-canvas-word-color': canvasWordColor,
++    'data-canvas-sweep-color': canvasSweepColor,
++    'data-subtitle-color': model.subtitleTheme.primaryColor,
++    'data-background-color': model.theme.backgroundColor,
++    'data-background-primary-color': model.backgroundTheme?.primaryColor,
++    'data-background-accent-color': model.backgroundTheme?.accentColor,
++    'data-background-secondary-color': model.backgroundTheme?.secondaryColor,
++    'data-diorama-background-primary': dioramaBackgroundPalette.primary,
++    'data-diorama-background-accent': dioramaBackgroundPalette.accent,
++    'data-diorama-background-secondary': dioramaBackgroundPalette.secondary,
++  });
++
++  return createElement('section', null,
++    themeProbe,
++    createElement(VisualizerShell, {
++      theme: model.theme,
++      audioPower: model.audioPower,
++      audioBands: model.audioBands,
++      className: 'visualizer-shell',
++      sharedProps: {
++        backgroundTheme: model.backgroundTheme,
++        background: { mode: 'common', common: { disableVignette: true } },
++        seed: 'lyric-color-background',
++        paused: true,
++        isPreviewMode: true,
++      },
++      children: createElement('div', { 'data-testid': 'renderer-child' }),
++    }),
++  );
++}
++
++describe('embedded full-player lyric color at the shared renderer theme boundary', () => {
++  afterEach(() => {
++    act(() => reactRoot?.unmount());
++    reactRoot = null;
++    if (originalVisualizerMode) {
++      useVisualizerSettingsStore.getState().handleSetVisualizerMode(originalVisualizerMode, { notify: false });
++      originalVisualizerMode = null;
++    }
++    setEmbeddedWorkspaceRuntimeActive(false);
++    document.body.replaceChildren();
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++  });
++
++  it('updates the mounted primary renderer palette from the real bridge event while preserving subtitle and background themes', async () => {
++    originalVisualizerMode = useVisualizerSettingsStore.getState().visualizerMode;
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++    const embedRoot = document.createElement('div');
++    embedRoot.id = 'folia-embed-root';
++    const markedDomWord = document.createElement('span');
++    markedDomWord.dataset.shizukiFoliaLyricWordBody = 'true';
++    markedDomWord.textContent = 'Gift';
++    embedRoot.append(markedDomWord);
++    document.body.append(embedRoot);
++
++    const host = document.createElement('div');
++    document.body.append(host);
++    reactRoot = createRoot(host);
++    installShizukiExternalBridge();
++    await act(async () => { reactRoot!.render(createElement(SharedRendererThemeProbe)); });
++
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', {
++        data: { type: 'shizuki:set-lyric-color', color: '#e43b57' },
++      }));
++    });
++
++    expect(embedRoot.dataset.shizukiLyricColor).toBe('custom');
++    expect(embedRoot.style.getPropertyValue('--shizuki-folia-lyric-color')).toBe('#e43b57');
++    expect(document.getElementById('shizuki-folia-lyric-color-style')?.textContent)
++      .toContain('[data-shizuki-folia-lyric-word-body]');
++    expect(embedRoot.style.getPropertyValue('--shizuki-folia-lyric-color')).toBe('#e43b57');
++
++    const renderer = host.querySelector('[data-testid="shared-renderer-theme"]');
++    expect(renderer?.getAttribute('data-primary-color')).toBe('#e43b57');
++    expect(renderer?.getAttribute('data-accent-color')).toBe('#e43b57');
++    expect(renderer?.getAttribute('data-word-color')).toBe('#e43b57');
++    expect(renderer?.getAttribute('data-canvas-word-color')).toBe('#e43b57');
++    expect(renderer?.getAttribute('data-canvas-sweep-color')).toBe('rgba(228, 59, 87, 1)');
++    expect(renderer?.getAttribute('data-subtitle-color')).toBe('#22aaff');
++    expect(renderer?.getAttribute('data-background-color')).toBe('#101010');
++    expect(renderer?.getAttribute('data-background-primary-color')).toBe('#ffffff');
++    expect(renderer?.getAttribute('data-background-accent-color')).toBe('#3366ff');
++    expect(renderer?.getAttribute('data-background-secondary-color')).toBe('#99aaff');
++    expect(renderer?.getAttribute('data-diorama-background-primary')).toBe('#ffffff');
++    expect(renderer?.getAttribute('data-diorama-background-accent')).toBe('#3366ff');
++    expect(renderer?.getAttribute('data-diorama-background-secondary')).toBe('#99aaff');
++    expect(baseTheme.wordColors?.[0]?.color).toBe('#ffcc00');
++    const background = host.querySelector('.visualizer-shell');
++    const backgroundUsesOriginalAccent = Array.from(background?.querySelectorAll<HTMLElement>('*') ?? [])
++      .some(element => element.style.backgroundColor === 'rgb(51, 102, 255)');
++    expect(backgroundUsesOriginalAccent).toBe(true);
++
++    await act(async () => { useVisualizerSettingsStore.getState().handleSetVisualizerMode('still', { notify: false }); });
++    expect(renderer?.getAttribute('data-mode')).toBe('still');
++    expect(renderer?.getAttribute('data-primary-color')).toBe('#e43b57');
++    expect(renderer?.getAttribute('data-accent-color')).toBe('#e43b57');
++    expect(renderer?.getAttribute('data-word-color')).toBe('#e43b57');
++    await act(async () => { useVisualizerSettingsStore.getState().handleSetVisualizerMode('classic', { notify: false }); });
++    expect(renderer?.getAttribute('data-mode')).toBe('classic');
++    expect(renderer?.getAttribute('data-primary-color')).toBe('#e43b57');
++
++    const updatedTheme = { ...baseTheme, primaryColor: '#abcd12', accentColor: '#654321' };
++    await act(async () => { reactRoot!.render(createElement(SharedRendererThemeProbe, { theme: updatedTheme as Theme })); });
++    expect(renderer?.getAttribute('data-primary-color')).toBe('#e43b57');
++    expect(renderer?.getAttribute('data-background-primary-color')).toBe('#abcd12');
++    expect(renderer?.getAttribute('data-background-accent-color')).toBe('#654321');
++
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', { data: { type: 'shizuki:set-lyric-color', color: '' } }));
++    });
++    expect(renderer?.getAttribute('data-primary-color')).toBe('#abcd12');
++    expect(renderer?.getAttribute('data-accent-color')).toBe('#654321');
++    expect(renderer?.getAttribute('data-word-color')).toBe('#ffcc00');
++    expect(renderer?.getAttribute('data-background-primary-color')).toBe('#abcd12');
++  });
++
++  it('does not consume host colors without an embed root and re-reads the root on parked re-entry', async () => {
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++    const host = document.createElement('div');
++    document.body.append(host);
++    reactRoot = createRoot(host);
++    installShizukiExternalBridge();
++
++    await act(async () => { reactRoot!.render(createElement(SharedRendererThemeProbe)); });
++    window.dispatchEvent(new CustomEvent('shizuki:lyric-color-change', { detail: { color: '#e43b57' } }));
++    expect(host.querySelector('[data-testid="shared-renderer-theme"]')?.getAttribute('data-primary-color')).toBe('#ffffff');
++
++    const embedRoot = document.createElement('div');
++    embedRoot.id = 'folia-embed-root';
++    document.body.append(embedRoot);
++    setEmbeddedWorkspaceRuntimeActive(false);
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', {
++        data: { type: 'shizuki:set-lyric-color', color: '#e43b57' },
++      }));
++    });
++    expect(embedRoot.dataset.shizukiLyricColor).toBe('custom');
++    expect(host.querySelector('[data-testid="shared-renderer-theme"]')?.getAttribute('data-primary-color')).toBe('#e43b57');
++
++    const removeListener = vi.spyOn(window, 'removeEventListener');
++    await act(async () => { reactRoot!.unmount(); });
++    expect(removeListener).toHaveBeenCalledWith('shizuki:lyric-color-change', expect.any(Function));
++    removeListener.mockRestore();
++    reactRoot = createRoot(host);
++    await act(async () => { reactRoot!.render(createElement(SharedRendererThemeProbe)); });
++    expect(host.querySelector('[data-testid="shared-renderer-theme"]')?.getAttribute('data-primary-color')).toBe('#e43b57');
++  });
++});
 diff --git a/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts b/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..ee2cbfdacb0f6ce38563a1a10bcefaf82563a379
+index 00000000..ee2cbfda
 --- /dev/null
 +++ b/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts
 @@ -0,0 +1,98 @@
@@ -3681,7 +4435,7 @@ index 0000000000000000000000000000000000000000..ee2cbfdacb0f6ce38563a1a10bcefaf8
 +});
 diff --git a/test/unit/latticePresenceLayer.integration.test.ts b/test/unit/latticePresenceLayer.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..3f8dffbdc638d3251e1081b0ccaec569a9597039
+index 00000000..3f8dffbd
 --- /dev/null
 +++ b/test/unit/latticePresenceLayer.integration.test.ts
 @@ -0,0 +1,80 @@
@@ -3767,7 +4521,7 @@ index 0000000000000000000000000000000000000000..3f8dffbdc638d3251e1081b0ccaec569
 +});
 diff --git a/test/unit/latticeQueueEntryIdentity.integration.test.ts b/test/unit/latticeQueueEntryIdentity.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..fca27229b42b657dfb176f91633e80411e146302
+index 00000000..fca27229
 --- /dev/null
 +++ b/test/unit/latticeQueueEntryIdentity.integration.test.ts
 @@ -0,0 +1,185 @@
@@ -3958,7 +4712,7 @@ index 0000000000000000000000000000000000000000..fca27229b42b657dfb176f91633e8041
 +});
 diff --git a/test/unit/latticeRepeatedExit.integration.test.ts b/test/unit/latticeRepeatedExit.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..7127d15cea7e1496e52a1c288aa5da6bf4ce26d7
+index 00000000..7127d15c
 --- /dev/null
 +++ b/test/unit/latticeRepeatedExit.integration.test.ts
 @@ -0,0 +1,167 @@
@@ -4131,7 +4885,7 @@ index 0000000000000000000000000000000000000000..7127d15cea7e1496e52a1c288aa5da6b
 +});
 diff --git a/test/unit/shizukiEmbeddedKeyboard.integration.test.ts b/test/unit/shizukiEmbeddedKeyboard.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..b681a9ab089c673031f7781926d8af738e68664b
+index 00000000..b681a9ab
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedKeyboard.integration.test.ts
 @@ -0,0 +1,77 @@
@@ -4214,7 +4968,7 @@ index 0000000000000000000000000000000000000000..b681a9ab089c673031f7781926d8af73
 +});
 diff --git a/test/unit/shizukiEmbeddedPlayback.test.ts b/test/unit/shizukiEmbeddedPlayback.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..d8980074a8ae6bb2d416c0605ab50d1b6645d4e1
+index 00000000..d8980074
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedPlayback.test.ts
 @@ -0,0 +1,134 @@
@@ -4354,7 +5108,7 @@ index 0000000000000000000000000000000000000000..d8980074a8ae6bb2d416c0605ab50d1b
 +});
 diff --git a/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts b/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..8ca75dd57704379bc543ebce81b37a081484c4c5
+index 00000000..8ca75dd5
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts
 @@ -0,0 +1,246 @@
@@ -4606,7 +5360,7 @@ index 0000000000000000000000000000000000000000..8ca75dd57704379bc543ebce81b37a08
 +});
 diff --git a/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts b/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..e7af3dea516a0893a6a6a04941b4937cb89ed61a
+index 00000000..e7af3dea
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts
 @@ -0,0 +1,214 @@
@@ -4826,7 +5580,7 @@ index 0000000000000000000000000000000000000000..e7af3dea516a0893a6a6a04941b4937c
 +});
 diff --git a/test/unit/shizukiExternalBridge.integration.test.ts b/test/unit/shizukiExternalBridge.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..877b49584a17694125c26c958c86adeec5439c89
+index 00000000..877b4958
 --- /dev/null
 +++ b/test/unit/shizukiExternalBridge.integration.test.ts
 @@ -0,0 +1,170 @@
@@ -5002,7 +5756,7 @@ index 0000000000000000000000000000000000000000..877b49584a17694125c26c958c86adee
 +});
 diff --git a/test/unit/shizukiLatticeLyricColor.integration.test.ts b/test/unit/shizukiLatticeLyricColor.integration.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..ec33beb9d2790c3295b9355cefb7cd00f7b3bfd7
+index 00000000..ec33beb9
 --- /dev/null
 +++ b/test/unit/shizukiLatticeLyricColor.integration.test.ts
 @@ -0,0 +1,190 @@
@@ -5196,8 +5950,50 @@ index 0000000000000000000000000000000000000000..ec33beb9d2790c3295b9355cefb7cd00
 +    chorusView.destroy();
 +  });
 +});
+diff --git a/test/unit/visualizer/dioramaBackgroundPalette.test.ts b/test/unit/visualizer/dioramaBackgroundPalette.test.ts
+new file mode 100644
+index 00000000..57a9ddf1
+--- /dev/null
++++ b/test/unit/visualizer/dioramaBackgroundPalette.test.ts
+@@ -0,0 +1,36 @@
++import { describe, expect, it } from 'vitest';
++import type { Theme } from '../../../src/types';
++import { applyEmbeddedLyricColor } from '../../../src/components/visualizer/embeddedLyricTheme';
++import { resolveDioramaBackgroundPalette } from '../../../src/components/visualizer/diorama/dioramaBackgroundPalette';
++
++// test/unit/visualizer/dioramaBackgroundPalette.test.ts
++// Keeps Diorama's particle palette on the source theme while the foreground lyric palette follows the embed preference.
++
++const sourceTheme = {
++    name: 'source',
++    primaryColor: '#ffffff',
++    accentColor: '#3366ff',
++    secondaryColor: '#99aaff',
++    backgroundColor: '#101010',
++    fontStyle: 'sans',
++    animationIntensity: 'normal',
++    wordColors: [{ word: 'gift', color: '#ffcc00' }],
++} as Theme;
++
++describe('Diorama background palette with embedded lyric color', () => {
++    it('keeps particle colors on the source theme while lyric glyph derivation uses the selected color', () => {
++        const lyricTheme = applyEmbeddedLyricColor(sourceTheme, '#e43b57');
++        const backgroundPalette = resolveDioramaBackgroundPalette(sourceTheme);
++
++        expect(lyricTheme.primaryColor).toBe('#e43b57');
++        expect(lyricTheme.accentColor).toBe('#e43b57');
++        expect(lyricTheme.wordColors?.[0]?.color).toBe('#e43b57');
++        expect(backgroundPalette).toEqual({
++            primary: '#ffffff',
++            accent: '#3366ff',
++            secondary: '#99aaff',
++            background: '#101010',
++        });
++        expect(sourceTheme.wordColors?.[0]?.color).toBe('#ffcc00');
++    });
++});
 diff --git a/vite.config.ts b/vite.config.ts
-index 6e7d176029519b9bcc2f170e35db2cd0c81441a7..31647832cbf09fbc46d0840d27a087c159f352a3 100644
+index 6e7d1760..31647832 100644
 --- a/vite.config.ts
 +++ b/vite.config.ts
 @@ -192,7 +192,7 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
@@ -5211,7 +6007,7 @@ index 6e7d176029519b9bcc2f170e35db2cd0c81441a7..31647832cbf09fbc46d0840d27a087c1
      },
 diff --git a/vite.config.ts.bak b/vite.config.ts.bak
 new file mode 100644
-index 0000000000000000000000000000000000000000..2a8bd3167670ebea2102bec6f01e08255dacb50e
+index 00000000..2a8bd316
 --- /dev/null
 +++ b/vite.config.ts.bak
 @@ -0,0 +1,277 @@

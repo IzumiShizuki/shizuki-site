@@ -103,7 +103,11 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     resetMocks();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    document.querySelectorAll('script[src*="/music/"]').forEach((script) => {
+      if (script.dataset.loaded !== '1') script.dispatchEvent(new Event('error'));
+    });
+    await flushPromises();
     vi.clearAllMocks();
   });
 
@@ -276,18 +280,37 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
-  it('renders the concise shared-player dock only while Folia is active', async () => {
+  it('keeps the host playback dock and queue overlay out of Folia mode', async () => {
     const wrapper = await mountPage({ teleport: true });
     expect(wrapper.find('.folia-compact-dock').exists()).toBe(false);
     window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
     await flushPromises();
-    expect(wrapper.find('.folia-compact-dock').exists()).toBe(true);
-    expect(wrapper.find('.folia-compact-dock .ctrl-btn.primary').exists()).toBe(true);
-    await wrapper.get('.folia-compact-dock').trigger('click');
-    await wrapper.get('.folia-compact-dock .ctrl-btn.primary').trigger('click');
+    expect(wrapper.find('.folia-compact-dock').exists()).toBe(false);
+    expect(wrapper.find('.folia-embed-pane .dock-queue').exists()).toBe(false);
     expect(mocked.router.push).not.toHaveBeenCalled();
-    expect(mocked.player.togglePlay).toHaveBeenCalledOnce();
     expect(window.localStorage.getItem('shizuki.music.foliaMode')).toBe('1');
+    wrapper.unmount();
+  });
+
+  it('applies a Folia lyric color from the input event before a change event', async () => {
+    const wrapper = await mountPage({ teleport: true });
+    window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+    await flushPromises();
+    const postMessage = vi.spyOn(window, 'postMessage');
+    const input = wrapper.get('[aria-label="Folia 主歌词颜色"]');
+    input.element.value = '#e43b57';
+
+    await input.trigger('input');
+
+    expect(window.localStorage.getItem('shizuki.music.foliaLyricColor')).toBe('#e43b57');
+    expect(postMessage).toHaveBeenCalledOnce();
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'shizuki:set-lyric-color', color: '#e43b57'
+    }), window.location.origin);
+    await input.trigger('change');
+    expect(postMessage).toHaveBeenCalledOnce();
+
+    postMessage.mockRestore();
     wrapper.unmount();
   });
 
@@ -333,6 +356,87 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     expect(mocked.player.replaceQueueWithTracks).not.toHaveBeenCalled();
     expect(mocked.api.getPlaylistBundleByCode).not.toHaveBeenCalled();
     wrapper.unmount();
+  });
+
+  it('expands the current queue through a late duplicate and continues paging forward', async () => {
+    const tracks = Array.from({ length: 1000 }, (_, index) => ({
+      id: index === 12 || index === 869 ? 'duplicate-42' : `track-${index}`,
+      trackId: index === 12 || index === 869 ? '42' : `track-${index}`,
+      provider: 'navidrome',
+      queueEntryId: `queue-entry-${index}`,
+      title: index === 869 ? 'Current late duplicate' : index === 12 ? 'Earlier duplicate' : `Track ${index}`
+    }));
+    mocked.route = {
+      name: 'music-library-queue', path: '/music-library/queue', fullPath: '/music-library/queue', query: {}, params: {}, meta: {}
+    };
+    mocked.player.tracks.value = tracks;
+    mocked.player.queueDisplayTracks.value = tracks;
+    mocked.player.currentTrack.value = tracks[869];
+    mocked.player.queueSourceContext.value = {
+      kind: 'collection', collection: { source: 'navidrome', type: 'playlist', id: 'opaque:P2', name: 'Native P2' }
+    };
+    const wrapper = await mountPage({ teleport: true });
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      expect(context.currentPlaylistTracks.value).toHaveLength(870);
+      expect(context.currentPlaylistTracks.value[869].queueEntryId).toBe('queue-entry-869');
+      expect(context.currentPlaylistHasMore.value).toBe(true);
+
+      context.loadMoreCurrentPlaylistTracks();
+      expect(context.currentPlaylistTracks.value.length).toBeGreaterThan(870);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('returns a changed Folia song to the same real playlist and signals a fresh row reveal', async () => {
+    const tracks = [
+      { id: 'default_public-first', trackId: 'default_public-first', provider: 'netease', queueEntryId: 'p1-entry-a', title: 'P1 A' },
+      { id: 'default_public-second', trackId: 'default_public-second', provider: 'netease', queueEntryId: 'p1-entry-b', title: 'P1 B' }
+    ];
+    mocked.route = {
+      name: 'music-library-playlist', path: '/music-library/playlist/default_public', fullPath: '/music-library/playlist/default_public',
+      query: {}, params: { playlistCode: 'default_public' }, meta: {}
+    };
+    mocked.player.tracks.value = tracks;
+    mocked.player.currentTrack.value = tracks[0];
+    mocked.player.playlistProfile.value = { playlistCode: 'default_public', name: '默认歌单' };
+    mocked.player.queueSourceContext.value = { kind: 'queue', sitePlaylistCode: 'default_public' };
+    mocked.player.selectTrackByIndex.mockImplementation(async (index) => {
+      mocked.player.currentTrack.value = tracks[index];
+      return true;
+    });
+    const wrapper = await mountPage({ teleport: true });
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      const initialRevealVersion = context.currentTrackRevealVersion.value;
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      await flushPromises();
+
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'shizuki:playback-intent',
+          track: tracks[1],
+          selection: {
+            kind: 'track', queuePolicy: 'preserve-or-insert', selectedIndex: 1,
+            embeddedSelectionView: 'lattice',
+            sourceContext: { kind: 'queue', sitePlaylistCode: 'default_public' }
+          }
+        }
+      }));
+      await flushPromises();
+      expect(mocked.player.currentTrack.value.queueEntryId).toBe('p1-entry-b');
+
+      await wrapper.get('.folia-library-btn').trigger('click');
+      await flushPromises();
+
+      expect(mocked.router.push).toHaveBeenCalledWith({
+        name: 'music-library-playlist', params: { playlistCode: 'default_public' }
+      });
+      expect(context.currentTrackRevealVersion.value).toBeGreaterThan(initialRevealVersion);
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it('selects the exact duplicate queue entry from a Folia wall without replacing the shared queue', async () => {
