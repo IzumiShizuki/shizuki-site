@@ -922,6 +922,7 @@ const playerBridge = Object.freeze({
   tracks: player.tracks,
   queueDisplayTracks: player.queueDisplayTracks,
   playlistProfile: player.playlistProfile,
+  queueSourceContext: player.queueSourceContext,
   playlistLoading: player.playlistLoading,
   playlistError: player.playlistError,
   currentTrack: player.currentTrack,

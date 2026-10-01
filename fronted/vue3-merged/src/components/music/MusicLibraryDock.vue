@@ -1,5 +1,5 @@
 <template>
-  <footer ref="rootRef" class="music-library-dock liquid-material" :class="{ 'detail-layout': detailLayout }" @click="handleRootClick">
+  <footer ref="rootRef" class="music-library-dock liquid-material" :class="{ 'detail-layout': detailLayout, 'folia-compact-dock': compact }" @click="handleRootClick">
     <!-- 与详情页共用对数频带处理和晶体频谱绘制，避免低频挤在左侧。 -->
     <MusicVisualizerLayer class="tw-spectrum" variant="bars-crystal" :active="isPlaying" />
 
@@ -147,7 +147,8 @@ const props = defineProps({
   isPlaying: { type: Boolean, default: false },
   playMode: { type: String, default: 'sequential' },
   volume: { type: Number, default: 0.8 },
-  detailLayout: { type: Boolean, default: false }
+  detailLayout: { type: Boolean, default: false },
+  compact: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([

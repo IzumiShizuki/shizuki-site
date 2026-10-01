@@ -286,12 +286,39 @@ function normalizeTrack(track, index) {
 }
 
 function normalizePlaylistProfile(profile) {
+  const preserveOpaqueQueue = profile?.sourceContext && typeof profile.sourceContext === 'object'
+    && !String(profile.sourceContext.sitePlaylistCode || '').trim();
   return {
-    playlistCode: String(profile?.playlistCode || profile?.playlist_code || DEFAULT_PLAYLIST_CODE).trim() || DEFAULT_PLAYLIST_CODE,
+    playlistCode: preserveOpaqueQueue
+      ? ''
+      : (String(profile?.playlistCode || profile?.playlist_code || DEFAULT_PLAYLIST_CODE).trim() || DEFAULT_PLAYLIST_CODE),
     name: String(profile?.name || '默认歌单').trim() || '默认歌单',
     description: String(profile?.description || '').trim(),
     cover: String(profile?.cover || '').trim()
   };
+}
+
+function normalizeQueueSourceContext(context, fallbackCode = '') {
+  if (context && typeof context === 'object') {
+    const kind = ['collection', 'queue', 'single'].includes(context.kind) ? context.kind : 'queue';
+    const collection = context.collection && typeof context.collection === 'object'
+      ? {
+          source: String(context.collection.source || 'online').trim(),
+          ...(context.collection.providerId ? { providerId: String(context.collection.providerId) } : {}),
+          ...(context.collection.type ? { type: String(context.collection.type) } : {}),
+          id: String(context.collection.id || ''),
+          ...(context.collection.name ? { name: String(context.collection.name) } : {})
+        }
+      : undefined;
+    const sitePlaylistCode = String(context.sitePlaylistCode || '').trim();
+    return {
+      kind,
+      ...(collection ? { collection } : {}),
+      ...(sitePlaylistCode ? { sitePlaylistCode } : {})
+    };
+  }
+  const code = String(fallbackCode || '').trim();
+  return code ? { kind: 'queue', sitePlaylistCode: code } : { kind: 'queue' };
 }
 
 function normalizePlaylistBundleProfile(rawProfile, fallbackCode = DEFAULT_PLAYLIST_CODE) {
@@ -351,6 +378,8 @@ export function usePlayerEngine(options = {}) {
       cover: ''
     })
   );
+  const queueSourceContext = ref({ kind: 'queue', sitePlaylistCode: DEFAULT_PLAYLIST_CODE });
+  let queueReplacementGeneration = 0;
   const loading = playlistLoading;
 
   const playMode = ref(MODE_ORDER.includes(persisted.playMode) ? persisted.playMode : 'sequential');
@@ -1370,6 +1399,7 @@ export function usePlayerEngine(options = {}) {
       const profile = normalizePlaylistBundleProfile(payload?.profile || payload?.playlist || {}, normalizedCode);
       const normalizedTracks = normalizeRemoteTracks(payload?.tracks);
       playlistProfile.value = profile;
+      queueSourceContext.value = { kind: 'queue', sitePlaylistCode: normalizedCode };
       tracks.value = normalizedTracks;
       lyricResolveAttempted.value = new Set();
       playbackResolveAttempted.value = new Set();
@@ -1413,6 +1443,7 @@ export function usePlayerEngine(options = {}) {
   }
 
   async function replaceQueueWithTracks(rawTracks, startIndex = 0, autoPlay = true, source = {}) {
+    const replacementGeneration = ++queueReplacementGeneration;
     const input = Array.isArray(rawTracks) ? rawTracks : [];
     if (!input.length) return false;
     const normalized = input.map((item, idx) => normalizeTrack(item, idx));
@@ -1422,7 +1453,25 @@ export function usePlayerEngine(options = {}) {
     lyricResolveAttempted.value = new Set();
     playbackResolveAttempted.value = new Set();
 
-    const sourceCode = String(source?.sourceCode || source?.playlistCode || playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE).trim();
+    const explicitSourceContext = source && Object.prototype.hasOwnProperty.call(source, 'sourceContext');
+    const requestedSourceContext = explicitSourceContext
+      ? normalizeQueueSourceContext(source.sourceContext)
+      : null;
+    const sourceCode = explicitSourceContext
+      ? String(requestedSourceContext?.sitePlaylistCode || '').trim()
+      : String(source?.sourceCode || source?.playlistCode || playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE).trim();
+    if (explicitSourceContext) {
+      queueSourceContext.value = requestedSourceContext;
+      playlistProfile.value = normalizePlaylistProfile({
+        playlistCode: requestedSourceContext.sitePlaylistCode || '',
+        name: String(source?.sourceName || '播放队列'),
+        description: String(source?.sourceType || ''),
+        cover: String(source?.cover || ''),
+        sourceContext: requestedSourceContext
+      });
+    } else if (sourceCode) {
+      queueSourceContext.value = normalizeQueueSourceContext(null, sourceCode);
+    }
     if (sourceCode) {
       playlistProfile.value = normalizePlaylistProfile({
         playlistCode: sourceCode,
@@ -1433,7 +1482,10 @@ export function usePlayerEngine(options = {}) {
     }
 
     const safeIndex = Math.max(0, Math.min(tracks.value.length - 1, Number.isFinite(Number(startIndex)) ? Number(startIndex) : 0));
-    const selected = await selectTrackByIndex(safeIndex, autoPlay, { resolveIfMissing: true });
+    const selectionPromise = selectTrackByIndex(safeIndex, autoPlay, { resolveIfMissing: true });
+    const selectionAtStart = selectionGeneration;
+    const selected = await selectionPromise;
+    if (replacementGeneration !== queueReplacementGeneration || selectionAtStart !== selectionGeneration) return false;
     resetRandomQueue(tracks.value[safeIndex]?.id || '');
     if (!autoPlay) return true;
     return selected === true;
@@ -1461,6 +1513,7 @@ export function usePlayerEngine(options = {}) {
         durationMs: rawTrack?.durationMs ?? rawTrack?.duration_ms,
         durationLabel: rawTrack?.durationLabel ?? rawTrack?.duration_label,
         duration: rawTrack?.duration,
+        queueEntryId: rawTrack?.queueEntryId,
         playbackKind: rawTrack?.playbackKind ?? rawTrack?.playback_kind,
         isPreview: rawTrack?.isPreview === true || rawTrack?.is_preview === true,
         metadata: rawTrack?.metadata,
@@ -1475,6 +1528,7 @@ export function usePlayerEngine(options = {}) {
 
     if (replaceQueue) {
       tracks.value = [{ ...normalized, sort: 1 }];
+      queueSourceContext.value = { kind: 'single' };
       lyricResolveAttempted.value = new Set();
       randomQueue.value = [];
       if (autoPlay) {
@@ -1484,10 +1538,19 @@ export function usePlayerEngine(options = {}) {
       return true;
     }
 
-    const existingIndex = tracks.value.findIndex((item) => item.id === normalized.id);
+    const requestedQueueEntryId = String(rawTrack?.queueEntryId || '').trim();
+    const existingIndex = tracks.value.findIndex((item) => requestedQueueEntryId
+      ? String(item?.queueEntryId || '') === requestedQueueEntryId
+      : String(item?.provider || '').trim().toLowerCase() === String(normalized.provider || '').trim().toLowerCase()
+        && String(item?.trackId || item?.id || '') === String(normalized.trackId || normalized.id || ''));
+    if (!tracks.value.length) queueSourceContext.value = { kind: 'single' };
     if (existingIndex >= 0) {
       const next = tracks.value.slice();
-      next[existingIndex] = { ...next[existingIndex], ...normalized };
+      next[existingIndex] = {
+        ...next[existingIndex],
+        ...normalized,
+        queueEntryId: next[existingIndex].queueEntryId
+      };
       tracks.value = next;
       if (autoPlay) {
         const selected = await selectTrackByIndex(existingIndex, true);
@@ -1818,6 +1881,7 @@ export function usePlayerEngine(options = {}) {
     playlistLoading,
     playlistError,
     playlistProfile,
+    queueSourceContext,
     loadPlaylistByCode,
     reloadPlaylist: () => loadPlaylistByCode(playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE),
     replaceQueueWithTracks,

@@ -8,7 +8,7 @@
       <div class="cover" :style="coverStyle"></div>
 
       <div class="hero-main">
-        <p class="hero-type">歌单详情</p>
+        <p class="hero-type">{{ isQueueView ? '当前播放队列' : '歌单详情' }}</p>
         <h1>{{ profile.name || '未命名歌单' }}</h1>
         <p class="hero-desc">{{ profile.description || '暂无简介' }}</p>
         <p class="hero-stats">
@@ -22,14 +22,14 @@
           </button>
           <button class="hero-btn ripple-trigger" type="button" @click="openFoliaPlaylist" :disabled="!allTracks.length">
             <i class="fas fa-table-cells-large"></i>
-            Folia 浏览
+            Folia 播放
           </button>
-          <button class="hero-btn ripple-trigger" type="button" @click="music.reloadCurrentPlaylist" :disabled="music.currentPlaylistLoading.value">
+          <button v-if="!isQueueView" class="hero-btn ripple-trigger" type="button" @click="music.reloadCurrentPlaylist" :disabled="music.currentPlaylistLoading.value">
             <i class="fas fa-rotate-right"></i>
             刷新
           </button>
           <button
-            v-if="music.authState.value.isAuthenticated"
+            v-if="!isQueueView && music.authState.value.isAuthenticated"
             class="hero-btn ripple-trigger"
             type="button"
             @click="music.toggleCollectCurrentPlaylist"
@@ -58,9 +58,9 @@
 
       <article
         v-for="(item, index) in renderTracks"
-        :key="`playlist-track-${resolveTrackId(item) || index}`"
+        :key="`playlist-track-${item.queueEntryId || `${item.provider || 'local'}:${resolveTrackId(item)}:${index}`}`"
         class="table-row search-track-row ripple-trigger"
-        :class="{ active: resolveTrackId(item) === currentPlayingTrackId }"
+        :class="{ active: isCurrentTrack(item) }"
         @click="playTrack(index)"
       >
         <span>{{ String(index + 1).padStart(2, '0') }}</span>
@@ -117,12 +117,15 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 
 const music = useMusicLibraryContext();
+const route = useRoute();
+const isQueueView = computed(() => route.name === 'music-library-queue');
 
 const profile = computed(() => music.currentPlaylistProfile.value || { name: '', description: '', cover: '' });
 const allTracks = computed(() => (Array.isArray(music.currentPlaylistAllTracks?.value) ? music.currentPlaylistAllTracks.value : []));
@@ -132,7 +135,7 @@ const renderTracks = computed(() => {
   if (!allTracks.value.length) return [];
   return allTracks.value.slice(0, Math.min(allTracks.value.length, 100));
 });
-const currentPlayingTrackId = computed(() => resolveTrackId(music.player.currentTrack.value));
+const currentPlayingTrack = computed(() => music.player.currentTrack.value);
 const totalTrackCount = computed(() => {
   const profileCount = Number(profile.value?.trackCount || 0);
   if (Number.isFinite(profileCount) && profileCount > 0) {
@@ -172,14 +175,38 @@ function trackCoverStyle(trackItem) {
   };
 }
 
-function resolveRawIndexByTrackId(trackId) {
-  return allTracks.value.findIndex((item) => resolveTrackId(item) === trackId);
+function sameProviderTrack(left, right) {
+  const leftProvider = String(left?.provider || '').trim().toLowerCase();
+  const rightProvider = String(right?.provider || '').trim().toLowerCase();
+  const leftId = String(left?.trackId || left?.track_id || left?.id || '').trim();
+  const rightId = String(right?.trackId || right?.track_id || right?.id || '').trim();
+  return leftProvider === rightProvider && leftId === rightId;
+}
+
+function isCurrentTrack(item) {
+  const current = currentPlayingTrack.value;
+  if (!item || !current) return false;
+  const entryId = String(item.queueEntryId || '').trim();
+  const currentEntryId = String(current.queueEntryId || '').trim();
+  if (entryId && currentEntryId) return entryId === currentEntryId;
+  return sameProviderTrack(item, current);
+}
+
+function resolveRawIndexByTrack(item, displayIndex) {
+  if (isQueueView.value) return displayIndex;
+  const entryId = String(item?.queueEntryId || '').trim();
+  if (entryId) return allTracks.value.findIndex((candidate) => String(candidate?.queueEntryId || '').trim() === entryId);
+  const occurrence = renderTracks.value.slice(0, displayIndex + 1).filter((candidate) => sameProviderTrack(candidate, item)).length - 1;
+  const matchingIndexes = allTracks.value
+    .map((candidate, index) => sameProviderTrack(candidate, item) ? index : -1)
+    .filter((index) => index >= 0);
+  return matchingIndexes[occurrence] ?? -1;
 }
 
 function playTrack(filteredIndex) {
   const row = renderTracks.value[filteredIndex];
   if (!row) return;
-  const rawIndex = resolveRawIndexByTrackId(resolveTrackId(row));
+  const rawIndex = resolveRawIndexByTrack(row, filteredIndex);
   if (rawIndex < 0) return;
   music.playTrackInCurrentPlaylist(rawIndex);
 }
@@ -195,7 +222,10 @@ function openFoliaPlaylist() {
     detail: {
       view: 'lattice',
       tracks: allTracks.value,
-      playlist: profile.value
+      playlist: profile.value,
+      ...(isQueueView.value && music.player.queueSourceContext?.value
+        ? { sourceContext: music.player.queueSourceContext.value }
+        : {})
     }
   }));
 }

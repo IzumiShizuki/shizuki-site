@@ -12,7 +12,6 @@
         :data-folia-expanded="foliaViewportExpanded ? 'true' : 'false'"
         :aria-hidden="!foliaMode"
         :inert="!foliaMode"
-        @keydown.esc.stop="setFoliaViewportExpanded(false)"
       >
         <div class="folia-embed-toolbar">
           <div class="folia-embed-track" v-if="foliaTrackInfo">
@@ -23,13 +22,13 @@
           <span v-else class="folia-embed-hint">正在加载 Folia 沉浸播放器…</span>
           <div class="folia-embed-actions">
             <label class="folia-playlist-picker" title="用音乐界面的歌单在 Folia 播放">
-              <span class="folia-playlist-label"><i class="fas fa-list-ul"></i> 歌单</span>
+              <span class="folia-playlist-label"><i class="fas fa-list-ul"></i> Folia 播放</span>
               <select
                 class="folia-playlist-select"
                 :value="foliaSelectedPlaylist"
                 @change="handleFoliaPlaylistSelect"
               >
-                <option value="">选择歌单播放…</option>
+                <option value="">选择歌单并播放…</option>
                 <option v-for="item in foliaPlaylistOptions" :key="item.playlistCode" :value="item.playlistCode">
                   {{ item.name }}
                 </option>
@@ -91,16 +90,46 @@
             >
               <i :class="foliaViewportExpanded ? 'fas fa-compress' : 'fas fa-expand'"></i>
             </button>
-            <button class="folia-toolbar-btn folia-library-btn ripple-trigger" type="button" title="返回音乐库" aria-label="返回音乐库" @click="setFoliaMode(false)">
+            <button class="folia-toolbar-btn folia-library-btn ripple-trigger" type="button" title="返回音乐库" aria-label="返回音乐库" @click="returnToMusicLibrary">
               <i class="fas fa-arrow-left"></i>
             </button>
           </div>
+        </div>
+        <div v-if="foliaEntryPending || foliaEntryError" class="folia-entry-status" role="status" aria-live="polite">
+          <span v-if="foliaEntryPending">正在准备共享播放队列…</span>
+          <span v-else>{{ foliaEntryError }}</span>
+          <button v-if="foliaEntryError && foliaRetryAvailable" class="folia-toolbar-btn" type="button" @click="retryFoliaEntry">重试 Folia</button>
         </div>
         <div
           ref="foliaEmbedHostRef"
           class="folia-embed-host"
           data-folia-embed
         ></div>
+        <MusicLibraryDock
+          v-if="foliaMode"
+          :track="player.currentTrack.value"
+          :tracks="player.tracks.value"
+          :queue-tracks="player.queueDisplayTracks.value"
+          :current-track-id="player.currentTrack.value?.id || ''"
+          :is-playing="player.isPlaying.value"
+          :current-time="player.currentTime.value"
+          :duration="player.duration.value"
+          :expected-duration="player.expectedDuration.value"
+          :is-preview-playback="player.isPreviewPlayback.value"
+          :play-mode="player.playMode.value"
+          :volume="player.volume.value"
+          compact
+          detail-layout
+          @toggle-play="player.togglePlay"
+          @prev="player.playPrev"
+          @next="player.playNext"
+          @seek="player.seekToPercent"
+          @cycle-mode="player.cyclePlayMode"
+          @set-volume="player.setVolume"
+          @select-track="handleSelectTrackFromDock"
+          @open-collect-dialog="openCollectDialog()"
+          @open-player-detail="enterPlayerDetail"
+        />
       </section>
     </Teleport>
 
@@ -338,6 +367,11 @@ import { normalizePlaylistRowCapacity } from '../utils/musicSearchAllLayout';
 import { buildCollectPlaylistTargets } from '../utils/musicCollectTargets';
 import { resolveMusicCenterViewKey } from '../utils/musicRouteViewKey';
 import { createMusicSourceAccountSync } from '../utils/musicSourceAccountSync';
+import { resolveFoliaEntryModule } from '../utils/foliaEntryModule';
+import {
+  allocateMusicFoliaNavigationRequestId,
+  createMusicFoliaWorkspaceCoordinator
+} from '../utils/musicFoliaWorkspaceCoordinator';
 import {
   enrichSearchPlaylists,
   readDurationLabel,
@@ -388,7 +422,7 @@ const FOLIA_OUTBOUND_MESSAGE_TYPES = new Set([
   'shizuki:set-theme',
   'shizuki:set-lyric-color',
   'shizuki:set-wallpaper',
-  'shizuki:set-view'
+  'shizuki:navigate'
 ]);
 const homeStageContext = inject(HOME_STAGE_CONTEXT_KEY, null);
 const foliaMode = ref(readFoliaModePreference());
@@ -400,6 +434,14 @@ const foliaEmbedPaneRef = ref(null);
 const foliaEmbedHostRef = ref(null);
 const foliaTrackInfo = ref(null);
 const foliaSelectedPlaylist = ref('');
+const foliaSourceContext = ref(null);
+const foliaEntryPending = ref(false);
+const foliaEntryError = ref('');
+const foliaRetryAvailable = ref(false);
+let foliaDeferredNavigation = null;
+let foliaWorkspaceCoordinator = null;
+let foliaLatestEntryRequestId = 0;
+let foliaModeGeneration = 0;
 const foliaQueueOptions = computed(() => (Array.isArray(player.tracks?.value) ? player.tracks.value : []));
 const foliaCurrentQueueEntryId = computed(() => String(player.currentTrack?.value?.queueEntryId || ''));
 let foliaLastKnownNeteaseCookie = '';
@@ -436,8 +478,7 @@ async function preloadFoliaScripts() {
     const response = await fetch(indexUrl, { cache: 'no-store' });
     if (!response.ok) throw new Error(`failed to load Folia index (${response.status})`);
     const html = await response.text();
-    const mainMatch = html.match(/<script type="module"[^>]*src="([^"]+)"/);
-    const mainSrc = mainMatch ? mainMatch[1] : '/music/assets/main-C_MalaQ2.js';
+    const mainSrc = resolveFoliaEntryModule(html);
     const existing = document.querySelector(`link[href="${mainSrc}"]`);
     if (!existing) {
       const link = document.createElement('link');
@@ -476,18 +517,6 @@ async function loadFoliaEmbed() {
 
     foliaBridgeReady = embedRoot.children.length > 0;
     if (!foliaBridgeReady) throw new Error('Folia embed mount timed out');
-    postToFolia({ type: 'shizuki:activate-playback-bridge' });
-    deliverPendingFoliaView();
-    void (async () => {
-      // Folia may have refreshed its login after the last site-side write.
-      // Prefer that same-origin local value before asking the backend for an
-      // older copy, otherwise startup can overwrite the newer credential.
-      const foliaCookieSynced = await syncCookieBackFromFolia();
-      if (!foliaCookieSynced) await syncCookieToFolia();
-    })();
-    deliverPendingFoliaSession();
-    syncThemeToFolia();
-    syncFoliaWallpaper();
     return true;
   })().catch((error) => {
     foliaMountPromise = null;
@@ -714,26 +743,50 @@ const foliaPlaylistOptions = computed(() => {
   return options.filter((item) => (seen.has(item.playlistCode) ? false : (seen.add(item.playlistCode), true)));
 });
 
-/** 选择歌单后：由站点播放器接管队列，Folia 只跟随当前播放快照。 */
+function createFoliaSourceContext(profile = player.playlistProfile?.value || currentPlaylistProfile.value) {
+  if (player.queueSourceContext?.value) return normalizeFoliaSourceContext(player.queueSourceContext.value);
+  if (foliaSourceContext.value) return normalizeFoliaSourceContext(foliaSourceContext.value);
+  const code = String(profile?.playlistCode || profile?.playlist_code || currentPlaylistCodeFromRoute.value || '').trim();
+  const isKnownSitePlaylist = foliaPlaylistOptions.value.some((item) => item.playlistCode === code);
+  if (code && isKnownSitePlaylist) return { kind: 'queue', sitePlaylistCode: code };
+  return { kind: Array.isArray(player.tracks?.value) && player.tracks.value.length ? 'queue' : 'single' };
+}
+
+function ensureFoliaWorkspaceCoordinator() {
+  if (foliaWorkspaceCoordinator) return foliaWorkspaceCoordinator;
+  foliaWorkspaceCoordinator = createMusicFoliaWorkspaceCoordinator({
+    loadPlaylist: (code) => musicApi.getPlaylistBundleByCode(
+      code,
+      auth.isAuthenticated.value ? createAccountScopedMusicFetch(String(auth.user.value?.userId || '')) : undefined
+    ),
+    replaceQueueWithTracks: (...args) => player.replaceQueueWithTracks?.(...args),
+    playTrack: (track, options) => player.playExternalTrack?.(track, options),
+    selectQueueTrack: (index) => player.selectTrackByIndex?.(index, true),
+    isTrackCurrent: (track) => {
+      const requestedEntryId = String(track?.queueEntryId || '').trim();
+      const currentEntryId = String(player.currentTrack?.value?.queueEntryId || '').trim();
+      if (requestedEntryId && currentEntryId) return requestedEntryId === currentEntryId;
+      return readFoliaTrackKey(track) === readFoliaTrackKey(player.currentTrack?.value);
+    },
+    navigate: sendFoliaNavigation,
+    onStateChange: (state) => {
+      foliaLatestEntryRequestId = state.requestId;
+      foliaEntryPending.value = state.pending;
+      foliaEntryError.value = state.error;
+    }
+  });
+  return foliaWorkspaceCoordinator;
+}
+
+/** All host entries pass through the same generation-guarded queue/navigation coordinator. */
 async function handleFoliaPlaylistSelect(event) {
   const code = String(event?.target?.value || '').trim();
   foliaSelectedPlaylist.value = code;
   if (!code) return;
-  try {
-    const payload = await musicApi.getPlaylistBundleByCode(code, auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
-    const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
-    if (!tracks.length) return;
-    const selectedPlaylistName = foliaPlaylistOptions.value.find((item) => item.playlistCode === code)?.name || '';
-    const replaced = await player.replaceQueueWithTracks?.(tracks, 0, true, {
-      sourceCode: code,
-      sourceName: selectedPlaylistName,
-      sourceType: 'folia-toolbar'
-    });
-    if (!replaced) return;
-    await pushCurrentTrackToFolia();
-  } catch {
-    foliaSelectedPlaylist.value = '';
-  }
+  const profile = foliaPlaylistOptions.value.find((item) => item.playlistCode === code) || { playlistCode: code };
+  const result = await ensureFoliaWorkspaceCoordinator().selectPlaylist({ playlistCode: code, playlist: profile });
+  if (result.ok) foliaSourceContext.value = result.sourceContext;
+  else if (!foliaEntryPending.value) foliaSelectedPlaylist.value = '';
 }
 
 async function handleFoliaTrackSelect(event) {
@@ -741,7 +794,13 @@ async function handleFoliaTrackSelect(event) {
   if (!queueEntryId) return;
   const index = foliaQueueOptions.value.findIndex((track) => String(track?.queueEntryId || '') === queueEntryId);
   if (index < 0) return;
-  await player.selectTrackByIndex?.(index, true);
+  const result = await ensureFoliaWorkspaceCoordinator().selectSong({
+    track: foliaQueueOptions.value[index],
+    queueIndex: index,
+    surface: 'player',
+    sourceContext: createFoliaSourceContext()
+  });
+  if (result.ok) foliaSourceContext.value = result.sourceContext;
 }
 
 function readFoliaModePreference() {
@@ -753,8 +812,9 @@ function readFoliaModePreference() {
   }
 }
 
-function setFoliaMode(enabled, options = {}) {
+async function setFoliaMode(enabled, options = {}) {
   const nextEnabled = Boolean(enabled);
+  const modeGeneration = ++foliaModeGeneration;
   const syncPlayback = options.syncPlayback !== false;
   if (!nextEnabled) setFoliaViewportExpanded(false);
   foliaMode.value = nextEnabled;
@@ -766,15 +826,51 @@ function setFoliaMode(enabled, options = {}) {
     }
   }
   if (foliaMode.value) {
+    ensureFoliaWorkspaceCoordinator().activate();
     cancelFoliaWarmup();
-    void nextTick().then(async () => {
-      await loadFoliaEmbed();
+    foliaEntryError.value = '';
+    try {
+      await nextTick();
+      const loaded = await loadFoliaEmbed();
+      if (!loaded) throw new Error('Folia 暂时无法打开，请重试');
+      if (modeGeneration !== foliaModeGeneration || !foliaMode.value) return false;
       postToFolia({ type: 'shizuki:activate-playback-bridge' });
-    }).catch(() => {});
+      deliverPendingFoliaSession();
+      syncThemeToFolia();
+      syncFoliaWallpaper();
+      void (async () => {
+        // Folia may have refreshed its login after the last site-side write.
+        // Prefer that same-origin local value before asking the backend for an
+        // older copy, otherwise startup can overwrite the newer credential.
+        const foliaCookieSynced = await syncCookieBackFromFolia();
+        if (modeGeneration === foliaModeGeneration && foliaMode.value && !foliaCookieSynced) {
+          await syncCookieToFolia();
+        }
+      })();
+    } catch (error) {
+      if (modeGeneration !== foliaModeGeneration || !foliaMode.value) return false;
+      foliaEntryError.value = error?.message || 'Folia 暂时无法打开，请重试';
+      foliaRetryAvailable.value = true;
+      return false;
+    }
     if (syncPlayback) void pushCurrentTrackToFolia();
+    return true;
   } else {
+    ensureFoliaWorkspaceCoordinator().deactivate();
+    foliaDeferredNavigation = null;
+    foliaRetryAvailable.value = false;
+    foliaLatestEntryRequestId = allocateMusicFoliaNavigationRequestId();
+    postToFolia({
+      type: 'shizuki:navigate',
+      protocolVersion: 1,
+      requestId: foliaLatestEntryRequestId,
+      view: 'home',
+      active: false,
+      sourceContext: createFoliaSourceContext()
+    });
     stopFoliaClockSync();
     postToFolia({ type: 'shizuki:stop-follow-playback' });
+    return true;
   }
 }
 
@@ -1059,7 +1155,9 @@ function buildFoliaPlaybackSession() {
   const queue = (Array.isArray(player.tracks?.value) ? player.tracks.value : [])
     .map(buildFoliaDisplayTrack)
     .filter(Boolean);
-  const profile = player.playlistProfile?.value || null;
+  const rawProfile = player.playlistProfile?.value || null;
+  const sourceContext = normalizeFoliaSourceContext(player.queueSourceContext?.value || createFoliaSourceContext(rawProfile || undefined));
+  const profile = sourceContext.sitePlaylistCode ? rawProfile : null;
   const positionSec = Number(player.currentTime?.value || 0);
   const durationSec = Number(player.duration?.value || 0);
   const lyricIndex = Number(player.currentLyricEntryIndex?.value);
@@ -1067,6 +1165,7 @@ function buildFoliaPlaybackSession() {
     version: ++foliaPlaybackSessionVersion,
     track,
     queue,
+    sourceContext,
     playlist: profile
       ? {
         code: String(profile.playlistCode || profile.playlist_code || ''),
@@ -1170,6 +1269,7 @@ function normalizeFoliaPlaybackIntentTrack(rawTrack) {
     ? formatMediaTime(durationSec, { fallback: '--:--' })
     : '--:--';
   return {
+    ...rawTrack,
     id: trackId,
     trackId,
     provider: String(rawTrack?.provider || 'netease').trim().toLowerCase() || 'netease',
@@ -1179,45 +1279,85 @@ function normalizeFoliaPlaybackIntentTrack(rawTrack) {
     durationSec,
     duration: durationLabel,
     durationLabel,
-    metadata: { folia: true, durationMs: Number.isFinite(durationMs) ? durationMs : 0 }
+    metadata: { ...(rawTrack?.metadata && typeof rawTrack.metadata === 'object' ? rawTrack.metadata : {}), folia: true, durationMs: Number.isFinite(durationMs) ? durationMs : 0 }
   };
 }
-
-let foliaPlaybackIntentVersion = 0;
 
 /**
  * Folia 的选歌仅作为输入意图：站点播放器解析、播放并重新把快照推回 Folia。
  * 这样任一时刻都只有 usePlayerEngine.audioElement 产生声音。
  */
 async function mirrorFoliaPlaybackIntent(data) {
+  const selection = data?.selection && typeof data.selection === 'object' ? data.selection : {};
+  const sourceContext = normalizeFoliaSourceContext(data?.sourceContext || selection.sourceContext);
+  if (selection.kind === 'collection' && selection.queuePolicy === 'replace') {
+    const tracks = Array.isArray(selection.tracks)
+      ? selection.tracks.map(normalizeFoliaPlaybackIntentTrack).filter(Boolean)
+      : [];
+    const result = await ensureFoliaWorkspaceCoordinator().selectNativeCollection({
+      collection: sourceContext.collection,
+      tracks,
+      selectedIndex: Number.isInteger(Number(selection.selectedIndex)) ? Number(selection.selectedIndex) : 0,
+      sourceContext
+    });
+    if (result.ok) foliaSourceContext.value = result.sourceContext;
+    return result.ok;
+  }
+
   const track = normalizeFoliaPlaybackIntentTrack(data?.track);
   if (!track) return false;
-  const intentVersion = ++foliaPlaybackIntentVersion;
   const requestedPositionMs = Math.max(0, Number(data?.positionMs || 0));
   const shouldPlay = data?.playing !== false;
   const currentTrackKey = readFoliaTrackKey(player.currentTrack.value);
-  let played = true;
-
-  if (currentTrackKey !== readFoliaTrackKey(track)) {
-    // Folia is only a controller/view of the site-owned session. Replacing here
-    // would collapse the current playlist to its selected track, so preserve the
-    // existing queue just like a selection made from the normal music UI.
-    played = await player.playExternalTrack?.(track, { replaceQueue: false });
-  } else if (shouldPlay !== Boolean(player.isPlaying?.value)) {
-    await player.togglePlay?.();
-  }
-  if (!played || intentVersion !== foliaPlaybackIntentVersion) return false;
+  const selectedIndex = Number(selection.selectedIndex);
+  const indexedTrack = Number.isInteger(selectedIndex) && selectedIndex >= 0
+    ? playerQueueTracks.value[selectedIndex]
+    : null;
+  const indexedEntryId = String(indexedTrack?.queueEntryId || '').trim();
+  const requestedEntryId = String(track.queueEntryId || '').trim();
+  const indexMatchesTrack = indexedTrack && (
+    (indexedEntryId && requestedEntryId && indexedEntryId === requestedEntryId)
+    || (!requestedEntryId && readFoliaTrackKey(indexedTrack) === readFoliaTrackKey(track))
+  );
+  const result = await ensureFoliaWorkspaceCoordinator().selectSong({
+    track,
+    surface: (selection.view || selection.embeddedSelectionView) === 'player' ? 'immersive' : 'wall',
+    sourceContext,
+    ...(indexMatchesTrack && selection.queuePolicy === 'preserve-or-insert' ? { queueIndex: selectedIndex } : {})
+  });
+  if (!result.ok) return false;
+  foliaSourceContext.value = result.sourceContext;
 
   if (requestedPositionMs > 0) {
     player.seekToTime?.(requestedPositionMs / 1000);
   }
+  if (currentTrackKey === readFoliaTrackKey(track) && shouldPlay !== Boolean(player.isPlaying?.value)) {
+    await player.togglePlay?.();
+  }
   if (!shouldPlay && player.isPlaying?.value) {
     await player.togglePlay?.();
   }
-  await nextTick();
-  if (intentVersion !== foliaPlaybackIntentVersion) return false;
-  await pushCurrentTrackToFolia();
   return true;
+}
+
+function normalizeFoliaSourceContext(context) {
+  if (!context || typeof context !== 'object') return createFoliaSourceContext();
+  const sitePlaylistCode = String(context.sitePlaylistCode || '').trim();
+  const knownSitePlaylist = sitePlaylistCode === currentPlaylistCodeFromRoute.value
+    || foliaPlaylistOptions.value.some((item) => item.playlistCode === sitePlaylistCode);
+  return {
+    kind: ['collection', 'queue', 'single'].includes(context.kind) ? context.kind : 'queue',
+    ...(context.collection && typeof context.collection === 'object' ? {
+      collection: {
+        source: String(context.collection.source || 'online'),
+        providerId: context.collection.providerId,
+        type: context.collection.type,
+        id: String(context.collection.id || ''),
+        name: String(context.collection.name || '')
+      }
+    } : {}),
+    ...(knownSitePlaylist ? { sitePlaylistCode } : {})
+  };
 }
 
 async function applyFoliaPlaybackCommand(data) {
@@ -1267,6 +1407,12 @@ function handleFoliaBridgeMessage(event) {
   if (data.type === 'shizuki:playback-intent') {
     if (foliaMode.value) {
       void mirrorFoliaPlaybackIntent(data);
+    }
+    return;
+  }
+  if (data.type === 'shizuki:navigate-result') {
+    if (data.requestId === foliaLatestEntryRequestId && data.ok === false) {
+      foliaEntryError.value = 'Folia 画面暂时无法切换，播放仍可继续';
     }
     return;
   }
@@ -1453,16 +1599,30 @@ const searchResult = ref({
 });
 
 const isPlaylistRoute = computed(() => route.name === 'music-library-playlist');
+const isQueueRoute = computed(() => route.name === 'music-library-queue');
 const isPlayerDetailRoute = computed(() => route.name === 'music-library-player');
 const isVoiceRoute = computed(() => route.name === 'music-library-voice' || route.name === 'music-library-voice-work');
 const isMusicRoute = computed(() =>
-  route.name === 'music-library-music' || route.name === 'music-library' || (!isPlaylistRoute.value && !isPlayerDetailRoute.value && !isVoiceRoute.value)
+  route.name === 'music-library-music'
+  || route.name === 'music-library'
+  || (!isPlaylistRoute.value && !isQueueRoute.value && !isPlayerDetailRoute.value && !isVoiceRoute.value)
 );
 const currentCenterMode = computed(() => (isVoiceRoute.value ? 'voice' : 'music'));
 const showMusicSearchToolbar = computed(() => currentCenterMode.value === 'music');
 const currentPlaylistCodeFromRoute = computed(() => String(route.params.playlistCode || '').trim());
 
 const currentPlaylistProfile = computed(() => {
+  if (isQueueRoute.value) {
+    const sourceContext = normalizeFoliaSourceContext(player.queueSourceContext?.value || foliaSourceContext.value);
+    const profile = player.playlistProfile?.value || {};
+    return {
+      playlistCode: sourceContext.sitePlaylistCode || '',
+      name: String(profile.name || sourceContext.collection?.name || '当前播放队列'),
+      description: '当前共享播放队列',
+      cover: String(profile.cover || ''),
+      trackCount: playerQueueTracks.value.length
+    };
+  }
   const raw = playlistBrowseProfile.value || {};
   return {
     playlistCode: String(raw.playlistCode || raw.playlist_code || DEFAULT_PLAYLIST_CODE),
@@ -1474,6 +1634,7 @@ const currentPlaylistProfile = computed(() => {
 });
 
 const currentPlaylistAllTracks = computed(() => {
+  if (isQueueRoute.value) return playerQueueTracks.value;
   const list = Array.isArray(playlistBrowseTracks.value) ? playlistBrowseTracks.value : [];
   return list;
 });
@@ -1488,8 +1649,8 @@ const currentPlaylistTracks = computed(() => {
   return all.slice(0, visible);
 });
 const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length < currentPlaylistAllTracks.value.length);
-const currentPlaylistLoading = computed(() => Boolean(playlistBrowseLoading.value));
-const currentPlaylistError = computed(() => String(playlistBrowseError.value || ''));
+const currentPlaylistLoading = computed(() => !isQueueRoute.value && Boolean(playlistBrowseLoading.value));
+const currentPlaylistError = computed(() => isQueueRoute.value ? '' : String(playlistBrowseError.value || ''));
 const playerQueueTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
 let allSearchCapacityRefreshTimer = 0;
 const fatalErrorText = ref('');
@@ -3102,6 +3263,11 @@ async function enqueueSearchTrackNext(item, index) {
 async function playTrackInCurrentPlaylist(index) {
   const safeIndex = Number(index);
   if (!Number.isInteger(safeIndex) || safeIndex < 0 || safeIndex >= currentPlaylistAllTracks.value.length) return;
+  if (isQueueRoute.value) {
+    const selected = await player.selectTrackByIndex?.(safeIndex, true);
+    if (!selected) window.alert('该歌曲当前无法播放，请稍后重试');
+    return;
+  }
   const success = await player.replaceQueueWithTracks?.(
     currentPlaylistAllTracks.value,
     safeIndex,
@@ -3586,39 +3752,50 @@ watch(
   }
 );
 
-let foliaPendingView = null;
-
-function requestFoliaEmbeddedView(rawView = 'player') {
-  foliaPendingView = rawView === 'lattice' ? 'lattice' : 'player';
-  deliverPendingFoliaView();
+async function sendFoliaNavigation(request) {
+  if (!request || request.requestId !== foliaLatestEntryRequestId) return false;
+  foliaDeferredNavigation = request;
+  foliaRetryAvailable.value = true;
+  const loaded = await setFoliaMode(true, { syncPlayback: false });
+  if (!loaded) return { ok: false, error: foliaEntryError.value || 'Folia 暂时无法打开，请重试' };
+  if (request.requestId !== foliaLatestEntryRequestId) return false;
+  const sent = postToFolia({ type: 'shizuki:navigate', ...request });
+  if (sent && foliaDeferredNavigation?.requestId === request.requestId) {
+    foliaDeferredNavigation = null;
+    foliaRetryAvailable.value = false;
+  }
+  return sent ? true : { ok: false, error: 'Folia 暂时没有响应，请重试' };
 }
 
-function deliverPendingFoliaView() {
-  if (!foliaBridgeReady || !foliaPendingView) return;
-  const view = foliaPendingView;
-  foliaPendingView = null;
-  postToFolia({ type: 'shizuki:set-view', view });
+async function retryFoliaEntry() {
+  const request = foliaDeferredNavigation;
+  const loaded = await setFoliaMode(true, { syncPlayback: false });
+  if (!loaded) return false;
+  if (request && request.requestId === foliaLatestEntryRequestId) {
+    const sent = postToFolia({ type: 'shizuki:navigate', ...request });
+    if (sent) {
+      foliaDeferredNavigation = null;
+      foliaRetryAvailable.value = false;
+    }
+    return sent;
+  }
+  await pushCurrentTrackToFolia();
+  foliaRetryAvailable.value = false;
+  return true;
 }
 
 async function handleFoliaPlayRequest(event) {
   const track = event?.detail?.track;
   if (!track) return;
-  foliaTrackInfo.value = {
-    name: String(track.title || track.name || ''),
-    artist: String(track.artist || '')
-  };
-  const trackKey = readFoliaTrackKey(track);
-  const currentTrackKey = readFoliaTrackKey(player.currentTrack.value);
-  if (trackKey && trackKey !== currentTrackKey) {
-    const played = await player.playExternalTrack?.(track, { replaceQueue: false });
-    if (!played) return;
+  const result = await ensureFoliaWorkspaceCoordinator().selectSong({
+    track,
+    surface: 'immersive',
+    sourceContext: createFoliaSourceContext()
+  });
+  if (result.ok) {
+    foliaSourceContext.value = result.sourceContext;
+    foliaTrackInfo.value = { name: String(track.title || track.name || ''), artist: String(track.artist || '') };
   }
-  await nextTick();
-  await pushCurrentTrackToFolia();
-  if (!foliaMode.value) {
-    setFoliaMode(true, { syncPlayback: false });
-  }
-  requestFoliaEmbeddedView('player');
 }
 
 function handleOpenFoliaMode(event) {
@@ -3627,57 +3804,67 @@ function handleOpenFoliaMode(event) {
     void handleFoliaPlayRequest(event);
     return;
   }
-  if (!foliaMode.value) {
-    setFoliaMode(true);
-  }
-  requestFoliaEmbeddedView('player');
+  void ensureFoliaWorkspaceCoordinator().openCurrentSong({
+    sourceContext: createFoliaSourceContext(),
+    view: 'player'
+  });
 }
 
-/** 视图级沉浸切换：歌词沉浸 / 歌单大屏 → Folia lattice 视图。 */
+/** Host playlist entry always replaces the complete queue and starts its first song. */
 async function handleOpenFoliaLattice(event) {
-  const view = String(event?.detail?.view || 'lattice').trim();
+  const view = String(event?.detail?.view || 'lattice').trim() === 'player' ? 'player' : 'lattice';
   const track = event?.detail?.track || null;
   const requestedTracks = Array.isArray(event?.detail?.tracks) ? event.detail.tracks.filter(Boolean) : [];
-  const requestedPlaylist = event?.detail?.playlist && typeof event.detail.playlist === 'object'
-    ? event.detail.playlist
-    : null;
-  const trackIds = (Array.isArray(event?.detail?.trackIds) ? event.detail.trackIds : [])
-    .map((id) => Number(id))
-    .filter((id) => Number.isFinite(id) && id > 0);
-  if (!foliaMode.value) {
-    setFoliaMode(true, { syncPlayback: !track && !trackIds.length && !requestedTracks.length });
-  }
-  requestFoliaEmbeddedView(view);
-  if (track) {
-    await handleFoliaPlayRequest(event);
+  const playlist = event?.detail?.playlist && typeof event.detail.playlist === 'object' ? event.detail.playlist : null;
+  if (requestedTracks.length) {
+    const code = String(playlist?.playlistCode || playlist?.playlist_code || '').trim();
+    const result = await ensureFoliaWorkspaceCoordinator().selectPlaylist({
+      playlistCode: code,
+      playlist,
+      tracks: requestedTracks,
+      sourceContext: event?.detail?.sourceContext
+        ? normalizeFoliaSourceContext(event.detail.sourceContext)
+        : code ? { kind: 'queue', sitePlaylistCode: code } : { kind: 'queue' },
+      view
+    });
+    if (result.ok) foliaSourceContext.value = result.sourceContext;
     return;
   }
-  if (requestedTracks.length) {
-    const replaced = await player.replaceQueueWithTracks?.(requestedTracks, 0, true, {
-      sourceCode: String(requestedPlaylist?.playlistCode || requestedPlaylist?.playlist_code || ''),
-      sourceName: String(requestedPlaylist?.name || ''),
-      sourceType: 'folia-playlist-view'
+  if (track) {
+    const result = await ensureFoliaWorkspaceCoordinator().selectSong({
+      track,
+      surface: view === 'player' ? 'immersive' : 'wall',
+      sourceContext: createFoliaSourceContext()
     });
-    if (!replaced) return;
+    if (result.ok) foliaSourceContext.value = result.sourceContext;
+    return;
   }
-  if (trackIds.length) {
-    const queueByTrackId = new Map(
-      playerQueueTracks.value
-        .map((item) => [readFoliaTrackId(item), item])
-        .filter(([id]) => id > 0)
-    );
-    const requestedTracks = trackIds.map((id) => queueByTrackId.get(id)).filter(Boolean);
-    if (requestedTracks.length) {
-      const replaced = await player.replaceQueueWithTracks?.(requestedTracks, 0, true, {
-        sourceCode: player.playlistProfile?.value?.playlistCode || '',
-        sourceName: player.playlistProfile?.value?.name || '',
-        sourceType: 'folia-lattice'
-      });
-      if (!replaced) return;
-    }
+  const trackIds = (Array.isArray(event?.detail?.trackIds) ? event.detail.trackIds : []).map(String);
+  const index = trackIds.length
+    ? playerQueueTracks.value.findIndex((item) => trackIds.includes(String(item?.trackId || item?.id || '')))
+    : -1;
+  if (index >= 0) {
+    const result = await ensureFoliaWorkspaceCoordinator().selectSong({
+      track: playerQueueTracks.value[index],
+      queueIndex: index,
+      surface: view === 'player' ? 'immersive' : 'wall',
+      sourceContext: createFoliaSourceContext()
+    });
+    if (result.ok) foliaSourceContext.value = result.sourceContext;
+    return;
   }
-  await nextTick();
-  await pushCurrentTrackToFolia();
+  await ensureFoliaWorkspaceCoordinator().openCurrentSong({ sourceContext: createFoliaSourceContext(), view });
+}
+
+async function returnToMusicLibrary() {
+  const source = normalizeFoliaSourceContext(player.queueSourceContext?.value || foliaSourceContext.value || createFoliaSourceContext());
+  await setFoliaMode(false);
+  const code = source.sitePlaylistCode;
+  if (code && foliaPlaylistOptions.value.some((item) => item.playlistCode === code)) {
+    router.push({ name: 'music-library-playlist', params: { playlistCode: code } });
+  } else {
+    router.push({ name: 'music-library-queue' });
+  }
 }
 
 onMounted(async () => {
@@ -3694,8 +3881,13 @@ onMounted(async () => {
       window.addEventListener('shizuki:open-folia-lattice', handleOpenFoliaLattice);
     }
     if (foliaMode.value) {
-      await nextTick();
-      void loadFoliaEmbed().then(() => pushCurrentTrackToFolia()).catch(() => {});
+      const loaded = await setFoliaMode(true);
+      if (loaded) {
+        await ensureFoliaWorkspaceCoordinator().openCurrentSong({
+          sourceContext: createFoliaSourceContext(),
+          view: 'lattice'
+        });
+      }
     }
 
     await Promise.all([
@@ -3757,6 +3949,20 @@ async function reloadAfterFatalError() {
 }
 
 onBeforeUnmount(() => {
+  // Invalidate any script/mount promise that may settle after this page leaves.
+  foliaModeGeneration += 1;
+  foliaMode.value = false;
+  ensureFoliaWorkspaceCoordinator().deactivate();
+  if (foliaMode.value) {
+    postToFolia({
+      type: 'shizuki:navigate',
+      protocolVersion: 1,
+      requestId: allocateMusicFoliaNavigationRequestId(),
+      view: 'home',
+      active: false,
+      sourceContext: normalizeFoliaSourceContext(player.queueSourceContext?.value || foliaSourceContext.value)
+    });
+  }
   cancelFoliaWarmup();
   stopFoliaClockSync();
   postToFolia({ type: 'shizuki:stop-follow-playback' });

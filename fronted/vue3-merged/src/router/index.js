@@ -137,6 +137,7 @@ const routes = [
         meta: { requiresVoiceAccess: true }
       },
       { path: 'playlist/:playlistCode', name: 'music-library-playlist', component: MusicPlaylistDetailView },
+      { path: 'queue', name: 'music-library-queue', component: MusicPlaylistDetailView },
       { path: 'player', name: 'music-library-player', component: MusicPlayerDetailView }
     ]
   },
