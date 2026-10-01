@@ -430,6 +430,8 @@ let foliaPendingSession = null; // Folia bridge 就绪前暂存完整权威播�
 let foliaPlaybackSessionVersion = 0;
 let foliaPreloadPromise = null;
 let foliaMountPromise = null;
+let foliaMountGeneration = 0;
+let foliaMountWaitCancel = null;
 let foliaWarmupHandle = 0;
 let foliaWarmupUsesIdleCallback = false;
 const foliaScriptLoads = new Map();
@@ -475,9 +477,11 @@ async function preloadFoliaScripts() {
 async function loadFoliaEmbed() {
   if (foliaBridgeReady) return true;
   if (foliaMountPromise) return foliaMountPromise;
+  const mountGeneration = foliaMountGeneration;
+  const isCancelled = () => mountGeneration !== foliaMountGeneration;
   const host = foliaEmbedHostRef.value || document.querySelector('[data-folia-embed]');
   if (!host) return false;
-  foliaMountPromise = (async () => {
+  const requestPromise = (async () => {
     let embedRoot = document.getElementById('folia-embed-root');
     if (!embedRoot) {
       embedRoot = document.createElement('div');
@@ -488,38 +492,67 @@ async function loadFoliaEmbed() {
 
     if (embedRoot.children.length === 0) {
       const mainSrc = await preloadFoliaScripts();
+      if (isCancelled()) return false;
       await loadScript(mainSrc, { module: true });
-      await waitForFoliaMount(40000);
+      if (isCancelled()) return false;
+      const mounted = await waitForFoliaMount(40000, isCancelled);
+      if (!mounted && isCancelled()) return false;
     }
 
+    if (isCancelled()) return false;
     foliaBridgeReady = embedRoot.children.length > 0;
     if (!foliaBridgeReady) throw new Error('Folia embed mount timed out');
     return true;
-  })().catch((error) => {
-    foliaMountPromise = null;
+  })();
+  let sharedPromise;
+  sharedPromise = requestPromise.catch((error) => {
+    if (foliaMountPromise === sharedPromise) foliaMountPromise = null;
     throw error;
   });
+  foliaMountPromise = sharedPromise;
   return foliaMountPromise;
 }
 
 /** 轮询等待 Folia React 树挂载进 #folia-embed-root。 */
-function waitForFoliaMount(timeoutMs = 20000) {
+function waitForFoliaMount(timeoutMs = 20000, isCancelled = () => false) {
   const started = Date.now();
   return new Promise((resolve) => {
+    let timer = 0;
+    let settled = false;
+    const finish = (mounted) => {
+      if (settled) return;
+      settled = true;
+      if (timer) window.clearTimeout(timer);
+      if (foliaMountWaitCancel === cancelWait) foliaMountWaitCancel = null;
+      resolve(mounted);
+    };
+    const cancelWait = () => finish(false);
+    foliaMountWaitCancel = cancelWait;
     const poll = () => {
+      timer = 0;
+      if (isCancelled() || typeof document === 'undefined') {
+        finish(false);
+        return;
+      }
       const root = document.getElementById('folia-embed-root');
       if (root && root.children.length > 0) {
-        resolve(true);
+        finish(true);
         return;
       }
       if (Date.now() - started > timeoutMs) {
-        resolve(false);
+        finish(false);
         return;
       }
-      window.setTimeout(poll, 200);
+      timer = window.setTimeout(poll, 200);
     };
     poll();
   });
+}
+
+function cancelFoliaMount() {
+  foliaMountGeneration += 1;
+  foliaMountPromise = null;
+  foliaMountWaitCancel?.();
 }
 
 function loadScript(src, options = {}) {
@@ -835,6 +868,7 @@ async function setFoliaMode(enabled, options = {}) {
     if (syncPlayback) void pushCurrentTrackToFolia();
     return true;
   } else {
+    cancelFoliaMount();
     ensureFoliaWorkspaceCoordinator().deactivate();
     foliaDeferredNavigation = null;
     foliaRetryAvailable.value = false;
@@ -3974,6 +4008,7 @@ async function reloadAfterFatalError() {
 onBeforeUnmount(() => {
   // Invalidate any script/mount promise that may settle after this page leaves.
   foliaModeGeneration += 1;
+  cancelFoliaMount();
   foliaMode.value = false;
   ensureFoliaWorkspaceCoordinator().deactivate();
   if (foliaMode.value) {

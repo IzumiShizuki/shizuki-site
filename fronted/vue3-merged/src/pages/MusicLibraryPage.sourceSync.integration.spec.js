@@ -260,6 +260,40 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
+  it('stops polling for the embedded root when the page unmounts after the entry loads', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-empty-root.js"></script>'
+    });
+    const wrapper = await mountPage({ teleport: true });
+    const getElementById = vi.spyOn(document, 'getElementById');
+    try {
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+      const mainScript = document.querySelector('script[src="/music/assets/Lattice-empty-root.js"]');
+      expect(mainScript).toBeTruthy();
+      expect(document.getElementById('folia-embed-root').children).toHaveLength(0);
+
+      mainScript.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+      const pollCountAfterLoad = () => getElementById.mock.calls.filter(([id]) => id === 'folia-embed-root').length;
+      expect(pollCountAfterLoad()).toBeGreaterThan(0);
+
+      wrapper.unmount();
+      const pollCountAfterUnmount = pollCountAfterLoad();
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      expect(pollCountAfterLoad()).toBe(pollCountAfterUnmount);
+    } finally {
+      // Let any regression poll observe a mounted root before restoring the test DOM.
+      document.getElementById('folia-embed-root')?.appendChild(document.createElement('div'));
+      getElementById.mockRestore();
+      if (wrapper.exists()) wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('does not activate Folia when entry is cancelled before its queued activation runs', async () => {
     const wrapper = await mountPage({ teleport: true });
     const postMessage = vi.spyOn(window, 'postMessage');

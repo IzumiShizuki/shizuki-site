@@ -22,6 +22,10 @@ The host SHALL retain its shared audio session while presenting Folia's native p
 - **WHEN** ordinary playback enters Folia and subsequently returns
 - **THEN** Folia shows only its native transport while active and ordinary controls are available after return without restarting playback
 
+#### Scenario: Leave before the root mounts
+- **WHEN** an in-progress Folia entry is cancelled or the music library page unmounts
+- **THEN** its pending mount wait stops polling and cannot activate a stale entry
+
 ### Requirement: Authoritative ordinary playback list
 The system SHALL return ordinary mode to the authoritative playing playlist or current queue and reveal the exact current entry, including entries outside the initial rendered window and duplicate songs.
 
